@@ -48,6 +48,16 @@ code_symbols:
         - globular.platform:invariant.envoy.lds_progress_required_for_http_mesh_readiness
       relates_to:
         - globular.platform:failure_mode.envoy.lds_update_attempt_zero_despite_cds_progress
+  - id: globular.platform:code.go.platform_cluster_doctor.etcd_authority_pin
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/cluster_doctor_etcd_authority_test.go
+    component: platform_cluster_doctor.etcd_authority_pin
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.cluster_doctor.observer_only_never_writes_etcd
+        - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - id: globular.platform:code.go.platform_cluster_doctor.evidence_provenance
     namespace: globular.platform
     language: go

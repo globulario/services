@@ -151,6 +151,15 @@ type desiredVersionEntry struct {
 	Version string
 }
 
+// TODO(four-layer-read-authority, v1.2.166): same shape as
+// readDesiredBuildIDs in repository_dns_invariants.go. Violates
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage. The
+// proper path is a typed cluster_controller.ListDesiredServices /
+// GetDesiredState call plumbed through collector.Snapshot. The
+// architectural pin test allow-lists this one read by file:function;
+// new readers must not be added. See the TODO block on
+// readDesiredBuildIDs for the migration sketch.
+//
 // readDesiredVersions scans all desired-state etcd prefixes and returns a map
 // etcd-ref → (name, version). Best-effort: returns empty map on etcd error.
 func readDesiredVersions(ctx context.Context) map[string]desiredVersionEntry {

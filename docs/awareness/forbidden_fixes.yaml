@@ -2856,3 +2856,195 @@ forbidden_fixes:
       - golang/ai_watcher/
       - golang/globularcli/
       - golang/mcp/
+
+# ─────────────────────────────────────────────────────────────────────────
+# Read-side authority + identity immutability (Commit A.2).
+# ─────────────────────────────────────────────────────────────────────────
+
+- id: read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
+  summary: >
+    Read an etcd prefix or storage backend directly (e.g.
+    `cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/", ...)`)
+    when the prefix is owned by another service. Includes scanning multiple
+    L1/L2/L3 prefixes via the etcd client even when "we just need the data
+    for a moment" or "the owner doesn't expose a typed RPC for exactly this
+    shape yet".
+  reason: >
+    The owner's typed RPC is the canonical reader. Direct etcd reads
+    bypass:
+      - the owner's canonicalization (e.g. controller resolves version → build_id once)
+      - the owner's in-memory state (writes not yet flushed)
+      - version contracts (gates against pre-Day-1 reads)
+      - audit attribution
+    Even when the typed RPC happens to be missing for a particular shape,
+    the answer is to add a typed RPC to the owner, not to scan etcd.
+    Live regressions: cluster_doctor/rules/repository_dns_invariants.go
+    and rules/package_version_authority.go both fire on every invariant
+    evaluation and read four L2 etcd prefixes directly even though the
+    collector has a controllerClient already dialled.
+  safe_alternative: >
+    Call the owner's typed RPC. For L1: repository.{ListArtifacts,
+    GetArtifactManifest, ...}. For L2: cluster_controller.{GetDesiredState,
+    GetServiceRelease, GetInfrastructureRelease, ...}. For L3:
+    node_agent.{ListInstalledPackages, GetInstalledPackage,
+    GetServiceRuntimeProof, ...}. If the typed RPC does not yet exist for
+    the exact shape needed, ADD it on the owner (proto + handler +
+    awareness anchor) — then call it. Do not "temporarily" scan etcd.
+
+    When the data is needed for batch consumption (rules sweep,
+    convergence scan), the collector pattern in cluster_doctor is the
+    canonical shape: collector calls the typed RPCs once per sweep and
+    populates a Snapshot; rules read the Snapshot. Adding a new
+    Snapshot.<X> field is cheaper than adding a one-off etcd reader.
+  related_invariants:
+    - four_layer.truth_read_via_owner_rpc_not_direct_storage
+    - etcd.path_has_single_owner
+  protects:
+    files:
+      - golang/cluster_doctor/cluster_doctor_server/rules/repository_dns_invariants.go
+      - golang/cluster_doctor/cluster_doctor_server/rules/package_version_authority.go
+      - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+      - golang/cluster_doctor/cluster_doctor_server/collector/snapshot.go
+      - golang/globularcli/state_cmds.go
+      - golang/globularcli/repo_scan_cmds.go
+      - golang/globularcli/desired_state_helpers.go
+      - golang/cluster_controller/cluster_controller_server/handlers_node.go
+
+- id: generic_etcd_or_storage_read_tool_exposed_to_callers
+  summary: >
+    Expose a generic etcd_get / etcd_list / storage_read tool to MCP /
+    admin / external callers, even when an allowlist currently blocks
+    remote use. Examples: mcp/tools_etcd.go's etcd_get, an admin CLI's
+    "raw etcd get" command, a debugging endpoint that returns arbitrary
+    /globular/* paths.
+  reason: >
+    A generic read tool authorises around every owner's RPC contract.
+    Even allowlist-blocked tools represent a structural vector: a single
+    policy change or allowlist edit exposes the entire cluster state to
+    callers that have no contract with the owners. The principle is the
+    same as the write-side generic_etcd_or_storage_write_tool: the safe
+    state is not "blocked at the policy", it is "the tool does not
+    exist".
+  safe_alternative: >
+    Replace generic read tools with owner-specific typed RPCs. If a
+    diagnostic surface is needed, expose ListFindings (via cluster-doctor)
+    and the owner's typed Get/List RPCs — never a "give me any prefix"
+    tool. Bootstrap-only paths (config seeds, leader election) that need
+    a generic primitive must be scoped to a fixed prefix allowlist
+    HARD-CODED in the tool, not configured externally.
+  related_invariants:
+    - four_layer.truth_read_via_owner_rpc_not_direct_storage
+  protects:
+    files:
+      - golang/mcp/tools_etcd.go
+
+- id: conditional_field_semantic_by_writer
+  summary: >
+    Argue that a storage field can carry one of several semantics
+    depending on which writer set it ("for cluster-controller it's the
+    release-identity; for backup-manager it's the binary SHA — readers
+    branch on metadata to decide"). Or: argue that a reader should
+    sniff the value to guess its kind.
+  reason: >
+    The field's declared semantic is the contract. Different identities
+    are different fields. Conditional interpretation is the bug, not a
+    fix:
+      - it propagates: every new writer/reader needs to know the
+        conditional rules;
+      - it drifts: rules don't get updated in lock-step across services;
+      - it hides bugs: when the kind detection misclassifies a value,
+        the wrong code path runs silently.
+    All three observed today (5804f523 vs 2eb07b67, NodeReleaseStatus.
+    InstalledHash, UpdatedUnix proof-anchor stomp) were the same shape.
+  safe_alternative: >
+    Split the field. If the field today holds either kind A or kind B,
+    rename it to FieldA and add FieldB as a separate field. Each is
+    unambiguous. Every writer produces the kind matching the field
+    name. Readers don't sniff; they read the field they need. Where a
+    proto already declares the semantic (e.g. InstalledPackage.Checksum
+    has the comment "SHA256 of installed archive"), the fix is to make
+    every writer respect that semantic and remove the wrong-kind writes
+    at the writer site, not at the reader.
+  related_invariants:
+    - identity.field_semantic_is_single_writer_defined
+    - identity.has_single_canonical_source_and_is_immutable
+    - install_package.hash_schemas_must_not_alias
+  protects:
+    files:
+      - golang/node_agent/node_agentpb/node_agent.pb.go
+      - golang/cluster_controller/cluster_controllerpb/resources_types.go
+      - golang/repository/repositorypb/repository.pb.go
+      - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+      - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      - golang/node_agent/node_agent_server/heartbeat.go
+      - golang/node_agent/node_agent_server/installer_api.go
+      - golang/node_agent/node_agent_server/apply_package_release.go
+
+- id: recompute_identity_from_secondary_source
+  summary: >
+    Argue that a missing or stale canonical identity value can be
+    "recovered" from a secondary observation: if the manifest checksum
+    is empty, hash the disk binary and treat that as the manifest
+    checksum; if the build_id is unknown, derive one from the version
+    string; if the manifest is missing, accept the bytes that happen to
+    be on disk.
+  reason: >
+    The canonical source is the only thing that defines the identity.
+    Substituting a secondary observation creates a "truth" that has no
+    audit trail, no version contract, and no way to verify. The
+    PUBLISHED_MISSING_BLOB recovery attempt that pulled bytes from MinIO
+    mirror and re-named them as the canonical L1 blob was exactly this
+    shape — bytes that the publisher never signed becoming "the same
+    artifact". The fix in v1.2.163 was to refuse this and require
+    re-import from the upstream canonical source (`globular repository
+    sync --tag vX.Y.Z`).
+  safe_alternative: >
+    A missing canonical value is a finding, not a recovery surface.
+    Emit the appropriate doctor finding (MISSING_BLOB,
+    BROKEN_MANIFEST_MISSING, DesiredBuildIdOrphaned, etc.) and stop. The
+    operator's recovery path is to re-import from the canonical source
+    (the original publisher, the upstream registry, the CI pipeline).
+    Local recovery from a secondary observation is forbidden because it
+    creates a value with no canonical attribution.
+  related_invariants:
+    - identity.has_single_canonical_source_and_is_immutable
+    - repository.minio_is_not_valid_package_source
+  protects:
+    files:
+      - golang/repository/repository_server/artifact_handlers.go
+      - golang/repository/repository_server/publish_reconciler.go
+      - golang/node_agent/node_agent_server/installer_api.go
+
+- id: bump_immutable_timestamp_on_observe
+  summary: >
+    On every observation (heartbeat tick, status read, snapshot pass)
+    bump an InstalledUnix / UpdatedUnix / similar anchor field to
+    time.Now() because "we touched the record". Or: on every routine
+    refresh of a record, set the timestamp to now regardless of whether
+    the underlying material changed.
+  reason: >
+    An anchor timestamp identifies WHEN the underlying material was
+    written. Observing or refreshing the record does not change the
+    material; bumping the anchor lies about that. The verifier reads
+    max(InstalledUnix, UpdatedUnix) against the running PID's start
+    mtime to detect "the apply happened but the restart didn't take";
+    a wall-clock-now value is always > PID start, so every
+    correctly-running self-hosted service starts failing
+    service.old_pid_after_upgrade.
+
+    Live regression: heartbeat.go Phase 2 stomped the proof writer's
+    PID-anchored UpdatedUnix every 30s. Fixed in v1.2.164.
+  safe_alternative: >
+    Preserve existing.UpdatedUnix on observe-only operations. Only bump
+    when the record's underlying material actually changed (different
+    version, different build_id, different checksum). For self-hosted
+    services on the allowlist, the proof writer is the authority on
+    these fields; downstream observers must preserve the proof writer's
+    anchor. Observe-only operations should not write to anchor fields
+    at all.
+  related_invariants:
+    - identity.has_single_canonical_source_and_is_immutable
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/heartbeat.go
+      - golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go

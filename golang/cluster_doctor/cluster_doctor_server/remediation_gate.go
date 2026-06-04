@@ -8,20 +8,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
-	"github.com/globulario/services/golang/config"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const autoRemediationEscalationThreshold = 3
-
-const remediationGateEtcdPrefix = "/globular/cluster_doctor/remediation_gate/"
 
 var autoRemediationGateByTarget sync.Map // key -> remediationGateState
 
@@ -31,8 +27,22 @@ type remediationGateState struct {
 	Escalated          bool  `json:"escalated"`
 }
 
-var getRemediationGateEtcdClient = config.GetEtcdClient
-
+// The gate state was previously persisted to /globular/cluster_doctor/
+// remediation_gate/<key> in etcd so escalations survived a doctor restart.
+// invariant:cluster_doctor.observer_only_never_writes_etcd forbids that
+// write. As of v1.2.166 the gate state is in-memory only via the
+// autoRemediationGateByTarget sync.Map.
+//
+// Trade-off acknowledged: failure_mode:doctor.escalation_state_lost_on_restart
+// is now exposed at the doctor-restart boundary. Recovering it without an
+// etcd write requires persistence through ai-memory (the doctor's typed
+// history store) — tracked as the follow-up to this commit. Until that
+// lands the gate counters reset on doctor restart and operator approval
+// is required again for any action that was previously escalated.
+//
+// The hook functions remain in place so tests can inject a fake persistence
+// surface and so the eventual ai-memory wiring slots in here without
+// touching call sites.
 var (
 	remediationGatePersistFn = remediationGatePersist
 	remediationGateLoadFn    = remediationGateLoad
@@ -41,10 +51,6 @@ var (
 
 func remediationGateKey(findingID string, stepIndex uint32, actionType cluster_doctorpb.ActionType) string {
 	return fmt.Sprintf("%s|%s|%d", findingID, actionType.String(), stepIndex)
-}
-
-func remediationGateEtcdKey(gateKey string) string {
-	return remediationGateEtcdPrefix + gateKey
 }
 
 // remediationGateRecordCooldownRejection increments the escalation counter for
@@ -81,47 +87,40 @@ func remediationGateClear(key string) {
 	remediationGateDeleteFn(context.Background(), key)
 }
 
-func remediationGatePersist(ctx context.Context, key string, state remediationGateState) {
-	cli, err := getRemediationGateEtcdClient()
-	if err != nil {
-		return
-	}
-	body, err := json.Marshal(state)
-	if err != nil {
-		return
-	}
-	putCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	_, _ = cli.Put(putCtx, remediationGateEtcdKey(key), string(body))
+// remediationGatePersist is intentionally a no-op as of v1.2.166.
+//
+// invariant:cluster_doctor.observer_only_never_writes_etcd forbids the
+// previous /globular/cluster_doctor/remediation_gate/<key> write. The
+// gate state is held in autoRemediationGateByTarget (sync.Map) for the
+// doctor's process lifetime.
+//
+// See:
+//   invariant:cluster_doctor.observer_only_never_writes_etcd
+//   forbidden_fix:cluster_doctor_direct_write_to_etcd
+//   failure_mode:doctor.escalation_state_lost_on_restart (now exposed
+//                until ai-memory wiring lands)
+func remediationGatePersist(_ context.Context, _ string, _ remediationGateState) {
+	// Observer-only: no etcd write. In-memory state in
+	// autoRemediationGateByTarget is the only persistence until ai-memory
+	// wiring replaces this.
 }
 
-func remediationGateLoad(ctx context.Context, key string) (remediationGateState, bool) {
-	cli, err := getRemediationGateEtcdClient()
-	if err != nil {
-		return remediationGateState{}, false
-	}
-	getCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	resp, err := cli.Get(getCtx, remediationGateEtcdKey(key))
-	if err != nil || len(resp.Kvs) == 0 {
-		return remediationGateState{}, false
-	}
-	var state remediationGateState
-	if err := json.Unmarshal(resp.Kvs[0].Value, &state); err != nil {
-		return remediationGateState{}, false
-	}
-	return state, true
+// remediationGateLoad is intentionally a no-op as of v1.2.166. See
+// remediationGatePersist. Returns zero-state so callers fall through to
+// "no prior state" semantics.
+func remediationGateLoad(_ context.Context, _ string) (remediationGateState, bool) {
+	return remediationGateState{}, false
 }
 
-func remediationGateDelete(ctx context.Context, key string) {
-	cli, err := getRemediationGateEtcdClient()
-	if err != nil {
-		return
-	}
-	delCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	_, _ = cli.Delete(delCtx, remediationGateEtcdKey(key))
+// remediationGateDelete is intentionally a no-op as of v1.2.166. The
+// in-memory state is removed by the autoRemediationGateByTarget.Delete
+// call in remediationGateClear, which is the only thing callers need.
+func remediationGateDelete(_ context.Context, _ string) {
+	// Observer-only: no etcd delete.
 }
+
+// Keep the time import referenced (still used by LastRejectionAt).
+var _ = time.Now
 
 type remediationGateSummary struct {
 	Escalated int

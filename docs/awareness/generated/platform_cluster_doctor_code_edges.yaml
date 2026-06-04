@@ -23,6 +23,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.envoy_lds_wedge_detector
     relation: relates_to
     to: globular.platform:failure_mode.envoy.lds_update_attempt_zero_despite_cds_progress
+  - from: globular.platform:code.go.platform_cluster_doctor.etcd_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.cluster_doctor.observer_only_never_writes_etcd
+  - from: globular.platform:code.go.platform_cluster_doctor.etcd_authority_pin
+    relation: enforces
+    to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
   - from: globular.platform:code.go.platform_cluster_doctor.evidence_provenance
     relation: implements
     to: globular.platform:intent.health.requires_fresh_evidence

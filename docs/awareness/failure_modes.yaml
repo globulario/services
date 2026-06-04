@@ -4213,3 +4213,85 @@ failure_modes:
         any file in the protects.files lists of the related invariants
         surfaces the class so a future contributor sees it before
         introducing a new shape.
+
+    - id: identity.field_semantic_drift_across_writers
+      title: One storage field is written by two or more writers with different semantic intents — readers see values that look the same but mean different things
+      severity: critical
+      symptoms:
+        - same field holds two values that are both "checksums" but one is a binary SHA and the other is a release-identity hash (5804f523 vs 2eb07b67 shape)
+        - readers compare the field against an expected value of one kind, but the writer last wrote the other kind, producing a permanent mismatch finding (rollout.installed_hash_mismatch, service.old_pid_after_upgrade)
+        - the field's proto comment declares one semantic but the running code's writers don't all agree
+        - sub-actor split inside a single service (heartbeat observer vs proof writer authority) where both treat the same field as theirs to write
+      root_cause: |
+        A storage field's declared semantic is the contract. When two or
+        more writers each treat the field as their own to write — with
+        different semantics — the value the readers see depends on which
+        writer ran last. The bug is structural: even if today's writers
+        happen to converge, any future writer that follows the wrong
+        semantic re-opens the regression.
+
+        Three live regressions in this class (all fixed in 2026-06-04
+        releases):
+          1. InstalledPackage.Checksum was written by some node-agent
+             installer paths as a release-identity hash (the
+             ComputeReleaseDesiredHash output) and by other paths as a
+             binary SHA. The proto comment says "SHA256 of installed
+             archive" — i.e. binary SHA. Fix: every writer respects the
+             declared semantic. v1.2.161.
+          2. NodeReleaseStatus.InstalledHash had two writers — workflow
+             callback wrote the release-identity hash, convergence scan
+             wrote the binary SHA from the per-node InstalledPackage.
+             Same conflict, different field. Fix: both writers source
+             from rel.Status.ResolvedEntrypointChecksum (the manifest
+             binary SHA). v1.2.162.
+          3. InstalledPackage.UpdatedUnix had two writers inside the same
+             service — proof writer anchored to PID-start mtime,
+             heartbeat Phase 2 stomped with time.Now(). Verifier read
+             max(InstalledUnix, UpdatedUnix) > PID-start and flagged
+             service.old_pid_after_upgrade on correctly-installed
+             services. Fix: heartbeat preserves existing.UpdatedUnix
+             for self-hosted services on the allowlist. v1.2.164.
+      architecture_fix: |
+        Three structural moves:
+
+          1. Anchor identity.field_semantic_is_single_writer_defined and
+             identity.has_single_canonical_source_and_is_immutable as
+             critical invariants (Commit A.2 — this commit).
+
+          2. For each named identity field in the storage protos,
+             document the canonical computation in the proto comment or
+             in an awareness anchor. Where the proto already declares
+             the semantic (InstalledPackage.Checksum,
+             NodeReleaseStatus.InstalledHash), code review must reject
+             any writer that violates it.
+
+          3. When the same field is being treated as two kinds by
+             different writers, SPLIT the field — do not add conditional
+             interpretation. Renaming is cheaper than the bug class.
+      forbidden_fixes:
+        - conditional_field_semantic_by_writer
+        - recompute_identity_from_secondary_source
+        - bump_immutable_timestamp_on_observe
+      related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+        - identity.field_semantic_is_single_writer_defined
+        - install_package.hash_schemas_must_not_alias
+        - four_layer.layer_has_single_writing_actor
+      related_services:
+        - cluster-controller
+        - node-agent
+        - repository
+      required_tests:
+        - TestDecideNodeRolloutProof_ClusterControllerStaleHashRegression
+        - TestInstalledPackage_Checksum_IsBinarySHA_NotReleaseIdentity
+        - TestMarkNodeSucceeded_StoresBinarySHA_NotReleaseIdentity
+        - TestHeartbeatPhase2_SelfHosted_PreservesUpdatedUnix
+      no_test_yet_reason: |
+        Per-incident coverage exists for each of the three observed
+        shapes (the regression tests above). A meta-test that enforces
+        single-writer field semantics at compile time would require
+        proto annotations + a custom vet pass; tracked as part of the
+        Commit C static checker work. The combination of the
+        per-incident tests, the awareness anchors surfacing on every
+        edit to the protected files, and the briefing requirement on
+        the high-risk dirs is the current regression surface.

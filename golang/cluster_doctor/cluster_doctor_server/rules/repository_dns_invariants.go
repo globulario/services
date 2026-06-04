@@ -122,6 +122,23 @@ func (r repositoryDesiredBuildIDsResolve) Evaluate(snap *collector.Snapshot, _ C
 	return findings
 }
 
+// TODO(four-layer-read-authority, v1.2.166): this function reads
+// /globular/resources/* directly, violating
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage and
+// forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc.
+//
+// The collector already has controllerClient dialled; the proper path is:
+//   1. Add cluster_controller.GetDesiredBuildIDIndex typed RPC.
+//   2. Collector calls it once per sweep, populates
+//      collector.Snapshot.DesiredBuildIDIndex.
+//   3. This rule reads from the Snapshot, not from etcd.
+//
+// Until that lands, the existing implementation is left in place but
+// flagged here so the next contributor extending this file sees the
+// principle. The architectural pin test in
+// cluster_doctor_etcd_authority_test.go allow-lists this one read by
+// file:function name; new readers must not be added.
+//
 // readDesiredBuildIDs scans all desired-state etcd prefixes and returns a map
 // build_id → human-readable ref (for evidence). Best-effort: returns empty
 // map on any etcd error.

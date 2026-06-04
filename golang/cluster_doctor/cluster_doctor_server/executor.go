@@ -11,13 +11,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
-	"github.com/globulario/services/golang/config"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // ActionExecutor runs structured RemediationActions. Every execution path
@@ -338,28 +337,46 @@ func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 // GLOBULAR_LIVE_ETCD_TESTS=1.
 var auditEtcdPersistFn = persistAuditToEtcd
 
-// persistAuditToEtcd writes the audit record as a TTL-leased entry under
-// /globular/cluster_doctor/audit/. Failures are swallowed — audit writes
-// must never block remediation execution (the security boundary stays
-// upstream of this function). See projection-clauses.md Clause 8.
-func persistAuditToEtcd(ctx context.Context, audit RemediationAudit) {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return
-	}
-	key := "/globular/cluster_doctor/audit/" + audit.AuditID
-	putCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
+// persistAuditToEtcd is intentionally a no-op as of v1.2.166.
+//
+// invariant:cluster_doctor.observer_only_never_writes_etcd forbids
+// cluster-doctor from writing to etcd. Previously this function wrote
+// /globular/cluster_doctor/audit/<id> with a TTL lease (30 days), which
+// served as an audit trail readable by ai-watcher / ai-executor.
+//
+// The audit trail is preserved through two surfaces that DO honour the
+// layer model:
+//   1. workflow run state (correlation_id, retry_count, trigger_reason,
+//      acknowledged_by) — written by the workflow service when remediation
+//      is dispatched through a workflow.
+//   2. ai-memory — the doctor's own typed history store, persisted across
+//      restarts, queried by ai-watcher / ai-executor through the
+//      ai_memory typed RPC.
+//
+// Wiring this function to ai-memory (so the audit trail survives doctor
+// restart) is the planned follow-up. Until then audit records exist only
+// in the doctor's in-memory audit ring (RemediationAuditRing) per process
+// lifetime. The current behaviour is: emit the log line below so the
+// remediation event is at least visible in journal, then return.
+//
+// See:
+//   invariant:cluster_doctor.observer_only_never_writes_etcd
+//   forbidden_fix:cluster_doctor_direct_write_to_etcd
+//   forbidden_fix:cross_layer_write_by_non_owner
+func persistAuditToEtcd(_ context.Context, audit RemediationAudit) {
+	// Observer-only: no etcd write. Log so the event is journal-visible.
 	body := audit.JSON()
 	if body == "" {
 		return
 	}
-	lease, err := cli.Grant(putCtx, int64(RemediationAuditRetention/time.Second))
-	if err == nil {
-		cli.Put(putCtx, key, body, clientv3.WithLease(lease.ID))
-	} else {
-		cli.Put(putCtx, key, body)
-	}
+	slog.Info("cluster_doctor: remediation audit (etcd write intentionally removed; see invariant:cluster_doctor.observer_only_never_writes_etcd)",
+		"audit_id", audit.AuditID,
+		"correlation_id", audit.CorrelationID,
+		"finding_id", audit.FindingID,
+		"action_type", audit.ActionType,
+		"executed", audit.Executed,
+		"rejected", audit.Rejected,
+	)
 }
 
 // +globular:schema:key="/globular/cluster_doctor/audit/{audit_id}"

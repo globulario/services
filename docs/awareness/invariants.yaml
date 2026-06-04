@@ -6184,3 +6184,246 @@ invariants:
         - cross_layer_write_by_non_owner
       related_failure_modes:
         - four_layer.cross_layer_write_creates_drift
+
+    # ───────────────────────────────────────────────────────────────────────
+    # Read-side authority + identity immutability (Commit A.2).
+    # Closes the symmetric gap to Commit A: write-side authority alone does
+    # not prevent the bug class if readers trust direct etcd / storage reads
+    # of paths they don't own, OR if the same field is allowed to carry
+    # different identity semantics depending on the writer.
+    # ───────────────────────────────────────────────────────────────────────
+
+    - id: four_layer.truth_read_via_owner_rpc_not_direct_storage
+      title: Reading a layer's owned etcd prefix or backing store directly bypasses the owner's canonicalization, version, and in-memory contracts — truth flows out through the owner's typed RPC
+      severity: critical
+      status: active
+      summary: |
+        The symmetric companion to four_layer.layer_has_single_writing_actor.
+        Writers are authority; readers must consult that authority via its
+        typed RPC, not by reading the underlying storage:
+
+          L1 Artifact  → repository.{ListArtifacts, GetArtifactManifest,
+                                     GetArtifactVersions, DescribePackage}
+          L2 Desired   → cluster_controller.{GetDesiredState,
+                                             GetServiceRelease,
+                                             GetInfrastructureRelease,
+                                             GetClusterHealthV1,
+                                             GetNodeReleaseStatus}
+          L3 Installed → node_agent.{GetInventory, ListInstalledPackages,
+                                     GetInstalledPackage,
+                                     GetServiceRuntimeProof,
+                                     GetSubsystemHealth}
+          L4 Runtime   → node_agent (forwards systemd / Envoy / /proc
+                                     observations via typed RPCs above)
+
+        A direct read of the backing store skips:
+          - the owner's canonicalization (e.g. controller resolves version →
+            build_id once and stores both; a direct reader sees whichever
+            field was set first and may miss the resolution)
+          - the owner's in-memory state (writes the owner hasn't yet flushed,
+            optimistic reads that need the owner's commit barrier)
+          - version contracts (the owner may reject reads of pre-Day-1
+            state; direct readers don't get that gate)
+          - audit attribution (the typed RPC records the requester; direct
+            etcd reads are anonymous)
+
+        Live regressions in this class observed today:
+          - cluster_doctor/rules/repository_dns_invariants.go reads
+            /globular/resources/* directly on every invariant evaluation
+            instead of calling controllerClient (already dialled in the
+            collector, never used for this purpose).
+          - cluster_doctor/rules/package_version_authority.go same shape.
+          - Multiple globularcli paths scan desired-state etcd directly
+            in admin commands.
+
+        Single-layer queries by the owner itself, or local readiness
+        queries inside one process (e.g. a service answering "am I up?"
+        through systemd Type=notify), are NOT bypasses and remain in
+        their owner. The principle applies when the question crosses
+        layers, nodes, or services.
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/repository_dns_invariants.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/package_version_authority.go
+            - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+            - golang/cluster_doctor/cluster_doctor_server/collector/snapshot.go
+            - golang/globularcli/state_cmds.go
+            - golang/globularcli/repo_scan_cmds.go
+            - golang/globularcli/desired_state_helpers.go
+            - golang/mcp/tools_etcd.go
+            - golang/cluster_controller/cluster_controller_server/handlers_node.go
+        symbols:
+            - readDesiredBuildIDs
+            - readDesiredVersions
+            - desiredBuildIDsReader
+            - desiredVersionsReader
+            - GetDesiredState
+            - GetServiceRelease
+            - GetInstalledPackage
+            - GetServiceRuntimeProof
+      enforcement: |
+        New code that needs information about a layer it does not own must
+        call the owner's typed RPC. Direct .Get(ctx, "/globular/...") for
+        a prefix owned by another service is a read-side violation. The
+        static checker in Commit C will walk every .Get call site and fail
+        the build when the calling package is not the registered owner.
+        Until that lands, briefing on any file in protects.files surfaces
+        this invariant.
+      forbidden_fixes:
+        - read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
+        - generic_etcd_or_storage_read_tool_exposed_to_callers
+      related_failure_modes:
+        - four_layer.cross_layer_write_creates_drift
+
+    # ───────────────────────────────────────────────────────────────────────
+    # Identity immutability (the field-semantic-meaning rule).
+    # ───────────────────────────────────────────────────────────────────────
+
+    - id: identity.has_single_canonical_source_and_is_immutable
+      title: Every named identity value has exactly one canonical computation and one canonical source; once defined, the value is immutable for the (subject, identity) pair
+      severity: critical
+      status: active
+      summary: |
+        An identity value (checksum, build_id, version, hash, timestamp
+        anchor) has exactly ONE canonical source. The four-layer model
+        names WHO writes a path; this invariant names WHAT a value means
+        and that the meaning is fixed for life.
+
+        Concrete canonical sources (non-exhaustive):
+
+          - ArtifactManifest.EntrypointChecksum = sha256(<entrypoint binary
+            as published>). Computed once at publish, by the publisher
+            (CI). Frozen for the life of the (publisher, name, version,
+            platform, build_number) tuple.
+
+          - ArtifactManifest.BuildId = UUIDv7 allocated server-side by the
+            repository at publish. Never client-supplied. Immutable for
+            life.
+
+          - ArtifactManifest.BuildNumber = integer allocated server-side
+            per (version, platform), monotonic, never reset. Immutable
+            for life.
+
+          - ServiceRelease.Status.DesiredHash = ComputeReleaseDesiredHash(
+            publisher, name, version, build_number, config). A
+            deterministic function: same inputs → same output. Recomputing
+            it must return the same value or the inputs changed.
+
+          - InstalledPackage.Checksum = the sha256 of the binary on disk
+            at install time. The proto comment is explicit: "SHA256 of
+            installed archive". Every writer must respect this semantic.
+
+          - InstalledPackage.InstalledUnix = the install moment. For
+            self-hosted services it is the running PID's /proc/<pid>
+            mtime anchor (self_hosted_runtime_proof_writer); for
+            workflow-installed services it is the apply moment. Immutable
+            for the install — does not change on observe, sync, or
+            re-discovery.
+
+          - InstalledPackage.UpdatedUnix = the moment the record's
+            underlying material actually changed (different version,
+            different build_id, different checksum). Does NOT bump on
+            observe-only operations.
+
+        Verification is by recomputing the canonical source and comparing
+        against the storage. A disagreement between
+        sha256(/usr/lib/globular/bin/<entrypoint>) and
+        manifest.EntrypointChecksum is a finding, NOT a different version
+        of the truth. Don't pick one; report the disagreement.
+      protects:
+        files:
+            - golang/repository/repositorypb/repository.pb.go
+            - golang/node_agent/node_agentpb/node_agent.pb.go
+            - golang/cluster_controller/cluster_controllerpb/resources_types.go
+            - golang/cluster_controller/cluster_controller_server/release_hash.go
+            - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+            - golang/node_agent/node_agent_server/heartbeat.go
+            - golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+            - golang/node_agent/node_agent_server/apply_package_release.go
+            - golang/node_agent/node_agent_server/installer_api.go
+            - golang/repository/repository_server/artifact_handlers.go
+        symbols:
+            - ComputeReleaseDesiredHash
+            - EntrypointChecksum
+            - applySelfHostedInstalledStateRefresh
+            - WriteInstalledPackage
+      enforcement: |
+        For every named identity field, the canonical source must be
+        documented in the proto comment or in an awareness anchor.
+        Writers must compute the value from the canonical source. Readers
+        that need the value compute it from the same source (or read it
+        from the owner) and verify by recomputation, not by trusting an
+        alternative storage location. Identity values that are
+        deterministically derived (e.g. ComputeReleaseDesiredHash) must
+        be recomputed on demand if there is any doubt; never recovered
+        from a secondary source.
+      forbidden_fixes:
+        - conditional_field_semantic_by_writer
+        - recompute_identity_from_secondary_source
+        - bump_immutable_timestamp_on_observe
+      related_failure_modes:
+        - identity.field_semantic_drift_across_writers
+        - four_layer.cross_layer_write_creates_drift
+
+    - id: identity.field_semantic_is_single_writer_defined
+      title: Every storage field has exactly one declared semantic across all writers; conditionally interpreting one field as multiple kinds of identity based on metadata is the bug
+      severity: critical
+      status: active
+      summary: |
+        A field stores ONE kind of value. The kind is named in the proto
+        comment (or the awareness anchor on its parent identity). Every
+        writer of the field must produce a value of that kind; every
+        reader interprets it as that kind. Conditional interpretation
+        ("if writer A set this it means X, if writer B set it it means Y")
+        is the bug — the fix is to split the field, never to add the
+        condition.
+
+        Cardinal cases observed in the wild:
+
+          - InstalledPackage.Checksum was being written by some installer
+            paths as a release-identity hash (the
+            ComputeReleaseDesiredHash output, ~5804f523…) and by other
+            paths as a binary SHA (~2eb07b67…). Readers that compared it
+            against ResolvedEntrypointChecksum (binary SHA from manifest)
+            saw permanent rollout.installed_hash_mismatch. The fix in
+            v1.2.161 made every installer write the binary SHA, matching
+            the proto comment. The forbidden_fix anchored here pins that
+            the BUG was the conditional semantic, not just the wrong
+            value.
+
+          - NodeReleaseStatus.InstalledHash had the same shape: workflow-
+            callback writer #2 stored release-identity; convergence-scan
+            writer #1 stored binary SHA. Fixed in v1.2.162.
+
+          - UpdatedUnix had two semantic interpretations: proof writer
+            treated it as "PID-start anchor"; heartbeat treated it as
+            "now". Both are inside one service (node-agent) — same shape
+            at the sub-actor level. Fixed in v1.2.164.
+
+        The rule: if a field can carry two values that mean different
+        things, the field has been over-loaded. Split it. Either two
+        fields (each unambiguous), or rename to make the semantic
+        explicit and reject the wrong-kind write at the writer.
+      protects:
+        files:
+            - golang/node_agent/node_agentpb/node_agent.pb.go
+            - golang/cluster_controller/cluster_controllerpb/resources_types.go
+            - golang/repository/repositorypb/repository.pb.go
+        symbols:
+            - InstalledPackage
+            - NodeReleaseStatus
+            - ArtifactManifest
+            - ServiceRelease
+      enforcement: |
+        Proto comments and awareness anchors are the binding semantic.
+        Code review must reject any writer that violates the declared
+        semantic of a field. When a field's writers disagree, the
+        resolution is to split the field, never to add conditional
+        interpretation. The identity.field_semantic_drift_across_writers
+        failure mode pins the three known instances; each carries a
+        regression test that the fix removed the wrong-kind write at
+        the writer.
+      forbidden_fixes:
+        - conditional_field_semantic_by_writer
+      related_failure_modes:
+        - identity.field_semantic_drift_across_writers
