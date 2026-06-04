@@ -302,6 +302,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.repair_node_workflow
     relation: implements
     to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - from: globular.platform:code.go.platform_cluster_controller.workflow_platform_upgrade
+    relation: implements
+    to: globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
+  - from: globular.platform:code.go.platform_cluster_controller.workflow_platform_upgrade
+    relation: implements
+    to: globular.platform:intent.workflow.source_of_operational_truth
   - from: globular.platform:code.go.platform_controller.drift_action_planner
     relation: implements
     to: globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions

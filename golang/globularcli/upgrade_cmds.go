@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/audittrail"
 	"github.com/globulario/services/golang/config"
+	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/spf13/cobra"
 )
 
@@ -19,42 +19,40 @@ var (
 
 var platformUpgradeCmd = &cobra.Command{
 	Use:   "platform-upgrade <release-tag>",
-	Short: "Apply a platform release BOM to update desired state",
-	Long: `Reads the release-index.json for the given platform release tag and
-updates the cluster's desired state so every package version matches
-the BOM — both services and infrastructure.
+	Short: "Apply a platform release as workflow-gated per-(node, package) upgrades",
+	Long: `Dispatches the platform.upgrade workflow on the cluster controller.
 
-This bridges Layer 1 (repository) and Layer 2 (desired state). The
-reconciler handles Layer 3 (install) and Layer 4 (runtime) automatically.
+For every package in the local repository's PUBLISHED BOM, for every
+node in the cluster, the workflow evaluates:
+
+  - profile match (node.profiles ∩ package.profiles non-empty)
+  - installed on this node (Layer 3 truth — heartbeat)
+  - BOM version > installed version (semver — never downgrade)
+  - BOM version resolvable in the local repository (orphan-prevention)
+
+Only packages that pass all four gates are upgraded — via the existing
+release.apply.package per-node workflow. Operator removals are
+preserved (not_installed is not auto-installed).
+
+This replaces the pre-v1.2.160 direct-etcd-write CLI path which
+bypassed the gates and bulk-applied ServiceDesiredVersion records for
+the entire BOM (v1.2.159 incident: 7 operator-removed services
+re-introduced, 28 fresh DesiredBuildIdOrphaned findings).
 
 Typical workflow:
-  globular repo sync --source globulario-github --tag v1.0.87
-  globular platform-upgrade v1.0.87
+  globular repo sync --source globulario-github --tag v1.2.160
+  globular platform-upgrade v1.2.160
 
-The sync imports packages. The platform-upgrade sets desired versions.`,
+The sync imports packages into the local repository. The
+platform-upgrade dispatches the gated workflow against the cluster.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runPlatformUpgrade,
 }
 
 func init() {
-	platformUpgradeCmd.Flags().BoolVar(&platformUpgradeDryRun, "dry-run", false, "Preview changes without applying")
+	platformUpgradeCmd.Flags().BoolVar(&platformUpgradeDryRun, "dry-run", false,
+		"Evaluate per-(node, package) decisions without dispatching any upgrades")
 	rootCmd.AddCommand(platformUpgradeCmd)
-}
-
-// bomEntry matches a v2 release-index.json package entry.
-type bomEntry struct {
-	Name        string `json:"name"`
-	Kind        string `json:"kind"`
-	Version     string `json:"version"`
-	BuildNumber int64  `json:"build_number,omitempty"`
-	BuildID     string `json:"build_id,omitempty"`
-}
-
-type bomIndex struct {
-	SchemaVersion   string     `json:"schema_version"`
-	PlatformRelease string     `json:"platform_release"`
-	ReleaseTag      string     `json:"release_tag"`
-	Packages        []bomEntry `json:"packages"`
 }
 
 func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
@@ -65,252 +63,116 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 
 	autoDiscoverController(cmd)
 
-	idx, err := loadBOMIndex(tag)
+	// Resolve workflow service from etcd.
+	wfAddr := config.ResolveServiceAddr("workflow.WorkflowService", "")
+	if wfAddr == "" {
+		if a, err := config.GetMeshAddress(); err == nil {
+			wfAddr = a
+		}
+	}
+	if wfAddr == "" {
+		return fmt.Errorf("workflow service not found (check etcd or use --controller)")
+	}
+
+	// Controller is the actor endpoint for cluster-controller actions —
+	// platform.upgrade's evaluate, dispatch_upgrades, and audit all route
+	// to the controller's default router.
+	controllerAddr := config.ResolveServiceAddr(
+		"cluster_controller.ClusterControllerService", "")
+	if controllerAddr == "" {
+		controllerAddr = rootCfg.controllerAddr
+	}
+	if controllerAddr == "" {
+		return fmt.Errorf("cluster_controller address not found (check etcd or use --controller)")
+	}
+
+	inputs := map[string]any{
+		"cluster_id":  "",
+		"release_tag": tag,
+		"dry_run":     platformUpgradeDryRun,
+	}
+	inputsJSON, err := json.Marshal(inputs)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal inputs: %w", err)
 	}
 
-	fmt.Printf("Platform upgrade to %s (%s)\n", idx.PlatformRelease, idx.ReleaseTag)
-	fmt.Printf("BOM packages: %d\n\n", len(idx.Packages))
-
-	var svcUpdated, infraUpdated, failed int
-
-	for _, pkg := range idx.Packages {
-		if pkg.Name == "" || pkg.Version == "" {
-			continue
-		}
-
-		kind := strings.ToLower(pkg.Kind)
-		label := "service"
-
-		if kind == "infrastructure" || kind == "command" {
-			label = kind
-			if platformUpgradeDryRun {
-				fmt.Printf("  would   %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
-				infraUpdated++
-				continue
-			}
-
-			// Update InfrastructureRelease directly in etcd.
-			// The ResourcesService RPC is not exposed through the mesh,
-			// so we write the spec.version update directly.
-			err := updateInfraReleaseVersion("core@globular.io", pkg.Name, pkg.Version)
-			if err != nil {
-				fmt.Printf("  FAIL   %-25s v%-25s (%s: %v)\n", pkg.Name, pkg.Version, label, err)
-				failed++
-				continue
-			}
-
-			fmt.Printf("  update  %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
-			infraUpdated++
-		} else {
-			// Service packages — write ServiceDesiredVersion directly to etcd.
-			// We bypass the gRPC path intentionally: platform-upgrade is run during
-			// early bootstrap when the mesh may not yet be routing, and infra packages
-			// already use direct etcd writes for the same reason. The controller reads
-			// ServiceDesiredVersion records from etcd on every reconcile tick.
-			if platformUpgradeDryRun {
-				// Warn if a local override is active for this package.
-				if ov, _ := readLocalOverride(pkg.Name); ov != nil {
-					fmt.Printf("  WARN    %-25s has active local override (build_id=%s reason=%q) — upgrade would replace it\n",
-						pkg.Name, ov.BuildID[:min8(len(ov.BuildID))], ov.PatchReason)
-				}
-				fmt.Printf("  would   %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
-				svcUpdated++
-				continue
-			}
-
-			// Warn (but do not block) if a local override is active.
-			if ov, _ := readLocalOverride(pkg.Name); ov != nil {
-				fmt.Printf("  WARN    %-25s has active local override (build_id=%s reason=%q) — replacing with official %s\n",
-					pkg.Name, ov.BuildID[:min8(len(ov.BuildID))], ov.PatchReason, pkg.Version)
-				fmt.Printf("          To preserve the override: run 'globular pkg override remove %s' first, then re-apply the override after upgrade.\n", pkg.Name)
-			}
-
-			err := upsertServiceDesiredVersion(pkg.Name, "", pkg.Version, pkg.BuildNumber, pkg.BuildID)
-			if err != nil {
-				fmt.Printf("  FAIL   %-25s v%-25s (%s: %v)\n", pkg.Name, pkg.Version, label, err)
-				failed++
-				continue
-			}
-
-			fmt.Printf("  update  %-25s -> v%-25s (%s)\n", pkg.Name, pkg.Version, label)
-			svcUpdated++
-		}
-	}
-
-	fmt.Printf("\n%s: %d services + %d infra/command updated, %d failed\n",
-		idx.ReleaseTag, svcUpdated, infraUpdated, failed)
-
+	corrID := fmt.Sprintf("cli-platform-upgrade-%s-%d", tag, time.Now().Unix())
 	if platformUpgradeDryRun {
-		fmt.Println("(dry-run — no changes applied)")
-	}
-
-	if failed > 0 {
-		return fmt.Errorf("%d package(s) failed to update", failed)
-	}
-	return nil
-}
-
-// loadBOMIndex loads the release-index.json for a given tag.
-func loadBOMIndex(tag string) (*bomIndex, error) {
-	for _, path := range []string{
-		"/var/lib/globular/release-index.json",
-		"release-index.json",
-	} {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var idx bomIndex
-		if err := json.Unmarshal(data, &idx); err != nil {
-			continue
-		}
-		if idx.ReleaseTag == tag {
-			fmt.Printf("Using release-index.json from %s\n", path)
-			return &idx, nil
-		}
-	}
-
-	return nil, fmt.Errorf(
-		"release-index.json for %s not found locally.\n"+
-			"Download it first:\n"+
-			"  curl -LO https://github.com/globulario/services/releases/download/%s/release-index.json\n"+
-			"  globular platform-upgrade %s", tag, tag, tag)
-}
-
-// upsertServiceDesiredVersion writes a ServiceDesiredVersion record directly to etcd.
-// publisherID may be empty (defaults to core@globular.io for official builds) or
-// set to a local publisher (e.g. local@ryzen) when activating a local override.
-// This mirrors updateInfraReleaseVersion: both bypass gRPC so platform-upgrade works
-// during early bootstrap before the mesh is routing.
-func upsertServiceDesiredVersion(serviceName, publisherID, version string, buildNumber int64, buildID string) error {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("etcd client: %w", err)
-	}
-
-	key := "/globular/resources/ServiceDesiredVersion/" + serviceName
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	resp, err := cli.Get(ctx, key)
-	if err != nil {
-		return fmt.Errorf("etcd get %s: %w", key, err)
-	}
-
-	var rec map[string]interface{}
-	generation := float64(1)
-	if len(resp.Kvs) > 0 {
-		if err := json.Unmarshal(resp.Kvs[0].Value, &rec); err != nil {
-			return fmt.Errorf("unmarshal: %w", err)
-		}
-		if m, ok := rec["meta"].(map[string]interface{}); ok {
-			if g, ok := m["generation"].(float64); ok {
-				generation = g + 1
-			}
-		}
+		fmt.Printf("Dry-run: previewing platform.upgrade decisions for %s\n\n", tag)
 	} else {
-		rec = map[string]interface{}{
-			"meta":   map[string]interface{}{},
-			"spec":   map[string]interface{}{},
-			"status": map[string]interface{}{},
+		fmt.Printf("Dispatching platform.upgrade workflow for %s\n\n", tag)
+	}
+
+	cc, err := dialGRPC(wfAddr)
+	if err != nil {
+		return fmt.Errorf("connect to workflow service at %s: %w", wfAddr, err)
+	}
+	defer cc.Close()
+
+	wfClient := workflowpb.NewWorkflowServiceClient(cc)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	resp, err := wfClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
+		WorkflowName: "platform.upgrade",
+		InputsJson:   string(inputsJSON),
+		ActorEndpoints: map[string]string{
+			"cluster-controller": controllerAddr,
+		},
+		CorrelationId: corrID,
+	})
+	if err != nil {
+		return fmt.Errorf("workflow: %w", err)
+	}
+
+	fmt.Printf("Run ID: %s\n", resp.RunId)
+	fmt.Printf("Status: %s\n", resp.Status)
+	if resp.Error != "" {
+		fmt.Printf("Error:  %s\n", resp.Error)
+	}
+
+	if resp.OutputsJson != "" {
+		var outputs map[string]any
+		if jsonErr := json.Unmarshal([]byte(resp.OutputsJson), &outputs); jsonErr == nil {
+			printPlatformUpgradeSummary(outputs)
 		}
 	}
 
-	rec["meta"] = map[string]interface{}{
-		"name":       serviceName,
-		"generation": generation,
-	}
-	spec := map[string]interface{}{
-		"service_name": serviceName,
-		"version":      version,
-	}
-	if buildNumber > 0 {
-		spec["build_number"] = buildNumber
-	}
-	if buildID != "" {
-		spec["build_id"] = buildID
-	}
-	if publisherID != "" {
-		spec["publisher_id"] = publisherID
-	}
-	rec["spec"] = spec
-
-	data, err := json.Marshal(rec)
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
-	}
-	_, err = cli.Put(ctx, key, string(data))
-	if err != nil {
-		return fmt.Errorf("etcd put %s: %w", key, err)
-	}
+	// Best-effort audit trail entry — non-fatal.
 	_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
-		Service:   serviceName,
+		Service:   "platform-upgrade",
 		Actor:     "operator-cli",
-		Source:    "upsertServiceDesiredVersion",
-		Action:    "upsert_desired",
-		Reason:    "authoritative desired-state update via CLI",
+		Source:    "platform-upgrade",
+		Action:    "dispatch_platform_upgrade",
+		Reason:    fmt.Sprintf("workflow run %s for tag %s (dry_run=%v)", resp.RunId, tag, platformUpgradeDryRun),
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 	})
+
+	if resp.Status == "FAILED" {
+		return fmt.Errorf("platform.upgrade workflow FAILED")
+	}
 	return nil
 }
 
-// updateInfraReleaseVersion updates the spec.version of an InfrastructureRelease
-// record in etcd. This is used instead of the gRPC RPC because the
-// ResourcesService ApplyInfrastructureRelease is not exposed through the mesh.
-func updateInfraReleaseVersion(publisher, component, version string) error {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("etcd client: %w", err)
-	}
-
-	key := "/globular/resources/InfrastructureRelease/" + publisher + "/" + component
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	resp, err := cli.Get(ctx, key)
-	if err != nil {
-		return fmt.Errorf("etcd get %s: %w", key, err)
-	}
-
-	var rel map[string]interface{}
-	if len(resp.Kvs) > 0 {
-		if err := json.Unmarshal(resp.Kvs[0].Value, &rel); err != nil {
-			return fmt.Errorf("unmarshal: %w", err)
-		}
-	} else {
-		// Create new record.
-		rel = map[string]interface{}{
-			"meta": map[string]interface{}{
-				"name":       publisher + "/" + component,
-				"generation": float64(1),
-			},
-			"spec": map[string]interface{}{
-				"publisher_id": publisher,
-				"component":    component,
-				"version":      version,
-			},
-			"status": map[string]interface{}{},
-		}
-	}
-
-	// Update spec.version.
-	spec, ok := rel["spec"].(map[string]interface{})
+// printPlatformUpgradeSummary renders the evaluate step's bucket counts
+// when present in the workflow outputs.
+func printPlatformUpgradeSummary(outputs map[string]any) {
+	// Evaluate step exports its summary under outputs.evaluate (engine
+	// passes step.Outputs through unchanged).
+	eval, ok := outputs["evaluate"].(map[string]any)
 	if !ok {
-		spec = map[string]interface{}{}
-		rel["spec"] = spec
+		return
 	}
-	spec["version"] = version
-
-	data, err := json.Marshal(rel)
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+	fmt.Println()
+	if c, ok := eval["decisions_count"]; ok {
+		fmt.Printf("Decisions:  %v\n", c)
 	}
-
-	_, err = cli.Put(ctx, key, string(data))
-	if err != nil {
-		return fmt.Errorf("etcd put %s: %w", key, err)
+	if c, ok := eval["upgrades_count"]; ok {
+		fmt.Printf("Upgrades:   %v\n", c)
 	}
-	return nil
+	if buckets, ok := eval["buckets"].(map[string]any); ok && len(buckets) > 0 {
+		fmt.Println("Buckets:")
+		for k, v := range buckets {
+			fmt.Printf("  %-20s %v\n", k, v)
+		}
+	}
 }

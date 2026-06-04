@@ -3897,3 +3897,102 @@ failure_modes:
         version.
       related_invariants:
         - node_agent.install_skip_must_refresh_runtime_proof
+
+    - id: controller.platform_upgrade_bypassed_workflow_authority
+      title: platform-upgrade CLI bulk-applied ServiceDesiredVersion for the entire BOM
+      severity: high
+      symptoms:
+        - operator-removed services silently re-introduced after `globular platform-upgrade <tag>`
+        - DesiredBuildIdOrphaned findings appear immediately for packages with build_ids the local repo does not have
+        - cluster doctor reports 25+ new findings within seconds of a platform-upgrade
+        - the same removal must be re-applied after every upgrade
+      root_cause: |
+        The pre-v1.2.160 `globular platform-upgrade` CLI implementation
+        (golang/globularcli/upgrade_cmds.go) iterated the BOM and called
+        upsertServiceDesiredVersion for every package — service AND
+        infrastructure — writing /globular/resources/ServiceDesiredVersion
+        records directly to etcd. This bypassed:
+
+          1. the per-node profile gate (a package's profiles vs. each
+             node's profiles)
+          2. the per-node installed-state check (was the package even
+             installed on this node before the upgrade?)
+          3. version comparison (the CLI clobbered the spec even when
+             the cluster was already at or ahead of the BOM)
+          4. local-repository resolvability (the CLI wrote BOM build_ids
+             without verifying the local repo could serve them, producing
+             orphans)
+
+        It also bypassed workflow.source_of_operational_truth — there
+        was no workflow record, no audit, no re-entry point, and no
+        rollback. Once written, the ServiceDesiredVersion overrode the
+        operator's intent until manually reverted per-package.
+
+        Live observed during the v1.2.159 incident (2026-06-03): Part A
+        had removed 7 services (echo, catalog, blog, mail, sql,
+        conversation, ldap); platform-upgrade re-added all 7 and
+        orphaned 21 others with build_ids the local repo didn't serve,
+        yielding 67 new doctor findings.
+      architecture_fix: |
+        platform-upgrade is now a workflow (golang/workflow/definitions/
+        platform.upgrade.yaml). The CLI dispatches it via
+        WorkflowService.ExecuteWorkflow; the controller's
+        platformUpgradeControllerConfig binds the three actor handlers
+        (evaluate, dispatch_upgrades, audit) to per-(node, package)
+        decision logic in workflow_platform_upgrade.go.
+
+        Decision contract (locked by 12 tests):
+
+          for each (node × BOM-package):
+            if profile mismatch:                       skip (profile_skip)
+            if not currently installed on this node:   skip (not_installed)
+            if installed_version == BOM_version:       skip (up_to_date)
+            if installed_version >  BOM_version:       skip (skip_downgrade)
+            if BOM_version not in local repository:    skip (missing_in_repo)
+            if installed_version <  BOM_version:       upgrade
+
+        Upgrades are dispatched as release.apply.package per group (same
+        name+version+build_id on multiple nodes). Operator removals are
+        preserved (not_installed never auto-installs). Manifest's
+        entrypoint_checksum flows into ExpectedSha256 via
+        RunPackageReleaseWorkflow, satisfying
+        controller.apply_package_release_requires_manifest_checksum.
+      forbidden_fixes:
+        - writing_service_desired_version_directly_from_cli
+        - bulk_applying_bom_without_installed_state_gate
+        - dispatching_upgrades_with_bom_build_ids_without_local_resolve
+        - silently_reinstalling_operator_removed_packages
+      affects:
+        files:
+          - golang/globularcli/upgrade_cmds.go
+          - golang/cluster_controller/cluster_controller_server/workflow_platform_upgrade.go
+          - golang/workflow/engine/actors_platform_upgrade.go
+          - golang/workflow/definitions/platform.upgrade.yaml
+        symbols:
+          - runPlatformUpgrade
+          - evaluateUpgradeDecisions
+          - platformUpgradeDispatch
+          - upsertServiceDesiredVersion
+      detection: |
+        Direct: count DesiredBuildIdOrphaned findings before and after
+        `globular platform-upgrade`. If new findings appear, the gates
+        are not engaged.
+        Code: any new caller of upsertServiceDesiredVersion or
+        updateInfraReleaseVersion from a bulk-BOM loop (i.e. iterating
+        release-index.json packages) is a regression.
+      related_invariants:
+        - workflow.source_of_operational_truth
+        - controller.platform_upgrade_must_gate_per_node_per_package
+        - controller.apply_package_release_requires_manifest_checksum
+      required_tests:
+        - TestEvaluate_ProfileMismatch_SkipsWithProfileSkip
+        - TestEvaluate_NotInstalled_RespectsRemoval
+        - TestEvaluate_UpToDate_Skips
+        - TestEvaluate_SkipDowngrade_NeverGoesBackwards
+        - TestEvaluate_UpgradeDispatched
+        - TestEvaluate_MissingInRepo_RefusesToDispatch
+        - TestEvaluate_NativeVersionEqual_IsUpToDate
+        - TestEvaluate_NativeVersionDifferent_DispatchesIfResolvable
+        - TestEvaluate_MultiNodeMultiPackage_DeterministicOrder
+        - TestEvaluate_PerNodeDecision_RespectsRemovalOnSpecificNode
+        - TestEvaluate_v1_2_159_OperatorRemovalRegression

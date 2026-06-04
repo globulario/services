@@ -142,6 +142,9 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	// Uses relID parameter rather than captured releaseName; generation guards
 	// are disabled (0) since the orphan scanner doesn't know the original gen.
 	engine.RegisterReleaseControllerActions(defaultRouter, srv.buildGenericReleaseControllerConfig())
+	// platform.upgrade — per-(node, package) upgrade decision workflow.
+	// Replaces the direct-etcd-write CLI path (v1.2.159 incident).
+	engine.RegisterPlatformUpgradeControllerActions(defaultRouter, srv.platformUpgradeControllerConfig())
 	srv.actorServer.SetDefaultRouter(defaultRouter)
 
 	// Staggered initial enqueue: wait for readiness predicates to pass, then

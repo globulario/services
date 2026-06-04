@@ -496,6 +496,16 @@ code_symbols:
     file: golang/cluster_controller/cluster_controller_server/sync_installed_package_test.go
     component: platform_cluster_controller.sync_installed_package_tests
     risk: critical
+  - id: globular.platform:code.go.platform_cluster_controller.workflow_platform_upgrade
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/workflow_platform_upgrade.go
+    component: platform_cluster_controller.workflow_platform_upgrade
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth
+        - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
   - id: globular.platform:code.go.platform_controller.drift_action_planner
     namespace: globular.platform
     language: go

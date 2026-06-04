@@ -8,9 +8,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"log"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/repository/repository_client"
+	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/workflow/engine"
 )
@@ -213,41 +220,358 @@ func profilesIntersect(nodeProfiles map[string]struct{}, packageProfiles []strin
 	return false
 }
 
+// RunPlatformUpgradeWorkflow dispatches the platform.upgrade workflow
+// via the centralized WorkflowService. This is the controller-side entry
+// point for callers that want to trigger an upgrade run from server code
+// (the CLI goes through the workflow service directly — see
+// globularcli/upgrade_cmds.go — and reaches the same actor handlers via
+// the default router registered in reconcile_runtime.go).
+func (srv *server) RunPlatformUpgradeWorkflow(ctx context.Context, releaseTag string, dryRun bool) (map[string]any, error) {
+	if releaseTag == "" {
+		return nil, fmt.Errorf("release_tag required")
+	}
+
+	router := engine.NewRouter()
+	engine.RegisterPlatformUpgradeControllerActions(router, srv.platformUpgradeControllerConfig())
+
+	inputs := map[string]any{
+		"cluster_id":  srv.cfg.ClusterDomain,
+		"release_tag": releaseTag,
+		"dry_run":     dryRun,
+	}
+	corrID := fmt.Sprintf("platform-upgrade-%s-%d", releaseTag, time.Now().Unix())
+
+	resp, err := srv.executeWorkflowCentralized(ctx, "platform.upgrade", corrID, inputs, router)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status == "FAILED" {
+		return nil, fmt.Errorf("platform.upgrade workflow failed: %s", resp.Error)
+	}
+	return map[string]any{
+		"status":     resp.Status,
+		"run_id":     resp.RunId,
+		"release_tag": releaseTag,
+		"dry_run":    dryRun,
+	}, nil
+}
+
 // platformUpgradeControllerConfig returns the engine.PlatformUpgradeControllerConfig
 // the workflow router wires up. It binds the actor handlers to this
 // controller's snapshot/resolver implementations.
 //
-// Wiring is deliberately deferred: a follow-up commit will route this
-// config into RegisterPlatformUpgradeControllerActions wherever the
-// controller builds its workflow router (see engine.NewRouter()).
-// This file ships the decision logic + interface; the orchestration
-// wiring lands once the decision contract is locked by tests.
+// Source of truth for the BOM is the LOCAL repository's PUBLISHED
+// artifacts — not a separate release-index.json fetched from upstream.
+// Rationale: Dave's framing on 2026-06-04 — "when you upgrade you got a
+// bunch of service from upstream (.tar.gz) so you simply need to publish
+// received service it's the repository responsibility to discard existing
+// package... and then see if the service must be install (it's the
+// cluster controller responsibility)". The repository is authoritative
+// for what's actually installable; that's the same set the workflow
+// must reason about.
 func (srv *server) platformUpgradeControllerConfig() engine.PlatformUpgradeControllerConfig {
-	_ = context.Background // keep import in place for follow-up wiring
-
 	return engine.PlatformUpgradeControllerConfig{
-		Evaluate: func(ctx context.Context, releaseTag string) ([]engine.UpgradeDecision, []engine.UpgradeDecision, error) {
-			// Follow-up: wire BOM-fetch + node snapshot + resolver here.
-			// For MVP, the decision logic itself is the contract;
-			// wiring is a thin glue layer that:
-			//   1. fetches release-index.json for releaseTag
-			//   2. snapshots nodes from srv.state.Nodes
-			//   3. binds a resolver to the local repository client
-			//   4. calls evaluateUpgradeDecisions
-			//   5. returns the audit + upgrade subset
-			return nil, nil, nil
-		},
-		DispatchUpgrades: func(ctx context.Context, releaseTag string, upgrades []engine.UpgradeDecision) error {
-			// Follow-up: per upgrade, dispatch release.apply.package via
-			// srv.RunPackageReleaseWorkflow. The infrastructure for
-			// release.apply.package dispatch already exists; this just
-			// loops + invokes per upgrade decision.
-			return nil
-		},
-		Audit: func(ctx context.Context, releaseTag string, decisions []engine.UpgradeDecision) error {
-			// Best-effort: write to etcd or the audit trail. Defer to
-			// follow-up — the workflow runs without this in MVP.
-			return nil
-		},
+		Evaluate:         srv.platformUpgradeEvaluate,
+		DispatchUpgrades: srv.platformUpgradeDispatch,
+		Audit:            srv.platformUpgradeAudit,
+	}
+}
+
+// platformUpgradeEvaluate fetches the local repository's PUBLISHED
+// artifacts (the de-facto BOM), snapshots node state, and computes
+// per-(node, package) decisions via the pure evaluateUpgradeDecisions
+// function.
+func (srv *server) platformUpgradeEvaluate(ctx context.Context, releaseTag string) ([]engine.UpgradeDecision, []engine.UpgradeDecision, error) {
+	bom, resolver, err := srv.fetchLocalRepositoryBOM(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("fetch local BOM: %w", err)
+	}
+
+	nodes := srv.snapshotNodesForUpgrade()
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver)
+
+	log.Printf("platform_upgrade.evaluate: tag=%s bom_packages=%d nodes=%d decisions=%d upgrades=%d",
+		releaseTag, len(bom), len(nodes), len(audit), len(upgrades))
+	return audit, upgrades, nil
+}
+
+// platformUpgradeDispatch fires release.apply.package for each upgrade
+// decision. One workflow per upgrade — release.apply.package handles
+// per-node rollout, retries, and verification.
+func (srv *server) platformUpgradeDispatch(ctx context.Context, releaseTag string, upgrades []engine.UpgradeDecision) error {
+	// Group upgrades by (package_name, package_kind, bom_version, build_id):
+	// the same (name, version) on multiple nodes is one release.apply.package
+	// run with multiple candidate nodes — release.apply.package already
+	// handles wave parallelism per kind.
+	type key struct {
+		name, kind, version, buildID string
+	}
+	groups := map[key][]string{}
+	meta := map[key]engine.UpgradeDecision{}
+	for _, u := range upgrades {
+		k := key{u.PackageName, u.PackageKind, u.BOMVersion, u.LocalBuildID}
+		groups[k] = append(groups[k], u.NodeID)
+		meta[k] = u
+	}
+
+	releaseID := fmt.Sprintf("platform-upgrade-%s-%d", releaseTag, time.Now().Unix())
+	var firstErr error
+	dispatched := 0
+	for k, nodes := range groups {
+		// Resolve the artifact manifest from the repository to obtain
+		// the entrypoint_checksum (required by ApplyPackageReleaseRequest).
+		manifest, mErr := srv.resolveArtifactForUpgrade(ctx, k.name, k.version, k.buildID)
+		if mErr != nil {
+			log.Printf("platform_upgrade.dispatch: skip %s@%s — manifest resolve failed: %v",
+				k.name, k.version, mErr)
+			if firstErr == nil {
+				firstErr = mErr
+			}
+			continue
+		}
+
+		releaseName := fmt.Sprintf("%s-%s-%s", releaseID, k.kind, k.name)
+		_, dErr := srv.RunPackageReleaseWorkflow(
+			ctx,
+			releaseID,
+			releaseName,
+			k.name,
+			k.kind,
+			k.version,
+			"", // desiredHash — release.apply.package recomputes
+			k.buildID,
+			manifest.GetEntrypointChecksum(),
+			manifest.GetBuildNumber(),
+			nodes,
+		)
+		if dErr != nil {
+			log.Printf("platform_upgrade.dispatch: release.apply.package FAILED for %s@%s: %v",
+				k.name, k.version, dErr)
+			if firstErr == nil {
+				firstErr = dErr
+			}
+			continue
+		}
+		_ = meta // reserved for future audit detail
+		dispatched++
+		log.Printf("platform_upgrade.dispatch: dispatched %s@%s build_id=%s nodes=%d",
+			k.name, k.version, k.buildID, len(nodes))
+	}
+
+	log.Printf("platform_upgrade.dispatch: tag=%s groups=%d dispatched=%d",
+		releaseTag, len(groups), dispatched)
+	if firstErr != nil {
+		return fmt.Errorf("platform_upgrade.dispatch had failures (first error): %w", firstErr)
+	}
+	return nil
+}
+
+// platformUpgradeAudit best-effort writes the per-(node, package)
+// decisions to etcd under /globular/platform_upgrade/runs/<tag>/<ts>.
+func (srv *server) platformUpgradeAudit(ctx context.Context, releaseTag string, decisions []engine.UpgradeDecision) error {
+	if srv.etcdClient == nil {
+		return nil
+	}
+	ts := time.Now().UTC().Format(time.RFC3339Nano)
+	key := fmt.Sprintf("/globular/platform_upgrade/runs/%s/%s", releaseTag, ts)
+	body, err := json.Marshal(map[string]any{
+		"release_tag":   releaseTag,
+		"recorded_at":   ts,
+		"decisions":     decisions,
+		"decision_count": len(decisions),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal audit: %w", err)
+	}
+	if _, err := srv.etcdClient.Put(ctx, key, string(body)); err != nil {
+		// Audit is best-effort; log and continue.
+		log.Printf("platform_upgrade.audit: etcd write failed: %v", err)
+		return nil
+	}
+	return nil
+}
+
+// snapshotNodesForUpgrade copies node profiles + installed_versions
+// under the state lock, so the decision function operates on a stable
+// view.
+func (srv *server) snapshotNodesForUpgrade() []NodeView {
+	srv.lock("platform_upgrade:snapshot")
+	defer srv.unlock()
+
+	out := make([]NodeView, 0, len(srv.state.Nodes))
+	for _, n := range srv.state.Nodes {
+		if n == nil {
+			continue
+		}
+		installed := make(map[string]string, len(n.InstalledVersions))
+		for k, v := range n.InstalledVersions {
+			installed[k] = v
+		}
+		profiles := append([]string(nil), n.Profiles...)
+		out = append(out, NodeView{
+			NodeID:            n.NodeID,
+			Profiles:          profiles,
+			InstalledVersions: installed,
+		})
+	}
+	return out
+}
+
+// fetchLocalRepositoryBOM lists PUBLISHED artifacts from the local
+// repository, picks the latest build_number per (publisher, name,
+// platform, version), and returns both the BOM and a resolver bound to
+// the same data.
+func (srv *server) fetchLocalRepositoryBOM(ctx context.Context) ([]BOMPackage, LocalBuildIDResolver, error) {
+	repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
+	if repoAddr == "" {
+		return nil, nil, fmt.Errorf("repository service not found in registry")
+	}
+	rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return nil, nil, fmt.Errorf("repository client: %w", err)
+	}
+	defer rc.Close()
+
+	manifests, err := rc.ListArtifacts()
+	if err != nil {
+		return nil, nil, fmt.Errorf("ListArtifacts: %w", err)
+	}
+
+	// Group by (name, version) — pick the highest build_number for each
+	// (PUBLISHED only, never YANKED/QUARANTINED/REVOKED). This is the
+	// same selection rule release_resolver.getLatestPublished uses for
+	// per-version pinning, kept in sync intentionally.
+	type pkgKey struct{ name, version string }
+	type pkgEntry struct {
+		kind        string
+		profiles    []string
+		buildID     string
+		buildNumber int64
+	}
+	picked := map[pkgKey]pkgEntry{}
+	for _, m := range manifests {
+		if m == nil || m.GetRef() == nil {
+			continue
+		}
+		ps := m.GetPublishState()
+		if repositorypb.IsDownloadBlocked(ps) {
+			continue
+		}
+		if ps != repositorypb.PublishState_PUBLISHED && ps != repositorypb.PublishState_PUBLISH_STATE_UNSPECIFIED {
+			continue
+		}
+		ref := m.GetRef()
+		k := pkgKey{ref.GetName(), ref.GetVersion()}
+		cur, exists := picked[k]
+		if !exists || m.GetBuildNumber() > cur.buildNumber {
+			picked[k] = pkgEntry{
+				kind:        artifactKindToString(ref.GetKind()),
+				profiles:    append([]string(nil), m.GetProfiles()...),
+				buildID:     m.GetBuildId(),
+				buildNumber: m.GetBuildNumber(),
+			}
+		}
+	}
+
+	// Collapse to one BOMPackage per name — among versions, take the
+	// highest semver (or string-greater for native versions).
+	type nameKey = string
+	highest := map[nameKey]pkgKey{}
+	for k := range picked {
+		cur, ok := highest[k.name]
+		if !ok {
+			highest[k.name] = k
+			continue
+		}
+		cmp, err := versionutil.Compare(k.version, cur.version)
+		if err != nil {
+			if k.version > cur.version {
+				highest[k.name] = k
+			}
+			continue
+		}
+		if cmp > 0 {
+			highest[k.name] = k
+		}
+	}
+
+	bom := make([]BOMPackage, 0, len(highest))
+	for name, k := range highest {
+		e := picked[k]
+		bom = append(bom, BOMPackage{
+			Name:     name,
+			Kind:     e.kind,
+			Version:  k.version,
+			Profiles: e.profiles,
+		})
+	}
+	sort.Slice(bom, func(i, j int) bool { return bom[i].Name < bom[j].Name })
+
+	resolver := LocalBuildIDResolver(func(name, version string) string {
+		if e, ok := picked[pkgKey{name, version}]; ok {
+			return e.buildID
+		}
+		return ""
+	})
+	return bom, resolver, nil
+}
+
+// resolveArtifactForUpgrade looks up the manifest for a (name, version,
+// build_id) tuple via DescribePackage. release.apply.package needs the
+// entrypoint_checksum + build_number from this manifest.
+func (srv *server) resolveArtifactForUpgrade(ctx context.Context, name, version, buildID string) (*repositorypb.ArtifactManifest, error) {
+	repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
+	if repoAddr == "" {
+		return nil, fmt.Errorf("repository service not found in registry")
+	}
+	rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return nil, fmt.Errorf("repository client: %w", err)
+	}
+	defer rc.Close()
+
+	manifests, err := rc.ListArtifacts()
+	if err != nil {
+		return nil, fmt.Errorf("ListArtifacts: %w", err)
+	}
+	for _, m := range manifests {
+		if m == nil || m.GetRef() == nil {
+			continue
+		}
+		if m.GetRef().GetName() != name {
+			continue
+		}
+		if m.GetRef().GetVersion() != version {
+			continue
+		}
+		if buildID != "" && m.GetBuildId() != buildID {
+			continue
+		}
+		return m, nil
+	}
+	return nil, fmt.Errorf("artifact not found: %s@%s build_id=%s", name, version, buildID)
+}
+
+// artifactKindToString maps the proto enum to the lowercase kind
+// strings used by release.apply.package and the package decision
+// machinery ("service", "application", "infrastructure", ...).
+func artifactKindToString(k repositorypb.ArtifactKind) string {
+	switch k {
+	case repositorypb.ArtifactKind_SERVICE:
+		return "service"
+	case repositorypb.ArtifactKind_APPLICATION:
+		return "application"
+	case repositorypb.ArtifactKind_INFRASTRUCTURE:
+		return "infrastructure"
+	case repositorypb.ArtifactKind_AGENT:
+		return "agent"
+	case repositorypb.ArtifactKind_SUBSYSTEM:
+		return "subsystem"
+	case repositorypb.ArtifactKind_COMMAND:
+		return "command"
+	case repositorypb.ArtifactKind_AWARENESS_BUNDLE:
+		return "awareness_bundle"
+	default:
+		return ""
 	}
 }

@@ -5642,3 +5642,74 @@ invariants:
         - node_agent.install_skip_without_service_config_update
         - service.old_pid_after_upgrade
       required_tests: []
+
+    - id: controller.platform_upgrade_must_gate_per_node_per_package
+      title: platform-upgrade must apply per-(node, package) gates before any desired-state change
+      severity: high
+      status: active
+      summary: |
+        The platform.upgrade workflow translates a release BOM into
+        per-(node, package) upgrade decisions. Every decision is gated
+        by FOUR independent checks before a ServiceDesiredVersion or
+        InfrastructureRelease record is touched:
+
+          1. Profile match — node.profiles ∩ package.profiles non-empty
+             (skip otherwise: profile_skip)
+          2. Installed-on-this-node — the package must already be
+             installed on this node, else the workflow respects the
+             operator's prior removal (skip: not_installed). Day-0
+             initial install is a separate workflow.
+          3. Version comparison — semver-or-string forward direction
+             only; never downgrade (skip: skip_downgrade) and never
+             dispatch if up-to-date (skip: up_to_date).
+          4. Local-repository resolvability — the BOM version must be
+             resolvable to a build_id in THIS cluster's local repository
+             (skip: missing_in_repo); refusing to dispatch a build_id
+             the local repo cannot serve prevents the v1.2.155-v1.2.159
+             orphan storms.
+
+        Only decisions that pass all four gates produce a release.apply.package
+        dispatch. Output is deterministic (sorted by node_id, then
+        package_name) so safe_retry idempotency is real.
+      protects:
+        state:
+            - /globular/resources/ServiceDesiredVersion/
+            - /globular/resources/InfrastructureRelease/
+            - /globular/platform_upgrade/runs/
+        files:
+            - golang/cluster_controller/cluster_controller_server/workflow_platform_upgrade.go
+            - golang/workflow/engine/actors_platform_upgrade.go
+            - golang/workflow/definitions/platform.upgrade.yaml
+            - golang/globularcli/upgrade_cmds.go
+        symbols:
+            - evaluateUpgradeDecisions
+            - platformUpgradeEvaluate
+            - platformUpgradeDispatch
+            - RunPlatformUpgradeWorkflow
+            - runPlatformUpgrade
+      enforcement: |
+        The CLI dispatches the platform.upgrade workflow via
+        WorkflowService.ExecuteWorkflow. The controller's default
+        router has RegisterPlatformUpgradeControllerActions wired in
+        reconcile_runtime.go. The pure evaluateUpgradeDecisions
+        function is the authoritative implementation of the four-gate
+        contract; 12 tests pin each Action bucket and the v1.2.159
+        regression. Direct callers of upsertServiceDesiredVersion or
+        updateInfraReleaseVersion from a BOM loop are forbidden.
+      forbidden_fixes:
+        - writing_service_desired_version_directly_from_cli
+        - bulk_applying_bom_without_installed_state_gate
+        - dispatching_upgrades_with_bom_build_ids_without_local_resolve
+        - silently_reinstalling_operator_removed_packages
+        - removing_one_of_the_four_gates_to_simplify_logic
+      required_tests:
+        - TestEvaluate_ProfileMismatch_SkipsWithProfileSkip
+        - TestEvaluate_NotInstalled_RespectsRemoval
+        - TestEvaluate_UpToDate_Skips
+        - TestEvaluate_SkipDowngrade_NeverGoesBackwards
+        - TestEvaluate_MissingInRepo_RefusesToDispatch
+        - TestEvaluate_UpgradeDispatched
+        - TestEvaluate_v1_2_159_OperatorRemovalRegression
+      related_failure_modes:
+        - controller.platform_upgrade_bypassed_workflow_authority
+        - service.desired_state.pipeline_gap

@@ -29,6 +29,16 @@ code_symbols:
       implements:
         - globular.platform:intent.workflow.source_of_operational_truth
         - globular.platform:intent.workflow.cluster_invariants_gate_mutations
+  - id: globular.platform:code.go.platform_workflow.actors_platform_upgrade
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/actors_platform_upgrade.go
+    component: platform_workflow.actors_platform_upgrade
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth
+        - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
   - id: globular.platform:code.go.platform_workflow.actors_reconcile
     namespace: globular.platform
     language: go
