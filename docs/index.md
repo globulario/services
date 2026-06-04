@@ -100,6 +100,7 @@ How AI operates within Globular — rules, services, agent model, and integratio
 - [AI Developer Guide](ai/ai-developer-guide.md) — Build AI-safe services and MCP tools
 - [AI Diagnosis Walkthrough](ai/ai-diagnosis-walkthrough.md) — End-to-end example: observe, diagnose, act, verify, record
 - [AI Patterns and Anti-Patterns](ai/ai-patterns-and-anti-patterns.md) — Good and bad AI integration patterns
+- [Awareness for Agents](ai/awareness-for-agents.md) — One-screen navigation index into the awareness doc tree
 
 ---
 

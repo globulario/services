@@ -4,6 +4,22 @@ This file is read automatically by Claude Code at the start of every session. It
 
 ---
 
+## SESSION PRELUDE — read before any tool call
+
+Claude has no continuous memory between sessions. The rules below are loaded as text, but my training defaults will leak through unless I actively check them. Hooks enforce some of these; the rest require deliberate attention.
+
+1. **MEMORY = ai-memory, not flat files.** For project `globular-services`, use `mcp__globular__memory_store` / `memory_query` / `memory_update`. A `PreToolUse` hook (`block-flat-memory.sh`) will deny Write/Edit to `~/.claude/projects/.../memory/` entry files. `MEMORY.md` (the index) is still editable for migration cleanup, but new entries must go to ai-memory.
+
+2. **AWARENESS-FIRST in high-risk dirs.** Before any edit to `golang/{node_agent,cluster_controller,repository,rbac,security,cluster_doctor,mcp,ai_executor,services_manager}/`, `docs/awareness/`, or `docs/intent/` — call `mcp__globular__awareness_briefing(file=<path>)` FIRST. A `PreToolUse` hook (`enforce-briefing.sh`) will deny the edit without it. No "simple fix" exemption.
+
+3. **Ask the graph, don't grep.** When you need an invariant, intent, failure mode, or forbidden fix, use `mcp__globular__awareness_query` / `awareness_resolve` / `awareness_briefing`. Do NOT grep over `docs/intent/` or `docs/awareness/` — the YAML files are inputs to the graph, not the queryable surface.
+
+4. **End non-trivial tasks with the awareness template** (briefing used, invariants touched, tests run, remaining uncertainty). See the AWARENESS USAGE section below.
+
+If you find yourself defaulting to flat-file memory, grepping over awareness sources, or editing high-risk code without calling briefing — STOP. That is the drift this prelude exists to prevent. Today's session (2026-06-03) produced this prelude because the same drift kept happening.
+
+---
+
 ## PRIME RULES FOR AI AGENTS
 
 1. Walk the 4 layers before debugging: Repository → Desired → Installed → Runtime.
