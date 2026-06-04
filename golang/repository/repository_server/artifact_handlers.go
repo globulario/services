@@ -1487,6 +1487,34 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: false, BuildId: buildID})
 	}
 
+	// ── Final invariant gate: local POSIX blob must still be present + correct ──
+	// Invariant: repository.artifact_presence_requires_metadata_and_blob.
+	// promoteToPublished verified the blob before the state transition, but a
+	// publish must not declare SUCCESS to the client unless the authoritative
+	// local POSIX artifact is still on disk and matches expected size after
+	// the full pipeline completes. This catches post-promotion drift (concurrent
+	// cleanup, mirror-only writes that bypassed the local path, partial filesystem
+	// errors) before the operator sees Result=true.
+	//
+	// MinIO mirror presence is NOT sufficient — per the hard rule
+	// "MinIO is for secondary user data only — packages live in /var/lib/globular/packages/
+	// (POSIX CAS); never look in MinIO for packages". Returning SUCCESS here
+	// while the local POSIX blob is missing produces the
+	// PUBLISHED_MISSING_BLOB split-brain doctor finding observed 2026-06-04.
+	binKey := binaryStorageKey(key)
+	fi, statErr := srv.localStorage.Stat(ctx, binKey)
+	if statErr != nil {
+		slog.Error("publish FAILED final invariant: local POSIX blob missing after PUBLISHED",
+			"key", key, "build_id", buildID, "expected_path", srv.localStorage.LocalPath(binKey), "err", statErr)
+		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: false, BuildId: buildID})
+	}
+	if fi.Size() != int64(len(data)) {
+		slog.Error("publish FAILED final invariant: local POSIX blob size mismatch after PUBLISHED",
+			"key", key, "build_id", buildID,
+			"expected_size", len(data), "actual_size", fi.Size())
+		return stream.SendAndClose(&repopb.UploadArtifactResponse{Result: false, BuildId: buildID})
+	}
+
 	// ── Repair-unseal audit (post-success) ───────────────────────────────
 	// If any immutability gate authorized a bypass via the repair
 	// authorization (Phase 31 seal gate or Phase 32 version-immutability
@@ -2570,15 +2598,39 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	)
 
 	// ── Complete publish pipeline ───────────────────────────────────────
-	if err := srv.completePublish(ctx, newManifest, newKey, prov, nil); err != nil {
+	completePublishErr := srv.completePublish(ctx, newManifest, newKey, prov, nil)
+	if completePublishErr != nil {
 		slog.Warn("delta-deploy: auto-publish failed — artifact stored as VERIFIED",
-			"key", newKey, "err", err)
+			"key", newKey, "err", completePublishErr)
+	}
+
+	// ── Final invariant gate: local POSIX blob still present + correct ──
+	// Invariant: repository.artifact_presence_requires_metadata_and_blob.
+	// Demote the response Status from "published" to "verified_blob_missing"
+	// when the local POSIX blob is missing after completePublish — never
+	// declare "published" on the wire while the authoritative local blob is
+	// absent. This catches the same split-brain that
+	// PUBLISHED_MISSING_BLOB exposes in UploadArtifact.
+	publishStatus := "published"
+	binKey := binaryStorageKey(newKey)
+	fi, statErr := srv.localStorage.Stat(ctx, binKey)
+	switch {
+	case completePublishErr != nil:
+		publishStatus = "verified"
+	case statErr != nil:
+		slog.Error("delta-deploy FAILED final invariant: local POSIX blob missing after PUBLISHED",
+			"key", newKey, "expected_path", srv.localStorage.LocalPath(binKey), "err", statErr)
+		publishStatus = "verified_blob_missing"
+	case fi.Size() != int64(len(data)):
+		slog.Error("delta-deploy FAILED final invariant: local POSIX blob size mismatch after PUBLISHED",
+			"key", newKey, "expected_size", len(data), "actual_size", fi.Size())
+		publishStatus = "verified_blob_size_mismatch"
 	}
 
 	return stream.SendAndClose(&repopb.UpdateArtifactBinaryResponse{
 		BuildNumber: newBuild,
 		Checksum:    actualChecksum,
-		Status:      "published",
+		Status:      publishStatus,
 	})
 }
 
