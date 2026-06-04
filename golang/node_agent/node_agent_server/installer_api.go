@@ -306,6 +306,23 @@ func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, nam
 // hash is pre-computed by the caller (the binary sha256) and stored
 // as entrypoint_checksum, which is what the heartbeat's verification
 // pass compares against /proc/PID/exe.
+//
+// Timestamps: the skip path runs because canSkipInstallPackage
+// determined the package is ALREADY at the desired version with
+// the same on-disk bytes — no actual apply happened. The restamp
+// is metadata-only and MUST NOT advance pkg.InstalledUnix or
+// pkg.UpdatedUnix. Advancing UpdatedUnix to wall clock here causes
+// the verifier (max(installedUnix, updatedUnix) → ApplyTime) to
+// treat every restamp as a fresh apply, then any process whose
+// start time predates the restamp fires service.old_pid_after_upgrade
+// — the same INC-2026-0016 class of bug that the proof writer
+// already guards against. Live regression observed 2026-06-03
+// on envoy + torrent after commit 72ecf067 added this helper.
+//
+// metadata.installed_at IS updated by StampInstallReceipt (separate
+// forensic field, not consumed by the verifier's ApplyTime
+// calculation), so the audit trail of when the restamp ran is
+// preserved without misleading the verifier.
 func stampSkipPathReceipt(pkg *node_agentpb.InstalledPackage, unitPath, binaryPath, hash string) bool {
 	if pkg == nil || strings.TrimSpace(hash) == "" {
 		return false
@@ -314,7 +331,6 @@ func stampSkipPathReceipt(pkg *node_agentpb.InstalledPackage, unitPath, binaryPa
 		pkg.Metadata = make(map[string]string)
 	}
 	pkg.Metadata["entrypoint_checksum"] = hash
-	pkg.UpdatedUnix = time.Now().Unix()
 	opts := ReceiptOpts{
 		BinaryPath:  binaryPath,
 		InstalledBy: "node-agent.grpc_workflow.install_skip_restamp",

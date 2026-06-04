@@ -199,6 +199,135 @@ func TestStampSkipPathReceipt_IdempotentOnAlreadyCanonicalReceipt(t *testing.T) 
 	}
 }
 
+// TestStampSkipPathReceipt_DoesNotAdvanceUpdatedUnix is the regression
+// for the live envoy / torrent service.old_pid_after_upgrade observed
+// after commit 72ecf067 added this helper. The previous version
+// bumped pkg.UpdatedUnix = time.Now().Unix() on every restamp; the
+// verifier (cluster_doctor/collector/verification.go) computes
+// ApplyTime = max(installedUnix, updatedUnix), so every restamp
+// looked like a fresh apply at wall clock — and any process whose
+// start time predated the restamp fired the critical finding.
+//
+// Same INC-2026-0016 class of bug the proof writer was hardened
+// against. The restamp is metadata-only — it MUST NOT advance
+// either timestamp.
+func TestStampSkipPathReceipt_DoesNotAdvanceUpdatedUnix(t *testing.T) {
+	dir := t.TempDir()
+	unitPath, _ := writeRestampFile(t, dir, "globular-envoy.service", "[Unit]\n")
+	binPath, binSha := writeRestampFile(t, dir, "envoy", "ELF-bytes")
+
+	const realInstallTime = 1700000000  // 4 hours-ago equivalent
+	const realUpdateTime = 1700000500   // 4 hours ago, set by the real install
+	pkg := &node_agentpb.InstalledPackage{
+		Name:          "envoy",
+		Kind:          "INFRASTRUCTURE",
+		Version:       "1.35.3",
+		InstalledUnix: realInstallTime,
+		UpdatedUnix:   realUpdateTime,
+		Metadata: map[string]string{
+			installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar,
+		},
+	}
+	if !stampSkipPathReceipt(pkg, unitPath, binPath, binSha) {
+		t.Fatal("stamp failed")
+	}
+	if pkg.InstalledUnix != realInstallTime {
+		t.Errorf("InstalledUnix was advanced from %d to %d; skip-path restamp must NOT touch InstalledUnix",
+			realInstallTime, pkg.InstalledUnix)
+	}
+	if pkg.UpdatedUnix != realUpdateTime {
+		t.Errorf("UpdatedUnix was advanced from %d to %d; skip-path restamp must NOT touch UpdatedUnix "+
+			"(verifier reads max(installedUnix, updatedUnix) as ApplyTime; wall-clock bump → "+
+			"false service.old_pid_after_upgrade for every running process)",
+			realUpdateTime, pkg.UpdatedUnix)
+	}
+	// Receipt content WAS written — the metadata.installed_at audit
+	// field is the right place to record when the restamp ran.
+	if pkg.Metadata[installreceipt.KeyInstalledBy] == "" {
+		t.Errorf("installed_by must still be stamped — only the timestamp fields are off-limits")
+	}
+	if pkg.Metadata[installreceipt.KeyInstalledAt] == "" {
+		t.Errorf("installed_at must still be stamped (forensic field, not consumed by verifier)")
+	}
+}
+
+// TestStampSkipPathReceipt_PreservesTimestampsAcrossRepeatedRestamps
+// proves the timestamp-preservation rule holds under the realistic
+// scenario where the skip path fires every workflow sweep (every
+// few seconds on a busy cluster). InstalledUnix and UpdatedUnix
+// MUST stay equal to their original install-time values across
+// arbitrarily many restamp cycles.
+func TestStampSkipPathReceipt_PreservesTimestampsAcrossRepeatedRestamps(t *testing.T) {
+	dir := t.TempDir()
+	unitPath, _ := writeRestampFile(t, dir, "globular-envoy.service", "[Unit]\n")
+	binPath, binSha := writeRestampFile(t, dir, "envoy", "ELF-bytes")
+
+	const realInstallTime = 1700000000
+	const realUpdateTime = 1700000500
+	pkg := &node_agentpb.InstalledPackage{
+		Name:          "envoy",
+		Kind:          "INFRASTRUCTURE",
+		InstalledUnix: realInstallTime,
+		UpdatedUnix:   realUpdateTime,
+	}
+	for i := 0; i < 10; i++ {
+		if !stampSkipPathReceipt(pkg, unitPath, binPath, binSha) {
+			t.Fatalf("stamp #%d failed", i)
+		}
+	}
+	if pkg.InstalledUnix != realInstallTime {
+		t.Errorf("InstalledUnix drifted after 10 restamps: %d != %d", pkg.InstalledUnix, realInstallTime)
+	}
+	if pkg.UpdatedUnix != realUpdateTime {
+		t.Errorf("UpdatedUnix drifted after 10 restamps: %d != %d", pkg.UpdatedUnix, realUpdateTime)
+	}
+}
+
+// TestStampSkipPathReceipt_StillStampsUnitFileSha256_AfterTimestampFix
+// is the contract guard for the surgical fix: removing the
+// UpdatedUnix bump MUST NOT regress the original purpose of the
+// restamp helper — clearing legacy_sidecar by writing canonical
+// unit_file_sha256 + installed_by. This test asserts both
+// timestamp-preservation AND the original stamping behavior on the
+// same call.
+func TestStampSkipPathReceipt_StillStampsUnitFileSha256_AfterTimestampFix(t *testing.T) {
+	dir := t.TempDir()
+	unitPath, wantUnitSha := writeRestampFile(t, dir, "globular-envoy.service", "[Unit]\nDescription=Envoy\n")
+	binPath, wantBinSha := writeRestampFile(t, dir, "envoy", "ELF-bytes")
+
+	const realInstallTime = 1700000000
+	pkg := &node_agentpb.InstalledPackage{
+		Name:          "envoy",
+		Kind:          "INFRASTRUCTURE",
+		InstalledUnix: realInstallTime,
+		UpdatedUnix:   realInstallTime,
+		Metadata: map[string]string{
+			installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar,
+			installreceipt.KeyUnitFileSha256:  "STALE_PRE_INSTALL_SHA",
+		},
+	}
+	if !stampSkipPathReceipt(pkg, unitPath, binPath, wantBinSha) {
+		t.Fatal("stamp failed")
+	}
+	// Timestamp preservation:
+	if pkg.InstalledUnix != realInstallTime || pkg.UpdatedUnix != realInstallTime {
+		t.Errorf("timestamps moved: InstalledUnix=%d UpdatedUnix=%d want both %d",
+			pkg.InstalledUnix, pkg.UpdatedUnix, realInstallTime)
+	}
+	// Original stamping behavior:
+	if pkg.Metadata[installreceipt.KeyUnitFileSha256] != wantUnitSha {
+		t.Errorf("unit_file_sha256 not refreshed from disk: got %q want %q",
+			pkg.Metadata[installreceipt.KeyUnitFileSha256], wantUnitSha)
+	}
+	if _, present := pkg.Metadata[installreceipt.KeyMigrationSource]; present {
+		t.Errorf("migration_source must be cleared by canonical stamp; still present: %q",
+			pkg.Metadata[installreceipt.KeyMigrationSource])
+	}
+	if pkg.Metadata[installreceipt.KeyInstalledBy] != "node-agent.grpc_workflow.install_skip_restamp" {
+		t.Errorf("installed_by attribution wrong: %q", pkg.Metadata[installreceipt.KeyInstalledBy])
+	}
+}
+
 // TestStampSkipPathReceipt_PreservesSiblingNonReceiptFields proves
 // the helper does NOT clobber sibling fields like proof_on_disk_sha256
 // or proof_source that the heartbeat / proof writer manages. Only
