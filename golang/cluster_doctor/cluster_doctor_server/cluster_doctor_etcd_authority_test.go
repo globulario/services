@@ -67,38 +67,42 @@ func TestClusterDoctor_NoNewEtcdDataWrites(t *testing.T) {
 	// shrink over time. Each entry was vetted by querying the awareness
 	// graph for the file's anchors before adding it here.
 	legitimateEtcdUsage := map[string]string{
-		// CATEGORY 1 — legitimate coordination primitives (etcd is the
-		// standard distributed coordination layer; not a four-layer
-		// data write).
+		// CATEGORY 1 — legitimate coordination primitives (etcd is
+		// the standard distributed coordination layer; not a
+		// four-layer data write).
 		"cluster_doctor_server/leader_election.go": "concurrency.NewElection / lease. Anchored by invariant:doctor.remediation_requires_leader and forbidden_fix:execute_remediation_on_follower_instance. Etcd here is a coordination primitive, not a data write. Remains legitimate unless leader election moves to a controller-managed surface.",
 		"cluster_doctor_server/collector/collector.go": "etcd service-discovery primitive for dialling other services. Reading the service registry to find endpoint addresses, not reading another layer's state.",
 
-		// CATEGORY 2 — security/policy state that legitimately needs to
-		// persist across leader failover. Currently in etcd. Migration
-		// target: ai-memory typed history RPC (the doctor's own
-		// persistence surface that honours the layer model).
-		"cluster_doctor_server/approval_replay_etcd.go": "Approval-token replay table. Anchored by failure_mode:doctor.approval_token_replay_across_failover — the table MUST survive leader change or a replayed token re-authorises an old action. Migration target: ai-memory typed RPC. Tracked follow-up.",
-		"cluster_doctor_server/remediation_history.go":  "Remediation history. Anchored by invariant:remediation.must_not_retry_without_changed_evidence_or_policy_budget — the budget check needs durable history. Migration target: ai-memory typed RPC. Tracked follow-up.",
-
-		// CATEGORY 3 — formerly grandfathered direct L2 reads from the
-		// rules package (readDesiredVersions, readDesiredBuildIDs).
-		// REMOVED in v1.2.171: the rules now read
-		// Snapshot.DesiredVersionIndex and Snapshot.DesiredBuildIDIndex,
-		// populated by the collector via
-		// cluster_controller.GetDesiredState +
-		// cluster_controller.ListDesiredBuildIDs. The etcd_helpers.go
-		// generic accessor file remains because other rules still use
-		// some etcd primitives (e.g. for ID lookups not yet typed) — it
-		// stays allow-listed only for those uses. Any NEW data-read
-		// against /globular/resources/* via this helper fires the read-
-		// side pin test (TestClusterDoctor_NoNewEtcdReads).
-		"cluster_doctor_server/rules/etcd_helpers.go": "Generic accessor file. Data reads of /globular/resources/* via this file fire the read-side pin (allowlist is per-file:function).",
-
-		// CATEGORY 4 — collector machinery with no awareness anchors yet.
-		// Inspect-and-anchor needed before refactor. Tracked follow-up.
-		"cluster_doctor_server/collector/sweep_requests.go": "Sweep request queue. No awareness anchors yet — needs the inspect-and-anchor pass before migration.",
-		"cluster_doctor_server/collector/verification.go":   "fetchDesiredServiceTargets — direct etcd read of L2. Tracked under TestClusterDoctor_NoNewEtcdReads allowlist below.",
+		// CATEGORY 2 — durable security/policy state that survives
+		// leader failover. The writes use clientv3.OpPut inside a
+		// Txn (approval_replay_etcd) or runtime keys keyed off a
+		// computed prefix (verification.persistVerificationResults).
+		// Neither shape is matched by the literal-key write regex
+		// below — these entries are tracking markers, not regex
+		// silencers. Migration targets:
+		//   approval_replay_etcd → ai-memory typed RPC
+		//   collector/verification.go::persistVerificationResults →
+		//     ai-memory or controller-side verdict persistence
+		"cluster_doctor_server/approval_replay_etcd.go": "Approval-token replay table. Anchored by failure_mode:doctor.approval_token_replay_across_failover — the table MUST survive leader change or a replayed token re-authorises an old action. Uses clientv3.OpPut inside a CAS txn; regex below does not match the OpPut shape. Migration target: ai-memory typed RPC. Tracked follow-up.",
+		"cluster_doctor_server/collector/verification.go":   "persistVerificationResults writes JSON-encoded Verdicts to /globular/verification/runtime/<node>/<service>. Key is built via verifier.EtcdKeyForVerification(node, svc), so the regex (literal key) does not match. Migration target: typed verdict persistence on the owner (cluster_controller) so cluster_doctor.observer_only_never_writes_etcd holds end-to-end. Tracked follow-up.",
 	}
+
+	// Note: previously-allowlisted files (approval_replay_etcd.go
+	// remediation_history.go, rules/etcd_helpers.go,
+	// rules/package_version_authority.go,
+	// rules/repository_dns_invariants.go,
+	// collector/sweep_requests.go) have been pruned. Their writes
+	// were either removed in earlier ratchets
+	// (readDesiredVersions/readDesiredBuildIDs in v1.2.171,
+	// remediation_gate writes in v1.2.166) or never existed —
+	// they were tracking markers for tracked-follow-up work that
+	// has since landed. The cluster_doctor write-side allowlist
+	// is now down to four genuinely-needed entries: two
+	// coordination primitives (leader_election, collector
+	// service-discovery) and two genuine remaining violations
+	// the regex misses (approval_replay_etcd OpPut + verification
+	// persistVerificationResults runtime-key Put), both tracked
+	// for ai-memory migration.
 
 	walkClusterDoctorGoFiles(t, root, func(path string, body []byte) {
 		rel, _ := filepath.Rel(root, path)
