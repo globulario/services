@@ -467,6 +467,14 @@ func scanInstalledState(ctx context.Context, report *canonReport) error {
 // repairDesiredStateBuildID re-upserts each desired-state record missing
 // build_id through the controller API. The controller resolves build_id
 // from the repository manifest and writes it to etcd.
+// repairDesiredStateBuildID collects entries whose build_id is empty
+// and re-upserts them so the controller's resolver allocates a fresh
+// build_id from the repository. The read side now uses the typed
+// GetDesiredState RPC instead of scanning
+// /globular/resources/ServiceDesiredVersion/ etcd directly — anchored
+// by invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+// The write side already used UpsertDesiredService, so this function
+// is now end-to-end typed (no etcd primitive).
 func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repaired, failed int) {
 	// Collect A2 anomalies.
 	type a2Entry struct {
@@ -476,44 +484,28 @@ func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repair
 	}
 	var entries []a2Entry
 
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		fmt.Printf("  A2: etcd unavailable: %v\n", err)
+		fmt.Printf("  A2: cannot connect to controller: %v\n", err)
+		return 0, 0
+	}
+	defer cc.Close()
+	ctrlClient := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+
+	getCtx, getCancel := context.WithTimeout(ctx, 10*time.Second)
+	resp, err := ctrlClient.GetDesiredState(getCtx, &emptypb.Empty{})
+	getCancel()
+	if err != nil {
+		fmt.Printf("  A2: GetDesiredState failed: %v\n", err)
 		return 0, 0
 	}
 
-	resp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/",
-		clientv3.WithPrefix(), clientv3.WithLimit(500))
-	if err != nil {
-		fmt.Printf("  A2: etcd get failed: %v\n", err)
-		return 0, 0
-	}
-
-	type desiredSpec struct {
-		ServiceName string `json:"service_name"`
-		Version     string `json:"version"`
-		BuildNumber int64  `json:"build_number"`
-		BuildID     string `json:"build_id"`
-	}
-	type desiredRecord struct {
-		Spec *desiredSpec `json:"spec"`
-	}
-
-	for _, kv := range resp.Kvs {
-		var rec desiredRecord
-		if err := json.Unmarshal(kv.Value, &rec); err != nil || rec.Spec == nil {
-			continue
-		}
-		if rec.Spec.BuildID == "" {
-			svc := rec.Spec.ServiceName
-			if svc == "" {
-				parts := strings.Split(string(kv.Key), "/")
-				svc = parts[len(parts)-1]
-			}
+	for _, svc := range resp.GetServices() {
+		if svc.GetBuildId() == "" {
 			entries = append(entries, a2Entry{
-				service:     svc,
-				version:     rec.Spec.Version,
-				buildNumber: rec.Spec.BuildNumber,
+				service:     svc.GetServiceId(),
+				version:     svc.GetVersion(),
+				buildNumber: svc.GetBuildNumber(),
 			})
 		}
 	}
@@ -522,17 +514,6 @@ func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repair
 		fmt.Println("  A2: no records to repair")
 		return 0, 0
 	}
-
-	// Find the controller leader and call UpsertDesiredService for each.
-	controllerAddr := rootCfg.controllerAddr
-	cc, err := dialGRPC(controllerAddr)
-	if err != nil {
-		fmt.Printf("  A2: cannot connect to controller at %s: %v\n", controllerAddr, err)
-		return 0, len(entries)
-	}
-	defer cc.Close()
-
-	ctrlClient := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
 	for _, e := range entries {
 		reqCtx, reqCancel := context.WithTimeout(ctx, 10*time.Second)
@@ -605,48 +586,66 @@ func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repair
 
 // repairDesiredWriteProvenanceLegacy emits provenance markers for desired-state
 // services whose records predate desired-write provenance emission.
+//
+// The desired-state side now consumes GetDesiredState (anchored by
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage).
+// The provenance audit read against /globular/audit/desired_writes/
+// is a separate ownership domain (audittrail) and is left as a tracked
+// follow-up.
 func repairDesiredWriteProvenanceLegacy(ctx context.Context) (backfilled, failed int) {
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		fmt.Printf("  provenance backfill skipped: etcd client error: %v\n", err)
+		fmt.Printf("  provenance backfill skipped: cannot dial controller: %v\n", err)
 		return 0, 1
 	}
+	defer cc.Close()
+	ctrlClient := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 
-	dResp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/", clientv3.WithPrefix())
+	getCtx, getCancel := context.WithTimeout(ctx, 10*time.Second)
+	dResp, err := ctrlClient.GetDesiredState(getCtx, &emptypb.Empty{})
+	getCancel()
 	if err != nil {
-		fmt.Printf("  provenance backfill skipped: desired-state read failed: %v\n", err)
+		fmt.Printf("  provenance backfill skipped: GetDesiredState failed: %v\n", err)
 		return 0, 1
 	}
-	if len(dResp.Kvs) == 0 {
+	if len(dResp.GetServices()) == 0 {
 		return 0, 0
 	}
 
-	pResp, err := cli.Get(ctx, "/globular/audit/desired_writes/", clientv3.WithPrefix())
+	// Read existing provenance markers (audittrail-owned prefix —
+	// tracked follow-up to migrate to a typed audittrail RPC).
+	cli, err := config.GetEtcdClient()
 	if err != nil {
-		fmt.Printf("  provenance backfill warning: cannot read existing provenance: %v\n", err)
+		fmt.Printf("  provenance backfill warning: audittrail etcd read unavailable: %v\n", err)
 	}
 	covered := map[string]bool{}
-	for _, kv := range pResp.Kvs {
-		var rec struct {
-			Service string `json:"service"`
-		}
-		if err := json.Unmarshal(kv.Value, &rec); err != nil {
-			continue
-		}
-		svc := strings.TrimSpace(rec.Service)
-		if svc != "" {
-			covered[svc] = true
+	if cli != nil {
+		pResp, perr := cli.Get(ctx, "/globular/audit/desired_writes/", clientv3.WithPrefix())
+		if perr != nil {
+			fmt.Printf("  provenance backfill warning: cannot read existing provenance: %v\n", perr)
+		} else {
+			for _, kv := range pResp.Kvs {
+				var rec struct {
+					Service string `json:"service"`
+				}
+				if err := json.Unmarshal(kv.Value, &rec); err != nil {
+					continue
+				}
+				svc := strings.TrimSpace(rec.Service)
+				if svc != "" {
+					covered[svc] = true
+				}
+			}
 		}
 	}
 
-	for _, kv := range dResp.Kvs {
-		key := strings.TrimPrefix(string(kv.Key), "/globular/resources/ServiceDesiredVersion/")
-		svc := strings.TrimSpace(key)
-		if svc == "" || covered[svc] {
+	for _, svc := range dResp.GetServices() {
+		name := strings.TrimSpace(svc.GetServiceId())
+		if name == "" || covered[name] {
 			continue
 		}
 		if err := audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
-			Service:   svc,
+			Service:   name,
 			Actor:     "canonicalize-tool",
 			Source:    "state.canonicalize.provenance-backfill",
 			Action:    "legacy_backfill_marker",
@@ -656,7 +655,7 @@ func repairDesiredWriteProvenanceLegacy(ctx context.Context) (backfilled, failed
 			failed++
 			continue
 		}
-		covered[svc] = true
+		covered[name] = true
 		backfilled++
 	}
 	return backfilled, failed
@@ -666,87 +665,59 @@ func repairDesiredWriteProvenanceLegacy(ctx context.Context) (backfilled, failed
 
 // repairInstalledStateBuildID applies the correct build_id to installed-state
 // records on a specific node by calling ApplyPackageRelease with force=true.
+//
+// Desired-state side reads GetDesiredState (anchored by
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage).
+// The controller's listAllDesiredServices already merges SDV +
+// InfrastructureRelease into a flat list; the prior per-prefix etcd
+// scans collapsed into one typed call. Installed-state read against
+// /globular/nodes/{node}/packages/ is a separate ratchet — it needs
+// node_agent.ListInstalledPackages.
 func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, failed int) {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		fmt.Printf("  etcd unavailable: %v\n", err)
-		return 0, 0
-	}
-
-	// Load desired-state build_ids.
+	// Local mirror of the desired-state tuple the rest of this
+	// function uses. Identical shape to the prior etcd-parsed type so
+	// downstream code is unchanged.
 	type dSpec struct {
-		ServiceName string `json:"service_name"`
-		Version     string `json:"version"`
-		BuildNumber int64  `json:"build_number"`
-		BuildID     string `json:"build_id"`
-	}
-	type dRec struct {
-		Spec *dSpec `json:"spec"`
+		ServiceName string
+		Version     string
+		BuildNumber int64
+		BuildID     string
 	}
 
-	dResp, err := cli.Get(ctx, "/globular/resources/ServiceDesiredVersion/",
-		clientv3.WithPrefix(), clientv3.WithLimit(500))
+	cc, err := controllerClient()
 	if err != nil {
-		fmt.Printf("  desired-state read failed: %v\n", err)
+		fmt.Printf("  controller unavailable: %v\n", err)
 		return 0, 0
 	}
-	desired := make(map[string]*dSpec)
-	for _, kv := range dResp.Kvs {
-		var rec dRec
-		if json.Unmarshal(kv.Value, &rec) == nil && rec.Spec != nil {
-			svc := rec.Spec.ServiceName
-			if svc == "" {
-				parts := strings.Split(string(kv.Key), "/")
-				svc = parts[len(parts)-1]
-			}
-			desired[svc] = rec.Spec
-		}
+	defer cc.Close()
+	ctrlClient := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+
+	getCtx, getCancel := context.WithTimeout(ctx, 10*time.Second)
+	dsResp, err := ctrlClient.GetDesiredState(getCtx, &emptypb.Empty{})
+	getCancel()
+	if err != nil {
+		fmt.Printf("  GetDesiredState failed: %v\n", err)
+		return 0, 0
 	}
 
-	// Also read InfrastructureRelease desired-state for INFRASTRUCTURE packages.
-	// Schema: spec.component = name, status.resolved_build_id = build_id.
-	type infraSpec struct {
-		Component   string `json:"component"`
-		Version     string `json:"version"`
-		BuildNumber int64  `json:"build_number"`
-		BuildID     string `json:"build_id"`
-	}
-	type infraStatus struct {
-		ResolvedBuildID string `json:"resolved_build_id"`
-		ResolvedVersion string `json:"resolved_version"`
-	}
-	type infraRec struct {
-		Spec   *infraSpec   `json:"spec"`
-		Status *infraStatus `json:"status"`
-	}
-	iRelResp, _ := cli.Get(ctx, "/globular/resources/InfrastructureRelease/",
-		clientv3.WithPrefix(), clientv3.WithLimit(500))
-	for _, kv := range iRelResp.Kvs {
-		var rec infraRec
-		if json.Unmarshal(kv.Value, &rec) != nil || rec.Spec == nil {
-			continue
-		}
-		name := rec.Spec.Component
+	desired := make(map[string]*dSpec, len(dsResp.GetServices()))
+	for _, svc := range dsResp.GetServices() {
+		name := svc.GetServiceId()
 		if name == "" {
-			parts := strings.Split(string(kv.Key), "/")
-			name = parts[len(parts)-1]
-		}
-		if _, exists := desired[name]; exists {
-			continue // SERVICE desired-state takes precedence
-		}
-		// Use resolved_build_id from status if available, else spec.build_id.
-		buildID := ""
-		if rec.Status != nil && rec.Status.ResolvedBuildID != "" {
-			buildID = rec.Status.ResolvedBuildID
-		} else if rec.Spec.BuildID != "" {
-			buildID = rec.Spec.BuildID
+			continue
 		}
 		desired[name] = &dSpec{
 			ServiceName: name,
-			Version:     rec.Spec.Version,
-			BuildNumber: rec.Spec.BuildNumber,
-			BuildID:     buildID,
+			Version:     svc.GetVersion(),
+			BuildNumber: svc.GetBuildNumber(),
+			BuildID:     svc.GetBuildId(),
 		}
+	}
+
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		fmt.Printf("  etcd unavailable for installed-state read: %v\n", err)
+		return 0, 0
 	}
 
 	// Load installed-state for this node.
