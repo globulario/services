@@ -127,6 +127,15 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.repository.namespace_ownership_protects_reserved_prefixes
+  - id: globular.platform:code.go.platform_repository.publish_posix_authority
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/publish_posix_authority_test.go
+    component: platform_repository.publish_posix_authority
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.repository.artifact_presence_requires_metadata_and_blob
   - id: globular.platform:code.go.platform_repository.publish_reconciler
     namespace: globular.platform
     language: go

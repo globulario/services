@@ -350,3 +350,9 @@ code_edges:
   - from: globular.platform:code.go.platform_controller.topology_safety
     relation: implements
     to: globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - from: globular.platform:code.go.platform_controller.workflow_release.hash_schemas_must_not_alias
+    relation: enforces
+    to: globular.platform:invariant.install_package.hash_schemas_must_not_alias
+  - from: globular.platform:code.go.platform_controller.workflow_release.hash_schemas_must_not_alias
+    relation: protects
+    to: globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256

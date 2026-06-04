@@ -2588,3 +2588,126 @@ forbidden_fixes:
     files:
       - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
       - golang/cluster_doctor/cluster_doctor_server/server.go
+
+- id: heal_published_artifacts_from_minio_mirror
+  summary: >
+    Add a publish-reconciler sweep (or any recovery path) that reads package
+    binary bytes from MinIO mirror and writes them into the repository's local
+    POSIX CAS, on the theory that the mirror is "informational only" and the
+    checksum-verify gate makes it safe.
+  reason: >
+    MinIO is for secondary user data only. Package artifacts live in
+    /var/lib/globular/packages/ (the per-node install-time CAS) and in the
+    repository service's own /var/lib/globular/repository/artifacts/ backend
+    — never in MinIO. The fact that the running v1.2.159 repository writes a
+    "mirror" copy to MinIO via ResilientStorage is legacy architectural drift,
+    not a contract; bytes appearing in MinIO are a symptom of the drift, not
+    a recovery source. Reading from the mirror — even under cryptographic
+    verification — legitimizes the violation: it makes MinIO authoritative
+    in the recovery path, locks future code to assume mirror presence, and
+    silently entrenches the rule violation rather than removing it.
+
+    Live regression class: v1.2.162's first cut added exactly this sweep
+    (`healPublishedMissingBlobsOnce`) and was reverted before merge.
+  safe_alternative: >
+    For missing local POSIX blobs, use the upstream-import path:
+    `globular repository sync --tag vX.Y.Z` triggers
+    materializeLocalPackageArchive, which writes verified bytes from the
+    upstream release into /var/lib/globular/packages/ on every node. For
+    repository-side missing artifacts, the operator republishes via
+    `globular pkg publish` against the artifact downloaded from the upstream
+    GitHub release. Either way the bytes flow from the upstream source, not
+    from MinIO. The publish-reconciler's only legitimate role is to retry
+    stuck VERIFIED→PUBLISHED promotions; it must not heal MISSING_BLOB.
+  related_invariants:
+    - repository.minio_is_not_valid_package_source
+  protects:
+    files:
+      - golang/repository/repository_server/publish_reconciler.go
+      - golang/repository/repository_server/artifact_handlers.go
+
+- id: treat_minio_mirror_as_package_source_under_checksum_guard
+  summary: >
+    Argue that reading package bytes from MinIO is acceptable as long as the
+    bytes are verified against the manifest's expected checksum before write.
+  reason: >
+    The architectural rule is about WHICH storage is authoritative for package
+    content, not about whether a particular read happens to be cryptographically
+    safe. Even a perfectly checksum-verified read from MinIO mints a code path
+    where MinIO is a valid package source — exactly the rule MinIO violates.
+    Future contributors look at the checksum guard and conclude "mirror reads
+    are safe", entrenching the drift. The integrity check is a separate concern
+    from the authority surface; they must both be satisfied independently.
+  safe_alternative: >
+    Use the upstream-import path (see heal_published_artifacts_from_minio_mirror
+    safe_alternative). Cryptographic verification is necessary but not
+    sufficient — the source must also be an architecturally valid authority.
+  related_invariants:
+    - repository.minio_is_not_valid_package_source
+  protects:
+    files:
+      - golang/repository/repository_server/publish_reconciler.go
+
+- id: extend_existing_buggy_pattern_without_querying_architecture
+  summary: >
+    When fixing a bug in code that uses a pre-existing pattern (e.g. MinIO as
+    mirror, a particular field-name semantic, a routing fallback), extend the
+    pattern in the fix because "that's how the code currently works".
+  reason: >
+    The buggy code is not the contract. The contract is in the awareness
+    graph (invariants, intents, forbidden fixes), in CLAUDE.md, and in the
+    project's architectural documentation. When a fix is being designed,
+    the contract — not the buggy implementation — is what dictates the
+    shape of the fix. Extending the buggy pattern preserves the drift it
+    encodes; in compound systems this drift accumulates faster than it can
+    be repaid.
+
+    Live regression class: v1.2.162's heal-from-mirror sweep was a direct
+    application of this anti-pattern. The assistant read the existing
+    publish path's MinIO mirror writes and concluded "mirror is the source
+    of truth for recovery", instead of querying the awareness graph for
+    where packages are supposed to live. The result was a fix that
+    preserved the architectural violation.
+  safe_alternative: >
+    Before writing any code in a high-risk area, query the awareness graph
+    for the relevant invariants/intents/forbidden_fixes. Specifically:
+    awareness.briefing on the target file AND awareness.query with
+    class=invariant search terms matching the operation being performed.
+    If the briefing returns empty for a topic that clearly has an
+    architectural rule, broaden the query, briefing on related files, or
+    explicitly state that the rule is not in the graph rather than
+    substituting code-inspection-derived assumptions.
+  related_invariants:
+    - assistant.query_awareness_before_assuming_architecture
+  protects:
+    files:
+      - CLAUDE.md
+      - docs/awareness/invariants.yaml
+
+- id: infer_architecture_from_code_when_awareness_anchor_exists
+  summary: >
+    Treat the running implementation as the architectural contract when an
+    awareness anchor (invariant / forbidden_fix / intent) on the same topic
+    already exists.
+  reason: >
+    Awareness anchors exist precisely to remind future contributors that the
+    implementation may have drifted from the intended architecture. If the
+    graph has an anchor and the code disagrees with the anchor, the anchor
+    wins by definition — the code is the bug. Inferring "the architecture
+    is whatever the code currently does" silently downgrades the anchor
+    from a contract into a comment.
+  safe_alternative: >
+    When the awareness graph has an anchor on a topic, design the fix
+    against the anchor's contract. If the existing code violates the
+    anchor, the fix should remove the violation rather than extend it.
+    If the anchor and the implementation appear to be in genuine
+    conflict and the right resolution isn't obvious, stop and surface
+    the conflict to the operator — do not silently resolve it by
+    deferring to the code.
+  related_invariants:
+    - assistant.query_awareness_before_assuming_architecture
+    - repository.minio_is_not_valid_package_source
+  protects:
+    files:
+      - CLAUDE.md
+      - docs/awareness/invariants.yaml

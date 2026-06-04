@@ -5758,3 +5758,95 @@ invariants:
         - guard_cluster_id_injection_on_optionally_propagated_field
       related_failure_modes:
         - collector.cluster_id_metadata_missing_starves_evidence
+
+    - id: repository.minio_is_not_valid_package_source
+      title: MinIO must never be used as a recovery source for package binaries — packages live in the local POSIX CAS at /var/lib/globular/packages/ and that is the only authority for installable content
+      severity: critical
+      status: active
+      summary: |
+        Per the platform's storage rule, MinIO is for secondary user data only.
+        Package artifacts physically live in two places, both POSIX:
+          1. /var/lib/globular/packages/ — the canonical install-time CAS that
+             node-agent's InstallPackage reads from. Filled by Day-0 bundle, by
+             `globular repository sync` (materializeLocalPackageArchive), or by
+             on-demand DownloadArtifactToDir.
+          2. /var/lib/globular/repository/artifacts/ — the repository service's
+             own backend storage, where UploadArtifact persists incoming
+             publishes; served via gRPC to clients that need to fetch.
+        Neither path is MinIO. The repository service writes a "mirror" copy to
+        MinIO today (via ResilientStorage), but that is legacy architectural
+        drift, not a contract. Bytes appearing in MinIO are a symptom of the
+        legacy mirror write — they are never a valid recovery source for any
+        install or repair path. The correct recovery for a missing POSIX blob
+        is `globular repository sync --tag vX.Y.Z` from the upstream release.
+      protects:
+        files:
+          - golang/repository/repository_server/publish_reconciler.go
+          - golang/repository/repository_server/artifact_handlers.go
+          - golang/repository/repository_server/sync_from_upstream.go
+          - golang/node_agent/node_agent_server/installer_api.go
+        symbols:
+          - publishReconciler
+          - materializeLocalPackageArchive
+          - localInstallPackageDir
+          - localPackageDirs
+      enforcement: |
+        New publish-side recovery code must not read package bytes from
+        ResilientStorage's mirror, from MinIO directly, or from any helper that
+        consults MinIO for package content. Any recovery sweep that targets
+        PUBLISHED_MISSING_BLOB or similar findings must source bytes from the
+        upstream release (e.g. `globular repository sync`, the gateway's
+        /join/packages/ endpoint, or a registered upstream registry) and write
+        through OSStorage.WriteFileAtomic with the manifest's expected checksum.
+        Reads of package bytes by install-path code must use the per-node POSIX
+        CAS (`/var/lib/globular/packages/...`), not the repository service's
+        own backend and not MinIO.
+      forbidden_fixes:
+        - heal_published_artifacts_from_minio_mirror
+        - treat_minio_mirror_as_package_source_under_checksum_guard
+      related_failure_modes:
+        - assistant.extended_legacy_buggy_path_instead_of_querying_architecture
+
+    - id: assistant.query_awareness_before_assuming_architecture
+      title: AI assistants must query the awareness graph for "where does X live architecturally" before writing code that touches X's storage, transport, or authority surfaces
+      severity: high
+      status: active
+      summary: |
+        Lesson from the v1.2.162 publish-reconciler heal-from-mirror revert
+        (2026-06-04): when fixing a bug in a high-risk area (repository
+        publish path, MinIO mirror, package storage), the assistant grepped
+        the codebase, observed bytes in MinIO, and wrote a "heal-from-mirror"
+        sweep that preserved a pre-existing architectural violation instead
+        of fixing the underlying drift. The awareness graph contained the
+        rule that would have prevented this (MinIO is for secondary user
+        data only) but the assistant did not query for the storage authority
+        before designing the fix.
+      protects:
+        files:
+          - CLAUDE.md
+          - docs/awareness/invariants.yaml
+          - docs/awareness/forbidden_fixes.yaml
+        symbols:
+          - awareness.briefing
+          - awareness.query
+          - awareness.resolve
+      enforcement: |
+        Before writing or extending code that handles package storage,
+        transport, recovery, or any operation that crosses a layer
+        boundary (Repository → Desired → Installed → Runtime), the
+        assistant MUST query the awareness graph for the relevant
+        invariants. Specifically: call awareness.briefing on the target
+        file AND awareness.query with class=invariant search terms
+        matching the layer/component being touched. Reading the source
+        code alone — including the existing implementation of the very
+        thing being "fixed" — is insufficient. The buggy code is not the
+        contract; the awareness graph is.
+
+        When the briefing returns empty for a topic that clearly has an
+        architectural rule somewhere (e.g. "where do packages live"),
+        the assistant must broaden the query, briefing on related files,
+        or explicitly state that the rule is not in the graph yet rather
+        than substituting code-inspection-derived assumptions.
+      forbidden_fixes:
+        - extend_existing_buggy_pattern_without_querying_architecture
+        - infer_architecture_from_code_when_awareness_anchor_exists

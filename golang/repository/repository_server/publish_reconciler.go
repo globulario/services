@@ -27,7 +27,6 @@ package main
 // promotion, bounded by a per-artifact retry limit.
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
 	"strings"
@@ -62,8 +61,7 @@ func newPublishReconciler(srv *server) *publishReconciler {
 
 // Start launches the reconciler as a background goroutine.
 func (pr *publishReconciler) Start(ctx context.Context) {
-	slog.Info("publish-reconciler: started", "interval", pr.interval,
-		"sweeps", "VERIFIED→PUBLISHED retry + PUBLISHED_MISSING_BLOB mirror-heal")
+	slog.Info("publish-reconciler: started", "interval", pr.interval)
 	go func() {
 		ticker := time.NewTicker(pr.interval)
 		defer ticker.Stop()
@@ -73,7 +71,6 @@ func (pr *publishReconciler) Start(ctx context.Context) {
 				return
 			case <-ticker.C:
 				pr.reconcileOnce(ctx)
-				pr.healPublishedMissingBlobsOnce(ctx)
 			}
 		}
 	}()
@@ -179,148 +176,5 @@ func (pr *publishReconciler) reconcileOnce(ctx context.Context) {
 
 	if verified > 0 {
 		slog.Info("publish-reconciler: scan complete", "verified", verified)
-	}
-}
-
-// healPublishedMissingBlobsOnce runs a separate sweep that heals the
-// PUBLISHED_MISSING_BLOB split-brain: an artifact whose Scylla manifest
-// shows publish_state=PUBLISHED but whose local POSIX CAS does not have
-// the binary blob. The doctor finding
-// repository.identity.missing_blob_for_published_manifest fires for these
-// rows; the install pipeline cannot serve them.
-//
-// Healing policy (strict):
-//
-//   - Skip if local POSIX is already present (Stat succeeds). No work needed.
-//   - Skip if no MinIO mirror is configured. We cannot manufacture bytes.
-//   - Pull bytes from the mirror, recompute sha256, COMPARE against the
-//     manifest's expected checksum. ONLY if the digest matches do we write
-//     to local POSIX (atomic temp+rename). A checksum-mismatched mirror
-//     blob is reported as a separate finding and never trusted.
-//   - Preserve the architectural rule: MinIO is informational; the local
-//     POSIX CAS remains the install-time authority. The mirror is used here
-//     only as a recovery source under explicit cryptographic verification.
-//
-// Cases this sweep does NOT heal (left for operator action):
-//
-//   - Local POSIX missing + mirror missing: nothing to restore from. Doctor
-//     keeps reporting MISSING_BLOB; operator must republish the artifact.
-//   - Local POSIX missing + mirror checksum mismatches manifest: mirror is
-//     poisoned. We refuse to copy and emit a slog.Error so operators see
-//     the corruption rather than silently trusting it.
-//   - publish_state != PUBLISHED: handled by reconcileOnce's VERIFIED retry
-//     loop; the two sweeps are intentionally separate.
-func (pr *publishReconciler) healPublishedMissingBlobsOnce(ctx context.Context) {
-	if pr.srv.scylla == nil {
-		// Cannot enumerate PUBLISHED set without Scylla; nothing to heal.
-		return
-	}
-	if pr.srv.localStorage == nil {
-		// No local CAS means we have no place to write recovered bytes.
-		return
-	}
-
-	rows, err := pr.srv.scylla.ListManifests(ctx)
-	if err != nil {
-		slog.Debug("publish-reconciler.heal: Scylla list failed", "err", err)
-		return
-	}
-
-	scanned := 0
-	healed := 0
-	skippedNoMirror := 0
-	skippedChecksumMismatch := 0
-	skippedNoMirrorBlob := 0
-	for _, row := range rows {
-		if row.PublishState != repopb.PublishState_PUBLISHED.String() {
-			continue
-		}
-		scanned++
-
-		manifest, _, parseErr := manifestFromRow(row)
-		if parseErr != nil || manifest == nil {
-			continue
-		}
-		binKey := binaryStorageKey(row.ArtifactKey)
-
-		// Skip if local is already present — no work needed.
-		if _, statErr := pr.srv.localStorage.Stat(ctx, binKey); statErr == nil {
-			continue
-		}
-
-		// Local POSIX missing. Try the mirror as a recovery source — but only
-		// trust it under explicit checksum match.
-		mirror := pr.srv.mirrorStorage
-		if mirror == nil {
-			skippedNoMirror++
-			slog.Warn("publish-reconciler.heal: PUBLISHED blob missing locally and no mirror configured — operator republish required",
-				"key", row.ArtifactKey,
-				"publisher", manifest.GetRef().GetPublisherId(),
-				"name", manifest.GetRef().GetName(),
-				"version", manifest.GetRef().GetVersion(),
-			)
-			continue
-		}
-		data, mirrorErr := mirror.ReadFile(ctx, binKey)
-		if mirrorErr != nil {
-			skippedNoMirrorBlob++
-			slog.Warn("publish-reconciler.heal: PUBLISHED blob missing locally and mirror read failed — operator republish required",
-				"key", row.ArtifactKey,
-				"name", manifest.GetRef().GetName(),
-				"version", manifest.GetRef().GetVersion(),
-				"err", mirrorErr,
-			)
-			continue
-		}
-
-		expected := manifest.GetChecksum()
-		if expected == "" {
-			// No expected checksum to verify against — refuse to write.
-			// Trusting a mirror blob without a manifest-declared digest would
-			// violate the invariant that mirror is informational only.
-			skippedChecksumMismatch++
-			slog.Error("publish-reconciler.heal: refusing to copy mirror blob — manifest carries no expected checksum",
-				"key", row.ArtifactKey,
-				"name", manifest.GetRef().GetName(),
-				"version", manifest.GetRef().GetVersion(),
-			)
-			continue
-		}
-
-		// Use WriteFileAtomic with the expected checksum so the mirror bytes
-		// are verified inside the write helper. A digest mismatch returns
-		// error and the temp file is removed automatically.
-		actual, writeErr := pr.srv.localStorage.WriteFileAtomic(ctx, binKey,
-			bytes.NewReader(data), expected, int64(len(data)))
-		if writeErr != nil {
-			skippedChecksumMismatch++
-			slog.Error("publish-reconciler.heal: mirror blob FAILED checksum verification — refusing to copy",
-				"key", row.ArtifactKey,
-				"name", manifest.GetRef().GetName(),
-				"version", manifest.GetRef().GetVersion(),
-				"expected", expected,
-				"err", writeErr,
-			)
-			continue
-		}
-
-		healed++
-		slog.Info("publish-reconciler.heal: restored PUBLISHED blob from mirror",
-			"key", row.ArtifactKey,
-			"name", manifest.GetRef().GetName(),
-			"version", manifest.GetRef().GetVersion(),
-			"checksum", actual,
-			"size", len(data),
-		)
-	}
-
-	if scanned > 0 && (healed > 0 || skippedNoMirror > 0 || skippedNoMirrorBlob > 0 || skippedChecksumMismatch > 0) {
-		slog.Info("publish-reconciler.heal: scan complete",
-			"scanned", scanned,
-			"healed", healed,
-			"skipped_no_mirror", skippedNoMirror,
-			"skipped_no_mirror_blob", skippedNoMirrorBlob,
-			"skipped_checksum_mismatch", skippedChecksumMismatch,
-		)
 	}
 }

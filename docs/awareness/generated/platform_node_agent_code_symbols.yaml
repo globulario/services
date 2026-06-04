@@ -188,7 +188,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.install_receipt
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/install_receipt.go
+    file: golang/node_agent/node_agent_server/internal/installreceipt/installreceipt.go
     component: platform_node_agent.install_receipt
     risk: high
     annotations:
@@ -197,7 +197,7 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.install_receipt
     namespace: globular.platform
     language: go
-    file: golang/node_agent/node_agent_server/internal/installreceipt/installreceipt.go
+    file: golang/node_agent/node_agent_server/install_receipt.go
     component: platform_node_agent.install_receipt
     risk: high
     annotations:
@@ -234,6 +234,17 @@ code_symbols:
       implements:
         - globular.platform:intent.node_agent.is_executor_not_cluster_brain
         - globular.platform:intent.controller.apply_package_release_must_carry_expected_sha256
+  - id: globular.platform:code.go.platform_node_agent.installer_api.checksum_binary_sha
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/installer_checksum_binary_sha_test.go
+    component: platform_node_agent.installer_api.checksum_binary_sha
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.desired_installed_runtime_identity_must_match
+      protects:
+        - globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
   - id: globular.platform:code.go.platform_node_agent.installer_api.skip_restamp_tests
     namespace: globular.platform
     language: go

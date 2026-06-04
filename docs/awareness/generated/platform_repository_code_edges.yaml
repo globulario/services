@@ -77,6 +77,9 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.namespace
     relation: implements
     to: globular.platform:intent.repository.namespace_ownership_protects_reserved_prefixes
+  - from: globular.platform:code.go.platform_repository.publish_posix_authority
+    relation: enforces
+    to: globular.platform:invariant.repository.artifact_presence_requires_metadata_and_blob
   - from: globular.platform:code.go.platform_repository.publish_reconciler
     relation: enforces
     to: globular.platform:invariant.repository.artifact.state_transitions_are_forward_only

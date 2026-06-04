@@ -128,6 +128,12 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.installer_api
     relation: implements
     to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.installer_api.checksum_binary_sha
+    relation: enforces
+    to: globular.platform:invariant.desired_installed_runtime_identity_must_match
+  - from: globular.platform:code.go.platform_node_agent.installer_api.checksum_binary_sha
+    relation: protects
+    to: globular.platform:failure_mode.node_agent.install_package_aliases_convergence_hash_into_expected_sha256
   - from: globular.platform:code.go.platform_node_agent.join_plan_gate
     relation: implements
     to: globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions

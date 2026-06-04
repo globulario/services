@@ -4045,3 +4045,67 @@ failure_modes:
         test exercising the dial-time interceptor chain end-to-end is tracked as a
         follow-up; until then the runtime detector + this awareness anchor are the
         regression surface.
+
+    - id: assistant.extended_legacy_buggy_path_instead_of_querying_architecture
+      title: AI assistant extended a pre-existing architecturally-broken code path while "fixing" a related bug, preserving the violation instead of removing it, because it did not query the awareness graph for the storage/authority contract before designing the fix
+      severity: high
+      symptoms:
+        - "A 'fix' commit lands that mechanically extends an existing pattern (mirror writes, fallback chains, field aliasing) while the existing pattern was itself a known rule violation in CLAUDE.md or the awareness graph."
+        - "The assistant's plan cites the existing buggy implementation as evidence for the new design ('that's how the code currently works')."
+        - "An invariant or forbidden-fix anchor on the same topic exists in the awareness graph but does not appear in the assistant's pre-write briefing record."
+        - "The operator catches the architectural violation in review, not the static checks or the test suite."
+      root_cause: |
+        The assistant treated the running implementation as the architectural
+        contract, instead of querying the awareness graph for the relevant
+        invariants/forbidden_fixes/intents before designing the fix.
+        Specifically, the assistant grepped the code, observed an existing
+        pattern (e.g. MinIO-as-mirror reads), and extended that pattern in
+        the fix on the assumption that "if it's in the code it must be
+        intended". The awareness graph contained the rule that would have
+        prevented this (MinIO is not for packages) but the assistant
+        skipped the query and read the source directly.
+
+        Live regression that produced this failure mode: 2026-06-04 v1.2.162
+        publish-reconciler heal-from-mirror sweep. The assistant extended
+        ResilientStorage's mirror-fallback pattern into a "heal published
+        artifacts from MinIO mirror" sweep, preserving the architectural
+        drift. Reverted before merge after the operator pointed at
+        /var/lib/globular/packages/ as the canonical package CAS.
+      architecture_fix: |
+        1. Codify the awareness-first protocol explicitly: before any code
+           edit in a high-risk directory, the assistant MUST call
+           awareness.briefing on the target file AND awareness.query for
+           the layer/topic being touched (e.g. "package storage authority",
+           "transport identity", "release lifecycle"). Briefing-only is not
+           sufficient when the briefing returns no anchors for a topic that
+           clearly has architectural rules elsewhere.
+        2. Treat the awareness graph as authoritative over the running
+           implementation. When an anchor exists and the code disagrees,
+           the code is the bug. Fixes must remove the violation, not
+           extend it.
+        3. Add architectural unit-tests where possible (e.g.
+           TestPublishReconciler_DoesNotHealFromMirror) that fail if the
+           anti-pattern is reintroduced even after the awareness anchor
+           is technically still present in the graph.
+      forbidden_fixes:
+        - heal_published_artifacts_from_minio_mirror
+        - treat_minio_mirror_as_package_source_under_checksum_guard
+        - extend_existing_buggy_pattern_without_querying_architecture
+        - infer_architecture_from_code_when_awareness_anchor_exists
+      related_invariants:
+        - repository.minio_is_not_valid_package_source
+        - assistant.query_awareness_before_assuming_architecture
+      related_services:
+        - repository
+        - awareness-graph
+      required_tests:
+        - TestPublishReconciler_DoesNotHealFromMirror
+      no_test_yet_reason: |
+        TestPublishReconciler_DoesNotHealFromMirror (in
+        publish_posix_authority_test.go) is the unit-test guard against
+        the specific anti-pattern that produced this failure mode. A
+        broader meta-test of "did the assistant query awareness before
+        writing" is enforceable only via the PreToolUse hook on
+        high-risk dirs (already in place per CLAUDE.md hard rule #7).
+        The combination of the unit test and the hook is the regression
+        surface.
