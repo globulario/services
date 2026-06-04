@@ -591,6 +591,51 @@ invariants:
       - forbidden.absorb_tls_error_into_timeout
       - forbidden.cache_nil_handle_permanently
 
+  - id: meta.circular_dependency_must_have_break_glass
+    title: "Every circular dependency must have a break-glass path that doesn't go through the cycle — a system that deploys itself must have a path that doesn't go through itself"
+    category: dependency
+    severity: critical
+    status: active
+    summary: |
+      When A depends on B and B depends on A, the normal operational path
+      forms a cycle. When either component breaks, the normal path through
+      the other can't fix it — the cycle is stuck. This is the chicken-egg
+      problem: the deploy pipeline can't deploy a fix for itself, the
+      controller can't dispatch a fix for the controller, the repository
+      can't publish a fix to the repository.
+
+      Every circular dependency must have a documented break-glass path
+      that operates OUTSIDE the cycle. The break-glass must:
+        1. Not go through the broken component
+        2. Verify identity (checksum against manifest) before applying
+        3. Be bounded and audited (not an open-ended bypass)
+        4. Return to the normal path once the cycle is unbroken
+
+      Before introducing a dependency, ask:
+        1. Can this service update/fix itself through its own infrastructure?
+        2. If that infrastructure is broken, what's the recovery path?
+        3. Does the recovery path go through the broken component?
+        4. Is there a documented break-glass that bypasses the cycle?
+        5. Has the break-glass path been tested?
+
+      Incidents:
+        - INC-2026-0013: repository v1.2.110 couldn't deploy v1.2.116 through itself — bridge via scp from CI binary
+        - INC-2026-0014: controller missing expected_sha256 couldn't deploy fix through its own dispatch — bridge again
+        - Workflow YAML sync: controller v1.2.119 needed new YAMLs deployed by its own pipeline — manual cp
+        - Day-0 bootstrap: etcd needed for config, config in etcd; ScyllaDB needed for workflows, workflows for ScyllaDB join; PKI needed for gRPC, gRPC for PKI issuance
+    enforcement: |
+      Every self-referential deploy path (service that publishes/installs itself)
+      must have a documented break-glass recovery procedure. The bridge pattern
+      (scp verified binary from healthy peer, manual install, return to normal
+      pipeline) is the canonical break-glass. Hot-deploying locally-built binaries
+      is NOT a valid break-glass — no ldflags means checksum mismatch means the
+      cycle breaks again.
+    forbidden_fixes:
+      - forbidden.hot_deploy_local_binary_as_break_glass
+      - forbidden.bypass_cycle_with_direct_storage_write
+    related_failure_modes:
+      - fm.globular.vip_transition_cascade
+
   # ── Generalization principles (second pass) ───────────────────────────────────
   # These invariants encode the abstract reasoning layer. They generalize from
   # specific Globular incidents to classes of distributed-system mistakes, so

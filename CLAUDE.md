@@ -382,10 +382,11 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.half_done_must_not_look_done` | Intermediate state satisfies completeness check |
 | `meta.silence_is_not_valid_for_unexpected` | Unhandled case is silent no-op |
 
-**Dependency** — "what breaks if a non-critical thing fails?"
+**Dependency** — "what breaks if a non-critical thing fails? what if A needs B needs A?"
 | Principle | What it catches |
 |-----------|----------------|
 | `meta.critical_path_no_non_critical_dependency` | Critical path blocked/flooded by non-critical service |
+| `meta.circular_dependency_must_have_break_glass` | Self-deploying system stuck — deploy pipeline can't deploy fix for itself |
 
 If one fits → add `related_invariants: [meta.<id>]` to the error entry.
 If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom out with human).
