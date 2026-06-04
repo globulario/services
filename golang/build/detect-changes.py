@@ -301,6 +301,20 @@ def main():
 
         if prev_cd and prev_cd == cd and not args.force_full_rebuild:
             # ── Unchanged: carry forward from previous release ──
+            # Provenance fields (entrypoint_checksum, package_digest, build_id,
+            # build_number, filename, asset_url, version, origin_release) MUST
+            # be preserved verbatim from prev_index — they describe the actual
+            # tarball/binary that was published by the prior release and is
+            # still the artifact this BOM entry points at.
+            #
+            # entrypoint_checksum in particular is the sha256 of the entrypoint
+            # BINARY inside the tarball, NOT the freshly-computed source-tree
+            # contract digest in `cksum`. Both happen to be sha256 strings, so
+            # the bug (writing `cksum` here) silently produces a BOM whose
+            # claimed entrypoint_checksum mismatches the actual binary on disk
+            # → repository sync rejects the import. The mismatch only surfaces
+            # when a subsequent release tries to import this carried-forward
+            # entry; force_full_rebuild masks it by repacking the package.
             results.append({
                 "name":                    name,
                 "kind":                    p.get("kind", kind),
@@ -310,7 +324,7 @@ def main():
                 "version":                 p.get("version", ""),
                 "origin_release":          p.get("origin_release", p.get("release_tag", "")),
                 "package_contract_digest": cd,
-                "entrypoint_checksum":     cksum,
+                "entrypoint_checksum":     p.get("entrypoint_checksum", ""),
                 "asset_url":               p.get("asset_url", ""),
                 "package_digest":          p.get("package_digest", ""),
                 "build_number":            p.get("build_number", 0),
