@@ -32,24 +32,12 @@ func TestExtractNodeIDFromKey(t *testing.T) {
 	}
 }
 
-func TestExtractInfraPublisher(t *testing.T) {
-	cases := []struct {
-		key, name, want string
-	}{
-		{"/globular/resources/InfrastructureRelease/core@globular.io/etcd", "etcd", "core@globular.io"},
-		{"/globular/resources/InfrastructureRelease/acme/minio", "minio", "acme"},
-		// Nested publisher path (infrastructure releases shouldn't nest,
-		// but the parser must still not crash).
-		{"/globular/resources/InfrastructureRelease/pub/a/b/scylla", "scylla", "pub/a/b"},
-		// Wrong prefix → empty.
-		{"/foo/bar/etcd", "etcd", ""},
-	}
-	for _, tc := range cases {
-		if got := extractInfraPublisher(tc.key, tc.name); got != tc.want {
-			t.Errorf("extractInfraPublisher(%q, %q) = %q, want %q", tc.key, tc.name, got, tc.want)
-		}
-	}
-}
+// TestExtractInfraPublisher was removed in v1.2.175 along with the
+// extractInfraPublisher helper. fetchDesired routes through
+// GetDesiredState; per-publisher disambiguation of infra desired-state
+// records is no longer carried in the typed response (the controller's
+// listAllDesiredServices strips publisher prefixes). The test no longer
+// has a target.
 
 func TestNameMatchesAny(t *testing.T) {
 	cands := []string{"claude", "claude_svc"}
@@ -71,46 +59,11 @@ func TestNameMatchesAny(t *testing.T) {
 	}
 }
 
-func TestParseDesiredServiceVersion(t *testing.T) {
-	body := []byte(`{
-		"meta": {"generation": 42},
-		"spec": {"service_name": "cluster-controller", "version": "1.2.3"}
-	}`)
-	got := parseDesiredServiceVersion(body)
-	if got == nil {
-		t.Fatal("expected desired, got nil")
-	}
-	if got.GetVersion() != "1.2.3" || got.GetGeneration() != 42 || !got.GetPresent() {
-		t.Errorf("parseDesiredServiceVersion: %+v", got)
-	}
-
-	// Missing version → nil (document exists but is incomplete; treat as absent).
-	nv := []byte(`{"meta":{"generation":1},"spec":{"service_name":"x"}}`)
-	if got := parseDesiredServiceVersion(nv); got != nil {
-		t.Errorf("empty version should return nil, got %+v", got)
-	}
-	// Malformed JSON → nil.
-	if got := parseDesiredServiceVersion([]byte("not json")); got != nil {
-		t.Errorf("malformed JSON should return nil, got %+v", got)
-	}
-}
-
-func TestParseDesiredInfraRelease(t *testing.T) {
-	body := []byte(`{"meta":{"generation":7},"spec":{"version":"0.5.0"}}`)
-	got := parseDesiredInfraRelease(body, "core@globular.io")
-	if got == nil {
-		t.Fatal("expected desired, got nil")
-	}
-	if got.GetVersion() != "0.5.0" || got.GetGeneration() != 7 {
-		t.Errorf("parseDesiredInfraRelease: version/generation wrong: %+v", got)
-	}
-	if got.GetPublisher() != "core@globular.io" {
-		t.Errorf("publisher not propagated: %q", got.GetPublisher())
-	}
-	if !got.GetPresent() {
-		t.Errorf("present should be true when version is set")
-	}
-}
+// TestParseDesiredServiceVersion / TestParseDesiredInfraRelease were
+// removed in v1.2.175 along with the JSON parser helpers they
+// exercised. fetchDesired now consumes typed proto from
+// GetDesiredState; there is no JSON unmarshal path to test in this
+// package.
 
 func TestSortSemverDesc(t *testing.T) {
 	cases := []struct {

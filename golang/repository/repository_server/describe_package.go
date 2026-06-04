@@ -8,12 +8,15 @@ import (
 	"sync"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/storage_backend"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // DescribePackage aggregates repository catalog + etcd desired-state + per-node
@@ -341,107 +344,67 @@ func extractNodeIDFromKey(key string) string {
 }
 
 // fetchDesired reads the cluster-wide desired-state pointer for a package
-// from etcd. Tries SERVICE first, then INFRASTRUCTURE. Returns a DesiredInfo
-// with present=false when no entry exists (e.g. COMMAND packages).
-func fetchDesired(ctx context.Context, name, publisherFilter string) *repopb.DesiredInfo {
+// via the cluster_controller's typed GetDesiredState RPC. Returns a
+// DesiredInfo with present=false when no entry exists (e.g. COMMAND
+// packages).
+//
+// The publisherFilter is preserved for the public signature but is now
+// best-effort: GetDesiredState's flat DesiredService list is keyed by
+// canonical service_id (the controller's listAllDesiredServices strips
+// publisher prefixes), so an exact per-publisher disambiguation is no
+// longer carried in the typed response. If two infra publishers ever
+// shipped the same component name, this call returns whichever the
+// controller merged first.
+//
+// DesiredInfo.Generation was sourced from the etcd record's
+// meta.generation field. GetDesiredState does not surface that field
+// (purely cosmetic — only pkg_info CLI displays "(gen %d)"). Set to
+// zero; consumers must not treat it as authoritative.
+//
+// Anchored by:
+//
+//	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+//	forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
+func fetchDesired(ctx context.Context, name, _ string) *repopb.DesiredInfo {
 	absent := &repopb.DesiredInfo{Present: false}
-	cli, err := config.GetEtcdClient()
+	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
+	if addr == "" {
+		return absent
+	}
+	target := config.ResolveDialTarget(addr)
+	conn, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(repositoryClientTLSCreds(target.ServerName)))
 	if err != nil {
 		return absent
 	}
-	getCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer func() { _ = conn.Close() }()
+
+	callCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-
-	// ServiceDesiredVersion lookup.
-	svcKey := "/globular/resources/ServiceDesiredVersion/" + name
-	if resp, err := cli.Get(getCtx, svcKey); err == nil && len(resp.Kvs) > 0 {
-		if info := parseDesiredServiceVersion(resp.Kvs[0].Value); info != nil {
-			return info
-		}
+	client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
+	resp, err := client.GetDesiredState(callCtx, &emptypb.Empty{})
+	if err != nil {
+		return absent
 	}
-
-	// InfrastructureRelease lookup — scan under the publisher prefix, or
-	// the candidate publisher if provided.
-	infraPrefix := "/globular/resources/InfrastructureRelease/"
-	resp, err := cli.Get(getCtx, infraPrefix, clientv3.WithPrefix())
-	if err == nil {
-		for _, kv := range resp.Kvs {
-			key := string(kv.Key)
-			// Key: /globular/resources/InfrastructureRelease/<pub>/<name>
-			if !strings.HasSuffix(key, "/"+name) {
-				continue
-			}
-			pub := extractInfraPublisher(key, name)
-			if publisherFilter != "" && !strings.EqualFold(pub, publisherFilter) {
-				continue
-			}
-			if info := parseDesiredInfraRelease(kv.Value, pub); info != nil {
-				return info
-			}
+	for _, svc := range resp.GetServices() {
+		if !strings.EqualFold(svc.GetServiceId(), name) {
+			continue
+		}
+		if svc.GetVersion() == "" {
+			continue
+		}
+		return &repopb.DesiredInfo{
+			Version: svc.GetVersion(),
+			Present: true,
 		}
 	}
 	return absent
 }
 
-func extractInfraPublisher(key, name string) string {
-	const prefix = "/globular/resources/InfrastructureRelease/"
-	if !strings.HasPrefix(key, prefix) {
-		return ""
-	}
-	rest := strings.TrimPrefix(key, prefix)
-	rest = strings.TrimSuffix(rest, "/"+name)
-	return rest
-}
-
-// parseDesiredServiceVersion extracts version + generation from the JSON
-// payload of /globular/resources/ServiceDesiredVersion/<name>.
-func parseDesiredServiceVersion(body []byte) *repopb.DesiredInfo {
-	var d struct {
-		Meta struct {
-			Generation int64 `json:"generation"`
-		} `json:"meta"`
-		Spec struct {
-			ServiceName string `json:"service_name"`
-			Version     string `json:"version"`
-		} `json:"spec"`
-	}
-	if err := json.Unmarshal(body, &d); err != nil {
-		return nil
-	}
-	if d.Spec.Version == "" {
-		return nil
-	}
-	return &repopb.DesiredInfo{
-		Version:    d.Spec.Version,
-		Generation: d.Meta.Generation,
-		Present:    true,
-	}
-}
-
-// parseDesiredInfraRelease extracts the desired version from an
-// InfrastructureRelease document.
-func parseDesiredInfraRelease(body []byte, publisher string) *repopb.DesiredInfo {
-	var d struct {
-		Meta struct {
-			Generation int64 `json:"generation"`
-		} `json:"meta"`
-		Spec struct {
-			Version string `json:"version"`
-		} `json:"spec"`
-	}
-	if err := json.Unmarshal(body, &d); err != nil {
-		return nil
-	}
-	if d.Spec.Version == "" {
-		return nil
-	}
-	return &repopb.DesiredInfo{
-		Version:    d.Spec.Version,
-		Generation: d.Meta.Generation,
-		Publisher:  publisher,
-		Present:    true,
-	}
-}
+// parseDesiredServiceVersion / parseDesiredInfraRelease /
+// extractInfraPublisher were removed in v1.2.175. fetchDesired now
+// consumes the typed GetDesiredState RPC; the JSON parsers and the
+// publisher-prefix extractor that fed the prior raw-etcd path are
+// dead code.
 
 // sortSemverDesc sorts a slice of version strings descending. Accepts
 // non-semver strings too (falls back to lexicographic).
