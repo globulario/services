@@ -58,6 +58,8 @@ const (
 	ClusterControllerService_ListServiceReleasesJson_FullMethodName        = "/cluster_controller.ClusterControllerService/ListServiceReleasesJson"
 	ClusterControllerService_ListInfrastructureReleasesJson_FullMethodName = "/cluster_controller.ClusterControllerService/ListInfrastructureReleasesJson"
 	ClusterControllerService_CleanupGhostNodePackages_FullMethodName       = "/cluster_controller.ClusterControllerService/CleanupGhostNodePackages"
+	ClusterControllerService_GetScyllaSchemaGuardStatus_FullMethodName     = "/cluster_controller.ClusterControllerService/GetScyllaSchemaGuardStatus"
+	ClusterControllerService_RequestScyllaSchemaEnforce_FullMethodName     = "/cluster_controller.ClusterControllerService/RequestScyllaSchemaEnforce"
 	ClusterControllerService_UpsertDesiredService_FullMethodName           = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName           = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName               = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -232,6 +234,18 @@ type ClusterControllerServiceClient interface {
 	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
 	// and the broader cross-owner-write principle.
 	CleanupGhostNodePackages(ctx context.Context, in *CleanupGhostNodePackagesRequest, opts ...grpc.CallOption) (*CleanupGhostNodePackagesResponse, error)
+	// GetScyllaSchemaGuardStatus returns per-keyspace guard status
+	// (current_rf, required_rf, violation, last_error). Replaces the
+	// CLI's prior /globular/scylla/schema_guard/* prefix scan. The
+	// schema guard runs inside cluster_controller; consumers MUST
+	// call this RPC per
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	GetScyllaSchemaGuardStatus(ctx context.Context, in *GetScyllaSchemaGuardStatusRequest, opts ...grpc.CallOption) (*GetScyllaSchemaGuardStatusResponse, error)
+	// RequestScyllaSchemaEnforce writes the enforce-request signal
+	// that the schema guard polls. Returns the stamp timestamp so
+	// consumers can poll GetScyllaSchemaGuardStatus and confirm via
+	// updated_at_unix >= request_unix.
+	RequestScyllaSchemaEnforce(ctx context.Context, in *RequestScyllaSchemaEnforceRequest, opts ...grpc.CallOption) (*RequestScyllaSchemaEnforceResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -639,6 +653,26 @@ func (c *clusterControllerServiceClient) CleanupGhostNodePackages(ctx context.Co
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) GetScyllaSchemaGuardStatus(ctx context.Context, in *GetScyllaSchemaGuardStatusRequest, opts ...grpc.CallOption) (*GetScyllaSchemaGuardStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetScyllaSchemaGuardStatusResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetScyllaSchemaGuardStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) RequestScyllaSchemaEnforce(ctx context.Context, in *RequestScyllaSchemaEnforceRequest, opts ...grpc.CallOption) (*RequestScyllaSchemaEnforceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequestScyllaSchemaEnforceResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_RequestScyllaSchemaEnforce_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -883,6 +917,18 @@ type ClusterControllerServiceServer interface {
 	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
 	// and the broader cross-owner-write principle.
 	CleanupGhostNodePackages(context.Context, *CleanupGhostNodePackagesRequest) (*CleanupGhostNodePackagesResponse, error)
+	// GetScyllaSchemaGuardStatus returns per-keyspace guard status
+	// (current_rf, required_rf, violation, last_error). Replaces the
+	// CLI's prior /globular/scylla/schema_guard/* prefix scan. The
+	// schema guard runs inside cluster_controller; consumers MUST
+	// call this RPC per
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+	GetScyllaSchemaGuardStatus(context.Context, *GetScyllaSchemaGuardStatusRequest) (*GetScyllaSchemaGuardStatusResponse, error)
+	// RequestScyllaSchemaEnforce writes the enforce-request signal
+	// that the schema guard polls. Returns the stamp timestamp so
+	// consumers can poll GetScyllaSchemaGuardStatus and confirm via
+	// updated_at_unix >= request_unix.
+	RequestScyllaSchemaEnforce(context.Context, *RequestScyllaSchemaEnforceRequest) (*RequestScyllaSchemaEnforceResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -1020,6 +1066,12 @@ func (UnimplementedClusterControllerServiceServer) ListInfrastructureReleasesJso
 }
 func (UnimplementedClusterControllerServiceServer) CleanupGhostNodePackages(context.Context, *CleanupGhostNodePackagesRequest) (*CleanupGhostNodePackagesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CleanupGhostNodePackages not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetScyllaSchemaGuardStatus(context.Context, *GetScyllaSchemaGuardStatusRequest) (*GetScyllaSchemaGuardStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetScyllaSchemaGuardStatus not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) RequestScyllaSchemaEnforce(context.Context, *RequestScyllaSchemaEnforceRequest) (*RequestScyllaSchemaEnforceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestScyllaSchemaEnforce not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1724,6 +1776,42 @@ func _ClusterControllerService_CleanupGhostNodePackages_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_GetScyllaSchemaGuardStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetScyllaSchemaGuardStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetScyllaSchemaGuardStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetScyllaSchemaGuardStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetScyllaSchemaGuardStatus(ctx, req.(*GetScyllaSchemaGuardStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_RequestScyllaSchemaEnforce_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestScyllaSchemaEnforceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).RequestScyllaSchemaEnforce(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_RequestScyllaSchemaEnforce_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).RequestScyllaSchemaEnforce(ctx, req.(*RequestScyllaSchemaEnforceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -2018,6 +2106,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CleanupGhostNodePackages",
 			Handler:    _ClusterControllerService_CleanupGhostNodePackages_Handler,
+		},
+		{
+			MethodName: "GetScyllaSchemaGuardStatus",
+			Handler:    _ClusterControllerService_GetScyllaSchemaGuardStatus_Handler,
+		},
+		{
+			MethodName: "RequestScyllaSchemaEnforce",
+			Handler:    _ClusterControllerService_RequestScyllaSchemaEnforce_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",

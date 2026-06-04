@@ -2,18 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"text/tabwriter"
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/config"
 	"github.com/spf13/cobra"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 var (
@@ -67,83 +63,78 @@ func init() {
 	ingressCmd.AddCommand(ingressStatusCmd, ingressRepublishCmd)
 }
 
+// runScyllaSchemaStatus consumes
+// cluster_controller.GetScyllaSchemaGuardStatus. Replaces the
+// prior direct /globular/scylla/schema_guard/* etcd prefix scan —
+// that prefix is owned by the controller's embedded scylla schema
+// guard. Anchored by
+// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
 func runScyllaSchemaStatus(cmd *cobra.Command, args []string) error {
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("etcd unavailable: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
+	defer cc.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	resp, err := cli.Get(ctx, scyllaSchemaGuardPrefix, clientv3.WithPrefix())
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	resp, err := client.GetScyllaSchemaGuardStatus(ctx, &cluster_controllerpb.GetScyllaSchemaGuardStatusRequest{})
 	if err != nil {
-		return fmt.Errorf("read schema guard status: %w", err)
+		return fmt.Errorf("GetScyllaSchemaGuardStatus: %w", err)
 	}
-	type row struct {
-		keyspace string
-		current  any
-		required any
-		phase    string
-		lastErr  string
-	}
-	rows := make([]row, 0, len(resp.Kvs))
-	for _, kv := range resp.Kvs {
-		keyspace := strings.TrimPrefix(string(kv.Key), scyllaSchemaGuardPrefix)
-		if keyspace == "" || strings.Contains(keyspace, "/") {
-			continue
-		}
-		var st map[string]any
-		if err := json.Unmarshal(kv.Value, &st); err != nil {
-			continue
-		}
-		phase := "ok"
-		if v, _ := st["violation"].(bool); v {
-			phase = "violation"
-		}
-		rows = append(rows, row{
-			keyspace: keyspace,
-			current:  st["current_rf"],
-			required: st["required_rf"],
-			phase:    phase,
-			lastErr:  fmt.Sprint(st["last_error"]),
-		})
-	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].keyspace < rows[j].keyspace })
+
+	keyspaces := resp.GetKeyspaces()
+	sort.Slice(keyspaces, func(i, j int) bool {
+		return keyspaces[i].GetKeyspace() < keyspaces[j].GetKeyspace()
+	})
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
 	fmt.Fprintln(w, "KEYSPACE\tCURRENT_RF\tREQUIRED_RF\tSTATUS\tLAST_ERROR")
-	for _, r := range rows {
-		fmt.Fprintf(w, "%s\t%v\t%v\t%s\t%s\n", r.keyspace, r.current, r.required, r.phase, r.lastErr)
+	for _, k := range keyspaces {
+		phase := "ok"
+		if k.GetViolation() {
+			phase = "violation"
+		}
+		fmt.Fprintf(w, "%s\t%d\t%d\t%s\t%s\n",
+			k.GetKeyspace(),
+			k.GetCurrentRf(),
+			k.GetRequiredRf(),
+			phase,
+			k.GetLastError())
 	}
-	_ = w.Flush()
-	return nil
+	return w.Flush()
 }
 
+// runScyllaSchemaEnforce consumes
+// cluster_controller.RequestScyllaSchemaEnforce + polls
+// GetScyllaSchemaGuardStatus for the run-confirmed timestamp.
 func runScyllaSchemaEnforce(cmd *cobra.Command, args []string) error {
-	cli, err := config.GetEtcdClient()
+	cc, err := controllerClient()
 	if err != nil {
-		return fmt.Errorf("etcd unavailable: %w", err)
+		return fmt.Errorf("dial cluster_controller: %w", err)
 	}
-	reqTS := time.Now().Unix()
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-	if _, err := cli.Put(ctx, scyllaSchemaGuardEnforceKey, fmt.Sprintf("%d", reqTS)); err != nil {
-		return fmt.Errorf("write enforce request: %w", err)
+	defer cc.Close()
+	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+
+	reqCtx, reqCancel := context.WithTimeout(context.Background(), 8*time.Second)
+	reqResp, err := client.RequestScyllaSchemaEnforce(reqCtx, &cluster_controllerpb.RequestScyllaSchemaEnforceRequest{})
+	reqCancel()
+	if err != nil {
+		return fmt.Errorf("RequestScyllaSchemaEnforce: %w", err)
 	}
+	reqTS := reqResp.GetRequestUnix()
+
 	fmt.Println("Requested schema guard enforcement. Waiting for status update...")
 	deadline := time.Now().Add(70 * time.Second)
 	for time.Now().Before(deadline) {
 		time.Sleep(3 * time.Second)
 		pctx, pcancel := context.WithTimeout(context.Background(), 5*time.Second)
-		resp, err := cli.Get(pctx, scyllaSchemaGuardPrefix, clientv3.WithPrefix())
+		statusResp, sErr := client.GetScyllaSchemaGuardStatus(pctx, &cluster_controllerpb.GetScyllaSchemaGuardStatusRequest{})
 		pcancel()
-		if err != nil {
+		if sErr != nil {
 			continue
 		}
-		for _, kv := range resp.Kvs {
-			var st map[string]any
-			if json.Unmarshal(kv.Value, &st) != nil {
-				continue
-			}
-			if updated, ok := st["updated_at_unix"].(float64); ok && int64(updated) >= reqTS {
+		for _, k := range statusResp.GetKeyspaces() {
+			if k.GetUpdatedAtUnix() >= reqTS {
 				fmt.Println("Schema guard run observed.")
 				return nil
 			}

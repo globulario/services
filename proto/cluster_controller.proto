@@ -852,6 +852,32 @@ service ClusterControllerService {
       default_role_hint: "admin"
     };
   };
+  // GetScyllaSchemaGuardStatus returns per-keyspace guard status
+  // (current_rf, required_rf, violation, last_error). Replaces the
+  // CLI's prior /globular/scylla/schema_guard/* prefix scan. The
+  // schema guard runs inside cluster_controller; consumers MUST
+  // call this RPC per
+  // invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+  rpc GetScyllaSchemaGuardStatus(GetScyllaSchemaGuardStatusRequest) returns (GetScyllaSchemaGuardStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.scylla.read"
+      permission: "read"
+      resource_template: "/cluster_controller/scylla"
+      default_role_hint: "viewer"
+    };
+  };
+  // RequestScyllaSchemaEnforce writes the enforce-request signal
+  // that the schema guard polls. Returns the stamp timestamp so
+  // consumers can poll GetScyllaSchemaGuardStatus and confirm via
+  // updated_at_unix >= request_unix.
+  rpc RequestScyllaSchemaEnforce(RequestScyllaSchemaEnforceRequest) returns (RequestScyllaSchemaEnforceResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.scylla.enforce"
+      permission: "write"
+      resource_template: "/cluster_controller/scylla"
+      default_role_hint: "admin"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -1225,6 +1251,36 @@ message CleanupGhostNodePackagesResponse {
   // is still listed as an active cluster member — guards against
   // wiping a live node's state. In that case `deleted` is 0.
   bool refused_active_node = 2;
+}
+
+message GetScyllaSchemaGuardStatusRequest {}
+
+// ScyllaKeyspaceGuardStatus mirrors the per-keyspace JSON blob
+// stored at /globular/scylla/schema_guard/<keyspace>.
+message ScyllaKeyspaceGuardStatus {
+  string keyspace = 1;
+  // current_rf and required_rf are integers in the JSON but stored
+  // as int32 here. Zero means "unknown" — JSON omitempty / nil.
+  int32 current_rf = 2;
+  int32 required_rf = 3;
+  // True when current_rf != required_rf (or the guard recorded a
+  // violation for any other reason).
+  bool violation = 4;
+  string last_error = 5;
+  int64 updated_at_unix = 6;
+}
+
+message GetScyllaSchemaGuardStatusResponse {
+  repeated ScyllaKeyspaceGuardStatus keyspaces = 1;
+}
+
+message RequestScyllaSchemaEnforceRequest {}
+
+message RequestScyllaSchemaEnforceResponse {
+  // Unix-seconds timestamp stamped on the enforce request.
+  // Consumers may poll GetScyllaSchemaGuardStatus and wait for
+  // any keyspace's updated_at_unix >= request_unix.
+  int64 request_unix = 1;
 }
 
 // ListServicesResponse carries the merged service-registry view as a

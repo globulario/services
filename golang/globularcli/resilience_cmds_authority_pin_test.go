@@ -34,6 +34,8 @@ func TestResilienceCmds_Ingress_NoDirectEtcd(t *testing.T) {
 	for _, fn := range []string{
 		"func runIngressStatus(cmd *cobra.Command, args []string) error {",
 		"func runIngressRepublish(cmd *cobra.Command, args []string) error {",
+		"func runScyllaSchemaStatus(cmd *cobra.Command, args []string) error {",
+		"func runScyllaSchemaEnforce(cmd *cobra.Command, args []string) error {",
 	} {
 		startIdx := strings.Index(string(body), fn)
 		if startIdx < 0 {
@@ -47,7 +49,7 @@ func TestResilienceCmds_Ingress_NoDirectEtcd(t *testing.T) {
 		}
 		fnBody := body[startIdx:endIdx]
 
-		re := regexp.MustCompile(`\.(Get|Put|Delete|Watch)\(\s*[^,)]+,\s*[^,)]*"/globular/ingress/`)
+		re := regexp.MustCompile(`\.(Get|Put|Delete|Watch)\(\s*[^,)]+,\s*[^,)]*"/globular/(ingress|scylla)/`)
 		if loc := re.FindIndex(fnBody); loc != nil {
 			match := re.FindSubmatch(fnBody)
 			t.Errorf("CRITICAL %s contains a direct etcd %s against /globular/ingress/* "+
