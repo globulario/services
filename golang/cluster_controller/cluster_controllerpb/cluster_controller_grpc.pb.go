@@ -57,6 +57,7 @@ const (
 	ClusterControllerService_ListDNSProviders_FullMethodName               = "/cluster_controller.ClusterControllerService/ListDNSProviders"
 	ClusterControllerService_ListServiceReleasesJson_FullMethodName        = "/cluster_controller.ClusterControllerService/ListServiceReleasesJson"
 	ClusterControllerService_ListInfrastructureReleasesJson_FullMethodName = "/cluster_controller.ClusterControllerService/ListInfrastructureReleasesJson"
+	ClusterControllerService_CleanupGhostNodePackages_FullMethodName       = "/cluster_controller.ClusterControllerService/CleanupGhostNodePackages"
 	ClusterControllerService_UpsertDesiredService_FullMethodName           = "/cluster_controller.ClusterControllerService/UpsertDesiredService"
 	ClusterControllerService_RemoveDesiredService_FullMethodName           = "/cluster_controller.ClusterControllerService/RemoveDesiredService"
 	ClusterControllerService_SeedDesiredState_FullMethodName               = "/cluster_controller.ClusterControllerService/SeedDesiredState"
@@ -215,6 +216,22 @@ type ClusterControllerServiceClient interface {
 	// /globular/resources/InfrastructureRelease/*. Same wire format
 	// and rationale as ListServiceReleasesJson.
 	ListInfrastructureReleasesJson(ctx context.Context, in *ListInfrastructureReleasesJsonRequest, opts ...grpc.CallOption) (*ListInfrastructureReleasesJsonResponse, error)
+	// CleanupGhostNodePackages removes installed-package records under
+	// /globular/nodes/{node_id}/packages/ for nodes that are no longer
+	// members of the cluster. The controller validates that node_id is
+	// genuinely absent from ListNodes before deleting — guarding
+	// against accidentally wiping an active node's state — then
+	// performs the cleanup as the cluster's authoritative actor
+	// (cluster_controller orchestrates node lifecycle, node_agent
+	// owns L3 installed state but the cleanup decision is a controller
+	// concern).
+	//
+	// Replaces the prior globularcli cleanupGhostNodes path that
+	// issued cli.Delete directly against /globular/nodes/{ghost}/packages/
+	// — a cross-layer write by a non-owner that violated both
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+	// and the broader cross-owner-write principle.
+	CleanupGhostNodePackages(ctx context.Context, in *CleanupGhostNodePackagesRequest, opts ...grpc.CallOption) (*CleanupGhostNodePackagesResponse, error)
 	UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	RemoveDesiredService(ctx context.Context, in *RemoveDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error)
 	SeedDesiredState(ctx context.Context, in *SeedDesiredStateRequest, opts ...grpc.CallOption) (*DesiredState, error)
@@ -612,6 +629,16 @@ func (c *clusterControllerServiceClient) ListInfrastructureReleasesJson(ctx cont
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) CleanupGhostNodePackages(ctx context.Context, in *CleanupGhostNodePackagesRequest, opts ...grpc.CallOption) (*CleanupGhostNodePackagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CleanupGhostNodePackagesResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_CleanupGhostNodePackages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *clusterControllerServiceClient) UpsertDesiredService(ctx context.Context, in *UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*DesiredState, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DesiredState)
@@ -840,6 +867,22 @@ type ClusterControllerServiceServer interface {
 	// /globular/resources/InfrastructureRelease/*. Same wire format
 	// and rationale as ListServiceReleasesJson.
 	ListInfrastructureReleasesJson(context.Context, *ListInfrastructureReleasesJsonRequest) (*ListInfrastructureReleasesJsonResponse, error)
+	// CleanupGhostNodePackages removes installed-package records under
+	// /globular/nodes/{node_id}/packages/ for nodes that are no longer
+	// members of the cluster. The controller validates that node_id is
+	// genuinely absent from ListNodes before deleting — guarding
+	// against accidentally wiping an active node's state — then
+	// performs the cleanup as the cluster's authoritative actor
+	// (cluster_controller orchestrates node lifecycle, node_agent
+	// owns L3 installed state but the cleanup decision is a controller
+	// concern).
+	//
+	// Replaces the prior globularcli cleanupGhostNodes path that
+	// issued cli.Delete directly against /globular/nodes/{ghost}/packages/
+	// — a cross-layer write by a non-owner that violated both
+	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+	// and the broader cross-owner-write principle.
+	CleanupGhostNodePackages(context.Context, *CleanupGhostNodePackagesRequest) (*CleanupGhostNodePackagesResponse, error)
 	UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error)
 	RemoveDesiredService(context.Context, *RemoveDesiredServiceRequest) (*DesiredState, error)
 	SeedDesiredState(context.Context, *SeedDesiredStateRequest) (*DesiredState, error)
@@ -974,6 +1017,9 @@ func (UnimplementedClusterControllerServiceServer) ListServiceReleasesJson(conte
 }
 func (UnimplementedClusterControllerServiceServer) ListInfrastructureReleasesJson(context.Context, *ListInfrastructureReleasesJsonRequest) (*ListInfrastructureReleasesJsonResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListInfrastructureReleasesJson not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) CleanupGhostNodePackages(context.Context, *CleanupGhostNodePackagesRequest) (*CleanupGhostNodePackagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CleanupGhostNodePackages not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) UpsertDesiredService(context.Context, *UpsertDesiredServiceRequest) (*DesiredState, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpsertDesiredService not implemented")
@@ -1660,6 +1706,24 @@ func _ClusterControllerService_ListInfrastructureReleasesJson_Handler(srv interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_CleanupGhostNodePackages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CleanupGhostNodePackagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).CleanupGhostNodePackages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_CleanupGhostNodePackages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).CleanupGhostNodePackages(ctx, req.(*CleanupGhostNodePackagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ClusterControllerService_UpsertDesiredService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertDesiredServiceRequest)
 	if err := dec(in); err != nil {
@@ -1950,6 +2014,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListInfrastructureReleasesJson",
 			Handler:    _ClusterControllerService_ListInfrastructureReleasesJson_Handler,
+		},
+		{
+			MethodName: "CleanupGhostNodePackages",
+			Handler:    _ClusterControllerService_CleanupGhostNodePackages_Handler,
 		},
 		{
 			MethodName: "UpsertDesiredService",

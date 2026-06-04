@@ -1018,9 +1018,23 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 
 // ── Ghost-node cleanup ───────────────────────────────────────────────────
 
-// cleanupGhostNodes deletes installed-state records for nodes that are not
-// in the active cluster. Ghost nodes are nodes that were removed but still
-// have etcd records under /globular/nodes/{id}/packages/.
+// cleanupGhostNodes removes installed-state records for nodes that
+// are no longer cluster members. v1.2.190 migrates this off the
+// prior raw-etcd path:
+//   - active-node listing → cluster_controller.ListNodes (already
+//     typed)
+//   - ghost-node enumeration → same prefix-scan via etcd as before,
+//     but the SCAN is read-only and short-lived; routing it through
+//     a typed RPC would require a new server-side enumerator. The
+//     destructive WRITE is now the typed
+//     cluster_controller.CleanupGhostNodePackages call (server-side
+//     guard refuses to clean an active node).
+//
+// Anchored by:
+//
+//	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+//	invariant:destructive_actions.require_explicit_guard
+//	forbidden_fix:cross_layer_write_by_non_owner
 func cleanupGhostNodes(ctx context.Context, report *canonReport) int {
 	cli, err := config.GetEtcdClient()
 	if err != nil {
@@ -1028,12 +1042,17 @@ func cleanupGhostNodes(ctx context.Context, report *canonReport) int {
 		return 0
 	}
 
+	cc, err := controllerClient()
+	if err != nil {
+		fmt.Printf("  controller unavailable: %v — skipping ghost cleanup\n", err)
+		return 0
+	}
+	defer cc.Close()
+	ctrlClient := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+
 	// Get active node IDs from the controller.
 	activeNodes := make(map[string]bool)
-	cc, err := dialGRPC(rootCfg.controllerAddr)
-	if err == nil {
-		defer cc.Close()
-		ctrlClient := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	{
 		reqCtx, reqCancel := context.WithTimeout(ctx, 10*time.Second)
 		nodesResp, nerr := ctrlClient.ListNodes(reqCtx, &cluster_controllerpb.ListNodesRequest{})
 		reqCancel()
@@ -1043,56 +1062,75 @@ func cleanupGhostNodes(ctx context.Context, report *canonReport) int {
 			}
 		}
 	}
-
 	if len(activeNodes) == 0 {
 		fmt.Println("  cannot determine active nodes — skipping ghost cleanup")
 		return 0
 	}
 	fmt.Printf("  Active nodes: %d\n", len(activeNodes))
 
-	// Scan all installed-state records and find those on non-active nodes.
-	resp, err := cli.Get(ctx, "/globular/nodes/",
+	// Enumerate node-ids that have package records via a keys-only
+	// scan. This is a discovery step — the destructive delete is
+	// dispatched through the controller's typed RPC below.
+	scanCtx, scanCancel := context.WithTimeout(ctx, 10*time.Second)
+	resp, err := cli.Get(scanCtx, "/globular/nodes/",
 		clientv3.WithPrefix(), clientv3.WithKeysOnly(), clientv3.WithLimit(5000))
+	scanCancel()
 	if err != nil {
 		return 0
 	}
-
-	cleaned := 0
+	ghosts := make(map[string]bool)
 	for _, kv := range resp.Kvs {
 		key := string(kv.Key)
 		if !strings.Contains(key, "/packages/") {
 			continue
 		}
-		// Extract node ID from key: /globular/nodes/{node_id}/packages/...
 		parts := strings.Split(key, "/")
 		if len(parts) < 4 {
 			continue
 		}
-		nodeID := parts[3] // /globular/nodes/{node_id}/...
+		nodeID := parts[3]
 		if activeNodes[nodeID] {
-			continue // active node, skip
-		}
-
-		// Ghost node — delete this record.
-		delCtx, delCancel := context.WithTimeout(ctx, 3*time.Second)
-		_, derr := cli.Delete(delCtx, key)
-		delCancel()
-		if derr != nil {
-			fmt.Printf("    FAIL  delete %s: %v\n", key, derr)
 			continue
 		}
-		fmt.Printf("    DEL   %s (ghost node %s)\n", key, nodeID[:8])
+		ghosts[nodeID] = true
+	}
+
+	cleaned := 0
+	for nodeID := range ghosts {
+		callCtx, callCancel := context.WithTimeout(ctx, 30*time.Second)
+		cleanupResp, cErr := ctrlClient.CleanupGhostNodePackages(callCtx, &cluster_controllerpb.CleanupGhostNodePackagesRequest{
+			NodeId: nodeID,
+		})
+		callCancel()
+		if cErr != nil {
+			fmt.Printf("    FAIL  CleanupGhostNodePackages(%s): %v\n", short8(nodeID), cErr)
+			continue
+		}
+		if cleanupResp.GetRefusedActiveNode() {
+			fmt.Printf("    SKIP  %s (controller refused — node is active)\n", short8(nodeID))
+			continue
+		}
+		n := int(cleanupResp.GetDeleted())
+		fmt.Printf("    DEL   %d records (ghost node %s)\n", n, short8(nodeID))
 		writeAuditRecord(ctx, auditRecord{
 			Action:      "cleanup-ghost",
-			Service:     key,
+			Service:     fmt.Sprintf("/globular/nodes/%s/packages/", nodeID),
 			Node:        nodeID,
 			BeforeState: "installed",
 			AfterState:  "deleted",
-			Detail:      "node not in active cluster",
+			Detail:      fmt.Sprintf("deleted %d records via typed RPC", n),
 		})
-		cleaned++
+		cleaned += n
 	}
 	return cleaned
+}
+
+// short8 returns the first 8 chars of s for log lines.
+func short8(s string) string {
+	if len(s) <= 8 {
+		return s
+	}
+	return s[:8]
 }
 
 // resolveAgentEndpoint finds the node-agent gRPC endpoint for a

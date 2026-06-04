@@ -829,6 +829,29 @@ service ClusterControllerService {
       default_role_hint: "viewer"
     };
   };
+  // CleanupGhostNodePackages removes installed-package records under
+  // /globular/nodes/{node_id}/packages/ for nodes that are no longer
+  // members of the cluster. The controller validates that node_id is
+  // genuinely absent from ListNodes before deleting — guarding
+  // against accidentally wiping an active node's state — then
+  // performs the cleanup as the cluster's authoritative actor
+  // (cluster_controller orchestrates node lifecycle, node_agent
+  // owns L3 installed state but the cleanup decision is a controller
+  // concern).
+  //
+  // Replaces the prior globularcli cleanupGhostNodes path that
+  // issued cli.Delete directly against /globular/nodes/{ghost}/packages/
+  // — a cross-layer write by a non-owner that violated both
+  // invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+  // and the broader cross-owner-write principle.
+  rpc CleanupGhostNodePackages(CleanupGhostNodePackagesRequest) returns (CleanupGhostNodePackagesResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.nodes.cleanup_ghost_packages"
+      permission: "admin"
+      resource_template: "/cluster_controller/nodes"
+      default_role_hint: "admin"
+    };
+  };
   rpc UpsertDesiredService(UpsertDesiredServiceRequest) returns (DesiredState) {
     option (globular.auth.authz) = {
       action: "cluster_controller.desired_service.upsert"
@@ -1184,6 +1207,24 @@ message ListInfrastructureReleasesJsonRequest {}
 
 message ListInfrastructureReleasesJsonResponse {
   repeated string releases_json = 1;
+}
+
+message CleanupGhostNodePackagesRequest {
+  // node_id of the ghost node to clean up. The controller validates
+  // this is NOT a current member of ListNodes before issuing any
+  // delete; a node that exists is never cleaned up via this RPC.
+  string node_id = 1;
+}
+
+message CleanupGhostNodePackagesResponse {
+  // Number of installed-package keys deleted under
+  // /globular/nodes/{node_id}/packages/. Zero indicates the ghost
+  // had no recorded state.
+  int32 deleted = 1;
+  // True when the controller refused to clean up because node_id
+  // is still listed as an active cluster member — guards against
+  // wiping a live node's state. In that case `deleted` is 0.
+  bool refused_active_node = 2;
 }
 
 // ListServicesResponse carries the merged service-registry view as a
