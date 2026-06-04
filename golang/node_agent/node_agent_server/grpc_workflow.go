@@ -292,6 +292,22 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 					log.Printf("grpc-workflow: %s", rtReason)
 				}
 			}
+			// Re-stamp the canonical install receipt on the skip path.
+			// canSkipInstallPackage proved version + build_id + checksum +
+			// active unit + entrypoint_checksum present — i.e. the on-disk
+			// content matches the desired version. The receipt therefore
+			// should carry canonical provenance (installed_by, unit_file_
+			// sha256, binary_sha256), not a stale legacy_sidecar marker
+			// left over from a pre-refactor migration. INFRASTRUCTURE
+			// wrapper packages (envoy, keepalived) repeatedly hit this
+			// case because their install short-circuits when the unit
+			// content survives sweeps. Live regression observed
+			// 2026-06-03 on globular-envoy.service.
+			//
+			// Best-effort: failures are logged but never affect the
+			// SUCCEEDED verdict the skip already earned.
+			srv.restampReceiptOnInstallSkip(ctx, pkgName, pkgKind, desiredVersion, buildID)
+
 			srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
 				ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
 				WorkflowID:      wfID,

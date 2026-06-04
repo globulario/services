@@ -236,6 +236,99 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 	log.Printf("installer-api: stored entrypoint_checksum for %s: %s", name, hash[:16])
 }
 
+// restampReceiptOnInstallSkip re-stamps the canonical install receipt
+// for a package whose install workflow short-circuited because the
+// package is already at the desired version with an active unit (the
+// installSkipAllowed branch in grpc_workflow.go).
+//
+// Without this call, packages whose receipt was seeded from a
+// legacy_sidecar migration would never gain a canonical installed_by:
+// the install path that proves on-disk content matches the desired
+// version is exactly the path that should re-stamp the receipt with
+// canonical provenance. INFRASTRUCTURE/wrapper packages (envoy,
+// keepalived, etc.) hit this case repeatedly because their install
+// frequently short-circuits — same unit content survives reboots
+// and apply-desired sweeps. Live regression observed 2026-06-03 on
+// globular-envoy.service.
+//
+// Best-effort: failures are logged but never affect the skip's
+// SUCCEEDED verdict. The skip itself already proved the package is
+// correctly installed; stamping is forensic metadata, not a
+// precondition.
+//
+// Attribution "node-agent.grpc_workflow.install_skip_restamp"
+// distinguishes skip-path stamps from normal installer-api stamps
+// in audit / forensic queries.
+func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, name, kind, version, buildID string) {
+	kindU := strings.ToUpper(kind)
+	binPath := installedBinaryPath(name, kindU)
+	hash, err := cachedSha256(binPath)
+	if err != nil || hash == "" {
+		// Wrapper packages (bin/noop entrypoint, baseline-provided
+		// binaries) may legitimately have no hashable binary at the
+		// canonical path. Skip silently rather than block — the skip
+		// path already returned SUCCEEDED to the caller.
+		log.Printf("install-skip-restamp: %s/%s binary not hashable at %s: %v (skipping restamp)", kindU, name, binPath, err)
+		return
+	}
+	pkg, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kindU, name)
+	if pkg == nil {
+		log.Printf("install-skip-restamp: %s/%s has no existing installed_state row; nothing to restamp", kindU, name)
+		return
+	}
+	unitPath := filepath.Join("/etc/systemd/system", "globular-"+name+".service")
+	unitPathArg := ""
+	if fi, statErr := os.Stat(unitPath); statErr == nil && !fi.IsDir() {
+		unitPathArg = unitPath
+	}
+	if !stampSkipPathReceipt(pkg, unitPathArg, binPath, hash) {
+		// Stamp returned an error (e.g. declared file unreadable). Do
+		// NOT write a partial-stamp pkg — that would be the same kind
+		// of half-baked receipt that caused the original drift.
+		return
+	}
+	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
+		log.Printf("install-skip-restamp: write installed-state for %s/%s: %v (non-fatal)", kindU, name, werr)
+		return
+	}
+	log.Printf("install-skip-restamp: re-stamped canonical receipt for %s/%s @ %s (legacy_sidecar superseded if present)", kindU, name, version)
+}
+
+// stampSkipPathReceipt is the pure, testable inner helper used by
+// restampReceiptOnInstallSkip. It mutates pkg.Metadata with the
+// canonical receipt fields produced by StampInstallReceipt, anchored
+// to the unit + binary paths the caller already validated. Returns
+// false when Stamp rejects the inputs (typically because a declared
+// file path is unreadable); the caller MUST NOT write pkg to etcd in
+// that case — a partial receipt would be the same anti-pattern as
+// the legacy_sidecar drift this fix exists to clear.
+//
+// hash is pre-computed by the caller (the binary sha256) and stored
+// as entrypoint_checksum, which is what the heartbeat's verification
+// pass compares against /proc/PID/exe.
+func stampSkipPathReceipt(pkg *node_agentpb.InstalledPackage, unitPath, binaryPath, hash string) bool {
+	if pkg == nil || strings.TrimSpace(hash) == "" {
+		return false
+	}
+	if pkg.Metadata == nil {
+		pkg.Metadata = make(map[string]string)
+	}
+	pkg.Metadata["entrypoint_checksum"] = hash
+	pkg.UpdatedUnix = time.Now().Unix()
+	opts := ReceiptOpts{
+		BinaryPath:  binaryPath,
+		InstalledBy: "node-agent.grpc_workflow.install_skip_restamp",
+	}
+	if unitPath != "" {
+		opts.UnitFilePath = unitPath
+	}
+	if err := StampInstallReceipt(pkg, opts); err != nil {
+		log.Printf("install-skip-restamp: stamp rejected for %s/%s: %v (not writing partial receipt)", pkg.GetKind(), pkg.GetName(), err)
+		return false
+	}
+	return true
+}
+
 // pinArtifact copies the fetched artifact to the local pinned directory.
 // Best-effort: failures are logged but don't block installation.
 func pinArtifact(name, version, platform, artifactPath string) {
