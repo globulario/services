@@ -4381,7 +4381,13 @@ failure_modes:
     - id: hidden_workflow.controller_remove_node_inline_preflight_and_drain
       title: RemoveNode RPC runs preflight + etcd-membership-remove + drain + state-delete INLINE before starting the repair workflow run
       severity: high
-      status: active
+      status: lifted
+      lifted_at: "2026-06-05"
+      lifted_to_workflow: node.remove
+      lifted_files:
+        - golang/workflow/definitions/node.remove.yaml
+        - golang/workflow/engine/actors_node_remove.go
+        - golang/cluster_controller/cluster_controller_server/workflow_node_remove.go
       description: >
         cluster_controller_server/handlers_node.go::RemoveNode is a partial
         hidden workflow. The operator's intent ("remove node X") is captured
@@ -4444,7 +4450,21 @@ failure_modes:
     - id: hidden_workflow.controller_node_removal_requests_queue_consumer
       title: processNodeRemovalRequests is an inline queue consumer that orchestrates removal without a workflow run owning the consumption
       severity: high
-      status: active
+      status: lifted
+      lifted_at: "2026-06-05"
+      lifted_to_workflow: node.remove
+      lifted_files:
+        - golang/workflow/definitions/node.remove.yaml
+        - golang/workflow/engine/actors_node_remove.go
+        - golang/cluster_controller/cluster_controller_server/workflow_node_remove.go
+      lifted_notes: |
+        The queue consumer is now a thin trigger: it lists pending
+        removal requests, resolves the hostname/IP to a node_id, and
+        calls RemoveNode (which dispatches the node.remove workflow).
+        On successful workflow termination, the consumer deletes the
+        queue key — a single-Put cleanup per request. The multi-step
+        orchestration that was previously inline now lives in the
+        workflow definition's 8 declared steps with durable receipts.
       description: >
         cluster_controller_server/node_removal_requests.go::processNodeRemovalRequests
         runs from the reconciler tick. It:

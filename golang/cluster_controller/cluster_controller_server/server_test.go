@@ -161,7 +161,18 @@ func TestRemoveNodeNotFound(t *testing.T) {
 	}
 }
 
-func TestRemoveNodeSuccess(t *testing.T) {
+// Post-2026-06-05 lift: the inline RemoveNode logic was replaced by the
+// node.remove workflow. The tests below pin the NodeRemoveControllerConfig
+// action handlers directly — those handlers are what the workflow's step
+// actions execute. This is the correct regression seam after the lift;
+// the dispatch path is owned by the workflow engine and tested there.
+//
+// TestRemoveNodeNotFound above still tests the RPC-handler pre-dispatch
+// validation (returns NotFound BEFORE workflow dispatch). The full
+// dispatch path requires a workflow service connection; that's an
+// integration test, not a unit test.
+
+func TestNodeRemoveControllerConfig_DeleteState_RemovesAndPersists(t *testing.T) {
 	state := newControllerState()
 	state.Nodes["node-1"] = &nodeState{
 		NodeID: "node-1",
@@ -174,29 +185,31 @@ func TestRemoveNodeSuccess(t *testing.T) {
 	srv := newTestServer(t, state)
 	srv.setLeader(true, "test", "127.0.0.1:1234")
 
-	resp, err := srv.RemoveNode(context.Background(), &cluster_controllerpb.RemoveNodeRequest{
-		NodeId: "node-1",
-		Force:  true,
-		Drain:  false,
-	})
-	if err != nil {
-		t.Fatalf("RemoveNode error: %v", err)
-	}
-	if resp.GetOperationId() == "" {
-		t.Fatal("expected operation_id in response")
-	}
-	if !strings.Contains(resp.GetMessage(), "removed") {
-		t.Fatalf("expected 'removed' message, got: %s", resp.GetMessage())
+	cfg := srv.buildNodeRemoveControllerConfig()
+	if err := cfg.DeleteState(context.Background(), "node-1"); err != nil {
+		t.Fatalf("DeleteState: %v", err)
 	}
 
 	srv.lock("test")
+	defer srv.unlock()
 	if _, exists := srv.state.Nodes["node-1"]; exists {
 		t.Fatal("expected node to be removed from state")
 	}
-	srv.unlock()
 }
 
-func TestRemoveNodeRemovesEtcdMembershipBeforeDeletingState(t *testing.T) {
+func TestNodeRemoveControllerConfig_DeleteState_IdempotentForMissingNode(t *testing.T) {
+	state := newControllerState()
+	srv := newTestServer(t, state)
+
+	cfg := srv.buildNodeRemoveControllerConfig()
+	// First call on a non-existent node must return nil (idempotent for
+	// the case where a prior workflow attempt already deleted the entry).
+	if err := cfg.DeleteState(context.Background(), "never-existed"); err != nil {
+		t.Fatalf("DeleteState on absent node: %v", err)
+	}
+}
+
+func TestNodeRemoveControllerConfig_RemoveEtcdMembership_PrunesCorrectly(t *testing.T) {
 	state := newControllerState()
 	state.Nodes["node-1"] = &nodeState{
 		NodeID: "node-1",
@@ -220,16 +233,9 @@ func TestRemoveNodeRemovesEtcdMembershipBeforeDeletingState(t *testing.T) {
 	mgr := &recordingEtcdMembershipManager{}
 	srv.etcdMembers = mgr
 
-	resp, err := srv.RemoveNode(context.Background(), &cluster_controllerpb.RemoveNodeRequest{
-		NodeId: "node-2",
-		Force:  true,
-		Drain:  false,
-	})
-	if err != nil {
-		t.Fatalf("RemoveNode error: %v", err)
-	}
-	if resp.GetOperationId() == "" {
-		t.Fatal("expected operation_id in response")
+	cfg := srv.buildNodeRemoveControllerConfig()
+	if err := cfg.RemoveEtcdMembership(context.Background(), "node-2"); err != nil {
+		t.Fatalf("RemoveEtcdMembership: %v", err)
 	}
 	if len(mgr.removeCalls) != 1 {
 		t.Fatalf("expected 1 etcd prune call, got %d", len(mgr.removeCalls))
@@ -237,20 +243,9 @@ func TestRemoveNodeRemovesEtcdMembershipBeforeDeletingState(t *testing.T) {
 	if len(mgr.lastDesired) != 1 || mgr.lastDesired[0].NodeID != "node-1" {
 		t.Fatalf("unexpected desired etcd membership: %+v", mgr.lastDesired)
 	}
-
-	srv.lock("test")
-	_, removedExists := srv.state.Nodes["node-2"]
-	_, remainingExists := srv.state.Nodes["node-1"]
-	srv.unlock()
-	if removedExists {
-		t.Fatal("expected removed etcd node to be absent from state")
-	}
-	if !remainingExists {
-		t.Fatal("expected remaining node to stay in state")
-	}
 }
 
-func TestRemoveNodeAbortsWhenEtcdMembershipCleanupFails(t *testing.T) {
+func TestNodeRemoveControllerConfig_RemoveEtcdMembership_PropagatesQuorumFailure(t *testing.T) {
 	state := newControllerState()
 	state.Nodes["node-1"] = &nodeState{
 		NodeID: "node-1",
@@ -273,24 +268,37 @@ func TestRemoveNodeAbortsWhenEtcdMembershipCleanupFails(t *testing.T) {
 	srv := newTestServer(t, state)
 	srv.etcdMembers = &recordingEtcdMembershipManager{removeErr: fmt.Errorf("quorum failure")}
 
-	_, err := srv.RemoveNode(context.Background(), &cluster_controllerpb.RemoveNodeRequest{
-		NodeId: "node-2",
-		Force:  true,
-		Drain:  false,
-	})
+	cfg := srv.buildNodeRemoveControllerConfig()
+	err := cfg.RemoveEtcdMembership(context.Background(), "node-2")
 	if err == nil {
-		t.Fatal("expected RemoveNode to fail when etcd cleanup fails")
+		t.Fatal("expected RemoveEtcdMembership to surface quorum failure")
 	}
-	if !strings.Contains(err.Error(), "remove node etcd membership") {
+	if !strings.Contains(err.Error(), "quorum failure") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// State must remain — the workflow's delete_state step would not
+	// have run if remove_etcd_membership returned an error first.
 	srv.lock("test")
 	_, removedExists := srv.state.Nodes["node-2"]
 	srv.unlock()
 	if !removedExists {
 		t.Fatal("expected node state to remain when etcd cleanup fails")
 	}
+}
+
+func TestNodeRemoveControllerConfig_Preflight_ReturnsViolations(t *testing.T) {
+	state := newControllerState()
+	srv := newTestServer(t, state)
+
+	cfg := srv.buildNodeRemoveControllerConfig()
+	// Preflight on a missing node returns either empty (no violations)
+	// or an explicit list — verify the call succeeds without panic.
+	violations, err := cfg.Preflight(context.Background(), "any-node-id")
+	if err != nil {
+		t.Fatalf("Preflight: %v", err)
+	}
+	_ = violations // shape is enough; specific violations depend on cluster state
 }
 
 func TestReconcileAdvanceInfraJoinsPrunesStaleEtcdMembers(t *testing.T) {

@@ -718,6 +718,18 @@ code_symbols:
         - globular.platform:invariant.workflow.every_state_mutation_belongs_to_a_workflow_instance
       protects:
         - globular.platform:failure_mode.hidden_workflow.controller_ingress_spec_guard_restore_path
+  - id: globular.platform:code.go.platform_controller.workflow_node_remove
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/workflow_node_remove.go
+    component: platform_controller.workflow_node_remove
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:invariant.workflow.every_state_mutation_belongs_to_a_workflow_instance
+      protects:
+        - globular.platform:failure_mode.hidden_workflow.controller_remove_node_inline_preflight_and_drain
+        - globular.platform:failure_mode.hidden_workflow.controller_node_removal_requests_queue_consumer
   - id: globular.platform:code.go.platform_controller.workflow_release.hash_schemas_must_not_alias
     namespace: globular.platform
     language: go

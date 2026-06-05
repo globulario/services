@@ -410,6 +410,15 @@ code_edges:
   - from: globular.platform:code.go.platform_controller.workflow_ingress_restore
     relation: protects
     to: globular.platform:failure_mode.hidden_workflow.controller_ingress_spec_guard_restore_path
+  - from: globular.platform:code.go.platform_controller.workflow_node_remove
+    relation: implements
+    to: globular.platform:invariant.workflow.every_state_mutation_belongs_to_a_workflow_instance
+  - from: globular.platform:code.go.platform_controller.workflow_node_remove
+    relation: protects
+    to: globular.platform:failure_mode.hidden_workflow.controller_node_removal_requests_queue_consumer
+  - from: globular.platform:code.go.platform_controller.workflow_node_remove
+    relation: protects
+    to: globular.platform:failure_mode.hidden_workflow.controller_remove_node_inline_preflight_and_drain
   - from: globular.platform:code.go.platform_controller.workflow_release.hash_schemas_must_not_alias
     relation: enforces
     to: globular.platform:invariant.install_package.hash_schemas_must_not_alias

@@ -28,7 +28,6 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/workflow"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc/codes"
@@ -340,6 +339,13 @@ func buildConfigDiff(oldHashes, newHashes map[string]string) []*cluster_controll
 	return diff
 }
 
+// RemoveNode dispatches the node.remove workflow. The previously-inline
+// orchestration (preflight + etcd-membership-remove + drain + state-delete
+// + scylla-publish + etcd-prefix-cleanup + release-purge + scylla-ring-remove)
+// is now declared step-by-step in golang/workflow/definitions/node.remove.yaml.
+// This handler captures the node's mutable state under srv.lock(), passes
+// it as workflow inputs, and waits for terminal status. See failure_mode
+// hidden_workflow.controller_remove_node_inline_preflight_and_drain.
 func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.RemoveNodeRequest) (*cluster_controllerpb.RemoveNodeResponse, error) {
 	if !srv.isLeader() {
 		resp := &cluster_controllerpb.RemoveNodeResponse{}
@@ -353,171 +359,53 @@ func (srv *server) RemoveNode(ctx context.Context, req *cluster_controllerpb.Rem
 	}
 	nodeID := strings.TrimSpace(req.GetNodeId())
 
-	srv.lock("remove-node")
+	// Capture mutable state under lock so the workflow steps operate on a
+	// consistent snapshot. The workflow handler functions also acquire the
+	// lock individually for state-mutating steps (delete_state in
+	// particular) — capture-then-dispatch avoids holding the lock across
+	// the workflow's wall-clock.
+	srv.lock("remove-node-capture")
 	node := srv.state.Nodes[nodeID]
 	if node == nil {
 		srv.unlock()
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
-	scyllaHostID := node.ScyllaHostID // capture before state deletion
-	nodeIPs := append([]string(nil), node.Identity.Ips...) // for fallback host_id lookup
-
-	// Topology preflight: block removal if it would violate safety invariants
-	// (Case 12: TOPOLOGY_SAFETY_DRIFT). Force=true overrides the guard.
-	if !req.GetForce() {
-		violations := srv.topologyPreflightForRemove(nodeID)
-		if logTopologyViolations(nodeID, violations) {
-			srv.unlock()
-			msgs := make([]string, 0, len(violations))
-			for _, v := range violations {
-				msgs = append(msgs, v.Message)
-			}
-			return nil, status.Errorf(codes.FailedPrecondition,
-				"topology safety violation — use force=true to override: %s",
-				strings.Join(msgs, "; "))
-		}
-	}
-
-	agentEndpoint := node.AgentEndpoint
-	hostname := node.Identity.Hostname
-	srv.unlock()
-
-	if err := srv.removeNodeEtcdMembership(ctx, nodeID); err != nil {
-		return nil, status.Errorf(codes.FailedPrecondition, "remove node etcd membership: %v", err)
-	}
-
-	opID := uuid.NewString()
-	var drainErr error
-
-	// If drain requested and node has an agent endpoint, try to stop services gracefully
-	if req.GetDrain() && agentEndpoint != "" {
-		drainErr = srv.drainNode(ctx, node, opID)
-		if drainErr != nil && !req.GetForce() {
-			return nil, status.Errorf(codes.FailedPrecondition, "drain failed (use force=true to override): %v", drainErr)
-		}
-	}
-
-	// Remove from state
-	srv.lock("remove-node")
-	delete(srv.state.Nodes, nodeID)
-	persistErr := srv.persistStateLocked(true)
-	srv.unlock()
-	if persistErr != nil {
-		return nil, status.Errorf(codes.Internal, "persist node removal: %v", persistErr)
-	}
-	// Update Scylla seed host list immediately after membership change so
-	// readers (repository/workflow/event) do not keep stale departed nodes
-	// until the next periodic reconcile cycle.
-	srv.publishScyllaHostsIfNeeded(ctx)
-
-	// ── REPAIR workflow run ─────────────────────────────────────────────
-	// Clean ALL etcd state for this node inside a visible REPAIR run.
-	// Every state-changing action must belong to exactly one workflow run.
-	repairRunID := srv.workflowRec.StartRun(ctx, &workflow.RunParams{
+	captured := nodeRemoveInputs{
 		NodeID:        nodeID,
-		NodeHostname:  hostname,
-		ReleaseKind:   "NodeRemoval",
-		TriggerReason: workflow.TriggerRepair,
-		CorrelationID: fmt.Sprintf("repair/node-removal/%s", nodeID),
-		WorkflowName:  "node.repair",
-	})
+		Hostname:      node.Identity.Hostname,
+		NodeIPs:       append([]string(nil), node.Identity.Ips...),
+		ScyllaHostID:  node.ScyllaHostID,
+		AgentEndpoint: node.AgentEndpoint,
+		Force:         req.GetForce(),
+		Drain:         req.GetDrain(),
+		OpID:          uuid.NewString(),
+	}
+	srv.unlock()
 
-	prefixes := []struct {
-		key     string
-		stepKey string
-		title   string
-	}{
-		{fmt.Sprintf("/globular/nodes/%s/", nodeID), "repair_package_state_deleted", "Delete installed package state"},
-		{fmt.Sprintf("/globular/ingress/v1/status/%s", nodeID), "repair_ingress_status_deleted", "Delete ingress status"},
-		{fmt.Sprintf("globular/plans/v1/nodes/%s/", nodeID), "repair_plan_keys_deleted", "Delete plan history and current plan"},
-		{fmt.Sprintf("globular/cluster/v1/observed_hash_services/%s", nodeID), "repair_observed_hash_deleted", "Delete observed service hash"},
-		{fmt.Sprintf("globular/cluster/v1/applied_hash_services/%s", nodeID), "repair_applied_hash_deleted", "Delete applied service hash"},
-		{fmt.Sprintf("globular/cluster/v1/fail_count_services/%s", nodeID), "repair_fail_count_deleted", "Delete fail count"},
-		// Convergence outcome records (package install/block history).
-		// Stale BLOCKED_MISSING_NATIVE_DEP records here permanently prevent
-		// convergence on rejoin — they must be wiped on node removal.
-		{fmt.Sprintf("/globular/convergence/nodes/%s/", nodeID), "repair_convergence_outcomes_deleted", "Delete convergence outcome records"},
-		// Convergence action records written by the controller (dep-block actions).
-		{fmt.Sprintf("/globular/convergence/actions/controller/%s/", nodeID), "repair_convergence_actions_deleted", "Delete convergence action records"},
+	_, wfStatus, wfErr, derr := srv.dispatchNodeRemove(ctx, captured)
+	if derr != nil {
+		return nil, status.Errorf(codes.Internal, "dispatch node.remove workflow: %v", derr)
+	}
+	if wfStatus == "FAILED" {
+		// Surface the workflow's error to the operator. Topology-violation
+		// failures from the preflight step return as workflow errors; the
+		// caller still gets FailedPrecondition for those.
+		log.Printf("remove-node: workflow FAILED node=%s err=%s", nodeID, wfErr)
+		return nil, status.Errorf(codes.FailedPrecondition, "node.remove workflow failed: %s", wfErr)
 	}
 
-	var totalDeleted int64
-	for _, p := range prefixes {
-		stepSeq := srv.workflowRec.RecordStep(ctx, repairRunID, &workflow.StepParams{
-			StepKey: p.stepKey,
-			Title:   p.title,
-			Actor:   workflow.ActorController,
-			Phase:   workflow.PhasePublish,
-			Status:  workflow.StepRunning,
-			Message: fmt.Sprintf("prefix=%s", p.key),
-		})
-		deleted := srv.cleanNodeEtcdPrefix(ctx, nodeID, p.key)
-		totalDeleted += deleted
-		srv.workflowRec.CompleteStep(ctx, repairRunID, stepSeq,
-			fmt.Sprintf("deleted %d keys under %s", deleted, p.key), 0)
-	}
-
-	// Purge node from release status objects so the controller doesn't
-	// think packages are "already installed" on a re-added node.
-	releasesCleaned := srv.cleanNodeFromReleases(ctx, nodeID)
-	if releasesCleaned > 0 {
-		stepSeq := srv.workflowRec.RecordStep(ctx, repairRunID, &workflow.StepParams{
-			StepKey: "repair_release_status_purged",
-			Title:   "Purge node from release status objects",
-			Actor:   workflow.ActorController,
-			Phase:   workflow.PhasePublish,
-			Status:  workflow.StepRunning,
-			Message: fmt.Sprintf("node_id=%s", nodeID),
-		})
-		srv.workflowRec.CompleteStep(ctx, repairRunID, stepSeq,
-			fmt.Sprintf("purged node from %d release objects", releasesCleaned), 0)
-	}
-
-	// Remove node from ScyllaDB gossip ring via a healthy peer.
-	// Falls back to REST API lookup when ScyllaHostID was not reported
-	// (e.g. node was wiped before RemoveNode was called).
-	// Non-fatal: if it fails, log and continue.
-	scyllaStepSeq := srv.workflowRec.RecordStep(ctx, repairRunID, &workflow.StepParams{
-		StepKey: "repair_scylla_ring_remove",
-		Title:   "Remove node from ScyllaDB gossip ring",
-		Actor:   workflow.ActorController,
-		Phase:   workflow.PhasePublish,
-		Status:  workflow.StepRunning,
-		Message: fmt.Sprintf("known_host_id=%q node_ips=%v", scyllaHostID, nodeIPs),
-	})
-	scyllaRingErr := srv.removeNodeFromScyllaRing(ctx, nodeID, scyllaHostID, nodeIPs)
-	if scyllaRingErr != nil {
-		log.Printf("remove-node: ScyllaDB ring removal non-fatal: %v", scyllaRingErr)
-		srv.workflowRec.CompleteStep(ctx, repairRunID, scyllaStepSeq,
-			fmt.Sprintf("warn: %v", scyllaRingErr), 0)
-	} else {
-		srv.workflowRec.CompleteStep(ctx, repairRunID, scyllaStepSeq,
-			fmt.Sprintf("ScyllaDB ring clean for node %s", nodeID), 0)
-	}
-
-	scyllaSuffix := ""
-	if scyllaRingErr != nil {
-		scyllaSuffix = fmt.Sprintf(" (ScyllaDB ring warn: %v)", scyllaRingErr)
-	}
-
-	srv.workflowRec.FinishRun(ctx, repairRunID, workflow.Succeeded,
-		fmt.Sprintf("node %s removed: %d etcd keys cleaned, %d releases purged%s", nodeID, totalDeleted, releasesCleaned, scyllaSuffix),
-		"", workflow.NoFailure)
-
-	// Close agent client if we have one
-	if agentEndpoint != "" {
-		srv.closeAgentClient(agentEndpoint)
+	// Close agent client if we had one. (Workflow doesn't touch RPC
+	// clients; the controller's connection pool cleanup is still done
+	// here at the handler boundary.)
+	if captured.AgentEndpoint != "" {
+		srv.closeAgentClient(captured.AgentEndpoint)
 	}
 
 	message := fmt.Sprintf("node %s removed from cluster", nodeID)
-	if drainErr != nil {
-		message = fmt.Sprintf("node %s removed (drain failed: %v)", nodeID, drainErr)
-	}
-
-	srv.broadcastOperationEvent(srv.newOperationEvent(opID, nodeID, cluster_controllerpb.OperationPhase_OP_SUCCEEDED, message, 100, true, ""))
+	srv.broadcastOperationEvent(srv.newOperationEvent(captured.OpID, nodeID, cluster_controllerpb.OperationPhase_OP_SUCCEEDED, message, 100, true, ""))
 
 	return &cluster_controllerpb.RemoveNodeResponse{
-		OperationId: opID,
+		OperationId: captured.OpID,
 		Message:     message,
 	}, nil
 }

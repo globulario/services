@@ -44,7 +44,12 @@ func TestHandleNodeRemovalRequest_NodeIDFromPayload(t *testing.T) {
 	}
 }
 
-func TestHandleNodeRemovalRequest_ResolveByHostname(t *testing.T) {
+// Post-2026-06-05 lift: removal itself runs in the node.remove workflow.
+// This test now verifies the queue-consumer's resolution logic — turning a
+// hostname-only request into the canonical node_id — which is unique to
+// node_removal_requests.go. The full removal path is exercised by the
+// NodeRemoveControllerConfig handler tests in server_test.go.
+func TestResolveNodeRemovalTarget_ResolveByHostname(t *testing.T) {
 	state := newControllerState()
 	state.Nodes["node-abc"] = &nodeState{
 		NodeID: "node-abc",
@@ -57,18 +62,45 @@ func TestHandleNodeRemovalRequest_ResolveByHostname(t *testing.T) {
 	}
 	srv := newTestServer(t, state)
 
-	handled, err := srv.handleNodeRemovalRequest(context.Background(),
-		nodeRemovalRequestPrefix, []byte(`{"hostname":"globule-lenovo"}`))
-	if !handled {
-		t.Fatal("expected hostname request to be handled")
-	}
+	nodeID, err := srv.resolveNodeRemovalTarget(nodeRemovalRequest{Hostname: "globule-lenovo"})
 	if err != nil {
-		t.Fatalf("hostname request should succeed, got: %v", err)
+		t.Fatalf("resolveNodeRemovalTarget: %v", err)
 	}
-	srv.lock("test")
-	_, exists := srv.state.Nodes["node-abc"]
-	srv.unlock()
-	if exists {
-		t.Fatal("expected node to be removed by hostname selector")
+	if nodeID != "node-abc" {
+		t.Fatalf("nodeID = %q, want %q (hostname resolution failed)", nodeID, "node-abc")
+	}
+}
+
+func TestResolveNodeRemovalTarget_ResolveByIP(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-xyz"] = &nodeState{
+		NodeID: "node-xyz",
+		Identity: storedIdentity{
+			Hostname: "globule-lenovo",
+			Ips:      []string{"10.0.0.102"},
+		},
+		Profiles: []string{"storage"},
+		Status:   "healthy",
+	}
+	srv := newTestServer(t, state)
+
+	nodeID, err := srv.resolveNodeRemovalTarget(nodeRemovalRequest{IP: "10.0.0.102"})
+	if err != nil {
+		t.Fatalf("resolveNodeRemovalTarget: %v", err)
+	}
+	if nodeID != "node-xyz" {
+		t.Fatalf("nodeID = %q, want %q (IP resolution failed)", nodeID, "node-xyz")
+	}
+}
+
+func TestResolveNodeRemovalTarget_EmptyForUnknownTarget(t *testing.T) {
+	srv := newTestServer(t, newControllerState())
+
+	nodeID, err := srv.resolveNodeRemovalTarget(nodeRemovalRequest{Hostname: "no-such-host"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if nodeID != "" {
+		t.Fatalf("nodeID = %q, want empty (unknown target should not resolve)", nodeID)
 	}
 }

@@ -149,6 +149,11 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	// restoreIngressSpecFromBackup function (2026-06-05 hidden-workflow
 	// audit, failure_mode hidden_workflow.controller_ingress_spec_guard_restore_path).
 	engine.RegisterIngressControllerActions(defaultRouter, srv.buildIngressControllerConfig())
+	// node.remove — lift of the previously-inline RemoveNode RPC +
+	// processNodeRemovalRequests queue consumer (2026-06-05 hidden-
+	// workflow audit, failure_modes hidden_workflow.controller_remove_node_*
+	// and hidden_workflow.controller_node_removal_requests_queue_consumer).
+	engine.RegisterNodeRemoveControllerActions(defaultRouter, srv.buildNodeRemoveControllerConfig())
 	srv.actorServer.SetDefaultRouter(defaultRouter)
 
 	// Staggered initial enqueue: wait for readiness predicates to pass, then

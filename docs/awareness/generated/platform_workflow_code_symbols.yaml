@@ -31,6 +31,19 @@ code_symbols:
       implements:
         - globular.platform:intent.workflow.cluster_invariants_gate_mutations
         - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_workflow.actors_node_remove
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/engine/actors_node_remove.go
+    component: platform_workflow.actors_node_remove
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.workflow.source_of_operational_truth
+        - globular.platform:invariant.workflow.every_state_mutation_belongs_to_a_workflow_instance
+      protects:
+        - globular.platform:failure_mode.hidden_workflow.controller_remove_node_inline_preflight_and_drain
+        - globular.platform:failure_mode.hidden_workflow.controller_node_removal_requests_queue_consumer
   - id: globular.platform:code.go.platform_workflow.actors_node_repair
     namespace: globular.platform
     language: go

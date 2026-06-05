@@ -1,0 +1,158 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: node.remove
+  displayName: Remove a node from the cluster
+  description: >-
+    Lifts the previously-inline RemoveNode RPC + processNodeRemovalRequests
+    queue consumer (failure_modes hidden_workflow.controller_remove_node_*
+    from the 2026-06-05 audit) into a declarative workflow with durable
+    step receipts.
+
+    The RemoveNode RPC and the node-removal-request queue consumer both
+    dispatch this single workflow per (node_id) target. The previously-
+    inline orchestration (preflight + etcd-membership-remove + drain +
+    state-delete + scylla-publish + etcd-prefix-cleanup + release-purge +
+    scylla-ring-remove) is now declared step-by-step with idempotency
+    and resume policies, so a controller crash mid-removal has a
+    deterministic resume point.
+
+    The RPC handler is responsible for capturing the node's mutable
+    state (ScyllaHostID, NodeIPs, Hostname, AgentEndpoint) under the
+    server lock BEFORE dispatch, and passing them as workflow inputs.
+    The workflow steps operate on those inputs — they do not re-read
+    state.Nodes after dispatch.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - node_id
+      - op_id
+    properties:
+      cluster_id: { type: string }
+      node_id:    { type: string }
+      op_id:      { type: string }
+      hostname:   { type: string }
+      # node_ips is the IP list captured at dispatch — used by the
+      # ScyllaDB ring-removal fallback when ScyllaHostID was never
+      # reported (e.g. node was wiped before RemoveNode was called).
+      node_ips:
+        type: array
+        items: { type: string }
+      scylla_host_id:  { type: string }
+      agent_endpoint:  { type: string }
+      force:
+        type: boolean
+        default: false
+        description: >-
+          When true: topology preflight violations are logged but
+          do not block removal; drain failures are tolerated.
+      drain:
+        type: boolean
+        default: false
+        description: >-
+          When true and agent_endpoint is set: best-effort stop of
+          node-agent services before removal.
+  defaults:
+    force: false
+    drain: false
+  strategy:
+    mode: single
+  steps:
+    - id: preflight
+      title: Topology safety preflight for node removal
+      actor: cluster-controller
+      action: controller.node_remove.preflight
+      with:
+        node_id: $.node_id
+        force:   $.force
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: remove_etcd_membership
+      title: Remove node from etcd cluster membership
+      dependsOn: [preflight]
+      actor: cluster-controller
+      action: controller.node_remove.remove_etcd_membership
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+
+    - id: drain_node
+      title: Drain node services (optional)
+      dependsOn: [remove_etcd_membership]
+      when:
+        expr: drain == true && agent_endpoint != ""
+      actor: cluster-controller
+      action: controller.node_remove.drain_node
+      with:
+        node_id:        $.node_id
+        op_id:          $.op_id
+        agent_endpoint: $.agent_endpoint
+        force:          $.force
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: delete_state
+      title: Delete node from controller state + persist
+      dependsOn: [drain_node]
+      actor: cluster-controller
+      action: controller.node_remove.delete_state
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+
+    - id: publish_scylla_hosts
+      title: Publish updated Scylla host list
+      dependsOn: [delete_state]
+      actor: cluster-controller
+      action: controller.node_remove.publish_scylla_hosts
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: cleanup_etcd_prefixes
+      title: Clean per-node etcd prefixes (packages, ingress status, plans, convergence)
+      dependsOn: [delete_state]
+      actor: cluster-controller
+      action: controller.node_remove.cleanup_etcd_prefixes
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: cleanup_release_status
+      title: Purge node from release status objects
+      dependsOn: [cleanup_etcd_prefixes]
+      actor: cluster-controller
+      action: controller.node_remove.cleanup_release_status
+      with:
+        node_id: $.node_id
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: remove_scylla_ring
+      title: Remove node from ScyllaDB gossip ring (non-fatal)
+      dependsOn: [cleanup_etcd_prefixes]
+      actor: cluster-controller
+      action: controller.node_remove.remove_scylla_ring
+      with:
+        node_id:        $.node_id
+        scylla_host_id: $.scylla_host_id
+        node_ips:       $.node_ips
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+        # Non-fatal: ScyllaDB ring removal may fail if no healthy
+        # peer is available. The step succeeds with a warning in
+        # its receipt; the overall workflow succeeds.
+        on_error: continue
