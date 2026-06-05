@@ -686,6 +686,17 @@ code_symbols:
       implements:
         - globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
         - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - id: globular.platform:code.go.platform_controller.workflow_definitions_load
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/workflow_definitions_load_test.go
+    component: platform_controller.workflow_definitions_load
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.workflow.definitions_must_thread_required_verification_fields
+      protects:
+        - globular.platform:failure_mode.workflow.stale_definitions_block_expected_sha256_propagation
   - id: globular.platform:code.go.platform_controller.workflow_release.hash_schemas_must_not_alias
     namespace: globular.platform
     language: go

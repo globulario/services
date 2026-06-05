@@ -809,12 +809,14 @@ required_tests:
       failure_modes:
         - workflow.stale_definitions_block_expected_sha256_propagation
       files:
+        - golang/cluster_controller/cluster_controller_server/invariant_enforcement.go
         - golang/workflow/v1alpha1/etcd_fetcher.go
         - golang/workflow/definitions/release.apply.package.yaml
         - golang/workflow/definitions/release.apply.controller.yaml
         - scripts/release/install-day0.sh
     required_for_changes:
       paths:
+        - golang/cluster_controller/cluster_controller_server/invariant_enforcement.go
         - golang/workflow/v1alpha1/etcd_fetcher.go
         - golang/workflow/definitions/release.apply.package.yaml
         - golang/workflow/definitions/release.apply.controller.yaml
@@ -827,20 +829,9 @@ required_tests:
         - workflow definition
     run:
       commands:
-        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestDispatch_PopulatesExpectedSha256FromManifest|TestDispatch_AuditAllCallSitesSetExpectedSha256"
-        - go test ./golang/workflow/v1alpha1/ -run "TestLoadCoreWorkflowsFromDisk|TestSeedCoreWorkflows"
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestDispatch_PopulatesExpectedSha256FromManifest|TestDispatch_AuditAllCallSitesSetExpectedSha256|TestLoadCoreWorkflowsFromDisk|TestCoreWorkflowDefinitions_ThreadExpectedSha256"
     evidence:
-      - on-disk definitions declare resolved_entrypoint_checksum input
-      - install_package step threads it into expected_sha256
+      - on-disk definitions declare resolved_entrypoint_checksum or expected_sha256 input
+      - install_package step threads the declared input into expected_sha256
       - controller dispatch carries manifest.entrypoint_checksum at every call site
-    status: partial
-    no_test_yet_reason: |
-      The controller-side tests
-      (TestDispatch_PopulatesExpectedSha256FromManifest,
-      TestDispatch_AuditAllCallSitesSetExpectedSha256) are bound by the
-      existing invariant entry. Workflow-side tests
-      (TestLoadCoreWorkflowsFromDisk, TestSeedCoreWorkflows) are TODO —
-      they should assert that the seeded definition's YAML declares
-      every input symbol the controller passes, by reflection over the
-      compiled CompiledWorkflow.Definition. Without that assertion,
-      stale on-disk YAML is only caught at integration time.
+      - loader degrades gracefully on missing/nonexistent definitions dir

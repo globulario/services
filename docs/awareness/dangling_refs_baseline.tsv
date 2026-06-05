@@ -45,7 +45,6 @@ https://globular.io/awareness#ForbiddenFix	approval_authorizes_different_action_
 https://globular.io/awareness#ForbiddenFix	approval_authorizes_different_target_than_minted
 https://globular.io/awareness#ForbiddenFix	approval_ignores_finding_id_binding
 https://globular.io/awareness#ForbiddenFix	approval_token_missing_audience_or_expiry
-https://globular.io/awareness#ForbiddenFix	approval_token_replayed_after_successful_execution
 https://globular.io/awareness#ForbiddenFix	approval_token_validator_accepts_any_non_empty_string
 https://globular.io/awareness#ForbiddenFix	approval_token_validator_skips_signature_check
 https://globular.io/awareness#ForbiddenFix	approve_transition_then_immediately_revoke_to_clear_state
