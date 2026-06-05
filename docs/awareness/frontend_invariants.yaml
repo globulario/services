@@ -160,6 +160,8 @@ invariants:
 
   # ── Second-pass frontend invariants: generalization cross-links ───────────────
 
+    related_invariants:
+      - meta.silence_is_not_valid_for_unexpected
   - id: ui.success_requires_authoritative_confirmation
     title: UI success states must be bound to backend, workflow, or runtime confirmation — not local click or dispatch state
     severity: high
@@ -188,6 +190,8 @@ invariants:
     related_failure_modes:
       - fm.industry.optimistic_success_for_irreversible_action
 
+    related_invariants:
+      - meta.write_creates_completion_obligation
   - id: ui.floating_identity_must_not_be_hidden
     title: UI screens showing cluster membership, leader identity, or network identity must distinguish stable node identity from floating VIP reachability
     severity: high

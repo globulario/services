@@ -98,6 +98,8 @@ invariants:
       - TestWorkflowDispatch_ReturnsAccepted_NotSuccess
       - TestCLI_ReportsTerminalWorkflowState
 
+    related_invariants:
+      - meta.write_creates_completion_obligation
   - id: objectstore.partial_snapshot_unknown_not_down
     title: Missing inventory in a partial objectstore snapshot must be treated as unknown, not known-down
     severity: critical
@@ -130,6 +132,8 @@ invariants:
     related_failure_modes:
       - fm.globular.objectstore_partial_snapshot
 
+    related_invariants:
+      - meta.absence_scope_must_be_explicit
   - id: ops.vip_requires_observed_owner
     title: VIP ownership must be proven from runtime evidence, not assumed from topology or package expectations
     severity: high
@@ -1098,6 +1102,8 @@ invariants:
       - fm.industry.partial_failure_hidden_by_global_green
       - fm.industry.missing_inventory_misclassified_as_down
 
+    related_invariants:
+      - meta.authority_must_express_uncertainty
   - id: evidence.missing_is_not_known_bad
     title: Missing evidence must not be treated as evidence of failure unless the contract explicitly says absence proves failure
     severity: critical
@@ -1133,6 +1139,8 @@ invariants:
       - fm.globular.objectstore_partial_snapshot
       - fm.industry.missing_inventory_misclassified_as_down
 
+    related_invariants:
+      - meta.absence_scope_must_be_explicit
   - id: identity.stable_node_identity_not_floating_vip
     title: Stable node identity must not be derived from a floating VIP or failover reachability address
     severity: critical
@@ -1167,6 +1175,8 @@ invariants:
       - fm.globular.vip_transition_cascade
       - fm.industry.floating_address_used_as_durable_identity
 
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
   - id: workflow.dispatch_is_not_completion
     title: Dispatching an action is not proof that the action completed successfully
     severity: high
@@ -1199,3 +1209,5 @@ invariants:
     related_failure_modes:
       - fm.industry.optimistic_success_for_irreversible_action
       - fm.industry.missing_inventory_misclassified_as_down
+    related_invariants:
+      - meta.state_mutations_must_be_durably_committed_before_side_effects

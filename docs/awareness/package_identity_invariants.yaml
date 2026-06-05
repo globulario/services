@@ -52,6 +52,8 @@ invariants:
       - TestBuildIDMapsToSingleArtifactIdentity
       - TestRepositoryDoctorReportsBuildIDReuse
 
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
   - id: repository.publish_idempotent_same_digest
     title: Re-publishing identical artifact bytes must return existing build_id
     severity: high
@@ -77,6 +79,8 @@ invariants:
       - TestUploadIdempotentSameDigestReturnsExistingBuildID
       - TestUploadDifferentDigestSamePublishedVersionRejected
 
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
   - id: repository.repair_selects_existing_build
     title: Repair must select broken existing builds, not only installable builds
     severity: high

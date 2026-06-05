@@ -83,6 +83,8 @@ invariants:
       related_failure_modes:
         - service.endpoint.port_squatting_cgroup_escape
 
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
     - id: service.desired_state.bom_completeness
       title: Every BOM service package must have a ServiceDesiredVersion record
       severity: high
@@ -149,6 +151,8 @@ invariants:
       related_failure_modes:
         - service.desired_state.pipeline_gap
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: objectstore.topology_contract
       title: MinIO topology contract
       severity: critical
@@ -220,6 +224,8 @@ invariants:
         - TestPendingSyncRecovery
       related_failure_modes:
         - install.result.partial_commit
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: runtime.installed_state_not_liveness
       title: Installed-state is not runtime liveness
       severity: high
@@ -322,6 +328,8 @@ invariants:
       decision_guidance:
         - "ComputeInfrastructureDesiredHash inputs must be identical on both producer (controller) and consumer (node-agent) sides — any asymmetry creates a permanent loop"
         - "Never use raw artifact digest as desired_hash — the hash must incorporate package kind, build_id, and version together"
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: infra.heartbeat_not_desired_authority
       title: Heartbeat is observer-only — it must never set desired state
       severity: critical
@@ -393,6 +401,8 @@ invariants:
         - TestRestartSingleflightGate
         - TestNoDoubleRestartOnConvergenceTick
       related_failure_modes:
+      related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
     - id: awareness.annotation_scanner.production_source_only
       title: Annotation scanner validates production Go source only
       severity: ERROR
@@ -587,6 +597,8 @@ invariants:
         - TestSlowBackendTriggersTimeoutAndLaneRecovery
       related_failure_modes:
         - critical_queries.unbounded_hang
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
     - id: derived_state.must_not_block_authority
       title: Derived state failure must not block authority publication
       severity: high
@@ -604,6 +616,8 @@ invariants:
         - TestDerivedLaneErrorDoesNotFlipAuthorityToBlocked
       related_failure_modes:
         - derived_state.projection_blocks_authority
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: recovery.must_not_depend_on_dns_only
       title: Recovery paths must not require DNS
       severity: high
@@ -641,6 +655,8 @@ invariants:
         - TestExplicitValidDisableStopsRuntimeAndAuditable
       related_failure_modes:
         - destructive_actions.ambiguous_disable
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: topology.reconciler_must_respect_safety_contract
       title: Topology drift reconciler must check safety contracts
       severity: critical
@@ -762,6 +778,8 @@ invariants:
       related_failure_modes:
         - objectstore.no_desired_state_governance
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: objectstore.minio.existing_data_guard
       title: Admitted MinIO disk paths with pre-existing non-MinIO data must be explicitly force-acknowledged
       severity: critical
@@ -855,6 +873,8 @@ invariants:
       decision_guidance:
         - "If preflight returns silent for heartbeat/desired-state/etcd/convergence tasks, add context_aliases.yaml entries mapping the missing keywords to known invariant IDs — do not suppress the NO_MATCH warning as a fix"
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: awareness.audit_noise_must_be_triaged
       title: Awareness audit warnings must be triaged, not silently accumulated
       severity: medium
@@ -884,6 +904,8 @@ invariants:
       decision_guidance:
         - "Every audit warning must be triaged to either a suppression entry (with expiry) or promoted to ERROR — adding suppressions in bulk without reviewing each is itself a violation of this invariant"
 
+      related_invariants:
+        - meta.diagnostic_output_must_be_bounded
     - id: awareness.graph_edges_need_provenance
       title: Every awareness graph edge must have a traceable provenance
       severity: medium
@@ -1181,6 +1203,8 @@ invariants:
         - "The warning field must contain 'NO_MATCH' explicitly so agents that pattern-match on this field get the correct signal"
         - "confidence must never be 'high' when the graph is unavailable — use 'low' with a clear reason"
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: awareness.graph.domain_classification_required
       title: Every edge kind must be classified into a domain (decision/information/proof/risk/proposal)
       severity: high
@@ -1558,6 +1582,8 @@ invariants:
         - TestFileServiceDependenciesClassified
         - TestDiscoveredDependenciesAreDeclaredOrClassified
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: file.identity.grpc_service_name_must_match_tls_and_registry_identity
       title: File service runtime identity must match proto service name, registry name, and TLS certificate SANs
       severity: high
@@ -1634,6 +1660,8 @@ invariants:
         - TestDay1ClassifyNodeMCPToolReturnsBLOCKForScyllaDown
         - TestAwarenessBundleMissingClassificationOnFirstJoin
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: awareness.auto_install_requires_verification
       title: A node may auto-install a missing awareness bundle only when the candidate matches the active release-index and passes integrity verification
       severity: critical
@@ -2030,6 +2058,8 @@ invariants:
         - TestResolveByBuildIDAbsent_ReturnsNotFound
         - TestDoctorRule_RepositoryDesiredBuildIDsResolve
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: repository.artifact.installable_compound_predicate
       title: Artifact installability requires publish_state AND artifact_state to both equal PUBLISHED
       severity: critical
@@ -2165,6 +2195,8 @@ invariants:
         - TestDownloadArtifactToDir_ResolvesChecksumWhenEmpty
         - TestDownloadArtifactToDir_RejectsDownloadWhenManifestUnavailable
 
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: repository.signing.verification_must_precede_install
       title: Artifact signature must be verified before install begins
       severity: critical
@@ -2213,6 +2245,8 @@ invariants:
         - TestPublishedReleaseEntryIsImmutable
         - TestBOMCorrectionRequiresNewEntry
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: dns.records_must_be_installed_and_runtime_healthy
       title: A DNS record MUST point only at nodes where the promised service is installed AND runtime-healthy
       severity: high
@@ -2329,6 +2363,8 @@ invariants:
         - TestLocalPublish6_CrossClusterLocalCannotOverrideStable
       related_failure_modes:
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: package.local_publish_requires_local_identity
       title: Local/dev/hotfix builds must use a non-official publisher and a version with a local suffix
       severity: high
@@ -2397,6 +2433,8 @@ invariants:
         - TestLocalPublish4_OfficialSealDoesNotBlockLocalPublisher
       related_failure_modes:
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: package.official_bom_read_only_under_local_override
       title: The official BOM must not be mutated when a local package override is active
       severity: critical
@@ -2511,6 +2549,8 @@ invariants:
     # Kubernetes owns workloads (Pods, Deployments, Services, etc.).
     # See docs/awareness/kubernetes/ for full documentation.
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: k8s.api_server.reachable
       title: The Kubernetes API server must be reachable from each Globular control-plane node
       severity: critical
@@ -2855,6 +2895,8 @@ invariants:
       related_failure_modes:
         - service.running_version_mismatch
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: fallback.must_emit_degraded_finding
       title: Any fallback from primary dependency to local / cache / memory / read-only mode must emit a degraded finding
       severity: high
@@ -2886,6 +2928,8 @@ invariants:
         - TestFileService_FallbackToLocalEmitsFinding
         - TestRepository_FallbackToLocalEmitsFinding
 
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: systemd.effective_unit_must_match_rendered_unit
       title: Generated systemd unit files must be validated for duplicate singleton directives; installed effective properties must match expected
       severity: critical
@@ -2923,6 +2967,8 @@ invariants:
       related_failure_modes:
         - systemd.effective_config_drift
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: doctor.must_compare_claims_to_proofs
       title: Doctor must compare desired / inventory claims against independent runtime proof, not only desired vs inventory
       severity: critical
@@ -3033,6 +3079,8 @@ invariants:
       related_failure_modes:
         - service.runtime_identity_unproven
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: remediation.auto_execution_is_rate_limited
       title: Auto-remediation execution is rate-limited per finding/action
       severity: high
@@ -3099,6 +3147,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: operator.override_requires_scope_reason_expiry_and_verification
       title: Operator overrides are structured intent with mandatory verification
       severity: critical
@@ -3156,6 +3206,7 @@ invariants:
         - services.drift_never_escalates
 
       related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
         - meta.silence_is_not_valid_for_unexpected
     - id: workflow.success_requires_verified_invariant_resolution
       title: Workflow remediation success requires verified invariant resolution, not dispatch success
@@ -3189,6 +3240,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: remediation.dispatch_is_not_repair_truth
       title: Findings stay active until a verified-resolution outcome is recorded
       severity: high
@@ -3285,6 +3338,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: runtime.identity_attestation_must_bind_pid_hash_service_and_build
       title: Runtime attestation binds PID, exe path, binary hash, service id, build id, and launch authority
       severity: critical
@@ -3380,6 +3435,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: audit.must_redact_secret_material
       title: Audit writers must redact approval-token and secret material before persisting
       severity: critical
@@ -3411,6 +3468,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.diagnostic_output_must_be_bounded
     - id: remediation.failure_rate_policy_must_be_cluster_wide
       title: Remediation failure-rate policy is cluster-wide and action-class aware
       severity: high
@@ -3514,6 +3573,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: stale_evidence_must_not_authorize_remediation
       title: Stale or untrusted evidence must not authorize privileged remediation
       severity: critical
@@ -3543,6 +3604,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: remediation.approval_must_bind_action_target_and_generation
       title: Approval tokens authorize exactly one (action_class, target, generation, finding_id) tuple
       severity: critical
@@ -3572,6 +3635,8 @@ invariants:
         - TestApprovalTokenBindsActionTargetAndGeneration
       related_failure_modes:
         - services.drift_never_escalates
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: repository.published_requires_verified_manifest
       title: A repository row must not be treated as PUBLISHED unless its manifest_json is present and parseable
       severity: critical
@@ -3619,6 +3684,8 @@ invariants:
         - TestManifestJSONPresent_DirectChecks
       related_failure_modes:
         - services.drift_never_escalates
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: installer.explicit_version_requires_exact_artifact
       title: When the caller passes an explicit package version, the install path must match it exactly — no wildcard fallback
       severity: critical
@@ -3748,6 +3815,8 @@ invariants:
         - TestVerifyStrict_OldBinaryMustNotSatisfyNewExpectedHash
       related_failure_modes:
         - release.explicit_version_wildcard_installs_wrong_version
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: desired_installed_runtime_identity_must_match
       title: Across Desired -> Installed -> Runtime the binary identity must agree — version, build_id, and entrypoint_checksum
       severity: critical
@@ -3900,6 +3969,8 @@ invariants:
         - TestLayoutDrift_KnownServicesIncluded
       related_failure_modes:
         - filesystem.service_runtime_dir_naming_drift
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: sensitive_runtime_dirs_require_strict_permissions
       title: Sensitive runtime dirs (etcd, keys, tokens, pki) must enforce strict permissions regardless of layout allowlist
       severity: critical
@@ -4203,6 +4274,8 @@ invariants:
       required_tests: []
       related_failure_modes:
         - etcd.nospace_alarm_blocks_reconciliation
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: install_package.hash_schemas_must_not_alias
       title: install-package workflow's two hash inputs are distinct schemas and must never alias into a single value
       severity: critical
@@ -4321,6 +4394,8 @@ invariants:
         - service.runtime_version_empty_from_main
         - service.runtime_identity_unproven
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: release_pipeline.set_fields_routing_must_match_release_kind
       title: Every SetFields label routed in release_pipeline.go must go to the apply function matching its release kind, and every dispatch result must be inspected (not discarded)
       severity: critical
@@ -4498,6 +4573,8 @@ invariants:
 
     # ── Security / Auth / JWT invariants ─────────────────────────────────────
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: security.jwt_signing_key_must_be_cluster_scoped
       title: JWT signing key must be resolved from the token issuer, not a global secret
       severity: critical
@@ -4631,6 +4708,8 @@ invariants:
 
     # ── Invariants discovered from unit-test roundtrip (2026-05) ─────────────
 
+      related_invariants:
+        - meta.authority_must_express_uncertainty
     - id: node.scope.agent_has_minimal_read_write_boundary
       title: Node agents are confined to their own node — no cross-node reads or writes
       severity: critical
@@ -4705,6 +4784,8 @@ invariants:
         - TestINV1_ReleasedArtifactImmutable_DifferentDigest
         - TestINV1_ReleasedArtifactImmutable_SameDigest
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: repository.artifact.state_transitions_are_forward_only
       title: Artifact state machine transitions are forward-only — no reverse or side-step
       severity: critical
@@ -4729,6 +4810,8 @@ invariants:
         - TestTransitionArtifactState_RejectsIllegalTransition
         - TestTransitionArtifactState_IdempotentSelfTransition
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: repository.artifact.deletion_never_triggers_uninstall
       title: Repository artifact deletion must never trigger uninstallation on nodes
       severity: critical
@@ -4774,6 +4857,8 @@ invariants:
       required_tests:
         - TestLeaderFence_RejectsWriteAfterLeaseExpiry
 
+      related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
     - id: workflow.circuit_breaker_must_be_scoped_per_service
       title: Workflow circuit breakers are per-service — failure of one must not block others
       severity: high
@@ -4796,6 +4881,8 @@ invariants:
         - TestCircuitBreakerScopedNotGlobal
         - TestCircuitBreakerScopedToAffectedService
 
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
     - id: migration.state_path_upgrade_must_be_idempotent
       title: State path migrations must be idempotent — safe to run twice
       severity: high
@@ -5198,6 +5285,8 @@ invariants:
       required_tests:
         - test.doctor_hard_blocked_actions_rejected
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: doctor.escalation_threshold_gates_repeated_attempts
       title: Three cooldown rejections must escalate to require explicit operator approval
       severity: high
@@ -5223,6 +5312,8 @@ invariants:
       required_tests:
         - test.doctor_escalation_after_three_cooldown_rejections
 
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
     - id: doctor.evidence_trust_must_be_authoritative_for_execution
       title: Stale or unverifiable evidence must block autonomous remediation execution
       severity: critical
@@ -5249,6 +5340,8 @@ invariants:
       required_tests:
         - test.doctor_evidence_stale_blocks_execution
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: doctor.approval_token_binding_prevents_replay
       title: Approval tokens must be bound to action, target, evidence digest, and finding ID
       severity: critical
@@ -5278,6 +5371,8 @@ invariants:
       required_tests:
         - test.doctor_approval_token_binding_prevents_replay
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: doctor.cache_separation_prevents_delta_poisoning
       title: lastFindings and lastEmittedFindings must be separate caches with separate scopes
       severity: high
@@ -5569,6 +5664,8 @@ invariants:
       related_failure_modes:
         - release.publish_race_stuck_failed_with_succeeded_children
       required_tests: []
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: envoy.lds_progress_required_for_http_mesh_readiness
       title: Envoy HTTP mesh readiness MUST consider LDS update progress, not just CDS — listener_manager.lds.update_attempt > 0 is part of the readiness contract
       severity: critical
@@ -5732,6 +5829,8 @@ invariants:
         - controller.platform_upgrade_bypassed_workflow_authority
         - service.desired_state.pipeline_gap
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: grpc.backbone.contract
       title: Every internal gRPC client must inject cluster_id metadata so server-side cluster-membership enforcement does not reject calls after Day-0 initialization
       severity: high
@@ -5953,6 +6052,8 @@ invariants:
       related_failure_modes:
         - four_layer.cross_layer_write_creates_drift
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: four_layer.actor_layer_mapping
       title: The actor → layer mapping is exact and exhaustive — five named actors with explicit write/read/authority columns
       severity: critical
@@ -5999,6 +6100,8 @@ invariants:
       related_failure_modes:
         - four_layer.cross_layer_write_creates_drift
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: cluster_doctor.observer_only_never_writes_etcd
       title: cluster-doctor must never write to etcd; it observes all four layers and produces findings, but produces no state
       severity: critical
@@ -6213,6 +6316,8 @@ invariants:
     # different identity semantics depending on the writer.
     # ───────────────────────────────────────────────────────────────────────
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: four_layer.truth_read_via_owner_rpc_not_direct_storage
       title: Reading a layer's owned etcd prefix or backing store directly bypasses the owner's canonicalization, version, and in-memory contracts — truth flows out through the owner's typed RPC
       severity: critical
@@ -6299,6 +6404,8 @@ invariants:
     # Identity immutability (the field-semantic-meaning rule).
     # ───────────────────────────────────────────────────────────────────────
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: identity.has_single_canonical_source_and_is_immutable
       title: Every named identity value has exactly one canonical computation and one canonical source; once defined, the value is immutable for the (subject, identity) pair
       severity: critical
@@ -6385,6 +6492,8 @@ invariants:
         - identity.field_semantic_drift_across_writers
         - four_layer.cross_layer_write_creates_drift
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: identity.field_semantic_is_single_writer_defined
       title: Every storage field has exactly one declared semantic across all writers; conditionally interpreting one field as multiple kinds of identity based on metadata is the bug
       severity: critical
@@ -6448,6 +6557,8 @@ invariants:
       related_failure_modes:
         - identity.field_semantic_drift_across_writers
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: workflow.deferred_run_retryable_when_blocker_clears
       title: Deferred workflow runs must remain retryable until either the blocker clears or the operator explicitly abandons
       severity: high
@@ -6518,6 +6629,8 @@ invariants:
       related_failure_modes:
         - workflow.abandoned_defer_never_retried
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: workflow.receipt_classification_monotonic_and_conservative
       title: Receipt classification must be monotonic and conservative — dispatch is not completion, success is not retractable
       severity: high
@@ -6573,6 +6686,7 @@ invariants:
       related_failure_modes:
         - fm.industry.optimistic_success_for_irreversible_action
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - workflow.dispatch_is_not_completion
         - workflow.success_requires_backend_confirmation
 

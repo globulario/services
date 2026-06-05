@@ -21,6 +21,8 @@ invariants:
       - TestDeterministicFailureDoesNotRetryForever
       - TestPendingSyncRecovery
       - TestLeaderFailoverDuringResultCommit
+    related_invariants:
+      - meta.failure_response_must_contract_not_amplify
     implemented_by:
       - file: golang/cluster_controller/cluster_controller_server/reconciler.go
         trust: declared
