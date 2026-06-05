@@ -261,8 +261,21 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	// auto-correct the desired version upward instead of allowing a downgrade.
 	// This prevents the 4-layer model from drifting backward when a deploy
 	// script or operator accidentally sets an older version.
+	//
+	// If no node has a fresh heartbeat (observable=false), refuse the
+	// downgrade-versus-not decision entirely: we have zero observability
+	// of what's actually running and "no signal" must not be read as
+	// "nothing is running this service" (meta.absence_scope_must_be_explicit).
+	// Caller surfaces the FailedPrecondition so the operator can retry once
+	// heartbeats come back.
 	requestedVersion := version
-	if highVer := srv.highestHealthyInstalledVersion(canon); highVer != "" {
+	highVer, observable := srv.highestHealthyInstalledVersion(canon)
+	if !observable {
+		return status.Errorf(codes.FailedPrecondition,
+			"desired-state: cannot validate version %s for %s — no node has a fresh heartbeat (cluster observability blackout); retry when heartbeats recover",
+			version, canon)
+	}
+	if highVer != "" {
 		cmp, err := versionutil.Compare(version, highVer)
 		if err == nil && cmp < 0 {
 			log.Printf("desired-state: version regression blocked for %s: requested %s but healthy nodes run %s — auto-correcting to %s",
@@ -344,20 +357,37 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 }
 
 // highestHealthyInstalledVersion returns the highest version of a service
-// that is installed on any node with a recent heartbeat (< 10 minutes).
-// Returns "" if no healthy nodes have the service installed.
-func (srv *server) highestHealthyInstalledVersion(serviceName string) string {
+// installed on any node with a recent heartbeat (< 10 minutes), AND a
+// bool indicating whether the answer was observable.
+//
+//   - (version, true)  — at least one node had a fresh heartbeat. The
+//     version is the highest reported (or "" if no fresh node has the
+//     service installed). Caller can safely apply the downgrade guard.
+//   - ("", false)      — NO node had a fresh heartbeat. We have zero
+//     observability of the current cluster state and MUST NOT distinguish
+//     "no node is running this service" from "we cannot see what is
+//     running". Caller MUST refuse to make downgrade-vs-not decisions.
+//
+// Previously this returned "" for both cases. The caller's downgrade
+// guard read "" as "nothing installed cluster-wide" and let arbitrary
+// downgrades through during a heartbeat blackout — exactly the
+// "absent in our observation == absent in the cluster" conflation that
+// meta.absence_scope_must_be_explicit and meta.authority_must_express_uncertainty
+// forbid.
+func (srv *server) highestHealthyInstalledVersion(serviceName string) (string, bool) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 
 	var best string
 	staleThreshold := 10 * time.Minute
+	freshNodes := 0
 
 	for _, node := range srv.state.Nodes {
 		// Only consider nodes with recent heartbeats.
 		if time.Since(node.LastSeen) > staleThreshold {
 			continue
 		}
+		freshNodes++
 		if node.InstalledVersions == nil {
 			continue
 		}
@@ -373,7 +403,10 @@ func (srv *server) highestHealthyInstalledVersion(serviceName string) string {
 			best = ver
 		}
 	}
-	return best
+	if freshNodes == 0 {
+		return "", false
+	}
+	return best, true
 }
 
 // validateArtifactInRepo verifies that the specified artifact exists in the

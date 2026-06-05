@@ -479,7 +479,10 @@ func TestLoadVerifierVerdicts_PrefixGetParsesAllVerdicts(t *testing.T) {
 		t.Fatalf("put garbage: %v", err)
 	}
 
-	got := srv.loadVerifierVerdicts(context.Background(), "globule-ryzen")
+	got, trusted := srv.loadVerifierVerdicts(context.Background(), "globule-ryzen")
+	if !trusted {
+		t.Fatalf("expected trusted=true when etcd Get succeeds; got trusted=false")
+	}
 	if len(got) != 2 {
 		t.Fatalf("expected 2 verdicts for ryzen (dns, rbac); got %d: %+v", len(got), got)
 	}
@@ -496,10 +499,15 @@ func TestLoadVerifierVerdicts_PrefixGetParsesAllVerdicts(t *testing.T) {
 
 func TestLoadVerifierVerdicts_NoKV_ReturnsEmpty(t *testing.T) {
 	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
-	// Deliberately leave srv.kv nil.
-	got := srv.loadVerifierVerdicts(context.Background(), "globule-ryzen")
+	// Deliberately leave srv.kv nil. trusted=true because "no etcd configured"
+	// is a known runtime state (test fixture, pre-bootstrap startup), not an
+	// observation gap.
+	got, trusted := srv.loadVerifierVerdicts(context.Background(), "globule-ryzen")
 	if len(got) != 0 {
 		t.Errorf("nil kv must yield empty map; got %d entries", len(got))
+	}
+	if !trusted {
+		t.Errorf("nil kv must report trusted=true (known runtime state, not observation gap); got false")
 	}
 }
 

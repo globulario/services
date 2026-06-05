@@ -606,22 +606,40 @@ func (srv *server) ingressIsDisabled(ctx context.Context) bool {
 }
 
 // loadVerifierVerdicts reads all verifier verdicts for a given node from etcd
-// in one prefix Get and returns them keyed by canonical service name. Empty
-// map on any error — verifier proofs are advisory; an etcd hiccup must not
-// poison the rest of the health response. Callers fall back to the
-// claim-only / unverified path when a service is missing from the map.
+// in one prefix Get and returns them keyed by canonical service name, plus
+// a `trusted` bool that distinguishes "the etcd read succeeded" from "we
+// could not consult the verifier store at all".
+//
+// Previously this returned an empty map on any error "by design", with the
+// comment that verifier proofs are "advisory". Downstream then treated
+// "service absent from verdict map" as "service unverified" and silently
+// fell back to claim-only — `service was verified OK` and `we could not
+// observe the verifier` had identical observable behaviour, which is the
+// exact silence-into-lies pattern meta.authority_must_express_uncertainty
+// forbids (forbidden.error_absorbed_into_empty_map).
+//
+// New contract: trusted=true means the prefix Get completed (the map is the
+// authoritative view, including absences); trusted=false means the etcd
+// read failed and absences in the map are NOT authoritative — the caller
+// logs the observability gap so the diagnostic is preserved.
 //
 // Source layout: /globular/verification/runtime/<node_id>/<service_name>
 // (see verifier.EtcdKeyForVerification).
-func (srv *server) loadVerifierVerdicts(ctx context.Context, nodeID string) map[string]*verifier.Verdict {
+func (srv *server) loadVerifierVerdicts(ctx context.Context, nodeID string) (map[string]*verifier.Verdict, bool) {
 	out := map[string]*verifier.Verdict{}
 	if srv.kv == nil || strings.TrimSpace(nodeID) == "" {
-		return out
+		// No etcd client configured at all — caller knows this is not an
+		// observable runtime; treat as trusted absence so behavior matches
+		// test fixtures and pre-bootstrap startup.
+		return out, true
 	}
 	prefix := "/globular/verification/runtime/" + strings.TrimSpace(nodeID) + "/"
 	resp, err := srv.kv.Get(ctx, prefix, clientv3.WithPrefix())
-	if err != nil || resp == nil {
-		return out
+	if err != nil {
+		return out, false
+	}
+	if resp == nil {
+		return out, true
 	}
 	for _, kv := range resp.Kvs {
 		if kv == nil || len(kv.Value) == 0 {
@@ -643,7 +661,7 @@ func (srv *server) loadVerifierVerdicts(ctx context.Context, nodeID string) map[
 		svc := key[idx+1:]
 		out[canonicalServiceName(svc)] = v
 	}
-	return out
+	return out, true
 }
 
 func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_controllerpb.GetNodeHealthDetailV1Request) (*cluster_controllerpb.GetNodeHealthDetailV1Response, error) {
@@ -746,9 +764,15 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 	assignedServices := ServicesForProfiles(node.Profiles)
 
 	// Load Phase 9 verifier verdicts for this node in a single prefix-Get.
-	// Empty map on miss — the verdict-aware version check degrades to the
-	// claim-only path for any service absent from the map.
-	verdicts := srv.loadVerifierVerdicts(ctx, nodeID)
+	// trusted=false means etcd Get failed and the map's absences are not
+	// authoritative — log so consumers of the health response can see
+	// the verifier observability gap. The downstream version-check still
+	// degrades to claim-only as before, but the gap is now diagnosable
+	// (meta.authority_must_express_uncertainty).
+	verdicts, verdictsTrusted := srv.loadVerifierVerdicts(ctx, nodeID)
+	if !verdictsTrusted {
+		log.Printf("GetNodeHealthDetailV1: verifier verdicts unavailable for node=%s — falling back to claim-only; results show 'unverified' but may actually be verified", nodeID)
+	}
 
 	// Load installed-package timestamps so the version check can apply
 	// Day-0 grace when proof is missing but the install is fresh.

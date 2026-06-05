@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
@@ -48,18 +49,40 @@ func (srv *server) ListServices(ctx context.Context, _ *cluster_controllerpb.Lis
 	resp := &cluster_controllerpb.ListServicesResponse{
 		ServicesJson: make([]string, 0, len(services)),
 	}
+	skipped := 0
 	for _, svc := range services {
 		if svc == nil {
+			skipped++
 			continue
 		}
 		data, jErr := json.Marshal(svc)
 		if jErr != nil {
-			// Skip individual broken entries rather than failing the
-			// whole RPC — matches the consumer's prior tolerance for
-			// per-entry unmarshal failures.
+			// Per-entry marshal failure → log with enough context that an
+			// operator can find and repair the corrupt registry entry.
+			// Previously this was silently dropped, so xDS received a list
+			// shorter than reality (interpreted "missing" as "removed" and
+			// drained traffic from a healthy service). The proto cannot
+			// yet surface SkippedCount on the wire — adding that field is
+			// tracked as defense-in-depth. For now: ensure the diagnostic
+			// is preserved in logs.
+			// Enforces meta.authority_must_express_uncertainty +
+			// forbidden.silent_drop_unparseable_authority_entry.
+			var id, name string
+			if v, ok := svc["Id"].(string); ok {
+				id = v
+			}
+			if v, ok := svc["Name"].(string); ok {
+				name = v
+			}
+			log.Printf("ListServices: skipping corrupt registry entry id=%q name=%q: %v", id, name, jErr)
+			skipped++
 			continue
 		}
 		resp.ServicesJson = append(resp.ServicesJson, string(data))
+	}
+	if skipped > 0 {
+		log.Printf("ListServices: returned %d services; %d corrupt entries skipped (consumer cannot distinguish from 'removed' until SkippedCount field is added to proto)",
+			len(resp.ServicesJson), skipped)
 	}
 	return resp, nil
 }

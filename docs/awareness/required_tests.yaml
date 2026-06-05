@@ -531,3 +531,37 @@ required_tests:
     run:
       commands:
         - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestReleaseWorkflow"
+
+  - id: test.highest_healthy_version_refuses_observation_blackout
+    title: highestHealthyInstalledVersion must return observable=false when no node has a fresh heartbeat
+    protects:
+      invariants:
+        - meta.absence_scope_must_be_explicit
+        - meta.authority_must_express_uncertainty
+    required_for_changes:
+      paths:
+        - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+      task_terms:
+        - highestHealthyInstalledVersion
+        - version regression guard
+        - heartbeat blackout
+        - downgrade gate
+    run:
+      commands:
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestHighestHealthyInstalledVersion"
+
+  - id: test.verifier_verdicts_distinguish_trusted_from_etcd_failure
+    title: loadVerifierVerdicts must return trusted=false when the etcd prefix-Get errors
+    protects:
+      invariants:
+        - meta.authority_must_express_uncertainty
+    required_for_changes:
+      paths:
+        - golang/cluster_controller/cluster_controller_server/handlers_health.go
+      task_terms:
+        - loadVerifierVerdicts
+        - verifier verdict map
+        - claim-only fallback
+    run:
+      commands:
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestLoadVerifierVerdicts"
