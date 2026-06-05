@@ -7141,6 +7141,174 @@ invariants:
         - cross_instance_coupling_via_single_workflow_run
         - exception_5_claimed_at_file_granularity_for_multi_step_function
         - rely_on_rpc_audit_as_substitute_for_workflow_run
+
+      # ── principle-check v1 structured metadata ──────────────────────
+      # Added 2026-06-05 to drive the mechanical scanner directly from
+      # this YAML rather than hardcoded Go pattern lists. Each entry
+      # below is a per-file claim:
+      #
+      #   actor_writer_dirs   — directories the scanner sweeps
+      #   exception_files     — files whose state mutations fall under
+      #                         a named structural exception (1-6)
+      #   workflow_step_handler_files — files whose mutations are
+      #                         workflow-instance-owned step handlers
+      #
+      # The HIDDEN_WORKFLOW classification is derived from
+      # failure_modes.yaml: any active failure_mode whose id starts with
+      # "hidden_workflow." contributes its protects.files. A status:
+      # lifted hidden_workflow entry is automatically excluded.
+      #
+      # Adding a new actor-writer file with state mutations now requires
+      # naming it here (under the appropriate category) or accepting
+      # that the scanner will flag it as DRIFT.
+
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/node_agent/node_agent_server
+        - golang/repository/repository_server
+
+      exception_files:
+        # Exception 1 — observer-only self-state.
+        # The discriminator: the write describes "what I am", never
+        # "what should happen". Single-Put per call.
+        - file: golang/node_agent/node_agent_server/heartbeat.go
+          category: exception_1_observer_only_self_state
+          reason: heartbeat observer-only
+        - file: golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+          category: exception_1_observer_only_self_state
+          reason: self-hosted runtime proof writer (observer-only)
+        - file: golang/node_agent/node_agent_server/minio_systemd_reconcile.go
+          category: exception_1_observer_only_self_state
+          reason: node-agent minio self-state (observer-only)
+        - file: golang/cluster_controller/cluster_controller_server/leader_pending_update_etcd.go
+          category: exception_1_observer_only_self_state
+          reason: controller self-observability (leader-stuck record)
+        - file: golang/cluster_controller/cluster_controller_server/kind_mismatch_etcd.go
+          category: exception_1_observer_only_self_state
+          reason: controller self-observability (diagnostic finding)
+        - file: golang/cluster_controller/cluster_controller_server/posture.go
+          category: exception_1_observer_only_self_state
+          reason: cluster posture self-state
+        - file: golang/cluster_controller/cluster_controller_server/reconcile_lane_status.go
+          category: exception_1_observer_only_self_state
+          reason: reconciler lane progress (controller self-observability)
+        - file: golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
+          category: exception_1_observer_only_self_state
+          reason: schema-guard observed state
+        - file: golang/node_agent/node_agent_server/internal/ingress/status.go
+          category: exception_1_observer_only_self_state
+          reason: ingress self-status
+        - file: golang/cluster_controller/cluster_controller_server/server.go
+          category: exception_1_observer_only_self_state
+          reason: writeRoutingRefresh leader-epoch publish (observer-only)
+        - file: golang/cluster_controller/cluster_controller_server/verification_sweep_request.go
+          category: exception_1_observer_only_self_state
+          reason: controller-published verifier-sweep request (observer signaling)
+        - file: golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
+          category: exception_1_observer_only_self_state
+          reason: guard tick (post-lift) — multi-step restore moved to cluster.ingress_spec_restore workflow
+
+        # Exception 2 — bounded auto-heal / cleanup.
+        - file: golang/cluster_controller/cluster_controller_server/stale_instance_purger.go
+          category: exception_2_bounded_auto_heal
+          reason: stale-instance purger (bounded auto-heal)
+        - file: golang/cluster_controller/cluster_controller_server/cleanup_ghost_node_packages.go
+          category: exception_2_bounded_auto_heal
+          reason: ghost-package cleanup (bounded auto-heal via typed RPC)
+        - file: golang/node_agent/node_agent_server/minio_format_backup.go
+          category: exception_2_bounded_auto_heal
+          reason: per-drive format.json backup capsule (recovery preservation, no cluster intent change)
+        - file: golang/cluster_controller/cluster_controller_server/node_removal_requests.go
+          category: exception_2_bounded_auto_heal
+          reason: queue consumer (post-lift) — removal runs in node.remove workflow; consumer is thin trigger that deletes the queue key on success
+
+        # Exception 4 — pre-workflow primitives.
+        - file: golang/cluster_controller/cluster_controller_server/leader_election.go
+          category: exception_4_pre_workflow_primitive
+          reason: leader-election primitive (pre-workflow)
+        - file: golang/node_agent/node_agent_server/main.go
+          category: exception_4_pre_workflow_primitive
+          reason: node-agent port registration (pre-workflow)
+        - file: golang/cluster_controller/cluster_controller_server/main.go
+          category: exception_4_pre_workflow_primitive
+          reason: controller CA-gateway bootstrap (pre-workflow)
+        - file: golang/cluster_controller/cluster_controller_server/day0_seed.go
+          category: exception_4_pre_workflow_primitive
+          reason: Day-0 seed (before workflows can run)
+        - file: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go
+          category: exception_4_pre_workflow_primitive
+          reason: etcd endpoint reconciler (etcd is below the workflow layer)
+
+        # Exception 5 — service-self-configuration via typed admin RPC.
+        # Each function in these files must call at most one state
+        # mutation primitive per RPC. Multi-step admin RPCs belong in
+        # hidden_workflow.* failure_modes, not here.
+        - file: golang/repository/repository_server/repository_source_policy.go
+          category: exception_5_service_self_config
+          reason: repository source-policy admin RPC (single-Put per RPC)
+        - file: golang/repository/repository_server/sync_from_upstream.go
+          category: exception_5_service_self_config
+          reason: repository upstream admin RPC (single-Put per RPC)
+        - file: golang/node_agent/node_agent_server/internal/actions/application_actions.go
+          category: exception_5_service_self_config
+          reason: applications admin RPC (single-Put per RPC)
+        - file: golang/cluster_controller/cluster_controller_server/desired_state.go
+          category: exception_5_service_self_config
+          reason: per-node bookkeeping helpers (single-Put each)
+        - file: golang/cluster_controller/cluster_controller_server/ingress_handlers.go
+          category: exception_5_service_self_config
+          reason: ingress admin RPCs (single-Put per RPC)
+        - file: golang/cluster_controller/cluster_controller_server/scylla_schema_guard_handlers.go
+          category: exception_5_service_self_config
+          reason: schema-guard admin RPCs (single-Put per RPC)
+        - file: golang/node_agent/node_agent_server/internal/certs/etcd_kv.go
+          category: exception_5_service_self_config
+          reason: cert bundle persistence (single-Put per call)
+        - file: golang/cluster_controller/cluster_controller_server/handlers_node.go
+          category: exception_5_service_self_config
+          reason: node lifecycle admin RPCs (post-lift) — RemoveNode now dispatches node.remove workflow; remaining mutations are single-Put admin handlers (SetNodeProfiles etc.)
+
+        # Exception 6 — event-bus ephemera.
+        - file: golang/node_agent/node_agent_server/event_publisher.go
+          category: exception_6_event_bus_ephemera
+          reason: event-bus lease-bound publish
+
+      # Generic helper files whose conformance depends on the caller,
+      # not the file itself. The scanner reports these as UNKNOWN with
+      # a "needs caller-trace" reason — not DRIFT, because the file
+      # itself is not a violation in isolation.
+      unknown_helper_files:
+        - file: golang/cluster_controller/cluster_controller_server/state.go
+          reason: generic saveToEtcdPutFunc test seam; classification depends on caller
+        - file: golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
+          reason: prereq cleanup helper; called from install path
+
+      workflow_step_handler_files:
+        - file: golang/cluster_controller/cluster_controller_server/workflow_objectstore.go
+          reason: workflow step handlers for objectstore.minio.apply_topology_generation
+        - file: golang/cluster_controller/cluster_controller_server/workflow_release.go
+          reason: workflow step handlers for release.apply.*
+        - file: golang/cluster_controller/cluster_controller_server/workflow_invariant.go
+          reason: workflow step handlers for cluster.invariant.enforcement
+        - file: golang/cluster_controller/cluster_controller_server/workflow_repo_sync.go
+          reason: workflow step handlers for repository.sync.upstream
+        - file: golang/cluster_controller/cluster_controller_server/workflow_platform_upgrade.go
+          reason: workflow step handlers for platform.upgrade
+        - file: golang/cluster_controller/cluster_controller_server/release_pipeline.go
+          reason: release-pipeline dispatch (workflow-instance owned)
+        - file: golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+          reason: objectstore admission dispatched through workflow
+        - file: golang/node_agent/node_agent_server/apply_package_release.go
+          reason: node-agent step handler for node.install_package
+        - file: golang/node_agent/node_agent_server/installer_api.go
+          reason: node-agent installer step handler
+        - file: golang/repository/repository_server/publish_workflow.go
+          reason: repository publish workflow handler
+        - file: golang/repository/repository_server/artifact_handlers.go
+          reason: repository artifact step handlers
+        - file: golang/cluster_controller/cluster_controller_server/recovery_state_store.go
+          reason: node-recovery persistence helper (called from node.repair / node.recover.full_reseed workflow steps)
+
       required_tests:
         - TestStepReceipt_CarriesRunIDAndStepID
         - TestWriteStepReceipt_RejectsEmptyReceiptKey
