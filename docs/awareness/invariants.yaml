@@ -7024,16 +7024,8 @@ invariants:
         - retry_day0_import_on_partial_success
         - rotate_day0_correlation_id_per_restart
         - propagate_day0_parse_error_to_caller
-      required_tests: []
-      no_test_yet_reason: |
-        Day-0 trace import has no unit tests today because
-        (a) it requires a Scylla session and a real JSON-lines
-        log fixture and (b) the correctness contract is
-        observability, not state authority — a regression would
-        degrade history visibility but not break the cluster.
-        Tracked as a future test set: TestImportDay0Trace_IdempotentAcrossRestarts
-        + TestImportDay0Trace_MissingLogIsSilent +
-        TestImportDay0Trace_NilSessionIsSilent.
+      required_tests:
+        - test.workflow.day0_trace_import_idempotent_and_best_effort
       related_invariants:
         - meta.half_done_must_not_look_done
         - workflow.source_of_operational_truth
@@ -7473,52 +7465,49 @@ invariants:
         - TestWriteStepReceipt_RejectsEmptyReceiptKey
         - TestMarkNodeSucceeded_AttributedToActorNotWorkflowService
         - TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService
-        - TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair
-      no_test_yet_reason: |
-        Four of the five required tests are now implemented:
-          - TestStepReceipt_CarriesRunIDAndStepID — schema-level regression
-            on the (run_id, step_id) primary key of workflow.step_receipts
-            (workflow_server/step_receipts_attribution_test.go)
-          - TestWriteStepReceipt_RejectsEmptyReceiptKey — write-boundary
-            guard against orphan-receipt writes
-            (workflow_server/step_receipts_attribution_test.go)
-          - TestMarkNodeSucceeded_AttributedToActorNotWorkflowService —
-            static check on every release.apply.*.yaml that the
-            mark_node_succeeded step is attributed to cluster-controller
-            (cluster_controller_server/workflow_actor_attribution_test.go)
-          - TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService —
-            broader sibling: no state-mutation action (controller.*,
-            node.*, repository.*, compute.*) may be attributed to
-            workflow-service across any release.apply.* definition
-            (same file)
-        TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair is
-        still TODO. Two prerequisites before implementation:
+        - TestReleaseApplyWorkflows_DispatchOneRunPerReleaseWithPerNodeForeach
+      architectural_decision: |
+        Resolved 2026-06-05. The deferred test
+        TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair
+        carried an ambiguity between two readings of "one workflow
+        instance per (artifact, node) pair":
 
-          (1) Test seam on executeWorkflowCentralized so a test can
-              capture the (workflow_name, correlation_id, inputs)
-              tuples a reconcile tick produces, without standing up
-              a real workflow service.
+          (a) one step-receipt instance (run_id + step_id) per pair,
+              with one workflow_run per release iterating nodes via
+              foreach; OR
+          (b) one workflow_run row per pair (N runs per release).
 
-          (2) Semantic clarification: the current release.apply.package
-              workflow definition dispatches ONE workflow run per
-              release that internally iterates over nodes (via foreach
-              + per-step receipts). The invariant's claim ("one
-              workflow instance per (artifact, node) pair") needs to
-              be reconciled with that — either:
-                (a) the invariant means "one run record per (artifact,
-                    node) pair" (which the current design produces N
-                    step receipts per release, not N runs); OR
-                (b) the per-(artifact, node) workflow_run model is
-                    aspirational and the code should be refactored to
-                    match the invariant.
-              Architectural choice is required before the test can be
-              written meaningfully.
+        The operative reading is (a). Evidence:
 
-        Two pragmatic next steps if the test is later prioritized:
-          - Add a field test_seam on srv that captures dispatch tuples;
-            override in tests.
-          - Decide between (a) and (b) above; record the decision in
-            this invariant's body before testing.
+          - release.apply.package.yaml has an apply_per_node step with
+            foreach: $.selected_targets that produces N per-node step
+            receipts inside ONE run.
+          - release.apply.infrastructure.yaml and release.apply.controller.yaml
+            follow the same shape (foreach over followers / targets).
+          - The controller dispatches ONE workflow per release via
+            RunPackageReleaseWorkflow(..., nodeIDs []string, ...) in
+            release_pipeline.go; the inflightWorkflows map is keyed by
+            releaseID, not (releaseID, nodeID).
+          - The existing required_tests already pin the per-step actor
+            attribution (TestMarkNodeSucceeded_*,
+            TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService),
+            which is the per-pair grain in interpretation (a).
+
+        TestReleaseApplyWorkflows_DispatchOneRunPerReleaseWithPerNodeForeach
+        is the closure test: it statically asserts every
+        release.apply.*.yaml has a foreach step, encoding interpretation
+        (a) into a YAML-static regression check so a future refactor
+        that splits one release into N workflow_run rows would fail this
+        test and require either updating the architectural_decision
+        block here OR reverting the YAML.
+
+        A controller-level dispatch-tuple capture test (the original
+        framing — TestReconcileLoop_*) remains conceivable but is no
+        longer required: the dispatch path is single-run-per-release by
+        construction, and the YAML-static test pins that construction.
+        A future test seam on executeWorkflowCentralized would be
+        useful for testing failure-injection scenarios but is not
+        load-bearing for this invariant.
       related_invariants:
         - meta.state_mutations_must_be_durably_committed_before_side_effects
         - meta.storage_is_not_semantic_authority

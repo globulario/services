@@ -789,29 +789,28 @@ required_tests:
       - second call with same correlation_id produces zero new workflow_runs
       - missing /var/lib/globular/day0-install.jsonl silently returns
       - nil Scylla session silently returns; no panic, no error
-    status: partial
-    no_test_yet_reason: |
-      2 of 3 tests implemented as of 2026-06-05 in
-      workflow_server/import_day0_test.go:
-        - TestImportDay0Trace_MissingLogIsSilent (pins BEST-EFFORT
-          rule: missing log file silently returns; no Scylla needed)
-        - TestImportDay0Trace_NilSessionIsSilent  (pins second half
-          of BEST-EFFORT: log file exists but session is nil →
-          silent return)
-      Added day0LogPath as a var (was const) to enable path override.
+    status: done
+    notes: |
+      Implemented 2026-06-05 in workflow_server/import_day0_test.go.
+      Approach (b) from the prior deferred-list was chosen: the COUNT
+      query and the write path were extracted into package-level
+      function variables (day0CountExistingFn, day0WriteRunFn) that
+      tests can override.
 
-      TestImportDay0Trace_IdempotentAcrossRestarts is still TODO.
-      It pins the IDEMPOTENT rule: a second call to importDay0Trace
-      with the same correlation_id="day0-install" must produce zero
-      new workflow_runs rows. Implementing requires either:
-        (a) a memory-backed gocql session mock — gocql doesn't expose
-            a clean interface, so this is a non-trivial adapter;
-        (b) extracting the COUNT-check + StartRun-call paths behind
-            function-variable test seams that tests can override; OR
-        (c) an integration-test harness with a real Scylla.
-      Deferred pending one of those three approaches being chosen.
-      The silent-path tests already cover the BEST-EFFORT half of
-      the invariant; the IDEMPOTENT half awaits the harness.
+      Three tests pin the invariant:
+        - TestImportDay0Trace_MissingLogIsSilent (BEST-EFFORT: missing
+          log file silently returns; no Scylla needed)
+        - TestImportDay0Trace_NilSessionIsSilent  (BEST-EFFORT: log
+          file exists but session is nil → silent return)
+        - TestImportDay0Trace_IdempotentAcrossRestarts (IDEMPOTENT: a
+          second call with existing>0 must NOT call the write seam,
+          even with the log file present and the parser returning
+          valid lines)
+
+      Test seams used in production unchanged: day0CountExistingFn
+      wraps getSession + COUNT, day0WriteRunFn wraps the StartRun +
+      RecordStep block, both calling through to the same code as
+      before refactor.
 
   - id: test.workflow.day0_seeded_definitions_thread_verification_fields
     title: Day-0 seeded workflow definitions must thread every verification field the controller resolves

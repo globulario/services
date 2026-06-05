@@ -16,6 +16,51 @@ import (
 // temp fixture log. Production callers leave it at the default.
 var day0LogPath = "/var/lib/globular/day0-install.jsonl"
 
+// day0LogLine is the on-disk shape of one Day-0 install log entry.
+// Hoisted to package scope so the write seam can take []day0LogLine and
+// tests can swap it.
+type day0LogLine struct {
+	Type     string `json:"type"`
+	Seq      int    `json:"seq"`
+	Key      string `json:"key"`
+	Title    string `json:"title"`
+	Status   string `json:"status"`
+	Phase    int    `json:"phase"`
+	Actor    int    `json:"actor"`
+	Ts       int64  `json:"ts"`
+	Dur      int64  `json:"dur"`
+	Hostname string `json:"hostname"`
+	Msg      string `json:"msg"`
+}
+
+// day0CountExistingFn returns the count of already-imported Day-0 runs for
+// (clusterID, corrID). sessOK is false when the Scylla session is not yet
+// available — callers must abort silently (rule 2 of the BEST-EFFORT
+// invariant). Test seam: tests override this to force the idempotent
+// branch without needing a real Scylla session.
+var day0CountExistingFn = func(srv *server, clusterID, corrID string) (existing int, sessOK bool) {
+	sess := srv.getSession()
+	if sess == nil {
+		return 0, false
+	}
+	if err := sess.Query(
+		`SELECT COUNT(*) FROM workflow_runs WHERE cluster_id=? AND correlation_id=? ALLOW FILTERING`,
+		clusterID, corrID,
+	).Scan(&existing); err != nil {
+		// Session is alive but the COUNT failed — treat as "not imported"
+		// so we attempt to write; the writes themselves will fail loudly
+		// if there is a real Scylla problem.
+		return 0, true
+	}
+	return existing, true
+}
+
+// day0WriteRunFn writes the parsed Day-0 lines as a workflow run + steps.
+// Test seam: spy in tests to assert the IDEMPOTENT branch did NOT call it.
+var day0WriteRunFn = func(srv *server, clusterID, corrID string, lines []day0LogLine) {
+	srv.writeDay0Run(clusterID, corrID, lines)
+}
+
 // importDay0Trace reads the Day-0 install JSON log and creates a workflow
 // run with steps in ScyllaDB. Called once on startup; skips if the log
 // doesn't exist or was already imported (idempotent via correlation_id).
@@ -26,44 +71,25 @@ func (srv *server) importDay0Trace() {
 	}
 	defer f.Close()
 
-	// Check if already imported.
-	sess := srv.getSession()
-	if sess == nil {
-		return
-	}
 	clusterID := srv.Domain
 	if clusterID == "" {
 		clusterID = "globular.internal"
 	}
 	corrID := "day0-install"
-	var existing int
-	if err := sess.Query(
-		`SELECT COUNT(*) FROM workflow_runs WHERE cluster_id=? AND correlation_id=? ALLOW FILTERING`,
-		clusterID, corrID,
-	).Scan(&existing); err == nil && existing > 0 {
+
+	existing, sessOK := day0CountExistingFn(srv, clusterID, corrID)
+	if !sessOK {
+		return
+	}
+	if existing > 0 {
 		logger.Info("Day-0 trace already imported, skipping")
 		return
 	}
 
-	// Parse log lines.
-	type logLine struct {
-		Type     string `json:"type"`
-		Seq      int    `json:"seq"`
-		Key      string `json:"key"`
-		Title    string `json:"title"`
-		Status   string `json:"status"`
-		Phase    int    `json:"phase"`
-		Actor    int    `json:"actor"`
-		Ts       int64  `json:"ts"`
-		Dur      int64  `json:"dur"`
-		Hostname string `json:"hostname"`
-		Msg      string `json:"msg"`
-	}
-
-	var lines []logLine
+	var lines []day0LogLine
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		var l logLine
+		var l day0LogLine
 		if json.Unmarshal(scanner.Bytes(), &l) == nil {
 			lines = append(lines, l)
 		}
@@ -72,6 +98,13 @@ func (srv *server) importDay0Trace() {
 		return
 	}
 
+	day0WriteRunFn(srv, clusterID, corrID, lines)
+}
+
+// writeDay0Run is the production write path for the Day-0 trace import.
+// Extracted from importDay0Trace so day0WriteRunFn can wrap it; the body
+// matches the pre-refactor inline code so production behavior is unchanged.
+func (srv *server) writeDay0Run(clusterID, corrID string, lines []day0LogLine) {
 	// Find hostname and timestamps.
 	hostname := "unknown"
 	var runStart, runEnd int64
@@ -101,17 +134,16 @@ func (srv *server) importDay0Trace() {
 	runID := gocql.TimeUUID().String()
 	startTime := time.UnixMilli(runStart)
 
-	// Create the run.
 	run := &workflowpb.WorkflowRun{
 		Id:            runID,
 		CorrelationId: corrID,
 		Context: &workflowpb.WorkflowContext{
-			ClusterId:    clusterID,
-			NodeId:       hostname,
-			NodeHostname: hostname,
+			ClusterId:     clusterID,
+			NodeId:        hostname,
+			NodeHostname:  hostname,
 			ComponentName: "day0-installer",
 			ComponentKind: workflowpb.ComponentKind_COMPONENT_KIND_INFRASTRUCTURE,
-			ReleaseKind:  "Day0Bootstrap",
+			ReleaseKind:   "Day0Bootstrap",
 		},
 		TriggerReason: workflowpb.TriggerReason_TRIGGER_REASON_BOOTSTRAP,
 		Status:        finalStatus,
@@ -128,7 +160,6 @@ func (srv *server) importDay0Trace() {
 		return
 	}
 
-	// Create steps.
 	var stepCount int
 	for _, l := range lines {
 		if l.Seq == 0 {
@@ -143,15 +174,15 @@ func (srv *server) importDay0Trace() {
 		}
 
 		step := &workflowpb.WorkflowStep{
-			RunId:     resp.Id,
-			Seq:       int32(l.Seq),
-			StepKey:   l.Key,
-			Title:     l.Title,
-			Actor:     workflowpb.WorkflowActor(l.Actor),
-			Phase:     workflowpb.WorkflowPhaseKind(l.Phase),
-			Status:    status,
-			CreatedAt: timestamppb.New(time.UnixMilli(l.Ts)),
-			StartedAt: timestamppb.New(time.UnixMilli(l.Ts)),
+			RunId:      resp.Id,
+			Seq:        int32(l.Seq),
+			StepKey:    l.Key,
+			Title:      l.Title,
+			Actor:      workflowpb.WorkflowActor(l.Actor),
+			Phase:      workflowpb.WorkflowPhaseKind(l.Phase),
+			Status:     status,
+			CreatedAt:  timestamppb.New(time.UnixMilli(l.Ts)),
+			StartedAt:  timestamppb.New(time.UnixMilli(l.Ts)),
 			DurationMs: l.Dur,
 		}
 		if status != workflowpb.StepStatus_STEP_STATUS_RUNNING {

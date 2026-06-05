@@ -121,3 +121,59 @@ func TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService(t *tes
 		}
 	}
 }
+
+// TestReleaseApplyWorkflows_DispatchOneRunPerReleaseWithPerNodeForeach pins
+// the operative reading of
+// workflow.every_state_mutation_belongs_to_a_workflow_instance for the
+// release-apply path: the cluster instantiates ONE workflow run per release
+// and the workflow internally iterates over candidate nodes via foreach,
+// producing N per-(release, node) step receipts.
+//
+// Interpretation (a) from the invariant: "one workflow instance per
+// (artifact, node) pair" means one step-receipt instance (run_id +
+// step_id), not one run_id. The per-(release, node) attribution lives in
+// the step receipts written by the foreach body, not in distinct
+// workflow_runs rows. See invariants.yaml entry
+// workflow.every_state_mutation_belongs_to_a_workflow_instance,
+// no_test_yet_reason → architectural decision.
+//
+// The regression shape this test catches: a future refactor that removes
+// the foreach from a release.apply.*.yaml (so the dispatcher would have to
+// fan out N workflow runs at the controller level, contradicting the
+// one-run-per-release architecture).
+func TestReleaseApplyWorkflows_DispatchOneRunPerReleaseWithPerNodeForeach(t *testing.T) {
+	repoRoot := findRepoRoot(t)
+	definitionsDir := filepath.Join(repoRoot, "golang", "workflow", "definitions")
+
+	entries, err := os.ReadDir(definitionsDir)
+	if err != nil {
+		t.Fatalf("read definitions dir: %v", err)
+	}
+
+	// A foreach step must be present. The YAML pattern is `foreach: <expr>`
+	// at any indent. We don't restrict the target expression because
+	// release.apply.controller.yaml iterates over followers while
+	// release.apply.package.yaml + release.apply.infrastructure.yaml
+	// iterate over selected_targets. Both shapes satisfy interpretation (a).
+	foreachRe := regexp.MustCompile(`(?m)^[[:space:]]+foreach:[[:space:]]+\S+`)
+
+	found := 0
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), "release.apply.") || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		path := filepath.Join(definitionsDir, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if !foreachRe.MatchString(string(data)) {
+			t.Errorf("%s: missing `foreach:` step — release-apply workflows must iterate per-node inside ONE run, not be split into N runs at dispatch (violates the architectural reading of workflow.every_state_mutation_belongs_to_a_workflow_instance interpretation (a))",
+				e.Name())
+		}
+		found++
+	}
+	if found == 0 {
+		t.Fatal("no release.apply.*.yaml files found — definitions directory or naming convention may have changed")
+	}
+}
