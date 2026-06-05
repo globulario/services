@@ -37,6 +37,7 @@ failure_modes:
         - relying_on_service_restart_without_pkill_guard
         - circuit_breaker_that_blocks_all_reconciliation_on_single_service_failure
       related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
         - service.endpoint.etcd_address_reachability
         - service.endpoint.cgroup_escape_guard
       related_services:
@@ -73,6 +74,7 @@ failure_modes:
         - skipping_service_packages_from_bom
         - writing_desired_state_via_grpc_only_during_bootstrap
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - service.desired_state.bom_completeness
       related_services:
         - cluster-controller
@@ -111,6 +113,7 @@ failure_modes:
         - skipping_workflow_run_to_force_available
         - marking_release_available_from_local_success
       related_invariants:
+        - meta.write_creates_completion_obligation
         - install.result.atomic_commit
         - convergence.no_infinite_retry
       related_services:
@@ -143,6 +146,7 @@ failure_modes:
         - manually_running_services_desired_set_per_service
         - assuming_publish_implies_desired_state
       related_invariants:
+        - meta.absence_scope_must_be_explicit
         - service.desired_state.bom_completeness
       related_services:
         - cluster-controller
@@ -167,6 +171,7 @@ failure_modes:
         - clear_action_before_installed_state
         - mark_release_available_from_local_success
       related_invariants:
+        - meta.write_creates_completion_obligation
         - install.result.atomic_commit
         - convergence.no_infinite_retry
       related_services:
@@ -192,6 +197,7 @@ failure_modes:
         - start_minio_from_local_health_check
         - infer_minio_membership_from_disk
       related_invariants:
+        - meta.storage_is_not_semantic_authority
         - objectstore.topology_contract
       related_services:
         - node-agent
@@ -215,6 +221,7 @@ failure_modes:
         - blind_reconcile_retry
         - treating_all_failures_as_transient
       related_invariants:
+        - meta.failure_response_must_contract_not_amplify
         - convergence.no_infinite_retry
       related_services:
         - cluster-controller
@@ -236,6 +243,7 @@ failure_modes:
         - gate_metadata_reads_on_minio_health
         - store_artifact_index_only_in_minio
       related_invariants:
+        - meta.circular_dependency_must_have_break_glass
         - repository.metadata_first
         - objectstore.topology_contract
       related_services:
@@ -260,6 +268,7 @@ failure_modes:
         - dispatch_workflow_when_scylla_down
         - ignore_backend_health_on_dispatch
       related_invariants:
+        - meta.write_creates_completion_obligation
         - workflow.backend_health_gate
       related_services:
         - workflow-service
@@ -284,6 +293,8 @@ failure_modes:
         - awareness/enforce
       required_tests:
         - TestValidateAnnotationsSkipsTestFiles
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: scylla.critical_keyspace_under_replicated
       title: Critical Scylla keyspace replication factor below policy
       severity: critical
@@ -300,6 +311,7 @@ failure_modes:
         - auto_lower_replication_factor
         - ignore_rf_violation_in_multi_node
       related_invariants:
+        - meta.critical_path_no_non_critical_dependency
         - scylla.critical_keyspace_replication_policy
       related_services:
         - cluster-controller
@@ -322,6 +334,7 @@ failure_modes:
         - treat_bootstrap_state_as_authoritative
         - claim_convergence_from_bootstrap_records
       related_invariants:
+        - meta.absence_scope_must_be_explicit
         - desired.bootstrap_state_requires_promotion
       related_services:
         - cluster-controller
@@ -345,6 +358,7 @@ failure_modes:
         - delete_runtime_on_timeout
         - treat_invalid_spec_as_disable_intent
       related_invariants:
+        - meta.absence_scope_must_be_explicit
         - critical_state.absence_is_not_destructive_intent
       related_services:
         - node-agent
@@ -367,6 +381,7 @@ failure_modes:
         - ignore_lkg_when_authority_unavailable
         - accept_corrupt_lkg
       related_invariants:
+        - meta.fallback_must_degrade_semantics
         - runtime.last_known_good_required_for_critical_consumers
       related_services:
         - node-agent
@@ -391,6 +406,7 @@ failure_modes:
         - delete_critical_key_without_policy
         - accept_unknown_writer_for_critical_state
       related_invariants:
+        - meta.storage_is_not_semantic_authority
         - critical_state.registry_ownership_required
       related_services:
         - cluster-controller
@@ -434,6 +450,7 @@ failure_modes:
         - start_new_global_work_while_completion_is_blocked
         - allow_reconcile_tick_to_starve_terminal_commit
       related_invariants:
+        - meta.failure_response_must_contract_not_amplify
         - reconcile.global_work_must_not_starve_completion
       related_services:
         - cluster-controller
@@ -455,6 +472,7 @@ failure_modes:
         - ignore_context_timeout_in_critical_query
         - block_controller_loop_on_external_query
       related_invariants:
+        - meta.failure_response_must_contract_not_amplify
         - critical_queries.must_be_bounded
       related_services:
         - cluster-controller
@@ -499,6 +517,7 @@ failure_modes:
         - require_dns_for_dns_recovery
         - require_service_discovery_when_discovery_is_unhealthy
       related_invariants:
+        - meta.circular_dependency_must_have_break_glass
         - recovery.must_not_depend_on_dns_only
       related_services:
         - dns
@@ -522,6 +541,7 @@ failure_modes:
         - delete_runtime_data_from_ambiguous_state
         - perform_destructive_action_from_inferred_intent
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - destructive_actions.require_explicit_guard
       related_services:
         - node-agent
@@ -545,6 +565,7 @@ failure_modes:
         - reconcile_topology_without_contract
         - apply_topology_drift_without_generation_check
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - topology.reconciler_must_respect_safety_contract
       related_services:
         - cluster-controller
@@ -565,6 +586,7 @@ failure_modes:
       forbidden_fixes:
         - keep_drift_warning_forever_without_escalation
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - services.drift_must_age_and_escalate
       related_services:
         - cluster-doctor
@@ -585,6 +607,7 @@ failure_modes:
       forbidden_fixes:
         - omit_pki_ca_from_critical_registry
       related_invariants:
+        - meta.storage_is_not_semantic_authority
         - pki.ca_metadata_must_be_published
       related_services:
         - cluster-controller
@@ -607,6 +630,7 @@ failure_modes:
         - require_systemd_unit_for_command_package
         - ignore_package_kind_in_runtime_proof
       related_invariants:
+        - meta.fallback_must_degrade_semantics
         - runtime.installed_state_must_match_package_kind
       related_services:
         - cluster-doctor
@@ -637,6 +661,7 @@ failure_modes:
         - reduce_bind_retry_count_to_mask_orphan
         - change_mcp_port_as_workaround
       related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
         - runtime.installed_state_not_liveness
       related_services:
         - mcp
@@ -665,6 +690,7 @@ failure_modes:
         - manually_start_mcp_without_fixing_spec
         - skip_health_checks_to_avoid_waitactive_timeout
       related_invariants:
+        - meta.write_creates_completion_obligation
         - convergence.no_infinite_retry
         - install.result.atomic_commit
       related_services:
@@ -689,6 +715,7 @@ failure_modes:
         - infer_objectstore_topology_from_local_state
         - omit_objectstore_config_from_critical_registry
       related_invariants:
+        - meta.storage_is_not_semantic_authority
         - objectstore.desired_state_must_be_registry_governed
       related_services:
         - cluster-controller
@@ -728,6 +755,7 @@ failure_modes:
         - etcd.disarm_before_compact
         - etcd.restart_nodes_without_nospace_fix
       related_invariants:
+        - meta.critical_path_no_non_critical_dependency
       related_services:
         - etcd
         - cluster_controller
@@ -760,6 +788,7 @@ failure_modes:
       forbidden_fixes:
         - workflow.unconditional_release_status_apply
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - etcd.must_have_free_backend_space_for_reconciliation
       related_services:
         - cluster_controller
@@ -801,6 +830,7 @@ failure_modes:
         - skip_inflight_workflow_guard_for_removing_release
         - fast_path_remove_on_partial_or_failed_installed_state_lookup
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - release_pipeline.set_fields_routing_must_match_release_kind
       related_services:
         - cluster_controller
@@ -834,6 +864,7 @@ failure_modes:
         - etcd.restart_nodes_without_nospace_fix
         - controller.restart_before_etcd_stable
       related_invariants:
+        - meta.critical_path_no_non_critical_dependency
       related_services:
         - etcd
         - cluster_controller
@@ -864,6 +895,7 @@ failure_modes:
         - controller.restart_before_etcd_stable
         - controller.kill_to_clear_lease_contention
       related_invariants:
+        - meta.critical_path_no_non_critical_dependency
       related_services:
         - cluster_controller
         - etcd
@@ -898,6 +930,7 @@ failure_modes:
         - workflow.restart_before_control_plane_stable
         - workflow.treat_as_root_cause
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
       related_services:
         - workflow
         - cluster_controller
@@ -947,6 +980,8 @@ failure_modes:
         - TestMCPServiceReachesActiveAfterRestart
         - TestWaitActiveSucceedsWithNewBinary
 
+      related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
     - id: minio.version_drift_auth_failure
       title: MinIO binary version differs across nodes causing auth failures
       severity: critical
@@ -968,6 +1003,7 @@ failure_modes:
         (entrypoint_checksum field). On mismatch, node transitions to NEEDS_REPAIR and triggers
         a re-download rather than silently reporting the wrong version.
       related_invariants:
+        - meta.identity_computation_must_be_invariant
       related_services:
         - minio
         - node_agent
@@ -997,6 +1033,7 @@ failure_modes:
         skip the install regardless of source. Only Force=true (explicit operator command) permits
         downgrade. No automatic rollback ever.
       related_invariants:
+        - meta.identity_computation_must_be_invariant
       forbidden_fixes:
         - auto_rollback_on_crash
         - reconcile_from_in_memory_snapshot_after_failover
@@ -1028,6 +1065,7 @@ failure_modes:
         build time that asserts spec.kind == package.json.kind. Any disagreement is a build error,
         not a runtime silent mismatch.
       related_invariants:
+        - meta.half_done_must_not_look_done
       forbidden_fixes:
         - hardcode_kind_list_in_reconciler
         - infer_kind_from_service_name
@@ -1062,6 +1100,7 @@ failure_modes:
         - allow_human_to_overwrite_seed_to_silence_finding
         - increase_drift_threshold_to_hide_low_severity_drift
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - ops_knowledge.seed_integrity
       related_services:
         - ai-memory
@@ -1094,6 +1133,7 @@ failure_modes:
         - silently_swallow_permission_denied_in_audit_log
         - skip_immutability_check_for_test_environments     # tests should set up a 'seeder' service-account, not bypass
       related_invariants:
+        - meta.storage_is_not_semantic_authority
         - ops_knowledge.seed_integrity
       related_services:
         - ai-memory
@@ -1126,6 +1166,7 @@ failure_modes:
         - run_seeder_inline_in_controller_startup_without_workflow_service
         - skip_seeder_silently_if_ai_memory_unhealthy   # must surface as a finding instead
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - ops_knowledge.seed_integrity
       related_services:
         - workflow
@@ -1193,6 +1234,7 @@ failure_modes:
         - special_case_keepalived_master_as_an_exception
         - read_advertise_ip_without_falling_through_to_ips_list   # AdvertiseIp is empty in production; a fallback-less read is broken by definition
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - objectstore.topology_contract
         - etcd.endpoint_reachability
       related_services:
@@ -1241,6 +1283,7 @@ failure_modes:
         - skip_apply_request_processing_when_watch_died        # this is the current bug
         - require_human_to_restart_controller_for_every_apply  # only acceptable as a temporary workaround
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - objectstore.topology_contract
         - convergence.no_infinite_retry
       related_services:
@@ -1277,6 +1320,7 @@ failure_modes:
         - silently_remove_flag_on_doctor_finding
         - widen_bootstrap_ttl_to_avoid_re_creation
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - founding.quorum.three_nodes_required
       related_services:
         - cluster-controller
@@ -1309,6 +1353,7 @@ failure_modes:
         - silently_prefer_env_var_when_set
         - widen_to_other_env_vars_to_be_consistent
       related_invariants:
+        - meta.storage_is_not_semantic_authority
         - service.endpoint.etcd_address_reachability
         - etcd.endpoint_reachability
       related_services:
@@ -1373,6 +1418,7 @@ failure_modes:
         - fall_back_to_cwd_when_git_root_unknown
         - count_unverified_as_tests_not_found
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - awareness.source_scan_requires_verified_repo_root
         - awareness.no_match_is_not_safe
       related_services:
@@ -1434,6 +1480,7 @@ failure_modes:
         - delete_desired_build_id_to_silence_install_storm
         - relax_require_checksum_when_mirror_lookup_lacks_sha256
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - repository.purge_must_not_delete_active_desired_builds
         - repository.desired_build_id_must_resolve
         - repository.fallback_requires_manifest_and_checksum
@@ -1491,6 +1538,7 @@ failure_modes:
         - publish_dns_from_desired_or_profile_state
         - rely_on_dns_to_recover_dns
       related_invariants:
+        - meta.assertions_must_carry_their_scope
         - dns.records_must_be_installed_and_runtime_healthy
         - dns.wildcard_must_not_include_unhealthy_nodes
       related_services:
@@ -1551,6 +1599,7 @@ failure_modes:
         - Ignore snap.DataIncomplete and always fire on insufficient active_drives
         - Retry the snapshot read and fire the finding even on the first clean collection
       related_invariants:
+        - meta.absence_scope_must_be_explicit
         - objectstore.partial_snapshot_unknown_not_down
         - evidence.missing_is_not_known_bad
         - state.unknown_must_not_default_to_healthy
@@ -1622,6 +1671,7 @@ failure_modes:
         - Manually editing one node's etcd.yaml without fixing the upstream render logic
         - Re-running the join script with --repair-etcd without renaming the legacy member first
       related_invariants:
+        - meta.critical_path_no_non_critical_dependency
         - ops.vip_requires_observed_owner
         - network.no_loopback_escape_for_cluster_identity
         - identity.stable_node_identity_not_floating_vip
@@ -1671,6 +1721,7 @@ failure_modes:
         - Forcing leader re-election when reconcile lanes show phase:OK
         - Treating heartbeat_unix=stale as controller down without checking etcd lane timestamps
       related_invariants:
+        - meta.assertions_must_carry_their_scope
         - prometheus.controller_stalled.non_leader_guard
       required_tests:
         - TestControllerStall_NonLeaderHeartbeatIsNotCritical
@@ -1709,6 +1760,7 @@ failure_modes:
         - Deleting .minio.sys to force a clean state without backing up existing data
         - Deleting the admitted disk entry to silence the finding without operator decision
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - objectstore.minio.existing_data_guard
         - objectstore.topology_contract
       required_tests:
@@ -1774,6 +1826,7 @@ failure_modes:
         - Forcing the topology workflow to "complete" via etcd writes (workflow has no concept of wipe completion)
         - Editing the format.json by hand to a synthesized value (UUID mismatch, MinIO refuses)
       related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
         - objectstore.minio.wipe_is_idempotent_per_generation
         - objectstore.topology_contract
       required_tests:
@@ -1837,6 +1890,7 @@ failure_modes:
         - Treating "MinIO can't read its own drives" as a MinIO bug and waiting for upstream fix
         - Periodically rsync'ing .minio.sys to another path — bypasses topology fingerprint guard, can restore stale format after a deliberate transition
       related_invariants:
+        - meta.critical_path_no_non_critical_dependency
         - objectstore.minio.format_json_durable_in_etcd
         - objectstore.minio.wipe_is_idempotent_per_generation
       required_tests:
@@ -1872,6 +1926,7 @@ failure_modes:
         - Re-running apply without finding out who replaced the binary (treats the symptom; the next out-of-band write recurs)
         - Trusting the inventory Checksum and ignoring the proof (the lie the refactor exists to remove)
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - diagnostics.must_measure_reality
         - doctor.must_compare_claims_to_proofs
       required_tests:
@@ -1907,6 +1962,7 @@ failure_modes:
         - Manually `systemctl restart` and assuming it took (it's the same failure mode — re-verify after restart, don't assume)
         - Trusting systemctl is-active (active says the PID exists, not that it runs the right bytes)
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - diagnostics.must_measure_reality
         - doctor.must_compare_claims_to_proofs
       required_tests:
@@ -1939,6 +1995,7 @@ failure_modes:
         - Assuming a fresh systemctl restart cycles the PID (drop-in overrides may prevent restart; verify ProcessStartTime advanced)
         - Bumping the version and hoping the next deploy will catch it (silent for an entire release window)
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - rollout.convergence_requires_runtime_proof
         - infra.heartbeat_observer_only_not_authority
       required_tests:
@@ -2000,6 +2057,7 @@ failure_modes:
         - Skewing ApplyTime backward to "before any process could have started" (lies about when the controller commanded apply)
         - Filtering by service name (whitelist install-time-only services) — fragile and incomplete
       related_invariants:
+        - meta.authority_must_express_uncertainty
         - rollout.convergence_requires_runtime_proof
       required_tests:
         - TestVerifyTarget_FirstInstallProcessOlderThanApply_BootstrapOrderingSkew
@@ -2057,6 +2115,7 @@ failure_modes:
         - Suppressing the runtime_identity_unproven WARN globally — that's a known_bad_fix already listed under service.runtime_identity_unproven and would hide genuine stuck-agent cases
         - Special-casing the affected services in detectGlobularBinaryVersion to fall back to the marker file when --describe returns empty (papers over the bug for one consumer while leaving the verifier's runtime probe broken)
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - health.must_not_use_inventory_as_runtime_truth
         - rollout.convergence_requires_runtime_proof
         - service.lifecycle.version_field_must_not_be_overwritten
@@ -2093,6 +2152,7 @@ failure_modes:
         - Trusting the build tag in /etc/globular and never probing the live process (defeats the point of runtime proof)
         - Hard-coding version strings into source (forbidden by an existing invariant; build flags inject the value via ldflags)
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - health.must_not_use_inventory_as_runtime_truth
       required_tests:
         - TestVerifyTarget_RuntimeVersionDiffers_VersionMismatch
@@ -2143,6 +2203,7 @@ failure_modes:
         - Treating a single collection error as a critical outcome ("partial proof is suspicious") — both lose the distinction between "we don't know" and "we know it's wrong"
         - Blanket-downgrading runtime_identity_unproven to info to silence Day-0 noise (loses the signal for genuinely-stuck node-agents — the grace must be bounded by IsFirstInstall + ApplyTime window)
       related_invariants:
+        - meta.authority_must_express_uncertainty
         - diagnostics.must_measure_reality
       required_tests:
         - TestVerifyTarget_ErrorsOnly_DegradesUnknown
@@ -2221,6 +2282,7 @@ failure_modes:
         - Storing the same content in multiple authoritative places (e.g. both etcd AND objectstore) so neither is authoritative — fragments the truth and reintroduces the same class of bug
         - Raising drift on a single error observation — collection errors are unknown, not drift, per the diagnostic-honesty rule
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - diagnostics.must_measure_reality
         - fallback.must_emit_degraded_finding
       required_tests:
@@ -2301,6 +2363,7 @@ failure_modes:
         - Suppressing the fallback entirely (failing the request) — kills the user path; the whole point of fallback is to keep it alive while making the degradation visible
         - Using a per-service ad-hoc registry — fragments the directory and means doctor has to know N protocols for the same finding
       related_invariants:
+        - meta.fallback_must_degrade_semantics
         - fallback.must_emit_degraded_finding
         - diagnostics.must_measure_reality
       required_tests:
@@ -2377,6 +2440,7 @@ failure_modes:
         - Hand-running `systemctl daemon-reload` and assuming drift went away (reload re-reads files but does not replace overrides)
         - Treating any "Unit not found" or "FragmentPath empty" as a transient and retrying — the brief is explicit that missing proof is degraded, not green
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - systemd.effective_unit_must_match_rendered_unit
         - rollout.convergence_requires_runtime_proof
         - diagnostics.must_measure_reality
@@ -2445,6 +2509,7 @@ failure_modes:
         - Adding fallback paths that promote inventory_claim to installed_verified on heartbeat freshness — heartbeat freshness is a different invariant
         - Marking AVAILABLE based on workflow run state ("MarkNodeSucceeded was called") — that is the structural lie the refactor exists to remove
       related_invariants:
+        - meta.half_done_must_not_look_done
         - rollout.convergence_requires_runtime_proof
         - diagnostics.must_measure_reality
       required_tests:
@@ -2513,6 +2578,7 @@ failure_modes:
         - Repairing by editing desired pins to whatever happened to install (mutates desired state from runtime observation)
         - Bypassing repository manifest authority with filesystem observation alone (ls of /var/lib/globular/packages/ is not the manifest)
       related_invariants:
+        - meta.fallback_must_degrade_semantics
         - installer.explicit_version_requires_exact_artifact
         - repository.imported_package_must_be_local_install_resolvable
         - runtime.success_requires_expected_binary_checksum
@@ -2576,6 +2642,7 @@ failure_modes:
         - letting each service invent its own runtime dir normalization
         - suppressing real permission errors because a directory name is now allowlisted
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - service.runtime_dir_name_must_be_canonical
         - doctor.layout_drift_must_reflect_real_risk
         - sensitive_runtime_dirs_require_strict_permissions
@@ -2645,6 +2712,7 @@ failure_modes:
         - treating any unknown platform as noarch (silently accepts typos and corrupted BOM entries)
         - retrying sync with a different targetPlatform to "catch" noarch entries (timing-dependent, races with the controller)
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - repository.sync_must_not_silently_drop_noarch_artifacts
         - repository.imported_package_must_be_local_install_resolvable
       required_tests:
@@ -2693,6 +2761,7 @@ failure_modes:
         - adding a parallel ApplyPackageRelease dispatch path that bypasses manifest resolution
         - passing the package tarball sha256 as ExpectedSha256 (hash-schema confusion)
       related_invariants:
+        - meta.half_done_must_not_look_done
         - controller.apply_package_release_requires_manifest_checksum
         - runtime.success_requires_expected_binary_checksum
         - desired_installed_runtime_identity_must_match
@@ -2744,6 +2813,7 @@ failure_modes:
         - mutating installed_state to verified to silence the gap
         - treating empty expected_sha256 as success in any layer
       related_invariants:
+        - meta.half_done_must_not_look_done
         - workflow.definitions_must_thread_required_verification_fields
         - controller.apply_package_release_requires_manifest_checksum
         - runtime.success_requires_expected_binary_checksum
@@ -2803,6 +2873,7 @@ failure_modes:
           while etcd still refuses writes
         - running `rm -rf` against etcd data directory
       related_invariants:
+        - meta.critical_path_no_non_critical_dependency
         - etcd.must_have_free_backend_space_for_reconciliation
       required_tests: []
     - id: node_agent.install_package_aliases_convergence_hash_into_expected_sha256
@@ -2867,6 +2938,7 @@ failure_modes:
         - using inputs["expected_sha256"] as the convergence hash when desired_hash is absent
         - downgrading the verify gate to "warn" so installs pass even with the wrong-schema hash
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - install_package.hash_schemas_must_not_alias
         - controller.apply_package_release_requires_manifest_checksum
         - runtime.success_requires_expected_binary_checksum
@@ -2921,6 +2993,7 @@ failure_modes:
         the call site spell out the invariant so future edits don't
         re-introduce the alias.
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - install_package.hash_schemas_must_not_alias
         - repository.fallback_requires_manifest_and_checksum
       required_tests:
@@ -2977,6 +3050,7 @@ failure_modes:
         - raising the reconciler tick rate to make drift-reconciler the only path back run faster (mask, not fix)
         - increasing workflow queue capacity to hide the retry storm
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - release_pipeline.set_fields_routing_must_match_release_kind
         - workflow.dispatch_is_not_completion
         - workflow.success_requires_backend_confirmation
@@ -3082,6 +3156,7 @@ failure_modes:
         - "only clearing on the install path — bootstrap-race windows can write a BLOCKED record AFTER the install path's clear runs, so the record sticks until the next install attempt that never happens because dispatch is blocked"
         - "weakening `checkRuntimeDeps` to bypass the join-phase gate — this directly reintroduces INC-2026-0005's race window"
       related_invariants:
+        - meta.write_creates_completion_obligation
         - reconcile.dep_block_records_must_be_cleared_when_dep_satisfies
         - convergence.no_infinite_retry
         - critical_state.absence_is_not_destructive_intent
@@ -3122,6 +3197,8 @@ failure_modes:
         - using resolvedArtifactDigest directly as the convergence desired hash
         - computing the hash outside of ComputeInfrastructureDesiredHash
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: scylla.workflow_reconnect_concurrent_storm
       title: Multiple concurrent Scylla reconnect goroutines breach the single-reconnect guarantee
       severity: high
@@ -3147,6 +3224,8 @@ failure_modes:
       required_tests:
         - TestNoConcurrentReconnectStorm
 
+      related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
     - id: interceptors.loopback_amplification_host_crash
       title: High-volume inter-service loopback traffic amplifies into an event storm that crashes the node
       severity: critical
@@ -3172,6 +3251,8 @@ failure_modes:
         files:
           - golang/interceptors/rate_tracker.go
 
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
     - id: workflow.orphan_lease_slow_step_double_claim
       title: Slow workflow step causes orphan scanner to claim active run — double execution
       severity: high
@@ -3200,6 +3281,8 @@ failure_modes:
         - increasing orphanHeartbeatTimeout as a substitute for fixing slow steps
         - disabling the orphan scanner to prevent double-claim
 
+      related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
     - id: workflow.abandoned_defer_never_retried
       title: Deferred workflow run becomes permanently unretryable — blocker_tag, persistent counter, or wake-by-tag bookkeeping lost
       severity: high
@@ -3279,6 +3362,7 @@ failure_modes:
         - TestWakeIgnoresAbandoned
         - TestDispatchOrderAbandonedBeforeCooldown
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - workflow.deferred_run_retryable_when_blocker_clears
         - workflow.dispatch_is_not_completion
 
@@ -3310,6 +3394,8 @@ failure_modes:
       required_tests:
         - TestDeleteCriticalReleaseRejectsGenerationMismatch
 
+      related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
     - id: event.scylla_bus_nil_session_silent_drop
       title: Event publish silently returns nil when Scylla session is nil — event is lost
       severity: high
@@ -3334,6 +3420,8 @@ failure_modes:
         files:
           - golang/event/event_server/scylla_bus.go
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: ai_router.cascade_disables_retry_prevents_recovery
       title: AI router disables all retries at >30% error rate — recovery becomes impossible without external intervention
       severity: high
@@ -3362,6 +3450,8 @@ failure_modes:
         - removing the >30% circuit breaker without adding an auto-recovery path
         - treating MaxRetries=0 as a permanent steady state rather than a transient gate
 
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: doctor.stale_evidence_authorizes_remediation
       title: Stale findings authorize a remediation action, executing against already-recovered state
       severity: critical
@@ -3382,6 +3472,7 @@ failure_modes:
         - disable_evidence_trust_gate_before_remediation
         - using_approval_time_evidence_for_dispatch_time_verification
       related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
         - doctor.evidence_trust_must_be_authoritative_for_execution
       required_tests:
         - test.doctor_evidence_stale_blocks_execution
@@ -3406,6 +3497,7 @@ failure_modes:
       forbidden_fixes:
         - use_node_scope_findings_for_cluster_delta
       related_invariants:
+        - meta.assertions_must_carry_their_scope
         - doctor.cache_separation_prevents_delta_poisoning
       required_tests:
         - test.doctor_cache_not_poisoned_by_node_scope
@@ -3431,6 +3523,7 @@ failure_modes:
         - skip_approval_token_jti_replay_check
         - storing_jti_blacklist_only_in_memory
       related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
         - doctor.approval_token_binding_prevents_replay
       required_tests:
         - test.doctor_approval_token_binding_prevents_replay
@@ -3469,6 +3562,7 @@ failure_modes:
         - iterate_all_artifact_versions_for_kind_resolution
         - delete_old_published_artifact_versions_to_stop_heartbeat_poisoning
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - infra.heartbeat_observer_only_not_authority
       required_tests:
         - TestSyncRepoArtifacts_DeduplicatesOldVersionsBeforeKindResolution
@@ -3493,6 +3587,7 @@ failure_modes:
         - auto_clear_escalation_without_operator_approval
         - storing_escalation_state_only_in_memory
       related_invariants:
+        - meta.failure_response_must_contract_not_amplify
         - doctor.escalation_threshold_gates_repeated_attempts
       required_tests:
         - test.doctor_escalation_after_three_cooldown_rejections
@@ -3540,6 +3635,7 @@ failure_modes:
           - golang/node_agent/node_agent_server/apply_package_release.go
           - golang/node_agent/node_agent_server/grpc_workflow_skip.go
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - runtime.success_requires_expected_binary_checksum
       required_tests:
         - TestBuildIDSkipChecksumOK
@@ -3590,6 +3686,7 @@ failure_modes:
           - downloadArtifactFromRepository
           - resolveArtifactDigest
       related_invariants:
+        - meta.fallback_must_degrade_semantics
         - repository.fallback_requires_manifest_and_checksum
         - desired_installed_runtime_identity_must_match
       required_tests:
@@ -3635,6 +3732,7 @@ failure_modes:
         downstream would mismatch, surfacing as a doctor finding for
         artifact_corruption rather than as a security event.
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - repository.upstream_local_paths_must_reject_traversal
       required_tests:
         - TestSafeJoin_RejectsDotDot
@@ -3673,6 +3771,7 @@ failure_modes:
         substring matching `\?[A-Za-z0-9_-]+=` near a *.amazonaws.com
         or api.github.com URL has leaked.
       related_invariants:
+        - meta.diagnostic_output_must_be_bounded
         - repository.upstream_credentials_must_be_redacted_in_audit_logs
       required_tests:
         - TestRedactAssetURL_StripsQueryParams
@@ -3715,6 +3814,7 @@ failure_modes:
         Runtime: `dig +short A <fqdn> @8.8.8.8` returning an IP
         in 10/8, 172.16/12, 192.168/16, fc00::/7, or fe80::/10.
       related_invariants:
+        - meta.assertions_must_carry_their_scope
         - dnsprovider.private_ips_must_not_publish_to_public_dns
     - id: mcp.governor_bypass_via_ad_hoc_execute_tool
       title: A non-governor MCP tool grows an ad-hoc execute branch and bypasses plan/validate/approve
@@ -3750,6 +3850,7 @@ failure_modes:
         Runtime: an audit log line shows a tool other than
         globular_cli.execute/execute_plan invoking a CLI command.
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - mcp.governor.plan_validate_approve_execute_is_only_execute_path
     - id: mcp.file_tool_host_fs_escape
       title: MCP file tool reads or writes the host filesystem directly, bypassing the file service RBAC + audit
@@ -3785,6 +3886,7 @@ failure_modes:
         Runtime: agent successfully reads/writes a path that the file
         service would have rejected for the same caller identity.
       related_invariants:
+        - meta.storage_is_not_semantic_authority
         - mcp.file_tool_uses_file_service_not_host_fs
     - id: mcp.etcd_remote_allowlist_expansion
       title: Direct etcd MCP tool added to the cross-node aggregator remote_call allowlist
@@ -3821,6 +3923,7 @@ failure_modes:
         Runtime: an mcp.remote_call audit entry where the tool name is
         any etcd_* would have succeeded — should be a hard policy reject.
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - mcp.etcd.tools_must_not_join_remote_allowlist
     - id: release.publish_race_stuck_failed_with_succeeded_children
       title: ServiceRelease stays FAILED after publish race while drift-reconciler reports child workflows SUCCEEDED with no actual install
@@ -3869,6 +3972,7 @@ failure_modes:
         Runtime: a release whose Status.Phase=FAILED but whose drift-reconciler
         keeps reporting child SUCCEEDED is the diagnostic signature.
       related_invariants:
+        - meta.half_done_must_not_look_done
         - release.failed_state_requires_explicit_recovery_or_requeue
     - id: envoy.lds_update_attempt_zero_despite_cds_progress
       title: Envoy consumes CDS updates but never attempts LDS — listener_manager.lds.update_attempt stays 0 while cds progresses
@@ -3938,6 +4042,7 @@ failure_modes:
         - workflow.infinite_restart_as_remediation
         - envoy.classify_systemd_active_as_healthy_without_lds_success
       related_invariants:
+        - meta.absence_scope_must_be_explicit
         - envoy.lds_progress_required_for_http_mesh_readiness
       required_tests:
         - TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
@@ -3991,6 +4096,7 @@ failure_modes:
         equal to the OLD version while the binary on disk is the NEW
         version.
       related_invariants:
+        - meta.write_creates_completion_obligation
         - node_agent.install_skip_must_refresh_runtime_proof
 
     - id: controller.platform_upgrade_bypassed_workflow_authority
@@ -4076,6 +4182,7 @@ failure_modes:
         updateInfraReleaseVersion from a bulk-BOM loop (i.e. iterating
         release-index.json packages) is a regression.
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
         - workflow.source_of_operational_truth
         - controller.platform_upgrade_must_gate_per_node_per_package
         - controller.apply_package_release_requires_manifest_checksum
@@ -4126,6 +4233,7 @@ failure_modes:
         - bypass_shared_client_for_internal_dials
         - guard_cluster_id_injection_on_optionally_propagated_field
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - grpc.backbone.contract
       related_services:
         - cluster-doctor
@@ -4188,6 +4296,7 @@ failure_modes:
         - extend_existing_buggy_pattern_without_querying_architecture
         - infer_architecture_from_code_when_awareness_anchor_exists
       related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
         - repository.minio_is_not_valid_package_source
         - assistant.query_awareness_before_assuming_architecture
       related_services:
@@ -4267,6 +4376,7 @@ failure_modes:
         - cluster_doctor_direct_write_to_etcd
         - bypass_doctor_for_cross_layer_health_finding
       related_invariants:
+        - meta.storage_is_not_semantic_authority
         - four_layer.layer_has_single_writing_actor
         - four_layer.actor_layer_mapping
         - etcd.path_has_single_owner
@@ -4355,6 +4465,7 @@ failure_modes:
         - recompute_identity_from_secondary_source
         - bump_immutable_timestamp_on_observe
       related_invariants:
+        - meta.identity_computation_must_be_invariant
         - identity.has_single_canonical_source_and_is_immutable
         - identity.field_semantic_is_single_writer_defined
         - install_package.hash_schemas_must_not_alias

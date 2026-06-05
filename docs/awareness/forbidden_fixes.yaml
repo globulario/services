@@ -5,6 +5,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - convergence.no_infinite_retry
   safe_alternative: 'Classify the failure using FailureClass before retrying. Transient failures get capped retries with exponential
     backoff. Deterministic failures (wrong config, version mismatch, disk full) create an incident and halt.
@@ -16,6 +17,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - convergence.no_infinite_retry
   safe_alternative: 'Classify failure root cause before retrying. Deterministic causes (config error, version mismatch, disk
     full) must not be retried. Only retry typed transient failures with a cap on retry count.
@@ -27,6 +29,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - install.result.atomic_commit
   - convergence.no_infinite_retry
   safe_alternative: 'Commit installed-state and action deletion atomically in a single etcd Txn. If the transaction fails,
@@ -39,6 +42,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.authority_must_express_uncertainty
   - install.result.atomic_commit
   - runtime.installed_state_not_liveness
   safe_alternative: 'Mark a release AVAILABLE only after the controller reads the installed-state record from etcd and validates
@@ -51,6 +55,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - objectstore.topology_contract
   safe_alternative: 'Read /globular/objectstore/config from etcd; start MinIO only if the node''s address appears in the ObjectStoreDesiredState
     members list.
@@ -62,6 +67,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - objectstore.topology_contract
   safe_alternative: 'Read ObjectStoreDesiredState from etcd at every startup. If the key is absent, hold last-known-good topology
     and emit a critical alert; never infer membership from local disk presence.
@@ -73,6 +79,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - objectstore.topology_contract
   safe_alternative: 'Only wipe .minio.sys through a controller-approved workflow transition with an explicit generation-matched
     approval marker; verify quorum viability before proceeding.
@@ -84,6 +91,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - objectstore.topology_contract
   safe_alternative: 'Route MinIO writes only to members listed in ObjectStoreDesiredState; verify member presence before each
     write.
@@ -95,6 +103,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.critical_path_no_non_critical_dependency
   - repository.metadata_first
   safe_alternative: 'Serve all artifact metadata (listings, versions, manifests) from ScyllaDB; MinIO health only affects
     blob download availability.
@@ -106,6 +115,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - repository.metadata_first
   safe_alternative: 'Write all artifact metadata to ScyllaDB as the primary index; MinIO stores blobs only. Use ScyllaDB for
     all metadata queries regardless of MinIO health.
@@ -117,6 +127,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.authority_must_express_uncertainty
   - runtime.installed_state_not_liveness
   safe_alternative: 'After confirming installed-state in etcd, check systemd unit status via node-agent inventory; treat both
     as required for a healthy service declaration.
@@ -128,6 +139,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.authority_must_express_uncertainty
   - runtime.installed_state_not_liveness
   safe_alternative: 'Always query systemd unit state from node-agent inventory, independent of whether an installed-state
     record exists.
@@ -139,6 +151,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.identity_computation_must_be_invariant
   - desired.build_id_immutable
   safe_alternative: 'Use etcd compare-and-swap (Txn with mod-revision check) to write build_id; reject writes that would overwrite
     an existing non-empty build_id.
@@ -150,6 +163,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.identity_computation_must_be_invariant
   - desired.build_id_immutable
   safe_alternative: 'Resolve build_id in the controller at plan time; embed the resolved ID in DesiredService in etcd; node-agent
     uses the pre-resolved ID only, never resolves its own.
@@ -161,6 +175,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.identity_computation_must_be_invariant
   - awareness.auto_install_requires_verification
   - desired.build_id_immutable
   safe_alternative: 'Treat manifest.build_id (UUID) and release-index.build_id as the only authoritative identities. Never pass
@@ -174,6 +189,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - workflow.backend_health_gate
   safe_alternative: 'Run a Scylla health preflight check before dispatching any workflow; fail fast with a typed error that
     avoids creating an orphaned record.
@@ -185,6 +201,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - workflow.backend_health_gate
   safe_alternative: 'Check Scylla health and quorum state before dispatching; if health check fails, return a retriable error
     to the caller without creating a workflow record.
@@ -196,6 +213,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.assertions_must_carry_their_scope
   - awareness.annotation_scanner.production_source_only
   safe_alternative: 'Skip all _test.go files in the annotation scanner; in non-test files, exclude annotations inside raw
     string literals identified via AST traversal.
@@ -207,6 +225,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.assertions_must_carry_their_scope
   - awareness.annotation_scanner.production_source_only
   safe_alternative: 'Use Go AST to identify string literals; skip annotations inside ast.BasicLit nodes where the value starts
     with a backtick (raw string literals).
@@ -218,6 +237,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - scylla.critical_keyspace_replication_policy
   safe_alternative: 'Keyspace RF can only increase automatically; any RF decrease requires an explicit operator-approved workflow
     with quorum impact analysis.
@@ -229,6 +249,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - scylla.critical_keyspace_replication_policy
   safe_alternative: 'Doctor must emit CRITICAL for any critical keyspace below required RF on a cluster with >=2 nodes; include
     an ALTER KEYSPACE command in the remediation step.
@@ -240,6 +261,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - desired.bootstrap_state_requires_promotion
   safe_alternative: 'Filter desired-state records by authoritative=true before acting; bootstrap records must wait for the
     promotion reconciler to rewrite them as authoritative.
@@ -251,6 +273,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - desired.bootstrap_state_requires_promotion
   safe_alternative: 'Check the authoritative field before marking a desired record eligible for install; skip records with
     source=bootstrap until promotion has run.
@@ -262,6 +285,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.absence_scope_must_be_explicit
   - critical_state.absence_is_not_destructive_intent
   safe_alternative: 'When the control-plane key is absent, read the LKG file and apply last-known-good configuration; emit
     a doctor alert but do not stop the service.
@@ -273,6 +297,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.absence_scope_must_be_explicit
   - critical_state.absence_is_not_destructive_intent
   safe_alternative: 'On etcd read timeout, retain current runtime state; set status=degraded; retry at the next tick after
     the configured timeout window.
@@ -284,6 +309,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.absence_scope_must_be_explicit
   - critical_state.absence_is_not_destructive_intent
   - destructive_actions.require_explicit_guard
   safe_alternative: 'Reject specs that fail schema or checksum validation; treat them as absent; only a valid ExplicitDisable
@@ -296,6 +322,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.fallback_must_degrade_semantics
   - runtime.last_known_good_required_for_critical_consumers
   safe_alternative: 'Validate checksum and generation monotonicity before writing LKG; abort the write if validation fails;
     keep the prior valid LKG file.
@@ -307,6 +334,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.fallback_must_degrade_semantics
   - runtime.last_known_good_required_for_critical_consumers
   safe_alternative: 'Always fall back to the LKG file when authority is unreachable; treat a missing LKG as first-boot only;
     never serve empty config on authority timeout.
@@ -318,6 +346,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.fallback_must_degrade_semantics
   - runtime.last_known_good_required_for_critical_consumers
   safe_alternative: 'Reject LKG files with invalid checksums; log the failure; retain the previous valid state; emit a doctor
     alert for operator review.
@@ -329,6 +358,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - critical_state.registry_ownership_required
   safe_alternative: 'Register all critical-key owners in critical_state_registry before writing; validate writer identity
     via ValidateCriticalKeyOwner() on every write.
@@ -340,6 +370,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.binding_outlives_evidence_until_invalidated
   - critical_state.registry_ownership_required
   - critical_state.deletion_requires_audited_intent
   safe_alternative: 'Check the registry-defined delete policy before deletion; keys with DeleteNeverAutomatic require a validated
@@ -352,6 +383,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - critical_state.registry_ownership_required
   safe_alternative: 'Reject writes from unregistered writers with a typed error; emit a doctor alert identifying the unauthorized
     writer; do not commit the write.
@@ -362,6 +394,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.binding_outlives_evidence_until_invalidated
   - critical_state.deletion_requires_audited_intent
   safe_alternative: 'Create the delete-approval marker at the correct path before deletion; validate its generation and leader
     identity before committing the delete operation.
@@ -373,6 +406,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.absence_scope_must_be_explicit
   - critical_state.deletion_requires_audited_intent
   - critical_state.absence_is_not_destructive_intent
   safe_alternative: 'When a desired-state key is absent, restore from registry-defined default or LKG; emit a doctor alert;
@@ -385,6 +419,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.binding_outlives_evidence_until_invalidated
   - critical_state.deletion_requires_audited_intent
   safe_alternative: 'Validate approval generation against the current key revision; verify the approving leader ID; reject
     approvals older than 24 hours.
@@ -396,6 +431,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - reconcile.global_work_must_not_starve_completion
   safe_alternative: 'Give completion lanes higher priority; block new global work phases until the prior completion phase
     has committed its terminal record to etcd.
@@ -407,6 +443,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - reconcile.global_work_must_not_starve_completion
   safe_alternative: 'Use a dedicated completion lane not subject to reconcile-tick acquisition; completion always runs to
     terminal before new ticks are admitted.
@@ -418,6 +455,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - critical_queries.must_be_bounded
   safe_alternative: 'Wrap all critical-path queries with context.WithTimeout (5-15s); map ctx.Err() timeout to DEGRADED status
     immediately.
@@ -429,6 +467,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - critical_queries.must_be_bounded
   safe_alternative: 'Always check ctx.Err() after a bounded query; return the timeout error to the caller; do not proceed
     as if the query succeeded.
@@ -440,6 +479,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.critical_path_no_non_critical_dependency
   - critical_queries.must_be_bounded
   safe_alternative: 'Run external queries in a goroutine with select on timeout; return a timeout error to the reconcile loop
     immediately if the deadline is exceeded.
@@ -451,6 +491,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.critical_path_no_non_critical_dependency
   - derived_state.must_not_block_authority
   safe_alternative: 'Publish authority state (DesiredService, DesiredRelease) in a dedicated lane that does not wait for projection
     or cache pipelines to succeed.
@@ -462,6 +503,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.critical_path_no_non_critical_dependency
   - derived_state.must_not_block_authority
   safe_alternative: 'Authority publication runs unconditionally; derived-state failures emit their own alerts but must not
     block the authority lane.
@@ -473,6 +515,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.circular_dependency_must_have_break_glass
   - recovery.must_not_depend_on_dns_only
   safe_alternative: 'All DNS recovery CLI commands must support --addr for direct IP:port fallback; resolve endpoints from
     /globular/cluster/dns/records when DNS UDP fails.
@@ -484,6 +527,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.circular_dependency_must_have_break_glass
   - recovery.must_not_depend_on_dns_only
   safe_alternative: 'Provide --direct-ip or --addr options in all CLI recovery commands; fall back to Tier-0 host lists (GetMinioHosts/GetScyllaHosts)
     from etcd.
@@ -495,6 +539,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.absence_scope_must_be_explicit
   - destructive_actions.require_explicit_guard
   safe_alternative: 'Require IsExplicitDisable() validation before acting on a disable spec; treat any spec that fails validation
     as absent and hold LKG.
@@ -506,6 +551,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - destructive_actions.require_explicit_guard
   - topology.reconciler_must_respect_safety_contract
   safe_alternative: 'Wipe persistent state only through a controller-approved workflow with a transition record matching the
@@ -518,6 +564,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.binding_outlives_evidence_until_invalidated
   - destructive_actions.require_explicit_guard
   safe_alternative: 'Deletion requires a delete-approval marker that matches the current generation, was created by the current
     leader, and is not older than 24h.
@@ -529,6 +576,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - destructive_actions.require_explicit_guard
   - critical_state.absence_is_not_destructive_intent
   safe_alternative: 'Every destructive action requires an explicit typed approval record; do not infer intent from missing
@@ -541,6 +589,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - topology.reconciler_must_respect_safety_contract
   - objectstore.desired_state_must_be_registry_governed
   safe_alternative: 'Read topology from etcd (ObjectStoreDesiredState for MinIO, node records for ScyllaDB); if the key is
@@ -553,6 +602,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - topology.reconciler_must_respect_safety_contract
   safe_alternative: 'Run topology safety preflight (quorum check, participant validation, objectstore consistency) before
     any drift action; abort the plan if preflight fails.
@@ -564,6 +614,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - topology.reconciler_must_respect_safety_contract
   safe_alternative: 'Include the topology generation in every drift plan; validate at execution time that the plan generation
     still matches the live generation before applying.
@@ -575,6 +626,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - services.drift_must_age_and_escalate
   safe_alternative: 'Apply driftSeverity() escalation: WARN for age <=5 min, ERROR for >5 min, CRITICAL for >5 min on a service
     defined as critical.
@@ -586,6 +638,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - pki.ca_metadata_must_be_published
   - critical_state.registry_ownership_required
   safe_alternative: 'Add /globular/pki/ca to config.CriticalEtcdKeys and register it in critical_state_registry with owner=cluster_controller
@@ -598,6 +651,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.critical_path_no_non_critical_dependency
   - runtime.installed_state_must_match_package_kind
   safe_alternative: 'Migrate commandPackage() classification to read from the catalog package.kind field; add COMMAND entries
     to the catalog, not to a hardcoded list.
@@ -609,6 +663,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.critical_path_no_non_critical_dependency
   - runtime.installed_state_must_match_package_kind
   safe_alternative: 'Check package.kind before requiring a systemd unit; COMMAND packages never require a unit; only SERVICE
     and INFRASTRUCTURE packages do.
@@ -620,6 +675,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.identity_computation_must_be_invariant
   - runtime.installed_state_must_match_package_kind
   safe_alternative: 'Use the catalog-defined kind as the sole gate for systemd unit requirement; package name heuristics must
     not override catalog kind.
@@ -631,6 +687,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - objectstore.desired_state_must_be_registry_governed
   - objectstore.topology_contract
   safe_alternative: 'Gate MinIO startup on /globular/objectstore/config presence in etcd; if absent, hold LKG and emit a critical
@@ -643,6 +700,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - objectstore.desired_state_must_be_registry_governed
   - objectstore.topology_contract
   safe_alternative: 'Read /globular/objectstore/config from etcd; if absent, do not infer topology; alert and wait for the
@@ -655,6 +713,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.storage_is_not_semantic_authority
   - objectstore.desired_state_must_be_registry_governed
   - critical_state.registry_ownership_required
   safe_alternative: 'Register /globular/objectstore/config in config.CriticalEtcdKeys with owner=cluster_controller and a
@@ -670,6 +729,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
   safe_alternative: 'Resolve disk pressure first (compact + defrag + verify quota below threshold); only restart etcd nodes
     after disk usage is confirmed below quota.
 
@@ -685,6 +745,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
   safe_alternative: 'Wait for all etcd members to return to quorum and a leader to be elected before restarting controller
     processes; premature restart amplifies write pressure.
 
@@ -700,6 +761,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
   safe_alternative: 'Wait for etcd to stabilize; the lease expires after its TTL without requiring process kills; only restart
     controllers after etcd is fully healthy.
 
@@ -713,6 +775,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
   safe_alternative: 'Stabilize in order: etcd, then controller, then workflow. Restarting workflow before the control plane
     is ready will immediately re-fail.
 
@@ -728,6 +791,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
   safe_alternative: 'Treat workflow timeouts as a symptom, not the root cause; diagnose etcd and controller first; workflow
     recovers automatically once the control plane is healthy.
 
@@ -751,6 +815,7 @@ forbidden_fixes:
     \ etcdctl defrag --endpoints=<all> — defragment all members\n  3. Verify disk usage dropped below quota (df -h or du)\n\
     \  4. etcdctl alarm disarm           — only after disk is confirmed below quota\n"
   related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
 - id: ignoring_orphan_processes_assuming_systemd_handles_them
   summary: 'Assume systemd''s Restart= directive cleanly terminates all child processes from a prior cgroup escape when the
     service restarts, without adding an ExecStartPre kill step.
@@ -764,6 +829,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.silence_is_not_valid_for_unexpected
   - service.endpoint.cgroup_escape_guard
 - id: relying_on_service_restart_without_pkill_guard
   summary: 'Restart a service unit via systemctl or Restart=on-failure without first killing any orphaned process that escaped
@@ -775,6 +841,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - service.endpoint.cgroup_escape_guard
   - service.endpoint.etcd_address_reachability
 - id: circuit_breaker_that_blocks_all_reconciliation_on_single_service_failure
@@ -788,6 +855,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - service.endpoint.cgroup_escape_guard
   - convergence.no_infinite_retry
 - id: manually_seeding_desired_state_per_node
@@ -800,6 +868,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - service.desired_state.bom_completeness
 - id: skipping_service_packages_from_bom
   summary: 'Omit one or more service packages from the release BOM, causing them to be absent from ServicesDesiredSet and
@@ -811,6 +880,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.silence_is_not_valid_for_unexpected
   - service.desired_state.bom_completeness
 - id: writing_desired_state_via_grpc_only_during_bootstrap
   summary: 'Write desired state records only through the bootstrap gRPC call at cluster init time, without ensuring the BOM
@@ -822,6 +892,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - service.desired_state.bom_completeness
 - id: manually_patching_release_phase_to_available
   summary: 'Manually set ServiceRelease.Phase to AVAILABLE in etcd after a wave succeeds but the commit RPC fails, bypassing
@@ -833,6 +904,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - install.result.atomic_commit
 - id: skipping_workflow_run_to_force_available
   summary: 'Skip the workflow service entirely and write AVAILABLE directly to a ServiceRelease record in etcd to unstick
@@ -844,6 +916,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - install.result.atomic_commit
   - convergence.no_infinite_retry
 - id: marking_release_available_from_local_success
@@ -856,6 +929,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.authority_must_express_uncertainty
   - install.result.atomic_commit
 - id: manually_running_services_desired_set_per_service
   summary: 'Call the ServicesDesiredSet RPC individually for each service to work around a missing or incomplete BOM, creating
@@ -867,6 +941,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - service.desired_state.bom_completeness
 - id: assuming_publish_implies_desired_state
   summary: 'Assume that because a service artifact is published (AVAILABLE in the repository), its DesiredService record already
@@ -878,6 +953,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.authority_must_express_uncertainty
   - service.desired_state.bom_completeness
 - id: retry_install_blindly
   summary: 'Retry a failed install action on every reconcile tick without checking whether the failure is deterministic or
@@ -889,6 +965,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.failure_response_must_contract_not_amplify
   - install.result.atomic_commit
   - convergence.no_infinite_retry
 - id: clear_action_before_installed_state
@@ -901,6 +978,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.write_creates_completion_obligation
   - install.result.atomic_commit
 - id: mark_release_available_from_local_success
   summary: 'Mark a release wave as AVAILABLE immediately after a single node reports local install success, before all wave
@@ -912,6 +990,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.authority_must_express_uncertainty
   - install.result.atomic_commit
   - convergence.no_infinite_retry
 - id: restart_mcp_without_killing_orphan
@@ -925,6 +1004,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.competing_writers_must_converge_or_be_fenced
   - runtime.installed_state_not_liveness
 - id: reduce_bind_retry_count_to_mask_orphan
   summary: 'Reduce the number of bind retries in the MCP server to avoid seeing the ''address already in use'' error, without
@@ -936,6 +1016,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.silence_is_not_valid_for_unexpected
   - runtime.installed_state_not_liveness
 - id: change_mcp_port_as_workaround
   summary: 'Change the MCP server''s listen port from 10260 to a different port to avoid the orphan-held port conflict, leaving
@@ -947,6 +1028,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.identity_computation_must_be_invariant
   - runtime.installed_state_not_liveness
 - id: manually_start_mcp_without_fixing_spec
   summary: 'Manually run systemctl start globular-mcp.service after a Day-1 install to work around a missing start_services
@@ -958,6 +1040,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.state_mutations_must_be_durably_committed_before_side_effects
   - convergence.no_infinite_retry
 - id: skip_health_checks_to_avoid_waitactive_timeout
   summary: 'Remove or disable health checks in the MCP spec or unit file to avoid WaitActive timeout errors, instead of fixing
@@ -969,6 +1052,7 @@ forbidden_fixes:
 
     '
   related_invariants:
+  - meta.authority_must_express_uncertainty
   - install.result.atomic_commit
   - convergence.no_infinite_retry
 
@@ -981,6 +1065,7 @@ forbidden_fixes:
     and then immediately rely on the graph's decision_context output without rebuilding.
     The graph is now stale and will return paths that do not reflect the edit.
   related_invariants:
+    - meta.half_done_must_not_look_done
     - awareness.knowledge.graph_rebuild_after_yaml_edit
   safe_alternative: |
     After editing any awareness YAML, rebuild and reload the awareness graph before calling
@@ -993,6 +1078,7 @@ forbidden_fixes:
     guidance immediately after a knowledge YAML edit, without rebuilding the graph.
     A stale graph silently omits the newly added forbidden_fixes and invariants.
   related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
     - awareness.knowledge.graph_rebuild_after_yaml_edit
   safe_alternative: |
     Check graph freshness before using decision_context.
@@ -1005,6 +1091,7 @@ forbidden_fixes:
     awareness.preflight or awareness.decision_context to check what the edit touches.
     This is editing the safety system without reading its own guardrails first.
   related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
     - awareness.preflight.required_before_edit
     - awareness.knowledge.graph_rebuild_after_yaml_edit
   safe_alternative: |
@@ -1018,6 +1105,7 @@ forbidden_fixes:
     the coverage map (graph, runtime, code_scan, raw_yaml) and blind_spots list.
     NO_MATCH without coverage context silently implies safety, which is wrong.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - awareness.mcp.decision_context_no_bare_no_match
   safe_alternative: |
     Always return coverage and blind_spots regardless of whether decision paths exist.
@@ -1031,6 +1119,7 @@ forbidden_fixes:
     mean no risk exists. The graph may be stale, the files may be unindexed, or the
     relevant invariants may not have been added yet.
   related_invariants:
+    - meta.authority_must_express_uncertainty
     - awareness.mcp.decision_context_no_bare_no_match
   safe_alternative: |
     When decision_context returns NO_MATCH: check coverage.graph (not_checked vs.
@@ -1043,6 +1132,7 @@ forbidden_fixes:
     to graph/domain.go. Unclassified edges default to the information domain, causing
     decision-relevant edges to be silently downgraded in the semantic scorer.
   related_invariants:
+    - meta.assertions_must_carry_their_scope
     - awareness.graph.domain_classification_required
   safe_alternative: |
     For every new edge kind added to graph/edges.go, add the corresponding entry to
@@ -1056,6 +1146,7 @@ forbidden_fixes:
     guidance. Overly broad decision classification inflates path scores and erodes
     trust in decision_context output.
   related_invariants:
+    - meta.assertions_must_carry_their_scope
     - awareness.graph.domain_classification_required
   safe_alternative: |
     Start new edge kinds as "information" domain. Promote to "decision" domain only
@@ -1069,6 +1160,7 @@ forbidden_fixes:
     decision paths — the most actionable signals in the graph. Scoring them the
     same as information paths causes them to be buried under less relevant results.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - awareness.graph.domain_classification_required
   safe_alternative: |
     In ScoreImpactPath, apply the decision domain bonus (+25) to steps that touch
@@ -1080,6 +1172,7 @@ forbidden_fixes:
     a corresponding incident (INC-YYYY-NNNN) that demonstrated the failure chain.
     Hypothetical rules clutter the causal graph with unverifiable noise.
   related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
     - awareness.knowledge.causal_rules_evidence_required
   safe_alternative: |
     Only add causal rules after an incident has been resolved and the chain has been
@@ -1092,6 +1185,7 @@ forbidden_fixes:
     proposal workflow and without human review. Weight changes alter the ranking
     of all decision paths for every future preflight call.
   related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
     - awareness.weight_learning.human_approval_required
   safe_alternative: |
     Use awareness.learn_from_fix to propose weight adjustments. Wait for human
@@ -1105,6 +1199,7 @@ forbidden_fixes:
     reads weights at build time; live scoring uses the compiled graph, not the
     YAML directly.
   related_invariants:
+    - meta.half_done_must_not_look_done
     - awareness.weight_learning.human_approval_required
   safe_alternative: |
     After promoting weight changes to path_weights.yaml, always rebuild and reload
@@ -1118,6 +1213,7 @@ forbidden_fixes:
     or stale graph edges — making them visible in decision output is more
     dangerous than filtering them.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - awareness.weight_learning.human_approval_required
   safe_alternative: |
     Invalid paths must score below any declared path. If invalid paths are surfacing
@@ -1156,6 +1252,7 @@ forbidden_fixes:
     in a controlled test environment. High confidence rules are presented to operators
     as established fact, not hypothesis.
   related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
     - awareness.knowledge.causal_rules_evidence_required
   safe_alternative: |
     Use confidence: low for first-observed chains, confidence: medium after 2-3
@@ -1168,6 +1265,7 @@ forbidden_fixes:
     is unavailable. An empty blind_spots list when the graph is missing implies the
     tool has full coverage — the opposite of the truth.
   related_invariants:
+    - meta.absence_scope_must_be_explicit
     - awareness.mcp.decision_context_no_bare_no_match
   safe_alternative: |
     When graph is unavailable, always include at least: "graph unavailable — rebuild and reload the awareness graph",
@@ -1179,6 +1277,7 @@ forbidden_fixes:
     Automatically install an older package version when the current version crashes
     or fails its health check, without explicit operator approval.
   related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
   safe_alternative: |
     When a service crashes, create an incident and halt convergence for that package.
     Never install a lower version unless the operator explicitly runs a rollback command
@@ -1189,6 +1288,7 @@ forbidden_fixes:
     After acquiring cluster leadership, load desired state from an in-memory snapshot
     carried over from a prior leader session rather than reading fresh from etcd.
   related_invariants:
+    - meta.storage_is_not_semantic_authority
   safe_alternative: |
     After every leader election, the reconciler must reload desired state exclusively
     from etcd before running any convergence tick. In-memory state from a prior
@@ -1200,6 +1300,7 @@ forbidden_fixes:
     classify packages as infrastructure vs service kind, duplicating the canonical
     registry.
   related_invariants:
+    - meta.identity_computation_must_be_invariant
   safe_alternative: |
     The reconciler must read kind from the package metadata (package.json or catalog).
     No list of names or prefixes inside reconciler logic. If the metadata is missing,
@@ -1211,6 +1312,7 @@ forbidden_fixes:
     "xds" implies infrastructure) rather than reading from the canonical package
     metadata registry.
   related_invariants:
+    - meta.storage_is_not_semantic_authority
   safe_alternative: |
     Kind must always be read from package.json metadata. Service name is not a
     reliable proxy for kind — names change, packages are renamed, and inference
@@ -1222,6 +1324,7 @@ forbidden_fixes:
     the actual symptom keywords that were observed during the incident. Without
     real symptom keywords, the rule can never match a future incident's log output.
   related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
     - awareness.knowledge.causal_rules_evidence_required
   safe_alternative: |
     Only finalize a causal rule when you have the actual log output from the incident.
@@ -1236,6 +1339,7 @@ forbidden_fixes:
     overwrite the seed-tagged entry directly so the finding stops firing,
     without investigating why ai-memory diverged from the bundle.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - ops_knowledge.seed_integrity
   safe_alternative: |
     Treat the bundle as the authoritative source: re-run the seeder workflow
@@ -1249,6 +1353,7 @@ forbidden_fixes:
     the bundle and ai-memory no longer trigger the finding. Reduces noise by
     losing signal that the immutability layer might be broken.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - ops_knowledge.seed_integrity
   safe_alternative: |
     Any drift on a seed-tagged entry is a fact about the immutability layer,
@@ -1262,6 +1367,7 @@ forbidden_fixes:
     entries directly. Removes the immutability boundary that protects
     operational knowledge from poisoning.
   related_invariants:
+    - meta.storage_is_not_semantic_authority
     - ops_knowledge.seed_integrity
   safe_alternative: |
     Reject every write to seed entries unless principal is exactly "seeder".
@@ -1274,6 +1380,7 @@ forbidden_fixes:
     the error to the caller but skip the audit log entry or downgrade it
     below WARN — to avoid log noise from "expected" denials.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - ops_knowledge.seed_integrity
   safe_alternative: |
     Every denied write to a seed entry is logged at WARN with principal id +
@@ -1314,6 +1421,7 @@ forbidden_fixes:
     return success so cluster bring-up continues. Hides a real outage of the
     operational-knowledge store behind a healthy-looking controller.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - ops_knowledge.seed_integrity
   safe_alternative: |
     Failing to seed because ai-memory is down is a finding, not a no-op.
@@ -1383,6 +1491,7 @@ forbidden_fixes:
     channel etcd will close on the next iteration. The goroutine exits;
     nothing re-spawns it.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - objectstore.topology_contract
     - convergence.no_infinite_retry
   safe_alternative: |
@@ -1427,6 +1536,7 @@ forbidden_fixes:
     clears. Hides a security regression behind a self-healing illusion and
     masks crashes in the day-1 finalize path.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - founding.quorum.three_nodes_required
   safe_alternative: |
     Day-1 finalize atomically clears the flag as its LAST step. On controller
@@ -1456,6 +1566,7 @@ forbidden_fixes:
     configuration into the same binary as production code paths and breaks
     the etcd-is-sole-source-of-truth rule.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - service.endpoint.etcd_address_reachability
     - etcd.endpoint_reachability
   safe_alternative: |
@@ -1470,6 +1581,7 @@ forbidden_fixes:
     Globular config behave differently because one has the env var set, and
     the difference is invisible until a user reports asymmetric behaviour.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - service.endpoint.etcd_address_reachability
   safe_alternative: |
     There is no env var override — etcd is the only source. Service config
@@ -1518,6 +1630,7 @@ forbidden_fixes:
     which makes every subsequent scan return zero matches and produce
     critical-severity REQUIRED_TEST_MISSING / 0% coverage findings.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - awareness.source_scan_requires_verified_repo_root
   safe_alternative: |
     Return `sourceroot.Result{State: Absent}` (or "" from the legacy
@@ -1590,6 +1703,7 @@ forbidden_fixes:
     wrong version everywhere; the pinned build_id in desired state
     becomes a decorative annotation that nobody enforces.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - repository.desired_build_id_must_resolve
   safe_alternative: |
     When a pinned build_id fails to resolve, surface the failure as
@@ -1630,6 +1744,7 @@ forbidden_fixes:
     showing the state was split will be gone. The compound predicate exists because both
     columns must agree — removing one leg of the check removes the agreement guarantee.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - repository.artifact.installable_compound_predicate
     - repository.desired_build_id_must_resolve
   safe_alternative: |
@@ -1655,6 +1770,7 @@ forbidden_fixes:
     Do NOT work around this by adding a separate doctor-side heuristic that guesses whether
     a build_id might be split-state — that doubles the maintenance surface.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - repository.artifact.installable_compound_predicate
   safe_alternative: |
     Add artifact_state as a string field to ArtifactManifest proto. Populate it in
@@ -1718,6 +1834,7 @@ forbidden_fixes:
     blocks deletion of the SPEC build_id but happily archives the
     RESOLVED one, breaking installs mid-rollout.
   related_invariants:
+    - meta.silence_is_not_valid_for_unexpected
     - repository.purge_must_not_delete_active_desired_builds
   safe_alternative: |
     Collect BOTH Spec.BuildID and Status.ResolvedBuildID across all
@@ -1860,6 +1977,7 @@ forbidden_fixes:
     that is absent from an incomplete objectstore snapshot, treating absence
     as evidence of failure rather than a collector gap.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - objectstore.partial_snapshot_unknown_not_down
   safe_alternative: |
     Classify absent NodeRecord entries as UNKNOWN. Emit a DataIncomplete caveat
@@ -2002,6 +2120,7 @@ forbidden_fixes:
     and the controller — neither proves the running process is the
     expected build.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - health.must_not_use_inventory_as_runtime_truth
   safe_alternative: |
     Require all four layers to agree before emitting OK: desired build ==
@@ -2017,6 +2136,7 @@ forbidden_fixes:
     appears green while replication, indexing, or persistence are silently
     broken.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - fallback.must_emit_degraded_finding
   safe_alternative: |
     At the moment of switchover, emit service.silent_fallback_active
@@ -2068,6 +2188,7 @@ forbidden_fixes:
     structured finding. Logs are not consumed by health/doctor; the
     operator sees green while the system is degraded.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - fallback.must_emit_degraded_finding
   safe_alternative: |
     Every fallback site calls emitDegradedFinding(...) at the moment of
@@ -2131,6 +2252,7 @@ forbidden_fixes:
 - id: disable_require_checksum_to_allow_unverifiable_fallback
   summary: 'Turning off checksum requirements so fallback installs proceed without verifiable artifact identity.'
   related_invariants:
+  - meta.fallback_must_degrade_semantics
   - repository.fallback_requires_manifest_and_checksum
   safe_alternative: 'Keep checksum enforcement on; repair manifest/checksum availability or block install with degraded finding.'
 - id: manually_copy_package_blobs_without_index_repair
@@ -2199,6 +2321,7 @@ forbidden_fixes:
     Return FailedPrecondition with "DesiredBuildIdOrphaned" prefix. Surface as a structured
     release blocker. Operator must roll desired state forward or run repair-index.
   related_invariants:
+    - meta.fallback_must_degrade_semantics
     - repository.desired_build_id_is_hard_reachability_root
   protects:
     files:
@@ -2455,6 +2578,8 @@ forbidden_fixes:
     files:
       - golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
 
+  related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
 - id: use_node_scope_findings_for_cluster_delta
   summary: >
     Include node-scoped findings in the lastEmittedFindings cache used for cluster-level
@@ -2488,6 +2613,8 @@ forbidden_fixes:
       - golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
       - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
 
+  related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
 - id: auto_clear_escalation_without_operator_approval
   summary: >
     Automatically clear the requires_approval escalation flag on a timer or on doctor
@@ -2760,6 +2887,7 @@ forbidden_fixes:
     writer authority), the authority sub-actor is the only writer; the
     observer reads and reports.
   related_invariants:
+    - meta.storage_is_not_semantic_authority
     - four_layer.layer_has_single_writing_actor
     - four_layer.actor_layer_mapping
     - etcd.path_has_single_owner
@@ -2897,6 +3025,7 @@ forbidden_fixes:
     populates a Snapshot; rules read the Snapshot. Adding a new
     Snapshot.<X> field is cheaper than adding a one-off etcd reader.
   related_invariants:
+    - meta.storage_is_not_semantic_authority
     - four_layer.truth_read_via_owner_rpc_not_direct_storage
     - etcd.path_has_single_owner
   protects:
@@ -3022,6 +3151,7 @@ forbidden_fixes:
     every writer respect that semantic and remove the wrong-kind writes
     at the writer site, not at the reader.
   related_invariants:
+    - meta.identity_computation_must_be_invariant
     - identity.field_semantic_is_single_writer_defined
     - identity.has_single_canonical_source_and_is_immutable
     - install_package.hash_schemas_must_not_alias
