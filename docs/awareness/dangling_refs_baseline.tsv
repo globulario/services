@@ -152,6 +152,7 @@ https://globular.io/awareness#ForbiddenFix	empty_etcd_policy_treated_as_no_throt
 https://globular.io/awareness#ForbiddenFix	etcd_nospace_by_deleting_random_keys
 https://globular.io/awareness#ForbiddenFix	evidence_used_without_timestamp
 https://globular.io/awareness#ForbiddenFix	evidence_used_without_writer_identity
+https://globular.io/awareness#ForbiddenFix	exception_5_claimed_at_file_granularity_for_multi_step_function
 https://globular.io/awareness#ForbiddenFix	exit_0_on_missing_mandatory_tests
 https://globular.io/awareness#ForbiddenFix	expected_sha256_by_binary_bridge_for_stale_workflow
 https://globular.io/awareness#ForbiddenFix	extract_tar_entries_with_absolute_paths_or_traversal
@@ -302,6 +303,7 @@ https://globular.io/awareness#ForbiddenFix	reimplement_platform_comparison_outsi
 https://globular.io/awareness#ForbiddenFix	reintroduce_install_package_hash_alias_fallback
 https://globular.io/awareness#ForbiddenFix	relying_on_systemd_to_kill_processes_outside_the_cgroup
 https://globular.io/awareness#ForbiddenFix	rely_on_format_json_presence_as_wipe_completion_signal
+https://globular.io/awareness#ForbiddenFix	rely_on_rpc_audit_as_substitute_for_workflow_run
 https://globular.io/awareness#ForbiddenFix	remediation_proceeds_on_stale_evidence
 https://globular.io/awareness#ForbiddenFix	remove_ghost_voter_without_verifying_quorum_remains
 https://globular.io/awareness#ForbiddenFix	remove_platform_filter_entirely

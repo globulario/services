@@ -4377,3 +4377,159 @@ failure_modes:
         per-incident tests, the awareness anchors surfacing on every
         edit to the protected files, and the briefing requirement on
         the high-risk dirs is the current regression surface.
+
+    - id: hidden_workflow.controller_remove_node_inline_preflight_and_drain
+      title: RemoveNode RPC runs preflight + etcd-membership-remove + drain + state-delete INLINE before starting the repair workflow run
+      severity: high
+      status: active
+      description: >
+        cluster_controller_server/handlers_node.go::RemoveNode is a partial
+        hidden workflow. The operator's intent ("remove node X") is captured
+        only by the RPC audit. The actual sequence:
+
+          1. topologyPreflightForRemove (inline)
+          2. removeNodeEtcdMembership (inline RPC to etcd)
+          3. drainNode (inline gRPC to node-agent)
+          4. state.Nodes delete + persistStateLocked (inline)
+          5. publishScyllaHostsIfNeeded (inline)
+          6. workflowRec.StartRun("node.repair") — only NOW does a workflow
+             run exist; it runs cleanup of remaining etcd state.
+
+        Steps 1-5 cross multiple failure boundaries (etcd RPC, node-agent
+        RPC, ScyllaDB hosts publish) before any durable intent record is
+        written to workflow_runs. If the controller dies between step 2
+        and step 6, the node is half-removed: membership gone, drain
+        partial, state still present, repair workflow never started, no
+        resume point.
+
+        The file's own comment at line 415 acknowledges the rule —
+        "Every state-changing action must belong to exactly one
+        workflow run" — but the handler implements it only for the
+        repair phase, not the operator-intent phase.
+      trigger: >
+        Controller restart during RemoveNode RPC; etcd quorum loss between
+        steps; network failure to node-agent during drain.
+      symptoms:
+        - node disappears from etcd membership but state.Nodes still has entry
+        - node-agent partially drained, services in mixed state
+        - no workflow_runs entry to replay the operation from
+        - operator must retry RemoveNode manually, sometimes producing
+          double-cleanup or stuck-removal
+      blast_radius:
+        - Half-removed node blocks future joins by the same hostname
+        - Partial drain leaves services restartable but unmanaged
+        - Audit trail is in RPC audit only, not workflow_runs — cross-
+          service correlation is impossible
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/handlers_node.go
+        symbols:
+          - RemoveNode
+          - removeNodeEtcdMembership
+          - drainNode
+          - publishScyllaHostsIfNeeded
+      related_invariants:
+        - workflow.every_state_mutation_belongs_to_a_workflow_instance
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+      forbidden_fixes:
+        - rely_on_rpc_audit_as_substitute_for_workflow_run
+        - start_workflow_only_for_the_last_phase_of_a_multi_step_operation
+      lift_to_workflow: |
+        Define a `node.remove` workflow in golang/workflow/definitions/
+        with steps: preflight → membership-remove → drain → state-delete
+        → publish-scylla-hosts → repair-cleanup. The RPC handler does:
+        validate request → StartRun(node.remove) → wait result →
+        return run_id. Audit trail becomes the workflow's step receipts.
+
+    - id: hidden_workflow.controller_node_removal_requests_queue_consumer
+      title: processNodeRemovalRequests is an inline queue consumer that orchestrates removal without a workflow run owning the consumption
+      severity: high
+      status: active
+      description: >
+        cluster_controller_server/node_removal_requests.go::processNodeRemovalRequests
+        runs from the reconciler tick. It:
+
+          1. Lists pending removal-request keys from etcd
+          2. For each key, parses the payload + resolves target
+          3. Calls RemoveNode (which is itself a partial hidden workflow —
+             see hidden_workflow.controller_remove_node_inline_preflight_and_drain)
+          4. Deletes the request key on success
+
+        The whole loop is multi-step orchestration without a workflow run.
+        If the controller dies after step 3 but before step 4, the next
+        tick will replay step 3 on a node that's already been removed —
+        which the code handles via NotFound, but the audit trail shows
+        a removal request being "handled" twice with no workflow record
+        of either attempt.
+      trigger: >
+        Controller restart during the request loop; etcd write failure on
+        request-key delete; concurrent reconciler ticks.
+      symptoms:
+        - removal-request keys piling up despite reconciler running
+        - removal-request keys deleted but their removal didn't fully
+          complete (because RemoveNode itself half-completed)
+        - audit trail shows queue consumption but no workflow_runs entries
+      blast_radius: same as RemoveNode partial-execution.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/node_removal_requests.go
+        symbols:
+          - processNodeRemovalRequests
+          - handleNodeRemovalRequest
+      related_invariants:
+        - workflow.every_state_mutation_belongs_to_a_workflow_instance
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+      lift_to_workflow: |
+        The queue consumer should dispatch a `node.remove` workflow run
+        per request (via the same workflow that RemoveNode RPC starts),
+        passing the request key as input. The workflow's success step
+        deletes the request key. This converts the consumer from a hidden
+        orchestrator into a thin trigger.
+
+    - id: hidden_workflow.controller_ingress_spec_guard_restore_path
+      title: restoreIngressSpecFromBackup performs multi-step ingress restore inline from a tick callback
+      severity: medium
+      status: active
+      description: >
+        cluster_controller_server/ingress_spec_guard.go::restoreIngressSpecFromBackup
+        is called from the guard tick when the live ingress spec is absent
+        or unreadable. It reads the backup, validates it, writes the live
+        spec, and updates status — all inline. Multi-step state change
+        with no workflow run.
+
+        The ensureIngressDesiredState tick caller is observer-with-
+        conditional-repair shape (exception 1 + 2 territory), but the
+        repair step itself is multi-step and crosses failure boundaries
+        without a durable intent record.
+      trigger: >
+        Live ingress spec key deleted or corrupted; guard tick fires;
+        restore path takes a multi-step recovery action without a
+        workflow run.
+      symptoms:
+        - ingress spec restored from backup but status not updated, or
+          status updated but spec write failed
+        - audit trail has no workflow_runs entry for the restore
+      blast_radius:
+        - Ingress routing degraded if restore partially completes
+        - Operator cannot reconstruct which generation was restored from
+          which backup without forensic log inspection
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
+        symbols:
+          - restoreIngressSpecFromBackup
+          - publishIngressSpec
+          - normalizeIngressSpec
+      related_invariants:
+        - workflow.every_state_mutation_belongs_to_a_workflow_instance
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+      lift_to_workflow: |
+        Define a `cluster.ingress_spec_restore` workflow. The guard tick
+        becomes a trigger: detect-absent → start workflow → return. The
+        workflow's steps (load-backup, validate, publish-spec, write-status)
+        each have durable receipts.
+      no_test_yet_reason: |
+        The restore path is rare; manual test would require corrupting the
+        live spec on a running cluster. Regression test deferred until the
+        workflow lift is implemented (the workflow's step receipts make the
+        contract testable).

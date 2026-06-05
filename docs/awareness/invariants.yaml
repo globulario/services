@@ -7051,9 +7051,35 @@ invariants:
              discriminator: the operator's intent is captured at the
              gRPC boundary (request audit, authn, RBAC), and the
              persist is a transparent serialization of the validated
-             request — there is no multi-step orchestration to wrap.
+             request — **single state-changing primitive per RPC**,
+             no multi-step orchestration to wrap.
              Examples: repository_source_policy.go,
              sync_from_upstream.go, node_agent application_actions.go.
+
+             STRICTER WORDING (added after 2026-06-05 audit found
+             hidden workflows inside files claiming this exception):
+             Exception 5 applies AT FUNCTION GRANULARITY, not file
+             granularity. A file may contain both single-step RPC
+             handlers (legitimately exception 5) AND multi-step
+             handlers that orchestrate work (NOT exception 5 — they
+             are hidden workflows; see failure_modes hidden_workflow.*).
+             To claim exception 5 for a function, that function MUST:
+               (a) call at most ONE state-mutation primitive (one
+                   etcd Put/Delete OR one Scylla mutation OR one disk
+                   write — pick one), AND
+               (b) not invoke other actors via gRPC for state changes
+                   as part of the same RPC, AND
+               (c) not orchestrate retries or alternative paths in
+                   response to mid-call failure.
+             Functions that orchestrate multiple writes — even
+             across helpers in the same file — are hidden workflows.
+             They must be lifted into a workflow definition. Known
+             hidden workflows found in the 2026-06-05 audit:
+               - handlers_node.go::RemoveNode
+               - node_removal_requests.go::processNodeRemovalRequests
+               - ingress_spec_guard.go::restoreIngressSpecFromBackup
+             Each has a failure_mode entry naming the lift_to_workflow
+             remediation.
 
           6. Event-bus ephemera — short-lived lease-bound writes that
              implement pub-sub semantics (event delivery, subscription
@@ -7113,6 +7139,8 @@ invariants:
         - actor_substitutes_workflow_service_identity_for_step_actor
         - audit_wrapper_used_without_proper_step_attribution
         - cross_instance_coupling_via_single_workflow_run
+        - exception_5_claimed_at_file_granularity_for_multi_step_function
+        - rely_on_rpc_audit_as_substitute_for_workflow_run
       required_tests:
         - TestStepReceipt_CarriesRunIDAndStepID
         - TestWriteStepReceipt_RejectsEmptyReceiptKey
