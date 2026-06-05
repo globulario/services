@@ -6608,3 +6608,115 @@ invariants:
         TestImportDay0Trace_NilSessionIsSilent.
       related_invariants:
         - workflow.source_of_operational_truth
+
+    - id: workflow.every_state_mutation_belongs_to_a_workflow_instance
+      title: Every state mutation must belong to an identifiable workflow instance — pointwise, not service-level
+      severity: critical
+      status: active
+      summary: |
+        Sharpening of workflow.source_of_operational_truth. The existing
+        intent says "all cluster mutations flow through workflows" — which
+        is correct at the service level but underspecifies the discipline.
+        The pointwise rule is: every state mutation must belong to an
+        IDENTIFIABLE workflow INSTANCE — a specific run id + step id that
+        owns it.
+
+        The 4-layer model is a workflow TEMPLATE that the cluster
+        instantiates in parallel for every (artifact, node) pair needing
+        convergence (see intent
+        workflow.four_layer_is_template_instantiated_per_artifact_node).
+        That means every mutation written by an actor — repository
+        promoting an artifact to PUBLISHED, controller writing a desired
+        pin, node-agent writing an installed receipt, verifier writing a
+        runtime proof — must be traceable to ONE workflow instance:
+
+          - run_id    — which template instance
+          - step_id   — which step of that template
+          - actor     — who the step named to perform the write
+          - target    — the (artifact, node) pair the instance owns
+
+        The forbidden shape is a mutation with no such binding: a state
+        write whose only authority is "the controller decided to do it,"
+        "the heartbeat saw drift and corrected it," or "remediation ran
+        outside the workflow engine." Those are drift to plan mode — the
+        anti-pattern Globular's design exists to prevent.
+
+        Three explicit, narrowly-scoped EXCEPTIONS (documented elsewhere
+        in this graph):
+
+          1. Observer-only writes — node-agent heartbeat writes to
+             observed/installed state from runtime observation. These do
+             NOT change desired state and are governed by
+             infra.heartbeat_observer_only_not_authority.
+
+          2. Bounded auto-heal — cluster-doctor healer performs delete-
+             stale-cache / clear-resolved-drift via direct RPC with JSONL
+             audit. Governed by the healer_direct_actions exception on
+             workflow.source_of_operational_truth.
+
+          3. Audit-wrapper workflows — AI remediation consumer wraps a
+             direct node-agent restart RPC in a workflow run record so
+             the audit trail exists even though the workflow is not the
+             execution coordinator (ai_remediation_consumer_audit_wrapper).
+
+        Any mutation outside these three exceptions, and outside an
+        identified workflow instance, is a violation. The audit question
+        is pointwise: at every state write call site, name the
+        workflow_run_id + step_id that owns it.
+      protects:
+        files:
+          - golang/workflow/workflow_server/executor.go
+          - golang/workflow/workflow_server/step_receipts.go
+          - golang/workflow/engine/engine.go
+          - golang/workflow/engine/actors.go
+          - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+          - golang/cluster_controller/cluster_controller_server/release_reconciler.go
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+          - golang/node_agent/node_agent_server/apply_package_release.go
+          - golang/node_agent/node_agent_server/installer_api.go
+          - golang/node_agent/node_agent_server/heartbeat.go
+          - golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+          - golang/repository/repository_server/artifact_handlers.go
+          - golang/repository/repository_server/publish_workflow.go
+        symbols:
+          - WorkflowRun
+          - StepReceipt
+          - run_id
+          - step_id
+          - completePublish
+          - MarkNodeSucceeded
+          - WriteInstalledPackage
+          - applySelfHostedInstalledStateRefresh
+          - promoteToPublished
+      forbidden_fixes:
+        - state_mutation_outside_a_workflow_instance
+        - controller_inline_mutation_without_workflow_dispatch
+        - actor_substitutes_workflow_service_identity_for_step_actor
+        - audit_wrapper_used_without_proper_step_attribution
+        - cross_instance_coupling_via_single_workflow_run
+      required_tests:
+        - TestStepReceipt_CarriesRunIDAndStepID
+        - TestMarkNodeSucceeded_AttributedToActorNotWorkflowService
+        - TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair
+      no_test_yet_reason: |
+        Three TODO tests above are aspirational regression pins for the
+        pointwise rule. The first two have plausible code paths to assert
+        against today (step_receipts.go writes already carry run_id +
+        step_id; MarkNodeSucceeded already names the actor). The third
+        (one instance per artifact/node) requires the reconciler test
+        harness to expose dispatched workflows for inspection — partially
+        present but not yet a clean regression seam. Tracked as
+        follow-up; the invariant is encoded now so the rule is visible
+        even before the tests land.
+      related_invariants:
+        - workflow.source_of_operational_truth
+        - workflow.four_layer_is_template_instantiated_per_artifact_node
+        - four_layer.workflow_actor_attribution_required
+        - four_layer.layer_has_single_writing_actor
+        - four_layer.actor_layer_mapping
+        - workflow.dispatch_is_not_completion
+        - workflow.success_requires_backend_confirmation
+        - infra.heartbeat_observer_only_not_authority
+      related_failure_modes:
+        - four_layer.cross_layer_write_creates_drift
+        - controller.platform_upgrade_bypassed_workflow_authority

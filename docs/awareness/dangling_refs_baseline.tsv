@@ -13,6 +13,7 @@ https://globular.io/awareness#ForbiddenFix	accept_self_signed_cert_from_joining_
 https://globular.io/awareness#ForbiddenFix	accept_token_without_issuer_lookup
 https://globular.io/awareness#ForbiddenFix	accept_token_with_unknown_issuer_as_service_account
 https://globular.io/awareness#ForbiddenFix	act_on_kubernetes_failure_without_classification
+https://globular.io/awareness#ForbiddenFix	actor_substitutes_workflow_service_identity_for_step_actor
 https://globular.io/awareness#ForbiddenFix	add_a_local_disk_fallback_when_file_service_is_unreachable
 https://globular.io/awareness#ForbiddenFix	add_etcd_get_to_allowedremotetools_for_debugging
 https://globular.io/awareness#ForbiddenFix	add_etcd_put_or_etcd_delete_to_allowedremotetools_under_any_condition
@@ -61,6 +62,7 @@ https://globular.io/awareness#ForbiddenFix	audit_persists_jwt_in_params
 https://globular.io/awareness#ForbiddenFix	audit_persists_raw_approval_token
 https://globular.io/awareness#ForbiddenFix	audit_record_without_correlation_id
 https://globular.io/awareness#ForbiddenFix	audit_retention_as_inline_magic_number
+https://globular.io/awareness#ForbiddenFix	audit_wrapper_used_without_proper_step_attribution
 https://globular.io/awareness#ForbiddenFix	authorize_savefile_using_empty_or_default_path
 https://globular.io/awareness#ForbiddenFix	auto_remediation_without_cooldown
 https://globular.io/awareness#ForbiddenFix	backfill_release_index_field_after_publish
@@ -112,7 +114,9 @@ https://globular.io/awareness#ForbiddenFix	compute_hash_only_at_controller
 https://globular.io/awareness#ForbiddenFix	concurrent_restart_on_start_limit_hit
 https://globular.io/awareness#ForbiddenFix	confuse_k8s_etcd_with_globular_etcd
 https://globular.io/awareness#ForbiddenFix	continue_writing_after_lease_expiry
+https://globular.io/awareness#ForbiddenFix	controller_inline_mutation_without_workflow_dispatch
 https://globular.io/awareness#ForbiddenFix	create_new_runtime_dir_under_legacy_alias_name
+https://globular.io/awareness#ForbiddenFix	cross_instance_coupling_via_single_workflow_run
 https://globular.io/awareness#ForbiddenFix	declare_apply_package_success_based_only_on_systemd_active_state
 https://globular.io/awareness#ForbiddenFix	declared_mode_drifts_from_live_enforcement
 https://globular.io/awareness#ForbiddenFix	declare_installed_state_status_installed_when_runtime_identity_was_not_proved
@@ -372,6 +376,7 @@ https://globular.io/awareness#ForbiddenFix	skip_wipe_when_minio_is_running
 https://globular.io/awareness#ForbiddenFix	solve_convergence_by_deleting_desired_pins
 https://globular.io/awareness#ForbiddenFix	special_case_late_joining_nodes_without_fixing_state_split
 https://globular.io/awareness#ForbiddenFix	stamp_published_without_verified_manifest
+https://globular.io/awareness#ForbiddenFix	state_mutation_outside_a_workflow_instance
 https://globular.io/awareness#ForbiddenFix	stop_mode_serves_stale_reads
 https://globular.io/awareness#ForbiddenFix	storing_escalation_state_only_in_memory
 https://globular.io/awareness#ForbiddenFix	storing_jti_blacklist_only_in_memory
@@ -756,6 +761,7 @@ https://globular.io/awareness#Test	TestLocalPublish6_CrossClusterLocalCannotOver
 https://globular.io/awareness#Test	TestLookupServiceReleaseBuildIDUsesDesiredHash
 https://globular.io/awareness#Test	TestMalformedDisableDoesNotStopRuntime
 https://globular.io/awareness#Test	TestManifestJSONPresent_DirectChecks
+https://globular.io/awareness#Test	TestMarkNodeSucceeded_AttributedToActorNotWorkflowService
 https://globular.io/awareness#Test	TestMarkNodeSucceeded_StoresBinarySHA_NotReleaseIdentity
 https://globular.io/awareness#Test	TestMaterializeLocalPackageArchive_DigestPreservation
 https://globular.io/awareness#Test	TestMaterializeLocalPackageArchive_FailedImportDoesNotWriteFinal
@@ -858,6 +864,7 @@ https://globular.io/awareness#Test	TestPurgeBlockedAuditEventEmitted
 https://globular.io/awareness#Test	TestQueryTimeoutMappedToDegradedCategory
 https://globular.io/awareness#Test	TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
 https://globular.io/awareness#Test	TestReceiptClassificationMonotonic_SucceededNeverReclassified
+https://globular.io/awareness#Test	TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair
 https://globular.io/awareness#Test	TestReconcileMinioContract_AlwaysSetsRenderedArtifactMetadata
 https://globular.io/awareness#Test	TestReconcileRemoving_FastPath_ActiveWorkflowDeferredNoFastPath
 https://globular.io/awareness#Test	TestReconcileRemoving_FastPath_InstalledStateOnOneNode_DoesNotShortCircuit
@@ -949,6 +956,7 @@ https://globular.io/awareness#Test	TestStatusIndicator_MarkedStale_WhenCollector
 https://globular.io/awareness#Test	TestStatusIndicator_ShowsFreshnessTimestamp
 https://globular.io/awareness#Test	TestStatusRollup_DegradedSubsystem_PropagatesToSummary
 https://globular.io/awareness#Test	TestStatusRollup_UnknownSubsystem_NotGreen
+https://globular.io/awareness#Test	TestStepReceipt_CarriesRunIDAndStepID
 https://globular.io/awareness#Test	TestStorageTopology_StandaloneAuthorityRejectsRoundRobinEndpoint
 https://globular.io/awareness#Test	TestSuccessToast_NotShown_OnDispatchOnly
 https://globular.io/awareness#Test	TestSuccessToast_ShownOnly_OnWorkflowTerminal

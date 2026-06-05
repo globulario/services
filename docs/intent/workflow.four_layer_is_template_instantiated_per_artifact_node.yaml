@@ -1,0 +1,99 @@
+id: workflow.four_layer_is_template_instantiated_per_artifact_node
+level: principle
+title: The 4-layer model is a workflow TEMPLATE instantiated per (artifact, node) pair
+
+intent: >
+  The four truth layers (Artifact, Desired, Installed, Runtime) are not a
+  meta-workflow describing the whole cluster. They are the four STEPS of a
+  workflow TEMPLATE that the cluster instantiates in PARALLEL — once for
+  every (artifact, node) pair that needs convergence. Each instance carries
+  its own intent record, progress state, retry loop, terminal state, and
+  audit trail; instances run independently and do not gate each other.
+
+  The cluster IS a scheduler (the reconciler) over a pool of N concurrent
+  instances at varying stages of the template, plus the discipline (the
+  meta-principles) that every instance must satisfy. There is no single
+  "the cluster's workflow" — there are N parallel workflow runs, each
+  responsible for one (artifact, node) lifecycle, each obligated to reach
+  a terminal status.
+
+agent_guidance: >
+  When auditing or designing convergence code, frame the unit of work as
+  ONE (artifact, node) instance of the template — not as "the cluster
+  converging." The 4 steps are: (L1) artifact published to repository
+  catalog; (L2) desired pin written by controller; (L3) installed by
+  node-agent on disk; (L4) runtime verified by verifier. Actors at L1/L2
+  are shared across instances (repository, cluster_controller); actors at
+  L3/L4 are per-instance (the specific node-agent and verifier on the
+  target node).
+
+  Sub-workflows are sub-template-instances. A full-reseed workflow is the
+  shorter template (L3 + L4 only) instantiated for one (node, snapshot)
+  pair. A Day-1 join workflow runs ONCE per joining node and dispatches N
+  apply-package-release instances as it progresses. The recursion is
+  workflows-dispatching-workflows, not workflows-nested-in-a-meta-workflow.
+
+  The pointwise audit question — sharper than "does this mutation flow
+  through the workflow service?" — is: "which workflow instance OWNS this
+  mutation?" If no instance owns it, the mutation is drift to plan mode.
+  Bring it into an existing instance (route through a step that names the
+  actor and target) or promote the mutation to a first-class workflow.
+
+bad_smells:
+  - convergence code that treats the cluster as a single workflow run
+  - cluster-wide retry loops that fail or block when one (artifact, node)
+    instance fails
+  - actors writing to a layer they do not own (cross-layer write)
+  - reconciler emitting state mutations that are not attributed to a
+    workflow run id + step
+  - a mutation that succeeds for some (artifact, node) pairs but is
+    dispatched by a single workflow — implies cross-instance coupling
+
+expressed_by:
+  - golang/workflow/workflow_server/server.go
+  - golang/workflow/workflow_server/executor.go
+  - golang/workflow/definitions/release.apply.package.yaml
+  - golang/workflow/definitions/release.apply.controller.yaml
+  - golang/workflow/definitions/release.apply.infrastructure.yaml
+  - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+  - golang/cluster_controller/cluster_controller_server/release_reconciler.go
+
+related_invariants:
+  - workflow.every_state_mutation_belongs_to_a_workflow_instance
+  - four_layer.workflow_actor_attribution_required
+  - four_layer.layer_has_single_writing_actor
+  - four_layer.actor_layer_mapping
+  - workflow.dispatch_is_not_completion
+  - convergence.no_infinite_retry
+
+activation_triggers:
+  - cluster-wide convergence design
+  - reconciler logic touching desired/installed state
+  - any new workflow definition for deploy / upgrade / remediation
+  - audit question about whether a code path needs to be a workflow
+  - cross-instance coupling concern (one failure blocking others)
+
+zooms_out_to:
+  - workflow.source_of_operational_truth
+  - globular.vision.explicit_convergence
+
+zooms_in_to:
+  - workflow.cluster_invariants_gate_mutations
+  - workflow.step_receipts_are_evidence
+  - workflow.preflight_validates_all_actor_action_pairs
+
+related_to:
+  - controller.decides_but_does_not_execute_leaf_work
+  - desired_installed_runtime_identity_must_match
+
+change_risk:
+  - workflow_sensitive
+  - authority_boundary_sensitive
+  - architectural_framing
+
+violation_patterns:
+  - "single failure blocks the whole reconcile cycle for all instances"
+  - "convergence assumed to operate on the entire cluster as one unit"
+  - "a state mutation with no workflow_run_id + step_id binding"
+
+status: active
