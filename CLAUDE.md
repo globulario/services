@@ -358,24 +358,26 @@ Awareness explains *why* code exists, *what* it protects, *which fixes are forbi
 
 When documenting an error (incident, failure mode, finding), don't just record WHAT broke — classify WHY against the generative meta-principles. This turns error documentation into architectural learning.
 
-**Step 1 — CLASSIFY** the error against `invariant:meta.*` (4 categories, 11 principles):
+**Step 1 — CLASSIFY** the error against `invariant:meta.*` (4 categories, 18 principles). Source of truth: `docs/awareness/state_authority_invariants.yaml`; re-query the graph if this table feels stale.
 
-**Authority** — "who owns this truth?"
+**Authority** (4) — "who owns this truth, and is this code that owner?"
 | Principle | What it catches |
 |-----------|----------------|
 | `meta.storage_is_not_semantic_authority` | Wrong actor writes/reads truth |
 | `meta.identity_computation_must_be_invariant` | Right actor, wrong meaning across contexts |
 | `meta.competing_writers_must_converge_or_be_fenced` | Two writers with different state fight by timing |
+| `meta.structure_must_not_be_stripped_in_projection` | Value projected to a primitive carries the lie of universality — scope/subject/source were part of the meaning |
 
-**Signal** — "is the truth arriving intact?"
+**Signal** (5) — "is the truth arriving intact, or degraded / silent / absorbed?"
 | Principle | What it catches |
 |-----------|----------------|
 | `meta.fallback_must_degrade_semantics` | Fallback returns same shape as truth |
 | `meta.authority_must_express_uncertainty` | Owner can't say "unknown" → callers fabricate certainty |
 | `meta.absence_scope_must_be_explicit` | Not-found-where treated as does-not-exist |
 | `meta.connection_errors_must_not_be_absorbed` | TLS/auth error absorbed into generic timeout |
+| `meta.assertions_must_carry_their_scope` | Positive or negative assertion aggregated without naming its scope (which node, which moment) — strips truth |
 
-**Lifecycle** — "will this operation complete, and what happens if it fails?"
+**Lifecycle** (7) — "will this operation complete, and what happens if it fails?"
 | Principle | What it catches |
 |-----------|----------------|
 | `meta.write_creates_completion_obligation` | Write without cleanup path → permanent stall |
@@ -383,8 +385,10 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.silence_is_not_valid_for_unexpected` | Unhandled case is silent no-op |
 | `meta.failure_response_must_contract_not_amplify` | Unbounded retry/re-enqueue turns one failure into a cascade |
 | `meta.diagnostic_output_must_be_bounded` | One error → N log lines fills disk → cascade to healthy services |
+| `meta.binding_outlives_evidence_until_invalidated` | Decision durable, but the evidence it was bound to has moved — binding authorizes the wrong present |
+| `meta.state_mutations_must_be_durably_committed_before_side_effects` | Intent must commit before action; retry is the ONLY response; no alternative path once committed (audit lies if "X failed so I tried Y") |
 
-**Dependency** — "what breaks if a non-critical thing fails? what if A needs B needs A?"
+**Dependency** (2) — "what breaks if a non-critical thing fails? what if A needs B needs A?"
 | Principle | What it catches |
 |-----------|----------------|
 | `meta.critical_path_no_non_critical_dependency` | Critical path blocked/flooded by non-critical service |

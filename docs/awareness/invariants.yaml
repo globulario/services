@@ -274,6 +274,8 @@ invariants:
       decision_guidance:
         - "build_id (UUID) is the sole artifact identity — it must be resolved once at the controller when creating the desired record and never changed"
         - "build_number (integer) is a CI sequence counter — it is NOT interchangeable with build_id"
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: infra.desired_hash_consistency
       title: Infrastructure desired_hash must be computed consistently
       severity: critical
@@ -366,6 +368,8 @@ invariants:
       decision_guidance:
         - "The heartbeat is an observer — it writes /globular/nodes/{id}/status and /nodes/{id}/packages only; any write to /resources/ from the heartbeat path is a violation"
         - "Heartbeat must be lean: Phase 1 (local markers) + Phase 2 (etcd writes) only — no repository calls, checksumming, or external service dependencies"
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: service.restart_singleflight
       title: Service restart must go through singleflight gate
       severity: high
@@ -471,6 +475,8 @@ invariants:
           trust: declared
       related_failure_modes:
         - critical_state.absent_key_interpreted_as_stop
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
     - id: runtime.last_known_good_required_for_critical_consumers
       title: Critical consumers must hold last-known-good state
       severity: critical
@@ -517,6 +523,8 @@ invariants:
         - TestDeleteCriticalKeyTriggerOwnerRestore
       related_failure_modes:
         - critical_state.unregistered_key_governance
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: critical_state.deletion_requires_audited_intent
       title: Desired-state deletion requires explicit audited intent
       severity: critical
@@ -540,6 +548,8 @@ invariants:
           trust: declared
       related_failure_modes:
         - critical_state.accidental_key_deletion
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: reconcile.global_work_must_not_starve_completion
       title: Reconcile lanes must not starve completion
       severity: high
@@ -2776,6 +2786,8 @@ invariants:
         - service.old_pid_after_upgrade
         - package.installed_binary_hash_mismatch
 
+      related_invariants:
+        - meta.authority_must_express_uncertainty
     - id: rollout.convergence_requires_runtime_proof
       title: A rollout is converged only when every required node proves the expected artifact is installed AND running
       severity: critical
@@ -3143,6 +3155,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: workflow.success_requires_verified_invariant_resolution
       title: Workflow remediation success requires verified invariant resolution, not dispatch success
       severity: critical
@@ -3781,6 +3795,8 @@ invariants:
         - TestMaterializeLocalPackageArchive_VersionMatchesImportedManifest
       related_failure_modes:
         - release.explicit_version_wildcard_installs_wrong_version
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: service.runtime_dir_name_must_be_canonical
       title: Each service has exactly one canonical runtime directory name; legacy aliases must not become authoritative namespaces
       severity: warn
@@ -4894,6 +4910,8 @@ invariants:
         - using installed_state absence as the trigger for desired_state cleanup
         - inferring desired state from runtime observations
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: infra.heartbeat_observer_only_not_authority
       title: Node-agent heartbeat must never write desired-state fields
       severity: critical
@@ -6039,6 +6057,8 @@ invariants:
         - cluster_doctor_direct_write_to_etcd
         - bypass_doctor_for_cross_layer_health_finding
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: cluster_doctor.is_the_authority_for_health_state_queries
       title: cluster-doctor is the only canonical answerer for "what is the current cross-layer health state" — other services compute local readiness but never cross-layer findings
       severity: critical
