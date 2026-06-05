@@ -85,11 +85,18 @@ func (srv *server) DeployControlPlanePackage(ctx context.Context, req *cluster_c
 		pkgName, version, resolvedBuild, time.Now().UnixMilli())
 
 	// ── Resolve identity context ──
-	localIP := config.GetRoutableIPv4()
+	// Stable-identity comparison: exclude the floating cluster VIP from
+	// both sides so self-identification doesn't drift when this node
+	// holds the VIP. PrimaryIP() / GetRoutableIPv4() may return the VIP;
+	// StableIP() / GetLocalInterfaceIPv4() exclude it. Per
+	// netutil.identity_getter_must_express_vip_ambiguity (parent
+	// meta.authority_must_express_uncertainty).
+	clusterVIP := srv.clusterVIP()
+	localIP := config.GetLocalInterfaceIPv4(clusterVIP)
 	var acceptedByNodeID, leaderNodeID string
 	srv.lock("deploy-control-plane:identity")
 	for id, node := range srv.state.Nodes {
-		if node.PrimaryIP() == localIP {
+		if node.StableIP(clusterVIP) == localIP {
 			acceptedByNodeID = id
 			if srv.isLeader() {
 				leaderNodeID = id

@@ -128,8 +128,15 @@ func (srv *server) discoverControllerReplicas(ctx context.Context) (*engine.Cont
 	myNodeID := ""
 	isLeader := srv.isLeader()
 
-	// Resolve which node this controller runs on.
-	localIP := config.GetRoutableIPv4()
+	// Resolve which node this controller runs on. Stable-identity
+	// comparison: exclude the floating cluster VIP from both sides so
+	// self-identification doesn't drift when this node holds the VIP.
+	// PrimaryIP() / GetRoutableIPv4() may return the VIP; StableIP() /
+	// GetLocalInterfaceIPv4() exclude it. Per
+	// netutil.identity_getter_must_express_vip_ambiguity (parent
+	// meta.authority_must_express_uncertainty).
+	clusterVIP := srv.clusterVIP()
+	localIP := config.GetLocalInterfaceIPv4(clusterVIP)
 
 	var replicas []engine.ControllerReplica
 	var followers []engine.ControllerReplica
@@ -144,7 +151,7 @@ func (srv *server) discoverControllerReplicas(ctx context.Context) (*engine.Cont
 
 		// Determine if this node is the leader by matching the local IP.
 		nodeIsLeader := false
-		if isLeader && node.PrimaryIP() == localIP {
+		if isLeader && node.StableIP(clusterVIP) == localIP {
 			nodeIsLeader = true
 			myNodeID = nodeID
 			leaderNodeID = nodeID
