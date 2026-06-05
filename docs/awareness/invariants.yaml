@@ -7953,3 +7953,65 @@ invariants:
 
       workflow_step_handler_files: []
       unknown_helper_files: []
+
+    - id: rbac.getitem_consumers_must_handle_empty_payload
+      title: srv.getItem consumers must guard json.Unmarshal with len(data) == 0 — empty payload is legitimate absence, not malformed input
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.absence_scope_must_be_explicit
+        for the RBAC server's permission/role storage layer. The bug
+        shape (2026-05-21 regression, commit 0d009a4f):
+
+          data, err := srv.getItem(key)
+          if err != nil { ... handle err ... }
+          // ← MISSING: if len(data) == 0 { return <empty result> }
+          json.Unmarshal(data, &x)  // ← "unexpected end of JSON input"
+
+        srv.getItem returns (nil, nil) when no row exists for the key.
+        That's legitimate absence — "no permissions configured for this
+        action yet" — not a malformed payload. Without the len guard,
+        json.Unmarshal on nil returns a decode error that bubbles to
+        the RPC caller as Internal, spamming logs and masking the
+        actual empty-state semantics.
+
+        The fix (commit 0d009a4f) added `if len(data) == 0 { return
+        <empty result> }` between the err check and the Unmarshal at
+        the 12 known call sites across rbac_actions.go, rbac_index.go,
+        rbac_sharing.go, rbac_permissions.go, and rbac_role_bindings.go.
+
+        The ruleguard rule matches the three-statement sequence
+        getItem → err check → json.Unmarshal directly (no len guard
+        between). Today's sweep: 0 findings (all 12 known sites are
+        properly guarded). A future regression that omits the guard
+        surfaces as DRIFT.
+
+      protects:
+        files:
+          - golang/rbac/rbac_server/rbac_actions.go
+          - golang/rbac/rbac_server/rbac_index.go
+          - golang/rbac/rbac_server/rbac_sharing.go
+          - golang/rbac/rbac_server/rbac_permissions.go
+          - golang/rbac/rbac_server/rbac_role_bindings.go
+        symbols:
+          - getItem
+          - getActionResourcesPermissions
+      forbidden_fixes:
+        - unmarshal_without_len_guard_after_getitem
+        - return_internal_for_legitimate_empty_payload
+      required_tests: []
+
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
+
+      actor_writer_dirs:
+        - golang/rbac/rbac_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/rbac_absence_unmarshal_guard.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
