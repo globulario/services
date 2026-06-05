@@ -225,6 +225,17 @@ func (srv *server) evaluateRollbackCandidate(ctx context.Context, ref *repopb.Ar
 	verifyStatus := mapVerifyStatus(v.Status)
 	key := artifactKeyWithBuild(ref, buildNumber)
 	pipelineState := srv.readArtifactState(ctx, key)
+	// Fail-closed on PipelineUnknown: when the authoritative ledger is
+	// unreachable, a REVOKED artifact would silently slip past the terminal-state
+	// gate. Enforces meta.fallback_must_degrade_semantics +
+	// repository.artifact.state_transitions_are_forward_only.
+	if !pipelineState.IsKnown() {
+		return &repopb.RollbackEligibility{
+			Eligible:     false,
+			Reason:       "artifact_state unavailable — terminal-state gate cannot be verified",
+			VerifyStatus: repopb.ArtifactVerifyStatus_ARTIFACT_VERIFY_INCONCLUSIVE,
+		}
+	}
 	if pipelineState == PipelineRevoked {
 		return &repopb.RollbackEligibility{
 			Eligible: false, Reason: "REVOKED — terminal", VerifyStatus: verifyStatus,

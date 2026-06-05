@@ -90,7 +90,24 @@ const (
 	PipelineRevoked                ArtifactPipelineState = "REVOKED"
 	PipelineBrokenMissingBlob      ArtifactPipelineState = "BROKEN_MISSING_BLOB"
 	PipelineBrokenChecksumMismatch ArtifactPipelineState = "BROKEN_CHECKSUM_MISMATCH"
+
+	// PipelineUnknown is the sentinel returned by readArtifactState when the
+	// authoritative store (Scylla) could not be consulted AND no cached
+	// observation exists. It is semantically distinct from PipelineUnspecified
+	// (legitimate empty/legacy) — callers that gate destructive or terminal
+	// transitions on state MUST refuse to act on PipelineUnknown rather than
+	// silently treat it as Unspecified. Enforces
+	// meta.fallback_must_degrade_semantics: an unreachable store must not
+	// return the same shape as a confirmed state.
+	PipelineUnknown ArtifactPipelineState = "UNKNOWN"
 )
+
+// IsKnown returns true if this state was read from an authoritative source
+// (or the legitimate "no row" empty). Returns false only for PipelineUnknown,
+// the sentinel that means "store unreachable, do not act on this value".
+func (s ArtifactPipelineState) IsKnown() bool {
+	return s != PipelineUnknown
+}
 
 // IsInstallable returns true only for PUBLISHED. Every other state — empty,
 // intermediate, quarantined, revoked, or broken — is NOT installable.
@@ -355,7 +372,17 @@ func (srv *server) markPipelineBrokenChecksum(ctx context.Context, artifactKey, 
 	}
 	if srv.scylla != nil {
 		// Only downgrade publish_state if it was PUBLISHED — never elevate.
-		if state := srv.readPublishStateString(ctx, artifactKey); state == repopb.PublishState_PUBLISHED.String() {
+		// If Scylla is unreachable for the read (ok=false), refuse to act:
+		// leaving the row at PUBLISHED is most dangerous exactly when we
+		// can't observe its current state, and a later sweep will retry.
+		state, ok := srv.readPublishStateString(ctx, artifactKey)
+		if !ok {
+			slog.Warn("artifact-state: publish_state read unavailable, skipping CORRUPTED downgrade",
+				"artifact_key", artifactKey,
+				"action", "retry_on_next_sweep")
+			return
+		}
+		if state == repopb.PublishState_PUBLISHED.String() {
 			if err := srv.scylla.UpdatePublishState(ctx, artifactKey, repopb.PublishState_CORRUPTED.String()); err != nil {
 				slog.Warn("artifact-state: publish_state→CORRUPTED failed",
 					"artifact_key", artifactKey, "err", err)
@@ -514,33 +541,63 @@ func (srv *server) manifestJSONPresent(ctx context.Context, artifactKey string) 
 }
 
 // readArtifactState returns the current pipeline state for an artifact key.
-// Reads from Scylla when available (authoritative); falls back to the
-// in-memory cache otherwise. Returns PipelineUnspecified for legacy rows
-// that have no artifact_state set yet.
+//
+// Authority order:
+//  1. Scylla (authoritative ledger) — returns the read value verbatim.
+//  2. In-memory cache (degraded, last-known) — only consulted if Scylla
+//     errored or is nil.
+//  3. PipelineUnknown — the store is unreachable AND we have no cache.
+//
+// PipelineUnspecified ("") is a legitimate legacy value: the row exists but
+// no state column was set. PipelineUnknown ("UNKNOWN") is the new sentinel
+// for "we could not determine". Callers that gate destructive transitions
+// (rollback, broken-checksum downgrade) MUST distinguish the two via
+// IsKnown(); display-only callers (findings, RPC echoes) treat both as
+// "no actionable state".
+//
+// Enforces meta.fallback_must_degrade_semantics for the read path: when
+// Scylla is down, do not pretend the row is empty.
 func (srv *server) readArtifactState(ctx context.Context, artifactKey string) ArtifactPipelineState {
 	if srv.scylla != nil {
-		if state, err := srv.scylla.GetArtifactState(ctx, artifactKey); err == nil {
+		state, err := srv.scylla.GetArtifactState(ctx, artifactKey)
+		if err == nil {
 			return ArtifactPipelineState(strings.ToUpper(strings.TrimSpace(state)))
 		}
+		// Scylla errored — fall through to cache; if cache misses, surface UNKNOWN.
+		if rec, ok := srv.lookupArtifactStateCache(artifactKey); ok {
+			return rec.State
+		}
+		return PipelineUnknown
 	}
+	// Scylla not configured (test/single-node legacy). Cache is the only signal.
 	if rec, ok := srv.lookupArtifactStateCache(artifactKey); ok {
 		return rec.State
 	}
 	return PipelineUnspecified
 }
 
-// readPublishStateString returns the publish_state column as a string, or
-// "" if Scylla is unavailable / row missing. Used by markPipelineBrokenChecksum
-// to decide whether to downgrade publish_state.
-func (srv *server) readPublishStateString(ctx context.Context, artifactKey string) string {
+// readPublishStateString returns the publish_state column. The second return
+// reports whether the value is authoritative (true) or could not be
+// determined because the store is unreachable (false). Callers that gate
+// destructive transitions on publish_state — notably
+// markPipelineBrokenChecksum's PUBLISHED→CORRUPTED downgrade — MUST refuse
+// to act when ok=false, because leaving a row at PUBLISHED is most
+// dangerous exactly when checksum corruption is detected mid-outage.
+// Enforces meta.fallback_must_degrade_semantics.
+func (srv *server) readPublishStateString(ctx context.Context, artifactKey string) (state string, ok bool) {
 	if srv.scylla == nil {
-		return ""
+		// No backing ledger — display-only callers can treat this as "".
+		return "", false
 	}
 	row, err := srv.scylla.GetManifest(ctx, artifactKey)
-	if err != nil || row == nil {
-		return ""
+	if err != nil {
+		return "", false
 	}
-	return row.PublishState
+	if row == nil {
+		// Row absent in the ledger IS a known absence (not a store failure).
+		return "", true
+	}
+	return row.PublishState, true
 }
 
 // ── In-memory cache (also serves as test fallback when scylla=nil) ─────────

@@ -208,8 +208,15 @@ func (srv *server) RepairArtifactFromUpstream(ctx context.Context, ref *repopb.A
 	// Re-elevate publish_state to PUBLISHED when it had been downgraded to
 	// CORRUPTED by markPipelineBrokenChecksum. Other lifecycle states (e.g.
 	// admin QUARANTINED with override) should not be auto-elevated here.
+	// If Scylla is unreachable for the read we refuse to elevate — repair
+	// will be retried by the operator. Enforces
+	// meta.fallback_must_degrade_semantics.
 	if srv.scylla != nil {
-		if state := srv.readPublishStateString(ctx, key); state == repopb.PublishState_CORRUPTED.String() {
+		state, ok := srv.readPublishStateString(ctx, key)
+		if !ok {
+			slog.Warn("repair: publish_state read unavailable, skipping CORRUPTED→PUBLISHED elevation",
+				"artifact_key", key, "action", "retry_repair")
+		} else if state == repopb.PublishState_CORRUPTED.String() {
 			if err := srv.scylla.UpdatePublishState(ctx, key, repopb.PublishState_PUBLISHED.String()); err != nil {
 				slog.Warn("repair: publish_state→PUBLISHED restore failed",
 					"artifact_key", key, "err", err)

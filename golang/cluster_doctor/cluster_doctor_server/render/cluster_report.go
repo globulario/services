@@ -35,7 +35,7 @@ func ClusterReport(snap *collector.Snapshot, findings []rules.Finding, version s
 
 	counts := countsByCategory(protoFindings)
 	topIDs := topIssueIDs(protoFindings, topIssueCount)
-	overall := overallStatus(protoFindings)
+	overall := overallStatus(protoFindings, snap.DataIncomplete)
 
 	return &cluster_doctorpb.ClusterReport{
 		Header:             buildHeader(snap, version, fresh),
@@ -132,8 +132,18 @@ func topIssueIDs(findings []*cluster_doctorpb.Finding, n int) []string {
 	return ids
 }
 
-func overallStatus(findings []*cluster_doctorpb.Finding) cluster_doctorpb.ClusterStatus {
+// overallStatus rolls findings + collector completeness into a single cluster
+// status. The dataIncomplete flag enforces meta.fallback_must_degrade_semantics
+// for the rollup: when collectors couldn't reach every node, an absent invariant
+// failure does NOT mean the cluster is healthy — it means we don't know. The
+// header carries DataIncomplete and DataErrors so consumers see the cause, but
+// the badge must also degrade or the silence will be read as a green light.
+func overallStatus(findings []*cluster_doctorpb.Finding, dataIncomplete bool) cluster_doctorpb.ClusterStatus {
 	status := cluster_doctorpb.ClusterStatus_CLUSTER_HEALTHY
+	if dataIncomplete {
+		// Floor at DEGRADED; a real CRITICAL/ERROR finding can still escalate below.
+		status = cluster_doctorpb.ClusterStatus_CLUSTER_DEGRADED
+	}
 	for _, f := range findings {
 		if f.GetInvariantStatus() != cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
 			continue

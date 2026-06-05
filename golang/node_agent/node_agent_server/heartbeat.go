@@ -931,40 +931,16 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 				pkg.UpdatedUnix = existing.GetUpdatedUnix()
 			}
 		}
-		// Phase 39 — canonical binary identity comes from DISK, not from
-		// the manifest. The manifest's GetEntrypointChecksum() is what
-		// the artifact claims; the file at /usr/lib/globular/bin/<entry>
-		// is what's actually installed. If they differ, write the disk
-		// truth — the controller's convergence checks (post-Phase-38)
-		// will detect the drift and dispatch a real reinstall.
-		//
-		// Falls back to manifest value when the on-disk hash cannot be
-		// read (missing file, permission denied) — preserves prior
-		// behaviour for legacy artifacts without entrypoint files.
-		var entryHash string
-		// ArtifactManifest carries a list; the first is the primary
-		// service binary. Hash the file actually on disk at the canonical
-		// install location.
+		var diskEntry string
 		if entrypoints := m.GetEntrypoints(); len(entrypoints) > 0 {
 			if entryPath := binhash.EntrypointPath(entrypoints[0]); entryPath != "" {
-				entryHash = binhash.HashOrEmpty(entryPath)
+				diskEntry = binhash.HashOrEmpty(entryPath)
 			}
 		}
-		// Fall back to manifest value only when no on-disk hash is
-		// computable (no entrypoint declared / file missing / unreadable).
-		// Legacy artifacts without entrypoints continue to work.
-		if entryHash == "" {
-			entryHash = normalizeSHA256Digest(m.GetEntrypointChecksum())
-		}
-		if entryHash == "" {
-			entryHash = normalizeSHA256Digest(m.GetEntrypointChecksum())
-		}
-		if entryHash != "" {
-			if pkg.Metadata == nil {
-				pkg.Metadata = make(map[string]string)
-			}
-			pkg.Metadata["entrypoint_checksum"] = entryHash
-		}
+		assignEntrypointChecksumMetadata(pkg,
+			normalizeSHA256Digest(m.GetEntrypointChecksum()),
+			diskEntry,
+		)
 		// Non-install writer: preserve canonical install-receipt fields
 		// from the existing record (unit_file_sha256, binary_sha256, etc).
 		// This refresh path rebuilds pkg from the repository manifest;
@@ -1579,4 +1555,40 @@ func (srv *NodeAgentServer) syncEtcHosts(ctx context.Context) {
 		return
 	}
 	log.Printf("nodeagent: added %d node(s) to /etc/hosts: %v", len(added), added)
+}
+
+// assignEntrypointChecksumMetadata is the canonical write of entrypoint
+// identity vs evidence into an InstalledPackage's Metadata map. Identity is
+// owned by the repository manifest (allocated once at publish, immutable
+// thereafter — identity.has_single_canonical_source_and_is_immutable). The
+// disk hash is an evidence observation captured for drift detection only;
+// the controller's convergence checks compare manifest vs disk and dispatch
+// a reinstall on disagreement.
+//
+// Field layout:
+//   - entrypoint_checksum              = manifest claim (canonical identity)
+//   - entrypoint_checksum_disk_observed = disk hash       (evidence)
+//   - entrypoint_checksum_legacy_disk_only = disk hash, ONLY when the
+//     manifest has no entrypoint_checksum (legacy artifact, predates the
+//     publish-time allocation). Stored under a distinct key so downstream
+//     readers never mistake an evidence value for the canonical identity.
+//
+// Encodes the fix for identity.field_semantic_drift_across_writers (see
+// pat.heartbeat_stale_kind_manifest_old_pid_loop) and refuses
+// forbidden_fix:conditional_field_semantic_by_writer.
+func assignEntrypointChecksumMetadata(pkg *node_agentpb.InstalledPackage, manifestEntry, diskEntry string) {
+	if pkg == nil || (manifestEntry == "" && diskEntry == "") {
+		return
+	}
+	if pkg.Metadata == nil {
+		pkg.Metadata = make(map[string]string)
+	}
+	if manifestEntry != "" {
+		pkg.Metadata["entrypoint_checksum"] = manifestEntry
+	} else {
+		pkg.Metadata["entrypoint_checksum_legacy_disk_only"] = diskEntry
+	}
+	if diskEntry != "" {
+		pkg.Metadata["entrypoint_checksum_disk_observed"] = diskEntry
+	}
 }

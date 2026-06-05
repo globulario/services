@@ -534,3 +534,35 @@ func contains(haystack []ArtifactPipelineState, needle ArtifactPipelineState) bo
 	}
 	return false
 }
+
+// TestPipelineState_IsKnown pins meta.fallback_must_degrade_semantics for
+// the artifact state read path. The PipelineUnknown sentinel exists so
+// callers that gate destructive transitions (rollback eligibility, broken
+// checksum downgrade) can distinguish "Scylla unreachable" from a legitimate
+// empty/legacy row — both used to return PipelineUnspecified, letting a
+// REVOKED artifact silently pass the terminal-state gate during an outage.
+//
+// IsKnown() must return true for every state EXCEPT PipelineUnknown.
+func TestPipelineState_IsKnown(t *testing.T) {
+	for _, s := range []ArtifactPipelineState{
+		PipelineUnspecified, // legitimate legacy empty
+		PipelineDiscovered,
+		PipelineDownloading,
+		PipelineBlobWritten,
+		PipelineBlobVerified,
+		PipelineManifestWritten,
+		PipelineLedgerWritten,
+		PipelinePublished,
+		PipelineQuarantined,
+		PipelineRevoked,
+		PipelineBrokenMissingBlob,
+		PipelineBrokenChecksumMismatch,
+	} {
+		if !s.IsKnown() {
+			t.Errorf("%q.IsKnown() = false, want true (only PipelineUnknown is unknown)", s)
+		}
+	}
+	if PipelineUnknown.IsKnown() {
+		t.Errorf("PipelineUnknown.IsKnown() = true, want false")
+	}
+}

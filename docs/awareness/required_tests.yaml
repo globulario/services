@@ -381,3 +381,62 @@ required_tests:
     run:
       commands:
         - go test ./golang/cluster_doctor/cluster_doctor_server/rules/ -run "TestHealAuditStore"
+
+  - id: test.cluster_status_rollup_degrades_on_incomplete_data
+    title: overallStatus must NOT report CLUSTER_HEALTHY when DataIncomplete=true
+    protects:
+      invariants:
+        - meta.fallback_must_degrade_semantics
+      failure_modes:
+        - fm.industry.partial_failure_hidden_by_global_green
+    required_for_changes:
+      paths:
+        - golang/cluster_doctor/cluster_doctor_server/render/cluster_report.go
+      task_terms:
+        - overall status
+        - cluster status rollup
+        - data incomplete
+        - cluster_doctor render
+    run:
+      commands:
+        - go test ./golang/cluster_doctor/cluster_doctor_server/render/ -run "TestOverallStatus"
+
+  - id: test.artifact_state_distinguishes_unknown_from_legacy
+    title: readArtifactState must return PipelineUnknown on store-unreachable, not PipelineUnspecified
+    protects:
+      invariants:
+        - meta.fallback_must_degrade_semantics
+        - repository.artifact.state_transitions_are_forward_only
+    required_for_changes:
+      paths:
+        - golang/repository/repository_server/artifact_state.go
+        - golang/repository/repository_server/rollback.go
+        - golang/repository/repository_server/artifact_admin.go
+      task_terms:
+        - artifact state
+        - pipeline state
+        - rollback eligibility
+        - publish state fallback
+    run:
+      commands:
+        - go test ./golang/repository/repository_server/ -run "TestPipelineState_IsKnown"
+
+  - id: test.heartbeat_entrypoint_identity_from_manifest_not_disk
+    title: assignEntrypointChecksumMetadata writes manifest identity into entrypoint_checksum, disk hash into evidence field
+    protects:
+      invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+        - meta.identity_computation_must_be_invariant
+      failure_modes:
+        - identity.field_semantic_drift_across_writers
+    required_for_changes:
+      paths:
+        - golang/node_agent/node_agent_server/heartbeat.go
+      task_terms:
+        - entrypoint_checksum
+        - heartbeat identity
+        - syncRepoArtifactsToInstalledState
+        - disk hash
+    run:
+      commands:
+        - go test ./golang/node_agent/node_agent_server/ -run "TestAssignEntrypointChecksumMetadata"

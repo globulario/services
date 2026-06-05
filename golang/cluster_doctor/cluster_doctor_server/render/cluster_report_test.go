@@ -88,3 +88,43 @@ func TestClusterReportPassFindingsNotInOutput(t *testing.T) {
 		t.Errorf("ClusterReport.Findings: got %d, want 1", got)
 	}
 }
+
+// TestOverallStatus_DataIncompleteDegrades pins
+// meta.fallback_must_degrade_semantics for the cluster status rollup. When
+// the snapshot is marked DataIncomplete (collectors couldn't reach every
+// node), an empty findings list does NOT mean the cluster is healthy — it
+// means we don't know. The badge must read DEGRADED so consumers see the
+// uncertainty, even though the header already carries DataIncomplete.
+func TestOverallStatus_DataIncompleteDegrades(t *testing.T) {
+	got := overallStatus(nil, true)
+	if got != cluster_doctorpb.ClusterStatus_CLUSTER_DEGRADED {
+		t.Fatalf("overallStatus(nil, dataIncomplete=true) = %v, want CLUSTER_DEGRADED", got)
+	}
+}
+
+// TestOverallStatus_CriticalEscalatesOverIncomplete confirms that a real
+// CRITICAL finding still escalates the status past DEGRADED when the data
+// is also incomplete — the dataIncomplete floor must not mask higher-severity
+// findings, only lift HEALTHY → DEGRADED in their absence.
+func TestOverallStatus_CriticalEscalatesOverIncomplete(t *testing.T) {
+	findings := []*cluster_doctorpb.Finding{
+		{
+			FindingId:       "crit",
+			Severity:        cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		},
+	}
+	got := overallStatus(findings, true)
+	if got != cluster_doctorpb.ClusterStatus_CLUSTER_CRITICAL {
+		t.Fatalf("overallStatus(critical+incomplete) = %v, want CLUSTER_CRITICAL", got)
+	}
+}
+
+// TestOverallStatus_CompleteHealthy is the unchanged happy path: no
+// findings AND no incomplete-data marker → healthy.
+func TestOverallStatus_CompleteHealthy(t *testing.T) {
+	got := overallStatus(nil, false)
+	if got != cluster_doctorpb.ClusterStatus_CLUSTER_HEALTHY {
+		t.Fatalf("overallStatus(nil, false) = %v, want CLUSTER_HEALTHY", got)
+	}
+}
