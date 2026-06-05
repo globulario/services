@@ -306,12 +306,46 @@ func TestReconcilerSkipsNodeWhenRecoveryPaused(t *testing.T) {
 	}
 }
 
-// isNodeUnderRecoveryState is a pure helper for testing the fencing predicate
-// without etcd. The production path goes through isNodeUnderRecovery(ctx, nodeID)
-// which loads from etcd; this tests the decision logic directly.
-func isNodeUnderRecoveryState(st *cluster_controllerpb.NodeRecoveryState) bool {
-	if st == nil {
-		return false
+// isNodeUnderRecoveryState lives in recovery_state_store.go — the
+// production isNodeUnderRecovery shares it so this test exercises the
+// same decision logic the reconciler uses.
+
+// TestIsNodeUnderRecoveryState_FailClosedSemantics pins the decision
+// table behind the fence so a future refactor can't accidentally
+// drop the "terminal phase = unfenced" rule. The companion
+// isNodeUnderRecovery (etcd-backed) wraps this and adds an `observable`
+// return so transient etcd outages are also treated as fenced — the
+// regression that test coverage in reconcile_nodes.go pins (see
+// TestReconcilerFencesNodeWhenRecoveryUnobservable, when added).
+func TestIsNodeUnderRecoveryState_FailClosedSemantics(t *testing.T) {
+	cases := []struct {
+		name     string
+		st       *cluster_controllerpb.NodeRecoveryState
+		expected bool
+	}{
+		{"nil state", nil, false},
+		{"phase active, paused=false", &cluster_controllerpb.NodeRecoveryState{
+			Phase:                cluster_controllerpb.NodeRecoveryPhaseReseedArtifacts,
+			ReconciliationPaused: false,
+		}, false},
+		{"phase terminal complete, paused=true", &cluster_controllerpb.NodeRecoveryState{
+			Phase:                cluster_controllerpb.NodeRecoveryPhaseComplete,
+			ReconciliationPaused: true,
+		}, false},
+		{"phase terminal failed, paused=true", &cluster_controllerpb.NodeRecoveryState{
+			Phase:                cluster_controllerpb.NodeRecoveryPhaseFailed,
+			ReconciliationPaused: true,
+		}, false},
+		{"phase active, paused=true", &cluster_controllerpb.NodeRecoveryState{
+			Phase:                cluster_controllerpb.NodeRecoveryPhaseReseedArtifacts,
+			ReconciliationPaused: true,
+		}, true},
 	}
-	return !st.Phase.IsTerminal() && st.ReconciliationPaused
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isNodeUnderRecoveryState(tc.st); got != tc.expected {
+				t.Errorf("isNodeUnderRecoveryState(%s) = %v; want %v", tc.name, got, tc.expected)
+			}
+		})
+	}
 }

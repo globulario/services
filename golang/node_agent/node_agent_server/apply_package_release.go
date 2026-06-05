@@ -365,7 +365,18 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		Name: name, Version: version, Kind: kind, Platform: platform,
 		BuildNumber: req.GetBuildNumber(), BuildId: buildID,
 	}
-	configSnap, configErr := srv.applyConfigPolicyPreInstall(ctx, repoAddr, publisherID, preInstallPkg, req.GetWorkflowRunId())
+	configSnap, configPolicyObservable, configErr := srv.applyConfigPolicyPreInstall(ctx, repoAddr, publisherID, preInstallPkg, req.GetWorkflowRunId())
+	if !configPolicyObservable {
+		// Repository unreachable or manifest fetch failed — we don't know
+		// whether FAIL_ON_LOCAL_MODIFICATION configs would have blocked
+		// this apply. Today we fail-OPEN (apply proceeds) to preserve the
+		// pre-existing behaviour during transient repo flap; the
+		// distinguished log line is the regression budget for promoting
+		// this to fail-CLOSED once we have telemetry on how often it
+		// fires. (meta.authority_must_express_uncertainty,
+		// forbidden.error_absorbed_into_empty_map.)
+		log.Printf("apply-package: config policy unobservable for %s@%s — apply proceeds without FAIL_ON_LOCAL_MODIFICATION gate (next install retries)", name, version)
+	}
 	if configErr != nil {
 		log.Printf("apply-package: BLOCKED by config policy: %v", configErr)
 		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{

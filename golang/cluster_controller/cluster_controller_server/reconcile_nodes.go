@@ -101,7 +101,17 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 		// A node under active full-reseed recovery must not be touched by the
 		// normal reconciler. The recovery workflow owns all installed-state
 		// mutations for that node until it completes or fails.
-		if srv.isNodeUnderRecovery(ctx, node.NodeID) {
+		//
+		// Fail-CLOSED on unobservable recovery state: if etcd is transiently
+		// unreachable we cannot prove the node is NOT mid-reseed, and racing
+		// the recovery workflow corrupts installed-state. The next reconcile
+		// tick will retry once etcd is back.
+		under, observable := srv.isNodeUnderRecovery(ctx, node.NodeID)
+		if !observable {
+			log.Printf("reconcile: skip node %s — recovery state unobservable (etcd read failed); next tick will retry", node.NodeID)
+			continue
+		}
+		if under {
 			log.Printf("reconcile: skip node %s — active full-reseed recovery workflow owns this node", node.NodeID)
 			continue
 		}

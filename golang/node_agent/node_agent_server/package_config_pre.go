@@ -40,40 +40,70 @@ type configSnapshot struct {
 
 // applyConfigPolicyPreInstall runs the pre-install config gate. The returned
 // map is keyed by absolute path so the post-install hook can match each
-// receipt back to its pre-install state.
+// receipt back to its pre-install state. The returned `policyObservable`
+// bool distinguishes three previously-indistinguishable cases:
 //
-// Calling code should treat any non-nil error as a hard abort: it means a
-// FAIL_ON_LOCAL_MODIFICATION CONFLICT receipt has already been recorded and
-// the apply must NOT proceed to InstallPackage.
+//   - (snap, true,  nil)  policy was consulted and permits the apply
+//   - (nil,  true,  nil)  no repo configured / pre-Phase-D artifact / no
+//                         configs declared — policy IS observable and
+//                         legitimately empty
+//   - (nil,  false, nil)  repository unreachable OR manifest fetch failed —
+//                         policy is NOT observable; the caller must decide
+//                         whether to fail-open (current behaviour) or
+//                         fail-closed (recommended when the user package
+//                         declared FAIL_ON_LOCAL_MODIFICATION configs in
+//                         the previous install).
+//   - (snap, _,     err)  FAIL_ON_LOCAL_MODIFICATION hit; CONFLICT receipt
+//                         already recorded; apply MUST abort.
+//
+// Calling code should treat any non-nil error as a hard abort: a CONFLICT
+// receipt has already been recorded and the apply must NOT proceed to
+// InstallPackage.
+//
+// Why policyObservable matters: previously the three "skip the gate"
+// outcomes returned the identical (nil, nil) shape — "no repo", "manifest
+// missing because artifact is pre-Phase-D", AND "repo dial failed" all
+// collapsed into the same fail-open response. A transient repository
+// outage silently bypassed the FAIL_ON_LOCAL_MODIFICATION safety net for
+// every concurrent install. The new bool lets the caller distinguish "I
+// know the policy is empty" from "I couldn't observe the policy" and log
+// the gap (forbidden.error_absorbed_into_empty_map).
 func (srv *NodeAgentServer) applyConfigPolicyPreInstall(
 	ctx context.Context,
 	repoAddr string,
 	publisherID string,
 	pkg *node_agentpb.InstalledPackage,
 	workflowRunID string,
-) (map[string]*configSnapshot, error) {
+) (map[string]*configSnapshot, bool, error) {
 	if repoAddr == "" {
-		return nil, nil // legacy / no-repo path: no config policy to enforce
+		return nil, true, nil // legacy / no-repo path: no config policy to enforce
 	}
 
-	// Read the artifact's manifest. If we can't reach the repository, fail
-	// open: the apply continues without per-config receipts, matching the
-	// node-agent's existing fail-open behavior for non-fatal repository RPCs.
+	// Read the artifact's manifest. If we can't reach the repository, the
+	// apply continues without per-config receipts (preserving today's
+	// fail-open behaviour), but policyObservable=false so the caller can
+	// log the observability gap. Promoting this to fail-closed is the
+	// next step once the observability data confirms how often this fires.
 	conn, _, err := actions.DialRepository(ctx, repoAddr)
 	if err != nil {
-		log.Printf("config-policy: dial repository failed: %v", err)
-		return nil, nil
+		log.Printf("config-policy: dial repository failed (policy unobservable; apply proceeds): %v", err)
+		return nil, false, nil
 	}
 	defer conn.Close()
 	repo := repositorypb.NewPackageRepositoryClient(conn)
 	manifest, err := fetchManifestForReceipts(withAgentAuth(ctx), repo, publisherID, pkg)
-	if err != nil || manifest == nil {
-		// Pre-Phase-D artifacts have no configs. Nothing to enforce.
-		return nil, nil
+	if err != nil {
+		log.Printf("config-policy: fetch manifest failed for %s/%s@%s (policy unobservable; apply proceeds): %v", publisherID, pkg.GetName(), pkg.GetVersion(), err)
+		return nil, false, nil
+	}
+	if manifest == nil {
+		// Pre-Phase-D artifacts have no configs. Policy IS observable
+		// (we consulted the repo and got a definitive "no manifest").
+		return nil, true, nil
 	}
 	configs := manifest.GetConfigs()
 	if len(configs) == 0 {
-		return nil, nil
+		return nil, true, nil
 	}
 
 	// Build the snapshot map and check for hard CONFLICTs.
@@ -134,7 +164,7 @@ func (srv *NodeAgentServer) applyConfigPolicyPreInstall(
 				log.Printf("config-policy: emit CONFLICT receipt failed: %v", recErr)
 			}
 			snapshots[path] = snap
-			return snapshots, fmt.Errorf("config conflict: %s has local modifications and merge_strategy=FAIL_ON_LOCAL_MODIFICATION (run `globular pkg config conflicts %s/%s` to inspect)",
+			return snapshots, true, fmt.Errorf("config conflict: %s has local modifications and merge_strategy=FAIL_ON_LOCAL_MODIFICATION (run `globular pkg config conflicts %s/%s` to inspect)",
 				path, publisherID, pkg.GetName())
 		}
 
@@ -142,7 +172,7 @@ func (srv *NodeAgentServer) applyConfigPolicyPreInstall(
 	}
 	log.Printf("config-policy: %d config(s) classified pre-install for %s/%s@%s",
 		len(snapshots), publisherID, pkg.GetName(), pkg.GetVersion())
-	return snapshots, nil
+	return snapshots, true, nil
 }
 
 // classifyOutcomeWithSnapshot is the post-install variant of

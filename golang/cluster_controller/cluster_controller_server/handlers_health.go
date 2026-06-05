@@ -520,9 +520,23 @@ func versionCheckDecision(desiredVer, desiredBID, installedVer, installedBID str
 //
 // installedUnix=0 disables the synthesis (caller has no signal); the
 // behaviour falls through to the existing strict path.
+//
+// installedAtTrusted=false signals that the caller's installed-state
+// lookup could not be observed (e.g. transient etcd outage). When the
+// proof is also missing AND no install time is known, the strict path
+// would FAIL with runtime_identity_unproven for every service — a
+// cluster-wide red badge during a brief etcd flap. Instead, when we
+// can't tell whether the service is mid-grace, we behave as if it
+// MIGHT be (synthesise the same Day-0 verdict the verifier would have)
+// and reason-tag it so an operator can tell observability gap from
+// real grace. Next health-detail tick will read again and resolve to
+// the actual state. This is the same pattern round-4's
+// loadVerifierVerdicts/loadInstalledUnixForNode trusted-bool refactor
+// drove top-down: distinguish "I don't know" from "I know it's bad."
 func decideVersionVerdictWithInstallTime(
 	desiredVer, desiredBID, installedVer, installedBID string,
 	hasInstalled bool, proof *verifier.Verdict, installedUnix int64,
+	installedAtTrusted bool,
 ) versionHealthVerdict {
 	if proof == nil && installedUnix > 0 {
 		if time.Since(time.Unix(installedUnix, 0)) < verifier.Day0UnprovenGraceWindow {
@@ -535,24 +549,53 @@ func decideVersionVerdictWithInstallTime(
 				Reason: "no runtime proof yet — within Day-0 first-install grace window (controller-synthesised; verifier sweep has not produced a verdict)",
 			}
 		}
+	} else if proof == nil && installedUnix == 0 && !installedAtTrusted {
+		proof = &verifier.Verdict{
+			ProofStatus: verifier.ProofUnknown,
+			Findings: []verifier.Finding{{
+				ID:       verifier.FindingRuntimeIdentityUnproven,
+				Severity: verifier.SeverityInfo,
+			}},
+			Reason: "no runtime proof yet — installed-state read failed; cannot determine Day-0 grace; preserved as INFO until next health-detail tick",
+		}
 	}
 	return decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID, hasInstalled, proof)
 }
 
 // loadInstalledUnixForNode reads every installed package for a node in one
 // prefix-Get and returns a map keyed by canonical service name to the
-// package's installedUnix timestamp. Empty map on any error — the
+// package's installedUnix timestamp, plus a `trusted` bool that
+// distinguishes "the etcd read succeeded" from "we could not consult
+// installed-state at all".
+//
+// Previously this returned `{}` on any error "by design": the
 // fresh-install grace is advisory, so an etcd hiccup must not regress
-// the rest of the health response. Used by GetNodeHealthDetailV1 to
-// drive decideVersionVerdictWithInstallTime.
-func (srv *server) loadInstalledUnixForNode(ctx context.Context, nodeID string) map[string]int64 {
+// the rest of the health response. The unintended effect: during a
+// transient etcd flap a service that WAS within Day-0 grace was
+// reported as expired-grace (proof missing AND no install timestamp)
+// and runtime_identity_unproven fired immediately, breaking the grace
+// contract pinned by feedback_day0_unproven_grace. The cause was the
+// classic meta.authority_must_express_uncertainty: "I have no data" and
+// "I couldn't fetch the data" returned the same shape.
+//
+// New contract: trusted=true means the prefix Get completed (the map
+// is the authoritative view, absences included); trusted=false means
+// the etcd read failed and absences are NOT authoritative — the caller
+// preserves grace by skipping the proof-expired downgrade until the
+// next health detail tick can read installed-state.
+//
+// Mirrors the round-4 loadVerifierVerdicts pattern exactly.
+func (srv *server) loadInstalledUnixForNode(ctx context.Context, nodeID string) (map[string]int64, bool) {
 	out := map[string]int64{}
 	if strings.TrimSpace(nodeID) == "" {
-		return out
+		// No node ID — caller knows this isn't an observable runtime;
+		// treat as trusted absence so behavior matches test fixtures
+		// and pre-bootstrap startup (same convention as loadVerifierVerdicts).
+		return out, true
 	}
 	pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, "")
 	if err != nil {
-		return out
+		return out, false
 	}
 	for _, p := range pkgs {
 		if p == nil {
@@ -581,7 +624,7 @@ func (srv *server) loadInstalledUnixForNode(ctx context.Context, nodeID string) 
 			out[key] = ts
 		}
 	}
-	return out
+	return out, true
 }
 
 // ingressIsDisabled returns true when /globular/ingress/v1/spec
@@ -778,8 +821,14 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 	// Day-0 grace when proof is missing but the install is fresh.
 	// Without this, the gap between ServiceRelease resolution and the
 	// next verifier sweep red-flags services for ~1-2 minutes per
-	// service on every fresh install.
-	installedAt := srv.loadInstalledUnixForNode(ctx, nodeID)
+	// service on every fresh install. installedAtTrusted=false means
+	// the etcd read failed; downstream MUST treat absences in
+	// installedAt as "unknown" rather than "no install" so transient
+	// etcd flap doesn't burn the Day-0 grace window.
+	installedAt, installedAtTrusted := srv.loadInstalledUnixForNode(ctx, nodeID)
+	if !installedAtTrusted {
+		log.Printf("GetNodeHealthDetailV1: installed-state read failed for node=%s — Day-0 grace preserved by assuming services are still fresh; next tick will retry", nodeID)
+	}
 
 	// Build a set of services whose release is AVAILABLE but artifact was never
 	// published. These are at their best possible version — not a health failure.
@@ -829,7 +878,7 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 		installedUnix := installedAt[canonSvc]
 		v := decideVersionVerdictWithInstallTime(
 			desiredVer, desiredBID, installedVer, installedBID,
-			hasInstalled, proof, installedUnix,
+			hasInstalled, proof, installedUnix, installedAtTrusted,
 		)
 
 		// Self-heal: when the verdict is claim_only (UNVERIFIED) with

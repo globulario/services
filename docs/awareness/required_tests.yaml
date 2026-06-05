@@ -565,3 +565,59 @@ required_tests:
     run:
       commands:
         - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestLoadVerifierVerdicts"
+
+  - id: test.recovery_fence_fail_closed_on_etcd_outage
+    title: Reconciler must fence a node when isNodeUnderRecovery cannot observe etcd state
+    protects:
+      invariants:
+        - meta.authority_must_express_uncertainty
+        - critical_state.deletion_requires_audited_intent
+    required_for_changes:
+      paths:
+        - golang/cluster_controller/cluster_controller_server/recovery_state_store.go
+        - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+      task_terms:
+        - isNodeUnderRecovery
+        - recovery fence
+        - reseed
+        - reconciliation paused
+    run:
+      commands:
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestIsNodeUnderRecoveryState|TestReconcilerSkipsNodeWhenRecoveryPaused"
+
+  - id: test.installed_state_unobservable_preserves_day0_grace
+    title: GetNodeHealthDetailV1 must preserve Day-0 grace when installed-state is unobservable
+    protects:
+      invariants:
+        - meta.authority_must_express_uncertainty
+        - health.must_not_use_inventory_as_runtime_truth
+    required_for_changes:
+      paths:
+        - golang/cluster_controller/cluster_controller_server/handlers_health.go
+      task_terms:
+        - loadInstalledUnixForNode
+        - Day-0 grace
+        - decideVersionVerdictWithInstallTime
+        - runtime_identity_unproven
+    run:
+      commands:
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestDecideVersionVerdictWithInstallTime"
+
+  - id: test.config_policy_observability_propagates_to_caller
+    title: applyConfigPolicyPreInstall must distinguish observable-empty from unreachable-repository
+    protects:
+      invariants:
+        - meta.authority_must_express_uncertainty
+        - install.join_path_must_complete_install_contract
+    required_for_changes:
+      paths:
+        - golang/node_agent/node_agent_server/package_config_pre.go
+        - golang/node_agent/node_agent_server/apply_package_release.go
+      task_terms:
+        - applyConfigPolicyPreInstall
+        - FAIL_ON_LOCAL_MODIFICATION
+        - config policy observable
+        - dial repository
+    run:
+      commands:
+        - go test ./golang/node_agent/node_agent_server/ -run "TestApplyConfigPolicy"

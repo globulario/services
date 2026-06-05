@@ -133,23 +133,41 @@ func (srv *server) deleteNodeRecoveryState(ctx context.Context, nodeID string) e
 
 // ── Fencing query (called by reconcileNodes) ──────────────────────────────────
 
-// isNodeUnderRecovery returns true when the given node has an active
-// (non-terminal) recovery workflow with reconciliation paused.
-// A return value of true means the reconciler MUST skip that node.
+// isNodeUnderRecoveryState is the pure decision predicate behind the
+// recovery fence. Sharing it between isNodeUnderRecovery (etcd-backed)
+// and the test surface keeps the "what counts as fenced?" rule in one
+// place — terminal phases (COMPLETE/FAILED) are not fenced even when
+// ReconciliationPaused is still set, because the recovery workflow has
+// already handed the node back to normal reconciliation.
+func isNodeUnderRecoveryState(st *cluster_controllerpb.NodeRecoveryState) bool {
+	if st == nil {
+		return false
+	}
+	return !st.Phase.IsTerminal() && st.ReconciliationPaused
+}
+
+// isNodeUnderRecovery answers two questions: (1) does this node have an
+// active (non-terminal) recovery workflow with reconciliation paused,
+// and (2) was that answer derived from a successful etcd read?
 //
-// This is the implementation of Invariant 2:
+// The reconciler MUST fence the node when under=true OR observable=false.
+// Fencing on !observable is required by the principle that authority
+// must express uncertainty (meta.authority_must_express_uncertainty):
+// if we cannot tell whether a node is mid-reseed, treating that as
+// "not under recovery" lets the normal reconciler race a full-reseed
+// workflow that already owns the node's installed-state — the exact
+// failure Invariant 2 ("A node cannot be under both normal reconciliation
+// and active full reseed at the same time") is meant to prevent.
 //
-//	"A node cannot be under both normal reconciliation and active full reseed
-//	at the same time."
-func (srv *server) isNodeUnderRecovery(ctx context.Context, nodeID string) bool {
+// Old shape `bool` collapsed three cases — (a) no recovery record,
+// (b) terminal recovery, (c) etcd unreachable — into "go ahead and
+// reconcile." Cases (a) and (b) are safe; case (c) is the bug.
+func (srv *server) isNodeUnderRecovery(ctx context.Context, nodeID string) (under, observable bool) {
 	st, err := srv.getNodeRecoveryState(ctx, nodeID)
-	if err != nil || st == nil {
-		return false
+	if err != nil {
+		return false, false
 	}
-	if st.Phase.IsTerminal() {
-		return false
-	}
-	return st.ReconciliationPaused
+	return isNodeUnderRecoveryState(st), true
 }
 
 // ── NodeRecoverySnapshot ──────────────────────────────────────────────────────

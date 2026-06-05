@@ -347,7 +347,7 @@ func TestDecideVersionVerdictWithInstallTime_FreshInstallNoProof_IsDay0Grace(t *
 	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
 	freshInstall := time.Now().Add(-30 * time.Second).Unix()
 	v := decideVersionVerdictWithInstallTime(
-		"1.2.61", "bid", "1.2.61", "bid", true, nil, freshInstall,
+		"1.2.61", "bid", "1.2.61", "bid", true, nil, freshInstall, true,
 	)
 	if !v.Ok {
 		t.Fatalf("fresh-install grace must yield Ok=true when proof is nil; got %+v", v)
@@ -364,7 +364,7 @@ func TestDecideVersionVerdictWithInstallTime_StaleInstallNoProof_StaysFail(t *te
 	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
 	staleInstall := time.Now().Add(-1 * time.Hour).Unix()
 	v := decideVersionVerdictWithInstallTime(
-		"1.2.61", "bid", "1.2.61", "bid", true, nil, staleInstall,
+		"1.2.61", "bid", "1.2.61", "bid", true, nil, staleInstall, true,
 	)
 	if v.Ok {
 		t.Fatalf("install older than grace window must keep strict FAIL; got %+v", v)
@@ -377,13 +377,31 @@ func TestDecideVersionVerdictWithInstallTime_StaleInstallNoProof_StaysFail(t *te
 func TestDecideVersionVerdictWithInstallTime_NoInstallSignal_FallsThroughToStrict(t *testing.T) {
 	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
 	v := decideVersionVerdictWithInstallTime(
-		"1.2.61", "bid", "1.2.61", "bid", true, nil, 0,
+		"1.2.61", "bid", "1.2.61", "bid", true, nil, 0, true,
 	)
 	if v.Ok {
 		t.Fatalf("missing install timestamp must not unlock grace; got %+v", v)
 	}
 	if v.FindingID != "service.runtime_identity_unproven" {
 		t.Errorf("FindingID=%q want=service.runtime_identity_unproven", v.FindingID)
+	}
+}
+
+// TestDecideVersionVerdictWithInstallTime_InstalledStateUnobservable_PreservesGrace
+// pins the round-5 authority-uncertainty fix to loadInstalledUnixForNode.
+// When installed-state can't be read (etcd transient outage), passing
+// installedAtTrusted=false MUST yield Day-0 grace rather than the strict
+// FAIL the previous shape produced for every service at once.
+func TestDecideVersionVerdictWithInstallTime_InstalledStateUnobservable_PreservesGrace(t *testing.T) {
+	t.Setenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK", "")
+	v := decideVersionVerdictWithInstallTime(
+		"1.2.61", "bid", "1.2.61", "bid", true, nil, 0, false,
+	)
+	if !v.Ok {
+		t.Fatalf("unobservable installed-state must preserve grace; got %+v", v)
+	}
+	if v.ProofStatus != "claim_only_day0_grace" {
+		t.Errorf("ProofStatus=%q want=claim_only_day0_grace", v.ProofStatus)
 	}
 }
 
@@ -397,7 +415,7 @@ func TestDecideVersionVerdictWithInstallTime_ProofPresent_IgnoresInstallTime(t *
 		}},
 	}
 	v := decideVersionVerdictWithInstallTime(
-		"1.2.61", "bid", "1.2.61", "bid", true, proof, freshInstall,
+		"1.2.61", "bid", "1.2.61", "bid", true, proof, freshInstall, true,
 	)
 	if v.Ok {
 		t.Fatalf("real mismatch verdict must dominate fresh-install grace; got %+v", v)
