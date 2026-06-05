@@ -6641,28 +6641,67 @@ invariants:
         outside the workflow engine." Those are drift to plan mode — the
         anti-pattern Globular's design exists to prevent.
 
-        Three explicit, narrowly-scoped EXCEPTIONS (documented elsewhere
-        in this graph):
+        Six explicit, narrowly-scoped EXCEPTIONS (documented elsewhere
+        in this graph). Each exception names a STRUCTURAL category of
+        writes that legitimately operates outside a workflow instance —
+        not a service-specific carve-out:
 
-          1. Observer-only writes — node-agent heartbeat writes to
-             observed/installed state from runtime observation. These do
-             NOT change desired state and are governed by
-             infra.heartbeat_observer_only_not_authority.
+          1. Observer-only self-state — a service writes its OWN
+             observed state (what it sees, what it's running, what it
+             rendered). Does not change desired state. Governed by
+             infra.heartbeat_observer_only_not_authority. Covers
+             node-agent heartbeat, node-agent minio_systemd_reconcile
+             generation/fingerprint writes, controller leader_pending_
+             update_etcd, controller kind_mismatch_etcd diagnostic
+             emits. The discriminator: the write describes "what I am",
+             never "what should happen".
 
           2. Bounded auto-heal — cluster-doctor healer performs delete-
-             stale-cache / clear-resolved-drift via direct RPC with JSONL
-             audit. Governed by the healer_direct_actions exception on
-             workflow.source_of_operational_truth.
+             stale-cache / clear-resolved-drift via direct RPC with
+             JSONL audit. Governed by the healer_direct_actions
+             exception on workflow.source_of_operational_truth. The
+             discriminator: bounded action set, JSONL audit, no new
+             cluster intent introduced.
 
           3. Audit-wrapper workflows — AI remediation consumer wraps a
              direct node-agent restart RPC in a workflow run record so
              the audit trail exists even though the workflow is not the
              execution coordinator (ai_remediation_consumer_audit_wrapper).
+             The discriminator: workflow is the audit container, not
+             the orchestrator.
 
-        Any mutation outside these three exceptions, and outside an
-        identified workflow instance, is a violation. The audit question
-        is pointwise: at every state write call site, name the
-        workflow_run_id + step_id that owns it.
+          4. Pre-workflow primitives — writes that the workflow engine
+             itself depends on cannot be inside a workflow. Covers
+             leader_election.go lease writes (leader election is what
+             determines who runs workflows) and node-agent main.go
+             port registration (a service must be reachable before
+             workflows can dispatch to it). The discriminator: the
+             workflow engine cannot dispatch its first step until this
+             write succeeds, so this write is below the workflow layer
+             in the dependency order.
+
+          5. Service-self-configuration via typed admin RPC — a service
+             persists its own configuration (repository upstreams,
+             source policies, RBAC application records) via its typed
+             gRPC handler. The handler validates and audits. The
+             discriminator: the operator's intent is captured at the
+             gRPC boundary (request audit, authn, RBAC), and the
+             persist is a transparent serialization of the validated
+             request — there is no multi-step orchestration to wrap.
+             Examples: repository_source_policy.go,
+             sync_from_upstream.go, node_agent application_actions.go.
+
+          6. Event-bus ephemera — short-lived lease-bound writes that
+             implement pub-sub semantics (event delivery, subscription
+             registration). The discriminator: TTL-bound, never the
+             source of truth for any layer, and consumers treat absence
+             as normal.
+
+        Any mutation outside these six exceptions, and outside an
+        identified workflow instance, is a violation. The audit
+        question is pointwise: at every state write call site, name
+        either the workflow_run_id + step_id that owns it, or the
+        structural exception (1–6) that justifies it.
       protects:
         files:
           - golang/workflow/workflow_server/executor.go
@@ -6672,12 +6711,26 @@ invariants:
           - golang/cluster_controller/cluster_controller_server/release_pipeline.go
           - golang/cluster_controller/cluster_controller_server/release_reconciler.go
           - golang/cluster_controller/cluster_controller_server/workflow_release.go
+          - golang/cluster_controller/cluster_controller_server/workflow_objectstore.go
+          - golang/cluster_controller/cluster_controller_server/leader_pending_update_etcd.go
+          - golang/cluster_controller/cluster_controller_server/leader_election.go
+          - golang/cluster_controller/cluster_controller_server/kind_mismatch_etcd.go
+          - golang/cluster_controller/cluster_controller_server/verification_sweep_request.go
+          - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+          - golang/cluster_controller/cluster_controller_server/state.go
           - golang/node_agent/node_agent_server/apply_package_release.go
           - golang/node_agent/node_agent_server/installer_api.go
           - golang/node_agent/node_agent_server/heartbeat.go
           - golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+          - golang/node_agent/node_agent_server/minio_systemd_reconcile.go
+          - golang/node_agent/node_agent_server/minio_format_backup.go
+          - golang/node_agent/node_agent_server/event_publisher.go
+          - golang/node_agent/node_agent_server/main.go
+          - golang/node_agent/node_agent_server/internal/actions/application_actions.go
           - golang/repository/repository_server/artifact_handlers.go
           - golang/repository/repository_server/publish_workflow.go
+          - golang/repository/repository_server/repository_source_policy.go
+          - golang/repository/repository_server/sync_from_upstream.go
         symbols:
           - WorkflowRun
           - StepReceipt
@@ -6688,6 +6741,8 @@ invariants:
           - WriteInstalledPackage
           - applySelfHostedInstalledStateRefresh
           - promoteToPublished
+          - writeLeaderPendingUpdate
+          - clearLeaderPendingUpdate
       forbidden_fixes:
         - state_mutation_outside_a_workflow_instance
         - controller_inline_mutation_without_workflow_dispatch
@@ -6696,18 +6751,31 @@ invariants:
         - cross_instance_coupling_via_single_workflow_run
       required_tests:
         - TestStepReceipt_CarriesRunIDAndStepID
+        - TestWriteStepReceipt_RejectsEmptyReceiptKey
         - TestMarkNodeSucceeded_AttributedToActorNotWorkflowService
+        - TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService
         - TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair
       no_test_yet_reason: |
-        Three TODO tests above are aspirational regression pins for the
-        pointwise rule. The first two have plausible code paths to assert
-        against today (step_receipts.go writes already carry run_id +
-        step_id; MarkNodeSucceeded already names the actor). The third
-        (one instance per artifact/node) requires the reconciler test
-        harness to expose dispatched workflows for inspection — partially
-        present but not yet a clean regression seam. Tracked as
-        follow-up; the invariant is encoded now so the rule is visible
-        even before the tests land.
+        Four of the five required tests are now implemented:
+          - TestStepReceipt_CarriesRunIDAndStepID — schema-level regression
+            on the (run_id, step_id) primary key of workflow.step_receipts
+            (workflow_server/step_receipts_attribution_test.go)
+          - TestWriteStepReceipt_RejectsEmptyReceiptKey — write-boundary
+            guard against orphan-receipt writes
+            (workflow_server/step_receipts_attribution_test.go)
+          - TestMarkNodeSucceeded_AttributedToActorNotWorkflowService —
+            static check on every release.apply.*.yaml that the
+            mark_node_succeeded step is attributed to cluster-controller
+            (cluster_controller_server/workflow_actor_attribution_test.go)
+          - TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService —
+            broader sibling: no state-mutation action (controller.*,
+            node.*, repository.*, compute.*) may be attributed to
+            workflow-service across any release.apply.* definition
+            (same file)
+        TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair is
+        still TODO — it requires the reconciler test harness to expose
+        dispatched workflows for inspection, which is partially present
+        but not yet a clean regression seam.
       related_invariants:
         - workflow.source_of_operational_truth
         - workflow.four_layer_is_template_instantiated_per_artifact_node

@@ -879,6 +879,7 @@ https://globular.io/awareness#Test	TestRedactAssetURL_StripsQueryParams
 https://globular.io/awareness#Test	TestRedactGitError
 https://globular.io/awareness#Test	TestRegistryKeyHasCompletePolicy
 https://globular.io/awareness#Test	TestRejectInvariantWithMissingRequiredTest
+https://globular.io/awareness#Test	TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService
 https://globular.io/awareness#Test	TestReleaseTopologyLock_Idempotent
 https://globular.io/awareness#Test	TestRemediationAuditCarriesCorrelationFields
 https://globular.io/awareness#Test	TestRemediationBlocksOnStaleEvidence
@@ -1040,6 +1041,7 @@ https://globular.io/awareness#Test	TestWriteQuorumLost_DataIncomplete_NoCritical
 https://globular.io/awareness#Test	TestWriteQuorumLost_PartialSnapshot_NoFalsePositive
 https://globular.io/awareness#Test	TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
 https://globular.io/awareness#Test	TestWriteQuorumLost_VIPHolder_RealDowntimeStillFires
+https://globular.io/awareness#Test	TestWriteStepReceipt_RejectsEmptyReceiptKey
 https://globular.io/awareness#Test	TestWrongBuildIDFails
 https://globular.io/awareness#Test	TestWrongSHA256Fails
 https://globular.io/awareness#Test	TestWrongVersionFails

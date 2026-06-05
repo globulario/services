@@ -86,6 +86,12 @@ code_edges:
   - from: globular.platform:code.go.platform_workflow.step_receipts
     relation: implements
     to: globular.platform:intent.workflow.step_receipts_are_evidence
+  - from: globular.platform:code.go.platform_workflow.step_receipts_attribution
+    relation: enforces
+    to: globular.platform:invariant.four_layer.workflow_actor_attribution_required
+  - from: globular.platform:code.go.platform_workflow.step_receipts_attribution
+    relation: enforces
+    to: globular.platform:invariant.workflow.every_state_mutation_belongs_to_a_workflow_instance
   - from: globular.platform:code.go.platform_workflow.v1alpha1_loader
     relation: implements
     to: globular.platform:intent.workflow.definition_loading_is_etcd_first

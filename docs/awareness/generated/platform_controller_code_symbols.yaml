@@ -686,6 +686,16 @@ code_symbols:
       implements:
         - globular.platform:intent.controller.topology_safety_blocks_unsafe_drift_actions
         - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
+  - id: globular.platform:code.go.platform_controller.workflow_actor_attribution
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/workflow_actor_attribution_test.go
+    component: platform_controller.workflow_actor_attribution
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.four_layer.workflow_actor_attribution_required
+        - globular.platform:invariant.workflow.every_state_mutation_belongs_to_a_workflow_instance
   - id: globular.platform:code.go.platform_controller.workflow_definitions_load
     namespace: globular.platform
     language: go
