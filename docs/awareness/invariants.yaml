@@ -6427,3 +6427,131 @@ invariants:
         - conditional_field_semantic_by_writer
       related_failure_modes:
         - identity.field_semantic_drift_across_writers
+
+    - id: workflow.deferred_run_retryable_when_blocker_clears
+      title: Deferred workflow runs must remain retryable until either the blocker clears or the operator explicitly abandons
+      severity: high
+      status: active
+      summary: |
+        WF-DEFER B2/B3/B4 — deferred workflow execution is the cluster's
+        primary mechanism for handling transient unavailability of a
+        dependency (waiting on a wave, on a blocker_tag, or on an
+        operator-controlled resource). A deferred run must never become
+        permanently unretryable because of an internal bookkeeping
+        failure:
+
+          - The persistent across-runs defer counter
+            (correlation_defer_state, B3) must survive workflow-server
+            restart. If the row is lost, the cooldown contract is broken
+            and the run either re-dispatches forever or is silently
+            abandoned.
+
+          - At dispatch time, the executor must check three things in
+            order: (1) ABANDONED status (operator must clear via
+            `globular workflow defer-state clear`), (2) cooldown still
+            active (BackoffUntilMs > now), (3) a prior run for the same
+            correlation_id is still in defer cooldown. Order matters —
+            ABANDONED short-circuits cooldown; cooldown short-circuits
+            new dispatch.
+
+          - WakeDeferredRunsByBlockerTag (B4) must skip ABANDONED rows
+            and must NOT reset the defer counter on wake; the counter
+            only resets on a clean RUN_STATUS_SUCCEEDED or on explicit
+            operator clear.
+
+          - The blocker_tag carried on a deferred run must round-trip:
+            persisted on defer, looked up on wake, cleared on success.
+            Losing the tag silently turns event-driven cooldown
+            shortcut into time-only cooldown.
+
+        Without these guarantees, a transient blocker becomes a permanent
+        cluster wedge — the symptom Dave catalogued repeatedly in
+        MEMORY.md (INC-2026-0017 wave-blocked retry dispatch loss,
+        WF-DEFER B3 persistent counter, B4 blocker tag templating).
+      protects:
+        files:
+          - golang/workflow/workflow_server/executor_defer.go
+          - golang/workflow/workflow_server/executor_defer_test.go
+          - golang/workflow/workflow_server/correlation_defer_state.go
+          - golang/workflow/workflow_server/correlation_defer_state_rpc.go
+          - golang/workflow/workflow_server/correlation_defer_state_test.go
+          - golang/workflow/workflow_server/executor.go
+        symbols:
+          - shouldSkipForDeferral
+          - findActiveDeferredRun
+          - wakeActiveDeferredRun
+          - WakeDeferredRunsByBlockerTag
+          - shouldSkipForAbandoned
+          - nextDeferState
+      forbidden_fixes:
+        - reset_defer_counter_on_workflow_server_restart
+        - clear_abandoned_correlations_on_a_timer_without_operator_consent
+        - wake_resets_defer_counter
+        - drop_blocker_tag_on_persist_to_simplify_schema
+      required_tests:
+        - TestSchedulerSkipsDeferredBeforeCooldown
+        - TestSchedulerResumesAfterCooldown
+        - TestDispatchOrderAbandonedBeforeCooldown
+        - TestMemoryStoreSurvivesWorkflowServerRestart
+        - TestWakePreservesDeferCount
+        - TestWakeIgnoresAbandoned
+      related_failure_modes:
+        - workflow.abandoned_defer_never_retried
+
+    - id: workflow.receipt_classification_monotonic_and_conservative
+      title: Receipt classification must be monotonic and conservative — dispatch is not completion, success is not retractable
+      severity: high
+      status: active
+      summary: |
+        receipt_failure_classifier.go decides whether a step receipt
+        means RETRY_LATER (transient), BLOCKED (deterministic block
+        awaiting unblock signal), or terminal failure. That decision
+        feeds the workflow's terminal-status write and the controller's
+        release-phase callback. Classification must obey two rules:
+
+          1. MONOTONIC — once a backend-confirmed RUN_STATUS_SUCCEEDED
+             receipt exists for a (run_id, step), a subsequent
+             observation (retry, late callback, orphan resume) must not
+             reclassify it as FAILED. dispatch_is_not_completion cuts
+             both ways: dispatch is not proof of success, and a retry
+             observation is not proof of failure once success was
+             durably recorded.
+
+          2. CONSERVATIVE — ambiguous or missing evidence must classify
+             as RETRY_LATER (with auto_retry=true) or BLOCKED-with-
+             unblock-signal, never as terminal success. The classifier
+             is the last gate before the controller acts on a result;
+             treating "I cannot tell" as "succeeded" creates the
+             optimistic_success_for_irreversible_action failure shape.
+
+        The classifier is also the seam where retry policy is encoded
+        (RETRY_POLICY=BACKOFF vs ON_UNBLOCK_SIGNAL vs none). Any new
+        error string added to the switch tables must declare its retry
+        policy explicitly — silent default (no auto_retry, no unblock
+        signal) is a silent abandonment.
+      protects:
+        files:
+          - golang/workflow/workflow_server/receipt_failure_classifier.go
+          - golang/workflow/workflow_server/receipt_failure_classifier_test.go
+          - golang/workflow/workflow_server/step_receipts.go
+          - golang/workflow/workflow_server/executor.go
+        symbols:
+          - classifyStepFailureForReceipt
+          - buildStepReceiptPayload
+          - stepReceiptMeta
+      forbidden_fixes:
+        - reclassify_succeeded_receipt_as_failed_on_retry_observation
+        - default_unknown_error_to_succeeded_when_no_match_in_switch
+        - drop_auto_retry_on_transient_classification_to_reduce_noise
+        - treat_missing_receipt_as_implicit_success
+      required_tests:
+        - TestClassifyStepFailureForReceipt_NativeDependencyMissing
+        - TestClassifyStepFailureForReceipt_TransientTimeout
+        - TestBuildStepReceiptPayload_BlockedFields
+        - TestReceiptClassificationMonotonic_SucceededNeverReclassified
+        - TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
+      related_failure_modes:
+        - fm.industry.optimistic_success_for_irreversible_action
+      related_invariants:
+        - workflow.dispatch_is_not_completion
+        - workflow.success_requires_backend_confirmation

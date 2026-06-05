@@ -621,3 +621,191 @@ required_tests:
     run:
       commands:
         - go test ./golang/node_agent/node_agent_server/ -run "TestApplyConfigPolicy"
+
+  - id: test.workflow.deferred_run_retryable_after_cooldown
+    title: Deferred runs must skip dispatch during cooldown and resume after — WF-DEFER B2 contract
+    protects:
+      invariants:
+        - workflow.deferred_run_retryable_when_blocker_clears
+      failure_modes:
+        - workflow.abandoned_defer_never_retried
+      files:
+        - golang/workflow/workflow_server/executor_defer.go
+        - golang/workflow/workflow_server/executor_defer_test.go
+    required_for_changes:
+      paths:
+        - golang/workflow/workflow_server/executor_defer.go
+        - golang/workflow/workflow_server/executor.go
+      task_terms:
+        - shouldSkipForDeferral
+        - findActiveDeferredRun
+        - deferred run
+        - cooldown
+        - BackoffUntilMs
+        - WF-DEFER
+    run:
+      commands:
+        - go test ./golang/workflow/workflow_server/ -run "TestSchedulerSkipsDeferredBeforeCooldown|TestSchedulerResumesAfterCooldown|TestSchedulerIgnoresNonDeferredStatuses|TestSchedulerHandlesNilLatestRun"
+    evidence:
+      - cooldown is enforced before BackoffUntilMs
+      - run becomes dispatchable after cooldown expires
+      - non-deferred statuses are unaffected by the scheduler skip
+
+  - id: test.workflow.abandoned_defer_requires_operator_clear
+    title: ABANDONED defer must short-circuit dispatch ahead of cooldown and survive workflow-server restart
+    protects:
+      invariants:
+        - workflow.deferred_run_retryable_when_blocker_clears
+      failure_modes:
+        - workflow.abandoned_defer_never_retried
+      files:
+        - golang/workflow/workflow_server/correlation_defer_state.go
+        - golang/workflow/workflow_server/correlation_defer_state_rpc.go
+        - golang/workflow/workflow_server/correlation_defer_state_test.go
+        - golang/workflow/workflow_server/executor.go
+    required_for_changes:
+      paths:
+        - golang/workflow/workflow_server/correlation_defer_state.go
+        - golang/workflow/workflow_server/correlation_defer_state_rpc.go
+        - golang/workflow/workflow_server/executor.go
+      task_terms:
+        - correlation_defer_state
+        - ABANDONED
+        - max_defers
+        - WakeDeferredRunsByBlockerTag
+        - defer-state clear
+        - WF-DEFER B3
+        - WF-DEFER B4
+    run:
+      commands:
+        - go test ./golang/workflow/workflow_server/ -run "TestShouldSkipForAbandoned|TestNextDeferStateAbandonsAtMax|TestDispatchOrderAbandonedBeforeCooldown|TestMemoryStoreSurvivesWorkflowServerRestart|TestMemoryStoreClearByOperator|TestWakePreservesDeferCount|TestWakeIgnoresAbandoned|TestFindByBlockerTag_MatchesNonAbandoned"
+    evidence:
+      - ABANDONED short-circuits dispatch ahead of cooldown check
+      - defer counter and ABANDONED bit survive workflow-server restart
+      - wake-by-blocker-tag preserves defer counter (does not reset)
+      - wake skips ABANDONED rows
+      - operator clear is the only path back to dispatchable for ABANDONED
+
+  - id: test.workflow.stale_release_callback_generation_guard
+    title: Stale workflow completion callback must not overwrite a newer release phase — generation guard
+    protects:
+      invariants: []
+      failure_modes:
+        - workflow.stale_release_callback_overwrites_generation
+      files:
+        - golang/cluster_controller/cluster_controller_server/workflow_release.go
+        - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+        - golang/workflow/workflow_server/executor.go
+    required_for_changes:
+      paths:
+        - golang/cluster_controller/cluster_controller_server/workflow_release.go
+        - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+        - golang/workflow/workflow_server/executor.go
+      task_terms:
+        - handleWorkflowCompletion
+        - expectedGeneration
+        - generation guard
+        - stale callback
+        - release phase regression
+    run:
+      commands:
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestWorkflowReleaseCallbackRejectsStaleGeneration"
+    evidence:
+      - late callback whose carried generation predates current is rejected
+      - rejection is logged with both expected and observed generation
+      - reject is the only branch — never silently absorbed, never partially applied
+    status: todo
+    no_test_yet_reason: |
+      TODO test name: TestWorkflowReleaseCallbackRejectsStaleGeneration.
+      The failure mode is well-modelled (workflow.stale_release_callback_overwrites_generation)
+      but no regression test has been written. Without the test, the
+      generation-guard fix cannot be proven to hold across refactors.
+      Tracked as the immediate follow-up after this coverage patch.
+
+  - id: test.workflow.receipt_classification_monotonic_and_conservative
+    title: Receipt classification must be monotonic (SUCCEEDED never reclassified) and conservative (unknown is RETRY, not success)
+    protects:
+      invariants:
+        - workflow.receipt_classification_monotonic_and_conservative
+        - workflow.dispatch_is_not_completion
+        - workflow.success_requires_backend_confirmation
+      failure_modes:
+        - fm.industry.optimistic_success_for_irreversible_action
+      files:
+        - golang/workflow/workflow_server/receipt_failure_classifier.go
+        - golang/workflow/workflow_server/receipt_failure_classifier_test.go
+        - golang/workflow/workflow_server/step_receipts.go
+    required_for_changes:
+      paths:
+        - golang/workflow/workflow_server/receipt_failure_classifier.go
+        - golang/workflow/workflow_server/step_receipts.go
+      task_terms:
+        - classifyStepFailureForReceipt
+        - stepReceiptMeta
+        - RETRY_LATER
+        - BLOCKED
+        - auto_retry
+        - unblock_signals
+    run:
+      commands:
+        - go test ./golang/workflow/workflow_server/ -run "TestClassifyStepFailureForReceipt_NativeDependencyMissing|TestClassifyStepFailureForReceipt_TransientTimeout|TestBuildStepReceiptPayload_BlockedFields|TestReceiptClassificationMonotonic_SucceededNeverReclassified|TestReceiptClassificationConservative_UnknownIsRetryNotSuccess"
+    evidence:
+      - existing classifier branches preserve auto_retry and unblock_signals for transient/blocked
+      - SUCCEEDED receipts are not retracted by later observations
+      - unknown error strings default to RETRY_LATER, never to success
+    status: partial
+    no_test_yet_reason: |
+      TestReceiptClassificationMonotonic_SucceededNeverReclassified and
+      TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
+      are TODO. Three existing tests
+      (TestClassifyStepFailureForReceipt_NativeDependencyMissing,
+      TestClassifyStepFailureForReceipt_TransientTimeout,
+      TestBuildStepReceiptPayload_BlockedFields) cover the per-case
+      classification but neither monotonicity (success not retractable)
+      nor the conservative default (unknown → RETRY) is asserted.
+      Implementing these two tests is the next code patch after this
+      coverage entry lands.
+
+  - id: test.workflow.day0_seeded_definitions_thread_verification_fields
+    title: Day-0 seeded workflow definitions must thread every verification field the controller resolves
+    protects:
+      invariants:
+        - workflow.definitions_must_thread_required_verification_fields
+      failure_modes:
+        - workflow.stale_definitions_block_expected_sha256_propagation
+      files:
+        - golang/workflow/v1alpha1/etcd_fetcher.go
+        - golang/workflow/definitions/release.apply.package.yaml
+        - golang/workflow/definitions/release.apply.controller.yaml
+        - scripts/release/install-day0.sh
+    required_for_changes:
+      paths:
+        - golang/workflow/v1alpha1/etcd_fetcher.go
+        - golang/workflow/definitions/release.apply.package.yaml
+        - golang/workflow/definitions/release.apply.controller.yaml
+        - scripts/release/install-day0.sh
+      task_terms:
+        - SeedCoreWorkflows
+        - loadCoreWorkflowsFromDisk
+        - resolved_entrypoint_checksum
+        - expected_sha256
+        - workflow definition
+    run:
+      commands:
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestDispatch_PopulatesExpectedSha256FromManifest|TestDispatch_AuditAllCallSitesSetExpectedSha256"
+        - go test ./golang/workflow/v1alpha1/ -run "TestLoadCoreWorkflowsFromDisk|TestSeedCoreWorkflows"
+    evidence:
+      - on-disk definitions declare resolved_entrypoint_checksum input
+      - install_package step threads it into expected_sha256
+      - controller dispatch carries manifest.entrypoint_checksum at every call site
+    status: partial
+    no_test_yet_reason: |
+      The controller-side tests
+      (TestDispatch_PopulatesExpectedSha256FromManifest,
+      TestDispatch_AuditAllCallSitesSetExpectedSha256) are bound by the
+      existing invariant entry. Workflow-side tests
+      (TestLoadCoreWorkflowsFromDisk, TestSeedCoreWorkflows) are TODO —
+      they should assert that the seeded definition's YAML declares
+      every input symbol the controller passes, by reflection over the
+      compiled CompiledWorkflow.Definition. Without that assertion,
+      stale on-disk YAML is only caught at integration time.

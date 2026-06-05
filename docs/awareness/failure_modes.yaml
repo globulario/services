@@ -3200,6 +3200,88 @@ failure_modes:
         - increasing orphanHeartbeatTimeout as a substitute for fixing slow steps
         - disabling the orphan scanner to prevent double-claim
 
+    - id: workflow.abandoned_defer_never_retried
+      title: Deferred workflow run becomes permanently unretryable — blocker_tag, persistent counter, or wake-by-tag bookkeeping lost
+      severity: high
+      status: active
+      description: >
+        A deferred run is the cluster's primary mechanism for surviving
+        a transient blocker (waiting on a wave, on a blocker_tag, or on
+        an operator resource). The run is held in RUN_STATUS_DEFERRED
+        with a cooldown (BackoffUntilMs) and a persistent across-runs
+        counter (correlation_defer_state, WF-DEFER B3). When the blocker
+        clears — either by cooldown expiry or by an event matching the
+        blocker_tag (WakeDeferredRunsByBlockerTag, B4) — the run must be
+        eligible to dispatch again.
+
+        It becomes permanently unretryable when any of the following
+        is silently broken:
+
+          1. correlation_defer_state row is lost across workflow-server
+             restart (B3 persistence broken) — defer_count resets to 0,
+             but the blocker_tag and abandoned bit are gone, and the
+             run keeps re-deferring forever without ever hitting
+             max_defers → ABANDONED.
+
+          2. Run reaches max_defers and is correctly marked ABANDONED,
+             but the operator has no signal — no log, no event, no
+             doctor finding. The CLI clear (`globular workflow
+             defer-state clear`) is the only escape and the operator
+             does not know to run it.
+
+          3. WakeDeferredRunsByBlockerTag fails to match the live
+             blocker_tag (typo at persist time, or templating bug
+             dropped the tag silently). The cooldown still expires
+             eventually, but the event-driven shortcut is lost and the
+             cluster waits minutes/hours for the timer.
+
+          4. Wake silently resets defer_count (B3 violation). The run
+             starts re-counting from zero, defers indefinitely without
+             ever reaching ABANDONED, and the operator never sees the
+             "operator action required" signal.
+      trigger: >
+        Scylla schema migration that drops the correlation_defer_state
+        table; workflow-server upgrade that clears the table; bug in
+        blocker_tag templating; wake handler that calls
+        ResetDeferCount instead of preserving it.
+      symptoms:
+        - Workflow runs in RUN_STATUS_DEFERRED that never advance, with
+          no warning log saying correlation now ABANDONED
+        - Wave-block cooldown ticks forever; downstream releases stuck
+          in WAVE_BLOCKED
+        - "`globular workflow defer-state list` shows rows with defer_count=0 that have been deferring for hours"
+        - WakeDeferredRunsByBlockerTag returns 0 matched runs for an
+          event that operators expect to unblock specific work
+      blast_radius:
+        - Release pipeline stuck behind permanently-deferred run; no
+          self-recovery without operator intervention
+        - AI executor sees the run as "in progress" and does not
+          recommend remediation
+        - Compounds with workflow.dispatch_is_not_completion — caller
+          (controller) cannot tell deferred from in-flight
+      protects:
+        files:
+          - golang/workflow/workflow_server/executor_defer.go
+          - golang/workflow/workflow_server/correlation_defer_state.go
+          - golang/workflow/workflow_server/correlation_defer_state_rpc.go
+          - golang/workflow/workflow_server/executor.go
+          - golang/workflow/workflow_server/schema.go
+      forbidden_fixes:
+        - reset_defer_counter_on_workflow_server_restart
+        - clear_abandoned_correlations_on_a_timer_without_operator_consent
+        - wake_resets_defer_counter
+        - drop_blocker_tag_on_persist_to_simplify_schema
+        - silently_succeed_when_correlation_defer_state_row_missing
+      required_tests:
+        - TestNextDeferStateAbandonsAtMax
+        - TestMemoryStoreSurvivesWorkflowServerRestart
+        - TestWakePreservesDeferCount
+        - TestWakeIgnoresAbandoned
+        - TestDispatchOrderAbandonedBeforeCooldown
+      related_invariants:
+        - workflow.deferred_run_retryable_when_blocker_clears
+        - workflow.dispatch_is_not_completion
+
     - id: workflow.stale_release_callback_overwrites_generation
       title: Stale workflow completion callback overwrites a newer release phase via generation race
       severity: high
