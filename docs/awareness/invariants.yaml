@@ -7228,9 +7228,22 @@ invariants:
       # that the scanner will flag it as DRIFT.
 
       actor_writer_dirs:
+        # The 4-layer model's canonical actor-writer directories.
         - golang/cluster_controller/cluster_controller_server
         - golang/node_agent/node_agent_server
         - golang/repository/repository_server
+        # Other service dirs that write etcd. Each service's writes
+        # need their own classification but they obey the same parent
+        # principle: every state mutation must belong to a workflow
+        # instance OR fall under one of the 6 named exceptions.
+        - golang/cluster_doctor
+        - golang/mcp
+        - golang/ai_executor
+        - golang/ai_memory
+        - golang/dns
+        - golang/domain
+        - golang/backup_manager
+        - golang/audittrail
 
       # scan_pattern is the Go regex the scanner runs against each
       # production source line. A match marks the line as a candidate
@@ -7349,6 +7362,75 @@ invariants:
         - file: golang/node_agent/node_agent_server/event_publisher.go
           category: exception_6_event_bus_ephemera
           reason: event-bus lease-bound publish
+        - file: golang/mcp/aggregator_publisher.go
+          category: exception_6_event_bus_ephemera
+          reason: MCP aggregator presence publish (lease-bound TTL)
+
+        # ── 2026-06-05 scope extension: other service dirs ──────────────
+        # The primary principle applies cluster-wide; expanding scope to
+        # cover services beyond the 3 canonical actor-writers surfaces
+        # writes that each service's role makes legitimate. Each file
+        # below is documented with its category + reason.
+
+        # cluster_doctor (observer-only service, plus queue cleanup)
+        - file: golang/cluster_doctor/cluster_doctor_server/collector/sweep_requests.go
+          category: exception_2_bounded_auto_heal
+          reason: doctor sweep-request queue consumer (bounded delete of consumed requests)
+        - file: golang/cluster_doctor/cluster_doctor_server/collector/verification.go
+          category: exception_1_observer_only_self_state
+          reason: doctor verification result publish (observer self-state)
+
+        # mcp (typed RPC dispatcher; tools_*.go matches are gRPC delete on
+        # ai_memory/skill clients, not etcd writes — scanner regex over-
+        # matches identifier name 'client'. Classify as exception 5.)
+        - file: golang/mcp/tools_memory.go
+          category: exception_5_service_self_config
+          reason: MCP memory tool — typed gRPC dispatcher to ai_memory service (scanner regex over-matches; actual call is gRPC, not etcd)
+        - file: golang/mcp/tools_skills.go
+          category: exception_5_service_self_config
+          reason: MCP skills tool — typed gRPC dispatcher to ai_memory service (scanner regex over-matches; actual call is gRPC, not etcd)
+
+        # ai_executor (incident job records + anthropic helper writes)
+        - file: golang/ai_executor/ai_executor_server/job_store.go
+          category: exception_5_service_self_config
+          reason: ai_executor's own job records persisted via typed RPC (single-Put per job)
+        - file: golang/ai_executor/ai_executor_server/anthropic_client.go
+          category: exception_1_observer_only_self_state
+          reason: ai_executor helper writes (observer self-state for the executor's own runtime context)
+
+        # ai_memory (migration record at service startup)
+        - file: golang/ai_memory/ai_memory_server/migration_coordinator.go
+          category: exception_4_pre_workflow_primitive
+          reason: ai_memory schema migration coordinator (runs at service startup, before any workflow uses the memory service)
+
+        # dns (zone storage + reload status)
+        - file: golang/dns/dns_server/server.go
+          category: exception_5_service_self_config
+          reason: DNS zone storage + reload status (typed admin RPC persistence; operator writes a zone, DNS persists it)
+
+        # domain (ACME cert reconciler + DomainSpec storage)
+        - file: golang/domain/reconciler.go
+          category: exception_1_observer_only_self_state
+          reason: ACME cert reconciler self-state writes (observed cert state, next attempt scheduling)
+        - file: golang/domain/store.go
+          category: exception_5_service_self_config
+          reason: DomainSpec storage (typed admin RPC persistence — operator manages domains, store persists)
+
+        # backup_manager (cluster lock cleanup + job/artifact persistence + restore)
+        - file: golang/backup_manager/backup_manager_server/server.go
+          category: exception_2_bounded_auto_heal
+          reason: cluster lock cleanup at service shutdown (bounded cleanup)
+        - file: golang/backup_manager/backup_manager_server/jobstore.go
+          category: exception_5_service_self_config
+          reason: backup_manager's own job + artifact records (typed admin RPC persistence)
+        - file: golang/backup_manager/backup_manager_server/restore.go
+          category: exception_5_service_self_config
+          reason: backup_manager restore RPC handler (single-Put per write during operator-initiated restore)
+
+        # audittrail (audit's own desired-state writes)
+        - file: golang/audittrail/desired_writes.go
+          category: exception_5_service_self_config
+          reason: audittrail's own desired-state writes (typed admin RPC persistence)
 
       # Generic helper files whose conformance depends on the caller,
       # not the file itself. The scanner reports these as UNKNOWN with
