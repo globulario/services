@@ -3055,6 +3055,72 @@ invariants:
 
       related_invariants:
         - meta.fallback_must_degrade_semantics
+
+      # ── principle-check v1 structured metadata ──────────────────────
+      # Added 2026-06-05. The scanner instrumentation here is
+      # NARROW BY DESIGN: it scans for callsites of the canonical
+      # fallback.Enter(...) helper (golang/fallback/fallback.go) and
+      # treats each as a CONFORMANT site. It does NOT detect the
+      # inverse — fallback paths that exist but don't call Enter —
+      # because that requires dataflow / semantic analysis the regex
+      # scanner cannot do. Use this instrumentation as an ADOPTION
+      # TRACKER: as services migrate their silent fallback paths to
+      # the canonical helper, the CONFORMANT count grows.
+      #
+      # When you add a NEW service that uses primary dependencies
+      # (etcd, scylla, minio) with a fallback path, the file must
+      # call fallback.Enter(...) at the switchover OR be classified
+      # under exception_files here with a reason.
+      #
+      # Drift detection for this principle is genuinely outside the
+      # current scanner's grain. A future improvement would add
+      # function-level AST analysis to detect "branch-after-error
+      # returns success without calling Enter" patterns.
+
+      actor_writer_dirs:
+        # Service dirs that have primary-dependency fallback paths
+        # (Scylla/MinIO/etcd/upstream-mirror). Scope is narrow on
+        # purpose — generic helper packages don't have fallback
+        # semantics worth scanning.
+        - golang/file/file_server
+        - golang/repository/repository_server
+        - golang/dns/dns_server
+        - golang/sql/sql_server
+        - golang/persistence/persistence_server
+        - golang/storage/storage_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/node_agent/node_agent_server
+
+      # Scan pattern: callsites of the canonical helper. This catches
+      # only conformant sites (the inverse — silent fallback paths —
+      # is not detectable by regex).
+      scan_pattern: '\bfallback\.Enter\s*\('
+      scan_pattern_description: |
+        Callsites of golang/fallback/fallback.go Enter(). Each match
+        is a conformant fallback registration. As more services
+        adopt the helper, the count grows. The scanner does NOT
+        detect missing Enter calls — that's outside regex grain.
+
+      exception_files: []
+      # No exceptions today. If a file uses fallback.Enter for a
+      # non-degraded purpose (e.g. test fixture), classify it here
+      # with a reason.
+
+      # workflow_step_handler_files is the scanner's positive-
+      # classification bucket — files matched here are reported as
+      # CONFORMANT. For this principle the bucket name is awkward
+      # (the conformant pattern is "calls fallback.Enter", not
+      # "implements a workflow step") but the semantics fit: a file
+      # listed here passes the scanner check. Without entries here,
+      # the scanner reports DRIFT-by-default for every matched site
+      # because that's the right default for the every_state_mutation
+      # principle the scanner was built for.
+      workflow_step_handler_files:
+        - file: golang/repository/repository_server/artifact_handlers.go
+          reason: canonical fallback registration site — uses fallback.Enter to record degraded-mode finding (verified by inspection 2026-06-05; the only production call to fallback.Enter today)
+
+      unknown_helper_files: []
     - id: systemd.effective_unit_must_match_rendered_unit
       title: Generated systemd unit files must be validated for duplicate singleton directives; installed effective properties must match expected
       severity: critical
