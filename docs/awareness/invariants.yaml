@@ -7289,6 +7289,9 @@ invariants:
         - file: golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
           category: exception_1_observer_only_self_state
           reason: guard tick (post-lift) — multi-step restore moved to cluster.ingress_spec_restore workflow
+        - file: golang/cluster_controller/cluster_controller_server/state.go
+          category: exception_1_observer_only_self_state
+          reason: controllerState.saveToEtcd checkpoint — periodic single-Put flush of the controller's in-memory state machine (Nodes/JoinTokens/CAGeneration/ObjectStoreGeneration) to /globular/clustercontroller/state. The authority mutations to the in-memory model happen elsewhere (HandleJoin, ApproveJoin, workflow callbacks); this is replication of the current snapshot, not the decision site
 
         # Exception 2 — bounded auto-heal / cleanup.
         - file: golang/cluster_controller/cluster_controller_server/stale_instance_purger.go
@@ -7297,6 +7300,9 @@ invariants:
         - file: golang/cluster_controller/cluster_controller_server/cleanup_ghost_node_packages.go
           category: exception_2_bounded_auto_heal
           reason: ghost-package cleanup (bounded auto-heal via typed RPC)
+        - file: golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
+          category: exception_2_bounded_auto_heal
+          reason: clearCriticalKeyBlock / clearRuntimeDepBlock — bounded delete of stale block records when the missing key reappears or the runtime dep is satisfied; called from convergence/install paths but the helpers themselves are level-triggered cleanup
         - file: golang/node_agent/node_agent_server/minio_format_backup.go
           category: exception_2_bounded_auto_heal
           reason: per-drive format.json backup capsule (recovery preservation, no cluster intent change)
@@ -7428,11 +7434,12 @@ invariants:
       # not the file itself. The scanner reports these as UNKNOWN with
       # a "needs caller-trace" reason — not DRIFT, because the file
       # itself is not a violation in isolation.
-      unknown_helper_files:
-        - file: golang/cluster_controller/cluster_controller_server/state.go
-          reason: generic saveToEtcdPutFunc test seam; classification depends on caller
-        - file: golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
-          reason: prereq cleanup helper; called from install path
+      unknown_helper_files: []
+      # state.go and critical_key_prereqs.go were previously listed here as
+      # "needs caller-trace". 2026-06-05 sweep traced both: state.go promoted
+      # to exception_1_observer_only_self_state (checkpoint replication of
+      # the in-memory state machine); critical_key_prereqs.go promoted to
+      # exception_2_bounded_auto_heal (stale-block cleanup helpers).
 
       workflow_step_handler_files:
         - file: golang/cluster_controller/cluster_controller_server/workflow_objectstore.go
