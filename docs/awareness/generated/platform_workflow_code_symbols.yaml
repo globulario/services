@@ -143,6 +143,15 @@ code_symbols:
       implements:
         - globular.platform:intent.workflow.orphan_recovery_skips_terminal_steps
         - globular.platform:intent.workflow.resume_policy_verifies_before_reexecute
+  - id: globular.platform:code.go.platform_workflow.import_day0
+    namespace: globular.platform
+    language: go
+    file: golang/workflow/workflow_server/import_day0_test.go
+    component: platform_workflow.import_day0
+    risk: medium
+    annotations:
+      enforces:
+        - globular.platform:invariant.workflow.day0_trace_import_is_idempotent_and_best_effort
   - id: globular.platform:code.go.platform_workflow.infra_release_handler
     namespace: globular.platform
     language: go

@@ -89,6 +89,9 @@ code_edges:
   - from: globular.platform:code.go.platform_workflow.executor_resume
     relation: implements
     to: globular.platform:intent.workflow.resume_policy_verifies_before_reexecute
+  - from: globular.platform:code.go.platform_workflow.import_day0
+    relation: enforces
+    to: globular.platform:invariant.workflow.day0_trace_import_is_idempotent_and_best_effort
   - from: globular.platform:code.go.platform_workflow.infra_release_handler
     relation: implements
     to: globular.platform:intent.workflow.infra_desired_hash_must_carry_schema_prefix

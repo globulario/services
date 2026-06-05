@@ -12,7 +12,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const day0LogPath = "/var/lib/globular/day0-install.jsonl"
+// day0LogPath is a var (not const) so tests can override it to point at a
+// temp fixture log. Production callers leave it at the default.
+var day0LogPath = "/var/lib/globular/day0-install.jsonl"
 
 // importDay0Trace reads the Day-0 install JSON log and creates a workflow
 // run with steps in ScyllaDB. Called once on startup; skips if the log

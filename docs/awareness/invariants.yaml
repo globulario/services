@@ -7492,9 +7492,33 @@ invariants:
             workflow-service across any release.apply.* definition
             (same file)
         TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair is
-        still TODO — it requires the reconciler test harness to expose
-        dispatched workflows for inspection, which is partially present
-        but not yet a clean regression seam.
+        still TODO. Two prerequisites before implementation:
+
+          (1) Test seam on executeWorkflowCentralized so a test can
+              capture the (workflow_name, correlation_id, inputs)
+              tuples a reconcile tick produces, without standing up
+              a real workflow service.
+
+          (2) Semantic clarification: the current release.apply.package
+              workflow definition dispatches ONE workflow run per
+              release that internally iterates over nodes (via foreach
+              + per-step receipts). The invariant's claim ("one
+              workflow instance per (artifact, node) pair") needs to
+              be reconciled with that — either:
+                (a) the invariant means "one run record per (artifact,
+                    node) pair" (which the current design produces N
+                    step receipts per release, not N runs); OR
+                (b) the per-(artifact, node) workflow_run model is
+                    aspirational and the code should be refactored to
+                    match the invariant.
+              Architectural choice is required before the test can be
+              written meaningfully.
+
+        Two pragmatic next steps if the test is later prioritized:
+          - Add a field test_seam on srv that captures dispatch tuples;
+            override in tests.
+          - Decide between (a) and (b) above; record the decision in
+            this invariant's body before testing.
       related_invariants:
         - meta.state_mutations_must_be_durably_committed_before_side_effects
         - meta.storage_is_not_semantic_authority
