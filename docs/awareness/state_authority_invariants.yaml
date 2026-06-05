@@ -961,26 +961,39 @@ invariants:
       - day0_grace_without_expiry_check
 
   - id: meta.state_mutations_must_be_durably_committed_before_side_effects
-    title: "Intent commits before action — a multi-step mutation that starts before its plan is durable is one failure away from amnesia or corruption"
+    title: "Intent commits before action, retry is the only response to failure — no alternative paths once committed"
     category: lifecycle
-    antipattern: "Just run the steps"
-    wrong_instinct: Computing the actions and executing them inline feels efficient — but a failure between step 1 and step N leaves the world half-changed with no resume point, and the next process to wake up doesn't know a mutation was in flight
+    antipattern: "Just run the steps; if X fails, try Y instead"
+    wrong_instinct: Computing the actions and executing them inline feels efficient, and falling back to a different path on failure feels resilient — but a failure between step 1 and step N leaves the world half-changed with no resume point, and an alternative path leaves the audit record claiming you did X when you actually did Y
     severity: critical
     status: candidate
     summary: |
-      A state-changing operation that spans more than one observable side
-      effect MUST be committed to a durable coordinator BEFORE any side
-      effect runs. The coordinator owns: (a) the intent record (what
-      should happen), (b) the per-step progress (where we are), (c) the
-      terminal-state guarantee (every started intent reaches SUCCEEDED
-      or FAILED), and (d) the resume contract (a new process picks up
-      where the old one left off, idempotently).
+      Two halves of one contract:
 
-      Plans are deliberation. Workflows are commitment. The distinction
-      is that a plan computes actions and may execute them; a workflow
-      PERSISTS the computed plan before executing any of it. Once the
-      intent is durable, any failure becomes a resume point instead of
-      a corruption.
+      Commit-first half:
+        A state-changing operation that spans more than one observable
+        side effect MUST be committed to a durable coordinator BEFORE
+        any side effect runs. The coordinator owns: (a) the intent
+        record (what should happen), (b) the per-step progress (where
+        we are), (c) the terminal-state guarantee (every started intent
+        reaches SUCCEEDED or FAILED), and (d) the resume contract (a
+        new process picks up where the old one left off, idempotently).
+
+      No-alternative-path half:
+        Once an intent is committed, the only exits are SUCCESS or
+        FAIL. Retry is the response to transient failure. Falling
+        back to a different action — "X failed so I'll try Y instead"
+        — is forbidden because it makes the audit trail lie: the
+        intent record says X, the world shows Y. Even a human-operated
+        repair path counts; the principle says the human's intent
+        must also commit before action.
+
+      Plans are deliberation. Workflows are commitment. A plan computes
+      actions and may execute them; a workflow PERSISTS the computed
+      plan before executing any of it AND enforces that no alternative
+      action is taken after commitment. Together, durable intent +
+      retry-only-loop are what give a state change its observable
+      reliability.
 
       Bug class this principle catches:
         - "Lost intent" — process executes step 1, restarts before step
@@ -994,6 +1007,14 @@ invariants:
           in the dead process's memory.
         - "Untraceable change" — observer sees a state change but cannot
           find the operator/agent/code path that decided it.
+        - "Audit lies" — intent record claims X happened, observable
+          state shows Y happened (because step 2 fell back to an
+          alternative when the canonical path failed). The audit
+          trail is now structurally untrustworthy.
+        - "Workaround corrupts" — operator reaches for fix-etcd.sh /
+          direct disk write / inline retry-with-different-args
+          because the canonical path is blocked. The system now has
+          state that no workflow record explains.
 
       Before computing actions that will change cluster state, ask:
         1. Does this operation cross any failure boundary (multi-RPC,
@@ -1025,11 +1046,22 @@ invariants:
       coordinated side effects. MCP tools that mutate state must do so
       via plan → validate → approve → execute (which dispatches a
       workflow), never via direct RPC to a state-changing endpoint.
+
+      No-alternative enforcement: workflow step handlers may NOT branch
+      to an alternative action on transient failure. The only sanctioned
+      responses are (a) retry the same step, (b) reach a terminal
+      FAILED state and surface the failure for human/escalation review.
+      Falling back to a different artifact source, a different RPC, a
+      different node, or a manual repair path violates the contract
+      because it leaves the workflow record claiming one intent while
+      the world records another.
     forbidden_fixes:
       - cli_bulk_apply_state_via_direct_etcd_writes
       - mcp_tool_executes_mutation_without_workflow_dispatch
       - inline_multistep_mutation_without_durable_intent_record
       - reuse_in_memory_plan_after_leader_failover
+      - fall_back_to_alternative_action_on_workflow_step_failure
+      - manual_repair_path_diverges_from_committed_workflow_intent
 
   # ── Generalization principles (second pass) ───────────────────────────────────
   # These invariants encode the abstract reasoning layer. They generalize from

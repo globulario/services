@@ -3599,3 +3599,50 @@ forbidden_fixes:
   related_invariants:
     - meta.state_mutations_must_be_durably_committed_before_side_effects
     - meta.competing_writers_must_converge_or_be_fenced
+
+- id: fall_back_to_alternative_action_on_workflow_step_failure
+  title: Branch a workflow step to an alternative action when the canonical action fails
+  summary: >
+    A workflow step's handler catches a failure from its canonical
+    action and tries a different action instead (different artifact
+    source, different RPC, different node, different repair path).
+    The workflow record claims the canonical intent; the world
+    reflects the alternative. The audit trail is now a lie.
+  reason: >
+    Workflows derive their value from being the single source of
+    truth for what happened. Once committed, the only sanctioned
+    exits are retry-the-same-step or reach-terminal-FAILED. An
+    alternative path breaks the equivalence between intent and effect.
+  safe_alternative: >
+    On transient failure, retry the same step until success or a
+    bounded attempt count is reached. On terminal failure, reach
+    workflow FAILED and surface the failure for human/escalation
+    review. If a genuinely different action is appropriate, that's
+    a different workflow with a different committed intent — not a
+    branch inside the original.
+  related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
+    - meta.silence_is_not_valid_for_unexpected
+
+- id: manual_repair_path_diverges_from_committed_workflow_intent
+  title: Operator (or AI agent) executes a manual repair that diverges from the workflow's committed intent
+  summary: >
+    A workflow is stuck or has reported a failure. An operator (or
+    agent) executes a manual fix — direct etcd write, fix-etcd.sh
+    style shell script, hot-deploy of a binary — that changes the
+    world in ways the workflow record cannot explain. Even when the
+    fix "works," the system now contains state with no workflow
+    receipt, and the next reconciler doesn't know who decided it.
+  reason: >
+    The discipline applies to humans too. A workflow stuck at FAILED
+    is a signal that the canonical path needs investigation, not an
+    invitation to take an alternative path outside the audit trail.
+  safe_alternative: >
+    Either (a) fix the canonical path and retry the workflow, or
+    (b) explicitly mark the workflow ABANDONED with a documented
+    reason and dispatch a NEW workflow for the corrective action.
+    The quarantined scripts/forbidden-historical/ directory is the
+    documented bad-example reference.
+  related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
+    - meta.storage_is_not_semantic_authority
