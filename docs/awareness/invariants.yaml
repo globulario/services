@@ -7816,3 +7816,67 @@ invariants:
 
       workflow_step_handler_files: []
       unknown_helper_files: []
+
+    - id: convergence.restart_must_go_through_singleflight_gate
+      title: Convergence and workflow paths must not call systemctl restart directly — restart goes through the singleflight gate
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.competing_writers_must_converge_or_be_fenced
+        for the service-restart competing-writers shape. The bug class:
+        two convergence ticks each decide to restart the same service,
+        and without singleflight protection both fire — producing a
+        cascade of SIGTERMs that hits systemd's start-limit-hit state
+        and requires manual reset.
+
+        The legitimate restart sites are operations procedures (cert
+        rotation, Day-0 bootstrap, backup-manager restore). Those run
+        serially under operator control and don't compete with the
+        convergence loop. They live in node_agent/certificate.go,
+        node_agent/workflow_day0.go, and backup_manager — explicitly
+        OUT of scope for this rule.
+
+        The convergence-driven restart path goes through
+        repairVerifyRuntime which is singleflight-gated. Any code in
+        cluster_controller_server or workflow_server that calls
+        `systemctl restart` directly bypasses the gate.
+
+        Today's sweep finds 0 sites — pure regression detector. A
+        future PR that adds a direct restart in a convergence /
+        reconcile / workflow path surfaces as DRIFT.
+
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+          - golang/workflow/workflow_server/executor.go
+          - golang/node_agent/node_agent_server/repair_actions.go
+        symbols:
+          - repairVerifyRuntime
+          - reconcileChooseWorkflow
+      forbidden_fixes:
+        - restart_without_singleflight_gate
+        - concurrent_restart_on_start_limit_hit
+        - reset_singleflight_before_restart_completes
+      required_tests: []
+
+      related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
+        - service.restart_singleflight
+
+      # Scope is intentionally narrow: only the convergence + workflow
+      # dirs. node_agent and backup_manager contain the legitimate
+      # ops-procedure restart sites and are out of scope (scanning
+      # them would generate noise against the principle's intent).
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/competing_writers_singleflight_restart.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
