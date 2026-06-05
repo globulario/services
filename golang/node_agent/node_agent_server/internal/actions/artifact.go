@@ -1007,29 +1007,34 @@ func DialRepository(ctx context.Context, addr string) (*grpc.ClientConn, string,
 func dialRepository(ctx context.Context, addr string) (*grpc.ClientConn, string, error) {
 	var opts []grpc.DialOption
 
-	// Always use mTLS — no insecure fallback.
+	// Always use mTLS — no insecure fallback. Refuse to dial when CA or
+	// client cert cannot be loaded; absorbing those errors produced
+	// Unauthenticated rejections at the server far from the root cause
+	// (meta.connection_errors_must_not_be_absorbed).
 	{
 		caPath := "/var/lib/globular/pki/ca.pem"
 		if _, err := os.Stat(caPath); err != nil {
-			caPath = "" // CA not found on disk; proceed without pinned CA
+			return nil, addr, fmt.Errorf("repository CA %s not present on disk: %w", caPath, err)
 		}
 		tlsCfg := &tls.Config{}
-		if caPath != "" {
-			data, err := os.ReadFile(caPath)
-			if err != nil {
-				return nil, addr, fmt.Errorf("read repository CA %s: %w", caPath, err)
-			}
-			pool := x509.NewCertPool()
-			if !pool.AppendCertsFromPEM(data) {
-				return nil, addr, fmt.Errorf("parse repository CA %s: no certificates found", caPath)
-			}
-			tlsCfg.RootCAs = pool
+		data, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, addr, fmt.Errorf("read repository CA %s: %w", caPath, err)
 		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(data) {
+			return nil, addr, fmt.Errorf("parse repository CA %s: no certificates found", caPath)
+		}
+		tlsCfg.RootCAs = pool
+
 		clientCert := "/var/lib/globular/pki/issued/services/service.crt"
 		clientKey := "/var/lib/globular/pki/issued/services/service.key"
-		if cert, err := tls.LoadX509KeyPair(clientCert, clientKey); err == nil {
-			tlsCfg.Certificates = []tls.Certificate{cert}
+		cert, certErr := tls.LoadX509KeyPair(clientCert, clientKey)
+		if certErr != nil {
+			return nil, addr, fmt.Errorf("load client keypair (%s, %s): %w", clientCert, clientKey, certErr)
 		}
+		tlsCfg.Certificates = []tls.Certificate{cert}
+
 		dt := config.ResolveDialTarget(addr)
 		tlsCfg.ServerName = dt.ServerName
 		addr = dt.Address
@@ -1083,13 +1088,16 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 		// Load client certificate for mTLS authentication. The server-side
 		// interceptor skips cluster_id enforcement for mTLS-authenticated
 		// calls (TLS trust chain already prevents cross-cluster access).
+		// Refuse to proceed without an identity — silently dialing without
+		// a client cert produces a confusing Unauthenticated rejection far
+		// from the root cause (meta.connection_errors_must_not_be_absorbed).
 		clientCert := "/var/lib/globular/pki/issued/services/service.crt"
 		clientKey := "/var/lib/globular/pki/issued/services/service.key"
-		if cert, err := tls.LoadX509KeyPair(clientCert, clientKey); err == nil {
-			tlsCfg.Certificates = []tls.Certificate{cert}
-		} else {
-			fmt.Printf("WARN artifact fetch: no client certs (%v), download may fail cluster_id check\n", err)
+		cert, certErr := tls.LoadX509KeyPair(clientCert, clientKey)
+		if certErr != nil {
+			return fmt.Errorf("artifact fetch: load client keypair (%s, %s): %w", clientCert, clientKey, certErr)
 		}
+		tlsCfg.Certificates = []tls.Certificate{cert}
 		dt := config.ResolveDialTarget(addr)
 		tlsCfg.ServerName = dt.ServerName
 		addr = dt.Address

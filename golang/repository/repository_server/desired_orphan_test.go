@@ -15,6 +15,13 @@ package main
 // we drive the desired-set path by constructing the catalog with the
 // reachability engine's `explicit` parameter through ComputeReachable so
 // the assertion holds end-to-end without touching etcd.
+//
+// Production now refuses destructive deletes when the controller is
+// unreachable (meta.fallback_must_degrade_semantics — previously silently
+// treated unreachable as "no pins" and let GC archive active artifacts).
+// Tests that want the "controller reachable, no pins" semantics stub
+// collectDesiredBuildIDsFn via stubDesiredEmptyTrusted at the top of each
+// test so they do not require live PKI / controller endpoint.
 
 import (
 	"context"
@@ -23,6 +30,18 @@ import (
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
+
+// stubDesiredEmptyTrusted replaces collectDesiredBuildIDsFn with a fake
+// that returns ({}, true) — "controller reachable, no pins". Restores
+// the previous hook on cleanup.
+func stubDesiredEmptyTrusted(t *testing.T) {
+	t.Helper()
+	prev := collectDesiredBuildIDsFn
+	collectDesiredBuildIDsFn = func(context.Context) (map[string]bool, bool) {
+		return map[string]bool{}, true
+	}
+	t.Cleanup(func() { collectDesiredBuildIDsFn = prev })
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Reachability_DesiredOnly — synthetic equivalent of "desired pins but
@@ -68,6 +87,7 @@ func TestReachability_NoDesired_VerifiedOutsideWindow_IsUnreachable(t *testing.T
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestDeletionSafety_RetentionWindow_ReturnsRetentionCode(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	catalog := []*repopb.ArtifactManifest{
 		makePublishedManifest("core", "echo", "1.0.1", "linux_amd64", 1, "bid-1", nil),
 		makePublishedManifest("core", "echo", "1.0.2", "linux_amd64", 2, "bid-2", nil),
@@ -84,6 +104,7 @@ func TestDeletionSafety_RetentionWindow_ReturnsRetentionCode(t *testing.T) {
 }
 
 func TestDeletionSafety_UnreachableArtifact_ReturnsNoCode(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	catalog := []*repopb.ArtifactManifest{
 		makePublishedManifest("core", "echo", "1.0.1", "linux_amd64", 1, "bid-1", nil),
 		makePublishedManifest("core", "echo", "1.0.2", "linux_amd64", 2, "bid-2", nil),
@@ -102,6 +123,7 @@ func TestDeletionSafety_UnreachableArtifact_ReturnsNoCode(t *testing.T) {
 }
 
 func TestRevokeSafety_NotPinned_ReturnsNoCode(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	target := makePublishedManifest("core", "dns", "1.0.0", "linux_amd64", 1, "bid-dns", nil)
 	srv := &server{}
 	blocked, _, code := srv.checkRevokeSafety(context.Background(), target, false)

@@ -68,10 +68,26 @@ func collectInstalledBuildIDs(ctx context.Context) map[string]bool {
 	return ids
 }
 
-// collectDesiredBuildIDs returns build_ids pinned by desired-state resources.
-// Best-effort: callers combine this with installed-state roots so destructive
-// repository operations never archive/delete/revoke a build that the controller
-// still intends to roll out.
+// collectDesiredBuildIDsFn is the package-level hook for test injection.
+// Production wires it to collectDesiredBuildIDsLive (the controller-RPC
+// implementation below). Tests can replace it to simulate "controller
+// reachable but no pins" without needing live PKI material.
+var collectDesiredBuildIDsFn = collectDesiredBuildIDsLive
+
+// collectDesiredBuildIDs is the call site used by the reachability guard
+// and the GC reconciler. Delegates to the injected hook so tests can stub
+// the controller RPC.
+func collectDesiredBuildIDs(ctx context.Context) (map[string]bool, bool) {
+	return collectDesiredBuildIDsFn(ctx)
+}
+
+// collectDesiredBuildIDsLive returns (build_ids pinned by desired-state
+// resources, trusted). The trusted bool is true only when we observed the
+// controller's authoritative answer; false means we could not reach the
+// controller and the empty map is "unknown", not "no pins". Callers MUST
+// refuse destructive operations (archive/delete/revoke) when trusted=false
+// — an absorbed TLS error or unreachable controller had previously cascaded
+// into deleting active artifacts (meta.fallback_must_degrade_semantics).
 //
 // Authority boundary: the cluster_controller OWNS the
 // /globular/resources/* prefix family. This function calls the
@@ -83,30 +99,28 @@ func collectInstalledBuildIDs(ctx context.Context) map[string]bool {
 //	invariant:repository.desired_build_id_is_hard_reachability_root
 //	invariant:repository.purge_must_not_delete_active_desired_builds
 //	forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
-//
-// Best-effort: returns an empty (non-nil) map on any error so the
-// reachability guard degrades to "retention window + installed-state
-// only" rather than failing destructive RPCs that may be safe. This
-// matches the prior etcd-scan behaviour and the deletion-safety
-// contract documented in checkDeletionSafety.
-func collectDesiredBuildIDs(ctx context.Context) map[string]bool {
+func collectDesiredBuildIDsLive(ctx context.Context) (map[string]bool, bool) {
 	ids := map[string]bool{}
 
-	// Resolve controller endpoint from the service registry. An empty
-	// address means we degrade — same as the prior etcd-Get failure
-	// path.
 	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
 	if addr == "" {
-		slog.Debug("reachability_guard: controller endpoint unresolved — desired-state set empty")
-		return ids
+		slog.Warn("reachability_guard: controller endpoint unresolved — desired-state UNKNOWN, refusing destructive ops")
+		return ids, false
 	}
 	target := config.ResolveDialTarget(addr)
 
-	conn, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(repositoryClientTLSCreds(target.ServerName)))
+	creds, err := repositoryClientTLSCreds(target.ServerName)
 	if err != nil {
-		slog.Warn("reachability_guard: dial controller failed — desired-state set empty",
+		slog.Warn("reachability_guard: TLS creds load failed — desired-state UNKNOWN, refusing destructive ops",
 			"addr", target.Address, "err", err)
-		return ids
+		return ids, false
+	}
+
+	conn, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(creds))
+	if err != nil {
+		slog.Warn("reachability_guard: dial controller failed — desired-state UNKNOWN, refusing destructive ops",
+			"addr", target.Address, "err", err)
+		return ids, false
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -115,9 +129,9 @@ func collectDesiredBuildIDs(ctx context.Context) map[string]bool {
 	client := cluster_controllerpb.NewClusterControllerServiceClient(conn)
 	resp, err := client.ListDesiredBuildIDs(callCtx, &cluster_controllerpb.ListDesiredBuildIDsRequest{})
 	if err != nil {
-		slog.Warn("reachability_guard: ListDesiredBuildIDs failed — desired-state set empty",
+		slog.Warn("reachability_guard: ListDesiredBuildIDs failed — desired-state UNKNOWN, refusing destructive ops",
 			"addr", target.Address, "err", err)
-		return ids
+		return ids, false
 	}
 
 	for _, id := range resp.GetBuildIds() {
@@ -125,7 +139,7 @@ func collectDesiredBuildIDs(ctx context.Context) map[string]bool {
 			ids[id] = true
 		}
 	}
-	return ids
+	return ids, true
 }
 
 // repositoryClientTLSCreds returns mTLS credentials for a repository →
@@ -133,31 +147,50 @@ func collectDesiredBuildIDs(ctx context.Context) map[string]bool {
 // dialOptionsForInternalService: load the cluster CA, present the
 // repository's own issued service certificate, and pin ServerName so
 // SAN verification matches.
-func repositoryClientTLSCreds(serverName string) credentials.TransportCredentials {
+//
+// Returns a non-nil error when the CA bundle or client cert/key cannot be
+// loaded — this MUST propagate to the caller so it can refuse to dial
+// rather than proceeding with a partial TLS config that produces a
+// confusing handshake error far from the root cause. Previously these
+// errors were silently absorbed, which cascaded into an empty
+// "desired build_ids" set and let destructive GC decisions run under a
+// hidden TLS failure (meta.connection_errors_must_not_be_absorbed +
+// meta.fallback_must_degrade_semantics).
+func repositoryClientTLSCreds(serverName string) (credentials.TransportCredentials, error) {
 	if serverName == "" || serverName == "localhost" || serverName == "::1" {
 		if h, err := os.Hostname(); err == nil && h != "" {
 			serverName = h
 		}
 	}
 	tlsCfg := &tls.Config{ServerName: serverName}
-	if caFile := config.GetTLSFile("", "", "ca.crt"); caFile != "" {
-		if caData, err := os.ReadFile(caFile); err == nil {
-			pool := x509.NewCertPool()
-			if pool.AppendCertsFromPEM(caData) {
-				tlsCfg.RootCAs = pool
-			}
-		}
+
+	caFile := config.GetTLSFile("", "", "ca.crt")
+	if caFile == "" {
+		return nil, fmt.Errorf("repositoryClientTLSCreds: cluster CA path not configured")
 	}
-	// Best-effort mTLS — the controller requires the caller to present
-	// a cluster-issued certificate for the desired-state read action.
+	caData, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("repositoryClientTLSCreds: read CA %q: %w", caFile, err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caData) {
+		return nil, fmt.Errorf("repositoryClientTLSCreds: CA bundle at %q contains no usable PEM blocks", caFile)
+	}
+	tlsCfg.RootCAs = pool
+
+	// The controller requires the caller to present a cluster-issued
+	// certificate for the desired-state read action. Missing identity is a
+	// hard configuration error, not a degrade.
 	const (
 		clientCert = "/var/lib/globular/pki/issued/services/service.crt"
 		clientKey  = "/var/lib/globular/pki/issued/services/service.key"
 	)
-	if cert, err := tls.LoadX509KeyPair(clientCert, clientKey); err == nil {
-		tlsCfg.Certificates = []tls.Certificate{cert}
+	cert, err := tls.LoadX509KeyPair(clientCert, clientKey)
+	if err != nil {
+		return nil, fmt.Errorf("repositoryClientTLSCreds: load client keypair (%s, %s): %w", clientCert, clientKey, err)
 	}
-	return credentials.NewTLS(tlsCfg)
+	tlsCfg.Certificates = []tls.Certificate{cert}
+	return credentials.NewTLS(tlsCfg), nil
 }
 
 func mergeBuildIDRoots(sets ...map[string]bool) map[string]bool {
@@ -236,7 +269,14 @@ func (srv *server) checkDeletionSafety(
 ) (safe bool, reason string, code PurgeBlockedReason) {
 	rCfg := srv.reachabilityConfig()
 	installed := collectInstalledBuildIDs(ctx)
-	desired := collectDesiredBuildIDs(ctx)
+	desired, trusted := collectDesiredBuildIDs(ctx)
+	if !trusted {
+		// Cannot verify whether the artifact is pinned by desired state —
+		// refuse rather than proceed under partial knowledge. Enforces
+		// repository.purge_must_not_delete_active_desired_builds when the
+		// controller is unreachable.
+		return false, "desired-state pin unverifiable — controller unreachable; retry when controller is healthy", PurgeBlockedReferencedByDesired
+	}
 	explicit := mergeBuildIDRoots(installed, desired)
 	rs := ComputeReachable(catalog, explicit, rCfg)
 
@@ -311,7 +351,15 @@ func (srv *server) checkRevokeSafety(
 			target.GetRef().GetPublisherId(), target.GetRef().GetName(), buildID,
 		), PurgeBlockedReferencedByInstalled
 	}
-	desired := collectDesiredBuildIDs(ctx)
+	desired, trusted := collectDesiredBuildIDs(ctx)
+	if !trusted {
+		return true, fmt.Sprintf(
+			"%s/%s build_id=%s pinning status unverifiable — controller unreachable. "+
+				"Refusing to revoke under partial knowledge. Retry when controller is healthy. "+
+				"Administrators may revoke immediately.",
+			target.GetRef().GetPublisherId(), target.GetRef().GetName(), buildID,
+		), PurgeBlockedReferencedByDesired
+	}
 	if desired[buildID] {
 		return true, fmt.Sprintf(
 			"%s/%s build_id=%s is pinned by active desired state. "+

@@ -80,26 +80,40 @@ func (ep *eventPublisher) connect() error {
 	dt := config.ResolveDialTarget(rawAddr)
 
 	// mTLS: client cert for authentication + CA for server verification.
+	//
+	// Refuse to silently downgrade to insecure when TLS material is configured
+	// but unreadable — that path produced "TLS required" errors at the server
+	// far from the root cause and masked rotated-cert / missing-CA outages.
+	// If PKI paths are entirely unconfigured (early bootstrap before
+	// /var/lib/globular/pki is populated) we fall back to insecure with an
+	// explicit WARN so the operator sees the downgrade. Enforces
+	// meta.connection_errors_must_not_be_absorbed.
 	var creds grpc.DialOption
 	certFile := config.GetLocalServerCertificatePath()
 	keyFile := config.GetLocalServerKeyPath()
 	caPath := config.GetCACertificatePath()
 	if certFile != "" && keyFile != "" && caPath != "" {
 		cert, certErr := tls.LoadX509KeyPair(certFile, keyFile)
-		caData, caErr := os.ReadFile(caPath)
-		if certErr == nil && caErr == nil {
-			pool := x509.NewCertPool()
-			pool.AppendCertsFromPEM(caData)
-			creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
-				Certificates: []tls.Certificate{cert},
-				ServerName:   dt.ServerName,
-				RootCAs:      pool,
-				MinVersion:   tls.VersionTLS12,
-			}))
-		} else {
-			creds = grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
+		if certErr != nil {
+			return fmt.Errorf("event_publisher: load client keypair (%s, %s): %w", certFile, keyFile, certErr)
 		}
+		caData, caErr := os.ReadFile(caPath)
+		if caErr != nil {
+			return fmt.Errorf("event_publisher: read CA %q: %w", caPath, caErr)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caData) {
+			return fmt.Errorf("event_publisher: CA bundle at %q contains no usable PEM blocks", caPath)
+		}
+		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+			Certificates: []tls.Certificate{cert},
+			ServerName:   dt.ServerName,
+			RootCAs:      pool,
+			MinVersion:   tls.VersionTLS12,
+		}))
 	} else {
+		log.Printf("event-publisher: PKI paths unconfigured — dialing insecure (early bootstrap path) cert=%q key=%q ca=%q addr=%s",
+			certFile, keyFile, caPath, dt.Address)
 		creds = grpc.WithTransportCredentials(grpcInsecure.NewCredentials())
 	}
 

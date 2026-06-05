@@ -279,6 +279,7 @@ func TestGetArtifactVersions_RequiresName(t *testing.T) {
 }
 
 func TestDeleteArtifact(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{PublisherId: "glob", Name: "gateway", Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE}
 	seedArtifact(t, srv, &repopb.ArtifactManifest{Ref: ref})
@@ -308,6 +309,7 @@ func TestDeleteArtifact(t *testing.T) {
 }
 
 func TestDeleteArtifact_ResponseMessage(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{PublisherId: "glob", Name: "rbac", Version: "2.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE}
 	seedArtifact(t, srv, &repopb.ArtifactManifest{Ref: ref})
@@ -339,6 +341,7 @@ func TestDeleteArtifact_ForceField(t *testing.T) {
 }
 
 func TestDeleteArtifact_NeverUninstalls(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	srv := newTestServer(t)
 	ref := &repopb.ArtifactRef{PublisherId: "glob", Name: "auth", Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE}
 	seedArtifact(t, srv, &repopb.ArtifactManifest{Ref: ref})

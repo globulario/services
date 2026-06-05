@@ -311,7 +311,13 @@ func scanInstalledState(ctx context.Context, candidates []string) map[string][]i
 		return out
 	}
 	ccTarget := config.ResolveDialTarget(addr)
-	ccConn, err := grpc.NewClient(ccTarget.Address, grpc.WithTransportCredentials(repositoryClientTLSCreds(ccTarget.ServerName)))
+	ccCreds, err := repositoryClientTLSCreds(ccTarget.ServerName)
+	if err != nil {
+		slog.Warn("repository.scanInstalledState: TLS creds load failed — installed-state view is empty",
+			"addr", ccTarget.Address, "err", err)
+		return out
+	}
+	ccConn, err := grpc.NewClient(ccTarget.Address, grpc.WithTransportCredentials(ccCreds))
 	if err != nil {
 		slog.Warn("repository.scanInstalledState: dial cluster_controller failed — installed-state view is empty",
 			"addr", ccTarget.Address, "err", err)
@@ -342,7 +348,13 @@ func scanInstalledState(ctx context.Context, candidates []string) map[string][]i
 		}
 
 		naTarget := config.ResolveDialTarget(endpoint)
-		naConn, dErr := grpc.NewClient(naTarget.Address, grpc.WithTransportCredentials(repositoryClientTLSCreds(naTarget.ServerName)))
+		naCreds, cErr := repositoryClientTLSCreds(naTarget.ServerName)
+		if cErr != nil {
+			slog.Warn("repository.scanInstalledState: TLS creds load failed — installed state not observed",
+				"node", nid, "endpoint", endpoint, "err", cErr)
+			continue
+		}
+		naConn, dErr := grpc.NewClient(naTarget.Address, grpc.WithTransportCredentials(naCreds))
 		if dErr != nil {
 			slog.Warn("repository.scanInstalledState: dial node_agent failed — installed state not observed",
 				"node", nid, "endpoint", endpoint, "err", dErr)
@@ -417,14 +429,30 @@ func extractNodeIDFromKey(key string) string {
 //	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
 //	forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
 func fetchDesired(ctx context.Context, name, _ string) *repopb.DesiredInfo {
+	// NOTE: every failure path below returns Present:false, which is
+	// shape-identical to "no desired record exists". The accompanying WARN
+	// logs preserve the diagnostic for operators. Adding a typed
+	// "Observable" / "Reason" field on DesiredInfo would let callers
+	// distinguish unreachable from absent without a log lookup — tracked
+	// as defense-in-depth (meta.fallback_must_degrade_semantics).
 	absent := &repopb.DesiredInfo{Present: false}
 	addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", "")
 	if addr == "" {
+		slog.Warn("repository.fetchDesired: controller endpoint unresolved — returning Present:false (operator: check controller discovery)",
+			"package", name)
 		return absent
 	}
 	target := config.ResolveDialTarget(addr)
-	conn, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(repositoryClientTLSCreds(target.ServerName)))
+	creds, err := repositoryClientTLSCreds(target.ServerName)
 	if err != nil {
+		slog.Warn("repository.fetchDesired: TLS creds load failed — returning Present:false (operator: check repository PKI)",
+			"addr", target.Address, "package", name, "err", err)
+		return absent
+	}
+	conn, err := grpc.NewClient(target.Address, grpc.WithTransportCredentials(creds))
+	if err != nil {
+		slog.Warn("repository.fetchDesired: dial controller failed — returning Present:false (operator: check controller reachability)",
+			"addr", target.Address, "package", name, "err", err)
 		return absent
 	}
 	defer func() { _ = conn.Close() }()

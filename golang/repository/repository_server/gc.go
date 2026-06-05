@@ -113,7 +113,17 @@ func (srv *server) ArchiveUnreachableArtifacts(
 	}
 
 	// Compute reachable set (retention-window + installed/desired-state roots).
-	explicit := mergeBuildIDRoots(collectInstalledBuildIDs(ctx), collectDesiredBuildIDs(ctx))
+	// If desired-state is untrusted (controller unreachable, TLS load
+	// failed), abort the GC cycle rather than proceed with a possibly-empty
+	// desired set that would mark active artifacts as unreachable. The
+	// reconciler will retry next tick. Enforces
+	// meta.fallback_must_degrade_semantics +
+	// repository.purge_must_not_delete_active_desired_builds.
+	desired, trusted := collectDesiredBuildIDs(ctx)
+	if !trusted {
+		return nil, fmt.Errorf("gc: desired-state pin set unverifiable (controller unreachable) — aborting cycle, will retry")
+	}
+	explicit := mergeBuildIDRoots(collectInstalledBuildIDs(ctx), desired)
 	rs := ComputeReachable(catalog, explicit, srv.reachabilityConfig())
 	duplicateReasons := duplicateDigestArchiveReasons(all, explicit)
 

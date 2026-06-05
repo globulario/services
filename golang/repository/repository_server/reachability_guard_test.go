@@ -10,6 +10,7 @@ import (
 // ── checkDeletionSafety ───────────────────────────────────────────────────
 
 func TestDeletionSafety_UnreachableArtifact_IsAllowed(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	// An artifact outside the retention window with no explicit roots is safe to delete.
 	catalog := []*repopb.ArtifactManifest{
 		makePublishedManifest("core", "echo", "1.0.1", "linux_amd64", 1, "bid-1", nil),
@@ -47,6 +48,7 @@ func TestDeletionSafety_RetentionWindowArtifact_IsBlocked(t *testing.T) {
 }
 
 func TestDeletionSafety_ActivelyDeployed_IsBlocked(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	// An artifact with its build_id in the installed-state (simulated via
 	// explicit roots in the catalog — we can't reach etcd in unit tests,
 	// but ComputeReachable will find the explicit root).
@@ -90,6 +92,7 @@ func TestDeletionSafety_SingleBuild_RetentionBlocks(t *testing.T) {
 }
 
 func TestDeletionSafety_EmptyCatalog_IsAllowed(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	// Empty catalog → empty reachable set → safe.
 	target := makePublishedManifest("core", "echo", "1.0.0", "linux_amd64", 1, "bid-x", nil)
 	srv := &server{}
@@ -101,7 +104,41 @@ func TestDeletionSafety_EmptyCatalog_IsAllowed(t *testing.T) {
 
 // ── checkRevokeSafety ─────────────────────────────────────────────────────
 
+// TestDeletionSafety_DesiredStateUnknown_Refuses pins
+// meta.fallback_must_degrade_semantics for the deletion path: when the
+// controller is unreachable AND we cannot verify whether the target is
+// pinned by desired state, deletion MUST be refused (not silently
+// allowed). Without this gate, an absorbed TLS error or controller blip
+// would let GC archive active artifacts and cascade into
+// repository.desired_build_id_orphaned.
+func TestDeletionSafety_DesiredStateUnknown_Refuses(t *testing.T) {
+	// Stub: simulate "controller unreachable" — empty + untrusted.
+	prev := collectDesiredBuildIDsFn
+	collectDesiredBuildIDsFn = func(context.Context) (map[string]bool, bool) {
+		return map[string]bool{}, false
+	}
+	t.Cleanup(func() { collectDesiredBuildIDsFn = prev })
+
+	catalog := []*repopb.ArtifactManifest{
+		makePublishedManifest("core", "echo", "1.0.1", "linux_amd64", 1, "bid-1", nil),
+		makePublishedManifest("core", "echo", "1.0.2", "linux_amd64", 2, "bid-2", nil),
+		makePublishedManifest("core", "echo", "1.0.3", "linux_amd64", 3, "bid-3", nil),
+		makePublishedManifest("core", "echo", "1.0.4", "linux_amd64", 4, "bid-4", nil),
+	}
+	target := catalog[0] // would normally be safe (outside retention)
+
+	srv := &server{}
+	safe, reason, code := srv.checkDeletionSafety(context.Background(), target, catalog)
+	if safe {
+		t.Fatalf("checkDeletionSafety must refuse when desired-state is unverifiable; got safe=true reason=%q", reason)
+	}
+	if code != PurgeBlockedReferencedByDesired {
+		t.Errorf("expected PurgeBlockedReferencedByDesired, got %v", code)
+	}
+}
+
 func TestRevokeSafety_NotDeployed_IsAllowed(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	// No etcd in unit tests → collectInstalledBuildIDs returns {} → not deployed → safe.
 	target := makePublishedManifest("core", "dns", "1.0.0", "linux_amd64", 1, "bid-dns", nil)
 	srv := &server{}

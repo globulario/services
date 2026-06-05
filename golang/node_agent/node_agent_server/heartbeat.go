@@ -728,21 +728,49 @@ func (srv *NodeAgentServer) adoptRunningUnmanagedServices(ctx context.Context) {
 //   - Creates records ONLY for INFRASTRUCTURE/COMMAND packages that have a
 //     matching systemd unit running (verified via systemctl)
 func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int64, platform string, synced *int) {
-	// Resolve repository address from etcd — source of truth for address and port.
-	repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
+	// Bound the repository dial + ListArtifacts within the caller's context.
+	// The underlying repository_client uses context.Background() so without
+	// this wrapper a hung repository RPC would stall the heartbeat goroutine
+	// indefinitely (the outer withOpTimeout(30s) ctx cannot interrupt a call
+	// that doesn't accept a ctx). Enforces
+	// meta.critical_path_no_non_critical_dependency.
+	type listResult struct {
+		arts []*repositorypb.ArtifactManifest
+		rc   *repository_client.Repository_Service_Client
+		err  error
+	}
+	resultCh := make(chan listResult, 1)
+	go func() {
+		repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
+		rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+		if err != nil {
+			resultCh <- listResult{err: fmt.Errorf("connect to repo: %w", err)}
+			return
+		}
+		arts, listErr := rc.ListArtifacts()
+		if listErr != nil {
+			rc.Close()
+			resultCh <- listResult{err: fmt.Errorf("list: %w", listErr)}
+			return
+		}
+		resultCh <- listResult{arts: arts, rc: rc}
+	}()
 
-	rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
-	if err != nil {
-		log.Printf("nodeagent: sync repo artifacts: connect to repo: %v", err)
+	var arts []*repositorypb.ArtifactManifest
+	var rc *repository_client.Repository_Service_Client
+	select {
+	case r := <-resultCh:
+		if r.err != nil {
+			log.Printf("nodeagent: sync repo artifacts: %v", r.err)
+			return
+		}
+		arts = r.arts
+		rc = r.rc
+	case <-ctx.Done():
+		log.Printf("nodeagent: sync repo artifacts: aborted (%v) — repository may be slow", ctx.Err())
 		return
 	}
 	defer rc.Close()
-
-	arts, err := rc.ListArtifacts()
-	if err != nil {
-		log.Printf("nodeagent: sync repo artifacts: list: %v", err)
-		return
-	}
 
 	// Deduplicate: keep only the highest-version (highest build_number on tie)
 	// manifest per (name, platform). ListArtifacts returns ALL published versions;

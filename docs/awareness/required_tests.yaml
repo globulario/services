@@ -440,3 +440,42 @@ required_tests:
     run:
       commands:
         - go test ./golang/node_agent/node_agent_server/ -run "TestAssignEntrypointChecksumMetadata"
+
+  - id: test.interceptor_cached_client_invalidates_on_transport_failure
+    title: Interceptor cached gRPC clients must invalidate on transport-class errors (Unavailable / Unauthenticated / DeadlineExceeded)
+    protects:
+      invariants:
+        - meta.connection_errors_must_not_be_absorbed
+    required_for_changes:
+      paths:
+        - golang/interceptors/ServerInterceptors.go
+      task_terms:
+        - cached client
+        - invalidateClient
+        - isTransportFailure
+        - getLogClient
+        - sync.Once
+    run:
+      commands:
+        - go test ./golang/interceptors/ -run "TestIsTransportFailure|TestInvalidateClient"
+
+  - id: test.gc_refuses_when_desired_state_unverifiable
+    title: Repository GC + checkDeletionSafety must refuse when collectDesiredBuildIDs returns trusted=false
+    protects:
+      invariants:
+        - meta.fallback_must_degrade_semantics
+        - repository.purge_must_not_delete_active_desired_builds
+      failure_modes:
+        - repository.desired_build_id_orphaned
+    required_for_changes:
+      paths:
+        - golang/repository/repository_server/reachability_guard.go
+        - golang/repository/repository_server/gc.go
+      task_terms:
+        - reachability guard
+        - desired state pin
+        - GC artifact archive
+        - controller TLS
+    run:
+      commands:
+        - go test ./golang/repository/repository_server/ -run "TestDeletionSafety_DesiredStateUnknown_Refuses"

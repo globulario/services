@@ -104,6 +104,7 @@ func TestArchivedState_IsNotDownloadBlocked(t *testing.T) {
 }
 
 func TestArchiveUnreachableArtifacts_DuplicateDigestBypassesRetention(t *testing.T) {
+	stubDesiredEmptyTrusted(t)
 	srv := newTestServer(t)
 	srv.GCRetentionWindow = 3
 	ref := &repopb.ArtifactRef{

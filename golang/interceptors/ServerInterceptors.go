@@ -310,7 +310,10 @@ func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, er
 	case r := <-ch:
 		infos, err = r.infos, r.err
 	case <-time.After(10 * time.Second):
-		return nil, fmt.Errorf("getActionResourceInfos: RBAC call timed out for %s", method)
+		// Preserve a sentinel underlying error so callers can distinguish
+		// timeout from generic Unavailable. Enforces
+		// meta.connection_errors_must_not_be_absorbed.
+		return nil, fmt.Errorf("getActionResourceInfos: RBAC call timed out for %s: %w", method, context.DeadlineExceeded)
 	}
 
 	if err != nil {
@@ -362,7 +365,32 @@ func validateAction(
 		return false, false, err
 	}
 
-	allowed, accessDenied, err := rbacClient.ValidateAction(method, subject, subjectType, infos)
+	// Bound the RBAC call. Without this, every authenticated mutating gRPC
+	// call across the cluster blocks indefinitely if RBAC stalls (deadlock,
+	// GC pause, Scylla read hang, mTLS handshake). Default-closed on
+	// timeout: a stalled authorization service must NOT silently grant —
+	// security.deny_overrides_allow. Enforces
+	// meta.critical_path_no_non_critical_dependency.
+	const validateActionTimeout = 5 * time.Second
+	type validateResult struct {
+		allowed      bool
+		accessDenied bool
+		err          error
+	}
+	ch := make(chan validateResult, 1)
+	go func() {
+		a, d, e := rbacClient.ValidateAction(method, subject, subjectType, infos)
+		ch <- validateResult{a, d, e}
+	}()
+	var allowed, accessDenied bool
+	select {
+	case r := <-ch:
+		allowed, accessDenied, err = r.allowed, r.accessDenied, r.err
+	case <-time.After(validateActionTimeout):
+		slog.Error("rbac ValidateAction timed out — denying request",
+			"method", method, "subject", subject, "timeout", validateActionTimeout)
+		return false, true, fmt.Errorf("rbac ValidateAction timed out after %s for %s", validateActionTimeout, method)
+	}
 	if err != nil {
 		return allowed, accessDenied, err
 	}
@@ -493,13 +521,24 @@ func extractFieldValues(rqst interface{}) map[string]string {
 // ---- log forwarding to LogService -------------------------------------------
 
 var (
-	logClientOnce   sync.Once
-	logClientSingle *log_client.Log_Client
-	logClientFailed bool // true if initial connection failed (retry later)
+	// logClientMu guards re-initialization of logClientSingle. The previous
+	// sync.Once + permanent logClientFailed flag meant the process never
+	// re-dialed LogService after one failure, even after recovery —
+	// forbidden.cache_nil_handle_permanently. The current design caches the
+	// client when connected and retries with backoff via logClientNextRetry
+	// when not.
+	logClientMu        sync.Mutex
+	logClientSingle    *log_client.Log_Client
+	logClientNextRetry time.Time // zero = retry now
 
 	nodeHostnameOnce sync.Once
 	nodeHostname     string
 )
+
+// logClientRetryInterval bounds how often we attempt to re-dial LogService
+// after a failure. Short enough that recovery is noticed within a minute,
+// long enough that a persistent outage doesn't dominate CPU.
+const logClientRetryInterval = 60 * time.Second
 
 // errDedup suppresses log-service floods for identical repeated errors.
 // Key: "<method>\x00<grpc-code>\x00<message>".  Value: *errDedupEntry.
@@ -595,34 +634,58 @@ func getNodeHostname() string {
 	return nodeHostname
 }
 
-// getLogClient returns a lazily-initialized LogService client.
-// Returns nil if the log service is unreachable or if we ARE the log service.
+// getLogClient returns a lazily-initialized LogService client. Returns nil
+// when LogService is unreachable; the caller silently drops the entry.
+// Unlike the prior sync.Once + permanent-fail flag, this implementation
+// retries connection after logClientRetryInterval so a transient LogService
+// outage does NOT permanently disable log forwarding for the process
+// lifetime — forbidden.cache_nil_handle_permanently +
+// meta.connection_errors_must_not_be_absorbed.
 func getLogClient() *log_client.Log_Client {
-	logClientOnce.Do(func() {
-		// Discover the log service address from etcd config
-		svcs, err := config.GetServicesConfigurationsByName("log.LogService")
-		if err != nil || len(svcs) == 0 {
-			slog.Debug("log forwarding disabled: log.LogService not found in config")
-			logClientFailed = true
-			return
-		}
-		svc := svcs[0]
-		addr, _ := svc["Address"].(string)
-		id, _ := svc["Id"].(string)
-		if addr == "" {
-			logClientFailed = true
-			return
-		}
-		c, err := log_client.NewLogService_Client(addr, id)
-		if err != nil {
-			slog.Warn("log forwarding disabled: cannot connect to LogService", "address", addr, "error", err)
-			logClientFailed = true
-			return
-		}
-		logClientSingle = c
-		slog.Info("log forwarding enabled", "address", addr)
-	})
+	logClientMu.Lock()
+	defer logClientMu.Unlock()
+	if logClientSingle != nil {
+		return logClientSingle
+	}
+	if now := time.Now(); !logClientNextRetry.IsZero() && now.Before(logClientNextRetry) {
+		return nil
+	}
+	// Discover the log service address from etcd config
+	svcs, err := config.GetServicesConfigurationsByName("log.LogService")
+	if err != nil || len(svcs) == 0 {
+		slog.Debug("log forwarding skipped: log.LogService not found in config (will retry)")
+		logClientNextRetry = time.Now().Add(logClientRetryInterval)
+		return nil
+	}
+	svc := svcs[0]
+	addr, _ := svc["Address"].(string)
+	id, _ := svc["Id"].(string)
+	if addr == "" {
+		logClientNextRetry = time.Now().Add(logClientRetryInterval)
+		return nil
+	}
+	c, err := log_client.NewLogService_Client(addr, id)
+	if err != nil {
+		slog.Warn("log forwarding skipped: cannot connect to LogService (will retry)",
+			"address", addr, "error", err, "retry_after", logClientRetryInterval)
+		logClientNextRetry = time.Now().Add(logClientRetryInterval)
+		return nil
+	}
+	logClientSingle = c
+	logClientNextRetry = time.Time{}
+	slog.Info("log forwarding enabled", "address", addr)
 	return logClientSingle
+}
+
+// invalidateLogClient drops the cached LogService client so the next
+// getLogClient() call re-dials. Use after a transport error on a cached
+// connection to recover from peer restart / cert rotation. Mirrors
+// invalidateClient for the per-service cache below.
+func invalidateLogClient() {
+	logClientMu.Lock()
+	defer logClientMu.Unlock()
+	logClientSingle = nil
+	logClientNextRetry = time.Time{} // allow immediate retry on next call
 }
 
 // forwardToLogService sends ERROR/FATAL logs to log.LogService/Log asynchronously.
@@ -719,6 +782,40 @@ func getClient(address, serviceName string) (globular_client.Client, error) {
 	return client, nil
 }
 
+// invalidateClient drops the cached client for (address, serviceName) so the
+// next getClient() call dials fresh. Callers MUST invalidate on transport
+// errors (Unavailable, DeadlineExceeded against a known-up peer, x509
+// verification mismatch) — otherwise a peer restart, listener cert rotation,
+// or network blip leaves the cluster reusing a dead handle forever
+// (forbidden.cache_nil_handle_permanently +
+// meta.connection_errors_must_not_be_absorbed). Safe to call when no entry
+// exists: sync.Map.Delete is a no-op for missing keys.
+func invalidateClient(address, serviceName string) {
+	uuid := Utility.GenerateUUID(address + serviceName)
+	cache.Delete(uuid)
+}
+
+// isTransportFailure reports whether err is a gRPC transport-level error
+// that should invalidate any cached client handle. Returns true for
+// codes.Unavailable (connection lost / refused) and codes.Unauthenticated
+// (cert / handshake fail) — both indicate the cached handle is unusable.
+// Returns false for application-level errors (NotFound, InvalidArgument,
+// PermissionDenied) which do NOT invalidate the connection.
+func isTransportFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	switch st.Code() {
+	case codes.Unavailable, codes.Unauthenticated, codes.DeadlineExceeded:
+		return true
+	}
+	return false
+}
+
 // roundRobinUnaryMethodHandler forwards unary calls to peers in a round-robin fashion.
 func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst interface{}) (interface{}, error) {
 	cfg, err := config.GetLocalConfig(true)
@@ -759,6 +856,12 @@ func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst inter
 
 	resp, err := client.Invoke(method, rqst, ctx)
 	if err != nil {
+		// Drop the cached client on transport-level failure so the next
+		// dispatch reconnects. Without this, a peer restart leaves us
+		// reusing a dead handle until process restart.
+		if isTransportFailure(err) {
+			invalidateClient(address, service)
+		}
 		return nil, err
 	}
 
@@ -1334,6 +1437,11 @@ func (b *ServerStreamInterceptorBroadcastStream) sendRequestToServer(ctx context
 
 	stream, err := client.Invoke(method, rqst, ctx)
 	if err != nil {
+		// Same rationale as roundRobinUnaryMethodHandler: drop the cached
+		// client on transport failure so the next broadcast reconnects.
+		if isTransportFailure(err) {
+			invalidateClient(address, serviceName)
+		}
 		return err
 	}
 
