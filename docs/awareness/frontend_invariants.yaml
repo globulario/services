@@ -50,6 +50,8 @@ invariants:
       - state.unknown_must_not_default_to_healthy
       - evidence.missing_is_not_known_bad
 
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
   - id: ui.dangerous_warning_must_remain_visible
     title: Dangerous or destructive-operation warnings must remain visible across responsive layouts and skins
     severity: high
@@ -76,6 +78,8 @@ invariants:
       - TestDestructiveWarning_VisibleAtAllBreakpoints
       - TestDestructiveWarning_NotHiddenByThemeChange
 
+    related_invariants:
+      - meta.structure_must_not_be_stripped_in_projection
   - id: ui.ai_text_must_not_invent_state
     title: AI-generated UI text may decorate wording but must not invent system state
     severity: critical
@@ -102,6 +106,8 @@ invariants:
       - TestAIExplanation_DoesNotInvertBackendFact
       - TestAIText_ShowsBlockedReason_NotGenericMessage
 
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
   - id: ui.action_requires_permission_contract
     title: User actions in the UI must declare and respect their required RBAC permission
     severity: high
@@ -131,6 +137,8 @@ invariants:
     related_failure_modes:
       - fm.industry.permission_denied_rendered_as_network_error
 
+    related_invariants:
+      - meta.binding_outlives_evidence_until_invalidated
   - id: ui.status_freshness_must_be_surfaced
     title: UI status indicators must surface the freshness of their data source
     severity: high
@@ -221,3 +229,5 @@ invariants:
     related_failure_modes:
       - fm.globular.vip_transition_cascade
       - fm.industry.floating_address_used_as_durable_identity
+    related_invariants:
+      - meta.structure_must_not_be_stripped_in_projection

@@ -43,6 +43,8 @@ invariants:
     related_failure_modes:
       - fm.industry.partial_failure_hidden_by_global_green
 
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
   - id: state.installed_not_catalog
     title: Installed state must never be inferred from repository catalog availability
     severity: critical
@@ -70,6 +72,8 @@ invariants:
       - TestInstalledState_NotDerivedFromCatalog
       - TestBOMMembership_DoesNotImplyInstalled
 
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
   - id: workflow.success_requires_backend_confirmation
     title: UI or CLI success must require backend/workflow confirmation
     severity: high
@@ -164,6 +168,8 @@ invariants:
     related_failure_modes:
       - fm.globular.vip_transition_cascade
 
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
   - id: network.no_loopback_escape_for_cluster_identity
     title: Cluster identity, TLS SAN validation, and service routing must not be bypassed with localhost or 127.0.0.1
     severity: critical
@@ -192,6 +198,8 @@ invariants:
       - TestInterServiceCall_UsesResolvedFQDN_NotLoopback
       - TestListenerBind_Uses0000_NotLoopback
 
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
   - id: runtime.desired_enabled_not_alive
     title: Desired-enabled state must not be used as proof that a service is alive
     severity: critical
@@ -237,6 +245,8 @@ invariants:
   #   lifecycle  — "will this operation complete, and will I know if it doesn't?"
   #   dependency — "what breaks if a non-critical thing fails?"
 
+    related_invariants:
+      - meta.fallback_must_degrade_semantics
   - id: meta.storage_is_not_semantic_authority
     title: "Storage is not semantic authority — truth belongs to the owning actor, not the backing store"
     category: authority

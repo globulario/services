@@ -60,6 +60,8 @@ invariants:
     related_failure_modes:
       - repository.minio.recovery_cycle
 
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
   - id: workflow.backend_health_gate
     title: Workflow dispatch must gate on backend health
     severity: critical
@@ -87,3 +89,5 @@ invariants:
         trust: declared
     related_failure_modes:
       - workflow.backend_unavailable
+    related_invariants:
+      - meta.state_mutations_must_be_durably_committed_before_side_effects

@@ -40,6 +40,8 @@ invariants:
       related_failure_modes:
         - service.endpoint.port_squatting_cgroup_escape
 
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: service.endpoint.cgroup_escape_guard
       title: Every service unit must kill orphaned processes before starting a new instance
       severity: high
@@ -122,6 +124,8 @@ invariants:
         - service.desired_state.pipeline_gap
         - install.desired_state.invisible_service
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: service.desired_state.direct_etcd_write
       title: Desired state writes during bootstrap must bypass the mesh
       severity: high
@@ -249,6 +253,8 @@ invariants:
           trust: declared
         - file: golang/node_agent/node_agent_server/installed_services.go
           trust: declared
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: desired.build_id_immutable
       title: Desired build_id must not mutate after resolution
       severity: critical
@@ -423,6 +429,8 @@ invariants:
         - TestValidateAnnotationsSkipsTestFiles
       decision_guidance:
         - "Only scan .go files that do NOT end in _test.go for //globular: annotations — test fixtures embed raw annotation strings that are not production declarations"
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: scylla.critical_keyspace_replication_policy
       title: Critical Scylla keyspace replication policy
       severity: critical
@@ -443,6 +451,8 @@ invariants:
         - TestRFAlterFailurePublishesDegradedStatus
       related_failure_modes:
         - scylla.critical_keyspace_under_replicated
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: desired.bootstrap_state_requires_promotion
       title: Bootstrap desired state requires explicit promotion
       severity: critical
@@ -462,6 +472,8 @@ invariants:
         - TestFirstBootClaimsConvergenceOnlyAfterPromotion
       related_failure_modes:
         - desired.bootstrap_premature_convergence
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: critical_state.absence_is_not_destructive_intent
       title: Missing control-plane key is not a stop or delete command
       severity: critical
@@ -509,6 +521,8 @@ invariants:
         - TestEtcdOutageServesFromLKG
       related_failure_modes:
         - runtime.lkg_corrupt_or_missing
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: critical_state.registry_ownership_required
       title: Every critical key must have one authoritative owner
       severity: critical
@@ -578,6 +592,8 @@ invariants:
         - TestTimeoutReleasesLaneLock
       related_failure_modes:
         - reconcile.lane_starvation
+      related_invariants:
+        - meta.write_creates_completion_obligation
     - id: critical_queries.must_be_bounded
       title: Critical control-plane queries must be bounded
       severity: high
@@ -635,6 +651,8 @@ invariants:
         - TestControllerToNodeSkipsDNSOnLookupFailure
       related_failure_modes:
         - recovery.dns_required_for_dns_recovery
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: destructive_actions.require_explicit_guard
       title: Destructive actions require explicit validated guard
       severity: critical
@@ -675,6 +693,8 @@ invariants:
         - TestPerActionSafetyGateDeterministic
       related_failure_modes:
         - topology.unsafe_drift_applied
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: services.drift_must_age_and_escalate
       title: Service drift must age and escalate
       severity: high
@@ -693,6 +713,8 @@ invariants:
         - TestDriftOver5MinOnCriticalServiceIsCritical
       related_failure_modes:
         - services.drift_never_escalates
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
     - id: pki.ca_metadata_must_be_published
       title: PKI CA metadata must be published and registry-governed
       severity: high
@@ -714,6 +736,8 @@ invariants:
       related_failure_modes:
         - pki.ca_not_published
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: security.cluster_trust.establishment_requires_ca_proof
       title: Cluster trust requires verified CA chain — never IP or hostname alone
       severity: critical
@@ -736,6 +760,8 @@ invariants:
         - TestJoiningNodeWithWrongCAIsRejected
         - TestClusterTrustRequiresValidChain
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: runtime.installed_state_must_match_package_kind
       title: Doctor runtime proof must match package kind
       severity: high
@@ -755,6 +781,8 @@ invariants:
         - TestServicePackageWithActiveUnitProducesNoFinding
       related_failure_modes:
         - runtime.command_package_false_positive
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: objectstore.desired_state_must_be_registry_governed
       title: Objectstore desired state must be registry-governed
       severity: critical
@@ -807,6 +835,8 @@ invariants:
       related_failure_modes:
         - objectstore.admitted_disk_data_conflict
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: prometheus.controller_stalled.non_leader_guard
       title: Controller reconcile loop stall check must only fire on leader instances, not followers
       severity: critical
@@ -840,6 +870,8 @@ invariants:
     # ── Self-awareness invariants ────────────────────────────────────────────
     # These protect the awareness system itself from quality regressions.
     # Checked by: globular awareness self-check
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: awareness.no_false_silence_for_sensitive_tasks
       title: Awareness must not be silent for sensitive architectural tasks
       severity: high
@@ -939,6 +971,8 @@ invariants:
       decision_guidance:
         - "Every edge must come from a YAML truth file (invariants.yaml, failure_modes.yaml) or a known extractor package — never add edges speculatively in test fixtures or inline in tool handlers"
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: awareness.mcp_must_not_expose_promotion
       title: MCP must not expose promote_proposal as a tool
       severity: critical
@@ -1014,6 +1048,8 @@ invariants:
         - "Never import a *_client package inside golang/mcp/ — the shared pool in clients.go is the only dial path"
         - "Never call config.ResolveServiceAddr or config.GetMeshAddress from a tool handler — gatewayEndpoint() in clients.go already does this correctly"
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: awareness.node_context_must_not_flood
       title: Node context results must not flood with irrelevant matches
       severity: medium
@@ -1040,6 +1076,8 @@ invariants:
         - "GenerateAgentContext filters by task-keyword relevance scoring — do not remove the result limit (currently 15) without measuring token-budget impact on agents using this tool"
         - "A result count above 15 is a signal that the context alias or keyword matching is too broad, not that the limit is wrong"
 
+      related_invariants:
+        - meta.diagnostic_output_must_be_bounded
     - id: awareness.semantic_paths_must_explain_why
       title: Semantic paths between awareness nodes must include a human-readable explanation
       severity: medium
@@ -1070,6 +1108,8 @@ invariants:
         - "A ShortestPath result with empty Explanation is a traversal artifact — check why.go BuildExplanation to see why the edge chain produces no human-readable narrative"
         - "Agents must not follow a path they cannot explain; an unexplained path may cross domain boundaries that make it architecturally incorrect"
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: awareness.knowledge.graph_rebuild_after_yaml_edit
       title: Editing awareness YAML knowledge files requires a graph rebuild before the decision context is trustworthy
       severity: high
@@ -1125,6 +1165,8 @@ invariants:
         - "Always rebuild and reload the awareness graph after editing knowledge YAML — the Oxigraph store replaces its content atomically (yaml2nt | loadnt), so there are no stale edges."
         - "If graph was not rebuilt after an edit, set GraphIsStale=true in scoring context — it applies -20 penalty to all paths from that graph"
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: awareness.knowledge.causal_rules_evidence_required
       title: Causal rules must be derived from observed incidents, not hypothetical chains
       severity: high
@@ -1160,6 +1202,8 @@ invariants:
         - "Set confidence=low until the causal chain has been validated across multiple independent incidents; do not set confidence=high speculatively"
         - "Hypothetical causal rules that are never validated must be removed, not left at low confidence indefinitely — stale rules pollute the decision graph"
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: awareness.mcp.decision_context_no_bare_no_match
       title: awareness.decision_context must never return bare NO_MATCH — always include coverage and blind_spots
       severity: critical
@@ -1251,6 +1295,8 @@ invariants:
         - "Any new edge constant in graph/edges.go MUST be added to edgeDomains in domain.go before merging — missing entries default to DomainInformation, silently making decision-class edges invisible to the scorer"
         - "Do not default a new edge to DomainDecision to 'make it rank higher' — only edges that encode allowed/forbidden actions or required verification belong in the decision domain"
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: awareness.weight_learning.human_approval_required
       title: Path weight changes must be proposed via learn_from_fix and require explicit human approval before promotion
       severity: high
@@ -1294,6 +1340,8 @@ invariants:
         - "After human approves: (1) edit path_weights.yaml, (2) rebuild and reload the awareness graph, (3) verify TestPathScoring_VerifiedDecisionPathBeatsDeclaredInformationPath still passes"
         - "Never lower ContradictionPenalty (-100) or InvalidEdgePenalty (-100) — these are absolute safety gates, not tunable weights"
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: awareness.preflight.required_before_edit
       title: awareness.preflight or awareness.decision_context must run before editing any high-risk awareness file
       severity: critical
@@ -1342,6 +1390,8 @@ invariants:
         - "The preflight check is itself governed by this invariant — editing preflight.go requires running preflight first"
         - "If preflight is unavailable (graph not built), use 'awareness.decision_context' with changed_files set to the specific files you intend to edit"
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: awareness.impact_analysis.explain_path_required
       title: ExplainImpactByFile must return graph path traces and missing-link suggestions
       severity: high
@@ -1384,6 +1434,8 @@ invariants:
         - "Mandatory findings (from forbidden_fix and enforces edges) must be presented first — they are not equal weight to informational findings"
         - "Path traces let the agent understand WHY a file is impacted — without them, the agent cannot determine if the impact is real or transitive noise"
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: awareness.ci.impact_ci_enforces_required_tests
       title: awareness impact-ci must exit 1 when required tests are missing for changed files
       severity: critical
@@ -1424,6 +1476,8 @@ invariants:
 
     # ── File service invariants (Phases 4-6, 8) ──────────────────────────────
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: file.authz.streaming_write_path_must_be_authorized_before_data_write
       title: Client-streaming file writes must resolve and authorize the destination path before any storage write
       severity: critical
@@ -1451,6 +1505,8 @@ invariants:
         - TestSaveFileRejectsDataBeforePath
         - TestSaveFileRejectsMissingPath
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: file.path.normalization_must_not_escape_virtual_roots
       title: All file paths must be normalized and constrained to approved virtual roots before storage access
       severity: critical
@@ -1476,6 +1532,8 @@ invariants:
         - TestPathNormalizationRejectsEncodedTraversal
         - TestPathNormalizationKeepsUserRootBoundary
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: file.path.delete_must_not_accept_root_or_parent_escape
       title: Delete operations must reject empty path, root path, parent traversal, or malformed absolute paths
       severity: critical
@@ -1498,6 +1556,8 @@ invariants:
         - TestDeleteRejectsRootAndEmptyPath
         - TestDeleteRejectsParentTraversal
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: file.archive.extraction_must_prevent_zip_slip
       title: Archive extraction must reject entries that escape the destination directory
       severity: critical
@@ -1518,6 +1578,8 @@ invariants:
       required_tests:
         - TestArchiveExtractionRejectsZipSlip
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: file.upload.url_must_not_enable_ssrf
       title: URL-based file upload must restrict protocols and block private/metadata network targets
       severity: high
@@ -1539,6 +1601,8 @@ invariants:
         - TestUploadRejectsUnsafeURLTargets
         - TestUploadAllowsSafeHTTPSTarget
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: file.public_dir.authority_must_come_from_cluster_registry
       title: Public directory routing must use the cluster public directory authority, not local inference
       severity: high
@@ -1560,6 +1624,8 @@ invariants:
       required_tests:
         - TestPublicDirAuthorityUsesClusterRegistry
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: service.dependencies.discovered_calls_must_be_classified
       title: Every service client constructed in service code must be classified as declared/optional/background/test
       severity: high
@@ -1607,6 +1673,8 @@ invariants:
         - TestFileServiceTLSIdentityMatchesRegistry
         - TestFileClientUsesResolvedServerName
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: day1.scylla_dependency_gate
       status: active
       severity: critical
@@ -1784,6 +1852,8 @@ invariants:
         - TestArchitectureClassificationBlockedByStaleBundle
 
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: ops_knowledge.seed_integrity
       title: Operational-knowledge seed entries in AI Memory must match the SHA256 stamped in the awareness bundle manifest
       severity: warning
@@ -1859,6 +1929,8 @@ invariants:
         - TestDoctorEmitsDriftFindingButDoesNotGate
         - TestSeedSha256IsCanonicalAndStable
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: founding.quorum.three_nodes_required
       title: First 3 nodes of any cluster MUST have profiles core+control-plane+storage to satisfy etcd / ScyllaDB / MinIO quorum
       severity: critical
@@ -1926,6 +1998,8 @@ invariants:
         - TestServiceErrorsWhenEtcdUnreachable
         - TestNoFallbackToEnvVarConfig
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: keepalived.health_gated_failover
       title: keepalived MUST only advertise as MASTER when local services are healthy; failover triggered by health check failure
       severity: warning
@@ -1964,6 +2038,8 @@ invariants:
         - TestKeepalivedConfigContainsHealthScript
         - TestUnhealthyMasterLosesPriorityBelowBackup
 
+      related_invariants:
+        - meta.authority_must_express_uncertainty
     - id: repository.purge_must_not_delete_active_desired_builds
       title: Repository purge / GC / delete MUST refuse a build_id referenced by active desired state
       severity: critical
@@ -2015,6 +2091,8 @@ invariants:
         - TestCollectDesiredBuildIDs_ScansAllFourPrefixes
         - TestPurgeBlockedAuditEventEmitted
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: repository.desired_build_id_must_resolve
       title: Every active desired build_id MUST resolve to an installable repository artifact
       severity: critical
@@ -2139,6 +2217,8 @@ invariants:
         - TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
         - TestOrphanCheck_DoesNotDisagreeWithDiscovery
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: repository.fallback_requires_manifest_and_checksum
       title: Fallback sources MUST never fetch without manifest+checksum proof
       severity: critical
@@ -2222,6 +2302,8 @@ invariants:
         - TestSignatureVerificationBlocksInstall
         - TestVerificationFailureSurfacesDocFinding
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: release_index.entries_immutable_after_publish
       title: Release index entries are immutable once published
       severity: critical
@@ -2294,6 +2376,8 @@ invariants:
         - TestComputeDesiredState_DrainingNode_WithdrawsRecords
         - TestNodeInfo_ServiceReady_NilMaps_FallsThrough
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: dns.wildcard_must_not_include_unhealthy_nodes
       title: Wildcard (*.<domain>) and api.<domain> records MUST be gated identically to gateway.<domain>
       severity: high
@@ -2326,6 +2410,8 @@ invariants:
         - TestComputeDesiredState_WildcardExcludesUnhealthy
         - TestComputeDesiredState_WildcardMatchesGatewayCandidateSet
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: package.official_identity_immutable
       title: Once an official stable (publisher, name, version, platform) is published, no different byte stream may claim that identity
       severity: critical
@@ -2400,6 +2486,8 @@ invariants:
         - TestLocalPublish2_FormatLocalVersion
       related_failure_modes:
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: package.local_override_must_be_explicit
       title: A local package override in desired state must carry explicit override metadata
       severity: high
@@ -2471,6 +2559,8 @@ invariants:
         - TestLocalPublish3_OfficialBOMUnaffectedByLocalPublish
       related_failure_modes:
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: package.promotion_must_use_official_release_pipeline
       title: Promoting a local fix to official must go through the official build/release pipeline
       severity: critical
@@ -2561,6 +2651,8 @@ invariants:
         network) first before classifying as kubernetes_control_plane_owned.
       related_failure_modes:
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: k8s.nodes.ready_count_matches_expected
       title: The number of Ready Kubernetes nodes must match the number of healthy Globular nodes
       severity: critical
@@ -2571,6 +2663,8 @@ invariants:
         a substrate issue or a Kubernetes node registration problem. The substrate check
         must happen first — a down Globular node IS the root cause of K8s NotReady.
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: k8s.core_dns.available
       title: CoreDNS must be available and responding to queries
       severity: critical
@@ -2580,6 +2674,8 @@ invariants:
         CoreDNS failure breaks all K8s service discovery. Always check if the node
         hosting CoreDNS is substrate-healthy before escalating.
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: k8s.kube_proxy.available_on_each_node
       title: kube-proxy must be available on each Kubernetes node
       severity: high
@@ -2589,6 +2685,8 @@ invariants:
         kube-proxy failure breaks service routing. May be substrate-owned if the
         node is unhealthy from a Globular perspective.
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: k8s.cni.ready_on_each_node
       title: The CNI plugin must be running and ready on each Kubernetes node
       severity: critical
@@ -2598,6 +2696,8 @@ invariants:
         CNI failure causes pod networking failure on the entire node.
         Substrate-owned if Globular manages the network fabric on that node.
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: k8s.certificates.not_expired
       title: No Kubernetes cluster certificates may be expired
       severity: critical
@@ -2608,6 +2708,7 @@ invariants:
         is under Globular PKI, this is substrate_owned. If it is a separate K8s-managed
         cert, classify as kubernetes_control_plane_owned.
       related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
         - identity.stable_node_identity_not_floating_vip
 
     - id: k8s.etcd.quorum_available
@@ -2622,6 +2723,8 @@ invariants:
       forbidden_fixes:
         - confuse_k8s_etcd_with_globular_etcd
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: k8s.system_pods.available
       title: All kube-system pods must be available and not crash-looping
       severity: high
@@ -2631,6 +2734,8 @@ invariants:
         kube-system pod failures cascade to workload failures. Check substrate
         (node health, storage, network) before classifying as workload_owned.
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: k8s.pending_pods.explained
       title: Every pod stuck in Pending for more than 5 minutes must have a classified reason
       severity: medium
@@ -2641,6 +2746,8 @@ invariants:
         requires checking: scheduler events, PVC binding status, node capacity,
         and substrate health.
 
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
     - id: k8s.crashlooping_pods.explained
       title: Every CrashLoopBackOff pod must have a classified root cause before escalation
       severity: medium
@@ -2650,6 +2757,8 @@ invariants:
         CrashLoopBackOff may be workload_owned (app crash) or substrate_owned
         (storage mount, network unreachable). Check substrate first.
 
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
     - id: k8s.service_has_ready_endpoints
       title: Every Kubernetes Service must have at least one ready endpoint
       severity: high
@@ -2659,6 +2768,8 @@ invariants:
         A service with zero endpoints means all backing pods are unavailable.
         This may be substrate_owned if pods are crashing due to node/storage issues.
 
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
     - id: k8s.pvc_bound_or_reason_known
       title: Every PersistentVolumeClaim must be bound or have a classified reason for being unbound
       severity: high
@@ -2668,6 +2779,8 @@ invariants:
         Unbound PVCs block pod scheduling. May be substrate_owned if the storage
         provisioner (MinIO, NFS) is a Globular-managed service that is down.
 
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
     - id: k8s.admission_webhooks.available
       title: All Fail-mode admission webhooks must be available
       severity: critical
@@ -2677,6 +2790,8 @@ invariants:
         Unavailable Fail-mode webhooks block all object creation in the cluster.
         If the webhook pod is on an unhealthy Globular node, classify as substrate_owned.
 
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
     - id: k8s.namespace_not_stuck_terminating
       title: No Kubernetes namespace may be stuck in Terminating state for more than 10 minutes
       severity: medium
@@ -2687,6 +2802,8 @@ invariants:
         API server/etcd problem (kubernetes_control_plane_owned). Never delete
         finalizers without classifying the root cause.
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: k8s.authority_boundary_classification_required
       title: Every Kubernetes failure observed by Globular must be classified before action
       severity: critical
@@ -2702,6 +2819,8 @@ invariants:
         - assume_substrate_fix_resolves_workload_failure
         - delete_pod_to_resolve_storage_issue
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: objectstore.minio.wipe_is_idempotent_per_generation
       title: A MinIO .minio.sys destructive wipe must execute exactly once per topology generation per node
       severity: critical
@@ -2733,6 +2852,8 @@ invariants:
           - golang/node_agent/node_agent_server/minio_format_backup.go
           - golang/node_agent/node_agent_server/minio_systemd_reconcile.go
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: objectstore.minio.format_json_durable_in_etcd
       title: Every per-drive .minio.sys/format.json must have a current snapshot in etcd, scoped by topology fingerprint
       severity: critical
@@ -2775,6 +2896,8 @@ invariants:
     # The Prime Directive: no component reports healthy / installed /
     # converged / aligned from a CLAIM alone. Runtime truth requires PROOF.
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: diagnostics.must_measure_reality
       title: Diagnostics must verify disk, process, runtime, and live dependency state — claims are not proof
       severity: critical
@@ -2864,6 +2987,8 @@ invariants:
       related_failure_modes:
         - rollout.partial_not_converged
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: health.must_not_use_inventory_as_runtime_truth
       title: Health checks must not report service version OK from etcd inventory alone
       severity: critical
@@ -3008,6 +3133,8 @@ invariants:
         - service.old_pid_after_upgrade
         - service.runtime_identity_unproven
 
+      related_invariants:
+        - meta.authority_must_express_uncertainty
     - id: install.join_path_must_complete_install_contract
       title: Every install path must complete the full install contract — start unit, write entrypoint_checksum, preserve metadata
       severity: critical
@@ -3107,6 +3234,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
     - id: remediation.token_must_be_scoped_and_non_replayable
       title: Approval tokens must be signed, scoped, audience-bound, expiring, and single-use
       severity: critical
@@ -3179,6 +3308,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: force_action_must_not_hide_policy_gate
       title: Override audit must explicitly name the bypassed policy
       severity: critical
@@ -3269,6 +3400,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: service.dependencies_must_define_degradation_mode
       title: Every critical service declares per-dependency degradation modes
       severity: high
@@ -3308,6 +3441,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
     - id: dependency_failure_must_not_create_hidden_authority
       title: Dependency failure must not let a service silently assume authority it doesn't own
       severity: critical
@@ -3371,6 +3506,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: stale_or_orphan_process_must_not_be_trusted
       title: Orphan processes and replayed attestations must be flagged as untrusted
       severity: critical
@@ -3399,6 +3536,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: audit.records_must_be_correlated_and_retained
       title: Remediation audit records carry correlation, declared retention, and propagate cross-service
       severity: high
@@ -3505,6 +3644,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: remediation.must_not_retry_without_changed_evidence_or_policy_budget
       title: Remediation retries require changed evidence or remaining policy budget
       severity: high
@@ -3539,6 +3680,8 @@ invariants:
       related_failure_modes:
         - services.drift_never_escalates
 
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
     - id: evidence.must_carry_provenance_and_trust_level
       title: Evidence used for decisions must carry source, writer, timestamp, and a classifier-derived trust level
       severity: high
@@ -3726,6 +3869,8 @@ invariants:
         - TestIsExplicitVersion
       related_failure_modes:
         - release.explicit_version_wildcard_installs_wrong_version
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: repository.imported_package_must_be_local_install_resolvable
       title: A successfully imported package must be materialized where the local-only install path searches for it
       severity: critical
@@ -3769,6 +3914,8 @@ invariants:
         - TestMaterializeLocalPackageArchive_DigestPreservation
       related_failure_modes:
         - release.explicit_version_wildcard_installs_wrong_version
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
     - id: runtime.success_requires_expected_binary_checksum
       title: apply-package may not declare SUCCESS unless the installed binary hash matches the expected manifest checksum
       severity: critical
@@ -3915,6 +4062,8 @@ invariants:
         - TestCanonicalRuntimeDir_NoMutationForUnknownNames
       related_failure_modes:
         - filesystem.service_runtime_dir_naming_drift
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: doctor.layout_drift_must_reflect_real_risk
       title: Layout drift findings must distinguish legitimate runtime dirs, cleanup candidates, and real risks — not flood every unknown name as WARN
       severity: warn
@@ -4055,6 +4204,8 @@ invariants:
         - TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
       related_failure_modes:
         - repository.sync_silently_drops_noarch_artifacts
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: awareness.child_intent_must_align_with_parent
       title: Requirement-born child intents must preserve parent intent direction
       severity: critical
@@ -4174,6 +4325,8 @@ invariants:
         - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
       related_failure_modes:
         - controller.apply_package_missing_expected_sha256_blocks_verified_install
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: workflow.definitions_must_thread_required_verification_fields
       title: Active workflow YAML definitions must thread all verification fields the controller code expects
       severity: critical
@@ -4231,6 +4384,8 @@ invariants:
       related_failure_modes:
         - workflow.stale_definitions_block_expected_sha256_propagation
         - controller.apply_package_missing_expected_sha256_blocks_verified_install
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: etcd.must_have_free_backend_space_for_reconciliation
       title: Reconciliation classification must distinguish persistence-blocked (etcd NOSPACE) from controller/verification failure
       severity: critical
@@ -4348,6 +4503,8 @@ invariants:
         - node_agent.install_package_aliases_convergence_hash_into_expected_sha256
         - controller.apply_package_missing_expected_sha256_blocks_verified_install
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: service.lifecycle.version_field_must_not_be_overwritten
       title: Service main must initialise its Version field from the package-level Version variable, never from a literal
       severity: degraded
@@ -4464,6 +4621,8 @@ invariants:
       related_failure_modes:
         - release_pipeline.set_fields_silent_noop_on_wrong_kind
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: reconcile.dep_block_records_must_be_cleared_when_dep_satisfies
       title: Runtime dependency-block records must continue to be cleared once the blocking dependency is observed as satisfied and join-phase verified
       severity: high
@@ -4598,6 +4757,8 @@ invariants:
         - skip_kid_lookup_when_issuer_is_trusted_service
         - accept_token_with_unknown_issuer_as_service_account
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: security.unauthenticated_allowlist_must_be_minimal
       title: Unauthenticated method allowlist is an explicit bypass surface and must remain minimal
       severity: critical
@@ -4622,6 +4783,8 @@ invariants:
         - grow_allowlist_to_avoid_token_plumbing
         - use_allowunauthenticatedprefix_on_a_full_service_path
 
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
     - id: objectstore.minio.config_render_source_must_be_etcd
       title: Local MinIO runtime config files must be rendered from etcd ObjectStoreDesiredState
       severity: critical
@@ -4649,6 +4812,8 @@ invariants:
         - omit_rendered_artifact_metadata_from_minio_contract_file
         - treat_minio_env_file_as_authoritative_topology_source
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: scylla.join_wipe_safe_only_if_never_verified
       title: ScyllaDB data wipe during join is safe only for nodes that have never been verified as part of the ring
       severity: critical
@@ -4675,6 +4840,8 @@ invariants:
         - reset_ScyllaWasEverVerified_to_false_on_a_live_node
         - dispatch_wipe_from_node_agent_without_controller_side_guard
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: scylla.group0_stale_voter_blocks_schema_mutations
       title: A stale or unknown ScyllaDB Raft Group 0 voter state must block all schema mutations
       severity: critical
@@ -4737,6 +4904,8 @@ invariants:
         - TestNodeExecutorCannotPublish
         - TestNodeExecutorCannotPerformRBACAdmin
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: node.admission.proof_must_match_issued_join_id
       title: Node admission proof must match the join ID issued at request time
       severity: critical
@@ -4760,6 +4929,8 @@ invariants:
         - TestAdmissionProof_WrongNodeIdentityBlocks
         - TestAdmissionProof_EtcdFailedBlocksAdmission
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: repository.artifact.content_immutable_after_publish
       title: Published artifact content is immutable — same version must mean same digest
       severity: critical
@@ -4834,6 +5005,8 @@ invariants:
       required_tests:
         - TestDeleteArtifact_NeverUninstalls
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: leader.write_must_be_fenced_on_lease_expiry
       title: Controller leader must fence all writes immediately on lease expiry
       severity: critical
@@ -4908,6 +5081,8 @@ invariants:
         - TestMigrateLegacyStatePath_Idempotent
         - TestMigrateLegacyStatePath_NodeAgent_Idempotent
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: objectstore.minio_contract_write_must_be_atomic
       title: MinIO desired contract writes must be atomic and overwrite corruption
       severity: high
@@ -4930,6 +5105,8 @@ invariants:
         - TestWriteMinioContractAtomic_OverwritesCorrupt
         - TestWriteMinioContractAtomic_RoundTrip
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: cluster.founding_profiles_quorum_immutable
       title: First 3 nodes must have core + control-plane + storage profiles for quorum
       severity: critical
@@ -4955,6 +5132,8 @@ invariants:
         - TestEnforceFoundingProfiles_RequiresAllThreeProfiles
         - TestSetNodeProfiles_CannotDropStorageBelow3
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: cluster.profile_removal_guards_storage_quorum
       title: Removing foundational profiles is blocked if it drops storage below MinQuorumNodes
       severity: critical
@@ -4977,6 +5156,8 @@ invariants:
       required_tests:
         - TestSetNodeProfiles_CannotDropStorageBelow3
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: cluster.desired_state_authority_over_installed_state
       title: Desired state must never be deleted based on installed-state observations
       severity: critical
@@ -5023,6 +5204,8 @@ invariants:
         - TestHeartbeat_DoesNotWriteDesiredHash
         - TestHeartbeat_DoesNotWriteDesiredVersion
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: objectstore.membership_requires_explicit_desired_state
       title: MinIO pool membership requires explicit DesiredObjectStoreMembers entry
       severity: critical
@@ -5043,6 +5226,8 @@ invariants:
         - using ObjectStoreIntent.Member alone to determine pool membership
         - auto-enrolling nodes without a DesiredObjectStoreMembers write
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: objectstore.runtime_scope_must_match_desired_members
       title: MinIO active on nodes outside the desired pool must block topology operations
       severity: critical
@@ -5065,6 +5250,8 @@ invariants:
       required_tests:
         - TestVerifyRuntimeScope_NonMemberActive
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: objectstore.lock_release_is_idempotent
       title: MinIO topology lock release must succeed even if lock does not exist
       severity: high
@@ -5084,6 +5271,8 @@ invariants:
       required_tests:
         - TestReleaseTopologyLock_Idempotent
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: repository.build_id_server_generated_not_client_driven
       title: build_id is allocated server-side and must never be supplied by the client
       severity: critical
@@ -5109,6 +5298,8 @@ invariants:
         - TestPublishRejectsSameBuildNumberDifferentBuildID
         - TestUploadIdempotentSameDigestReturnsExistingBuildID
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: repository.official_publisher_channel_isolation
       title: Official publisher cannot publish to DEV channel; DEV is for local/dev publishers only
       severity: critical
@@ -5134,6 +5325,8 @@ invariants:
         - TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
         - TestLocalPublish2_OfficialPublisherCannotUseLocalVersionSuffix
 
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
     - id: repository.desired_build_id_is_hard_reachability_root
       title: Desired build_id is a hard reachability root — deletion and revocation are blocked
       severity: critical
@@ -5159,6 +5352,8 @@ invariants:
       required_tests:
         - TestDesiredBuildIDImmutableAfterWrite
 
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
     - id: repository.artifact_presence_requires_metadata_and_blob
       title: Artifact presence requires both metadata row and binary blob
       severity: critical
@@ -5184,6 +5379,8 @@ invariants:
       required_tests:
         - TestArtifactPresence_RequiresMetadataAndBlob
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: node.package_downgrade_requires_force_flag
       title: Automatic package downgrade is forbidden — Force=true required for manual rollback
       severity: critical
@@ -5208,6 +5405,8 @@ invariants:
       required_tests:
         - TestApplyPackageRelease_RefusesDowngradeWithoutForce
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: repository.authority_endpoint_must_be_specific_fqdn
       title: standalone_authority mode forbids round-robin DNS endpoints
       severity: critical
@@ -5232,6 +5431,8 @@ invariants:
       required_tests:
         - TestStorageTopology_StandaloneAuthorityRejectsRoundRobinEndpoint
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: doctor.remediation_requires_leader
       title: Only the elected cluster-doctor leader may authorize or execute remediation actions
       severity: critical
@@ -5259,6 +5460,8 @@ invariants:
       required_tests:
         - test.doctor_leader_blocks_follower_remediation
 
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: doctor.hard_blocked_actions_never_execute
       title: ETCD_PUT, ETCD_DELETE, and NODE_REMOVE must never auto-execute
       severity: critical
@@ -5402,6 +5605,8 @@ invariants:
         - doctor.cache_poisoning_from_node_scoped_findings
       required_tests:
         - test.doctor_cache_not_poisoned_by_node_scope
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: repository.upstream_local_paths_must_reject_traversal
       title: LOCAL_DIR and GIT_INDEX provider paths MUST reject absolute paths, parent-directory segments, and symlink-based traversal
       severity: critical
@@ -5453,6 +5658,8 @@ invariants:
         - TestGitIndex_RejectsAbsoluteAssetPath
       related_failure_modes:
         - repository.upstream_path_traversal_via_symlinks
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: repository.upstream_credentials_must_be_redacted_in_audit_logs
       title: Upstream provider credentials (GitHub asset tokens, git remote auth, HTTP bearer tokens) MUST be redacted before any URL is logged or audited
       severity: high
@@ -5493,6 +5700,8 @@ invariants:
         - TestRedactGitError
       related_failure_modes:
         - repository.upstream_token_leak_via_unredacted_log
+      related_invariants:
+        - meta.diagnostic_output_must_be_bounded
     - id: dnsprovider.private_ips_must_not_publish_to_public_dns
       title: External DNS providers MUST filter RFC1918 / loopback / link-local addresses out of every record before transmission unless AllowPrivateIPs is explicitly set
       severity: high
@@ -5542,6 +5751,8 @@ invariants:
         - move_private_ip_filtering_into_the_caller_instead_of_the_provider
       related_failure_modes:
         - dnsprovider.internal_topology_leak_via_public_dns_publish
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: mcp.etcd.tools_must_not_join_remote_allowlist
       title: Direct etcd MCP tools MUST NOT appear in the cross-node aggregator remote_call allowlist
       severity: critical
@@ -5579,6 +5790,8 @@ invariants:
         - route_etcd_calls_through_a_proxy_tool_that_is_itself_in_the_allowlist
       related_failure_modes:
         - mcp.etcd_remote_allowlist_expansion
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
     - id: mcp.file_tool_uses_file_service_not_host_fs
       title: MCP file tools MUST go through the Globular file service gRPC API; direct host-fs access is forbidden
       severity: critical
@@ -5616,6 +5829,8 @@ invariants:
         - bypass_file_service_for_files_under_a_safelist_of_paths
       related_failure_modes:
         - mcp.file_tool_host_fs_escape
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: release.failed_state_requires_explicit_recovery_or_requeue
       title: A ServiceRelease in FAILED phase MUST NOT be silently treated as complete because child workflows later report success
       severity: critical
@@ -5706,6 +5921,8 @@ invariants:
       related_failure_modes:
         - envoy.lds_update_attempt_zero_despite_cds_progress
       required_tests: []
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: node_agent.install_skip_must_refresh_runtime_proof
       title: When node-agent skips install because the desired version is already physically present, it MUST refresh service-config and runtime proof in etcd
       severity: critical
@@ -5758,6 +5975,8 @@ invariants:
         - service.old_pid_after_upgrade
       required_tests: []
 
+      related_invariants:
+        - meta.half_done_must_not_look_done
     - id: controller.platform_upgrade_must_gate_per_node_per_package
       title: platform-upgrade must apply per-(node, package) gates before any desired-state change
       severity: high
@@ -5876,6 +6095,8 @@ invariants:
       related_failure_modes:
         - collector.cluster_id_metadata_missing_starves_evidence
 
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
     - id: repository.minio_is_not_valid_package_source
       title: MinIO must never be used as a recovery source for package binaries — packages live in the local POSIX CAS at /var/lib/globular/packages/ and that is the only authority for installable content
       severity: critical
@@ -5924,6 +6145,8 @@ invariants:
       related_failure_modes:
         - assistant.extended_legacy_buggy_path_instead_of_querying_architecture
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: assistant.query_awareness_before_assuming_architecture
       title: AI assistants must query the awareness graph for "where does X live architecturally" before writing code that touches X's storage, transport, or authority surfaces
       severity: high
@@ -5977,6 +6200,8 @@ invariants:
     # a cross-layer decision.
     # ───────────────────────────────────────────────────────────────────────
 
+      related_invariants:
+        - meta.authority_must_express_uncertainty
     - id: four_layer.layer_has_single_writing_actor
       title: Each of the four truth layers (Artifact, Desired, Installed, Runtime) has exactly one writing actor; cross-layer writes by non-owners are forbidden
       severity: critical
@@ -6207,6 +6432,8 @@ invariants:
       forbidden_fixes:
         - bypass_doctor_for_cross_layer_health_finding
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: four_layer.workflow_actor_attribution_required
       title: Every workflow step's writes are attributed to the actor named in the step; the workflow service routes but never substitutes its own identity
       severity: critical
@@ -6253,6 +6480,8 @@ invariants:
         owns per etcd_path_ownership (Commit B). Reviews of new workflow
         definitions must confirm the actor matches the path owner.
 
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
     - id: etcd.path_has_single_owner
       title: Every etcd key prefix has exactly one owning service; all other writers must go through the owner's typed RPC
       severity: critical
@@ -6741,6 +6970,7 @@ invariants:
         + TestImportDay0Trace_MissingLogIsSilent +
         TestImportDay0Trace_NilSessionIsSilent.
       related_invariants:
+        - meta.half_done_must_not_look_done
         - workflow.source_of_operational_truth
 
     - id: workflow.every_state_mutation_belongs_to_a_workflow_instance

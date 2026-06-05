@@ -33,6 +33,8 @@ invariants:
       - mapping_no_match_to_trusted_verdict
       - inferring_safety_from_silent_preflight
 
+    related_invariants:
+      - meta.absence_scope_must_be_explicit
   - id: awareness.bundle_must_have_source_sha
     title: Every awareness bundle must record the source git SHA used to generate it
     severity: critical
@@ -53,6 +55,8 @@ invariants:
       - TestCheckStaleness_BundleAgeExceededIsCritical
       - TestCheckStaleness_BundleOlderThanGraph
 
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
   - id: awareness.stale_bundle_blocks_safety_verdict
     title: A stale bundle may provide hints but must not produce a safety verdict
     severity: critical
@@ -74,6 +78,8 @@ invariants:
     required_tests:
       - TestCompose_StaleBundleBlocksSafetyVerdict
 
+    related_invariants:
+      - meta.authority_must_express_uncertainty
   - id: awareness.failure_mode_requires_test_or_reason
     title: Every promoted failure mode must link to a regression test or explicitly declare why no test exists
     severity: high
@@ -91,6 +97,8 @@ invariants:
       as CoveragePartial at best (never CoverageWellCovered). Trust
       envelope downgrades verdicts for such modes.
 
+    related_invariants:
+      - meta.silence_is_not_valid_for_unexpected
   - id: awareness.learning_loop_must_close
     title: A promoted incident must be traceable from incident → failure_mode → invariant or forbidden_fix → test → future detection
     severity: critical
@@ -113,6 +121,8 @@ invariants:
     required_tests:
       - TestLearningLoopClosesOnReoccurrence
 
+    related_invariants:
+      - meta.write_creates_completion_obligation
   - id: awareness.semantic_diff_authority_move_requires_review
     title: Semantic-diff authority movement across Repository/Desired/Installed/Runtime layers must require explicit review and strong awareness coverage
     severity: critical
@@ -131,6 +141,8 @@ invariants:
       whose authority_change.requires_review is true unless coverage is
       strong AND tests are linked to the relevant invariants.
 
+    related_invariants:
+      - meta.binding_outlives_evidence_until_invalidated
   - id: awareness.source_scan_requires_verified_repo_root
     title: Awareness source-scanning tools must use a verified repo root or report unverified — never silently fall back to a wrong tree
     severity: critical
@@ -179,6 +191,8 @@ invariants:
       - TestVerifyGapTests_EmptyRepoRootReturnsUnverified
       - TestCoverageReport_NoRepoRootIsUnverifiedNotCritical
 
+    related_invariants:
+      - meta.binding_outlives_evidence_until_invalidated
   - id: awareness.mcp.advertised_tools_must_be_backed_by_ready_storage
     title: Awareness MCP must not advertise contribution tools unless their backing storage and config are writable
     severity: critical
@@ -234,3 +248,5 @@ invariants:
       - TestAwarenessReadiness_WritablePathsAdvertiseAllTools
       - TestAwarenessReadiness_ReadinessToolAlwaysAdvertised
       - TestAwarenessReadiness_ProbeDirCreatedOnDemandWhenParentWritable
+    related_invariants:
+      - meta.authority_must_express_uncertainty
