@@ -33,6 +33,11 @@ code_symbols:
     language: go
     file: cmd/principle-check/loader.go
     component: build.principle_check.loader
+  - id: globular.awareness_graph:code.go.build.principle_check.ruleguard_scan
+    namespace: globular.awareness_graph
+    language: go
+    file: cmd/principle-check/ruleguard_scan.go
+    component: build.principle_check.ruleguard_scan
   - id: globular.awareness_graph:code.go.build.yaml2nt.run
     namespace: globular.awareness_graph
     language: go

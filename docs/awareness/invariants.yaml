@@ -7616,3 +7616,111 @@ invariants:
         - controller.platform_upgrade_bypassed_workflow_authority
         - mcp.governor_bypass_via_ad_hoc_execute_tool
         - mcp.etcd_remote_allowlist_expansion
+
+    - id: connection.dial_err_must_carry_class_through_return_path
+      title: Connection-dial errors must carry their class (TLS/auth/dial/quorum) through the return path — never absorbed into nil
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.connection_errors_must_not_be_absorbed
+        for Go code in the services repo. The bug shape this invariant
+        pins is:
+
+          conn, err := <connect_func>(...)
+          if err != nil {
+              // ... maybe log or capture into a struct field ...
+              return nil, nil       // ← err CLASS absorbed
+          }
+
+        The connect_func is one of: net.Dial / net.DialTimeout /
+        (*net.Dialer).Dial / tls.Dial / tls.DialWithDialer /
+        grpc.Dial / grpc.DialContext / grpc.NewClient /
+        clientv3.New / (*gocql.ClusterConfig).CreateSession.
+
+        Returning nil for the error position collapses the connection
+        error class — TLS handshake failure, auth rejection, host
+        unreachable, etcd endpoint down, Scylla quorum lost all become
+        the same "nothing happened" signal at the caller. Three prior
+        incidents (VIP cert 16h outage, auth-token silent failure,
+        Scylla late-connect nil-handle) all match this shape.
+
+        Acceptable patterns:
+          - return nil, err                                    (preserve identity)
+          - return nil, fmt.Errorf("...: %w", err)             (wrap, preserve via %w)
+          - return nil, &TypedConnectionError{Cause: err, ...} (lift to typed sentinel)
+
+        Forbidden:
+          - return nil, nil
+          - return nil, fmt.Errorf("timeout")                  (string-only, %w missing)
+          - return defaultValue, nil
+
+        Translation patterns (e.g. a HealthCheck function converting
+        connection errors into a structured HealthReport with the
+        error preserved as a string field) are legitimate but require
+        explicit classification under exception_files with a reason.
+
+      protects:
+        files:
+          - golang/globular_service/describe_health.go
+          - golang/globular_client/
+        symbols:
+          - DialContext
+          - grpc.Dial
+          - tls.Dial
+          - net.Dial
+      forbidden_fixes:
+        - forbidden.absorb_tls_error_into_timeout
+        - forbidden.cache_nil_handle_permanently
+        - return_nil_for_err_after_failed_dial
+      required_tests: []
+
+      related_invariants:
+        - meta.connection_errors_must_not_be_absorbed
+
+      # ── principle-check v1 structured metadata (ruleguard mode) ────
+      # First non-regex analyzer integration. analysis_mode=ruleguard
+      # tells principle-check to shell out to the `ruleguard` CLI with
+      # the rule file at ruleguard_rules_file (path relative to the
+      # awareness-graph repo root). Findings flow into the same
+      # CONFORMANT/EXCEPTION/UNKNOWN/DRIFT pipeline as the regex mode.
+      #
+      # Why ruleguard for this principle: detecting "err absorbed in
+      # return path" needs AST shape matching, not a line-by-line
+      # regex. The pattern
+      #
+      #   $_, $err := net.Dial(...); if $err != nil { ...; return $_, nil }
+      #
+      # is a structural shape ruleguard expresses directly.
+
+      actor_writer_dirs:
+        - golang/globular_service
+        - golang/globular_client
+        - golang/cluster_controller/cluster_controller_server
+        - golang/node_agent/node_agent_server
+        - golang/repository/repository_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/connection_errors_must_not_be_absorbed.go
+
+      # scan_pattern is unused in ruleguard mode but kept here as
+      # documentation of what the rule file looks for, so a reader
+      # of the YAML sees the conceptual match shape without opening
+      # the rules file.
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files:
+        - file: globular_service/describe_health.go
+          category: exception_translation_to_structured_health_report
+          reason: |
+            HealthCheck function (DescribeService) intentionally translates
+            grpc.DialContext errors into a structured HealthReport with
+            the error preserved as report.Error (string) and the status
+            set to HealthNotServing. The function returns (report, nil)
+            for the Go-level error position because the connection error
+            class is captured in report.Status + report.Error, not in
+            the Go error return. Callers (Prometheus exporters, doctor
+            sweeps) read report.Status. The error class survives — just
+            via a different channel than typed-error propagation.
+
+      workflow_step_handler_files: []
+      unknown_helper_files: []
