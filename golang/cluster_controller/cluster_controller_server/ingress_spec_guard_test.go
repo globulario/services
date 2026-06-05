@@ -76,56 +76,149 @@ func TestEnsureIngressDesiredState_RestoreDeniedByApproval(t *testing.T) {
 	}
 }
 
-func TestEnsureIngressDesiredState_RestoreWithoutApproval(t *testing.T) {
+// Post-2026-06-05 lift: the inline restoreIngressSpecFromBackup function was
+// replaced by the cluster.ingress_spec_restore workflow. The tests below
+// pin the IngressControllerConfig action handlers directly — those handlers
+// are what the workflow's step actions execute. This is the correct
+// regression seam after the lift; the dispatch path is owned by the
+// workflow engine and tested there.
+
+func TestIngressControllerConfig_LoadBackup_Present(t *testing.T) {
+	kv := newFakeKV()
+	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+	srv.kv = kv
+
+	backup := ingressDesiredSpec{Version: "v1", Mode: ingressModeVIPFailover, Generation: 3}
+	raw, _ := json.Marshal(backup)
+	_, _ = kv.Put(context.Background(), ingressSpecBackupKey, string(raw))
+
+	cfg := srv.buildIngressControllerConfig()
+	bytes, present, err := cfg.LoadBackup(context.Background())
+	if err != nil {
+		t.Fatalf("LoadBackup: %v", err)
+	}
+	if !present {
+		t.Fatal("expected present=true when backup key exists")
+	}
+	if len(bytes) == 0 {
+		t.Fatal("expected non-empty backup bytes")
+	}
+}
+
+func TestIngressControllerConfig_LoadBackup_Absent(t *testing.T) {
+	kv := newFakeKV()
+	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+	srv.kv = kv
+
+	cfg := srv.buildIngressControllerConfig()
+	bytes, present, err := cfg.LoadBackup(context.Background())
+	if err != nil {
+		t.Fatalf("LoadBackup with no backup: %v", err)
+	}
+	if present {
+		t.Fatal("expected present=false when backup key is absent")
+	}
+	if bytes != nil {
+		t.Fatal("expected nil bytes when backup is absent")
+	}
+}
+
+func TestIngressControllerConfig_ComposeRestoreSpec_RestoresBackup(t *testing.T) {
 	kv := newFakeKV()
 	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
 	srv.kv = kv
 
 	backup := ingressDesiredSpec{
-		Version:        "v1",
-		Mode:           ingressModeVIPFailover,
-		Generation:     3,
-		Authoritative:  true,
-		WriterLeaderID: "leader-b",
-		Source:         "cluster-controller",
+		Version:    "v1",
+		Mode:       ingressModeVIPFailover,
+		Generation: 5,
 		VIPFailover: map[string]interface{}{
 			"vip": "10.0.0.100/24",
 		},
 	}
 	raw, _ := json.Marshal(backup)
-	_, _ = kv.Put(context.Background(), ingressSpecBackupKey, string(raw))
 
-	srv.ensureIngressDesiredState(context.Background())
-	resp, _ := kv.Get(context.Background(), ingressSpecKey)
-	if len(resp.Kvs) == 0 {
-		t.Fatal("expected ingress spec restore when approval is absent")
+	cfg := srv.buildIngressControllerConfig()
+	specBytes, source, err := cfg.ComposeRestoreSpec(context.Background(), true, raw)
+	if err != nil {
+		t.Fatalf("ComposeRestoreSpec: %v", err)
+	}
+	if source != "backup" {
+		t.Fatalf("source = %q, want %q", source, "backup")
+	}
+	var got ingressDesiredSpec
+	if err := json.Unmarshal(specBytes, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Mode != ingressModeVIPFailover {
+		t.Fatalf("Mode = %q, want %q", got.Mode, ingressModeVIPFailover)
+	}
+	if got.Generation != backup.Generation+1 {
+		t.Fatalf("Generation = %d, want %d (normalize must bump)", got.Generation, backup.Generation+1)
 	}
 }
 
-func TestEnsureIngressDesiredState_NoSpecNoBackup_SeedsExplicitDisabled(t *testing.T) {
+func TestIngressControllerConfig_ComposeRestoreSpec_SeedsWhenNoBackup(t *testing.T) {
 	kv := newFakeKV()
 	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
 	srv.kv = kv
 
-	srv.ensureIngressDesiredState(context.Background())
-
-	resp, _ := kv.Get(context.Background(), ingressSpecKey)
-	if len(resp.Kvs) == 0 {
-		t.Fatal("expected ingress spec to be seeded when spec+backup are both absent")
+	cfg := srv.buildIngressControllerConfig()
+	specBytes, source, err := cfg.ComposeRestoreSpec(context.Background(), false, nil)
+	if err != nil {
+		t.Fatalf("ComposeRestoreSpec: %v", err)
 	}
-	var spec ingressDesiredSpec
-	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
-		t.Fatalf("unmarshal spec: %v", err)
+	if source != "seed" {
+		t.Fatalf("source = %q, want %q", source, "seed")
 	}
-	if spec.Mode != ingressModeDisabled {
-		t.Fatalf("expected mode=disabled, got %q", spec.Mode)
+	var got ingressDesiredSpec
+	if err := json.Unmarshal(specBytes, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
 	}
-	if !spec.ExplicitDisabled {
+	if got.Mode != ingressModeDisabled {
+		t.Fatalf("Mode = %q, want %q", got.Mode, ingressModeDisabled)
+	}
+	if !got.ExplicitDisabled {
 		t.Fatal("expected ExplicitDisabled=true for Day-0 seeded baseline")
 	}
+}
 
-	backupResp, _ := kv.Get(context.Background(), ingressSpecBackupKey)
-	if len(backupResp.Kvs) == 0 {
-		t.Fatal("expected ingress backup key to be seeded alongside spec")
+func TestIngressControllerConfig_ComposeRestoreSpec_SeedsWhenBackupUnparseable(t *testing.T) {
+	kv := newFakeKV()
+	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+	srv.kv = kv
+
+	cfg := srv.buildIngressControllerConfig()
+	_, source, err := cfg.ComposeRestoreSpec(context.Background(), true, []byte("{not valid json"))
+	if err != nil {
+		t.Fatalf("ComposeRestoreSpec: %v", err)
+	}
+	if source != "seed" {
+		t.Fatalf("source = %q, want %q (unparseable backup must fall back to seed)", source, "seed")
+	}
+}
+
+func TestIngressControllerConfig_PublishRestoreSpec_WritesBothKeys(t *testing.T) {
+	kv := newFakeKV()
+	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
+	srv.kv = kv
+
+	spec := srv.normalizeIngressSpec(ingressDesiredSpec{
+		Mode:             ingressModeDisabled,
+		ExplicitDisabled: true,
+		Reason:           "test",
+	})
+	specBytes, _ := json.Marshal(spec)
+
+	cfg := srv.buildIngressControllerConfig()
+	if err := cfg.PublishRestoreSpec(context.Background(), specBytes); err != nil {
+		t.Fatalf("PublishRestoreSpec: %v", err)
+	}
+
+	if resp, _ := kv.Get(context.Background(), ingressSpecKey); len(resp.Kvs) == 0 {
+		t.Fatal("expected live spec key to be written")
+	}
+	if resp, _ := kv.Get(context.Background(), ingressSpecBackupKey); len(resp.Kvs) == 0 {
+		t.Fatal("expected backup spec key to be written")
 	}
 }

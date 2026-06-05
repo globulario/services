@@ -1,0 +1,60 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: cluster.ingress_spec_restore
+  displayName: Restore ingress spec from backup (or seed default)
+  description: >-
+    Lifts the previously-inline restoreIngressSpecFromBackup multi-step
+    orchestration (failure_mode hidden_workflow.controller_ingress_spec_guard_restore_path)
+    into a declarative workflow with durable step receipts.
+
+    The cluster_controller ingress-spec-guard tick dispatches this workflow
+    when (a) the live ingress spec is absent and no operator delete-approval
+    exists, OR (b) the live spec failed JSON parse on a present-but-invalid
+    key. Each run produces a durable record naming the leader, the backup
+    bytes that were read, the spec composed, and the publish outcome —
+    closing the audit gap that the inline implementation had.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - trigger_reason
+    properties:
+      cluster_id: { type: string }
+      # trigger_reason names which guard-tick condition fired the workflow.
+      # "spec_absent_no_delete_approval" or "spec_present_but_invalid_json".
+      trigger_reason: { type: string }
+  strategy:
+    mode: single
+  steps:
+    - id: load_backup
+      title: Read ingress spec backup from etcd
+      actor: cluster-controller
+      action: controller.ingress.load_spec_backup
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: compose_spec
+      title: Compose spec from backup OR seed explicit-disabled default
+      dependsOn: [load_backup]
+      actor: cluster-controller
+      action: controller.ingress.compose_restore_spec
+      with:
+        backup_present: $.load_backup.outputs.backup_present
+        backup_bytes:   $.load_backup.outputs.backup_bytes
+      execution:
+        idempotency: safe_retry
+        resume_policy: retry
+
+    - id: publish_spec
+      title: Atomically publish spec to live + backup keys
+      dependsOn: [compose_spec]
+      actor: cluster-controller
+      action: controller.ingress.publish_restore_spec
+      with:
+        spec_bytes: $.compose_spec.outputs.spec_bytes
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect

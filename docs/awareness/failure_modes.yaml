@@ -4489,7 +4489,13 @@ failure_modes:
     - id: hidden_workflow.controller_ingress_spec_guard_restore_path
       title: restoreIngressSpecFromBackup performs multi-step ingress restore inline from a tick callback
       severity: medium
-      status: active
+      status: lifted
+      lifted_at: "2026-06-05"
+      lifted_to_workflow: cluster.ingress_spec_restore
+      lifted_files:
+        - golang/workflow/definitions/cluster.ingress_spec_restore.yaml
+        - golang/workflow/engine/actors_ingress.go
+        - golang/cluster_controller/cluster_controller_server/workflow_ingress_restore.go
       description: >
         cluster_controller_server/ingress_spec_guard.go::restoreIngressSpecFromBackup
         is called from the guard tick when the live ingress spec is absent

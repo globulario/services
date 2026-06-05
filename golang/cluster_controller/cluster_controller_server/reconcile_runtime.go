@@ -145,6 +145,10 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	// platform.upgrade — per-(node, package) upgrade decision workflow.
 	// Replaces the direct-etcd-write CLI path (v1.2.159 incident).
 	engine.RegisterPlatformUpgradeControllerActions(defaultRouter, srv.platformUpgradeControllerConfig())
+	// cluster.ingress_spec_restore — lift of the previously-inline
+	// restoreIngressSpecFromBackup function (2026-06-05 hidden-workflow
+	// audit, failure_mode hidden_workflow.controller_ingress_spec_guard_restore_path).
+	engine.RegisterIngressControllerActions(defaultRouter, srv.buildIngressControllerConfig())
 	srv.actorServer.SetDefaultRouter(defaultRouter)
 
 	// Staggered initial enqueue: wait for readiness predicates to pass, then

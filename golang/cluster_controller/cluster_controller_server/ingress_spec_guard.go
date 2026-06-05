@@ -176,9 +176,14 @@ func (srv *server) ensureIngressDesiredState(ctx context.Context) {
 	if err != nil {
 		log.Printf("ingress-spec-guard: read spec failed: %v", err)
 		if present {
-			// Present-but-invalid JSON — preserve the prior
-			// "restore from backup" behaviour.
-			srv.restoreIngressSpecFromBackup(ctx)
+			// Present-but-invalid JSON — dispatch the restore workflow
+			// (failure_mode hidden_workflow.controller_ingress_spec_guard_restore_path
+			// lift). Inline restoreIngressSpecFromBackup was removed
+			// in favour of cluster.ingress_spec_restore for durable
+			// step receipts.
+			if derr := srv.dispatchIngressSpecRestore(ctx, "spec_present_but_invalid_json"); derr != nil {
+				log.Printf("ingress-spec-guard: restore workflow dispatch failed: %v", derr)
+			}
 		}
 		return
 	}
@@ -196,7 +201,13 @@ func (srv *server) ensureIngressDesiredState(ctx context.Context) {
 		log.Printf("ingress-spec-guard: spec absent with valid delete approval — honoring operator intent, not restoring")
 		return
 	}
-	srv.restoreIngressSpecFromBackup(ctx)
+	// Dispatch the restore workflow. Replaces the inline
+	// restoreIngressSpecFromBackup call. Each restore attempt now produces
+	// a workflow_runs row with durable step receipts (load_backup →
+	// compose_spec → publish_spec).
+	if derr := srv.dispatchIngressSpecRestore(ctx, "spec_absent_no_delete_approval"); derr != nil {
+		log.Printf("ingress-spec-guard: restore workflow dispatch failed: %v", derr)
+	}
 }
 
 // hasIngressDeleteApproval checks whether any valid delete-approval key exists
@@ -236,39 +247,15 @@ func (srv *server) hasIngressDeleteApproval(ctx context.Context) bool {
 	return false
 }
 
-func (srv *server) restoreIngressSpecFromBackup(ctx context.Context) {
-	kv := srv.kv
-	if kv == nil {
-		kv = srv.etcdClient
-	}
-	if kv == nil {
-		return
-	}
-	b, err := kv.Get(ctx, ingressSpecBackupKey)
-	if err == nil && len(b.Kvs) > 0 && len(b.Kvs[0].Value) > 0 {
-		var spec ingressDesiredSpec
-		if uerr := json.Unmarshal(b.Kvs[0].Value, &spec); uerr == nil {
-			spec = srv.normalizeIngressSpec(spec)
-			if err := srv.publishIngressSpec(ctx, spec); err == nil {
-				log.Printf("ingress-spec-guard: restored ingress spec from backup")
-				return
-			}
-		}
-	}
-	// No backup available. Do NOT write any spec to etcd — writing mode=disabled
-	// with explicit_disabled=false is ambiguous and confusing. Instead, seed an
-	// explicit disabled baseline spec so Day-0 bootstrap has authoritative intent.
-	seed := srv.normalizeIngressSpec(ingressDesiredSpec{
-		Mode:             ingressModeDisabled,
-		ExplicitDisabled: true,
-		Reason:           "day0 bootstrap default: ingress not yet configured",
-	})
-	if err := srv.publishIngressSpec(ctx, seed); err != nil {
-		log.Printf("ingress-spec-guard: CRITICAL: missing spec+backup and failed to seed explicit disabled baseline: %v", err)
-		return
-	}
-	log.Printf("ingress-spec-guard: seeded explicit disabled baseline spec (no backup present)")
-}
+// restoreIngressSpecFromBackup was removed in the 2026-06-05 lift to the
+// cluster.ingress_spec_restore workflow. Its three logical steps
+// (load_backup, compose_spec, publish_spec) are now declared in
+// golang/workflow/definitions/cluster.ingress_spec_restore.yaml and
+// implemented in workflow_ingress_restore.go::buildIngressControllerConfig.
+// The guard tick at ensureIngressDesiredState() dispatches the workflow.
+//
+// See failure_mode hidden_workflow.controller_ingress_spec_guard_restore_path
+// for the audit finding that motivated the lift.
 
 func (srv *server) normalizeIngressSpec(spec ingressDesiredSpec) ingressDesiredSpec {
 	if strings.TrimSpace(spec.Version) == "" {

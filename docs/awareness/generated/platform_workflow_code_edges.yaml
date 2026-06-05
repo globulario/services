@@ -5,6 +5,15 @@ code_edges:
   - from: globular.platform:code.go.platform_workflow.actors_doctor_remediation
     relation: implements
     to: globular.platform:intent.workflow.step_receipts_are_evidence
+  - from: globular.platform:code.go.platform_workflow.actors_ingress
+    relation: implements
+    to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_workflow.actors_ingress
+    relation: implements
+    to: globular.platform:invariant.workflow.every_state_mutation_belongs_to_a_workflow_instance
+  - from: globular.platform:code.go.platform_workflow.actors_ingress
+    relation: protects
+    to: globular.platform:failure_mode.hidden_workflow.controller_ingress_spec_guard_restore_path
   - from: globular.platform:code.go.platform_workflow.actors_invariant
     relation: implements
     to: globular.platform:intent.workflow.cluster_invariants_gate_mutations

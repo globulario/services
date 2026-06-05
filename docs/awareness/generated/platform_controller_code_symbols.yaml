@@ -707,6 +707,17 @@ code_symbols:
         - globular.platform:invariant.workflow.definitions_must_thread_required_verification_fields
       protects:
         - globular.platform:failure_mode.workflow.stale_definitions_block_expected_sha256_propagation
+  - id: globular.platform:code.go.platform_controller.workflow_ingress_restore
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/workflow_ingress_restore.go
+    component: platform_controller.workflow_ingress_restore
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:invariant.workflow.every_state_mutation_belongs_to_a_workflow_instance
+      protects:
+        - globular.platform:failure_mode.hidden_workflow.controller_ingress_spec_guard_restore_path
   - id: globular.platform:code.go.platform_controller.workflow_release.hash_schemas_must_not_alias
     namespace: globular.platform
     language: go
