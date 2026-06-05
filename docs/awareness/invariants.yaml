@@ -6788,6 +6788,71 @@ invariants:
 
       related_invariants:
         - meta.identity_computation_must_be_invariant
+
+    - id: workflow.workflow_service_writes_only_own_runtime_state
+      title: The workflow service writes only its own runtime state (step receipts, defer counters) — never cluster intent
+      severity: high
+      status: active
+      summary: |
+        The workflow service is a router for state mutations attributed
+        to other actors (cluster-controller, node-agent, repository,
+        etc.). Its OWN state writes are limited to runtime bookkeeping:
+        workflow_runs rows, step receipts, correlation_defer_state
+        rows, etc. These live in Scylla, not etcd.
+
+        Direct etcd writes from inside golang/workflow/ would violate
+        four_layer.workflow_actor_attribution_required — the workflow
+        service substituting its identity for an actor's. The only
+        legitimate etcd write from this directory is at pre-workflow
+        bootstrap: SeedCoreWorkflows writes the workflow definitions
+        to etcd at controller startup (etcd is below the workflow
+        layer; the definitions are read at workflow dispatch time).
+
+        This invariant is the principle-check v1 multi-principle proof:
+        same scan pattern as workflow.every_state_mutation_belongs_to_a_workflow_instance,
+        different actor scope (workflow/ instead of the three primary
+        actor-writer dirs), independent exception classification.
+      protects:
+        files:
+          - golang/workflow/v1alpha1/etcd_fetcher.go
+          - golang/workflow/workflow_server/server.go
+          - golang/workflow/workflow_server/executor.go
+        symbols:
+          - SeedCoreWorkflows
+      meta_principle_instances:
+        - parent: meta.storage_is_not_semantic_authority
+          relation: instance
+          notes: |
+            The workflow service is a router, not a writer. Direct etcd
+            writes here would mean the courier is substituting its
+            identity for the actor's — exactly the wrong-writer shape
+            this meta-principle catches.
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
+        - four_layer.workflow_actor_attribution_required
+        - workflow.every_state_mutation_belongs_to_a_workflow_instance
+
+      actor_writer_dirs:
+        - golang/workflow
+
+      scan_pattern: '\b(cli|kv|kvClient|etcdcli|etcdClient|client|c)\.(Put|Delete)\s*\('
+      scan_pattern_description: |
+        Same direct etcd Put/Delete shape as the primary workflow
+        invariant. The discriminator here is the actor_writer_dirs
+        — we're asking whether the workflow service itself writes
+        cluster intent to etcd.
+
+      exception_files:
+        # Exception 4 — pre-workflow primitive. SeedCoreWorkflows writes
+        # the workflow definitions to etcd at controller startup, before
+        # any workflow can dispatch. etcd is below the workflow layer.
+        - file: golang/workflow/v1alpha1/etcd_fetcher.go
+          category: exception_4_pre_workflow_primitive
+          reason: SeedCoreWorkflows seeds workflow definitions to etcd at startup (pre-workflow; the definitions are read at dispatch time)
+
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
     - id: workflow.deferred_run_retryable_when_blocker_clears
       title: Deferred workflow runs must remain retryable until either the blocker clears or the operator explicitly abandons
       severity: high
@@ -7166,6 +7231,18 @@ invariants:
         - golang/cluster_controller/cluster_controller_server
         - golang/node_agent/node_agent_server
         - golang/repository/repository_server
+
+      # scan_pattern is the Go regex the scanner runs against each
+      # production source line. A match marks the line as a candidate
+      # state-mutation site to classify. Different meta-principles
+      # need different patterns (e.g. identity-invariance scans for
+      # identity-field assignments, not etcd writes) — putting the
+      # pattern in YAML keeps the scanner principle-agnostic.
+      scan_pattern: '\b(cli|kv|kvClient|etcdcli|etcdClient|client|c)\.(Put|Delete)\s*\('
+      scan_pattern_description: |
+        Direct etcd Put/Delete calls on a client identifier. Narrow by
+        design — only methods named Put or Delete on identifiers whose
+        name suggests an etcd client. Excludes _test.go files.
 
       exception_files:
         # Exception 1 — observer-only self-state.
