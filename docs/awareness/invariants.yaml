@@ -7880,3 +7880,76 @@ invariants:
       exception_files: []
       workflow_step_handler_files: []
       unknown_helper_files: []
+
+    - id: netutil.identity_getter_must_express_vip_ambiguity
+      title: Identity-critical comparisons must use StableIP(vip), not PrimaryIP — the floating VIP corrupts self-identification and pool membership
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.authority_must_express_uncertainty
+        for the PrimaryIP / StableIP authority surfaces. The principle:
+        when a node holds the cluster VIP, PrimaryIP() returns the
+        VIP, not the node's stable identity. PrimaryIP cannot tell the
+        caller "the answer depends on whether I'm currently holding the
+        VIP" — it just returns a string. Callers in identity-critical
+        contexts (etcd endpoint publish, scylla hosts, /etc/hosts,
+        self-identification, pool membership) fabricate stable identity
+        from this unstable value, producing drift when the VIP moves.
+
+        The fix in every prior incident: replace PrimaryIP() with
+        StableIP(clusterVIP), which excludes the VIP and forces the
+        caller to name the VIP explicitly — the question "do you want
+        my stable identity or my transient VIP role?" surfaces at
+        every call site instead of being hidden inside one method.
+
+        Three prior incidents in this class:
+          - etcd member eviction (VIP-holder's published endpoint moved
+            with the VIP, breaking etcd cluster membership)
+          - scylla cluster contamination (publishScyllaHostsIfNeeded
+            wrote VIP into hosts list)
+          - /etc/hosts cross-node contamination on VIP failover
+
+        The ruleguard rule matches `$_.PrimaryIP()` callsites. Today's
+        sweep finds 2 production sites in cluster_controller_server
+        that compare PrimaryIP() against localIP for self-
+        identification — both are DRIFT candidates worth review. One
+        site in state.go (line 550) is the canonical fallback inside
+        StableIP itself; classified as EXCEPTION.
+
+      protects:
+        files:
+          - golang/netutil/node_identity.go
+          - golang/cluster_controller/cluster_controller_server/state.go
+        symbols:
+          - PrimaryIP
+          - StableIP
+      forbidden_fixes:
+        - use_primaryip_for_pool_membership
+        - use_primaryip_for_etcd_endpoint
+        - use_primaryip_for_scylla_hosts
+      required_tests: []
+
+      related_invariants:
+        - meta.authority_must_express_uncertainty
+
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/authority_uncertainty_primaryip_ambiguous.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files:
+        - file: cluster_controller/cluster_controller_server/state.go
+          category: exception_canonical_stableip_fallback
+          reason: |
+            state.go:550 is INSIDE the StableIP() method itself —
+            specifically the fallback branch that returns PrimaryIP()
+            when no non-VIP IP can be found in node.Identity.Ips.
+            This is the canonical implementation of the fix; calling
+            PrimaryIP here is correct because StableIP IS the
+            ambiguity-disambiguator and this is its degraded path.
+
+      workflow_step_handler_files: []
+      unknown_helper_files: []
