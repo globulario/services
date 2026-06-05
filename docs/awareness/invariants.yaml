@@ -6777,6 +6777,9 @@ invariants:
         dispatched workflows for inspection, which is partially present
         but not yet a clean regression seam.
       related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+        - meta.storage_is_not_semantic_authority
+        - meta.write_creates_completion_obligation
         - workflow.source_of_operational_truth
         - workflow.four_layer_is_template_instantiated_per_artifact_node
         - four_layer.workflow_actor_attribution_required
@@ -6785,6 +6788,26 @@ invariants:
         - workflow.dispatch_is_not_completion
         - workflow.success_requires_backend_confirmation
         - infra.heartbeat_observer_only_not_authority
+      meta_principle_instances:
+        - parent: meta.state_mutations_must_be_durably_committed_before_side_effects
+          relation: per_mutation_enforcement
+          notes: |
+            The pointwise rule is the per-mutation enforcement of the parent
+            meta-principle. The parent says "intent commits before action,
+            retry is the only response, no alternative paths once committed."
+            This invariant operationalises that for every state write:
+            name the workflow_run_id + step_id that committed the intent.
+            "Drift to plan mode" is the exact "alternative path" the parent
+            forbids.
+        - parent: meta.storage_is_not_semantic_authority
+          relation: instance
+          notes: |
+            The workflow service is a router, not a writer. Attributing a
+            mutation to the workflow service substitutes the courier's
+            identity for the actor's — exactly the wrong-writer shape
+            this meta-principle catches.
       related_failure_modes:
         - four_layer.cross_layer_write_creates_drift
         - controller.platform_upgrade_bypassed_workflow_authority
+        - mcp.governor_bypass_via_ad_hoc_execute_tool
+        - mcp.etcd_remote_allowlist_expansion
