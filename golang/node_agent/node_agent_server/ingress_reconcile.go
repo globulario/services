@@ -215,19 +215,49 @@ func (srv *NodeAgentServer) watchIngressSpec(ctx context.Context) {
 
 	watchChan := etcdClient.Watch(ctx, ingressSpecKey)
 
+	// Dedup state for repeated watch errors — enforces
+	// meta.diagnostic_output_must_be_bounded. A persistent etcd outage
+	// would otherwise produce one "watch error" line every 5s
+	// (720/hr) until quorum recovers.
+	const errLogDedupWindow = 5 * time.Minute
+	var (
+		lastWatchErr     string
+		lastWatchErrAt   time.Time
+		watchErrSuppress int
+	)
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case watchResp := <-watchChan:
 			if watchResp.Err() != nil {
-				log.Printf("ingress: watch error: %v", watchResp.Err())
+				msg := watchResp.Err().Error()
+				if msg == lastWatchErr && time.Since(lastWatchErrAt) < errLogDedupWindow {
+					watchErrSuppress++
+				} else {
+					if watchErrSuppress > 0 {
+						log.Printf("ingress: watch error (repeated %d times): %s", watchErrSuppress, lastWatchErr)
+					} else {
+						log.Printf("ingress: watch error: %v", watchResp.Err())
+					}
+					lastWatchErr = msg
+					lastWatchErrAt = time.Now()
+					watchErrSuppress = 0
+				}
 				// Wait before retrying
 				time.Sleep(5 * time.Second)
 				if retryClient, retryErr := config.GetEtcdClient(); retryErr == nil {
 					watchChan = retryClient.Watch(ctx, ingressSpecKey)
 				}
 				continue
+			}
+
+			// Clear dedup state on a successful (no-error) watch tick.
+			if lastWatchErr != "" {
+				log.Printf("ingress: watch recovered (prior=%q suppressed=%d)", lastWatchErr, watchErrSuppress)
+				lastWatchErr = ""
+				watchErrSuppress = 0
 			}
 
 			// Trigger reconciliation on any change

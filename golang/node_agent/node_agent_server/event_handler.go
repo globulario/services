@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -27,6 +28,31 @@ func (eh *eventHandler) run(ctx context.Context) {
 	// Wait for services to stabilize.
 	time.Sleep(15 * time.Second)
 
+	// Dedup state for repeated connect/subscribe errors — enforces
+	// meta.diagnostic_output_must_be_bounded. A persistent event-service
+	// outage would otherwise produce one line per 10s retry tick
+	// (360/hr) for the entire outage.
+	const errLogDedupWindow = 5 * time.Minute
+	var (
+		lastErr     string
+		lastErrAt   time.Time
+		errSuppress int
+	)
+	logRetryErr := func(msg string) {
+		if msg == lastErr && time.Since(lastErrAt) < errLogDedupWindow {
+			errSuppress++
+			return
+		}
+		if errSuppress > 0 {
+			log.Printf("event-handler: %s (repeated %d times)", lastErr, errSuppress)
+		} else {
+			log.Printf("event-handler: %s", msg)
+		}
+		lastErr = msg
+		lastErrAt = time.Now()
+		errSuppress = 0
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -37,17 +63,24 @@ func (eh *eventHandler) run(ctx context.Context) {
 		Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 		eventAddr := config.ResolveServiceAddr("event.EventService", "")
 		if eventAddr == "" {
-			log.Printf("event-handler: event service not found in registry, retrying in 10s")
+			logRetryErr("event service not found in registry, retrying in 10s")
 			time.Sleep(10 * time.Second)
 			continue
 		}
 		c, err := globular_client.GetClient(eventAddr, "event.EventService", "NewEventService_Client")
 		if err != nil {
-			log.Printf("event-handler: event service unavailable, retrying in 10s: %v", err)
+			logRetryErr(fmt.Sprintf("event service unavailable, retrying in 10s: %v", err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
 		client := c.(*event_client.Event_Client)
+
+		// Clear dedup state on successful connect.
+		if lastErr != "" {
+			log.Printf("event-handler: recovered (prior=%q suppressed=%d)", lastErr, errSuppress)
+			lastErr = ""
+			errSuppress = 0
+		}
 
 		log.Printf("event-handler: connected to event service")
 
@@ -55,7 +88,7 @@ func (eh *eventHandler) run(ctx context.Context) {
 		if err := client.Subscribe("operation.*", subscriberID, func(evt *eventpb.Event) {
 			eh.handleEvent(ctx, evt)
 		}); err != nil {
-			log.Printf("event-handler: subscribe failed: %v, retrying in 10s", err)
+			logRetryErr(fmt.Sprintf("subscribe failed: %v, retrying in 10s", err))
 			time.Sleep(10 * time.Second)
 			continue
 		}

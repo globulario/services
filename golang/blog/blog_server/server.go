@@ -302,10 +302,35 @@ func (srv *server) GetGrpcServer() *grpc.Server { return srv.grpcServer }
 func (srv *server) startDeleteAccountSubscription() {
     consumerID := srv.Name + "@" + srv.Domain + ":delete"
     backoff := time.Second
+    // Dedup state for repeated connect/subscribe errors — enforces
+    // meta.diagnostic_output_must_be_bounded. A persistent event-service
+    // outage would otherwise produce one "retrying" line per backoff
+    // tick until the outage clears.
+    const errLogDedupWindow = 5 * time.Minute
+    var (
+        lastErr     string
+        lastErrAt   time.Time
+        errSuppress int
+    )
+    logRetryWarn := func(stage string, channel string, err error) {
+        msg := stage + ": " + err.Error()
+        if msg == lastErr && time.Since(lastErrAt) < errLogDedupWindow {
+            errSuppress++
+            return
+        }
+        if errSuppress > 0 {
+            logger.Warn(stage+"; retrying", "channel", channel, "err", lastErr, "repeated", errSuppress)
+        } else {
+            logger.Warn(stage+"; retrying", "channel", channel, "err", err)
+        }
+        lastErr = msg
+        lastErrAt = time.Now()
+        errSuppress = 0
+    }
     for {
         evtClient, err := srv.getEventClient()
         if err != nil {
-            logger.Warn("event client unavailable; retrying", "err", err)
+            logRetryWarn("event client unavailable", "delete_account_evt", err)
             time.Sleep(backoff)
             if backoff < 10*time.Second {
                 backoff *= 2
@@ -316,12 +341,16 @@ func (srv *server) startDeleteAccountSubscription() {
             srv.deleteAccountListener(evt)
         })
         if err != nil {
-            logger.Warn("subscribe failed; retrying", "channel", "delete_account_evt", "err", err)
+            logRetryWarn("subscribe failed", "delete_account_evt", err)
             time.Sleep(backoff)
             if backoff < 10*time.Second {
                 backoff *= 2
             }
             continue
+        }
+        if lastErr != "" {
+            logger.Info("event subscription recovered", "channel", "delete_account_evt",
+                "prior_err", lastErr, "suppressed", errSuppress)
         }
         logger.Info("subscribed to event", "channel", "delete_account_evt", "consumer", consumerID)
         break

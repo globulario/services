@@ -41,6 +41,16 @@ func startDoctorLeaderElection(ctx context.Context, srv *ClusterDoctorServer) {
 	go func() {
 		backoff := 250 * time.Millisecond
 		maxBackoff := 5 * time.Second
+		// Dedup state for repeated session-failure errors — enforces
+		// meta.diagnostic_output_must_be_bounded. A persistent etcd
+		// outage would otherwise produce one "session failed" line
+		// per backoff tick (up to 720/hr at the 5s max-backoff).
+		const errLogDedupWindow = 5 * time.Minute
+		var (
+			lastSessErr     string
+			lastSessErrAt   time.Time
+			sessErrSuppress int
+		)
 		for {
 			select {
 			case <-ctx.Done():
@@ -51,12 +61,32 @@ func startDoctorLeaderElection(ctx context.Context, srv *ClusterDoctorServer) {
 			ttl := 15 // seconds
 			sess, err := concurrency.NewSession(cli, concurrency.WithTTL(ttl))
 			if err != nil {
-				logger.Warn("doctor leader election: session failed", "err", err)
+				msg := err.Error()
+				if msg == lastSessErr && time.Since(lastSessErrAt) < errLogDedupWindow {
+					sessErrSuppress++
+				} else {
+					if sessErrSuppress > 0 {
+						logger.Warn("doctor leader election: session failed",
+							"err", lastSessErr, "repeated", sessErrSuppress)
+					} else {
+						logger.Warn("doctor leader election: session failed", "err", err)
+					}
+					lastSessErr = msg
+					lastSessErrAt = time.Now()
+					sessErrSuppress = 0
+				}
 				time.Sleep(backoff)
 				if backoff < maxBackoff {
 					backoff *= 2
 				}
 				continue
+			}
+			// Clear dedup state on successful session creation.
+			if lastSessErr != "" {
+				logger.Info("doctor leader election: session recovered",
+					"prior_err", lastSessErr, "suppressed", sessErrSuppress)
+				lastSessErr = ""
+				sessErrSuppress = 0
 			}
 
 			election := concurrency.NewElection(sess, doctorLeaderPrefix)
