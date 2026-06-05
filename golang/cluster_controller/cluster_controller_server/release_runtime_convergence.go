@@ -379,6 +379,17 @@ func (srv *server) lookupResolvedEntrypointChecksum(ctx context.Context, publish
 						}
 					}
 				}
+			default:
+				// Per meta.silence_is_not_valid_for_unexpected: silent
+				// skip of an unknown release type would mean a future
+				// type (e.g. ComputeRelease) silently produces "" for
+				// resolved checksum, which the caller can't distinguish
+				// from "not pinned yet." Log so the type's first
+				// encounter is loud — the resources List filter is
+				// already pre-narrowed by `rt` so this should not fire
+				// in steady state.
+				log.Printf("lookupResolvedEntrypointChecksum: unknown release item type %T for rt=%s package=%s — checksum lookup will return \"\" if no other release type matches",
+					v, rt, pkgName)
 			}
 		}
 	}

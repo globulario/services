@@ -763,6 +763,13 @@ func (srv *server) lookupReleaseResolvedEntrypointChecksum(ctx context.Context, 
 		if rel.Status != nil {
 			return strings.TrimSpace(rel.Status.ResolvedEntrypointChecksum)
 		}
+	default:
+		// Per meta.silence_is_not_valid_for_unexpected: a future
+		// release type (e.g. ComputeRelease) silently producing "" here
+		// would feed an empty resolved checksum into the dispatch path
+		// with no operator-visible signal that the lookup never matched.
+		log.Printf("resolvedEntrypointChecksumFor: unknown release type %T for resourceType=%s name=%s",
+			rel, resourceType, releaseName)
 	}
 	return ""
 }

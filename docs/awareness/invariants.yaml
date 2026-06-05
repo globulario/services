@@ -8016,6 +8016,55 @@ invariants:
       workflow_step_handler_files: []
       unknown_helper_files: []
 
+    - id: release_type_switch_must_have_default
+      title: Type switches over Globular release types must have a default case — a future release type silently skipped is invisible drift
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.silence_is_not_valid_for_unexpected
+        for the 3-arm type switch over (Service|Infrastructure|Application)Release.
+        If a future release type is added (e.g. ComputeRelease, already
+        a planned subsystem), the new type's items silently fall
+        through the switch — callers that depend on the switch's
+        output (resolved checksums, identity lookups, dispatch
+        decisions) get "" / nil / zero-value instead of a loud "I
+        don't know how to handle this type" signal.
+
+        Two sites were missing defaults pre-2026-06-05:
+          - release_runtime_convergence.go::lookupResolvedEntrypointChecksum
+          - workflow_release.go::resolvedEntrypointChecksumFor
+
+        Both now log `unknown release type %T` on the default branch.
+        The ruleguard rule matches the 3-arm-no-default structural
+        shape; adding the 4th `default:` clause extends the case list
+        and the pattern no longer matches.
+
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+        symbols:
+          - lookupResolvedEntrypointChecksum
+          - resolvedEntrypointChecksumFor
+      forbidden_fixes:
+        - forbidden.silent_default_in_state_dispatch
+      required_tests: []
+
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/silence_release_type_switch_no_default.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
     - id: error_path.no_unbounded_fire_and_forget_goroutine
       title: Error-handling blocks must not spawn naked `go func()` — unbounded amplification under sustained failure
       severity: critical
