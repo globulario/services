@@ -6555,3 +6555,56 @@ invariants:
       related_invariants:
         - workflow.dispatch_is_not_completion
         - workflow.success_requires_backend_confirmation
+
+    - id: workflow.day0_trace_import_is_idempotent_and_best_effort
+      title: Day-0 install trace replay must be idempotent and must never block workflow-server startup
+      severity: medium
+      status: active
+      summary: |
+        importDay0Trace replays /var/lib/globular/day0-install.jsonl
+        into workflow_runs + workflow_steps so that Day-0 history is
+        queryable after cluster join. The function is observability-
+        side, not authority-side — it reconstructs what already
+        happened, not what should happen. Two constraints bind it:
+
+          1. IDEMPOTENT — re-running must not duplicate. The check
+             uses a fixed correlation_id ("day0-install") plus a
+             COUNT(*) gate before any insert. Removing the gate,
+             rotating the correlation_id per restart, or allowing
+             partial re-imports would produce duplicate WorkflowRun
+             rows that mislead operators reading the trace.
+
+          2. BEST-EFFORT — workflow-server startup must not block on
+             this. Missing log file, nil Scylla session, parse
+             errors on individual lines all silently return.
+             Promoting any of these to fatal would couple workflow-
+             server startup to a file that only exists on the
+             founding controller node, and break joiner-node
+             startup.
+
+        Failure here degrades history visibility (operator cannot
+        query the Day-0 trace) but does NOT wedge convergence,
+        block dispatch, or affect cluster state.
+      protects:
+        files:
+          - golang/workflow/workflow_server/import_day0.go
+        symbols:
+          - importDay0Trace
+          - day0LogPath
+      forbidden_fixes:
+        - block_workflow_server_startup_on_missing_day0_log
+        - retry_day0_import_on_partial_success
+        - rotate_day0_correlation_id_per_restart
+        - propagate_day0_parse_error_to_caller
+      required_tests: []
+      no_test_yet_reason: |
+        Day-0 trace import has no unit tests today because
+        (a) it requires a Scylla session and a real JSON-lines
+        log fixture and (b) the correctness contract is
+        observability, not state authority — a regression would
+        degrade history visibility but not break the cluster.
+        Tracked as a future test set: TestImportDay0Trace_IdempotentAcrossRestarts
+        + TestImportDay0Trace_MissingLogIsSilent +
+        TestImportDay0Trace_NilSessionIsSilent.
+      related_invariants:
+        - workflow.source_of_operational_truth

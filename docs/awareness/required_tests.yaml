@@ -766,6 +766,41 @@ required_tests:
       Implementing these two tests is the next code patch after this
       coverage entry lands.
 
+  - id: test.workflow.day0_trace_import_idempotent_and_best_effort
+    title: Day-0 install trace replay must be idempotent across restarts and silent on missing inputs
+    protects:
+      invariants:
+        - workflow.day0_trace_import_is_idempotent_and_best_effort
+      files:
+        - golang/workflow/workflow_server/import_day0.go
+    required_for_changes:
+      paths:
+        - golang/workflow/workflow_server/import_day0.go
+      task_terms:
+        - importDay0Trace
+        - day0-install
+        - day0LogPath
+        - Day-0 trace
+        - workflow_runs replay
+    run:
+      commands:
+        - go test ./golang/workflow/workflow_server/ -run "TestImportDay0Trace_IdempotentAcrossRestarts|TestImportDay0Trace_MissingLogIsSilent|TestImportDay0Trace_NilSessionIsSilent"
+    evidence:
+      - second call with same correlation_id produces zero new workflow_runs
+      - missing /var/lib/globular/day0-install.jsonl silently returns
+      - nil Scylla session silently returns; no panic, no error
+    status: todo
+    no_test_yet_reason: |
+      The three TODO test names above need fixtures: a JSON-lines
+      log file in a temp dir, a memory-backed Scylla session, and
+      a way to drive importDay0Trace twice. The work was deferred
+      until the workflow_server has a test helper for Scylla
+      sessions — currently each test that needs one builds its own
+      ad-hoc mock, and a single shared helper is a prerequisite to
+      keep these three tests small. Implementation follows the
+      coverage-then-tests pattern: graph anchor first, regression
+      next.
+
   - id: test.workflow.day0_seeded_definitions_thread_verification_fields
     title: Day-0 seeded workflow definitions must thread every verification field the controller resolves
     protects:

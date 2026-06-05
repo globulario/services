@@ -69,6 +69,7 @@ https://globular.io/awareness#ForbiddenFix	back_up_format_json_to_minio_itself
 https://globular.io/awareness#ForbiddenFix	binary_hash_check_skipped_for_known_service
 https://globular.io/awareness#ForbiddenFix	blame_verification_for_persistence_block
 https://globular.io/awareness#ForbiddenFix	blocked_operations_list_quietly_emptied
+https://globular.io/awareness#ForbiddenFix	block_workflow_server_startup_on_missing_day0_log
 https://globular.io/awareness#ForbiddenFix	build_id_mismatch_demoted_to_warning
 https://globular.io/awareness#ForbiddenFix	bulk_applying_bom_without_installed_state_gate
 https://globular.io/awareness#ForbiddenFix	bypass_approval_gate_for_medium_high_risk
@@ -279,6 +280,7 @@ https://globular.io/awareness#ForbiddenFix	patch_apply_desired_to_force_an_insta
 https://globular.io/awareness#ForbiddenFix	per_package_failure_threshold_constants
 https://globular.io/awareness#ForbiddenFix	process_trusted_by_port_listening_alone
 https://globular.io/awareness#ForbiddenFix	process_trusted_by_systemd_active_alone
+https://globular.io/awareness#ForbiddenFix	propagate_day0_parse_error_to_caller
 https://globular.io/awareness#ForbiddenFix	publish_local_build_as_official_stable_to_fix_mismatch
 https://globular.io/awareness#ForbiddenFix	read_cloudflare_api_token_from_environment_variable
 https://globular.io/awareness#ForbiddenFix	reading_version_from_etcd_at_service_init_to_paper_over_empty_ldflags
@@ -314,6 +316,7 @@ https://globular.io/awareness#ForbiddenFix	restart_controller_based_on_heartbeat
 https://globular.io/awareness#ForbiddenFix	restart_envoy_in_an_infinite_loop_to_hide_lds_zero_state
 https://globular.io/awareness#ForbiddenFix	restart_without_singleflight_gate
 https://globular.io/awareness#ForbiddenFix	restore_format_json_without_topology_fingerprint_guard
+https://globular.io/awareness#ForbiddenFix	retry_day0_import_on_partial_success
 https://globular.io/awareness#ForbiddenFix	retry_dependent_services_indefinitely_without_checking_scylla_gate
 https://globular.io/awareness#ForbiddenFix	retry_lease_before_fencing_in_flight_writes
 https://globular.io/awareness#ForbiddenFix	retry_loop_continues_with_identical_evidence
@@ -323,6 +326,7 @@ https://globular.io/awareness#ForbiddenFix	return_impact_finding_without_graph_p
 https://globular.io/awareness#ForbiddenFix	return_semantic_path_without_explanation
 https://globular.io/awareness#ForbiddenFix	reuse_build_id_for_new_artifact
 https://globular.io/awareness#ForbiddenFix	rewrite_manifest_to_match_desired
+https://globular.io/awareness#ForbiddenFix	rotate_day0_correlation_id_per_restart
 https://globular.io/awareness#ForbiddenFix	route_etcd_calls_through_a_proxy_tool_that_is_itself_in_the_allowlist
 https://globular.io/awareness#ForbiddenFix	run_topology_wipe_while_data_guard_is_active
 https://globular.io/awareness#ForbiddenFix	say_no_builds_when_broken_rows_exist
@@ -777,6 +781,7 @@ https://globular.io/awareness#Test	TestMinioJoin_VIPHolder_MatchesByAnyIP
 https://globular.io/awareness#Test	TestMinIOVersionDriftTriggersRepair
 https://globular.io/awareness#Test	TestMissingKeyDoesNotStopRuntime
 https://globular.io/awareness#Test	TestNewLeader_WaitsForPriorLeaseExpiry
+https://globular.io/awareness#Test	TestNextDeferStateAbandonsAtMax
 https://globular.io/awareness#Test	TestNoConcurrentReconnectStorm
 https://globular.io/awareness#Test	TestNodeAgentFallback_NeverReturnsVIP
 https://globular.io/awareness#Test	TestNodeContextSmokePasses
