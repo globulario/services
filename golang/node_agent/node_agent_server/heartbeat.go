@@ -1103,6 +1103,19 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		skipMinio = !isMember
 	}
 	units := convertNodeAgentUnits(detectUnits(ctx, srv.nodeID, skipMinio))
+
+	// inventoryComplete tracks whether THIS tick's enumeration of installed
+	// packages was authoritative end-to-end. The controller's reconciler
+	// reads NodeStatus.InventoryComplete to gate "is node.InstalledVersions
+	// trustworthy?" — a partial enumeration that flips this true silently
+	// causes the controller to redeploy onto a node that already has the
+	// service (forbidden.boolean_completeness_flag_without_source_check).
+	//
+	// Set false on: empty units (no source had anything to report — could be
+	// genuine empty OR systemd query failure), ComputeInstalledServices
+	// error, or any per-kind ListInstalledPackages error in Phase 2 below.
+	inventoryComplete := len(units) > 0
+
 	statusReq := &cluster_controllerpb.NodeStatus{
 		NodeId:            srv.nodeID,
 		Identity:          identity,
@@ -1111,12 +1124,13 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		LastError:         "",
 		ReportedAt:        timestamppb.Now(),
 		AgentEndpoint:     srv.advertisedAddr,
-		InventoryComplete: len(units) > 0,
+		InventoryComplete: inventoryComplete, // updated below if Phase 1/2 errors
 		Capabilities:      buildNodeCapabilities(),
 	}
 	installed, appliedHash, err := ComputeInstalledServices(ctx)
 	if err != nil {
-		log.Printf("nodeagent: compute installed services: %v", err)
+		log.Printf("nodeagent: compute installed services: %v — marking InventoryComplete=false", err)
+		inventoryComplete = false
 	}
 	statusReq.InstalledVersions = make(map[string]string)
 	statusReq.InstalledBuildIds = make(map[string]string)
@@ -1154,10 +1168,17 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	// stored entry_chk hash matches the actual binary on disk via binhash —
 	// otherwise Phase 1's local observation stays.
 	etcdReachable := isAnyEtcdEndpointReachable(300 * time.Millisecond)
+	if !etcdReachable {
+		// Phase 2 cannot run — etcd unreachable. We do not have the
+		// installed_state per-kind data to validate Phase 1's view.
+		inventoryComplete = false
+	}
 	if srv.nodeID != "" && etcdReachable {
 		for _, kind := range []string{"INFRASTRUCTURE", "APPLICATION", "SERVICE", "COMMAND"} {
 			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
 			if err != nil {
+				log.Printf("nodeagent: list installed packages kind=%s: %v — marking InventoryComplete=false", kind, err)
+				inventoryComplete = false
 				continue
 			}
 			for _, pkg := range pkgs {
@@ -1224,6 +1245,10 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 		log.Printf("nodeagent: no installed services found")
 	}
 	statusReq.AppliedServicesHash = appliedHash
+	// Finalize InventoryComplete with any errors observed in Phase 1 + Phase 2.
+	// The controller MUST NOT trust InstalledVersions for reconciliation
+	// when this is false (forbidden.heartbeat_inventory_omits_partial_marker).
+	statusReq.InventoryComplete = inventoryComplete
 	return srv.sendStatusWithRetry(ctx, statusReq)
 }
 

@@ -479,3 +479,55 @@ required_tests:
     run:
       commands:
         - go test ./golang/repository/repository_server/ -run "TestDeletionSafety_DesiredStateUnknown_Refuses"
+
+  - id: test.list_desired_buildids_refuses_partial_fetch
+    title: ListDesiredBuildIDs must return Unavailable when any kind fetch fails, never a partial set
+    protects:
+      invariants:
+        - meta.authority_must_express_uncertainty
+        - repository.purge_must_not_delete_active_desired_builds
+    required_for_changes:
+      paths:
+        - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+      task_terms:
+        - ListDesiredBuildIDs
+        - parallel fetch
+        - desired build_id set
+        - repository GC pin
+    run:
+      commands:
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestListDesiredBuildIDs"
+
+  - id: test.heartbeat_inventory_complete_false_on_any_error
+    title: NodeStatus.InventoryComplete must be false when ComputeInstalledServices errored or any per-kind ListInstalledPackages failed
+    protects:
+      invariants:
+        - meta.authority_must_express_uncertainty
+        - infra.heartbeat_observer_only_not_authority
+    required_for_changes:
+      paths:
+        - golang/node_agent/node_agent_server/heartbeat.go
+      task_terms:
+        - InventoryComplete
+        - heartbeat inventory
+        - ComputeInstalledServices
+        - per-kind partial
+    run:
+      commands:
+        - go test ./golang/node_agent/node_agent_server/ -run "TestInventoryComplete"
+
+  - id: test.release_workflow_skips_node_on_transient_etcd_error
+    title: release_workflow must skip a node (not reinstall) when GetInstalledPackage returns a transient etcd error
+    protects:
+      invariants:
+        - meta.absence_scope_must_be_explicit
+    required_for_changes:
+      paths:
+        - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      task_terms:
+        - release workflow targets
+        - installed_state.GetInstalledPackage
+        - transient etcd error reinstall
+    run:
+      commands:
+        - go test ./golang/cluster_controller/cluster_controller_server/ -run "TestReleaseWorkflow"

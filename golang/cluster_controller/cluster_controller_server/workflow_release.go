@@ -857,7 +857,18 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 	for _, ec := range eligible {
 		pkg, err := installed_state.GetInstalledPackage(ctx, ec.nodeID, ec.installedKind, pkgName)
 		if err != nil {
-			log.Printf("release-workflow: installed check %s/%s on %s: %v", ec.installedKind, pkgName, ec.nodeID, err)
+			// Transient etcd read failure — we have no authoritative
+			// view of this node's installed state. Skipping is the
+			// scope-explicit choice: "we didn't check" is NOT "not
+			// installed". The next reconcile tick will re-check.
+			// Without this skip we passed pkg==nil to the classifier
+			// which set RepairRequired=true and triggered an
+			// unnecessary reinstall dispatch on every transient blip
+			// (forbidden.silent_drop_on_partial_fetch +
+			// meta.absence_scope_must_be_explicit).
+			log.Printf("release-workflow: installed check %s/%s on %s: %v — skipping node this tick (will re-check)",
+				ec.installedKind, pkgName, ec.nodeID, err)
+			continue
 		}
 		wantBuildID := ""
 		if len(resolvedBuildID) > 0 {

@@ -526,9 +526,18 @@ func (srv *server) ListDesiredBuildIDs(ctx context.Context, _ *cluster_controlle
 	// pattern listAllDesiredServices uses. Each List call applies the
 	// owner's canonicalization and version contracts; a raw etcd Get
 	// would skip them and is the very vector this RPC closes.
+	//
+	// Per-source errors are collected, not discarded. If any kind fetch
+	// fails the response is refused with codes.Unavailable — a partial
+	// answer here looks identical to "fewer pins" and the repository
+	// GC consumer uses the set to gate destructive deletes. Silently
+	// shrinking the set would archive build_ids that are actually still
+	// referenced (forbidden.silent_drop_on_partial_fetch + the round-2
+	// reachability_guard fix where GC now refuses on trusted=false).
 	type listResult struct {
 		items []interface{}
 		rv    string
+		err   error
 	}
 	var (
 		sdvRes, svcRelRes, infraRelRes, appRelRes listResult
@@ -537,25 +546,38 @@ func (srv *server) ListDesiredBuildIDs(ctx context.Context, _ *cluster_controlle
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		items, rv, _ := srv.resources.List(ctx, "ServiceDesiredVersion", "")
-		sdvRes = listResult{items, rv}
+		items, rv, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+		sdvRes = listResult{items: items, rv: rv, err: err}
 	}()
 	go func() {
 		defer wg.Done()
-		items, _, _ := srv.resources.List(ctx, "ServiceRelease", "")
-		svcRelRes = listResult{items: items}
+		items, _, err := srv.resources.List(ctx, "ServiceRelease", "")
+		svcRelRes = listResult{items: items, err: err}
 	}()
 	go func() {
 		defer wg.Done()
-		items, _, _ := srv.resources.List(ctx, "InfrastructureRelease", "")
-		infraRelRes = listResult{items: items}
+		items, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
+		infraRelRes = listResult{items: items, err: err}
 	}()
 	go func() {
 		defer wg.Done()
-		items, _, _ := srv.resources.List(ctx, "ApplicationRelease", "")
-		appRelRes = listResult{items: items}
+		items, _, err := srv.resources.List(ctx, "ApplicationRelease", "")
+		appRelRes = listResult{items: items, err: err}
 	}()
 	wg.Wait()
+
+	for kind, res := range map[string]listResult{
+		"ServiceDesiredVersion":  sdvRes,
+		"ServiceRelease":         svcRelRes,
+		"InfrastructureRelease":  infraRelRes,
+		"ApplicationRelease":     appRelRes,
+	} {
+		if res.err != nil {
+			return nil, status.Errorf(codes.Unavailable,
+				"ListDesiredBuildIDs: cannot enumerate %s (refusing partial response — repository GC would delete still-referenced build_ids): %v",
+				kind, res.err)
+		}
+	}
 
 	seen := make(map[string]struct{})
 	add := func(id string) {

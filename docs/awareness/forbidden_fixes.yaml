@@ -3104,3 +3104,205 @@ forbidden_fixes:
     files:
       - golang/node_agent/node_agent_server/heartbeat.go
       - golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+
+# ── Cycle break-glass anti-patterns ───────────────────────────────────────────
+# Referenced from state_authority_invariants.yaml but previously undefined.
+# Audit 2026-06-04 (meta.circular_dependency_must_have_break_glass) found
+# scripts/fix-etcd.sh + scripts/fix-dell-etcd.sh as live committed violations
+# of both. Defining them here makes the existing references resolvable and
+# turns the graph enforcement gate on.
+
+- id: hot_deploy_local_binary_as_break_glass
+  summary: >
+    Recover from a broken control-plane service by `scp` / `cp` of a
+    locally-built binary onto a node and `systemctl restart` — bypassing
+    the repository, the manifest's entrypoint_checksum, the controller's
+    typed ApplyPackageRelease dispatch, and the audit trail.
+  rationale: >
+    Locally-built binaries do not carry ldflags-injected Version /
+    BuildCommit / SourceCommit so they report `0.0.0-dev`. Their checksum
+    will not match any manifest's entrypoint_checksum, so the verifier's
+    `runtime_identity_unproven` invariant fires immediately. The deploy
+    chain has explicit break-glass paths for every layer (controller
+    self-update, GitHub-release Day-1 join, etcd_rejoin RPC, repository
+    unseal-official) — `cp` exists only because nobody wrote them yet.
+  safe_alternative: >
+    Use the typed escape that already exists for the broken layer:
+    controller — `controller.bootstrap_handoff_required` event + operator
+    restart of leader; node-agent install — Day-1 join fetches from
+    GitHub release, not the cluster repository; etcd rejoin — call
+    `cluster_controller.RejoinNode` RPC which enforces 4 preconditions;
+    repository corruption — `globular pkg publish --force` + repair-unseal
+    flow with audit logging. If a needed escape does not exist, file an
+    invariant for it; do not invent an ad-hoc `cp`.
+  related_invariants:
+    - meta.circular_dependency_must_have_break_glass
+    - identity.has_single_canonical_source_and_is_immutable
+
+- id: bypass_cycle_with_direct_storage_write
+  summary: >
+    Break a circular dependency by writing directly to etcd / ScyllaDB /
+    MinIO as the operator instead of calling the owning service's typed
+    repair RPC. The write bypasses the owner's canonicalization, watch
+    invalidation, and preconditions; cluster_doctor sees the inconsistency
+    as drift; the next reconcile clobbers the write.
+  rationale: >
+    Every owned-store write has typed preconditions (etcd_rejoin's 4
+    gates, repository's unseal-official 4 gates, etc.) precisely because
+    a bare `etcdctl put` cannot enforce them. Writing directly leaves
+    the system in a state the typed-RPC contract cannot produce —
+    downstream invariants treat the value as authoritative because it's
+    in the store, then misclassify everything that depends on it.
+  safe_alternative: >
+    If the owning service is broken, fix the service first (via the
+    layer-appropriate hot-deploy alternative above). If the typed
+    repair RPC does not exist, add it with explicit precondition gates
+    before reaching for `etcdctl put`. Document the gates in code and
+    require the operator to read the gate output before approving.
+  related_invariants:
+    - meta.circular_dependency_must_have_break_glass
+    - meta.storage_is_not_semantic_authority
+    - four_layer.truth_read_via_owner_rpc_not_direct_storage
+
+# ── Authority-uncertainty anti-patterns ───────────────────────────────────────
+# From the round-3 audit of meta.authority_must_express_uncertainty (2026-06-04).
+# This principle had no forbidden_fix anchors before the audit; 10 violations
+# were found, the largest yield of the 14-principle sweep. Anti-patterns hide
+# where the graph isn't watching — these names give the graph eyes for that
+# class.
+
+- id: zero_value_response_on_authority_unavailable
+  summary: >
+    Authority RPC returns `&Response{}, nil` (zero value, no error) when
+    the backing store errors. Caller cannot distinguish "no data" from
+    "the authority couldn't check".
+  safe_alternative: >
+    Distinguish at least three outcomes per typed RPC: (1) authoritative
+    success with the value, (2) authoritative absence (NotFound) when the
+    backing store confirms the row does not exist, (3) Unavailable when
+    the backing store could not be consulted. Repository's
+    `ResolveArtifact` (resolver.go) is the exemplar — three failure
+    modes, three response shapes.
+  related_invariants:
+    - meta.authority_must_express_uncertainty
+    - meta.fallback_must_degrade_semantics
+
+- id: silent_drop_on_partial_fetch
+  summary: >
+    Batched or parallel fetch discards per-source errors with `_, _ := f()`
+    and aggregates the survivors as if all sources succeeded. Consumer
+    cannot tell whether the response is the complete authoritative answer
+    or a partial view minus the failed sources.
+  rationale: >
+    The live blast radius is repository GC reading
+    `cluster_controller.ListDesiredBuildIDs` — 3 of 4 parallel
+    `srv.resources.List(...)` calls discarded errors with blank identifiers.
+    A single failed kind silently shrunk the desired-pin set, and GC
+    archived build_ids that were actually still referenced.
+  safe_alternative: >
+    Collect per-source errors and surface them in a typed
+    `PartialResponse{Items, Failures []SourceError}` shape, OR refuse to
+    return any result if any source failed. The choice depends on consumer
+    expectations — but it must NEVER be silent.
+  related_invariants:
+    - meta.authority_must_express_uncertainty
+    - meta.fallback_must_degrade_semantics
+
+- id: error_absorbed_into_empty_map
+  summary: >
+    Authority returns `map[T]V{}` when the source errors, instead of
+    distinguishing "I haven't checked" from "no entries". Downstream code
+    iterates the empty map and concludes "nothing applies".
+  rationale: >
+    `loadVerifierVerdicts` is the documented case — etcd Get error
+    returns an empty map "by design" because verdicts are "advisory",
+    but downstream version checks then treat "no verdict for service"
+    as "no verification required" and silently fall back to claim-only.
+  safe_alternative: >
+    Return `(map[T]V, ok bool)` or a typed `VerdictSet{Verdicts, Source,
+    ObservedAt, Trusted bool}` so consumers can branch on certainty.
+    See `repository/artifact_state.go readPublishStateString` for the
+    exemplar `(value, ok)` shape.
+  related_invariants:
+    - meta.authority_must_express_uncertainty
+
+- id: boolean_completeness_flag_without_source_check
+  summary: >
+    `InventoryComplete = len(x) > 0` or other heuristic proxies stand in
+    for "enumeration succeeded". A systemd query failure that yields zero
+    units flips the flag false; a stale cache that yields stale units
+    flips it true. No source-time, no source-confidence marker.
+  rationale: >
+    `node_agent/heartbeat.go` set `InventoryComplete=true` based on
+    `len(units) > 0` regardless of whether `ComputeInstalledServices`
+    errored or the per-kind `ListInstalledPackages` silently skipped
+    kinds. Controller read it as authoritative → reconciler redeployed
+    onto nodes that already had the service.
+  safe_alternative: >
+    `InventoryComplete` must be set true only when every source returned
+    without error AND the source-time is fresher than the completeness
+    TTL. Surface per-source errors in `InventoryErrors []SourceError`
+    so the consumer can detect partial inventory.
+  related_invariants:
+    - meta.authority_must_express_uncertainty
+    - meta.absence_scope_must_be_explicit
+    - infra.heartbeat_observer_only_not_authority
+
+- id: heartbeat_inventory_omits_partial_marker
+  summary: >
+    Layer-3 heartbeat reports `InstalledPackages` but lacks a per-source
+    completeness marker. Controller cannot distinguish "service absent
+    from this node" from "this node's source for that service kind was
+    unavailable this tick".
+  rationale: >
+    Pairs with `boolean_completeness_flag_without_source_check`. The
+    heartbeat is observer-only — but an observer that fakes certainty
+    IS an authority by accident. The controller's reconciler
+    (`node.InstalledVersions == nil → reinstall`) reads silence as a
+    positive signal.
+  safe_alternative: >
+    Add `InstalledPackagesObservability` to the heartbeat proto:
+    per-kind enumeration status, source timestamp, error if any. The
+    controller branches on observability before treating the per-kind
+    list as authoritative.
+  related_invariants:
+    - meta.authority_must_express_uncertainty
+    - infra.heartbeat_observer_only_not_authority
+
+- id: silent_drop_unparseable_authority_entry
+  summary: >
+    `json.Marshal`/`json.Unmarshal` failure on a single registry entry is
+    silently skipped from the response set with no error indication.
+    Consumer sees a shorter list with no diagnostic.
+  rationale: >
+    `cluster_controller/list_services.go` was the live example: xDS
+    received a service list shorter than reality whenever a single entry
+    had a corrupt JSON value. xDS interpreted "missing" as "removed" and
+    began draining traffic from a healthy service.
+  safe_alternative: >
+    Increment a typed counter (`ListServicesResponse.SkippedCount`,
+    `SkippedReasons []string`) so the consumer can detect the partial
+    response. Log the skipped key + parse error at WARN level so an
+    operator can find and repair the corrupt entry.
+  related_invariants:
+    - meta.authority_must_express_uncertainty
+
+- id: staleness_implicit_in_authority_response
+  summary: >
+    Authority RPC returns a value plus a `LastSeen` field but no
+    explicit staleness contract on the wire. A follower controller
+    serving from a drifted snapshot returns the same response shape as
+    a leader serving fresh state.
+  rationale: >
+    `cluster_controller/handlers_node.go ListNodes` is the example.
+    Distributed reads against a follower mid-failover return the
+    follower's snapshot version as if it were the cluster truth; callers
+    cannot tell which view they got.
+  safe_alternative: >
+    Include `ResponseFreshness{ServedBy: leader|follower, SnapshotAt,
+    StaleAfter}` in every authority response. Followers stamp their own
+    `SnapshotAt`; consumers reject answers older than `StaleAfter` for
+    write-side decisions.
+  related_invariants:
+    - meta.authority_must_express_uncertainty
+    - meta.competing_writers_must_converge_or_be_fenced
