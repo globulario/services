@@ -744,6 +744,293 @@ invariants:
       - forbidden.event_emit_without_dedup_cache
       - forbidden.convergence_record_accumulation_without_overwrite
 
+  # ── Round-2 candidate principles ──────────────────────────────────────────────
+  # Origin: Dave + Claude, 2026-06-05. Derived from retroactive classification of
+  # 103 failure_modes against the original 14 principles. Patterns surfaced:
+  #   - meta.identity_computation_must_be_invariant was hitting 20+ failures
+  #     across 4 distinct sub-flavors → spawn structure_must_not_be_stripped
+  #   - meta.absence_scope_must_be_explicit had no positive twin → broaden via
+  #     assertions_must_carry_their_scope (covers BOTH positive and negative)
+  #   - Approval/bootstrap staleness wasn't named anywhere → spawn
+  #     binding_outlives_evidence
+  #   - "Drift to plan mode" — the discipline against in-process multi-step
+  #     mutations bypassing workflow — had no principle anchor → spawn
+  #     state_mutations_must_be_durably_committed
+  # status=candidate: each principle needs (a) re-classification of failure
+  # modes to confirm pull-rate, (b) a code-side audit run to confirm it
+  # predicts bugs the original 14 didn't catch. Promote to active only when
+  # both gates pass.
+
+  - id: meta.structure_must_not_be_stripped_in_projection
+    title: "Meaning lives in structure — a value projected down to its primitive shape carries the lie of universality"
+    category: authority
+    antipattern: "Just give me the value"
+    wrong_instinct: A primitive type feels universal — but the scope/subject/source the value lived inside is part of what it meant; stripping it leaves a shape the consumer reads as global truth
+    severity: critical
+    status: candidate
+    summary: |
+      Every value lives inside a structure that gives it meaning: a subject
+      (identity-of-WHAT), a source (which canonical registry it came from),
+      a generation marker. The bare primitive — bool, string, sha256, int —
+      is a projection that preserves the shape while discarding the structure.
+      Consumers downstream read the shape as universal: an entry-point
+      checksum becomes a bundle checksum, an inlined kind-list becomes the
+      catalog, a hardcoded list of platforms becomes the platform truth.
+
+      This is the sibling of meta.fallback_must_degrade_semantics. That one
+      covers fallback paths returning canonical shapes. This one covers
+      NON-fallback paths — identity passing, catalog reading, type erasure —
+      doing the same harm by other mechanisms.
+
+      Two enforcement flavors fall under this principle:
+
+        a. Subject-aliasing projection — every cross-boundary identity uses
+           a typed wrapper or a field name that includes its subject
+           (entrypoint_checksum, not just checksum). Fallback paths must
+           REFUSE to substitute one subject's identity for another's; the
+           caller of an empty-identity must observe its emptiness, not
+           silently get someone else's identity.
+
+        b. Catalog-inlining projection — when a canonical registry exists,
+           hardcoded copies in code are forbidden. Test fixtures may use
+           literals; production code must read the registry.
+
+      Before passing a value across a boundary, ask:
+        1. What structure is this value carrying its meaning in?
+           (subject name, registry reference, generation counter)
+        2. Does the receiver's type carry that structure?
+        3. Is the projection an aliasing (subject collapsed) or an inlining
+           (registry reference collapsed)?
+        4. Could the consumer mistake the projected shape for a wider truth
+           than the producer observed?
+
+      Known violations (subject-aliasing):
+        - node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+        - node_agent.installer_download_aliases_entrypoint_as_bundle_hash
+        - controller.apply_package_missing_expected_sha256_blocks_verified_install
+      Known violations (catalog-inlining):
+        - runtime.command_package_false_positive
+        - repository.sync_silently_drops_noarch_artifacts
+        - filesystem.service_runtime_dir_naming_drift
+        - xds.infra_preparing_loop_from_kind_mismatch
+      Known good:
+        - artifact_state split into PipelineState + PipelineUnknown sentinel
+        - canonicalServiceName helper centralized name normalization
+        - package kind canonical registry pattern (session_package_kind_truth)
+    enforcement: |
+      Every cross-boundary value must preserve the structure that gives it
+      meaning. Subject-aliasing requires typed wrappers or disambiguating
+      field names; catalog-inlining is forbidden in production code when a
+      registry exists. The two flavors have distinct fix shapes but share
+      one root: don't let the shape outlive the structure.
+    forbidden_fixes:
+      - substitute_convergence_hash_for_binary_checksum_when_latter_empty
+      - alias_bundle_sha_into_entrypoint_sha_variable
+      - inline_catalog_membership_list_in_production_code
+      - hardcode_package_kind_classification_outside_canonical_registry
+
+  - id: meta.assertions_must_carry_their_scope
+    title: "Every assertion — positive or negative — carries the scope of its truth; aggregation without naming the scope is a lie"
+    category: signal
+    antipattern: "OK is OK, missing is missing"
+    wrong_instinct: A passing check feels universal, an absent record feels final — but every observation lives in a scope (which node, which moment, which tenant); stripping the scope strips the truth
+    severity: critical
+    status: candidate
+    summary: |
+      Both "I see X" and "I don't see X" are scoped observations. The
+      scope is part of the truth. A consumer that reads the observation
+      without the scope can mistake local for global, instance for cluster,
+      moment for forever.
+
+      This principle subsumes meta.absence_scope_must_be_explicit by
+      extending its rule to positive assertions. The mechanism is the
+      same: aggregation that strips the scope-tag produces a value whose
+      shape looks global but whose evidence was local. Once this principle
+      is promoted to active, meta.absence_scope_must_be_explicit becomes
+      its negative-half sub-rule.
+
+      Before reading or emitting any health/proof/observation:
+        1. What is the scope of the observation (node, instance, moment,
+           tenant)?
+        2. Does the consumer's question match that scope, or are they
+           asking a wider question and reading this answer as authoritative
+           for it?
+        3. Is the scope a field on the value or a comment the caller has
+           to remember?
+        4. Does aggregation strip the scope without naming itself?
+
+      Known violations (positive scope):
+        - cluster.cross_node_file_drift
+        - controller.non_leader_heartbeat_false_positive
+        - doctor.cache_poisoning_from_node_scoped_findings
+        - install.desired_state.invisible_service
+      Known violations (negative scope — previously covered):
+        - critical_state.absent_key_interpreted_as_stop
+        - fm.globular.objectstore_partial_snapshot
+        - awareness.degraded_source_sentinel_collapsed_to_critical
+        - dnsprovider.internal_topology_leak_via_public_dns_publish
+      Known good:
+        - cluster_doctor split lookup-cache (any scope) from delta-authority
+          (cluster-wide only) — commit c574dfe5
+    enforcement: |
+      Every health/proof/verdict/finding value carries an explicit scope
+      field or typed wrapper covering both positive and negative cases.
+      Aggregation across scopes is allowed only via a function whose name
+      and signature make the aggregation visible.
+    forbidden_fixes:
+      - aggregate_scoped_value_into_global_without_aggregation_function
+      - read_per_instance_metric_as_global_without_label_filter
+      - treat_local_absence_as_global_absence
+      - treat_node_scoped_finding_as_cluster_scoped
+
+  - id: meta.binding_outlives_evidence_until_invalidated
+    title: "Every binding carries 'I checked this then' — when 'now' is different from 'then', the binding is a phantom unless re-validated"
+    category: lifecycle
+    antipattern: "If it was approved, it's approved"
+    wrong_instinct: A decision feels durable once made — but the evidence the decision was bound to may have moved, and the binding without its evidence is a ghost that authorizes the wrong present
+    severity: critical
+    status: candidate
+    summary: |
+      When an authority issues an approval, emits a proof, or sets a
+      bootstrap marker, it does so against evidence that was current at
+      that moment. The binding from authority to consumer carries an
+      implicit "I checked this then." Time passes — seconds, minutes, a
+      failover, a restart. The "then" world the binding was made against
+      may no longer exist; the binding persists as if it does.
+
+      This is the consumer-side sibling of
+      meta.write_creates_completion_obligation. That one says: the
+      PRODUCER of state must arrange for its termination. This one says:
+      the CONSUMER of evidence must arrange for its re-validation — or
+      the evidence's age becomes the failure.
+
+      Two flavors fall under this principle:
+
+        a. Approval/evidence half-life — approval was bound to evidence
+           current at approval-time; the consumer at execution-time may
+           span a leader failover, a restart, or just enough wall-clock
+           that the evidence digest no longer matches reality. Before
+           consuming any approval, the consumer must re-check the
+           binding's evidence digest is still current.
+
+        b. Bootstrap-marker expiry — "we're early" is a state with
+           semantic consequences (relaxed permissions, grace windows,
+           alternative paths). The early phase ends. No event naturally
+           fires when the phase ends; the steady-state code doesn't know
+           about the marker. The marker persists as evidence of an early
+           phase that already ended, authorizing behavior steady-state
+           would refuse.
+
+      Before consuming a binding (approval, proof, evidence, marker):
+        1. What evidence was this binding made against?
+        2. How would I detect that the evidence has changed?
+        3. Is the binding's freshness expressed in its type (TTL,
+           generation counter, evidence digest) or implicit?
+        4. What event SHOULD fire to invalidate this binding, and is
+           that event guaranteed to fire?
+        5. If no event fires (phase ends quietly, marker has no
+           clearing path), is there a level-triggered re-validation?
+
+      Known violations:
+        - doctor.stale_evidence_authorizes_remediation
+        - doctor.approval_token_replay_across_failover
+        - doctor.escalation_state_lost_on_restart
+        - bootstrap.flag_persists_post_day_1
+        - desired.bootstrap_premature_convergence
+        - service.bootstrap_ordering_skew
+      Known good:
+        - workflow defer B3 durable counter — evidence for "we've tried
+          N times" survives restart
+        - feedback_day0_unproven_grace — explicit half-life on
+          runtime_identity_unproven findings; verifier degrades severity
+          based on age
+    enforcement: |
+      Every binding from authority to consumer must include an evidence
+      digest or generation number that the consumer re-validates at
+      consumption time. Bindings whose validity depends on phase or time
+      must carry their own freshness check; in-memory-only bindings
+      across actions that can span a restart or failover are forbidden.
+      Bootstrap markers must be paired with a clearing path (event or
+      level-triggered sweep) OR a freshness check at every consumer that
+      respects them.
+    forbidden_fixes:
+      - approval_token_replayed_after_successful_execution
+      - approval_validity_assumed_durable_across_failover
+      - escalation_state_kept_in_memory_only
+      - bootstrap_flag_persists_without_clearing_path
+      - day0_grace_without_expiry_check
+
+  - id: meta.state_mutations_must_be_durably_committed_before_side_effects
+    title: "Intent commits before action — a multi-step mutation that starts before its plan is durable is one failure away from amnesia or corruption"
+    category: lifecycle
+    antipattern: "Just run the steps"
+    wrong_instinct: Computing the actions and executing them inline feels efficient — but a failure between step 1 and step N leaves the world half-changed with no resume point, and the next process to wake up doesn't know a mutation was in flight
+    severity: critical
+    status: candidate
+    summary: |
+      A state-changing operation that spans more than one observable side
+      effect MUST be committed to a durable coordinator BEFORE any side
+      effect runs. The coordinator owns: (a) the intent record (what
+      should happen), (b) the per-step progress (where we are), (c) the
+      terminal-state guarantee (every started intent reaches SUCCEEDED
+      or FAILED), and (d) the resume contract (a new process picks up
+      where the old one left off, idempotently).
+
+      Plans are deliberation. Workflows are commitment. The distinction
+      is that a plan computes actions and may execute them; a workflow
+      PERSISTS the computed plan before executing any of it. Once the
+      intent is durable, any failure becomes a resume point instead of
+      a corruption.
+
+      Bug class this principle catches:
+        - "Lost intent" — process executes step 1, restarts before step
+          2; new process has no record that a mutation was in flight;
+          observers see step-1 effects without explanation.
+        - "Frozen partial" — process executes step 1, fails step 2 with
+          no retry contract; the system is half-changed forever because
+          nothing owns the obligation to finish.
+        - "Double execution" — process executes step 1, dies, new
+          process re-executes from the top because the only record was
+          in the dead process's memory.
+        - "Untraceable change" — observer sees a state change but cannot
+          find the operator/agent/code path that decided it.
+
+      Before computing actions that will change cluster state, ask:
+        1. Does this operation cross any failure boundary (multi-RPC,
+           multi-node, multi-second wall-clock)?
+        2. Is the intent persisted somewhere a new process could find
+           and resume from?
+        3. Is each step individually idempotent so a resume doesn't
+           double-execute?
+        4. Does the operation reach a terminal state, or does failure
+           leave it in an indeterminate "started but not finished" state
+           forever?
+        5. Is there an audit record naming WHO decided this and WHEN?
+
+      Known violations:
+        - controller.platform_upgrade_bypassed_workflow_authority
+        - mcp.governor_bypass_via_ad_hoc_execute_tool
+        - mcp.etcd_remote_allowlist_expansion
+      Known good:
+        - WF-DEFER B3 durable counter — intent + retry-count survive
+          restart, ABANDONED is a terminal state
+        - convergence_committer atomic txn — write+cleanup in same etcd
+          op so the intent and its closure are co-durable
+        - workflow.RUN_STATUS_FAILED contract — every workflow reaches
+          SUCCEEDED or FAILED; no zombies
+    enforcement: |
+      Every state-changing operation that spans more than a single etcd
+      transaction MUST flow through the workflow service. Direct CLI →
+      etcd writes are forbidden for any change that requires multiple
+      coordinated side effects. MCP tools that mutate state must do so
+      via plan → validate → approve → execute (which dispatches a
+      workflow), never via direct RPC to a state-changing endpoint.
+    forbidden_fixes:
+      - cli_bulk_apply_state_via_direct_etcd_writes
+      - mcp_tool_executes_mutation_without_workflow_dispatch
+      - inline_multistep_mutation_without_durable_intent_record
+      - reuse_in_memory_plan_after_leader_failover
+
   # ── Generalization principles (second pass) ───────────────────────────────────
   # These invariants encode the abstract reasoning layer. They generalize from
   # specific Globular incidents to classes of distributed-system mistakes, so

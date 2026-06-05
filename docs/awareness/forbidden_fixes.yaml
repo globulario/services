@@ -3306,3 +3306,296 @@ forbidden_fixes:
   related_invariants:
     - meta.authority_must_express_uncertainty
     - meta.competing_writers_must_converge_or_be_fenced
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Audit 2026-06-05 — forbidden fixes for the 4 round-2 candidate principles
+# (structure_must_not_be_stripped, assertions_must_carry_their_scope,
+# binding_outlives_evidence, state_mutations_must_be_durably_committed)
+# Status: candidate (paired with their candidate-status principles)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# meta.structure_must_not_be_stripped_in_projection ──────────────────────────
+
+- id: substitute_convergence_hash_for_binary_checksum_when_latter_empty
+  title: Substitute a convergence-identity hash for a binary-identity checksum when the binary identity is empty
+  summary: >
+    Two distinct subjects (convergence state, binary entrypoint) share the
+    sha256 representation; when expected_sha256 is empty, code reaches for
+    desired_hash to "fill it in." The caller now verifies the wrong subject.
+  reason: >
+    Same shape, distinct meaning. The empty-identity case is information —
+    it says "I don't have a binary identity" — and must be preserved as such.
+  safe_alternative: >
+    Refuse the operation when expected_sha256 is empty (the upstream
+    pipeline should have stamped it); never alias another subject's
+    identity into it. INC-2026-0014 was the controller-side instance.
+  related_invariants:
+    - meta.structure_must_not_be_stripped_in_projection
+    - meta.identity_computation_must_be_invariant
+
+- id: alias_bundle_sha_into_entrypoint_sha_variable
+  title: Use the same variable for tarball SHA and binary entrypoint SHA
+  summary: >
+    bundle.tgz sha256 and binary entrypoint sha256 are distinct identities
+    that happen to share the sha256 type. Aliasing them into one variable
+    means a verifier compares the wrong identity against the wrong
+    expectation, both succeed lexically and fail semantically.
+  reason: >
+    Same shape, distinct meaning. Code reads the field name as the truth;
+    the field name must include the subject (bundle_sha vs entrypoint_sha).
+  safe_alternative: >
+    Use field names disambiguated by subject; never pass one through a
+    variable named for the other.
+  related_invariants:
+    - meta.structure_must_not_be_stripped_in_projection
+    - meta.identity_computation_must_be_invariant
+
+- id: inline_catalog_membership_list_in_production_code
+  title: Hardcode catalog membership in production code when a canonical registry exists
+  summary: >
+    When a canonical registry exists (package_kind catalog, service catalog,
+    profile list), hardcoded copies in code drift silently when the registry
+    evolves. The same name means different things at each inline site.
+  reason: >
+    Catalog truth is owned by the registry. Inline copies break the
+    single-source guarantee and produce divergent classification.
+  safe_alternative: >
+    Read the canonical registry via a typed getter at every consumer site.
+    Test fixtures may use literals; production code must not.
+  related_invariants:
+    - meta.structure_must_not_be_stripped_in_projection
+
+- id: hardcode_package_kind_classification_outside_canonical_registry
+  title: Classify package kind via a hardcoded list rather than the canonical registry
+  summary: >
+    Package kind has a canonical catalog. Sites that maintain their own
+    inline kind-list (runtime, xds, infra) silently disagree with each
+    other when a new kind is added. The same package gets classified
+    three different ways across the cluster.
+  reason: >
+    Specific instance of inline_catalog_membership_list_in_production_code;
+    elevated because package kind drives convergence path selection.
+  safe_alternative: >
+    Use the canonical kind registry helper (e.g. catalog.KindForPackage).
+    Add a unit test that fails if a new kind isn't recognized everywhere.
+  related_invariants:
+    - meta.structure_must_not_be_stripped_in_projection
+
+# meta.assertions_must_carry_their_scope ─────────────────────────────────────
+
+- id: aggregate_scoped_value_into_global_without_aggregation_function
+  title: Treat a per-instance OK as global OK without naming the aggregation
+  summary: >
+    A health check observed on one instance is rolled up into a cluster-wide
+    badge without a function whose name and signature make the aggregation
+    visible. Consumers can't tell the answer's scope from its shape.
+  reason: >
+    Scope is part of the truth. Stripping it during aggregation produces a
+    value whose shape looks global but whose evidence was local.
+  safe_alternative: >
+    Aggregate only via a named function (e.g. aggregateNodeFindingsToCluster)
+    whose signature carries the scope tag and whose body documents the
+    aggregation rule (any-failed, all-OK, quorum, etc.).
+  related_invariants:
+    - meta.assertions_must_carry_their_scope
+
+- id: read_per_instance_metric_as_global_without_label_filter
+  title: Read a per-instance Prometheus metric as global without filtering by instance label
+  summary: >
+    A follower controller's stale heartbeat metric is queried without a
+    leader-label filter; the follower's number is interpreted as the
+    cluster controller's truth.
+  reason: >
+    The instance label IS the scope tag in Prometheus; ignoring it strips
+    the scope and turns a per-instance observation into a phantom global.
+  safe_alternative: >
+    Add an `is_leader` gauge or filter all controller-state metrics by
+    `leader_node_id` at the alert / dashboard layer.
+  related_invariants:
+    - meta.assertions_must_carry_their_scope
+
+- id: treat_local_absence_as_global_absence
+  title: Treat "this node doesn't see X" as "X doesn't exist anywhere"
+  summary: >
+    A per-node absence (no key on disk, no entry in local inventory) is
+    interpreted as cluster-wide absence; the consumer takes a destructive
+    action (stop, repair, archive) on the basis of a local view.
+  reason: >
+    Absence has scope (the absence-scope principle, now the negative twin
+    of assertions_must_carry_their_scope). Local-not-found isn't global-
+    doesn't-exist.
+  safe_alternative: >
+    Before destructive action, consult the owning authority for the
+    cluster-wide view. If the authority is unreachable, the action MUST
+    refuse (not proceed on the local view).
+  related_invariants:
+    - meta.assertions_must_carry_their_scope
+    - meta.absence_scope_must_be_explicit
+
+- id: treat_node_scoped_finding_as_cluster_scoped
+  title: Feed node-scoped doctor findings into a cluster-wide delta cache
+  summary: >
+    Per-node findings entered a cache whose semantics were cluster-wide
+    deltas; the result was an emission storm — 100+ events per minute
+    flooding the event bus.
+  reason: >
+    The cache contract is scoped to cluster-wide changes; node-scope
+    findings violate the contract and amplify into noise.
+  safe_alternative: >
+    Split the cache by scope (lookup-cache accepts any scope; delta-
+    authority is cluster-wide only). See cluster_doctor commit c574dfe5.
+  related_invariants:
+    - meta.assertions_must_carry_their_scope
+
+# meta.binding_outlives_evidence_until_invalidated ───────────────────────────
+
+- id: approval_token_replayed_after_successful_execution
+  title: Accept an approval token a second time after the first execution succeeded
+  summary: >
+    The approval-consumed state lives only in the controller that issued
+    it; a failover leader has no record that this JTI was already used.
+    The token is replayed against the new leader, authorizing a duplicate.
+  reason: >
+    Approval is bound to evidence at approval time. The evidence (this JTI
+    has not been used) must survive failover, or the binding is a phantom.
+  safe_alternative: >
+    Persist consumed-JTIs in etcd/ScyllaDB with TTL. Every approval
+    consumer re-checks the persisted store before honoring.
+  related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
+
+- id: approval_validity_assumed_durable_across_failover
+  title: Assume an approval granted by one leader is still valid after a new leader takes over
+  summary: >
+    Approvals carry implicit evidence — current desired state, current
+    workflow status. After failover, that evidence may be stale. Code
+    that consumes approvals without re-validating their evidence digest
+    authorizes actions against a world that no longer exists.
+  reason: >
+    The binding outlives the evidence by default; the consumer must
+    actively re-check or the binding becomes a phantom.
+  safe_alternative: >
+    Approvals carry an evidence digest. The consumer re-derives the
+    digest from current state at consume-time and refuses if it doesn't
+    match.
+  related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
+
+- id: escalation_state_kept_in_memory_only
+  title: Track escalation counter in process memory only
+  summary: >
+    "We've tried N times" is evidence for "we should require approval
+    instead of auto-remediating." Keeping it in memory only means a
+    restart clears it, re-opening the auto-remediation path against the
+    same failing condition.
+  reason: >
+    The contraction (escalate to approval) must survive what triggered
+    it — including the restart that often follows a cascade.
+  safe_alternative: >
+    Persist escalation state in etcd/ScyllaDB with TTL. Reload on
+    startup. Workflow defer B3's durable counter is the pattern.
+  related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
+    - meta.failure_response_must_contract_not_amplify
+
+- id: bootstrap_flag_persists_without_clearing_path
+  title: Set a bootstrap.enabled flag with no actor responsible for clearing it
+  summary: >
+    "We're in bootstrap" authorizes relaxed permissions, alternative
+    paths, and grace windows. No actor is responsible for setting it
+    false; it persists into steady-state and becomes a backdoor.
+  reason: >
+    The marker outlives its phase by default. Without an explicit
+    clearing path or freshness check, the relaxed semantics leak forever.
+  safe_alternative: >
+    Pair every bootstrap flag with either (a) a typed RPC that clears
+    it on phase transition with audit trail, OR (b) a level-triggered
+    sweep that verifies the flag is still appropriate.
+  related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
+    - meta.write_creates_completion_obligation
+
+- id: day0_grace_without_expiry_check
+  title: Apply Day-0 grace forever because no check verifies "still within window"
+  summary: >
+    The "Day-0 install ordering" exception was intended for a short
+    window after fresh install. Without an explicit time-or-evidence
+    check at each consumer, the exception applies indefinitely and
+    masks real expired-grace failures.
+  reason: >
+    Grace windows are bindings to a phase. The phase ends; the binding
+    must invalidate or the exception becomes permanent.
+  safe_alternative: >
+    Encode the grace window as a TTL on installed-state record. Each
+    verdict consumer compares current time to the install timestamp.
+  related_invariants:
+    - meta.binding_outlives_evidence_until_invalidated
+
+# meta.state_mutations_must_be_durably_committed_before_side_effects ─────────
+
+- id: cli_bulk_apply_state_via_direct_etcd_writes
+  title: CLI command bulk-applies state changes by writing etcd keys directly
+  summary: >
+    The CLI computes a plan in-process, then writes each key in a loop.
+    A failure mid-loop leaves the cluster half-changed with no resume
+    record. The next operator sees an inconsistent state with no audit
+    trail naming who started it.
+  reason: >
+    Multi-step mutations across failure boundaries need durable
+    coordination, not inline execution.
+  safe_alternative: >
+    The CLI computes a workflow request and dispatches it to the
+    workflow service. The workflow persists the intent BEFORE
+    executing any side effect. INC: platform_upgrade_bypassed_workflow_authority.
+  related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
+    - meta.storage_is_not_semantic_authority
+
+- id: mcp_tool_executes_mutation_without_workflow_dispatch
+  title: MCP tool executes a state-changing RPC directly without going through plan→validate→approve→execute
+  summary: >
+    A non-governor MCP tool calls a state-changing endpoint inline. The
+    plan-validate-approve-execute discipline is bypassed; no durable
+    intent record exists; no human approval surface was traversed.
+  reason: >
+    MCP tools that mutate state are operator-facing actions, not
+    queries. They must commit intent before action.
+  safe_alternative: >
+    Every mutating MCP tool dispatches a workflow via the governor.
+    Read-only tools may call services directly; write tools never do.
+  related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
+    - meta.storage_is_not_semantic_authority
+
+- id: inline_multistep_mutation_without_durable_intent_record
+  title: Execute a multi-step state mutation inline with no persisted intent record
+  summary: >
+    A function computes N steps and executes them sequentially in
+    process memory. A crash after step K < N leaves the world half-
+    changed; the next process has no record that this mutation was
+    in flight.
+  reason: >
+    The intent record IS the resume contract. Without it, every failure
+    is a corruption rather than a resume point.
+  safe_alternative: >
+    Persist the computed plan to etcd/workflow BEFORE running step 1.
+    Each step writes its progress. A new process reads the intent and
+    resumes from the last unfinished step idempotently.
+  related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
+
+- id: reuse_in_memory_plan_after_leader_failover
+  title: Continue executing an in-memory plan after a leader failover
+  summary: >
+    Plan was computed by leader A. Failover happens. Leader B has no
+    record of the in-flight plan, but leader A's process continues
+    executing it (split-brain) or simply dies leaving steps half-done.
+  reason: >
+    In-memory plans are not durable. They cannot survive failover. The
+    only fix is to persist the plan before execution, not to "be careful."
+  safe_alternative: >
+    Workflows persist intent in etcd; the new leader picks up the
+    workflow run-id and resumes. No leader-local execution state.
+  related_invariants:
+    - meta.state_mutations_must_be_durably_committed_before_side_effects
+    - meta.competing_writers_must_converge_or_be_fenced
