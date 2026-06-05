@@ -8015,3 +8015,76 @@ invariants:
       exception_files: []
       workflow_step_handler_files: []
       unknown_helper_files: []
+
+    - id: retry_loop.repeated_error_log_must_be_deduplicated
+      title: Retry-loop error logs must be deduplicated — bare logger.Error before time.Sleep produces unbounded line growth during a persistent outage
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.diagnostic_output_must_be_bounded
+        for retry-style connection loops. The bug shape (2026-06-04
+        regression, commit 0afcb65b):
+
+          for {
+              ...
+              if err != nil {
+                  logger.Error("connection failed", "err", err)  // bare
+                  time.Sleep(10 * time.Second)
+                  continue
+              }
+              ...
+          }
+
+        A persistent dependency outage (event service, scylla, minio,
+        upstream registry) produces one log line per retry interval
+        until the outage clears — 360 lines/hr at 10s retry, more if
+        many services hit the same outage. The lines fill log buckets,
+        rotate normal entries out, and produce alarm-fatigue for
+        operators. Severity escalates when log shipment caps and
+        healthy services are denied output capacity.
+
+        The fix (commit 0afcb65b for ai_watcher.eventLoop) introduced
+        the dedup state `lastConnErr` + `lastConnErrAt` + `connErrSuppress`
+        outside the loop, then logged only on err-change after a
+        time window, with a "repeated N" summary on the next change
+        and "connection recovered" on success.
+
+        Structural detection: pre-fix has `logger.Error` and `time.Sleep`
+        as DIRECT siblings inside the `if err != nil` block. Post-fix
+        nests `logger.Error` inside a dedup-guard if/else, moving it
+        out of the direct-sibling position — so the rule's three-
+        statement match no longer fires on the canonical fix.
+
+        Scope is intentionally narrow per the 2026-06-05 audit pass:
+        only golang/ai_watcher and golang/ai_router. Today's sweep in
+        those dirs: 0 findings. The rule also found 5 sites with the
+        same bug shape in OTHER dirs (cluster_doctor, node_agent,
+        blog) — surfaced in commit notes for a follow-up audit; out
+        of scope here.
+
+      protects:
+        files:
+          - golang/ai_watcher/ai_watcher_server/server.go
+          - golang/ai_router/ai_router_server/server.go
+        symbols:
+          - eventLoop
+      forbidden_fixes:
+        - log_per_retry_without_dedup
+        - log_outage_message_on_every_tick
+      required_tests: []
+
+      related_invariants:
+        - meta.diagnostic_output_must_be_bounded
+
+      actor_writer_dirs:
+        - golang/ai_watcher
+        - golang/ai_router
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/diagnostic_output_unbounded_retry_log.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
