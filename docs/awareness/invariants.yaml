@@ -8016,6 +8016,66 @@ invariants:
       workflow_step_handler_files: []
       unknown_helper_files: []
 
+    - id: error_path.no_unbounded_fire_and_forget_goroutine
+      title: Error-handling blocks must not spawn naked `go func()` — unbounded amplification under sustained failure
+      severity: critical
+      status: active
+      summary: |
+        Per-instance enforcement of meta.failure_response_must_contract_not_amplify
+        for the fire-and-forget-goroutine pattern. The bug class is the
+        zombie-leader incident: when a recoverable error fires, naive
+        handlers spawn `go func() { retry() }()` — and under sustained
+        failure, hundreds of those goroutines accumulate, each blocked
+        on retries. CPU starvation freezes the leader's own liveness
+        loop; the cluster loses its leader without anyone noticing.
+
+        The fix patterns:
+          - bounded worker pool (errgroup with limit, semaphore)
+          - singleflight gate (at most one in-flight reaction)
+          - synchronous handling (let the caller see the error)
+          - circuit breaker (stop reacting after N failures, wait)
+
+        The ruleguard rule catches `go func() { ... }()` or `go f(...)`
+        as a direct child of an `if err != nil` block — with the
+        metavariable constrained to look like a Go err variable
+        (`err`, `*Err`) so nil-checks on optional services
+        (`if srv.foo != nil { go ... }`) don't trip the rule.
+
+        Today's sweep: 0 findings codebase-wide. Pure regression
+        detector for the zombie-leader bug class.
+
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/
+          - golang/node_agent/node_agent_server/
+          - golang/workflow/workflow_server/
+          - golang/cluster_doctor/cluster_doctor_server/
+        symbols:
+          - eventLoop
+      forbidden_fixes:
+        - forbidden.fire_and_forget_goroutine_on_error_path
+        - forbidden.unbounded_retry_on_transient_failure
+      required_tests: []
+
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
+
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/node_agent/node_agent_server
+        - golang/workflow/workflow_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/repository/repository_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/failure_amplify_fire_and_forget_goroutine.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
     - id: retry_loop.repeated_error_log_must_be_deduplicated
       title: Retry-loop error logs must be deduplicated — bare logger.Error before time.Sleep produces unbounded line growth during a persistent outage
       severity: high
