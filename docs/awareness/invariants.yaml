@@ -7724,3 +7724,95 @@ invariants:
 
       workflow_step_handler_files: []
       unknown_helper_files: []
+
+    - id: installed_package.timestamp_writers_must_preserve_during_observe
+      title: InstalledPackage timestamp writers must preserve the install anchor during observe — never stomp with wall-clock time.Now()
+      severity: critical
+      status: active
+      summary: |
+        Per-instance enforcement of meta.identity_computation_must_be_invariant
+        for the InstalledPackage.UpdatedUnix and .InstalledUnix fields. The
+        v1.2.164 regression: heartbeat.go (an observer-only context)
+        unconditionally stamped existing.UpdatedUnix = time.Now().Unix()
+        on every sweep. The verifier read max(InstalledUnix, UpdatedUnix)
+        > PID-start and flagged service.old_pid_after_upgrade on
+        correctly-installed services. Fix: heartbeat preserves the
+        existing value for self-hosted services on the allowlist.
+
+        The principle: these timestamp fields carry the INSTALL ANCHOR
+        — when the running binary's PID started, derived from the
+        manifest install or the proof writer. Observer contexts that
+        report "what I see now" must NOT substitute their observe
+        timestamp for the anchor. Either preserve the existing value
+        (the v1.2.164 fix) or — for legitimate anchor-write paths
+        (install commit, repair, default-if-unset) — set it to the
+        derived anchor at that moment.
+
+        The ruleguard rule catches `$_.UpdatedUnix = time.Now().Unix()`
+        and `$_.InstalledUnix = time.Now().Unix()` shapes. Legitimate
+        anchor writers (install/repair paths, default-if-unset)
+        are classified as EXCEPTION below; any NEW writer outside
+        this allowlist is a regression candidate.
+
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/heartbeat.go
+          - golang/node_agent/node_agent_server/apply_package_release.go
+          - golang/installed_state/installed_state.go
+          - golang/cluster_controller/cluster_controller_server/convergence_committer.go
+        symbols:
+          - UpdatedUnix
+          - InstalledUnix
+          - WriteInstalledPackage
+          - CommitInstalledPackage
+      forbidden_fixes:
+        - conditional_field_semantic_by_writer
+        - bump_immutable_timestamp_on_observe
+      required_tests: []
+
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
+        - identity.field_semantic_is_single_writer_defined
+
+      actor_writer_dirs:
+        - golang/node_agent/node_agent_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/installed_state
+        - golang/installer
+        - golang/verifier
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/identity_field_writers_preserve_semantic.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files:
+        - file: installed_state/installed_state.go
+          category: exception_default_if_unset
+          reason: |
+            CommitInstalledPackage and WriteInstalledPackage use the
+            default-if-zero pattern (`if pkg.UpdatedUnix == 0 { pkg.UpdatedUnix = time.Now().Unix() }`)
+            so callers that pass an explicit anchor see it preserved.
+            This is the OPPOSITE of the regression shape: it ADDS a
+            default when none exists, rather than overwriting an
+            existing anchor. Both lines (75 and 114) match this pattern.
+        - file: cluster_controller/cluster_controller_server/convergence_committer.go
+          category: exception_install_commit_anchor
+          reason: |
+            convergence_committer.go stamps UpdatedUnix at the moment
+            it commits a successful node-side install — the timestamp
+            IS the install anchor for this code path (the controller-
+            observed install completion). Anchor write at install
+            commit, not observe-time stomp.
+        - file: node_agent/node_agent_server/apply_package_release.go
+          category: exception_install_anchor_write
+          reason: |
+            The apply path sets UpdatedUnix to time.Now() at install
+            commit and on repair — these ARE anchor writes (the
+            moment the install or repair completes is the new anchor).
+            Multiple sites in this file legitimately set the anchor;
+            classified per-file because every site here is an
+            install/repair authority moment.
+
+      workflow_step_handler_files: []
+      unknown_helper_files: []
