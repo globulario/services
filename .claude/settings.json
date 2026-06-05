@@ -5,6 +5,7 @@
       "Bash(systemctl is-active *)",
       "Bash(systemctl status *)",
       "Bash(systemctl list-units *)",
+      "Bash(git push *)",
       "mcp__globular__etcd_get",
       "mcp__globular__nodeagent_get_service_logs",
       "mcp__globular__cluster_get_health",
