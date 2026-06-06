@@ -621,6 +621,9 @@ jobs:
                   elif name == "claude":
                       env_ver = os.environ.get("CLAUDE_VERSION", "")
                       if env_ver: v = env_ver
+                  elif name == "awareness-graph":
+                      env_ver = os.environ.get("AWARENESS_VERSION", "")
+                      if env_ver: v = env_ver
               except Exception:
                   pass
               return v
