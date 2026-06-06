@@ -187,7 +187,15 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			}
 		}
 
+		// IIFE per iteration so `defer releaseDedupSlot()` below fires
+		// per-iteration, not at reconcileOnce return. Converts all
+		// outer-for `continue` statements to `return` (semantically
+		// equivalent: returning from the closure resumes the outer
+		// for's next iteration). The inner `for _, v := range topoViolations`
+		// at line ~285 has no continue of its own, so this conversion
+		// is unambiguous. See meta.write_creates_completion_obligation.
 		for desiredKey, dv := range desired {
+			func() {
 			pkg, found := installedMap[desiredKey]
 
 			// Already aligned by (version, build_number) — and binary
@@ -202,7 +210,7 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			// "installed_state_buildid_matches_but_binary_checksum_differs".
 			if found && versionutil.EqualFull(dv.version, dv.buildNumber, pkg.version, pkg.buildNumber) {
 				if !entrypointChecksumDriftPresent(dv.entrypointChecksum, pkg.entrypointChecksum) {
-					continue
+					return
 				}
 				log.Printf(
 					"drift-reconciler: node=%s pkg=%s installed_state_buildid_matches_but_binary_checksum_differs "+
@@ -217,40 +225,40 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			// version equality is sufficient. We cannot determine which specific build was
 			// installed, so we do not report drift against a known version match.
 			if found && pkg.buildNumber == 0 && versionutil.Equal(dv.version, pkg.version) {
-				continue
+				return
 			}
 			// Node-agent is already applying this package.
 			if found && pkg.status == "updating" {
-				continue
+				return
 			}
 
 			// Skip services suspended by crash-loop suppression.
 			parts0 := strings.SplitN(desiredKey, "/", 2)
 			if len(parts0) == 2 && suspendedSet[parts0[1]] {
 				log.Printf("drift-reconciler: skipping %s on node %s (crash-loop suspended)", parts0[1], nodeID)
-				continue
+				return
 			}
 
 			// Block-aware: suppress drift event if the package has a non-retryable
 			// or backoff-gated convergence outcome.
 			if driftSuppressed(convergenceMap, parts0[len(parts0)-1], node.Identity.Hostname, nodeID) {
-				continue
+				return
 			}
 
 			inflightKey := nodeID + "/" + desiredKey
 			if r.isInflight(inflightKey) {
-				continue
+				return
 			}
 			// Apply-loop detection: skip if this package/node is quarantined
 			// due to repeated applies without convergence.
 			if r.srv.applyLoopDet != nil && r.srv.applyLoopDet.IsQuarantined(inflightKey) {
 				log.Printf("drift-reconciler: skipped %s — quarantined (apply loop detected)", inflightKey)
-				continue
+				return
 			}
 			// Cross-path dedup: check if the release pipeline already
 			// has an active workflow for this package on this node.
 			if r.srv.dispatchReg != nil && !r.srv.dispatchReg.TryAcquire(inflightKey, "drift-reconciler") {
-				continue
+				return
 			}
 			// The drift-reconciler is observation-only — it emits events
 			// but does not dispatch workflows. Release the dispatch slot
@@ -266,7 +274,7 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 
 			parts := strings.SplitN(desiredKey, "/", 2)
 			if len(parts) != 2 {
-				continue
+				return
 			}
 			kind, name := parts[0], parts[1]
 
@@ -298,12 +306,12 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 					"package":    desiredKey,
 					"violations": kinds,
 				})
-				continue
+				return
 			}
 
 			// Only reconcile SERVICE packages; infrastructure is managed by bootstrap.
 			if kind != "SERVICE" {
-				continue
+				return
 			}
 
 			// Resolve the desired artifact. If the desired state is fully
@@ -339,7 +347,7 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				if err != nil {
 					log.Printf("drift-reconciler: skipping node=%s pkg=%s@%s-b%d — resolve failed: %v",
 						nodeID, name, dv.version, dv.buildNumber, err)
-					continue
+					return
 				}
 			}
 			// Part 3: Validate desired kind matches repository manifest kind.
@@ -371,7 +379,7 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 							"message":      fmt.Sprintf("desired kind %s does not match repo artifact kind %s — dispatch blocked", kind, repoKindStr),
 						})
 						writeKindMismatchRecord(ctx, nodeID, name, kind, repoKindStr)
-						continue
+						return
 					}
 				}
 			}
@@ -386,7 +394,7 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 			// metadata is stale. This handles transition-era installs that lack a
 			// build_id record but are otherwise identical to the desired artifact.
 			if found && resolved.Digest != "" && pkg.checksum == resolved.Digest {
-				continue
+				return
 			}
 
 			installedVer := "<none>"
@@ -407,6 +415,7 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				"desired_version":   fmt.Sprintf("%s-b%d", dv.version, resolvedBuild),
 				"installed_version": installedVer,
 			})
+			}()
 		}
 	}
 }

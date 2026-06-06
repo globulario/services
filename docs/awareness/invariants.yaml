@@ -7879,13 +7879,18 @@ invariants:
               }()
           }
 
-        2026-06-05 audit caught 3 sites; 2 were fixed in the same
-        commit via the closure-extraction pattern. 1 remains
-        (reconciler.go:265) — the loop body is 220 lines with a
-        nested for-loop, and the 14 `continue` statements would each
-        need to become `return` after a mechanical IIFE wrap; the
-        nesting makes the conversion ambiguous. Tracked here as an
-        EXCEPTION pending proper extract-method refactor.
+        2026-06-05 audit caught 3 sites; all 3 fixed. Sites 1 + 2
+        (config/service_discovery.go, domain/reconciler.go) used
+        closure-extraction. Site 3 (cluster_controller_server/
+        reconciler.go:265 — `defer releaseDedupSlot()` in a 220-line
+        outer-for body with a nested loop) was IIFE-wrapped: the
+        outer-for body is now an immediately-invoked closure, and
+        the 14 outer-for `continue` statements were converted to
+        `return` (semantically equivalent: closure returns resume
+        the outer for's next iteration). The nested
+        `for _, v := range topoViolations` has no `continue` of its
+        own, so the conversion was unambiguous. cluster_controller
+        tests pass.
 
       protects:
         files:
@@ -7943,19 +7948,7 @@ invariants:
 
       scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
 
-      exception_files:
-        - file: cluster_controller/cluster_controller_server/reconciler.go
-          category: exception_pending_closure_refactor
-          reason: |
-            reconcileOnce at line 190 has a 220-line for-loop with a
-            nested for + 14 `continue` statements. Mechanical IIFE
-            wrap (continue→return) is ambiguous with the nested loop.
-            Needs proper extract-method refactor: move loop body into
-            a r.processDriftItem(...) helper so the defer runs per-
-            call. Until then, the slot leak is bounded by one tick
-            (defers fire at reconcileOnce return); accepting as
-            known site.
-
+      exception_files: []
       workflow_step_handler_files: []
       unknown_helper_files: []
 
