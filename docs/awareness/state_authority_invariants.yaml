@@ -2684,3 +2684,406 @@ invariants:
       - meta.bad_path_must_make_progress
       - meta.timestamp_is_an_observation_not_an_event_time
       - meta.bounded_staleness_must_be_named_not_assumed
+
+  - id: meta.fail_safe_defaults_when_authority_is_uncertain
+    title: "When the authority decision cannot be made, the default is REFUSE — never 'allow because we could not check'"
+    category: authority
+    antipattern: "If RBAC times out we let the request through so it does not break"
+    wrong_instinct: A failed authorization check feels like a system problem, not a security problem — the user did nothing wrong, the RBAC service is just slow, so denying their request feels unfair. But "I could not verify your authority" is the SAFE direction precisely because the alternative is "I let in someone I cannot prove should be in." Default-allow turns every authorization-system failure into a silent escalation; default-deny turns it into a loud availability problem the operator notices and fixes.
+    severity: critical
+    status: candidate
+    summary: |
+      Saltzer and Schroeder's 1975 paper "The Protection of
+      Information in Computer Systems" gave eight design principles
+      for secure systems. The second — fail-safe defaults — says that
+      access decisions should be based on permission rather than
+      exclusion, and the default situation should be lack of access.
+      Operationalized: any code path where the authorization decision
+      CANNOT be made must default to REFUSE.
+
+      The principle catches the failure mode where availability
+      pressure pushes the system toward allow-on-uncertainty. The
+      logic feels reasonable per-incident — "the RBAC service is
+      down, we cannot leave users locked out" — but it is the
+      wrong default. The right default is loud availability failure;
+      the operator then knows to fix the broken system, not silently
+      let unverified principals in.
+
+      Bug shapes from our codebase and adjacent literature:
+        - RBAC interceptor under partition: when the policy service
+          or its backing store is unreachable, the interceptor MUST
+          deny. Allowing requests through "until RBAC comes back"
+          is a silent escalation window. Our interceptor chain at
+          golang/interceptors enforces this; the principle was
+          never stated as meta.
+        - JWT verification when the signing-key fetch fails: the
+          token's claims cannot be trusted without verification.
+          Allow-on-keyfetch-fail would mean any unsigned token is
+          accepted during the failure window.
+        - Bootstrap window: deliberately a relaxed-auth window, but
+          BOUNDED and EXPLICIT. The principle is not violated by a
+          bootstrap window; it would be violated by "we appear to
+          still be bootstrapping, so allow." The window is gated by
+          /var/lib/globular/bootstrap.enabled and a deadline.
+        - Certificate chain validation timeout: a chain that cannot
+          be validated must be rejected, not "trusted because the
+          revocation server was slow."
+        - mTLS handshake with an unknown peer: must terminate the
+          connection. Allow-on-unknown-peer would defeat the entire
+          mesh trust model.
+
+      The principle is NOT "be paranoid about every request." It's
+      "make the safe direction the DEFAULT, so that decisions to
+      allow are deliberate and decisions to deny are automatic."
+    enforcement: |
+      Every authorization check must satisfy:
+
+        1. The check returns one of {ALLOW, DENY, UNCERTAIN}.
+        2. UNCERTAIN is treated identically to DENY by every
+           consumer — there is no third "let it through" branch.
+        3. The UNCERTAIN result is logged at sufficient severity
+           that operators notice repeated occurrences (one failed
+           check is noise; ten per second is an outage signal).
+        4. Bootstrap or break-glass relaxation windows are EXPLICIT,
+           BOUNDED, and AUDIT-LOGGED at the moment of relaxation,
+           not silent defaults.
+
+      Forbidden patterns:
+        - if rbacErr is not nil then allow with a warning log.
+        - Empty/missing token treated as anonymous and allowed past
+          permission gates.
+        - Cached "last known good" auth decision used past its
+          staleness window (see authorization_check_is_a_snapshot).
+        - Default-allow service accounts when role binding lookup
+          fails.
+
+      Tests for any authorization-handling code must include the
+      case where the underlying authority service is unreachable,
+      asserting that the check returns DENY and the system surfaces
+      the failure to operators.
+    forbidden_fixes:
+      - forbidden.default_allow_on_authorization_service_error
+      - forbidden.silent_anonymous_passthrough_on_missing_token
+      - forbidden.cached_auth_decision_past_staleness
+    related_invariants:
+      - meta.authorization_check_is_a_snapshot_not_a_promise
+      - meta.bounded_staleness_must_be_named_not_assumed
+      - meta.bad_path_must_make_progress
+      - meta.partition_response_must_be_predeclared
+
+  - id: meta.authorization_check_is_a_snapshot_not_a_promise
+    title: "An authorization decision is bounded by the moment it was made — the underlying authority can change before the action is taken"
+    category: lifecycle
+    antipattern: "We checked permissions at the start, so the long-running operation is good for the whole run"
+    wrong_instinct: An authorization check feels like a transaction — it succeeds, and now you know the principal is allowed. But the check measured the state of permissions at the moment of measurement, not the state for the lifetime of the operation. Role bindings change, tokens get revoked, certificates expire, accounts get disabled. Code that treats a successful check as a permanent green light for the duration of an operation creates a window where the operation continues with permissions that have been revoked.
+    severity: critical
+    status: candidate
+    summary: |
+      Saltzer and Schroeder's third principle — complete mediation —
+      states that every access to every object must be checked for
+      authority, every time. Operationalized in modern systems: any
+      authorization decision is a SNAPSHOT of permission state at
+      the moment of the check; the snapshot becomes stale the
+      instant the next change to the underlying authority occurs.
+      The TOCTOU window is between the snapshot and the action.
+
+      This principle has two halves that are both load-bearing:
+
+        COMPLETE MEDIATION: every access checks permission. Caching
+        an auth decision and reusing it across multiple accesses
+        without revalidation skips checks that the principle says
+        must happen. The cache is correct only as long as the
+        underlying permission has not changed; absent invalidation,
+        the cache becomes a liar.
+
+        TOCTOU: even the check itself measures a point-in-time
+        state. By the moment the authorized action executes, the
+        state may have changed. For operations longer than the
+        time between authority state changes, the check must be
+        repeated at the action boundary.
+
+      Bug shapes:
+        - Cached RBAC results: a service caches "user X is allowed
+          to call RPC Y" for performance. Admin revokes the binding.
+          Service still answers ALLOW until the cache expires.
+          The principle says either invalidate on binding change
+          OR keep cache TTL short enough that staleness is bounded
+          by acceptable risk.
+        - Long-running workflows: a workflow run authorized at
+          dispatch may execute steps hours later. If the principal's
+          permissions are revoked mid-run, subsequent steps continue
+          with revoked authority. Workflow steps that affect
+          destructive state should re-check at the step boundary,
+          not rely on dispatch-time authorization.
+        - JWT verification once-per-connection: if a JWT is verified
+          when the connection opens and never again, a revoked
+          token continues being honored for the connection's
+          lifetime. mTLS connections may persist for minutes; JWT
+          claims for an hour. The mismatch is exploitable.
+        - Certificate validity: NotAfter is the expiration deadline;
+          if a long-running connection started before expiry and
+          continued past, the binding is no longer authorized but
+          the connection still serves requests. (See
+          binding_outlives_evidence_until_invalidated.)
+        - Service account permissions changed during a deploy:
+          the deploy uses a service account with cluster-admin;
+          the deploy pauses for review; permission is revoked
+          during review; deploy resumes and still has admin
+          because the resume code reuses the original token.
+
+      The principle does NOT forbid caching — it forbids caching
+      WITHOUT INVALIDATION. The cache must either subscribe to
+      authority changes OR have a TTL bounded by the acceptable
+      risk of staleness OR be revalidated at high-stakes action
+      boundaries.
+    enforcement: |
+      Authorization caching is permitted with three conditions:
+
+        1. EXPLICIT TTL — the cache entry has a maximum age past
+           which it MUST be revalidated.
+        2. INVALIDATION SUBSCRIPTION — when the underlying authority
+           changes (role binding update, token revocation, cert
+           rotation), the cache is invalidated synchronously.
+        3. ACTION-BOUNDARY REVALIDATION — for destructive or
+           irreversible operations, the cache is bypassed and a
+           fresh check is performed regardless of TTL.
+
+      Long-running operations (workflows, batch jobs, streaming
+      RPCs) must declare which authority bindings persist through
+      the operation and which must be revalidated at step
+      boundaries.
+
+      Forbidden patterns:
+        - In-memory auth cache with no TTL, no invalidation
+          subscription, and no revalidation.
+        - JWT verified once at connection open, never re-verified
+          across the connection's lifetime.
+        - Long-running workflow trusting a dispatch-time token
+          across destructive steps without re-checking the
+          principal still holds the binding.
+        - Reusing a token across a restart without checking
+          whether the underlying authority is still bound.
+
+      Tests for any authorization-cached code must include the
+      case where the underlying binding is revoked between the
+      cache write and the next read, asserting the cache is either
+      invalidated, expired, or bypassed for the action.
+    forbidden_fixes:
+      - forbidden.permanent_auth_cache_without_invalidation
+      - forbidden.long_running_op_trusts_dispatch_time_token_for_destructive_steps
+      - forbidden.jwt_verified_once_per_connection_for_persistent_streams
+    related_invariants:
+      - meta.fail_safe_defaults_when_authority_is_uncertain
+      - meta.binding_outlives_evidence_until_invalidated
+      - meta.bounded_staleness_must_be_named_not_assumed
+      - meta.identity_computation_must_be_invariant
+
+  - id: meta.least_privilege_is_not_a_default_it_is_an_explicit_grant
+    title: "Every actor's privileges must be explicit and minimal — the default for a new actor is NO privileges, not 'whatever was convenient at creation time'"
+    category: authority
+    antipattern: "It is easier to grant cluster admin and tighten later"
+    wrong_instinct: Setting up a new service or AI actor with broad permissions feels efficient — you do not know yet which RPCs it will need, so granting more avoids breaking things. But the act of postponing privilege restriction is the act of leaving the default at "more than necessary." The "tighten later" never happens for the same reason scaffolding never gets removed; the broad permission becomes a load-bearing assumption other code grows to depend on. The principle says the SAFE default is zero, and every grant must be earned by an explicit need.
+    severity: critical
+    status: candidate
+    summary: |
+      Saltzer and Schroeder's sixth principle — least privilege —
+      states that every program and every user should operate with
+      the minimum set of privileges necessary to complete the job.
+      Operationalized: the default state for any new actor (service
+      account, AI agent, workflow step, scheduled task) is NO
+      privileges; each privilege must be explicitly granted with a
+      named reason and bounded scope.
+
+      The principle is especially critical for actors with low
+      friction to create — AI service accounts, scheduled jobs,
+      automation hooks — because the cost of granting broad
+      permissions feels lower than the cost of debugging the next
+      "permission denied" error during development. The deferred
+      tightening is a debt that compounds; the broad permission
+      becomes structural because other code starts to depend on it.
+
+      For our codebase, the principle interacts strongly with the
+      AI service tier model:
+
+        TIER 0 (OBSERVE): read-only diagnosis. Always safe; can be
+        granted broadly across AI services because the worst case
+        is information disclosure within an already-authorized
+        scope.
+
+        TIER 1 (AUTO_REMEDIATE): pre-approved scoped mutations
+        (service restart, cache clear). Each Tier-1 action must
+        be in an explicit allowlist named for the actor; "all
+        Tier-1 actions" is not an allowlist.
+
+        TIER 2 (REQUIRE_APPROVAL): destructive or out-of-band
+        actions. Default grant for any actor is zero Tier-2; each
+        action requires a human approval grant.
+
+      Bug shapes:
+        - Service account created with the union of all scopes the
+          service "might need" — convenient at creation, dangerous
+          at runtime because the actual scope used is a small
+          subset of the granted scope, and the unused scopes are
+          available to any code path that gets compromised.
+        - AI executor scheduled task with cluster-admin because
+          "we'll narrow it down later" — the narrowing-down PR
+          never lands.
+        - Workflow step that runs as the workflow service's
+          identity, with full cluster scope, when the step only
+          needs to write a single etcd key.
+        - Test service accounts retained in production with broad
+          access because rotating them is a separate cleanup task.
+
+      The principle does NOT mean "audit every existing actor for
+      least privilege right now" — that is a cleanup operation
+      with its own cost. It means "every NEW actor starts at zero
+      and gets explicit grants" so the new actors do not become
+      the next round of legacy broad-scoped accounts.
+    enforcement: |
+      For every new actor (service account, AI service, workflow,
+      scheduled task, automation hook):
+
+        1. INITIAL STATE — zero privileges. The creation flow that
+           grants any privilege must require the privilege to be
+           NAMED.
+        2. NAMED REASON — each grant carries a brief reason in the
+           role binding metadata. "Needs to read /globular/services"
+           is a reason; "for the X service" is not.
+        3. BOUNDED SCOPE — privileges name resources, not
+           wildcards, except where the wildcard is structurally
+           necessary (e.g. "list all services" by definition
+           cannot name each).
+        4. PERIODIC REVIEW — privileges granted should have an
+           expiration or review marker; permanent grants are
+           reserved for foundational service accounts.
+
+      For destructive actions, the AI executor's Tier 2 gate is
+      the canonical implementation: the actor has the BINDING to
+      request the action, but not the AUTHORITY to execute it
+      without human approval.
+
+      Forbidden patterns:
+        - Default-grant of cluster-admin to any new service account.
+        - Wildcard grants ("all RPCs on all services") without a
+          named structural reason.
+        - Reusing an existing broad-scoped account for a new actor
+          rather than creating a new minimal one.
+        - "Temporary" privilege escalations without an expiration.
+
+      Tests for actor creation flows must include the case where
+      the requested privilege exceeds the actor's documented need,
+      asserting the system either refuses the grant or surfaces
+      the gap as a finding.
+    forbidden_fixes:
+      - forbidden.default_cluster_admin_for_new_service_account
+      - forbidden.wildcard_grant_without_named_structural_reason
+      - forbidden.temporary_privilege_escalation_without_expiration
+    related_invariants:
+      - meta.fail_safe_defaults_when_authority_is_uncertain
+      - meta.storage_is_not_semantic_authority
+      - meta.absence_scope_must_be_explicit
+
+  - id: meta.principal_must_survive_proxy_chains
+    title: "When auth flows through a proxy, the downstream service must know WHO originated the request — not WHO proxied it"
+    category: signal
+    antipattern: "The gateway authorized the request, so the service can trust the gateway's principal"
+    wrong_instinct: A gateway or sidecar that handles authentication feels like a natural boundary — once past the gateway, the request is trusted. But the gateway's identity is not the user's identity, and downstream services that authorize against the proxy's principal instead of the originating principal grant access to anyone the gateway proxies for. This is the confused deputy problem under a new name; it has been written about since the 1980s and keeps recurring because the proxy boundary FEELS like an authorization boundary, but the principal identity must traverse it intact.
+    severity: critical
+    status: candidate
+    summary: |
+      Hardy's 1988 description of the "confused deputy" problem
+      named a failure shape that the security community has been
+      rediscovering ever since: a privileged intermediary, asked
+      to perform an action on behalf of a less-privileged
+      principal, performs the action with its OWN authority rather
+      than the principal's. The principal's identity was lost in
+      transit; the action succeeds with the intermediary's broader
+      access; security is silently breached.
+
+      The modern shape in service-mesh and microservice architectures:
+
+        - Gateway authenticates the user, then proxies to a backend
+          service. The backend sees the gateway's identity (gateway
+          mTLS cert) but not the user's identity. If the backend
+          authorizes against "is this caller in the mesh," every
+          user the gateway accepted gets full backend access.
+
+        - Sidekick or supervisor process performs operations on
+          behalf of multiple service tenants. If sidekick's identity
+          is what backends see, sidekick becomes a confused deputy
+          for any tenant it serves.
+
+        - Workflow actor dispatching to a backend on behalf of a
+          workflow run. The backend authorizes the workflow
+          service's identity rather than the originating user's;
+          any workflow can call any backend RPC the workflow
+          service is broadly allowed to.
+
+        - AI executor running an operator-requested action. The
+          executor's identity has Tier 1 permissions; if the
+          backend trusts the executor's identity without
+          requiring the operator's principal to be presented, the
+          executor becomes the confused deputy.
+
+      The principle says the originating PRINCIPAL must be a
+      first-class part of the authorization signal — present in
+      RPC metadata, signed or transmitted via mTLS chain, and
+      checked by the backend against its own authority records.
+      The proxy's identity is metadata about the path the request
+      took, not authority for the request.
+
+      Audit-trail consequences: if the principal does not survive,
+      the audit log names the wrong actor. Every recorded action
+      attributes to the proxy, and the audit trail loses the
+      ability to answer "who did this?"
+    enforcement: |
+      Every RPC handler that authorizes the caller must verify two
+      identities:
+
+        1. The TRANSPORT identity — the mTLS peer cert that
+           established the connection. This identifies the
+           IMMEDIATE caller (gateway, sidecar, peer service).
+        2. The PRINCIPAL identity — the originating user, AI
+           service, scheduled task, or operator on whose behalf
+           the request was made. This identifies WHO the action
+           authorizes against.
+
+      The two must be checked together: the transport identity
+      must be ALLOWED to make requests on behalf of principals,
+      AND the principal identity must be ALLOWED to perform the
+      requested action.
+
+      Principal identity is propagated by:
+
+        - Bearer tokens (JWT) that name the principal in the
+          claims.
+        - mTLS client certificates that name the principal in the
+          subject or extension.
+        - Signed RPC metadata in the gRPC headers (with a HMAC
+          tied to the transport identity to prevent forgery).
+
+      Forbidden patterns:
+        - Backend authorizes against the gateway/sidecar identity
+          and treats the request as "trusted" without checking
+          the principal.
+        - Audit log records the proxy identity as the actor.
+        - Workflow actor authority is the workflow service's
+          authority — without the dispatching principal's
+          identity propagated.
+        - AI executor performing actions against backends that
+          trust the executor's identity rather than the requesting
+          operator's.
+
+      Tests for any RPC with a proxy in front of it must include
+      a case where the proxy is compromised — assert that the
+      backend's authorization decisions still depend on the
+      principal, not on the proxy's identity.
+    forbidden_fixes:
+      - forbidden.authorize_against_proxy_identity_instead_of_principal
+      - forbidden.audit_log_records_proxy_as_actor
+      - forbidden.workflow_step_inherits_workflow_service_authority_without_originator
+    related_invariants:
+      - meta.fail_safe_defaults_when_authority_is_uncertain
+      - meta.assertions_must_carry_their_scope
+      - meta.identity_computation_must_be_invariant
+      - meta.binding_outlives_evidence_until_invalidated
