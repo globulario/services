@@ -4167,7 +4167,41 @@ invariants:
     antipattern: "The system is available because the request returned"
     wrong_instinct: A successful response feels like the binary answer to "is the system available." But availability has two distinct dimensions — did the query complete (yield) and was the answer complete (harvest). A search that returns three results instead of thirty has 100 percent yield and 10 percent harvest; a partition that drops half the requests has 50 percent yield and unknown harvest. Conflating them lets the system report green while quietly serving impoverished answers, and lets operators report uptime while users see degraded data.
     severity: critical
-    status: candidate
+    status: active
+    promoted_from_candidate:
+      date: 2026-06-06
+      reason: |
+        Predicted system-wide gap during proactive review. Two concrete
+        findings:
+
+          1. mcp.compare_nodes (tools_aggregator.go) treated error
+             responses as data for deepEqual comparison, emitting false
+             "X differs from Y" drift findings whenever a node was
+             briefly unreachable. Result envelope had no completeness
+             marker. Fixed: skip errored pairs from comparison, add
+             partial+harvest_pct+skipped_pairs fields to the response.
+          2. 0 of 62 doctor rule files in cluster_doctor/.../rules/
+             consult snap.Errors before drawing conclusions. The
+             collector applies the principle (addError + addSource on
+             every fetch) but the rules ignore it — a rule iterating
+             snap.Nodes after ListNodes failed reads an empty slice and
+             concludes "nothing here" instead of "I cannot tell." Same
+             failure shape as INC-2026-0004 across the entire rules tree.
+             Documented as KNOWN GAP in collector.go with two structural
+             fix options; structural fix tracked as follow-up.
+
+        INC-2026-0004 was already this principle being applied at one
+        rule. The proactive scan showed the principle's reach extends to
+        every rule that consumes a snapshot field — system-wide, not
+        site-specific.
+      first_predicted_bug:
+        file: golang/mcp/tools_aggregator.go
+        symbol: mcp.compare_nodes
+        commit: pending
+      second_predicted_bug:
+        file: golang/cluster_doctor/cluster_doctor_server/rules/
+        symbol: all 62 rule files
+        commit: pending (structural fix tracked)
     summary: |
       Eric Brewer (IEEE 2001) introduced this distinction in
       "Lessons from Giant-Scale Services" as the core insight

@@ -2,7 +2,8 @@
 // @awareness component=platform_cluster_doctor.collector
 // @awareness file_role=read_only_collector_fans_out_to_cluster_for_snapshot_construction
 // @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
-// @awareness risk=medium
+// @awareness partially_violates=globular.platform:invariant.meta.harvest_and_yield_are_distinct_availability_dimensions
+// @awareness risk=high
 package collector
 
 // The collector is read-only. It fans out to cluster-controller,
@@ -11,6 +12,37 @@ package collector
 // MUST NOT mutate etcd, MinIO, ScyllaDB, or any node state — observed
 // drift is reported as a Finding; remediation flows through the
 // gated ExecuteRemediation handler, not from here.
+//
+// KNOWN GAP — partial violation of
+// meta.harvest_and_yield_are_distinct_availability_dimensions. The
+// collector itself APPLIES the principle correctly — it calls
+// snap.addError(source, op, err) for every failed sub-fetch and
+// snap.addSource(...) for every success, so the snapshot carries both
+// the data and the provenance of which fetches contributed. INC-2026-0004
+// codified this pattern.
+//
+// The gap is one layer up. As of 2026-06-06, ZERO of the 62 doctor rule
+// files in cluster_doctor/cluster_doctor_server/rules/ consult
+// snap.Errors before drawing conclusions. A rule that iterates snap.Nodes
+// to count active MinIO instances will read an EMPTY slice if
+// cluster_controller.ListNodes failed during the sweep — and will
+// conclude "no active instances," producing a wrong finding (or
+// suppressing a real one). The collector preserves harvest; the rules
+// silently treat reduced harvest as full harvest. This is INC-2026-0004's
+// failure shape generalized across the entire rules tree.
+//
+// Structural fix tracked as follow-up:
+//   (a) The rule infrastructure (Evaluate dispatch in rules/registry.go)
+//       must inspect snap.Errors before invoking each rule and either
+//       (i) skip rules whose required sources errored, (ii) annotate the
+//       finding with reduced_harvest=true, or (iii) downgrade severity.
+//   (b) Each rule must declare which Snapshot fields it depends on so
+//       the infrastructure can correlate field-source to error.
+//
+// Until the structural fix lands, the failure mode is silent — a
+// findings sweep may underreport or misreport when the collector had
+// partial fetches. The collector exposes the necessary information; the
+// consumers must learn to use it.
 
 import (
 	"context"

@@ -297,41 +297,87 @@ Returns per-node data and a diff summary listing nodes that differ from the firs
 		}
 		wg.Wait()
 
-		// Organize results by aspect then by node.
+		// Organize results by aspect then by node. We also track which
+		// (aspect, node) pairs had errors so the comparison logic below
+		// can skip them — comparing an error result against real data
+		// would emit a "differs" finding that is actually a missing-data
+		// signal in disguise, exactly the harvest_and_yield principle
+		// violation we previously hit in INC-2026-0004.
 		byAspect := make(map[string]map[string]interface{})
+		erroredPairs := make(map[string]map[string]bool) // aspect -> nodeID -> true
 		for _, r := range results {
 			if byAspect[r.aspect] == nil {
 				byAspect[r.aspect] = make(map[string]interface{})
+				erroredPairs[r.aspect] = make(map[string]bool)
 			}
 			if r.err != "" {
 				byAspect[r.aspect][r.nodeID] = map[string]interface{}{"error": r.err}
+				erroredPairs[r.aspect][r.nodeID] = true
 			} else {
 				byAspect[r.aspect][r.nodeID] = r.data
 			}
 		}
 
-		// Build diff: for each aspect, find nodes that differ from nodeIDs[0].
+		// Build diff: for each aspect, find nodes that differ from the
+		// reference. Skip (aspect, node) pairs where either side had an
+		// error — those are MISSING-DATA cases, not drift. Track them
+		// separately so the caller can see what could not be compared.
 		diffs := make([]map[string]interface{}, 0)
+		skipped := make([]map[string]interface{}, 0)
 		for _, asp := range aspects {
 			nodeData := byAspect[asp]
 			if len(nodeData) < 2 {
 				continue
 			}
-			// Use the first node in the list as the reference.
-			refData := nodeData[nodeIDs[0]]
+			refNodeID := nodeIDs[0]
+			refErrored := erroredPairs[asp][refNodeID]
+			refData := nodeData[refNodeID]
 			for _, nid := range nodeIDs[1:] {
+				if refErrored || erroredPairs[asp][nid] {
+					reason := "target node errored"
+					if refErrored {
+						reason = "reference node errored"
+					}
+					skipped = append(skipped, map[string]interface{}{
+						"aspect":    asp,
+						"node_id":   nid,
+						"reference": refNodeID,
+						"reason":    reason,
+					})
+					continue
+				}
 				other := nodeData[nid]
 				if !deepEqual(refData, other) {
 					diffs = append(diffs, map[string]interface{}{
-						"aspect":     asp,
-						"node_id":    nid,
-						"reference":  nodeIDs[0],
-						"mismatch":   true,
-						"finding":    fmt.Sprintf("%s: %s differs from %s", asp, nid, nodeIDs[0]),
+						"aspect":    asp,
+						"node_id":   nid,
+						"reference": refNodeID,
+						"mismatch":  true,
+						"finding":   fmt.Sprintf("%s: %s differs from %s", asp, nid, refNodeID),
 					})
 				}
 			}
 		}
+
+		// Compute completeness markers — the harvest_and_yield principle
+		// asks every aggregating response to declare its completeness so
+		// consumers can decide whether to trust drift findings as
+		// authoritative or as best-effort. fallback_must_degrade_semantics
+		// also applies: returning the same drift_count shape regardless
+		// of harvest would let callers mistake a partial sweep for a
+		// complete one.
+		totalPairs := len(nodeIDs) * len(aspects)
+		erroredCount := 0
+		for _, perNode := range erroredPairs {
+			for range perNode {
+				erroredCount++
+			}
+		}
+		harvestPct := 100
+		if totalPairs > 0 {
+			harvestPct = (totalPairs - erroredCount) * 100 / totalPairs
+		}
+		partial := erroredCount > 0
 
 		return map[string]interface{}{
 			"collected_at": time.Now().UTC().Format(time.RFC3339),
@@ -340,6 +386,15 @@ Returns per-node data and a diff summary listing nodes that differ from the firs
 			"per_node":     byAspect,
 			"diffs":        diffs,
 			"drift_count":  len(diffs),
+			// Harvest/yield envelope. partial=true means at least one
+			// (aspect, node) pair could not be fetched; drift_count and
+			// diffs reflect only the pairs that succeeded. harvest_pct
+			// names the fraction of the requested (node × aspect)
+			// universe that contributed to the comparison.
+			"partial":       partial,
+			"harvest_pct":   harvestPct,
+			"skipped_pairs": skipped,
+			"errored_count": erroredCount,
 		}, nil
 	})
 
