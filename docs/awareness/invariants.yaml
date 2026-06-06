@@ -8065,6 +8065,72 @@ invariants:
       workflow_step_handler_files: []
       unknown_helper_files: []
 
+    - id: panic_recovery_must_not_be_silent
+      title: defer-recover blocks must log and propagate state — bare recover() absorbs the panic into invisible failure
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.silence_is_not_valid_for_unexpected
+        for goroutine panic recovery. The bug shape:
+
+          defer func() {
+              if r := recover(); r != nil { }   // ← silent
+          }()
+
+        A panic caught with no log/metric/state-mutation produces an
+        invisible failure: the goroutine dies but no breadcrumb survives
+        to root-cause. The next observable symptom is "X stopped working"
+        with no operator-readable trail.
+
+        Canonical good shape (cluster_controller_server/server.go::safeGo):
+
+          defer func() {
+              if r := recover(); r != nil {
+                  log.Printf("panic in %s: %v\n%s", tag, r, debug.Stack())
+                  h.SetState(globular_service.SubsystemFailed)
+                  h.SetError(fmt.Sprintf("panic: %v", r))
+              }
+          }()
+
+        Today's sweep: 0 findings — every recover site logs +
+        propagates. Pure regression detector for the silent-recover
+        bug class.
+
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/server.go
+          - golang/cluster_doctor/cluster_doctor_server/internal/recovery/grpc_recovery.go
+          - golang/title/title_server/title.go
+        symbols:
+          - safeGo
+          - safeGoTracked
+      forbidden_fixes:
+        - forbidden.silent_default_in_state_dispatch
+      required_tests: []
+
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/node_agent/node_agent_server
+        - golang/workflow/workflow_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/repository/repository_server
+        - golang/mcp
+        - golang/ai_executor
+        - golang/ai_router
+        - golang/ai_watcher
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/silence_panic_swallowed_silently.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
     - id: error_path.no_unbounded_fire_and_forget_goroutine
       title: Error-handling blocks must not spawn naked `go func()` — unbounded amplification under sustained failure
       severity: critical
