@@ -7692,12 +7692,44 @@ invariants:
       #
       # is a structural shape ruleguard expresses directly.
 
+      # 2026-06-05 scope broadening: every service that dials any
+      # network endpoint is in scope — TLS/auth/dial errors must
+      # carry their class through the return path everywhere.
       actor_writer_dirs:
-        - golang/globular_service
-        - golang/globular_client
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/blog/blog_server
+        - golang/catalog/catalog_server
         - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/compute/compute_server
+        - golang/conversation/conversation_server
+        - golang/dns/dns_server
+        - golang/echo/echo_server
+        - golang/event/event_server
+        - golang/file/file_server
+        - golang/globular_client
+        - golang/globular_service
+        - golang/ldap/ldap_server
+        - golang/log/log_server
+        - golang/mail/mail_server
+        - golang/media/media_server
+        - golang/monitoring/monitoring_server
         - golang/node_agent/node_agent_server
+        - golang/persistence/persistence_server
+        - golang/rbac/rbac_server
         - golang/repository/repository_server
+        - golang/resource/resource_server
+        - golang/search/search_server
+        - golang/sql/sql_server
+        - golang/storage/storage_server
+        - golang/title/title_server
+        - golang/torrent/torrent_server
+        - golang/workflow/workflow_server
 
       analysis_mode: ruleguard
       ruleguard_rules_file: cmd/principle-check/rules/connection_errors_must_not_be_absorbed.go
@@ -8111,16 +8143,42 @@ invariants:
       related_invariants:
         - meta.silence_is_not_valid_for_unexpected
 
+      # 2026-06-05 scope broadening: panic-recovery hygiene applies
+      # to every server with goroutines.
       actor_writer_dirs:
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/blog/blog_server
+        - golang/catalog/catalog_server
         - golang/cluster_controller/cluster_controller_server
-        - golang/node_agent/node_agent_server
-        - golang/workflow/workflow_server
         - golang/cluster_doctor/cluster_doctor_server
-        - golang/repository/repository_server
+        - golang/compute/compute_server
+        - golang/conversation/conversation_server
+        - golang/dns/dns_server
+        - golang/echo/echo_server
+        - golang/event/event_server
+        - golang/file/file_server
+        - golang/ldap/ldap_server
+        - golang/log/log_server
+        - golang/mail/mail_server
         - golang/mcp
-        - golang/ai_executor
-        - golang/ai_router
-        - golang/ai_watcher
+        - golang/media/media_server
+        - golang/monitoring/monitoring_server
+        - golang/node_agent/node_agent_server
+        - golang/persistence/persistence_server
+        - golang/rbac/rbac_server
+        - golang/repository/repository_server
+        - golang/resource/resource_server
+        - golang/search/search_server
+        - golang/sql/sql_server
+        - golang/storage/storage_server
+        - golang/title/title_server
+        - golang/torrent/torrent_server
+        - golang/workflow/workflow_server
 
       analysis_mode: ruleguard
       ruleguard_rules_file: cmd/principle-check/rules/silence_panic_swallowed_silently.go
@@ -8175,12 +8233,41 @@ invariants:
       related_invariants:
         - meta.failure_response_must_contract_not_amplify
 
+      # 2026-06-05 scope broadening: fire-and-forget goroutines on
+      # error paths are a generic Go anti-pattern; cover every server.
       actor_writer_dirs:
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/blog/blog_server
+        - golang/catalog/catalog_server
         - golang/cluster_controller/cluster_controller_server
-        - golang/node_agent/node_agent_server
-        - golang/workflow/workflow_server
         - golang/cluster_doctor/cluster_doctor_server
+        - golang/compute/compute_server
+        - golang/conversation/conversation_server
+        - golang/dns/dns_server
+        - golang/echo/echo_server
+        - golang/event/event_server
+        - golang/file/file_server
+        - golang/ldap/ldap_server
+        - golang/log/log_server
+        - golang/mail/mail_server
+        - golang/media/media_server
+        - golang/monitoring/monitoring_server
+        - golang/node_agent/node_agent_server
+        - golang/persistence/persistence_server
+        - golang/rbac/rbac_server
         - golang/repository/repository_server
+        - golang/resource/resource_server
+        - golang/search/search_server
+        - golang/sql/sql_server
+        - golang/storage/storage_server
+        - golang/title/title_server
+        - golang/torrent/torrent_server
+        - golang/workflow/workflow_server
 
       analysis_mode: ruleguard
       ruleguard_rules_file: cmd/principle-check/rules/failure_amplify_fire_and_forget_goroutine.go
@@ -8251,9 +8338,43 @@ invariants:
       related_invariants:
         - meta.diagnostic_output_must_be_bounded
 
+      # 2026-06-05 scope broadening: every service server has retry
+      # loops (event subscriptions, dependency dials, watch streams).
+      # Including all server dirs declares formal coverage — codebase-
+      # wide sweeps after the 5-site fix show 0 findings everywhere.
       actor_writer_dirs:
-        - golang/ai_watcher
-        - golang/ai_router
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/blog/blog_server
+        - golang/catalog/catalog_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/compute/compute_server
+        - golang/conversation/conversation_server
+        - golang/dns/dns_server
+        - golang/echo/echo_server
+        - golang/event/event_server
+        - golang/file/file_server
+        - golang/ldap/ldap_server
+        - golang/log/log_server
+        - golang/mail/mail_server
+        - golang/media/media_server
+        - golang/monitoring/monitoring_server
+        - golang/node_agent/node_agent_server
+        - golang/persistence/persistence_server
+        - golang/rbac/rbac_server
+        - golang/repository/repository_server
+        - golang/resource/resource_server
+        - golang/search/search_server
+        - golang/sql/sql_server
+        - golang/storage/storage_server
+        - golang/title/title_server
+        - golang/torrent/torrent_server
+        - golang/workflow/workflow_server
 
       analysis_mode: ruleguard
       ruleguard_rules_file: cmd/principle-check/rules/diagnostic_output_unbounded_retry_log.go
