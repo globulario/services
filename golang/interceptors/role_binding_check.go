@@ -3,6 +3,7 @@
 // @awareness file_role=cached_role_binding_check_with_local_cluster_roles_fallback
 // @awareness implements=globular.platform:intent.interceptors.role_binding_fallback_uses_local_cluster_roles
 // @awareness implements=globular.platform:intent.rbac.service_excludes_self_from_interceptor
+// @awareness partially_violates=globular.platform:invariant.meta.fail_safe_defaults_when_authority_is_uncertain
 // @awareness risk=high
 //
 // role_binding_check.go: helper that calls the RBAC service to determine
@@ -19,11 +20,24 @@
 // loaded cluster-roles.json. This avoids a bootstrap deadlock where services
 // can't call RBAC because RBAC requires auth that depends on RBAC.
 //
+// KNOWN GAP — partial violation of
+// meta.fail_safe_defaults_when_authority_is_uncertain. The fallback uses
+// checkLocalRoles, which returns ALLOW if ANY locally-loaded role grants
+// the method — so a viewer-only user can clear an admin-only check during
+// an RBAC outage. The bootstrap-deadlock argument justifies the relaxation
+// during the bootstrap window; it does NOT justify it during normal
+// operation. Tracked as the closest violation the principle has — the
+// structural fix is either (a) a fail-closed mode gated by a real
+// bootstrap-window check, or (b) a per-method "fallback_safe" allowlist
+// in cluster-roles.json restricting the fallback to read-only operations.
+// Until the structural fix lands, every fallback fires a metric and a
+// WARN log so operators can detect and audit the relaxation window.
 
 package interceptors
 
 import (
 	"context"
+	"expvar"
 	"log/slog"
 	"sync"
 	"time"
@@ -32,6 +46,13 @@ import (
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/metadata"
 )
+
+// rbacFallbackCount counts how often the local-roles fallback fired because
+// the RBAC service was unreachable. Surfaces the relaxation window for
+// operators and the security team. Every increment means a request was
+// authorized by checkLocalRoles instead of the user's actual role binding —
+// a structural permission relaxation that should be near-zero in steady state.
+var rbacFallbackCount = expvar.NewInt("rbac.fallback_local_roles_used")
 
 // roleBindingTTL controls how long a cached role binding is considered fresh.
 // Short enough to pick up RBAC changes quickly, long enough to avoid
@@ -66,6 +87,13 @@ func checkRoleBinding(subject, method, rbacAddr string) (bool, error) {
 
 	rbacClient, err := GetRbacClient(rbacAddr)
 	if err != nil {
+		// RBAC client construction failed (mTLS not ready, DNS not
+		// resolved, etc.). Activate local-roles fallback — see
+		// KNOWN GAP at top of file. Error is preserved AND surfaced
+		// via metric + WARN log so the relaxation is auditable.
+		rbacFallbackCount.Add(1)
+		slog.Warn("rbac fallback: RBAC client unavailable, using local-roles fallback (permissive)",
+			"subject", subject, "method", method, "reason", "client_construct_failed", "error", err)
 		return checkLocalRoles(method), err
 	}
 
@@ -79,8 +107,16 @@ func checkRoleBinding(subject, method, rbacAddr string) (bool, error) {
 	binding, err := rbacClient.GetRoleBindingWithCtx(ctx, subject)
 	if err != nil {
 		// RBAC service unreachable or rejected the call.
-		// Fall back to locally loaded cluster-roles.json.
-		return checkLocalRoles(method), nil
+		// Fall back to locally loaded cluster-roles.json — see
+		// KNOWN GAP at top of file. The error is now PROPAGATED to
+		// the caller (was previously swallowed as nil) so the
+		// caller can detect the relaxation and adjust its own
+		// decision logic. The metric + WARN log surfaces the same
+		// signal to ops/security.
+		rbacFallbackCount.Add(1)
+		slog.Warn("rbac fallback: RBAC lookup failed, using local-roles fallback (permissive)",
+			"subject", subject, "method", method, "reason", "get_role_binding_failed", "error", err)
+		return checkLocalRoles(method), err
 	}
 
 	roles := binding.GetRoles()

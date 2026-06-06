@@ -2691,7 +2691,21 @@ invariants:
     antipattern: "If RBAC times out we let the request through so it does not break"
     wrong_instinct: A failed authorization check feels like a system problem, not a security problem — the user did nothing wrong, the RBAC service is just slow, so denying their request feels unfair. But "I could not verify your authority" is the SAFE direction precisely because the alternative is "I let in someone I cannot prove should be in." Default-allow turns every authorization-system failure into a silent escalation; default-deny turns it into a loud availability problem the operator notices and fixes.
     severity: critical
-    status: candidate
+    status: active
+    promoted_from_candidate:
+      date: 2026-06-06
+      reason: |
+        Predicted role_binding_check.go fallback gap during the
+        proactive review pass. The interceptor's RBAC fallback returned
+        ALLOW if any locally-loaded role granted the method, bypassing
+        the user's actual role restriction during any RBAC outage. The
+        principle named the gap; partial mitigation landed (error
+        preserved, metric+WARN log emitted) and the structural fix is
+        tracked as a follow-up.
+      first_predicted_bug:
+        file: golang/interceptors/role_binding_check.go
+        symbol: checkRoleBinding
+        commit: pending
     summary: |
       Saltzer and Schroeder's 1975 paper "The Protection of
       Information in Computer Systems" gave eight design principles
