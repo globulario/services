@@ -1342,3 +1342,425 @@ invariants:
       - meta.identity_computation_must_be_invariant
       - meta.competing_writers_must_converge_or_be_fenced
       - meta.storage_is_not_semantic_authority
+
+  - id: meta.abstraction_must_not_hide_unmeasured_cost
+    title: "An abstraction that swallows its own failure mode is worse than no abstraction"
+    category: signal
+    antipattern: "If the abstraction returns the same type on success and failure, the caller can carry on"
+    wrong_instinct: A helper that returns a sensible default on the rare path feels considerate — callers don't need a branch, the code looks clean. But "sensible default" and "real answer" have the same shape, so every caller now silently treats failure as success. The abstraction has absorbed the failure into the success channel; the bug surfaces three layers downstream as garbage data, and the path back to the swallowed signal is dead.
+    severity: critical
+    status: candidate
+    summary: |
+      An abstraction (helper, resolver, template engine, parser, wrapper)
+      MUST surface its failure mode in a shape distinguishable from
+      success. Returning the same type on "I found it" and "I didn't"
+      makes the caller structurally unable to tell the two apart. The
+      caller's correctness then depends on a runtime assumption the
+      type system cannot enforce.
+
+      This is the failure shape behind Bravo's FindNamedField (Lampson
+      §3.1, 1983): an O(n²) loop that LOOKED like an O(n) abstraction
+      because the abstraction hid the cost of repeated FindIthField
+      calls. The bug was not in the algorithm; it was in the
+      abstraction's contract — the caller had no way to see what they
+      were paying for.
+
+      The modern shape is the workflow engine's `$.<field>` resolver
+      bug (2026-06-06): when the path doesn't resolve, the resolver
+      returns the LITERAL template string `"$.spec_bytes"` instead of
+      an error or nil. Every caller then treats the unresolved
+      template as a valid value, JSON-unmarshals it, and gets
+      `invalid character '$'` three steps later. The signal that
+      "resolution failed" was lost the moment the resolver chose to
+      degrade silently into the success channel.
+
+      The general shape:
+        1. An abstraction has two paths: the normal success path and a
+           rare/failure path.
+        2. The author makes the failure path return a value of the same
+           type and shape as success — usually for caller convenience.
+        3. Callers cannot distinguish; their downstream logic interprets
+           the failure value as a real result.
+        4. The bug surfaces far from its origin in a context that gives
+           the operator no hint about which abstraction swallowed the
+           signal.
+
+      This is distinct from `meta.fallback_must_degrade_semantics`:
+      that principle says "if you fall back, the result must say so."
+      This one says "the abstraction's contract must make it
+      structurally impossible to lose the signal in the first place."
+      Fallback is a runtime choice; abstraction shape is a type-system
+      choice. Both must hold.
+
+      Sibling cases in our codebase:
+        - Workflow engine `$.` resolver returning literal template
+          (caught only by JSON unmarshal three layers downstream).
+        - Earlier in this session: ai-memory port discovery returning
+          "" for "not found yet" AND for "key missing forever". The
+          installer treated empty as permanent → skipped day-0 seed.
+        - Hypothetical but extant: any helper returning `(string,
+          error)` where the string is non-empty on the error path.
+
+      The fingerprint: a function whose error path returns a usable-
+      looking value of the same type as the success path. Read the
+      function. Ask: "can the caller, given only the return value,
+      tell success from failure?" If no, the abstraction is dishonest.
+    enforcement: |
+      Abstractions whose normal path returns T should make their
+      failure path return one of:
+
+        - (T, error) where T's zero value is unambiguous
+        - (T, bool) where bool is presence — Lampson's "Use hints"
+          pattern, with explicit verification at the call site
+        - *T — nil-distinguishable from any returned value
+        - A sum type (Result / Option / sealed interface) where the
+          type system FORBIDS treating failure as success
+
+      Forbidden: returning a "sensible-looking default" of type T on
+      the failure path. "Empty string when key missing", "zero value
+      when parse failed", "the literal template string when path
+      didn't resolve" — all violations. The abstraction owes the
+      caller a refusal, not a placeholder.
+
+      Test pattern: for every abstraction whose return type is T, the
+      test suite must include a case where the rare/failure path is
+      taken, and assert that the returned value is structurally
+      distinguishable from any valid success result. Test passing
+      because "the default value never collides with a real value in
+      practice" is not enough — the type system must enforce the
+      distinction, not the test data.
+
+      For existing abstractions where the contract is already
+      ambiguous: log a finding, add the failure case test, and either
+      change the return type or document the violation as
+      architectural debt with a tracking ID.
+    forbidden_fixes:
+      - forbidden.return_zero_value_on_silent_failure
+      - forbidden.add_caller_side_runtime_check_instead_of_type_signal
+    related_invariants:
+      - meta.fallback_must_degrade_semantics
+      - meta.silence_is_not_valid_for_unexpected
+      - meta.authority_must_express_uncertainty
+    related_failure_modes:
+      - fm.industry.optimistic_success_for_irreversible_action
+
+  - id: meta.end_to_end_check_is_the_only_truth
+    title: "The only authoritative correctness check is at the actor that owns the cross-layer intent"
+    category: authority
+    antipattern: "Every layer verified its own concerns, therefore the whole thing is correct"
+    wrong_instinct: Layered verification feels rigorous — node-agent checks the install, controller checks the release, systemd checks the unit. But each layer only verifies its layer's concerns; the cross-layer property (the SERVICE that was supposed to ship is actually running the right binary and answering requests) is owned by no individual layer. Aggregating per-layer green into "system green" is a category error — you've just made the partial true into a partial lie.
+    severity: critical
+    status: candidate
+    summary: |
+      The end-to-end argument (Saltzer, Reed & Clark 1984, anticipated
+      by Lampson 1983 §4.1): an authoritative correctness verdict for
+      a cross-layer property MUST come from an actor that owns the
+      cross-layer intent. Intermediate-layer checks are STRICTLY
+      performance optimizations — they catch failures early and reduce
+      load, but they are never proof.
+
+      In our 4-layer state model (repository → desired → installed →
+      runtime), every layer has its own correct-locally verdict. The
+      controller knows the desired state is consistent. The node-agent
+      knows the binary was installed. systemd knows the unit is
+      loaded. Each of these is true within its layer's scope. None of
+      them, alone or in aggregate, answers the cross-layer question
+      "is the service Globular promised the user actually serving
+      requests with the binary the manifest names?" That answer
+      belongs to cluster-doctor, which is the only actor whose
+      verification spans all four layers simultaneously.
+
+      The violation looks like:
+        1. Operator asks "is the cluster healthy?"
+        2. Code answers by aggregating per-layer status flags.
+        3. Each per-layer flag is correct within its scope.
+        4. The aggregated answer is wrong because the cross-layer
+           property was never checked.
+        5. Operator believes the system is green; the cross-layer
+           failure surfaces hours or days later when actual user
+           traffic hits the unverified path.
+
+      Bug-shape catalog (all observed):
+        - SUCCEEDED workflow returning SUCCESS because the actor
+          returned SUCCESS — but the side effect the workflow was
+          dispatched to produce was never observed in the world.
+          (Whole class of workflow.dispatch_is_not_completion
+          incidents.)
+        - 200 OK from a /health endpoint when the process is alive but
+          its database connection is broken.
+        - "Install succeeded" reported by node-agent because the file
+          was written, when the service binary on disk has a different
+          sha256 than the manifest the controller intended to ship.
+          (Phase 38 entrypoint_checksum incidents.)
+        - "ServiceRelease AVAILABLE" because every node reported
+          installed_state=desired_version, while one of those nodes
+          was running the OLD binary because its PID hadn't been
+          rolled. (service.old_pid_after_upgrade family.)
+
+      The end-to-end actor must be the actor that owns the intent
+      whose correctness is being verified. For "is this release
+      converged?" that's the controller's release pipeline. For "is
+      the cluster healthy?" that's cluster-doctor. For "did this
+      transaction commit?" that's the workflow service.
+
+      Importantly: this does NOT forbid intermediate checks. It
+      forbids treating intermediate checks AS authoritative. They are
+      performance optimizations — earlier failure detection, lower
+      cost, faster feedback. They never replace the end-to-end check.
+    enforcement: |
+      For every cross-layer property the system exposes (health,
+      converged, succeeded, available, ready), name the actor that
+      owns that intent and route the verdict through it. No other
+      actor's local verdict may be used as the cross-layer answer.
+
+      Concretely:
+        - "Cluster health" answers come from cluster-doctor, never
+          from per-node heartbeats aggregated by the dashboard.
+        - "Release converged" answers come from the controller's
+          release-pipeline RUN_STATUS, never from per-node
+          installed_state matches.
+        - "Workflow succeeded" answers come from the workflow service's
+          terminal-state record, never from the dispatcher's return code.
+        - "Service healthy" at the cross-layer level comes from a
+          live request-path probe, never from systemd's
+          unit-is-active flag alone.
+
+      Intermediate checks are explicitly labeled as performance
+      optimizations in code comments and metric names. When an
+      intermediate check disagrees with the end-to-end verdict, the
+      end-to-end verdict wins and the disagreement is itself a
+      finding.
+
+      For every claim of cross-layer correctness in code or UI, ask:
+        1. Which actor owns the intent this verifies?
+        2. Is the verdict generated by that actor, or assembled from
+           lower-layer signals?
+        3. If assembled, is the assembler the end-to-end owner, or is
+           it just an aggregator with no view of cross-layer state?
+
+      The aggregator-as-authority is the failure mode this principle
+      catches.
+    forbidden_fixes:
+      - forbidden.aggregate_layer_status_into_cross_layer_verdict
+      - forbidden.dispatch_as_proof_of_completion
+      - forbidden.local_health_endpoint_as_cluster_health
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
+      - meta.assertions_must_carry_their_scope
+      - workflow.dispatch_is_not_completion
+      - cluster_doctor.is_the_authority_for_health_state_queries
+
+  - id: meta.early_consolidation_ossifies_uncertainty
+    title: "Code that crystallizes before its true shape is understood becomes cement around its bug"
+    category: lifecycle
+    antipattern: "Now that we have N examples, let me write the canonical N-entry list"
+    wrong_instinct: Consolidation feels like maturity — once you see the pattern, codify it. But codifying *too early*, before the universe is known, freezes the wrong shape. The consolidated form then gets imported, depended on, and trusted, until changing it requires touching every dependent. The bug becomes structural, not local; fixing it requires architecture, not edits.
+    severity: critical
+    status: candidate
+    summary: |
+      Lampson's "Plan to throw one away" (§3.3, 1983) is usually read
+      as advice about implementation strategy: build the first
+      version expecting to discard it. The deeper observation is
+      about TIMING of canonicalization. A hardcoded list, a sealed
+      type, an exhaustive switch, a frozen interface — each of these
+      is a commitment that the current understanding is complete.
+      When the commitment is made before understanding is complete,
+      every subsequent consumer inherits the frozen wrong shape.
+
+      Distinct from `meta.code_must_not_mirror_external_enumerations`:
+      that principle says "if the truth lives elsewhere, don't mirror
+      it here." This one says "if the truth is still emerging, don't
+      crystallize it yet." A new service's canonical type signature,
+      written when only the first caller exists, will be wrong for
+      the second caller — but the second caller will work around it,
+      cementing the wrong shape rather than fixing it.
+
+      The fingerprint shapes:
+        1. A `type Foo struct { A, B, C }` written when only one
+           caller exists. The second caller needs D; instead of
+           adding D, they add a side-channel map. Now there are two
+           shapes.
+        2. A `map[string]bool` enumerating "the canonical things"
+           that gets exported and consumed by 12 packages before the
+           13th member exists. The 13th gets added by an unrelated
+           PR that doesn't realize there are 12 consumers to update.
+        3. A function signature `Do(ctx, name string) error` written
+           before the second argument (kind, version, etc.) was
+           understood. Adding a parameter is a breaking API change;
+           callers grow stringly-typed compound encodings instead.
+        4. Workflow YAMLs frozen with `dispatchModel: documentation`
+           after a single example — the next workflow that *should*
+           be documentation-only doesn't get the marker because the
+           author doesn't know about the convention.
+
+      The relationship to `code_must_not_mirror_external_enumerations`:
+      a hardcoded mirror is one specific case of early consolidation —
+      the canonical form was frozen before the external truth source
+      finished growing. But ossification happens even without an
+      external source: the codebase invents its own emerging truth and
+      canonicalizes it too early. Both principles apply; both fixes
+      compose.
+
+      Known violations from this session:
+        - coreWorkflows (11 hardcoded). The author probably wrote it
+          when there *were* only 11. The 12th (cluster.ingress_spec_restore)
+          shipped without the slice being touched.
+        - actorRegistrationSet. Written when there were 6 actor
+          groups. The 7th through 12th got Register*Actions but no
+          entry here.
+        - Lampson's own taxonomy. He explicitly says he could only
+          identify ~26 hints in 1983 — and then 2025-era distributed
+          systems found ~20 more. Even his consolidation was early
+          relative to the eventual universe. That's not a flaw; it's
+          the principle's defining example.
+    enforcement: |
+      Before consolidating an emerging shape into a canonical form,
+      ask:
+
+        1. Has the set stopped growing? (Three months without a new
+           member? Three users? Three failure modes?)
+        2. Is the consolidation derivable from a still-evolving source,
+           or is the consolidation itself the source?
+        3. If a new member appears tomorrow, what changes? Is it a
+           one-line addition, or does it require touching every consumer?
+        4. Does the canonical form have an "I don't know yet" slot, or
+           does it force every member to commit to all dimensions now?
+
+      Permissible consolidation patterns:
+        - Closed types when the variants are constrained by physics or
+          protocol (e.g., proto enum values, HTTP methods).
+        - Maps and slices DERIVED from a discoverable source (the
+          fix for hardcoded mirrors).
+        - Interface types with explicit extension points (`Options`
+          structs with defaults, opt-in flags).
+
+      Forbidden consolidation:
+        - Hardcoded N-entry slices in critical paths when N is
+          observably still growing.
+        - Sealed exhaustive switches over an emerging set without a
+          default case that surfaces unknowns as findings.
+        - Function signatures that encode multiple identities into
+          a single stringly-typed argument because the caller "only
+          needs name today."
+
+      When a piece of code MUST be consolidated early (performance,
+      type safety), document the consolidation explicitly and pair it
+      with a CI test that walks the truth source and fails on drift —
+      same pattern as `code_must_not_mirror_external_enumerations`.
+    forbidden_fixes:
+      - forbidden.workaround_frozen_shape_with_side_channel
+      - forbidden.add_to_hardcoded_set_without_extending_discovery
+    related_invariants:
+      - meta.code_must_not_mirror_external_enumerations
+      - meta.identity_computation_must_be_invariant
+
+  - id: meta.bad_path_must_make_progress
+    title: "Failure response must move the system toward a terminal state, not freeze it indefinitely"
+    category: lifecycle
+    antipattern: "Retry forever; eventually it'll work"
+    wrong_instinct: Retry feels safe — if you don't know whether a transient failure will clear, why not keep trying? But infinite retry without progression turns the system into a CPU heater. The failure isn't getting worse, but it isn't getting better either, and from the operator's view the system is "still trying" forever. Stuck-with-no-progression is its own failure mode, distinct from amplification, and equally fatal.
+    severity: critical
+    status: candidate
+    summary: |
+      Lampson's "Separate normal and worst case" (§2.1, 1983) usually
+      gets quoted for the speed half — "the normal case must be fast."
+      The fault-tolerance half — "the worst case must make some
+      progress" — is the load-bearing one. A failure-handling path
+      that loops without progression is indistinguishable from a hang;
+      from the operator's view the system has frozen. The CPU is busy,
+      the logs are flowing, the workflow runs are dispatching — and
+      nothing is changing. This is its own failure mode, distinct from
+      amplification.
+
+      The dual relationship with
+      `meta.failure_response_must_contract_not_amplify`:
+        - Amplification: one error → N errors. (Unbounded retry, fire-
+          and-forget retry-on-failure goroutine, log-on-every-tick
+          when the failure persists.)
+        - Stuck: error → error → error forever, at the same rate,
+          forever. (Circuit breaker re-opens on retry, persistent
+          retry budget that never exhausts, deferred workflow waiting
+          for a condition the rest of the system needs to provide.)
+
+      Both are violations of the worst-case-must-make-progress half of
+      Lampson's hint. Contract-not-amplify says "don't get worse."
+      Must-make-progress says "don't stay the same — move toward a
+      terminal state, even if that state is FAILED."
+
+      Bug-shape catalog:
+        - Workflow CIRCUIT_BREAKER_OPEN for 30s, on close attempts
+          retry, retry fails, circuit re-opens for 30s, forever. From
+          operator's view: "still backing off after 6 hours." No
+          escalation, no abandonment, no human-visible signal that
+          this needs intervention.
+        - The 2026-06-06 ingress-spec-restore loop: dispatch every
+          30s for a workflow definition that doesn't exist in etcd.
+          For an entire day, every tick: "dispatch → not found →
+          retry." The system was making no progress and emitting no
+          finding that said "this is permanently broken."
+        - Deferred workflow waiting for dependency D; D is itself
+          deferred waiting for E; E is deferred waiting for D. The
+          deferral system is making "progress" in the sense that the
+          counters tick, but the actual state-mutation never occurs.
+          ABANDONED state was added (WF-DEFER B3) to surface this.
+        - Health probe returns "still checking" indefinitely because
+          the dependency it checks is slow; nothing distinguishes
+          "slow today" from "permanently unreachable" for the operator.
+
+      The principle: every failure-handling path must have a
+      terminal state, reachable in bounded time or bounded attempts,
+      that produces an operator-visible verdict. "Still trying" is
+      not a verdict.
+
+      Note that "terminal" doesn't mean "success." FAILED is a
+      terminal state, as is ABANDONED, as is BLOCKED-PENDING-OPERATOR.
+      The contract is that the system stops making the same choice
+      and surfaces a decision — to a human, to a higher-layer
+      orchestrator, or to an alert.
+    enforcement: |
+      Every retry, defer, backoff, circuit-breaker, or wait loop
+      must answer:
+
+        1. What's the upper bound? (Attempts, wall-clock, distinct
+           failure shapes?)
+        2. What terminal state is reached when the bound is hit?
+        3. Who sees the terminal state — operator, ticket, alert,
+           workflow recorder?
+        4. Is the terminal state DIFFERENT from the looping state?
+           (If the system goes from "trying" to "trying" forever,
+           the principle is violated even if the rate is bounded.)
+
+      Acceptable patterns:
+        - Workflow runs with MaxDefers + ABANDONED terminal state
+          (WF-DEFER B3 is the canonical implementation).
+        - Circuit breakers with bounded re-open count; after N
+          re-opens, escalate to a CRITICAL finding and stop retrying
+          until an operator clears it.
+        - Retry-with-jitter loops with absolute wall-clock cap that
+          transitions to FAILED at the cap.
+
+      Forbidden patterns:
+        - `for { sleep(); retry() }` with no bound.
+        - Circuit breaker that re-opens on each post-cooldown failure
+          forever, with no escalation.
+        - Deferred workflows whose blocker condition can only be
+          satisfied by a workflow that's itself deferred (deadlock by
+          design).
+        - "Still checking" / "in progress" / "pending" states with no
+          timeout to a verdict.
+
+      Test pattern: for every retry/defer/backoff loop, write a test
+      where the underlying failure is permanent. Assert that the
+      system reaches a terminal state within bounded time or attempts,
+      AND that the terminal state surfaces to an observer (workflow
+      run record, finding, alert, log at ERROR severity).
+    forbidden_fixes:
+      - forbidden.unbounded_retry_loop
+      - forbidden.circuit_breaker_without_escalation
+      - forbidden.pending_state_without_timeout_to_verdict
+    related_invariants:
+      - meta.failure_response_must_contract_not_amplify
+      - meta.write_creates_completion_obligation
+      - meta.half_done_must_not_look_done
+    related_failure_modes:
+      - workflow.abandoned_defer_never_retried
