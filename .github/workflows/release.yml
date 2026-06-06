@@ -339,17 +339,25 @@ jobs:
             -o oxigraph
           chmod +x oxigraph
 
-          echo "-> awareness-graph (latest stable from github.com/globulario/awareness-graph)..."
+          echo "-> awareness-graph (latest mirror in globulario/services releases)..."
+          # awareness-graph source repo is PRIVATE; GITHUB_TOKEN doesn't
+          # have cross-repo read for private repos. Binary tarballs are
+          # mirrored to PUBLIC releases on globulario/services itself,
+          # under the `awareness-graph-v${VERSION}` tag pattern (does
+          # not collide with the `v*` trigger glob this Release workflow
+          # uses for its own platform releases). Resolve "latest" by
+          # listing tags on this repo that match the prefix and
+          # picking the highest SemVer.
           AWARENESS_VERSION=$(curl -fsSL \
             -H 'Accept: application/vnd.github+json' \
             -H 'X-GitHub-Api-Version: 2022-11-28' \
             -H 'Authorization: Bearer ${{ github.token }}' \
-            "https://api.github.com/repos/globulario/awareness-graph/releases/latest" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'].lstrip('v'))")
+            "https://api.github.com/repos/globulario/services/releases?per_page=100" \
+            | python3 -c "import json,sys,re; rs=[r['tag_name'] for r in json.load(sys.stdin) if r['tag_name'].startswith('awareness-graph-v')]; v=sorted(rs, key=lambda t: tuple(int(p) for p in re.match(r'awareness-graph-v(\d+)\.(\d+)\.(\d+)', t).groups()))[-1]; print(v.removeprefix('awareness-graph-v'))")
           echo "  version: ${AWARENESS_VERSION}"
           echo "AWARENESS_VERSION=${AWARENESS_VERSION}" >> "$GITHUB_ENV"
           curl -fsSL \
-            "https://github.com/globulario/awareness-graph/releases/download/v${AWARENESS_VERSION}/awareness-graph_${AWARENESS_VERSION}_linux_amd64.tgz" \
+            "https://github.com/globulario/services/releases/download/awareness-graph-v${AWARENESS_VERSION}/awareness-graph_${AWARENESS_VERSION}_linux_amd64.tgz" \
             | tar xzf - --strip-components=2 "./bin/awareness-graph"
           chmod +x awareness-graph
 
