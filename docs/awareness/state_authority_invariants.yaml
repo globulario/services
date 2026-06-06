@@ -4525,7 +4525,26 @@ invariants:
     antipattern: "We replicate so we can handle node loss"
     wrong_instinct: Replication feels like a complete answer to node loss — the data is on other nodes, so requests can be served from those. But "can be served" assumes the surviving nodes have the spare capacity to absorb the failed node's load. At typical production utilization (80 percent reported by Brewer), surviving nodes are nearly saturated even at full strength; absorbing the load of a failed peer can push them over the edge. The cascade is invisible until it happens.
     severity: critical
-    status: candidate
+    status: active
+    promoted_from_candidate:
+      date: 2026-06-06
+      reason: |
+        Predicted real gap in cluster_controller leader-failover code
+        during the proactive review pass. findLivenessSafeSuccessor at
+        leader_liveness.go:277 selects the FIRST eligible successor with
+        no capacity check; etcd's concurrency.NewElection at
+        leader_election.go:58 also has no capacity awareness. 14+
+        leader-only workloads (drift reconciler, dispatch coordination,
+        schema guard, ingress guard, PKI reconciler, DNS reconciler,
+        MinIO topology, posture management, etc.) all transfer to the
+        successor instantly. Partial mitigation landed (metric +
+        annotation + KNOWN GAP block). Structural fix tracked as
+        follow-up — three options proposed (load-rank successors,
+        warmup period, admission control at takeover).
+      first_predicted_bug:
+        file: golang/cluster_controller/cluster_controller_server/leader_liveness.go
+        symbol: findLivenessSafeSuccessor
+        commit: pending
     summary: |
       Brewer named this the LOAD REDIRECTION PROBLEM. "The
       traditional view of replication silently assumes that

@@ -1,3 +1,44 @@
+// @awareness namespace=globular.platform
+// @awareness component=platform_cluster_controller.leader_liveness
+// @awareness file_role=leader_self_resign_watchdog_and_successor_selection
+// @awareness enforces=globular.platform:invariant.leader.write_must_be_fenced_on_lease_expiry
+// @awareness partially_violates=globular.platform:invariant.meta.load_redirection_must_be_explicit_capacity_planning
+// @awareness risk=high
+//
+// KNOWN GAP — partial violation of
+// meta.load_redirection_must_be_explicit_capacity_planning. The
+// successor-selection algorithm in findLivenessSafeSuccessor returns the
+// FIRST eligible follower, not the LEAST-LOADED. When the leader resigns,
+// the chosen successor inherits 100% of leader-only work (drift
+// reconciliation, dispatch coordination, schema guard, ingress guard, PKI
+// reconciler, MinIO topology, DNS reconciler, posture management — at
+// least 14 distinct leader-only workloads) instantly, with no warmup.
+//
+// The actual successor is selected by etcd's concurrency.NewElection
+// (Raft + first-to-campaign), which also has no capacity awareness. So
+// both layers — the resign decision here AND the etcd election that
+// follows — choose by readiness predicates, never by headroom.
+//
+// At the time this annotation was written, the production cluster had
+// N=1, so failover does not currently happen. When the cluster scales
+// back up to N>=3 and a failover event occurs, the new leader will be
+// selected without any check on whether it has the capacity to absorb
+// the leader load on top of its existing non-leader work. The principle
+// predicts: under sustained load, the new leader will saturate and the
+// MTTR of the takeover itself will be amplified.
+//
+// Structural fixes considered:
+//   (a) Rank successors by (CPU, memory, RPC rate, queue depth) and
+//       prefer the least-loaded eligible node.
+//   (b) Have the new leader execute a brief "warmup" period after
+//       election where it ticks reconcilers at reduced rate before
+//       going full speed.
+//   (c) Add an admission-control layer at the controller's RPC surface
+//       so the new leader can drop low-priority work while saturated.
+// Tracked as design work; this annotation surfaces the gap so future
+// reviewers see it. The metric leaderTakeoverNoCapacityCheckTotal
+// (defined below) increments on every successor selection to make the
+// relaxation visible to operators.
 package main
 
 import (
@@ -56,6 +97,21 @@ var (
 		Subsystem: "controller",
 		Name:      "leader_liveness_degraded",
 		Help:      "1 when liveness is degraded but no safe successor exists, 0 otherwise.",
+	})
+
+	// leaderTakeoverNoCapacityCheckTotal counts how often
+	// findLivenessSafeSuccessor selects a successor without any check on
+	// whether the chosen node has the spare capacity to absorb the leader
+	// load. Currently this is ALL such selections — see the KNOWN GAP at
+	// the top of this file. The metric surfaces the relaxation for
+	// operators and the security/SRE team. Near-zero in steady state;
+	// every increment is a failover event whose post-conditions the
+	// system did not verify.
+	leaderTakeoverNoCapacityCheckTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "leader_takeover_no_capacity_check_total",
+		Help:      "Successor selections made without a capacity headroom check. Tracks the load_redirection meta-principle gap.",
 	})
 )
 
@@ -299,6 +355,11 @@ func (srv *server) findLivenessSafeSuccessor(selfNodeID string, candidateIDs []s
 			continue
 		}
 
+		// KNOWN GAP: no capacity check. The chosen successor will inherit
+		// 100% of leader-only work instantly. See the file header for the
+		// load_redirection_must_be_explicit_capacity_planning gap. The
+		// metric below makes the omission auditable.
+		leaderTakeoverNoCapacityCheckTotal.Inc()
 		return id
 	}
 	return ""
