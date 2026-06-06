@@ -41,28 +41,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 )
-
-// coreWorkflows are the workflow definitions that MUST live in etcd. These
-// are the workflows the cluster needs to bootstrap, reconcile, deploy, and
-// heal itself. Without them, nothing works.
-// Service-owned workflows (compute.*, remediate.*) stay in MinIO.
-var coreWorkflows = []string{
-	"cluster.reconcile",
-	"cluster.invariant.enforcement",
-	"node.bootstrap",
-	"node.join",
-	"node.repair",
-	"release.apply.package",
-	"release.apply.infrastructure",
-	"release.apply.controller",
-	"release.remove.package",
-	"objectstore.minio.apply_topology_generation",
-	"platform.upgrade",
-}
 
 // enforceAllInvariantsLocked runs all cluster invariants during the reconcile
 // snapshot phase. MUST be called under srv.lock(). Returns true if state was modified.
@@ -118,13 +101,16 @@ func (srv *server) checkDiskHealthLocked() {
 
 // checkWorkflowCompleteness checks if all core workflow definitions exist
 // in etcd. Returns the list of missing workflow names. Does NOT require
-// MinIO or the workflow service — reads etcd directly.
+// MinIO or the workflow service — reads etcd directly. The expected set is
+// derived from the on-disk YAMLs in workflowDefinitionsDir, so adding a new
+// workflow only requires shipping the YAML — no source change.
 func (srv *server) checkWorkflowCompleteness() []string {
 	if v1alpha1.EtcdFetcher == nil {
 		return nil
 	}
+	expected := loadCoreWorkflowsFromDisk()
 	var missing []string
-	for _, name := range coreWorkflows {
+	for name := range expected {
 		if b, err := v1alpha1.EtcdFetcher(name); err != nil || len(b) == 0 {
 			missing = append(missing, name)
 		}
@@ -182,16 +168,31 @@ func (srv *server) seedCoreWorkflowsToEtcd() {
 // The installer places them here; the controller reads them at startup.
 var workflowDefinitionsDir = "/var/lib/globular/workflows"
 
-// loadCoreWorkflowsFromDisk reads core workflow YAML files from the local
-// filesystem. Returns a map of name → YAML content.
+// loadCoreWorkflowsFromDisk reads every workflow YAML file in
+// workflowDefinitionsDir and returns a map of name (without ".yaml") →
+// YAML content. The installer ships YAMLs here; everything in the directory
+// is considered a core workflow that MUST live in etcd. This removes the
+// historical drift where a hardcoded slice silently omitted workflows
+// shipped on disk (root cause of the cluster.ingress_spec_restore-not-found
+// stall: 22 YAMLs on disk, only 11 in the seed list).
 func loadCoreWorkflowsFromDisk() map[string][]byte {
 	defs := make(map[string][]byte)
-	for _, name := range coreWorkflows {
-		path := filepath.Join(workflowDefinitionsDir, name+".yaml")
-		data, err := readFileIfExists(path)
+	entries, err := os.ReadDir(workflowDefinitionsDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("workflow-seed: read %s: %v", workflowDefinitionsDir, err)
+		}
+		return defs
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		data, err := readFileIfExists(filepath.Join(workflowDefinitionsDir, e.Name()))
 		if err != nil || len(data) == 0 {
 			continue
 		}
+		name := strings.TrimSuffix(e.Name(), ".yaml")
 		defs[name] = data
 	}
 	return defs

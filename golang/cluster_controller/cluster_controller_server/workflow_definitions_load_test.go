@@ -23,14 +23,26 @@ func withWorkflowDefinitionsDir(t *testing.T, dir string) {
 	t.Cleanup(func() { workflowDefinitionsDir = prev })
 }
 
-// TestLoadCoreWorkflowsFromDisk_AllPresent confirms that when every
-// coreWorkflows file is present in workflowDefinitionsDir, loadCoreWorkflowsFromDisk
-// returns the full map. Baseline correctness for the loader.
+// fixtureWorkflows is the synthetic set used by the loader tests below. It is
+// intentionally NOT the production workflow list — the loader's contract is
+// "return every *.yaml under workflowDefinitionsDir", so a test fixture
+// proves the contract independent of which workflows ship today.
+var fixtureWorkflows = []string{
+	"alpha.one",
+	"beta.two",
+	"gamma.three",
+	"delta.four",
+}
+
+// TestLoadCoreWorkflowsFromDisk_AllPresent confirms that when every fixture
+// file is present in workflowDefinitionsDir, loadCoreWorkflowsFromDisk
+// returns the full map keyed by name (without the ".yaml" suffix). Baseline
+// correctness for the directory-scan loader.
 func TestLoadCoreWorkflowsFromDisk_AllPresent(t *testing.T) {
 	dir := t.TempDir()
 	withWorkflowDefinitionsDir(t, dir)
 
-	for _, name := range coreWorkflows {
+	for _, name := range fixtureWorkflows {
 		path := filepath.Join(dir, name+".yaml")
 		if err := os.WriteFile(path, []byte("name: "+name+"\nsteps: []\n"), 0o644); err != nil {
 			t.Fatalf("write fixture %s: %v", path, err)
@@ -38,27 +50,25 @@ func TestLoadCoreWorkflowsFromDisk_AllPresent(t *testing.T) {
 	}
 
 	defs := loadCoreWorkflowsFromDisk()
-	if len(defs) != len(coreWorkflows) {
-		t.Fatalf("loaded %d definitions, want %d (all coreWorkflows present)", len(defs), len(coreWorkflows))
+	if len(defs) != len(fixtureWorkflows) {
+		t.Fatalf("loaded %d definitions, want %d (all fixtures present)", len(defs), len(fixtureWorkflows))
 	}
-	for _, name := range coreWorkflows {
+	for _, name := range fixtureWorkflows {
 		if _, ok := defs[name]; !ok {
 			t.Errorf("missing %q from loaded definitions", name)
 		}
 	}
 }
 
-// TestLoadCoreWorkflowsFromDisk_MissingFilesSkipped confirms that when only
-// some files exist, the loader returns only what it found and does not error.
-// The loader is best-effort by design (readFileIfExists returns nil on
-// not-found) — a missing file degrades reconciliation gracefully rather than
-// blocking controller startup.
+// TestLoadCoreWorkflowsFromDisk_MissingFilesSkipped confirms that the loader
+// returns only the *.yaml files it actually finds — not a fixed list. Adding
+// or removing a YAML in workflowDefinitionsDir is the supported operator
+// motion; the loader must reflect what is on disk.
 func TestLoadCoreWorkflowsFromDisk_MissingFilesSkipped(t *testing.T) {
 	dir := t.TempDir()
 	withWorkflowDefinitionsDir(t, dir)
 
-	// Only seed half the coreWorkflows list.
-	present := coreWorkflows[:len(coreWorkflows)/2]
+	present := fixtureWorkflows[:len(fixtureWorkflows)/2]
 	for _, name := range present {
 		path := filepath.Join(dir, name+".yaml")
 		if err := os.WriteFile(path, []byte("name: "+name+"\nsteps: []\n"), 0o644); err != nil {
@@ -75,10 +85,40 @@ func TestLoadCoreWorkflowsFromDisk_MissingFilesSkipped(t *testing.T) {
 			t.Errorf("missing %q from loaded definitions (should be present)", name)
 		}
 	}
-	for _, name := range coreWorkflows[len(coreWorkflows)/2:] {
+	for _, name := range fixtureWorkflows[len(fixtureWorkflows)/2:] {
 		if _, ok := defs[name]; ok {
 			t.Errorf("found %q in loaded definitions (should be absent)", name)
 		}
+	}
+}
+
+// TestLoadCoreWorkflowsFromDisk_IgnoresNonYamlFiles confirms that files
+// without the ".yaml" extension and subdirectories are skipped, so dropping
+// a README or backup file into workflowDefinitionsDir does not poison the
+// seed.
+func TestLoadCoreWorkflowsFromDisk_IgnoresNonYamlFiles(t *testing.T) {
+	dir := t.TempDir()
+	withWorkflowDefinitionsDir(t, dir)
+
+	if err := os.WriteFile(filepath.Join(dir, "real.yaml"), []byte("name: real\nsteps: []\n"), 0o644); err != nil {
+		t.Fatalf("write real fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("notes"), 0o644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "backup.yaml.bak"), []byte("ignored"), 0o644); err != nil {
+		t.Fatalf("write backup: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "subdir"), 0o755); err != nil {
+		t.Fatalf("mkdir subdir: %v", err)
+	}
+
+	defs := loadCoreWorkflowsFromDisk()
+	if len(defs) != 1 {
+		t.Fatalf("loaded %d definitions, want 1 (only real.yaml)", len(defs))
+	}
+	if _, ok := defs["real"]; !ok {
+		t.Errorf("expected key %q in loaded definitions", "real")
 	}
 }
 

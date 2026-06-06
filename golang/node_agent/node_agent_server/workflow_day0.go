@@ -201,7 +201,11 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			}
 
 			// Seed workflow definitions to etcd under /globular/workflows/.
-			// etcd is the sole source of truth for workflow definitions.
+			// etcd is the sole source of truth for workflow definitions. Keys
+			// MUST match ExecuteWorkflow's lookup, which is bare WorkflowName
+			// (no ".yaml" suffix) — see executor.go's EtcdFetcher path. Writing
+			// keys with the extension produced ghost entries that ExecuteWorkflow
+			// never resolved.
 			workflowDir := "/var/lib/globular/workflows"
 			entries, err := os.ReadDir(workflowDir)
 			if err != nil {
@@ -218,7 +222,8 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 					log.Printf("day0: read %s: %v", e.Name(), err)
 					continue
 				}
-				definitions[e.Name()] = data
+				name := strings.TrimSuffix(e.Name(), ".yaml")
+				definitions[name] = data
 			}
 			if err := v1alpha1.SeedCoreWorkflows(definitions); err != nil {
 				log.Printf("day0: seed workflows to etcd: %v", err)

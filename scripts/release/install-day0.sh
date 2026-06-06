@@ -2057,9 +2057,12 @@ EOF
   BOOTSTRAP_PASSWORD="${BOOTSTRAP_PASSWORD:-adminadmin}"
   _OPS_CA="/var/lib/globular/pki/ca.crt"
 
-  # ai-memory is a workload service — NOT running at day-0 time.
-  # Check for its port first; only attempt auth if it is reachable.
-  # All seeding steps are best-effort: skip gracefully when unreachable.
+  # ai-memory is installed earlier in this run and registers its port in
+  # etcd asynchronously after start. Discover the port by scanning the
+  # UUID-keyed /globular/services/<uuid>/config entries and matching
+  # Name=="ai_memory.AiMemoryService". Retry briefly to absorb the gap
+  # between systemd-start and etcd-self-registration; only fall back to
+  # the day-1 retry path if ai-memory has not registered after that window.
   _OPS_SKIP_SEED=0
 
   # Day-0 DNS may not be ready yet. Resolve AI-memory endpoint directly
@@ -2069,17 +2072,50 @@ EOF
   _OPS_CERT="/var/lib/globular/pki/issued/services/service.crt"
   _OPS_KEY="/var/lib/globular/pki/issued/services/service.key"
   _OPS_ETCD="${ETCD_ENDPOINTS:-https://${_OPS_IP}:2379}"
-  _OPS_MEM_PORT="$(etcdctl --endpoints="$_OPS_ETCD" \
-    --cacert="$_OPS_CA" --cert="$_OPS_CERT" --key="$_OPS_KEY" \
-    get "/globular/services/ai_memory.AiMemoryService/config" \
-    --print-value-only 2>/dev/null | \
-    grep -oP '"Port"\s*:\s*\K[0-9]+' | head -1 || true)"
+
+  _ops_find_ai_memory_port() {
+    # Echoes the port for the registered ai_memory.AiMemoryService config,
+    # or nothing if not yet registered. Uses etcdctl -w json so the
+    # service-list scan is robust to pretty-printed multi-line values
+    # (the text-mode output of `etcdctl get --prefix` interleaves keys
+    # with formatted JSON across many lines and is not line-parseable).
+    etcdctl --endpoints="$_OPS_ETCD" \
+      --cacert="$_OPS_CA" --cert="$_OPS_CERT" --key="$_OPS_KEY" \
+      get /globular/services/ --prefix -w json 2>/dev/null \
+      | python3 -c '
+import sys, json, base64
+try:
+    resp = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for kv in resp.get("kvs", []):
+    try:
+        key = base64.b64decode(kv["key"]).decode("utf-8", "replace")
+        if not key.endswith("/config"):
+            continue
+        cfg = json.loads(base64.b64decode(kv.get("value","")).decode("utf-8", "replace"))
+    except Exception:
+        continue
+    if cfg.get("Name") == "ai_memory.AiMemoryService" and cfg.get("Port"):
+        print(cfg["Port"])
+        break
+'
+  }
+
+  _OPS_MEM_PORT=""
+  for _ops_port_try in $(seq 1 30); do
+    _OPS_MEM_PORT="$(_ops_find_ai_memory_port 2>/dev/null || true)"
+    if [[ -n "$_OPS_MEM_PORT" ]]; then
+      break
+    fi
+    sleep 2
+  done
+
   if [[ -z "$_OPS_MEM_PORT" ]]; then
-    _OPS_MEM_PORT="$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-ai-memory.service 2>/dev/null | head -1 || true)"
-  fi
-  if [[ -z "$_OPS_MEM_PORT" ]]; then
-    log_substep "ai-memory is a workload service and is not running at day-0 — ops-knowledge seed deferred to day-1"
+    log_warn "ai-memory did not register a port in etcd after 60s — ops-knowledge seed deferred to day-1 retry"
     _OPS_SKIP_SEED=1
+  else
+    log_substep "ai-memory registered at port ${_OPS_MEM_PORT} (etcd)"
   fi
 
   # Auth is only needed when ai-memory is reachable.

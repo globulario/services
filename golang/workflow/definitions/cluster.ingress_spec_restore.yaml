@@ -42,8 +42,10 @@ spec:
       actor: cluster-controller
       action: controller.ingress.compose_restore_spec
       with:
-        backup_present: $.load_backup.outputs.backup_present
-        backup_bytes:   $.load_backup.outputs.backup_bytes
+        # Engine merges each step's result.Output into run.Outputs as flat
+        # keys (no per-step namespace), so threaded values use bare $.<field>.
+        backup_present: $.backup_present
+        backup_bytes:   $.backup_bytes
       execution:
         idempotency: safe_retry
         resume_policy: retry
@@ -54,7 +56,7 @@ spec:
       actor: cluster-controller
       action: controller.ingress.publish_restore_spec
       with:
-        spec_bytes: $.compose_spec.outputs.spec_bytes
+        spec_bytes: $.spec_bytes
       execution:
         idempotency: safe_retry
         resume_policy: verify_effect

@@ -83,14 +83,16 @@ func ingressLoadSpecBackup(cfg IngressControllerConfig) ActionHandler {
 		if err != nil {
 			return nil, fmt.Errorf("load_spec_backup: %w", err)
 		}
-		req.Outputs["backup_present"] = present
-		req.Outputs["backup_bytes"] = string(bytes)
 		log.Printf("actor[controller]: ingress.load_spec_backup present=%v len=%d",
 			present, len(bytes))
+		// Result.Output is what propagates into run.Outputs for subsequent
+		// steps' $.<field> expressions. Step-local req.Outputs is NOT merged
+		// by the engine, so threaded values MUST live here.
 		return &ActionResult{
 			OK: true,
 			Output: map[string]any{
 				"backup_present": present,
+				"backup_bytes":   string(bytes),
 				"backup_len":     len(bytes),
 			},
 		}, nil
@@ -102,7 +104,7 @@ func ingressComposeRestoreSpec(cfg IngressControllerConfig) ActionHandler {
 		if cfg.ComposeRestoreSpec == nil {
 			return nil, fmt.Errorf("ingress.compose_restore_spec: handler not wired")
 		}
-		// Extract step inputs threaded from load_spec_backup.outputs.
+		// Inputs threaded from load_spec_backup via run.Outputs (flat keys).
 		backupPresent, _ := req.With["backup_present"].(bool)
 		backupStr, _ := req.With["backup_bytes"].(string)
 
@@ -110,15 +112,14 @@ func ingressComposeRestoreSpec(cfg IngressControllerConfig) ActionHandler {
 		if err != nil {
 			return nil, fmt.Errorf("compose_restore_spec: %w", err)
 		}
-		req.Outputs["spec_bytes"] = string(specBytes)
-		req.Outputs["source"] = source
 		log.Printf("actor[controller]: ingress.compose_restore_spec source=%s len=%d",
 			source, len(specBytes))
 		return &ActionResult{
 			OK: true,
 			Output: map[string]any{
-				"source":   source,
-				"spec_len": len(specBytes),
+				"spec_bytes": string(specBytes),
+				"source":     source,
+				"spec_len":   len(specBytes),
 			},
 		}, nil
 	}
