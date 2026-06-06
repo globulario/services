@@ -466,7 +466,9 @@ func tryGatewayConfig(serviceName string) []string {
 	// Try HTTPS (8443) first, then plain HTTP (8080).
 	attempts := []attempt{{"https", 8443}, {"http", 8080}}
 
-	for _, a := range attempts {
+	// Per-iteration closure so the deferred resp.Body.Close() runs at
+	// iteration end, not function end (meta.write_creates_completion_obligation).
+	tryAttempt := func(a attempt) []string {
 		url := fmt.Sprintf("%s://%s:%d/config", a.scheme, gwHost, a.port)
 		var client *http.Client
 		if a.scheme == "https" {
@@ -485,13 +487,13 @@ func tryGatewayConfig(serviceName string) []string {
 
 		resp, err := client.Get(url)
 		if err != nil {
-			continue
+			return nil
 		}
 		defer resp.Body.Close()
 
 		var cfg map[string]interface{}
 		if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
-			continue
+			return nil
 		}
 
 		// The gateway config has a "Services" map keyed by UUID.
@@ -512,7 +514,10 @@ func tryGatewayConfig(serviceName string) []string {
 			}
 			addrs = append(addrs, fmt.Sprintf("%s:%d", svcHost(svc), port))
 		}
-		if len(addrs) > 0 {
+		return addrs
+	}
+	for _, a := range attempts {
+		if addrs := tryAttempt(a); len(addrs) > 0 {
 			return addrs
 		}
 	}

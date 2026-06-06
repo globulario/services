@@ -7853,6 +7853,112 @@ invariants:
       workflow_step_handler_files: []
       unknown_helper_files: []
 
+    - id: defer_in_for_loop_must_not_accumulate
+      title: defer inside a for-loop body accumulates on the function defer stack — resources leak until the outer function returns
+      severity: medium
+      status: active
+      summary: |
+        Per-instance enforcement of meta.write_creates_completion_obligation
+        for the defer-in-loop bug class. Go defers run at FUNCTION
+        exit, not loop-iteration exit. A defer inside a `for` body
+        adds to the function's defer stack each iteration; on a tight
+        loop iterating N times, N deferred closures accumulate and
+        only run when the outer function returns. File handles, HTTP
+        bodies, etcd leases, mutex locks all leak.
+
+        Canonical good shape — wrap the iteration body in a closure
+        (or extract a helper) so each iteration has its own
+        defer-scope:
+
+          for _, item := range items {
+              func() {
+                  f, err := os.Open(item.path)
+                  if err != nil { return }
+                  defer f.Close()
+                  ...
+              }()
+          }
+
+        2026-06-05 audit caught 3 sites; 2 were fixed in the same
+        commit via the closure-extraction pattern. 1 remains
+        (reconciler.go:265) — the loop body is 220 lines with a
+        nested for-loop, and the 14 `continue` statements would each
+        need to become `return` after a mechanical IIFE wrap; the
+        nesting makes the conversion ambiguous. Tracked here as an
+        EXCEPTION pending proper extract-method refactor.
+
+      protects:
+        files:
+          - golang/config/service_discovery.go
+          - golang/domain/reconciler.go
+          - golang/cluster_controller/cluster_controller_server/reconciler.go
+        symbols:
+          - "defer"
+      forbidden_fixes:
+        - forbidden.defer_in_for_loop_without_closure
+      required_tests: []
+
+      related_invariants:
+        - meta.write_creates_completion_obligation
+
+      actor_writer_dirs:
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/blog/blog_server
+        - golang/catalog/catalog_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/compute/compute_server
+        - golang/config
+        - golang/conversation/conversation_server
+        - golang/dns/dns_server
+        - golang/domain
+        - golang/echo/echo_server
+        - golang/event/event_server
+        - golang/file/file_server
+        - golang/ldap/ldap_server
+        - golang/log/log_server
+        - golang/mail/mail_server
+        - golang/media/media_server
+        - golang/monitoring/monitoring_server
+        - golang/node_agent/node_agent_server
+        - golang/persistence/persistence_server
+        - golang/persistence/persistence_store
+        - golang/rbac/rbac_server
+        - golang/repository/repository_server
+        - golang/resource/resource_server
+        - golang/search/search_server
+        - golang/sql/sql_server
+        - golang/storage/storage_server
+        - golang/title/title_server
+        - golang/torrent/torrent_server
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/lifecycle_defer_in_for_loop.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files:
+        - file: cluster_controller/cluster_controller_server/reconciler.go
+          category: exception_pending_closure_refactor
+          reason: |
+            reconcileOnce at line 190 has a 220-line for-loop with a
+            nested for + 14 `continue` statements. Mechanical IIFE
+            wrap (continue→return) is ambiguous with the nested loop.
+            Needs proper extract-method refactor: move loop body into
+            a r.processDriftItem(...) helper so the defer runs per-
+            call. Until then, the slot leak is bounded by one tick
+            (defers fire at reconcileOnce return); accepting as
+            known site.
+
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
     - id: installed_package.timestamp_writers_must_preserve_during_observe
       title: InstalledPackage timestamp writers must preserve the install anchor during observe — never stomp with wall-clock time.Now()
       severity: critical

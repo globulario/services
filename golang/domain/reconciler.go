@@ -1161,51 +1161,56 @@ func (r *Reconciler) discoverPublicIP() (string, error) {
 		Timeout: 10 * time.Second,
 	}
 
-	var lastErr error
-	for _, service := range services {
+	// Per-iteration closure so the deferred resp.Body.Close() runs at
+	// iteration end, not function end (meta.write_creates_completion_obligation).
+	tryService := func(service string) (string, error) {
 		r.logger.Debug("discovering public IP", "service", service)
 
 		resp, err := client.Get(service)
 		if err != nil {
 			r.logger.Warn("failed to query IP service", "service", service, "error", err)
-			lastErr = err
-			continue
+			return "", err
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			err := fmt.Errorf("HTTP %d", resp.StatusCode)
 			r.logger.Warn("IP service returned non-200", "service", service, "status", resp.StatusCode)
-			lastErr = err
-			continue
+			return "", err
 		}
 
 		bodyBytes := make([]byte, 256)
 		n, err := resp.Body.Read(bodyBytes)
 		if err != nil && n == 0 {
 			r.logger.Warn("failed to read response body", "service", service, "error", err)
-			lastErr = err
-			continue
+			return "", err
 		}
 
 		ip := strings.TrimSpace(string(bodyBytes[:n]))
 		if ip == "" {
 			err := fmt.Errorf("empty response")
 			r.logger.Warn("IP service returned empty response", "service", service)
-			lastErr = err
-			continue
+			return "", err
 		}
 
 		// Validate IP format
 		if !strings.Contains(ip, ".") && !strings.Contains(ip, ":") {
 			err := fmt.Errorf("invalid IP format: %s", ip)
 			r.logger.Warn("IP service returned invalid format", "service", service, "response", ip)
-			lastErr = err
-			continue
+			return "", err
 		}
 
 		r.logger.Info("discovered public IP", "ip", ip, "service", service)
 		return ip, nil
+	}
+
+	var lastErr error
+	for _, service := range services {
+		if ip, err := tryService(service); err == nil {
+			return ip, nil
+		} else {
+			lastErr = err
+		}
 	}
 
 	if lastErr != nil {
