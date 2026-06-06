@@ -3567,3 +3567,596 @@ invariants:
       - meta.alert_must_name_a_violated_invariant_not_a_crossed_threshold
       - meta.assertions_must_carry_their_scope
       - meta.diagnostic_output_must_be_bounded
+
+  - id: meta.checkpoint_alone_is_inadequate_for_growing_state
+    title: "Atomic single-write of state is necessary but not sufficient — growing or large state needs append-only logs alongside the checkpoint"
+    category: lifecycle
+    antipattern: "We just rewrite the whole file atomically on every update"
+    wrong_instinct: Atomic whole-state writes feel safe — either the new state is fully there or the old state is, no torn writes, no partial corruption. But "atomic" is paid for in throughput, and the cost is proportional to the total state size, not to the size of the change. By the time the system is in production with non-trivial state, the atomic write is seconds or minutes long, and you've structurally locked yourself out of partial recovery — every change requires reading and writing everything.
+    severity: critical
+    status: candidate
+    summary: |
+      Eden (Black 1985) discovered that its checkpoint primitive —
+      an atomic write of the entire object state to disk — was
+      "conceptually very simple, and fulfills the goal of ensuring
+      that the state of an object can survive a crash," but
+      "neither a primitive nor a solution." For many objects,
+      atomic-whole-write was both too slow and structurally
+      wrong, and the team eventually concluded that checkpoint
+      should be combined with append-only logging for partial
+      updates.
+
+      The general shape: atomic-checkpoint of growing state has
+      three failure modes that compound as the state grows.
+
+        COST grows linearly with state size. A 4KB write is
+        cheap; a 4MB write costs in measurable ms; a 4GB write
+        costs in seconds. As the state grows, every change
+        rewrites everything — write amplification compounds
+        until the checkpoint cycle takes longer than the change
+        rate the application generates. Eden's checkpoints took
+        "as long as a second" on small data; modern systems hit
+        the same wall sooner.
+
+        PARTIAL UPDATES are forbidden by the all-or-nothing
+        contract. If you wanted to change one byte, you had to
+        rewrite the whole structure. The semantic mismatch
+        forces application authors to choose between truthful
+        granularity (rewrite everything, pay full cost) and
+        cheating (write only the changed bytes, lose the
+        atomicity guarantee).
+
+        RECOVERY GRANULARITY is the whole or none. You cannot
+        recover to a "halfway state" — partial replay is
+        impossible. For transactional or interactive workloads
+        where the user expects fine-grained undo, atomic
+        checkpoint is the wrong primitive.
+
+      The fix Eden eventually adopted is the same one the
+      database community settled on decades earlier: combine
+      checkpoint (full state, infrequent) with append-only log
+      (incremental changes, every mutation). Recovery is
+      "checkpoint plus replay log from checkpoint position."
+      The log is cheap to append; the checkpoint amortizes the
+      cost of state size; partial recovery is now expressible.
+
+      In our codebase the principle is largely satisfied where
+      we have it, and absent where we don't:
+
+        - WORKFLOW STEP RECEIPTS are append-only in Scylla. A
+          workflow run's terminal state is computed by replaying
+          step receipts. Correct.
+        - SCYLLA JOURNALS are append-only by design.
+        - ETCD KV stores each key independently and versions
+          each one — a key's update is local and atomic without
+          touching the rest of the store. Correct shape.
+        - REPOSITORY MANIFEST WRITES (repository service)
+          rewrite the full manifest JSON on each change. The
+          manifest is small today but grows with artifact
+          count; suspicious as artifact_count → 10k+. Worth a
+          targeted audit.
+        - AI-MEMORY RECORD UPDATES use Cassandra INSERT which
+          is upsert — per-record OK, but if record size grows
+          (large content fields) we pay full record cost on
+          every metadata change. Worth a targeted audit.
+        - AWARENESS.NT EMBED is regenerated from YAML on every
+          principle add. 17,687 triples today; full file
+          regeneration is fine at this scale, but the same
+          shape would not scale to 100k triples without
+          incremental compilation. Acceptable today; worth a
+          note for the future.
+
+      The principle is NOT "never use atomic writes." It is "if
+      the state is growing OR a partial change is expected OR
+      the cost of full rewrite is becoming meaningful, the
+      atomic-write primitive must be paired with an append-only
+      log for incremental changes."
+    enforcement: |
+      For every persistent state in the system, classify it as
+      one of:
+
+        BOUNDED CONSTANT-SIZE — full state fits in a single
+        atomic write at any time (a flag, a small config blob,
+        a leader-lease record). Atomic checkpoint is the right
+        primitive; no log needed.
+
+        GROWING BOUNDED — the state grows but stays under a
+        cost threshold where rewrites remain cheap (a
+        configuration with dozens to hundreds of entries).
+        Atomic checkpoint is acceptable; document the
+        upper bound where the primitive should change.
+
+        GROWING UNBOUNDED — the state grows without limit
+        (event logs, audit trails, message stores,
+        accumulating findings). Atomic checkpoint is forbidden;
+        use append-only log primitives from the start. Periodic
+        consolidation is allowed but is a SEPARATE operation
+        from the per-event write.
+
+      For each state classified GROWING UNBOUNDED:
+        - The write path must be append-only.
+        - The read path may consolidate.
+        - Recovery is checkpoint plus log replay.
+        - The log's size is itself a bounded resource that needs
+          retention or rotation policy.
+
+      Forbidden patterns:
+        - Atomic rewrite of a file or KV value when the value
+          is GROWING UNBOUNDED.
+        - "Just rewrite the whole struct on each change" for
+          state whose size is determined by external growth
+          factors.
+        - Checkpoint as the ONLY recovery primitive for state
+          that has any logical notion of partial change.
+    forbidden_fixes:
+      - forbidden.atomic_write_of_growing_unbounded_state
+      - forbidden.partial_change_via_full_rewrite_at_scale
+      - forbidden.checkpoint_only_recovery_for_partial_updates
+    related_invariants:
+      - meta.state_mutations_must_be_durably_committed_before_side_effects
+      - meta.write_creates_completion_obligation
+      - meta.bad_path_must_make_progress
+
+  - id: meta.power_hiding_hurts_at_the_edges
+    title: "Abstractions that hide engine choices from their callers force callers to either tolerate the hidden choice or bypass the abstraction entirely"
+    category: authority
+    antipattern: "The handler does not need to know it is being retried"
+    wrong_instinct: A clean abstraction promises the caller does not need to think about the implementation. But "does not need to" and "cannot" are different. Hiding the engine's choices means the caller CANNOT reason about them; when reality forces a decision that depends on what the engine chose, the caller's only options are tolerate the hidden choice or bypass the abstraction entirely. The clean interface becomes either the only option (good when truly sufficient) or the wrong option (bad when reality demands more).
+    severity: critical
+    status: candidate
+    summary: |
+      Eden (Black 1985 §3.4.2) restated Lampson's "don't hide
+      power" with a specific gloss. The Eden Programming
+      Language hid the asynchronous IPC layer behind a
+      synchronous procedure-call interface. The async layer was
+      "rarely used" — not because applications did not need
+      asynchrony, but because the interface did not expose it.
+      Asynchrony was structurally invisible to handlers; the
+      few patterns that needed it had to bypass the language
+      and use the kernel directly. The clean interface was
+      either sufficient or a trap.
+
+      The same pattern recurs in our workflow engine and
+      adjacent abstractions. The engine handles retry, defer,
+      idempotence-enforcement, concurrency-fence, and resume
+      transparently. A handler can be invoked with no idea
+      whether this is attempt 1 or attempt 5, no idea whether a
+      prior step deferred, no idea whether the run is fresh or
+      resumed. For most steps that is correct — the handler
+      should not have to know. For SOME steps it is structurally
+      wrong, because the handler's correctness depends on the
+      answer.
+
+      Examples where power hiding bites:
+        - A handler that sends an external notification (email,
+          webhook) needs to know whether this is attempt 1 of N
+          or attempt N of N. On attempt 1 of a retryable step,
+          send tentatively; on attempt N, escalate. The engine
+          hides which attempt this is, so the handler must
+          either (a) accept it might send N notifications, or
+          (b) implement its own attempt counter via persistent
+          state.
+        - A handler that does work conditional on whether a
+          previous step's effect was reversed needs to know if
+          the previous step succeeded or was rolled back. The
+          engine hides this; the handler reconstructs the
+          history by reading workflow_runs records — exactly
+          the bypass Eden warned about.
+        - A handler that competes with another for a resource
+          needs to know whether a concurrency fence is active.
+          The engine handles fencing transparently; the handler
+          can't ask "am I currently blocked by the fence?"
+
+      The fix is not "hide less"; it is "expose deliberately."
+      Make available, as part of the handler's ActionRequest,
+      the engine-side facts that handlers MAY need: attempt
+      number, prior-step status, resume flag, defer history,
+      current fence state. Handlers that do not consult them
+      pay no cost; handlers that need them have a first-class
+      path instead of a bypass.
+
+      Distinct from `meta.abstraction_must_not_hide_unmeasured_cost`:
+      that principle is about return-value honesty — the
+      abstraction must not lie about success vs failure. THIS
+      principle is about input-time visibility — the engine
+      must not withhold facts the caller may need to act
+      correctly. Together: an abstraction must be honest about
+      what it returned AND about what it knew.
+
+      Lampson's general "don't hide power" stays the parent
+      principle. Eden's contribution is the specific shape:
+      it is most painful at the edge between the engine layer
+      and the handler layer, where handlers have local
+      decisions that depend on engine-only state.
+    enforcement: |
+      For every abstraction that mediates between an engine
+      layer and a handler layer (workflow engine, interceptor
+      chain, config loader, RBAC interceptor):
+
+        1. Enumerate the engine-side facts the abstraction
+           computes during its work (attempt number, prior
+           outcomes, retry state, applied middleware list,
+           consulted policy version).
+        2. For each fact, decide whether it should be exposed,
+           withheld, or made opt-in via an explicit query API.
+        3. Default: expose with a documented contract. Withhold
+           only when leaking the fact would create a security
+           or correctness hazard.
+        4. Make the contract visible in the handler-facing
+           API surface, not buried in engine source.
+
+      For the workflow engine specifically:
+        - req.AttemptNumber and req.MaxAttempts should be
+          first-class fields of ActionRequest.
+        - req.IsResume should distinguish fresh dispatch from
+          a resumed run.
+        - req.PriorStepStatus should let a handler query the
+          terminal status of a named prior step.
+        - req.CurrentDeferState should expose whether the run
+          is in a defer cooldown.
+
+      Forbidden patterns:
+        - An engine abstraction that has a fact and chooses to
+          omit it from the handler-facing API with no
+          documented reason.
+        - Handlers that reconstruct engine-side facts by
+          reading workflow_runs records or stepping outside
+          the abstraction entirely.
+        - "The handler does not need to know" as a justification
+          without naming the specific decision class that
+          justifies the omission.
+    forbidden_fixes:
+      - forbidden.engine_hides_attempt_number_from_handler
+      - forbidden.handler_reads_workflow_runs_to_reconstruct_engine_state
+      - forbidden.abstraction_omission_without_documented_justification
+    related_invariants:
+      - meta.abstraction_must_not_hide_unmeasured_cost
+      - meta.assertions_must_carry_their_scope
+      - meta.silence_is_not_valid_for_unexpected
+      - meta.authority_must_express_uncertainty
+
+  - id: meta.uniform_naming_reduces_conceptual_load
+    title: "All system entities should be named by a uniform scheme — heterogeneous naming creates friction at every API boundary"
+    category: authority
+    antipattern: "Nodes are UUIDs, services are name+UUID, packages are name+version+build_id, files are paths — and that is fine"
+    wrong_instinct: Different resources are different and feel like they warrant different naming — a node is fundamentally not a file is fundamentally not a service. But every API at every layer that takes "a thing" then has to know which name type it accepts. Every cross-resource operation has to translate. The cost is invisible per-API; it compounds into a system with dozens of overlapping namespaces and a constant tax on every developer who tries to write code that crosses resource boundaries.
+    severity: critical
+    status: candidate
+    summary: |
+      Eden (Black 1985 §3.2.2) named "all global system
+      entities... uniformly — by capabilities. This includes
+      not only objects, but also Edentypes, nodes (machines),
+      and checksites (disks)." The uniformity was deliberate.
+      The Eden team explicitly considered separate naming for
+      machines and disks and decided against it; the conceptual
+      unity reduced the system's apparent size and made
+      cross-resource operations naturally composable.
+
+      Our codebase has the opposite property — heterogeneous
+      naming compounded over years of additions:
+
+        - NODES are named by UUID (random), hostname (DNS),
+          and node_id (in code paths). The three forms cross-
+          reference but are not the same string.
+        - SERVICES are named by name (kebab-case), UUID, and
+          service_id (proto). The proto name uses dots; the
+          systemd unit name uses kebab-case; the etcd key uses
+          the proto name.
+        - PACKAGES are named by name + version + build_id +
+          build_number. Each carries semantics; all four are
+          needed to identify a unique artifact.
+        - FILES are named by absolute path. Path semantics
+          differ between /var/lib/globular/, /etc/systemd/,
+          and /usr/lib/globular/bin/.
+        - CERTIFICATES are named by file path AND by subject
+          AND by issuer fingerprint.
+        - RBAC RESOURCES are named by type prefix (rbac:role,
+          rbac:binding, rbac:permission) plus an identifier
+          that depends on the type.
+
+      Every cross-resource API boundary becomes a translation
+      step. MCP tools take different ID types per resource.
+      RBAC paths look structurally different per resource type.
+      Code that needs to refer to "the service whose package
+      came from this artifact" has to chain three name
+      conversions. The friction compounds.
+
+      The unified alternative — every system entity addressed
+      by a single capability-like scheme — would let one API
+      handle all resource lookups, one RBAC path syntax cover
+      all access rules, and one MCP tool surface query any
+      resource. Eden's experience suggests the conceptual
+      savings dwarf the implementation cost.
+
+      We have some uniformity already — the /globular/ etcd
+      prefix is the closest thing to a unified namespace and
+      it works well within etcd. But /globular/services/
+      records are keyed by UUID while /globular/resources/
+      records are keyed by kind+name, and the difference is not
+      load-bearing. The opportunity exists.
+
+      Distinct from `meta.identity_computation_must_be_invariant`:
+      that principle is about computing the same identity
+      consistently across contexts; this principle is about
+      having ONE naming scheme for all entities. The first is
+      about how a value is computed; the second is about how
+      the namespace is shaped.
+    enforcement: |
+      For new resource types added to the system:
+
+        1. Default to the existing canonical naming scheme of
+           the closest existing resource. Adding a new naming
+           scheme requires justification.
+        2. If a new scheme is necessary, document the
+           translation primitives between it and the existing
+           schemes; do not let translation be implicit.
+        3. Whenever a new API takes "a thing" as input, prefer
+           the most-uniform name type available (capability
+           handle, opaque ID, fully-qualified resource path) over
+           type-specific shapes.
+
+      For existing resource types, no immediate change is
+      required, but new APIs over existing resources should
+      converge on the most-uniform existing scheme rather than
+      preserving the heterogeneity.
+
+      Forbidden patterns:
+        - A new resource type introduced with a third or fourth
+          parallel naming scheme without justification.
+        - APIs that take different shapes of the same logical
+          "thing" without a translation primitive.
+        - Code that hardcodes string concatenation to translate
+          between name forms instead of using a shared helper.
+    forbidden_fixes:
+      - forbidden.new_resource_with_unique_naming_scheme_without_justification
+      - forbidden.api_takes_different_shape_per_resource_type_without_helper
+      - forbidden.hardcoded_string_translation_between_name_forms
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
+      - meta.storage_is_not_semantic_authority
+      - meta.assertions_must_carry_their_scope
+
+  - id: meta.mobility_is_stronger_recovery_than_replication
+    title: "State that can move between nodes recovers via rebind; state that only replicates recovers via reinstall — rebind is much cheaper"
+    category: dependency
+    antipattern: "We have replication so we are covered against node loss"
+    wrong_instinct: Replication feels like the strong primitive — if your data is replicated, you can lose any single replica. But replication only handles DATA loss, not COMPUTE loss. When a node dies, the data is fine (replicated to other nodes) but the SERVICE PROCESS that was using it is gone. Recovery now requires re-establishing the service somewhere — which means full install, verify, start. That re-establishment IS the expensive part; replication did not help.
+    severity: critical
+    status: candidate
+    summary: |
+      Eden (Black 1985 §3.2.3) made object mobility a first-class
+      primitive. An Eden object could move between nodes for
+      load balancing, and the same primitive handled recovery —
+      "Should the node break, the object will be unavailable
+      until it is repaired. Now suppose that we try to increase
+      the availability of the object by replicating its
+      checkpoint file on two additional nodes... When the node
+      on which it is running breaks, our object can be
+      reactivated on another node, using the remotely
+      checkpointed state."
+
+      Two distinct primitives, each with a different blast
+      radius:
+
+        REPLICATION — multiple physical copies of state. A copy
+        loss is recoverable from the surviving copies. Handles
+        data durability; does not handle service availability
+        when the host running the service dies. Recovery still
+        requires bringing the service up somewhere — typically
+        a full release-pipeline cycle.
+
+        MOBILITY — the active service incarnation can detach
+        from its current node and rebind on another. State
+        either moves with the incarnation or stays where it is;
+        the service resumes against the same state from a
+        different host. Recovery is "move the incarnation,
+        reconnect the state, resume." Much cheaper than
+        reinstall.
+
+      Mobility is strictly stronger than replication for the
+      most common failure mode (single-node loss with
+      non-corrupted state). Replication is strictly stronger
+      than mobility for the less common case (state corruption
+      requiring restoration from a copy). The two compose.
+
+      Globular today has REPLICATION via Scylla and MinIO but
+      no MOBILITY. Every service is pinned to a node. When a
+      node fails, recovery means:
+
+        - Reinstall the service binary on another node via the
+          release pipeline (artifact resolve, install, verify).
+        - Run the service's bootstrap with a fresh database
+          session.
+        - Wait for the service to converge on whatever state
+          its underlying store holds.
+
+      This is slow. The release pipeline cycle is the
+      multi-minute path the system was not designed for as a
+      recovery primitive — it was designed for upgrades.
+
+      The mobility alternative would be:
+
+        - The service is treated as an INCARNATION distinct
+          from the node it runs on.
+        - The incarnation's persistent state (Scylla session
+          handles, MinIO credentials, etcd lease keys) is
+          movable.
+        - On node loss, an arbiter (cluster_controller) selects
+          a healthy node and instructs it to re-incarnate the
+          service.
+        - Re-incarnation reuses the existing binary on the new
+          host AND the existing state from Scylla/MinIO. No
+          reinstall. Seconds, not minutes.
+
+      The first candidates for this treatment in Globular are
+      stateful services with cheap rebinding cost — ai-memory,
+      repository, ai-executor. Stateless services (DNS, event)
+      already have something close to this via xDS routing
+      because the work is fungible across replicas.
+
+      The cluster_controller itself would be the hardest case
+      because it has cluster-scope state in addition to its
+      binary; but the leader-election + lease primitives are
+      already most of the mobility primitive for that one.
+    enforcement: |
+      For new stateful service designs:
+
+        1. Identify the service's PERSISTENT state (lives in
+           Scylla, MinIO, etcd) versus its PROCESS state (lives
+           in the running binary's memory).
+        2. The process state should be ephemeral and
+           reconstructible from persistent state on restart.
+        3. The service binary should be available on every node
+           that could host it; the release pipeline ensures
+           this via desired-state convergence.
+        4. The mobility primitive is "detach the running
+           incarnation, reconnect to the same persistent state
+           from a different node, resume."
+
+      For node-loss recovery:
+        - The first response is rebind via mobility, not
+          reinstall via release pipeline.
+        - Release pipeline is the fallback when mobility cannot
+          rebind (state corruption, missing binary, no healthy
+          target node).
+        - The two paths have different SLAs; mobility recovery
+          should be measured in seconds, release-pipeline
+          recovery in minutes.
+
+      Forbidden patterns:
+        - Stateful service designs that conflate process state
+          with persistent state, forcing reinstall on every
+          node loss.
+        - Treating the release pipeline as the primary recovery
+          mechanism when a faster rebind primitive could exist.
+        - Replication without a mobility plan — high data
+          availability but compute reestablishment that is the
+          actual bottleneck.
+    forbidden_fixes:
+      - forbidden.recovery_via_full_release_pipeline_when_rebind_possible
+      - forbidden.conflate_process_state_with_persistent_state
+      - forbidden.replication_only_no_mobility_plan
+    related_invariants:
+      - meta.critical_path_no_non_critical_dependency
+      - meta.topology_change_is_a_first_class_event
+      - meta.partition_response_must_be_predeclared
+      - meta.competing_writers_must_converge_or_be_fenced
+
+  - id: meta.adoption_requires_running_existing_systems_unchanged
+    title: "Users will not adopt a new system that requires complete replacement of their existing one — adoption demands migration paths, not capability superiority"
+    category: lifecycle
+    antipattern: "Our architecture is superior; users will see that and convert"
+    wrong_instinct: A clean new architecture deserves clean adoption — let the new system have its own shape, let users rewrite their workflows to fit. But the user has existing systems running, existing tooling, existing operational knowledge. Forcing them to rewrite is a tax they will not pay regardless of how superior the new architecture is. Eden explicitly named this — "it was naive for us to expect that people would clamour to use the Eden system in their daily work" — and survived only because they ran on top of UNIX and let users migrate incrementally.
+    severity: critical
+    status: candidate
+    summary: |
+      Eden (Black 1985 §3.4.4) is unusually candid about the
+      adoption problem. The Eden team had an architecturally
+      superior system; users did not adopt it on its merits.
+      The team's diagnosis — "It is easy to underestimate the
+      amount of effort required to produce a system that other
+      people would want to use for their daily work in the way
+      they use UNIX or TOPS-20. Lampson and Sturgis have
+      claimed that a kernel is ten per cent of an operating
+      system" — was that capability was 10% of the adoption
+      problem. The other 90% was migration path.
+
+      Eden's mitigation was to "build Eden on top of UNIX...
+      this provided the great advantage of providing an easy
+      path by which users could migrate from UNIX to Eden." A
+      user could keep their UNIX tooling AND use Eden objects;
+      adoption was incremental and reversible.
+
+      Globular faces the same problem. The current adoption
+      story is approximately "install Globular, convert your
+      services to Globular packages, learn the new operational
+      model." That is rebuild, not migrate. A user with
+      existing systemd-managed services running production
+      workloads has no incremental path to Globular short of
+      operational rewrite.
+
+      We have hints of the right direction:
+
+        - Globular packages CAN wrap existing systemd units —
+          a service that already has a working unit file can
+          theoretically be packaged with that unit, sidestepping
+          rewrite. This is not made first-class enough; spec
+          authoring still assumes Globular-native services.
+        - Globular's own CLI is similar enough to systemctl
+          that some operational muscle memory transfers. This
+          is incidental and undocumented.
+        - The 4-layer state model is internally coherent but
+          requires the user to learn it before using Globular
+          for anything serious. Users with deep systemd
+          knowledge get no credit.
+
+      What a strong migration path would look like:
+
+        - A user can run their existing systemd-managed
+          service unchanged INSIDE a Globular package. The
+          package wraps the existing unit, exposes it as a
+          Globular service, and adds no requirements the
+          existing unit does not already satisfy.
+        - Operational commands have backward-compatible
+          aliases: `globular systemctl restart foo` should work
+          like `systemctl restart foo` AND surface the
+          Globular-side state model only when the user asks
+          for it.
+        - The user can keep one foot in systemd and one in
+          Globular indefinitely. There is no point where they
+          must convert "everything" to "see the value."
+
+      The principle is NOT "design for legacy at the expense
+      of clean architecture." It is "the migration path IS the
+      adoption product." Without it, the architecture is
+      academic. Eden died — academically respected, operationally
+      unused — because the migration path was a footnote.
+
+      For Globular this is now-a-decision territory. Each
+      design choice that creates a Globular-only path
+      (Globular-only packaging, Globular-only state model,
+      Globular-only RBAC) is a barrier; each design choice
+      that wraps an existing thing unchanged (systemd unit
+      wrapper, JWT compatibility with standard tools,
+      Prometheus metrics on standard ports) is a bridge.
+
+      Bridges win over barriers for adoption. The principle
+      asks: for every new feature, what is the bridge form?
+    enforcement: |
+      For every new feature, capability, or design choice that
+      affects how users interact with Globular:
+
+        1. Identify the EXISTING tool, format, or workflow the
+           user has in production today (systemd, raw scripts,
+           Prometheus, JWT, OAuth, kubernetes, docker compose).
+        2. Default to a design that allows the existing tool
+           to keep working unchanged. The Globular-native form
+           is additive, not replacing.
+        3. Document the migration path explicitly. "User has
+           existing X; here is how X works inside Globular
+           with zero changes; here is how X can incrementally
+           gain Globular-native behavior."
+        4. The migration path is a first-class feature, not a
+           post-hoc workaround.
+
+      For existing features that have only Globular-native
+      paths, document the gap and prioritize adding a bridge
+      form for the most common legacy integration.
+
+      Forbidden patterns:
+        - Features whose only operational mode requires the
+          user to abandon their existing tool.
+        - "We will document migration paths later" as the only
+          plan for a new capability.
+        - Treating migration paths as marketing concerns rather
+          than design concerns.
+        - Architectural superiority used as justification for
+          requiring rewrites.
+    forbidden_fixes:
+      - forbidden.feature_with_only_globular_native_mode
+      - forbidden.migration_path_deferred_to_documentation_phase
+      - forbidden.architectural_superiority_justifies_rewrite_requirement
+    related_invariants:
+      - meta.early_consolidation_ossifies_uncertainty
+      - meta.bad_path_must_make_progress
+      - meta.code_must_not_mirror_external_enumerations
