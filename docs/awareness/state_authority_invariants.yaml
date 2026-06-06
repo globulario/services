@@ -3087,3 +3087,469 @@ invariants:
       - meta.assertions_must_carry_their_scope
       - meta.identity_computation_must_be_invariant
       - meta.binding_outlives_evidence_until_invalidated
+
+  - id: meta.observability_must_match_decision_horizon
+    title: "The granularity and freshness of emitted signal must match the granularity and freshness of the decisions that depend on it"
+    category: signal
+    antipattern: "Emit one heartbeat per minute and use it to drive sub-second routing"
+    wrong_instinct: Observability feels like a fixed property of a system — you set up Prometheus, you have metrics. But the cadence at which signals are emitted determines the cadence at which decisions can be made on them. Emit hourly and you cannot react sub-hourly; emit per-millisecond and you drown in volume the consumer cannot process. The cadence is not a back-end choice; it is a contract between the producer and every decision that depends on the data.
+    severity: critical
+    status: candidate
+    summary: |
+      The granularity at which a system emits signals and the
+      freshness of those signals must match the granularity and
+      freshness of the DECISIONS that consume them. Mismatch
+      produces one of two failure modes:
+
+        - UNDER-EMITTED: signals arrive too coarsely or too slowly
+          for the decisions that need them; consumers operate
+          blind and use heuristics, defaults, or stale snapshots
+          to fill the gap. Decisions are wrong because the
+          information needed to make them was never available.
+
+        - OVER-EMITTED: signals arrive at higher resolution than
+          any consumer needs; producers spend resources on volume
+          that is then aggregated away or dropped on the floor.
+          The expense is real; the value is zero. Worse, the
+          volume often crowds out the signal a consumer DOES need.
+
+      The cadence hierarchy emerges naturally from the decision
+      hierarchy. In our cluster:
+
+        - Per-second decisions (request routing, health probes):
+          need sub-second signals. xDS handles this via streaming
+          updates from the controller.
+        - Per-5-second decisions (heartbeat freshness, leader
+          lease): need 5-second signals. Node-agent heartbeats
+          and etcd leases meet this.
+        - Per-30-second decisions (drift reconciliation, infra
+          quorum checks): need 30-second signals. The reconciler
+          loop runs at this cadence and consumes signals from
+          slower sources accordingly.
+        - Per-60-second decisions (cluster-wide findings, doctor
+          rules): need 60-second signals. cluster_doctor's
+          collector cadence matches.
+
+      The hierarchy is correct precisely because each layer's
+      cadence matches the cadence of decisions it serves. If we
+      had heartbeats at 5s and drift reconciliation at 5s but
+      doctor rules at 1s, the doctor would be blind to its own
+      input cadence — running 12 times per data point. If
+      heartbeats were per-minute and reconciliation per-second,
+      the reconciler would always be acting on stale data.
+
+      Bug shapes:
+        - Sub-second routing decisions made on per-minute health
+          probe data: requests routed to a peer that became
+          unhealthy 45 seconds ago.
+        - Doctor rules fired on signals that update slower than
+          the rule cadence: the same finding emitted N times
+          before the underlying data could possibly have changed.
+        - Logs at DEBUG level for every per-request decision
+          flooding storage: the actual signal is buried in volume.
+        - Metrics scraped every 15s used for circuit-breaker logic
+          that needs to react in 100ms: the breaker cannot
+          respond fast enough.
+
+      The principle is a contract between producer and consumer.
+      Either side that changes its cadence without renegotiating
+      breaks the contract; either side that ignores the cadence
+      breaks the contract silently.
+    enforcement: |
+      Every signal emitted by the system must carry an implicit
+      or explicit cadence contract. Producers state how often
+      they emit and at what granularity; consumers state what
+      decisions they make on the signal and the freshness they
+      require.
+
+      Where the producer and consumer cadences mismatch:
+        - PRODUCER FASTER than consumer needs: aggregate at the
+          consumer boundary, not at the producer; emit at full
+          rate so other consumers can use the signal at higher
+          fidelity.
+        - PRODUCER SLOWER than consumer needs: either the
+          decision must be re-scoped to match the available
+          cadence (most common correct fix) OR the producer
+          must increase emission rate (requires renegotiating
+          producer resource budget).
+
+      Forbidden patterns:
+        - Decisions made at a cadence faster than any input
+          signal updates.
+        - Aggregation at the producer that destroys signal needed
+          by other consumers (see metric_aggregation_destroys_
+          actionable_signal).
+        - Log levels chosen to "have data when we need it" without
+          considering storage cost or query velocity.
+        - Polling intervals chosen by convention rather than by
+          decision-horizon analysis.
+
+      Tests for any code that consumes time-varying signal must
+      include the case where the signal cadence is slower than
+      assumed, asserting the code degrades to a documented
+      response (refuse to decide, escalate to a slower decision,
+      return stale-flagged data) rather than acting on stale data
+      as if it were fresh.
+    forbidden_fixes:
+      - forbidden.fast_decision_on_slow_signal_without_staleness_check
+      - forbidden.high_volume_emit_without_consumer_for_full_rate
+      - forbidden.cadence_chosen_by_convention_not_decision_analysis
+    related_invariants:
+      - meta.bounded_staleness_must_be_named_not_assumed
+      - meta.feedback_loop_must_be_faster_than_drift
+      - meta.metric_aggregation_destroys_actionable_signal
+      - meta.diagnostic_output_must_be_bounded
+
+  - id: meta.feedback_loop_must_be_faster_than_drift
+    title: "A control loop running slower than the drift it is meant to correct will oscillate or diverge — never converge"
+    category: lifecycle
+    antipattern: "We reconcile every 5 minutes and that should be enough"
+    wrong_instinct: A reconciler that runs periodically feels like it eventually catches up. If something drifts, the next tick will detect and correct. But control theory has a hard result on this — if the disturbance rate exceeds the correction rate, the system either oscillates around the target without converging, or diverges away from it. The reconciliation cadence is not a configuration choice; it is a stability condition.
+    severity: critical
+    status: candidate
+    summary: |
+      Classical control theory: for a feedback system to converge
+      on a target, the loop's response time must be FASTER than
+      the disturbance rate of the system being controlled. If the
+      disturbance arrives faster than the loop can correct, the
+      system either:
+
+        - OSCILLATES, with each correction overshooting because
+          the loop sees stale state at decision time;
+        - DIVERGES, with each correction lagging behind a moving
+          target that has already moved further.
+
+      In neither case does the system converge to the desired
+      state. The disturbance rate and the loop frequency are
+      coupled by Nyquist-style sampling logic — the loop must
+      sample at least twice as fast as the highest frequency
+      disturbance to track it. Slower than that, and the loop
+      will alias the disturbance into apparent stability while
+      the actual state drifts.
+
+      Operationalized in our codebase:
+
+        - Drift-reconciler at 30s cadence vs drift detection that
+          happens on every state change: the reconciler must run
+          fast enough that the average time-to-correction is
+          less than the time-between-disturbances. The IIFE fix
+          to drift-reconciler yesterday (defer fires per-iteration)
+          was this principle being applied without naming —
+          the loop body must close over its own iteration so
+          each tick is independent.
+
+        - cluster_doctor rules at 60s vs invariant violations
+          that can occur in seconds: when a violation persists
+          for less than 60s, the doctor never sees it — the
+          system has an unobservable window in which any state
+          can transit unseen. We accept this for low-severity
+          rules but design the rule cadence to be faster than
+          the state-of-concern cadence for critical rules.
+
+        - Workflow defer backoff exponential: each retry interval
+          must be SHORTER than the average time the underlying
+          condition takes to change. If the backoff is 30s and
+          the condition typically clears in 10 minutes, the
+          retries are wasted; if the backoff is 30s and the
+          condition typically clears in 5 seconds, the retries
+          run too often.
+
+        - Heartbeat at 5s vs lease at 15s: the heartbeat must
+          come at a fraction of the lease so a single missed
+          heartbeat does not expire the lease. The ratio is the
+          system's resilience to transient network glitches.
+
+      Bug shapes:
+        - Reconciler at 5min for drift that occurs every 30s: the
+          loop never catches up; the system shows persistent
+          drift that mysteriously "resolves itself" between
+          observation windows.
+        - Circuit breaker re-evaluation slower than the failure
+          rate: the breaker stays open while the underlying
+          system is healing and breaking and healing again.
+        - Backup verification at 24h cadence on a backup window
+          that completes in 6h: 18 hours of "verified" status
+          while a partial backup sits undetected.
+    enforcement: |
+      For every reconciler, scheduler, or control loop:
+
+        1. Identify the DISTURBANCE RATE — how often the
+           controlled state changes in normal operation.
+        2. Identify the LOOP FREQUENCY — how often the loop
+           executes.
+        3. Verify the loop frequency is AT LEAST 2x the
+           disturbance rate (Nyquist condition).
+        4. Where the loop must be slower (cost, fanout,
+           coordination), DOCUMENT the maximum disturbance rate
+           the loop can track and surface as a finding when the
+           system exceeds it.
+
+      For loops that aggregate across multiple workers (foreach,
+      parallel reconciliation), the effective frequency per
+      controlled element is `loop_freq / element_count` — slower
+      than the raw loop frequency. The disturbance-to-loop ratio
+      must account for fanout.
+
+      Forbidden patterns:
+        - Reconciler cadence chosen for operator convenience
+          (every minute, every 5 minutes) without measuring the
+          actual disturbance rate.
+        - Loop body that does not close over its own iteration
+          (the IIFE-wrap fix from 2026-06): defer in a for-loop
+          body without IIFE wrap fires once at function return,
+          not per-iteration.
+        - Aggregation in the loop that batches across iterations
+          and effectively divides the per-element frequency.
+        - Loops whose cadence depends on input volume in a way
+          the operator cannot predict.
+
+      Tests for any control loop must include the case where the
+      disturbance rate exceeds the loop's tracking capability,
+      asserting the system either reports the overload (good)
+      or degrades gracefully (acceptable) rather than silently
+      drifting (forbidden).
+    forbidden_fixes:
+      - forbidden.reconciler_cadence_slower_than_disturbance_rate
+      - forbidden.defer_in_for_loop_without_iife_wrap
+      - forbidden.loop_aggregation_that_dilutes_per_element_frequency
+    related_invariants:
+      - meta.bad_path_must_make_progress
+      - meta.observability_must_match_decision_horizon
+      - meta.write_creates_completion_obligation
+      - meta.failure_response_must_contract_not_amplify
+
+  - id: meta.alert_must_name_a_violated_invariant_not_a_crossed_threshold
+    title: "Alerts that fire on numerical thresholds produce noise during normal spikes and silence during creative failures — alerts should name failed invariants"
+    category: signal
+    antipattern: "Alert when CPU is over 90%"
+    wrong_instinct: A threshold alert (CPU > 90, error rate > 5%, latency > 200ms) feels like a defined condition — when the number crosses the line, something is wrong. But the threshold encodes only ONE failure shape — the one whose symptom is that specific number. Real failures take infinite shapes; healthy load spikes produce the same number. The threshold confuses symptom with cause and produces noise during normal operation and silence during anything novel.
+    severity: critical
+    status: candidate
+    summary: |
+      An alerting system based on numerical thresholds has two
+      structural failure modes:
+
+        FALSE POSITIVES during normal operation. Load spikes,
+        legitimate batch jobs, planned maintenance, and seasonal
+        variation all cross the same thresholds healthy systems
+        sometimes hit. Operators learn to ignore the alerts
+        because the alerts are usually wrong. This is the
+        alert-fatigue death spiral.
+
+        FALSE NEGATIVES during creative failures. Real
+        production failures rarely match the failure shape the
+        threshold was tuned for. A cache becoming silently
+        corrupt does not raise CPU. A connection pool exhaustion
+        does not raise error rate. The threshold misses the
+        novel failure entirely.
+
+      Both failure modes follow from treating threshold-crossing
+      as the signal. The crossing is at best a SYMPTOM of an
+      underlying invariant violation; the invariant is what
+      actually matters.
+
+      Compare with INVARIANT-BASED alerting:
+
+        - The SLO budget is exhausted (the system promised X%
+          availability; the budget for the period is gone).
+        - The convergence target is unreachable (the system
+          promised to converge a release; observation N cycles
+          later still shows drift).
+        - The dependency declared unavailable (RBAC's own health
+          probe returned NOT_SERVING; the dependency is not
+          slow — it is broken).
+        - The 4-layer state model is violated (repository says
+          version X, desired says X, installed says X, runtime
+          shows binary Y).
+
+      Each of these is a violation of a stated promise. The
+      alert is not "I noticed a number" but "the system is no
+      longer true to its contract." The operator's response is
+      to the violation, not to the noise.
+
+      cluster_doctor's findings model IS this principle in
+      action. Each finding names an invariant and the evidence
+      that the invariant was violated. Findings are not "metric
+      X crossed threshold Y" — they are "rule R reports state
+      cannot be true given evidence E." That is invariant-based
+      alerting at the layer it belongs.
+
+      Bug shapes we have hit:
+        - Alerts on raw CPU/memory/disk percentages that fired
+          during legitimate workloads (training jobs, large
+          backups) and got muted.
+        - Latency alerts at fixed thresholds that produced false
+          positives on initial startup (cold caches) and false
+          negatives during gradual degradation (latency creeping
+          up over weeks).
+        - Error-rate alerts that missed creative failures where
+          the error rate stayed flat but the success semantics
+          had drifted (request succeeded but returned wrong data).
+
+      The principle does NOT forbid metrics. Metrics are the
+      input to invariant evaluation. The principle forbids
+      treating threshold-crossings as the OUTPUT of the
+      alerting system; the output must be invariant violations
+      with evidence.
+    enforcement: |
+      Alerting policy in any new code:
+
+        1. NAME the invariant the alert protects ("availability
+           SLO held over the rolling 30-day window", "every
+           required node converges within the release deadline",
+           "RBAC's own health probe must succeed").
+        2. The metric is the EVIDENCE supporting the invariant
+           check, not the alert condition itself. Alert fires
+           when the invariant FAILS, not when the metric crosses.
+        3. The alert payload names BOTH the invariant and the
+           evidence, so the operator's first question — "what
+           promise was broken?" — has an answer in the alert
+           message.
+        4. If you cannot name the invariant the alert protects,
+           the alert should not exist. Threshold-based alerting
+           without an invariant is operator noise.
+
+      Migration from existing threshold alerts:
+        - For each existing threshold, identify the invariant
+          it was meant to protect.
+        - Rewrite the alert in invariant terms; the threshold
+          becomes part of the evidence calculation.
+        - Where no invariant exists, EITHER define one and tie
+          the alert to it OR delete the alert.
+
+      Forbidden patterns:
+        - Alerts whose definition is "metric X > Y for N
+          seconds" with no named invariant.
+        - Alert payloads that report the number without
+          naming the broken promise.
+        - "Symptom alerts" intended to fire on any unusual
+          behavior; these become noise because behavior is
+          never not-unusual.
+
+      Tests for any new alerting code must assert that the
+      alert names a specific invariant and that the invariant
+      is documented in the awareness graph.
+    forbidden_fixes:
+      - forbidden.threshold_alert_without_named_invariant
+      - forbidden.alert_payload_reports_metric_not_promise
+      - forbidden.symptom_alert_on_unusual_behavior
+    related_invariants:
+      - meta.observability_must_match_decision_horizon
+      - meta.metric_aggregation_destroys_actionable_signal
+      - meta.assertions_must_carry_their_scope
+      - meta.silence_is_not_valid_for_unexpected
+
+  - id: meta.metric_aggregation_destroys_actionable_signal
+    title: "Aggregation summarizes; aggregation also destroys — the individual events that contained the actionable signal are gone"
+    category: signal
+    antipattern: "We have p99 latency, we know what is slow"
+    wrong_instinct: A summary statistic feels like a complete answer — p99 latency tells you the slow tail, error rate tells you the failure rate, throughput tells you the load. But aggregation discards every property of the individual events that did not contribute to the summary number. The p99 tells you SOMETHING is slow; the outlier requests tell you WHAT. If only the aggregate survives, the operator has a number to watch but not a problem to fix.
+    severity: critical
+    status: candidate
+    summary: |
+      Aggregation is information loss by design. A histogram
+      preserves shape but loses identities of contributing
+      events. A counter preserves total but loses per-event
+      attribution. A gauge preserves current value but loses
+      history. The information loss is the point — aggregates
+      are cheap to store and fast to query precisely because
+      they are smaller than the events that produced them.
+
+      The cost: every property of the individual events that
+      was not preserved by the aggregate is gone. Was the p99
+      latency caused by a specific user? A specific request
+      type? A specific backend version? A specific geographic
+      region? If the aggregate did not preserve those
+      dimensions, the operator cannot ask.
+
+      Charity Majors' framing (the observability community):
+      metrics tell you SOMETHING is happening; structured
+      events tell you WHAT happened. Metrics are the smoke
+      detector; events are the fire investigation. Both have
+      uses; conflating them produces systems where operators
+      know the smoke is real but cannot trace it to the fire.
+
+      For our codebase:
+        - Prometheus metrics (rates, histograms, gauges) tell us
+          the cluster is in a degraded state. They cannot tell
+          us WHICH artifact failed verification, WHICH node
+          stalled, WHICH workflow ran past its budget.
+        - cluster_doctor findings are the events — each finding
+          names the affected resource, the rule that fired, the
+          evidence that supported the firing. The aggregate
+          (count of findings) is useful for trending; the
+          individual finding is what the operator acts on.
+        - The doctor's evolution from "metrics with thresholds"
+          to "findings with evidence" was this principle being
+          applied retroactively. The metrics did not become
+          wrong; they became insufficient.
+
+      Bug shapes:
+        - A spike in p99 latency that turned out to be one
+          user's bulk-export request: the aggregate hid the
+          attribution, the operator spent days chasing a
+          systemic cause that did not exist.
+        - An error rate alert that turned out to be ONE
+          backend dying: the rate aggregated across all
+          backends so the dead one did not show until the
+          rate exceeded the threshold for all healthy ones
+          combined.
+        - A backup-completion-rate metric that masked
+          per-backup failures: backups were 99% complete
+          because most succeeded; the 1% that failed had
+          specific identities the metric could not name.
+
+      The principle is NOT "do not use aggregates." Aggregates
+      are useful and cheap. The principle is "where the
+      decision depends on the IDENTITY of the contributing
+      events, the aggregate is insufficient — you must also
+      preserve the events."
+    enforcement: |
+      For every metric emitted, ask:
+
+        1. What decision does this metric drive?
+        2. Does the decision need to know WHICH events
+           contributed, or just HOW MANY?
+        3. If WHICH, the metric is insufficient — the system
+           must also emit identifying events (structured logs,
+           findings, traces) with the dimensions the decision
+           needs.
+        4. The metric becomes a SUMMARY of the events; the
+           events are the ground truth for any investigation.
+
+      Pattern for new observability code:
+        - HIGH-VOLUME, LOW-CARDINALITY events get metric
+          aggregation (request counts, error totals).
+        - LOW-VOLUME, HIGH-VALUE events get structured events
+          with all relevant dimensions (failures, findings,
+          security events, state transitions).
+        - The boundary between the two is determined by the
+          decision horizon: if the operator will ever ask
+          "which one?", the event must exist.
+
+      Forbidden patterns:
+        - Counting failures without recording which ones.
+        - Latency histograms without trace sampling that
+          preserves the slow requests' identities.
+        - Coverage metrics that aggregate across artifacts
+          without preserving the failing artifact identities.
+        - Aggregated "system health" scores that do not name
+          which subsystem contributed each deficit.
+
+      For new metrics: define the structured event that
+      supports the metric BEFORE defining the aggregate; the
+      aggregate is derived from the events, not standalone.
+
+      Tests for any new aggregate-emitting code must include
+      a case where one identifiable event is responsible for
+      the entire aggregate, asserting the system can recover
+      the identifying event from logs, findings, or traces.
+    forbidden_fixes:
+      - forbidden.aggregate_metric_without_underlying_events
+      - forbidden.system_health_score_without_per_subsystem_attribution
+      - forbidden.high_cardinality_metric_labels_to_compensate_for_missing_events
+    related_invariants:
+      - meta.observability_must_match_decision_horizon
+      - meta.alert_must_name_a_violated_invariant_not_a_crossed_threshold
+      - meta.assertions_must_carry_their_scope
+      - meta.diagnostic_output_must_be_bounded
