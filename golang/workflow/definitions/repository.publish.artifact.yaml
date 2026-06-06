@@ -2,6 +2,12 @@ apiVersion: workflow.globular.io/v1alpha1
 kind: WorkflowDefinition
 metadata:
   name: repository.publish.artifact
+  # dispatchModel=documentation: the engine never dispatches this YAML;
+  # the repository service emits step records (RecordStep) as it walks
+  # its artifact_state machine. The steps[] section is documentation of
+  # the timeline the admin UI / AI executor renders. See:
+  # golang/repository/repository_server/artifact_state.go:327
+  dispatchModel: documentation
   displayName: Publish a single artifact through the repository pipeline
   description: >-
     Drives one artifact through the full repository pipeline state machine:

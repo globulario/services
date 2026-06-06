@@ -111,19 +111,46 @@ func bootstrapClassOf(name, kind string) bootstrapClass {
 }
 
 // kindRank returns a numeric rank within the same bootstrap class.
-// Lower = earlier.
+// Lower = earlier in the install order.
+//
+// All seven proto ArtifactKind values are handled explicitly. A new kind
+// added to the proto without a case here will land in the unknownKindRank
+// fallback, get logged as drift, and sort last — visible degradation rather
+// than silent miscategorization. Required by
+// invariant:release_type_switch_must_have_default and the meta-principle
+// code_must_not_mirror_external_enumerations.
+//
+// TestKindRankCoversAllProtoArtifactKinds enforces exhaustiveness at CI
+// time so this comment doesn't become a lie.
+const unknownKindRank = 99
+
 func kindRank(kind string) int {
 	switch strings.ToUpper(kind) {
 	case "INFRASTRUCTURE":
 		return 0
+	case "SUBSYSTEM":
+		// SUBSYSTEM packages cohabit the infrastructure layer (etcd-side
+		// daemons or kernel-adjacent components) and must come up with
+		// or just after infrastructure.
+		return 0
+	case "AGENT":
+		// AGENT is a service that owns its own runtime lifecycle on a
+		// single node. Sort with services but before APPLICATION which
+		// depends on services being up.
+		return 1
 	case "SERVICE":
 		return 1
 	case "APPLICATION":
 		return 2
 	case "COMMAND":
 		return 3
-	default:
+	case "AWARENESS_BUNDLE":
+		// Data-only artifact — no runtime lifecycle. Sort after every
+		// daemon so its installation never blocks a running service.
 		return 4
+	default:
+		log.Printf("kindRank: unknown ArtifactKind=%q sorted last — proto added a kind without updating recovery_planner.go", kind)
+		return unknownKindRank
 	}
 }
 

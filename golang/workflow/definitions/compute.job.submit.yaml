@@ -2,6 +2,12 @@ apiVersion: workflow.globular.io/v1alpha1
 kind: WorkflowDefinition
 metadata:
   name: compute.job.submit
+  # implementationStatus=aspirational: the compute service is not yet in
+  # the build (see CLAUDE.md "compute_server not in build"). When compute
+  # ships, remove this marker and wire the compute.* handlers under
+  # actor=compute — TestEmbeddedWorkflowsHaveRegisteredActions will then
+  # enforce the contract.
+  implementationStatus: aspirational
   displayName: Submit compute job
   description: >-
     Validates a compute job, admits it, creates execution units (single or

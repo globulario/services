@@ -41,14 +41,33 @@ var (
 	}, []string{"keyspace"})
 )
 
+// criticalScyllaKeyspaces names every cluster keyspace whose replication
+// factor the controller enforces. Each entry is created by a service and
+// must be policed here or the data lives at RF=1 in production.
+//
+// DRIFT TRAP — this is a hardcoded mirror of `CREATE KEYSPACE IF NOT EXISTS`
+// statements scattered across service code. Every new service that
+// persists state in Scylla must add its keyspace here, or the schema
+// guard silently leaves it at RF=1 on multi-node clusters. We hit this
+// on ai_conversations (ai_executor_server) before
+// TestCriticalScyllaKeyspacesMatchSourceCreateStatements existed.
+//
+// Architectural fix tracked under meta-principle
+// code_must_not_mirror_external_enumerations: the schema guard should
+// discover keyspaces directly from Scylla's system_schema.keyspaces and
+// enforce RF on every non-system one. That's the structural fix; the
+// test below is the guard until then.
 var criticalScyllaKeyspaces = []string{
-	"dns",
-	"globular_projections",
-	"workflow",
-	"local_resource",
+	"ai_conversations",
 	"ai_memory",
+	"dns",
 	"globular_events",
+	"globular_projections",
+	"local_resource",
+	"rbac_permissions",
 	"repository",
+	"shared_index",
+	"workflow",
 }
 
 const scyllaSchemaGuardEnforceRequestKey = "/globular/scylla/schema_guard/enforce_request"

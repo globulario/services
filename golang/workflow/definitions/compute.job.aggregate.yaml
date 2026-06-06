@@ -2,6 +2,9 @@ apiVersion: workflow.globular.io/v1alpha1
 kind: WorkflowDefinition
 metadata:
   name: compute.job.aggregate
+  # implementationStatus=aspirational: compute service not yet in build
+  # (see CLAUDE.md). Remove this marker once compute.* handlers ship.
+  implementationStatus: aspirational
   displayName: Aggregate compute job results
   description: >-
     Checks unit outcomes, creates the result record, and transitions

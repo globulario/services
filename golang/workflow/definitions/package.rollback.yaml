@@ -2,6 +2,13 @@ apiVersion: workflow.globular.io/v1alpha1
 kind: WorkflowDefinition
 metadata:
   name: package.rollback
+  # implementationStatus=aspirational: this YAML describes the intended
+  # rollback orchestration but no Go handlers are registered for any of
+  # its (actor, action) pairs. Removing this marker without wiring all
+  # the package.*, service.*, repository.rollback.*, repository.revision.*,
+  # repository.signature.* and repository.artifact.verify handlers will
+  # fail TestEmbeddedWorkflowsHaveRegisteredActions — by design.
+  implementationStatus: aspirational
   displayName: Roll a package back to a previous verified revision
   description: >-
     Returns a package / service / application from its currently installed

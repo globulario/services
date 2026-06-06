@@ -2,6 +2,9 @@ apiVersion: workflow.globular.io/v1alpha1
 kind: WorkflowDefinition
 metadata:
   name: compute.unit.execute
+  # implementationStatus=aspirational: compute service not yet in build
+  # (see CLAUDE.md). Remove this marker once compute.* handlers ship.
+  implementationStatus: aspirational
   displayName: Execute compute unit
   description: >-
     Assigns a compute unit to a node, stages inputs/artifact, executes

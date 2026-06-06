@@ -4,10 +4,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"gopkg.in/yaml.v3"
 )
 
 // TestEmbeddedWorkflowsHaveRegisteredActions asserts that every
@@ -28,21 +31,18 @@ import (
 // in production with "no handler for actor=X action=Y". That is much
 // too late — connective-tissue bugs should be compile/test-time bugs.
 func TestEmbeddedWorkflowsHaveRegisteredActions(t *testing.T) {
-	// Locate YAMLs relative to this test file. We intentionally do NOT
-	// go:embed them here: this test proves the on-disk YAMLs and the
-	// in-binary Go handlers agree.
-	yamlPaths := []string{
-		// workflow/definitions/
-		mustResolveYAML(t, "../definitions/cluster.reconcile.yaml"),
-		mustResolveYAML(t, "../definitions/day0.bootstrap.yaml"),
-		mustResolveYAML(t, "../definitions/node.bootstrap.yaml"),
-		mustResolveYAML(t, "../definitions/node.join.yaml"),
-		mustResolveYAML(t, "../definitions/node.repair.yaml"),
-		mustResolveYAML(t, "../definitions/release.apply.package.yaml"),
-		mustResolveYAML(t, "../definitions/release.apply.infrastructure.yaml"),
-		mustResolveYAML(t, "../definitions/release.remove.package.yaml"),
-		mustResolveYAML(t, "../definitions/remediate.doctor.finding.yaml"),
-	}
+	// Locate YAMLs by scanning the canonical definitions directory. We
+	// intentionally do NOT go:embed them here: this test proves the
+	// on-disk YAMLs and the in-binary Go handlers agree.
+	//
+	// Historical bug shape this guards against:
+	// a previous version of this test enumerated YAML paths by hand,
+	// missing the other half of the directory — so workflows added
+	// after the list was last edited (e.g. cluster.ingress_spec_restore)
+	// silently shipped with unregistered handlers and broke at runtime.
+	// The fix is the same as for coreWorkflows in invariant_enforcement.go:
+	// derive the set from the source of truth instead of mirroring it.
+	yamlPaths := scanDispatchedWorkflowYAMLs(t)
 
 	// Build the union of all actions registered across every actor.
 	router := NewRouter()
@@ -125,9 +125,16 @@ func mustResolveYAML(t *testing.T, rel string) string {
 // the Register* functions only reference cfg fields from inside closures
 // — registration itself never dereferences them, so nil function fields
 // are safe and we don't need to invent stub implementations here.
+//
+// IMPORTANT: every Register*Actions function declared in this package
+// MUST be called here. TestAllRegisterFunctionsAreCalled walks the
+// package source and fails if a Register*Actions declaration is missing
+// from this body — closing the meta-drift gap where new actor groups
+// shipped without being added to this list.
 func registerAllActorsWithStubs(router *Router) {
 	RegisterNodeAgentActions(router, NodeAgentConfig{})
 	RegisterControllerActions(router, ControllerConfig{})
+	RegisterControllerDeployActions(router, ControllerDeployConfig{})
 	RegisterInstallerActions(router, InstallerConfig{})
 	RegisterRepositoryActions(router, RepositoryConfig{})
 	RegisterReleaseControllerActions(router, ReleaseControllerConfig{})
@@ -137,11 +144,121 @@ func registerAllActorsWithStubs(router *Router) {
 	RegisterDoctorRemediationActions(router, DoctorRemediationConfig{})
 	RegisterNodeRepairControllerActions(router, NodeRepairControllerConfig{})
 	RegisterNodeRepairAgentActions(router, NodeRepairAgentConfig{})
+	RegisterNodeRecoveryControllerActions(router, NodeRecoveryControllerConfig{})
+	RegisterNodeRemoveControllerActions(router, NodeRemoveControllerConfig{})
 	RegisterObjectStoreControllerActions(router, ObjectStoreControllerConfig{})
+	RegisterPlatformUpgradeControllerActions(router, PlatformUpgradeControllerConfig{})
+	RegisterInvariantActions(router, InvariantConfig{})
+	RegisterIngressControllerActions(router, IngressControllerConfig{})
 	// WH-4: verification handlers for resume-policy dispatch.
 	RegisterNodeVerificationActions(router, NodeVerificationConfig{})
 	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
 }
+
+// TestAllRegisterFunctionsAreCalled walks the engine package source and
+// asserts that every `func RegisterXxxActions(router *Router, ...)`
+// declaration is invoked by registerAllActorsWithStubs.
+//
+// This guards against the meta-drift shape that caused the original bug:
+// new actor groups (controller_deploy, ingress, invariant, node_recovery,
+// node_remove, platform_upgrade) shipped a Register*Actions function but
+// nobody remembered to add the call here, so the test that was supposed
+// to catch unregistered handlers silently ignored entire actor groups.
+// Without this meta-guard the helper would drift again the next time an
+// actor group is added.
+func TestAllRegisterFunctionsAreCalled(t *testing.T) {
+	// 1. Discover every `func Register*Actions(router *Router, ...)` in this
+	//    package directory by scanning .go files. Tests are excluded so we
+	//    only see production declarations.
+	declared := map[string]string{} // func name -> file
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read engine package dir: %v", err)
+	}
+	declPat := regexp.MustCompile(`^func (Register\w+Actions)\(router \*Router`)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		data, rerr := os.ReadFile(e.Name())
+		if rerr != nil {
+			t.Fatalf("read %s: %v", e.Name(), rerr)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if m := declPat.FindStringSubmatch(line); m != nil {
+				declared[m[1]] = e.Name()
+			}
+		}
+	}
+
+	// 2. Find every call to a Register*Actions function in the body of
+	//    registerAllActorsWithStubs. We slice the file content between the
+	//    function header and the closing brace; the body is short enough
+	//    that a simple call-site regex is reliable.
+	body, berr := readFunctionBody("action_registration_test.go", "func registerAllActorsWithStubs(")
+	if berr != nil {
+		t.Fatalf("locate registerAllActorsWithStubs body: %v", berr)
+	}
+	callPat := regexp.MustCompile(`(Register\w+Actions)\(router,`)
+	called := map[string]bool{}
+	for _, m := range callPat.FindAllStringSubmatch(body, -1) {
+		called[m[1]] = true
+	}
+
+	// 3. Diff: every declared function must be called.
+	var missing []string
+	for name, file := range declared {
+		if !called[name] {
+			missing = append(missing, name+" (declared in "+file+")")
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		t.Errorf("registerAllActorsWithStubs is missing %d Register*Actions call(s) — the test that catches handler drift is itself drifting:", len(missing))
+		for _, m := range missing {
+			t.Errorf("  %s", m)
+		}
+		t.Errorf("Add the missing calls to registerAllActorsWithStubs in action_registration_test.go.")
+	}
+}
+
+// readFunctionBody returns the body text between the `func ... {` line that
+// matches header and the matching closing `}`. Brace-counting is simplistic
+// but sufficient for this file (no string literals containing `{`/`}`).
+func readFunctionBody(path, header string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	src := string(data)
+	idx := strings.Index(src, header)
+	if idx < 0 {
+		return "", &funcLocateErr{header: header}
+	}
+	// advance to opening brace
+	openIdx := strings.Index(src[idx:], "{")
+	if openIdx < 0 {
+		return "", &funcLocateErr{header: header}
+	}
+	openIdx += idx
+	depth := 1
+	for i := openIdx + 1; i < len(src); i++ {
+		switch src[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return src[openIdx+1 : i], nil
+			}
+		}
+	}
+	return "", &funcLocateErr{header: header}
+}
+
+type funcLocateErr struct{ header string }
+
+func (e *funcLocateErr) Error() string { return "could not locate function: " + e.header }
 
 // --------------------------------------------------------------------------
 // Actor capability parity tests
@@ -166,10 +283,16 @@ var actorRegistrationSet = map[string]func(r *Router){
 	},
 	string(v1alpha1.ActorClusterController): func(r *Router) {
 		RegisterControllerActions(r, ControllerConfig{})
+		RegisterControllerDeployActions(r, ControllerDeployConfig{})
 		RegisterReleaseControllerActions(r, ReleaseControllerConfig{})
 		RegisterReconcileControllerActions(r, ReconcileControllerConfig{})
 		RegisterNodeRepairControllerActions(r, NodeRepairControllerConfig{})
+		RegisterNodeRecoveryControllerActions(r, NodeRecoveryControllerConfig{})
+		RegisterNodeRemoveControllerActions(r, NodeRemoveControllerConfig{})
 		RegisterObjectStoreControllerActions(r, ObjectStoreControllerConfig{})
+		RegisterPlatformUpgradeControllerActions(r, PlatformUpgradeControllerConfig{})
+		RegisterInvariantActions(r, InvariantConfig{})
+		RegisterIngressControllerActions(r, IngressControllerConfig{})
 		RegisterControllerVerificationActions(r, ControllerVerificationConfig{})
 		// installer and repository are controller-owned actors but register
 		// under their own actor type — tested separately below.
@@ -179,6 +302,12 @@ var actorRegistrationSet = map[string]func(r *Router){
 		RegisterNodeDirectApplyActions(r, NodeDirectApplyConfig{})
 		RegisterNodeRepairAgentActions(r, NodeRepairAgentConfig{})
 		RegisterNodeVerificationActions(r, NodeVerificationConfig{})
+		// Cross-actor registration: ControllerDeployActions registers
+		// node.apply_package_release under ActorNodeAgent so that the
+		// release.apply.controller workflow can target node-agents from
+		// the controller. The node-agent's local registry must mirror
+		// this — TestActorCapabilityParity enforces it.
+		RegisterControllerDeployActions(r, ControllerDeployConfig{})
 	},
 	string(v1alpha1.ActorWorkflowService): func(r *Router) {
 		RegisterWorkflowServiceActions(r, WorkflowServiceConfig{})
@@ -333,17 +462,73 @@ func collectAllYAMLPaths(t *testing.T) []string {
 	t.Helper()
 	// All workflow definitions live in one canonical directory:
 	// golang/workflow/definitions/. No service-private copies.
-	return []string{
-		mustResolveYAML(t, "../definitions/cluster.reconcile.yaml"),
-		mustResolveYAML(t, "../definitions/day0.bootstrap.yaml"),
-		mustResolveYAML(t, "../definitions/node.bootstrap.yaml"),
-		mustResolveYAML(t, "../definitions/node.join.yaml"),
-		mustResolveYAML(t, "../definitions/node.repair.yaml"),
-		mustResolveYAML(t, "../definitions/release.apply.package.yaml"),
-		mustResolveYAML(t, "../definitions/release.apply.infrastructure.yaml"),
-		mustResolveYAML(t, "../definitions/release.remove.package.yaml"),
-		mustResolveYAML(t, "../definitions/remediate.doctor.finding.yaml"),
+	return scanDispatchedWorkflowYAMLs(t)
+}
+
+// scanDispatchedWorkflowYAMLs walks workflow/definitions/ and returns every
+// *.yaml whose metadata does NOT mark it as a non-dispatch workflow. The
+// opt-out keys are:
+//
+//	metadata.dispatchModel: documentation
+//	    The YAML describes step keys emitted at runtime by a service via
+//	    workflow.Recorder.RecordStep, not actions dispatched by the engine.
+//	    repository.publish.artifact.yaml is the canonical example.
+//
+//	metadata.implementationStatus: aspirational
+//	    Handlers have not yet been wired (or the owning service is not
+//	    in the build). Used for workflows we ship for design review but
+//	    intentionally don't dispatch yet. Removing this marker without
+//	    wiring handlers is what this test exists to catch — the next
+//	    edit fails the registration assertion.
+//
+// Without these markers a workflow YAML is presumed dispatchable.
+func scanDispatchedWorkflowYAMLs(t *testing.T) []string {
+	t.Helper()
+	dir := "../definitions"
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read workflow definitions dir %s: %v", dir, err)
 	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		model, status, err := readWorkflowDispatchModel(path)
+		if err != nil {
+			t.Fatalf("read dispatch model for %s: %v", path, err)
+		}
+		if model == "documentation" || status == "aspirational" {
+			continue
+		}
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	if len(out) == 0 {
+		t.Fatalf("scanDispatchedWorkflowYAMLs found no dispatchable YAMLs under %s — directory missing or all marked opt-out", dir)
+	}
+	return out
+}
+
+// readWorkflowDispatchModel reads metadata.dispatchModel and
+// metadata.implementationStatus from a workflow YAML. Returns ("","",nil)
+// when the keys are absent — those workflows are dispatchable by default.
+func readWorkflowDispatchModel(path string) (model, status string, err error) {
+	data, rerr := os.ReadFile(path)
+	if rerr != nil {
+		return "", "", rerr
+	}
+	var doc struct {
+		Metadata struct {
+			DispatchModel        string `yaml:"dispatchModel"`
+			ImplementationStatus string `yaml:"implementationStatus"`
+		} `yaml:"metadata"`
+	}
+	if yerr := yaml.Unmarshal(data, &doc); yerr != nil {
+		return "", "", yerr
+	}
+	return doc.Metadata.DispatchModel, doc.Metadata.ImplementationStatus, nil
 }
 
 func toSet(items []string) map[string]bool {

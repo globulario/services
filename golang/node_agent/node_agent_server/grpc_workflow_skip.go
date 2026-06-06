@@ -63,18 +63,26 @@ const (
 // Skip is safe for these when version (and optional build_id) match because
 // there is no runtime state to check.
 //
-// Must stay in sync with KindCommand entries in component_catalog.go (controller).
-// The node-agent cannot import the controller's catalog, so this list is maintained
-// manually. Add entries here whenever a new COMMAND-kind package is added to the catalog.
+// DRIFT TRAP — this is a hardcoded mirror of an external source of truth.
+// The authoritative source is packages/specs/*_cmd.yaml (one file per
+// command package) and the controller's KindCommand entries in
+// component_catalog.go. Every time a new *_cmd.yaml ships, this map must
+// be edited by hand or the node-agent silently treats the new package as
+// a missing systemd unit and reinstalls on every reconcile.
+//
+// TestCommandAndSkipUnitListsMatchSpecs (installed_services_drift_test.go)
+// walks packages/specs/ at test time and fails when this map drifts. That
+// catches the next omission at CI time, but the structural fix is to
+// derive this set from a shared catalog package both binaries import —
+// tracked as the meta-principle code_must_not_mirror_external_enumerations.
 var commandPackages = map[string]bool{
-	"restic":      true,
-	"rclone":      true,
-	"ffmpeg":      true,
-	"sctool":      true,
-	"mc":          true,
-	"etcdctl":     true,
+	"restic":       true,
+	"rclone":       true,
+	"ffmpeg":       true,
+	"sctool":       true,
+	"mc":           true,
+	"etcdctl":      true,
 	"globular-cli": true,
-	"cli":          true,
 	"sha256sum":    true,
 	"yt-dlp":       true,
 	"claude":       true,

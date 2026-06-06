@@ -1221,3 +1221,124 @@ invariants:
       - fm.industry.missing_inventory_misclassified_as_down
     related_invariants:
       - meta.state_mutations_must_be_durably_committed_before_side_effects
+
+  - id: meta.code_must_not_mirror_external_enumerations
+    title: "Code mirrors of external truth drift silently — derive the set, don't author it"
+    category: authority
+    antipattern: "A small hand-maintained list of names will stay up to date"
+    wrong_instinct: A hardcoded slice is fast, readable, and trivially correct today — so it feels safer than a discovery loop. But the slice is a second authority for the set, and the moment the external source gains a member, the mirror diverges. No compile error, no test failure (the tests use the same mirror), just silent runtime drift that surfaces months later in production.
+    severity: critical
+    status: candidate
+    summary: |
+      Whenever a directory, proto enum, etcd prefix, package registry,
+      installed catalog, or external configuration file defines a set of
+      named entities, ANY Go code that enumerates "the canonical members
+      of that set" must derive the enumeration from the source — never
+      hand-maintain a parallel slice/map/switch.
+
+      The bug shape is:
+        1. An external authority owns a set: filenames in a directory,
+           values in a proto enum, keys in a registry, CREATE statements
+           in service code.
+        2. A Go file declares its own enumeration of that set as a
+           `[]string`, `map[string]bool`, or exhaustive `switch`.
+        3. The two evolve at different rates. A new entry is added to
+           the authority and forgotten in the mirror.
+        4. The mirror is the input to a critical loop (seeding, install,
+           policy enforcement, dispatch, RF guard). Items not in the
+           mirror are silently dropped, mis-classified, or unprotected.
+        5. Failure surfaces months later in a context where the root —
+           "code disagreed with the directory" — looks nothing like the
+           symptom — "ingress can't come up", "RBAC keyspace at RF=1",
+           "workflow not found".
+
+      This is distinct from but related to:
+        - meta.identity_computation_must_be_invariant — a stricter sibling
+          about identity FIELDS. Here we're about SETS.
+        - meta.competing_writers_must_converge_or_be_fenced — there both
+          writers are alive; here one writer (the mirror) is FROZEN code
+          and the other (the directory) keeps growing.
+        - meta.storage_is_not_semantic_authority — same family. The
+          directory IS the authority; the mirror is a cache that lies.
+
+      Sibling bug shapes that have ALL fired in production:
+        - coreWorkflows: 11 hardcoded names, 22 YAMLs on disk →
+          cluster.ingress_spec_restore never seeded → ingress blocked
+          on Day-0 install. (2026-06-06; v1.2.195 fix)
+        - action_registration_test.collectAllYAMLPaths: 9 paths in a
+          slice, 22 YAMLs in the directory → the test that should have
+          caught the coreWorkflows bug missed it because it shared the
+          same drift shape three levels deep. (same incident)
+        - registerAllActorsWithStubs / actorRegistrationSet: 6 of 20
+          Register*Actions functions silently un-called → the test
+          designed to enforce handler parity silently passed against an
+          incomplete universe. (same incident, meta-recursive)
+        - commandPackages + skipSystemdUnits: hand-mirrored from
+          /packages/specs/*_cmd.yaml. Phantom "cli" entry; missing
+          claude-cmd; missing oxigraph; misclassified mcp. (same incident)
+        - kindRank + lookupResolvedEntrypointChecksum candidates: 4 of 7
+          proto ArtifactKind values hit the default branch → AGENT,
+          SUBSYSTEM, AWARENESS_BUNDLE silently mis-ordered or
+          mis-routed. (caught by exhaustiveness test)
+        - criticalScyllaKeyspaces: 7 hardcoded keyspace names; codebase
+          actually creates 10. ai_conversations, rbac_permissions,
+          shared_index running unenforced — silently RF=1 on multi-node
+          clusters until the test discovered them. (2026-06-06)
+        - infraNames in artifact_handlers.go:1881: fourth copy of the
+          same infrastructure list, comment explicitly admitting "Source
+          of truth: packages/specs/*.yaml". Comment-as-confession is the
+          fingerprint.
+
+      The fingerprint comment: "must stay in sync with X", "source of
+      truth is Y", "maintained manually", "the node-agent cannot import
+      the controller's catalog". Every one of these is an admission that
+      the author knew the trap and shipped it anyway.
+    enforcement: |
+      Default rule: any code declaring "the canonical set of X" must
+      derive the set from the same authority that owns X. Acceptable
+      authorities are:
+        - filesystem directory scans (os.ReadDir + extension filter)
+        - proto enum value tables (protoreflect or *_name maps)
+        - etcd prefix listings (kv.Get with prefix)
+        - service-published catalogs read at startup or test time
+
+      When a structural derivation isn't yet possible (cross-package
+      import cycle, runtime vs. build-time scope mismatch), the
+      hardcoded mirror is allowed BUT must:
+        1. Carry a comment naming the source of truth and explaining
+           the structural blocker.
+        2. Be paired with a CI-time test that walks the truth source
+           and fails on drift in either direction (mirror missing an
+           entry, mirror containing a phantom).
+        3. Reference this meta-principle in the comment so future
+           readers see the documented architectural debt.
+
+      Code that switches over a proto enum value must either handle every
+      named value with an explicit case, OR carry a documented constraint
+      that limits the accepted inputs (and a test asserting the constraint
+      and the switch share the same set). A bare `default` that silently
+      categorizes unknown values as the "normal" branch is forbidden.
+
+      Test patterns proven to work:
+        - TestEmbeddedWorkflowsHaveRegisteredActions: walks YAML dir,
+          asserts every (actor, action) tuple has a registered handler.
+        - TestCommandAndSkipUnitListsMatchSpecs: walks packages/specs,
+          asserts hardcoded maps match the union of cmd+infrastructure
+          spec files (plus documented carve-outs with stated reasons).
+        - TestKindRankCoversAllProtoArtifactKinds: enumerates every
+          proto ArtifactKind value, asserts each returns non-default.
+        - TestCriticalScyllaKeyspacesMatchSourceCreateStatements: walks
+          all .go files for CREATE KEYSPACE statements + Keyspace constant
+          patterns, asserts the policed-set matches the created-set.
+        - TestAllRegisterFunctionsAreCalled: walks the package source for
+          Register*Actions declarations, asserts each is invoked.
+
+      Each test above caught real, shipped drift on first run. Treat the
+      pattern as load-bearing for any future hardcoded mirror.
+    forbidden_fixes:
+      - forbidden.add_to_mirror_without_extending_test
+      - forbidden.silence_drift_warning_with_documented_carveout_only
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
+      - meta.competing_writers_must_converge_or_be_fenced
+      - meta.storage_is_not_semantic_authority

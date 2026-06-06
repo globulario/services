@@ -334,16 +334,32 @@ func (srv *server) lookupResolvedEntrypointChecksum(ctx context.Context, publish
 	// back across the other release types so node-agent's split-kind
 	// records (both SERVICE and INFRASTRUCTURE registrations exist for
 	// the same package) still resolve to the correct binary identity.
+	// All seven proto ArtifactKind values are handled explicitly. Only
+	// three Release resource types exist (ServiceRelease,
+	// InfrastructureRelease, ApplicationRelease) — the kinds without a
+	// dedicated release type map to the most semantically-similar one
+	// FIRST, then fall back to the others.
+	//
+	// TestLookupResolvedEntrypointChecksumKindsExhaustive enforces that
+	// every proto ArtifactKind has an explicit case here, satisfying
+	// invariant:release_type_switch_must_have_default.
 	candidates := []string{}
 	switch kind {
-	case "INFRASTRUCTURE":
+	case "INFRASTRUCTURE", "SUBSYSTEM":
+		// SUBSYSTEM cohabits the infrastructure layer; look at infra first.
 		candidates = []string{"InfrastructureRelease", "ServiceRelease", "ApplicationRelease"}
-	case "SERVICE":
+	case "SERVICE", "AGENT":
+		// AGENT is a single-node service; same resource type as SERVICE.
 		candidates = []string{"ServiceRelease", "InfrastructureRelease", "ApplicationRelease"}
 	case "APPLICATION":
 		candidates = []string{"ApplicationRelease", "ServiceRelease", "InfrastructureRelease"}
+	case "COMMAND", "AWARENESS_BUNDLE":
+		// COMMAND and AWARENESS_BUNDLE have no installed daemon — no
+		// runtime entrypoint to verify — but a release record may still
+		// exist for audit. Check service first as the most common shape.
+		candidates = []string{"ServiceRelease", "InfrastructureRelease", "ApplicationRelease"}
 	default:
-		log.Printf("lookupResolvedEntrypointChecksum: unexpected kind=%q for package=%s — falling back to all release types",
+		log.Printf("lookupResolvedEntrypointChecksum: unknown ArtifactKind=%q for package=%s — proto added a kind without updating release_runtime_convergence.go (falling back to all release types)",
 			kind, pkgName)
 		candidates = []string{"ServiceRelease", "InfrastructureRelease", "ApplicationRelease"}
 	}
