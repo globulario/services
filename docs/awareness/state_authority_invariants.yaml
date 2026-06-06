@@ -4160,3 +4160,627 @@ invariants:
       - meta.early_consolidation_ossifies_uncertainty
       - meta.bad_path_must_make_progress
       - meta.code_must_not_mirror_external_enumerations
+
+  - id: meta.harvest_and_yield_are_distinct_availability_dimensions
+    title: "Yield (queries completed) and harvest (data per answer) are two separate axes of availability — preserving one says nothing about the other"
+    category: signal
+    antipattern: "The system is available because the request returned"
+    wrong_instinct: A successful response feels like the binary answer to "is the system available." But availability has two distinct dimensions — did the query complete (yield) and was the answer complete (harvest). A search that returns three results instead of thirty has 100 percent yield and 10 percent harvest; a partition that drops half the requests has 50 percent yield and unknown harvest. Conflating them lets the system report green while quietly serving impoverished answers, and lets operators report uptime while users see degraded data.
+    severity: critical
+    status: candidate
+    summary: |
+      Eric Brewer (IEEE 2001) introduced this distinction in
+      "Lessons from Giant-Scale Services" as the core insight
+      that uptime alone is too coarse for systems that must
+      stay available under fault.
+
+        YIELD is the fraction of queries that complete —
+        queries_completed divided by queries_offered. A request
+        that returned a usable answer counts toward yield. A
+        request that errored, timed out, or was refused does
+        not. Yield maps closely to user experience of "did the
+        system respond" because it directly reflects request
+        outcome rather than wall-clock uptime.
+
+        HARVEST is the fraction of the underlying data that
+        contributed to each answer — data_available divided by
+        data_complete. A search index that returned ten of a
+        possible hundred matches has 10 percent harvest. A
+        federated query that included results from three of
+        five backends has 60 percent harvest. Harvest maps to
+        user experience of "did the answer feel complete."
+
+      The two dimensions are independent. A system can have
+      100 percent yield with 50 percent harvest (every query
+      returned, with half the data missing) OR 50 percent
+      yield with 100 percent harvest (half the queries were
+      refused, the survivors returned complete answers). Each
+      is a valid response to fault; the choice between them is
+      semantic and must be deliberate.
+
+      Brewer's specific observation that drove the distinction
+      — REPLICATED systems tend to preserve harvest under fault
+      and reduce yield (the surviving replicas can answer
+      completely but there are fewer of them, so capacity drops
+      and some requests get refused). PARTITIONED systems tend
+      to preserve yield and reduce harvest (every node still
+      answers, but lost partitions mean answers are
+      incomplete). Both are availability strategies; they map
+      faults to different metrics.
+
+      In our codebase the principle bites at several points:
+
+        - cluster_doctor running a collector sweep where some
+          per-node collectors time out. The cluster snapshot it
+          produces still answers the operator's query (yield
+          preserved) but the snapshot is missing data from the
+          timed-out nodes (harvest reduced). Doctor rules then
+          evaluate the partial snapshot as if it were complete
+          — exactly the failure mode INC-2026-0004 was about.
+          The fix in that incident was already this principle
+          being applied — "partial snapshot must be classified
+          as unknown, not known-down" is reduced-harvest
+          handling.
+        - ai-memory queries that return fewer results because
+          a Scylla shard is slow. Harvest reduces silently;
+          callers receive a smaller-than-expected result set
+          but no signal that the result is incomplete.
+        - awareness graph queries during regeneration. The
+          oxigraph store may be mid-PUT when a briefing call
+          arrives. The call returns with whatever subset of
+          triples are loaded — reduced harvest.
+        - Multi-node release pipeline RPC fanouts. The
+          controller queries N nodes for installed_state.
+          Some respond, some time out. The aggregated state
+          is presented as "the current installed state" with
+          no signal about which nodes contributed.
+
+      The principle is NOT "always preserve both." It is
+      "they are separate dimensions; the system must measure
+      them separately AND choose deliberately which to preserve
+      under fault."
+    enforcement: |
+      Every component that produces aggregate or federated
+      answers must:
+
+        1. MEASURE both dimensions. Yield is request outcome
+           accounting; harvest is "what fraction of the
+           underlying universe contributed."
+        2. SURFACE harvest to consumers. An answer with reduced
+           harvest must carry the reduction in its envelope —
+           a "completeness" or "data_available" field that
+           consumers can read to know they got partial data.
+        3. DECIDE which dimension to preserve under fault.
+           Replicated subsystems lean toward harvest preservation
+           (refuse some queries, answer the rest completely).
+           Partitioned subsystems lean toward yield preservation
+           (answer every query, with whatever fragments are
+           available). The choice must match the workload's
+           tolerance for each kind of degradation.
+        4. ALERT on each dimension separately. A drop in yield
+           is one signal; a drop in harvest is a different one.
+           A single "availability" alert that aggregates both
+           is structurally wrong.
+
+      Forbidden patterns:
+        - Reporting yield as "availability" while harvest
+          silently degrades.
+        - Returning aggregated answers without naming the
+          contributing set.
+        - Treating partial data as complete data when computing
+          downstream verdicts (the doctor-on-partial-snapshot
+          shape).
+        - Single uptime number that hides which dimension is
+          falling.
+    forbidden_fixes:
+      - forbidden.return_partial_data_without_completeness_envelope
+      - forbidden.aggregate_yield_with_harvest_into_single_uptime
+      - forbidden.downstream_verdict_on_partial_aggregate
+    related_invariants:
+      - meta.assertions_must_carry_their_scope
+      - meta.absence_scope_must_be_explicit
+      - meta.metric_aggregation_destroys_actionable_signal
+      - meta.partition_response_must_be_predeclared
+
+  - id: meta.MTTR_focus_outperforms_MTBF_for_evolving_systems
+    title: "For systems that change frequently, repair time is much easier to improve than failure rate — and has equal impact on uptime"
+    category: lifecycle
+    antipattern: "We will get availability by making failures rarer"
+    wrong_instinct: Making failures rarer feels like the right answer to "the system fell over" — fix the bugs, harden the code, eliminate the failure modes. But MTBF is hard to measure (you need weeks of realistic load to validate one data point) and easy to confuse yourself about (you fixed the failures you noticed, not the ones you did not). MTTR is measurable in minutes, improvable through tooling, and stable across feature additions. For systems that change frequently — every Globular service ships releases regularly — MTBF stability is a fiction. MTTR is what actually moves availability.
+    severity: critical
+    status: candidate
+    summary: |
+      Brewer (IEEE 2001): "We can improve uptime either by
+      reducing the frequency of failures or reducing the time
+      to fix them. Although the former is more pleasing
+      aesthetically, the latter is much easier to accomplish
+      with evolving systems." The arithmetic is symmetric
+      (uptime = (MTBF - MTTR) / MTBF), but the engineering
+      effort is not.
+
+      Why MTBF resists improvement in fast-changing systems:
+
+        - VALIDATION COST. To know your MTBF improved from one
+          week to two weeks, you need significantly more than
+          two weeks of realistic load. Every feature change
+          potentially invalidates the measurement; the
+          measurement window is longer than the change cadence.
+        - FAILURE MODES DRIFT. The failures you fixed are the
+          failures you noticed. New feature work introduces new
+          failure modes faster than the old ones get
+          eliminated.
+        - SLOW MEMORY LEAKS AND NONDETERMINISTIC BUGS
+          STRUCTURALLY RESIST FIXES. Brewer's exact words:
+          "hard-to-resolve issues such as slow memory leaks
+          and nondeterministic bugs tend to remain unfixed."
+          These are exactly the failures whose elimination would
+          improve MTBF the most.
+
+      Why MTTR is more tractable:
+
+        - MEASUREMENT CYCLE is minutes. You can run a
+          recovery drill, measure MTTR, change a tool, run
+          another drill. The feedback loop is fast.
+        - TOOLING WORK COMPOUNDS. Faster reboot, faster
+          rollback, faster artifact resolution, faster
+          health-check propagation — each improvement reduces
+          MTTR for every failure type.
+        - STABILITY ACROSS FEATURE WORK. New features change
+          which failures occur but rarely change how fast
+          recovery runs once a failure is detected.
+
+      Applied to Globular:
+
+        - Our bootstrap-reliability investment is MTBF work.
+          We have spent considerable effort making Day-0 reliable.
+          That work continues but its marginal return is
+          decreasing as the obvious failure modes get caught.
+        - Our recovery story is MTTR work. Today a node loss
+          recovery takes minutes-to-tens-of-minutes via the
+          release pipeline cycle. That is the lever.
+        - The mobility principle from the Eden pass —
+          rebind a service incarnation on a healthy node
+          instead of reinstalling — is an MTTR optimization
+          at the architectural level. It cuts recovery from
+          release-pipeline-minutes to rebind-seconds.
+        - Workflow resume after restart, drift-reconciler
+          tick rate, doctor finding propagation latency — all
+          MTTR levers.
+
+      The principle is NOT "give up on MTBF." Catastrophic
+      failure modes (data loss, security breach) demand MTBF
+      work because their MTTR is effectively infinite. The
+      principle is "for failures that recover automatically,
+      MTTR work has higher engineering yield than MTBF work in
+      a frequently-changing system."
+
+      Brewer's recommendation: "giant-scale systems should
+      focus on improving MTTR and simply apply best effort to
+      MTBF."
+    enforcement: |
+      For every reliability investment in the codebase:
+
+        1. CLASSIFY the investment as MTBF (preventing failure)
+           or MTTR (speeding recovery).
+        2. For MTBF work, name the failure mode being
+           prevented. Mode-specific MTBF work compounds
+           usefully; speculative MTBF work does not.
+        3. For MTTR work, measure the recovery time in the
+           before and after state. The measurement is cheap.
+        4. Where the choice exists, prefer MTTR work for
+           recoverable failure classes; reserve MTBF for
+           catastrophic classes.
+
+      Tooling implications:
+        - Recovery drills should be cheap to run. If running a
+          drill takes a week, MTTR measurement is impossible.
+        - Recovery paths should be measurable. Add timestamps
+          at each step (failure detected, recovery dispatched,
+          recovery completed) so MTTR can be decomposed.
+        - Recovery paths should be FREQUENT. The path the
+          system takes once a year will fail when it is finally
+          needed; the path the system takes every day is well-
+          worn.
+
+      Forbidden patterns:
+        - "We will improve availability by fixing bugs" without
+          a named failure mode and a measurable failure rate.
+        - Long-running speculative MTBF work in the absence of
+          MTTR measurement.
+        - Recovery paths that cannot be drilled cheaply.
+    forbidden_fixes:
+      - forbidden.speculative_MTBF_work_without_named_failure_mode
+      - forbidden.recovery_path_that_cannot_be_drilled_cheaply
+      - forbidden.MTBF_focus_for_recoverable_failure_class
+    related_invariants:
+      - meta.mobility_is_stronger_recovery_than_replication
+      - meta.bad_path_must_make_progress
+      - meta.feedback_loop_must_be_faster_than_drift
+      - meta.observability_must_match_decision_horizon
+
+  - id: meta.replication_vs_partitioning_chooses_availability_dimension
+    title: "Replication preserves harvest under fault and reduces yield; partitioning preserves yield and reduces harvest — the choice maps to which dimension the workload tolerates losing"
+    category: dependency
+    antipattern: "Replicated is more available than partitioned"
+    wrong_instinct: Replication has the cultural reputation of "more available" because every replica is a complete copy of the data, so the data survives any single failure. But that reasoning conflates DATA durability with QUERY availability. Replicated systems lose capacity under fault (some queries get refused); partitioned systems lose data per answer (every query returns, with a fragment). Neither is inherently better; they preserve different things. The choice has been silently embedded in every persistent-store decision in the system.
+    severity: critical
+    status: candidate
+    summary: |
+      Brewer's quantitative analysis: a 2-node cluster under
+      one node loss either drops to 50 percent yield (replicated
+      version) OR drops to 50 percent harvest (partitioned
+      version). The DQ value — data per query times queries
+      per second — drops by half in both cases. Replicas
+      preserve D and reduce Q; partitions preserve Q and
+      reduce D.
+
+      The choice between them is workload-dependent:
+
+        WORKLOADS THAT TOLERATE REDUCED YIELD prefer
+        replication. Refusing some requests is acceptable as
+        long as the served requests get complete answers.
+        Financial systems where partial answers would mislead;
+        authoritative databases where incompleteness corrupts
+        downstream queries.
+
+        WORKLOADS THAT TOLERATE REDUCED HARVEST prefer
+        partitioning. Every request must be answered, even
+        with degraded content. Web search where ten results
+        beats no result; recommendation systems where a few
+        suggestions beat a timeout; aggregations where partial
+        sums approximate well enough.
+
+      The DQ cost is the same; the user-visible degradation
+      shape is different.
+
+      In Globular the choices have been made implicitly:
+
+        - SCYLLADB is replicated (RF tunable, currently 3
+          on production). Preserves harvest under fault;
+          capacity-bound; refuses queries when quorum cannot
+          be reached. Correct for the workload (ai-memory,
+          workflow, repository, RBAC) — these benefit from
+          complete-or-nothing.
+        - MINIO uses erasure coding which is a hybrid — within
+          erasure tolerance, queries succeed at full harvest;
+          beyond tolerance, queries fail. It is partitioning
+          in DQ terms (each backend serves a fragment) with
+          replication-shaped fault response (refuse rather
+          than serve partial). The hybrid is correct for
+          object storage where partial files are useless.
+        - ETCD is replicated through Raft. Preserves harvest
+          (every committed value is on every member);
+          refuses writes during partition that loses quorum.
+          Correct for the workload (configuration source of
+          truth) — partial configuration would corrupt
+          downstream services.
+        - CLUSTER_DOCTOR snapshot is implicitly PARTITIONED
+          across collectors. Each collector reports its piece;
+          the snapshot is the assembly. Under fault some
+          collectors time out and contribute nothing — that is
+          reduced harvest. The doctor's correctness depends on
+          recognizing partial snapshots as such (see
+          objectstore.partial_snapshot_unknown_not_down).
+
+      What this principle reveals: the choice is mostly
+      correct for our existing stateful subsystems, but it
+      has been implicit. The risk is in new subsystems where
+      the choice was not deliberate. The principle asks: for
+      every persistent-state subsystem, was the
+      replication-vs-partitioning choice made with awareness
+      of which availability dimension is being preserved?
+
+      Distinct from partition_response_must_be_predeclared:
+      that principle is about HOW to respond to a partition;
+      this is about WHICH availability dimension the design
+      preserves. They compose — the partition response
+      depends on which dimension you decided to keep.
+    enforcement: |
+      For every new persistent-state subsystem, the design
+      document must state:
+
+        1. WHETHER the data is replicated, partitioned, or
+           hybrid.
+        2. WHICH availability dimension this preserves under
+           single-node fault (yield, harvest, or both within
+           a tolerance).
+        3. WHICH availability dimension is reduced when the
+           tolerance is exceeded.
+        4. WHETHER the workload tolerates the chosen reduction
+           — explicit reasoning, not "it should be fine."
+
+      For existing subsystems where the choice was implicit,
+      document the actual behavior in the awareness annotation
+      so the choice is auditable.
+
+      Capacity planning implications:
+        - Replicated subsystems need DQ budget equal to base
+          load + redirected load from failed replicas.
+        - Partitioned subsystems need data layout that
+          minimizes the harvest impact of single-node loss
+          (randomize partitioning so loss is uniform, not
+          concentrated in one important partition).
+
+      Forbidden patterns:
+        - Persistent storage choice made without naming the
+          availability-dimension tradeoff.
+        - "Replicated is more available" reasoning without
+          quantifying the yield reduction under fault.
+        - Partitioned systems where single-node loss causes
+          uneven harvest reduction (one important partition
+          gone, others unaffected) without explicit awareness.
+    forbidden_fixes:
+      - forbidden.persistent_storage_choice_without_dimension_tradeoff
+      - forbidden.replicated_is_more_available_without_yield_quantification
+      - forbidden.partitioned_with_uneven_harvest_loss_without_awareness
+    related_invariants:
+      - meta.partition_response_must_be_predeclared
+      - meta.bounded_staleness_must_be_named_not_assumed
+      - meta.harvest_and_yield_are_distinct_availability_dimensions
+      - meta.competing_writers_must_converge_or_be_fenced
+
+  - id: meta.load_redirection_must_be_explicit_capacity_planning
+    title: "Replication does not preserve yield unless surviving nodes have spare capacity to absorb redirected load — and that capacity must be measured, not assumed"
+    category: dependency
+    antipattern: "We replicate so we can handle node loss"
+    wrong_instinct: Replication feels like a complete answer to node loss — the data is on other nodes, so requests can be served from those. But "can be served" assumes the surviving nodes have the spare capacity to absorb the failed node's load. At typical production utilization (80 percent reported by Brewer), surviving nodes are nearly saturated even at full strength; absorbing the load of a failed peer can push them over the edge. The cascade is invisible until it happens.
+    severity: critical
+    status: candidate
+    summary: |
+      Brewer named this the LOAD REDIRECTION PROBLEM. "The
+      traditional view of replication silently assumes that
+      there is enough excess capacity to prevent faults from
+      affecting yield... Under high utilization, this is
+      unrealistic." His arithmetic shows the cost is sharper
+      than intuition suggests.
+
+      With n nodes and k failures, the surviving n - k nodes
+      must absorb the load formerly carried by k. Each
+      survivor's load multiplier is n / (n - k). For a
+      5-replica group losing 2 nodes, that is 5/3 — each
+      survivor now carries 166 percent of normal load. If the
+      survivors were at 80 percent utilization at full
+      strength, they now need 133 percent of their capacity,
+      which is impossible. Yield drops anyway, despite the
+      data being available.
+
+      The same arithmetic generalizes. Brewer's Table 1:
+
+        - 1 failure of n: surviving nodes carry 1/(n-1) extra,
+          overload factor n/(n-1).
+        - k failures: surviving carry k/(n-k) extra, overload
+          factor n/(n-k).
+
+      As k approaches n/2, the overload factor grows quickly.
+      Most replicated systems plan for 1 failure; few plan for
+      2 simultaneous failures; almost none plan for more. And
+      faults that arrive in correlated bursts — power events,
+      network partitions, software bugs that hit all
+      replicas — are exactly the cases where k > 1.
+
+      The fix Brewer proposes: budget EXCESS DQ, not just
+      excess data copies. Specifically:
+
+        - Provision the cluster to keep utilization low
+          enough that k expected failures still leave excess
+          headroom on survivors.
+        - Use graceful degradation (admission control, query
+          reduction) when the headroom is exhausted, rather
+          than letting survivors saturate and fail.
+        - Plan for correlated failure modes explicitly.
+
+      For Globular, the principle bites at several layers:
+
+        - Leader-only services (cluster_controller,
+          authentication) have an implicit redirection
+          contract — when the current leader fails, the new
+          leader inherits ALL the load instantly. We do not
+          measure whether the cold-leader node had the spare
+          DQ to absorb this on takeover. The new leader may
+          spend its first minutes saturated, increasing the
+          MTTR of the takeover itself.
+        - Scylla replicas at RF=3 with N=5 nodes can lose 2
+          nodes and stay quorate, but the remaining 3 carry
+          5/3 = 166 percent of normal load. Production read
+          rate has been near 70 percent utilization in load
+          tests; under 2-node loss the survivors would need
+          117 percent of their capacity. Not provisioned.
+        - MinIO erasure-coded pools have a similar
+          redirection — surviving nodes absorb the lost
+          node's IO. Within erasure tolerance the data is
+          still served, but the IOPS budget shifts.
+        - Workflow service dispatch under controller failover.
+          The takeover node inherits the entire dispatch
+          queue, including pending defers. If the queue is
+          deep, the takeover stalls until it drains.
+
+      The principle is operationally measurable. Brewer's DQ
+      framework gives the language — multiply current
+      utilization by the overload factor to estimate the
+      surviving nodes' load under expected k. If the product
+      exceeds 100 percent, the cluster cannot preserve yield
+      under that k without graceful degradation.
+    enforcement: |
+      For every cluster-scope subsystem that uses replication
+      for availability:
+
+        1. NAME the maximum k (concurrent failures) the
+           subsystem must absorb without yield reduction.
+        2. MEASURE current utilization at full strength.
+        3. COMPUTE the overload factor — utilization times
+           n/(n-k) — and verify the product is below the
+           subsystem's saturation threshold.
+        4. If the product exceeds threshold, either add nodes
+           (reduce per-node utilization) OR design graceful
+           degradation (reduce DQ at the application layer when
+           survivor saturation is detected).
+
+      For correlated failure modes:
+        - Identify the cases where multiple replicas can fail
+          simultaneously (rack-level power, network spine,
+          shared OS update, region-wide event).
+        - Verify the k from those cases stays within budget.
+
+      For leader-failover subsystems:
+        - Measure the leader's load and assert the warmest
+          successor has the headroom to absorb it.
+        - If headroom is insufficient, schedule warm-up work
+          (cache priming, connection establishment) on the
+          successor so the takeover is fast.
+
+      Forbidden patterns:
+        - Replication-based availability claim without
+          load-redirection capacity analysis.
+        - Leader failover without measuring the successor's
+          ability to absorb the leader's load.
+        - "We have RF=N" as a sufficient answer to "can the
+          cluster survive k failures."
+        - Saturation under failover treated as a separate
+          issue from the failover itself.
+    forbidden_fixes:
+      - forbidden.replication_without_load_redirection_capacity_check
+      - forbidden.leader_failover_without_successor_headroom_check
+      - forbidden.replication_factor_without_overload_factor_analysis
+    related_invariants:
+      - meta.failure_response_must_contract_not_amplify
+      - meta.replication_vs_partitioning_chooses_availability_dimension
+      - meta.critical_path_no_non_critical_dependency
+      - meta.feedback_loop_must_be_faster_than_drift
+
+  - id: meta.graceful_degradation_is_the_normal_mode_not_an_exception
+    title: "Saturation is the normal operating mode for production systems — graceful degradation is the explicit response, not an emergency fallback"
+    category: lifecycle
+    antipattern: "Provision for peak load and saturation will not happen"
+    wrong_instinct: Saturation feels like a rare emergency — something the system enters only when capacity planning failed. So degradation behavior is treated as last-resort, often unwritten, sometimes never tested. But Brewer's measurements showed peak-to-average ratios of 1.6 to 6 in production traffic; provisioning for peak would mean running at 17 to 60 percent average utilization, which is uneconomical. So real systems run hot, and saturation is regular not rare. Treating it as an emergency leaves the response to that emergency unpracticed and undocumented.
+    severity: critical
+    status: candidate
+    summary: |
+      Brewer's exact observation: "the peak-to-average ratio
+      for giant-scale systems seems to be in the range of 1.6
+      to 6, which can make it expensive to build out capacity
+      well above the (normal) peak." Provisioning for peak
+      with comfortable headroom means most resources sit idle
+      most of the time. So production systems run at high
+      utilization, and saturation events are not rare —
+      they are expected.
+
+      The realistic mode of a production system is:
+
+        - Normal operation at high utilization (70 to 85
+          percent commonly).
+        - Single-event bursts where load spikes 2 to 10x
+          (Brewer's moviephone.com Star Wars example added
+          10x capacity for ticket sales and still got
+          overloaded).
+        - Correlated failures that reduce capacity exactly
+          when surviving nodes need it most (see
+          load_redirection_must_be_explicit_capacity_planning).
+
+      Each of these is a saturation event. The system spends
+      meaningful time saturated. The principle says GRACEFUL
+      DEGRADATION is the explicit policy that decides what
+      the system does during saturation — and it must be a
+      first-class design feature, not an undocumented
+      emergency.
+
+      Brewer names three concrete mechanisms:
+
+        - ADMISSION CONTROL — refuse some queries before they
+          consume resources. Cost-based AC refuses expensive
+          queries first; priority-based AC refuses low-value
+          queries first; value-based AC drops queries below
+          some payoff threshold.
+        - DYNAMIC DATABASE REDUCTION — reduce data per
+          query, increasing yield at the cost of harvest.
+          Examples: stock-quote freshness reduced under load,
+          search index thinned during peak.
+        - HYBRID — combine the two; reduce some queries
+          AND reduce per-query work.
+
+      For Globular today, most subsystems silently error or
+      time out under saturation. There is no explicit
+      degradation mode for:
+
+        - cluster_doctor under load — the collector either
+          completes its sweep or times out partial. There is
+          no "I am saturated, run a reduced sweep, surface
+          fewer findings" policy.
+        - Workflow dispatcher under burst — the dispatcher
+          tries to dispatch every workflow run; under heavy
+          burst, it backs off via circuit breaker (which is
+          good) but does not select which runs to drop versus
+          defer (which would be graceful degradation).
+        - MCP under high request volume — every tool call
+          gets full treatment; no admission control by tool
+          cost or caller priority.
+        - Repository under bursty publish (e.g. during a
+          large platform release) — every artifact gets the
+          same verification flow; no priority for bootstrap-
+          critical packages over awareness-bundles.
+
+      The principle says: each subsystem should HAVE an
+      explicit degradation mode, named in design and exposed
+      via metrics, that operators can observe and tune. The
+      mode should be exercised regularly (not only during
+      real incidents) so it works when needed.
+
+      The principle is dual with
+      load_redirection_must_be_explicit_capacity_planning. That
+      principle says "measure your overload factor." This
+      principle says "have a response for when the overload
+      factor is exceeded that is not just 'fail.'"
+    enforcement: |
+      For every subsystem that serves requests under variable
+      load:
+
+        1. IDENTIFY the saturation threshold — utilization or
+           queue depth or RPC rate above which the subsystem's
+           latency or error rate sharply degrades.
+        2. DESIGN an explicit degradation mode for the regime
+           above the threshold. Three Brewer-style options
+           are available — admission control, dynamic content
+           reduction, or hybrid.
+        3. EXPOSE the degradation mode via metrics. Operators
+           should be able to see "the system is currently in
+           degraded mode" as a first-class signal.
+        4. EXERCISE the degradation mode under controlled
+           load. A degradation mode that has never been
+           exercised will not work when needed.
+
+      For admission control:
+        - Prefer cost-based AC (refuse expensive queries) when
+          query cost varies widely.
+        - Prefer priority-based AC (refuse low-priority work)
+          when callers have known tiers.
+        - Surface refusals as a distinct outcome class so
+          callers can adapt.
+
+      For content reduction:
+        - Identify the smallest answer that satisfies the
+          query's purpose.
+        - Reduce harvest before reducing yield where the
+          workload tolerates it.
+        - Surface the reduction in the response envelope so
+          consumers can know they got partial data
+          (see harvest_and_yield_are_distinct_availability_dimensions).
+
+      Forbidden patterns:
+        - Subsystems that have no explicit response to
+          saturation other than timing out or returning
+          errors.
+        - Degradation modes that exist but are not exposed
+          via metrics.
+        - "We will design degradation when we hit scale" —
+          the path the system takes at peak load needs to be
+          tested at low load.
+        - Treating an unplanned timeout cascade as the de
+          facto degradation policy.
+    forbidden_fixes:
+      - forbidden.no_explicit_degradation_mode_above_saturation_threshold
+      - forbidden.degradation_mode_without_observability
+      - forbidden.untested_degradation_path
+    related_invariants:
+      - meta.load_redirection_must_be_explicit_capacity_planning
+      - meta.harvest_and_yield_are_distinct_availability_dimensions
+      - meta.failure_response_must_contract_not_amplify
+      - meta.bad_path_must_make_progress
