@@ -1764,3 +1764,491 @@ invariants:
       - meta.half_done_must_not_look_done
     related_failure_modes:
       - workflow.abandoned_defer_never_retried
+
+  - id: meta.timeout_is_a_decision_not_a_truth
+    title: "A timeout means 'I did not hear back in time' — never 'the other side failed'"
+    category: signal
+    antipattern: "Connection timed out, so the service is down"
+    wrong_instinct: A timeout feels definitive because it's a hard boundary — the request didn't complete in the budget. But that's a statement about YOUR observation, not the world. The other side could be slow but proceeding, finished but with the response in flight, blocked on something you don't see, or actually down. Turning a four-way uncertainty into a binary "down" is a lie the system then makes decisions on.
+    severity: critical
+    status: candidate
+    summary: |
+      A timeout is the failure of an OBSERVATION to complete within a
+      budget — not the failure of the OBSERVED actor. Tanenbaum's first
+      fallacy ("the network is reliable") has a direct corollary:
+      timeouts are not decisive. Code that treats
+      `err == context.DeadlineExceeded` as proof of remote failure
+      makes consequential decisions on incomplete information.
+
+      What a timeout can actually mean:
+        1. The other side is slow but still working.
+        2. The other side finished; the response is in flight or queued.
+        3. The other side is blocked on a dependency it can't reach.
+        4. The other side is actually down.
+        5. The PATH between us is broken; the other side is fine.
+        6. YOUR observer is overloaded and missed the response.
+
+      Without additional evidence, none of these can be distinguished.
+      Code that picks one — usually (4) — and proceeds is making a
+      consequential decision on a one-bit signal that doesn't carry
+      enough information to support that decision.
+
+      Bug shapes from our history:
+        - INC-2026-0004 collector partial snapshot: a 5s timeout on a
+          node's inventory query was classified as "node absent." The
+          doctor then aggregated this absent-observation into a
+          "cluster lost quorum" finding. The node was healthy; the
+          collector's budget was too short. 100+ false findings per
+          minute resulted.
+        - VIP-keepalived eviction: a controller decided a peer had
+          failed because its heartbeat timed out → quorum action →
+          real outage. The peer was reachable through a different
+          route the controller didn't try.
+        - MinIO partial snapshot inventory: nodes that didn't respond
+          in time were marked "down" — leading to false quorum-loss
+          findings that cascaded into automatic remediation.
+        - Workflow dispatch RPC timing out: the workflow MIGHT have
+          started. Treating it as "didn't start" risks dispatching
+          twice. (See related: idempotence_is_a_requirement_not_a_quality.)
+
+      The principle is NOT "never act on a timeout." Sometimes you must.
+      The principle is "act with explicit acknowledgement that the
+      action is being taken under uncertainty, and the system records
+      that uncertainty rather than upgrading the observation to a fact."
+    enforcement: |
+      Every code path that handles a timeout MUST:
+
+        1. Distinguish "timeout" from "remote error returned" — they
+           are different signals and merge to the same logged-error
+           type only by mistake.
+        2. Model "unknown" as a third state distinct from "known-up"
+           and "known-down." Where the consumer can't represent
+           three-valued state, document the assumption being made.
+        3. When a decision MUST be made on the timeout (because the
+           caller can't wait forever), either:
+              (a) Pick the SAFE-DEFAULT option that doesn't presume
+                  the other side's state — usually retry with
+                  exponential backoff and a final ABANDON terminal
+                  state (see bad_path_must_make_progress).
+              (b) Cross-check with a different observer before acting.
+              (c) Explicitly log "made under timeout uncertainty, may
+                  be wrong" so the audit trail names the gamble.
+        4. When acting on a timeout would mutate cluster state
+           (quorum changes, leader transitions, drains), the action
+           MUST require an explicit confirmation from a second source
+           — a different probe, a different observer, or a wait period.
+
+      Particular forbidden patterns:
+        - Treating timeout as "node is down" in the collector layer.
+        - Treating timeout as "service is unhealthy" in health rules
+          without retry or cross-check.
+        - Treating dispatch-RPC timeout as "didn't start" — proceed
+          only when the dispatched action is idempotent.
+    forbidden_fixes:
+      - forbidden.treat_timeout_as_remote_failure
+      - forbidden.classify_absent_observation_as_known_down
+      - forbidden.cluster_state_mutation_on_single_timeout
+    related_invariants:
+      - meta.absence_scope_must_be_explicit
+      - meta.authority_must_express_uncertainty
+      - meta.connection_errors_must_not_be_absorbed
+      - meta.idempotence_is_a_requirement_not_a_quality
+    related_failure_modes:
+      - fm.industry.missing_inventory_misclassified_as_down
+      - fm.globular.objectstore_partial_snapshot
+
+  - id: meta.idempotence_is_a_requirement_not_a_quality
+    title: "Every operation that can be retried, replayed, or re-dispatched MUST be idempotent — there is no 'might be retried'"
+    category: lifecycle
+    antipattern: "We'll make it idempotent later if we need to"
+    wrong_instinct: Idempotence reads like a property — "this operation happens to be safe to run twice." That framing makes it optional, something you adopt once a problem shows up. But in any system with retry, restart, dispatch deduplication, workflow resume, or message redelivery, every operation will eventually run multiple times. Whether the operation is idempotent determines whether the system is correct or corrupted.
+    severity: critical
+    status: candidate
+    summary: |
+      In any system with retry budgets, workflow resume, dispatch
+      deduplication, restart safety, hot-standby failover, or message
+      replay, EVERY operation is potentially executed more than once.
+      This is not the exception; it is the design surface. Code MUST
+      be written assuming multi-execution is the normal case.
+
+      Pat Helland's framing: every state mutation should be MEMOIZED —
+      keyed by a stable identifier so the system can recognize "I've
+      already done this and don't need to do it again." Memoization
+      is to operations what content-addressing is to data: both turn
+      "have I seen this?" from a hard question into a hash lookup.
+
+      Bug shapes:
+        - Workflow step that creates a resource without IF NOT EXISTS:
+          attempt 1 creates it, transient network glitch, attempt 2
+          fails because "already exists." The workflow's terminal
+          status records FAILED. Reality: the resource was successfully
+          created on attempt 1. The audit trail is now a lie.
+        - Counter increment via raw `UPDATE c SET v = v + 1`: every
+          retry double-counts. Must be UPSERT with a dedup key, or a
+          conditional update keyed on a prior-value guard.
+        - DDL: CREATE TABLE without IF NOT EXISTS fails on replay.
+          ALTER TABLE may be entirely non-idempotent and require a
+          version check + skip pattern.
+        - Notification dispatch: "send the email" run twice = 2
+          emails. Either the email queue dedups by message-id (good)
+          or the dispatcher checks a sent-log first (also good); a
+          bare `send()` call is not safe.
+        - File-system writes that append: every replay re-appends.
+          Use content-addressed paths or overwrite-with-known-content
+          semantics.
+
+      Distinct from `meta.state_mutations_must_be_durably_committed_before_side_effects`:
+      that principle is about INTENT — the workflow record must
+      commit before any side effect runs, so a restart can find
+      "where am I?" THIS principle is about EFFECT — each side
+      effect must be repeatable so finding "where am I?" and
+      continuing from there doesn't double-apply.
+
+      Both are required and neither replaces the other. Together they
+      give the system the property: "any operation that's been
+      committed can be safely resumed from any in-progress point."
+    enforcement: |
+      Every step in a workflow, every handler an actor exposes, every
+      retry-capable RPC must satisfy idempotence one of two ways:
+
+        (a) Built into the operation: UPSERT, CREATE IF NOT EXISTS,
+            content-addressed file paths, conditional updates with
+            prior-value or version guards.
+        (b) Guarded by a dedup check at the caller: read
+            already-applied marker, skip if present.
+
+      Test pattern: every retryable operation must have a test that
+      invokes it twice in succession and asserts the system state is
+      identical to invoking it once. "Run it twice; assert same
+      result" is the contract.
+
+      Operations that GENUINELY cannot be made idempotent (one-shot
+      irreversible signals to an external system, payment capture,
+      etc.) must be:
+        1. Marked explicitly in code as NOT_IDEMPOTENT.
+        2. Dispatched only through a workflow step that holds an
+           at-most-once execution gate (persistent attempt record +
+           single-execution lock + post-execution acknowledgement).
+        3. The fact that the step is non-idempotent must be visible
+           in the audit trail and the workflow YAML.
+
+      The default assumption — "this operation is safe to retry" —
+      must be backed by code or refused. "It's probably fine" is not.
+    forbidden_fixes:
+      - forbidden.add_retry_to_non_idempotent_operation
+      - forbidden.assume_first_attempt_succeeded_on_retry_eligible_failure
+      - forbidden.non_idempotent_workflow_step_without_at_most_once_gate
+    related_invariants:
+      - meta.state_mutations_must_be_durably_committed_before_side_effects
+      - meta.write_creates_completion_obligation
+      - meta.timeout_is_a_decision_not_a_truth
+
+  - id: meta.topology_change_is_a_first_class_event
+    title: "Cluster topology is a dynamic input — code that caches it at startup operates on a snapshot that becomes a lie within minutes"
+    category: dependency
+    antipattern: "The endpoints I cached at startup are still good"
+    wrong_instinct: At any given second the cluster looks fixed — N nodes, M services, these routes, this leader. Code written against that snapshot looks correct in isolation. But topology changes during normal operation — leader elections, VIP migrations, joins, drains, cert rotations, service-config updates. Each is a routine event, not an exception. Code that doesn't subscribe to topology changes caches a snapshot that becomes false within minutes — and then makes decisions on the false snapshot until something else fails loudly enough to force a reload.
+    severity: critical
+    status: candidate
+    summary: |
+      Distributed system topology — peer addresses, leader identity,
+      VIP holder, service ports, membership, certificate validity,
+      route reachability — changes during NORMAL cluster operation.
+      Tanenbaum's sixth fallacy ("the topology doesn't change") is
+      false in every operator-grade system. Code that treats topology
+      as a startup-time fact will operate on stale data within
+      minutes of any normal cluster activity.
+
+      The pattern: every piece of topology data has an implicit
+      freshness contract. Code that consumes topology must either:
+        (a) Subscribe to changes — etcd watch, mesh discovery, event
+            bus — and react when the watched key changes.
+        (b) Re-fetch on a bounded interval AND refuse to act on data
+            past the freshness bound (see bounded_staleness_must_be_named).
+        (c) Explicitly accept staleness with a documented bound and
+            a documented response when the bound is exceeded.
+
+      Bug shapes from our codebase:
+        - INC-2025: keepalived/etcd eviction. PrimaryIP() returned the
+          floating VIP on the VIP-holder node; controllers cached the
+          returned address at startup. When the VIP migrated, every
+          decision keyed on PrimaryIP was now keyed on whatever node
+          happened to hold the VIP — a moving target. Multiple
+          incidents traced to this single missing topology
+          subscription.
+        - gocql session pinned to a single seed: when the seed went
+          down, the session's view of the ring was frozen at the
+          last refresh. Group 0 stale-voter detection failures came
+          from this — the gocql client routed system.local and
+          system.peers to different nodes that disagreed about
+          membership.
+        - DNS records cached past TTL: services that resolved a peer's
+          name once at startup kept hitting the dead address after a
+          rebalance.
+        - /etc/hosts vs etcd: /etc/hosts is a snapshot; etcd is the
+          live view. Code that read /etc/hosts at startup missed
+          every subsequent change. The fix was always "read from
+          etcd" — but the bug recurred because new code defaulted to
+          /etc/hosts.
+        - Leader-aware code that determined leadership at startup:
+          when the leader transitioned, the code kept acting as the
+          old leader. Multiple incidents — eventually fixed by
+          subscribing to the lease key.
+
+      A topology change should produce a structured event that any
+      observer can subscribe to: leader transitioned, VIP moved, node
+      joined, cert rotated. If the producer of the change can't emit
+      such an event, that's the bug — not the consumer's
+      cache-staleness handling.
+    enforcement: |
+      All inter-service addresses, leader identities, VIP holders,
+      service ports, node memberships, certificate validity, route
+      reachability MUST come from a live source:
+        - etcd watches on the canonical key
+        - cluster controller RPC with bounded freshness
+        - service-mesh discovery (xDS)
+        - event-bus subscriptions for cluster events
+
+      Forbidden sources for topology:
+        - Reads from a configuration file written at install time.
+        - Startup-time DNS resolution cached for the process lifetime.
+        - "Bootstrap" addresses passed via env-var or flag once.
+        - Snapshots of cluster state taken at one moment and reused
+          without a freshness check.
+
+      Cached topology data MUST declare its staleness contract — see
+      bounded_staleness_must_be_named_not_assumed — and MUST refuse
+      to make consequential decisions past the bound. "Consequential"
+      means anything that mutates state, dispatches to a peer, or
+      reports cluster-wide health.
+
+      Topology change MUST emit a structured event from the producer
+      (the actor that owns the truth) so consumers can react. A
+      producer that mutates topology without emitting the event is
+      the root cause of every downstream stale-cache bug.
+
+      Tests for topology-aware code must include "membership changed
+      during operation" as an explicit case — not as an end-of-test
+      cleanup, but as the scenario under test.
+    forbidden_fixes:
+      - forbidden.cache_peer_address_at_startup_without_refresh
+      - forbidden.read_topology_from_config_file_at_runtime
+      - forbidden.treat_stable_topology_as_invariant
+      - forbidden.mutate_topology_without_emitting_event
+    related_invariants:
+      - meta.connection_errors_must_not_be_absorbed
+      - meta.bounded_staleness_must_be_named_not_assumed
+      - meta.binding_outlives_evidence_until_invalidated
+      - meta.competing_writers_must_converge_or_be_fenced
+    related_failure_modes:
+      - fm.globular.vip_transition_cascade
+
+  - id: meta.bounded_staleness_must_be_named_not_assumed
+    title: "Cached, replicated, or derived state must declare its staleness contract — 'eventually consistent' is a category, not a contract"
+    category: authority
+    antipattern: "It'll catch up eventually"
+    wrong_instinct: When you cache or replicate data, the optimistic view is that callers don't really care about being slightly stale — they'll re-read soon, or the staleness window is "small enough." But "small enough" relative to what? Without a named bound, every caller adopts a different assumption — the dashboard refreshes every 5s, the reconciler runs every 30s, the doctor every 5m, each treating the data as authoritative for its own purposes. Each is operating under a different staleness; the system invariant they share becomes undefined.
+    severity: critical
+    status: candidate
+    summary: |
+      Any data source that is NOT the authoritative writer — caches,
+      read replicas, eventually-consistent stores, async projections,
+      derived views, memoized results — has a STALENESS contract. The
+      contract names how far behind the canonical truth the source
+      can be while still being authoritative for a particular kind
+      of decision. Without a named contract, every consumer assumes
+      a different bound; the system's correctness becomes undefined.
+
+      "Eventually consistent" is a CATEGORY, not a contract. The
+      contract is the latency bound on that eventuality: "consistent
+      within 1 etcd watch tick", "consistent within 30s of the
+      source's write", "consistent within the next reconciler cycle."
+      Without the bound, callers cannot reason about whether the data
+      they're reading is authoritative for the decision they're
+      about to make.
+
+      Bug shapes we have hit:
+        - Awareness graph staleness — the topic that surfaced this
+          session. A memory recorded from a prior cluster session
+          referenced a file path that had since been renamed. The
+          stale memory was retrieved as authoritative; the
+          recommendation was for code that no longer existed. The
+          missing piece was the staleness contract: memories about
+          repo state are stale-at-record-time and must be verified
+          against current state before acting on them. The fix
+          (project_stale_context_detection.md) IS the missing
+          contract being added retroactively.
+        - etcd watch lag: a service that writes a key and then
+          immediately reads-via-watch expects to see its own write.
+          The watched view may be lagging by tens to hundreds of
+          milliseconds. Without a contract, the service makes
+          decisions on stale state and silently corrupts.
+        - gocql queries at consistency=ONE: reads may return values
+          the writer hasn't yet propagated to other replicas.
+          Acceptable when staleness is named (e.g., "this is OK for
+          dashboard purposes; reconciliation uses LOCAL_QUORUM").
+          Corrupting when assumed away.
+        - doctor's installed_state observation: read from a Phase 2
+          inventory updated every N seconds. Decisions on "is the
+          cluster converged?" are correct only if N is named and
+          the decision logic respects it. We had incidents where
+          convergence verdicts were made on inventories that were
+          older than the cycle the verdict was meant to cover.
+        - DNS records: TTL is the staleness contract. Code that
+          resolves and caches without TTL respect breaks during
+          normal operations — the bind here is rare but lethal.
+
+      The principle generalizes the database concept of "bounded
+      staleness" (CosmosDB, Spanner) to anywhere caching or
+      replication occurs in the system.
+    enforcement: |
+      Every data source that is NOT the authoritative writer must
+      declare three properties:
+
+        1. STALENESS BOUND — the max age at which the data can still
+           be treated as authoritative. Expressed in time (seconds)
+           or in source events (cycles, watch ticks, replication
+           events).
+        2. SOURCE-OF-TRUTH POINTER — where to refetch when the
+           bound is exceeded or when authoritative-now is required.
+        3. EXCEEDED BEHAVIOR — what to do when the bound is hit
+           but no fresh data is available: refuse to serve, return
+           a "stale" marker, escalate to the source, etc.
+
+      Decision points must respect the bound:
+        - "Current leader identity" needs ≤1 lease-tick staleness
+          before quorum-affecting actions.
+        - "Current installed version" needs ≤N reconciler cycles
+          before "converged" verdicts.
+        - "Current routable peers" needs ≤N etcd-watch ticks before
+          dispatching cross-node work.
+
+      Forbidden patterns:
+        - "Eventually consistent" as a documented contract with no
+          bound.
+        - Serving cached values past the staleness window without
+          marking the response as stale.
+        - Treating any replicated or cached state as authoritative
+          without naming its staleness profile.
+
+      Tests: any code that consumes cached/replicated state must
+      have a test that fixes the cache at the staleness boundary AND
+      a test that pushes it past, asserting different (correct)
+      behavior in each case.
+    forbidden_fixes:
+      - forbidden.eventually_consistent_with_no_bound
+      - forbidden.serve_cached_value_past_staleness_window
+      - forbidden.treat_replicated_state_as_authoritative_without_naming_staleness
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
+      - meta.identity_computation_must_be_invariant
+      - meta.fallback_must_degrade_semantics
+      - meta.end_to_end_check_is_the_only_truth
+
+  - id: meta.partition_response_must_be_predeclared
+    title: "An actor's response to network partition must be decided BEFORE the partition occurs — choosing in the moment is the bug"
+    category: dependency
+    antipattern: "If we get partitioned, we'll figure out what to do"
+    wrong_instinct: A network partition is rare, so it feels reasonable to defer thinking about partition response until it happens. But partition response cannot be a runtime choice — different code paths under partition will choose differently, and the actor's behavior under partition becomes a function of which call site fired first. The CAP theorem isn't a permission to choose under fire; it's a forcing function to commit to a posture before the partition occurs so the system has consistent behavior under stress.
+    severity: critical
+    status: candidate
+    summary: |
+      Brewer's CAP theorem says that during a network partition, a
+      system can serve consistent reads (CP) OR remain available (AP),
+      not both. The principle here is the operationalization: every
+      actor or service in the system MUST predeclare its partition
+      response — what it will do when it can't reach its quorum, its
+      coordinator, its peers, or its sources of authoritative state.
+
+      "Predeclare" means the choice is encoded in the actor's design,
+      visible in code and documentation, and consistent across every
+      code path. NOT a runtime choice taken per-call by whichever
+      function happens to fire first.
+
+      Predeclared CP postures in our system:
+        - etcd: refuses writes during partition; the operator
+          accepts unavailability for consistency.
+        - cluster_controller (when not leader): refuses state-changing
+          RPCs and proxies to the leader; under partition with no
+          leader, RPCs fail closed.
+        - workflow service: refuses to dispatch when the actor
+          endpoint can't be confirmed reachable; failure is loud.
+
+      Predeclared AP postures:
+        - MinIO erasure coding within tolerance: continues serving
+          reads/writes while parts of the storage pool are
+          unreachable.
+        - DNS service: serves cached records past authoritative
+          bound, marking responses as stale.
+        - Day-0 bootstrap window: a deliberate "we are operating in
+          a degenerate trust partition; we accept the loss of
+          consistency for the bounded bootstrap period." This IS a
+          predeclared partition response.
+
+      The bug shape — UN-predeclared partition response:
+        - cluster_doctor rules each handle "absent observation"
+          differently. Some treat absence as known-down (AP-flavored
+          choice); others as unknown (CP-flavored choice). The doctor's
+          aggregate behavior under partition is a function of which
+          rules fire — that's not a posture, it's accidental policy.
+          (Fixed in objectstore.partial_snapshot_unknown_not_down,
+          but the meta-principle was never stated.)
+        - Reconciler decisions about "this node hasn't reported in N
+          minutes" — different reconciler paths choose differently:
+          some skip the node, some treat the absence as "needs
+          repair." Same code base, inconsistent partition response.
+        - Service mesh that proxies under partition: some routes
+          fail loudly, some serve cached responses, some return
+          empty results. The same partition produces different
+          observable behavior depending on which URL the user hits.
+
+      The principle: every actor must be able to answer the question
+      "what does this actor do when it can't reach its dependencies?"
+      with a single, documented, code-consistent answer.
+
+      This is distinct from circular_dependency_must_have_break_glass:
+      that principle is about deploy-time cycles. This is about
+      runtime stress response. Both belong to Dependency because both
+      are about what holds the system together when the graph between
+      components is unreliable.
+    enforcement: |
+      Every actor (service, daemon, workflow handler) must have a
+      DOCUMENTED partition posture, named in either:
+        - Its top-of-file @awareness annotation
+        - Its README or doc/services/<name>.md
+        - The actor's gRPC service-level Doc string
+
+      The posture must specify, for each dependency the actor
+      consumes:
+        1. CP vs AP under partition with that dependency
+        2. What "unreachable" means concretely (timeout, error code,
+           absence of heartbeat)
+        3. What the actor returns to its callers under that partition
+           (error code, stale data, refusal, degraded service)
+        4. What state mutations are gated on the dependency's
+           reachability
+
+      Code review must verify:
+        - All code paths under "dependency unreachable" produce
+          consistent behavior matching the declared posture.
+        - The posture is testable: there is a test that simulates
+          the partition and asserts the declared behavior.
+
+      Forbidden:
+        - Different code paths for the same actor responding to the
+          same partition with different postures.
+        - "Best effort" responses with no declared posture — best
+          effort is not a posture, it's an admission of incoherent
+          design.
+        - Defaulting to "serve cached data" or "treat as failed"
+          based on accident-of-call-order rather than declared
+          posture.
+    forbidden_fixes:
+      - forbidden.choose_partition_response_at_runtime
+      - forbidden.different_code_paths_different_postures
+      - forbidden.best_effort_response_without_declared_posture
+    related_invariants:
+      - meta.bounded_staleness_must_be_named_not_assumed
+      - meta.timeout_is_a_decision_not_a_truth
+      - meta.absence_scope_must_be_explicit
+      - meta.circular_dependency_must_have_break_glass
