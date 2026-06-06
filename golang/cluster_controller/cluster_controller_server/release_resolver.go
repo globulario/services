@@ -433,7 +433,7 @@ func (r *ReleaseResolver) dialRepositoryDirect(ctx context.Context, addr string)
 	if addr == "" {
 		repoCfg, err := config.GetServiceConfigurationsByName("repository.PackageRepository")
 		if err != nil || repoCfg == nil {
-			return nil, nil, fmt.Errorf("cannot resolve repository service config from etcd: %v", err)
+			return nil, nil, fmt.Errorf("cannot resolve repository service config from etcd: %w", err)
 		}
 		port, ok := repoCfg["Port"]
 		if !ok {

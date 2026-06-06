@@ -1233,7 +1233,7 @@ func EnsureLocalConfig() (bool, error) {
 			cfg = nil
 		} else if !isValidLocalConfig(cfg) {
 			if bakErr := backupConfigFile(cfgPath); bakErr != nil {
-				return false, fmt.Errorf("ensure local config: invalid contents and backup failed: %v", bakErr)
+				return false, fmt.Errorf("ensure local config: invalid contents and backup failed: %w", bakErr)
 			}
 			cfg = nil
 		} else {

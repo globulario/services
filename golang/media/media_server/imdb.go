@@ -81,7 +81,7 @@ func GetIMDBPoster(imdbID string) (string, error) {
 
 	if err := imgCollector.Visit(posterViewerURL); err != nil {
 		logger.Error("imdb viewer visit failed", "url", posterViewerURL, "err", err)
-		return "", fmt.Errorf("failed to visit viewer page: %v", err)
+		return "", fmt.Errorf("failed to visit viewer page: %w", err)
 	}
 	if posterURL == "" {
 		return "", fmt.Errorf("poster image not found")

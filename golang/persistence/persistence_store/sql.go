@@ -253,7 +253,7 @@ func (store *SqlStore) ExecContext(connectionId string, database string, query s
 		if execErr != nil {
 			_ = tx.Rollback()
 			log.Error("exec failed (tx)", "err", execErr, "query", query)
-			return "", fmt.Errorf("update failed: %v", execErr)
+			return "", fmt.Errorf("update failed: %w", execErr)
 		}
 		if err := tx.Commit(); err != nil {
 			log.Error("commit failed", "err", err)

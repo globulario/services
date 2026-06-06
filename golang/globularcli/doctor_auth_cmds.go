@@ -319,7 +319,7 @@ func runRecentDenials(cmd *cobra.Command) error {
 	logAddr := config.ResolveServiceAddr("log.LogService", "")
 	cc, err := dialGRPC(logAddr)
 	if err != nil {
-		return fmt.Errorf("cannot connect to log service: %v", err)
+		return fmt.Errorf("cannot connect to log service: %w", err)
 	}
 	defer cc.Close()
 

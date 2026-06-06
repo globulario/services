@@ -1053,7 +1053,7 @@ func (store *ScyllaStore) Count(ctx context.Context, connectionId, keyspace, tab
 	// Get table metadata to know partition key columns
 	km, err := session.KeyspaceMetadata(keyspace)
 	if err != nil {
-		return 0, fmt.Errorf("keyspace metadata error: %v", err)
+		return 0, fmt.Errorf("keyspace metadata error: %w", err)
 	}
 	if km == nil {
 		return 0, fmt.Errorf("keyspace not found: %s", keyspace)

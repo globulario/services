@@ -157,7 +157,7 @@ func openProjectionsSession(ctx context.Context) (*gocql.Session, error) {
 
 	hosts, err := config.GetScyllaHosts()
 	if err != nil || len(hosts) == 0 {
-		return nil, fmt.Errorf("cannot resolve ScyllaDB hosts from etcd: %v", err)
+		return nil, fmt.Errorf("cannot resolve ScyllaDB hosts from etcd: %w", err)
 	}
 
 	// Adapt consistency to the number of ScyllaDB nodes.

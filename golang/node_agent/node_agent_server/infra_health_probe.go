@@ -305,7 +305,7 @@ func validateScyllaRuntimePrereqs() error {
 	// trust in future TLS configurations). service.crt/.key are gRPC-only.
 	scyllaUser, err := user.Lookup("scylla")
 	if err != nil {
-		return fmt.Errorf("scylla user lookup failed: %v", err)
+		return fmt.Errorf("scylla user lookup failed: %w", err)
 	}
 	uid, err := strconv.Atoi(scyllaUser.Uid)
 	if err != nil {

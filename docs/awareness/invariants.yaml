@@ -7757,6 +7757,102 @@ invariants:
       workflow_step_handler_files: []
       unknown_helper_files: []
 
+    - id: errorf_must_use_w_verb_to_preserve_err_chain
+      title: fmt.Errorf wrapping an err must use %w, not %v — %v formats the message but breaks errors.Is/As traversal
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.connection_errors_must_not_be_absorbed
+        at the wrap-boundary level. The bug shape:
+
+          fmt.Errorf("cannot resolve repository service config from etcd: %v", err)
+
+        produces the same formatted output as the %w form but
+        DISCARDS the err chain. Callers receive a string but cannot
+        use errors.Is(err, context.DeadlineExceeded), errors.Is(err,
+        clientv3.ErrTimeout), errors.As(err, &netErr), or any typed-
+        error inspection. The class collapses to a generic string;
+        an outage that was previously diagnosable as "TLS handshake
+        timeout" becomes "string says timeout, who knows what kind."
+
+        The fix is mechanical: change %v to %w. Output identical;
+        wrapping behavior changes to preserve the chain.
+
+        2026-06-05 audit caught 8 sites across the broadened-scope
+        services and fixed them in the same commit:
+          - cluster_controller_server/projections_init.go:160
+          - cluster_controller_server/release_resolver.go:436
+          - config/config.go:1236
+          - globularcli/doctor_auth_cmds.go:322
+          - media/media_server/imdb.go:84
+          - node_agent/node_agent_server/infra_health_probe.go:308
+          - persistence/persistence_store/scylla.go:1056
+          - persistence/persistence_store/sql.go:256
+
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/release_resolver.go
+          - golang/cluster_controller/cluster_controller_server/projections_init.go
+          - golang/node_agent/node_agent_server/infra_health_probe.go
+          - golang/persistence/persistence_store/
+          - golang/config/config.go
+        symbols:
+          - "fmt.Errorf"
+      forbidden_fixes:
+        - forbidden.fmt_errorf_v_verb_for_wrapped_err
+      required_tests: []
+
+      related_invariants:
+        - meta.connection_errors_must_not_be_absorbed
+
+      actor_writer_dirs:
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/blog/blog_server
+        - golang/catalog/catalog_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/compute/compute_server
+        - golang/config
+        - golang/conversation/conversation_server
+        - golang/dns/dns_server
+        - golang/echo/echo_server
+        - golang/event/event_server
+        - golang/file/file_server
+        - golang/globular_client
+        - golang/globular_service
+        - golang/globularcli
+        - golang/ldap/ldap_server
+        - golang/log/log_server
+        - golang/mail/mail_server
+        - golang/media/media_server
+        - golang/monitoring/monitoring_server
+        - golang/node_agent/node_agent_server
+        - golang/persistence/persistence_store
+        - golang/persistence/persistence_server
+        - golang/rbac/rbac_server
+        - golang/repository/repository_server
+        - golang/resource/resource_server
+        - golang/search/search_server
+        - golang/sql/sql_server
+        - golang/storage/storage_server
+        - golang/title/title_server
+        - golang/torrent/torrent_server
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/connection_errors_fmt_verb_v_loses_chain.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
     - id: installed_package.timestamp_writers_must_preserve_during_observe
       title: InstalledPackage timestamp writers must preserve the install anchor during observe — never stomp with wall-clock time.Now()
       severity: critical
