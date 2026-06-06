@@ -1,4 +1,11 @@
-# Service Mobility — Prototype
+# Service Mobility
+
+## Status
+
+**Wired and runnable** as of 2026-06-06. The `globular service migrate`
+CLI command exists, talks to the live cluster, validates planned
+migrations end-to-end. Multi-node testing requires N≥2 and is the only
+remaining gap to production use.
 
 ## What it is
 
@@ -24,20 +31,55 @@ strictly stronger than replication for the single-node-loss case
 (replication preserves data but you still need to re-establish the
 service somewhere; mobility does both together).
 
-## What this prototype provides
+## What is wired up
 
-A single package at `golang/services_mobility/` containing:
+`golang/services_mobility/` provides the orchestration package:
 
 - `Orchestrator` — synchronous coordinator that walks one service from
   its current node to a target node.
 - `NodeAgentController` interface — the surface needed from a node-agent
-  client. Test fakes implement this directly.
+  client.
 - `ServiceRegistry` interface — the etcd-backed view of "where is each
-  service registered." Test fakes implement this directly.
+  service registered."
 - `Outcome` — every migration produces a structured record naming each
   step taken, the source and target nodes, and the failure (if any).
-  Outcomes are append-only during orchestration so post-incident review
-  can reconstruct the timeline.
+  Append-only during orchestration; post-incident review reconstructs
+  the timeline from the Outcome alone.
+
+`golang/services_mobility/impl_etcd_registry.go` — production
+`ServiceRegistry` that reads `/globular/services/<uuid>/config` and
+matches by Name. Resolves the registered Address to a node-ID via the
+caller-supplied IP→ID map.
+
+`golang/services_mobility/impl_nodeagent.go` — production
+`NodeAgentController` that holds a node-ID → AgentEndpoint map and
+dials node-agents with the cluster's service certificate. Implements
+all four interface methods (start, stop, binary-installed check,
+reachability probe) against the generated protobuf client.
+
+`golang/globularcli/service_migrate_cmd.go` + `service_migrate_etcd.go` —
+the CLI command. Resolves the controller via etcd service registration,
+calls ListNodes to build the topology, constructs the production impls,
+runs the orchestrator. Supports `--dry-run`, `--json`, and tunables
+for `--ready-timeout` / `--drain-grace` / `--poll-interval`.
+
+## Usage
+
+```
+# Dry-run: validate the plan, no side effects.
+globular service migrate ai-memory --to <node-id> --dry-run
+
+# Real migration.
+globular service migrate ai-memory --to <node-id>
+
+# JSON output for scripting.
+globular service migrate ai-memory --to <node-id> --json
+```
+
+When invoked from a node where the cluster's service certificates are
+not at the default paths, set the GLOBULAR_PKI_CA, GLOBULAR_PKI_CERT,
+and GLOBULAR_PKI_KEY environment variables to point at a valid
+client cert.
 
 ## What is proven
 
@@ -57,8 +99,15 @@ including:
 - Final-topology verification failure — catches race windows or etcd
   lag where the orchestrator's actions and the registry's view diverge.
 - Context cancellation during the drain grace period.
+- Outcome.FinishedAt propagates through named return (regression test
+  for a Go defer-vs-return gotcha caught during live CLI testing —
+  defer modifying a stack-local Outcome before `return out` does NOT
+  propagate the FinishedAt stamp).
 
-All ten test cases pass:
+All eleven test cases pass. Additionally, the CLI was exercised against
+the live cluster: `--dry-run` correctly resolved the registered service
+and matched it against the requested target, identifying the no-op
+case. `--json` output verified the named-return fix.
 
 ```
 $ go test ./services_mobility/ -v
@@ -93,22 +142,28 @@ on a multi-node cluster. Specifically:
   moment systemd stops it will fail and need client-side retry. Full
   connection migration is a follow-up.
 
-## What is NOT in scope here
+## What is NOT in scope yet
 
-This prototype deliberately does NOT include:
+The CLI is wired but several capabilities are deliberate follow-ups:
 
-- A proto definition for a `MigrateService` RPC.
-- A `globular service migrate` CLI subcommand.
+- A proto definition for a `MigrateService` RPC on cluster_controller.
+  Today the CLI orchestrates client-side; a server-side RPC would let
+  programmatic callers (workflow service, ai-executor) invoke mobility
+  without the CLI binary.
 - A workflow YAML (`cluster.service.migrate`) wrapping the orchestrator
-  with durable step receipts.
+  with durable step receipts. Today an orchestrator-process crash mid-
+  migration leaves the cluster in whatever step it reached; the
+  workflow lift gives resumable mobility.
 - An automatic mobility trigger based on cluster_controller's
-  node-health watcher.
+  node-health watcher. Today mobility is operator-triggered.
 - Multi-instance "rebalance" semantics (move K of N instances to
   spread load).
-- A general framework for any Globular service (this prototype is
-  shaped around stateful services whose state is Scylla-backed; other
-  shapes — pure stateless, MinIO-backed, in-memory-heavy — need
-  variants of the same protocol).
+- A general framework for any Globular service. The current
+  implementation assumes Scylla-backed state; other shapes (pure
+  stateless, MinIO-backed, in-memory-heavy) will need variants of the
+  same protocol.
+- A proper health-probe step. Today `IsHealthy` is registration-presence
+  proxy; a follow-up should call the service's own Health RPC.
 
 ## Path to production
 

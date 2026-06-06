@@ -196,8 +196,14 @@ func New(na NodeAgentController, sr ServiceRegistry) *Orchestrator {
 // the source has stopped (or the orchestrator gave up). Callers that
 // need fire-and-forget should wrap this in a goroutine and track the
 // outcome separately.
-func (o *Orchestrator) Migrate(ctx context.Context, serviceName, targetNodeID string) Outcome {
-	out := Outcome{
+//
+// We use a NAMED RETURN VALUE so the deferred FinishedAt stamp
+// propagates to the caller. A defer mutating a stack-allocated local
+// followed by `return out` does not — the return value is captured
+// before the defer runs. This was caught when the JSON output showed
+// finished_at as the zero time.
+func (o *Orchestrator) Migrate(ctx context.Context, serviceName, targetNodeID string) (out Outcome) {
+	out = Outcome{
 		ServiceName:  serviceName,
 		TargetNodeID: targetNodeID,
 		StartedAt:    time.Now(),

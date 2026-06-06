@@ -393,6 +393,33 @@ func TestMigrate_VerifyFinalTopologyFails(t *testing.T) {
 	}
 }
 
+// TestMigrate_OutcomeFinishedAtPropagates is the regression test for
+// a Go defer-vs-return gotcha caught during live CLI testing. The
+// orchestrator updates FinishedAt in a deferred function. If Migrate
+// returns the Outcome by value through a non-named return, the
+// returned value is captured BEFORE the defer fires and FinishedAt
+// stays zero. Named return propagates the update.
+//
+// JSON output to the CLI showed finished_at as 0001-01-01T00... which
+// surfaced the bug. The fix is `func (...) (out Outcome)` (named
+// return). This test pins the contract — FinishedAt is set after
+// StartedAt on every return path.
+func TestMigrate_OutcomeFinishedAtPropagates(t *testing.T) {
+	reg := newRegistry()
+	reg.SetInstances("ai-memory", "node-A")
+	na := &fakeNodeAgent{}
+	o := New(na, reg)
+	o.Options = fastOptions()
+
+	out := o.Migrate(context.Background(), "ai-memory", "node-A") // no-op path
+	if out.FinishedAt.IsZero() {
+		t.Errorf("FinishedAt is zero — defer did not propagate (named-return regression)")
+	}
+	if out.FinishedAt.Before(out.StartedAt) {
+		t.Errorf("FinishedAt %v is before StartedAt %v", out.FinishedAt, out.StartedAt)
+	}
+}
+
 // TestMigrate_ContextCancelDuringGrace verifies that context cancellation
 // during the drain grace period is handled cleanly.
 func TestMigrate_ContextCancelDuringGrace(t *testing.T) {
