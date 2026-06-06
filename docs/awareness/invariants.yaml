@@ -7853,6 +7853,283 @@ invariants:
       workflow_step_handler_files: []
       unknown_helper_files: []
 
+    - id: canskip_predicates_must_check_multiple_fields
+      title: Completion-skip predicates must check multiple fields — a single-field check satisfies a half-done state and creates permanent skip
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.half_done_must_not_look_done.
+        The bug shape (INC-2026-0012): canSkipDueToExistingState
+        checked artifact_state but not manifest_json — a partial write
+        satisfied the single-field skip and produced permanent half-
+        done state. The fix added a manifestJSONPresent guard.
+
+        Today's sweep: 0 findings — both known canSkip* functions
+        (canSkipDueToExistingState, canSkipInstallPackage) have
+        multi-check bodies. Pure regression detector.
+
+      related_invariants:
+        - meta.half_done_must_not_look_done
+      actor_writer_dirs:
+        - golang/repository/repository_server
+        - golang/node_agent/node_agent_server
+        - golang/cluster_controller/cluster_controller_server
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/half_done_canskip_single_field.go
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: heartbeat_must_not_take_non_critical_dependencies
+      title: Heartbeat / leader-liveness / connection-establishment must not depend synchronously on repository / event / monitoring services
+      severity: critical
+      status: active
+      summary: |
+        Per-instance enforcement of meta.critical_path_no_non_critical_dependency.
+        Past incident: power-outage scenario where heartbeat Phase 3
+        called repository.ListArtifacts; ScyllaDB was down so the
+        repository call hung; nodes were unreachable for 45 minutes.
+
+        Current heartbeat.go has ONE call to repository_client, wrapped
+        in a goroutine+timeout+select — bounded, classified as
+        EXCEPTION. Future regressions that add unbounded calls
+        surface as DRIFT.
+
+        Scope is narrow: only node_agent/node_agent_server (where
+        heartbeat lives) and cluster_controller_server (where
+        leader_liveness lives). The rule fires on any repository_client
+        / event_client / monitoring_client use; legitimate bounded
+        callers are classified as exception_files.
+
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
+      actor_writer_dirs:
+        - golang/node_agent/node_agent_server
+        - golang/cluster_controller/cluster_controller_server
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/critical_path_no_non_critical_client.go
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+      exception_files:
+        - file: node_agent/node_agent_server/heartbeat.go
+          category: exception_bounded_via_goroutine_select
+          reason: |
+            The repository_client call at line 745 is wrapped in a
+            goroutine + timeout-context + select pattern (resultCh
+            with timeout), so the heartbeat continues even when the
+            repository is unreachable. The wrapping pattern is the
+            documented fix for the power-outage class of incidents.
+        - file: cluster_controller/cluster_controller_server/component_catalog.go
+          category: exception_workflow_dispatch_not_critical_path
+          reason: Workflow / catalog lookup — not on the leader-liveness path.
+        - file: cluster_controller/cluster_controller_server/desired_state_handlers.go
+          category: exception_admin_rpc_not_critical_path
+          reason: Admin RPCs for desired state — operator-initiated, not in liveness path.
+        - file: cluster_controller/cluster_controller_server/reconcile_runtime.go
+          category: exception_workflow_dispatch_not_critical_path
+          reason: Reconcile loop — dispatches workflows; the leader-liveness path is leader_liveness.go, not this file.
+        - file: cluster_controller/cluster_controller_server/repair_handler.go
+          category: exception_admin_rpc_not_critical_path
+          reason: Repair RPC handler — admin-initiated, not in liveness path.
+        - file: cluster_controller/cluster_controller_server/server.go
+          category: exception_controller_init_not_critical_path
+          reason: Controller bootstrap / init — runs before liveness loop is active.
+        - file: cluster_controller/cluster_controller_server/workflow_platform_upgrade.go
+          category: exception_workflow_handler_not_critical_path
+          reason: Workflow handler for platform-upgrade — invoked from the workflow service, not liveness.
+        - file: cluster_controller/cluster_controller_server/workflow_repo_sync.go
+          category: exception_workflow_handler_not_critical_path
+          reason: Workflow handler for repository sync — invoked from the workflow service, not liveness.
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: isbootstrap_consumer_must_check_window
+      title: authCtx.IsBootstrap consumers must be per-RPC — cached auth-contexts let the binding outlive its evidence
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.binding_outlives_evidence_until_invalidated.
+        The bug shape: code reads authCtx.IsBootstrap to grant relaxed
+        permissions; if the authCtx is cached or passed across goroutines,
+        the 30-min bootstrap window can expire while the cached bool
+        still says true.
+
+        Current consumers (interceptors, rbac, security) all read
+        IsBootstrap per-RPC where the interceptor sets the bool with
+        fresh evidence. Classified EXCEPTION. Any new consumer outside
+        these files surfaces as DRIFT — requiring explicit per-file
+        review that the auth-context is per-RPC, not cached.
+
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
+      actor_writer_dirs:
+        - golang/interceptors
+        - golang/security
+        - golang/rbac/rbac_server
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/binding_outlives_evidence_isbootstrap_no_window.go
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+      exception_files:
+        - file: interceptors/ServerInterceptors.go
+          category: exception_per_rpc_interceptor_sets_isbootstrap
+          reason: |
+            Interceptor reads IsBootstrap per-RPC; the bool is set by
+            this same interceptor in the same call based on loopback
+            + 30-min window + allowlist. Evidence and consumption
+            are co-located.
+        - file: interceptors/audit_log.go
+          category: exception_per_rpc_audit_log
+          reason: |
+            audit_log.go reads IsBootstrap to set the Bootstrap field
+            on the decision record — per-RPC, evidence still fresh.
+        - file: security/auth_context.go
+          category: exception_auth_context_definition_site
+          reason: |
+            Definition site of AuthContext; the IsBootstrap field is
+            assigned here, not consumed.
+        - file: rbac/rbac_server/rbac_role_bindings.go
+          category: exception_per_rpc_rbac_handler
+          reason: |
+            RBAC RPC handlers consume IsBootstrap to allow bootstrap-
+            mode role-binding writes. Per-RPC; auth-context is from
+            the interceptor on the same call.
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: expected_sha256_param_must_carry_subject_name
+      title: Cross-boundary checksum identifiers must carry their subject — generic "expectedSHA256" projects away bundle/binary/manifest distinction
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.structure_must_not_be_stripped_in_projection.
+        Past incident (2026-06-02, commit 42828e50): generic
+        expectedSHA256 was used as both a bundle digest AND a binary
+        digest at different call sites, causing every install to
+        reject. The v1.2.140 + v1.2.142 fixes renamed receiving
+        parameters to subject-explicit names (expectedBinarySHA256,
+        expectedBundleSHA256).
+
+        Today's audit found several call sites still passing
+        identifiers named expectedSHA256 / expectedSha256 across
+        function boundaries. These are post-fix call sites where
+        the local variable name is generic but the function it
+        passes through has been renamed. Classified as EXCEPTION
+        with reasons.
+
+        Pure regression detector for NEW functions that REINTRODUCE
+        subject-stripped parameter naming.
+
+      related_invariants:
+        - meta.structure_must_not_be_stripped_in_projection
+      actor_writer_dirs:
+        - golang/node_agent/node_agent_server
+        - golang/cluster_controller/cluster_controller_server
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/structure_must_not_be_stripped_expected_sha256.go
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+      exception_files:
+        - file: cluster_controller/cluster_controller_server/repair_node_workflow.go
+          category: exception_post_v1_2_142_rename
+          reason: Local variable name predates the subject-explicit rename refactor; the call boundary it crosses now has subject-explicit parameter names.
+        - file: cluster_controller/cluster_controller_server/workflow_controller_deploy.go
+          category: exception_post_v1_2_142_rename
+          reason: Same as above.
+        - file: node_agent/node_agent_server/apply_package_verify.go
+          category: exception_post_v1_2_142_rename
+          reason: Same as above.
+        - file: node_agent/node_agent_server/grpc_workflow.go
+          category: exception_post_v1_2_142_rename
+          reason: Same as above.
+        - file: node_agent/node_agent_server/grpc_workflow_skip.go
+          category: exception_post_v1_2_142_rename
+          reason: Same as above.
+        - file: node_agent/node_agent_server/installer_api.go
+          category: exception_post_v1_2_142_rename
+          reason: Same as above.
+        - file: node_agent/node_agent_server/internal/actions/artifact.go
+          category: exception_post_v1_2_142_rename
+          reason: Same as above.
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: cluster_event_must_carry_node_or_cluster_scope
+      title: Cluster events must include a scope marker (node_id / cluster_id) — scope-less assertions get aggregated as cluster-wide truth
+      severity: high
+      status: candidate
+      summary: |
+        Per-instance enforcement of meta.assertions_must_carry_their_scope
+        for the emitClusterEvent path. The bug shape (INC-2026-0004):
+        per-node findings emitted without a scope tag; consumers
+        (doctor, dashboard) aggregated them as cluster-wide truth and
+        produced 100+ false events/min.
+
+        The structural rule below catches emitClusterEvent calls that
+        pass NO payload — the simplest scope-strip shape. Verifying
+        the payload's contents (does it include node_id?) is beyond
+        regex scope. Today's sweep: 0 findings; every existing emit
+        passes a payload-map.
+
+        Pure regression detector for the lowest-friction violation.
+        Full enforcement would require map-literal inspection — out
+        of scope for ruleguard.
+
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/node_agent/node_agent_server
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/assertions_must_carry_scope_finding_emit.go
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: deploy_self_install_must_not_be_break_glass
+      title: Production code must not exec `go build` — hot-deploying locally-built binaries is a forbidden break-glass shape
+      severity: medium
+      status: active
+      summary: |
+        Per-instance enforcement of meta.circular_dependency_must_have_break_glass.
+        The canonical break-glass procedure (scp CI-verified binary
+        from healthy peer + manual install + return to normal pipeline)
+        is a runbook, not code. The FORBIDDEN shape — `exec.Command("go", "build", ...)`
+        in production code — IS detectable.
+
+        Two sites found in deploy/deploy.go and mcp/governor.go. Both
+        are intentional tooling paths (developer-deploy command and
+        MCP code-execution governor), classified as EXCEPTION with
+        documented reasons.
+
+      related_invariants:
+        - meta.circular_dependency_must_have_break_glass
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/node_agent/node_agent_server
+        - golang/workflow/workflow_server
+        - golang/repository/repository_server
+        - golang/deploy
+        - golang/mcp
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/circular_dependency_break_glass_declarative.go
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+      exception_files:
+        - file: deploy/deploy.go
+          category: exception_developer_deploy_tooling
+          reason: |
+            deploy.go IS the developer-deploy tool that wraps `go build`
+            for local development workflows. Not invoked from a service
+            runtime; not on any service's critical path.
+        - file: mcp/governor.go
+          category: exception_mcp_code_execution_governor
+          reason: |
+            MCP governor allows agent-invoked code execution; the
+            `go build` here is part of the agent's tool sandbox, not
+            a service hot-deploy path.
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
     - id: defer_in_for_loop_must_not_accumulate
       title: defer inside a for-loop body accumulates on the function defer stack — resources leak until the outer function returns
       severity: medium
