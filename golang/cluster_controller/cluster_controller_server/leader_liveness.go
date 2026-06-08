@@ -2,11 +2,7 @@
 // @awareness component=platform_cluster_controller.leader_liveness
 // @awareness file_role=leader_self_resign_watchdog_and_successor_selection
 // @awareness enforces=globular.platform:invariant.leader.write_must_be_fenced_on_lease_expiry
-// @awareness relates_to=globular.platform:invariant.meta.load_redirection_must_be_explicit_capacity_planning
-// (relationship: KNOWN PARTIAL VIOLATION — see prose below; the annotation
-//  vocabulary does not yet have a typed "partially_violates" relation,
-//  tracked as a scanner+RDF follow-up. Treat the relates_to link plus the
-//  prose comment together as the operative signal.)
+// @awareness partially_violates=globular.platform:invariant.meta.load_redirection_must_be_explicit_capacity_planning
 // @awareness risk=high
 //
 // KNOWN GAP — partial violation of

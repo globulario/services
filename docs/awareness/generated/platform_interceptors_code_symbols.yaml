@@ -31,6 +31,18 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.audit.every_authority_change_is_explainable
+  - id: globular.platform:code.go.platform.interceptors.role_binding
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/role_binding_check.go
+    component: platform.interceptors.role_binding
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.interceptors.role_binding_fallback_uses_local_cluster_roles
+        - globular.platform:intent.rbac.service_excludes_self_from_interceptor
+      partially_violates:
+        - globular.platform:invariant.meta.fail_safe_defaults_when_authority_is_uncertain
   - id: globular.platform:code.go.platform_interceptors
     namespace: globular.platform
     language: go

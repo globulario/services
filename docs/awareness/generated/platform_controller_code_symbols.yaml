@@ -321,7 +321,7 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.leader.write_must_be_fenced_on_lease_expiry
-      relates_to:
+      partially_violates:
         - globular.platform:invariant.meta.load_redirection_must_be_explicit_capacity_planning
   - id: globular.platform:code.go.platform_cluster_controller.list_desired_build_ids_test
     namespace: globular.platform

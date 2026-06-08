@@ -2,10 +2,7 @@
 // @awareness component=platform_cluster_doctor.collector
 // @awareness file_role=read_only_collector_fans_out_to_cluster_for_snapshot_construction
 // @awareness implements=globular.platform:intent.doctor.findings_are_operator_language
-// @awareness relates_to=globular.platform:invariant.meta.harvest_and_yield_are_distinct_availability_dimensions
-// (relationship: KNOWN PARTIAL VIOLATION — annotated as relates_to because the
-//  scanner vocabulary has no typed "partially_violates" relation yet; the
-//  prose comment below carries the operative signal.)
+// @awareness partially_violates=globular.platform:invariant.meta.harvest_and_yield_are_distinct_availability_dimensions
 // @awareness risk=high
 package collector
 

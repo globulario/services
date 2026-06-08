@@ -28,7 +28,7 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.doctor.findings_are_operator_language
-      relates_to:
+      partially_violates:
         - globular.platform:invariant.meta.harvest_and_yield_are_distinct_availability_dimensions
   - id: globular.platform:code.go.platform_cluster_doctor.config
     namespace: globular.platform

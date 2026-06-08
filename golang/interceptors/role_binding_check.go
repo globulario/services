@@ -3,10 +3,7 @@
 // @awareness file_role=cached_role_binding_check_with_local_cluster_roles_fallback
 // @awareness implements=globular.platform:intent.interceptors.role_binding_fallback_uses_local_cluster_roles
 // @awareness implements=globular.platform:intent.rbac.service_excludes_self_from_interceptor
-// @awareness relates_to=globular.platform:invariant.meta.fail_safe_defaults_when_authority_is_uncertain
-// (relationship: KNOWN PARTIAL VIOLATION — annotated as relates_to because the
-//  scanner vocabulary has no typed "partially_violates" relation yet; the
-//  prose comment below carries the operative signal.)
+// @awareness partially_violates=globular.platform:invariant.meta.fail_safe_defaults_when_authority_is_uncertain
 // @awareness risk=high
 //
 // role_binding_check.go: helper that calls the RBAC service to determine
@@ -35,7 +32,6 @@
 // in cluster-roles.json restricting the fallback to read-only operations.
 // Until the structural fix lands, every fallback fires a metric and a
 // WARN log so operators can detect and audit the relaxation window.
-
 package interceptors
 
 import (
