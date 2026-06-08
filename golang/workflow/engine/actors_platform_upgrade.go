@@ -121,12 +121,25 @@ func platformUpgradeEvaluate(cfg PlatformUpgradeControllerConfig) ActionHandler 
 		// Make the upgrade list and full audit available to subsequent
 		// steps via run outputs. The YAML's `when` guards reference
 		// upgrade_targets, and the audit step reads decisions.
-		req.Outputs["decisions"] = decisionsToMaps(audit)
-		req.Outputs["upgrade_targets"] = decisionsToMaps(upgrades)
+		//
+		// IMPORTANT: ActionResult.Output is what the engine merges back
+		// into run.Outputs. Writing to req.Outputs from a handler is a
+		// no-op because req.Outputs is a serialized copy. Earlier
+		// versions of this handler wrote to req.Outputs only — which
+		// silently lost the upgrade_targets list, causing the YAML's
+		// `when: dry_run == false && len(upgrade_targets) > 0` guard
+		// to evaluate false (len(nil)=0) and the dispatch_upgrades
+		// step to be skipped on every platform-upgrade run.
+		auditMaps := decisionsToMaps(audit)
+		upgradeMaps := decisionsToMaps(upgrades)
+		req.Outputs["decisions"] = auditMaps
+		req.Outputs["upgrade_targets"] = upgradeMaps
 
 		return &ActionResult{
 			OK: true,
 			Output: map[string]any{
+				"decisions":       auditMaps,
+				"upgrade_targets": upgradeMaps,
 				"decisions_count": len(audit),
 				"upgrades_count":  len(upgrades),
 				"buckets":         buckets,
