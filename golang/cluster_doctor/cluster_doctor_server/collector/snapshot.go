@@ -14,6 +14,7 @@ package collector
 // | STALE | UNTRUSTED) can reject decisions based on outdated data.
 
 import (
+	"sort"
 	"sync"
 	"time"
 
@@ -489,6 +490,61 @@ func (s *Snapshot) addError(service, rpc string, err error) {
 	defer s.mu.Unlock()
 	s.DataErrors = append(s.DataErrors, DataError{Service: service, RPC: rpc, Err: err})
 	s.DataIncomplete = true
+}
+
+// HadError reports whether a sub-fetch for the given (service, rpc)
+// produced an error during collection. Rules that want to gate their
+// own logic on harvest completeness can call this directly.
+//
+// The Registry wraps every finding with a [reduced-harvest] annotation
+// when DataIncomplete is set regardless, so calling HadError is an
+// OPT-IN refinement — rules that need to skip themselves entirely
+// rather than emit reduced-harvest findings call HadError and return
+// early. Most rules can rely on the registry-level wrapper alone.
+//
+// Empty rpc matches any RPC under the given service. Empty service
+// matches any service that had an error. Both empty = "any error".
+//
+// This is the consume-side counterpart to addError. The principle it
+// serves is meta.harvest_and_yield_are_distinct_availability_dimensions
+// — separating "did the query complete" (yield) from "was the answer
+// complete" (harvest). HadError gives rules a way to refuse to answer
+// rather than answer wrongly under reduced harvest.
+func (s *Snapshot) HadError(service, rpc string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, e := range s.DataErrors {
+		if service != "" && e.Service != service {
+			continue
+		}
+		if rpc != "" && e.RPC != rpc {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// MissingSources returns a sorted, deduplicated list of "service.rpc"
+// strings naming the sub-fetches that failed during collection. Used
+// by Registry.EvaluateAll to annotate findings with the specific
+// reduced-harvest scope so operators see WHICH data was missing, not
+// just THAT something was missing.
+func (s *Snapshot) MissingSources() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	seen := map[string]bool{}
+	out := make([]string, 0, len(s.DataErrors))
+	for _, e := range s.DataErrors {
+		key := e.Service + "." + e.RPC
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ─── SnapshotCache ────────────────────────────────────────────────────────────

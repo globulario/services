@@ -18,6 +18,9 @@ package rules
 // never dispatches — the rule appears to work but is silently a no-op.
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 )
 
@@ -266,12 +269,59 @@ func NewRegistry(cfg Config) *Registry {
 
 // EvaluateAll runs all invariants against the snapshot and returns all findings.
 //
+// When the snapshot is incomplete (snap.DataIncomplete is set because
+// at least one sub-fetch errored during collection), every finding
+// produced this cycle gets a reduced-harvest annotation: the Summary
+// is prefixed with [reduced-harvest], and an Evidence row names the
+// missing sources. This is the system-level enforcement of
+// meta.harvest_and_yield_are_distinct_availability_dimensions —
+// before this wrapper, individual rules silently treated partial
+// snapshots as if complete and produced findings that named absence
+// as drift when the absence was actually missing-data.
+//
+// Rules that need stricter behavior (refuse to evaluate at all when
+// their specific source errored) call snap.HadError(service, rpc) at
+// the top of Evaluate and return early.
 func (r *Registry) EvaluateAll(snap *collector.Snapshot) []Finding {
 	var all []Finding
 	for _, inv := range r.invariants {
 		all = append(all, inv.Evaluate(snap, r.cfg)...)
 	}
-	return all
+	return annotateForReducedHarvest(all, snap)
+}
+
+// annotateForReducedHarvest prepends [reduced-harvest] to each
+// finding's Summary and appends an Evidence row naming the missing
+// sources, IF the snapshot was incomplete. Returns findings unchanged
+// when the snapshot was complete. Safe to call with nil/empty
+// findings.
+//
+// The annotation is structurally visible to every consumer — CLI,
+// dashboard, healer-gate, alert pipeline — so operators see "this
+// finding was produced under reduced harvest" before treating its
+// verdict as authoritative. The Evidence row carries the specific
+// "service.rpc" pairs that failed so the operator can investigate
+// the missing data alongside the finding.
+//
+// The function is package-private and operates only on the slice
+// returned by Evaluate; rules cannot bypass it because the only
+// public dispatch entry is EvaluateAll / EvaluateForNode.
+func annotateForReducedHarvest(findings []Finding, snap *collector.Snapshot) []Finding {
+	if snap == nil || !snap.DataIncomplete || len(findings) == 0 {
+		return findings
+	}
+	missing := snap.MissingSources()
+	missingList := strings.Join(missing, ", ")
+	harvestEv := kvEvidence("cluster_doctor", "reduced_harvest", map[string]string{
+		"missing_sources":       missingList,
+		"missing_sources_count": strconv.Itoa(len(missing)),
+		"explanation":           "snapshot data is incomplete because at least one collector sub-fetch errored; this finding's verdict is bounded by the data that was available",
+	})
+	for i := range findings {
+		findings[i].Summary = "[reduced-harvest] " + findings[i].Summary
+		findings[i].Evidence = append(findings[i].Evidence, harvestEv)
+	}
+	return findings
 }
 
 // EvaluateForNode runs all node-scoped invariants for the given node id.
@@ -313,7 +363,7 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 			all = append(all, inv.Evaluate(nodesnap, r.cfg)...)
 		}
 	}
-	return all
+	return annotateForReducedHarvest(all, nodesnap)
 }
 
 // FindByID looks up a cached finding by its finding_id across all findings.
