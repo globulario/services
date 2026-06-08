@@ -8856,3 +8856,235 @@ invariants:
       exception_files: []
       workflow_step_handler_files: []
       unknown_helper_files: []
+
+    - id: ddl_statements_must_use_if_not_exists
+      title: CREATE KEYSPACE/TABLE/INDEX statements must include IF NOT EXISTS — bare CREATE fails on replay and breaks workflow resume
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.idempotence_is_a_requirement_not_a_quality
+        for schema DDL. A bare CREATE statement fails the second time
+        it runs — and "the second time" is the normal case in any
+        system with workflow resume, schema migration coordinators
+        that retry on partial failure, or recovery paths that re-init.
+        Without IF NOT EXISTS the operation is not idempotent and
+        retries become fatal errors.
+
+        Today's sweep: 0 findings. Every CREATE statement currently
+        in the codebase uses IF NOT EXISTS. The scanner is a pure
+        regression detector for new DDL.
+
+      protects:
+        files:
+          - golang/ai_executor/ai_executor_server/conversation_store.go
+          - golang/ai_memory/ai_memory_server/schema.go
+          - golang/cluster_controller/cluster_controller_server/projections/schema.go
+          - golang/event/event_server/scylla_bus.go
+          - golang/repository/repository_server/scylla_store.go
+          - golang/shared_index/queue.go
+          - golang/workflow/workflow_server/schema.go
+        symbols:
+          - CREATE KEYSPACE
+          - CREATE TABLE
+          - CREATE INDEX
+      forbidden_fixes: []
+      required_tests: []
+
+      related_invariants:
+        - meta.idempotence_is_a_requirement_not_a_quality
+
+      actor_writer_dirs:
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/event/event_server
+        - golang/persistence/persistence_store
+        - golang/rbac/rbac_server
+        - golang/repository/repository_server
+        - golang/resource/resource_server
+        - golang/shared_index
+        - golang/storage/storage_store
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/ddl_must_be_idempotent.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: deadline_exceeded_must_not_drive_definitive_node_state
+      title: context.DeadlineExceeded must not be the sole evidence for marking a remote node down or removing it from the cluster
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.timeout_is_a_decision_not_a_truth.
+        A timeout is the failure of an OBSERVATION — not proof of remote
+        failure. INC-2026-0004 hit the partial-snapshot specific shape;
+        this rule guards the broader class.
+
+        Today's sweep: 0 findings. cluster_doctor's node_reachable rule
+        surfaces a finding without auto-eviction. The controller's
+        lane-timeout handlers record metrics and set lane phase to
+        "TIMEOUT" — observational only, no node-state mutation.
+        Pure regression detector for new code that treats a single
+        timeout as proof of node failure.
+
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+          - golang/cluster_doctor/cluster_doctor_server/rules/node_reachable.go
+          - golang/cluster_controller/cluster_controller_server/reconciler.go
+          - golang/cluster_controller/cluster_controller_server/leader_liveness.go
+        symbols:
+          - context.DeadlineExceeded
+      forbidden_fixes:
+        - mark_node_down_on_single_timeout
+        - remove_member_on_single_timeout
+      required_tests: []
+
+      related_invariants:
+        - meta.timeout_is_a_decision_not_a_truth
+
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/node_agent/node_agent_server
+        - golang/repository/repository_server
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/timeout_is_a_decision_not_a_truth.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: ambiguous_int_typed_time_field_must_carry_unit_qualifier
+      title: Struct fields named Timeout/Delay/Wait/Backoff/TTL with int-family type must carry a unit qualifier — operators cannot tell seconds from milliseconds from a deadline
+      severity: medium
+      status: active
+      summary: |
+        Per-instance enforcement of meta.duration_versus_deadline_is_not_interchangeable.
+        A field named Timeout int gives the reader no way to know
+        whether the value is seconds, milliseconds, microseconds, or
+        a Unix deadline timestamp. The encoding choice (duration vs
+        deadline) ages differently across process restart and NTP
+        correction; mixing them silently corrupts retry/expiry logic.
+
+        Acceptable forms:
+          Timeout       time.Duration       (unambiguous via type)
+          TimeoutSeconds int                (unambiguous via name)
+          BackoffMs      int                (unambiguous via name)
+          DeadlineUnix   int64              (explicit deadline)
+
+        Today's sweep: 0 findings. The codebase consistently uses
+        time.Duration or the *Seconds suffix. Pure regression
+        detector for new struct fields.
+
+      protects:
+        symbols:
+          - Timeout
+          - Delay
+          - Wait
+          - Backoff
+          - TTL
+          - Expiry
+          - Cooldown
+      forbidden_fixes: []
+      required_tests: []
+
+      related_invariants:
+        - meta.duration_versus_deadline_is_not_interchangeable
+
+      actor_writer_dirs:
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/dns/dns_server
+        - golang/event/event_server
+        - golang/node_agent/node_agent_server
+        - golang/rbac/rbac_server
+        - golang/repository/repository_server
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/duration_vs_deadline_field_naming.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: doctor_rule_evaluate_must_consult_snap_errors
+      title: Cluster_doctor rule Evaluate methods must consult snap.Errors before drawing conclusions — partial snapshots produce false findings when consumed as if complete
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.harvest_and_yield_are_distinct_availability_dimensions
+        for the doctor rules tree. The collector applies the principle
+        correctly — it calls snap.addError(source, op, err) on every
+        failed sub-fetch and snap.addSource(...) on every success, so
+        the Snapshot carries both data and provenance. INC-2026-0004
+        codified this pattern.
+
+        The gap is one layer up. The proactive scan of 2026-06-06
+        showed that ZERO of the 48 doctor rule files consult
+        snap.Errors before reasoning on snapshot data. A rule
+        iterating snap.Nodes after cluster_controller.ListNodes failed
+        reads an empty slice and concludes "no nodes here" — instead
+        of "I cannot tell." Same failure shape as INC-2026-0004 across
+        every rule.
+
+        Today's sweep: 85 findings across the 48 rule files. The
+        scanner output is the concrete scope of the structural debt
+        the harvest_yield promotion record names.
+
+        The structural fix lives in the rule-dispatch infrastructure
+        (rules/registry.go) — inspecting snap.Errors before invoking
+        each rule and either (i) skipping rules whose required
+        sources errored, (ii) annotating findings with
+        reduced_harvest=true, or (iii) downgrading severity. That
+        fix closes all 85 sites at once. Until it lands, this
+        scanner documents the scope.
+
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+        symbols:
+          - Evaluate
+          - snap.Errors
+          - snap.HadError
+      forbidden_fixes:
+        - reason_on_partial_snapshot_as_if_complete
+      required_tests: []
+
+      related_invariants:
+        - meta.harvest_and_yield_are_distinct_availability_dimensions
+
+      actor_writer_dirs:
+        - golang/cluster_doctor/cluster_doctor_server/rules
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/doctor_rule_must_consume_snap_errors.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      # All 48 doctor rule files are CURRENTLY in violation. Listing
+      # each as a known-violation rather than an exception would
+      # clutter; the violation scope is tracked in the parent meta-
+      # principle's promoted_from_candidate record. The structural
+      # fix closes all sites together.
+      unknown_helper_files: []
