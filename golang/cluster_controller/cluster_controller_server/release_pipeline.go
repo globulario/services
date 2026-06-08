@@ -820,10 +820,25 @@ func (srv *server) hasUnservedNodes(h *releaseHandle, blockedNodes map[string]st
 		if time.Since(node.LastSeen) > heartbeatStaleThreshold {
 			continue
 		}
-		// Convergence signal #2: node reports the right version installed.
-		// This covers the "already installed, workflow short-circuited" case.
+		// Convergence signal #2: node reports the right version installed
+		// OR a newer version installed. This covers both the "already
+		// installed, workflow short-circuited" case and the "node is ahead
+		// of desired state" case. Without the ahead-check, a stale desired
+		// version creates an infinite FAILED→PENDING loop: the downgrade
+		// guard blocks the install, hasUnservedNodes sees the mismatch,
+		// and the release auto-retries forever.
 		if h.InstalledStateName != "" && h.ResolvedVersion != "" && node.InstalledVersions != nil {
-			if node.InstalledVersions[h.InstalledStateName] == h.ResolvedVersion {
+			installedV := node.InstalledVersions[h.InstalledStateName]
+			if installedV != "" && installedV != h.ResolvedVersion {
+				if cmp, err := versionutil.Compare(installedV, h.ResolvedVersion); err == nil && cmp > 0 {
+					// Installed version is strictly newer — node is ahead of
+					// desired state. No downgrade allowed (hard rule).
+					log.Printf("hasUnservedNodes: release=%s node=%s skip (installed %s > desired %s, no downgrade)",
+						h.Name, id, installedV, h.ResolvedVersion)
+					continue
+				}
+			}
+			if installedV == h.ResolvedVersion {
 				// Phase 38: this synthetic InstalledPackage carries no
 				// entrypoint_checksum, so passing the desired entrypoint
 				// would force RepairRequired here. Pass "" to fall back

@@ -420,3 +420,41 @@ func TestHasUnservedNodes_EmptyResolvedVersion_SkipsSignal2(t *testing.T) {
 		t.Fatal("expected hasUnservedNodes=true: empty ResolvedVersion must not match empty installed version")
 	}
 }
+
+// TestHasUnservedNodes_InstalledAheadOfDesired_SkipsNode verifies that a
+// node whose installed version is strictly newer than the resolved version
+// is skipped (treated as served). Without this, a stale desired version
+// creates an infinite FAILED→PENDING→FAILED loop: the downgrade guard
+// blocks the install, hasUnservedNodes sees the mismatch, and the release
+// auto-retries forever.
+func TestHasUnservedNodes_InstalledAheadOfDesired_SkipsNode(t *testing.T) {
+	state := &controllerState{
+		Nodes: map[string]*nodeState{
+			"n1": {
+				NodeID:         "n1",
+				Status:         "ready",
+				LastSeen:       time.Now(),
+				BootstrapPhase: BootstrapWorkloadReady,
+				InstalledVersions: map[string]string{
+					"gateway": "1.2.197", // ahead of desired 1.2.193
+				},
+			},
+		},
+	}
+	srv := newTestServer(t, state)
+
+	h := &releaseHandle{
+		Name:               "infra/core@globular.io/gateway",
+		ResourceType:       "InfrastructureRelease",
+		Phase:              cluster_controllerpb.ReleasePhaseAvailable,
+		ResolvedVersion:    "1.2.193",
+		InstalledStateName: "gateway",
+		InstalledStateKind: "INFRASTRUCTURE",
+		Nodes:              []*cluster_controllerpb.NodeReleaseStatus{},
+		PatchStatus:        func(_ context.Context, _ statusPatch) error { return nil },
+	}
+
+	if srv.hasUnservedNodes(h, map[string]struct{}{}) {
+		t.Fatal("hasUnservedNodes must return false when installed version (1.2.197) > desired (1.2.193); no downgrade allowed")
+	}
+}
