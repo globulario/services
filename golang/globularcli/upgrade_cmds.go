@@ -9,6 +9,7 @@ import (
 
 	"github.com/globulario/services/golang/audittrail"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/security"
 	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/spf13/cobra"
 )
@@ -77,8 +78,15 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 	// Controller is the actor endpoint for cluster-controller actions —
 	// platform.upgrade's evaluate, dispatch_upgrades, and audit all route
 	// to the controller's default router.
-	controllerAddr := config.ResolveServiceAddr(
-		"cluster_controller.ClusterControllerService", "")
+	//
+	// Use ResolveControllerDirectAddr (NOT ResolveServiceAddr): the latter
+	// passes through meshRouteAddrs() which rewrites to host:443 (Envoy).
+	// Go TLS suppresses SNI when ServerName is an IP literal (RFC 6066),
+	// so Envoy falls to the default filter chain and returns text/html
+	// instead of gRPC. The direct addr (host:12000) bypasses Envoy
+	// entirely so the workflow service's actor dispatcher hits the
+	// controller's gRPC port directly.
+	controllerAddr := config.ResolveControllerDirectAddr()
 	if controllerAddr == "" {
 		controllerAddr = rootCfg.controllerAddr
 	}
@@ -86,8 +94,16 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cluster_controller address not found (check etcd or use --controller)")
 	}
 
+	clusterID, _ := security.GetLocalClusterID()
+	if clusterID == "" {
+		clusterID, _ = config.GetDomain()
+	}
+	if clusterID == "" {
+		return fmt.Errorf("cluster_id unresolvable from local config — set globular_domain or initialize cluster")
+	}
+
 	inputs := map[string]any{
-		"cluster_id":  "",
+		"cluster_id":  clusterID,
 		"release_tag": tag,
 		"dry_run":     platformUpgradeDryRun,
 	}
@@ -114,6 +130,7 @@ func runPlatformUpgrade(cmd *cobra.Command, args []string) error {
 	defer cancel()
 	resp, err := wfClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
 		WorkflowName: "platform.upgrade",
+		ClusterId:    clusterID,
 		InputsJson:   string(inputsJSON),
 		ActorEndpoints: map[string]string{
 			"cluster-controller": controllerAddr,

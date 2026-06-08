@@ -18,7 +18,13 @@ import (
 //   - contains(inputs.X, 'val')    — check if array contains value
 //   - len(X) == N / len(X) > N     — check collection length
 //   - inputs.X == val              — simple equality
+//   - A && B / A || B              — compound conjunction/disjunction
 //   - true / false                 — literal booleans
+//
+// Compound operators short-circuit: && stops at first false, || stops at
+// first true. Sub-expressions are recursively evaluated by DefaultEvalCond.
+// Operator precedence: && binds tighter than ||. To override grouping,
+// restructure the YAML condition as AllOf/AnyOf.
 func DefaultEvalCond(ctx context.Context, expr string, inputs, outputs map[string]any) (bool, error) {
 	expr = strings.TrimSpace(expr)
 
@@ -28,6 +34,34 @@ func DefaultEvalCond(ctx context.Context, expr string, inputs, outputs map[strin
 	}
 	if expr == "false" {
 		return false, nil
+	}
+
+	// Compound disjunction: split on `||` first (lower precedence).
+	if parts := splitTopLevel(expr, "||"); len(parts) > 1 {
+		for _, p := range parts {
+			ok, err := DefaultEvalCond(ctx, strings.TrimSpace(p), inputs, outputs)
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+
+	// Compound conjunction: split on `&&` (higher precedence than ||).
+	if parts := splitTopLevel(expr, "&&"); len(parts) > 1 {
+		for _, p := range parts {
+			ok, err := DefaultEvalCond(ctx, strings.TrimSpace(p), inputs, outputs)
+			if err != nil {
+				return false, err
+			}
+			if !ok {
+				return false, nil
+			}
+		}
+		return true, nil
 	}
 
 	// contains(inputs.X, 'val') or contains(X, 'val')
@@ -52,6 +86,34 @@ func DefaultEvalCond(ctx context.Context, expr string, inputs, outputs map[strin
 
 	// Unknown expression — default to true (pass-through).
 	return true, nil
+}
+
+// splitTopLevel splits `expr` on the given operator at top-level,
+// respecting nested parentheses. Returns a single-element slice if no
+// top-level split is found, so callers can distinguish "no operator" from
+// "operator present but unbalanced parens" with a len() check.
+func splitTopLevel(expr, op string) []string {
+	var parts []string
+	depth := 0
+	last := 0
+	for i := 0; i < len(expr); i++ {
+		c := expr[i]
+		switch c {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		}
+		if depth == 0 && i+len(op) <= len(expr) && expr[i:i+len(op)] == op {
+			parts = append(parts, expr[last:i])
+			last = i + len(op)
+			i += len(op) - 1
+		}
+	}
+	parts = append(parts, expr[last:])
+	return parts
 }
 
 // evalContains handles: contains(inputs.node_profiles, 'etcd')

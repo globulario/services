@@ -195,3 +195,62 @@ func TestDefaultEvalCond_ContainsMalformed(t *testing.T) {
 		t.Error("expected error for malformed contains")
 	}
 }
+
+// TestDefaultEvalCond_Compound pins the && / || compound-expression
+// behavior that the platform.upgrade dispatch_upgrades step depends on.
+// Before the fix, "dry_run == false && len(upgrade_targets) > 0" fell
+// through every branch and returned true silently (or false from the
+// equality check on the unparseable RHS), so the dispatch step was
+// always skipped and platform-upgrade was a no-op. Without these
+// assertions, the platform.upgrade YAML's when: clause could regress
+// undetected.
+func TestDefaultEvalCond_Compound(t *testing.T) {
+	ctx := context.Background()
+	inputs := map[string]any{
+		"dry_run": false,
+		"mode":    "rolling",
+	}
+	outputs := map[string]any{
+		"upgrade_targets": []any{"a", "b", "c"},
+		"empty_list":      []any{},
+		"status":          "AVAILABLE",
+	}
+
+	tests := []struct {
+		expr string
+		want bool
+	}{
+		// Canonical platform.upgrade dispatch guard.
+		{"dry_run == false && len(upgrade_targets) > 0", true},
+		// Same shape with dry_run flipped.
+		{"dry_run == true && len(upgrade_targets) > 0", false},
+		// Same shape with empty targets.
+		{"dry_run == false && len(empty_list) > 0", false},
+		// AND short-circuits on first false.
+		{"false && len(upgrade_targets) > 0", false},
+		// AND succeeds when all clauses true.
+		{"true && true && true", true},
+		// OR short-circuits on first true.
+		{"true || false", true},
+		{"false || true", true},
+		// OR fails when all clauses false.
+		{"false || false", false},
+		// Mixed precedence: && binds tighter than ||.
+		{"false && false || true", true},
+		{"true || false && false", true},
+		// Compound with comparisons.
+		{"outputs.status == AVAILABLE && len(upgrade_targets) > 0", true},
+		{"outputs.status == FAILED || inputs.mode == rolling", true},
+	}
+
+	for _, tt := range tests {
+		ok, err := DefaultEvalCond(ctx, tt.expr, inputs, outputs)
+		if err != nil {
+			t.Errorf("compound(%q): unexpected error: %v", tt.expr, err)
+			continue
+		}
+		if ok != tt.want {
+			t.Errorf("compound(%q) = %v, want %v", tt.expr, ok, tt.want)
+		}
+	}
+}
