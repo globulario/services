@@ -133,6 +133,15 @@ SHARED_GO_PACKAGES = [
     "crossnodedrift",
     "fallback",
     "installed_state",
+    # Workflow engine — imported by workflow_server (executor.go,
+    # executor_defer.go), workflow_adapter, and ANY service that
+    # registers actor handlers (cluster_controller, node_agent,
+    # repository all use workflow/engine.Router/ActionHandler).
+    # 2026-06-08: fix to engine condition evaluator (compound && / ||
+    # support) was not detected as a change to workflow_server, so
+    # platform-upgrade dispatch stayed broken in v1.2.198. Same shape
+    # as the v1.2.59 verifier incident the comment above describes.
+    "workflow/engine",
 ]
 
 
