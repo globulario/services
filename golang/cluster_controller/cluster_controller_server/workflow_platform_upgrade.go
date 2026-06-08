@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
@@ -295,31 +296,56 @@ func (srv *server) platformUpgradeEvaluate(ctx context.Context, releaseTag strin
 	return audit, upgrades, nil
 }
 
-// platformUpgradeDispatch fires release.apply.package for each upgrade
-// decision. One workflow per upgrade — release.apply.package handles
-// per-node rollout, retries, and verification.
+// platformUpgradeDispatch upserts the canonical desired-state record for
+// each gated upgrade decision so the release reconciler picks up the drift
+// and runs release.apply.package using the canonical
+// ServiceRelease/<publisher>/<name> ID.
+//
+// Earlier versions of this handler called RunPackageReleaseWorkflow directly
+// with a synthetic releaseID ("platform-upgrade-<tag>-<ts>-<kind>-<name>").
+// The first step of release.apply.package — controller.release.mark_resolved
+// — tries to load the ServiceRelease record by that releaseName; the
+// synthetic name doesn't match any existing record so the lookup fails with
+// "ServiceRelease ... not found" and EVERY per-package workflow died at
+// step 1. platform-upgrade reported RUN_STATUS_SUCCEEDED, but the audit log
+// listed 21+ dispatched packages and zero actually upgraded.
+//
+// Why upsertOne is not a "bypass" of workflow authority:
+//   - platform_upgrade.evaluate has already gated each (node, package)
+//     decision against profile match, installed-state, semver, and repo
+//     resolvability. Only the gated decisions reach dispatch.
+//   - upsertOne IS the canonical typed RPC that "globular services desired
+//     set" calls — it goes through the full path: ServiceDesiredVersion +
+//     bridge to ServiceRelease / InfrastructureRelease, audit log, version
+//     regression guard, observability blackout refusal.
+//   - The reconciler watches ServiceDesiredVersion for drift and dispatches
+//     release.apply.package with the canonical releaseID
+//     "<ResourceType>/<publisher>/<name>" that mark_resolved expects.
+//
+// failure_mode.controller.platform_upgrade_bypassed_workflow_authority — the
+// older direct-etcd-write CLI that prompted the warning bypassed the
+// controller entirely and bulk-applied for the entire BOM without gates.
+// This handler is the opposite shape: gated decisions, going through the
+// controller's typed API.
 func (srv *server) platformUpgradeDispatch(ctx context.Context, releaseTag string, upgrades []engine.UpgradeDecision) error {
-	// Group upgrades by (package_name, package_kind, bom_version, build_id):
-	// the same (name, version) on multiple nodes is one release.apply.package
-	// run with multiple candidate nodes — release.apply.package already
-	// handles wave parallelism per kind.
+	// Group by (package_name, package_kind, bom_version, build_id). One
+	// desired-state record per package; the candidate nodes set is implicit
+	// from profiles + heartbeat at reconcile time.
 	type key struct {
 		name, kind, version, buildID string
 	}
 	groups := map[key][]string{}
-	meta := map[key]engine.UpgradeDecision{}
 	for _, u := range upgrades {
 		k := key{u.PackageName, u.PackageKind, u.BOMVersion, u.LocalBuildID}
 		groups[k] = append(groups[k], u.NodeID)
-		meta[k] = u
 	}
 
-	releaseID := fmt.Sprintf("platform-upgrade-%s-%d", releaseTag, time.Now().Unix())
 	var firstErr error
 	dispatched := 0
 	for k, nodes := range groups {
 		// Resolve the artifact manifest from the repository to obtain
-		// the entrypoint_checksum (required by ApplyPackageReleaseRequest).
+		// the build_number. upsertOne stores it on ServiceDesiredVersion so
+		// the reconciler dispatches with the right build identity (Phase 2).
 		manifest, mErr := srv.resolveArtifactForUpgrade(ctx, k.name, k.version, k.buildID)
 		if mErr != nil {
 			log.Printf("platform_upgrade.dispatch: skip %s@%s — manifest resolve failed: %v",
@@ -330,31 +356,22 @@ func (srv *server) platformUpgradeDispatch(ctx context.Context, releaseTag strin
 			continue
 		}
 
-		releaseName := fmt.Sprintf("%s-%s-%s", releaseID, k.kind, k.name)
-		_, dErr := srv.RunPackageReleaseWorkflow(
-			ctx,
-			releaseID,
-			releaseName,
-			k.name,
-			k.kind,
-			k.version,
-			"", // desiredHash — release.apply.package recomputes
-			k.buildID,
-			manifest.GetEntrypointChecksum(),
-			manifest.GetBuildNumber(),
-			nodes,
-		)
-		if dErr != nil {
-			log.Printf("platform_upgrade.dispatch: release.apply.package FAILED for %s@%s: %v",
-				k.name, k.version, dErr)
+		desired := &cluster_controllerpb.DesiredService{
+			ServiceId:   k.name,
+			Version:     k.version,
+			BuildNumber: manifest.GetBuildNumber(),
+			BuildId:     k.buildID,
+		}
+		if err := srv.upsertOne(ctx, desired); err != nil {
+			log.Printf("platform_upgrade.dispatch: upsertOne FAILED for %s@%s: %v",
+				k.name, k.version, err)
 			if firstErr == nil {
-				firstErr = dErr
+				firstErr = err
 			}
 			continue
 		}
-		_ = meta // reserved for future audit detail
 		dispatched++
-		log.Printf("platform_upgrade.dispatch: dispatched %s@%s build_id=%s nodes=%d",
+		log.Printf("platform_upgrade.dispatch: upserted desired %s@%s build_id=%s nodes=%d",
 			k.name, k.version, k.buildID, len(nodes))
 	}
 
