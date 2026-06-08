@@ -64,6 +64,15 @@ code_symbols:
         - globular.platform:intent.controller.decides_but_does_not_execute_leaf_work
         - globular.platform:intent.desired_state.is_authority
         - globular.platform:intent.workflow.source_of_operational_truth
+  - id: globular.platform:code.go.platform_cluster_controller.artifact_kind_exhaustive_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/artifact_kind_exhaustive_test.go
+    component: platform_cluster_controller.artifact_kind_exhaustive_test
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.release_type_switch_must_have_default
   - id: globular.platform:code.go.platform_cluster_controller.bootstrap_phases
     namespace: globular.platform
     language: go
@@ -303,6 +312,17 @@ code_symbols:
       implements:
         - globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
         - globular.platform:intent.join.token.validation
+  - id: globular.platform:code.go.platform_cluster_controller.leader_liveness
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/leader_liveness.go
+    component: platform_cluster_controller.leader_liveness
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.leader.write_must_be_fenced_on_lease_expiry
+      relates_to:
+        - globular.platform:invariant.meta.load_redirection_must_be_explicit_capacity_planning
   - id: globular.platform:code.go.platform_cluster_controller.list_desired_build_ids_test
     namespace: globular.platform
     language: go
@@ -583,6 +603,15 @@ code_symbols:
         - globular.platform:invariant.destructive_actions.require_explicit_guard
       implements:
         - globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - id: globular.platform:code.go.platform_cluster_controller.scylla_schema_guard_drift_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/scylla_schema_guard_drift_test.go
+    component: platform_cluster_controller.scylla_schema_guard_drift_test
+    risk: critical
+    annotations:
+      enforces:
+        - globular.platform:invariant.scylla.critical_keyspace_replication_policy
   - id: globular.platform:code.go.platform_cluster_controller.scylla_schema_guard_handlers
     namespace: globular.platform
     language: go

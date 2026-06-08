@@ -240,6 +240,12 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.installed_state.owned_by_node_agent
+  - id: globular.platform:code.go.platform_node_agent.installed_services_drift_test
+    namespace: globular.platform
+    language: go
+    file: golang/node_agent/node_agent_server/installed_services_drift_test.go
+    component: platform_node_agent.installed_services_drift_test
+    risk: high
   - id: globular.platform:code.go.platform_node_agent.installer_api
     namespace: globular.platform
     language: go

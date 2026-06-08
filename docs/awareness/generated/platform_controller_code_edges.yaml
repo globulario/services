@@ -50,6 +50,9 @@ code_edges:
   - from: globular.platform:code.go.cluster_controller.release_pipeline
     relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_cluster_controller.artifact_kind_exhaustive_test
+    relation: enforces
+    to: globular.platform:invariant.release_type_switch_must_have_default
   - from: globular.platform:code.go.platform_cluster_controller.bootstrap_phases
     relation: implements
     to: globular.platform:intent.bootstrap.window_is_not_steady_state_auth
@@ -176,6 +179,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.joinplan_validate
     relation: implements
     to: globular.platform:intent.join.token.validation
+  - from: globular.platform:code.go.platform_cluster_controller.leader_liveness
+    relation: enforces
+    to: globular.platform:invariant.leader.write_must_be_fenced_on_lease_expiry
+  - from: globular.platform:code.go.platform_cluster_controller.leader_liveness
+    relation: relates_to
+    to: globular.platform:invariant.meta.load_redirection_must_be_explicit_capacity_planning
   - from: globular.platform:code.go.platform_cluster_controller.list_desired_build_ids_test
     relation: enforces
     to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
@@ -341,6 +350,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.repair_node_workflow
     relation: implements
     to: globular.platform:intent.controller.posture_suppresses_rollouts_during_recovery
+  - from: globular.platform:code.go.platform_cluster_controller.scylla_schema_guard_drift_test
+    relation: enforces
+    to: globular.platform:invariant.scylla.critical_keyspace_replication_policy
   - from: globular.platform:code.go.platform_cluster_controller.scylla_schema_guard_handlers
     relation: enforces
     to: globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage

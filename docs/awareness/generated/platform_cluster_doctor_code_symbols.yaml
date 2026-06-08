@@ -24,10 +24,12 @@ code_symbols:
     language: go
     file: golang/cluster_doctor/cluster_doctor_server/collector/collector.go
     component: platform_cluster_doctor.collector
-    risk: medium
+    risk: high
     annotations:
       implements:
         - globular.platform:intent.doctor.findings_are_operator_language
+      relates_to:
+        - globular.platform:invariant.meta.harvest_and_yield_are_distinct_availability_dimensions
   - id: globular.platform:code.go.platform_cluster_doctor.config
     namespace: globular.platform
     language: go
@@ -129,6 +131,15 @@ code_symbols:
       implements:
         - globular.platform:intent.doctor.findings_are_operator_language
         - globular.platform:intent.remediation.must_go_through_workflow
+  - id: globular.platform:code.go.platform_cluster_doctor.invariant_registry_harvest_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/registry_harvest_test.go
+    component: platform_cluster_doctor.invariant_registry_harvest_test
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
   - id: globular.platform:code.go.platform_cluster_doctor.leader_election
     namespace: globular.platform
     language: go

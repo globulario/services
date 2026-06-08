@@ -14,6 +14,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.collector
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.collector
+    relation: relates_to
+    to: globular.platform:invariant.meta.harvest_and_yield_are_distinct_availability_dimensions
   - from: globular.platform:code.go.platform_cluster_doctor.config
     relation: implements
     to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
@@ -74,6 +77,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry
     relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry_harvest_test
+    relation: enforces
+    to: globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
   - from: globular.platform:code.go.platform_cluster_doctor.leader_election
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language

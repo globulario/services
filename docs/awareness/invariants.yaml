@@ -9088,3 +9088,132 @@ invariants:
       # principle's promoted_from_candidate record. The structural
       # fix closes all sites together.
       unknown_helper_files: []
+
+    - id: timestamp_field_must_carry_semantic_qualifier
+      title: Struct fields holding a moment in time must qualify whose-clock and what-moment in the field name
+      severity: medium
+      status: active
+      summary: |
+        Per-instance enforcement of meta.timestamp_is_an_observation_not_an_event_time.
+        A struct field named bare "Timestamp" / "CreatedAt" / "UpdatedAt"
+        / "Time" carrying a *timestamppb.Timestamp, int64, uint64, or
+        string conveys no information about which of the four moments
+        a distributed event has (event-actual, observer-recorded,
+        transport-arrived, storage-committed) nor whose clock recorded
+        it. Consumers that interpret the field as one of those moments
+        get the answer wrong by whatever lag exists between them, which
+        is unbounded across nodes.
+
+        Acceptable shapes carry a verb-prefix (CapturedAt, ProducedAt,
+        ObservedAt, CommittedAt) AND a units/encoding suffix (Unix,
+        UnixMs, UnixNano) or use time.Time directly.
+
+        Today's sweep: 0 findings. The codebase already names temporal
+        fields with the canonical InstalledUnix / ProducedAtUnix /
+        CapturedAtUnix shapes. Pure regression detector — catches a new
+        proto or struct that ships a bare Timestamp / CreatedAt field.
+
+      protects:
+        symbols:
+          - Timestamp
+          - CreatedAt
+          - UpdatedAt
+          - Time
+      forbidden_fixes: []
+      required_tests: []
+
+      related_invariants:
+        - meta.timestamp_is_an_observation_not_an_event_time
+
+      actor_writer_dirs:
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/dns/dns_server
+        - golang/event/event_server
+        - golang/node_agent/node_agent_server
+        - golang/rbac/rbac_server
+        - golang/repository/repository_server
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/timestamp_field_must_be_qualified.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: backend_must_check_originating_principal_not_only_peer_cert
+      title: gRPC server handlers must authorize against the originating principal (JWT claims, signed metadata) — never against peer.FromContext alone
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.principal_must_survive_proxy_chains.
+        The bug shape is the confused deputy (Hardy 1988): a gRPC server
+        extracts peer.FromContext to identify the caller and authorizes
+        against that peer identity. When a gateway, sidecar, or trusted
+        proxy sits in front of the service, the peer cert is the
+        gateway's — not the user's — so authorizing against the peer
+        grants the gateway's scope to anyone the gateway accepts.
+
+        The principle says the originating principal must survive the
+        proxy chain via JWT claims, signed RPC metadata, or an mTLS
+        chain whose terminal subject is the principal. The peer
+        identity is metadata about the path the request took, not
+        authority for the request.
+
+        Canonical good shape:
+          1. Extract the peer identity for transport-level allowlisting.
+          2. Extract the principal from JWT claims (via the interceptor
+             chain) for authorization.
+          3. Authorize against the PRINCIPAL.
+
+        Today's sweep: 0 findings. The interceptor chain centralizes
+        principal extraction in golang/interceptors and handlers
+        authorize against the resolved principal, not raw peer.
+        Pure regression detector — catches a new handler that bypasses
+        the interceptor chain and inspects peer.FromContext for an
+        authorization decision.
+
+      protects:
+        symbols:
+          - peer.FromContext
+          - codes.PermissionDenied
+          - codes.Unauthenticated
+      forbidden_fixes: []
+      required_tests: []
+
+      related_invariants:
+        - meta.principal_must_survive_proxy_chains
+
+      actor_writer_dirs:
+        - golang/ai_executor/ai_executor_server
+        - golang/ai_memory/ai_memory_server
+        - golang/ai_router/ai_router_server
+        - golang/ai_watcher/ai_watcher_server
+        - golang/authentication/authentication_server
+        - golang/backup_manager/backup_manager_server
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/dns/dns_server
+        - golang/event/event_server
+        - golang/node_agent/node_agent_server
+        - golang/rbac/rbac_server
+        - golang/repository/repository_server
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/backend_must_authorize_against_principal_not_proxy.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files: []
+      workflow_step_handler_files: []
+      unknown_helper_files: []
