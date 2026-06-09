@@ -416,6 +416,42 @@ failure_modes:
         - rbac
       required_tests:
         - TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
+    - id: interceptors.perm_cache_grant_outlives_revocation
+      title: Permission-decision cache honors a revoked grant for up to 15 minutes (stale-allow window)
+      severity: high
+      symptoms:
+        - a user keeps passing an authorization check for minutes after an admin revoked their binding
+        - revocation appears to "not take effect" until the per-service interceptor cache expires
+        - rbac permission change invalidates only the RBAC service cache, not the callers' interceptor caches
+      root_cause: |
+        The interceptor's permission-decision cache stored an ALLOW for 15 minutes
+        (denials for 30s). The asymmetry optimized the deny->grant direction ("a
+        new grant takes effect in seconds") but left the security-critical
+        grant->revoke direction slow: a revoked permission kept being honored for
+        up to 15 minutes across every service, and the per-service cache is not
+        invalidated when the RBAC service's own cache is. This is the canonical
+        "cached RBAC results outlive the binding" shape of
+        meta.authorization_check_is_a_snapshot_not_a_promise — a cached auth
+        decision is a snapshot, and without invalidation a long TTL is a lie.
+      architecture_fix: |
+        Shorten the GRANT TTL so the revocation window is bounded (permGrantTTL =
+        60s), and pin it under a documented ceiling (permGrantTTLMaxBound) that a
+        ratchet enforces so it cannot silently regress to 15m. A stale DENY after
+        a new grant is only an availability annoyance, so the DENY TTL stays 30s.
+        The preferred longer-term fix is cross-service cache invalidation (the
+        RBAC service signals binding changes), which would make a longer TTL safe;
+        until then, bound the window.
+      forbidden_fixes:
+        - cache_authorization_grant_without_a_bounded_revocation_window
+        - longer_grant_ttl_than_deny_ttl_without_invalidation
+      related_invariants:
+        - meta.authorization_check_is_a_snapshot_not_a_promise
+        - meta.binding_outlives_evidence_until_invalidated
+      related_services:
+        - interceptors
+        - rbac
+      required_tests:
+        - TestPermCacheGrantTTLIsBounded
     - id: repository.minio.recovery_cycle
       title: Repository and MinIO form a recovery deadlock
       severity: critical
