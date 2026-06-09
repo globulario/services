@@ -379,6 +379,43 @@ failure_modes:
       required_tests:
         - TestEngine_PanickingStepReachesTerminalState
         - TestEngine_PanickingParallelStepDoesNotCrashProcess
+    - id: interceptors.rbac_fallback_allows_user_mutation_on_outage
+      title: RBAC interceptor's local-roles fallback allows a user's mutating call during an RBAC outage (silent escalation)
+      severity: critical
+      symptoms:
+        - a viewer-only user performs an admin-only mutation while the RBAC service is unreachable
+        - rbac.fallback_local_roles_used increments during an RBAC outage with no corresponding deny
+        - audit shows access granted with no role binding actually verified
+      root_cause: |
+        When the RBAC service is unreachable, checkRoleBinding fell back to
+        checkLocalRoles, which returns ALLOW if ANY locally-loaded cluster role
+        grants the method — it does not consult the specific user's binding. So
+        during any RBAC outage a low-privilege user could clear a high-privilege
+        check: a silent privilege-escalation window. This is the canonical
+        violation of meta.fail_safe_defaults_when_authority_is_uncertain — when
+        the authority decision cannot be made, the default must be REFUSE, not
+        "allow because we could not check".
+      architecture_fix: |
+        rbacUncertainAllow makes the fallback fail closed by default. The
+        permissive local-roles fallback is retained ONLY where it cannot widen
+        into a state-changing escalation: the "sa" service/superadmin identity
+        (service plumbing must not deadlock on an RBAC blip), the bounded explicit
+        bootstrap window (security.DefaultBootstrapGate — the principle's named
+        exception), and read-only methods (!security.IsMutatingRPC, which fails
+        closed on unknown methods). A real user invoking a mutating method while
+        RBAC is unreachable outside bootstrap is DENIED and the refusal is metered
+        (rbac.fallback_denied_fail_safe) and WARN-logged.
+      forbidden_fixes:
+        - allow_request_when_rbac_check_cannot_be_made
+        - local_roles_fallback_grants_if_any_role_allows_for_mutations
+      related_invariants:
+        - meta.fail_safe_defaults_when_authority_is_uncertain
+        - security.deny_overrides_allow
+      related_services:
+        - interceptors
+        - rbac
+      required_tests:
+        - TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
     - id: repository.minio.recovery_cycle
       title: Repository and MinIO form a recovery deadlock
       severity: critical

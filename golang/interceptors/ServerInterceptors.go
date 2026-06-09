@@ -1119,7 +1119,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	if clusterInitialized && authCtx != nil && authCtx.Subject == "sa" {
 		if security.IsRoleBasedMethod(actionKey) {
 			// Method is explicitly role-mapped — check if "sa" has bindings.
-			if allowed, _ := checkRoleBinding("sa", actionKey, address); allowed {
+			if allowed, _ := checkRoleBinding("sa", actionKey, method, address); allowed {
 				LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
 				return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 			}
@@ -1150,7 +1150,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		!strings.HasPrefix(method, "/rbac.RbacService/") &&
 		authCtx != nil && authCtx.Subject != "" {
 
-		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, address)
+		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, method, address)
 		if allowed {
 			LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
 			return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
@@ -1591,7 +1591,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		!strings.HasPrefix(method, "/rbac.RbacService/") &&
 		authCtx != nil && authCtx.Subject != "" {
 
-		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, address)
+		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, method, address)
 		if !allowed {
 			LogAuthzDecisionSimple(authCtx, false, "role_binding_denied")
 			return status.Errorf(codes.PermissionDenied,
