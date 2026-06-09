@@ -452,6 +452,38 @@ failure_modes:
         - rbac
       required_tests:
         - TestPermCacheGrantTTLIsBounded
+    - id: cluster_controller.heartbeat_staleness_uses_node_reported_clock
+      title: Node heartbeat staleness is judged against the node's self-reported clock, not the controller's receipt clock
+      severity: high
+      symptoms:
+        - a node with a slow/fast clock is judged stale (or fresh) by the clock-skew amount
+        - leader_liveness / posture / stale_instance_purger mark a healthy node down after it reports a skewed timestamp
+        - node.LastSeen jumps backward/forward when a node's clock is wrong
+      root_cause: |
+        ReportNodeStatus stored node.LastSeen = the node's self-reported ReportedAt
+        timestamp (falling back to the controller clock only when the node omitted
+        it). But every staleness decision in the controller is time.Since(node.LastSeen)
+        — the controller's clock. Comparing the controller's clock to a node's clock
+        is the clock-skew hazard: a node a minute behind real time looks a minute
+        staler than it is and can be marked down; a node ahead keeps a dead node
+        "alive". meta.clock_skew_invalidates_cross_node_time_comparison — a comparison
+        across a process/node boundary must use a single clock or a skew bound.
+      architecture_fix: |
+        Stamp node.LastSeen with the controller's RECEIPT clock (receivedAt =
+        time.Now() when the status RPC is handled), so every time.Since(node.LastSeen)
+        compares a single clock. Keep the node's self-reported time as node.ReportedAt
+        for diagnostics and skew detection, but never let it drive staleness. Applied
+        at both the auto-register and the commit sites in ReportNodeStatus.
+      forbidden_fixes:
+        - drive_staleness_from_a_remote_nodes_self_reported_clock
+        - compare_two_node_clocks_without_a_skew_bound
+      related_invariants:
+        - meta.clock_skew_invalidates_cross_node_time_comparison
+        - deadline_exceeded_must_not_drive_definitive_node_state
+      related_services:
+        - cluster-controller
+      required_tests:
+        - TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
     - id: repository.minio.recovery_cycle
       title: Repository and MinIO form a recovery deadlock
       severity: critical
