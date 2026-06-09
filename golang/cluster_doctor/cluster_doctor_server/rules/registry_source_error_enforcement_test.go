@@ -140,12 +140,12 @@ func TestNoRuleEmitsConfidentFailureOnErroredSnapshot(t *testing.T) {
 			"knownSourceIndependentConfidentRules with a justification.", id)
 	}
 
-	// (2) Keep the allowlist honest: an entry that no longer emits must be
-	//     removed so the allowlist can only shrink.
-	for id, why := range knownSourceIndependentConfidentRules {
-		if !emitted[id] {
-			t.Errorf("rule %q is allowlisted (%q) but no longer emits a confident FAIL on a fully-errored "+
-				"snapshot — remove it from knownSourceIndependentConfidentRules.", id, why)
-		}
-	}
+	// NOTE: there is deliberately no "allowlist must shrink" check here. Whether
+	// an allowlisted rule actually emits a confident FAIL is environment-
+	// dependent — e.g. artifact.layout_drift_local reads the local filesystem,
+	// so it emits drift on a developer box but nothing in a clean CI runner.
+	// The allowlist is a STATIC classification ("these rules are source-
+	// independent; a confident FAIL from them is not a masking bug"), not a
+	// claim that they always emit. Entries are added/removed by a human with a
+	// justification; check (1) above is the real gate against new violations.
 }
