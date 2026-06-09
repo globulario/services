@@ -406,6 +406,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 
 	encoded := []byte(base64.StdEncoding.EncodeToString(data_))
 	srv.publish("set_resources_permissions_event", encoded)
+	srv.bumpPermCacheGeneration() // invalidate interceptor perm caches mesh-wide
 
 	return nil
 }
@@ -699,6 +700,7 @@ func (srv *server) deleteResourcePermissions(path string, permissions *rbacpb.Pe
 
 	encoded := []byte(base64.StdEncoding.EncodeToString(data))
 	srv.publish("delete_resources_permissions_event", encoded)
+	srv.bumpPermCacheGeneration() // invalidate interceptor perm caches mesh-wide
 
 	// already removed above
 	return nil

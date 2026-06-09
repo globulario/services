@@ -129,6 +129,7 @@ func (srv *server) SetRoleBinding(ctx context.Context, rqst *rbacpb.SetRoleBindi
 		return nil, status.Errorf(codes.Internal, "%s",
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	srv.bumpPermCacheGeneration() // invalidate interceptor perm caches mesh-wide
 
 	return &rbacpb.SetRoleBindingRsp{}, nil
 }

@@ -152,7 +152,11 @@ func (srv *server) setActionResourcesPermissions(permissions map[string]interfac
 		return err
 	}
 
-	return srv.setItem(permissions["action"].(string), data)
+	if err := srv.setItem(permissions["action"].(string), data); err != nil {
+		return err
+	}
+	srv.bumpPermCacheGeneration() // invalidate interceptor perm caches mesh-wide
+	return nil
 }
 
 // SetActionResourcesPermissions sets the permissions for resources associated with a specific action.

@@ -31,6 +31,15 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.audit.every_authority_change_is_explainable
+  - id: globular.platform:code.go.platform.interceptors.perm_cache_invalidation
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/perm_cache_invalidation.go
+    component: platform.interceptors.perm_cache_invalidation
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:invariant.meta.authorization_check_is_a_snapshot_not_a_promise
   - id: globular.platform:code.go.platform.interceptors.role_binding
     namespace: globular.platform
     language: go
