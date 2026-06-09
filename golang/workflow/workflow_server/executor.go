@@ -41,6 +41,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// startRunFn is the commit-first seam: it persists the durable run record
+// before any side effect runs. Indirected through a package var so tests can
+// force the commit to fail and assert that no actor is ever dispatched
+// (TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects). Production wiring
+// calls srv.StartRun.
+var startRunFn = func(srv *server, ctx context.Context, req *workflowpb.StartRunRequest) (*workflowpb.WorkflowRun, error) {
+	return srv.StartRun(ctx, req)
+}
+
 // ExecuteWorkflow loads a workflow definition from etcd, builds a remote-
 // dispatch router for actor callbacks, runs the engine, and auto-records
 // the entire run to ScyllaDB.
@@ -312,9 +321,22 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		StartedAt:     now,
 		WorkflowName:  req.WorkflowName,
 	}
-	if _, err := srv.StartRun(ctx, &workflowpb.StartRunRequest{Run: startRun}); err != nil {
-		logger.Warn("executor: failed to record run start", "run_id", runID, "err", err)
-		// Non-fatal: execution proceeds even if recording fails.
+	// Commit-first — meta.state_mutations_must_be_durably_committed_before_side_effects.
+	// StartRun persists the workflow service's durable run record: the
+	// coordinator's intent + per-step progress + resume point. It MUST commit
+	// before any actor side effect runs. Dispatching steps without this record
+	// is the "lost intent / untraceable change" class — the effects happen, no
+	// run record explains them, and a workflow-service restart cannot resume or
+	// audit the run. On failure we refuse to execute and return an error so the
+	// caller retries the whole dispatch (retry is the only response). StartRun
+	// is an idempotent upsert (CQL INSERT by primary key + supersedePriorRuns)
+	// and engine steps are idempotent (reconciliation.must_be_idempotent_and_bounded),
+	// so a retry that re-commits and re-executes does not double-apply. The lease
+	// claimed above is freed by the deferred ReleaseRun.
+	if _, err := startRunFn(srv, ctx, &workflowpb.StartRunRequest{Run: startRun}); err != nil {
+		logger.Error("executor: run-start commit failed — refusing to dispatch side effects uncommitted",
+			"run_id", runID, "err", err)
+		return nil, fmt.Errorf("workflow %s: run-start commit failed, refusing to execute uncommitted: %w", req.WorkflowName, err)
 	}
 
 	// ── 6. Execute ───────────────────────────────────────────────────────
