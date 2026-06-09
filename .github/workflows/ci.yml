@@ -40,6 +40,12 @@ jobs:
           repository: globulario/packages
           path: packages
 
+      - name: Checkout awareness-graph (principle-check scanner)
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/awareness-graph
+          path: awareness-graph
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -67,6 +73,31 @@ jobs:
 
       - name: Build awareness CI tools
         run: go build -o bin/globular ./globularcli
+
+      # Enforcement gates (hard-fail). These run the meta-principle checks that
+      # the broad "Unit Tests" step above does NOT gate (it is continue-on-error
+      # because some tests need etcd/ScyllaDB). The checks below are infra-free
+      # and authoritative for their invariants.
+      #
+      # 1. Source-shape scanner: every cluster state mutation goes through a
+      #    workflow or a named exception. principle-check-all covers
+      #    meta.state_mutations_must_be_durably_committed_before_side_effects and
+      #    workflow.workflow_service_writes_only_own_runtime_state; it exits
+      #    non-zero on DRIFT (a new direct/transaction etcd write that is neither
+      #    workflow-routed nor an allowlisted exception).
+      - name: Enforce state-mutation invariants (principle-check, hard gate)
+        working-directory: ${{ github.workspace }}/awareness-graph
+        run: make principle-check-all
+        env:
+          SERVICES_REPO: ${{ github.workspace }}/services
+
+      # 2. Behavioral ratchets: the runtime halves the source scanner cannot see
+      #    (commit-before-execute, terminal-state guarantee, no-alternative-path)
+      #    plus the cluster-doctor harvest-yield ratchet. All infra-free.
+      - name: Enforce behavioral ratchets (hard gate)
+        run: |
+          go test -count=1 -run 'TestEngine_AlwaysReachesTerminalState|TestEngine_NoAlternativePath_OnlyPlanActionsDispatched|TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects' ./workflow/engine/... ./workflow/workflow_server/...
+          go test -count=1 -run 'TestNoRuleEmitsConfidentFailureOnErroredSnapshot|TestClusterScopedRulesRefuseOnSourceError|TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable' ./cluster_doctor/cluster_doctor_server/rules/...
 
       - name: Validate awareness contracts against code (depends_on drift)
         # Walks every packages/metadata/<svc>/awareness.yaml, parses depends_on,
