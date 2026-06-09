@@ -48,6 +48,10 @@ func (objectstoreMinioTopologyConsistency) Category() string { return "objectsto
 func (objectstoreMinioTopologyConsistency) Scope() string    { return "cluster" }
 
 func (objectstoreMinioTopologyConsistency) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// etcd read errored → desired topology is unknown, not "consistent".
+	if snap.ObjectStoreDesiredLoadError != nil {
+		return nil
+	}
 	desired := snap.ObjectStoreDesired
 	if desired == nil {
 		return nil

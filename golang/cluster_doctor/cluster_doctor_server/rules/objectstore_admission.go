@@ -237,6 +237,10 @@ func (objectstoreMinioUnapprovedPath) Category() string { return "objectstore" }
 func (objectstoreMinioUnapprovedPath) Scope() string    { return "cluster" }
 
 func (objectstoreMinioUnapprovedPath) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// etcd read errored → desired topology is unknown, not "no unapproved paths".
+	if snap.ObjectStoreDesiredLoadError != nil {
+		return nil
+	}
 	desired := snap.ObjectStoreDesired
 	if desired == nil || len(desired.NodePaths) == 0 {
 		return nil
@@ -318,6 +322,10 @@ func (objectstoreMinioQuorumShape) Category() string { return "objectstore" }
 func (objectstoreMinioQuorumShape) Scope() string    { return "cluster" }
 
 func (objectstoreMinioQuorumShape) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// etcd read errored → desired topology is unknown, not "quorum shape OK".
+	if snap.ObjectStoreDesiredLoadError != nil {
+		return nil
+	}
 	desired := snap.ObjectStoreDesired
 	if desired == nil || desired.Mode != config.ObjectStoreModeDistributed {
 		return nil

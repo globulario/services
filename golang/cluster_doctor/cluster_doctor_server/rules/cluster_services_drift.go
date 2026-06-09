@@ -32,6 +32,14 @@ func (clusterServicesDrift) Category() string { return "drift" }
 func (clusterServicesDrift) Scope() string    { return "cluster" }
 
 func (clusterServicesDrift) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Refuse to answer when the health source errored: an empty snap.NodeHealths
+	// then means "cluster_controller unreachable", not "no drift" — emitting
+	// nothing would silently mask real service drift. The registry surfaces the
+	// unavailable source as its own UNKNOWN finding.
+	// See doctor_rule_evaluate_must_consult_snap_errors.
+	if snap.HadError("cluster_controller", "GetClusterHealthV1") {
+		return nil
+	}
 	var findings []Finding
 
 	for nodeID, nh := range snap.NodeHealths {

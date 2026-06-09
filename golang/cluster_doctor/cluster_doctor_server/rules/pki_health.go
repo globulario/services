@@ -22,6 +22,12 @@ func (pkiCANotPublished) Category() string { return "pki" }
 func (pkiCANotPublished) Scope() string    { return "cluster" }
 
 func (pkiCANotPublished) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// etcd unreachable → nil CAMetadata means "unknown", NOT "CA not published".
+	// Without this guard the rule fires a phantom "CA not published" whenever
+	// the etcd read errored. Refuse; the registry surfaces the unavailable source.
+	if snap.HadError("etcd", "LoadCAMetadata") {
+		return nil
+	}
 	if snap.CAMetadata != nil {
 		return nil
 	}
@@ -68,6 +74,10 @@ func (pkiCAExpiryWarning) Category() string { return "pki" }
 func (pkiCAExpiryWarning) Scope() string    { return "cluster" }
 
 func (pkiCAExpiryWarning) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// etcd unreachable → CA expiry is unknown, not "no expiry concern". Refuse.
+	if snap.HadError("etcd", "LoadCAMetadata") {
+		return nil
+	}
 	if snap.CAMetadata == nil || snap.CAMetadata.NotAfter == "" {
 		return nil
 	}
@@ -132,6 +142,10 @@ func (pkiNodeCertWrongCA) Category() string { return "pki" }
 func (pkiNodeCertWrongCA) Scope() string    { return "node" }
 
 func (pkiNodeCertWrongCA) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// etcd unreachable → CAMetadata is unknown, not "no CA context". Refuse.
+	if snap.HadError("etcd", "LoadCAMetadata") {
+		return nil
+	}
 	// Only fire when we have CA metadata context — otherwise security.certs.chain_valid fires.
 	if snap.CAMetadata == nil {
 		return nil

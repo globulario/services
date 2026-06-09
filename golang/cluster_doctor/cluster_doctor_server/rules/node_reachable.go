@@ -34,6 +34,12 @@ func (nodeReachable) Scope() string    { return "node" }
 
 func (nodeReachable) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	var findings []Finding
+	// cluster_controller unreachable → empty snap.Nodes is "unknown", not "no
+	// nodes". Honors deadline_exceeded_must_not_drive_definitive_node_state: a
+	// source error must not be read as nodes being absent or down.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return findings
+	}
 	now := time.Now()
 
 	for _, node := range snap.Nodes {

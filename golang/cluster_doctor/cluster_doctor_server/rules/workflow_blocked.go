@@ -23,6 +23,11 @@ func (workflowBlockedRuns) Category() string { return "convergence" }
 func (workflowBlockedRuns) Scope() string    { return "cluster" }
 
 func (w workflowBlockedRuns) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Workflow backend unreachable → empty BlockedRuns means "unknown", not
+	// "nothing blocked". Refuse; the registry surfaces the unavailable source.
+	if snap.HadError("workflow", "ListRuns(BLOCKED)") {
+		return nil
+	}
 	if len(snap.BlockedRuns) == 0 {
 		return nil
 	}

@@ -241,6 +241,10 @@ func (fallbackRequiresManifestChecksum) Category() string { return "repository" 
 func (fallbackRequiresManifestChecksum) Scope() string    { return "cluster" }
 
 func (f fallbackRequiresManifestChecksum) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// repository unreachable → RepositoryFindings unknown, not "no weakening".
+	if snap.HadError("repository", "ListRepositoryFindings") {
+		return nil
+	}
 	// We have no structured "checksum policy off" signal in the snapshot yet.
 	// The rule is intentionally a placeholder that fires whenever the
 	// RepositoryFindings list explicitly carries a finding whose ID/summary
