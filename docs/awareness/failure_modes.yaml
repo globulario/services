@@ -484,6 +484,41 @@ failure_modes:
         - cluster-controller
       required_tests:
         - TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
+    - id: ai_executor.unknown_tier_defaults_to_auto_execute
+      title: AI remediator auto-executes on any unrecognized decision tier (dangerous action is the fall-through)
+      severity: high
+      symptoms:
+        - an AI remediation action runs without human approval for a tier value that is not 0/1/2
+        - a peer proposal, buggy caller, or future proto tier triggers auto-remediation unexpectedly
+        - actions execute when the operator expected approval-gating
+      root_cause: |
+        remediator.execute branched `if tier==0 {observe}` then `if tier==2
+        {approval}` and let everything else fall through to auto-execute. Because
+        tier is a raw int32 (proto3, no enum), the auto-execute path — the ONLY
+        one that takes a real action — was the DEFAULT for tier==1 AND every
+        unrecognized value (negative, 3+, garbled, a future tier). The dangerous
+        action was the fall-through, not an explicit grant. Violates
+        meta.least_privilege_is_not_a_default_it_is_an_explicit_grant (the default
+        for any actor/action is zero privilege) and
+        meta.silence_is_not_valid_for_unexpected (an unhandled case must fail
+        closed). The tier IS the execution-authority gate
+        (intent ai.decision_tier.gates_execution), so a default-to-execute
+        fall-through breaches that gate.
+      architecture_fix: |
+        Auto-execute requires an EXPLICIT tier==1. Any other value fails safe to
+        approval-required (ACTION_PENDING) with a WARN log — the dangerous action
+        is the explicit grant, the unknown case defaults to deny.
+      forbidden_fixes:
+        - auto_execute_remediation_as_the_tier_fall_through
+        - treat_unrecognized_tier_as_auto_remediate
+      related_invariants:
+        - meta.least_privilege_is_not_a_default_it_is_an_explicit_grant
+        - meta.silence_is_not_valid_for_unexpected
+        - meta.fail_safe_defaults_when_authority_is_uncertain
+      related_services:
+        - ai-executor
+      required_tests:
+        - TestRemediator_UnknownTierFailsSafeNoAutoExecute
     - id: repository.minio.recovery_cycle
       title: Repository and MinIO form a recovery deadlock
       severity: critical
