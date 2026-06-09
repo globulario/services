@@ -40,11 +40,22 @@ jobs:
           repository: globulario/packages
           path: packages
 
+      # awareness-graph is PRIVATE, so the default GITHUB_TOKEN cannot reach it
+      # (the other sibling repos are public). Non-fatal: if checkout fails the
+      # job continues and the self-contained behavioral ratchets below still
+      # hard-gate. The principle-check source-scanner step is guarded on this
+      # checkout's outcome, so it activates automatically once an org PAT with
+      # read access to awareness-graph is added as the AWARENESS_GRAPH_PAT
+      # secret — at which point it becomes a hard gate (the step itself has no
+      # continue-on-error).
       - name: Checkout awareness-graph (principle-check scanner)
+        id: checkout_awareness_graph
+        continue-on-error: true
         uses: actions/checkout@v4
         with:
           repository: globulario/awareness-graph
           path: awareness-graph
+          token: ${{ secrets.AWARENESS_GRAPH_PAT || github.token }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -86,6 +97,7 @@ jobs:
       #    non-zero on DRIFT (a new direct/transaction etcd write that is neither
       #    workflow-routed nor an allowlisted exception).
       - name: Enforce state-mutation invariants (principle-check, hard gate)
+        if: steps.checkout_awareness_graph.outcome == 'success'
         working-directory: ${{ github.workspace }}/awareness-graph
         run: make principle-check-all
         env:
