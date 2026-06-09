@@ -104,11 +104,13 @@ jobs:
           SERVICES_REPO: ${{ github.workspace }}/services
 
       # 2. Behavioral ratchets: the runtime halves the source scanner cannot see
-      #    (commit-before-execute, terminal-state guarantee, no-alternative-path)
-      #    plus the cluster-doctor harvest-yield ratchet. All infra-free.
+      #    — commit-before-execute, terminal-state guarantee (incl. step-panic
+      #    recovery), no-alternative-path — plus the cluster-doctor harvest-yield
+      #    ratchet. All infra-free. The TestEngine_ prefix gates every engine-level
+      #    ratchet, so new ones enforce automatically.
       - name: Enforce behavioral ratchets (hard gate)
         run: |
-          go test -count=1 -run 'TestEngine_AlwaysReachesTerminalState|TestEngine_NoAlternativePath_OnlyPlanActionsDispatched|TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects' ./workflow/engine/... ./workflow/workflow_server/...
+          go test -count=1 -run 'TestEngine_|TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects' ./workflow/engine/... ./workflow/workflow_server/...
           go test -count=1 -run 'TestNoRuleEmitsConfidentFailureOnErroredSnapshot|TestClusterScopedRulesRefuseOnSourceError|TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable' ./cluster_doctor/cluster_doctor_server/rules/...
 
       - name: Validate awareness contracts against code (depends_on drift)
