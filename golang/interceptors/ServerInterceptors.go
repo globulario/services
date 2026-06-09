@@ -257,6 +257,11 @@ func buildPermCacheKey(address, method, token string, infos []*rbacpb.ResourceIn
 }
 
 func putPermCache(key string, allowed bool, ttl time.Duration) {
+	// Lazily start the cross-service invalidation watcher the first time this
+	// service caches a permission decision, so a revoked binding is flushed
+	// mesh-wide on RBAC change instead of waiting out the TTL. See
+	// perm_cache_invalidation.go.
+	ensurePermCacheWatcher()
 	cache.Store(key, permCacheEntry{
 		hasAccess: allowed,
 		expiresAt: nowUnix() + int64(ttl.Seconds()),

@@ -14,6 +14,9 @@ code_edges:
   - from: globular.platform:code.go.platform.interceptors.audit
     relation: implements
     to: globular.platform:intent.audit.every_authority_change_is_explainable
+  - from: globular.platform:code.go.platform.interceptors.perm_cache_invalidation
+    relation: implements
+    to: globular.platform:invariant.meta.authorization_check_is_a_snapshot_not_a_promise
   - from: globular.platform:code.go.platform.interceptors.role_binding
     relation: implements
     to: globular.platform:intent.interceptors.role_binding_fallback_uses_local_cluster_roles

@@ -434,13 +434,19 @@ failure_modes:
         meta.authorization_check_is_a_snapshot_not_a_promise — a cached auth
         decision is a snapshot, and without invalidation a long TTL is a lie.
       architecture_fix: |
-        Shorten the GRANT TTL so the revocation window is bounded (permGrantTTL =
-        60s), and pin it under a documented ceiling (permGrantTTLMaxBound) that a
-        ratchet enforces so it cannot silently regress to 15m. A stale DENY after
-        a new grant is only an availability annoyance, so the DENY TTL stays 30s.
-        The preferred longer-term fix is cross-service cache invalidation (the
-        RBAC service signals binding changes), which would make a longer TTL safe;
-        until then, bound the window.
+        Two layers. (1) TTL bound: shorten the GRANT TTL so the revocation window
+        is bounded (permGrantTTL = 60s), pinned under a documented ceiling
+        (permGrantTTLMaxBound) that a ratchet enforces so it cannot silently
+        regress to 15m. A stale DENY after a new grant is only an availability
+        annoyance, so the DENY TTL stays 30s. (2) Cross-service invalidation
+        (landed 2026-06-09): the RBAC service bumps an etcd generation key
+        (/globular/system/rbac/generation) on every permission/binding mutation;
+        every service's interceptor watches that key and surgically flushes its
+        permission-decision cache on change (flushPermCache drops only
+        permCacheEntry values, leaving stream/conn entries), so a revocation takes
+        effect mesh-wide in ~one etcd round-trip. The TTL remains the backstop if
+        the watch is down (best-effort invalidation: a failed bump degrades to TTL,
+        never blocks the mutation).
       forbidden_fixes:
         - cache_authorization_grant_without_a_bounded_revocation_window
         - longer_grant_ttl_than_deny_ttl_without_invalidation
@@ -452,6 +458,7 @@ failure_modes:
         - rbac
       required_tests:
         - TestPermCacheGrantTTLIsBounded
+        - TestFlushPermCache_SurgicalAndComplete
     - id: cluster_controller.heartbeat_staleness_uses_node_reported_clock
       title: Node heartbeat staleness is judged against the node's self-reported clock, not the controller's receipt clock
       severity: high

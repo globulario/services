@@ -167,6 +167,7 @@ func (srv *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.AddResourc
 			codes.Internal,
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	srv.bumpPermCacheGeneration() // invalidate interceptor perm caches mesh-wide
 	return &rbacpb.AddResourceOwnerRsp{}, nil
 }
 
@@ -433,6 +434,7 @@ func (srv *server) RemoveResourceOwner(ctx context.Context, rqst *rbacpb.RemoveR
 			codes.Internal,
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	srv.bumpPermCacheGeneration() // invalidate interceptor perm caches mesh-wide
 
 	return &rbacpb.RemoveResourceOwnerRsp{}, nil
 }
