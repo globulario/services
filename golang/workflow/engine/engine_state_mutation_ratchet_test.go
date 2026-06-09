@@ -173,3 +173,76 @@ func keysOfBoolMap(m map[string]bool) []string {
 	}
 	return out
 }
+
+// TestEngine_PanickingStepReachesTerminalState extends the terminal-state
+// guarantee to the unexpected case: a step handler that panics must be recovered
+// and turned into a step failure so the run reaches FAILED — never crash the
+// process or leave the run non-terminal. Regression for the pre-2026-06-09
+// engine, which had no recover() at any dispatch site (a panicking handler
+// unwound the stack out of the engine). Classifies against
+// meta.silence_is_not_valid_for_unexpected.
+func TestEngine_PanickingStepReachesTerminalState(t *testing.T) {
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "panic-single"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Strategy: v1alpha1.ExecutionStrategy{Mode: v1alpha1.StrategySingle},
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{ID: "boom", Actor: v1alpha1.ActorInstaller, Action: "installer.panic"},
+			},
+		},
+	}
+	router := NewRouter()
+	router.Register(v1alpha1.ActorInstaller, "installer.panic", func(context.Context, ActionRequest) (*ActionResult, error) {
+		panic("handler exploded")
+	})
+
+	// If the panic is NOT recovered, this call unwinds and crashes the test
+	// process — the test failing to complete IS the regression signal.
+	run, _ := (&Engine{Router: router}).Execute(context.Background(), def, nil)
+	if run == nil {
+		t.Fatal("Execute returned nil run after a panicking step — no terminal state")
+	}
+	if run.Status != RunFailed {
+		t.Errorf("panicking step must yield RunFailed, got %q", run.Status)
+	}
+}
+
+// TestEngine_PanickingParallelStepDoesNotCrashProcess is the dangerous case: a
+// panic inside a parallel/foreach goroutine cannot be recovered by the caller,
+// so without per-dispatch recovery it takes down the whole workflow service.
+// Two independent steps run concurrently (DAG, no deps); one panics. The run
+// must still reach a terminal state and the process must survive.
+func TestEngine_PanickingParallelStepDoesNotCrashProcess(t *testing.T) {
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "panic-parallel"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Strategy: v1alpha1.ExecutionStrategy{Mode: v1alpha1.StrategyDAG},
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{ID: "ok", Actor: v1alpha1.ActorInstaller, Action: "installer.ok"},
+				{ID: "boom", Actor: v1alpha1.ActorInstaller, Action: "installer.panic"},
+			},
+		},
+	}
+	router := NewRouter()
+	router.Register(v1alpha1.ActorInstaller, "installer.ok", func(context.Context, ActionRequest) (*ActionResult, error) {
+		return &ActionResult{OK: true}, nil
+	})
+	router.Register(v1alpha1.ActorInstaller, "installer.panic", func(context.Context, ActionRequest) (*ActionResult, error) {
+		panic("parallel handler exploded")
+	})
+
+	run, _ := (&Engine{Router: router}).Execute(context.Background(), def, nil)
+	if run == nil {
+		t.Fatal("Execute returned nil run after a panicking parallel step")
+	}
+	if !isTerminalOrParked(run.Status) {
+		t.Fatalf("run left non-terminal after a parallel panic: status=%q", run.Status)
+	}
+	if run.Status != RunFailed {
+		t.Errorf("a parallel step panic must fail the run, got %q", run.Status)
+	}
+}

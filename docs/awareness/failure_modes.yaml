@@ -344,6 +344,41 @@ failure_modes:
         - cluster-controller
       required_tests:
         - TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects
+    - id: workflow.engine_step_panic_crashes_process
+      title: A panicking step handler crashes the workflow service instead of failing the run
+      severity: high
+      symptoms:
+        - workflow service process exits on a single bad step (panic in an actor handler)
+        - run is left non-terminal with no FAILED record; observers see a vanished process, not a failed run
+        - 'goroutine panic in the crash log, created by ...executeDAG'
+      root_cause: |
+        The engine had no recover() at any dispatch site. A step handler that
+        panicked unwound the stack out of the engine; because the engine runs
+        every step through an executeDAG goroutine, an unrecovered panic took
+        down the whole workflow service process (a goroutine panic cannot be
+        recovered by the caller). This violates the terminal-state guarantee —
+        the run never reaches SUCCEEDED/FAILED — and is the "unexpected case
+        handled by silence/crash" shape: one bad actor handler becomes a
+        cluster-wide outage of the coordinator.
+      architecture_fix: |
+        Wrap every handler invocation in safeInvoke, which recovers a panic and
+        converts it into an ordinary step error (logging the stack once for
+        diagnosis). The step then fails/retries normally and the run reaches a
+        terminal state; the process survives. Applies to the sequential, foreach,
+        and onFailure-hook dispatch sites — and, critically, to parallel goroutines
+        where the panic would otherwise crash the process.
+      forbidden_fixes:
+        - invoke_step_handler_without_panic_recovery
+        - recover_only_on_the_sequential_path_not_in_goroutines
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+        - reconciliation.must_be_idempotent_and_bounded
+      related_services:
+        - workflow
+      required_tests:
+        - TestEngine_PanickingStepReachesTerminalState
+        - TestEngine_PanickingParallelStepDoesNotCrashProcess
     - id: repository.minio.recovery_cycle
       title: Repository and MinIO form a recovery deadlock
       severity: critical
