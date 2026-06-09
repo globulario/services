@@ -7309,11 +7309,18 @@ invariants:
       # need different patterns (e.g. identity-invariance scans for
       # identity-field assignments, not etcd writes) — putting the
       # pattern in YAML keeps the scanner principle-agnostic.
-      scan_pattern: '\b(cli|kv|kvClient|etcdcli|etcdClient|client|c)\.(Put|Delete)\s*\('
+      scan_pattern: '\b(cli|kv|kvClient|etcdcli|etcdClient|client|c)\.(Put|Delete)\s*\(|\bclientv3\.Op(Put|Delete)\s*\('
       scan_pattern_description: |
-        Direct etcd Put/Delete calls on a client identifier. Narrow by
-        design — only methods named Put or Delete on identifiers whose
-        name suggests an etcd client. Excludes _test.go files.
+        etcd state-mutation sites. Two forms:
+          1. Direct Put/Delete calls on a client identifier whose name
+             suggests an etcd client (cli, kv, client, ...).
+          2. Transaction ops clientv3.OpPut / clientv3.OpDelete (used
+             inside cli.Txn(...).Then(...)). Added 2026-06-09 after a
+             triage found 7 transaction-based writes in actor-writer dirs
+             that the form-1 regex could not see — a write evading the
+             scanner means drift=0 overstates safety. Both forms must be
+             matched or transaction writes become an enforcement blind spot.
+        Narrow by design; excludes _test.go files.
 
       exception_files:
         # Exception 1 — observer-only self-state.
@@ -7392,6 +7399,21 @@ invariants:
         - file: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go
           category: exception_4_pre_workflow_primitive
           reason: etcd endpoint reconciler (etcd is below the workflow layer)
+        - file: golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
+          category: exception_4_pre_workflow_primitive
+          reason: |
+            Approval-token replay guard. A single atomic, idempotent,
+            lease-bounded Txn (CreateRevision==0) that reserves an approval
+            token's jti at /globular/cluster_doctor/approval_replay/{jti} so a
+            Tier-2 remediation approval cannot be replayed; fail-closed (refuses
+            the token if etcd is unavailable). This is a one-time-use security
+            nonce, NOT a multi-step cluster-state mutation — it carries no
+            intent about cluster desired/installed/runtime state. The write is
+            REQUIRED by awareness: forbidden_fix skip_approval_token_jti_replay_check
+            names this file, and failure_mode storing_jti_blacklist_only_in_memory
+            forbids keeping the blacklist in memory only. Surfaced 2026-06-09 when
+            the scan_pattern was broadened to see transaction (clientv3.OpPut)
+            writes; previously invisible to the scanner.
 
         # Exception 5 — service-self-configuration via typed admin RPC.
         # Each function in these files must call at most one state
@@ -7539,6 +7561,12 @@ invariants:
         - TestMarkNodeSucceeded_AttributedToActorNotWorkflowService
         - TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService
         - TestReleaseApplyWorkflows_DispatchOneRunPerReleaseWithPerNodeForeach
+        # Runtime-ordering ratchet (2026-06-09): the behavioral halves of
+        # meta.state_mutations_must_be_durably_committed_before_side_effects
+        # that the source-grep scanner structurally cannot see.
+        - TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects   # commit-before-execute (T3)
+        - TestEngine_AlwaysReachesTerminalState                      # terminal-state guarantee (T1)
+        - TestEngine_NoAlternativePath_OnlyPlanActionsDispatched     # no-alternative-path (T2)
       architectural_decision: |
         Resolved 2026-06-05. The deferred test
         TestReconcileLoop_DispatchesOneInstancePerArtifactNodePair
@@ -9046,17 +9074,32 @@ invariants:
         of "I cannot tell." Same failure shape as INC-2026-0004 across
         every rule.
 
-        Today's sweep: 85 findings across the 48 rule files. The
-        scanner output is the concrete scope of the structural debt
-        the harvest_yield promotion record names.
+        STRUCTURAL FIX LANDED 2026-06-09. Enforcement is now two-sided
+        and lives in the rule-dispatch infrastructure (rules/registry.go),
+        not in per-rule discipline alone:
+          - FALSE_NEGATIVE (a rule whose only source errored emits no
+            finding, masking an outage as healthy): EvaluateAll/
+            EvaluateForNode now emit one INVARIANT_UNKNOWN finding per
+            errored source (snapshotSourceUnavailableFindings), so an
+            unavailable source is always a first-class finding and is
+            never silently "healthy". annotateForReducedHarvest still
+            tags the findings that WERE produced.
+          - FALSE_POSITIVE (a rule treats an errored source as a
+            confirmed negative and emits a confident INVARIANT_FAIL):
+            gated in CI by TestNoRuleEmitsConfidentFailureOnErroredSnapshot,
+            a registry-wide ratchet with a shrink-only allowlist.
+        High-risk cluster-scoped rules (etcd quorum/stale/bootstrap/
+        crash, service drift, leader pending-update) additionally call
+        snap.HadError and return nil. The collector's silently-dropped
+        etcd Get errors (ingress status, scylla schema_guard,
+        leader_pending_update) were fixed so snap.HadError is truthful.
 
-        The structural fix lives in the rule-dispatch infrastructure
-        (rules/registry.go) — inspecting snap.Errors before invoking
-        each rule and either (i) skipping rules whose required
-        sources errored, (ii) annotating findings with
-        reduced_harvest=true, or (iii) downgrading severity. That
-        fix closes all 85 sites at once. Until it lands, this
-        scanner documents the scope.
+        The ruleguard matcher is now PRECISE: it excludes Evaluate
+        bodies that consult snap.HadError, so the drift count (85 → 79
+        on 2026-06-09) tracks real per-rule adoption rather than a flat
+        debt total. The remaining rules are covered by the registry
+        layer + the ratchet; per-rule guards are added where a rule's
+        verdict depends on a single source.
 
       protects:
         files:
@@ -9067,10 +9110,15 @@ invariants:
           - snap.HadError
       forbidden_fixes:
         - reason_on_partial_snapshot_as_if_complete
-      required_tests: []
+      required_tests:
+        - TestNoRuleEmitsConfidentFailureOnErroredSnapshot
+        - TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable
+        - TestClusterScopedRulesRefuseOnSourceError
 
       related_invariants:
         - meta.harvest_and_yield_are_distinct_availability_dimensions
+        - meta.absence_scope_must_be_explicit
+        - meta.authority_must_express_uncertainty
 
       actor_writer_dirs:
         - golang/cluster_doctor/cluster_doctor_server/rules
@@ -9080,13 +9128,25 @@ invariants:
 
       scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
 
-      exception_files: []
+      exception_files:
+        # Source-independent rules: their data source is NOT a fallible RPC
+        # sub-fetch, so a snap.HadError guard is meaningless. FALSE_POSITIVE on
+        # errored data is gated separately by
+        # TestNoRuleEmitsConfidentFailureOnErroredSnapshot.
+        - file: cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go
+          category: source_independent_local_filesystem
+          reason: Reads the local filesystem (os.ReadDir/Stat of the artifact-state root); there is no RPC sub-fetch to consult, so snap.HadError is N/A. Allowlisted in the same terms in the ratchet test.
+        - file: cluster_doctor/cluster_doctor_server/rules/awareness_graph_seed.go
+          category: source_independent_probe_flag
+          reason: Consumes the AwarenessGraphReachable / AwarenessGraphQueryEmpty probe-result bools; the probe disposition IS the signal — there is no fallible RPC field to guard with snap.HadError.
       workflow_step_handler_files: []
-      # All 48 doctor rule files are CURRENTLY in violation. Listing
-      # each as a known-violation rather than an exception would
-      # clutter; the violation scope is tracked in the parent meta-
-      # principle's promoted_from_candidate record. The structural
-      # fix closes all sites together.
+      # Remaining flagged sites are per-node / multi-source rules (class B):
+      # they need a per-node `snap.HadError("node_agent@"+nid, rpc)` consult
+      # rather than a top-level return, and are behaviorally protected today by
+      # the registry's snapshot_source_unavailable findings (FALSE_NEGATIVE) and
+      # the ratchet test (FALSE_POSITIVE). They ratchet down as each adopts a
+      # per-node guard. Class-A single-source rules carry an explicit
+      # snap.HadError guard as of 2026-06-09.
       unknown_helper_files: []
 
     - id: timestamp_field_must_carry_semantic_qualifier

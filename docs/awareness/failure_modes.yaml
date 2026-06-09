@@ -228,6 +228,122 @@ failure_modes:
         - node-agent
       required_tests:
         - TestDeterministicFailureDoesNotRetryForever
+    - id: controller.circuit_breaker.level_triggered_burst_amplification
+      title: Circuit breaker re-opens on every failure past threshold, amplifying one bring-up blip into N opens
+      severity: medium
+      symptoms:
+        - workflow_circuit_breaker_open_total jumps by tens in under a second (observed 26 in ~1s)
+        - controller log shows "circuit OPEN — N failures" repeated with N climbing 5,6,7,... within the same second
+        - cluster-doctor reports "Workflow dispatch pressure SUSTAINED" with a large workflow_dispatch_rejected_total during/after bring-up
+        - finding self-clears at the 15m window (rate_5m == 0) because the underlying backend recovered on its own
+      root_cause: |
+        workflowHealthGate.RecordFailure (and the sibling reconcileCircuitBreaker.RecordTimeout)
+        used a level-triggered open condition: `if len(failures) >= threshold { open... }`.
+        During bring-up the reconciler dispatches many releases concurrently; when the workflow
+        backend is briefly unready, a burst of ExecuteWorkflow RPCs fails near-simultaneously.
+        Every failure past the threshold re-ran the open logic — re-arming circuitOpenUntil,
+        resetting the half-open probe, re-incrementing the open counter, and re-logging — so one
+        logical open event was amplified into N (26 observed on 2026-06-09). Re-arming the cooldown
+        on each concurrent failure also extends the open window and can starve the half-open probe.
+      architecture_fix: |
+        Make the breaker EDGE-triggered: act only on the closed->open transition. Once open with no
+        half-open probe outstanding, additional failures are recorded in the rolling window but do
+        NOT re-arm the cooldown, reset the probe, re-increment the open counter, or re-log. Only a
+        failed half-open probe re-arms the cooldown (a genuine new attempt). One logical open ==
+        one counter increment == one log line.
+      forbidden_fixes:
+        - raise_doctor_pressure_threshold_to_hide_burst
+        - suppress_circuit_open_log_without_fixing_amplification
+        - level_triggered_breaker_reopen_on_every_failure
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
+        - meta.diagnostic_output_must_be_bounded
+      related_services:
+        - cluster-controller
+      required_tests:
+        - TestWorkflowGateBurstOpensExactlyOnce
+        - TestReconcileBreakerBurstOpensExactlyOnce
+    - id: cluster_doctor.rule_goes_silent_when_source_errors
+      title: Doctor rule emits no finding when its collector source errored, masking a real outage as healthy
+      severity: high
+      symptoms:
+        - cluster-doctor reports a clean/healthy sweep while an upstream (controller, node-agent, etcd) is unreachable
+        - a cert-expiry / etcd-quorum / service-drift finding that should fire is silently absent
+        - snap.DataIncomplete is true but no finding names the unavailable source
+      root_cause: |
+        Doctor rule Evaluate methods read typed Snapshot fields (snap.Nodes, snap.NodeHealths,
+        snap.CertificateStatus, snap.ScyllaSchemaGuardStatus, ...). When a collector sub-fetch
+        fails the corresponding field is left empty/nil. Rules that iterate the empty field emit
+        no finding, so a real condition is masked: "source errored" becomes indistinguishable from
+        "healthy/empty". annotateForReducedHarvest only tags findings that WERE produced, so a rule
+        that produces nothing leaves the masked outage invisible. Compounding it, several collector
+        etcd reads (ingress/v1/status, scylla/schema_guard, controller/leader_pending_update)
+        silently dropped their Get error (`if err == nil { ... }` with no else), so snap.HadError
+        returned false even when the read failed.
+      architecture_fix: |
+        Two layers. (1) Collector: record every failed sub-fetch via snap.addError so snap.HadError
+        and snap.DataIncomplete are truthful (fix the silently-dropped etcd reads). (2) Registry
+        dispatch: EvaluateAll/EvaluateForNode emit one INVARIANT_UNKNOWN finding per missing source
+        (snapshotSourceUnavailableFindings) carrying a non-empty CheckError, so an unavailable
+        source is always a first-class finding and is never counted as a FAIL. High-risk
+        cluster-scoped rules (etcd quorum/stale/bootstrap/crash, service drift, leader
+        pending-update) additionally call snap.HadError and return nil to refuse to answer on
+        partial data. Per-node map-iterating rules (certificate health, ingress/scylla guardians)
+        are covered by the registry layer — a top-level `return nil` there would wrongly suppress
+        findings for the healthy nodes still present in the map.
+      forbidden_fixes:
+        - treat_empty_snapshot_field_as_healthy
+        - return_nil_in_per_node_rule_suppressing_present_nodes
+        - drop_collector_subfetch_error_without_addError
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
+        - meta.authority_must_express_uncertainty
+        - doctor_rule_evaluate_must_consult_snap_errors
+        - meta.harvest_and_yield_are_distinct_availability_dimensions
+      related_services:
+        - cluster-doctor
+      required_tests:
+        - TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable
+        - TestClusterScopedRulesRefuseOnSourceError
+        - TestEvaluateAll_PartialSnapshot_FindingAnnotated
+    - id: workflow.executor_dispatches_side_effects_before_run_record_commits
+      title: Executor dispatches actor side effects even when the durable run record (StartRun) fails to commit
+      severity: high
+      symptoms:
+        - cluster mutations (installs, restarts) occur with no workflow_runs row explaining them
+        - a workflow-service restart cannot find or resume a run whose side effects already ran
+        - observers/audit see effects with no run record naming who decided them and when
+      root_cause: |
+        ExecuteWorkflow persisted the run record via StartRun, then treated a
+        StartRun failure as NON-FATAL ("execution proceeds even if recording
+        fails") and called engine.Execute regardless. The engine then dispatched
+        all actor side effects with no durable coordinator record — the
+        "lost intent / untraceable change" class: the intent was never committed
+        but the world was changed, and there is no resume point or audit trail.
+        The source-grep state_mutations scanner cannot see this; it is a runtime
+        ordering / error-handling bug, not a write-site shape — surfaced 2026-06-09
+        while scoping the runtime ordering ratchet.
+      architecture_fix: |
+        Commit-first. A StartRun failure is fatal: ExecuteWorkflow aborts BEFORE
+        engine.Execute and returns an error so the caller retries the whole
+        dispatch (retry is the only response — no proceeding fail-open). StartRun
+        is an idempotent upsert (CQL INSERT by primary key + supersedePriorRuns)
+        and engine steps are idempotent (reconciliation.must_be_idempotent_and_bounded),
+        so a retry that re-commits and re-executes does not double-apply. StartRun
+        is indirected through the startRunFn package var so the
+        commit-before-side-effect ordering is gated by a behavioral test.
+      forbidden_fixes:
+        - proceed_to_execute_when_run_record_commit_fails
+        - treat_run_start_persistence_as_best_effort
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+        - workflow.every_state_mutation_belongs_to_a_workflow_instance
+        - reconciliation.must_be_idempotent_and_bounded
+      related_services:
+        - workflow
+        - cluster-controller
+      required_tests:
+        - TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects
     - id: repository.minio.recovery_cycle
       title: Repository and MinIO form a recovery deadlock
       severity: critical
