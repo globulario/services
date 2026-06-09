@@ -64,6 +64,23 @@ func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagn
 		return action
 	}
 
+	// Auto-execute is the ONLY path that takes a real action, so it must be an
+	// EXPLICIT grant (tier == 1), never the fall-through. tier is a raw int32
+	// (proto3, no enum); any value other than the three defined tiers — a buggy
+	// caller, a peer proposal, a future proto tier, a garbled field — must fail
+	// safe to approval-required, NOT auto-remediate. The dangerous case is the
+	// explicit grant; the unknown case defaults to deny. See
+	// meta.least_privilege_is_not_a_default_it_is_an_explicit_grant,
+	// meta.silence_is_not_valid_for_unexpected, and the intent
+	// ai.decision_tier.gates_execution (the tier IS the authority gate).
+	if tier != 1 {
+		action.Status = ai_executorpb.ActionStatus_ACTION_PENDING
+		action.Detail = fmt.Sprintf("unrecognized tier %d — defaulting to approval-required (fail-safe), no auto-execution", tier)
+		logger.Warn("remediation: unrecognized tier defaulted to approval-required",
+			"incident", diagnosis.GetIncidentId(), "tier", tier)
+		return action
+	}
+
 	// Tier 1 (auto-remediate): execute via real backend.
 	action.Status = ai_executorpb.ActionStatus_ACTION_EXECUTING
 
