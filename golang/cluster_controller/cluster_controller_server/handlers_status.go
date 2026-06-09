@@ -145,7 +145,17 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		}
 	}
 
-	reportedAt := time.Now()
+	// receivedAt is the controller's receipt clock and is the ONLY timestamp
+	// that drives heartbeat-staleness decisions: every time.Since(node.LastSeen)
+	// across the controller must compare a single clock. The node's
+	// self-reported time is kept separately as ReportedAt for diagnostics and
+	// skew detection, but MUST NOT drive staleness — comparing the controller's
+	// clock to a node's clock means a node with a slow clock is wrongly judged
+	// stale (and could be marked down by leader_liveness / posture /
+	// stale_instance_purger). See
+	// meta.clock_skew_invalidates_cross_node_time_comparison.
+	receivedAt := time.Now()
+	reportedAt := receivedAt
 	if ts := ns.GetReportedAt(); ts != nil {
 		reportedAt = ts.AsTime()
 	}
@@ -170,8 +180,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			NodeID:         nodeID,
 			Identity:       newIdentity,
 			AgentEndpoint:  newEndpoint,
-			LastSeen:       reportedAt,
-			ReportedAt:     reportedAt,
+			LastSeen:       receivedAt, // server receipt clock (staleness decisions)
+			ReportedAt:     reportedAt, // node self-reported clock (diagnostics)
 			Status:         "recovering",
 			Profiles:       []string{}, // do not assume privileged profiles
 			Metadata:       make(map[string]string),
@@ -219,8 +229,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 
 	oldEndpoint := node.AgentEndpoint
 	node.AgentEndpoint = newEndpoint
-	node.ReportedAt = reportedAt
-	node.LastSeen = reportedAt
+	node.ReportedAt = reportedAt // node self-reported clock (diagnostics only)
+	node.LastSeen = receivedAt   // server receipt clock — drives staleness; never the node's clock
 	changed = true // LastSeen must always persist so followers see fresh heartbeats
 	srv.removeStaleNodesLocked(nodeID, newIdentity, newEndpoint)
 
