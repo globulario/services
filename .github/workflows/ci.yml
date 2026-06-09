@@ -40,6 +40,23 @@ jobs:
           repository: globulario/packages
           path: packages
 
+      # awareness-graph is PRIVATE, so the default GITHUB_TOKEN cannot reach it
+      # (the other sibling repos are public). Non-fatal: if checkout fails the
+      # job continues and the self-contained behavioral ratchets below still
+      # hard-gate. The principle-check source-scanner step is guarded on this
+      # checkout's outcome, so it activates automatically once an org PAT with
+      # read access to awareness-graph is added as the AWARENESS_GRAPH_PAT
+      # secret — at which point it becomes a hard gate (the step itself has no
+      # continue-on-error).
+      - name: Checkout awareness-graph (principle-check scanner)
+        id: checkout_awareness_graph
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/awareness-graph
+          path: awareness-graph
+          token: ${{ secrets.AWARENESS_GRAPH_PAT || github.token }}
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -67,6 +84,35 @@ jobs:
 
       - name: Build awareness CI tools
         run: go build -o bin/globular ./globularcli
+
+      # Enforcement gates (hard-fail). These run the meta-principle checks that
+      # the broad "Unit Tests" step above does NOT gate (it is continue-on-error
+      # because some tests need etcd/ScyllaDB). The checks below are infra-free
+      # and authoritative for their invariants.
+      #
+      # 1. Source-shape scanner: every cluster state mutation goes through a
+      #    workflow or a named exception. principle-check-all covers
+      #    meta.state_mutations_must_be_durably_committed_before_side_effects and
+      #    workflow.workflow_service_writes_only_own_runtime_state; it exits
+      #    non-zero on DRIFT (a new direct/transaction etcd write that is neither
+      #    workflow-routed nor an allowlisted exception).
+      - name: Enforce state-mutation invariants (principle-check, hard gate)
+        if: steps.checkout_awareness_graph.outcome == 'success'
+        working-directory: ${{ github.workspace }}/awareness-graph
+        run: make principle-check-all
+        env:
+          SERVICES_REPO: ${{ github.workspace }}/services
+
+      # 2. Behavioral ratchets: the runtime halves the source scanner cannot see
+      #    — commit-before-execute, terminal-state guarantee (incl. step-panic
+      #    recovery), no-alternative-path — plus the cluster-doctor harvest-yield
+      #    ratchet. All infra-free. The TestEngine_ prefix gates every engine-level
+      #    ratchet, so new ones enforce automatically.
+      - name: Enforce behavioral ratchets (hard gate)
+        run: |
+          go test -count=1 -run 'TestEngine_|TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects' ./workflow/engine/... ./workflow/workflow_server/...
+          go test -count=1 -run 'TestNoRuleEmitsConfidentFailureOnErroredSnapshot|TestClusterScopedRulesRefuseOnSourceError|TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable' ./cluster_doctor/cluster_doctor_server/rules/...
+          go test -count=1 -run 'TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap|TestPermCacheGrantTTLIsBounded' ./interceptors/...
 
       - name: Validate awareness contracts against code (depends_on drift)
         # Walks every packages/metadata/<svc>/awareness.yaml, parses depends_on,

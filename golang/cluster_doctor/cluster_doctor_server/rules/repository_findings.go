@@ -20,7 +20,12 @@ func (repositoryFindings) Scope() string    { return "cluster" }
 
 func (repositoryFindings) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	var findings []Finding
-	if snap == nil || len(snap.RepositoryFindings) == 0 {
+	// repository unreachable → empty RepositoryFindings is "unknown", not "no
+	// findings". Refuse; the registry surfaces the unavailable source.
+	if snap == nil || snap.HadError("repository", "ListRepositoryFindings") {
+		return findings
+	}
+	if len(snap.RepositoryFindings) == 0 {
 		return findings
 	}
 	for _, rf := range snap.RepositoryFindings {

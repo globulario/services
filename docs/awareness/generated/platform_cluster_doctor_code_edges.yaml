@@ -80,6 +80,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry_harvest_test
     relation: enforces
     to: globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
+  - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry_source_error_enforcement_test
+    relation: enforces
+    to: globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
   - from: globular.platform:code.go.platform_cluster_doctor.leader_election
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language

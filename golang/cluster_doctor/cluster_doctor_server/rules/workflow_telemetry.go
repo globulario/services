@@ -31,6 +31,11 @@ func (workflowStepFailures) Category() string { return "convergence" }
 func (workflowStepFailures) Scope() string    { return "cluster" }
 
 func (w workflowStepFailures) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Workflow backend unreachable → empty StepOutcomes means "unknown", not
+	// "no failures". Refuse; the registry surfaces the unavailable source.
+	if snap.HadError("workflow", "ListStepOutcomes") {
+		return nil
+	}
 	if len(snap.StepOutcomes) == 0 {
 		return nil
 	}
@@ -100,6 +105,11 @@ func (workflowDriftStuck) Category() string { return "convergence" }
 func (workflowDriftStuck) Scope() string    { return "cluster" }
 
 func (w workflowDriftStuck) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Workflow backend unreachable → empty DriftUnresolved means "unknown", not
+	// "no stuck drift". Refuse; the registry surfaces the unavailable source.
+	if snap.HadError("workflow", "ListDriftUnresolved") {
+		return nil
+	}
 	if len(snap.DriftUnresolved) == 0 {
 		return nil
 	}
@@ -162,6 +172,11 @@ func (workflowNoActivity) Category() string { return "convergence" }
 func (workflowNoActivity) Scope() string    { return "cluster" }
 
 func (w workflowNoActivity) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Workflow backend unreachable → empty WorkflowSummaries means "unknown",
+	// not "no activity". Refuse; the registry surfaces the unavailable source.
+	if snap.HadError("workflow", "ListWorkflowSummaries") {
+		return nil
+	}
 	if len(snap.WorkflowSummaries) == 0 {
 		return nil
 	}

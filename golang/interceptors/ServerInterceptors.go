@@ -218,6 +218,24 @@ type permCacheEntry struct {
 	expiresAt int64 // unix seconds
 }
 
+// Permission-decision cache TTLs. Per
+// meta.authorization_check_is_a_snapshot_not_a_promise, a cached ALLOW is a
+// snapshot that goes stale the instant a binding is revoked — and this
+// per-service interceptor cache is NOT invalidated when the RBAC service's own
+// cache is. So the GRANT TTL is the upper bound on how long a revoked permission
+// keeps being honored across the mesh; it must stay short. A stale DENY (after a
+// new grant) is only an availability annoyance, so it may be equal-or-shorter.
+//
+// permGrantTTLMaxBound is the documented ceiling the ratchet enforces
+// (TestPermCacheGrantTTLIsBounded) so the revocation window can never silently
+// regress (it was 15m before 2026-06-09). A longer-but-invalidated cache is the
+// preferred future fix; until then, bound the window.
+const (
+	permGrantTTL        = 60 * time.Second
+	permDenyTTL         = 30 * time.Second
+	permGrantTTLMaxBound = 60 * time.Second
+)
+
 func nowUnix() int64 { return time.Now().Unix() }
 
 // buildPermCacheKey returns a stable cache key for a permission decision.
@@ -395,13 +413,15 @@ func validateAction(
 		return allowed, accessDenied, err
 	}
 
-	// Cache both grants and denials. Grants get a longer TTL since they're
-	// the common path; denials use a shorter TTL so that newly granted
-	// permissions take effect within seconds.
+	// Cache both grants and denials. The GRANT TTL bounds how long a revoked
+	// permission keeps being honored (this cache is not cross-service
+	// invalidated), so it is kept short — see
+	// meta.authorization_check_is_a_snapshot_not_a_promise. The DENY TTL only
+	// affects how fast a newly-granted permission takes effect.
 	if allowed {
-		putPermCache(cacheKey, true, 15*time.Minute)
+		putPermCache(cacheKey, true, permGrantTTL)
 	} else {
-		putPermCache(cacheKey, false, 30*time.Second)
+		putPermCache(cacheKey, false, permDenyTTL)
 	}
 	return allowed, accessDenied, nil
 }
@@ -1119,7 +1139,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	if clusterInitialized && authCtx != nil && authCtx.Subject == "sa" {
 		if security.IsRoleBasedMethod(actionKey) {
 			// Method is explicitly role-mapped — check if "sa" has bindings.
-			if allowed, _ := checkRoleBinding("sa", actionKey, address); allowed {
+			if allowed, _ := checkRoleBinding("sa", actionKey, method, address); allowed {
 				LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
 				return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
 			}
@@ -1150,7 +1170,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		!strings.HasPrefix(method, "/rbac.RbacService/") &&
 		authCtx != nil && authCtx.Subject != "" {
 
-		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, address)
+		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, method, address)
 		if allowed {
 			LogAuthzDecisionSimple(authCtx, true, "role_binding_granted")
 			return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
@@ -1591,7 +1611,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		!strings.HasPrefix(method, "/rbac.RbacService/") &&
 		authCtx != nil && authCtx.Subject != "" {
 
-		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, address)
+		allowed, _ := checkRoleBinding(authCtx.Subject, actionKey, method, address)
 		if !allowed {
 			LogAuthzDecisionSimple(authCtx, false, "role_binding_denied")
 			return status.Errorf(codes.PermissionDenied,

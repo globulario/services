@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // Registry holds all registered invariants and evaluates them against a Snapshot.
@@ -287,7 +288,52 @@ func (r *Registry) EvaluateAll(snap *collector.Snapshot) []Finding {
 	for _, inv := range r.invariants {
 		all = append(all, inv.Evaluate(snap, r.cfg)...)
 	}
-	return annotateForReducedHarvest(all, snap)
+	annotated := annotateForReducedHarvest(all, snap)
+	// A rule whose only source errored produces NO finding, so the
+	// [reduced-harvest] annotation above has nothing to tag and the masked
+	// outage stays invisible. Surface each unavailable source as its own
+	// INVARIANT_UNKNOWN finding so "could not see" is never indistinguishable
+	// from "healthy".
+	return append(annotated, snapshotSourceUnavailableFindings(snap)...)
+}
+
+// snapshotSourceUnavailableFindings emits one INVARIANT_UNKNOWN finding per
+// collector sub-fetch that errored this sweep. It is the missing half of
+// meta.harvest_and_yield_are_distinct_availability_dimensions: annotateForReducedHarvest
+// tags findings that WERE produced, but a rule whose only data source errored
+// produces no finding at all, so a real outage is silently masked (the
+// FALSE_NEGATIVE class triaged 2026-06-09 — cert expiry, etcd quorum, service
+// drift, etc. all going invisible exactly when their upstream is unreachable).
+// Making each unavailable source a first-class finding restores the operator's
+// "I could not see this" signal.
+//
+// These carry InvariantStatus=INVARIANT_UNKNOWN and a non-empty CheckError so
+// aggregators never count them as FAILs (per the Finding.CheckError contract),
+// and Severity=WARN so they surface without implying a confirmed failure.
+func snapshotSourceUnavailableFindings(snap *collector.Snapshot) []Finding {
+	if snap == nil || !snap.DataIncomplete {
+		return nil
+	}
+	var out []Finding
+	for _, src := range snap.MissingSources() {
+		out = append(out, Finding{
+			FindingID:       FindingID("cluster_doctor.snapshot_source_unavailable", src, ""),
+			InvariantID:     "cluster_doctor.snapshot_source_unavailable",
+			Severity:        cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:        "observability",
+			EntityRef:       src,
+			Summary:         "cluster-doctor could not fetch " + src + " this sweep — checks that depend on it are indeterminate, NOT healthy",
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN,
+			CheckError:      "collector sub-fetch failed for " + src,
+			Evidence: []*cluster_doctorpb.Evidence{
+				kvEvidence("cluster_doctor", "snapshot_source_unavailable", map[string]string{
+					"missing_source": src,
+					"explanation":    "the collector's fetch for this source errored; any rule whose only input is this source emits no finding this sweep, so its verdict is unknown rather than pass",
+				}),
+			},
+		})
+	}
+	return out
 }
 
 // annotateForReducedHarvest prepends [reduced-harvest] to each
@@ -363,7 +409,8 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 			all = append(all, inv.Evaluate(nodesnap, r.cfg)...)
 		}
 	}
-	return annotateForReducedHarvest(all, nodesnap)
+	annotated := annotateForReducedHarvest(all, nodesnap)
+	return append(annotated, snapshotSourceUnavailableFindings(nodesnap)...)
 }
 
 // FindByID looks up a cached finding by its finding_id across all findings.

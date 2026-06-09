@@ -3,7 +3,7 @@
 // @awareness file_role=cached_role_binding_check_with_local_cluster_roles_fallback
 // @awareness implements=globular.platform:intent.interceptors.role_binding_fallback_uses_local_cluster_roles
 // @awareness implements=globular.platform:intent.rbac.service_excludes_self_from_interceptor
-// @awareness partially_violates=globular.platform:invariant.meta.fail_safe_defaults_when_authority_is_uncertain
+// @awareness implements=globular.platform:invariant.meta.fail_safe_defaults_when_authority_is_uncertain
 // @awareness risk=high
 //
 // role_binding_check.go: helper that calls the RBAC service to determine
@@ -20,18 +20,15 @@
 // loaded cluster-roles.json. This avoids a bootstrap deadlock where services
 // can't call RBAC because RBAC requires auth that depends on RBAC.
 //
-// KNOWN GAP — partial violation of
-// meta.fail_safe_defaults_when_authority_is_uncertain. The fallback uses
-// checkLocalRoles, which returns ALLOW if ANY locally-loaded role grants
-// the method — so a viewer-only user can clear an admin-only check during
-// an RBAC outage. The bootstrap-deadlock argument justifies the relaxation
-// during the bootstrap window; it does NOT justify it during normal
-// operation. Tracked as the closest violation the principle has — the
-// structural fix is either (a) a fail-closed mode gated by a real
-// bootstrap-window check, or (b) a per-method "fallback_safe" allowlist
-// in cluster-roles.json restricting the fallback to read-only operations.
-// Until the structural fix lands, every fallback fires a metric and a
-// WARN log so operators can detect and audit the relaxation window.
+// STRUCTURAL FIX (2026-06-09) — meta.fail_safe_defaults_when_authority_is_uncertain.
+// The fallback no longer blanket-allows. rbacUncertainAllow keeps the permissive
+// local-roles fallback ONLY where it cannot widen into a silent privilege
+// escalation: the "sa" service identity, the bounded/explicit bootstrap window
+// (security.DefaultBootstrapGate), and read-only methods (!IsMutatingRPC). A
+// real user invoking a mutating method while RBAC is unreachable outside
+// bootstrap now FAILS CLOSED (DENY) — the loud, auditable availability failure
+// the principle wants, not a silent admin-escalation window. Both the
+// permissive-fallback path and the new deny path emit a metric + WARN log.
 package interceptors
 
 import (
@@ -52,6 +49,37 @@ import (
 // authorized by checkLocalRoles instead of the user's actual role binding —
 // a structural permission relaxation that should be near-zero in steady state.
 var rbacFallbackCount = expvar.NewInt("rbac.fallback_local_roles_used")
+
+// rbacFallbackDeniedCount counts requests the fail-safe default DENIED on the
+// RBAC-uncertain path: a real user invoking a mutating method while RBAC is
+// unreachable, outside the bootstrap window. A nonzero value during an RBAC
+// outage is the principle working as intended — a loud, auditable refusal
+// rather than a silent privilege relaxation.
+var rbacFallbackDeniedCount = expvar.NewInt("rbac.fallback_denied_fail_safe")
+
+// rbacUncertainAllow is the access decision on the RBAC-uncertain (fallback)
+// path. It enforces meta.fail_safe_defaults_when_authority_is_uncertain: when
+// the user's authority cannot be verified, the default for a state-changing
+// method is DENY. The permissive local-roles fallback (checkLocalRoles, which
+// grants if ANY local role allows the method) is retained ONLY where it cannot
+// widen into a silent privilege escalation:
+//   - subject "sa": the service / superadmin identity, not a user principal;
+//     service-to-service plumbing must not deadlock on an RBAC blip.
+//   - the bounded, explicit bootstrap window (security.DefaultBootstrapGate) —
+//     the principle's named, deadline-gated exception.
+//   - read-only methods (!security.IsMutatingRPC) — cannot escalate into a
+//     state-changing action. IsMutatingRPC fails closed on unknown methods.
+// Every other case — a real user invoking a mutating method while RBAC is
+// unreachable outside bootstrap — fails closed (DENY).
+func rbacUncertainAllow(subject, method, fullMethod string) bool {
+	if subject == "sa" || security.DefaultBootstrapGate.IsActive() || !security.IsMutatingRPC(fullMethod) {
+		return checkLocalRoles(method)
+	}
+	rbacFallbackDeniedCount.Add(1)
+	slog.Warn("rbac fallback: DENY (fail-safe default) — user subject invoked a mutating method while RBAC unavailable outside bootstrap",
+		"subject", subject, "method", method, "full_method", fullMethod)
+	return false
+}
 
 // roleBindingTTL controls how long a cached role binding is considered fresh.
 // Short enough to pick up RBAC changes quickly, long enough to avoid
@@ -78,7 +106,7 @@ var roleBindingCache sync.Map
 // allowed. This is more permissive than the RBAC service path, but it only
 // activates when the RBAC service is unavailable.
 //
-func checkRoleBinding(subject, method, rbacAddr string) (bool, error) {
+func checkRoleBinding(subject, method, fullMethod, rbacAddr string) (bool, error) {
 	// Check cache first.
 	if roles, ok := getCachedRoleBinding(subject); ok {
 		return security.HasRolePermission(roles, method), nil
@@ -93,7 +121,7 @@ func checkRoleBinding(subject, method, rbacAddr string) (bool, error) {
 		rbacFallbackCount.Add(1)
 		slog.Warn("rbac fallback: RBAC client unavailable, using local-roles fallback (permissive)",
 			"subject", subject, "method", method, "reason", "client_construct_failed", "error", err)
-		return checkLocalRoles(method), err
+		return rbacUncertainAllow(subject, method, fullMethod), err
 	}
 
 	// Build a properly authenticated context so the RBAC service's interceptor
@@ -115,7 +143,7 @@ func checkRoleBinding(subject, method, rbacAddr string) (bool, error) {
 		rbacFallbackCount.Add(1)
 		slog.Warn("rbac fallback: RBAC lookup failed, using local-roles fallback (permissive)",
 			"subject", subject, "method", method, "reason", "get_role_binding_failed", "error", err)
-		return checkLocalRoles(method), err
+		return rbacUncertainAllow(subject, method, fullMethod), err
 	}
 
 	roles := binding.GetRoles()

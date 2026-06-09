@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"text/template"
@@ -632,6 +633,26 @@ func depsReady(run *Run, deps []string) bool {
 // Step execution
 // --------------------------------------------------------------------------
 
+// safeInvoke calls an action handler with panic recovery. A panicking step
+// handler is converted into an ordinary error so the step fails (and retries /
+// fails the run to a terminal state) instead of unwinding the stack — which, in
+// a parallel or foreach goroutine, would take down the whole workflow service
+// process (an unrecovered goroutine panic cannot be caught by the caller). The
+// full stack is logged once for diagnosis; the persisted step error stays
+// concise. See meta.silence_is_not_valid_for_unexpected and the engine's
+// terminal-state guarantee (TestEngine_AlwaysReachesTerminalState).
+func safeInvoke(ctx context.Context, h ActionHandler, req ActionRequest) (result *ActionResult, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = nil
+			err = fmt.Errorf("step handler panicked: %v", r)
+			log.Printf("workflow: step %s::%s PANIC recovered: %v\n%s",
+				req.Actor, req.Action, r, debug.Stack())
+		}
+	}()
+	return h(ctx, req)
+}
+
 func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.CompiledStep) error {
 	run.stepsMu.RLock()
 	st := run.Steps[step.ID]
@@ -712,7 +733,7 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 			Outputs: run.Outputs,
 		}
 
-		result, err := handler(stepCtx, req)
+		result, err := safeInvoke(stepCtx, handler, req)
 		if err != nil {
 			lastErr = err
 			if attempt < maxAttempts {
@@ -898,7 +919,7 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 			Outputs: run.Outputs,
 		}
 
-		result, err := handler(ctx, req)
+		result, err := safeInvoke(ctx, handler, req)
 		if err != nil {
 			st.Status = StepFailed
 			st.Error = fmt.Sprintf("item %d: %v", i, err)
@@ -1228,7 +1249,7 @@ func (e *Engine) dispatchHook(ctx context.Context, run *Run, hook *compiler.Comp
 		Inputs:  run.Inputs,
 		Outputs: run.Outputs,
 	}
-	if _, err := handler(ctx, req); err != nil {
+	if _, err := safeInvoke(ctx, handler, req); err != nil {
 		log.Printf("workflow: hook %s::%s failed: %v", hook.Actor, hook.Action, err)
 	}
 }

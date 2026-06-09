@@ -41,6 +41,14 @@ func (etcdQuorumHealth) Category() string { return "etcd" }
 func (etcdQuorumHealth) Scope() string    { return "cluster" }
 
 func (etcdQuorumHealth) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Refuse to answer when the node source errored: an empty snap.Nodes then
+	// means "cluster_controller unreachable", not "no etcd nodes" — emitting
+	// nothing would silently mask a quorum loss. The registry surfaces the
+	// unavailable source as its own UNKNOWN finding.
+	// See doctor_rule_evaluate_must_consult_snap_errors.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
 	var findings []Finding
 
 	// Check for nodes whose etcd should be running based on profiles and join phase.
@@ -154,6 +162,10 @@ func (staleNodeDetection) Category() string { return "availability" }
 func (staleNodeDetection) Scope() string    { return "cluster" }
 
 func (staleNodeDetection) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Empty snap.Nodes on a source error is "unreachable", not "no duplicates".
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
 	var findings []Finding
 
 	// Detect duplicate hostnames (same hostname, different node IDs).
@@ -204,6 +216,10 @@ func (bootstrapPhaseStuck) Category() string { return "bootstrap" }
 func (bootstrapPhaseStuck) Scope() string    { return "node" }
 
 func (bootstrapPhaseStuck) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Empty snap.Nodes on a source error is "unreachable", not "no stuck node".
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
 	var findings []Finding
 
 	for _, node := range snap.Nodes {
@@ -323,6 +339,10 @@ func (nodeAgentCrash) Category() string { return "systemd" }
 func (nodeAgentCrash) Scope() string    { return "node" }
 
 func (nodeAgentCrash) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Empty snap.Nodes on a source error is "unreachable", not "no crashes".
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
 	var findings []Finding
 
 	for _, node := range snap.Nodes {

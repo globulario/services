@@ -365,7 +365,14 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 			snap.addSource("etcd.ingress_spec")
 		}
 
-		if resp, err := etcdCli.Get(ingCtx, "/globular/ingress/v1/status/", clientv3.WithPrefix()); err == nil {
+		if resp, err := etcdCli.Get(ingCtx, "/globular/ingress/v1/status/", clientv3.WithPrefix()); err != nil {
+			// Record the failure so snap.HadError("etcd",
+			// "Get(/globular/ingress/v1/status/)") is truthful — otherwise the
+			// ingress critical-state rules read an empty map and cannot tell
+			// "etcd unreachable" from "no node status published" (a masked
+			// FALSE_NEGATIVE). See meta.absence_scope_must_be_explicit.
+			snap.addError("etcd", "Get(/globular/ingress/v1/status/)", err)
+		} else {
 			for _, kv := range resp.Kvs {
 				key := string(kv.Key)
 				nodeID := strings.TrimPrefix(key, "/globular/ingress/v1/status/")
@@ -431,7 +438,14 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	if etcdCli, err := config.GetEtcdClient(); err == nil {
 		sgCtx, sgCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 		defer sgCancel()
-		if resp, err := etcdCli.Get(sgCtx, "/globular/scylla/schema_guard/", clientv3.WithPrefix()); err == nil {
+		if resp, err := etcdCli.Get(sgCtx, "/globular/scylla/schema_guard/", clientv3.WithPrefix()); err != nil {
+			// Record the failure so snap.HadError("etcd",
+			// "Get(/globular/scylla/schema_guard/)") is truthful — otherwise the
+			// scylla/repository RF-policy-violation rules read an empty map and
+			// silently emit no finding when etcd is unreachable (a masked
+			// FALSE_NEGATIVE). See meta.absence_scope_must_be_explicit.
+			snap.addError("etcd", "Get(/globular/scylla/schema_guard/)", err)
+		} else {
 			for _, kv := range resp.Kvs {
 				key := string(kv.Key)
 				keyspace := strings.TrimPrefix(key, "/globular/scylla/schema_guard/")
@@ -508,7 +522,17 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	if etcdCli, err := config.GetEtcdClient(); err == nil {
 		lpCtx, lpCancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 		defer lpCancel()
-		if resp, err := etcdCli.Get(lpCtx, "/globular/controller/leader_pending_update"); err == nil && len(resp.Kvs) > 0 {
+		resp, gerr := etcdCli.Get(lpCtx, "/globular/controller/leader_pending_update")
+		if gerr != nil {
+			// Record the failure so snap.HadError("etcd",
+			// "Get(/globular/controller/leader_pending_update)") is truthful.
+			// Without this the controllerLeaderPendingUpdate rule reads a nil
+			// record and cannot tell "etcd unreachable" from "no pending
+			// update" — masking a stuck-leader condition. A successful read
+			// with zero keys is the legitimate absent case (no error recorded).
+			// See meta.absence_scope_must_be_explicit.
+			snap.addError("etcd", "Get(/globular/controller/leader_pending_update)", gerr)
+		} else if len(resp.Kvs) > 0 {
 			var rec LeaderPendingUpdateRecord
 			if err := json.Unmarshal(resp.Kvs[0].Value, &rec); err == nil {
 				snap.mu.Lock()

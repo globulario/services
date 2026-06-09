@@ -34,7 +34,12 @@ func (workflowCorrelationAbandoned) Category() string { return "workflow" }
 func (workflowCorrelationAbandoned) Scope() string    { return "cluster" }
 
 func (workflowCorrelationAbandoned) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
-	if snap == nil || len(snap.AbandonedDeferCorrelations) == 0 {
+	// Workflow backend unreachable → empty AbandonedDeferCorrelations means
+	// "unknown", not "none abandoned". Refuse; the registry surfaces the source.
+	if snap == nil || snap.HadError("workflow", "ListCorrelationDeferState(abandoned)") {
+		return nil
+	}
+	if len(snap.AbandonedDeferCorrelations) == 0 {
 		return nil
 	}
 	out := make([]Finding, 0, len(snap.AbandonedDeferCorrelations))

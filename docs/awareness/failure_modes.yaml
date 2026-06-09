@@ -228,6 +228,230 @@ failure_modes:
         - node-agent
       required_tests:
         - TestDeterministicFailureDoesNotRetryForever
+    - id: controller.circuit_breaker.level_triggered_burst_amplification
+      title: Circuit breaker re-opens on every failure past threshold, amplifying one bring-up blip into N opens
+      severity: medium
+      symptoms:
+        - workflow_circuit_breaker_open_total jumps by tens in under a second (observed 26 in ~1s)
+        - controller log shows "circuit OPEN — N failures" repeated with N climbing 5,6,7,... within the same second
+        - cluster-doctor reports "Workflow dispatch pressure SUSTAINED" with a large workflow_dispatch_rejected_total during/after bring-up
+        - finding self-clears at the 15m window (rate_5m == 0) because the underlying backend recovered on its own
+      root_cause: |
+        workflowHealthGate.RecordFailure (and the sibling reconcileCircuitBreaker.RecordTimeout)
+        used a level-triggered open condition: `if len(failures) >= threshold { open... }`.
+        During bring-up the reconciler dispatches many releases concurrently; when the workflow
+        backend is briefly unready, a burst of ExecuteWorkflow RPCs fails near-simultaneously.
+        Every failure past the threshold re-ran the open logic — re-arming circuitOpenUntil,
+        resetting the half-open probe, re-incrementing the open counter, and re-logging — so one
+        logical open event was amplified into N (26 observed on 2026-06-09). Re-arming the cooldown
+        on each concurrent failure also extends the open window and can starve the half-open probe.
+      architecture_fix: |
+        Make the breaker EDGE-triggered: act only on the closed->open transition. Once open with no
+        half-open probe outstanding, additional failures are recorded in the rolling window but do
+        NOT re-arm the cooldown, reset the probe, re-increment the open counter, or re-log. Only a
+        failed half-open probe re-arms the cooldown (a genuine new attempt). One logical open ==
+        one counter increment == one log line.
+      forbidden_fixes:
+        - raise_doctor_pressure_threshold_to_hide_burst
+        - suppress_circuit_open_log_without_fixing_amplification
+        - level_triggered_breaker_reopen_on_every_failure
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
+        - meta.diagnostic_output_must_be_bounded
+      related_services:
+        - cluster-controller
+      required_tests:
+        - TestWorkflowGateBurstOpensExactlyOnce
+        - TestReconcileBreakerBurstOpensExactlyOnce
+    - id: cluster_doctor.rule_goes_silent_when_source_errors
+      title: Doctor rule emits no finding when its collector source errored, masking a real outage as healthy
+      severity: high
+      symptoms:
+        - cluster-doctor reports a clean/healthy sweep while an upstream (controller, node-agent, etcd) is unreachable
+        - a cert-expiry / etcd-quorum / service-drift finding that should fire is silently absent
+        - snap.DataIncomplete is true but no finding names the unavailable source
+      root_cause: |
+        Doctor rule Evaluate methods read typed Snapshot fields (snap.Nodes, snap.NodeHealths,
+        snap.CertificateStatus, snap.ScyllaSchemaGuardStatus, ...). When a collector sub-fetch
+        fails the corresponding field is left empty/nil. Rules that iterate the empty field emit
+        no finding, so a real condition is masked: "source errored" becomes indistinguishable from
+        "healthy/empty". annotateForReducedHarvest only tags findings that WERE produced, so a rule
+        that produces nothing leaves the masked outage invisible. Compounding it, several collector
+        etcd reads (ingress/v1/status, scylla/schema_guard, controller/leader_pending_update)
+        silently dropped their Get error (`if err == nil { ... }` with no else), so snap.HadError
+        returned false even when the read failed.
+      architecture_fix: |
+        Two layers. (1) Collector: record every failed sub-fetch via snap.addError so snap.HadError
+        and snap.DataIncomplete are truthful (fix the silently-dropped etcd reads). (2) Registry
+        dispatch: EvaluateAll/EvaluateForNode emit one INVARIANT_UNKNOWN finding per missing source
+        (snapshotSourceUnavailableFindings) carrying a non-empty CheckError, so an unavailable
+        source is always a first-class finding and is never counted as a FAIL. High-risk
+        cluster-scoped rules (etcd quorum/stale/bootstrap/crash, service drift, leader
+        pending-update) additionally call snap.HadError and return nil to refuse to answer on
+        partial data. Per-node map-iterating rules (certificate health, ingress/scylla guardians)
+        are covered by the registry layer — a top-level `return nil` there would wrongly suppress
+        findings for the healthy nodes still present in the map.
+      forbidden_fixes:
+        - treat_empty_snapshot_field_as_healthy
+        - return_nil_in_per_node_rule_suppressing_present_nodes
+        - drop_collector_subfetch_error_without_addError
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
+        - meta.authority_must_express_uncertainty
+        - doctor_rule_evaluate_must_consult_snap_errors
+        - meta.harvest_and_yield_are_distinct_availability_dimensions
+      related_services:
+        - cluster-doctor
+      required_tests:
+        - TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable
+        - TestClusterScopedRulesRefuseOnSourceError
+        - TestEvaluateAll_PartialSnapshot_FindingAnnotated
+    - id: workflow.executor_dispatches_side_effects_before_run_record_commits
+      title: Executor dispatches actor side effects even when the durable run record (StartRun) fails to commit
+      severity: high
+      symptoms:
+        - cluster mutations (installs, restarts) occur with no workflow_runs row explaining them
+        - a workflow-service restart cannot find or resume a run whose side effects already ran
+        - observers/audit see effects with no run record naming who decided them and when
+      root_cause: |
+        ExecuteWorkflow persisted the run record via StartRun, then treated a
+        StartRun failure as NON-FATAL ("execution proceeds even if recording
+        fails") and called engine.Execute regardless. The engine then dispatched
+        all actor side effects with no durable coordinator record — the
+        "lost intent / untraceable change" class: the intent was never committed
+        but the world was changed, and there is no resume point or audit trail.
+        The source-grep state_mutations scanner cannot see this; it is a runtime
+        ordering / error-handling bug, not a write-site shape — surfaced 2026-06-09
+        while scoping the runtime ordering ratchet.
+      architecture_fix: |
+        Commit-first. A StartRun failure is fatal: ExecuteWorkflow aborts BEFORE
+        engine.Execute and returns an error so the caller retries the whole
+        dispatch (retry is the only response — no proceeding fail-open). StartRun
+        is an idempotent upsert (CQL INSERT by primary key + supersedePriorRuns)
+        and engine steps are idempotent (reconciliation.must_be_idempotent_and_bounded),
+        so a retry that re-commits and re-executes does not double-apply. StartRun
+        is indirected through the startRunFn package var so the
+        commit-before-side-effect ordering is gated by a behavioral test.
+      forbidden_fixes:
+        - proceed_to_execute_when_run_record_commit_fails
+        - treat_run_start_persistence_as_best_effort
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+        - workflow.every_state_mutation_belongs_to_a_workflow_instance
+        - reconciliation.must_be_idempotent_and_bounded
+      related_services:
+        - workflow
+        - cluster-controller
+      required_tests:
+        - TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects
+    - id: workflow.engine_step_panic_crashes_process
+      title: A panicking step handler crashes the workflow service instead of failing the run
+      severity: high
+      symptoms:
+        - workflow service process exits on a single bad step (panic in an actor handler)
+        - run is left non-terminal with no FAILED record; observers see a vanished process, not a failed run
+        - 'goroutine panic in the crash log, created by ...executeDAG'
+      root_cause: |
+        The engine had no recover() at any dispatch site. A step handler that
+        panicked unwound the stack out of the engine; because the engine runs
+        every step through an executeDAG goroutine, an unrecovered panic took
+        down the whole workflow service process (a goroutine panic cannot be
+        recovered by the caller). This violates the terminal-state guarantee —
+        the run never reaches SUCCEEDED/FAILED — and is the "unexpected case
+        handled by silence/crash" shape: one bad actor handler becomes a
+        cluster-wide outage of the coordinator.
+      architecture_fix: |
+        Wrap every handler invocation in safeInvoke, which recovers a panic and
+        converts it into an ordinary step error (logging the stack once for
+        diagnosis). The step then fails/retries normally and the run reaches a
+        terminal state; the process survives. Applies to the sequential, foreach,
+        and onFailure-hook dispatch sites — and, critically, to parallel goroutines
+        where the panic would otherwise crash the process.
+      forbidden_fixes:
+        - invoke_step_handler_without_panic_recovery
+        - recover_only_on_the_sequential_path_not_in_goroutines
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+        - reconciliation.must_be_idempotent_and_bounded
+      related_services:
+        - workflow
+      required_tests:
+        - TestEngine_PanickingStepReachesTerminalState
+        - TestEngine_PanickingParallelStepDoesNotCrashProcess
+    - id: interceptors.rbac_fallback_allows_user_mutation_on_outage
+      title: RBAC interceptor's local-roles fallback allows a user's mutating call during an RBAC outage (silent escalation)
+      severity: critical
+      symptoms:
+        - a viewer-only user performs an admin-only mutation while the RBAC service is unreachable
+        - rbac.fallback_local_roles_used increments during an RBAC outage with no corresponding deny
+        - audit shows access granted with no role binding actually verified
+      root_cause: |
+        When the RBAC service is unreachable, checkRoleBinding fell back to
+        checkLocalRoles, which returns ALLOW if ANY locally-loaded cluster role
+        grants the method — it does not consult the specific user's binding. So
+        during any RBAC outage a low-privilege user could clear a high-privilege
+        check: a silent privilege-escalation window. This is the canonical
+        violation of meta.fail_safe_defaults_when_authority_is_uncertain — when
+        the authority decision cannot be made, the default must be REFUSE, not
+        "allow because we could not check".
+      architecture_fix: |
+        rbacUncertainAllow makes the fallback fail closed by default. The
+        permissive local-roles fallback is retained ONLY where it cannot widen
+        into a state-changing escalation: the "sa" service/superadmin identity
+        (service plumbing must not deadlock on an RBAC blip), the bounded explicit
+        bootstrap window (security.DefaultBootstrapGate — the principle's named
+        exception), and read-only methods (!security.IsMutatingRPC, which fails
+        closed on unknown methods). A real user invoking a mutating method while
+        RBAC is unreachable outside bootstrap is DENIED and the refusal is metered
+        (rbac.fallback_denied_fail_safe) and WARN-logged.
+      forbidden_fixes:
+        - allow_request_when_rbac_check_cannot_be_made
+        - local_roles_fallback_grants_if_any_role_allows_for_mutations
+      related_invariants:
+        - meta.fail_safe_defaults_when_authority_is_uncertain
+        - security.deny_overrides_allow
+      related_services:
+        - interceptors
+        - rbac
+      required_tests:
+        - TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
+    - id: interceptors.perm_cache_grant_outlives_revocation
+      title: Permission-decision cache honors a revoked grant for up to 15 minutes (stale-allow window)
+      severity: high
+      symptoms:
+        - a user keeps passing an authorization check for minutes after an admin revoked their binding
+        - revocation appears to "not take effect" until the per-service interceptor cache expires
+        - rbac permission change invalidates only the RBAC service cache, not the callers' interceptor caches
+      root_cause: |
+        The interceptor's permission-decision cache stored an ALLOW for 15 minutes
+        (denials for 30s). The asymmetry optimized the deny->grant direction ("a
+        new grant takes effect in seconds") but left the security-critical
+        grant->revoke direction slow: a revoked permission kept being honored for
+        up to 15 minutes across every service, and the per-service cache is not
+        invalidated when the RBAC service's own cache is. This is the canonical
+        "cached RBAC results outlive the binding" shape of
+        meta.authorization_check_is_a_snapshot_not_a_promise — a cached auth
+        decision is a snapshot, and without invalidation a long TTL is a lie.
+      architecture_fix: |
+        Shorten the GRANT TTL so the revocation window is bounded (permGrantTTL =
+        60s), and pin it under a documented ceiling (permGrantTTLMaxBound) that a
+        ratchet enforces so it cannot silently regress to 15m. A stale DENY after
+        a new grant is only an availability annoyance, so the DENY TTL stays 30s.
+        The preferred longer-term fix is cross-service cache invalidation (the
+        RBAC service signals binding changes), which would make a longer TTL safe;
+        until then, bound the window.
+      forbidden_fixes:
+        - cache_authorization_grant_without_a_bounded_revocation_window
+        - longer_grant_ttl_than_deny_ttl_without_invalidation
+      related_invariants:
+        - meta.authorization_check_is_a_snapshot_not_a_promise
+        - meta.binding_outlives_evidence_until_invalidated
+      related_services:
+        - interceptors
+        - rbac
+      required_tests:
+        - TestPermCacheGrantTTLIsBounded
     - id: repository.minio.recovery_cycle
       title: Repository and MinIO form a recovery deadlock
       severity: critical

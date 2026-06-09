@@ -140,6 +140,15 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
+  - id: globular.platform:code.go.platform_cluster_doctor.invariant_registry_source_error_enforcement_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/registry_source_error_enforcement_test.go
+    component: platform_cluster_doctor.invariant_registry_source_error_enforcement_test
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
   - id: globular.platform:code.go.platform_cluster_doctor.leader_election
     namespace: globular.platform
     language: go

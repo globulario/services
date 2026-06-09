@@ -65,6 +65,12 @@ func (nodeMultiIP) Scope() string    { return "node" }
 func (nodeMultiIP) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	var findings []Finding
 
+	// cluster_controller unreachable → empty snap.Nodes is "unknown", not "no
+	// multi-IP nodes". Refuse; the registry surfaces the unavailable source.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return findings
+	}
+
 	for _, node := range snap.Nodes {
 		nodeID := node.GetNodeId()
 		hostname := node.GetIdentity().GetHostname()

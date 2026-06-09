@@ -278,7 +278,11 @@ func (officialIdentitySealed) Category() string { return "repository" }
 func (officialIdentitySealed) Scope() string    { return "cluster" }
 
 func (officialIdentitySealed) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
-	if snap == nil || len(snap.RepositoryFindings) == 0 {
+	// repository unreachable → RepositoryFindings unknown, not "identity sealed".
+	if snap == nil || snap.HadError("repository", "ListRepositoryFindings") {
+		return nil
+	}
+	if len(snap.RepositoryFindings) == 0 {
 		return nil
 	}
 

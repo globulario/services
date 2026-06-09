@@ -52,20 +52,49 @@ func (g *workflowHealthGate) Check() error {
 
 // RecordFailure records an RPC-level failure. Only transport/infrastructure
 // errors should trigger this — not business-level workflow failures.
+//
+// The breaker is EDGE-triggered: one logical open emits exactly one log line,
+// one workflowCircuitBreakerOpenTotal increment, and arms exactly one cooldown
+// window. A concurrent burst of failures (e.g. the many parallel
+// ExecuteWorkflow RPCs that fail at once while the workflow backend is warming
+// up during bring-up) must NOT re-arm the cooldown, reset the half-open probe,
+// re-increment the open counter, or re-log on every failure. Level-triggering
+// here amplified one event into 26 opens and 26 log lines during the
+// 2026-06-09 bring-up (workflow_circuit_breaker_open_total=26 in ~1s) and kept
+// re-arming the cooldown, which can starve the half-open probe. Only a failed
+// half-open probe re-arms the cooldown — that is a genuine new attempt.
+// See meta.failure_response_must_contract_not_amplify and
+// meta.diagnostic_output_must_be_bounded.
 func (g *workflowHealthGate) RecordFailure() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.failures = append(g.failures, time.Now())
 	g.pruneOld()
 
-	if len(g.failures) >= g.failureThreshold {
-		g.circuitOpenUntil = time.Now().Add(g.cooldownPeriod)
-		g.halfOpenProbe.Store(false)
-		workflowCircuitBreakerOpenTotal.Inc()
-		workflowCircuitOpenGauge.Set(1)
-		log.Printf("workflow health gate: circuit OPEN — %d failures in %s, cooldown %s",
-			len(g.failures), g.windowSize, g.cooldownPeriod)
+	if len(g.failures) < g.failureThreshold {
+		return
 	}
+
+	alreadyOpen := time.Now().Before(g.circuitOpenUntil)
+	if alreadyOpen && !g.halfOpenProbe.Load() {
+		// Already open with no probe outstanding: this is a concurrent
+		// failure from the same burst that opened the circuit. Recording it
+		// in the rolling window is enough — do not amplify the open event.
+		return
+	}
+
+	probeFailed := alreadyOpen // only reachable here when a half-open probe failed
+	g.circuitOpenUntil = time.Now().Add(g.cooldownPeriod)
+	g.halfOpenProbe.Store(false)
+	workflowCircuitOpenGauge.Set(1)
+	if probeFailed {
+		log.Printf("workflow health gate: half-open probe failed — re-arming cooldown %s",
+			g.cooldownPeriod)
+		return
+	}
+	workflowCircuitBreakerOpenTotal.Inc()
+	log.Printf("workflow health gate: circuit OPEN — %d failures in %s, cooldown %s",
+		len(g.failures), g.windowSize, g.cooldownPeriod)
 }
 
 // RecordSuccess closes the circuit and resets the failure window.
@@ -221,19 +250,38 @@ func (cb *reconcileCircuitBreaker) Allow() error {
 }
 
 // RecordTimeout records a reconcile timeout/failure.
+//
+// Edge-triggered for the same reason as workflowHealthGate.RecordFailure: a
+// burst of reconcile timeouts past the threshold must open the circuit exactly
+// once, not re-arm and re-log on every timeout. See
+// meta.failure_response_must_contract_not_amplify.
 func (cb *reconcileCircuitBreaker) RecordTimeout() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 	cb.timeouts = append(cb.timeouts, time.Now())
 	cb.pruneOld()
 
-	if len(cb.timeouts) >= cb.timeoutThreshold {
-		cb.openUntil = time.Now().Add(cb.cooldownPeriod)
-		cb.halfOpenProbe.Store(false)
-		reconcileCircuitOpenTotal.Inc()
-		log.Printf("reconcile circuit breaker: OPEN — %d timeouts in %s, cooldown %s",
-			len(cb.timeouts), cb.windowSize, cb.cooldownPeriod)
+	if len(cb.timeouts) < cb.timeoutThreshold {
+		return
 	}
+
+	alreadyOpen := time.Now().Before(cb.openUntil)
+	if alreadyOpen && !cb.halfOpenProbe.Load() {
+		// Concurrent timeout from the same burst — do not re-arm or re-log.
+		return
+	}
+
+	probeFailed := alreadyOpen
+	cb.openUntil = time.Now().Add(cb.cooldownPeriod)
+	cb.halfOpenProbe.Store(false)
+	if probeFailed {
+		log.Printf("reconcile circuit breaker: half-open probe failed — re-arming cooldown %s",
+			cb.cooldownPeriod)
+		return
+	}
+	reconcileCircuitOpenTotal.Inc()
+	log.Printf("reconcile circuit breaker: OPEN — %d timeouts in %s, cooldown %s",
+		len(cb.timeouts), cb.windowSize, cb.cooldownPeriod)
 }
 
 // RecordSuccess closes the circuit and resets the timeout window.

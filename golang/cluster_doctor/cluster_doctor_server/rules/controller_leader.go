@@ -54,6 +54,15 @@ func (controllerLeaderPendingUpdate) Category() string { return "control_plane" 
 func (controllerLeaderPendingUpdate) Scope() string    { return "cluster" }
 
 func (c controllerLeaderPendingUpdate) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Refuse to answer when the etcd read errored: a nil rec then means
+	// "etcd unreachable", not "no pending update" — emitting nothing would
+	// mask a stuck-leader condition. The collector now records this error
+	// (previously the Get failure was silently dropped), and the registry
+	// surfaces the unavailable source as its own UNKNOWN finding.
+	// See doctor_rule_evaluate_must_consult_snap_errors.
+	if snap.HadError("etcd", "Get(/globular/controller/leader_pending_update)") {
+		return nil
+	}
 	rec := snap.LeaderPendingUpdate
 	if rec == nil {
 		return nil

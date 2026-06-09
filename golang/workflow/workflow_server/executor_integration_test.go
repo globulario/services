@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 
@@ -260,6 +261,74 @@ func TestExecuteWorkflowCallbackInputsPropagated(t *testing.T) {
 }
 
 // ─── Mock actor ──────────────────────────────────────────────────────────────
+
+// TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects is the commit-first
+// ratchet (T3) for meta.state_mutations_must_be_durably_committed_before_side_effects.
+// If the durable run record (StartRun) cannot commit, ExecuteWorkflow MUST refuse
+// to dispatch any actor side effect and MUST return an error so the caller retries
+// — never execute uncommitted (the "lost intent / untraceable change" bug class).
+// Regression for the pre-2026-06-09 executor, which logged the failure and
+// proceeded anyway ("Non-fatal: execution proceeds even if recording fails").
+func TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects(t *testing.T) {
+	// Minimal one-step workflow, served through the EtcdFetcher seam (no etcd).
+	const defYAML = `apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: test.commit_first
+spec:
+  strategy:
+    mode: dag
+  steps:
+    - id: only_step
+      actor: cluster-controller
+      action: test.side_effect
+`
+	prevFetcher := v1alpha1.EtcdFetcher
+	v1alpha1.EtcdFetcher = func(string) ([]byte, error) { return []byte(defYAML), nil }
+	defer func() { v1alpha1.EtcdFetcher = prevFetcher }()
+
+	// A real mock actor that counts dispatches — it must stay at zero.
+	mock := &roundTripMockActor{}
+	actorLis, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	actorGS := grpc.NewServer()
+	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
+	go actorGS.Serve(actorLis)
+	defer actorGS.Stop()
+
+	// Force the durable run-start commit to fail (simulate a Scylla write error).
+	prevStart := startRunFn
+	startRunFn = func(_ *server, _ context.Context, _ *workflowpb.StartRunRequest) (*workflowpb.WorkflowRun, error) {
+		return nil, fmt.Errorf("simulated scylla write failure")
+	}
+	defer func() { startRunFn = prevStart }()
+
+	srv := &server{} // nil depHealth/leaseManager/deferStore → pre-StartRun gates pass
+
+	resp, err := srv.ExecuteWorkflow(context.Background(), &workflowpb.ExecuteWorkflowRequest{
+		WorkflowName:   "test.commit_first",
+		ClusterId:      "test-cluster",
+		ActorEndpoints: map[string]string{"cluster-controller": actorLis.Addr().String()},
+		// CorrelationId intentionally empty so the defer-state checks are skipped.
+	})
+
+	// 1. Must fail loudly so the caller retries the whole dispatch.
+	if err == nil {
+		t.Fatalf("ExecuteWorkflow must return an error when StartRun commit fails, got resp=%v", resp)
+	}
+	if !strings.Contains(err.Error(), "run-start commit failed") {
+		t.Errorf("error must explain the commit refusal, got: %v", err)
+	}
+	// 2. The decisive assertion: NO actor side effect was dispatched.
+	mock.mu.Lock()
+	n := len(mock.calls)
+	mock.mu.Unlock()
+	if n != 0 {
+		t.Errorf("StartRun commit failed but %d actor side effect(s) were dispatched — uncommitted execution", n)
+	}
+}
 
 type roundTripMockActor struct {
 	workflowpb.UnimplementedWorkflowActorServiceServer

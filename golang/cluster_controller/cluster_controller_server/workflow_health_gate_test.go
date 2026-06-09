@@ -133,6 +133,59 @@ func TestWorkflowGateHalfOpenAllowsExactlyOneProbe(t *testing.T) {
 	}
 }
 
+// TestWorkflowGateBurstOpensExactlyOnce is the regression for the 2026-06-09
+// bring-up dispatch-pressure incident. A concurrent burst of ExecuteWorkflow
+// RPC failures drove RecordFailure ~30× in one second; the level-triggered
+// open logic re-armed the cooldown, reset the probe, re-logged, and
+// re-incremented workflow_circuit_breaker_open_total on EVERY failure past the
+// threshold — amplifying one logical open into 26 (observed
+// circuit_breaker_open_total=26, 26 identical log lines). The breaker must be
+// edge-triggered: one logical open == one counter increment, regardless of how
+// many failures arrive while already open.
+//
+// Classifies against meta.failure_response_must_contract_not_amplify and
+// meta.diagnostic_output_must_be_bounded.
+func TestWorkflowGateBurstOpensExactlyOnce(t *testing.T) {
+	g := newWorkflowHealthGate()
+	before := testutil.ToFloat64(workflowCircuitBreakerOpenTotal)
+
+	// Far more failures than the threshold, all while the circuit is (or
+	// becomes) open, with no half-open probe in between — the burst shape.
+	const burst = 30
+	for i := 0; i < burst; i++ {
+		g.RecordFailure()
+	}
+	if !g.IsOpen() {
+		t.Fatal("circuit should be open after a failure burst")
+	}
+
+	if delta := testutil.ToFloat64(workflowCircuitBreakerOpenTotal) - before; delta != 1 {
+		t.Errorf("burst of %d failures must open the circuit exactly once "+
+			"(workflow_circuit_breaker_open_total += 1), got += %v", burst, delta)
+	}
+}
+
+// TestReconcileBreakerBurstOpensExactlyOnce is the sibling regression: the
+// reconcile circuit breaker had the identical level-triggered shape, so a
+// burst of reconcile timeouts must likewise open it exactly once.
+func TestReconcileBreakerBurstOpensExactlyOnce(t *testing.T) {
+	cb := newReconcileCircuitBreaker()
+	before := testutil.ToFloat64(reconcileCircuitOpenTotal)
+
+	const burst = 20
+	for i := 0; i < burst; i++ {
+		cb.RecordTimeout()
+	}
+	if !cb.IsOpen() {
+		t.Fatal("reconcile circuit should be open after a timeout burst")
+	}
+
+	if delta := testutil.ToFloat64(reconcileCircuitOpenTotal) - before; delta != 1 {
+		t.Errorf("burst of %d timeouts must open the reconcile circuit exactly once "+
+			"(reconcile_circuit_open_total += 1), got += %v", burst, delta)
+	}
+}
+
 // Awareness required-test name wrapper for workflow backend health gate.
 func TestWorkflowBackendHealthGate(t *testing.T) {
 	TestWorkflowGateBackoffPreventsStorm(t)
