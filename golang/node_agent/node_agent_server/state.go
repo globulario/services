@@ -153,5 +153,13 @@ func (s *nodeAgentState) save(path string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
+	// Mode 0640 so the globular group can read the state file even if the
+	// node-agent is running as root. Without this, a unit-file regression
+	// to User=globular loses the stored NodeID (state file is root:root 0600
+	// from os.CreateTemp), causing the node-agent to derive a new MAC-based
+	// ID and register as a ghost node.
+	if err := os.Chmod(tmp.Name(), 0o640); err != nil {
+		return err
+	}
 	return os.Rename(tmp.Name(), path)
 }
