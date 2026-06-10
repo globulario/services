@@ -223,7 +223,12 @@ func parseProtoForGeneration() (*generate.ServiceData, error) {
 	if genPort > 0 {
 		data.Port = genPort
 	} else if data.Port == 0 {
-		data.Port = 10200 // Default for new services
+		// Do NOT bake in a hardcoded port. Service ports are allocated and
+		// resolved from etcd at runtime; a hardcoded default (10200 in
+		// particular collides with ai_memory) violates the no-hardcoded-port
+		// rule and silently produces colliding scaffolding. Require the caller
+		// to pass one explicitly.
+		return data, fmt.Errorf("no port for generated service: pass --port <n> (service ports are not hardcoded; they are allocated/resolved from etcd at runtime)")
 	}
 
 	return data, nil
