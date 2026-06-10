@@ -693,6 +693,15 @@ func ValidateTopologyProposal(p *configpkg.TopologyProposal, admittedByIPPath ma
 		return append(errs, "no pool nodes specified")
 	}
 
+	// MinIO quorum lifecycle: distributed (multi-node) objectstore requires
+	// >= 3 nodes. A 2-node pool yields quorum=2, which is split-brain-prone and
+	// is never formed — the cluster holds at standalone (quorum=1) until a 3rd
+	// storage node is available, then transitions straight to a >=3 distributed
+	// pool. See objectstore.topology_contract.
+	if len(p.Nodes) == 2 {
+		errs = append(errs, "distributed objectstore requires >= 3 nodes — a 2-node pool (quorum=2) is split-brain-prone and not permitted; hold at standalone until a 3rd storage node joins")
+	}
+
 	// DrivesPerNode must be ≥ 1 for distributed (multi-node) topology.
 	if len(p.Nodes) >= 2 && p.DrivesPerNode < 1 {
 		errs = append(errs, "drives_per_node must be ≥ 1 for distributed topology")

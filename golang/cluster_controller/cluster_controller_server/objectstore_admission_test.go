@@ -96,8 +96,8 @@ func TestValidateTopologyProposal_AdmittedPathMismatch(t *testing.T) {
 func TestValidateTopologyProposal_MultipleAdmittedDisksPerNode(t *testing.T) {
 	// Two admitted disks on the same node — second is used in proposal.
 	p := &configpkg.TopologyProposal{
-		Nodes:         []string{"10.0.0.1", "10.0.0.2"},
-		NodePaths:     map[string]string{"10.0.0.1": "/data/disk2", "10.0.0.2": "/data"},
+		Nodes:         []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"},
+		NodePaths:     map[string]string{"10.0.0.1": "/data/disk2", "10.0.0.2": "/data", "10.0.0.3": "/data"},
 		DrivesPerNode: 1,
 	}
 	admitted := map[string]map[string]*configpkg.AdmittedDisk{
@@ -106,6 +106,7 @@ func TestValidateTopologyProposal_MultipleAdmittedDisksPerNode(t *testing.T) {
 			"/data/disk2": {NodeIP: "10.0.0.1", Path: "/data/disk2"},
 		},
 		"10.0.0.2": {"/data": {NodeIP: "10.0.0.2", Path: "/data"}},
+		"10.0.0.3": {"/data": {NodeIP: "10.0.0.3", Path: "/data"}},
 	}
 	errs := ValidateTopologyProposal(p, admitted)
 	if len(errs) != 0 {
@@ -434,5 +435,34 @@ func TestValidateAdmissions_DiskReplacement_BehindSameMountPath(t *testing.T) {
 	errs := validateAdmissionsAgainstCandidates(context.Background(), p, admitted, loader)
 	if len(errs) == 0 {
 		t.Fatal("expected error for full disk replacement behind same mount path, got none")
+	}
+}
+
+// TestValidateTopologyProposal_TwoNodeDistributedRejected enforces the MinIO
+// quorum lifecycle: a 2-node distributed pool (quorum=2) is split-brain-prone
+// and must be rejected. Distributed objectstore requires >= 3 nodes.
+func TestValidateTopologyProposal_TwoNodeDistributedRejected(t *testing.T) {
+	p := &configpkg.TopologyProposal{
+		Nodes:         []string{"10.0.0.1", "10.0.0.2"},
+		NodePaths:     map[string]string{"10.0.0.1": "/data", "10.0.0.2": "/data"},
+		DrivesPerNode: 1,
+	}
+	// Valid IPs/paths, drives>=1, nil admitted -> the only possible error is the
+	// >=3 quorum guard, so any error here is the rejection we require.
+	if errs := ValidateTopologyProposal(p, nil); len(errs) == 0 {
+		t.Fatal("expected a 2-node distributed proposal (quorum=2) to be rejected, got no errors")
+	}
+}
+
+// TestValidateTopologyProposal_SingleNodeStandaloneAccepted confirms a 1-node
+// (standalone, quorum=1) proposal is NOT subject to the >=3 distributed guard.
+func TestValidateTopologyProposal_SingleNodeStandaloneAccepted(t *testing.T) {
+	p := &configpkg.TopologyProposal{
+		Nodes:         []string{"10.0.0.1"},
+		NodePaths:     map[string]string{"10.0.0.1": "/data"},
+		DrivesPerNode: 1,
+	}
+	if errs := ValidateTopologyProposal(p, nil); len(errs) != 0 {
+		t.Fatalf("standalone (1-node) proposal must be accepted, got: %v", errs)
 	}
 }
