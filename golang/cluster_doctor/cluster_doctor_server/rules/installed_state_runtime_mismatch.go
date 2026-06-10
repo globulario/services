@@ -82,9 +82,22 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 		driftAge := snap.NodeDriftAge[nodeID]
 		inHashDrift := driftAge > 0
 
+		// Node-wide heartbeat staleness is NOT a per-package mismatch. When the
+		// node has not heartbeat within the reachability window (or is explicitly
+		// "unreachable"), we cannot observe ANY package's runtime — the state is
+		// UNKNOWN, not "not converged". Emitting one finding per installed package
+		// here would (1) amplify a single node outage into N findings
+		// (meta.diagnostic_output_must_be_bounded) and (2) misclassify unknown
+		// runtime as down (fm.industry.missing_inventory_misclassified_as_down /
+		// state.unknown_must_not_default_to_healthy). The node-scoped node.reachable
+		// rule owns this signal and fires on the SAME condition (see
+		// node_reachable.go), so suppressing here never drops coverage — it
+		// deduplicates it down to a single node-level CRITICAL.
 		lastSeen := node.GetLastSeen().AsTime()
 		age := now.Sub(lastSeen)
-		stale := lastSeen.IsZero() || age > 3*time.Minute
+		if node.GetStatus() == "unreachable" || lastSeen.IsZero() || age > cfg.HeartbeatStale {
+			continue
+		}
 
 		unitsByName := make(map[string]string, len(inv.GetUnits()))
 		for _, u := range inv.GetUnits() {
@@ -118,9 +131,6 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 			mismatch := false
 			reason := ""
 			switch {
-			case stale:
-				mismatch = true
-				reason = fmt.Sprintf("runtime status stale (last seen %s ago)", age.Round(time.Second))
 			case !ok:
 				mismatch = true
 				reason = fmt.Sprintf("runtime unit missing (%s)", unit)

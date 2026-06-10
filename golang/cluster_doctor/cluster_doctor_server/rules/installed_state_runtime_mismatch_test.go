@@ -110,23 +110,37 @@ func TestInstalledStateRuntimeMismatch_UnhealthyNode_IsError(t *testing.T) {
 	}
 }
 
-func TestInstalledStateRuntimeMismatch_StaleHeartbeat_FindingFired(t *testing.T) {
+// A node whose heartbeat is stale (or that is explicitly "unreachable") has
+// UNKNOWN runtime for every installed package — not "not converged". Asserting
+// a per-package mismatch from a stale snapshot would amplify one node outage
+// into N findings (meta.diagnostic_output_must_be_bounded) and misclassify
+// unknown runtime as down (fm.industry.missing_inventory_misclassified_as_down).
+// The node-scoped node.reachable rule owns this signal and emits a single
+// CRITICAL using the SAME staleness condition (cfg.HeartbeatStale), so this rule
+// must stay silent for stale nodes — coverage is deduplicated, never dropped.
+func TestInstalledStateRuntimeMismatch_StaleHeartbeat_SuppressedOwnedByNodeReachable(t *testing.T) {
 	staleNode := &cluster_controllerpb.NodeRecord{
 		NodeId:   "n1",
 		Status:   "ready",
-		LastSeen: timestamppb.New(time.Now().Add(-10 * time.Minute)), // 10 min stale
+		LastSeen: timestamppb.New(time.Now().Add(-10 * time.Minute)), // 10 min stale (> HeartbeatStale)
 	}
+	// Many installed packages would each have produced a "runtime status stale"
+	// finding under the old behavior — the amplification this fix removes.
+	pkgs := map[string]string{"mcp": "1.0.0", "dns": "1.2.203", "rbac": "1.2.203", "event": "1.2.203"}
 	snap := &collector.Snapshot{
 		Nodes:       []*cluster_controllerpb.NodeRecord{staleNode},
-		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"mcp": "1.0.0"})},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", pkgs)},
 		Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("globular-mcp.service", "active"))},
 	}
 	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
-	if len(findings) != 1 {
-		t.Fatalf("expected 1 finding for stale heartbeat, got %d", len(findings))
+	if len(findings) != 0 {
+		t.Fatalf("stale-heartbeat node must be silent here (node.reachable owns it); got %d findings: %+v", len(findings), findings)
 	}
-	if findings[0].Summary == "" {
-		t.Error("expected non-empty summary for stale finding")
+
+	// Sanity: node.reachable DOES fire for the same node, so the signal is not lost.
+	nr := (nodeReachable{}).Evaluate(snap, testConfig())
+	if len(nr) != 1 || nr[0].InvariantID != "node.reachable" {
+		t.Fatalf("node.reachable must emit exactly one finding for the stale node, got %d: %+v", len(nr), nr)
 	}
 }
 

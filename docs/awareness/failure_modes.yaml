@@ -1952,6 +1952,51 @@ failure_modes:
         - TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
         - TestNodeIDByPoolIP_EmptyAdvertiseIpDoesNotPoison
 
+    # ── Globular incident: doctor amplifies an unreachable node into N findings ─
+
+    - id: fm.globular.doctor_runtime_mismatch_amplified_by_unreachable_node
+      title: Doctor emits one installed_state_runtime_mismatch per package for an unreachable node, amplifying one outage into N findings and misclassifying unknown runtime as down
+      severity: high
+      # origin: { type: globular_incident, confidence: very_high }
+      # observed: 2026-06-10 multi-node join — globule-dell transient heartbeat outage (~3m47s)
+      #           produced 43 ERROR findings, one per installed package, all reason "runtime status stale";
+      #           they cleared at once when the node heartbeat returned. A node.reachable CRITICAL
+      #           already named the same node in the same sweep.
+      symptoms:
+        - cluster-doctor shows dozens of installed_state_runtime_mismatch ERRORs for a single node, every one with reason "runtime status stale (last seen ... ago)"
+        - the finding count tracks the node's installed-package count, not any real per-package problem
+        - a node.reachable CRITICAL already names the same node in the same sweep
+        - all the per-package findings clear at once the moment the node heartbeats again
+      root_cause: |
+        installed_state_runtime_mismatch.Evaluate computed node-wide heartbeat staleness
+        (lastSeen age > 3m) once per node, then emitted one finding PER installed package with
+        reason "runtime status stale". A stale heartbeat means the node is dark — its runtime is
+        UNKNOWN, not "not converged" — so the rule (1) amplified one node outage into N findings
+        (N = installed-package count) and (2) asserted unknown runtime as "not converged"
+        (a KNOWN_BAD claim) from absent evidence. The node-scoped node.reachable rule already owns
+        the node-unreachable signal and emits a single CRITICAL.
+      architecture_fix: |
+        A per-package runtime-convergence rule requires LIVE per-package runtime observation. When
+        the node's heartbeat is stale (or status == "unreachable") the runtime is UNKNOWN: skip the
+        whole node. Suppress on the SAME condition node.reachable uses
+        (status == "unreachable" || age > cfg.HeartbeatStale) so coverage is deduplicated to one
+        node-level CRITICAL, never dropped. UNKNOWN must not be rendered as "not converged".
+      known_bad_fixes:
+        - Keep emitting per-package "runtime status stale" findings and dedupe them downstream in render — the amplification AND the misclassification already live in the rule layer
+        - Raise the staleness threshold to hide the burst without removing the per-package fan-out
+        - Suppress on a threshold that can outrun node.reachable, dropping coverage when no node-level finding fires
+      related_invariants:
+        - meta.diagnostic_output_must_be_bounded
+        - meta.absence_scope_must_be_explicit
+        - state.unknown_must_not_default_to_healthy
+      related_industry_patterns:
+        - fm.industry.missing_inventory_misclassified_as_down
+        - fm.industry.partial_failure_hidden_by_global_green
+      related_services:
+        - cluster-doctor
+      required_tests:
+        - TestInstalledStateRuntimeMismatch_StaleHeartbeat_SuppressedOwnedByNodeReachable
+
     # ── Globular incident: VIP transition cascades into etcd eviction ─────────
 
     - id: fm.globular.vip_transition_cascade
