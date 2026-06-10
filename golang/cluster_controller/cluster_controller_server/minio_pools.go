@@ -49,7 +49,6 @@ func nodeHasMinioRunning(node *nodeState) bool {
 // Member=false, it is excluded immediately regardless of profile. The
 // authoritative membership gate (DesiredObjectStoreMembers) is checked
 // in reconcileMinioJoinPhases before this function is called.
-//
 func nodeIsPreparedForMinioJoin(node *nodeState) bool {
 	if node == nil {
 		return false
@@ -89,6 +88,23 @@ func newMinioPoolManager() *minioPoolManager {
 	return &minioPoolManager{}
 }
 
+// markMinioNonMember sets the node to MinioJoinNonMember idempotently and
+// reports whether the phase changed.
+//
+// A non-member node has MinIO correctly held inactive. Recording NonMember —
+// rather than leaving the node at the empty MinioJoinNone — is what lets the
+// bootstrap storage-join gate (bootstrap_phases.go) SKIP the minio runtime
+// check instead of blocking forever. Leaving a confirmed non-member silently
+// at MinioJoinNone is a no-op that wedges bootstrap (meta.silence_is_not_valid
+// _for_unexpected): the gate only advances on Verified OR NonMember.
+func markMinioNonMember(node *nodeState) bool {
+	if node.MinioJoinPhase != MinioJoinNonMember {
+		node.MinioJoinPhase = MinioJoinNonMember
+		return true
+	}
+	return false
+}
+
 // reconcileMinioJoinPhases drives the MinIO join state machine.
 //
 // Topology contract:
@@ -97,14 +113,14 @@ func newMinioPoolManager() *minioPoolManager {
 //   - Once a pool exists, ObjectStoreDesiredState.Nodes is owned by the
 //     topology contract: additions require an explicit apply-topology call.
 //     A Day-1 storage-profile node that is not yet in MinioPoolNodes is
-//     silently held at MinioJoinNone until apply-topology adds it.
+//     resolved to MinioJoinNonMember (non-blocking) until apply-topology adds
+//     it — never left at the empty MinioJoinNone, which would wedge bootstrap.
 //
 // State flow (for nodes already admitted into the pool):
 //  1. prepared: preconditions met
 //  2. pool_updated: node IP appended to MinioPoolNodes (bootstrap only)
 //  3. started: globular-minio.service active
 //  4. verified: service healthy (active for >30s)
-//
 func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *controllerState) (dirty bool) {
 	now := time.Now()
 
@@ -118,6 +134,10 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 		memberStatus := objectStoreMembershipStatus(node, state.DesiredObjectStoreMembers)
 		switch memberStatus {
 		case "not_listed", "intent_not_member":
+			// Explicit-authority invariant (incident 9598b8f7): a node that is
+			// not in the desired member list — or explicitly excluded — must NOT
+			// be touched here. Inferring/writing membership for such nodes is the
+			// non_member cycling failure mode. Leave the phase untouched.
 			continue
 		case "explicit_desired_state":
 			// v2 mode: explicit authorization — skip profile check
@@ -130,17 +150,31 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 
 		switch node.MinioJoinPhase {
 		case MinioJoinNone, MinioJoinFailed, MinioJoinNonMember:
+			// Topology contract: once a pool exists, a node that is not in it is
+			// a held non-member — a Day-1 node awaiting apply-topology admission,
+			// or any node before the pool is expanded to it. MinIO is correctly
+			// held inactive on such nodes, so mark them NonMember (non-blocking)
+			// here, BEFORE the prepared check below.
+			//
+			// This must precede nodeIsPreparedForMinioJoin: a held node may not
+			// have started globular-minio.service yet (the unit may not even be
+			// reported), so the prepared check would otherwise strand it at the
+			// empty MinioJoinNone and wedge bootstrap at storage_joining forever.
+			// Use ANY of the node's IPs — on a VIP holder (keepalived MASTER)
+			// nodeRoutableIP returns the floating VIP, never the pool IP.
+			if len(state.MinioPoolNodes) > 0 && !nodeAnyIPInPool(node, state.MinioPoolNodes) {
+				if markMinioNonMember(node) {
+					dirty = true
+				}
+				continue
+			}
+
 			if !nodeIsPreparedForMinioJoin(node) {
 				continue
 			}
 
-			// Check if already in the pool list. Use ANY of the node's IPs,
-			// not just nodeRoutableIP — on a VIP holder (keepalived MASTER),
-			// nodeRoutableIP returns the floating VIP, which is never the IP
-			// recorded in MinioPoolNodes. The apply path admits the stable IP,
-			// so we must match against any of the node's reported IPs.
+			// Already in the pool list — fast-forward based on service state.
 			if nodeAnyIPInPool(node, state.MinioPoolNodes) {
-				// Already in pool — fast-forward based on service state.
 				if nodeHasMinioRunning(node) {
 					node.MinioJoinPhase = MinioJoinVerified
 					node.MinioJoinError = ""
@@ -153,21 +187,9 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 				continue
 			}
 
-			// Topology contract: only allow auto-pool-creation during Day-0
-			// bootstrap (empty pool). Once a pool exists, ObjectStoreDesiredState
-			// is governed by apply-topology — this node must wait for explicit
-			// admission and must not auto-append or bump ObjectStoreGeneration.
-			if len(state.MinioPoolNodes) > 0 {
-				// Mark explicitly as non-member so bootstrap can skip the minio
-				// runtime check. Without this the node stays at envoy_ready
-				// forever because minio is correctly held on non-pool nodes.
-				if node.MinioJoinPhase != MinioJoinNonMember {
-					node.MinioJoinPhase = MinioJoinNonMember
-					dirty = true
-				}
-				continue
-			}
-
+			// Reaching here means the pool is empty (the non-empty/not-in-pool
+			// case was resolved to NonMember above). Allow auto-pool-creation
+			// only during Day-0 bootstrap of the first node.
 			log.Printf("minio pool: node %s (%s) is prepared, marking for pool join (Day-0 bootstrap)",
 				node.NodeID, node.Identity.Hostname)
 			node.MinioJoinPhase = MinioJoinPrepared

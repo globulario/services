@@ -205,6 +205,42 @@ failure_modes:
       required_tests:
         - TestMinioHeldWhenNodeNotInPool
         - TestTopologyRenderParity
+    - id: bootstrap.held_minio_nonmember_stranded_at_none
+      title: Held MinIO non-member stranded at MinioJoinNone wedges bootstrap storage_joining
+      severity: high
+      symptoms:
+        - node never advances past storage_joining (or its bootstrap phase reports waiting on globular-minio.service)
+        - minio_join phase is empty while scylla_join is verified
+        - downstream services (awareness-graph, ai-executor, etc.) never start because bootstrap never reaches workload_ready
+        - MinIO is correctly held inactive on the node (it is not in the active pool)
+      root_cause: |
+        reconcileMinioJoinPhases only marked a node MinioJoinNonMember AFTER it
+        passed nodeIsPreparedForMinioJoin. A held node that is not in the active
+        MinioPoolNodes and has not started (or no longer reports) globular-minio.service
+        failed the prepared check and hit `continue`, leaving MinioJoinPhase at the
+        empty MinioJoinNone. The bootstrap storage-join gate advances only on
+        Verified OR NonMember, so a node stranded at None wedged forever. MinIO can
+        only be configured once the pool is expanded to the node (apply-topology /
+        quorum); it must never block bootstrap before then.
+      architecture_fix: |
+        Determine non-membership (pool non-empty AND node not in MinioPoolNodes)
+        BEFORE the prepared check and resolve the node to MinioJoinNonMember
+        (non-blocking). Preserve explicit authority: nodes not in
+        DesiredObjectStoreMembers (not_listed / intent_not_member) must remain
+        untouched at None, per incident 9598b8f7.
+      forbidden_fixes:
+        - require_minio_active_to_pass_storage_joining
+        - block_bootstrap_on_minio_for_non_pool_members
+        - mark_unlisted_nodes_nonmember
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+        - objectstore.topology_contract
+        - meta.half_done_must_not_look_done
+      related_services:
+        - cluster-controller
+      required_tests:
+        - TestMinioJoin_HeldNonMember_NoMinioUnit
+        - TestMinioJoin_NotListedMember_StaysUntouched
     - id: deterministic.install.failure.retry_loop
       title: Deterministic install failure causes infinite retry loop
       severity: high

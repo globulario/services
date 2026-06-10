@@ -525,3 +525,87 @@ func TestGenerateMinioCredentials(t *testing.T) {
 		t.Errorf("root user should start with gl-, got %s", c1.RootUser)
 	}
 }
+
+// TestMinioJoin_HeldNonMember_NoMinioUnit is the regression for the bootstrap
+// wedge observed on globule-dell: a Day-1 storage-profile node that is NOT in
+// the active pool and does NOT report globular-minio.service (the unit was
+// stopped / never started while the node waits for apply-topology admission)
+// must be resolved to MinioJoinNonMember, not left at the empty MinioJoinNone.
+//
+// Before the fix, nodeIsPreparedForMinioJoin returned false (no minio unit), so
+// reconcileMinioJoinPhases hit `continue` and the node stayed at MinioJoinNone.
+// The bootstrap storage-join gate only advances on Verified OR NonMember, so the
+// node wedged in storage_joining forever — MinIO can only be configured once the
+// pool is expanded to it, and must never block bootstrap before then.
+func TestMinioJoin_HeldNonMember_NoMinioUnit(t *testing.T) {
+	mgr := newMinioPoolManager()
+
+	state := &controllerState{
+		MinioPoolNodes:        []string{"10.0.0.1"}, // pool exists (Day-0 node only)
+		ObjectStoreGeneration: 1,
+		MinioCredentials:      generateMinioCredentials(),
+	}
+
+	// Held Day-1 node: storage profile, NOT in MinioPoolNodes, and reports NO
+	// minio unit at all (legacy mode — DesiredObjectStoreMembers is nil).
+	heldNode := &nodeState{
+		NodeID:         "n2",
+		Identity:       storedIdentity{Hostname: "node-2", Ips: []string{"10.0.0.2"}},
+		Profiles:       []string{"storage"},
+		Units:          []unitStatusRecord{}, // <-- globular-minio.service not reported
+		BootstrapPhase: BootstrapStorageJoining,
+	}
+	nodes := []*nodeState{heldNode}
+
+	for i := 0; i < 5; i++ {
+		mgr.reconcileMinioJoinPhases(nodes, state)
+	}
+
+	if heldNode.MinioJoinPhase != MinioJoinNonMember {
+		t.Fatalf("held node with no minio unit: phase = %q; want %q (must not be stranded at None, which wedges bootstrap)",
+			heldNode.MinioJoinPhase, MinioJoinNonMember)
+	}
+	// Topology contract: the held node must never have auto-joined the pool.
+	if len(state.MinioPoolNodes) != 1 || state.MinioPoolNodes[0] != "10.0.0.1" {
+		t.Fatalf("topology contract violated: pool = %v; want [10.0.0.1]", state.MinioPoolNodes)
+	}
+	if state.ObjectStoreGeneration != 1 {
+		t.Fatalf("ObjectStoreGeneration bumped to %d; want 1", state.ObjectStoreGeneration)
+	}
+}
+
+// TestMinioJoin_NotListedMember_StaysUntouched guards the explicit-authority
+// invariant (incident 9598b8f7) against the held-non-member fix: a node that is
+// member-ELIGIBLE under v2 must be resolved (see above), but a node NOT in the
+// desired list must remain untouched at MinioJoinNone — the fix must not erode
+// that boundary by marking unlisted nodes NonMember.
+func TestMinioJoin_NotListedMember_StaysUntouched(t *testing.T) {
+	mgr := newMinioPoolManager()
+
+	state := &controllerState{
+		MinioPoolNodes:        []string{"10.0.0.1"},
+		ObjectStoreGeneration: 1,
+		MinioCredentials:      generateMinioCredentials(),
+		// v2 mode: explicit desired membership lists only the Day-0 node.
+		DesiredObjectStoreMembers: []ObjectStoreMember{
+			{NodeID: "n1", Address: "10.0.0.1"},
+		},
+	}
+
+	notListed := &nodeState{
+		NodeID:         "n2",
+		Identity:       storedIdentity{Hostname: "node-2", Ips: []string{"10.0.0.2"}},
+		Profiles:       []string{"storage"},
+		Units:          []unitStatusRecord{{Name: "globular-minio.service", State: "inactive"}},
+		BootstrapPhase: BootstrapStorageJoining,
+	}
+	nodes := []*nodeState{notListed}
+
+	for i := 0; i < 3; i++ {
+		mgr.reconcileMinioJoinPhases(nodes, state)
+	}
+
+	if notListed.MinioJoinPhase != MinioJoinNone {
+		t.Fatalf("not-listed node must remain untouched at None, got %q", notListed.MinioJoinPhase)
+	}
+}
