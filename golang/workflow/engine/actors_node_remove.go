@@ -112,7 +112,7 @@ func nodeRemovePreflight(cfg NodeRemoveControllerConfig) ActionHandler {
 			return nil, fmt.Errorf("node_remove.preflight: handler not wired")
 		}
 		nodeID, _ := req.With["node_id"].(string)
-		if nodeID == "" {
+		if nodeID == "" {/
 			return nil, fmt.Errorf("node_remove.preflight: node_id is required")
 		}
 		force, _ := req.With["force"].(bool)
