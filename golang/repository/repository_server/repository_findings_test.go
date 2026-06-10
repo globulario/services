@@ -8,6 +8,7 @@ import (
 	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/storage_backend"
 )
 
 // fakeLedgerWithRows lets us drive ListRepositoryFindings without a real Scylla
@@ -69,6 +70,139 @@ func TestListRepositoryFindings_PublishedMissingBlob(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected REPO_FIND_PUBLISHED_MISSING_BLOB in response")
+	}
+}
+
+// A PUBLISHED manifest is cluster-wide (shared ScyllaDB index), but blobs are
+// per-instance local POSIX CAS replicated asynchronously via the MinIO mirror.
+// A blob absent from THIS instance's local CAS but PRESENT in the shared mirror
+// is replication lag on this instance — NOT data loss. ListRepositoryFindings
+// must downgrade it to INFO (replication lag), never emit the CRITICAL
+// data-loss finding that floods the doctor during multi-node joins. The local
+// CAS remains the installability authority (artifactBlobStatus unchanged); the
+// mirror is consulted for reporting-scope disambiguation only.
+func TestListRepositoryFindings_MissingLocalButPresentInMirror_DowngradedToInfo(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	// Attach a mirror (second backing store) to the otherwise local-only server.
+	mirrorDir := t.TempDir()
+	mirror := storage_backend.NewOSStorage(mirrorDir)
+	srv.mirrorStorage = mirror
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "echo",
+		Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "v1",
+		Checksum: "sha256:abcd", SizeBytes: 100,
+	})
+	key := artifactKeyWithBuild(ref, 1)
+	blobKey := binaryStorageKey(key)
+
+	// The blob exists in the shared mirror, but NOT in this instance's local CAS.
+	_ = mirror.MkdirAll(ctx, artifactsDir, 0o755)
+	if err := mirror.WriteFile(ctx, blobKey, []byte("present-in-mirror"), 0o644); err != nil {
+		t.Fatalf("seed mirror blob: %v", err)
+	}
+	if err := srv.localStorage.Remove(ctx, blobKey); err != nil {
+		t.Fatalf("delete local blob: %v", err)
+	}
+
+	srv.scylla = &fakeLedger{
+		rows: map[string]*manifestRow{key: {
+			ArtifactKey:  key,
+			PublisherID:  "core@globular.io", Name: "echo",
+			Version: "1.0.0", Platform: "linux_amd64",
+			BuildNumber: 1, Checksum: "sha256:abcd", SizeBytes: 100,
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+		}},
+	}
+
+	resp, err := srv.ListRepositoryFindings(ctx, &repopb.ListRepositoryFindingsRequest{})
+	if err != nil {
+		t.Fatalf("ListRepositoryFindings: %v", err)
+	}
+	var f *repopb.RepositoryFinding
+	for _, cand := range resp.GetFindings() {
+		if cand.GetKind() == repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_MISSING_BLOB {
+			f = cand
+			break
+		}
+	}
+	if f == nil {
+		t.Fatal("expected a missing-blob-kind finding for the replication-lag case")
+	}
+	if f.GetSeverity() != repopb.RepositoryFindingSeverity_REPO_FIND_INFO {
+		t.Errorf("severity: got %s, want INFO (mirror has the blob — replication lag, not loss)", f.GetSeverity())
+	}
+	if got := f.GetReason(); got != "repository.identity.blob_absent_local_present_mirror" {
+		t.Errorf("reason=%q, want repository.identity.blob_absent_local_present_mirror", got)
+	}
+	if got := f.GetEvidence()["blob_status"]; got != "missing_local_present_mirror" {
+		t.Errorf("evidence.blob_status=%q, want missing_local_present_mirror", got)
+	}
+	if f.GetEvidence()["blob_scope"] != "local_posix_cas" {
+		t.Error("finding must be scoped to local_posix_cas (assertions must carry their scope)")
+	}
+	if f.GetRecommendedCommand() != "" {
+		t.Errorf("recommended_command must be empty for replication lag (no operator action), got %q", f.GetRecommendedCommand())
+	}
+}
+
+// Mirror configured but the blob is gone from BOTH local CAS and the mirror =
+// true cluster-wide data loss → the finding must stay CRITICAL. This proves the
+// downgrade gates specifically on mirror presence, not on "a mirror exists".
+func TestListRepositoryFindings_MissingLocalAndMirror_StaysCritical(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	mirrorDir := t.TempDir()
+	srv.mirrorStorage = storage_backend.NewOSStorage(mirrorDir) // empty mirror
+
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "echo",
+		Version: "1.0.0", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "v1",
+		Checksum: "sha256:abcd", SizeBytes: 100,
+	})
+	key := artifactKeyWithBuild(ref, 1)
+	if err := srv.localStorage.Remove(ctx, binaryStorageKey(key)); err != nil {
+		t.Fatalf("delete local blob: %v", err)
+	}
+
+	srv.scylla = &fakeLedger{
+		rows: map[string]*manifestRow{key: {
+			ArtifactKey:  key,
+			PublisherID:  "core@globular.io", Name: "echo",
+			Version: "1.0.0", Platform: "linux_amd64",
+			BuildNumber: 1, Checksum: "sha256:abcd", SizeBytes: 100,
+			PublishState: repopb.PublishState_PUBLISHED.String(),
+		}},
+	}
+
+	resp, err := srv.ListRepositoryFindings(ctx, &repopb.ListRepositoryFindingsRequest{})
+	if err != nil {
+		t.Fatalf("ListRepositoryFindings: %v", err)
+	}
+	var f *repopb.RepositoryFinding
+	for _, cand := range resp.GetFindings() {
+		if cand.GetKind() == repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_MISSING_BLOB {
+			f = cand
+			break
+		}
+	}
+	if f == nil {
+		t.Fatal("expected REPO_FIND_PUBLISHED_MISSING_BLOB for true data loss")
+	}
+	if f.GetSeverity() != repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL {
+		t.Errorf("severity: got %s, want CRITICAL (blob gone from local AND mirror)", f.GetSeverity())
+	}
+	if got := f.GetReason(); got != "repository.identity.missing_blob_for_published_manifest" {
+		t.Errorf("reason=%q, want repository.identity.missing_blob_for_published_manifest", got)
 	}
 }
 

@@ -74,6 +74,28 @@ func (srv *server) artifactBlobStatus(ctx context.Context, ref *repopb.ArtifactR
 	return true, "ok"
 }
 
+// artifactBlobInMirror reports whether the binary blob exists in the optional
+// MinIO mirror. This is REPORTING-ONLY scope disambiguation for integrity
+// findings — it MUST NOT be used for installability or skip/import decisions.
+// Mirror presence is explicitly NOT sufficient for installability
+// (intent:repository.local_cas_is_installability_authority); the local POSIX
+// CAS remains the sole installability authority via artifactBlobStatus.
+//
+// Its only job is to let ListRepositoryFindings distinguish a blob that is
+// absent from THIS instance's local CAS but present cluster-wide in the shared
+// mirror (replication lag — not data loss) from a blob that is gone everywhere
+// (true loss). Returns false when no mirror is configured or the blob is absent.
+func (srv *server) artifactBlobInMirror(ctx context.Context, ref *repopb.ArtifactRef, buildNumber int64) bool {
+	if ref == nil || srv.mirrorStorage == nil {
+		return false
+	}
+	blobKey := binaryStorageKey(artifactKeyWithBuild(ref, buildNumber))
+	if _, err := srv.mirrorStorage.Stat(ctx, blobKey); err != nil {
+		return false
+	}
+	return true
+}
+
 // checksumLocalFile computes the sha256 digest of a local file.
 // Returns "sha256:<hex>" or an error.
 func checksumLocalFile(path string) (string, error) {

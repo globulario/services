@@ -1891,6 +1891,55 @@ failure_modes:
 
     # ── Globular incident: objectstore partial snapshot ────────────────────────
 
+    - id: fm.globular.repository_missing_blob_local_only_scope
+      title: Repository integrity scan reports PUBLISHED_MISSING_BLOB cluster-wide when the blob is only absent from the answering instance's local CAS
+      severity: high
+      # origin: { type: globular_incident, confidence: very_high }
+      # observed: 2026-06-10 multi-node join — list_findings reported 57 PUBLISHED_MISSING_BLOB
+      #           (CRITICAL) for artifacts that a live verify_artifact / repair on another
+      #           instance proved present. The dell+nuc repository instances had the full shared
+      #           ScyllaDB manifest index but an incomplete local POSIX CAS during convergence.
+      symptoms:
+        - repository_list_findings reports dozens of PUBLISHED_MISSING_BLOB CRITICAL findings
+        - a live VerifyArtifact / repository repair on the same artifact returns OK / "no repair needed"
+        - findings carry no node/instance scope (node_id empty) yet read as cluster-wide data loss
+        - the count tracks the published-manifest count, and shrinks as local CAS replication catches up
+        - the storm appears during or right after a multi-node join, when a fresh repository instance has the full index but few local blobs
+      root_cause: |
+        ListRepositoryFindings iterates every PUBLISHED manifest from the shared ScyllaDB index,
+        then calls artifactBlobStatus, which Stats ONLY the answering instance's local POSIX CAS
+        (correctly — local CAS is the installability authority). When the blob is absent locally it
+        emitted REPO_FIND_PUBLISHED_MISSING_BLOB at CRITICAL with no instance scope. But a PUBLISHED
+        manifest is cluster-wide while blobs are per-instance local CAS replicated asynchronously via
+        the MinIO mirror. "Absent from my local CAS" is a SCOPED negative; emitting it as a
+        cluster-wide CRITICAL conflates replication lag on one instance with data loss everywhere.
+      architecture_fix: |
+        Integrity findings must carry their observation scope and must not assert cluster-wide loss
+        from a single-instance observation. When the blob is absent locally, consult the shared MinIO
+        mirror (reporting-only — NOT for installability): present in mirror → INFO "replication lag,
+        awaiting local CAS sync", no operator command; absent from mirror too → keep CRITICAL/WARN
+        (true loss). Stamp every blob finding with blob_scope=local_posix_cas and the instance
+        address. The local-CAS installability authority (artifactBlobStatus) is unchanged — the
+        mirror is consulted only to disambiguate the FINDING severity.
+      known_bad_fixes:
+        - Make artifactBlobStatus consult the mirror — breaks intent:repository.local_cas_is_installability_authority (mirror presence is not installability)
+        - Suppress all missing-blob findings on non-leader instances — hides a genuinely degraded local CAS
+        - Dedupe the storm downstream in the doctor — the unscoped cluster-wide CRITICAL assertion is produced in the repository layer and must be fixed there
+      related_invariants:
+        - meta.assertions_must_carry_their_scope
+        - meta.absence_scope_must_be_explicit
+        - repository.artifact_presence_requires_metadata_and_blob
+      related_intents:
+        - repository.local_cas_is_installability_authority
+      related_industry_patterns:
+        - fm.industry.missing_inventory_misclassified_as_down
+      related_services:
+        - repository
+        - cluster-doctor
+      required_tests:
+        - TestListRepositoryFindings_MissingLocalButPresentInMirror_DowngradedToInfo
+        - TestListRepositoryFindings_MissingLocalAndMirror_StaysCritical
+
     - id: fm.globular.objectstore_partial_snapshot
       title: Partial objectstore snapshot classifies absent nodes as known-down, firing false quorum-loss findings
       severity: critical
