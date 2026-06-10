@@ -397,23 +397,54 @@ func (srv *server) buildBlobFinding(row *manifestRow, ref *repopb.ArtifactRef, k
 	case repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH:
 		reasonCode = "repository.identity.checksum_mismatch"
 	}
+
+	severity := srv.blobFindingSeverity(row)
+	recommended := fmt.Sprintf("globular repository repair %s/%s %s --platform %s",
+		ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform())
+
+	// Every blob finding is a LOCAL POSIX CAS observation on THIS repository
+	// instance — stamp the scope so a negative never reads as a cluster-wide
+	// assertion (meta.assertions_must_carry_their_scope).
+	evidence := map[string]string{
+		"checksum":    row.Checksum,
+		"size_bytes":  fmt.Sprintf("%d", row.SizeBytes),
+		"blob_status": reason,
+		"invariant":   "repository.metadata_without_verified_artifact",
+		"blob_scope":  "local_posix_cas",
+		"instance":    srv.GetAddress(),
+	}
+
+	// Replication-lag disambiguation. A PUBLISHED manifest is cluster-wide
+	// (shared ScyllaDB index), but blobs are per-instance local CAS replicated
+	// asynchronously via the MinIO mirror. A blob absent from THIS instance's
+	// local CAS but PRESENT in the shared mirror is replication lag on this
+	// instance — NOT data loss — and must not read as CRITICAL. This is the
+	// false-positive storm seen during multi-node joins, when a freshly
+	// converged repository instance has the full manifest index but an
+	// incomplete local CAS. Reserve CRITICAL/WARN for blobs missing locally
+	// AND from the mirror (true loss). Mirror presence is consulted for
+	// REPORTING ONLY; installability authority stays local (artifactBlobStatus).
+	if kind == repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_MISSING_BLOB &&
+		reason == "missing_blob" &&
+		srv.artifactBlobInMirror(context.Background(), ref, row.BuildNumber) {
+		severity = repopb.RepositoryFindingSeverity_REPO_FIND_INFO
+		reasonCode = "repository.identity.blob_absent_local_present_mirror"
+		evidence["blob_status"] = "missing_local_present_mirror"
+		evidence["remediation_hint"] = "blob present in shared mirror; awaiting local CAS replication on this instance — not data loss"
+		recommended = "" // no operator action — local replication is automatic
+	}
+
 	return &repopb.RepositoryFinding{
 		Kind:               kind,
-		Severity:           srv.blobFindingSeverity(row),
+		Severity:           severity,
 		ArtifactKey:        row.ArtifactKey,
 		Ref:                ref,
 		CurrentState:       string(srv.readArtifactState(context.Background(), row.ArtifactKey)),
 		ExpectedState:      string(PipelinePublished) + " + local blob present + checksum verified",
 		Reason:             reasonCode,
-		RecommendedCommand: fmt.Sprintf("globular repository repair %s/%s %s --platform %s",
-			ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()),
-		Evidence: map[string]string{
-			"checksum":    row.Checksum,
-			"size_bytes":  fmt.Sprintf("%d", row.SizeBytes),
-			"blob_status": reason,
-			"invariant":   "repository.metadata_without_verified_artifact",
-		},
-		ObservedAtUnix: now,
+		RecommendedCommand: recommended,
+		Evidence:           evidence,
+		ObservedAtUnix:     now,
 	}
 }
 
