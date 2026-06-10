@@ -1891,6 +1891,58 @@ failure_modes:
 
     # ── Globular incident: objectstore partial snapshot ────────────────────────
 
+    - id: fm.globular.published_artifact_blob_not_durable_in_mirror
+      title: Artifact promoted to PUBLISHED with its blob only in the seeding node's local CAS, not durably in the shared mirror — joined instances cannot recover it
+      severity: high
+      # origin: { type: globular_incident, confidence: high }
+      # observed: 2026-06-10 multi-node join — infra packages (etcd, etcdctl, …) PUBLISHED with
+      #           no upstream_import; repair-from-upstream impossible. Blobs were recoverable from
+      #           the MinIO mirror (ResilientStorage cache-fill), but had the best-effort mirror
+      #           write failed at upload, a joined instance would have been permanently stranded.
+      symptoms:
+        - repository repair <pkg> --from-upstream fails with "no upstream_import — cannot repair from upstream"
+        - an artifact is PUBLISHED and installable on the seeding node but BROKEN_MISSING_BLOB on a joined instance
+        - the blob is absent from the shared MinIO mirror, so joined instances never cache-fill it
+        - no upstream_import on the manifest, so there is no fallback recovery source
+      root_cause: |
+        promoteToPublished verified the blob in the seeding node's LOCAL POSIX CAS (correct — local
+        CAS is the installability authority) but did NOT verify the blob was durably in the shared
+        MinIO mirror before flipping to PUBLISHED. The upload's mirror write is best-effort
+        (ResilientStorage.WriteFile logs and continues on mirror failure), so a transient mirror
+        failure/race during a large Day-0 publish burst can leave the blob only in the seeding
+        node's local CAS. Other repository instances obtain blobs by cache-filling their local CAS
+        from the mirror; with the blob absent from the mirror AND no upstream_import recorded
+        (true for seeded infra packages), a joined instance has local-miss + mirror-miss +
+        repair-from-upstream impossible = permanent strand. PUBLISHED (looks done) did not imply
+        recoverable-cluster-wide (the completion obligation).
+      architecture_fix: |
+        A PUBLISHED artifact must be recoverable on every repository instance. promoteToPublished
+        calls ensureMirrorDurability AFTER local verification and BEFORE declaring PUBLISHED: if a
+        mirror is configured and the blob is absent from it, re-push the locally-verified bytes and
+        verify. Respect repository.minio_independence — NEVER block publish when the mirror is
+        unconfigured or unreachable; log a deferred-durability warning instead. Closing the
+        mirror-unreachable-at-publish window fully requires a local→mirror reconciler (separate).
+        Reporting of the transient absent-locally-but-present-in-mirror case is handled by
+        fm.globular.repository_missing_blob_local_only_scope (INFO, not CRITICAL).
+      known_bad_fixes:
+        - Block PUBLISHED until the mirror write succeeds — violates repository.minio_independence (MinIO down must not block publish)
+        - Make promoteToPublished's local-CAS check read the mirror — breaks repository.local_cas_is_installability_authority
+        - Record a synthetic upstream_import pointing at the mirror — conflates the upstream-reimport lane with cluster-internal blob distribution
+      related_invariants:
+        - meta.write_creates_completion_obligation
+        - meta.half_done_must_not_look_done
+        - repository.artifact_presence_requires_metadata_and_blob
+      related_intents:
+        - repository.publish_pipeline_is_ordered
+        - repository.local_cas_is_installability_authority
+        - repository.minio_independence
+      related_services:
+        - repository
+      required_tests:
+        - TestEnsureMirrorDurability_PushesLocalOnlyBlobToMirror
+        - TestEnsureMirrorDurability_NoMirrorIsNoOp
+        - TestEnsureMirrorDurability_AlreadyInMirrorIsIdempotent
+
     - id: fm.globular.objectstore_partial_snapshot
       title: Partial objectstore snapshot classifies absent nodes as known-down, firing false quorum-loss findings
       severity: critical

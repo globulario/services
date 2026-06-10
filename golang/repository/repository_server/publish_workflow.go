@@ -268,6 +268,19 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 		}
 	}
 
+	// Durability obligation: a PUBLISHED artifact must be recoverable on EVERY
+	// repository instance, not just this one. Other instances obtain the blob by
+	// cache-filling their local POSIX CAS from the shared MinIO mirror
+	// (ResilientStorage read path). The upload's mirror write is best-effort, so a
+	// transient mirror failure/race during a large Day-0 publish burst can leave
+	// the blob only in THIS node's local CAS. Combined with no upstream_import
+	// (true for seeded infra packages like etcd), a joined instance would then be
+	// permanently stranded: local-miss + mirror-miss + repair-from-upstream
+	// impossible. Verify the blob is durably in the mirror and re-push it from the
+	// locally-verified bytes if not — BEFORE declaring PUBLISHED.
+	// (meta.write_creates_completion_obligation / half_done_must_not_look_done.)
+	srv.ensureMirrorDurability(ctx, key)
+
 	manifest.PublishedUnix = time.Now().Unix()
 
 	// Step 2: Write PUBLISHED state to Scylla publish_state column — MUST succeed.
@@ -325,6 +338,55 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 		srv.cache.invalidateManifest(sKey)
 	}
 	return nil
+}
+
+// ensureMirrorDurability makes an artifact's blob recoverable cluster-wide by
+// guaranteeing it is present in the shared MinIO mirror. Other repository
+// instances cache-fill their local POSIX CAS from the mirror on access; without
+// the blob in the mirror, a joined instance that lacks it locally and has no
+// upstream_import can never recover it.
+//
+// Behaviour, respecting repository.minio_independence (MinIO down MUST NOT block
+// repository operations) — this function NEVER returns an error and NEVER blocks
+// publish:
+//   - no mirror configured (single-node / mirror-optional) → no-op
+//   - blob already in mirror                                → no-op (cheap Stat)
+//   - blob absent from mirror, mirror reachable             → re-push from the
+//     locally-verified bytes and verify (closes the best-effort-write race)
+//   - mirror unreachable / push fails                       → log a deferred-
+//     durability WARN; the artifact still publishes (a local→mirror reconciler
+//     is required to close the mirror-down-at-publish window — separate change)
+//
+// Called from promoteToPublished AFTER the local POSIX CAS blob is verified, so
+// the bytes pushed here are exactly the locally-verified, checksum-matched blob.
+func (srv *server) ensureMirrorDurability(ctx context.Context, key string) {
+	if srv.mirrorStorage == nil {
+		return // single-node / mirror-optional mode — local CAS is the only store
+	}
+	blobKey := binaryStorageKey(key)
+	if _, err := srv.mirrorStorage.Stat(ctx, blobKey); err == nil {
+		return // already durable in the mirror — common case, one cheap Stat
+	}
+	// Blob absent from the mirror (best-effort upload write failed or raced).
+	// Re-push from the locally-verified blob.
+	data, err := srv.localStorage.ReadFile(ctx, blobKey)
+	if err != nil {
+		slog.Warn("ensureMirrorDurability: local blob read failed; cannot push to mirror",
+			"key", key, "err", err)
+		return
+	}
+	if err := srv.mirrorStorage.WriteFile(ctx, blobKey, data, 0o644); err != nil {
+		slog.Warn("ensureMirrorDurability: mirror push failed — artifact will publish but blob is NOT yet durable in the mirror; joined instances may not recover it until a local→mirror sync runs",
+			"key", key, "err", err)
+		return
+	}
+	if _, err := srv.mirrorStorage.Stat(ctx, blobKey); err != nil {
+		slog.Warn("ensureMirrorDurability: mirror push unverified after write",
+			"key", key, "err", err)
+		return
+	}
+	slog.Info("ensureMirrorDurability: blob pushed to mirror for durable cluster-wide recovery",
+		"key", key)
 }
 
 // artifactKindToWorkflow maps repository ArtifactKind to workflow component kind.
