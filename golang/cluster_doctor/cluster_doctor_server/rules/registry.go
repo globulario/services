@@ -314,8 +314,38 @@ func snapshotSourceUnavailableFindings(snap *collector.Snapshot) []Finding {
 	if snap == nil || !snap.DataIncomplete {
 		return nil
 	}
+	missing := snap.MissingSources()
+	if len(missing) == 0 {
+		return nil
+	}
+
+	// When many sources are unavailable (≥5), this is a systemic condition
+	// (e.g. early bootstrap, Prometheus not scraped yet) rather than an
+	// isolated outage. Collapse into a single summary finding to avoid a
+	// 40+ entry warning storm that obscures actionable findings.
+	const collapseThreshold = 5
+	if len(missing) >= collapseThreshold {
+		return []Finding{{
+			FindingID:       FindingID("cluster_doctor.snapshot_source_unavailable", "bulk", strconv.Itoa(len(missing))),
+			InvariantID:     "cluster_doctor.snapshot_source_unavailable",
+			Severity:        cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:        "observability",
+			EntityRef:       "cluster",
+			Summary:         strconv.Itoa(len(missing)) + " data sources unavailable this sweep — many checks are indeterminate, NOT healthy. This is expected during early bootstrap or when Prometheus has not scraped yet.",
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN,
+			CheckError:      "collector sub-fetch failed for " + strconv.Itoa(len(missing)) + " sources",
+			Evidence: []*cluster_doctorpb.Evidence{
+				kvEvidence("cluster_doctor", "snapshot_source_unavailable", map[string]string{
+					"missing_sources":       strings.Join(missing, ", "),
+					"missing_sources_count": strconv.Itoa(len(missing)),
+					"explanation":           "multiple collector sub-fetches errored; rules whose only input is one of these sources emit no finding this sweep, so their verdicts are unknown rather than pass",
+				}),
+			},
+		}}
+	}
+
 	var out []Finding
-	for _, src := range snap.MissingSources() {
+	for _, src := range missing {
 		out = append(out, Finding{
 			FindingID:       FindingID("cluster_doctor.snapshot_source_unavailable", src, ""),
 			InvariantID:     "cluster_doctor.snapshot_source_unavailable",

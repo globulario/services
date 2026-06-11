@@ -167,6 +167,11 @@ func (objectstoreMinioActiveOnNonMember) Evaluate(snap *collector.Snapshot, _ Co
 		poolIPs[ip] = true
 	}
 
+	// Nodes in an active bootstrap phase (not yet workload_ready) are expected
+	// to have MinIO installed but not yet admitted to the pool. Suppress them
+	// to avoid false CRITICAL findings during Day-1 join.
+	bootstrapNodes := bootstrappingNodeSet(snap)
+
 	// Iterate Identity.Ips so VIP-holders (whose AdvertiseIp may be empty
 	// or report the floating VIP) still get correctly classified as
 	// in-pool or out-of-pool. The previous AdvertiseIp-based check was
@@ -177,6 +182,9 @@ func (objectstoreMinioActiveOnNonMember) Evaluate(snap *collector.Snapshot, _ Co
 		nodeID := n.GetNodeId()
 		if nodeID == "" || minioServiceState(snap, nodeID) != "active" {
 			continue
+		}
+		if bootstrapNodes[nodeID] {
+			continue // expected during Day-1 join — not a policy violation
 		}
 		// A node is "in-pool" if ANY of its IPs appears in the desired pool list.
 		var matchedPoolIP string
