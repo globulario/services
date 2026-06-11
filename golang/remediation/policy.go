@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -105,11 +106,17 @@ func LoadFromEtcd(ctx context.Context, getter PolicyEtcdGetter) *FailureRatePoli
 		return defaults
 	}
 	raw, err := getter.Get(ctx, FailureRatePolicyEtcdKey)
-	if err != nil || len(raw) == 0 {
+	if err != nil {
+		slog.Warn("remediation: LoadFromEtcd etcd error reading failure-rate policy; using defaults", "key", FailureRatePolicyEtcdKey, "error", err)
+		return defaults
+	}
+	if len(raw) == 0 {
+		// Key absent — operator has not published a custom policy. Silent fallback to defaults is expected.
 		return defaults
 	}
 	override := &FailureRatePolicy{}
 	if err := json.Unmarshal(raw, override); err != nil {
+		slog.Warn("remediation: LoadFromEtcd JSON parse error in failure-rate policy; using defaults", "key", FailureRatePolicyEtcdKey, "error", err)
 		return defaults
 	}
 	// Merge: override wins on each named class, defaults fill the rest.

@@ -3,6 +3,7 @@ package schema_reference
 import (
 	_ "embed"
 	"encoding/json"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -49,7 +50,9 @@ func (r *Registry) ensureLoaded() {
 		return
 	}
 	if len(embeddedSchemaJSON) > 0 {
-		_ = json.Unmarshal(embeddedSchemaJSON, &r.result)
+		if err := json.Unmarshal(embeddedSchemaJSON, &r.result); err != nil {
+			slog.Error("schema_reference: embedded schema JSON is corrupt; registry will be empty", "error", err)
+		}
 	}
 	r.buildIndexes()
 	r.loaded = true

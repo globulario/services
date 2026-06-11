@@ -21,6 +21,7 @@
 package fallback
 
 import (
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -115,6 +116,11 @@ func keyFor(service, dependency, mode string) string {
 // guaranteed non-zero.
 func Enter(a Active) Active {
 	if a.Service == "" || a.Dependency == "" || a.Mode == "" {
+		// Silently no-oping here would hide a caller bug: every fallback path
+		// must supply all three fields so the registry can track and report it.
+		// Log at WARN so the gap appears in normal operation without crashing.
+		slog.Warn("fallback.Enter called with missing required field(s); fallback NOT registered",
+			"service", a.Service, "dependency", a.Dependency, "mode", a.Mode)
 		return a
 	}
 	k := keyFor(a.Service, a.Dependency, a.Mode)

@@ -109,7 +109,10 @@ func NewDefaultPortAllocator() (*PortAllocator, error) {
 	// preload from etcd
 	all, err := GetServicesConfigurations()
 	if err != nil {
-		// not fatal; return empty allocator
+		// not fatal; return empty allocator, but warn so operators know
+		// port allocation is running without service reservations — duplicate
+		// port assignments are possible until etcd is reachable again.
+		slog.Warn("NewDefaultPortAllocator: failed to load service configs from etcd; port allocation proceeds without service reservations (ports may collide)", "err", err)
 		return p, nil
 	}
 	p.ReserveExisting(all)

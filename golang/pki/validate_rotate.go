@@ -44,8 +44,13 @@ func parseCertNotAfter(b []byte) (time.Time, error) {
 	return time.Time{}, errors.New("no CERTIFICATE block found")
 }
 
-// RotateIfExpiring renews a leaf if it's expiring within renewBefore.
-// It returns true if it rotated (or attempted rotation).
+// RotateIfExpiring checks whether a leaf cert is expiring within renewBefore.
+// It returns (true, nil) if rotation is needed, (false, nil) otherwise.
+//
+// IMPORTANT: this function does NOT perform rotation — it only signals that
+// the cert is within the renewal window. The caller MUST call the appropriate
+// Ensure* method (EnsureServerCert, EnsureClientCert, etc.) when this returns
+// true. The boolean return means "rotation is needed", not "rotation was performed".
 func (m *FileManager) RotateIfExpiring(dir string, leafFile string, renewBefore time.Duration) (bool, error) {
 	p := filepath.Join(dir, leafFile)
 	if !exists(p) {
@@ -58,7 +63,10 @@ func (m *FileManager) RotateIfExpiring(dir string, leafFile string, renewBefore 
 	if time.Until(na) > renewBefore {
 		return false, nil
 	}
-	// Caller should call Ensure* again (we don't know which profile was used).
+	// Cert is within the renewal window. Return (true, nil) to signal that
+	// the caller should call the appropriate Ensure* method to renew it.
+	// We return false here NOT because rotation was attempted, but because
+	// we cannot perform it without knowing which cert profile was used.
 	return true, nil
 }
 

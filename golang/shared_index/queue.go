@@ -55,6 +55,9 @@ func (q *indexQueue) connect(hosts []string) error {
 	}
 
 	cluster := gocql.NewCluster(hosts...)
+	// Port 9042 is the standard CQL native transport port (analogous to 443/53/2379
+	// for HTTPS/DNS/etcd). It is a protocol constant, not a service-config value.
+	// Known gap: if the operator runs ScyllaDB on a non-standard port this will break.
 	cluster.Port = 9042
 	cluster.Consistency = gocql.One // start with ONE for bootstrap
 	cluster.Timeout = 10 * time.Second

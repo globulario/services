@@ -2,6 +2,7 @@ package opsknowledge
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,7 +76,9 @@ func LoadRefsFromAwareness(awarenessDir, opsKnowledgeDir string) (*Refs, error) 
 		return nil, fmt.Errorf("glob awareness yamls: %w", err)
 	}
 	for _, p := range awarenessYAMLs {
-		_ = loadAwarenessIDs(p, allIDs) // best-effort; missing files are fine
+		if err := loadAwarenessIDs(p, allIDs); err != nil {
+			slog.Warn("opsknowledge: LoadRefsFromAwareness failed to load awareness YAML", "path", p, "error", err)
+		}
 	}
 	// Pool the same set into both categories — see doc above.
 	for id := range allIDs {

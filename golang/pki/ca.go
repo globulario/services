@@ -95,8 +95,15 @@ func (m *FileManager) ensureOrLoadLocalCA(dir, subjectCN string, days int) (keyF
 	kf, cf := caKeyPath(dir), caCrtPath(dir)
 
 	// Try to hydrate CA from etcd (source of truth) if present.
-	if err := m.syncCAFromEtcd(dir); err != nil && m.Logger != nil {
-		m.Logger.Warn("pki: failed to sync CA from etcd; will fall back to local files", "err", err)
+	if err := m.syncCAFromEtcd(dir); err != nil {
+		// Use ERROR (not Warn) — a TLS or auth failure here means we cannot
+		// verify that local CA files match the cluster CA. Proceeding with
+		// local-only files risks issuing certs that the cluster won't trust.
+		if m.Logger != nil {
+			m.Logger.Error("pki: failed to sync CA from etcd; falling back to local files — mTLS trust may be inconsistent", "err", err)
+		} else {
+			fmt.Printf("ERROR: pki: failed to sync CA from etcd; falling back to local files — mTLS trust may be inconsistent: %v\n", err)
+		}
 	}
 
 	// If canonical files already exist after sync, we are done.

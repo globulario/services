@@ -409,8 +409,11 @@ func NormalizeServiceKey(input string) (string, bool) {
 				return key, true
 			}
 		}
-		// Unknown service but at least canonicalize underscores → hyphens.
-		return strippedHyphen, true
+		// The stripped form is not in the registry. Return ok=false so callers
+		// know the key is not recognized, even though we normalize the casing.
+		// Returning ok=true here would cause callers to treat an unregistered
+		// service as known, hiding misconfigurations and mapping bugs.
+		return strippedHyphen, false
 	}
 
 	// Strip gRPC package prefix (e.g., "foo.FooService" → "foo") and try.

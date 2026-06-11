@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -68,6 +69,7 @@ func (r *EtcdServiceRegistry) InstancesOf(ctx context.Context, serviceName strin
 		}
 		var cfg serviceConfig
 		if err := json.Unmarshal(kv.Value, &cfg); err != nil {
+			slog.Warn("services_mobility: InstancesOf corrupt service config record", "key", string(kv.Key), "error", err)
 			continue
 		}
 		if !nameMatches(cfg.Name, serviceName, canonical) {

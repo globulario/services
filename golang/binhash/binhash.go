@@ -36,6 +36,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -62,9 +63,16 @@ func Hash(path string) (string, error) {
 // "" — convenient for paths where missing-file/permission-denied
 // should be treated as "no proof available" (e.g. inventory reports
 // that may legitimately encounter packages with no entrypoint file).
+//
+// Non-NotExist errors (e.g. EPERM) are logged at Debug level so that
+// permission problems are visible when debug logging is enabled, while
+// remaining silent in normal operation where missing files are expected.
 func HashOrEmpty(path string) string {
 	h, err := Hash(path)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Debug("binhash.HashOrEmpty: non-transient error reading file", "path", path, "err", err)
+		}
 		return ""
 	}
 	return h

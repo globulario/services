@@ -274,6 +274,12 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 
 	rtBytes, _ := json.Marshal(runtime)
 	if _, err = c.Put(ctx, etcdKey(id, runtimeKey), string(rtBytes)); err != nil {
+		// KNOWN GAP: desired and runtime are written in two separate etcd Puts
+		// (not a transaction). If this second Put fails, etcd holds the new
+		// desired state but the runtime key is stale — runtime state has
+		// diverged from desired until the next successful write.
+		// A future hardening pass should wrap both Puts in a single etcd Txn.
+		slog.Warn("SaveServiceConfiguration: desired key written but runtime key failed — runtime state in etcd may be stale", "id", id, "err", err)
 		return fmt.Errorf("save runtime: %w", err)
 	}
 

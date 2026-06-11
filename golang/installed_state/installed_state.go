@@ -72,6 +72,9 @@ func CommitInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPack
 		return fmt.Errorf("installed_state: kind is required")
 	}
 	if pkg.UpdatedUnix == 0 {
+		// WARNING: wall-clock anchoring is the INC-2026-0016 bug class. Callers
+		// should set UpdatedUnix from /proc/<pid> mtime, not time.Now().
+		log.Printf("installed_state: WARNING CommitInstalledPackage defaulting UpdatedUnix to time.Now() for %s/%s/%s — caller should set from /proc/<pid> mtime", pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
 		pkg.UpdatedUnix = time.Now().Unix()
 	}
 	if pkg.InstalledUnix == 0 {
@@ -111,6 +114,9 @@ func WriteInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPacka
 		return fmt.Errorf("installed_state: kind is required")
 	}
 	if pkg.UpdatedUnix == 0 {
+		// WARNING: wall-clock anchoring is the INC-2026-0016 bug class. Callers
+		// should set UpdatedUnix from /proc/<pid> mtime, not time.Now().
+		log.Printf("installed_state: WARNING WriteInstalledPackage defaulting UpdatedUnix to time.Now() for %s/%s/%s — caller should set from /proc/<pid> mtime", pkg.GetNodeId(), pkg.GetKind(), pkg.GetName())
 		pkg.UpdatedUnix = time.Now().Unix()
 	}
 	if pkg.InstalledUnix == 0 {
@@ -279,6 +285,7 @@ func ListInstalledPackages(ctx context.Context, nodeID, kind string) ([]*node_ag
 	for _, kv := range resp.Kvs {
 		pkg, err := unmarshalPackage(kv.Value)
 		if err != nil {
+			log.Printf("installed_state: WARNING ListInstalledPackages corrupt record at key %q: %v", string(kv.Key), err)
 			continue
 		}
 		pkgs = append(pkgs, pkg)
@@ -333,6 +340,7 @@ func ListAllNodes(ctx context.Context, kind, name string) ([]*node_agentpb.Insta
 	for _, kv := range resp.Kvs {
 		pkg, err := unmarshalPackage(kv.Value)
 		if err != nil {
+			log.Printf("installed_state: WARNING ListAllNodes corrupt record at key %q: %v", string(kv.Key), err)
 			continue
 		}
 		if kind != "" && strings.ToUpper(pkg.GetKind()) != kindUpper {

@@ -751,7 +751,7 @@ func resolveRepositoryAddr(cmd *cobra.Command) {
 	// Final fallback uses cluster DNS; this preserves routability and avoids
 	// passing an empty gRPC target to the resolver.
 	svcApplyRepoAddr = "repository.globular.internal"
-	fmt.Printf("Auto-discovered repository: %s (cluster DNS fallback)\n", svcApplyRepoAddr)
+	fmt.Printf("WARNING: repository address not found via etcd or controller; falling back to cluster DNS: %s\n", svcApplyRepoAddr)
 }
 
 // ─── Artifact download ───────────────────────────────────────────────────────
@@ -1239,13 +1239,11 @@ func readNodeState() (*nodeState, error) {
 //
 // Discovery sources (in priority order):
 //  1. node-agent state.json (controller_endpoint + controller_insecure)
-//  2. NODE_AGENT_CONTROLLER_ENDPOINT environment variable
-//  3. Default controller port on routable IP (via config.GetRoutableIPv4())
+//  2. Default controller port on routable IP (via config.GetRoutableIPv4())
 //
 // The insecure flag is inferred from:
 //  1. --insecure flag explicitly set by the user (never overridden)
 //  2. controller_insecure field in state.json
-//  3. NODE_AGENT_INSECURE=true environment variable
 func autoDiscoverController(cmd *cobra.Command) {
 	if cmd.Flags().Changed("controller") {
 		return

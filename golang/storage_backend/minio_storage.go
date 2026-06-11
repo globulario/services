@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -263,6 +264,7 @@ func (s *MinioStorage) Create(ctx context.Context, path string) (io.WriteCloser,
 		defer pr.Close()
 		_, err := s.client.PutObject(ctx, s.bucket, key, pr, -1, minio.PutObjectOptions{})
 		if err != nil {
+			slog.Warn("storage_backend: MinIO PutObject failed in background goroutine", "bucket", s.bucket, "key", key, "error", err)
 			_ = pw.CloseWithError(err)
 			return
 		}

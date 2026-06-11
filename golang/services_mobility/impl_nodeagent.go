@@ -142,7 +142,9 @@ func (n *NodeAgentControllerImpl) client(ctx context.Context, nodeID string) (no
 func (n *NodeAgentControllerImpl) IsNodeReachable(ctx context.Context, nodeID string) (bool, error) {
 	c, err := n.client(ctx, nodeID)
 	if err != nil {
-		return false, nil // unreachable, not error
+		// Return the error so callers can distinguish config/credential
+		// failures from genuine node unreachability.
+		return false, fmt.Errorf("IsNodeReachable: node %s client error: %w", nodeID, err)
 	}
 	rctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()

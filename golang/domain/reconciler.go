@@ -271,14 +271,23 @@ func (r *Reconciler) reconcileAll(ctx context.Context) {
 		return
 	}
 
-	// Reconcile each domain (retry transient gRPC errors up to 3 times)
+	// Reconcile each domain (retry transient gRPC errors up to 3 times).
+	//
+	// RATE-LIMIT WARNING: Let's Encrypt enforces a limit of 5 failed
+	// validation attempts per hostname per hour, and 50 certificates per
+	// registered domain per week. Each retry here burns one attempt.
+	// Operators should monitor WARNING logs below for repeated retries on
+	// the same domain — three consecutive failures within a reconcile pass
+	// (every ~60s) can exhaust the hourly budget in under 20 minutes.
+	// If rate-limit errors appear (HTTP 429 / urn:ietf:params:acme:error:rateLimited),
+	// back off manually by pausing the reconciler via the domain spec.
 	for _, spec := range specs {
 		var lastErr error
 		for attempt := 0; attempt < 3; attempt++ {
 			if err := r.reconcileDomain(ctx, spec); err != nil {
 				lastErr = err
 				if isTransientGRPCError(err) && attempt < 2 {
-					r.logger.Warn("transient error reconciling domain, retrying",
+					r.logger.Warn("transient error reconciling domain, retrying — each retry burns a Let's Encrypt validation attempt",
 						"fqdn", spec.FQDN,
 						"attempt", attempt+1,
 						"error", err)

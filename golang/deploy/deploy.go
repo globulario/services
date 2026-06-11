@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -448,8 +449,12 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		time.Sleep(time.Duration(attempt) * time.Second)
 	}
 	if desiredErr != nil {
-		fmt.Printf("  ⚠ desired state update failed: %s\n", desiredOut)
-		// Non-fatal — the artifact is published, just not auto-rolled out.
+		// ERROR — the artifact is published to the repository but the cluster
+		// has no record that it should be rolled out. The release pipeline has
+		// a silent gap: the package exists in the repository at the new version
+		// but no node will install it until desired state is repaired manually
+		// (e.g. `globular services desired set <pkg> <version>`).
+		fmt.Printf("ERROR: desired state update failed — artifact is published but will NOT be rolled out automatically. Repair with: globular services desired set %s %s\nError output: %s\n", pkgName, opts.Version, desiredOut)
 	} else {
 		fmt.Printf("  ✓ Desired state: %s@%s+%d\n", pkgName, opts.Version, nextBuild)
 	}
@@ -682,6 +687,11 @@ func verifyBinary(ctx context.Context, binaryPath string) error {
 		// Check if it was a timeout (binary started but didn't exit) — that's OK,
 		// it means the binary runs.
 		if verifyCtx.Err() != nil {
+			// WARNING: binary did not exit cleanly within the verify timeout.
+			// Accepting tentatively — it appears to start, but could be
+			// blocking on network/etcd before serving. Monitor service startup
+			// logs after deployment to confirm healthy initialisation.
+			log.Printf("WARNING: verifyBinary(%s): --describe timed out (binary started but did not exit within timeout); accepting tentatively", binaryPath)
 			return nil // timeout = binary started successfully, just didn't exit
 		}
 		_ = out
@@ -695,6 +705,10 @@ func verifyBinary(ctx context.Context, binaryPath string) error {
 	if out, err := cmd.CombinedOutput(); err == nil {
 		return nil
 	} else if verifyCtx2.Err() != nil {
+		// WARNING: binary did not exit cleanly within the verify timeout on
+		// --help fallback. Accepting tentatively — monitor service logs after
+		// deployment to confirm healthy initialisation.
+		log.Printf("WARNING: verifyBinary(%s): --help timed out (binary started but did not exit within timeout); accepting tentatively", binaryPath)
 		return nil // timeout = started OK
 	} else {
 		// Check the exit code — exit code 2 from --help is normal for some CLIs.

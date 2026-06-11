@@ -352,7 +352,7 @@ func LoadClusterRoles() (map[string][]string, bool, error) {
 
 	var crf ClusterRolesFile
 	if err := json.Unmarshal(data, &crf); err != nil {
-		slog.Warn("policy: invalid JSON in cluster-roles file", "path", path, "error", err)
+		slog.Error("policy: corrupted cluster-roles file — JSON parse failed; falling back to compiled defaults", "path", path, "error", err)
 		return nil, false, nil
 	}
 

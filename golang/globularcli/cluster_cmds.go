@@ -1102,9 +1102,16 @@ func pick(override, fallback string) string {
 // ctxWithTimeout returns a context that expires after rootCfg.timeout.
 // Token injection is handled centrally by dialGRPC via PerRPCCredentials.
 // Callers that need explicit cancellation should use ctxWithCLITimeout instead.
-func ctxWithTimeout() context.Context { //nolint:govet
+func ctxWithTimeout() context.Context {
+	// context.WithTimeout leaks the cancel function by design here: this
+	// helper is intentionally deadline-only (no explicit cancellation path).
+	// The context expires when rootCfg.timeout elapses; the goroutine that
+	// drives the deadline is cleaned up by the runtime at that point.
+	// Callers that need explicit cancellation must use ctxWithCLITimeout.
+	//
+	//nolint:govet // cancel intentionally not called; deadline is the only exit
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
-	_ = cancel // caller cannot call cancel; context expires via deadline
+	_ = cancel
 	return ctx
 }
 
@@ -1262,17 +1269,29 @@ func printProto(msg proto.Message) {
 	}
 	switch rootCfg.output {
 	case "json":
-		out, _ := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(msg)
+		out, err := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(msg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: marshal to JSON failed: %v\n", err)
+			return
+		}
 		fmt.Println(string(out))
 	case "yaml":
-		out, _ := protojson.Marshal(msg)
+		out, err := protojson.Marshal(msg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: marshal to JSON (for YAML) failed: %v\n", err)
+			return
+		}
 		if yamlOut, err := yaml.JSONToYAML(out); err == nil {
 			fmt.Println(string(yamlOut))
 		} else {
 			fmt.Println(string(out))
 		}
 	default:
-		out, _ := prototext.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(msg)
+		out, err := prototext.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(msg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: marshal to text proto failed: %v\n", err)
+			return
+		}
 		fmt.Println(string(out))
 	}
 }

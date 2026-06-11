@@ -146,11 +146,16 @@ func (m *FileManager) EnsurePublicACMECert(
 
     // Also write plain alias if your HTTPS bootstrap expects it
     alias := filepath.Join(dir, "fullchain.pem")
-    _ = atomicWriteFile(alias, 0o444, func(tmp string) error {
+    if aliasErr := atomicWriteFile(alias, 0o444, func(tmp string) error {
         b, rerr := os.ReadFile(fullchain)
         if rerr != nil { return rerr }
         return os.WriteFile(filepath.Join(tmp, "fullchain.pem"), b, 0o444)
-    })
+    }); aliasErr != nil {
+        // HTTPS bootstrap reads fullchain.pem directly; a silent failure here
+        // leaves the alias pointing at the old cert and causes TLS errors on
+        // the next Envoy reload.
+        fmt.Printf("ERROR: pki: failed to write fullchain.pem alias at %s: %v\n", alias, aliasErr)
+    }
 
     // Return the *server* key as the matching key for HTTPS
     return serverKey, leaf, issuer, fullchain, nil

@@ -1959,6 +1959,13 @@ scrape_configs:
 					base = base[idx+1:]
 				}
 				base = strings.ToLower(base)
+				// WARNING: Prometheus scrape targets are bound to 127.0.0.1 (loopback).
+				// Cross-node scraping will NOT work with this configuration — Prometheus
+				// running on a different node cannot reach these targets.
+				// TODO: replace 127.0.0.1 with the node's routable IP (config.GetRoutableIPv4())
+				// so that a centralized Prometheus instance can scrape all nodes.
+				slog.Warn("prometheus scrape target uses loopback address; cross-node scraping will not work",
+					"job", base, "port", proxyPort)
 				cfg += "  - job_name: '" + base + "'\n" +
 					"    scrape_interval: 5s\n" +
 					"    static_configs:\n" +
