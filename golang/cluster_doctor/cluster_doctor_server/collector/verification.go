@@ -708,6 +708,7 @@ func (c *Collector) persistVerificationResults(ctx context.Context, snap *Snapsh
 	writeCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer cancel()
 
+	var writeErrors int
 	for _, v := range r.Verdicts {
 		key := verifier.EtcdKeyForVerification(v.Target.NodeID, v.Target.Service)
 		payload, err := json.Marshal(v)
@@ -717,7 +718,18 @@ func (c *Collector) persistVerificationResults(ctx context.Context, snap *Snapsh
 			continue
 		}
 		if _, err := cli.Put(writeCtx, key, string(payload)); err != nil {
-			snap.addError("etcd", "Put("+key+")", err)
+			// Verification writes are a non-critical side-effect — they
+			// persist results for cross-process consumers but are NOT inputs
+			// to the doctor's own rules. A failed write must not call
+			// addError() which would mark the snapshot as DataIncomplete and
+			// generate per-key snapshot_source_unavailable findings (70+
+			// during transient etcd hiccups).
+			// See meta.critical_path_no_non_critical_dependency.
+			writeErrors++
 		}
+	}
+	if writeErrors > 0 {
+		log.Printf("verification: %d/%d etcd writes failed (non-critical, verdicts still in snapshot)",
+			writeErrors, len(r.Verdicts))
 	}
 }
