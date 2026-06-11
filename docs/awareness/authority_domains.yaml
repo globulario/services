@@ -1,0 +1,159 @@
+# Authority domains — who owns which state, who may write it, which path
+# mutations must flow through, and which shortcuts are forbidden.
+#
+# Consumed by the awareness-graph authority_domains importer (Phase 3).
+# Preflight matches touched files against covers_paths prefixes and surfaces
+# the matching domain's owner / mutation path / forbidden bypasses.
+#
+# These records make the 4-layer ownership principle queryable. They are
+# compiled context — the owner services still enforce their own boundaries
+# at runtime; a domain entry never replaces those checks.
+
+authority_domains:
+  - id: authority.repository_artifact_metadata
+    label: Repository artifact metadata
+    status: active
+    truth_layer: repository
+    owner_service: repository (repository.PackageRepository)
+    covers_paths:
+      - golang/repository/repository_server/
+    owns_state:
+      - artifact manifest
+      - artifact publish state (publish_state column in Scylla)
+      - release index (release-index.json BOM)
+      - desired build id references (deletion/revocation hard roots)
+    may_write:
+      - repository service via publish workflow
+    may_read:
+      - controller (resolve/release pipeline)
+      - node agent (install path)
+      - cluster doctor (observation only)
+    must_mutate_via:
+      - repository typed RPC / publish workflow (transitionArtifactState gated by IsTransitionAllowed)
+    must_read_via:
+      - repository resolver RPCs (Scylla-first discovery)
+    forbids_bypass:
+      - object presence in MinIO or CAS as installability authority — installability comes from lifecycle metadata
+      - direct Scylla writes to publish_state from outside the repository service
+      - looking in MinIO for packages — packages live in POSIX CAS, Scylla is the index
+    notes: |
+      Installability is a lifecycle fact, not a storage fact. INC-2026-0012
+      (skeleton manifests) and INC-2026-0013 (mislabeled pinned bytes) both
+      came from treating storage state as metadata truth.
+
+  - id: authority.cluster_desired_state
+    label: Cluster desired state
+    status: active
+    truth_layer: desired
+    owner_service: cluster controller (cluster_controller.ClusterControllerService)
+    covers_paths:
+      - golang/cluster_controller/cluster_controller_server/
+    owns_state:
+      - DesiredService records (/globular/resources/DesiredService/*)
+      - ServiceRelease records (/globular/resources/ServiceRelease/*)
+      - release waves and per-node apply gates
+    may_write:
+      - cluster controller (release pipeline, platform-upgrade)
+    may_read:
+      - node agent (convergence)
+      - cluster doctor (observation only)
+      - repository (release resolution)
+    must_mutate_via:
+      - controller typed RPCs / release workflows — every desired-state change belongs to a workflow run
+    must_read_via:
+      - controller RPCs or direct etcd read of controller-owned keys (read-only)
+    forbids_bypass:
+      - doctor or node-agent direct writes to desired state — observers never write the layer they observe
+      - deleting desired state based on installed-state observations
+      - treating a missing control-plane key as a stop or delete command
+    notes: |
+      Desired state is layer 2 of the 4-layer model. It changes only through
+      audited controller decisions; absence is never destructive intent.
+
+  - id: authority.remediation_execution
+    label: Remediation execution
+    status: active
+    truth_layer: runtime
+    owner_service: workflow service (workflow.WorkflowService) with cluster-doctor actor callbacks
+    covers_paths:
+      - golang/cluster_doctor/cluster_doctor_server/
+    owns_state:
+      - remediation plans and approvals
+      - remediation workflow runs and step receipts
+      - HealDecision / remediation history records
+    may_write:
+      - workflow service (run state)
+      - cluster doctor leader (plans, approvals — never direct mutations)
+    may_read:
+      - operators and agents (status, history)
+    must_mutate_via:
+      - StartRemediationWorkflow → workflow actors → node agents — the doctor decides, the workflow coordinates, node agents execute
+    observes_via:
+      - doctor rule Evaluate(snapshot) — findings only, evidence-backed
+    forbids_bypass:
+      - doctor rule executing mutation inside Evaluate — rules are diagnostic-only
+      - remediation bypassing the gate (leader + evidence trust + approval token + risk class)
+      - auto-executing hard-blocked actions (ETCD_PUT, ETCD_DELETE, NODE_REMOVE)
+    evidence_freshness: stale or unverifiable evidence must block autonomous execution — re-resolve the finding from last-known findings before acting
+    notes: |
+      Remediation is the most dangerous mutation surface. The observe/mutate
+      split (doctor observes, workflow mutates) is the boundary that keeps
+      every observation pass side-effect free.
+
+  - id: authority.rbac_permissions
+    label: RBAC permissions
+    status: active
+    truth_layer: desired
+    owner_service: rbac (rbac.RbacService)
+    covers_paths:
+      - golang/rbac/rbac_server/
+    owns_state:
+      - resource permissions and ownership records
+      - role bindings and cluster roles
+      - explicit deny records
+    may_write:
+      - rbac service via typed RPCs
+    may_read:
+      - interceptor chain (every authorized RPC)
+      - services validating access
+    must_mutate_via:
+      - rbac typed RPCs (SetResourcePermissions etc.) — never direct store writes
+    must_read_via:
+      - rbac validation RPCs (ValidateAccess / ValidateAction) through the interceptor chain
+    forbids_bypass:
+      - backend trusting a proxy/user header or peer certificate instead of the originating principal
+      - owner / service-account / bootstrap shortcuts that skip the explicit-deny check
+      - bypassing the interceptor chain (auth → RBAC → audit)
+    notes: |
+      RBAC is deny-wins: explicit deny overrides allow, ownership, and every
+      shortcut, and propagates down resource paths.
+
+  - id: authority.runtime_evidence
+    label: Runtime evidence
+    status: active
+    truth_layer: runtime
+    owner_service: observed component (node agent inventory, systemd, process probes) — evidence carries no desired-state authority
+    covers_paths:
+      - golang/node_agent/node_agent_server/
+      - golang/cluster_doctor/cluster_doctor_server/collector/
+    owns_state:
+      - installed-package observations (/globular/nodes/*/packages/*)
+      - node heartbeat and status
+      - runtime health probes and process fingerprints
+    may_write:
+      - node agent (its own node's observations only)
+    may_read:
+      - cluster doctor (cross-layer findings)
+      - controller (convergence decisions)
+    observes_via:
+      - node-agent heartbeat (Phase 1 local + Phase 2 etcd, lean)
+      - doctor collector snapshots (with snap.Errors completeness markers)
+    forbids_bypass:
+      - treating runtime observation as desired-state authority — installed/running never implies should-be-installed
+      - treating missing evidence as evidence of failure (absence has a scope)
+      - consuming a partial snapshot as if complete — consult snap.Errors first
+    evidence_freshness: evidence must carry source, observed time, and trust level; stale evidence degrades to hints, never to PASS or FAIL verdicts
+    notes: |
+      Runtime evidence is layer 3/4 observation. It informs findings and
+      convergence but owns no desired truth; freshness and scope are part of
+      every assertion's meaning.
