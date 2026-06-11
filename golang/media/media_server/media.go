@@ -653,14 +653,8 @@ func tmdbAPIKey() string {
 		return tmdbKeyValue
 	}
 
-	// 1. Environment variable.
-	if k := strings.TrimSpace(os.Getenv("TMDB_API_KEY")); k != "" {
-		tmdbKeyValue = k
-		tmdbKeyDone = true
-		return k
-	}
-
-	// 2. Read from title or media service config in etcd.
+	// Read from title or media service config in etcd.
+	// Environment variables are not used for service configuration — etcd is the sole config source.
 	for _, svcName := range []string{"title.TitleService", "media.MediaService"} {
 		cfg, err := config.GetServiceConfigurationById(svcName)
 		if err != nil || cfg == nil {
@@ -675,7 +669,9 @@ func tmdbAPIKey() string {
 		}
 	}
 
-	// Don't set tmdbKeyDone so we retry next call (etcd may not be ready yet).
+	// No key found in etcd config; don't set tmdbKeyDone so we retry on the next call
+	// (etcd may not be ready yet). Operators must set TmdbApiKey in the service config.
+	logger.Warn("tmdbAPIKey: no TMDB API key found in etcd config; TMDB features will be unavailable")
 	return ""
 }
 
@@ -2245,6 +2241,9 @@ func (srv *server) assetBaseURL() string {
 		}
 	}
 	if domain == "" {
+		// VTT asset URLs will use "localhost" as the base domain, which will be broken for remote clients.
+		// Operators must set the cluster domain so asset URLs are reachable.
+		logger.Warn("assetBaseURL: no domain found in cluster config; falling back to localhost — VTT asset URLs will not be reachable remotely")
 		domain = "localhost"
 	}
 	domain = strings.TrimPrefix(domain, "//")

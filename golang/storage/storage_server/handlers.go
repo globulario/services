@@ -284,9 +284,17 @@ func (srv *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storage
 	case storagepb.StoreType_BADGER_DB:
 		store = storage_store.NewBadger_store()
 	case storagepb.StoreType_SCYLLA_DB:
-		scyllaHost := config.GetRoutableIPv4()
-		if hosts, err := config.GetScyllaHosts(); err == nil && len(hosts) > 0 {
+		// Prefer the cluster-registered ScyllaDB hosts from etcd.
+		// Fall back to the node's own routable IP only if etcd has no registered hosts.
+		scyllaHost := ""
+		if hosts, err := config.GetScyllaHosts(); err != nil {
+			logger.Warn("Open: GetScyllaHosts failed; falling back to local routable IP", "err", err)
+		} else if len(hosts) > 0 {
 			scyllaHost = hosts[0]
+		}
+		if scyllaHost == "" {
+			scyllaHost = config.GetRoutableIPv4()
+			logger.Warn("Open: no ScyllaDB hosts in cluster config; falling back to GetRoutableIPv4", "host", scyllaHost)
 		}
 		store = storage_store.NewScylla_store(scyllaHost, "", 3)
 	default:
@@ -363,6 +371,11 @@ func (srv *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServ
 		buffer.Write(msg.Value)
 	}
 
+	// rqst may be nil if the stream was closed without sending any messages.
+	if rqst == nil {
+		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
+			errors.New("setLargeItem: stream closed without any request messages")))
+	}
 	if _, ok := srv.Connections[rqst.GetId()]; !ok {
 		return status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(),
 			errors.New("setLargeItem: no connection found with id "+rqst.GetId())))

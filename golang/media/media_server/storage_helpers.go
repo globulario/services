@@ -256,6 +256,9 @@ func (srv *server) withWorkFile(path string, fn func(wf mediaWorkFile) error) er
 		}
 		localFallback := srv.formatPath(logical)
 		if srv.localPathExists(localFallback) {
+			// MinIO download failed and HLS playlist was not found; falling back to local filesystem.
+			// This means the file is not in the distributed store — data may be incomplete or inconsistent.
+			logger.Warn("withWorkFile: MinIO unavailable or download failed; falling back to local filesystem", "path", logical)
 			return fn(mediaWorkFile{
 				LogicalPath: logical,
 				LocalPath:   filepath.ToSlash(localFallback),

@@ -90,12 +90,16 @@ func (srv *server) createConnection(
 	}
 
 	// Persist in server configuration if requested; otherwise keep in-memory only.
+	// Insert into srv.Connections first (so Save() includes the new entry), then call
+	// Save() to durably commit. If Save() fails, remove the entry so the in-memory map
+	// and on-disk config remain consistent.
 	if save {
 		if srv.Connections == nil {
 			srv.Connections = make(map[string]connection)
 		}
 		srv.Connections[c.Id] = c
 		if err = srv.Save(); err != nil {
+			delete(srv.Connections, c.Id)
 			slog.Error("createConnection: save failed", "id", c.Id, "err", err)
 			return err
 		}

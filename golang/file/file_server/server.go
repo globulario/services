@@ -637,6 +637,10 @@ func (srv *server) storageForPath(path string) storage_backend.Storage {
 			if err == nil {
 				return m
 			}
+			// MinIO client connected but storage init failed; falling back to local filesystem.
+			logger.Warn("storageForPath: MinIO storage init failed for public/webroot path; falling back to local OS storage", "path", path, "err", err)
+		} else {
+			logger.Warn("storageForPath: MinIO client unavailable for public/webroot path; falling back to local OS storage", "path", path, "err", err)
 		}
 	}
 	if !strings.HasPrefix(path, "/users/") {
@@ -648,6 +652,9 @@ func (srv *server) storageForPath(path string) storage_backend.Storage {
 				if err == nil {
 					return m
 				}
+				logger.Warn("storageForPath: MinIO storage init failed for non-user path; falling back to local OS storage", "path", path, "err", err)
+			} else {
+				logger.Warn("storageForPath: MinIO client unavailable for non-user path; falling back to local OS storage", "path", path, "err", err)
 			}
 		}
 		// Fallback to local OS only if MinIO is unavailable.

@@ -130,6 +130,9 @@ func (store *SqlStore) Connect(id string, host string, port int32, user string, 
 	}
 
 	if len(host) == 0 {
+		// No host was provided; defaulting to localhost. This may fail if the target
+		// database is on a remote host. Callers should provide an explicit host.
+		log.Warn("Connect: no host provided; falling back to localhost")
 		host = "localhost"
 	}
 

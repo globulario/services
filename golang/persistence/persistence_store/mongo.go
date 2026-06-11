@@ -537,7 +537,10 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
 	}
 
 	cmd := "mongosh" // fallback
-	args := []string{"--host", "0.0.0.0", "--port", strconv.Itoa(store.Port)}
+	// Use 127.0.0.1 (loopback) rather than 0.0.0.0 here: mongosh is invoked as a
+	// local CLI tool targeting the mongod process on this same host. 0.0.0.0 is a
+	// bind/listen address and is not valid as a connect target for mongosh.
+	args := []string{"--host", "127.0.0.1", "--port", strconv.Itoa(store.Port)}
 	if len(user) > 0 {
 		args = append(args, "-u", user, "-p", password, "--authenticationDatabase", "admin")
 	}
