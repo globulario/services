@@ -4837,3 +4837,111 @@ invariants:
       - meta.harvest_and_yield_are_distinct_availability_dimensions
       - meta.failure_response_must_contract_not_amplify
       - meta.bad_path_must_make_progress
+
+  - id: meta.negative_result_requires_coverage_attestation
+    title: "'Nothing found' is not a finding — the observer must distinguish 'searched and verified empty' from 'never searched'"
+    category: signal
+    antipattern: "No news is good news"
+    wrong_instinct: An empty result feels like a clean bill of health — but every query that returns zero results is ambiguous between "I checked everything relevant and found nothing" and "I have no coverage of this area at all." The consumer treats both as safety; only the first one is.
+    severity: high
+    status: candidate
+    summary: |
+      When an observation system returns an empty result, it produces a
+      signal that has the SHAPE of safety but may carry the MEANING of
+      ignorance. The consumer cannot distinguish these without explicit
+      coverage metadata from the observer.
+
+      This is the observer-side sibling of
+      meta.assertions_must_carry_their_scope. That principle says: every
+      assertion — positive or negative — carries the scope of its truth.
+      This principle says: the observation SYSTEM ITSELF must attest to
+      the completeness of its search before its negative results carry
+      weight. Scope is a property of each answer; coverage is a property
+      of the asker's ability to find an answer at all.
+
+      Three levels of negative result exist, and collapsing them is the
+      bug:
+
+        1. ATTESTED EMPTY — "I searched this area, my coverage is
+           complete, nothing applies." A genuine safety signal.
+        2. PARTIAL COVERAGE — "I searched, but my knowledge of this area
+           is incomplete." A degraded signal — proceed with caution.
+        3. UNCHARTED — "I have no coverage record for this area. My empty
+           result is silence, not safety." This is not a signal at all —
+           it is the absence of one.
+
+      The principle applies whenever a system answers "no" to a question
+      it may not have been equipped to ask. The cost of the ambiguity is
+      invisible in steady state — it surfaces only when an uncharted area
+      breaks and the post-incident review discovers the observer was
+      never watching.
+
+      Distinct from meta.absence_scope_must_be_explicit: that principle
+      says "tell me WHERE you didn't find it" (the spatial/temporal
+      bounds of the observation). This principle says "tell me WHETHER
+      you were even capable of finding it" (whether the observation
+      system has been calibrated for the target).
+
+      Distinct from meta.authority_must_express_uncertainty: that
+      principle says the data OWNER must be able to say "I don't know."
+      This says the QUERY system must be able to say "I haven't been
+      taught about this area." The authority owns the truth; the observer
+      owns the completeness of its search.
+
+      Before consuming any empty/zero/not-found result:
+        1. Did the observer search, or did it have nothing to search?
+        2. Is the empty result accompanied by a coverage attestation
+           (coverage class, surveyed_at, or coverage_scope)?
+        3. Is "uncharted" being silently rendered with the same shape
+           as "attested empty"?
+        4. On a high-risk path, does uncharted block / require override,
+           or does it pass as clean?
+
+      Known violations:
+        - awareness.briefing returns status:empty for BOTH
+          surveyed-and-clean files and never-annotated files — the
+          consumer (AI agent) treats both as "no concerns." CLAUDE.md
+          already names this manually ("empty is NOT proof of safety");
+          this principle is the structural form of that warning.
+        - cluster_doctor collector: a nil/failed snapshot client yields
+          zero findings rather than an error — "didn't check" rendered
+          as "checked, clean."
+        - repository verification returning len(violations)==0 without
+          distinguishing "all artifacts scanned" from "scan aborted
+          early."
+        - rbac GetPermissionsBySubject returning empty: could mean "no
+          permissions" or "RBAC unreachable, fallback returned empty."
+      Known good:
+        - tools_awareness_reliability_test.go: transport failure
+          produces a non-empty failure_class so callers cannot confuse
+          empty with degraded; a genuinely empty graph returns
+          status:empty, NOT degraded.
+        - cluster_doctor snapshot.go distinguishes nil map (didn't
+          check) from empty map (checked, found nothing).
+    enforcement: |
+      Every query system that can return an empty result must return a
+      coverage attestation alongside it — one of:
+        - a coverage class field: {attested, partial, uncharted}
+        - a surveyed_at timestamp (nil = never surveyed)
+        - a coverage_scope describing what was actually searched.
+
+      Consumers must not treat uncharted the same as attested-empty. At
+      minimum, log a warning. On high-risk paths (security, state
+      authority, convergence, package install), uncharted must block or
+      require an explicit override rather than passing as clean.
+
+      Concrete next step for the awareness graph: awareness.briefing
+      should split status:empty into status:attested_empty (surveyed,
+      no anchors) versus status:uncharted (no coverage record), backed
+      by a coverage manifest that names surveyed paths/namespaces. The
+      briefing hook should treat uncharted as a soft warning rather than
+      silent assent.
+    forbidden_fixes:
+      - forbidden.treat_empty_result_as_attested_safety_without_coverage_check
+      - forbidden.infer_coverage_from_result_count
+      - forbidden.suppress_uncharted_warning_to_reduce_noise
+    related_invariants:
+      - meta.assertions_must_carry_their_scope
+      - meta.absence_scope_must_be_explicit
+      - meta.authority_must_express_uncertainty
+      - meta.observability_must_match_decision_horizon

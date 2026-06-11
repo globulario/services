@@ -83,7 +83,16 @@ jobs:
         continue-on-error: true  # Some tests need infrastructure (etcd, ScyllaDB) not available in CI
 
       - name: Build awareness CI tools
-        run: go build -o bin/globular ./globularcli
+        run: |
+          go build -o bin/globular ./globularcli
+          # ruleguard powers the positive-control attestation inside
+          # principle-check-all (awareness-graph cmd/principle-check
+          # positive_control_test.go). Without it on PATH the attestation
+          # SKIPS — the ruleguard rules go unverified and could be
+          # silently dead, exactly the failure the attestation exists to
+          # catch (meta.negative_result_requires_coverage_attestation).
+          GOTOOLCHAIN=go1.25.0 go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.4.5
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # Enforcement gates (hard-fail). These run the meta-principle checks that
       # the broad "Unit Tests" step above does NOT gate (it is continue-on-error

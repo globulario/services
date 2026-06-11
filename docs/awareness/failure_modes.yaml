@@ -5195,3 +5195,69 @@ failure_modes:
         - node-agent
       required_tests:
         - TestResetHeldNonMembersInPool_GrowPathUnblock
+
+    - id: awareness.scanner_zero_findings_conflates_clean_with_dead
+      title: A linter/scanner reporting "0 findings" cannot be trusted as "clean" unless the rule is proven able to fire — a broken, mis-scoped, or dead rule reports zero exactly like clean code
+      severity: high
+      symptoms: |
+        principle-check ran a ruleguard rule and reported "scanned 0
+        ruleguard findings / CONFORMANT 0 / DRIFT 0", and this was read as
+        "the architecture conforms." In reality the rule matched nothing —
+        not because the code is clean, but because the rule never
+        exercised the code. Concrete instances found 2026-06-11:
+          - timestamp_field_must_be_qualified was DEAD: a
+            Type.Is("*timestamppb.Timestamp") clause crashed ruleguard's
+            rule loader (parse error), so the entire rule (incl. the
+            int64/uint64/string cases) produced zero findings in
+            production while ruleguard_scan.go silently treated the
+            parse-failure output as "scan completed, no findings."
+          - 21 other ruleguard rules reported 0 findings with no evidence
+            they could fire on anything (CONFORMANT 0 across all scopes).
+      root_cause: |
+        The production scanner (cmd/principle-check/ruleguard_scan.go)
+        shells out to `ruleguard -rules <file>` and parses report lines;
+        absence of report lines is indistinguishable between "rule ran,
+        code is clean", "rule matched nothing because it is mis-scoped",
+        and "rule failed to load and produced nothing." An empty result
+        carries the SHAPE of safety but possibly the MEANING of ignorance
+        (meta.negative_result_requires_coverage_attestation). A related,
+        coarser form of the same trap:
+        awareness.empty_graph_silently_treated_as_no_awareness.
+        Two scanners are additionally only NARROW tripwires whose silence
+        must not be read as comprehensive coverage: gogrep cannot bind
+        interior struct fields, so timestamp_field_must_be_qualified and
+        duration_vs_deadline_field_naming catch only single-field structs
+        (a measured 36 interior ambiguous time/timestamp fields in the
+        tree are uncharted by these rules — a NAMED gap, not clean).
+      architecture_fix: |
+        Positive-control attestation: cmd/principle-check/positive_control_test.go
+        runs every ruleguard rule against a known-bad fixture under
+        rules/testdata/positive/<rule>/ and fails unless the rule fires.
+        A rule that cannot flag known-bad code is dead and is rejected,
+        so a production "0 findings" from an attested rule now means
+        "attested clean", not "uncharted". The attested rules are gated
+        against the services tree via `make principle-check-ruleguard-tree`
+        (wired into principle-check-all), and CI installs ruleguard so the
+        attestation enforces rather than silently skipping. Narrow-by-tool
+        rules document their coverage gap explicitly rather than passing
+        silently.
+      forbidden_fixes:
+        - treat_scanner_zero_findings_as_clean_without_positive_control
+        - parse_failure_output_absorbed_as_no_findings
+        - convert_narrow_matcher_to_comprehensive_regex_that_floods_accepted_sites_then_disable_it
+        - gate_a_ruleguard_rule_without_a_positive_control_fixture
+      related_invariants:
+        - meta.negative_result_requires_coverage_attestation
+        - meta.assertions_must_carry_their_scope
+        - meta.silence_is_not_valid_for_unexpected
+        - awareness.failure_mode_requires_test_or_reason
+      related_services:
+        - awareness-graph
+      affects:
+        files:
+          - cmd/principle-check/ruleguard_scan.go
+          - cmd/principle-check/positive_control_test.go
+          - cmd/principle-check/rules/timestamp_field_must_be_qualified.go
+          - cmd/principle-check/rules/duration_vs_deadline_field_naming.go
+      required_tests:
+        - TestRuleguardRulesHavePositiveControl
