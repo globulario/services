@@ -93,9 +93,11 @@ func (js *jobStore) createJob(incidentID, ruleID string, tier int32, diagnosis *
 
 	js.jobs[incidentID] = job
 
-	// Persist synchronously in createJob — the caller must know if durable
-	// storage failed for a new job (write creates completion obligation).
+	// Persist synchronously — but persistJob takes mu.RLock, so we must
+	// drop the write lock first to avoid deadlock.
+	js.mu.Unlock()
 	js.persistJob(job)
+	js.mu.Lock() // re-acquire for deferred Unlock
 
 	return job
 }
