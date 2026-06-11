@@ -57,21 +57,26 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 		return srv.proxyPromptToPeer(req, stream)
 	}
 
-	// Ensure conversation store is connected.
-	if srv.convStore == nil || !srv.convStore.isConnected() {
-		return status.Error(codes.Unavailable, "conversation store not available")
+	// Check conversation store availability — proceed in degraded mode if
+	// unavailable (single-shot, no history) rather than failing the request.
+	convStoreAvailable := srv.convStore != nil && srv.convStore.isConnected()
+	if !convStoreAvailable {
+		logger.Warn("SendPrompt: conversation store unavailable, proceeding without history (degraded mode)")
 	}
 
 	// Create or continue conversation.
 	convID := req.ConversationId
-	if convID == "" {
+	if convID == "" && convStoreAvailable {
 		// New conversation — generate title from first words of prompt.
 		title := generateTitle(req.Prompt)
 		var err error
 		convID, err = srv.convStore.createConversation(userID, title, req.SystemPromptOverride)
 		if err != nil {
-			return status.Errorf(codes.Internal, "create conversation: %v", err)
+			logger.Warn("failed to create conversation, proceeding without persistence", "err", err)
 		}
+	}
+	if convID == "" {
+		convID = uuid.New().String() // ephemeral ID for degraded mode
 	}
 
 	// Send thinking status.
@@ -81,27 +86,38 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 		RespondingNode: hostname,
 	})
 
-	// Save user message.
+	// Save user message (best-effort).
 	userMsgID := uuid.New().String()
-	if err := srv.convStore.saveMessage(convMessage{
-		ID:             userMsgID,
-		ConversationID: convID,
-		Role:           "user",
-		Content:        req.Prompt,
-		CreatedAtMs:    time.Now().UnixMilli(),
-	}); err != nil {
-		logger.Warn("failed to save user message", "err", err)
+	if convStoreAvailable {
+		if err := srv.convStore.saveMessage(convMessage{
+			ID:             userMsgID,
+			ConversationID: convID,
+			Role:           "user",
+			Content:        req.Prompt,
+			CreatedAtMs:    time.Now().UnixMilli(),
+		}); err != nil {
+			logger.Warn("failed to save user message", "err", err)
+		}
 	}
 
 	// Load conversation history.
-	history, err := srv.convStore.getMessages(convID, 50, 0)
-	if err != nil {
-		logger.Warn("failed to load history", "err", err)
+	var history []convMessage
+	if convStoreAvailable {
+		var err error
+		history, err = srv.convStore.getMessages(convID, 50, 0)
+		if err != nil {
+			logger.Warn("failed to load history", "err", err)
+			history = []convMessage{{Role: "user", Content: req.Prompt}}
+		}
+	} else {
 		history = []convMessage{{Role: "user", Content: req.Prompt}}
 	}
 
 	// Build system prompt.
-	systemPrompt := srv.convStore.getConversationSystemPrompt(convID)
+	var systemPrompt string
+	if convStoreAvailable {
+		systemPrompt = srv.convStore.getConversationSystemPrompt(convID)
+	}
 	if req.SystemPromptOverride != "" {
 		systemPrompt = req.SystemPromptOverride
 	}
@@ -147,20 +163,22 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 		return status.Error(codes.Unavailable, "no AI backend available")
 	}
 
-	// Save assistant message.
+	// Save assistant message (best-effort).
 	assistantMsgID := uuid.New().String()
-	if err := srv.convStore.saveMessage(convMessage{
-		ID:             assistantMsgID,
-		ConversationID: convID,
-		Role:           "assistant",
-		Content:        responseText,
-		CreatedAtMs:    time.Now().UnixMilli(),
-		NodeID:         srv.GetId(),
-		NodeHostname:   hostname,
-		InputTokens:    inputTokens,
-		OutputTokens:   outputTokens,
-	}); err != nil {
-		logger.Warn("failed to save assistant message", "err", err)
+	if convStoreAvailable {
+		if err := srv.convStore.saveMessage(convMessage{
+			ID:             assistantMsgID,
+			ConversationID: convID,
+			Role:           "assistant",
+			Content:        responseText,
+			CreatedAtMs:    time.Now().UnixMilli(),
+			NodeID:         srv.GetId(),
+			NodeHostname:   hostname,
+			InputTokens:    inputTokens,
+			OutputTokens:   outputTokens,
+		}); err != nil {
+			logger.Warn("failed to save assistant message", "err", err)
+		}
 	}
 
 	// Detect if AI is asking a question.

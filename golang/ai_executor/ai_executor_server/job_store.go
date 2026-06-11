@@ -92,7 +92,10 @@ func (js *jobStore) createJob(incidentID, ruleID string, tier int32, diagnosis *
 	}
 
 	js.jobs[incidentID] = job
-	go js.persistJob(job)
+
+	// Persist synchronously in createJob — the caller must know if durable
+	// storage failed for a new job (write creates completion obligation).
+	js.persistJob(job)
 
 	return job
 }
@@ -283,7 +286,7 @@ func (js *jobStore) persistJob(job *ai_executorpb.Job) {
 	key := jobKeyPrefix + job.IncidentId
 	_, err = cli.Put(ctx, key, string(data))
 	if err != nil {
-		logger.Debug("job_store: persist failed", "incident_id", job.IncidentId, "err", err)
+		logger.Warn("job_store: persist failed", "incident_id", job.IncidentId, "err", err)
 	}
 }
 

@@ -106,7 +106,11 @@ func (b *restartServiceBackend) Verify(ctx context.Context, target string) (bool
 	// Check cluster health to see if the service came back.
 	health, err := getClusterHealthForVerification(ctx)
 	if err != nil {
-		return false, "", err
+		return false, "health check failed: " + err.Error(), nil
+	}
+
+	if len(health.GetNodeHealth()) == 0 {
+		return false, "inconclusive: health check returned no node data", nil
 	}
 
 	// Look for the target service's node health.
@@ -116,8 +120,8 @@ func (b *restartServiceBackend) Verify(ctx context.Context, target string) (bool
 		}
 	}
 
-	// If we can't confirm, it's inconclusive (not a failure).
-	return true, "cluster health check passed", nil
+	// No node reported healthy — inconclusive.
+	return false, "inconclusive: no node reported healthy after restart", nil
 }
 
 // --- DrainEndpointBackend: tells ai_router to drain an endpoint ---
@@ -142,8 +146,8 @@ func (b *drainEndpointBackend) Execute(ctx context.Context, target string, _ *ai
 
 func (b *drainEndpointBackend) Verify(ctx context.Context, target string) (bool, string, error) {
 	// Drain verification is async — the ai_router handles the grace period.
-	// We verify by checking if the drain event was published successfully.
-	return true, "drain request accepted by event bus", nil
+	// We cannot confirm the drain completed; report as inconclusive.
+	return false, "inconclusive: drain is async, cannot confirm completion", nil
 }
 
 // --- CircuitBreakerBackend: tightens circuit breakers via ai_router ---
@@ -164,7 +168,8 @@ func (b *circuitBreakerBackend) Execute(ctx context.Context, target string, _ *a
 }
 
 func (b *circuitBreakerBackend) Verify(ctx context.Context, target string) (bool, string, error) {
-	return true, "circuit breaker adjustment accepted", nil
+	// Cannot confirm circuit breaker state changed; report as inconclusive.
+	return false, "inconclusive: circuit breaker adjustment is fire-and-forget", nil
 }
 
 // --- NotifyAdminBackend: sends notification (always succeeds) ---

@@ -49,7 +49,8 @@ type anthropicClient struct {
 }
 
 // newAnthropicClient creates a client for direct API access.
-// Priority: ANTHROPIC_API_KEY env > config APIKey > Claude Code credentials file.
+// Priority: config APIKey > etcd > Claude Code credentials file.
+// Environment variables are NOT used for credentials (etcd is the sole config source).
 // Returns nil if no auth method is available.
 func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 	if cfg.Model == "" {
@@ -80,21 +81,14 @@ func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 		},
 	}
 
-	// 1. Env var API key (highest priority)
-	if key := strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY")); key != "" {
-		c.accessToken = key
-		logger.Info("anthropic: using API key from ANTHROPIC_API_KEY env")
-		return c
-	}
-
-	// 2. Config API key
+	// 1. Config API key (from etcd-backed service config)
 	if cfg.APIKey != "" {
 		c.accessToken = cfg.APIKey
 		logger.Info("anthropic: using API key from config")
 		return c
 	}
 
-	// 3. etcd shared credentials (synced from any node that has the token)
+	// 2. etcd shared credentials (synced from any node that has the token)
 	if err := c.loadCredentialsFromEtcd(); err == nil {
 		logger.Info("anthropic: using Max subscription from etcd (cluster-shared)",
 			"expires_in", time.Until(time.UnixMilli(c.expiresAt)).Round(time.Minute))
@@ -103,7 +97,7 @@ func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 		return c
 	}
 
-	// 4. Claude Code credentials file (Max subscription — $0 extra cost)
+	// 3. Claude Code credentials file (Max subscription — $0 extra cost)
 	credPath := findCredentialsFile(cfg.CredentialsFile)
 	if credPath != "" {
 		if err := c.loadCredentials(credPath); err == nil {
@@ -122,7 +116,7 @@ func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 		}
 	}
 
-	logger.Info("anthropic: no credentials found (set ANTHROPIC_API_KEY or install Claude Code)")
+	logger.Info("anthropic: no credentials found (set APIKey in config or install Claude Code)")
 	return nil
 }
 
@@ -299,10 +293,16 @@ func (c *anthropicClient) saveCredentials() {
 	}
 
 	// Write to etcd (shares token with all nodes in the cluster).
+	// KNOWN GAP: this is an unfenced Put — if two nodes refresh tokens
+	// concurrently, the last writer wins and the other node's token may be
+	// overwritten. A full CAS (If(ModRevision==...).Then(Put)) is needed
+	// to close this race, but the blast radius is limited (token refresh
+	// will self-heal on next ensureValidToken call).
 	if err := etcdPut(etcdCredentialsKey, string(data)); err != nil {
 		logger.Warn("anthropic: failed to save credentials to etcd", "err", err)
 	} else {
-		logger.Info("anthropic: credentials synced to etcd")
+		logger.Warn("anthropic: credentials written to etcd without CAS — unfenced write",
+			"key", etcdCredentialsKey)
 	}
 }
 

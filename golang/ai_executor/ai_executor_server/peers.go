@@ -296,8 +296,16 @@ func (pm *peerManager) seekConsensus(ctx context.Context, proposal *ai_executorp
 		}
 	}
 
-	// Majority rule: approved > (rejected + escalated)
-	result.Passed = result.Approved > (result.Rejected + result.Escalated)
+	// Majority rule: approved > (rejected + escalated).
+	// Special case: if peers exist but ALL abstained (none approved, none
+	// rejected), consensus fails — self-vote alone is insufficient when
+	// no peer could be reached to confirm the action.
+	if len(peers) > 0 && result.Approved == 1 && result.Rejected == 0 && result.Abstained == len(peers) {
+		result.Passed = false
+		result.Reasons = append(result.Reasons, "no peer quorum — all peers unreachable")
+	} else {
+		result.Passed = result.Approved > (result.Rejected + result.Escalated)
+	}
 
 	logger.Info("consensus",
 		"proposal", proposal.ProposalId,

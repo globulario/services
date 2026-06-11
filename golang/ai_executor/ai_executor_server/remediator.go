@@ -152,6 +152,8 @@ func classifyAction(proposed string) ai_executorpb.ActionType {
 	case strings.Contains(proposed, "notify"), strings.Contains(proposed, "alert_admin"):
 		return ai_executorpb.ActionType_ACTION_NOTIFY_ADMIN
 	default:
+		logger.Warn("classifyAction: unknown proposed action mapped to NOTIFY_ADMIN",
+			"proposed", proposed)
 		return ai_executorpb.ActionType_ACTION_NOTIFY_ADMIN
 	}
 }
