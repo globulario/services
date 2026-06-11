@@ -846,3 +846,28 @@ required_tests:
       - install_package step threads the declared input into expected_sha256
       - controller dispatch carries manifest.entrypoint_checksum at every call site
       - loader degrades gracefully on missing/nonexistent definitions dir
+
+  - id: test.objectstore_grow_resets_held_nonmembers
+    title: apply-topology must reset held non-member nodes admitted into the pool so distributed can form
+    protects:
+      invariants:
+        - objectstore.topology_contract
+      failure_modes:
+        - objectstore.minio.standalone_to_distributed_grow_deadlock
+    required_for_changes:
+      paths:
+        - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+        - golang/cluster_controller/cluster_controller_server/minio_pools.go
+        - golang/cluster_controller/cluster_controller_server/server.go
+      task_terms:
+        - objectstore topology
+        - minio pool
+        - standalone to distributed
+        - MinioJoinPhase
+        - filterEligiblePoolIPsLocked
+    commands:
+      - go test ./golang/cluster_controller/cluster_controller_server/ -run TestResetHeldNonMembersInPool
+    evidence:
+      - held non-member nodes whose IP is in the applied pool are reset NonMember->None
+      - held non-members outside the applied pool stay NonMember (no bootstrap wedge)
+      - existing Verified members are left untouched

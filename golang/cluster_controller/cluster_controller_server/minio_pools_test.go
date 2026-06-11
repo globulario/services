@@ -609,3 +609,71 @@ func TestMinioJoin_NotListedMember_StaysUntouched(t *testing.T) {
 		t.Fatalf("not-listed node must remain untouched at None, got %q", notListed.MinioJoinPhase)
 	}
 }
+
+// TestResetHeldNonMembersInPool_GrowPathUnblock locks in the standalone→distributed
+// grow-path fix: when apply-topology admits previously-held non-member nodes into the
+// pool, their MinioJoinPhase must be reset NonMember→None so they re-enter the
+// published objectstore contract (filterEligiblePoolIPsLocked excludes NonMember).
+// Without the reset the cluster deadlocks at a 1-node standalone no-op.
+//
+// Regression for: objectstore.minio.standalone_to_distributed_grow_deadlock.
+func TestResetHeldNonMembersInPool_GrowPathUnblock(t *testing.T) {
+	ryzen := &nodeState{
+		NodeID:         "ryzen",
+		Identity:       storedIdentity{Hostname: "globule-ryzen", Ips: []string{"10.0.0.63"}},
+		MinioJoinPhase: MinioJoinVerified, // existing pool member — must stay Verified
+	}
+	nuc := &nodeState{
+		NodeID:         "nuc",
+		Identity:       storedIdentity{Hostname: "globule-nuc", Ips: []string{"10.0.0.8", "10.0.0.214"}}, // multi-IP
+		MinioJoinPhase: MinioJoinNonMember,
+	}
+	dell := &nodeState{
+		NodeID:         "dell",
+		Identity:       storedIdentity{Hostname: "globule-dell", Ips: []string{"10.0.0.20"}},
+		MinioJoinPhase: MinioJoinNonMember,
+	}
+	// A held non-member NOT in the applied pool — must keep NonMember so it is not
+	// stranded at None (bootstrap.held_minio_nonmember_stranded_at_none).
+	outsider := &nodeState{
+		NodeID:         "outsider",
+		Identity:       storedIdentity{Hostname: "globule-outsider", Ips: []string{"10.0.0.99"}},
+		MinioJoinPhase: MinioJoinNonMember,
+	}
+	nodes := map[string]*nodeState{
+		"ryzen": ryzen, "nuc": nuc, "dell": dell, "outsider": outsider,
+	}
+
+	// apply-topology admits all three founding nodes (nuc matched by its wired IP).
+	pool := []string{"10.0.0.63", "10.0.0.8", "10.0.0.20"}
+	reset := resetHeldNonMembersInPool(nodes, pool)
+
+	if len(reset) != 2 {
+		t.Fatalf("expected 2 nodes reset (nuc, dell), got %d: %v", len(reset), reset)
+	}
+	if nuc.MinioJoinPhase != MinioJoinNone {
+		t.Errorf("nuc: phase = %q; want %q (must re-enter the contract)", nuc.MinioJoinPhase, MinioJoinNone)
+	}
+	if dell.MinioJoinPhase != MinioJoinNone {
+		t.Errorf("dell: phase = %q; want %q", dell.MinioJoinPhase, MinioJoinNone)
+	}
+	if ryzen.MinioJoinPhase != MinioJoinVerified {
+		t.Errorf("ryzen: phase = %q; want %q (existing member untouched)", ryzen.MinioJoinPhase, MinioJoinVerified)
+	}
+	if outsider.MinioJoinPhase != MinioJoinNonMember {
+		t.Errorf("outsider: phase = %q; want %q (held non-member outside pool must NOT be stranded at None)",
+			outsider.MinioJoinPhase, MinioJoinNonMember)
+	}
+}
+
+// TestResetHeldNonMembersInPool_NoNonMembers is a no-op safety check: a pool of
+// already-verified members triggers no resets.
+func TestResetHeldNonMembersInPool_NoNonMembers(t *testing.T) {
+	nodes := map[string]*nodeState{
+		"a": {NodeID: "a", Identity: storedIdentity{Ips: []string{"10.0.0.1"}}, MinioJoinPhase: MinioJoinVerified},
+		"b": {NodeID: "b", Identity: storedIdentity{Ips: []string{"10.0.0.2"}}, MinioJoinPhase: MinioJoinNone},
+	}
+	if reset := resetHeldNonMembersInPool(nodes, []string{"10.0.0.1", "10.0.0.2"}); len(reset) != 0 {
+		t.Fatalf("expected no resets, got %v", reset)
+	}
+}

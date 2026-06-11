@@ -271,6 +271,42 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 	return dirty
 }
 
+// resetHeldNonMembersInPool resets MinioJoinPhase from MinioJoinNonMember to
+// MinioJoinNone for every node whose IP is in pool, returning the NodeIDs reset.
+//
+// It unblocks the standalone→distributed grow path. A node held at NonMember
+// (because it was not yet in a non-empty pool) is excluded from the published
+// objectstore contract by filterEligiblePoolIPsLocked. Once an operator-approved,
+// transition-gated apply-topology adds it to MinioPoolNodes, it must be reset to
+// None so it re-enters the contract and reconcileMinioJoinPhases can drive it to
+// Verified. Without this reset the node deadlocks: excluded from the contract →
+// node-agent holds globular-minio.service → nodeHasMinioUnit stays false → never
+// prepared → never advances → stays NonMember → excluded.
+//
+// Scope is deliberately tight:
+//   - ONLY nodes whose IP is in pool are reset. Held non-members OUTSIDE the pool
+//     keep their NonMember phase, preserving the
+//     bootstrap.held_minio_nonmember_stranded_at_none fix (a non-member stranded at
+//     None wedges bootstrap storage_joining).
+//   - ONLY the NonMember phase is reset; None/Prepared/PoolUpdated/Started/Verified
+//     are left untouched.
+//
+// This is explicit operator authority via the admission/transition record — not the
+// forbidden objectstore.local_membership_inference.
+func resetHeldNonMembersInPool(nodes map[string]*nodeState, pool []string) []string {
+	var reset []string
+	for _, node := range nodes {
+		if node == nil || node.MinioJoinPhase != MinioJoinNonMember {
+			continue
+		}
+		if nodeAnyIPInPool(node, pool) {
+			node.MinioJoinPhase = MinioJoinNone
+			reset = append(reset, node.NodeID)
+		}
+	}
+	return reset
+}
+
 // nodeAnyIPInPool checks if ANY of the node's IPs is already in the MinIO
 // pool list. Mirrors nodeAnyIPIsEtcdMember — a VIP-holding node reports
 // multiple IPs (VIP + stable interface IPs) and nodeRoutableIP may return

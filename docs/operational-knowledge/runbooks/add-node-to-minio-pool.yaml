@@ -33,6 +33,7 @@ entries:
       awareness_failure_modes:
         - objectstore.local_membership_inference
         - vip_contamination.node_routable_ip_returns_vip
+        - objectstore.minio.standalone_to_distributed_grow_deadlock
       runbooks:
         - runbooks/recover-stuck-topology-apply.yaml
     procedure:
@@ -56,13 +57,35 @@ entries:
               VIP (typically 10.0.0.100) appears first when the node is the keepalived MASTER.
               Pass the real interface IP (e.g. 10.0.0.8) to --node-ip below.
 
+      - phase: preserve-data
+        description: "Back up existing objects via S3 BEFORE the destructive apply"
+        warning: |
+          The apply step wipes .minio.sys on every pool node and repoints MinIO at a fresh
+          (empty) erasure backend. The old objects become invisible via the S3 API even though
+          the bytes may still sit on the old disk. DO NOT rely on a filesystem rsync/cp of
+          /var/lib/globular/minio/data — those files are MinIO's internal layout and will NOT
+          restore into a new distributed erasure set. Back up and restore at the S3 layer with
+          `mc mirror`. This is the only method that survives the format change.
+        commands:
+          - cmd: |
+              # Configure an mc alias from the live MinIO root creds (do not echo the secret).
+              set -a; source <(sudo cat /var/lib/globular/minio/minio.env); set +a
+              export MC_CONFIG_DIR=/tmp/mc-mig
+              /usr/lib/globular/bin/mc alias set src "https://$(hostname -I | awk '{print $1}'):9000" \
+                "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" --insecure
+              /usr/lib/globular/bin/mc du src --insecure   # note object count + size
+            note: "Capture the pre-migration object count so you can verify the restore."
+          - cmd: |
+              BK=/home/$(logname)/minio-backup-$(date +%Y%m%d-%H%M%S)
+              /usr/lib/globular/bin/mc mirror --preserve src "$BK" --insecure
+              echo "$BK"   # remember this path for the restore phase
+            expect: "Transferred bytes == source du; backup dir holds one subdir per non-empty bucket"
+
       - phase: execute
         description: "Approve disks on every pool node, generate proposal, apply"
         warning: |
-          The apply step wipes .minio.sys on every pool node. ALL existing buckets become
-          inaccessible. Back up first if needed:
-            sudo mkdir -p /tmp/minio-backup-$(date +%F)
-            sudo rsync -a /var/lib/globular/minio/data/ /tmp/minio-backup-$(date +%F)/
+          The apply step wipes .minio.sys on every pool node and ALL existing buckets become
+          inaccessible. Ensure the preserve-data phase completed and the byte counts matched.
         commands:
           - cmd: "globular --controller globule-<leader>.globular.internal objectstore disk approve --node <id> --node-ip <stable-ip> --path /mnt/data"
             note: "Repeat for every node that will be in the new pool"
@@ -97,8 +120,17 @@ entries:
           - cmd: "globular cluster nodes get <new_node_id> --output json | jq '.metadata.minio_join_phase'"
             expect: "should reach 'verified' within ~30s of MinIO becoming active"
             note: |
-              If stuck at 'non_member' even though the apply succeeded, suspect VIP-contamination.
-              See ops.day-1.minio.vip-contamination in stages/day-1-objectstore.yaml.
+              If a node is stuck at 'non_member' even though the apply succeeded AND the published
+              /globular/objectstore/config still shows mode=standalone with only the original node,
+              this is the standalone→distributed grow deadlock
+              (objectstore.minio.standalone_to_distributed_grow_deadlock): the controller's publish
+              filter excludes NonMember nodes, so a node admitted into a non-empty pool never enters
+              the contract and never gets its minio unit. FIXED in controller versions that include
+              resetHeldNonMembersInPool (apply-topology resets NonMember→None for admitted nodes).
+              On a fixed controller the node converges automatically. If you are on an OLDER
+              controller, upgrade cluster-controller first, then re-run topology apply.
+              If instead the config shows all nodes but one stays non_member, suspect
+              VIP-contamination — see ops.day-1.minio.vip-contamination in stages/day-1-objectstore.yaml.
 
     success_criteria:
       - "Topology status shows ✓ CONVERGED at the new desired generation"
@@ -107,7 +139,21 @@ entries:
       - "ai-memory query for project=globular-services tags=objectstore,topology returns the new pool layout (auto-recorded by ai-watcher → ai-executor)"
 
     post_apply_data_repopulation:
-      - "globular deploy --all --bump patch — re-publishes every service to the new artifact bucket"
-      - "mc mb local/globular — recreate the artifact bucket if needed (deploy will do this implicitly)"
-      - "mc cp --recursive ./dist/ local/globular/<cluster-domain>/webroot/ — re-upload admin console static files"
-      - "User-uploaded files in users/ must be restored from backup (the rsync step in execute.warning above)"
+      restore_from_backup: |
+        Once topology status shows CONVERGED and all pool nodes are HTTP 200, restore the objects
+        captured in the preserve-data phase back into the NEW distributed cluster via S3:
+          export MC_CONFIG_DIR=/tmp/mc-mig
+          set -a; source <(sudo cat /var/lib/globular/minio/minio.env); set +a
+          /usr/lib/globular/bin/mc alias set dst "https://$(hostname -I | awk '{print $1}'):9000" \
+            "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" --insecure
+          # recreate any empty buckets that held no objects (mirror only carries non-empty ones)
+          for b in globular globular-config globular-search-index; do
+            /usr/lib/globular/bin/mc mb --ignore-existing dst/$b --insecure
+          done
+          /usr/lib/globular/bin/mc mirror --overwrite "$BK" dst --insecure   # $BK from preserve-data
+          /usr/lib/globular/bin/mc du dst --insecure   # object count must match the pre-migration du
+        Then shred the temp creds:  shred -u /tmp/mc-mig/config.json; rm -rf /tmp/mc-mig
+      notes:
+        - "mc mirror is the authoritative restore — it replays objects through the S3 API into the new erasure set. A filesystem copy of the old data dir will NOT work."
+        - "globular-search-index is typically empty and rebuilt by the search service; recreate the empty bucket so dependents find it."
+        - "Only after the restore verifies should you consider re-deploying services (globular deploy) to refresh artifact-bucket contents."

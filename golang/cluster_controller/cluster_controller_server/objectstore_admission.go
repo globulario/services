@@ -191,9 +191,9 @@ func (srv *server) startObjectStoreApplyWatcher(ctx context.Context) {
 type watchOutcome int
 
 const (
-	watchExited          watchOutcome = iota // ctx canceled — outer loop must return
-	watchCompacted                           // mvcc compacted; resume past CompactRevision+1
-	watchTransientError                      // channel closed or canceled; back off and retry
+	watchExited         watchOutcome = iota // ctx canceled — outer loop must return
+	watchCompacted                          // mvcc compacted; resume past CompactRevision+1
+	watchTransientError                     // channel closed or canceled; back off and retry
 )
 
 // runObjectStoreApplyWatchLoop reads from a single watch channel until
@@ -438,6 +438,20 @@ func (srv *server) applyObjectStoreTopologyRequest(ctx context.Context, req *con
 	}
 	// Replace pool — not append — so removed nodes are gone.
 	srv.state.MinioPoolNodes = append([]string(nil), p.Nodes...)
+
+	// Grow-path unblock (standalone→distributed): a node previously held at
+	// MinioJoinNonMember — because it was not yet in a non-empty pool — is now an
+	// explicit pool member by this operator-approved, transition-gated apply. Reset
+	// it to MinioJoinNone so filterEligiblePoolIPsLocked stops excluding it from the
+	// published /globular/objectstore/config; otherwise the node never enters the
+	// contract, the node-agent holds globular-minio.service inactive (enforceMinioHeld),
+	// nodeHasMinioUnit stays false, and reconcileMinioJoinPhases can never advance it —
+	// a self-reinforcing deadlock that collapses the apply to a 1-node standalone no-op.
+	// See resetHeldNonMembersInPool for the (tight) scope rules.
+	if reset := resetHeldNonMembersInPool(srv.state.Nodes, srv.state.MinioPoolNodes); len(reset) > 0 {
+		log.Printf("objectstore-apply: reset held non-member node(s) %v to None (admitted into pool gen=%d) — grow-path unblock",
+			reset, prospectiveGen)
+	}
 
 	srv.state.ObjectStoreGeneration++ // == prospectiveGen
 	newGen := srv.state.ObjectStoreGeneration

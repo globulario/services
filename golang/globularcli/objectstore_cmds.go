@@ -11,14 +11,14 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
-	"os"
-	"net"
 
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -38,7 +38,7 @@ var objectstoreTopologyCmd = &cobra.Command{
 }
 
 var (
-	topoStatusJSON bool
+	topoStatusJSON     bool
 	topoSanitizeDryRun bool
 )
 
@@ -100,6 +100,7 @@ type ccNodeLite struct {
 	Identity struct {
 		Ips []string `json:"ips"`
 	} `json:"identity"`
+	MinioJoinPhase string `json:"minio_join_phase,omitempty"`
 }
 
 func runObjectstoreTopologySanitizePool(cmd *cobra.Command, args []string) error {
@@ -262,31 +263,44 @@ type topologyStatusReport struct {
 	Applied topologyAppliedFields  `json:"applied"`
 	Lock    topologyLockFields     `json:"lock"`
 	Nodes   []topologyNodeStatus   `json:"nodes"`
-	Health  topologyHealthStatus   `json:"health"`
-	Summary string                 `json:"summary"`
+	// HeldNodes are nodes the controller has in MinioPoolNodes (operator applied them)
+	// but that are NOT in the published pool — held out of the contract, typically at
+	// join phase non_member. Surfacing these is what makes the standalone→distributed
+	// grow deadlock diagnosable from the CLI.
+	HeldNodes []topologyHeldNode   `json:"held_nodes,omitempty"`
+	Health    topologyHealthStatus `json:"health"`
+	Summary   string               `json:"summary"`
 	Converged bool                 `json:"converged"`
 }
 
+// topologyHeldNode is a node admitted into the controller's pool but absent from the
+// published objectstore contract (held out — usually MinioJoinPhase=non_member).
+type topologyHeldNode struct {
+	NodeID    string `json:"node_id,omitempty"`
+	IP        string `json:"ip"`
+	JoinPhase string `json:"minio_join_phase,omitempty"`
+}
+
 type topologyDesiredFields struct {
-	Generation       int64    `json:"generation"`
-	Mode             string   `json:"mode"`
-	PoolNodes        []string `json:"pool_nodes"`
-	DrivesPerNode    int      `json:"drives_per_node"`
-	Endpoint         string   `json:"endpoint"`
-	VolumesHash      string   `json:"volumes_hash"`
-	ExpectedFingerprint string `json:"expected_fingerprint"`
-	WrittenAt        string   `json:"written_at"`
+	Generation          int64    `json:"generation"`
+	Mode                string   `json:"mode"`
+	PoolNodes           []string `json:"pool_nodes"`
+	DrivesPerNode       int      `json:"drives_per_node"`
+	Endpoint            string   `json:"endpoint"`
+	VolumesHash         string   `json:"volumes_hash"`
+	ExpectedFingerprint string   `json:"expected_fingerprint"`
+	WrittenAt           string   `json:"written_at"`
 }
 
 type topologyAppliedFields struct {
-	Generation     int64  `json:"generation"`
-	Pending        bool   `json:"pending"`
-	RestartInProgress bool `json:"restart_in_progress"`
-	LastResult     string `json:"last_result"`
+	Generation        int64  `json:"generation"`
+	Pending           bool   `json:"pending"`
+	RestartInProgress bool   `json:"restart_in_progress"`
+	LastResult        string `json:"last_result"`
 }
 
 type topologyLockFields struct {
-	Held     bool   `json:"held"`
+	Held      bool   `json:"held"`
 	HeldSince string `json:"held_since,omitempty"`
 }
 
@@ -300,10 +314,10 @@ type topologyNodeStatus struct {
 }
 
 type topologyHealthStatus struct {
-	Endpoint  string `json:"endpoint"`
-	StatusCode int   `json:"status_code,omitempty"`
-	Healthy   bool   `json:"healthy"`
-	Error     string `json:"error,omitempty"`
+	Endpoint   string `json:"endpoint"`
+	StatusCode int    `json:"status_code,omitempty"`
+	Healthy    bool   `json:"healthy"`
+	Error      string `json:"error,omitempty"`
 }
 
 func runObjectstoreTopologyStatus(cmd *cobra.Command, args []string) error {
@@ -372,9 +386,9 @@ func runObjectstoreTopologyStatus(cmd *cobra.Command, args []string) error {
 
 		for _, poolIP := range desired.Nodes {
 			ns := topologyNodeStatus{
-				PoolIP:              poolIP,
-				FingerprintMatch:    "missing",
-				ServiceState:        "unknown",
+				PoolIP:           poolIP,
+				FingerprintMatch: "missing",
+				ServiceState:     "unknown",
 			}
 
 			nodeID := ipToNodeID[poolIP]
@@ -404,6 +418,10 @@ func runObjectstoreTopologyStatus(cmd *cobra.Command, args []string) error {
 			report.Nodes = append(report.Nodes, ns)
 		}
 	}
+
+	// ── held nodes (admitted into the controller pool but not in the published
+	//    contract — the standalone→distributed grow-deadlock signal) ────────────
+	report.HeldNodes = detectHeldNodes(ctx, cli, desired)
 
 	// ── MinIO health probe ────────────────────────────────────────────────────
 	if desired != nil && desired.Endpoint != "" {
@@ -557,6 +575,48 @@ func safePrefix(s string, n int) string {
 	return s[:n]
 }
 
+// detectHeldNodes reports nodes the controller has in MinioPoolNodes (the operator
+// applied them) that are absent from the published pool (desired.Nodes). These are
+// held out of the objectstore contract — typically MinioJoinPhase=non_member — which
+// is the signature of objectstore.minio.standalone_to_distributed_grow_deadlock.
+// Read-only and best-effort: returns nil on any read/parse error.
+func detectHeldNodes(ctx context.Context, cli *clientv3.Client, desired *config.ObjectStoreDesiredState) []topologyHeldNode {
+	resp, err := cli.Get(ctx, etcdClusterControllerStateKey)
+	if err != nil || len(resp.Kvs) == 0 {
+		return nil
+	}
+	var cc ccStateLite
+	if err := json.Unmarshal(resp.Kvs[0].Value, &cc); err != nil {
+		return nil
+	}
+	published := map[string]bool{}
+	if desired != nil {
+		for _, ip := range desired.Nodes {
+			published[ip] = true
+		}
+	}
+	ipMeta := func(ip string) (nodeID, phase string) {
+		for id, n := range cc.Nodes {
+			for _, nip := range n.Identity.Ips {
+				if nip == ip {
+					return id, n.MinioJoinPhase
+				}
+			}
+		}
+		return "", ""
+	}
+	var held []topologyHeldNode
+	for _, ip := range cc.MinioPoolNodes {
+		if published[ip] {
+			continue
+		}
+		id, phase := ipMeta(ip)
+		held = append(held, topologyHeldNode{NodeID: id, IP: ip, JoinPhase: phase})
+	}
+	sort.Slice(held, func(i, j int) bool { return held[i].IP < held[j].IP })
+	return held
+}
+
 func printTopologyReport(r *topologyStatusReport) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
@@ -630,6 +690,28 @@ func printTopologyReport(r *topologyStatusReport) {
 			fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\n",
 				nodeLabel, n.PoolIP, n.RenderedGeneration, fpMatch, n.ServiceState)
 		}
+	}
+
+	if len(r.HeldNodes) > 0 {
+		fmt.Fprintln(w, strings.Repeat("─", 60))
+		fmt.Fprintln(w, "⚠ HELD NODES (applied to pool but NOT in the published contract):")
+		fmt.Fprintln(w, "NODE\tIP\tJOIN_PHASE")
+		for _, h := range r.HeldNodes {
+			label := h.NodeID
+			if label == "" {
+				label = "(unmapped)"
+			}
+			phase := h.JoinPhase
+			if phase == "" {
+				phase = "unknown"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\n", label, h.IP, phase)
+		}
+		fmt.Fprintln(w, "These nodes were admitted into MinioPoolNodes but the controller's publish")
+		fmt.Fprintln(w, "filter excludes them — so the live pool is smaller than intended. If join_phase")
+		fmt.Fprintln(w, "is non_member, this is objectstore.minio.standalone_to_distributed_grow_deadlock:")
+		fmt.Fprintln(w, "upgrade cluster-controller to a build with resetHeldNonMembersInPool, then re-run")
+		fmt.Fprintln(w, "'objectstore topology apply'. See runbooks/add-node-to-minio-pool.yaml.")
 	}
 
 	fmt.Fprintln(w, strings.Repeat("─", 60))

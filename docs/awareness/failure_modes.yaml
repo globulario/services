@@ -5150,3 +5150,48 @@ failure_modes:
         live spec on a running cluster. Regression test deferred until the
         workflow lift is implemented (the workflow's step receipts make the
         contract testable).
+    - id: objectstore.minio.standalone_to_distributed_grow_deadlock
+      title: standalone→distributed MinIO grow collapses to a 1-node no-op — held non-member nodes are excluded from the published contract and can never obtain their unit
+      severity: high
+      symptoms:
+        - "globular objectstore topology apply succeeds and workflow objectstore.minio.apply_topology_generation reports RUN_STATUS_SUCCEEDED, but /globular/objectstore/config stays mode=standalone with a single node"
+        - controller state MinioPoolNodes lists all N nodes yet the published config.Nodes lists only the original node
+        - newly-admitted pool nodes sit at MinioJoinPhase=non_member indefinitely; doctor shows 'minio unit not reported by node' on them
+        - the apply is destructive (wipes .minio.sys / can empty the standalone store) yet distributed never forms
+      root_cause: |
+        filterEligiblePoolIPsLocked (buildObjectStoreDesiredStateLocked) excludes any node at
+        MinioJoinNonMember from the published /globular/objectstore/config. A storage node added to
+        an already-non-empty pool was previously marked NonMember (the held-non-member state that
+        prevents the bootstrap wedge). apply-topology correctly appended it to MinioPoolNodes but
+        did NOT clear the NonMember phase, so the publish filter kept dropping it. The node-agent
+        therefore never saw itself in the contract, held globular-minio.service inactive
+        (enforceMinioHeld), and never reported the unit. The controller's nodeHasMinioUnit stayed
+        false, so reconcileMinioJoinPhases failed the prepared check and could never advance the
+        node: NonMember -> excluded from contract -> no unit -> not prepared -> stays NonMember.
+        Every downstream consumer (publish, topology workflow, node-agent render) inherited the
+        filtered 1-node pool, so the workflow restarted/verified only the original node and reported
+        SUCCEEDED on a no-op (meta.half_done_must_not_look_done). The unit<->membership cycle had no
+        break-glass (meta.circular_dependency_must_have_break_glass).
+      architecture_fix: |
+        In applyObjectStoreTopologyRequest, after replacing MinioPoolNodes with the
+        operator-approved, transition-gated proposal, reset MinioJoinPhase NonMember->None for every
+        node whose IP is now in the pool (resetHeldNonMembersInPool). Scope is tight: only nodes in
+        the just-applied pool, only from NonMember. Held non-members OUTSIDE the pool keep NonMember
+        (preserving bootstrap.held_minio_nonmember_stranded_at_none). The reset lets the node
+        re-enter the published contract; the node-agent then renders + reports globular-minio.service
+        and reconcileMinioJoinPhases drives it None->Prepared->PoolUpdated->Started->Verified. The
+        reset is explicit operator authority via the admission/transition record — never local
+        membership inference.
+      forbidden_fixes:
+        - drop_nonmember_exclusion_from_filtereligiblepoolipslocked
+        - node_agent_infers_minio_membership_from_local_disk
+        - reset_nonmember_to_none_for_nodes_not_in_the_applied_pool
+      related_invariants:
+        - objectstore.topology_contract
+        - meta.half_done_must_not_look_done
+        - meta.circular_dependency_must_have_break_glass
+      related_services:
+        - cluster-controller
+        - node-agent
+      required_tests:
+        - TestResetHeldNonMembersInPool_GrowPathUnblock
