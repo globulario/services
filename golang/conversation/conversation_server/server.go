@@ -570,16 +570,9 @@ func main() {
 	if *showDescribe {
 		s.Process = os.Getpid()
 		s.State = "starting"
-		if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-			s.Domain = strings.ToLower(v)
-		} else {
-			s.Domain = "localhost"
-		}
-		if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-			s.Address = strings.ToLower(v)
-		} else {
-			s.Address = "localhost:" + Utility.ToString(s.Port)
-		}
+		// --describe must not touch etcd or env vars; leave Domain/Address as
+		// empty strings so the JSON output is always safe to produce without a
+		// running cluster. (Same pattern as globular_service/cli_helpers.go)
 		b, err := globular.DescribeJSON(s)
 		if err != nil {
 			logger.Error("describe error", "service", s.Name, "id", s.Id, "err", err)
@@ -636,6 +629,7 @@ func main() {
 		s.Domain = d
 	} else {
 		s.Domain = "localhost"
+		logger.Warn("failed to resolve domain from etcd; falling back to localhost — service may not be reachable by its FQDN", "err", err)
 	}
 	if a, err := config.GetAddress(); err == nil && strings.TrimSpace(a) != "" {
 		s.Address = a
@@ -657,11 +651,28 @@ func main() {
 	conversationpb.RegisterConversationServiceServer(s.grpcServer, s)
 	reflection.Register(s.grpcServer)
 
-	// Subscribe & run
+	// Subscribe & run — retry with exponential backoff (1s→2s→4s→…→30s, max 5 attempts)
 	go func() {
-		if err := s.subscribe("delete_account_evt", s.deleteAccountListener); err != nil {
-			logger.Error("subscribe failed", "event", "delete_account_evt", "err", err)
+		const maxAttempts = 5
+		backoff := time.Second
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			if err := s.subscribe("delete_account_evt", s.deleteAccountListener); err == nil {
+				logger.Info("subscribed to event", "event", "delete_account_evt")
+				return
+			} else {
+				logger.Error("subscribe failed", "event", "delete_account_evt", "attempt", attempt, "err", err)
+				if attempt < maxAttempts {
+					time.Sleep(backoff)
+					if backoff < 30*time.Second {
+						backoff *= 2
+						if backoff > 30*time.Second {
+							backoff = 30 * time.Second
+						}
+					}
+				}
+			}
 		}
+		logger.Error("subscribe permanently failed after retries", "event", "delete_account_evt", "attempts", maxAttempts)
 	}()
 	go s.run()
 

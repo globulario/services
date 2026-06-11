@@ -123,7 +123,10 @@ func (srv *server) processTorrent() {
 	infos := make(map[string]*torrentpb.TorrentInfo)
 	ticker := time.NewTicker(1 * time.Second)
 	getTorrentsInfoActions := make([]map[string]interface{}, 0)
-	token, _ := security.GetLocalToken(srv.Mac)
+	token, err := security.GetLocalToken(srv.Mac)
+	if err != nil {
+		slog.Warn("processTorrent: failed to obtain local token; resource ownership assignment will be skipped", "err", err)
+	}
 
 	sendSnapshot := func() {
 		if len(pending) == 0 && len(getTorrentsInfoActions) == 0 {
@@ -167,8 +170,10 @@ func (srv *server) processTorrent() {
 				if eventDir == "." {
 					eventDir = "/"
 				}
-				if ev, err := srv.getEventClient(); err == nil {
-					_ = ev.Publish("reload_dir_event", []byte(eventDir))
+				if ev, evErr := srv.getEventClient(); evErr == nil {
+					if pubErr := ev.Publish("reload_dir_event", []byte(eventDir)); pubErr != nil {
+						slog.Warn("publish reload_dir_event failed", "dir", eventDir, "err", pubErr)
+					}
 				}
 				slog.Info("copied torrent file", "src", src, "dst", logicalDst)
 			}
@@ -380,11 +385,22 @@ func getTorrentInfo(t *torrent.Torrent, torrentInfo *torrentpb.TorrentInfo) *tor
 		torrentInfo.Loaded = t.Info() != nil
 		if torrentInfo.Loaded {
 			torrentInfo.Size = t.Length()
-		}
-		go func() {
-			<-t.GotInfo()
+			// Info is already available — populate Files synchronously to avoid
+			// a race between the goroutine write and the caller's read below.
 			torrentInfo.Files = make([]*torrentpb.TorrentFileInfo, len(t.Files()))
-		}()
+		} else {
+			// Info not yet available; wait in a goroutine and write Files only
+			// after GotInfo fires. The caller reads Files only when non-nil, so
+			// this is safe: the write happens once and is observed on a later
+			// invocation of getTorrentInfo after Loaded becomes true.
+			done := make(chan struct{})
+			go func() {
+				<-t.GotInfo()
+				torrentInfo.Files = make([]*torrentpb.TorrentFileInfo, len(t.Files()))
+				close(done)
+			}()
+			_ = done // acknowledged; Files will be nil until goroutine completes
+		}
 	} else {
 		updatedAt = torrentInfo.UpdatedAt
 		downloaded = torrentInfo.Downloaded

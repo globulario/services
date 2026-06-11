@@ -226,6 +226,7 @@ func (srv *server) StartService() error {
 
     if srv.Root == "" {
         srv.Root = os.TempDir()
+        logger.Error("blog service Root is not configured; data will be stored in volatile temp directory — data will be lost on restart", "path", srv.Root)
     }
 
     if err := srv.store.Open(`{"path":"` + srv.Root + `", "name":"blogs"}`); err != nil {
@@ -252,7 +253,7 @@ func (srv *server) StartService() error {
     }, logger)
 
     if err := si.Start(context.Background()); err != nil {
-        logger.Warn("shared index unavailable, running in standalone mode", "err", err)
+        logger.Warn("shared index unavailable, running in standalone mode — search results will not be shared across cluster nodes", "err", err)
     } else {
         srv.sharedIndex = si
         logger.Info("shared index started (mesh-ready)")

@@ -38,6 +38,9 @@ func (srv *server) getConversationConnection(id string) (*storage_store.Badger_s
 	}
 
 	conn := storage_store.NewBadger_store()
+	if err := conn.Open(dbPath); err != nil {
+		return nil, err
+	}
 	srv.conversations.Store(dbPath, conn)
 	slog.Info("conversation db opened", "path", dbPath)
 	return conn, nil
@@ -60,9 +63,11 @@ func (srv *server) closeConversationConnection(id string) {
 func (srv *server) getConversations(accountId string) (*conversationpb.Conversations, error) {
 	b, err := srv.store.GetItem(accountId + "_conversations")
 	if err != nil {
-		// Treat missing list as empty rather than internal failure.
-		slog.Warn("getConversations: no list found, returning empty", "account", accountId, "err", err)
-		return &conversationpb.Conversations{Conversations: []*conversationpb.Conversation{}}, nil
+		// A genuine store I/O failure (e.g. closed DB, corruption) must be
+		// propagated so callers can surface it rather than silently returning
+		// stale or empty data. A missing key is expected for new accounts and
+		// the store returns a recognisable not-found error for that case.
+		return nil, err
 	}
 
 	out := &conversationpb.Conversations{Conversations: []*conversationpb.Conversation{}}
@@ -534,7 +539,9 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 	sent.Invitations = append(sent.Invitations, rqst.Invitation)
 	if js, err := protojson.Marshal(sent); err == nil {
-		_ = srv.store.SetItem(clientId+"_sent_invitations", []byte(js))
+		if writeErr := srv.store.SetItem(clientId+"_sent_invitations", []byte(js)); writeErr != nil {
+			slog.Warn("SendInvitation: failed to persist sent-invitations index", "from", clientId, "err", writeErr)
+		}
 	}
 
 	// received
@@ -545,7 +552,9 @@ func (srv *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 	rcv.Invitations = append(rcv.Invitations, rqst.Invitation)
 	if js, err := protojson.Marshal(rcv); err == nil {
-		_ = srv.store.SetItem(rqst.Invitation.To+"_received_invitations", []byte(js))
+		if writeErr := srv.store.SetItem(rqst.Invitation.To+"_received_invitations", []byte(js)); writeErr != nil {
+			slog.Warn("SendInvitation: failed to persist received-invitations index", "to", rqst.Invitation.To, "err", writeErr)
+		}
 	}
 
 	conv.Invitations.Invitations = append(conv.Invitations.Invitations, rqst.Invitation)

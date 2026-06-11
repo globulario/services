@@ -663,9 +663,7 @@ func (srv *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 // RemoveEmoji removes an emoji from a post or comment (TODO/placeholder).
 // Note: Public method signature must not change.
 func (srv *server) RemoveEmoji(ctx context.Context, rqst *blogpb.RemoveEmojiRequest) (*blogpb.RemoveEmojiResponse, error) {
-    // Not implemented yet — kept to preserve API surface.
-    slog.Warn("RemoveEmoji not implemented")
-    return nil, nil
+    return nil, status.Errorf(codes.Unimplemented, "RemoveEmoji not implemented")
 }
 
 // AddComment adds a new comment (or reply to an existing comment) on a blog post.
@@ -726,7 +724,5 @@ func (srv *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 // RemoveComment removes a comment from a post or a reply thread (TODO/placeholder).
 // Note: Public method signature must not change.
 func (srv *server) RemoveComment(ctx context.Context, rqst *blogpb.RemoveCommentRequest) (*blogpb.RemoveCommentResponse, error) {
-    // Not implemented yet — kept to preserve API surface.
-    slog.Warn("RemoveComment not implemented")
-    return nil, nil
+    return nil, status.Errorf(codes.Unimplemented, "RemoveComment not implemented")
 }
