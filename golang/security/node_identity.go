@@ -7,6 +7,7 @@ package security
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/globulario/services/golang/config"
@@ -40,7 +41,10 @@ func configBool(key string) bool {
 	if err != nil {
 		// etcd config unavailable — default to false rather than consulting
 		// env vars. Log so operators can diagnose missing config.
-		fmt.Printf("security: configBool(%q): local config unavailable (%v), defaulting to false\n", key, err)
+		slog.Warn("security: configBool: local config unavailable, defaulting to false",
+			"key", key,
+			"err", err,
+		)
 		return false
 	}
 	switch v := cfg[key].(type) {

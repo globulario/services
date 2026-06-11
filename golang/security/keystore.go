@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -241,7 +242,13 @@ func loadOrGenerateSigningKey(issuer string) (ed25519.PrivateKey, string, error)
 	if priv, kid, err := findExistingPrivate(issuer); err == nil {
 		pub := priv.Public().(ed25519.PublicKey)
 		if enc, encErr := encodeEd25519PublicPEM(pub); encErr == nil {
-			_ = publishPeerPublicKeyToCluster(issuer, kid, enc)
+			if pubErr := publishPeerPublicKeyToCluster(issuer, kid, enc); pubErr != nil {
+				slog.Warn("keystore: failed to publish existing peer public key to cluster",
+					"issuer", issuer,
+					"kid", kid,
+					"err", pubErr,
+				)
+			}
 		}
 		return priv, kid, nil
 	}
@@ -266,10 +273,28 @@ func loadOrGenerateSigningKey(issuer string) (ed25519.PrivateKey, string, error)
 	// Write/refresh legacy names too (optional but keeps older code working)
 	legacyPriv := privateKeyPath(issuer, "")
 	legacyPub := publicKeyPath(issuer, "")
-	_ = writeEd25519Private(legacyPriv, priv)
-	_ = writeEd25519Public(legacyPub, pub)
+	if legacyPrivErr := writeEd25519Private(legacyPriv, priv); legacyPrivErr != nil {
+		slog.Warn("keystore: failed to write legacy private key",
+			"issuer", issuer,
+			"path", legacyPriv,
+			"err", legacyPrivErr,
+		)
+	}
+	if legacyPubErr := writeEd25519Public(legacyPub, pub); legacyPubErr != nil {
+		slog.Warn("keystore: failed to write legacy public key",
+			"issuer", issuer,
+			"path", legacyPub,
+			"err", legacyPubErr,
+		)
+	}
 	if enc, encErr := encodeEd25519PublicPEM(pub); encErr == nil {
-		_ = publishPeerPublicKeyToCluster(issuer, kid, enc)
+		if pubErr := publishPeerPublicKeyToCluster(issuer, kid, enc); pubErr != nil {
+			slog.Warn("keystore: failed to publish new peer public key to cluster",
+				"issuer", issuer,
+				"kid", kid,
+				"err", pubErr,
+			)
+		}
 	}
 
 	return priv, kid, nil

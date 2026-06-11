@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 	"time"
@@ -167,6 +168,7 @@ func loadMCPNodeOverrides(ctx context.Context) map[string]MCPNodeEntry {
 
 	cli, err := config.GetEtcdClient()
 	if err != nil {
+		log.Printf("[WARNING] mcp: loadMCPNodeOverrides: cannot connect to etcd — node endpoint overrides unavailable: %v", err)
 		return out
 	}
 
@@ -175,6 +177,7 @@ func loadMCPNodeOverrides(ctx context.Context) map[string]MCPNodeEntry {
 
 	resp, err := cli.Get(readCtx, etcdMCPNodePrefix, clientv3.WithPrefix())
 	if err != nil {
+		log.Printf("[WARNING] mcp: loadMCPNodeOverrides: etcd read of %s failed — node endpoint overrides unavailable: %v", etcdMCPNodePrefix, err)
 		return out
 	}
 

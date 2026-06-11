@@ -443,11 +443,20 @@ func validateActionRequest(
 
 	infos, err := getActionResourceInfos(domain, method)
 	if err != nil {
+		slog.Warn("getActionResourceInfos returned error; proceeding with empty resource infos", "method", method, "domain", domain, "error", err)
 		infos = make([]*rbacpb.ResourceInfos, 0)
 	} else {
 		// Reflect request to bind dynamic resource paths.
-		val, _ := Utility.CallMethod(rqst, "ProtoReflect", []interface{}{})
-		msg := val.(protoreflect.Message)
+		val, callErr := Utility.CallMethod(rqst, "ProtoReflect", []interface{}{})
+		if callErr != nil {
+			slog.Warn("validateActionRequest: ProtoReflect call failed; skipping action resource check", "method", method, "error", callErr)
+			return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
+		}
+		msg, ok := val.(protoreflect.Message)
+		if !ok {
+			slog.Warn("validateActionRequest: ProtoReflect result is not a protoreflect.Message; skipping action resource check", "method", method)
+			return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
+		}
 		if msg.Descriptor().Fields().Len() > 0 {
 			for i := 0; i < len(infos); i++ {
 				field := msg.Descriptor().Fields().Get(Utility.ToInt(infos[i].Index))
@@ -847,7 +856,16 @@ func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst inter
 	if err != nil {
 		return nil, err
 	}
-	peers := cfg["Peers"].([]interface{})
+	peersAny, ok := cfg["Peers"]
+	if !ok {
+		slog.Warn("roundRobinUnaryMethodHandler: Peers key absent from local config", "method", method)
+		return nil, errors.New("no peers found")
+	}
+	peers, ok := peersAny.([]interface{})
+	if !ok {
+		slog.Warn("roundRobinUnaryMethodHandler: Peers value has unexpected type", "method", method)
+		return nil, errors.New("no peers found")
+	}
 	if len(peers) == 0 {
 		return nil, errors.New("no peers found")
 	}
@@ -864,8 +882,18 @@ func roundRobinUnaryMethodHandler(ctx context.Context, method string, rqst inter
 		return nil, errors.New("force method to be called locally")
 	}
 
-	idx := idxAny.(int)
-	peer := peers[idx].(map[string]interface{})
+	idx, ok := idxAny.(int)
+	if !ok {
+		idx = 0
+	}
+	if idx < 0 || idx >= len(peers) {
+		idx = 0
+	}
+	peer, ok := peers[idx].(map[string]interface{})
+	if !ok {
+		slog.Warn("roundRobinUnaryMethodHandler: peer entry has unexpected type", "method", method, "index", idx)
+		return nil, errors.New("invalid peer entry")
+	}
 	peerHost := peer["Hostname"].(string)
 	peerDomain, _ := peer["Domain"].(string)
 	if peerDomain != "" && !strings.Contains(peerHost, ".") {
@@ -1053,7 +1081,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	//    - Time-bounded (< 30 minutes)
 	//    - Loopback-only (127.0.0.1/::1)
 	//    - Method allowlisted (essential Day-0 methods only)
-	if authCtx.IsBootstrap {
+	if authCtx != nil && authCtx.IsBootstrap {
 		allowed, reason := security.DefaultBootstrapGate.ShouldAllow(authCtx)
 		if allowed {
 			// Security Fix #9: During bootstrap, cluster_id can be empty
@@ -1108,7 +1136,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// Post-Day-0: after cluster is initialized, all mutating RPCs MUST be authenticated.
 	// Anonymous callers (no token AND no mTLS cert) receive Unauthenticated.
 	// This check applies regardless of whether an RBAC mapping exists.
-	clusterInitialized, _ := security.IsClusterInitialized(ctx)
+	clusterInitialized, isClusterInitErr := security.IsClusterInitialized(ctx)
+	if isClusterInitErr != nil {
+		slog.Warn("IsClusterInitialized returned error; defaulting to pre-Day-0 permissive mode", "method", method, "error", isClusterInitErr)
+	}
 
 	// Degraded-mode detection: a token is present but the cluster gate returned false.
 	// In normal post-Day-0 operation this should never happen because the local cluster
@@ -1234,9 +1265,13 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	// Validate by ACCOUNT
+	var validateErr error
 	hasAccess, accessDenied, _ := false, false, error(nil)
 	if clientId != "" {
-		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, clientId, rbacpb.SubjectType_ACCOUNT, address, method)
+		hasAccess, accessDenied, validateErr = validateActionRequest(token, application, organization, rqst, actionKey, clientId, rbacpb.SubjectType_ACCOUNT, address, method)
+		if validateErr != nil {
+			slog.Warn("validateActionRequest (ACCOUNT) returned error", "method", method, "subject", clientId, "error", validateErr)
+		}
 		// Quota example
 		if method == "/torrent.TorrentService/DownloadTorrent" {
 			_, _ = ValidateSubjectSpace(clientId, address, rbacpb.SubjectType_ACCOUNT, 0)
@@ -1245,14 +1280,20 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Validate by APPLICATION
 	if !hasAccess && application != "" && !accessDenied {
-		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, application, rbacpb.SubjectType_APPLICATION, address, method)
+		hasAccess, accessDenied, validateErr = validateActionRequest(token, application, organization, rqst, actionKey, application, rbacpb.SubjectType_APPLICATION, address, method)
+		if validateErr != nil {
+			slog.Warn("validateActionRequest (APPLICATION) returned error", "method", method, "application", application, "error", validateErr)
+		}
 	}
 
 	// Validate by PEER
 	if !hasAccess && issuer != "" && !accessDenied {
 		mac, _ := config.GetMacAddress()
 		if issuer != mac {
-			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, actionKey, issuer, rbacpb.SubjectType_NODE_IDENTITY, address, method)
+			hasAccess, accessDenied, validateErr = validateActionRequest(token, application, organization, rqst, actionKey, issuer, rbacpb.SubjectType_NODE_IDENTITY, address, method)
+			if validateErr != nil {
+				slog.Warn("validateActionRequest (NODE_IDENTITY) returned error", "method", method, "issuer", issuer, "error", validateErr)
+			}
 		}
 	}
 
@@ -1633,7 +1674,16 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		if err != nil {
 			return err
 		}
-		peers := cfg["Peers"].([]interface{})
+		peersAny, hasPeers := cfg["Peers"]
+		if !hasPeers {
+			slog.Warn("broadcasting: Peers key absent from local config", "method", method)
+			return errors.New("no peers found")
+		}
+		peers, ok := peersAny.([]interface{})
+		if !ok {
+			slog.Warn("broadcasting: Peers value has unexpected type", "method", method)
+			return errors.New("no peers found")
+		}
 		if len(peers) == 0 {
 			return errors.New("no peers found")
 		}

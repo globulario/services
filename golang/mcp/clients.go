@@ -119,7 +119,7 @@ func buildTLSConfig(serverName string) *tls.Config {
 	// Don't rely on config.json fields which may be empty.
 	tlsCfg, err := config.GetEtcdTLS()
 	if err != nil {
-		log.Printf("mcp: buildTLSConfig: %v (falling back to insecure)", err)
+		log.Printf("[ERROR] mcp: buildTLSConfig: %v — falling back to insecure transport; cluster mTLS boundary is NOT enforced for this connection", err)
 		return nil
 	}
 	tlsCfg.ServerName = serverName

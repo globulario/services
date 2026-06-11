@@ -280,9 +280,15 @@ func InitService(s Service) error {
 		if byName, nameErr := config.GetServicesConfigurationsByName(s.GetName()); nameErr == nil && len(byName) > 0 {
 			cfg = byName[0]
 			slog.Info("InitService: loaded config by name fallback", "service", s.GetName(), "current_id", s.GetId(), "config_id", Utility.ToString(cfg["Id"]))
+		} else if nameErr != nil {
+			// etcd returned an actual error (connection failure, auth error, etc.)
+			// — this is not a "first install" case and should be visible.
+			slog.Warn("InitService: etcd config lookup failed (etcd may be unavailable); will use compiled-in defaults",
+				"service", s.GetName(), "id_err", err, "name_err", nameErr)
 		} else {
-			// On fresh install etcd has no entry yet — this is expected, not an error.
-			slog.Debug("InitService: no config in etcd (first install?), will use defaults", "service", s.GetName(), "err", nameErr)
+			// nameErr == nil but no entries found — this is an expected Day-0
+			// first-boot condition, not an error.
+			slog.Debug("InitService: no config in etcd (first install?), will use defaults", "service", s.GetName())
 		}
 	}
 
@@ -316,6 +322,13 @@ func InitService(s Service) error {
 		// Don't allocate here (multiple services race for the same port).
 		// StartService will bind-test and reallocate if needed.
 		if s.GetProxy() == 0 && s.GetPort() != 0 {
+			// KNOWN GAP: proxy port is assumed to be port+1.  This convention
+			// is not enforced by the port allocator and can collide when two
+			// services have adjacent default ports.  A proper fix requires the
+			// port allocator to reserve proxy ports alongside service ports.
+			// See: https://github.com/globulario/services/issues/TODO
+			slog.Warn("InitService: proxy port not set; using port+1 fallback — may collide with adjacent service ports",
+				"service", s.GetName(), "port", s.GetPort(), "proxy_assigned", s.GetPort()+1)
 			s.SetProxy(s.GetPort() + 1)
 		}
 		if s.GetProtocol() == "" {
@@ -456,8 +469,19 @@ func GetPlatform() string {
 // ------------------------------
 
 // GetTLSConfig loads server TLS credentials and constructs a *tls.Config.
-// It logs errors with slog and returns nil on failure (caller must handle).
-// Public signature preserved (return type only).
+// It logs errors with slog and returns nil on failure.
+//
+// CALLERS MUST nil-check the return value before use.  A nil return means
+// TLS setup failed (cert/key load error, CA read error, or pool append
+// error); the error has already been logged at ERROR level.  Starting a
+// gRPC server with a nil tls.Config will panic — guard with:
+//
+//	tlsCfg := GetTLSConfig(key, cert, ca)
+//	if tlsCfg == nil {
+//	    return fmt.Errorf("TLS config unavailable")
+//	}
+//
+// Signature is preserved for binary compatibility with existing callers.
 func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 
 	tlsCer, err := tls.LoadX509KeyPair(cert, key)
@@ -492,6 +516,11 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 			// Not called when the client sends no certificate (RequestClientCert).
 			if len(rawCerts) == 0 {
+				// Client presented no certificate — auth falls through to JWT
+				// token validation in the gRPC interceptor chain.  This is
+				// expected during the auth bootstrap flow (login → install-certs)
+				// before the client has a cluster-issued certificate.
+				slog.Debug("GetTLSConfig: client presented no certificate — falling through to token auth")
 				return nil
 			}
 			opts := x509.VerifyOptions{
@@ -785,7 +814,11 @@ func StartService(s Service, srv *grpc.Server) error {
 	// the correct address. On Day-0 first boot, this is the first config
 	// write — without it, the controller connects to the wrong port.
 	if saveErr := SaveService(s); saveErr != nil {
-		slog.Warn("StartService: failed to persist port config (non-fatal, runtime will retry)",
+		// Log at ERROR: the port is bound but not published to etcd, so the
+		// controller, xDS, and CLI will route to the wrong (or no) address
+		// until the next successful save.  This is observable in monitoring
+		// as "service unreachable" even though the process is healthy.
+		slog.Error("StartService: failed to persist port config to etcd — port is bound but unpublished; controller/xDS routing will be incorrect until resolved",
 			"service", s.GetName(), "port", s.GetPort(), "err", saveErr)
 	}
 
@@ -1026,8 +1059,13 @@ func reallocatePort(s Service, oldPort int) (int, error) {
 		if ip, ipErr := Utility.GetPrimaryIPAddress(); ipErr == nil && ip != "" {
 			host = ip
 		} else {
-			slog.Warn("primary IP discovery failed; service address will use loopback — cluster routing will be degraded")
-			host = "localhost"
+			// VIOLATION: meta.authority_must_express_uncertainty — primary IP
+			// discovery failed; returning an error rather than silently
+			// registering loopback, which would hide the network problem from
+			// the controller and cause permanent cluster-routing degradation.
+			slog.Error("reallocatePort: primary IP discovery failed; aborting port reallocation to avoid silent loopback registration",
+				"service", s.GetName(), "err", ipErr)
+			return 0, fmt.Errorf("reallocatePort: primary IP discovery failed, cannot register a routable address: %w", ipErr)
 		}
 	}
 	s.SetAddress(fmt.Sprintf("%s:%d", host, newPort))
@@ -1280,7 +1318,14 @@ func publishServiceEvent(name string, s Service, extra map[string]interface{}) {
 //	srv - The gRPC server instance associated with the service.
 func watchDesiredConfig(s Service, srv *grpc.Server) {
 	cli, err := config.GetEtcdClient()
-	if err != nil { /* ... */
+	if err != nil {
+		// WARNING: config watching has stopped permanently for this service.
+		// Hot-reload of desired config (address/port/protocol changes) will
+		// not function until the service is restarted.  This is a degraded
+		// but non-fatal condition — the service continues running with its
+		// current config.
+		slog.Warn("watchDesiredConfig: failed to obtain etcd client; config hot-reload disabled for this service",
+			"service", s.GetName(), "id", s.GetId(), "err", err)
 		return
 	}
 
@@ -1293,7 +1338,9 @@ func watchDesiredConfig(s Service, srv *grpc.Server) {
 		for _, ev := range w.Events {
 			if ev.IsCreate() || ev.IsModify() {
 				cfg, err := config.GetServiceConfigurationById(s.GetId())
-				if err != nil { /* ... */
+				if err != nil {
+					slog.Warn("watchDesiredConfig: failed to fetch updated config from etcd; skipping this event",
+						"service", s.GetName(), "id", s.GetId(), "err", err)
 					continue
 				}
 

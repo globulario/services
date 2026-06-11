@@ -52,17 +52,14 @@ func HandleDescribeFlag(srv Service, logger *slog.Logger) {
 	srv.SetProcess(os.Getpid())
 	srv.SetState("starting")
 
-	// Set harmless defaults for Domain/Address without hitting etcd
-	if v, ok := os.LookupEnv("GLOBULAR_DOMAIN"); ok && v != "" {
-		srv.SetDomain(strings.ToLower(v))
-	} else {
-		srv.SetDomain("localhost")
-	}
-	if v, ok := os.LookupEnv("GLOBULAR_ADDRESS"); ok && v != "" {
-		srv.SetAddress(strings.ToLower(v))
-	} else {
-		srv.SetAddress("localhost:" + Utility.ToString(srv.GetPort()))
-	}
+	// Leave Domain/Address empty in describe mode — callers read the JSON
+	// output and must not receive localhost as a false address.  Env-var
+	// overrides are forbidden (etcd is the sole source of config truth;
+	// GLOBULAR_DOMAIN / GLOBULAR_ADDRESS env vars are not a supported config
+	// mechanism and would silently introduce wrong addresses into describe
+	// output consumed by the node-agent installer).
+	srv.SetDomain("")
+	srv.SetAddress("")
 
 	b, err := DescribeJSON(srv)
 	if err != nil {

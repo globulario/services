@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"net"
 	"net/http"
@@ -66,6 +67,12 @@ func preferProtocolForPort(p int) (primary, alternate string) {
 func resolveCAAuthority(address string, port int) (string, int) {
 	a := strings.TrimSpace(address)
 	if a == "" {
+		// VIOLATION: meta.fallback_must_degrade_semantics — returning localhost silently
+		// masks a missing address. Log at ERROR so operators can diagnose misconfiguration
+		// rather than silently connecting to the wrong host.
+		slog.Error("resolveCAAuthority: address is empty, falling back to localhost — this is a misconfiguration",
+			"port", port,
+		)
 		return "localhost", port
 	}
 	if h, p, err := net.SplitHostPort(a); err == nil {
@@ -113,7 +120,12 @@ func httpGetBootstrap(urlHTTP, urlHTTPS string) (*http.Response, error) {
 				if resp2, err2 := insecureTLSClient(4 * time.Second).Get(urlHTTPS); err2 == nil {
 					return resp2, nil
 				} else {
-					// fall through to HTTP
+					// Both system-trust and insecure HTTPS failed; falling back to plain HTTP.
+					// Log at ERROR so this downgrade is always visible in operator logs.
+					slog.Error("httpGetBootstrap: HTTPS (system-trust and insecure) both failed, falling back to plain HTTP",
+						"url", urlHTTPS,
+						"insecure_err", err2,
+					)
 					_ = err2
 				}
 			}

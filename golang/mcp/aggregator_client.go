@@ -231,9 +231,19 @@ func acquireMCPSession(ctx context.Context, endpoint string, timeout time.Durati
 	return sid, trust, nil
 }
 
+// allowUnverifiedFallback reports whether TLS certificate verification may be
+// bypassed for remote MCP connections. This is a KNOWN DEVIATION from the
+// hard rule that all inter-service gRPC must use mTLS with the cluster CA.
+// It exists solely for development / debugging scenarios where the remote node
+// has a self-signed cert that the local trust store doesn't recognise. NEVER
+// set GLOBULAR_MCP_ALLOW_UNVERIFIED_FALLBACK=true in production.
 func allowUnverifiedFallback() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv(mcpAllowUnverifiedFallbackEnv)))
-	return v == "1" || v == "true" || v == "yes" || v == "on"
+	active := v == "1" || v == "true" || v == "yes" || v == "on"
+	if active {
+		log.Printf("[WARNING] mcp: %s is active — TLS certificate verification is DISABLED for remote MCP connections; do not use in production", mcpAllowUnverifiedFallbackEnv)
+	}
+	return active
 }
 
 // releaseMCPSession sends a DELETE /mcp with the session id so the server
@@ -401,6 +411,7 @@ func collectRemoteSnapshot(ctx context.Context, mcpURL string) (snapshot map[str
 
 	snapshot = make(map[string]interface{})
 	trust = MCPTrustVerified
+	successCount := 0
 
 	for _, t := range snapshotTools {
 		result, t2, err := callRemoteTool(snapCtx, mcpURL, t.tool, t.args)
@@ -408,10 +419,18 @@ func collectRemoteSnapshot(ctx context.Context, mcpURL string) (snapshot map[str
 			snapshot[t.key] = map[string]interface{}{"error": err.Error()}
 			continue
 		}
+		successCount++
 		if t2 == MCPTrustUnverified {
 			trust = MCPTrustUnverified
 		}
 		snapshot[t.key] = result
 	}
+
+	// If every tool call failed, no verified data was collected — downgrade
+	// trust to None so callers know the snapshot is entirely error-filled.
+	if successCount == 0 {
+		trust = MCPTrustNone
+	}
+
 	return snapshot, trust
 }

@@ -189,10 +189,19 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 	// cluster_id in gRPC metadata. This supports service-to-service calls
 	// that go through TLS-terminating proxies (e.g. Envoy gateway) where
 	// the client's mTLS cert is stripped but metadata is forwarded.
+	//
+	// SECURITY NOTE: gRPC metadata is caller-controlled and UNVERIFIED.
+	// cluster_id sourced here has NOT been authenticated — it is only used
+	// to satisfy cross-cluster routing hints, never for authorization decisions.
+	// Callers must not grant elevated trust based solely on this field.
 	if authCtx.ClusterID == "" {
 		if md, ok := metadata.FromIncomingContext(ctx); ok {
 			if vals := md["cluster_id"]; len(vals) > 0 && vals[0] != "" {
 				authCtx.ClusterID = vals[0]
+				slog.Warn("AuthContext: ClusterID sourced from unverified gRPC metadata — not suitable for authorization",
+					"cluster_id", authCtx.ClusterID,
+					"method", grpcMethod,
+				)
 			}
 		}
 	}

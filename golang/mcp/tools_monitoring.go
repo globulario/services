@@ -5,10 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const defaultConnectionID = "local_prometheus"
@@ -40,16 +45,38 @@ func ensureConnection(ctx context.Context, s *server) error {
 		return nil
 	}
 
+	// Only treat NotFound as "connection absent and needs creation".
+	// Any other error (Unavailable, DeadlineExceeded, etc.) is a real
+	// transport or service failure — surface it directly.
+	if st, ok := status.FromError(err); !ok || st.Code() != codes.NotFound {
+		return fmt.Errorf("monitoring query probe: %w", err)
+	}
+
 	// Connection doesn't exist — create it.
 	callCtx2, cancel2 := context.WithTimeout(authCtx(ctx), 10*time.Second)
 	defer cancel2()
+
+	// Resolve the Prometheus port from the monitoring service endpoint.
+	// Fall back to 9090 if the endpoint is unparseable or lacks a port.
+	promPort := int32(9090)
+	if ep := monitoringEndpoint(); ep != "" {
+		if _, portStr, splitErr := net.SplitHostPort(ep); splitErr == nil {
+			if p, convErr := strconv.Atoi(portStr); convErr == nil && p > 0 {
+				promPort = int32(p)
+			} else {
+				log.Printf("[WARNING] mcp: monitoring endpoint %q has unparseable port; using default 9090", ep)
+			}
+		} else {
+			log.Printf("[WARNING] mcp: monitoring endpoint %q has no port component; using default 9090", ep)
+		}
+	}
 
 	promHost := config.GetRoutableIPv4()
 	_, err = client.CreateConnection(callCtx2, &monitoringpb.CreateConnectionRqst{
 		Connection: &monitoringpb.Connection{
 			Id:    defaultConnectionID,
 			Host:  promHost,
-			Port:  9090,
+			Port:  promPort,
 			Store: monitoringpb.StoreType_PROMETHEUS,
 		},
 	})
