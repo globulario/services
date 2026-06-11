@@ -678,6 +678,24 @@ func (srv *server) reapStaleRuns() {
 			if now.Sub(lastActivity) < staleThreshold {
 				continue
 			}
+
+			// half_done_must_not_look_done: before marking a run FAILED,
+			// check whether an executor lease is still being heartbeated.
+			// A live executor may simply be slow — reaping it would create
+			// a split-brain between the reaper and the executor.
+			const leaseGracePeriod = 2 * time.Minute
+			var heartbeatAt int64
+			if err := sess.Query(
+				`SELECT heartbeat_at FROM workflow.executor_leases WHERE run_id = ?`, id,
+			).Scan(&heartbeatAt); err == nil {
+				leaseAge := time.Since(time.UnixMilli(heartbeatAt))
+				if leaseAge < leaseGracePeriod {
+					slog.Debug("reaper: skipping run with active executor lease",
+						"run_id", id, "lease_age", leaseAge)
+					continue
+				}
+			}
+
 			// Mark as FAILED with timeout reason.
 			sess.Query(`
 				UPDATE workflow_runs SET status=?, failure_class=?, error_message=?, summary=?, finished_at=?, updated_at=?
@@ -702,14 +720,18 @@ func (srv *server) reapStaleRuns() {
 }
 
 // isTerminalStatus returns true if the run status is a terminal outcome
-// and should not be reaped or touched.
+// (or a parked state with its own lifecycle) and should not be reaped.
 func isTerminalStatus(s workflowpb.RunStatus) bool {
 	switch s {
 	case workflowpb.RunStatus_RUN_STATUS_SUCCEEDED,
 		workflowpb.RunStatus_RUN_STATUS_FAILED,
 		workflowpb.RunStatus_RUN_STATUS_CANCELED,
 		workflowpb.RunStatus_RUN_STATUS_ROLLED_BACK,
-		workflowpb.RunStatus_RUN_STATUS_SUPERSEDED:
+		workflowpb.RunStatus_RUN_STATUS_SUPERSEDED,
+		// absence_scope_must_be_explicit: DEFERRED runs are parked waiting
+		// for a blocker to clear; they have their own lifecycle (wake-by-tag
+		// or operator abandon). The reaper must not age-timeout them.
+		workflowpb.RunStatus_RUN_STATUS_DEFERRED:
 		return true
 	}
 	return false
@@ -835,17 +857,25 @@ func (srv *server) StartRun(_ context.Context, req *workflowpb.StartRunRequest) 
 	}
 
 	// Write to secondary index tables.
-	sess.Query(`
+	// write_creates_completion_obligation: log errors so index write failures
+	// are visible in service logs rather than silently dropped.
+	if err := sess.Query(`
 		INSERT INTO workflow_runs_by_node (cluster_id, node_id, started_at, run_id, component_name, status, summary)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		ctx.ClusterId, ctx.NodeId, tsToTime(run.StartedAt), run.Id, ctx.ComponentName, int(run.Status), run.Summary,
-	).Exec()
+	).Exec(); err != nil {
+		slog.Error("secondary index write failed: workflow_runs_by_node",
+			"run_id", run.Id, "node_id", ctx.NodeId, "error", err)
+	}
 
-	sess.Query(`
+	if err := sess.Query(`
 		INSERT INTO workflow_runs_by_component (cluster_id, component_name, started_at, run_id, node_id, status, summary)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		ctx.ClusterId, ctx.ComponentName, tsToTime(run.StartedAt), run.Id, ctx.NodeId, int(run.Status), run.Summary,
-	).Exec()
+	).Exec(); err != nil {
+		slog.Error("secondary index write failed: workflow_runs_by_component",
+			"run_id", run.Id, "component", ctx.ComponentName, "error", err)
+	}
 
 	logger.Info("workflow run started",
 		"run_id", run.Id, "component", ctx.ComponentName,

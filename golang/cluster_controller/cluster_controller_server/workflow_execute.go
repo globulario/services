@@ -161,6 +161,28 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 		return nil, fmt.Errorf("workflow service not configured (workflowClient is nil)")
 	}
 
+	// Health gate: block dispatch if workflow backend is under pressure.
+	// Mirrors the same gate in executeWorkflowCentralized.
+	if srv.workflowGate != nil {
+		if err := srv.workflowGate.Check(); err != nil {
+			nowMs := time.Now().UnixMilli()
+			if nowMs-workflowGateLastLogMs.Load() > 60_000 {
+				workflowGateLastLogMs.Store(nowMs)
+				log.Printf("workflow backend unhealthy (RunIDRouter path), reconcile deferred: %v", err)
+			}
+			return nil, fmt.Errorf("WORKFLOW_DEPENDENCY_BLOCKED: dependency=scylla reason=%w", err)
+		}
+	}
+
+	// Posture gate (Gate 1): suppress ROLLOUT-class dispatch in RECOVERY_ONLY.
+	// Mirrors the same gate in executeWorkflowCentralized.
+	if err := postureGateCheck(ClusterPosture(srv.posture.Load()), workflowName); err != nil {
+		class := mapWorkflowToClass(workflowName)
+		postureGateSuppressedTotal.WithLabelValues(PostureRecoveryOnly.String(), string(class)).Inc()
+		log.Printf("posture gate (RunIDRouter path): suppressed workflow=%s class=%s", workflowName, class)
+		return nil, err
+	}
+
 	inputsJSON, err := json.Marshal(inputs)
 	if err != nil {
 		return nil, fmt.Errorf("marshal inputs: %w", err)
@@ -207,7 +229,12 @@ func (srv *server) resolveControllerEndpoint() string {
 	if addr := config.ResolveLocalServiceAddr("cluster_controller.ClusterControllerService"); addr != "" {
 		return addr
 	}
-	// 2. Fallback: build from known port + local IP.
+	// 2. Fallback: build from known bootstrap port + local IP.
+	// This is DEGRADED resolution — the registry was empty (leadership
+	// change, etcd lag). Log at WARNING level so operators can see the
+	// fallback fired. The returned address may be wrong if the controller
+	// is listening on a non-default port.
+	// See meta.fallback_must_degrade_semantics.
 	localIP := config.GetRoutableIPv4()
 	if localIP != "" {
 		port := 12000
@@ -215,7 +242,7 @@ func (srv *server) resolveControllerEndpoint() string {
 			port = srv.cfg.Port
 		}
 		addr := fmt.Sprintf("%s:%d", localIP, port)
-		log.Printf("workflow: controller endpoint fallback to %s (registry empty)", addr)
+		log.Printf("WARNING workflow: controller endpoint DEGRADED fallback to %s (etcd registry empty — leadership change or etcd lag)", addr)
 		return addr
 	}
 	return ""

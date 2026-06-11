@@ -270,7 +270,7 @@ func defaultFetchServiceRelease(ctx context.Context, canonicalName string) (*clu
 // The order of checks is fixed: identity first (cheapest), then process,
 // then on-disk hash (most expensive). This minimizes work for components
 // that aren't ready yet.
-func buildSelfHostedRuntimeProof(ctx context.Context, canonicalName string, deps selfHostedProofDeps) (*selfHostedRuntimeProof, string) {
+func buildSelfHostedRuntimeProof(ctx context.Context, canonicalName string, deps selfHostedProofDeps, kindHint ...string) (*selfHostedRuntimeProof, string) {
 	if !selfHostedServiceNames[canonicalName] {
 		return nil, proofReasonNotInAllowlist
 	}
@@ -307,9 +307,15 @@ func buildSelfHostedRuntimeProof(ctx context.Context, canonicalName string, deps
 
 	// Step 4: validate binary path follows the convention. The
 	// installedBinaryPath helper encodes the "<name>_server" rule for
-	// SERVICE-kind packages. For self-hosted components the convention
-	// is authoritative — they ship with predictable binary names.
-	expectedPath := installedBinaryPath(canonicalName, "SERVICE")
+	// SERVICE-kind packages. Use the actual kind from the existing
+	// installed record when available so that reclassified packages
+	// (e.g. SERVICE → INFRASTRUCTURE) resolve to the correct binary
+	// path. Falls back to "SERVICE" when no hint is provided.
+	resolvedKind := "SERVICE"
+	if len(kindHint) > 0 && kindHint[0] != "" {
+		resolvedKind = kindHint[0]
+	}
+	expectedPath := installedBinaryPath(canonicalName, resolvedKind)
 	if procExe != expectedPath {
 		return nil, proofReasonBinaryPathUnexpected
 	}
@@ -467,7 +473,18 @@ func (srv *NodeAgentServer) refreshSelfHostedInstalledState(ctx context.Context)
 	}
 	deps := defaultSelfHostedProofDeps()
 	for canonicalName := range selfHostedServiceNames {
-		proof, reason := buildSelfHostedRuntimeProof(ctx, canonicalName, deps)
+		// Pre-lookup: resolve the actual kind from any existing installed
+		// record so the proof builder uses the correct binary path
+		// convention. Without this, a reclassified package (e.g.
+		// SERVICE → INFRASTRUCTURE) would fail the path check.
+		existingKind := ""
+		for _, k := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+			if pkg, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, k, canonicalName); pkg != nil {
+				existingKind = k
+				break
+			}
+		}
+		proof, reason := buildSelfHostedRuntimeProof(ctx, canonicalName, deps, existingKind)
 		if reason != "" {
 			// Single log line per failed proof per cycle; debug-level
 			// noise is left to GetServiceRuntimeProof which is the proof

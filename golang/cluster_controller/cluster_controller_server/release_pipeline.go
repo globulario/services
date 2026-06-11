@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"runtime"
 	"strings"
 	"time"
 
@@ -634,7 +633,13 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			log.Printf("%s %s: workflow context cancelled while waiting for semaphore", h.ResourceType, h.Name)
 			return
 		case <-time.After(2 * time.Minute):
-			log.Printf("%s %s: workflow semaphore timeout (all slots busy for 2m), deferring", h.ResourceType, h.Name)
+			log.Printf("%s %s: workflow semaphore timeout (all slots busy for 2m), deferring — backoff 30s before allowing re-dispatch", h.ResourceType, h.Name)
+			workflowSemTimeoutTotal.WithLabelValues(h.ResourceType).Inc()
+			// Sleep before returning so the inflight record stays alive for
+			// one reconcile tick (~30s). Without this backoff the deferred
+			// cleanup deletes the inflight key immediately, and the very
+			// next reconcile tick re-dispatches into the same full semaphore.
+			time.Sleep(30 * time.Second)
 			return
 		}
 		defer func() { <-srv.workflowSem }()
@@ -1159,12 +1164,6 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 // returns true if any field was actually mutated (i.e. Apply is warranted).
 // Returns false for unknown SetFields values so callers can skip Apply.
 func applyPatchToSvcStatus(s *cluster_controllerpb.ServiceReleaseStatus, p statusPatch) (changed bool) {
-	if p.Phase == cluster_controllerpb.ReleasePhasePending {
-		buf := make([]byte, 2048)
-		n := runtime.Stack(buf, false)
-		log.Printf("DEBUG-APPLY-PATCH-PENDING: was=%q now=%q SetFields=%q reason=%q\nstack:\n%s",
-			s.Phase, p.Phase, p.SetFields, p.TransitionReason, buf[:n])
-	}
 	applyWorkflowFields := func() {
 		if p.WorkflowKind != "" {
 			s.WorkflowKind = p.WorkflowKind

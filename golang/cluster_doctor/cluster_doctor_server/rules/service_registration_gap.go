@@ -29,6 +29,11 @@ func (serviceRegistrationGap) Category() string { return "availability" }
 func (serviceRegistrationGap) Scope() string    { return "node" }
 
 func (serviceRegistrationGap) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
+
 	var findings []Finding
 
 	for _, node := range snap.Nodes {

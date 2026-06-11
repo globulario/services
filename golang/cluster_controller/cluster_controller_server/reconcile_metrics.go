@@ -87,6 +87,16 @@ var (
 		Help:      "Total workflow dispatches, by kind (install, upgrade, remove).",
 	}, []string{"kind"})
 
+	// workflowSemTimeoutTotal counts semaphore acquisition timeouts by resource type.
+	// Each timeout means all workflow slots were busy for 2 minutes and the
+	// dispatch was deferred with a 30s backoff.
+	workflowSemTimeoutTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "workflow_sem_timeout_total",
+		Help:      "Total workflow semaphore acquisition timeouts, by resource type.",
+	}, []string{"resource_type"})
+
 	// convergenceFilterSuppressed counts services suppressed by the convergence
 	// filter during startup (already converged, no work needed).
 	convergenceFilterSuppressed = promauto.NewCounter(prometheus.CounterOpts{

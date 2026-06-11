@@ -507,12 +507,15 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// legacy. Best-effort: missing receipt surfaces as fail-closed
 		// at heartbeat, which is correct.
 		stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.command", installedBinaryPath(name, kind))
-		_ = installed_state.WriteInstalledPackage(ctx, pkg)
-		// Record the installed revision in the repository's history and emit
-		// config receipts — same hook the service-restart path uses. The
-		// rollback workflow consumes this; without it COMMAND installs would
-		// never appear in Provenance / Audit screens.
-		srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
+		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+			log.Printf("apply-package: WARNING installed_state write failed for COMMAND %s@%s: %v — skipping post-install side effects", name, version, err)
+		} else {
+			// Record the installed revision in the repository's history and emit
+			// config receipts — same hook the service-restart path uses. The
+			// rollback workflow consumes this; without it COMMAND installs would
+			// never appear in Provenance / Audit screens.
+			srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
+		}
 		return &node_agentpb.ApplyPackageReleaseResponse{
 			Ok:          true,
 			Message:     fmt.Sprintf("installed %s/%s@%s (COMMAND — no service to restart)", kind, name, version),
@@ -674,8 +677,11 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			binaryOnlyPkg.Metadata["entrypoint_checksum"] = actualHash
 		}
 		stampReceiptForInstalledPackage(binaryOnlyPkg, "node-agent.apply_package_release.binary_only", installedBinaryPath(name, kind))
-		_ = installed_state.WriteInstalledPackage(ctx, binaryOnlyPkg)
-		srv.recordRevisionAndReceipts(ctx, repoAddr, req, binaryOnlyPkg, previousInstalled, configSnap)
+		if err := installed_state.WriteInstalledPackage(ctx, binaryOnlyPkg); err != nil {
+			log.Printf("apply-package: WARNING installed_state write failed for binary-only %s@%s: %v — skipping post-install side effects", name, version, err)
+		} else {
+			srv.recordRevisionAndReceipts(ctx, repoAddr, req, binaryOnlyPkg, previousInstalled, configSnap)
+		}
 		return &node_agentpb.ApplyPackageReleaseResponse{
 			Ok:          true,
 			Message:     fmt.Sprintf("installed %s/%s@%s (binary-only — no systemd unit)", kind, name, version),
@@ -790,14 +796,22 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// Canonical install path: stamp the receipt before committing the
 	// installed_state record. See docs/architecture/retire-systemd-sidecars.md.
 	stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
-	_ = installed_state.WriteInstalledPackage(ctx, pkg)
-
-	// Phase F post-success hook: record the installed revision in the
-	// repository's history table and emit one config-receipt per declared
-	// config file. Both calls are best-effort and never block the apply
-	// response. The rollback workflow consumes RecordInstalledRevision; the
-	// `pkg config conflicts` CLI consumes RecordConfigReceipt.
-	srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
+	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+		// The installed-state record is the durable commit. Side effects
+		// (revision history, config receipts) must not run if the commit
+		// fails — otherwise the repository says "installed at vX" while
+		// etcd still says "updating". Log and return success for the
+		// binary install (it IS on disk) but skip the side effects.
+		// See meta.state_mutations_must_be_durably_committed_before_side_effects.
+		log.Printf("apply-package: WARNING installed_state write failed for %s/%s@%s: %v — skipping post-install side effects", kind, name, version, err)
+	} else {
+		// Phase F post-success hook: record the installed revision in the
+		// repository's history table and emit one config-receipt per declared
+		// config file. Both calls are best-effort and never block the apply
+		// response. The rollback workflow consumes RecordInstalledRevision; the
+		// `pkg config conflicts` CLI consumes RecordConfigReceipt.
+		srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
+	}
 
 	// Tombstone any stale INFRASTRUCTURE record when the package is installed as
 	// SERVICE. Services that were originally deployed via Day-0 bootstrap carry a

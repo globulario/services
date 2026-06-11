@@ -61,6 +61,11 @@ func (objectstoreMinioStandaloneSplitbrain) Category() string { return "objectst
 func (objectstoreMinioStandaloneSplitbrain) Scope() string    { return "cluster" }
 
 func (objectstoreMinioStandaloneSplitbrain) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
+
 	desired := snap.ObjectStoreDesired
 
 	// Count nodes that have globular-minio.service active.
@@ -145,6 +150,11 @@ func (objectstoreMinioActiveOnNonMember) Category() string { return "objectstore
 func (objectstoreMinioActiveOnNonMember) Scope() string    { return "cluster" }
 
 func (objectstoreMinioActiveOnNonMember) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
+
 	desired := snap.ObjectStoreDesired
 	if desired == nil {
 		// contract_missing fires for this case — don't double-report.

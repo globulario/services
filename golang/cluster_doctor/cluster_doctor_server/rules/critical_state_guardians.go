@@ -167,6 +167,11 @@ func (scyllaKeyspaceRFPolicyViolation) Category() string { return "scylla" }
 func (scyllaKeyspaceRFPolicyViolation) Scope() string    { return "cluster" }
 
 func (scyllaKeyspaceRFPolicyViolation) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("etcd", "Get(/globular/scylla/schema_guard/)") {
+		return nil
+	}
+
 	var findings []Finding
 	for keyspace, raw := range snap.ScyllaSchemaGuardStatus {
 		violation, _ := raw["violation"].(bool)
@@ -209,6 +214,11 @@ func (repositoryKeyspaceRFPolicyViolation) Category() string { return "repositor
 func (repositoryKeyspaceRFPolicyViolation) Scope() string    { return "cluster" }
 
 func (repositoryKeyspaceRFPolicyViolation) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("etcd", "Get(/globular/scylla/schema_guard/)") {
+		return nil
+	}
+
 	raw, ok := snap.ScyllaSchemaGuardStatus["repository"]
 	if !ok {
 		return nil

@@ -57,7 +57,14 @@ func newExecutorLeaseManager(srv *server) *executorLeaseManager {
 func (m *executorLeaseManager) ClaimRun(ctx context.Context, runID string) (bool, error) {
 	sess := m.srv.getSession()
 	if sess == nil {
-		return true, nil // no ScyllaDB = single-node mode, always succeed
+		// No ScyllaDB session — the lease fence is unavailable. Log a
+		// warning and proceed (single-node bootstrap or degraded multi-node).
+		// The caller should treat this as degraded: the run will execute
+		// but is not fenced against concurrent executors.
+		// See meta.fallback_must_degrade_semantics.
+		slog.Warn("lease: ClaimRun proceeding without ScyllaDB fence (session nil) — run is unfenced",
+			"run_id", runID)
+		return true, nil
 	}
 
 	now := time.Now().UnixMilli()

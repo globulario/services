@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -216,11 +217,23 @@ func (srv *NodeAgentServer) repairSyncInstalledState(ctx context.Context, nodeID
 				// If no marker and no binary exist, it's truly non-authoritative.
 				binName := strings.ReplaceAll(name, "-", "_") + "_server"
 				binPath := globularBinDir + "/" + binName
-				if _, err := cachedSha256(binPath); err != nil {
-					// No binary on disk — remove stale record.
-					_ = installed_state.DeleteInstalledPackage(ctx, nodeID, kind, name)
-					log.Printf("repair: removed non-authoritative installed-state %s/%s (version=%s, no binary)", kind, name, ver)
-					cleaned++
+				if _, hashErr := cachedSha256(binPath); hashErr != nil {
+					// Distinguish "binary genuinely absent" from "hash
+					// computation failed on an existing file" — only
+					// delete the record when the file does not exist.
+					if _, statErr := os.Stat(binPath); statErr != nil && os.IsNotExist(statErr) {
+						// No binary on disk — remove stale record.
+						if delErr := installed_state.DeleteInstalledPackage(ctx, nodeID, kind, name); delErr != nil {
+							log.Printf("repair: WARNING: failed to delete non-authoritative installed-state %s/%s: %v", kind, name, delErr)
+						} else {
+							log.Printf("repair: removed non-authoritative installed-state %s/%s (version=%s, no binary)", kind, name, ver)
+							cleaned++
+						}
+					} else if statErr != nil {
+						log.Printf("repair: WARNING: cannot stat binary %s for %s/%s: %v (keeping record)", binPath, kind, name, statErr)
+					} else {
+						log.Printf("repair: WARNING: binary %s exists for %s/%s but hash failed: %v (keeping record)", binPath, kind, name, hashErr)
+					}
 				} else {
 					log.Printf("repair: WARNING: %s/%s has placeholder version %s but binary exists — needs official apply", kind, name, ver)
 				}

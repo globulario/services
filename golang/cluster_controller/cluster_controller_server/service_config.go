@@ -195,6 +195,7 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 	// Build cluster token from cluster ID
 	clusterToken := ctx.ClusterID
 	if clusterToken == "" {
+		log.Printf("WARNING: renderEtcdConfig: ClusterID is empty — falling back to default \"globular\". This may indicate etcd or system config has not been initialized.")
 		clusterToken = "globular"
 	}
 	clusterToken = clusterToken + "-etcd-cluster"

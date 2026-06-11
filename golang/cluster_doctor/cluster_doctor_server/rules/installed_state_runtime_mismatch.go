@@ -51,6 +51,11 @@ func activatingGraceForPackage(pkg string) time.Duration {
 }
 
 func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("cluster_controller", "GetClusterHealthV1") {
+		return nil
+	}
+
 	var findings []Finding
 	now := time.Now()
 

@@ -124,10 +124,22 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 	// because EvaluateAll evaluates every registered invariant.
 	s.cacheFindings(findings, true)
 
+	// SAFETY GATE: when the snapshot has reduced harvest (some collector
+	// sources errored), findings may be false positives — a rule that sees
+	// empty data may emit a finding that would not exist with complete data.
+	// Auto-remediation on a false positive is destructive. Gate enforcement
+	// mode on full-harvest snapshots only; reduced-harvest cycles run as
+	// observe-only regardless of the configured mode.
+	// See meta.fallback_must_degrade_semantics.
+	effectiveMode := mode
+	if snap.DataIncomplete && mode == "enforce" {
+		effectiveMode = "observe"
+		log.Printf("healer: reduced-harvest snapshot (DataIncomplete=true) — downgrading from enforce to observe for this cycle to avoid auto-remediation on potentially false-positive findings")
+	}
+
 	// Determine healer mode. dryRun is true unless the operator has
-	// explicitly opted into "enforce" (Patch A default is "observe", which
-	// also satisfies mode != "enforce").
-	dryRun := mode != "enforce"
+	// explicitly opted into "enforce" AND the snapshot is full-harvest.
+	dryRun := effectiveMode != "enforce"
 	healer := &rules.Healer{
 		DryRun:      dryRun,
 		Dispatcher:  s.gatedDispatcher(),

@@ -122,10 +122,6 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	runHeartbeat := func() {
 		now := time.Now()
 		withOpTimeout(15*time.Second, srv.ensureRuntimeTLSConvergence)
-		// Keep scylla-manager-agent token/config convergent with fast feedback.
-		// The install path can leave a commented auth_token line; healing only
-		// every 5 minutes delays node convergence. Run this every heartbeat.
-		withOpTimeout(5*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 		hbCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		err := srv.reportStatus(hbCtx)
 		cancel()
@@ -443,8 +439,11 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 
 				if !unitFileExists && !markerExists {
 					// Truly uninstalled — remove stale record.
-					_ = installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
-					log.Printf("nodeagent: removed stale installed-state SERVICE/%s (no unit file, no version marker)", name)
+					if delErr := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "SERVICE", name); delErr != nil {
+						log.Printf("nodeagent: WARNING: failed to delete stale installed-state SERVICE/%s: %v", name, delErr)
+					} else {
+						log.Printf("nodeagent: removed stale installed-state SERVICE/%s (no unit file, no version marker)", name)
+					}
 				}
 			}
 		}
@@ -742,9 +741,13 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 	resultCh := make(chan listResult, 1)
 	go func() {
 		repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
+		if repoAddr == "" {
+			resultCh <- listResult{err: fmt.Errorf("repository service not registered in etcd (service discovery returned empty address)")}
+			return
+		}
 		rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
 		if err != nil {
-			resultCh <- listResult{err: fmt.Errorf("connect to repo: %w", err)}
+			resultCh <- listResult{err: fmt.Errorf("connect to repo at %s: %w", repoAddr, err)}
 			return
 		}
 		arts, listErr := rc.ListArtifacts()

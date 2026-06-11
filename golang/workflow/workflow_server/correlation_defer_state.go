@@ -208,6 +208,15 @@ func (s *scyllaDeferStateStore) Get(ctx context.Context, clusterID, correlationI
 	return &out, nil
 }
 
+// RecordDefer persists an updated defer state for the given correlation.
+//
+// state_mutations_must_be_durably_committed_before_side_effects: this method
+// uses read-then-write without CAS (lightweight transactions). Two concurrent
+// callers could read the same prev state and both increment defer_count by 1
+// instead of 2. The practical impact is limited: the worst case is one extra
+// defer cycle before the abandon threshold is reached, not data corruption or
+// lost state. A structural fix (ScyllaDB LWT on the UPDATE) would eliminate
+// the race but adds ~4ms latency per call; deferred as a future improvement.
 func (s *scyllaDeferStateStore) RecordDefer(ctx context.Context, clusterID, correlationID string, ds *engine.DeferState) (*CorrelationDeferState, error) {
 	if correlationID == "" {
 		return nil, errors.New("defer state record: correlation_id required")

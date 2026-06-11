@@ -69,7 +69,10 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 			// Fast path: skip if already installed and the unit is active.
 			// The local join workflow has no version context, so any installed
 			// version is acceptable.
-			existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkg.Kind, pkg.Name)
+			existing, getErr := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkg.Kind, pkg.Name)
+			if getErr != nil {
+				log.Printf("workflow-runner: WARNING: GetInstalledPackage(%s/%s) returned error (treating as not-installed, NOT etcd-absence): %v", pkg.Kind, pkg.Name, getErr)
+			}
 			if skipIfAlreadyInstalled(ctx, pkg.Name, existing, supervisor.IsActive) {
 				return nil
 			}

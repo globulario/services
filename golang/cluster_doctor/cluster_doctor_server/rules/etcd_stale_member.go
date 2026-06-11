@@ -45,6 +45,11 @@ func (etcdStaleMember) Category() string { return "etcd" }
 func (etcdStaleMember) Scope() string    { return "cluster" }
 
 func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
+
 	var findings []Finding
 
 	// Gather etcd-capable nodes and their status.

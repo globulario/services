@@ -48,9 +48,12 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 	}
 
 	// Fetch all resource types in parallel to minimize etcd round-trips.
+	// Errors are captured — an etcd timeout must not silently produce an
+	// empty list (absence_scope_must_be_explicit).
 	type listResult struct {
 		items []interface{}
 		rv    string
+		err   error
 	}
 	var (
 		sdvRes, svcRelRes, infraRelRes, appRelRes listResult
@@ -59,25 +62,32 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
-		items, rv, _ := srv.resources.List(ctx, "ServiceDesiredVersion", "")
-		sdvRes = listResult{items, rv}
+		items, rv, err := srv.resources.List(ctx, "ServiceDesiredVersion", "")
+		sdvRes = listResult{items, rv, err}
 	}()
 	go func() {
 		defer wg.Done()
-		items, _, _ := srv.resources.List(ctx, "ServiceRelease", "")
-		svcRelRes = listResult{items: items}
+		items, _, err := srv.resources.List(ctx, "ServiceRelease", "")
+		svcRelRes = listResult{items: items, err: err}
 	}()
 	go func() {
 		defer wg.Done()
-		items, _, _ := srv.resources.List(ctx, "InfrastructureRelease", "")
-		infraRelRes = listResult{items: items}
+		items, _, err := srv.resources.List(ctx, "InfrastructureRelease", "")
+		infraRelRes = listResult{items: items, err: err}
 	}()
 	go func() {
 		defer wg.Done()
-		items, _, _ := srv.resources.List(ctx, "ApplicationRelease", "")
-		appRelRes = listResult{items: items}
+		items, _, err := srv.resources.List(ctx, "ApplicationRelease", "")
+		appRelRes = listResult{items: items, err: err}
 	}()
 	wg.Wait()
+
+	// If the primary resource (ServiceDesiredVersion) failed, refuse to
+	// return an empty list — callers must not interpret an etcd error as
+	// "no desired services exist." See meta.absence_scope_must_be_explicit.
+	if sdvRes.err != nil {
+		return nil, status.Errorf(codes.Unavailable, "list ServiceDesiredVersion: %v", sdvRes.err)
+	}
 
 	// Build phase lookup from all release types.
 	releasePhases := make(map[string]string)

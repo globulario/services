@@ -492,10 +492,16 @@ func (r *driftReconciler) loadSuspendedServices(ctx context.Context, nodeID stri
 
 // driftConvergenceMap loads all latest ConvergenceResultV1 records for nodeID,
 // keyed by package name. Returns an empty map on any error (fail-open).
+//
+// CAUTION: on etcd error the returned empty map is indistinguishable from
+// "no convergence records exist". Callers treat missing entries as
+// unsuppressed (driftSuppressed returns false), which is the safe
+// fail-open direction — drift is processed rather than silently dropped.
 func driftConvergenceMap(ctx context.Context, nodeID string) map[string]*installed_state.ConvergenceResultV1 {
 	m := make(map[string]*installed_state.ConvergenceResultV1)
 	results, err := installed_state.ListConvergenceResults(ctx, nodeID)
 	if err != nil {
+		log.Printf("WARNING: driftConvergenceMap(%s): etcd read failed: %v — returning empty map (fail-open: drift will not be suppressed)", nodeID, err)
 		return m
 	}
 	for _, r := range results {

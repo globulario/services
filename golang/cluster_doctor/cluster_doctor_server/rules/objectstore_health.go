@@ -100,6 +100,11 @@ func (objectstoreStandaloneInCluster) Category() string { return "objectstore" }
 func (objectstoreStandaloneInCluster) Scope() string    { return "cluster" }
 
 func (objectstoreStandaloneInCluster) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
+
 	desired := snap.ObjectStoreDesired
 	if desired == nil || desired.Mode != config.ObjectStoreModeStandalone {
 		return nil
@@ -205,6 +210,11 @@ func (objectstoreNoDesiredState) Category() string { return "objectstore" }
 func (objectstoreNoDesiredState) Scope() string    { return "cluster" }
 
 func (objectstoreNoDesiredState) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
+	if snap.HadError("cluster_controller", "ListNodes") {
+		return nil
+	}
+
 	if snap.ObjectStoreDesired != nil {
 		return nil
 	}

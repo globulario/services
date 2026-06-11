@@ -21,10 +21,13 @@ type WorkflowPersister struct {
 	ClusterID string
 }
 
-// PersistStartRun creates a workflow run record in ScyllaDB.
-func (p *WorkflowPersister) PersistStartRun(ctx context.Context, run *Run, workflowName string) {
+// PersistStartRun creates a workflow run record in ScyllaDB. Returns an error
+// if the commit fails — callers MUST NOT dispatch actors when this returns an
+// error, as side effects would execute against an unrecorded run.
+// See meta.state_mutations_must_be_durably_committed_before_side_effects.
+func (p *WorkflowPersister) PersistStartRun(ctx context.Context, run *Run, workflowName string) error {
 	if p.Client == nil {
-		return
+		return nil
 	}
 	nodeID := fmt.Sprint(run.Inputs["node_id"])
 	hostname := fmt.Sprint(run.Inputs["node_hostname"])
@@ -48,7 +51,9 @@ func (p *WorkflowPersister) PersistStartRun(ctx context.Context, run *Run, workf
 	_, err := p.Client.StartRun(ctx, &workflowpb.StartRunRequest{Run: wfRun})
 	if err != nil {
 		log.Printf("persist: StartRun failed: %v", err)
+		return fmt.Errorf("persist: StartRun: %w", err)
 	}
+	return nil
 }
 
 // OnStepDone records each step completion in ScyllaDB.
@@ -110,9 +115,14 @@ func (p *WorkflowPersister) PersistFinishRun(ctx context.Context, run *Run) {
 		return
 	}
 
-	status := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
-	if run.Status == RunFailed {
+	var status workflowpb.RunStatus
+	switch run.Status {
+	case RunFailed:
 		status = workflowpb.RunStatus_RUN_STATUS_FAILED
+	case RunDeferred:
+		status = workflowpb.RunStatus_RUN_STATUS_DEFERRED
+	default:
+		status = workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
 	}
 
 	_, err := p.Client.FinishRun(ctx, &workflowpb.FinishRunRequest{

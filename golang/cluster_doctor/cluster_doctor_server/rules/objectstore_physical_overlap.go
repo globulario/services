@@ -573,10 +573,17 @@ func (objectstoreWriteQuorumLost) Evaluate(snap *collector.Snapshot, cfg Config)
 		return nil
 	}
 
-	// If data collection had errors and every "down" node is only no_inventory
-	// (no confirmed-bad state), the finding would be a false positive caused
-	// by the collector failing to reach healthy nodes or by a partial snapshot.
-	if snap.DataIncomplete && len(knownDownNodes) == 0 {
+	// If the collector failed to fetch node lists or inventories AND every
+	// "down" node is only no_inventory (no confirmed-bad state), the finding
+	// would be a false positive caused by the collector gap, not a real
+	// quorum loss. Guard on the SPECIFIC data sources this rule depends on,
+	// not the broad DataIncomplete flag — an unrelated DNS or Prometheus
+	// error must not suppress a write-quorum CRITICAL.
+	// See meta.fallback_must_degrade_semantics.
+	inventoryGap := snap.HadError("cluster_controller", "ListNodes") ||
+		snap.HadError("cluster_controller", "GetInventory") ||
+		snap.HadError("node_agent", "GetInventory")
+	if inventoryGap && len(knownDownNodes) == 0 {
 		return nil
 	}
 

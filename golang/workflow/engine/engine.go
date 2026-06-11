@@ -593,6 +593,11 @@ func (e *Engine) executeDAG(ctx context.Context, run *Run, cw *compiler.Compiled
 		}
 	}
 
+	// assertions_must_carry_their_scope: acquire read lock before iterating
+	// run.Steps — parallel step goroutines may still be writing step state
+	// when this post-DAG scan runs.
+	run.stepsMu.RLock()
+	defer run.stepsMu.RUnlock()
 	for _, st := range run.Steps {
 		if st.Status == StepFailed {
 			return fmt.Errorf("step %s failed: %s", st.ID, st.Error)
@@ -663,9 +668,16 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 		return e.executeForeach(ctx, run, step)
 	}
 
-	// Evaluate when condition.
+	// Evaluate when condition. Snapshot outputs under lock to avoid
+	// racing parallel step writes. See meta.competing_writers_must_converge_or_be_fenced.
 	if step.When != nil {
-		ok, err := e.evalCondition(ctx, step.When, run.Inputs, run.Outputs)
+		run.outputMu.Lock()
+		outputSnap := make(map[string]any, len(run.Outputs))
+		for k, v := range run.Outputs {
+			outputSnap[k] = v
+		}
+		run.outputMu.Unlock()
+		ok, err := e.evalCondition(ctx, step.When, run.Inputs, outputSnap)
 		if err != nil {
 			st.Status = StepFailed
 			st.Error = fmt.Sprintf("condition eval: %v", err)
@@ -1238,7 +1250,11 @@ func (e *Engine) evalCondition(ctx context.Context, cond *compiler.CompiledCondi
 func (e *Engine) dispatchHook(ctx context.Context, run *Run, hook *compiler.CompiledHook) {
 	handler, ok := e.Router.resolveByName(hook.Actor, hook.Action)
 	if !ok {
-		log.Printf("workflow: hook %s::%s has no handler, skipping", hook.Actor, hook.Action)
+		// silence_is_not_valid_for_unexpected: a missing hook handler is
+		// an unexpected configuration gap, not a no-op. Log at WARNING
+		// so operators can see which hooks are silently skipped.
+		log.Printf("WARNING: workflow: hook %s::%s has no registered handler, skipping (run=%s, definition=%s)",
+			hook.Actor, hook.Action, run.ID, run.Definition)
 		return
 	}
 	req := ActionRequest{

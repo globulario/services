@@ -195,7 +195,11 @@ func (srv *server) GetClusterHealthV1(ctx context.Context, _ *cluster_controller
 			}
 			if !hasMissing && appliedSvcHash != desiredSvcHash && len(svcOnlyFiltered) > 0 && len(node.InstalledVersions) > 0 {
 				if err := srv.putNodeAppliedServiceHash(ctx, node.NodeID, desiredSvcHash); err != nil {
-					log.Printf("health: stamp applied service hash for %s: %v", node.NodeID, err)
+					log.Printf("health: stamp applied service hash for %s: %v (in-memory state NOT updated)", node.NodeID, err)
+					// Do not update appliedSvcHash — the etcd write failed, so
+					// the durable state does not reflect convergence. Updating
+					// the in-memory variable would cause this read RPC to report
+					// a hash that was never durably committed.
 				} else {
 					log.Printf("health: external install detected for node %s — all %d services converged, stamped applied hash", node.NodeID, len(svcOnlyFiltered))
 					appliedSvcHash = desiredSvcHash

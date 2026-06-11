@@ -243,12 +243,14 @@ func (e *Engine) runVerification(ctx context.Context, run *Run, step *compiler.C
 // so it's visible in the operational timeline and step details_json.
 func (e *Engine) recordResumeDecision(run *Run, stepID string, decision ResumeDecision) {
 	key := "resume_decision." + stepID
+	run.outputMu.Lock()
 	run.Outputs[key] = map[string]any{
 		"policy":       decision.Policy,
 		"verification": string(decision.Verification),
 		"action":       decision.Action,
 		"reason":       decision.Reason,
 	}
+	run.outputMu.Unlock()
 }
 
 // ResumeDecision describes what the engine decided during resume for a step.

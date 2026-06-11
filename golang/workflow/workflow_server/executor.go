@@ -224,7 +224,10 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	if srv.leaseManager != nil {
 		claimed, err := srv.leaseManager.ClaimRun(ctx, runID)
 		if err != nil {
-			logger.Warn("executor: lease claim failed (proceeding anyway)", "run_id", runID, "err", err)
+			// Lease claim failure means the fencing mechanism is unavailable.
+			// Proceeding without a fence risks double-execution. Refuse.
+			// See meta.state_mutations_must_be_durably_committed_before_side_effects.
+			return nil, fmt.Errorf("run %s: lease claim failed — refusing unfenced execution: %w", runID, err)
 		} else if !claimed {
 			return nil, fmt.Errorf("run %s already owned by another executor", runID)
 		}
@@ -461,8 +464,14 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	}
 
 	// AL-1: Project incident to ai-memory on FAILED/BLOCKED runs.
-	// Fire-and-forget — learning must never block workflow response.
-	go srv.projectIncident(context.Background(), req, resp)
+	// Fire-and-forget with a bounded timeout — learning must never block
+	// workflow response, but unbounded goroutines must not accumulate when
+	// ai-memory is slow. See meta.failure_response_must_contract_not_amplify.
+	incidentCtx, incidentCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	go func() {
+		defer incidentCancel()
+		srv.projectIncident(incidentCtx, req, resp)
+	}()
 
 	return resp, nil
 }
