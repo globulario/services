@@ -8364,9 +8364,20 @@ invariants:
         The legitimate restart sites are operations procedures (cert
         rotation, Day-0 bootstrap, backup-manager restore). Those run
         serially under operator control and don't compete with the
-        convergence loop. They live in node_agent/certificate.go,
-        node_agent/workflow_day0.go, and backup_manager — explicitly
-        OUT of scope for this rule.
+        convergence loop. node_agent/node_agent_server IS scanned (as of
+        2026-06-11) because it also houses convergence/reconcile/apply
+        logic — a future reconcile-path restart added there must be
+        caught. Its two known ops-procedure restart files
+        (certificate.go = cert rotation, workflow_day0.go = Day-0
+        bootstrap) are named EXCEPTIONS. backup_manager stays out of
+        scope: it has no convergence loop, so all its restarts are
+        categorically ops procedures and scanning it would only produce
+        future false positives. NOTE (surfaced during the 2026-06-11
+        scope triage): backup_manager/restore.go::restartAllServices
+        restarts core convergence-managed units (controller, node-agent);
+        its race-safety rests on the OPERATIONAL invariant "restore runs
+        only on a quiesced cluster," not on code-level singleflight —
+        a latent assumption, not an enforced fence.
 
         The convergence-driven restart path goes through
         repairVerifyRuntime which is singleflight-gated. Any code in
@@ -8396,20 +8407,35 @@ invariants:
         - meta.competing_writers_must_converge_or_be_fenced
         - service.restart_singleflight
 
-      # Scope is intentionally narrow: only the convergence + workflow
-      # dirs. node_agent and backup_manager contain the legitimate
-      # ops-procedure restart sites and are out of scope (scanning
-      # them would generate noise against the principle's intent).
+      # Scope: the convergence + workflow dirs PLUS node_agent_server,
+      # which also runs reconcile/apply logic — a future restart added to
+      # a convergence path there must be caught. The two known node_agent
+      # ops-procedure restart files are named in exception_files.
+      # backup_manager is deliberately NOT scanned: it has no convergence
+      # loop, so every restart there is an ops procedure; scanning it
+      # would only generate future false positives.
       actor_writer_dirs:
         - golang/cluster_controller/cluster_controller_server
         - golang/workflow/workflow_server
+        - golang/node_agent/node_agent_server
 
       analysis_mode: ruleguard
       ruleguard_rules_file: cmd/principle-check/rules/competing_writers_singleflight_restart.go
 
       scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
 
-      exception_files: []
+      # Named ops-procedure restart files inside the now-scanned
+      # node_agent_server. These run under operator control (cert
+      # rotation / Day-0), not a convergence tick. A NEW restart added
+      # to any OTHER node_agent_server file (e.g. a reconcile/apply
+      # handler) is NOT exempted and surfaces as DRIFT.
+      exception_files:
+        - file: golang/node_agent/node_agent_server/certificate.go
+          category: ops_procedure_cert_rotation
+          reason: restartUnit reload-then-restart during certificate rotation; operator/rotation-driven, not a convergence tick (restartUnit has no convergence-path callers as of 2026-06-11)
+        - file: golang/node_agent/node_agent_server/workflow_day0.go
+          category: ops_procedure_day0_bootstrap
+          reason: RestartServices callback runs during Day-0 bootstrap, before the convergence loop is active; serial by construction
       workflow_step_handler_files: []
       unknown_helper_files: []
 
