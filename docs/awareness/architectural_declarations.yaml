@@ -104,3 +104,393 @@ architectural_declarations:
           Stance not yet assessed. Declared none to surface the gap; pending a
           review of query-path behaviour under load.
         exercised_by: none
+
+  # ── partition_response ─────────────────────────────────────────────────
+  - principle: meta.partition_response_must_be_predeclared
+    attribute: partition_response
+    allowed_values: [cp_fail_closed, ap_serve_stale, ap_bounded_window, quorum_gated, none]
+    # Services that depend on remote state or coordinate across nodes.
+    in_scope_services:
+      - cluster_controller
+      - node_agent
+      - workflow
+      - repository
+      - dns
+      - rbac
+      - authentication
+      - cluster_doctor
+      - mcp
+    declarations:
+      - service: cluster_controller
+        partition_response: cp_fail_closed
+        reason: >
+          When not leader, refuses state-changing RPCs; under partition with no
+          leader, RPCs fail closed. etcd lease-based leadership means no
+          split-brain: the old leader's lease expires, and no new leader is
+          elected until quorum is restored.
+        exercised_by: none
+      - service: node_agent
+        partition_response: ap_bounded_window
+        reason: >
+          Continues operating locally during controller partition. Heartbeat
+          fails but the node keeps running installed services. Convergence
+          stalls (no new desired state) but existing state is preserved. The
+          bounded window is the heartbeat staleness threshold (~30s) after
+          which the controller marks the node stale.
+        exercised_by: none
+      - service: workflow
+        partition_response: cp_fail_closed
+        reason: >
+          Refuses to dispatch when the actor endpoint can't be confirmed
+          reachable. Failure is loud. Runs are deferred, not dropped. Recovery
+          replays deferred runs when connectivity returns.
+        exercised_by: none
+      - service: repository
+        partition_response: quorum_gated
+        reason: >
+          Reads served from local POSIX CAS (AP for reads). Writes (publish)
+          require ScyllaDB quorum for metadata commit (CP for writes). Under
+          ScyllaDB partition, publishes fail; reads continue from local state.
+        exercised_by: none
+      - service: dns
+        partition_response: ap_serve_stale
+        reason: >
+          Serves cached records past authoritative TTL during partition,
+          marking responses as stale. New zone updates stall until controller
+          connectivity is restored.
+        exercised_by: none
+      - service: rbac
+        partition_response: cp_fail_closed
+        reason: >
+          Permission checks fail closed when the RBAC store (ScyllaDB) is
+          unreachable. No cached permissions are served past TTL. This is
+          deliberate: a false-allow under partition is worse than a
+          false-deny.
+        exercised_by: none
+      - service: authentication
+        partition_response: cp_fail_closed
+        reason: >
+          Token validation requires the signing key and revocation list.
+          Under partition, new tokens cannot be issued; existing tokens
+          continue to validate locally until expiry. Fail-closed for
+          issuance, time-bounded-AP for validation.
+        exercised_by: none
+      - service: cluster_doctor
+        partition_response: none
+        reason: >
+          Not yet assessed. The doctor's collector queries all nodes; under
+          partition it gets partial snapshots. Current code does not
+          distinguish "node unreachable" from "node healthy with no findings."
+          Declared none pending a review of partial-snapshot semantics.
+        exercised_by: none
+      - service: mcp
+        partition_response: none
+        reason: >
+          Not yet assessed. MCP proxies to awareness-graph and other services;
+          under partition some tools would fail but no declared posture exists.
+          Declared none to surface the gap.
+        exercised_by: none
+
+  # ── bounded_staleness ──────────────────────────────────────────────────
+  - principle: meta.bounded_staleness_must_be_named_not_assumed
+    attribute: staleness_bound
+    allowed_values: [named_with_contract, watch_driven, leader_authoritative, none]
+    # Services that cache, replicate, or read derived/projected state.
+    in_scope_services:
+      - cluster_controller
+      - node_agent
+      - cluster_doctor
+      - repository
+      - dns
+      - rbac
+      - mcp
+    declarations:
+      - service: cluster_controller
+        staleness_bound: leader_authoritative
+        reason: >
+          The leader holds authoritative in-memory state refreshed by etcd
+          watches. Non-leader instances do not serve state-reading RPCs; they
+          forward to the leader. The staleness bound is the etcd watch
+          propagation latency (~single-digit ms within the same node).
+        exercised_by: none
+      - service: node_agent
+        staleness_bound: named_with_contract
+        reason: >
+          installed_state is authoritative on the local node (written by the
+          agent itself). Heartbeat Phase 2 publishes to etcd with a known
+          cadence (~5s). Consumers (controller, doctor) know the staleness is
+          bounded by the heartbeat interval + network latency.
+        exercised_by: none
+      - service: cluster_doctor
+        staleness_bound: named_with_contract
+        reason: >
+          The collector sweep runs every 60s. Each Snapshot carries a
+          collection timestamp. Rules consume the snapshot knowing it is at
+          most 60s stale. The snap-error contract (TestNoRuleEmitsConfident-
+          FailureOnErroredSnapshot) ensures rules refuse to emit confident
+          findings when the snapshot's data source errored.
+        exercised_by: none
+      - service: repository
+        staleness_bound: watch_driven
+        reason: >
+          ScyllaDB reads are quorum-consistent (not eventually consistent).
+          Local POSIX CAS is authoritative for binary content (written by the
+          agent, read by the repository). The reachability guard reads
+          installed-state and desired-state via gRPC from their owners —
+          staleness is bounded by the RPC round-trip.
+        exercised_by: none
+      - service: dns
+        staleness_bound: named_with_contract
+        reason: >
+          Zone data is loaded from the controller at startup and refreshed on
+          watch events. Record TTLs are the named staleness contract for
+          downstream DNS resolvers. Under partition, stale records are served
+          with TTL=0 to signal freshness loss.
+        exercised_by: none
+      - service: rbac
+        staleness_bound: named_with_contract
+        reason: >
+          Permission cache has a bounded grant TTL
+          (TestPermCacheGrantTTLIsBounded). Flushes are surgical
+          (TestFlushPermCache_SurgicalAndComplete). The staleness bound is the
+          cache TTL; decisions older than TTL are re-fetched from ScyllaDB.
+        exercised_by: none
+      - service: mcp
+        staleness_bound: none
+        reason: >
+          MCP proxies to awareness-graph (compiled context, not authority) and
+          to cluster services. The awareness-graph data has no named staleness
+          contract — the graph is rebuilt on deploy, not on a cadence.
+          Declared none pending a staleness contract for awareness data.
+        exercised_by: none
+
+  # ── load_redirection ───────────────────────────────────────────────────
+  - principle: meta.load_redirection_must_be_explicit_capacity_planning
+    attribute: failover_capacity
+    allowed_values: [measured, structurally_bounded, single_instance, none]
+    # Services with replicated instances that absorb load on failover.
+    in_scope_services:
+      - cluster_controller
+      - node_agent
+      - repository
+      - dns
+      - rbac
+      - authentication
+    declarations:
+      - service: cluster_controller
+        failover_capacity: none
+        reason: >
+          Known gap. findLivenessSafeSuccessor selects the FIRST eligible
+          successor with no capacity check. 14+ leader-only workloads transfer
+          instantly. Partial mitigation: metric + annotation + KNOWN GAP block
+          in leader_liveness.go. Structural fix tracked (load-rank successors,
+          warmup period, or admission control at takeover).
+        exercised_by: none
+      - service: node_agent
+        failover_capacity: single_instance
+        reason: >
+          Node agent is per-node; there is no failover to another instance.
+          If the node agent dies, systemd restarts it locally. No cross-node
+          load redirection occurs.
+        exercised_by: none
+      - service: repository
+        failover_capacity: none
+        reason: >
+          Repository runs on all storage-profile nodes. If one instance is
+          lost, reads are served from peers' local CAS. No capacity planning
+          for the absorption — declared none pending measurement.
+        exercised_by: none
+      - service: dns
+        failover_capacity: structurally_bounded
+        reason: >
+          DNS is lightweight (cached zone data, no per-query storage). The
+          load of a failed DNS instance is bounded by the query rate, which is
+          structurally capped by the cluster's internal service count. No
+          capacity risk at current scale.
+        exercised_by: none
+      - service: rbac
+        failover_capacity: none
+        reason: >
+          RBAC runs on all control-plane nodes. Permission-check load from a
+          failed instance shifts to peers via the interceptor retry. No
+          measured capacity headroom — declared none pending measurement.
+        exercised_by: none
+      - service: authentication
+        failover_capacity: none
+        reason: >
+          Authentication runs on all control-plane nodes. Token-issuance load
+          from a failed instance shifts to peers. No measured capacity
+          headroom — declared none pending measurement.
+        exercised_by: none
+
+  # ── replication_vs_partitioning ────────────────────────────────────────
+  - principle: meta.replication_vs_partitioning_chooses_availability_dimension
+    attribute: availability_stance
+    allowed_values: [replicated_harvest, partitioned_yield, hybrid, single_instance, none]
+    # Services with persistent state where the replication/partition choice
+    # determines which availability dimension degrades under fault.
+    in_scope_services:
+      - cluster_controller
+      - repository
+      - dns
+      - search
+      - ai_memory
+    declarations:
+      - service: cluster_controller
+        availability_stance: replicated_harvest
+        reason: >
+          etcd (the controller's state store) is replicated with Raft
+          consensus. Under fault, harvest is preserved (every served query
+          sees complete, consistent state) but yield drops (queries may be
+          refused if quorum is lost). The controller's design explicitly
+          chooses consistency over availability.
+        exercised_by: none
+      - service: repository
+        availability_stance: replicated_harvest
+        reason: >
+          ScyllaDB metadata is replicated (RF=3). Under node loss, reads
+          continue at quorum — complete data, reduced throughput. Binary
+          content in local POSIX CAS is per-node (not replicated); content
+          availability depends on which node answers.
+        exercised_by: none
+      - service: dns
+        availability_stance: replicated_harvest
+        reason: >
+          Zone data is replicated across all DNS instances (loaded from
+          controller). Under instance loss, surviving instances serve complete
+          zone data. Yield drops proportionally to instance count.
+        exercised_by: none
+      - service: search
+        availability_stance: none
+        reason: >
+          Search indexes are stored in MinIO (shared) but the index structure
+          and replication strategy are not yet assessed. Declared none pending
+          a review of search's availability contract.
+        exercised_by: none
+      - service: ai_memory
+        availability_stance: replicated_harvest
+        reason: >
+          ScyllaDB-backed (RF=3). Under node loss, reads continue at quorum
+          with complete data. Same profile as repository metadata.
+        exercised_by: none
+
+  # ── observability_must_match_decision_horizon ──────────────────────────
+  - principle: meta.observability_must_match_decision_horizon
+    attribute: signal_cadence_match
+    allowed_values: [matched, over_emitted, under_emitted, not_assessed]
+    # Services that emit signals consumed by automated decisions.
+    in_scope_services:
+      - node_agent
+      - cluster_controller
+      - cluster_doctor
+      - repository
+      - workflow
+      - monitoring
+    declarations:
+      - service: node_agent
+        signal_cadence_match: matched
+        reason: >
+          Heartbeat every ~5s; consumed by controller staleness check at ~30s
+          threshold. 6x oversampling provides margin. Installed-state updates
+          are event-driven (on install/remove), matching the controller's
+          watch-driven consumption.
+        exercised_by: none
+      - service: cluster_controller
+        signal_cadence_match: matched
+        reason: >
+          Reconciler loop runs every ~30s; xDS updates are push-on-change
+          (sub-second for routing decisions). Leader liveness emits at ~5s
+          cadence, consumed by the ~30s staleness threshold. Signal cadences
+          were explicitly tuned to decision horizons.
+        exercised_by: none
+      - service: cluster_doctor
+        signal_cadence_match: matched
+        reason: >
+          Collector sweep every 60s; findings emitted per-sweep. Consumers
+          (AI executor, dashboard) poll findings at >=60s intervals. The
+          sweep cadence matches the consumption cadence.
+        exercised_by: none
+      - service: repository
+        signal_cadence_match: not_assessed
+        reason: >
+          Repository emits artifact-state-change events but the signal
+          cadence relative to consumer decision horizons (reconciler,
+          reachability guard) has not been formally assessed.
+        exercised_by: none
+      - service: workflow
+        signal_cadence_match: not_assessed
+        reason: >
+          Workflow emits run-state events and step receipts. The cadence
+          relative to consumer decision horizons (release reconciler, doctor
+          correlation rule) has not been formally assessed.
+        exercised_by: none
+      - service: monitoring
+        signal_cadence_match: matched
+        reason: >
+          Prometheus scrape interval (15s) matches alerting rule evaluation
+          (15s). Alert notification cadence matches the repeat_interval
+          configured in Alertmanager. Grafana dashboard refresh matches the
+          scrape cadence.
+        exercised_by: none
+
+  # ── checkpoint_alone_is_inadequate_for_growing_state ───────────────────
+  - principle: meta.checkpoint_alone_is_inadequate_for_growing_state
+    attribute: durability_strategy
+    allowed_values: [consensus_log, append_log_plus_checkpoint, external_wal, checkpoint_only, stateless, none]
+    # Services with growing durable state.
+    in_scope_services:
+      - cluster_controller
+      - repository
+      - ai_memory
+      - workflow
+      - search
+      - monitoring
+    declarations:
+      - service: cluster_controller
+        durability_strategy: consensus_log
+        reason: >
+          State lives in etcd, which uses Raft WAL (append-only log) +
+          periodic snapshots (checkpoint). The WAL ensures partial updates are
+          recoverable; the snapshot bounds WAL replay on restart. This is the
+          gold standard for checkpoint + log durability.
+        exercised_by: none
+      - service: repository
+        durability_strategy: external_wal
+        reason: >
+          Metadata lives in ScyllaDB, which uses its own commitlog (WAL) +
+          memtable flush + compaction. Binary content is POSIX CAS (write-once
+          files). Both storage layers have WAL-equivalent durability. The
+          repository service itself is stateless — it delegates durability to
+          ScyllaDB and the filesystem.
+        exercised_by: none
+      - service: ai_memory
+        durability_strategy: external_wal
+        reason: >
+          ScyllaDB-backed. Same durability profile as repository metadata:
+          commitlog + memtable + compaction provide WAL-equivalent durability.
+        exercised_by: none
+      - service: workflow
+        durability_strategy: external_wal
+        reason: >
+          Workflow run records and step receipts are stored in ScyllaDB.
+          Workflow definitions are in etcd. Both have WAL-equivalent
+          durability. The workflow engine itself is stateless.
+        exercised_by: none
+      - service: search
+        durability_strategy: none
+        reason: >
+          Search indexes are stored in MinIO. The index rebuild strategy
+          (full re-index vs incremental) is not yet assessed. Declared none
+          pending a review of whether the current strategy provides adequate
+          durability for growing index state.
+        exercised_by: none
+      - service: monitoring
+        durability_strategy: checkpoint_only
+        reason: >
+          Prometheus uses its own TSDB with WAL + block compaction. However,
+          from the platform's perspective, monitoring data is treated as
+          ephemeral — loss of historical metrics is operationally acceptable
+          (alerts fire on live data). The checkpoint_only classification
+          reflects the platform's stance, not Prometheus's internal
+          architecture.
+        exercised_by: none

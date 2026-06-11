@@ -69,30 +69,6 @@ meta_principle_coverage:
       - TestArchitecturalDeclarationsComplete
 
   # ── planned: mechanizable, not yet built (tracked gap) ───────────────────
-  - principle: meta.partition_response_must_be_predeclared
-    tier: planned
-    intended_tier: declaration
-    reason: Each partition-prone dependency should declare its partition_response in architectural_declarations.yaml. Next declare-then-conform candidate (the name literally says "predeclared").
-  - principle: meta.bounded_staleness_must_be_named_not_assumed
-    tier: planned
-    intended_tier: declaration
-    reason: Each cached/replica read should declare its staleness_bound.
-  - principle: meta.load_redirection_must_be_explicit_capacity_planning
-    tier: planned
-    intended_tier: declaration
-    reason: Each failover path should declare its capacity headroom / overload factor.
-  - principle: meta.replication_vs_partitioning_chooses_availability_dimension
-    tier: planned
-    intended_tier: declaration
-    reason: Each stateful service should declare whether it favors harvest or yield.
-  - principle: meta.observability_must_match_decision_horizon
-    tier: planned
-    intended_tier: declaration
-    reason: Each automated decision should declare the observability window it depends on.
-  - principle: meta.checkpoint_alone_is_inadequate_for_growing_state
-    tier: planned
-    intended_tier: declaration
-    reason: Each service with growing durable state should declare its checkpoint+log durability strategy.
   - principle: meta.alert_must_name_a_violated_invariant_not_a_crossed_threshold
     tier: planned
     intended_tier: artifact
