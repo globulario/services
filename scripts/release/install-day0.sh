@@ -1880,7 +1880,6 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   # Restart node agent to ensure full inventory is reported.
   log_substep "Restarting node agent to force full inventory scan..."
   systemctl restart globular-node-agent 2>/dev/null || true
-  sleep 12  # allow the agent to rescan and push updated inventory to controller
 
   # Resolve controller address from etcd — the controller is running by this point and has
   # registered its address and port. Never use a hardcoded port.
@@ -1902,24 +1901,53 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   [[ -n "$_CTRL_PORT_ETCD" ]] || die "Could not determine cluster controller port from etcd or unit file"
   _SEED_CTRL="${_SEED_IP}:${_CTRL_PORT_ETCD}"
 
-  log_substep "Running 'globular services seed' (controller=${_SEED_CTRL})..."
-  if "$GLOBULAR_CLI" services seed \
-      --controller "${_SEED_CTRL}" \
-      --ca "${_SEED_CA}" 2>&1 | while IFS= read -r line; do echo "  [seed] $line"; done; then
-    log_success "Desired state seeded from installed packages"
-  else
-    log_warn "services seed returned non-zero — desired state may be incomplete"
-    log_warn "Re-run manually after bootstrap: globular services seed --controller ${_SEED_CTRL} --ca ${_SEED_CA}"
+  # Wait for at least one heartbeat to arrive at the controller before seeding.
+  # The seed's version regression guard requires observable=true (at least one
+  # node with a fresh heartbeat). Without this wait, services that haven't been
+  # reported yet fail with "cluster observability blackout".
+  log_substep "Waiting for node-agent heartbeat to reach controller..."
+  _HB_WAIT=0
+  _HB_MAX=60
+  while [[ $_HB_WAIT -lt $_HB_MAX ]]; do
+    # Check if the controller has received at least one node status.
+    # The node status key is written by the heartbeat path.
+    _NODE_ID=$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo "")
+    if [[ -n "$_NODE_ID" ]] && etcdctl --endpoints="$_SEED_ETCD" \
+        --cacert="$_SEED_CA" --cert="$_SEED_CERT" --key="$_SEED_KEY" \
+        get "/globular/nodes/${_NODE_ID}/status" --print-value-only 2>/dev/null | grep -q "last_seen"; then
+      log_substep "Heartbeat detected after ${_HB_WAIT}s"
+      break
+    fi
+    sleep 3
+    _HB_WAIT=$((_HB_WAIT + 3))
+  done
+  if [[ $_HB_WAIT -ge $_HB_MAX ]]; then
+    log_warn "No heartbeat detected after ${_HB_MAX}s — seed may partially fail (safe to re-run)"
   fi
 
-  # Second pass: some packages (e.g. scylla-manager) may have needed extra time
-  # to start and be recorded before the first seed ran. A second pass is a no-op
-  # for everything already seeded and picks up any stragglers.
-  sleep 5
-  log_substep "Second seed pass (picking up any late-starting packages)..."
-  "$GLOBULAR_CLI" services seed \
-      --controller "${_SEED_CTRL}" \
-      --ca "${_SEED_CA}" 2>&1 | while IFS= read -r line; do echo "  [seed2] $line"; done || true
+  # Seed with retry: transient heartbeat timing can still cause partial failures.
+  # Up to 3 attempts with a short pause between each. The seed is idempotent —
+  # already-imported entries are skipped, so retries only pick up failures.
+  _SEED_ATTEMPTS=3
+  _SEED_OK=false
+  for _attempt in $(seq 1 $_SEED_ATTEMPTS); do
+    log_substep "Running 'globular services seed' (attempt ${_attempt}/${_SEED_ATTEMPTS}, controller=${_SEED_CTRL})..."
+    if "$GLOBULAR_CLI" services seed \
+        --controller "${_SEED_CTRL}" \
+        --ca "${_SEED_CA}" 2>&1 | while IFS= read -r line; do echo "  [seed] $line"; done; then
+      log_success "Desired state seeded from installed packages"
+      _SEED_OK=true
+      break
+    fi
+    if [[ $_attempt -lt $_SEED_ATTEMPTS ]]; then
+      log_substep "Seed attempt ${_attempt} had failures — retrying in 10s..."
+      sleep 10
+    fi
+  done
+  if [[ "$_SEED_OK" != "true" ]]; then
+    log_warn "services seed did not fully succeed after ${_SEED_ATTEMPTS} attempts"
+    log_warn "Re-run manually after bootstrap: globular services seed --controller ${_SEED_CTRL} --ca ${_SEED_CA}"
+  fi
 else
   log_warn "globular CLI not found at $GLOBULAR_CLI — skipping desired state seed"
   log_warn "Run manually after bootstrap: globular services seed"
