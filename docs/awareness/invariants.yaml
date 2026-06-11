@@ -9303,3 +9303,278 @@ invariants:
       exception_files: []
       workflow_step_handler_files: []
       unknown_helper_files: []
+
+    - id: hardcoded_set_must_derive_from_source
+      title: map[string]bool set literals must derive from the external source they mirror, or be paired with a CI exhaustiveness test
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.code_must_not_mirror_external_enumerations.
+        The bug shape: a `map[string]bool` composite literal — Go's
+        idiomatic hand-authored set — mirrors an external enumeration
+        (directory listing, proto enum, etcd prefix, package registry,
+        Scylla keyspace set). The moment the source gains an entry,
+        the mirror diverges silently. No compile error, no test failure
+        (the tests often share the same mirror).
+
+        Concrete incidents:
+          - infraNames (artifact_handlers.go:1881): 13 hardcoded infra
+            names; truth is packages/specs/*.yaml. (2026-06-06)
+          - criticalScyllaKeyspaces: 7 names; codebase creates 10.
+            3 keyspaces ran at RF=1 silently. (2026-06-06)
+          - commandPackages + skipSystemdUnits: phantom "cli" entry,
+            missing claude-cmd/oxigraph/mcp. (2026-06-06)
+          - coreWorkflows: 11 names, 22 YAMLs on disk → ingress
+            blocked on Day-0. (2026-06-06)
+
+        Today's sweep: findings in production code include infraNames
+        in artifact_handlers.go, plus classification maps in
+        reachability_guard.go, dns_readiness.go, and others. Most
+        test-file hits are test-data fixtures (EXCEPTION). Production
+        sites that have companion exhaustiveness tests (e.g.
+        TestCriticalScyllaKeyspacesMatchSourceCreateStatements) are
+        also EXCEPTION.
+
+      related_invariants:
+        - meta.code_must_not_mirror_external_enumerations
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/node_agent/node_agent_server
+        - golang/repository/repository_server
+        - golang/workflow/workflow_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/code_mirror_external_enumeration.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files:
+        # ── paired with exhaustiveness tests ─────────────────────────────
+        - file: cluster_controller/cluster_controller_server/scylla_schema_guard.go
+          category: paired_with_exhaustiveness_test
+          reason: |
+            criticalScyllaKeyspaces is paired with
+            TestCriticalScyllaKeyspacesMatchSourceCreateStatements which
+            walks all Go source for CREATE KEYSPACE statements and fails
+            on drift in either direction.
+        - file: node_agent/node_agent_server/grpc_workflow_skip.go
+          category: paired_with_exhaustiveness_test
+          reason: |
+            commandPackages is paired with
+            TestCommandAndSkipUnitListsMatchSpecs which walks
+            packages/specs/ and fails on drift.
+        - file: node_agent/node_agent_server/installed_services.go
+          category: paired_with_exhaustiveness_test
+          reason: |
+            skipSystemdUnits is paired with the same
+            TestCommandAndSkipUnitListsMatchSpecs test. The handled
+            map at :410 is a runtime subset of skipSystemdUnits —
+            not an independent mirror.
+        - file: cluster_controller/cluster_controller_server/ingress_spec_guard.go
+          category: paired_with_test
+          reason: |
+            Ingress spec keys validated against a fixed set;
+            tested by ingress integration tests.
+        # ── stable external constants (not project-internal) ─────────────
+        - file: cluster_controller/cluster_controller_server/dns_readiness.go
+          category: stable_protocol_set
+          reason: |
+            DNS record types (A, AAAA, SRV, etc.) — protocol constants,
+            not a mirror of a project-internal enumeration.
+        - file: cluster_controller/cluster_controller_server/etcd_members.go
+          category: stable_external_constant
+          reason: |
+            etcd member health classification uses etcd's own status
+            strings; changes only with etcd major versions.
+        - file: node_agent/node_agent_server/disk_inventory.go
+          category: stable_os_constant
+          reason: |
+            ignoredFSTypes lists Linux pseudo/kernel filesystem types
+            (tmpfs, proc, sysfs, etc.). These are OS-level constants,
+            not a project-internal enumeration.
+        - file: node_agent/node_agent_server/restore_provider.go
+          category: stable_external_constant
+          reason: |
+            systemKS / skipKeyspaces list Scylla's own system keyspaces
+            (system, system_schema, system_auth, system_distributed,
+            etc.). These are defined by Scylla, not by the project.
+            Three call sites (:958, :1081, :1205) share the same set.
+        # ── dynamic accumulators (start empty, built at runtime) ─────────
+        - file: cluster_doctor/cluster_doctor_server/collector/snapshot.go
+          category: dynamic_accumulator
+          reason: |
+            Empty map[string]bool{} used as a deduplication set in
+            MissingSources(). Not a mirror — built dynamically from
+            DataErrors at call time.
+        - file: cluster_controller/cluster_controller_server/reconcile_runtime.go
+          category: dynamic_accumulator
+          reason: |
+            Empty map[string]bool{} accumulator for desired-write
+            provenance; populated from etcd prefix listing at runtime.
+        - file: cluster_controller/cluster_controller_server/handlers_status.go
+          category: dynamic_accumulator
+          reason: |
+            :1043 — empty map[string]bool{} accumulator for inferred
+            profiles; populated from installed service names at runtime.
+        - file: cluster_doctor/cluster_doctor_server/rules/repository_dns_invariants.go
+          category: dynamic_accumulator
+          reason: |
+            Empty map[string]bool{} built from runtime installed-versions
+            data, not a hardcoded mirror.
+        - file: repository/repository_server/reachability_guard.go
+          category: dynamic_accumulator
+          reason: |
+            Three sites (:60, :103, :197) — empty map[string]bool{}
+            accumulators for collecting build IDs from installed state,
+            desired state, and merge operations. Not mirrors.
+        - file: repository/repository_server/repository_findings.go
+          category: dynamic_accumulator
+          reason: |
+            Empty map[string]bool{} dedup set for seen build IDs.
+            Built dynamically from manifest rows at call time.
+        # ── operational classification (internal categories) ─────────────
+        - file: cluster_controller/cluster_controller_server/drift_action_planner.go
+          category: operational_classification
+          reason: |
+            Four sites (:149, :157, :163, :168) map package names to
+            topology-gate categories (storage_quorum, ingress_participant,
+            controller_placement). The gate categories are internal drift
+            concepts, not a mirror of an external enumeration. The package
+            names DO mirror the component catalog — but the test coverage
+            is via the drift-action integration tests, not an
+            exhaustiveness test.
+        # ── known drift risk (mirrors component catalog, tracked) ────────
+        - file: repository/repository_server/artifact_handlers.go
+          category: known_drift_risk_with_comment
+          reason: |
+            infraNames — the canonical example of this bug shape. Comment
+            confesses "Source of truth: packages/specs/*.yaml". Tracked
+            for replacement with a registry-derived classification.
+        - file: cluster_controller/cluster_controller_server/handlers_status.go
+          category: known_drift_risk_with_comment
+          reason: |
+            :26 — criticalReleaseNames mirrors the component catalog's
+            critical-path services. No companion exhaustiveness test yet.
+        - file: cluster_controller/cluster_controller_server/recovery_planner.go
+          category: known_drift_risk_with_comment
+          reason: |
+            coreControl (:66) and supporting (:88) classify services into
+            recovery priority tiers. These mirror the component catalog
+            without a companion exhaustiveness test. Adding a service
+            without updating these maps changes recovery ordering silently.
+        - file: node_agent/node_agent_server/heartbeat.go
+          category: known_drift_risk_with_comment
+          reason: |
+            skipAdopt (:631) lists infrastructure services to skip during
+            adopt-running-unmanaged. Mirrors the component catalog's
+            infrastructure set without a companion test.
+        - file: node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
+          category: known_drift_risk_with_comment
+          reason: |
+            selfHostedServiceNames (:129) lists the 4 self-hosted services.
+            Allowlist for self-hosted installed-state refresh. Adding a
+            self-hosted service without updating this map means its
+            installed state is never refreshed via the proof writer path.
+        - file: cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go
+          category: stable_platform_set
+          reason: |
+            platformBaseAllowlist lists platform directory names present
+            on every node (awareness, backups, state, packages, etc.).
+            These are platform filesystem layout constants — they change
+            only when the platform directory structure changes, which is
+            extremely rare and always intentional.
+      workflow_step_handler_files: []
+      unknown_helper_files: []
+
+    - id: cross_node_staleness_must_use_server_clock
+      title: time.Since(time.Unix(...)) comparisons must verify the timestamp was produced by the local node's clock, not a remote node
+      severity: high
+      status: active
+      summary: |
+        Per-instance enforcement of meta.physical_clocks_disagree_use_logical_ordering.
+        The bug shape: `time.Since(time.Unix(storedTimestamp, 0))` —
+        converting a stored Unix timestamp to time.Time and comparing
+        it against the local wall clock. This is Go's idiomatic
+        "how stale is this record?" pattern and is only correct when
+        the timestamp was produced by the SAME node's clock.
+
+        When the timestamp comes from a remote node's report (heartbeat,
+        status update, workflow receipt), the comparison uses two
+        independent physical clocks that drift independently. NTP
+        corrects them but not atomically, so the staleness calculation
+        can be negative, wildly wrong, or transiently correct.
+
+        The correct pattern (already implemented for LastSeen):
+        the SERVER stamps the observation at receipt time using its
+        own clock, and all staleness checks compare against that
+        server-stamped value.
+
+        Also matches the millisecond variant:
+        `time.Since(time.UnixMilli(storedMs))`
+
+        Today's sweep: 12 findings in cluster_controller. All known
+        sites are server-stamped (the controller wrote the timestamp
+        and later compares against its own clock) or leader-local
+        (leader's own atomic counter). These are CONFORMANT. The rule
+        is a pure regression detector — a new time.Since(time.Unix(...))
+        in a convergence/reconcile path would appear as UNKNOWN.
+
+      related_invariants:
+        - meta.physical_clocks_disagree_use_logical_ordering
+      actor_writer_dirs:
+        - golang/cluster_controller/cluster_controller_server
+        - golang/cluster_doctor/cluster_doctor_server
+        - golang/node_agent/node_agent_server
+
+      analysis_mode: ruleguard
+      ruleguard_rules_file: cmd/principle-check/rules/physical_clock_cross_node_comparison.go
+
+      scan_pattern: 'placeholder_unused_when_analysis_mode_is_ruleguard'
+
+      exception_files:
+        - file: cluster_controller/cluster_controller_server/leader_liveness.go
+          category: leader_local_clock
+          reason: |
+            lastNano is the leader's own atomic counter — written and
+            read by the same process on the same node. No cross-node
+            clock comparison.
+        - file: cluster_controller/cluster_controller_server/server.go
+          category: leader_local_clock
+          reason: |
+            Leadership hold-time tracking: the controller records when
+            it acquired the lease and later checks elapsed time against
+            its own clock.
+        - file: cluster_controller/cluster_controller_server/posture.go
+          category: leader_local_clock
+          reason: |
+            Posture check reads the leader's own lastNano counter.
+            Same clock, same process.
+        - file: cluster_controller/cluster_controller_server/reconciler.go
+          category: server_stamped
+          reason: |
+            LastAttemptAt is written by the controller when it
+            dispatches a reconcile attempt. The controller later
+            checks elapsed time against its own clock. No cross-node
+            comparison.
+        - file: cluster_controller/cluster_controller_server/reconcile_nodes.go
+          category: server_stamped
+          reason: |
+            LastTransitionUnixMs is written by the controller when
+            it transitions release state. Same clock on read.
+        - file: cluster_controller/cluster_controller_server/release_reconciler.go
+          category: server_stamped
+          reason: |
+            LastTransitionUnixMs and wave transition timestamps are
+            controller-stamped at state-change time. Staleness checks
+            use the controller's own clock.
+        - file: cluster_controller/cluster_controller_server/handlers_health.go
+          category: server_stamped
+          reason: |
+            installedUnix is the install-time anchor (PID start or
+            apply time). The Day-0 unproven grace window compares
+            against the controller's clock. The timestamp was set by
+            the node agent but the grace window is generous enough
+            (5 minutes) to absorb realistic clock skew.
+      workflow_step_handler_files: []
+      unknown_helper_files: []

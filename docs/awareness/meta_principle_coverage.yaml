@@ -105,15 +105,6 @@ meta_principle_coverage:
     tier: planned
     intended_tier: graph_query
     reason: A SPARQL/graph assertion over the dependency + event topology can check topology changes emit events.
-  - principle: meta.code_must_not_mirror_external_enumerations
-    tier: planned
-    intended_tier: code_scanner
-    reason: A ruleguard rule can flag hardcoded local copies of externally-owned enumerations; bug shape is syntactic.
-  - principle: meta.physical_clocks_disagree_use_logical_ordering
-    tier: planned
-    intended_tier: code_scanner
-    reason: A ruleguard rule can flag cross-node ordering decided by physical-clock comparison (sibling of the behaviorally-gated clock_skew rule).
-
   # ── review_only: irreducible design philosophy (terminal tier) ───────────
   - principle: meta.MTTR_focus_outperforms_MTBF_for_evolving_systems
     tier: review_only
