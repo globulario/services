@@ -331,8 +331,12 @@ func (srv *server) eventLoop() {
 		// Subscribe to configured topics.
 		// The event client's Subscribe method starts run() async and retries
 		// up to 30 times, giving the OnEvent stream time to establish.
+		subscribedTopics := make(map[string]bool)
 		allSubscribed := true
 		for _, topic := range cfg.GetSubscribeTopics() {
+			if subscribedTopics[topic] {
+				continue // already subscribed in this connection cycle
+			}
 			subscriberID := fmt.Sprintf("watcher_%s_%s", srv.Id, topic)
 			if err := client.Subscribe(topic, subscriberID, func(evt *eventpb.Event) {
 				srv.handleEvent(evt)
@@ -341,6 +345,7 @@ func (srv *server) eventLoop() {
 				allSubscribed = false
 				continue
 			}
+			subscribedTopics[topic] = true
 			logger.Info("subscribed to topic", "topic", topic)
 		}
 		if !allSubscribed {
@@ -349,9 +354,11 @@ func (srv *server) eventLoop() {
 			continue
 		}
 
-		// Block until connection lost.
+		// Block until connection lost or event stream goes stale.
 		// The event client handles reconnection internally,
-		// but we check periodically if config changed.
+		// but we check periodically if config changed or if the
+		// stream appears dead (no events for 5 minutes).
+		const stalenessTimeout = 5 * time.Minute
 		for {
 			time.Sleep(30 * time.Second)
 
@@ -366,6 +373,21 @@ func (srv *server) eventLoop() {
 				logger.Info("watcher resumed")
 			}
 			wasPaused = paused
+
+			// If we haven't received any events for stalenessTimeout and the
+			// watcher is not paused, assume the event service connection died
+			// silently and force a reconnection.
+			if !paused {
+				srv.statsMu.Lock()
+				lastEvt := srv.stats.LastEventAt
+				srv.statsMu.Unlock()
+				if !lastEvt.IsZero() && time.Since(lastEvt) > stalenessTimeout {
+					logger.Warn("event stream appears stale, forcing reconnection",
+						"last_event_at", lastEvt.Format(time.RFC3339),
+						"stale_for", time.Since(lastEvt).Round(time.Second).String())
+					break
+				}
+			}
 		}
 	}
 }
@@ -383,7 +405,7 @@ func (srv *server) resolveEventEndpoint() string {
 
 // handleEvent processes a single event from the event service.
 func (srv *server) handleEvent(evt *eventpb.Event) {
-	logger.Info("event received", "name", evt.GetName(), "data_len", len(evt.GetData()))
+	logger.Debug("event received", "name", evt.GetName(), "data_len", len(evt.GetData()))
 
 	srv.statsMu.Lock()
 	srv.stats.EventsReceived++
@@ -497,6 +519,10 @@ func (srv *server) fireBatch(rule *ai_watcherpb.EventRule) {
 
 	srv.incidentsMu.Lock()
 	srv.incidents[incident.Id] = incident
+	// Evict oldest terminal-state entries when the map exceeds 1000.
+	if len(srv.incidents) > 1000 {
+		srv.evictTerminalIncidents()
+	}
 	srv.incidentsMu.Unlock()
 
 	srv.statsMu.Lock()
@@ -547,10 +573,10 @@ func (srv *server) processIncident(incident *ai_watcherpb.Incident, rule *ai_wat
 func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 	addr := config.ResolveServiceAddr("ai_executor.AiExecutorService", "")
 	if addr == "" {
-		logger.Warn("ai_executor unavailable, falling back to local recording", "incident", incident.Id)
+		logger.Error("ai_executor unavailable, cannot diagnose incident", "incident", incident.Id)
 		incident.Diagnosis = fmt.Sprintf("Observed %d events matching rule %s. Executor unavailable.",
 			len(incident.EventBatch), incident.Metadata["rule_id"])
-		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_FAILED)
 		return
 	}
 
@@ -559,14 +585,14 @@ func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 	if err != nil {
 		logger.Error("internal TLS unavailable, cannot call executor", "err", err)
 		incident.Diagnosis = "TLS credentials unavailable: " + err.Error()
-		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_FAILED)
 		return
 	}
 	cc, err := grpc.Dial(addr, dialOpts...)
 	if err != nil {
 		logger.Error("connect to ai_executor failed", "err", err)
 		incident.Diagnosis = "Executor connection failed: " + err.Error()
-		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_FAILED)
 		return
 	}
 	defer cc.Close()
@@ -604,7 +630,7 @@ func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 	if err != nil {
 		logger.Error("executor ProcessIncident failed", "incident", incident.Id, "err", err)
 		incident.Diagnosis = "Executor error: " + err.Error()
-		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_FAILED)
 		return
 	}
 
@@ -628,7 +654,7 @@ func (srv *server) callExecutor(incident *ai_watcherpb.Incident, tier int32) {
 			logger.Info("incident remediated", "id", incident.Id,
 				"action", resp.GetAction().GetType().String())
 		} else {
-			srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+			srv.updateIncidentStatus(incident.Id, ai_watcherpb.IncidentStatus_INCIDENT_FAILED)
 			logger.Warn("remediation completed with non-success status", "id", incident.Id)
 		}
 
@@ -666,6 +692,47 @@ func (srv *server) updateIncidentStatus(id string, status ai_watcherpb.IncidentS
 			status == ai_watcherpb.IncidentStatus_INCIDENT_FAILED {
 			inc.ResolvedAt = time.Now().Unix()
 		}
+	}
+}
+
+// evictTerminalIncidents removes the oldest terminal-state incidents to keep the
+// map bounded. Caller MUST hold srv.incidentsMu.
+func (srv *server) evictTerminalIncidents() {
+	const target = 900 // evict down to 90% of the 1000 cap
+
+	type entry struct {
+		id         string
+		resolvedAt int64
+	}
+	var terminals []entry
+	for id, inc := range srv.incidents {
+		if inc.Status == ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED ||
+			inc.Status == ai_watcherpb.IncidentStatus_INCIDENT_FAILED ||
+			inc.Status == ai_watcherpb.IncidentStatus_INCIDENT_IGNORED {
+			terminals = append(terminals, entry{id: id, resolvedAt: inc.ResolvedAt})
+		}
+	}
+
+	// Sort oldest first (lowest ResolvedAt).
+	for i := 0; i < len(terminals); i++ {
+		for j := i + 1; j < len(terminals); j++ {
+			if terminals[j].resolvedAt < terminals[i].resolvedAt {
+				terminals[i], terminals[j] = terminals[j], terminals[i]
+			}
+		}
+	}
+
+	toRemove := len(srv.incidents) - target
+	removed := 0
+	for _, e := range terminals {
+		if removed >= toRemove {
+			break
+		}
+		delete(srv.incidents, e.id)
+		removed++
+	}
+	if removed > 0 {
+		logger.Info("evicted terminal incidents", "count", removed, "remaining", len(srv.incidents))
 	}
 }
 
@@ -794,9 +861,11 @@ func (srv *server) ApproveAction(ctx context.Context, req *ai_watcherpb.ApproveA
 		srv.incidentsMu.Unlock()
 		return nil, fmt.Errorf("incident %s is not awaiting approval (status: %s)", req.GetIncidentId(), inc.Status.String())
 	}
-	inc.Status = ai_watcherpb.IncidentStatus_INCIDENT_REMEDIATING
+	inc.Status = ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED
 	inc.Metadata["approved_by"] = req.GetApprover()
 	inc.Metadata["approved_at"] = time.Now().Format(time.RFC3339)
+	inc.Diagnosis = inc.Diagnosis + " — approval recorded, remediation pending implementation"
+	inc.ResolvedAt = time.Now().Unix()
 	srv.incidentsMu.Unlock()
 
 	srv.statsMu.Lock()
@@ -805,7 +874,8 @@ func (srv *server) ApproveAction(ctx context.Context, req *ai_watcherpb.ApproveA
 
 	logger.Info("action approved", "incident", req.GetIncidentId(), "approver", req.GetApprover())
 
-	// TODO: Execute the proposed remediation.
+	// TODO: Execute the proposed remediation. Once implemented, set
+	// INCIDENT_REMEDIATING before dispatch and RESOLVED/FAILED on completion.
 	return &ai_watcherpb.ApproveActionRsp{Success: true}, nil
 }
 

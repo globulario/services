@@ -106,9 +106,10 @@ type server struct {
 	learning *learningStore
 
 	// Runtime stats
-	stats     routerStats
-	statsMu   sync.Mutex
-	startedAt time.Time
+	stats              routerStats
+	statsMu            sync.Mutex
+	startedAt          time.Time
+	lastCollectionError string // last metrics collection error (empty if healthy)
 }
 
 type routerStats struct {

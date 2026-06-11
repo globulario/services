@@ -15,9 +15,10 @@ import (
 // learningStore records routing decisions in ai_memory and queries historical
 // patterns to improve future scoring.
 type learningStore struct {
-	memoryAddr   string
-	memoryConn   *grpc.ClientConn
-	memoryClient ai_memorypb.AiMemoryServiceClient
+	memoryAddr      string
+	memoryConn      *grpc.ClientConn
+	memoryClient    ai_memorypb.AiMemoryServiceClient
+	lastConnErrLog  time.Time // rate-limit connect error logging
 }
 
 func newLearningStore() *learningStore {
@@ -55,6 +56,12 @@ func (ls *learningStore) connect() error {
 func (ls *learningStore) recordDecision(ctx context.Context, decision *routingDecisionRecord) {
 	if ls.memoryClient == nil {
 		if err := ls.connect(); err != nil {
+			// Rate-limit connect error logging to at most once per minute.
+			now := time.Now()
+			if now.Sub(ls.lastConnErrLog) >= time.Minute {
+				logger.Warn("learning: ai_memory connect failed, decisions not recorded", "err", err)
+				ls.lastConnErrLog = now
+			}
 			return
 		}
 	}

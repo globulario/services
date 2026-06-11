@@ -15,14 +15,20 @@ import (
 
 // collector gathers endpoint metrics from Prometheus for scoring.
 type collector struct {
-	promURL string // e.g. "http://<routable-ip>:9090"
+	promURL string // resolved from etcd via monitoring.MonitoringService
 	client  *http.Client
 }
 
 func newCollector() *collector {
-	promHost := config.GetRoutableIPv4()
+	// Resolve Prometheus address from etcd — never hardcode ports.
+	addr := config.ResolveServiceAddr("monitoring.MonitoringService", "")
+	if addr == "" {
+		// Fallback: use routable IP with service-config port (logged as degraded).
+		logger.Warn("collector: monitoring.MonitoringService not found in etcd, metrics collection will fail until registered")
+		addr = config.GetRoutableIPv4()
+	}
 	return &collector{
-		promURL: fmt.Sprintf("http://%s:9090", promHost),
+		promURL: fmt.Sprintf("http://%s", addr),
 		client:  &http.Client{Timeout: 2 * time.Second},
 	}
 }
@@ -45,14 +51,17 @@ type nodeMetrics struct {
 }
 
 // collectAll gathers metrics for all gRPC services in one batch.
-func (c *collector) collectAll(ctx context.Context) (map[string]*endpointMetrics, *nodeMetrics, error) {
+// Returns endpoints, node metrics, total raw sample count (before label extraction), and error.
+func (c *collector) collectAll(ctx context.Context) (map[string]*endpointMetrics, *nodeMetrics, int, error) {
 	endpoints := make(map[string]*endpointMetrics)
+	rawSamples := 0
 
 	// Query 1: p99 latency per service
 	latencies, err := c.queryVector(ctx, `histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket[5m])) by (grpc_service, instance, le))`)
 	if err != nil {
-		return nil, nil, fmt.Errorf("latency query: %w", err)
+		return nil, nil, 0, fmt.Errorf("latency query: %w", err)
 	}
+	rawSamples += len(latencies)
 	for _, sample := range latencies {
 		svc := sample.metric["grpc_service"]
 		inst := sample.metric["instance"]
@@ -68,8 +77,9 @@ func (c *collector) collectAll(ctx context.Context) (map[string]*endpointMetrics
 	// Query 2: error rate per service
 	errors_, err := c.queryVector(ctx, `sum(rate(grpc_server_handled_total{grpc_code!="OK"}[5m])) by (grpc_service, instance)`)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error rate query: %w", err)
+		return nil, nil, 0, fmt.Errorf("error rate query: %w", err)
 	}
+	rawSamples += len(errors_)
 	for _, sample := range errors_ {
 		svc := sample.metric["grpc_service"]
 		inst := sample.metric["instance"]
@@ -85,8 +95,9 @@ func (c *collector) collectAll(ctx context.Context) (map[string]*endpointMetrics
 	// Query 3: RPS per service (total rate including OK)
 	rps, err := c.queryVector(ctx, `sum(rate(grpc_server_handled_total[5m])) by (grpc_service, instance)`)
 	if err != nil {
-		return nil, nil, fmt.Errorf("rps query: %w", err)
+		return nil, nil, 0, fmt.Errorf("rps query: %w", err)
 	}
+	rawSamples += len(rps)
 	for _, sample := range rps {
 		svc := sample.metric["grpc_service"]
 		inst := sample.metric["instance"]
@@ -118,11 +129,16 @@ func (c *collector) collectAll(ctx context.Context) (map[string]*endpointMetrics
 	memResults, err := c.queryVector(ctx, `1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)`)
 	if err != nil {
 		node.Stale = true
+		// Mark memory as stale too — 0.0 would look healthy.
+		node.MemoryUsage = -1
 	} else if len(memResults) > 0 {
 		node.MemoryUsage = memResults[0].value
+	} else if node.Stale {
+		// CPU query already failed — mark memory as stale too.
+		node.MemoryUsage = -1
 	}
 
-	return endpoints, node, nil
+	return endpoints, node, rawSamples, nil
 }
 
 // promSample represents one metric sample from Prometheus.

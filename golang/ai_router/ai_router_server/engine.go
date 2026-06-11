@@ -30,19 +30,43 @@ func (srv *server) scoringLoop() {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 
 		// Collect metrics from Prometheus.
-		endpoints, node, err := coll.collectAll(ctx)
+		endpoints, node, rawSamples, err := coll.collectAll(ctx)
 		cancel()
 		if err != nil {
-			logger.Warn("scoring: metrics collection failed", "cycle", cycle, "err", err)
+			logger.Error("scoring: metrics collection failed", "cycle", cycle, "err", err)
+			srv.statsMu.Lock()
+			srv.lastCollectionError = err.Error()
+			srv.LastError = "metrics collection failed: " + err.Error()
+			srv.statsMu.Unlock()
+			// Zero out confidence on cached policy so consumers know data is stale.
+			if cached := srv.cachedPolicy.Load(); cached != nil {
+				stalePolicy := *cached // shallow copy
+				for _, sp := range stalePolicy.Services {
+					sp.Confidence = 0
+				}
+				srv.cachedPolicy.Store(&stalePolicy)
+			}
 			continue
 		}
+		// Clear any previous collection error on success.
+		srv.statsMu.Lock()
+		srv.lastCollectionError = ""
+		srv.LastError = ""
+		srv.statsMu.Unlock()
 
 		srv.statsMu.Lock()
 		srv.stats.LastMetricsAt = time.Now()
 		srv.statsMu.Unlock()
 
 		if len(endpoints) == 0 {
-			logger.Debug("scoring: no endpoints found", "cycle", cycle)
+			if rawSamples > 0 {
+				// Prometheus returned data but label extraction yielded no endpoints.
+				logger.Warn("scoring: Prometheus returned samples but no endpoints extracted (label mismatch?)",
+					"cycle", cycle, "raw_samples", rawSamples)
+			} else {
+				// Truly empty — no gRPC metrics scraped yet.
+				logger.Debug("scoring: no endpoints found (no gRPC metrics in Prometheus)", "cycle", cycle)
+			}
 			continue
 		}
 
@@ -54,8 +78,11 @@ func (srv *server) scoringLoop() {
 			key := results[i].Service + "/" + results[i].Instance
 
 			// Phase 5: deployment context modifier.
-			// During deployment, reduce the score (make endpoint look healthier)
-			// because disruption is expected.
+			// Score semantics: 0 = healthy, 1 = unhealthy.
+			// During deployment, we SUBTRACT from the score (mod is negative,
+			// e.g. -0.15) which makes the endpoint look healthier. This is
+			// intentional: expected disruption during deploys should not
+			// trigger weight reduction.
 			if srv.context_ != nil {
 				mod := srv.context_.getDeploymentModifier(results[i].Service)
 				if mod != 0 {
@@ -209,6 +236,10 @@ func (srv *server) scoringLoop() {
 		// Phase 6: Record notable decisions in ai_memory for learning.
 		if (changed > 0 || len(clamps) > 0 || len(drainEvents) > 0) && mode == ai_routerpb.RouterMode_ROUTER_ACTIVE {
 			go func() {
+				// Use a fresh context — the scoring ctx was already cancelled.
+				learnCtx, learnCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer learnCancel()
+
 				var epRecords []endpointDecisionRecord
 				for _, r := range results {
 					if r.Weight < 90 || r.Score > 0.3 {
@@ -221,7 +252,7 @@ func (srv *server) scoringLoop() {
 						})
 					}
 				}
-				srv.learning.recordDecision(ctx, &routingDecisionRecord{
+				srv.learning.recordDecision(learnCtx, &routingDecisionRecord{
 					Cycle:            cycle,
 					Mode:             mode.String(),
 					Confidence:       confidence,

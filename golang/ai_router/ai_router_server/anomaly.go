@@ -60,19 +60,46 @@ func newAnomalyTracker() *anomalyTracker {
 }
 
 // start connects to the event service and subscribes to security alerts.
+// Retries with exponential backoff if the event service is unavailable.
 func (at *anomalyTracker) start() {
 	// Give services time to start.
 	time.Sleep(20 * time.Second)
 
-	addr := config.ResolveServiceAddr("event.EventService", "")
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-	c, err := globular_client.GetClient(addr, "event.EventService", "NewEventService_Client")
-	if err != nil {
-		logger.Warn("anomaly_tracker: event service unavailable", "err", err)
-		return
+
+	const maxRetries = 10
+	backoff := 1 * time.Second
+	var client *event_client.Event_Client
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		addr := config.ResolveServiceAddr("event.EventService", "")
+		c, err := globular_client.GetClient(addr, "event.EventService", "NewEventService_Client")
+		if err != nil {
+			logger.Warn("anomaly_tracker: event service unavailable, retrying",
+				"attempt", attempt, "max", maxRetries, "backoff", backoff, "err", err)
+			time.Sleep(backoff)
+			backoff *= 2
+			if backoff > 30*time.Second {
+				backoff = 30 * time.Second
+			}
+			continue
+		}
+		var ok bool
+		client, ok = c.(*event_client.Event_Client)
+		if !ok {
+			logger.Warn("anomaly_tracker: unexpected client type, retrying",
+				"attempt", attempt, "max", maxRetries)
+			time.Sleep(backoff)
+			backoff *= 2
+			if backoff > 30*time.Second {
+				backoff = 30 * time.Second
+			}
+			continue
+		}
+		break
 	}
-	client, ok := c.(*event_client.Event_Client)
-	if !ok {
+	if client == nil {
+		logger.Error("anomaly_tracker: event service unavailable after retries, anomaly tracking disabled",
+			"retries", maxRetries)
 		return
 	}
 	at.eventClient = client

@@ -135,12 +135,18 @@ func (cc *clusterContext) handleClusterEvent(evt *eventpb.Event) {
 }
 
 // isDeploying returns true if a service is currently being deployed.
+// Returns false for terminal phases (FAILED, ROLLED_BACK) — those are not
+// active deployments and should not receive scoring tolerance.
 func (cc *clusterContext) isDeploying(service string) bool {
 	cc.mu.RLock()
 	defer cc.mu.RUnlock()
 
 	d, ok := cc.deploying[service]
 	if !ok {
+		return false
+	}
+	// Terminal phases are not active deployments.
+	if d.Phase == "FAILED" || d.Phase == "ROLLED_BACK" {
 		return false
 	}
 	// Expire stale deployment context.

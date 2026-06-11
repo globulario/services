@@ -73,13 +73,19 @@ type migrationRecord struct {
 // Falls back to uncoordinated execution if etcd is unreachable, which is safe
 // for the current schema (all DDL uses IF NOT EXISTS).
 func (srv *server) runSchemaWithCoordination(ctx context.Context) error {
-	cli, err := config.NewEtcdClient()
-	if err != nil {
+	cli, etcdErr := config.NewEtcdClient()
+	if etcdErr != nil {
 		// etcd unreachable — fall back. Uncoordinated IF NOT EXISTS DDL is
 		// safe when only one node is starting; risky on simultaneous startup.
-		logger.Warn("migration coordinator: etcd unavailable, running uncoordinated schema init",
-			"err", err)
-		return srv.applySchema(ctx)
+		// Log at ERROR so operators notice the degradation.
+		logger.Error("migration coordinator: etcd unavailable, running UNCOORDINATED schema init — concurrent DDL may race",
+			"etcd_err", etcdErr)
+		if schemaErr := srv.applySchema(ctx); schemaErr != nil {
+			return fmt.Errorf("uncoordinated schema init (etcd unavailable: %v): %w", etcdErr, schemaErr)
+		}
+		logger.Error("schema applied WITHOUT etcd coordination — DDL succeeded but concurrent safety was not guaranteed",
+			"etcd_err", etcdErr)
+		return nil
 	}
 	defer cli.Close()
 
@@ -92,11 +98,17 @@ func (srv *server) runSchemaWithCoordination(ctx context.Context) error {
 	}
 
 	// Slow path: acquire the distributed lock and re-check under it.
-	sess, err := concurrency.NewSession(cli, concurrency.WithTTL(migrationLockTTL))
-	if err != nil {
-		logger.Warn("migration coordinator: etcd session failed, running uncoordinated",
-			"err", err)
-		return srv.applySchema(ctx)
+	sess, sessErr := concurrency.NewSession(cli, concurrency.WithTTL(migrationLockTTL))
+	if sessErr != nil {
+		// Log at ERROR so operators notice the degradation.
+		logger.Error("migration coordinator: etcd session failed, running UNCOORDINATED schema init — concurrent DDL may race",
+			"etcd_session_err", sessErr)
+		if schemaErr := srv.applySchema(ctx); schemaErr != nil {
+			return fmt.Errorf("uncoordinated schema init (etcd session failed: %v): %w", sessErr, schemaErr)
+		}
+		logger.Error("schema applied WITHOUT etcd coordination — DDL succeeded but concurrent safety was not guaranteed",
+			"etcd_session_err", sessErr)
+		return nil
 	}
 	defer sess.Close()
 

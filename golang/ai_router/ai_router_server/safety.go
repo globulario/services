@@ -196,6 +196,7 @@ func computeConfidence(endpoints map[string]*endpointMetrics, node *nodeMetrics)
 	// Bonus for having endpoint metrics.
 	withLatency := 0
 	withRPS := 0
+	staleCount := 0
 	for _, ep := range endpoints {
 		if ep.LatencyP99 > 0 {
 			withLatency++
@@ -203,12 +204,20 @@ func computeConfidence(endpoints map[string]*endpointMetrics, node *nodeMetrics)
 		if ep.RPS > 0 {
 			withRPS++
 		}
+		if ep.Stale {
+			staleCount++
+		}
 	}
 	if withLatency > 0 {
 		score += 0.15
 	}
 	if withRPS > 0 {
 		score += 0.15
+	}
+
+	// Penalty for stale endpoint data.
+	if staleCount > 0 {
+		score -= 0.2
 	}
 
 	// Bonus for node metrics.
@@ -221,6 +230,9 @@ func computeConfidence(endpoints map[string]*endpointMetrics, node *nodeMetrics)
 		score += 0.1
 	}
 
+	if score < 0 {
+		score = 0
+	}
 	return math.Min(score, 1.0)
 }
 

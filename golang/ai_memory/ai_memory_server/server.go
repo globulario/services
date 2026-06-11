@@ -12,12 +12,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/ai_memory/ai_memorypb"
@@ -26,7 +28,9 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/gocql/gocql"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 )
 
 // Version information (set via ldflags during build).
@@ -41,6 +45,11 @@ var (
 )
 
 var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+// clusterIDWarnOnce guards a one-time warning when srv.Domain is used as
+// cluster identity and looks like it could vary (e.g. contains "localhost"
+// or is an IP address). Known gap: Domain is not the canonical cluster ID.
+var clusterIDWarnOnce sync.Once
 
 // -----------------------------------------------------------------------------
 // Service definition
@@ -370,14 +379,19 @@ func (srv *server) Store(ctx context.Context, req *ai_memorypb.StoreRqst) (*ai_m
 	// admin may rewrite seed rows. Storing with a server-allocated UUID
 	// (id == "" on the request) cannot collide, so we skip the check.
 	if req.GetMemory().GetId() != "" && !authorizedSeedMutator(ctx) {
-		if existing, err := srv.Get(ctx, &ai_memorypb.GetRqst{Id: id, Project: project}); err == nil {
+		existing, err := srv.getInternal(ctx, &ai_memorypb.GetRqst{Id: id, Project: project})
+		if err != nil {
+			// gocql.ErrNotFound means row doesn't exist — safe to INSERT.
+			// Any other error (connection failure, timeout) must be surfaced
+			// so the caller doesn't silently overwrite a seed entry.
+			if !errors.Is(err, gocql.ErrNotFound) {
+				return nil, fmt.Errorf("store: pre-check existing row: %w", err)
+			}
+		} else {
 			if err := guardSeedMutation(ctx, existing.GetMemory(), "store"); err != nil {
 				return nil, err
 			}
 		}
-		// Get error means the row doesn't exist (or read failed) —
-		// in either case let the INSERT proceed and surface the real
-		// error from the write path.
 	}
 
 	now := time.Now().Unix()
@@ -386,7 +400,8 @@ func (srv *server) Store(ctx context.Context, req *ai_memorypb.StoreRqst) (*ai_m
 	}
 	m.UpdatedAt = now
 
-	// Use domain as cluster identity.
+	// Known gap: uses srv.Domain as cluster identity, not the canonical
+	// cluster ID from etcd. See startup warning in main().
 	clusterID := srv.Domain
 
 	memType := memoryTypeToString(m.GetType())
@@ -461,10 +476,13 @@ func (srv *server) Query(ctx context.Context, req *ai_memorypb.QueryRqst) (*ai_m
 	cql := "SELECT id, project, type, tags, title, content, created_at, updated_at, agent_id, conversation_id, cluster_id, metadata, related_ids, reference_count FROM memories WHERE " +
 		strings.Join(conditions, " AND ")
 
-	// Over-fetch if text search is needed.
+	// Over-fetch if text search is needed, but cap to avoid unbounded scans.
 	fetchLimit := limit
 	if needsFiltering {
 		fetchLimit = limit * 5
+	}
+	if fetchLimit > 500 {
+		fetchLimit = 500
 	}
 	cql += fmt.Sprintf(" LIMIT %d", fetchLimit)
 
@@ -529,7 +547,10 @@ func (srv *server) Query(ctx context.Context, req *ai_memorypb.QueryRqst) (*ai_m
 	}, nil
 }
 
-func (srv *server) Get(ctx context.Context, req *ai_memorypb.GetRqst) (*ai_memorypb.GetRsp, error) {
+// getInternal fetches a memory entry without incrementing its reference count.
+// Used by Update and Delete to avoid inflating ref counts on internal lookups,
+// and by the seed mutation guard in Store.
+func (srv *server) getInternal(_ context.Context, req *ai_memorypb.GetRqst) (*ai_memorypb.GetRsp, error) {
 	id := req.GetId()
 	project := req.GetProject()
 	if id == "" || project == "" {
@@ -553,16 +574,12 @@ func (srv *server) Get(ctx context.Context, req *ai_memorypb.GetRqst) (*ai_memor
 		&createdAt, &updatedAt, &agentID, &convID, &clusterID,
 		&metadata, &relatedIDs, &refCount,
 	); err != nil {
+		// Distinguish not-found from connection/transport errors.
+		if errors.Is(err, gocql.ErrNotFound) {
+			return nil, err // caller can check with errors.Is
+		}
 		return nil, fmt.Errorf("get memory %s: %w", id, err)
 	}
-
-	// Increment reference count — this memory was accessed.
-	go func() {
-		_ = srv.session.Query(
-			`UPDATE memories SET reference_count = ? WHERE project = ? AND type = ? AND created_at = ? AND id = ?`,
-			refCount+1, proj, memType, createdAt, memID,
-		).Exec()
-	}()
 
 	return &ai_memorypb.GetRsp{
 		Memory: &ai_memorypb.Memory{
@@ -584,14 +601,39 @@ func (srv *server) Get(ctx context.Context, req *ai_memorypb.GetRqst) (*ai_memor
 	}, nil
 }
 
+func (srv *server) Get(ctx context.Context, req *ai_memorypb.GetRqst) (*ai_memorypb.GetRsp, error) {
+	rsp, err := srv.getInternal(ctx, req)
+	if err != nil {
+		// Map gocql.ErrNotFound → gRPC NotFound; other errors → Unavailable.
+		if errors.Is(err, gocql.ErrNotFound) {
+			return nil, status.Errorf(codes.NotFound, "memory %s not found", req.GetId())
+		}
+		return nil, status.Errorf(codes.Unavailable, "get memory %s: %v", req.GetId(), err)
+	}
+
+	// Increment reference count — this memory was accessed by a caller.
+	refCtx, refCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer refCancel()
+	m := rsp.GetMemory()
+	if err := srv.session.Query(
+		`UPDATE memories SET reference_count = ? WHERE project = ? AND type = ? AND created_at = ? AND id = ?`,
+		m.GetReferenceCount()+1, m.GetProject(), memoryTypeToString(m.GetType()), m.GetCreatedAt(), m.GetId(),
+	).WithContext(refCtx).Exec(); err != nil {
+		logger.Warn("failed to increment reference_count", "id", m.GetId(), "err", err)
+	}
+
+	return rsp, nil
+}
+
 func (srv *server) Update(ctx context.Context, req *ai_memorypb.UpdateRqst) (*ai_memorypb.UpdateRsp, error) {
 	m := req.GetMemory()
 	if m == nil || m.GetId() == "" || m.GetProject() == "" {
 		return nil, fmt.Errorf("memory with id and project is required")
 	}
 
-	// First, fetch the existing memory to merge.
-	existing, err := srv.Get(ctx, &ai_memorypb.GetRqst{Id: m.GetId(), Project: m.GetProject()})
+	// Fetch the existing memory to merge — use getInternal to avoid
+	// inflating reference_count on internal lookups.
+	existing, err := srv.getInternal(ctx, &ai_memorypb.GetRqst{Id: m.GetId(), Project: m.GetProject()})
 	if err != nil {
 		return nil, fmt.Errorf("update: fetch existing: %w", err)
 	}
@@ -667,7 +709,8 @@ func (srv *server) Delete(ctx context.Context, req *ai_memorypb.DeleteRqst) (*ai
 	}
 
 	// Need to know type and created_at to delete from the clustered table.
-	existing, err := srv.Get(ctx, &ai_memorypb.GetRqst{Id: id, Project: project})
+	// Use getInternal to avoid inflating reference_count on internal lookups.
+	existing, err := srv.getInternal(ctx, &ai_memorypb.GetRqst{Id: id, Project: project})
 	if err != nil {
 		return nil, fmt.Errorf("delete: fetch existing: %w", err)
 	}
@@ -805,10 +848,13 @@ func (srv *server) ResumeSession(ctx context.Context, req *ai_memorypb.ResumeSes
 	}
 
 	topic := req.GetTopic()
-	// Over-fetch for client-side topic matching.
+	// Over-fetch for client-side topic matching, but cap to avoid unbounded scans.
 	fetchLimit := limit * 10
 	if fetchLimit < 20 {
 		fetchLimit = 20
+	}
+	if fetchLimit > 500 {
+		fetchLimit = 500
 	}
 
 	cql := fmt.Sprintf(
@@ -1019,6 +1065,17 @@ func main() {
 	}
 	logger.Info("service initialized", "duration_ms", time.Since(start).Milliseconds())
 
+	// Known gap: clusterID is derived from srv.Domain, not the canonical
+	// cluster identity from etcd. Log a one-time warning if Domain looks
+	// like it could vary across nodes (e.g. "localhost", IP address, empty).
+	clusterIDWarnOnce.Do(func() {
+		d := srv.Domain
+		if d == "" || d == "localhost" || strings.HasPrefix(d, "127.") || strings.HasPrefix(d, "10.") || strings.HasPrefix(d, "192.168.") {
+			logger.Warn("cluster_id derived from Domain, which may vary across nodes — not canonical cluster identity",
+				"domain", d)
+		}
+	})
+
 	setupGrpcService(srv)
 
 	logger.Info("service ready",
@@ -1054,15 +1111,13 @@ OPTIONS:
   --describe    Print service description as JSON and exit
   --health      Print health status as JSON and exit
 
-ENVIRONMENT:
-  SCYLLA_HOSTS  Comma-separated ScyllaDB hosts (default: 127.0.0.1)
+ScyllaDB hosts are resolved from etcd at startup — no environment variables.
 
 EXAMPLES:
   %s --version
   %s --debug
-  SCYLLA_HOSTS=10.0.0.10,10.0.0.11 %s
 
-`, exe, exe, exe, exe, exe)
+`, exe, exe, exe, exe)
 }
 
 func printVersion() {
