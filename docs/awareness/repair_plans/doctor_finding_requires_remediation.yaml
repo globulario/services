@@ -1,0 +1,49 @@
+id: globular.repair.doctor_finding_requires_remediation
+class: RepairPlan
+label: Remediate a cluster-doctor finding that requires a mutation
+status: active
+confidence: high
+blast_radius: cluster
+approval_gate: human_approval_required
+
+repairs_finding_classes:
+  - doctor.finding_requires_mutation
+  - doctor.remediation_needed
+
+applies_to_authority_domains:
+  - authority_domain:authority.remediation_execution
+uses_implementation_patterns:
+  - implementation_pattern:globular.pattern.remediation_via_workflow
+must_not_violate_invariants:
+  - invariant:doctor.remediation_requires_leader
+  - invariant:doctor.hard_blocked_actions_never_execute
+  - invariant:cluster_doctor.observer_only_never_writes_etcd
+
+preconditions:
+  - "This cluster-doctor instance is the elected leader (only the leader may authorize or execute remediation)."
+  - "The finding is still observable in last-known findings and its evidence is fresh and trusted (stale/unverifiable evidence must block execution)."
+  - "The action is not HARD_BLOCKED (ETCD_PUT, ETCD_DELETE, NODE_REMOVE never auto-execute)."
+requires_runtime_evidence:
+  - "The finding re-resolved from last-known findings with a fresh evidence digest bound to the approval token."
+
+repair_steps:
+  - "Build the remediation plan in the doctor — never mutate cluster state inside Evaluate or any doctor handler."
+  - "Bind the approval token to action + target + evidence digest + finding id; preserve risk class and dry-run."
+  - "Delegate execution to the workflow service via StartRemediationWorkflow and actor callbacks — the doctor decides, the workflow coordinates, node agents execute."
+
+verification_steps:
+  - "After the workflow completes, re-run the doctor check for the finding and confirm it clears."
+  - "Confirm convergence before declaring the finding resolved — execution is not proof of repair."
+
+rollback_steps:
+  - "Remediation rolls back through its own workflow run / actor Verify path; the doctor never reverses state directly."
+
+required_tests: []
+produces_outcome_feedback: "record an OutcomeFeedback for the finding with decision (executed/blocked/rejected) and the convergence result"
+
+notes: |
+  The observe/mutate split is the boundary that keeps every doctor sweep
+  side-effect free: the doctor observes and delegates, the workflow gate
+  executes. Remediation is the most dangerous mutation surface, so it carries
+  the strictest gate — leader, evidence trust, approval-token binding, risk
+  class, dry-run, and a hard block on ETCD_PUT/ETCD_DELETE/NODE_REMOVE.

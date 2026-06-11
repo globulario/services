@@ -1,0 +1,48 @@
+id: globular.repair.workflow_resume_blocked_step
+class: RepairPlan
+label: Resume a blocked or failed workflow step safely
+status: active
+confidence: high
+blast_radius: service
+approval_gate: review_required
+
+repairs_finding_classes:
+  - workflow.resume_blocked
+  - workflow.step_failed
+  - workflow.run_stalled
+repairs_failure_modes:
+  - failure_mode:workflow.orphan_lease_slow_step_double_claim
+
+applies_to_authority_domains:
+  - authority_domain:authority.remediation_execution
+uses_implementation_patterns:
+  - implementation_pattern:globular.pattern.workflow_durable_step_receipt
+must_not_violate_invariants:
+  - invariant:convergence.no_infinite_retry
+
+preconditions:
+  - "The durable step receipt for the affected step has been read (readStepReceipt) before any re-execution decision."
+  - "The run is owned by a single executor (orphan-claim fencing is intact) so resume cannot double-claim."
+requires_runtime_evidence:
+  - "The step receipt: presence means the side effect already completed; absence/failed means it is eligible for the resume policy."
+
+repair_steps:
+  - "Consult readStepReceipt first. A present receipt means the side effect already happened — skip it, never replay."
+  - "For a failed/blocked step, read its failure class, reason code, retry policy, and unblock signals (classifyStepFailureForReceipt) and apply the step's ResumePolicy."
+  - "Re-execute only steps that are RUNNING-at-crash or have no durable receipt; treat SUCCEEDED/FAILED/SKIPPED as terminal."
+
+verification_steps:
+  - "Confirm the run reaches a terminal state (SUCCEEDED or FAILED) — workflows must be bounded."
+  - "Confirm no step's side effect was applied twice."
+
+rollback_steps:
+  - "There is no blind rollback — a completed step stays completed; correction flows through a new bounded workflow run."
+
+required_tests: []
+produces_outcome_feedback: "record an OutcomeFeedback for the run with the resume decision and whether replay was avoided"
+
+notes: |
+  The durable receipt is what makes replay safe. The forbidden shape is a
+  resume path that re-executes a step purely because the run is being
+  replayed, without first consulting the receipt — that double-applies side
+  effects (double installs, double grants, double restarts).

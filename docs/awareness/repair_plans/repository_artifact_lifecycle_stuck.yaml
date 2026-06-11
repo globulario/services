@@ -1,0 +1,49 @@
+id: globular.repair.repository_artifact_lifecycle_stuck
+class: RepairPlan
+label: Repair a stuck repository artifact lifecycle / installability
+status: active
+confidence: high
+blast_radius: cluster
+approval_gate: review_required
+
+repairs_finding_classes:
+  - repository.artifact_state_stuck
+  - repository.publish_state_not_installable
+  - repository.installability_mismatch
+repairs_failure_modes:
+  - failure_mode:identity.field_semantic_drift_across_writers
+
+applies_to_authority_domains:
+  - authority_domain:authority.repository_artifact_metadata
+uses_implementation_patterns:
+  - implementation_pattern:globular.pattern.repository_metadata_authority
+must_not_violate_invariants:
+  - invariant:repository.artifact.installable_compound_predicate
+  - invariant:cluster.desired_state_authority_over_installed_state
+
+preconditions:
+  - "Confirm the repository owner RPC is reachable and reporting the artifact's lifecycle metadata (publish_state, artifact_state)."
+  - "Confirm a DesiredService still references the affected build id (a desired build is a hard deletion/revocation root)."
+requires_runtime_evidence:
+  - "Authoritative publish_state/artifact_state from the repository owner RPC — object-store/POSIX presence is supporting evidence only."
+
+repair_steps:
+  - "Read the authoritative lifecycle state via the repository resolver — never infer installability from MinIO/CAS object presence."
+  - "If the metadata write and the blob diverged, drive a single durable transitionArtifactState gated by IsTransitionAllowed; commit the durable publish_state before exposing installability."
+  - "If the object is genuinely missing after an authoritative write, mark the artifact repair-needed (markPipelineMissingBlob) — do not silently rewrite publish_state back to an earlier value."
+
+verification_steps:
+  - "Re-resolve the artifact: IsInstallable() must agree with the durable publish_state."
+  - "Confirm no desired build id is left orphaned by the transition."
+
+rollback_steps:
+  - "Quarantine or mark repair-needed through the repository-owned RPC path — never delete the blob directly."
+
+required_tests: []
+produces_outcome_feedback: "record an OutcomeFeedback linking repository_metadata_authority + installable_compound_predicate with the resolved/blocked status"
+
+notes: |
+  INC-2026-0012 (skeleton manifests) and INC-2026-0013 (mislabeled pinned
+  bytes) are the canonical instances. The whole plan rests on one rule:
+  installability is a lifecycle fact owned by the repository, not a storage
+  fact. Object presence is corroborating evidence, never authority.

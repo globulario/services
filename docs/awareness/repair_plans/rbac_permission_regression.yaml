@@ -1,0 +1,46 @@
+id: globular.repair.rbac_permission_regression
+class: RepairPlan
+label: Repair an RBAC permission regression without weakening deny
+status: active
+confidence: high
+blast_radius: security
+approval_gate: human_approval_required
+
+repairs_finding_classes:
+  - rbac.permission_regression
+  - rbac.access_denied_unexpected
+  - rbac.access_allowed_unexpected
+
+applies_to_authority_domains:
+  - authority_domain:authority.rbac_permissions
+uses_implementation_patterns:
+  - implementation_pattern:globular.pattern.rbac_explicit_deny_precedence
+must_not_violate_invariants:
+  - invariant:backend_must_check_originating_principal_not_only_peer_cert
+
+preconditions:
+  - "The regression is reproduced through the RBAC permission-evaluation path (ValidateAccess/ValidateAction), not inferred from a header or proxy claim."
+  - "The subject id is normalized (matchID) so a format mismatch is not masquerading as a permission bug."
+requires_runtime_evidence:
+  - "An RBAC permission evaluation result for the (subject, path, permission) tuple — header/proxy/user-claim is not permission truth."
+
+repair_steps:
+  - "Confirm explicit deny is evaluated first and flat (validateAccessDenied) before any allow, owner, or service-account shortcut."
+  - "Walk path ancestors for deny — a deny on a parent path must deny the child."
+  - "Apply the permission change through the RBAC typed RPC only; never write the permission store directly."
+
+verification_steps:
+  - "Re-evaluate the (subject, path, permission) tuple and confirm explicit deny still wins over allow/owner/bootstrap."
+  - "Confirm the bootstrap / service-account fallback does not bypass the explicit deny."
+
+rollback_steps:
+  - "Revert the permission change through the RBAC typed RPC; an explicit deny added during repair stays until removed via RPC."
+
+required_tests: []
+produces_outcome_feedback: "record an OutcomeFeedback noting whether deny precedence held after the change"
+
+notes: |
+  RBAC is deny-wins: explicit deny beats allow, ownership, and every
+  service-account or bootstrap shortcut, and propagates down resource paths.
+  The companion trap is trusting the transport (peer cert / proxy header)
+  instead of the originating principal.

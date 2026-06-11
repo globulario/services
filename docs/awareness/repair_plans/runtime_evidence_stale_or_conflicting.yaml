@@ -1,0 +1,45 @@
+id: globular.repair.runtime_evidence_stale_or_conflicting
+class: RepairPlan
+label: Handle stale, missing, or conflicting runtime evidence
+status: active
+confidence: high
+blast_radius: node
+approval_gate: review_required
+
+repairs_finding_classes:
+  - evidence.stale
+  - evidence.missing
+  - evidence.conflicting
+  - evidence.from_non_owner_path
+
+applies_to_authority_domains:
+  - authority_domain:authority.runtime_evidence
+uses_implementation_patterns:
+  - implementation_pattern:globular.pattern.doctor_rule_diagnostic_only
+must_not_violate_invariants:
+  - invariant:evidence.missing_is_not_known_bad
+
+preconditions:
+  - "The evidence in question carries (or is missing) source service, observed time, and trust level."
+  - "The owner path for this evidence is known (e.g. node-agent heartbeat, doctor collector snapshot)."
+
+repair_steps:
+  - "Classify the verdict as UNKNOWN / CHECK_ERROR / DEGRADED — never PASS — when evidence is stale, missing, or from a non-owner path."
+  - "Consult snap.Errors before drawing any conclusion: a partial snapshot must not be consumed as complete."
+  - "Request fresh owner-path evidence before making any convergence or health claim."
+
+verification_steps:
+  - "Confirm the finding now carries fresh, owner-path evidence with a trust level, or remains explicitly UNKNOWN."
+  - "Confirm no convergence/PASS claim was made on stale or conflicting evidence."
+
+rollback_steps:
+  - "No state was mutated — this plan only re-classifies and re-requests evidence; there is nothing to roll back."
+
+required_tests: []
+produces_outcome_feedback: "record an OutcomeFeedback noting the evidence classification and whether a PASS was correctly withheld"
+
+notes: |
+  Runtime evidence informs findings and convergence but owns no desired
+  truth. Freshness and scope are part of every assertion's meaning: missing
+  evidence is not evidence of failure, and stale evidence must degrade to a
+  hint, never to a PASS or a definitive failure verdict.
