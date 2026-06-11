@@ -1,7 +1,10 @@
 // Package interceptors centralizes server-side validation, authorization,
 // routing (round-robin / broadcasting), and logging for gRPC services.
 //
+// @awareness namespace=globular.platform
+// @awareness component=platform_interceptors.server
 // @awareness failure_mode=interceptors.unchecked_type_assertion_panics
+// @awareness risk=critical
 package interceptors
 
 // NOTE: We intentionally keep the exported API intact. Internal helpers were

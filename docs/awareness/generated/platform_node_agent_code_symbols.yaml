@@ -199,6 +199,8 @@ code_symbols:
     component: platform_node_agent.install
     risk: critical
     annotations:
+      failure_mode:
+        - node_agent.side_effect_before_durable_commit
       implements:
         - globular.platform:intent.installed_state.owned_by_node_agent
         - globular.platform:intent.node_agent.is_executor_not_cluster_brain

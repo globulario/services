@@ -91,6 +91,8 @@ code_symbols:
     component: platform_workflow.engine
     risk: critical
     annotations:
+      failure_mode:
+        - workflow.run_outputs_data_race
       implements:
         - globular.platform:intent.workflow.source_of_operational_truth
         - globular.platform:intent.reconciliation.must_be_idempotent_and_bounded

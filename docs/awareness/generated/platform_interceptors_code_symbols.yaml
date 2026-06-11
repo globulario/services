@@ -60,3 +60,12 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.circuit_breakers_protect_convergence
+  - id: globular.platform:code.go.platform_interceptors.server
+    namespace: globular.platform
+    language: go
+    file: golang/interceptors/ServerInterceptors.go
+    component: platform_interceptors.server
+    risk: critical
+    annotations:
+      failure_mode:
+        - interceptors.unchecked_type_assertion_panics

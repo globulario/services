@@ -52,6 +52,8 @@ code_symbols:
     component: platform_repository.artifact_state
     risk: critical
     annotations:
+      failure_mode:
+        - cache_written_before_durable_store
       implements:
         - globular.platform:intent.repository.lifecycle_state_machine
         - globular.platform:intent.repository.publish_pipeline_is_ordered
@@ -188,6 +190,8 @@ code_symbols:
     annotations:
       enforces:
         - globular.platform:invariant.repository.desired_build_id_must_resolve
+      failure_mode:
+        - repository.ledger_authority_inverted_minio_gates_scylla
       implements:
         - globular.platform:intent.repository.metadata_is_authority
         - globular.platform:intent.repository.version_allocation_is_exclusive

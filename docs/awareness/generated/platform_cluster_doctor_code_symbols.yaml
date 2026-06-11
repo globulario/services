@@ -106,6 +106,8 @@ code_symbols:
     component: platform_cluster_doctor.healer
     risk: high
     annotations:
+      failure_mode:
+        - doctor.healer_auto_remediation_on_reduced_harvest
       implements:
         - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
         - globular.platform:intent.circuit_breakers_protect_convergence

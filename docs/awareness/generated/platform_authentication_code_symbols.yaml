@@ -6,6 +6,8 @@ code_symbols:
     component: platform_authentication
     risk: critical
     annotations:
+      failure_mode:
+        - auth.dead_peer_fallback_loop
       implements:
         - globular.platform:intent.authentication.single_issuance_point_for_session_tokens
         - globular.platform:intent.authentication.token_refresh_is_bounded_to_seven_days
