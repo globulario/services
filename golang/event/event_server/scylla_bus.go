@@ -445,7 +445,9 @@ func (sb *scyllaBus) queryEvents(nameFilter string, afterSeq gocql.UUID, limit i
 				break
 			}
 		}
-		_ = iter.Close()
+		if closeErr := iter.Close(); closeErr != nil {
+			slog.Warn("scylla_bus: queryEvents iter.Close error", "err", closeErr)
+		}
 		if len(events) >= limit {
 			break
 		}

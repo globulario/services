@@ -12,6 +12,8 @@ import (
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/gocql/gocql"
 	Utility "github.com/globulario/utility"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -430,7 +432,7 @@ func (srv *server) QueryEvents(_ context.Context, rqst *eventpb.QueryEventsReque
 		return nil, err
 	}
 	if srv.bus == nil {
-		return &eventpb.QueryEventsResponse{}, nil
+		return nil, status.Error(codes.Unavailable, "event bus not connected")
 	}
 
 	nameFilter := ""

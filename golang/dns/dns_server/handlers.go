@@ -63,23 +63,25 @@ func (srv *server) SetDomains(ctx context.Context, rqst *dnspb.SetDomainsRequest
 		return nil, status.Errorf(codes.InvalidArgument, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	srv.Domains = normalized
-	srv.lastKnownGoodDomains = append([]string(nil), normalized...)
-
-	srv.Logger.Info("Domains set", "domains", strings.Join(srv.Domains, ", "))
-
-	// store domains persistently
-	domainsData, err := json.Marshal(srv.Domains)
+	// Write to durable storage FIRST so that in-memory state only advances
+	// after the change is safely committed. This prevents a window where
+	// in-memory state diverges from what is on disk if the write fails.
+	domainsData, err := json.Marshal(normalized)
 	if err != nil {
 		srv.Logger.Error("SetDomains marshal", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = srv.store.SetItem("domains", domainsData)
-	if err != nil {
+	if err = srv.store.SetItem("domains", domainsData); err != nil {
 		srv.Logger.Error("SetDomains setItem", "err", err)
 		return nil, status.Errorf(codes.Internal, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// Durable write succeeded — update in-memory state.
+	srv.Domains = normalized
+	srv.lastKnownGoodDomains = append([]string(nil), normalized...)
+
+	srv.Logger.Info("Domains set", "domains", strings.Join(srv.Domains, ", "))
 
 	// Mirror to etcd so zones survive a ScyllaDB restart without
 	// manual re-registration. etcd is secondary; ScyllaDB is primary.
@@ -114,7 +116,8 @@ func (srv *server) ensureZoneAuthority(domain string) {
 		nodeIP = Utility.MyIP()
 	}
 	if nodeIP == "" {
-		nodeIP = "127.0.0.1"
+		srv.Logger.Error("cannot determine node IP for zone authority; aborting zone initialization", "zone", domain)
+		return
 	}
 
 	srv.Logger.Info("Initializing zone authority", "zone", domain, "ns", nsName, "ip", nodeIP)

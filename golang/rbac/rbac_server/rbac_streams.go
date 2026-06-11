@@ -26,7 +26,7 @@ func (srv *server) GetResourcePermissionsByResourceType(rqst *rbacpb.GetResource
 	permissions, err := srv.getResourceTypePathIndexation(rqst.ResourceType)
 
 	if err != nil {
-		status.Errorf(
+		return status.Errorf(
 			codes.Internal,
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
@@ -61,7 +61,7 @@ func (srv *server) GetResourcePermissionsBySubject(rqst *rbacpb.GetResourcePermi
 	permissions, err := srv.getSubjectResourcePermissions(rqst.Subject, rqst.ResourceType, rqst.SubjectType)
 
 	if err != nil {
-		status.Errorf(
+		return status.Errorf(
 			codes.Internal,
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}

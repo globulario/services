@@ -39,7 +39,9 @@ import (
 	"github.com/globulario/services/golang/storage/storage_store"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 )
 
 // -----------------------------------------------------------------------------
@@ -525,19 +527,18 @@ func (srv *server) isManaged(domain string) bool {
 }
 
 // requireHealthy gates RPCs when distributed dependencies are down.
+// When ScyllaDB is confirmed degraded, mutation RPCs are rejected with
+// codes.Unavailable so callers receive an actionable error rather than
+// a silent no-op. Read-only bootstrap paths (SOA checks, zone lists)
+// use this gate too — if ScyllaDB is truly down they will fail fast
+// rather than return stale or empty data silently.
 func (srv *server) requireHealthy() error {
 	if srv.depHealth == nil {
 		return nil
 	}
-	// Day-1/bootstrap safety: DNS must remain callable (at least for bootstrap
-	// records and degraded read paths) even when Scylla quorum is transiently
-	// unavailable, otherwise join/recovery can deadlock on DNS health gating.
-	//
-	// Keep dependency health visible via logs/operational status, but do not
-	// hard-fail every DNS RPC at this layer.
 	if err := srv.depHealth.RequireHealthy(); err != nil {
-		srv.Logger.Warn("dns dependency degraded; allowing request in degraded mode", "err", err)
-		return nil
+		srv.Logger.Error("dns dependency degraded; rejecting RPC", "err", err)
+		return status.Errorf(codes.Unavailable, "dns storage degraded: %v", err)
 	}
 	return nil
 }

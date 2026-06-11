@@ -341,13 +341,12 @@ func (srv *server) dialNodeAgent(ctx context.Context, endpoint string) (*grpc.Cl
 	if srv.TLS {
 		tlsCfg, err := srv.hookTLSConfig(dt.Address)
 		if err != nil {
-			slog.Warn("node-agent TLS config failed, falling back to insecure",
+			slog.Error("node-agent TLS config failed; refusing insecure fallback",
 				"endpoint", dt.Address, "error", err)
-			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		} else {
-			tlsCfg.ServerName = dt.ServerName
-			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+			return nil, fmt.Errorf("TLS config failed for node-agent %s: %w", dt.Address, err)
 		}
+		tlsCfg.ServerName = dt.ServerName
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
 	} else {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}

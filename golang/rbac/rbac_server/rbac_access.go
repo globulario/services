@@ -427,6 +427,8 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 			return false, false, err
 		}
 		// sa may not be resolvable during bootstrap; use bare id
+		slog.Warn("sa subject validation bypassed due to resource service unavailability — using bare ID for access check",
+			"subject", subject, "permission", name, "path", path, "error", err)
 		validatedSubject = bareID(subject)
 	}
 	subject = validatedSubject
@@ -471,8 +473,11 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 		permissions, err := srv.getResourcePermissions(path)
 		if err != nil {
 			if strings.HasPrefix(err.Error(), "item not found") || strings.Contains(err.Error(), "Key not found") {
+				// No permissions record exists yet — treat as unowned, granting ownership to the requester.
 				return true, false, nil
 			}
+			// Storage error (not a not-found): do not grant ownership — propagate the error.
+			return false, false, err
 		} else if permissions.Owners == nil {
 			return true, false, nil
 		} else if permissions.Owners != nil {

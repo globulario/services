@@ -232,14 +232,14 @@ func (srv *server) getPermissionsStore() (storage_store.Store, error) {
 }
 
 func (srv *server) setItem(key string, val []byte) error {
-	if err := srv.cache.SetItem(key, val); err != nil {
-		return err
-	}
 	p, err := srv.getPermissionsStore()
 	if err != nil {
 		return err
 	}
-	return p.SetItem(key, val)
+	if err := p.SetItem(key, val); err != nil {
+		return err
+	}
+	return srv.cache.SetItem(key, val)
 }
 
 func (srv *server) getItem(key string) ([]byte, error) {

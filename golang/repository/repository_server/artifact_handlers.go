@@ -108,20 +108,32 @@ func (srv *server) syncManifestToScylla(ctx context.Context, key string, manifes
 	srv.listCache.InvalidateAll()
 }
 
-// syncStateToScylla updates only the publish state in ScyllaDB.
 // syncStateToScylla updates the publish_state column in ScyllaDB — the SOLE
 // authoritative source for current artifact lifecycle state. This MUST be called
 // on every state transition. Readers use this column and must not fall back to
 // manifest_json for lifecycle decisions.
-func (srv *server) syncStateToScylla(ctx context.Context, key string, state repopb.PublishState) {
+//
+// For security-sensitive terminal states (QUARANTINED, REVOKED, CORRUPTED) this
+// function logs at ERROR level and returns an error so callers know the
+// authoritative store was NOT updated. For all other states, failure is logged
+// at WARN and returns nil (best-effort, backward-compatible).
+func (srv *server) syncStateToScylla(ctx context.Context, key string, state repopb.PublishState) error {
 	if srv.scylla == nil {
-		return
+		return nil
 	}
 	if err := srv.scylla.UpdatePublishState(ctx, key, state.String()); err != nil {
-		slog.Warn("scylladb state sync failed (non-fatal)", "key", key, "state", state, "err", err)
-		return
+		switch state {
+		case repopb.PublishState_QUARANTINED, repopb.PublishState_REVOKED, repopb.PublishState_CORRUPTED:
+			slog.Error("scylladb state sync FAILED for security-sensitive state — authoritative store NOT updated",
+				"key", key, "state", state, "err", err)
+			return fmt.Errorf("syncStateToScylla: %s state not committed to authoritative store: %w", state, err)
+		default:
+			slog.Warn("scylladb state sync failed (non-fatal)", "key", key, "state", state, "err", err)
+			return nil
+		}
 	}
 	srv.listCache.InvalidateAll()
+	return nil
 }
 
 // deleteManifestFromScylla removes a manifest from ScyllaDB.
@@ -1990,7 +2002,9 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 	}
 
 	// Sync state change to ScyllaDB.
-	srv.syncStateToScylla(ctx, key, targetState)
+	if err := srv.syncStateToScylla(ctx, key, targetState); err != nil {
+		return nil, status.Errorf(codes.Internal, "sync state to scylla: %v", err)
+	}
 
 	// Invalidate cached manifest (state changed).
 	if srv.cache != nil {
@@ -2124,8 +2138,13 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
-	// Sync state change to ScyllaDB.
-	srv.syncStateToScylla(ctx, key, targetState)
+	// Sync state change to ScyllaDB. For security-sensitive states
+	// (QUARANTINED, REVOKED, CORRUPTED) this returns an error if the
+	// authoritative store was not updated — the caller must know the
+	// state transition did not fully commit.
+	if err := srv.syncStateToScylla(ctx, key, targetState); err != nil {
+		return nil, status.Errorf(codes.Internal, "sync state to scylla: %v", err)
+	}
 
 	// Invalidate cached manifest (state changed).
 	if srv.cache != nil {
@@ -2878,7 +2897,13 @@ func (srv *server) markCorrupted(ctx context.Context, key string, m *repopb.Arti
 		slog.Warn("failed to write corrupted manifest", "key", key, "err", err)
 		return
 	}
-	srv.syncStateToScylla(ctx, key, repopb.PublishState_CORRUPTED)
+	if err := srv.syncStateToScylla(ctx, key, repopb.PublishState_CORRUPTED); err != nil {
+		// syncStateToScylla already logged at ERROR for CORRUPTED; surface it
+		// here too so the caller can observe the partial-commit.
+		slog.Error("markCorrupted: CORRUPTED state NOT committed to authoritative store — artifact may still appear installable",
+			"key", key, "err", err)
+		return
+	}
 	if srv.cache != nil {
 		srv.cache.invalidateManifest(manifestStorageKey(key))
 	}

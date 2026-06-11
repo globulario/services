@@ -135,9 +135,12 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 
 	// Session maintenance is best-effort — a failure here (e.g., resource
 	// service TLS issue) must not prevent the caller from getting a fresh
-	// token. The token is already generated and valid.
+	// token. The token is already generated and valid. Degraded mode: a
+	// synthetic session is manufactured so the refresh can still complete,
+	// but session history is not preserved for this call.
 	session, err := srv.getSession(claims.ID)
 	if err != nil {
+		slog.Warn("RefreshToken:getSession failed, continuing in degraded mode", "accountId", claims.ID, "err", err)
 		session = new(resourcepb.Session)
 		session.AccountId = claims.ID
 	}
@@ -380,7 +383,9 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 			// Upgrade legacy plaintext to bcrypt once authentication succeeds.
 			if hash, herr := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost); herr == nil {
 				creds.RootPassword = string(hash)
-				_ = config.SetRootCredentials(creds)
+				if writeErr := config.SetRootCredentials(creds); writeErr != nil {
+					slog.Warn("authenticate:root:bcrypt_upgrade_failed", "err", writeErr)
+				}
 			}
 		}
 
@@ -392,7 +397,9 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 		// prepare home folder and resource owner mapping for sa (domain-free)
 		path := "/users/sa"
 		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-		_ = srv.addResourceOwner(tokenString, path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
+		if rbacErr := srv.addResourceOwner(tokenString, path, "file", "sa", rbacpb.SubjectType_ACCOUNT); rbacErr != nil {
+			slog.Warn("authenticate:root:addResourceOwner failed (non-fatal)", "path", path, "err", rbacErr)
+		}
 
 		slog.Info("authenticate:root:ok")
 		return tokenString, nil
@@ -479,7 +486,9 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	claims, _ := security.ValidateToken(tokenString)
 	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + sid)
 	owner := claims.ID
-	_ = srv.addResourceOwner(tokenString, "/users/"+sid, "file", owner, rbacpb.SubjectType_ACCOUNT)
+	if rbacErr := srv.addResourceOwner(tokenString, "/users/"+sid, "file", owner, rbacpb.SubjectType_ACCOUNT); rbacErr != nil {
+		slog.Warn("authenticate:addResourceOwner failed (non-fatal)", "path", "/users/"+sid, "err", rbacErr)
+	}
 
 	session.ExpireAt = claims.RegisteredClaims.ExpiresAt.Unix()
 	session.State = resourcepb.SessionState_ONLINE
@@ -543,7 +552,7 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 
 	if err != nil {
 		nodes, _ := srv.getNodeIdentities()
-		if len(nodes) == 0 {
+		if len(nodes) > 0 {
 			uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
 			defer Utility.RemoveString(srv.authentications_, uuid)
 			if Utility.Contains(srv.authentications_, uuid) {
@@ -591,8 +600,12 @@ func (srv *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb
 		return nil, err
 	}
 
-	userId := strings.Split(clientId, "@")[0]
-	userDomain := strings.Split(clientId, "@")[1]
+	parts := strings.SplitN(clientId, "@", 2)
+	if len(parts) < 2 {
+		return nil, status.Errorf(codes.InvalidArgument, "GeneratePeerToken: malformed clientId %q (expected user@domain)", clientId)
+	}
+	userId := parts[0]
+	userDomain := parts[1]
 
 	token, err := security.GenerateToken(srv.SessionTimeout, rqst.Mac, userId, "", "")
 	if err != nil {

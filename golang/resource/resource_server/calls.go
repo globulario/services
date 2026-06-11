@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/globulario/services/golang/config"
@@ -68,7 +69,7 @@ func (srv *server) deleteCall(account_id, uuid string) error {
 		domain := strings.Split(accountId, "@")[1]
 		localDomain, _ := config.GetDomain()
 		if domain != localDomain {
-			return err
+			return fmt.Errorf("domain mismatch: local=%s remote=%s", localDomain, domain)
 		}
 		accountId = strings.Split(accountId, "@")[0]
 	}

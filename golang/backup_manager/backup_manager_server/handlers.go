@@ -596,7 +596,8 @@ func (srv *server) executeJob(job *backup_managerpb.BackupJob, mode backup_manag
 	job.StartedUnixMs = time.Now().UnixMilli()
 	job.Message = "running"
 	if saveErr := srv.store.SaveJob(job); saveErr != nil {
-		slog.Error("failed to save job state", "job_id", job.JobId, "err", saveErr)
+		slog.Error("failed to save job RUNNING state; aborting job to avoid untracked execution", "job_id", job.JobId, "err", saveErr)
+		return
 	}
 
 	slog.Info("backup job started", "job_id", job.JobId, "plan", job.PlanName, "mode", mode)

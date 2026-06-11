@@ -335,7 +335,6 @@ func (srv *server) AddOrganizationAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddOrganizationAccountRsp{Result: true}, nil
 }
@@ -362,7 +361,6 @@ func (srv *server) AddOrganizationApplication(ctx context.Context, rqst *resourc
 	}
 
 	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddOrganizationApplicationRsp{Result: true}, nil
 }
@@ -388,7 +386,6 @@ func (srv *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.Ad
 			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 	srv.publishEvent("update_organization_"+rqst.OrganizationId+"_evt", []byte{}, srv.Address)
 
 	return &resourcepb.AddOrganizationGroupRsp{Result: true}, nil
@@ -497,7 +494,9 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 		if !strings.Contains(rqst.Organization.Accounts[i], "@") {
 			rqst.Organization.Accounts[i] += "@" + rqst.Organization.Domain
 		}
-		srv.createCrossReferences(rqst.Organization.Accounts[i], "Accounts", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "accounts")
+		if err := srv.createCrossReferences(rqst.Organization.Accounts[i], "Accounts", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "accounts"); err != nil {
+			logger.Warn("CreateOrganization: failed to create account cross-reference", "account", rqst.Organization.Accounts[i], "error", err)
+		}
 	}
 
 	// groups...
@@ -505,7 +504,9 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 		if !strings.Contains(rqst.Organization.Groups[i], "@") {
 			rqst.Organization.Groups[i] += "@" + rqst.Organization.Domain
 		}
-		srv.createCrossReferences(rqst.Organization.Groups[i], "Groups", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "groups")
+		if err := srv.createCrossReferences(rqst.Organization.Groups[i], "Groups", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "groups"); err != nil {
+			logger.Warn("CreateOrganization: failed to create group cross-reference", "group", rqst.Organization.Groups[i], "error", err)
+		}
 	}
 
 	// roles...
@@ -513,7 +514,9 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 		if !strings.Contains(rqst.Organization.Roles[i], "@") {
 			rqst.Organization.Roles[i] += "@" + rqst.Organization.Domain
 		}
-		srv.createCrossReferences(rqst.Organization.Roles[i], "Roles", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "roles")
+		if err := srv.createCrossReferences(rqst.Organization.Roles[i], "Roles", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "roles"); err != nil {
+			logger.Warn("CreateOrganization: failed to create role cross-reference", "role", rqst.Organization.Roles[i], "error", err)
+		}
 	}
 
 	// applications...
@@ -521,7 +524,9 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 		if !strings.Contains(rqst.Organization.Applications[i], "@") {
 			rqst.Organization.Applications[i] += "@" + rqst.Organization.Domain
 		}
-		srv.createCrossReferences(rqst.Organization.Roles[i], "Applications", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "applications")
+		if err := srv.createCrossReferences(rqst.Organization.Applications[i], "Applications", "organizations", rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "Organizations", "applications"); err != nil {
+			logger.Warn("CreateOrganization: failed to create application cross-reference", "application", rqst.Organization.Applications[i], "error", err)
+		}
 	}
 
 	jsonStr, err := json.Marshal(rqst.Organization)
@@ -552,8 +557,11 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 // Returns a DeleteAccountRsp containing the result or an error if any operation fails.
 func (srv *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAccountRqst) (*resourcepb.DeleteAccountRsp, error) {
 	accountId := rqst.Id
-	localDomain, _ := config.GetDomain()
-	domain, _ := config.GetDomain()
+	localDomain, err := config.GetDomain()
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "cannot resolve local domain: %v", err)
+	}
+	domain := localDomain
 
 	if strings.Contains(accountId, "@") {
 		domain = strings.Split(accountId, "@")[1]

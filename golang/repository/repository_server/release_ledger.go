@@ -43,12 +43,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gocql/gocql"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/grpc/codes"
@@ -108,22 +110,29 @@ func (srv *server) readLedger(ctx context.Context, publisher, name string) *rele
 	return &ledger
 }
 
-// writeLedger persists the release ledger. Writes to both ScyllaDB and MinIO.
+// writeLedger persists the release ledger. Writes Scylla first (authoritative),
+// then MinIO (mirror). Scylla failure is fatal — the ledger is not updated.
+// MinIO failure is logged as WARNING but does not block the ledger append.
 func (srv *server) writeLedger(ctx context.Context, ledger *releaseLedger) error {
 	data, err := json.MarshalIndent(ledger, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal ledger: %w", err)
 	}
 
-	// Write to MinIO (primary storage for ledger).
-	key := ledgerStorageKey(ledger.Publisher, ledger.Name)
-	if err := srv.Storage().WriteFile(ctx, key, data, 0o644); err != nil {
-		return fmt.Errorf("write ledger to storage: %w", err)
+	// Write to ScyllaDB first — authoritative distributed ledger. If this fails
+	// the caller must not treat the ledger as updated; meta.state_mutations_must_be_durably_committed_before_side_effects.
+	if srv.scylla != nil {
+		if err := srv.writeLedgerToScyllaErr(ctx, ledger, data); err != nil {
+			return fmt.Errorf("write ledger to scylla (authoritative): %w", err)
+		}
 	}
 
-	// Write to ScyllaDB (distributed lookup).
-	if srv.scylla != nil {
-		srv.writeLedgerToScylla(ctx, ledger, data)
+	// Write to MinIO — best-effort mirror for degraded/single-node reads.
+	// Failure is non-fatal: Scylla already has the authoritative ledger.
+	key := ledgerStorageKey(ledger.Publisher, ledger.Name)
+	if err := srv.Storage().WriteFile(ctx, key, data, 0o644); err != nil {
+		slog.Warn("ledger: minio mirror write failed (scylla is authoritative, ledger is committed)",
+			"publisher", ledger.Publisher, "name", ledger.Name, "err", err)
 	}
 
 	return nil
@@ -136,19 +145,40 @@ func (srv *server) readLedgerFromScylla(ctx context.Context, publisher, name str
 		return nil
 	}
 	row, err := srv.scylla.GetManifest(ctx, fmt.Sprintf("ledger/%s/%s", publisher, name))
-	if err != nil || row == nil {
+	if err != nil {
+		// Distinguish "row does not exist" from a real storage error.
+		// gocql.ErrNotFound means the ledger has never been written — treat as
+		// an empty ledger (nil) without logging. Any other error is a genuine
+		// store failure; log it so operators see transient Scylla failures.
+		if !isGocqlNotFound(err) {
+			slog.Warn("ledger: scylla read error (falling back to minio)",
+				"publisher", publisher, "name", name, "err", err)
+		}
+		return nil
+	}
+	if row == nil {
 		return nil
 	}
 	var ledger releaseLedger
 	if err := json.Unmarshal(row.ManifestJSON, &ledger); err != nil {
+		slog.Warn("ledger: corrupt JSON in scylla row",
+			"publisher", publisher, "name", name, "err", err)
 		return nil
 	}
 	return &ledger
 }
 
-func (srv *server) writeLedgerToScylla(ctx context.Context, ledger *releaseLedger, data []byte) {
+// isGocqlNotFound returns true when err is gocql's "no rows returned" sentinel.
+func isGocqlNotFound(err error) bool {
+	return errors.Is(err, gocql.ErrNotFound)
+}
+
+// writeLedgerToScyllaErr writes the ledger row to Scylla and returns any error.
+// Called by writeLedger as the authoritative first write. Errors here are fatal
+// for the ledger append — the caller must not proceed.
+func (srv *server) writeLedgerToScyllaErr(ctx context.Context, ledger *releaseLedger, data []byte) error {
 	if srv.scylla == nil {
-		return
+		return nil
 	}
 	row := manifestRow{
 		ArtifactKey:  fmt.Sprintf("ledger/%s/%s", ledger.Publisher, ledger.Name),
@@ -160,9 +190,7 @@ func (srv *server) writeLedgerToScylla(ctx context.Context, ledger *releaseLedge
 		BuildNumber:  0,
 		CreatedAt:    time.Now(),
 	}
-	if err := srv.scylla.PutManifest(ctx, row); err != nil {
-		slog.Warn("ledger: scylla write failed (non-fatal)", "name", ledger.Name, "err", err)
-	}
+	return srv.scylla.PutManifest(ctx, row)
 }
 
 // ── Ledger operations ───────────────────────────────────────────────────

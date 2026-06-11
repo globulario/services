@@ -55,7 +55,7 @@ func (srv *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.C
 
 	var query string
 	if p.GetStoreType() == "MONGO" {
-		query = `{}`
+		query = `{"recipient":"` + rqst.Recipient + `"}`
 	} else if p.GetStoreType() == "SCYLLA" {
 		query = `SELECT * FROM Notifications WHERE recipient='` + rqst.Recipient + `' ALLOW FILTERING`
 	} else if p.GetStoreType() == "SQL" {
@@ -109,10 +109,14 @@ func (srv *server) ClearNotificationsByType(ctx context.Context, rqst *resourcep
 
 	// Send event to all concern client.
 	domain, _ := config.GetDomain()
-	evt_client, err := getEventClient(domain)
-	if err == nil {
+	evt_client, evtErr := getEventClient(domain)
+	if evtErr != nil {
+		slog.Warn("ClearNotificationsByType: failed to get event client", "error", evtErr)
+	} else {
 		evt := rqst.Recipient + "_clear_user_notifications_evt"
-		evt_client.Publish(evt, []byte{})
+		if pubErr := evt_client.Publish(evt, []byte{}); pubErr != nil {
+			slog.Warn("ClearNotificationsByType: failed to publish event", "event", evt, "error", pubErr)
+		}
 	}
 
 	return &resourcepb.ClearNotificationsByTypeRsp{}, nil
@@ -775,17 +779,21 @@ func (srv *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorR
 		descriptors = append(descriptors, descriptor)
 		// send at each 20
 		if i%20 == 0 {
-			stream.Send(&resourcepb.GetPackagesDescriptorResponse{
+			if err := stream.Send(&resourcepb.GetPackagesDescriptorResponse{
 				Results: descriptors,
-			})
+			}); err != nil {
+				return err
+			}
 			descriptors = make([]*resourcepb.PackageDescriptor, 0)
 		}
 	}
 
 	if len(descriptors) > 0 {
-		stream.Send(&resourcepb.GetPackagesDescriptorResponse{
+		if err := stream.Send(&resourcepb.GetPackagesDescriptorResponse{
 			Results: descriptors,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
 	// Return the list of Service Descriptor.

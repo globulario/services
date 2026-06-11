@@ -52,9 +52,16 @@ func (srv *server) completePublish(ctx context.Context, manifest *repopb.Artifac
 
 	// ── Step 0: Artifact law validation ─────────────────────────────────
 	// Collect PUBLISHED catalog for cross-artifact rules (cycle detection, kind lookup).
-	// This is best-effort: if the catalog can't be read, validation is skipped rather
-	// than blocking the publish — the laws are enforced on a best-effort basis here.
+	// This is best-effort: if the catalog can't be read, validation proceeds with
+	// a nil catalog (single-artifact rules still run; cross-artifact rules are skipped).
+	// A nil return from loadPublishedCatalog indicates a load failure — log it so
+	// operators know cross-artifact validation was degraded for this publish.
 	catalog := srv.loadPublishedCatalog(ctx)
+	if catalog == nil {
+		slog.Warn("publish workflow: catalog load returned nil — cross-artifact law validation skipped for this publish",
+			"publisher", publisherID, "name", name, "version", version,
+			"impact", "cycle_detection_and_kind_cross_checks_not_enforced")
+	}
 	if violations := NewArtifactLawValidator(manifest, catalog).Validate(); len(violations) > 0 {
 		var msgs []string
 		for _, v := range violations {

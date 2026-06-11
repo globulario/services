@@ -256,10 +256,10 @@ func (srv *server) transitionArtifactState(
 		Fields:        fields,
 	}
 
-	// In-memory cache — always written. Doubles as the fallback when no Scylla.
-	srv.cacheArtifactState(artifactKey, rec)
-
-	// Authoritative durable write — Scylla.
+	// Authoritative durable write — Scylla first.
+	// meta.state_mutations_must_be_durably_committed_before_side_effects:
+	// the cache must reflect only what is durably committed; caching before
+	// the Scylla write would let a crash leave the cache ahead of the store.
 	if srv.scylla != nil {
 		if err := srv.scylla.UpdateArtifactState(ctx, artifactKey, scyllaArtifactState{
 			State:         string(to),
@@ -279,6 +279,10 @@ func (srv *server) transitionArtifactState(
 			return fmt.Errorf("transitionArtifactState: persist %s → %s: %w", from, to, err)
 		}
 	}
+
+	// In-memory cache — written after successful Scylla commit (or when Scylla
+	// is not configured, in which case the cache is the only signal).
+	srv.cacheArtifactState(artifactKey, rec)
 
 	slog.Info("repository.artifact.state_transition",
 		"artifact_key", artifactKey,

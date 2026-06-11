@@ -486,7 +486,7 @@ func (srv *server) removeSubjectFromShare(subject string, subjectType rbacpb.Sub
 	case rbacpb.SubjectType_APPLICATION:
 		share.Applications = Utility.RemoveString(share.Applications, subject)
 		exist, a := srv.applicationExist(subject)
-		if !exist {
+		if exist {
 			share.Applications = Utility.RemoveString(share.Applications, a)
 		}
 
@@ -546,7 +546,7 @@ func (srv *server) removeSubjectFromShare(subject string, subjectType rbacpb.Sub
 	}
 
 	// save the permissions.
-	data_, err := json.Marshal(permissions)
+	data_, err := protojson.Marshal(permissions)
 	if err != nil {
 		return err
 	}

@@ -999,7 +999,7 @@ func printVersion() {
 func computeBackendConfig(s *server, scyllaDetected bool) {
 	// Ensure address is populated.
 	if strings.TrimSpace(s.Address) == "" {
-		s.Address = "localhost:" + Utility.ToString(s.Port)
+		logger.Error("computeBackendConfig: service Address is empty; leaving unset (will fail at connection time)")
 	}
 
 	s.Backend_type = "SQL" // default backend
@@ -1084,6 +1084,10 @@ func (srv *server) dialRbacWithRetry() (*rbac_client.Rbac_Client, error) {
 		} else if seedAddr != "" {
 			c, err := globular_client.GetClient(seedAddr, "rbac.RbacService", "NewRbacService_Client")
 			if err == nil {
+				if srv.bootstrapMode {
+					srv.bootstrapMode = false
+					logger.Info("bootstrap mode ended: RBAC connection established", "addr", seedAddr)
+				}
 				return c.(*rbac_client.Rbac_Client), nil
 			}
 			lastErr = fmt.Errorf("rbac: %w", err)

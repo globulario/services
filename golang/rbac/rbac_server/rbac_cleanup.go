@@ -91,7 +91,7 @@ func (srv *server) cleanupPermissions(permissions *rbacpb.Permissions) (bool, *r
 	for i := range permissions.Denied {
 		permissionHasChange, permission := srv.cleanupPermission(permissions.Denied[i])
 		if permissionHasChange {
-			permissions.Allowed[i] = permission
+			permissions.Denied[i] = permission
 			hasChange = true
 		}
 	}
