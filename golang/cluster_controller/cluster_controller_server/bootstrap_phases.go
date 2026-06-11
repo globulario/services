@@ -102,7 +102,14 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 			// Signal: etcd unit file present (for etcd-profiled nodes),
 			// or skip etcd phases entirely if node has no etcd profile.
 			if nodeHasEtcdProfile(node) {
-				if nodeHasEtcdUnit(node) {
+				if node.EtcdJoinPhase == EtcdJoinVerified {
+					// etcd already joined (e.g. from a previous bootstrap attempt
+					// that was auto-retried). Skip the unit file check and the
+					// etcd_joining/etcd_ready phases — advance directly.
+					node.BootstrapPhase = advancePastEtcd(node, now)
+					node.BootstrapStartedAt = now
+					dirty = true
+				} else if nodeHasEtcdUnit(node) {
 					node.BootstrapPhase = BootstrapEtcdJoining
 					node.BootstrapStartedAt = now
 					dirty = true
