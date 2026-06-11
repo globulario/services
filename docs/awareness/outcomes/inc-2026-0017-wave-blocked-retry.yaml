@@ -1,0 +1,29 @@
+id: outcome.inc_2026_0017_wave_blocked_retry
+class: OutcomeFeedback
+label: Wave-blocked workflow retry dispatch fix converged
+status: active
+
+decision: applied
+outcome_status: success
+observed_at: "2026-05"
+
+for_task: "wave-blocked workflow result must dispatch a retry instead of discarding RUN_STATUS_FAILED"
+for_workflow_run: "InfrastructureRelease (wave-blocked)"
+promoted_from_incident: INC-2026-0017
+
+used_preflight_status: OK
+used_risk_class: CONVERGENCE_RISK
+
+used_knowledge_nodes:
+  - invariant:convergence.no_infinite_retry
+  - implementation_pattern:globular.pattern.workflow_durable_step_receipt
+
+reason_code: wave_blocked_result_discarded
+
+notes: |
+  `_, err := workflow.Run(...)` discarded a RUN_STATUS_FAILED result with
+  err=nil, so a wave-blocked run was never retried (commit a03b1937). The fix
+  made the wave-blocked terminal result dispatch a bounded retry rather than
+  silently dropping it. Recorded as a success outcome linking the convergence
+  invariant and the durable-step-receipt recipe: the lesson is that a blocking
+  result is a completion obligation, and resume must act on it, not absorb it.

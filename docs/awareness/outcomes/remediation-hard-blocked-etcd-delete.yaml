@@ -1,0 +1,30 @@
+id: outcome.remediation_hard_blocked_etcd_delete
+class: OutcomeFeedback
+label: Auto-remediation correctly blocked on ETCD_DELETE action
+status: active
+
+decision: rejected
+outcome_status: blocked
+observed_at: "2026-06"
+
+for_task: "auto-remediate a cluster finding by deleting a stale etcd key"
+for_finding: "critical_state.stale_key/<node>/<key>"
+
+used_preflight_status: OK
+used_risk_class: DATA_LOSS_RISK
+
+used_knowledge_nodes:
+  - invariant:doctor.hard_blocked_actions_never_execute
+  - implementation_pattern:globular.pattern.remediation_via_workflow
+
+failure_class: hard_blocked_action
+reason_code: etcd_delete_requires_human_approval
+
+notes: |
+  An auto-remediation plan proposed an ETCD_DELETE to clear a key the doctor
+  read as stale. The remediation gate correctly refused to auto-execute:
+  ETCD_PUT, ETCD_DELETE, and NODE_REMOVE are hard-blocked and require explicit
+  human approval. Recorded as a BLOCKED outcome so the graph can answer "which
+  invariants/patterns were involved in blocked runs" — here the hard-block
+  invariant and the remediation-via-workflow recipe. This is a desired block,
+  not a defect: missing-or-stale evidence must never drive a destructive action.
