@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -326,6 +327,9 @@ func TestWriteQuorumLost_OneNodeActive_CRITICAL(t *testing.T) {
 func TestWriteQuorumLost_NoInventoryOnly_DataIncomplete_Suppressed(t *testing.T) {
 	snap := &collector.Snapshot{
 		DataIncomplete: true,
+		DataErrors: []collector.DataError{
+			{Service: "node_agent", RPC: "GetInventory", Err: fmt.Errorf("simulated: inventory fetch failed")},
+		},
 		Nodes: []*cluster_controllerpb.NodeRecord{
 			nodeRecord("node-a", "10.0.0.1"),
 			nodeRecord("node-b", "10.0.0.2"),
@@ -435,6 +439,11 @@ func TestWriteQuorumLost_PartialSnapshot_LocalNodeOnly_Suppressed(t *testing.T) 
 	poolIPs := []string{"10.0.0.63", "10.0.0.102", "10.0.0.20", "10.0.0.8", "10.0.0.9"}
 	snap := &collector.Snapshot{
 		DataIncomplete: true,
+		// Simulate the collector failing to reach the controller for the
+		// node list — the specific HadError guard the rule checks.
+		DataErrors: []collector.DataError{
+			{Service: "cluster_controller", RPC: "ListNodes", Err: fmt.Errorf("simulated: controller unreachable")},
+		},
 		// Only the evaluating node is present in the snapshot — others were
 		// not fetched because the collector had RPC errors.
 		Nodes: []*cluster_controllerpb.NodeRecord{
@@ -647,6 +656,10 @@ func TestWriteQuorumLost_StaleRemoteInventory_Suppressed(t *testing.T) {
 	snap := &collector.Snapshot{
 		// DataIncomplete=true: collector had errors reaching remote nodes.
 		DataIncomplete: true,
+		// The specific inventory-gap error the narrowed guard checks.
+		DataErrors: []collector.DataError{
+			{Service: "node_agent", RPC: "GetInventory", Err: fmt.Errorf("simulated: node agent unreachable")},
+		},
 		Nodes: []*cluster_controllerpb.NodeRecord{
 			nodeRecord("node-a", "10.0.0.1"),
 			nodeRecord("node-b", "10.0.0.2"),

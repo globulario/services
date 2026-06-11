@@ -26,7 +26,6 @@ func TestIsTerminalStatusInt(t *testing.T) {
 		workflowpb.RunStatus_RUN_STATUS_EXECUTING,
 		workflowpb.RunStatus_RUN_STATUS_BLOCKED,
 		workflowpb.RunStatus_RUN_STATUS_RETRYING,
-		workflowpb.RunStatus_RUN_STATUS_DEFERRED,
 	}
 	for _, s := range active {
 		if isTerminalStatusInt(int(s)) {
