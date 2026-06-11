@@ -5,6 +5,7 @@
 // @awareness implements=globular.platform:intent.node_agent.is_executor_not_cluster_brain
 // @awareness implements=globular.platform:intent.install.result_requires_durable_commit
 // @awareness risk=critical
+// @awareness failure_mode=node_agent.side_effect_before_durable_commit
 package main
 
 import (

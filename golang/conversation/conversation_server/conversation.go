@@ -1,3 +1,4 @@
+// @awareness failure_mode=conversation.badger_store_never_opened
 package main
 
 import (

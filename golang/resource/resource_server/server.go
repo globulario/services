@@ -5,6 +5,8 @@
 //   - lean main() that wires Globular lifecycle (Init/Save/Start/Stop)
 //   - clear getters/setters to satisfy Globular's service contract
 //   - concise, readable errors
+//
+// @awareness failure_mode=resource.bootstrap_mode_never_cleared
 package main
 
 import (

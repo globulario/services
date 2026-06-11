@@ -1,4 +1,6 @@
 // rbac_cleanup.go: consistency cleanup for permissions.
+// @awareness enforces=globular.platform:invariant.meta.half_done_must_not_look_done
+// @awareness failure_mode=rbac.cleanup_writes_denied_into_allowed_array
 
 package main
 

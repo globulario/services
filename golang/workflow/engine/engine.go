@@ -10,6 +10,7 @@
 // @awareness implements=globular.platform:intent.workflow.source_of_operational_truth
 // @awareness implements=globular.platform:intent.reconciliation.must_be_idempotent_and_bounded
 // @awareness risk=critical
+// @awareness failure_mode=workflow.run_outputs_data_race
 package engine
 
 import (

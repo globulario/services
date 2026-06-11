@@ -6,6 +6,7 @@
 // @awareness implements=globular.platform:intent.repository.resolver_is_deterministic_or_errors
 // @awareness enforces=globular.platform:invariant.repository.desired_build_id_must_resolve
 // @awareness risk=critical
+// @awareness failure_mode=repository.ledger_authority_inverted_minio_gates_scylla
 package main
 
 // release_ledger.go — durable record of every PUBLISHED release

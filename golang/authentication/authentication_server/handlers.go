@@ -6,6 +6,7 @@
 // @awareness implements=globular.platform:intent.authentication.mtls_and_jwt_serve_different_trust_layers
 // @awareness implements=globular.platform:intent.authentication.identity_strips_domain_suffix
 // @awareness risk=critical
+// @awareness failure_mode=auth.dead_peer_fallback_loop
 package main
 
 import (

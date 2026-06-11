@@ -5261,3 +5261,237 @@ failure_modes:
           - cmd/principle-check/rules/duration_vs_deadline_field_naming.go
       required_tests:
         - TestRuleguardRulesHavePositiveControl
+
+    # ── Findings from the 2026-06-11 meta-principle audit (26 packages) ──
+    # These failure modes were discovered by systematic audit against the
+    # 51 meta-principles. Each documents a concrete bug shape that was
+    # found in production code and fixed. The entries exist so future
+    # briefings surface the pattern when an editor touches the same file.
+
+    - id: rbac.cleanup_writes_denied_into_allowed_array
+      title: Permission cleanup loop indexes Denied entries but writes them into the Allowed array, silently corrupting RBAC records
+      severity: critical
+      status: fixed
+      fixed_in: e04c2df8
+      symptoms:
+        - RBAC permission records silently corrupted after cleanup runs
+        - Allowed entries overwritten with Denied entry subject lists
+        - Index-out-of-bounds panic when len(Denied) > len(Allowed)
+      root_cause: |
+        rbac_cleanup.go:94 had `permissions.Allowed[i] = permission` inside
+        the Denied-cleanup loop — should have been `permissions.Denied[i]`.
+      related_invariants:
+        - meta.half_done_must_not_look_done
+      protects:
+        files:
+          - golang/rbac/rbac_server/rbac_cleanup.go
+
+    - id: repository.ledger_authority_inverted_minio_gates_scylla
+      title: Release ledger wrote MinIO first (fatal on error) and Scylla second (best-effort) — authority inverted
+      severity: critical
+      status: fixed
+      fixed_in: e04c2df8
+      symptoms:
+        - Ledger append fails when MinIO is down even though Scylla is healthy
+        - PUBLISHED artifacts missing from rollback ledger
+        - Scylla ledger silently incomplete (writes swallowed)
+      root_cause: |
+        release_ledger.go writeLedger wrote MinIO first as "primary storage"
+        and Scylla second with errors swallowed. Scylla is the authoritative
+        ledger; MinIO is a mirror. Fix swapped the order.
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+      protects:
+        files:
+          - golang/repository/repository_server/release_ledger.go
+
+    - id: conversation.badger_store_never_opened
+      title: getConversationConnection allocates Badger store but never calls Open — all operations fail or panic
+      severity: critical
+      status: fixed
+      fixed_in: 09e713c5
+      symptoms:
+        - All conversation CRUD operations fail with store-not-open errors
+        - Conversations silently unreachable for users
+      root_cause: |
+        conversation.go:39-44 called NewBadger_store() and stored the handle
+        but never called conn.Open(dbPath). Fix added the Open call.
+      related_invariants:
+        - meta.half_done_must_not_look_done
+        - meta.write_creates_completion_obligation
+      protects:
+        files:
+          - golang/conversation/conversation_server/conversation.go
+
+    - id: resource.bootstrap_mode_never_cleared
+      title: bootstrapMode set true at startup and never reset — permanent RBAC bypass for all resource operations
+      severity: critical
+      status: fixed
+      fixed_in: e04c2df8
+      symptoms:
+        - addResourceOwner, deleteResourcePermissions silently no-op forever
+        - New resources created without RBAC ownership records
+        - No operator-visible signal that RBAC is bypassed
+      root_cause: |
+        server.go:798 set bootstrapMode=true with no transition to false.
+        Fix: bootstrapMode self-terminates on first successful RBAC connection.
+      related_invariants:
+        - meta.binding_outlives_evidence_until_invalidated
+      protects:
+        files:
+          - golang/resource/resource_server/server.go
+
+    - id: doctor.healer_auto_remediation_on_reduced_harvest
+      title: Healer dispatches auto-remediation on findings from a partial snapshot — false positives trigger destructive actions
+      severity: critical
+      status: fixed
+      fixed_in: 308ed1bf
+      symptoms:
+        - Auto-heal action executed against a healthy node
+        - Finding was false positive caused by collector gap
+      root_cause: |
+        healer_loop.go runHealerCycle did not gate enforce mode on snapshot
+        completeness. When DataIncomplete=true, findings may be false
+        positives. Fix: downgrade to observe-only on reduced-harvest.
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/healer_loop.go
+
+    - id: doctor.rule_silently_suppressed_on_data_source_error
+      title: Doctor rules iterate snap.Nodes without HadError guard — data source error produces zero findings instead of unknown
+      severity: high
+      status: fixed
+      fixed_in: 308ed1bf
+      symptoms:
+        - Doctor sweep reports zero findings during controller unreachability
+        - CRITICAL objectstore/etcd/RF findings silently suppressed
+        - Operators see healthy dashboard during infrastructure degradation
+      root_cause: |
+        8 rules (11 Evaluate methods) iterated snap.Nodes or snap.NodeHealths
+        without checking HadError. Empty data from a failed RPC was
+        indistinguishable from genuinely empty data. Fix: HadError guards.
+      related_invariants:
+        - meta.absence_scope_must_be_explicit
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/rules/objectstore_health.go
+          - golang/cluster_doctor/cluster_doctor_server/rules/etcd_stale_member.go
+          - golang/cluster_doctor/cluster_doctor_server/rules/critical_state_guardians.go
+          - golang/cluster_doctor/cluster_doctor_server/rules/objectstore_admission.go
+          - golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
+
+    - id: node_agent.side_effect_before_durable_commit
+      title: recordRevisionAndReceipts runs after WriteInstalledPackage error is discarded — repo history diverges from etcd
+      severity: critical
+      status: fixed
+      fixed_in: 308ed1bf
+      symptoms:
+        - Repository history says "installed at vX" while etcd says "updating"
+        - Rollback workflow uses incorrect history baseline
+      root_cause: |
+        apply_package_release.go:793 discarded WriteInstalledPackage error
+        with `_ =` then called recordRevisionAndReceipts. Fix: side effects
+        only run on successful durable commit.
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/apply_package_release.go
+
+    - id: workflow.run_outputs_data_race
+      title: run.Outputs read/written without outputMu in resume and condition evaluation — concurrent map access UB
+      severity: high
+      status: fixed
+      fixed_in: 308ed1bf
+      symptoms:
+        - Race detector fires under parallel step execution during resume
+        - Corrupted step outputs or panic from concurrent map access
+      root_cause: |
+        resume.go recordResumeDecision wrote run.Outputs without outputMu.
+        engine.go evalCondition read run.Outputs without outputMu. Both
+        race with parallel step goroutines that write under the lock. Fix:
+        lock in recordResumeDecision; snapshot outputs under lock in evalCondition.
+      related_invariants:
+        - meta.competing_writers_must_converge_or_be_fenced
+      protects:
+        files:
+          - golang/workflow/engine/resume.go
+          - golang/workflow/engine/engine.go
+
+    - id: interceptors.unchecked_type_assertion_panics
+      title: Unchecked type assertions on config map values panic when key absent or type differs
+      severity: critical
+      status: fixed
+      fixed_in: 950bbe7e
+      symptoms:
+        - gRPC interceptor panics on first request after config change
+        - Service becomes unreachable with no structured error
+      root_cause: |
+        ServerInterceptors.go:850 did cfg["Peers"].([]interface{}) without
+        checking key existence or type. Same at :867 (index cast) and :449
+        (protoreflect cast). Fix: safe assertions with ok checks.
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+      protects:
+        files:
+          - golang/interceptors/ServerInterceptors.go
+
+    - id: auth.dead_peer_fallback_loop
+      title: Peer authentication fallback has inverted guard — loop body unreachable, multi-node auth silently fails
+      severity: critical
+      status: fixed
+      fixed_in: e04c2df8
+      symptoms:
+        - Authentication fails for users on non-primary nodes
+        - Error message says "failed to authenticate" with no peer attempt
+      root_cause: |
+        handlers.go:546 had `if len(nodes) == 0` guarding a `for range nodes`
+        loop — the loop body was structurally unreachable. Fix: inverted to
+        `if len(nodes) > 0`.
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+      protects:
+        files:
+          - golang/authentication/authentication_server/handlers.go
+
+    - id: ai_watcher.connection_error_marked_resolved
+      title: Executor connection errors (addr empty, TLS, dial) mark incident as RESOLVED — false terminal success state
+      severity: high
+      status: fixed
+      fixed_in: 4c639b4d
+      symptoms:
+        - Incidents appear resolved in dashboard during executor outage
+        - No operator signal that incidents were not actually diagnosed
+      root_cause: |
+        server.go:549-569 set INCIDENT_RESOLVED for three distinct connection
+        failure paths. Fix: changed all to INCIDENT_FAILED.
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
+        - meta.connection_errors_must_not_be_absorbed
+      protects:
+        files:
+          - golang/ai_watcher/ai_watcher_server/server.go
+
+    - id: cache_written_before_durable_store
+      title: In-memory cache updated before ScyllaDB write — cache serves uncommitted data on durable write failure
+      severity: high
+      status: fixed
+      fixed_in: 308ed1bf (workflow), e04c2df8 (rbac, repository)
+      symptoms:
+        - Cache hit returns data that was never durably committed
+        - On process restart, data reverts to last committed state
+        - Readers within the cache TTL window see phantom writes
+      root_cause: |
+        Pattern found in rbac setItem, repository transitionArtifactState,
+        and repository release_ledger. All wrote cache/in-memory state before
+        the durable Scylla write. Fix: Scylla first, cache on success.
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+      protects:
+        files:
+          - golang/rbac/rbac_server/server.go
+          - golang/repository/repository_server/artifact_state.go
+          - golang/repository/repository_server/release_ledger.go

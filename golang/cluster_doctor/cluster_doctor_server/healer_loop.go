@@ -5,6 +5,7 @@
 // @awareness implements=globular.platform:intent.circuit_breakers_protect_convergence
 // @awareness implements=globular.platform:intent.remediation.must_go_through_workflow
 // @awareness risk=high
+// @awareness failure_mode=doctor.healer_auto_remediation_on_reduced_harvest
 package main
 
 import (

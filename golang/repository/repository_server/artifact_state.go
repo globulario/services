@@ -4,6 +4,7 @@
 // @awareness implements=globular.platform:intent.repository.lifecycle_state_machine
 // @awareness implements=globular.platform:intent.repository.publish_pipeline_is_ordered
 // @awareness risk=critical
+// @awareness failure_mode=cache_written_before_durable_store
 package main
 
 // artifact_state.go — durable repository pipeline state machine.
