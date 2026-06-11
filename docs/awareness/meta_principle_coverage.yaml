@@ -67,20 +67,35 @@ meta_principle_coverage:
     tests:
       - TestRuleguardRulesHavePositiveControl
       - TestArchitecturalDeclarationsComplete
-
-  # ── planned: mechanizable, not yet built (tracked gap) ───────────────────
   - principle: meta.alert_must_name_a_violated_invariant_not_a_crossed_threshold
-    tier: planned
-    intended_tier: artifact
-    reason: A YAML scanner over the Prometheus/alerting rules can assert every alert annotation names an invariant, not just a threshold.
+    tier: behavioral
+    reason: >
+      Every Prometheus alert must carry an `invariant` annotation naming the
+      architectural contract it detects a violation of. Alerts that fire on a
+      threshold alone are allowed but must appear in the carve-out list with a
+      reason. The test parses globular_alerts.yml and fails on an unmapped alert.
+    tests:
+      - TestAlertsMustNameInvariant
   - principle: meta.metric_aggregation_destroys_actionable_signal
-    tier: planned
-    intended_tier: artifact
-    reason: A scanner over metric/dashboard definitions can flag aggregations that strip the actionable label (node/tenant/scope).
+    tier: behavioral
+    reason: >
+      Alert expressions that aggregate metrics must preserve scope labels
+      (instance/node) so the operator can act. The test parses alert expr
+      fields and flags aggregations that drop actionable labels. Cluster-wide
+      aggregations are allowed with a documented carve-out.
+    tests:
+      - TestMetricAggregationPreservesActionableLabels
   - principle: meta.topology_change_is_a_first_class_event
-    tier: planned
-    intended_tier: graph_query
-    reason: A SPARQL/graph assertion over the dependency + event topology can check topology changes emit events.
+    tier: behavioral
+    reason: >
+      Topology-mutating operations must emit a cluster event so downstream
+      consumers can react. The test scans controller source for topology-
+      mutating function signatures and verifies each file also calls
+      emitClusterEvent. Files where the event is emitted by the caller are
+      allowed with a documented carve-out.
+    tests:
+      - TestTopologyChangeEmitsEvent
+
   # ── review_only: irreducible design philosophy (terminal tier) ───────────
   - principle: meta.MTTR_focus_outperforms_MTBF_for_evolving_systems
     tier: review_only

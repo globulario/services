@@ -19,6 +19,7 @@ groups:
           severity: critical
           layer: resource
         annotations:
+          invariant: "meta.failure_response_must_contract_not_amplify"
           summary: "{{ $labels.grpc_service }}/{{ $labels.grpc_method }} at {{ $value | printf \"%.0f\" }} req/s on {{ $labels.instance }}"
           description: "Sustained >100 req/s on a single method for 30s. Probable circular call or event storm."
 
@@ -32,6 +33,7 @@ groups:
           severity: critical
           layer: resource
         annotations:
+          invariant: "meta.circular_dependency_must_have_break_glass"
           summary: "{{ $labels.grpc_service }} returning ResourceExhausted on {{ $labels.instance }}"
           description: "Call-depth circuit breaker is firing. A circular service call chain is active."
 
@@ -45,6 +47,7 @@ groups:
           severity: critical
           layer: resource
         annotations:
+          invariant: "meta.failure_response_must_contract_not_amplify"
           summary: "{{ $value }} services above 50 req/s simultaneously"
           description: "Multiple services spiking together. Probable cascading or circular call pattern."
 
@@ -62,6 +65,7 @@ groups:
           severity: warning
           layer: convergence
         annotations:
+          invariant: "state.runtime_not_desired"
           summary: "{{ $labels.instance }} ({{ $labels.job }}) is down"
           description: "Prometheus cannot scrape this service. It may have crashed or is not running."
 
@@ -80,6 +84,7 @@ groups:
           layer: convergence
         annotations:
           summary: "{{ $labels.grpc_service }} error rate {{ $value | printf \"%.0f%%\" }} on {{ $labels.instance }}"
+          invariant: "meta.fallback_must_degrade_semantics"
           description: "More than 30% of requests are failing. Service may be unable to reconcile state."
 
       # Latency explosion: p99 > 10s means something is stuck or deadlocked.
@@ -94,6 +99,7 @@ groups:
           layer: convergence
         annotations:
           summary: "{{ $labels.grpc_service }} p99 latency {{ $value | printf \"%.1fs\" }} on {{ $labels.instance }}"
+          invariant: "meta.critical_path_no_non_critical_dependency"
           description: "p99 latency above 10 seconds. Service may be deadlocked or waiting on a circular dependency."
 
   # ---- Infrastructure: etcd, ScyllaDB, MinIO ----
@@ -109,6 +115,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "etcd is unreachable"
+          invariant: "meta.critical_path_no_non_critical_dependency"
           description: "etcd stores desired state and config. All convergence stops without it."
 
       - alert: ScyllaDown
@@ -119,6 +126,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "ScyllaDB is unreachable"
+          invariant: "meta.critical_path_no_non_critical_dependency"
           description: "ScyllaDB backs persistence, AI memory, and workflow. Data operations will fail."
 
       - alert: HighNodeCPU
@@ -154,6 +162,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "Node agent heartbeat stale on {{ $labels.instance }}"
+          invariant: "meta.clock_skew_invalidates_cross_node_time_comparison"
           description: "No successful heartbeat for over 120s. Node may be offline or controller unreachable."
 
       - alert: NodeControllerUnreachable
@@ -164,6 +173,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "Node agent cannot reach controller on {{ $labels.instance }}"
+          invariant: "meta.partition_response_must_be_predeclared"
           description: "Controller connection state is unreachable for >2m. Heartbeats and applies are blocked."
 
       - alert: ControllerLoopStalled
@@ -174,6 +184,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "Controller reconcile loop stalled"
+          invariant: "meta.write_creates_completion_obligation"
           description: "No reconcile item completed for over 3 minutes. Check controller logs for deadlock or stuck workflow."
 
       - alert: WorkflowStuck
@@ -184,6 +195,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "Workflow stuck for >15m"
+          invariant: "meta.write_creates_completion_obligation"
           description: "The oldest active workflow run has exceeded 15 minutes. Check workflow service logs; convergence may be blocked."
 
       - alert: WorkflowRunFailures
@@ -194,6 +206,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "Workflow failures detected"
+          invariant: "meta.silence_is_not_valid_for_unexpected"
           description: "Workflow service reported failed runs in the last 10 minutes. Inspect failing workflows."
 
       - alert: LeaderHeartbeatStale
@@ -204,6 +217,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "Leader has not processed a heartbeat for over 3 minutes"
+          invariant: "meta.binding_outlives_evidence_until_invalidated"
           description: "The cluster controller leader is not processing ReportNodeStatus heartbeats. Nodes will appear stale. The liveness watchdog should auto-resign if a safe successor exists."
 
       - alert: LeaderLivenessDegraded
@@ -214,6 +228,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "Leader liveness degraded — no safe successor to resign to"
+          invariant: "meta.load_redirection_must_be_explicit_capacity_planning"
           description: "The leader has detected it is not processing heartbeats but cannot resign because no safe successor exists. Manual intervention may be needed."
 
       - alert: LeaderSelfResigned
@@ -224,6 +239,7 @@ groups:
           layer: infrastructure
         annotations:
           summary: "Leader auto-resigned due to liveness failure"
+          invariant: "meta.fail_safe_defaults_when_authority_is_uncertain"
           description: "The leader liveness watchdog triggered an automatic resignation. A new leader should be elected. Check logs for root cause."
 
   # ---- Gateway HTTP Surface ----
@@ -241,6 +257,7 @@ groups:
           layer: resource
         annotations:
           summary: "Gateway HTTP {{ $labels.method }} {{ $labels.path }} at {{ $value | printf \"%.0f\" }} req/s"
+          invariant: "meta.failure_response_must_contract_not_amplify"
           description: "Sustained >200 req/s on a single HTTP path. Possible abuse or misconfigured client."
 
       # HTTP error rate: >30% of requests returning 4xx/5xx.
@@ -257,6 +274,7 @@ groups:
           layer: convergence
         annotations:
           summary: "Gateway HTTP {{ $labels.path }} error rate {{ $value | printf \"%.0f%%\" }}"
+          invariant: "meta.fallback_must_degrade_semantics"
           description: "More than 30% of HTTP requests to this path are failing."
 
       # HTTP latency explosion: p99 > 10s on any path.
@@ -271,6 +289,7 @@ groups:
           layer: convergence
         annotations:
           summary: "Gateway HTTP {{ $labels.path }} p99 latency {{ $value | printf \"%.1fs\" }}"
+          invariant: "meta.critical_path_no_non_critical_dependency"
           description: "HTTP p99 latency above 10 seconds. Handler may be stuck or backend service unresponsive."
 
       # Too many concurrent requests: gateway is saturated.
@@ -282,4 +301,5 @@ groups:
           layer: resource
         annotations:
           summary: "Gateway has {{ $value | printf \"%.0f\" }} HTTP requests in flight"
+          invariant: "meta.diagnostic_output_must_be_bounded"
           description: "More than 500 concurrent HTTP requests. Gateway may be overwhelmed or handlers are blocking."
