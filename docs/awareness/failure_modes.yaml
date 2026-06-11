@@ -5495,3 +5495,138 @@ failure_modes:
           - golang/rbac/rbac_server/server.go
           - golang/repository/repository_server/artifact_state.go
           - golang/repository/repository_server/release_ledger.go
+
+    # ── Systemic architectural debt patterns (unfixed, tracked) ──────────
+    # These patterns affect multiple services and require coordinated design
+    # changes. Documented here so briefings surface the context when any
+    # affected file is edited.
+
+    - id: systemic.publisher_id_hardcoded_localhost
+      title: PublisherID="localhost" hardcoded in every service's initializeServerDefaults — a non-resolvable identity persisted to etcd
+      severity: medium
+      status: active
+      symptoms:
+        - etcd service config shows PublisherID="localhost" for all services
+        - Package descriptor queries using PublisherID as filter match all nodes
+      root_cause: |
+        globular_service/services.go sets PublisherID="localhost" as the default
+        in InitService. Every service inherits it. The fix must be in the shared
+        code (derive from srv.Domain or cluster identity), not per-service.
+      remediation_plan: |
+        Change globular_service/services.go InitService to derive PublisherID
+        from the service's resolved Domain. Requires a migration path for
+        existing etcd records that have PublisherID="localhost".
+      related_invariants:
+        - meta.identity_computation_must_be_invariant
+      protects:
+        files:
+          - golang/globular_service/services.go
+
+    - id: systemic.hardcoded_default_port_constants
+      title: Every service has a hardcoded defaultPort constant — silent fallback instead of fail-on-missing-config
+      severity: medium
+      status: active
+      symptoms:
+        - Service starts on a hardcoded port when etcd config is absent
+        - Port collision when two services share the same default (blog + conversation both use 10029)
+      root_cause: |
+        Service startup pattern: `var defaultPort = 100XX` used as the pre-etcd
+        bootstrap value. The port allocator resolves from etcd at runtime, but
+        the constant serves as a silent fallback when etcd is unavailable.
+        HARD RULE says: if etcd can't provide a value, error out.
+      remediation_plan: |
+        Remove per-service defaultPort constants. Change the startup contract:
+        if port allocator fails (etcd unavailable), return error. Bootstrap
+        services (controller:12000, node-agent:11000) keep their documented
+        bootstrap ports.
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
+      protects:
+        files:
+          - golang/globular_service/services.go
+          - golang/process/process.go
+
+    - id: systemic.env_var_config_in_client_and_cli
+      title: globular_client and globularcli use os.Getenv for operational config — competing authority with etcd
+      severity: high
+      status: active
+      symptoms:
+        - Operator sets GLOBULAR_CLIENT_RECONNECT_TRIES env var on one node
+        - Reconnect behavior differs across cluster with no etcd visibility
+        - MESH_TLS_SERVER_NAME env var silently overrides TLS identity check
+      root_cause: |
+        globular_client/clients.go reads 9+ env vars for reconnect tuning,
+        health-check parameters, and TLS SNI override. globularcli reads
+        GLOBULAR_TOKEN_FILE, GLOBULAR_CA_CERT, GLOBULAR_CLIENT_CERT/KEY.
+        These are load-bearing in production — operators use them today.
+        Removing them requires an etcd config schema for client parameters.
+      remediation_plan: |
+        1. Define a client-config etcd key schema under /globular/system/client_config
+        2. Migrate env vars to etcd keys with the same semantics
+        3. Keep env vars as override-of-last-resort with WARNING log
+        4. Document the migration in the operator guide
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
+      protects:
+        files:
+          - golang/globular_client/clients.go
+          - golang/globularcli/root.go
+          - golang/globularcli/tls_helper.go
+
+    - id: systemic.non_atomic_multi_step_writes
+      title: Multiple services write 2-5 separate keys without etcd transactions — partial failure creates inconsistent state
+      severity: high
+      status: active
+      symptoms:
+        - Blog post exists but is absent from author index after crash
+        - Conversation created but not indexed for participant and has no RBAC owner
+        - RBAC permission record written but share/type indexes stale
+        - Service config desired key updated but runtime key stale
+      root_cause: |
+        Pattern: function writes key A, then key B, then key C as separate
+        etcd.Put or store.SetItem calls. Crash between any two writes leaves
+        a permanently inconsistent state. No compensation or rollback path.
+      remediation_plan: |
+        For etcd-backed writes: use etcd Txn (mini-transaction) to write
+        related keys atomically. For Badger/ScyllaDB: use batch writes.
+        Where true atomicity is impossible, add a cleanup sweep that
+        detects and repairs orphaned index entries.
+      related_invariants:
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+        - meta.half_done_must_not_look_done
+      protects:
+        files:
+          - golang/blog/blog_server/handlers.go
+          - golang/conversation/conversation_server/conversation.go
+          - golang/rbac/rbac_server/rbac_permissions.go
+          - golang/config/etcd_service_config.go
+          - golang/pki/etcd_sync.go
+
+    - id: systemic.credentials_in_config_and_source
+      title: Database passwords and API keys stored in service config structs, persisted to etcd and disk in plaintext
+      severity: critical
+      status: active
+      symptoms:
+        - etcd contains plaintext database passwords under service config keys
+        - settings.json under backups dir contains MinIO credentials in plaintext
+        - default passwords (adminadmin, globular-backup) appear as string literals in source
+      root_cause: |
+        Service config structs include credential fields (Password, ResticPassword,
+        MinioAccessKey, MinioSecretKey, RootPassword) that are serialized via
+        globular.SaveService() to etcd and/or disk. No secrets management
+        subsystem exists — credentials flow through the same config channel
+        as non-sensitive settings.
+      remediation_plan: |
+        1. Separate credential fields from service config into a dedicated
+           secrets path (/var/lib/globular/secrets/ with 0600 permissions)
+        2. etcd credential values should be file references, not inline values
+        3. Remove hardcoded default passwords from source (adminadmin, globular-backup)
+        4. Add first-boot credential generation that creates random passwords
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
+      protects:
+        files:
+          - golang/persistence/persistence_server/persistence.go
+          - golang/backup_manager/backup_manager_server/server.go
+          - golang/authentication/authentication_server/config.go
+          - golang/torrent/torrent_server/handlers.go
