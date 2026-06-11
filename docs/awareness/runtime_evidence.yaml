@@ -1,0 +1,114 @@
+# Runtime evidence profiles — what LIVE proof is required to verify a rule,
+# where it must come from, how fresh it must be, and the hard rule that stale
+# or non-owner-path evidence must never be promoted to PASS.
+#
+# Consumed by the awareness-graph runtime_evidence importer (Phase 2C) and
+# surfaced in Preflight via the authority domain a touched file belongs to.
+# These describe the evidence contract; they are never themselves the authority.
+
+runtime_evidence:
+  - id: evidence.repository_metadata
+    label: Repository lifecycle metadata evidence
+    status: active
+    observed_from_service: repository (repository.PackageRepository)
+    observed_via_paths:
+      - repository resolver RPC (publish_state / artifact_state)
+    trust_level: high
+    freshness_window: must reflect the latest committed publish_state transition
+    must_come_from_owner_path: true
+    cannot_promote_to_pass_when_stale: true
+    supporting_evidence:
+      - object-store / POSIX CAS object presence is supporting evidence only — never installability authority
+    evidence_for_authority_domains:
+      - authority_domain:authority.repository_artifact_metadata
+    evidence_for_repair_plans:
+      - repair_plan:globular.repair.repository_artifact_lifecycle_stuck
+    evidence_for_invariants:
+      - invariant:repository.artifact.installable_compound_predicate
+    notes: |
+      Installability is proven by lifecycle metadata from the repository owner,
+      not by a bucket listing. Stale metadata cannot prove installability.
+
+  - id: evidence.doctor_finding
+    label: Cluster-doctor finding evidence
+    status: active
+    observed_from_service: cluster-doctor (collector snapshot)
+    observed_via_paths:
+      - doctor collector snapshot (with snap.Errors completeness markers)
+    trust_level: medium
+    freshness_window: must be from the current sweep; consult snap.Errors before concluding
+    must_come_from_owner_path: true
+    cannot_promote_to_pass_when_stale: true
+    conflicts_with_evidence:
+      - a partial snapshot consumed as if complete
+    evidence_for_authority_domains:
+      - authority_domain:authority.remediation_execution
+    evidence_for_repair_plans:
+      - repair_plan:globular.repair.doctor_finding_requires_remediation
+    evidence_for_invariants:
+      - invariant:evidence.missing_is_not_known_bad
+    notes: |
+      A finding must carry source service, observed time, and trust/freshness.
+      Missing evidence yields UNKNOWN / CHECK_ERROR, never PASS.
+
+  - id: evidence.workflow_receipt
+    label: Workflow step receipt evidence
+    status: active
+    observed_from_service: workflow (workflow.WorkflowService step receipts)
+    observed_via_paths:
+      - durable step receipt store (readStepReceipt)
+    trust_level: high
+    freshness_window: the receipt is the durable record of a completed/classified step
+    must_come_from_owner_path: true
+    cannot_promote_to_pass_when_stale: false
+    evidence_for_authority_domains:
+      - authority_domain:authority.remediation_execution
+    evidence_for_repair_plans:
+      - repair_plan:globular.repair.workflow_resume_blocked_step
+    evidence_for_invariants:
+      - invariant:convergence.no_infinite_retry
+    notes: |
+      The receipt is evidence of a completed/classified step. Resume must check
+      the receipt before repeating any side effect.
+
+  - id: evidence.rbac_authorization
+    label: RBAC authorization evidence
+    status: active
+    observed_from_service: rbac (rbac.RbacService permission evaluation)
+    observed_via_paths:
+      - RBAC ValidateAccess / ValidateAction through the interceptor chain
+    trust_level: high
+    freshness_window: evaluated per request against current permissions
+    must_come_from_owner_path: true
+    cannot_promote_to_pass_when_stale: true
+    conflicts_with_evidence:
+      - a header / proxy / user claim used as permission truth
+    evidence_for_authority_domains:
+      - authority_domain:authority.rbac_permissions
+    evidence_for_repair_plans:
+      - repair_plan:globular.repair.rbac_permission_regression
+    evidence_for_invariants:
+      - invariant:backend_must_check_originating_principal_not_only_peer_cert
+    notes: |
+      Permission truth comes from the RBAC evaluation path. A header, proxy, or
+      user-claim shortcut is not permission truth.
+
+  - id: evidence.cluster_desired_state
+    label: Cluster desired-state evidence
+    status: active
+    observed_from_service: cluster-controller (owner RPC)
+    observed_via_paths:
+      - controller RPC or read-only etcd read of controller-owned keys
+    trust_level: high
+    freshness_window: must reflect the latest controller-committed desired state
+    must_come_from_owner_path: true
+    cannot_promote_to_pass_when_stale: true
+    supporting_evidence:
+      - a direct storage read is diagnostic evidence only unless explicitly allowed
+    evidence_for_authority_domains:
+      - authority_domain:authority.cluster_desired_state
+    evidence_for_invariants:
+      - invariant:cluster.desired_state_authority_over_installed_state
+    notes: |
+      Desired state must be read through the owner service path. Direct storage
+      reads are diagnostic evidence only.
