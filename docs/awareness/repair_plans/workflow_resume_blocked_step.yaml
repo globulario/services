@@ -6,6 +6,9 @@ confidence: high
 blast_radius: service
 approval_gate: review_required
 
+covers_paths:
+  - golang/workflow/workflow_server/
+
 repairs_finding_classes:
   - workflow.resume_blocked
   - workflow.step_failed

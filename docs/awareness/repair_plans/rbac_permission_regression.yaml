@@ -6,6 +6,9 @@ confidence: high
 blast_radius: security
 approval_gate: human_approval_required
 
+covers_paths:
+  - golang/rbac/rbac_server/
+
 repairs_finding_classes:
   - rbac.permission_regression
   - rbac.access_denied_unexpected

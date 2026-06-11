@@ -6,6 +6,9 @@ confidence: high
 blast_radius: cluster
 approval_gate: human_approval_required
 
+covers_paths:
+  - golang/cluster_doctor/cluster_doctor_server/
+
 repairs_finding_classes:
   - doctor.finding_requires_mutation
   - doctor.remediation_needed

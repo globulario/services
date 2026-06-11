@@ -6,6 +6,10 @@ confidence: high
 blast_radius: node
 approval_gate: review_required
 
+covers_paths:
+  - golang/node_agent/node_agent_server/
+  - golang/cluster_doctor/cluster_doctor_server/collector/
+
 repairs_finding_classes:
   - evidence.stale
   - evidence.missing

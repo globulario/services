@@ -6,6 +6,9 @@ confidence: high
 blast_radius: cluster
 approval_gate: review_required
 
+covers_paths:
+  - golang/repository/repository_server/
+
 repairs_finding_classes:
   - repository.artifact_state_stuck
   - repository.publish_state_not_installable
