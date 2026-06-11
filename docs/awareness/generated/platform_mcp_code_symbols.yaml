@@ -127,6 +127,7 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+        - globular.platform:intent.availability.serving_services_declare_degradation_mode
   - id: globular.platform:code.go.platform_mcp.tools_browser
     namespace: globular.platform
     language: go

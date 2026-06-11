@@ -64,6 +64,9 @@ code_edges:
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - from: globular.platform:code.go.platform_mcp.server
     relation: implements
+    to: globular.platform:intent.availability.serving_services_declare_degradation_mode
+  - from: globular.platform:code.go.platform_mcp.server
+    relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
   - from: globular.platform:code.go.platform_mcp.tools_browser
     relation: implements

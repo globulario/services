@@ -2,6 +2,7 @@
 // @awareness component=platform_mcp.server
 // @awareness file_role=jsonrpc_dispatch_with_tool_registry_concurrency_limiter_and_bounded_responses
 // @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+// @awareness implements=globular.platform:intent.availability.serving_services_declare_degradation_mode
 // @awareness risk=critical
 package main
 

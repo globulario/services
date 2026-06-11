@@ -1,0 +1,51 @@
+id: availability.serving_services_declare_degradation_mode
+level: contract
+title: Every request-serving service must declare its degradation_mode
+intent: >
+  meta.graceful_degradation_is_the_normal_mode_not_an_exception is an
+  ARCHITECTURAL principle: it cannot be checked by a code-shape linter because
+  "does this subsystem have an explicit response to overload" is a property of
+  the design, not of any single line. We enforce it the only way an
+  architectural principle can be enforced mechanically: by DECLARATION. Every
+  request-serving service (variable, externally-driven load) must declare a
+  degradation_mode in docs/awareness/architectural_declarations.yaml — one of
+  admission_control, content_reduction, hybrid, or an explicit `none` with a
+  reason. The completeness of that declaration set is gated in CI; the
+  CORRECTNESS of each declaration (is the service actually graceful?) is a
+  separate review/implementation concern. The gate's value is not that it
+  proves graceful degradation exists — it is that it forces every serving
+  service to NAME its stance, turning an invisible architectural gap into a
+  tracked, named one. A `none` is honest and allowed; a MISSING declaration is
+  not (that is silent omission — see
+  meta.negative_result_requires_coverage_attestation).
+agent_guidance: >
+  When you add a new request-serving service, or touch a service's Serve /
+  lifecycle / request-handling path, add or update its entry in
+  docs/awareness/architectural_declarations.yaml. Pick the degradation_mode that
+  matches reality — if the service has no overload response yet, declare
+  `degradation_mode: none` with a reason and (ideally) a follow-up; do NOT leave
+  it undeclared. The CI gate (TestArchitecturalDeclarationsComplete) fails on a
+  missing declaration, not on a `none`.
+activation_triggers:
+  - graceful degradation
+  - degradation_mode
+  - admission control
+  - rate limit
+  - backpressure
+  - overload
+  - load shed
+  - new service
+  - lifecycle manager
+  - RegisterService
+bad_smells:
+  - new serving service added with no degradation_mode declaration
+  - subsystem times out or errors under load with no explicit degradation path
+  - degradation mode declared but never exercised
+related_to:
+  - meta.graceful_degradation_is_the_normal_mode_not_an_exception
+  - meta.negative_result_requires_coverage_attestation
+  - meta.load_redirection_must_be_explicit_capacity_planning
+  - meta.harvest_and_yield_are_distinct_availability_dimensions
+required_tests:
+  - awareness:TestArchitecturalDeclarationsComplete
+status: proposed

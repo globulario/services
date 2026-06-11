@@ -1,0 +1,106 @@
+# Architectural declarations
+# ===========================
+# Per-service stances on ARCHITECTURAL meta-principles that cannot be checked by
+# a code-shape linter (ruleguard/regex). These principles live at a higher
+# altitude than code — they are properties of the design, not of any line — so
+# we enforce them by DECLARATION + completeness, not by scanning ASTs.
+#
+# Mechanism (the "declare-then-conform" pattern):
+#   1. Each principle that fits this model names an `attribute` every in-scope
+#      component must declare, and the `allowed_values` for it.
+#   2. Every service in `in_scope_services` MUST appear in `declarations` with a
+#      valid value. A value of `none` is allowed but REQUIRES a `reason` — that
+#      is a named stance, not a silent gap (meta.negative_result_requires_coverage_attestation).
+#   3. TestArchitecturalDeclarationsComplete gates COMPLETENESS in CI: a missing
+#      or invalid declaration fails the build. It does NOT gate CORRECTNESS
+#      (is the service actually graceful?) — that is review/implementation work.
+#
+# The value is forcing every serving service to NAME its stance: an undeclared
+# service fails the gate; the set of `none`s is the visible, tracked ledger of
+# where the architecture does not yet hold.
+#
+# This file is consumed by awareness-graph cmd/principle-check
+# (TestArchitecturalDeclarationsComplete). The companion intent node
+# docs/intent/availability.serving_services_declare_degradation_mode.yaml carries
+# the activation_triggers that surface this requirement in briefings at edit time.
+
+schema_version: 1
+
+# Top-level key is distinctive (`architectural_declarations`) so yaml2nt can
+# classify this file deterministically. It is registered known_unsupported in
+# the extractor: the declarations are consumed by the completeness gate
+# (TestArchitecturalDeclarationsComplete), not yet compiled to graph triples.
+# Compiling them (so "which services declared none" becomes a SPARQL query) is
+# a future importer.
+architectural_declarations:
+  - principle: meta.graceful_degradation_is_the_normal_mode_not_an_exception
+    attribute: degradation_mode
+    allowed_values: [admission_control, content_reduction, hybrid, none]
+    # Request-serving services under variable, externally-driven load. Curated
+    # and extensible: add a service here when it begins serving variable load,
+    # and it must then carry a declaration below.
+    in_scope_services:
+      - mcp
+      - cluster_doctor
+      - workflow
+      - repository
+      - rbac
+      - authentication
+      - dns
+      - search
+    declarations:
+      - service: mcp
+        degradation_mode: admission_control
+        reason: >
+          mcp/governor.go rate-limits/admits tool calls; gRPC path additionally
+          sits behind the interceptor ACC (interceptors/acc.go, P0/P1/P2 AIMD)
+          which sheds P2 load under saturation.
+        exercised_by: none
+      - service: rbac
+        degradation_mode: admission_control
+        reason: >
+          Hot-path service behind the interceptor ACC chain; P1-authz class is
+          admitted at higher concurrency, P2 shed under saturation
+          (interceptors/acc.go).
+        exercised_by: none
+      - service: authentication
+        degradation_mode: admission_control
+        reason: >
+          Behind the interceptor ACC chain (interceptors/acc.go); token-issuance
+          requests are admission-controlled by request class.
+        exercised_by: none
+      - service: cluster_doctor
+        degradation_mode: none
+        reason: >
+          Known violation (principle summary): the collector runs a full sweep
+          under load with no admission control by rule cost or caller priority.
+          Declared none pending a load-shed / cost-based admission design.
+        exercised_by: none
+      - service: workflow
+        degradation_mode: none
+        reason: >
+          Known violation (principle summary): the dispatcher backs off via
+          circuit breaker but does not SELECT which runs to drop vs defer under
+          burst. A circuit breaker is not graceful degradation. Declared none
+          pending a priority-drop design.
+        exercised_by: none
+      - service: repository
+        degradation_mode: none
+        reason: >
+          Known violation (principle summary): under bursty publish every
+          artifact gets the same verification flow; no priority for
+          bootstrap-critical packages. Declared none pending priority admission.
+        exercised_by: none
+      - service: dns
+        degradation_mode: none
+        reason: >
+          Stance not yet assessed. Declared none to make the gap explicit and
+          tracked rather than silently undeclared; pending a load review of the
+          authoritative DNS serve path.
+        exercised_by: none
+      - service: search
+        degradation_mode: none
+        reason: >
+          Stance not yet assessed. Declared none to surface the gap; pending a
+          review of query-path behaviour under load.
+        exercised_by: none
