@@ -1,0 +1,43 @@
+id: globular.pattern.rbac_explicit_deny_precedence
+class: ImplementationPattern
+label: RBAC explicit-deny precedence
+status: active
+
+when_to_use:
+  - "change RBAC access validation"
+  - "modify rbac access checks"
+  - "add an rbac permission check"
+  - "rbac deny or allow precedence"
+  - "authorize a subject against a resource path"
+  - "change how rbac resolves permissions"
+
+reference_files:
+  - path: golang/rbac/rbac_server/rbac_access.go
+    role: canonical
+  - path: golang/rbac/rbac_server/rbac_deny_override_test.go
+    role: deny_override_reference
+
+must_follow:
+  - "Check explicit deny first via validateAccessDenied before any allow, owner, or service-account shortcut — an explicit deny overrides allow, ownership, and bootstrap fallbacks."
+  - "Walk path ancestors when checking deny: a deny on a parent resource path denies the child; validateAccessDenied must not stop at the leaf."
+  - "Bootstrap / service-account fallbacks must not bypass an explicit deny — the deny gate runs before the shortcut, not after."
+  - "Authorize against the originating principal (JWT claims / signed metadata), never the peer certificate or a proxy/user header alone (invariant:backend_must_check_originating_principal_not_only_peer_cert)."
+
+required_calls:
+  - validateAccessDenied
+  - validateAccessAllowed
+
+forbidden_calls: []
+
+rationale: |
+  RBAC is a deny-wins system. Explicit deny is the strongest signal in the
+  model: it must beat allow, ownership, and every service-account or
+  bootstrap shortcut, and it must propagate down a resource path so a deny
+  on a parent covers its children. The forbidden shape is an authorization
+  path that evaluates owner/allow/service-account first and only checks deny
+  afterward (or not at all on a bypass branch) — that lets a shortcut grant
+  access the operator explicitly revoked. The companion trap is trusting the
+  transport (peer cert / proxy header) instead of the originating principal,
+  which lets a front door speak for a subject it never authenticated.
+  validateAccessDenied runs first, ancestor-aware, on every path including
+  the bootstrap fallback.

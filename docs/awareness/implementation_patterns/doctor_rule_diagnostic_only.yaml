@@ -1,0 +1,49 @@
+id: globular.pattern.doctor_rule_diagnostic_only
+class: ImplementationPattern
+label: Diagnostic-only cluster-doctor rule
+status: active
+
+when_to_use:
+  - "add a new cluster-doctor rule"
+  - "adding a cluster-doctor rule"
+  - "new cluster-doctor rule that detects"
+  - "writing a cluster-doctor invariant rule"
+  - "implement a cluster_doctor rule"
+  - "detect a new finding in cluster-doctor"
+
+reference_files:
+  - path: golang/cluster_doctor/cluster_doctor_server/rules/invariant.go
+    role: interface_contract
+  - path: golang/cluster_doctor/cluster_doctor_server/rules/artifact_integrity.go
+    role: canonical_rule
+
+must_follow:
+  - "Implement the rules.Invariant interface: ID() returns a stable dotted identifier (e.g. \"artifact.integrity\"), plus Category(), Scope() (\"cluster\" | \"node\" | \"service\"), and Evaluate(snap *collector.Snapshot, cfg Config) []Finding."
+  - "Emit a deterministic FindingID via FindingID(invariant, subject, summary) so the same condition produces the same finding id across every sweep — non-deterministic ids defeat the doctor's delta/cache logic."
+  - "Build Evidence from the snapshot (source service / rpc / observed key-values) for every Finding — a finding without the facts it was derived from cannot be trusted for remediation."
+  - "Consult snap.Errors before drawing conclusions: a partial snapshot must yield CHECK_ERROR / UNKNOWN, never a false FAIL (invariant:doctor_rule_evaluate_must_consult_snap_errors)."
+  - "Distinguish FAIL from CHECK_ERROR and UNKNOWN — missing evidence is not evidence of failure (invariant:evidence.missing_is_not_known_bad)."
+  - "Return findings only. Never mutate cluster state inside Evaluate — the doctor observes, the workflow mutates (invariant:cluster_doctor.observer_only_never_writes_etcd)."
+
+required_calls:
+  - FindingID
+
+forbidden_calls:
+  - clientv3.Put
+  - clientv3.Delete
+  - exec.Command
+  - exec.CommandContext
+
+rationale: |
+  Cluster-doctor rules are the canonical answer to "what is the current
+  cross-layer health state" — they observe all four layers and produce
+  findings, but produce no state. A rule that writes etcd, runs a process,
+  or executes remediation inside Evaluate collapses the observe/mutate
+  boundary that keeps the control plane deterministic: the same observation
+  pass must be safe to run on every node, on every tick, with no side
+  effects. The two hard traps are (1) concluding FAIL from a partial
+  snapshot — snap.Errors must gate the verdict — and (2) emitting a
+  non-deterministic FindingID, which makes the same condition look like a
+  new finding every sweep and floods the event stream. Anchoring this recipe
+  means an agent asked to "add a cluster-doctor rule" gets the shape and the
+  two traps surfaced before writing, not an "it compiles" green light.

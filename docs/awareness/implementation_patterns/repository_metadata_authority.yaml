@@ -1,0 +1,50 @@
+id: globular.pattern.repository_metadata_authority
+class: ImplementationPattern
+label: Repository metadata is the installability authority
+status: active
+
+when_to_use:
+  - "change repository publish workflow"
+  - "repository publish workflow installability"
+  - "modify artifact publish state"
+  - "repository resolve or installability logic"
+  - "repository artifact garbage collection or repair"
+  - "decide whether an artifact is installable"
+
+reference_files:
+  - path: golang/repository/repository_server/publish_workflow.go
+    role: publish_path
+  - path: golang/repository/repository_server/artifact_state.go
+    role: state_authority
+  - path: golang/repository/repository_server/resolver.go
+    role: resolve_path
+  - path: golang/repository/repository_server/reachability_guard.go
+    role: reachability_guard
+
+must_follow:
+  - "Derive installability from lifecycle metadata — ArtifactPipelineState.IsInstallable() / isRowInstallable() — never from object presence in MinIO or the CAS alone."
+  - "Gate every state change through IsTransitionAllowed(from, to) + transitionArtifactState; the durable publish_state must be committed before installability is exposed to resolvers (invariant:meta.state_mutations_must_be_durably_committed_before_side_effects)."
+  - "Treat desired build IDs as hard roots for deletion / revocation safety — never GC or revoke a build that a DesiredService record still references (invariant:cluster.desired_state_authority_over_installed_state)."
+  - "If the object store fails AFTER the authoritative metadata write, emit a finding (markPipelineMissingBlob / markBrokenForReason) — do not silently rewrite the authoritative publish_state back to an earlier value (invariant:derived_state.must_not_block_authority)."
+  - "publish_state is the column of record; discovery reads Scylla first. Object presence is corroborating evidence, not the source of truth."
+
+required_calls:
+  - transitionArtifactState
+  - IsTransitionAllowed
+
+forbidden_calls: []
+
+rationale: |
+  Installability is a lifecycle fact, not a storage fact. The recurring
+  repository incidents (INC-2026-0012 skeleton manifests, INC-2026-0013
+  mislabeled pinned bytes) all share one shape: object presence was trusted
+  as installability authority, or an authoritative metadata write and the
+  blob write were not treated atomically. The Globular-shaped way is that
+  publish_state in Scylla is the column of record; IsInstallable() reads
+  that, the transition is durable before resolvers can see it, and a
+  post-write object-store failure becomes a finding rather than a silent
+  downgrade of authority. Desired build IDs are hard deletion roots so GC
+  and repair can never strand a build the cluster still wants. This pattern
+  keeps the four-layer model intact: Repository answers "does this version
+  exist and is it installable?" from metadata it owns, not from a bucket
+  listing.

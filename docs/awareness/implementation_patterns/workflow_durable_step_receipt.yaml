@@ -1,0 +1,45 @@
+id: globular.pattern.workflow_durable_step_receipt
+class: ImplementationPattern
+label: Durable workflow step receipt
+status: active
+
+when_to_use:
+  - "modify workflow resume"
+  - "workflow resume after a failed step"
+  - "add a workflow step that has side effects"
+  - "change workflow step execution"
+  - "make a workflow step idempotent on replay"
+  - "handle workflow step failure classification"
+
+reference_files:
+  - path: golang/workflow/workflow_server/step_receipts.go
+    role: canonical
+  - path: golang/workflow/workflow_server/executor_resume.go
+    role: resume_path
+  - path: golang/workflow/workflow_server/receipt_failure_classifier.go
+    role: failure_classifier
+
+must_follow:
+  - "Write a durable receipt via writeStepReceipt after a step completes or after a classified blocking failure — the write IS the completion obligation for the side effect (invariant:meta.write_creates_completion_obligation)."
+  - "On resume, call readStepReceipt before re-executing a step. A present receipt means the side effect already happened — skip it, never replay (invariant: a completed side effect must not repeat without checking the durable receipt)."
+  - "For failed or blocked steps, record failure class, reason code, retry policy, and unblock signals via classifyStepFailureForReceipt so resume can choose retry vs. wait deterministically."
+  - "Keep reconciliation bounded and idempotent — no infinite deterministic retry (invariant:convergence.no_infinite_retry)."
+  - "A half-done step must not look done: the receipt must reflect actual completion, not intent, so canSkip predicates do not satisfy a partial state (invariant:meta.half_done_must_not_look_done)."
+
+required_calls:
+  - writeStepReceipt
+  - readStepReceipt
+  - classifyStepFailureForReceipt
+
+rationale: |
+  Workflows must be idempotent and safe to replay, and they must reach a
+  terminal state. The durable step receipt is what makes replay safe: it
+  records that a side effect already completed so a resumed run skips it
+  instead of doing it twice. The forbidden shape is a resume path that
+  re-executes a step purely because the run is being replayed, without first
+  consulting readStepReceipt — that double-applies side effects (double
+  installs, double etcd writes, double restarts). The second trap is a
+  receipt written from intent rather than completion, which lets a canSkip
+  predicate treat a half-done step as done. Receipts plus a failure
+  classifier (class + reason + retry policy + unblock signal) give resume
+  the information to converge instead of looping.

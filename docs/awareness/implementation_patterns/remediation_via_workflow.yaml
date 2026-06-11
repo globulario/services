@@ -1,0 +1,50 @@
+id: globular.pattern.remediation_via_workflow
+class: ImplementationPattern
+label: Remediation via workflow delegation
+status: active
+
+when_to_use:
+  - "add a remediation handler"
+  - "wire cluster-doctor remediation to a workflow"
+  - "execute a remediation action"
+  - "remediation handler for a finding"
+  - "auto-remediate a cluster finding"
+  - "change cluster-doctor remediation execution"
+
+reference_files:
+  - path: golang/cluster_doctor/cluster_doctor_server/handler_remediation_workflow.go
+    role: canonical
+  - path: golang/cluster_doctor/cluster_doctor_server/workflow_runner.go
+    role: runner_glue
+  - path: golang/cluster_doctor/cluster_doctor_server/remediation_gate_test.go
+    role: gate_reference
+
+must_follow:
+  - "Require the authoritative (elected leader) cluster-doctor instance before authorizing or executing remediation (invariant:doctor.remediation_requires_leader)."
+  - "Resolve the finding from the last-known findings by its FindingID — never act on a finding the doctor cannot currently observe (invariant:doctor.evidence_trust_must_be_authoritative_for_execution)."
+  - "Bind the approval token to action, target, evidence digest, and finding id; stale or unverifiable evidence must block execution (invariant:doctor.approval_token_binding_prevents_replay)."
+  - "Preserve risk class, approval, and dry-run semantics. HARD_BLOCKED actions (ETCD_PUT, ETCD_DELETE, NODE_REMOVE) must never auto-execute (invariant:doctor.hard_blocked_actions_never_execute)."
+  - "Delegate actual execution to the workflow service via StartRemediationWorkflow and actor callbacks — the doctor decides, the workflow coordinates, node agents execute. No direct mutation in the doctor process."
+  - "After execution, verify convergence before declaring the finding resolved — execution is not proof of repair."
+
+required_calls:
+  - StartRemediationWorkflow
+
+forbidden_calls:
+  - exec.Command
+  - exec.CommandContext
+  - clientv3.Put
+  - clientv3.Delete
+
+rationale: |
+  Every meaningful cluster mutation flows through the Workflow Service:
+  the controller decides, the workflow coordinates, node agents execute.
+  Remediation is the most dangerous mutation surface in the system, so it
+  has the strictest gate — leadership, evidence trust, approval-token
+  binding, risk class, dry-run, and a hard block on ETCD_PUT/ETCD_DELETE/
+  NODE_REMOVE. The forbidden shape is a remediation handler that reaches for
+  os/exec or an etcd write directly because "it's just a restart": that
+  bypasses the gate, leaves no replayable workflow record, and can act on a
+  finding whose evidence has gone stale. Delegating through
+  StartRemediationWorkflow keeps remediation idempotent, audited, and
+  re-runnable, and keeps convergence verification in the loop.
