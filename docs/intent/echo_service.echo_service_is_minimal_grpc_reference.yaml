@@ -6,3 +6,11 @@ intent: >
   proto definition, generated bindings, registered handler, lifecycle wiring,
   and test coverage. It must not grow beyond this minimal reference scope.
 status: active
+activation_triggers:
+  - "adding functionality to the echo service"
+  - "extending the echo reference service beyond echo"
+bad_smells:
+  - "echo service gaining business logic, storage, or dependencies beyond the reference scope"
+related_invariants:
+  - echo_rpc_is_stateless
+  - echo_rpc_preserves_message_bytes

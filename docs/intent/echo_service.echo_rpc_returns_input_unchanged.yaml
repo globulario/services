@@ -6,3 +6,11 @@ intent: >
   truncation, or enrichment is permitted. This is the defining contract of
   the reference implementation.
 status: active
+activation_triggers:
+  - "modifying the Echo RPC handler"
+  - "changing how the echo service builds its response"
+bad_smells:
+  - "echo response differs in any byte from the request message"
+related_invariants:
+  - echo_rpc_preserves_message_bytes
+  - echo_rpc_is_stateless
