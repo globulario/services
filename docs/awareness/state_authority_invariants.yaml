@@ -5400,3 +5400,220 @@ invariants:
       - ui.dangerous_warning_must_remain_visible
       - meta.diagnostic_output_must_be_bounded
       - meta.failure_response_must_contract_not_amplify
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # COMPOSITION — visual composition meta-principles
+  #
+  # Sixth category. Perception principles say: the screen must not lie.
+  # Composition principles say: the screen must make truth easy to perceive.
+  # Composition is evidence architecture — spacing, color, size, order, and
+  # grouping must help the operator perceive the truth faster and safer.
+  #
+  # Lineage: Gestalt grouping psychology (proximity, similarity, common
+  # region, closure), graphic-design visual hierarchy, typography research,
+  # color theory + WCAG, human-factors cockpit layout, and platform design
+  # systems (Material, Apple HIG, Fluent, Carbon, GOV.UK).
+  #
+  # The classic AI-generated layout failure this category exists to stop:
+  # pretty cards, wrong order.
+  #
+  # Globular theme palette has ROLES, not preferences:
+  #   brand, surface, info, success (confirmed runtime truth ONLY),
+  #   warning (risk/degraded-but-running), danger (destructive/data-loss),
+  #   unknown (missing evidence), stale (old evidence/generation mismatch).
+  # unknown and stale are first-class roles — most design systems lack
+  # them, and their absence is how fallback values end up rendered green.
+  #
+  # Note: color-only meaning is already governed by the critical perception
+  # principle meta.ui.meaning_must_survive_presentation_loss — composition
+  # entries reference it rather than duplicating it.
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - id: meta.ui.visual_hierarchy_must_match_decision_hierarchy
+    title: "Visual weight, order, spacing, and grouping must match the operator's decision path — safety evidence outranks decoration, always"
+    category: composition
+    antipattern: "Big hero card: 'ObjectStore looks great!' — tiny footer: applied_generation != desired_generation"
+    wrong_instinct: Lead with the reassuring summary and tuck the diagnostics below the fold — that's what dashboards look like
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — graphic-design hierarchy + human-factors cockpit layout
+    summary: |
+      The visual weight, order, spacing, and grouping of a screen must match
+      the operator's decision path. Information required to judge safety,
+      authority, freshness, risk, and outcome must be more prominent than
+      decorative summaries, secondary metadata, or convenience actions.
+      Whatever dominates the screen is what the operator believes first and
+      acts on fastest — a layout is itself a priority claim. This is the
+      composition anchor: the perception twin
+      (decoration_must_not_impersonate_authority) bans decoration LOOKING
+      like truth; this principle bans truth being PLACED like decoration.
+    enforcement: |
+      For every screen, write the decision path first (what must the
+      operator judge, in what order) and verify the layout's prominence
+      order matches it. Drift, risk, and required actions never render
+      visually weaker than summaries or branding. The good shape: top
+      banner "Topology drift detected"; main panel desired vs applied;
+      action locked until risk evidence is reviewed.
+    related_invariants:
+      - meta.ui.decoration_must_not_impersonate_authority
+      - meta.ui.simplicity_must_not_hide_operational_truth
+
+  - id: meta.ui.visual_grouping_must_match_semantic_grouping
+    title: "Visually grouped elements must share real semantic relationship — layout must not tell a story the data does not"
+    category: composition
+    antipattern: "desired_generation and runtime_healthy share one green card — the operator reads one confirmed truth"
+    wrong_instinct: Group whatever fits nicely in the card — the grid looks balanced that way
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — Gestalt: proximity, common region, similarity, closure
+    summary: |
+      Humans group visual elements before they read them (Gestalt:
+      proximity, similarity, common region, closure). Elements grouped by
+      border, background, alignment, or spacing are perceived as one
+      meaning — so a card that mixes authority sources (a desired-state
+      value beside a runtime value), states, actions, or risks asserts a
+      relationship the data does not have. The UI must not accidentally
+      tell a story through layout: grouping IS a claim, and claims bind to
+      authority (meta.ui.screen_claim_must_bind_to_authority).
+    enforcement: |
+      For every visual group (card, panel, row, bordered region), name the
+      semantic relationship its members share — same authority, same
+      subject, same action family. Mixed-authority groups must visibly
+      separate their members (distinct sub-regions, per-claim provenance),
+      never blend them under one status color.
+    related_invariants:
+      - meta.ui.screen_claim_must_bind_to_authority
+      - meta.ui.state_certainty_must_be_visually_distinct
+
+  - id: meta.ui.spacing_must_encode_relationships
+    title: "Spacing is information — equal spacing makes unrelated facts look related, and grouping gaps must mean grouping"
+    category: composition
+    antipattern: "A uniform 16px grid over the whole page — node identity, runtime state, and marketing copy all equidistant"
+    wrong_instinct: Apply one uniform spacing scale everywhere for visual rhythm
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — Gestalt proximity, applied to whitespace
+    summary: |
+      Proximity is the strongest Gestalt grouping force: things closer
+      together are read as more related. Spacing is therefore semantic
+      bandwidth, not aesthetic rhythm — uniform spacing flattens real
+      relationships (which evidence supports which claim, which action
+      belongs to which resource) and invents false ones. Related
+      evidence-claim pairs sit closer than unrelated neighbors; boundaries
+      between authority domains carry wider gaps than boundaries within
+      one.
+    enforcement: |
+      When laying out evidence, claims, and actions: spacing within a
+      semantic unit is tighter than spacing between units, consistently.
+      Before equalizing spacing for visual neatness, check what
+      relationship the equalization erases or fabricates.
+    related_invariants:
+      - meta.ui.visual_grouping_must_match_semantic_grouping
+
+  - id: meta.ui.proportion_must_reflect_operational_weight
+    title: "Screen area and interaction prominence must reflect operational importance — critical evidence is never smaller than decoration"
+    category: composition
+    antipattern: "The destructive Apply button is the biggest, brightest element; the wipe-risk note is 11px gray"
+    wrong_instinct: Size elements by how often they're used, or by what makes the layout feel dynamic
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — visual hierarchy / human factors; where theme-and-layout taste becomes enforceable
+    summary: |
+      Screen area, visual weight, and interaction prominence must reflect
+      operational importance. Critical evidence, risk, authority, and
+      required operator decisions must not be visually smaller, weaker, or
+      harder to reach than low-risk decoration or convenience content. A
+      destructive action rendered with more prominence than its own risk
+      evidence inverts the operator's reading order — they see the button
+      before the reason not to press it.
+    enforcement: |
+      Rank the screen's elements by operational weight (risk > authority
+      evidence > status > navigation > decoration) and verify the rendered
+      size/contrast/position order does not invert it. An action's
+      prominence must never exceed the prominence of the evidence required
+      to judge it.
+    related_invariants:
+      - meta.ui.visual_hierarchy_must_match_decision_hierarchy
+      - meta.ui.destructive_action_requires_confirmed_authority
+
+  - id: meta.ui.color_must_have_semantic_contract
+    title: "Status colors have stable contracts — success means confirmed runtime truth only, and no color serves two conflicting roles"
+    category: composition
+    antipattern: "Green for the brand accent, green for selected rows, green for healthy — three meanings, one hue"
+    wrong_instinct: Pick colors per screen for visual appeal; the palette is a styling concern
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — color theory + Material/Apple semantic color + WCAG; composition twin of same_truth_same_language
+    summary: |
+      Theme and status colors must hold stable meanings across the entire
+      interface. The Globular palette is role-based: brand, surface, info,
+      success, warning, danger, unknown, stale. The two load-bearing rules:
+      success color marks CONFIRMED RUNTIME TRUTH ONLY — never desired
+      state, never optimistic updates, never decoration; and unknown/stale
+      are first-class roles, because a palette without them is exactly how
+      a fallback value ends up rendered green. A color reused for a
+      conflicting semantic role (success + selection, danger + emphasis)
+      poisons the operator's learned vocabulary.
+    enforcement: |
+      Every color use maps to one palette role; every role maps to one
+      epistemic meaning. Before using success color, name the runtime
+      authority confirming the value. Before reusing any status hue for a
+      non-status purpose, pick a different hue.
+    related_invariants:
+      - meta.ui.same_truth_same_language
+      - meta.ui.state_certainty_must_be_visually_distinct
+      - meta.ui.meaning_must_survive_presentation_loss
+
+  - id: meta.ui.typography_must_express_information_hierarchy
+    title: "Type expresses the information hierarchy — title, status, evidence, warning, and metadata must be visually distinguishable at a glance"
+    category: composition
+    antipattern: "Everything is 14px medium gray — the wipe warning reads like a caption"
+    wrong_instinct: One type style keeps the UI minimal and consistent
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — typography research + Apple HIG (hierarchy, legibility, important content)
+    summary: |
+      Typography is the cheapest, most robust hierarchy channel the screen
+      has — it survives color loss, theme changes, and small screens. The
+      information classes on an operator screen (title, status, evidence
+      values, warnings, metadata/provenance) must be typographically
+      distinguishable: an operator scanning under stress must be able to
+      find the warning and the evidence without reading everything.
+      Flat typography forces serial reading; hierarchy enables triage.
+    enforcement: |
+      Define type roles alongside color roles (title, status, evidence,
+      warning, metadata) and verify each information class renders in its
+      role. Warnings and risk text are never typographically weaker than
+      body text. Numeric evidence (generations, counts, hashes) renders in
+      a style that survives skimming.
+    related_invariants:
+      - meta.ui.meaning_must_survive_presentation_loss
+      - meta.ui.visual_hierarchy_must_match_decision_hierarchy
+
+  - id: meta.ui.theme_tokens_must_encode_roles_not_preferences
+    title: "Theme tokens encode semantic roles, not preferences — components consume success/warning/danger/stale/unknown, never raw values"
+    category: composition
+    antipattern: "color: #4caf50 hardcoded in the status badge component"
+    wrong_instinct: Style components directly — tokens are ceremony for a one-app design system
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — design-token practice (Material/Fluent/Carbon); the mechanism that makes every other composition principle enforceable
+    summary: |
+      Theme colors, spacing, typography, and elevation must be defined as
+      role-based tokens, and components must consume semantic tokens
+      (success, warning, danger, stale, unknown, surface, emphasis…) —
+      never one-off stylistic values. Tokens are the enforcement mechanism
+      for the whole composition category: with role tokens, "success means
+      confirmed runtime truth" is one definition; with raw values it is a
+      thousand scattered decisions. Tokens are also what makes skin/theme
+      changes safe — skins remap token values, they cannot remap meaning
+      (meta.ui.meaning_must_survive_presentation_loss).
+    enforcement: |
+      No raw color/size/weight literals in components for anything carrying
+      operational meaning — semantic token references only. New visual
+      meaning requires a new token role, not a new hex value. This is the
+      first composition principle to mechanize when frontend Tier-2 lands
+      (a token-only lint is a trivial Semgrep/ESLint rule).
+    related_invariants:
+      - meta.ui.color_must_have_semantic_contract
+      - meta.ui.same_truth_same_language

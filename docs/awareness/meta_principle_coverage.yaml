@@ -183,3 +183,30 @@ meta_principle_coverage:
   - principle: meta.ui.notification_volume_must_match_operator_capacity
     tier: review_only
     reason: Alarm rationalization (actionability, priority, dedup per class) is an operational design decision; candidate for behavioral budget tests once a notification layer exists.
+
+  # ── Composition (visual) principles — review_only ───────────────────────
+  # Composition is evidence architecture: layout/color/typography choices
+  # that make truth perceivable. Like perception, these are design-review
+  # judgments until a frontend codebase exists. theme_tokens is the named
+  # first candidate for mechanization (token-only lint via Semgrep/ESLint).
+  - principle: meta.ui.visual_hierarchy_must_match_decision_hierarchy
+    tier: review_only
+    reason: Whether layout prominence matches the operator decision path is a per-screen design judgment; screen contracts carry the concrete ordering (see the topology contract's required-evidence list).
+  - principle: meta.ui.visual_grouping_must_match_semantic_grouping
+    tier: review_only
+    reason: Whether a visual group's members share real semantic relationship requires knowing the authority of each member — semantic, not syntactic.
+  - principle: meta.ui.spacing_must_encode_relationships
+    tier: review_only
+    reason: Spacing semantics are relative to the screen's relationship structure; no static artifact proves them.
+  - principle: meta.ui.proportion_must_reflect_operational_weight
+    tier: review_only
+    reason: Operational-weight ranking per screen is a design decision; review lens at screen-contract time.
+  - principle: meta.ui.color_must_have_semantic_contract
+    tier: review_only
+    reason: Role-to-meaning stability is auditable once the token palette exists; until then design review. Re-classify with theme_tokens mechanization.
+  - principle: meta.ui.typography_must_express_information_hierarchy
+    tier: review_only
+    reason: Type-role sufficiency is a legibility judgment; component tests can cover concrete cases once components exist.
+  - principle: meta.ui.theme_tokens_must_encode_roles_not_preferences
+    tier: review_only
+    reason: First composition principle to mechanize when frontend Tier-2 lands — a token-only lint (no raw color/size literals in components) is a trivial Semgrep/ESLint rule. review_only until that codebase exists.

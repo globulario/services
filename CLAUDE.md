@@ -363,7 +363,7 @@ Awareness explains *why* code exists, *what* it protects, *which fixes are forbi
 
 When documenting an error (incident, failure mode, finding), don't just record WHAT broke — classify WHY against the generative meta-principles. This turns error documentation into architectural learning.
 
-**Step 1 — CLASSIFY** the error against `invariant:meta.*` (5 categories). Source of truth: `docs/awareness/state_authority_invariants.yaml`; re-query the graph if this table feels stale.
+**Step 1 — CLASSIFY** the error against `invariant:meta.*` (6 categories). Source of truth: `docs/awareness/state_authority_invariants.yaml`; re-query the graph if this table feels stale.
 
 **Authority** (4) — "who owns this truth, and is this code that owner?"
 | Principle | What it catches |
@@ -417,6 +417,17 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.ui.ai_assistance_must_be_explainable_and_bounded` | AI summary asserts state without source, timestamp, confidence, evidence boundary |
 | `meta.ui.task_path_must_match_operator_goal` | Screen mirrors proto/RPC schema instead of the operator's task |
 | `meta.ui.notification_volume_must_match_operator_capacity` | Alarm flood, N symptom toasts for one cause, standing red badges nobody acts on |
+
+**Composition** (7) — "does the layout make truth easy to perceive?" (visual composition; Gestalt/typography/color theory/design tokens — composition is evidence architecture: pretty cards, wrong order is the failure)
+| Principle | What it catches |
+|-----------|----------------|
+| `meta.ui.visual_hierarchy_must_match_decision_hierarchy` | Decorative summary louder than drift/risk; safety evidence below the fold |
+| `meta.ui.visual_grouping_must_match_semantic_grouping` | Mixed-authority values blended in one card read as one confirmed truth |
+| `meta.ui.spacing_must_encode_relationships` | Uniform spacing flattens real relationships or fabricates false ones |
+| `meta.ui.proportion_must_reflect_operational_weight` | Destructive button more prominent than its own risk evidence |
+| `meta.ui.color_must_have_semantic_contract` | Success color on desired/optimistic state; one hue serving conflicting roles; no unknown/stale roles |
+| `meta.ui.typography_must_express_information_hierarchy` | Warning typographically indistinguishable from metadata |
+| `meta.ui.theme_tokens_must_encode_roles_not_preferences` | Raw color/size literals in components instead of semantic tokens |
 
 If one fits → add `related_invariants: [meta.<id>]` to the error entry.
 If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom out with human).
