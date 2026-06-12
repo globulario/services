@@ -181,12 +181,21 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    continue-on-error: true   # lint failures are advisory — never block CI
+    # Advisory while the ratchet proves itself. The job drowned in legacy
+    # errcheck debt for months (red on every run = zero signal). It now
+    # lints ONLY issues introduced by the push (--new-from-rev), so green
+    # is achievable and red means THIS change added a violation. Flip this
+    # to blocking (delete continue-on-error) after a week of green runs;
+    # the legacy debt is tracked separately and burns down on touch.
+    continue-on-error: true
     steps:
       - name: Checkout services
         uses: actions/checkout@v4
         with:
           path: services
+          # Full history: --new-from-rev needs the parent commit to diff
+          # against; the default shallow clone has no HEAD~1.
+          fetch-depth: 0
 
       - name: Checkout utility
         uses: actions/checkout@v4
@@ -225,4 +234,7 @@ jobs:
           # at time of bump and supports Go 1.25.
           version: v2.12.2
           working-directory: services/golang
-          args: --timeout=10m
+          # Ratchet mode: report only issues introduced since the parent
+          # commit. Legacy errcheck debt (hundreds of findings across old
+          # services) stays out of the signal; new violations surface.
+          args: --timeout=10m --new-from-rev=HEAD~1
