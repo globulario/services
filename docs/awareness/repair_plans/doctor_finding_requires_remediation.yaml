@@ -6,6 +6,13 @@ confidence: high
 blast_radius: cluster
 approval_gate: human_approval_required
 
+when_to_use:
+  - "the doctor found a finding that needs a mutation"
+  - "doctor wants to delete an etcd key"
+  - "remediate a cluster finding safely"
+  - "auto-remediation was blocked, how to proceed"
+  - "execute a remediation the doctor proposed"
+
 covers_paths:
   - golang/cluster_doctor/cluster_doctor_server/
 
@@ -41,7 +48,10 @@ verification_steps:
 rollback_steps:
   - "Remediation rolls back through its own workflow run / actor Verify path; the doctor never reverses state directly."
 
-required_tests: []
+required_tests:
+  - test:TestRemediationBlocksOnStaleEvidence
+  - test:TestAutoRemediationCooldown_AllowsFirstBlocksSecond
+  - test:TestRemediationAuditCarriesCorrelationFields
 produces_outcome_feedback: "record an OutcomeFeedback for the finding with decision (executed/blocked/rejected) and the convergence result"
 
 notes: |

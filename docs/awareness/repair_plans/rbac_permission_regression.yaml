@@ -6,6 +6,13 @@ confidence: high
 blast_radius: security
 approval_gate: human_approval_required
 
+when_to_use:
+  - "a user suddenly cannot access a resource"
+  - "permission denied unexpectedly after a change"
+  - "access allowed that should have been denied"
+  - "rbac permission regression"
+  - "deny rule not taking effect"
+
 covers_paths:
   - golang/rbac/rbac_server/
 
@@ -39,7 +46,9 @@ verification_steps:
 rollback_steps:
   - "Revert the permission change through the RBAC typed RPC; an explicit deny added during repair stays until removed via RPC."
 
-required_tests: []
+required_tests:
+  - test:TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
+  - test:TestNodeExecutorCannotPerformRBACAdmin
 produces_outcome_feedback: "record an OutcomeFeedback noting whether deny precedence held after the change"
 
 notes: |

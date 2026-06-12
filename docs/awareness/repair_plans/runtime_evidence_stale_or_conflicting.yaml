@@ -6,6 +6,13 @@ confidence: high
 blast_radius: node
 approval_gate: review_required
 
+when_to_use:
+  - "evidence is stale or conflicting"
+  - "nodes report contradictory health states"
+  - "a finding is based on a partial snapshot"
+  - "health verdict from missing evidence"
+  - "two probes disagree about runtime state"
+
 covers_paths:
   - golang/node_agent/node_agent_server/
   - golang/cluster_doctor/cluster_doctor_server/collector/
@@ -39,7 +46,9 @@ verification_steps:
 rollback_steps:
   - "No state was mutated — this plan only re-classifies and re-requests evidence; there is nothing to roll back."
 
-required_tests: []
+required_tests:
+  - test:TestNoRuleEmitsConfidentFailureOnErroredSnapshot
+  - test:TestFindingIncludesEvidenceTrustLevel
 produces_outcome_feedback: "record an OutcomeFeedback noting the evidence classification and whether a PASS was correctly withheld"
 
 notes: |
