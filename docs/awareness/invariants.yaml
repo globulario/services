@@ -2978,7 +2978,6 @@ invariants:
             - golang/cmd/globular-upgrader/main.go
             - golang/mcp/tools_etcd.go
             - golang/globularcli/state_cmds.go
-            - docs/awareness/etcd_path_ownership.yaml
         symbols:
             - WriteInstalledPackage
             - etcd.Put
@@ -5812,9 +5811,6 @@ invariants:
       title: PKI CA metadata must be published and registry-governed
     - id: preflight.high_risk_no_anchor_must_degrade_not_low_risk
       protects:
-        files:
-            - golang/awareness-graph/golang/server/preflight.go
-            - golang/awareness-graph/golang/server/risk_classify.go
         symbols:
             - anyPathInHighRiskDir
             - HighRiskNoAnchorReasonPrefix

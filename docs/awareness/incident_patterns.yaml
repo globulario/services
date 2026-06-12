@@ -1,256 +1,239 @@
-# incident_patterns.yaml
-#
-# Reusable failure signatures extracted from real Globular incidents.
-# The awareness preflight reads this file via knowledge.Load and surfaces
-# matching patterns BEFORE an agent edits a file, so a past trap can warn
-# a future session.
-#
-# Schema (see globulario/awareness/knowledge/knowledge.go IncidentPattern):
-#   id, title, severity, failure_mode, root_cause, lesson,
-#   edit_shapes, wrong_fixes, files, related_invariants, related_symbols.
-
 incident_patterns:
-  - id: pat.service_main_clobbers_ldflags_version
-    title: Service main() hardcodes Version="" and wipes the build-time ldflags injection
-    severity: degraded
-    failure_mode: service.runtime_version_empty_from_main
-    root_cause: |
-      The build-side `gen-version.sh` + `-X main.Version=<ver>` ldflags
-      pipeline sets the package-level `Version` variable at process start.
-      A service `main()` (or its Config default factory) that then assigns
-      a literal — `srv.Version = ""`, `Version: ""` in a Config struct,
-      `srv.Version = "0.0.1"` — runs AFTER the ldflags assignment and
-      clobbers the injected value. Every downstream consumer
-      (`--describe`, `--version`, the verifier, the heartbeat) sees the
-      literal, not the build value. The bug is silent: no compile error,
-      no test failure unless the suite explicitly probes `--describe`.
-    lesson: |
-      In every Globular service entrypoint, populate the Version field
-      from the package-level `Version` symbol — `srv.Version = Version`
-      or `cfg.Version = Version` inside a `DefaultConfig()` factory.
-      Never write a literal version string into a Version-named field.
-      The build-side sentinel in `zz_version_generated.go` catches an
-      empty package variable but cannot catch a main() that re-assigns
-      it post-init.
-    edit_shapes:
-      - assigning a string literal to a Version-named struct field in a service main
-      - introducing a Config struct whose default factory leaves Version blank or hardcoded
-      - copying Version via cfg.Version where cfg was constructed without reading the package Version symbol
-      - editing zz_version_generated.go directly (regenerated; fix won't survive a build)
-    wrong_fixes:
-      - special-casing the affected service in detectGlobularBinaryVersion to fall back to the marker file
-      - reading Version from etcd at service init time (chicken-and-egg with the verifier on Day-0)
-      - suppressing service.runtime_identity_unproven globally to silence the warning
-      - hardcoding the desired version in main() so --describe matches the marker
-    files:
-      - golang/globular_service/services.go
-      - golang/repository/repository_server/main.go
-      - golang/monitoring/monitoring_server/main.go
-      - golang/torrent/torrent_server/main.go
-    related_invariants:
-      - service.lifecycle.version_field_must_not_be_overwritten
-      - health.must_not_use_inventory_as_runtime_truth
-      - rollout.convergence_requires_runtime_proof
-    related_symbols:
-      - Version
-      - LifecycleManager
-      - DefaultConfig
-      - srv.Version
-      - cfg.Version
+    - edit_shapes:
+        - assigning a string literal to a Version-named struct field in a service main
+        - introducing a Config struct whose default factory leaves Version blank or hardcoded
+        - copying Version via cfg.Version where cfg was constructed without reading the package Version symbol
+        - editing zz_version_generated.go directly (regenerated; fix won't survive a build)
+      failure_mode: service.runtime_version_empty_from_main
+      files:
+        - golang/globular_service/services.go
+      id: pat.service_main_clobbers_ldflags_version
+      lesson: |
+        In every Globular service entrypoint, populate the Version field
+        from the package-level `Version` symbol — `srv.Version = Version`
+        or `cfg.Version = Version` inside a `DefaultConfig()` factory.
+        Never write a literal version string into a Version-named field.
+        The build-side sentinel in `zz_version_generated.go` catches an
+        empty package variable but cannot catch a main() that re-assigns
+        it post-init.
+      related_invariants:
+        - service.lifecycle.version_field_must_not_be_overwritten
+        - health.must_not_use_inventory_as_runtime_truth
+        - rollout.convergence_requires_runtime_proof
+      related_symbols:
+        - Version
+        - LifecycleManager
+        - DefaultConfig
+        - srv.Version
+        - cfg.Version
+      root_cause: |
+        The build-side `gen-version.sh` + `-X main.Version=<ver>` ldflags
+        pipeline sets the package-level `Version` variable at process start.
+        A service `main()` (or its Config default factory) that then assigns
+        a literal — `srv.Version = ""`, `Version: ""` in a Config struct,
+        `srv.Version = "0.0.1"` — runs AFTER the ldflags assignment and
+        clobbers the injected value. Every downstream consumer
+        (`--describe`, `--version`, the verifier, the heartbeat) sees the
+        literal, not the build value. The bug is silent: no compile error,
+        no test failure unless the suite explicitly probes `--describe`.
+      severity: degraded
+      title: Service main() hardcodes Version="" and wipes the build-time ldflags injection
+      wrong_fixes:
+        - special-casing the affected service in detectGlobularBinaryVersion to fall back to the marker file
+        - reading Version from etcd at service init time (chicken-and-egg with the verifier on Day-0)
+        - suppressing service.runtime_identity_unproven globally to silence the warning
+        - hardcoding the desired version in main() so --describe matches the marker
+    - edit_shapes:
+        - adding a SetFields case to applyPatchToSvcStatus/AppStatus/InfraStatus without verifying which release kind sends the label
+        - dispatching a release workflow with `_, err := workflow.Run(...)` and branching only on err != nil
+        - copying a fix from one of Svc/App/Infra to one sibling but not the other (asymmetry)
+        - tightening patchReleaseStatus' equality guard instead of fixing the misrouted SetFields
+      failure_mode: release_pipeline.set_fields_silent_noop_on_wrong_kind
+      files:
+        - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+        - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      id: pat.release_pipeline_setfields_wrong_switch_or_dispatch_discard
+      lesson: |
+        Before adding a SetFields case, grep callers for the label string
+        and route it ONLY to the apply function of the matching
+        `*ReleaseHandle.PatchStatus` closure. The default branch in each
+        apply function must log
+        `applyPatchTo*Status: unknown SetFields=<label>` so a misroute
+        produces a canary on every reconcile tick. At dispatch sites,
+        never `_, err := workflow.Run(...)`. Use
+        `dispatchWaveResult(handle, resp, err)` or explicit branches for
+        engine error / wave failure / full success. When fixing one of
+        the three parallel pipelines (Svc/App/Infra), audit the other
+        two for the symmetric gap on both the patch-apply and dispatch
+        sides.
+      related_invariants:
+        - release_pipeline.set_fields_routing_must_match_release_kind
+        - workflow.dispatch_is_not_completion
+        - workflow.success_requires_backend_confirmation
+        - convergence.no_infinite_retry
+      related_symbols:
+        - applyPatchToSvcStatus
+        - applyPatchToAppStatus
+        - applyPatchToInfraStatus
+        - patchReleaseStatus
+        - RunPackageReleaseWorkflow
+        - dispatchWaveResult
+        - svcReleaseHandle.PatchStatus
+        - appReleaseHandle.PatchStatus
+        - infraReleaseHandle.PatchStatus
+      root_cause: |
+        `release_pipeline.go` has three near-identical SetFields apply
+        functions — `applyPatchToSvcStatus`, `applyPatchToAppStatus`,
+        `applyPatchToInfraStatus` — for the three release kinds. Two
+        symmetric defects, both silent at compile time:
 
-  - id: pat.release_pipeline_setfields_wrong_switch_or_dispatch_discard
-    title: SetFields case added to wrong apply function (or wave-blocked dispatch result discarded) leaves release stuck
-    severity: critical
-    failure_mode: release_pipeline.set_fields_silent_noop_on_wrong_kind
-    root_cause: |
-      `release_pipeline.go` has three near-identical SetFields apply
-      functions — `applyPatchToSvcStatus`, `applyPatchToAppStatus`,
-      `applyPatchToInfraStatus` — for the three release kinds. Two
-      symmetric defects, both silent at compile time:
+        1. Adding a SetFields case to the wrong apply function. The wrong
+           function's default branch returns false; `patchReleaseStatus`'s
+           equality guard then skips Apply; the reconcile loop logs
+           intent (e.g. `marking AVAILABLE`) every cycle while etcd state
+           never moves.
 
-      1. Adding a SetFields case to the wrong apply function. The wrong
-         function's default branch returns false; `patchReleaseStatus`'s
-         equality guard then skips Apply; the reconcile loop logs
-         intent (e.g. `marking AVAILABLE`) every cycle while etcd state
-         never moves.
+        2. Discarding the workflow dispatch response. Workflow runners
+           return `(resp, err)` where `resp.Status` encodes per-wave
+           outcomes (`RUN_STATUS_FAILED`, `WAVE_BLOCKED`) independently of
+           `err`. A `_, err := workflow.Run(...)` site that only branches
+           on `err != nil` drops the wave-failure result. RetryCount stays
+           at 0, NextRetryUnixMs is never set, the reconciler's NextRetry
+           guard sees zero, and the release sits at `phase=RESOLVED` with
+           a WAVE_BLOCKED message until drift-reconciler eventually
+           re-enqueues it.
 
-      2. Discarding the workflow dispatch response. Workflow runners
-         return `(resp, err)` where `resp.Status` encodes per-wave
-         outcomes (`RUN_STATUS_FAILED`, `WAVE_BLOCKED`) independently of
-         `err`. A `_, err := workflow.Run(...)` site that only branches
-         on `err != nil` drops the wave-failure result. RetryCount stays
-         at 0, NextRetryUnixMs is never set, the reconciler's NextRetry
-         guard sees zero, and the release sits at `phase=RESOLVED` with
-         a WAVE_BLOCKED message until drift-reconciler eventually
-         re-enqueues it.
+        Both gaps appear together because patch-apply and dispatch live in
+        the same file and follow the same shape across Svc/App/Infra.
+        Incident history: INC-2026-0014 / PAT-850bae27 (svc setfields
+        mis-route, A5 closure), INC-2026-0017 / PAT-e24ac20d (svc
+        dispatch-side wave-blocked discard, commit a03b1937), commit
+        504d35ba (infra `"retry"` case missing). See MEMORY.md
+        `feedback_release_pipeline_setfields_routing` and
+        `feedback_wave_blocked_must_dispatch_retry`.
+      severity: critical
+      title: SetFields case added to wrong apply function (or wave-blocked dispatch result discarded) leaves release stuck
+      wrong_fixes:
+        - adding the SetFields case to all three apply functions "to be safe" — silent overwrite of one kind's status by another's patch path
+        - re-enqueueing via drift-reconciler timer instead of explicit RetryCount + NextRetryUnixMs
+        - raising the reconciler tick rate so drift-reconciler runs more often (mask, not fix)
+        - increasing workflow queue capacity to hide the retry storm
+        - returning err from the dispatch site to "make the failure loud" — the engine-level err is nil for wave failures by contract
+    - edit_shapes:
+        - removing or hoisting `srv.sweepRuntimeDepBlocks(ctx, nodes)` behind a feature flag in `reconcileNodes`
+        - refactoring `sweepRuntimeDepBlocks` to clear records without re-running `checkRuntimeDeps` (e.g. using a "dep reported active recently" timestamp instead of a fresh evaluation)
+        - widening the sweep's filter so it deletes BLOCKED outcomes whose ReasonCode is not `runtime_deps_not_ready`
+        - changing `clearRuntimeDepBlock` to delete only the action key OR only the latest convergence record (must remain BOTH)
+        - changing the deterministic action ID format without updating `runtimeDepBlockKindFromActionID`
+        - loosening `checkRuntimeDeps` to drop the join-phase gate for scylladb / minio / etcd
+      failure_mode: reconcile.stale_dep_block_persists_after_dep_active
+      files:
+        - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+        - golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
+        - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+      id: pat.reconcile_stale_dep_block_never_cleared
+      lesson: |
+        Every controller-written BLOCKED state must remain paired
+        with a structural sweep that clears it when the blocking
+        condition is observed false again. Writing the block is half
+        the contract; writing the clear is the other half. The clear
+        sweep must remain level-triggered (every reconcile tick),
+        idempotent, and gated on a fresh `checkRuntimeDeps`
+        evaluation. A manual `etcdctl del` runbook is not a
+        substitute for the sweep — if you ever need it on a healthy
+        cluster, the sweep is broken.
 
-      Both gaps appear together because patch-apply and dispatch live in
-      the same file and follow the same shape across Svc/App/Infra.
-      Incident history: INC-2026-0014 / PAT-850bae27 (svc setfields
-      mis-route, A5 closure), INC-2026-0017 / PAT-e24ac20d (svc
-      dispatch-side wave-blocked discard, commit a03b1937), commit
-      504d35ba (infra `"retry"` case missing). See MEMORY.md
-      `feedback_release_pipeline_setfields_routing` and
-      `feedback_wave_blocked_must_dispatch_retry`.
-    lesson: |
-      Before adding a SetFields case, grep callers for the label string
-      and route it ONLY to the apply function of the matching
-      `*ReleaseHandle.PatchStatus` closure. The default branch in each
-      apply function must log
-      `applyPatchTo*Status: unknown SetFields=<label>` so a misroute
-      produces a canary on every reconcile tick. At dispatch sites,
-      never `_, err := workflow.Run(...)`. Use
-      `dispatchWaveResult(handle, resp, err)` or explicit branches for
-      engine error / wave failure / full success. When fixing one of
-      the three parallel pipelines (Svc/App/Infra), audit the other
-      two for the symmetric gap on both the patch-apply and dispatch
-      sides.
-    edit_shapes:
-      - adding a SetFields case to applyPatchToSvcStatus/AppStatus/InfraStatus without verifying which release kind sends the label
-      - dispatching a release workflow with `_, err := workflow.Run(...)` and branching only on err != nil
-      - copying a fix from one of Svc/App/Infra to one sibling but not the other (asymmetry)
-      - tightening patchReleaseStatus' equality guard instead of fixing the misrouted SetFields
-    wrong_fixes:
-      - adding the SetFields case to all three apply functions "to be safe" — silent overwrite of one kind's status by another's patch path
-      - re-enqueueing via drift-reconciler timer instead of explicit RetryCount + NextRetryUnixMs
-      - raising the reconciler tick rate so drift-reconciler runs more often (mask, not fix)
-      - increasing workflow queue capacity to hide the retry storm
-      - returning err from the dispatch site to "make the failure loud" — the engine-level err is nil for wave failures by contract
-    files:
-      - golang/cluster_controller/cluster_controller_server/release_pipeline.go
-      - golang/cluster_controller/cluster_controller_server/workflow_release.go
-    related_invariants:
-      - release_pipeline.set_fields_routing_must_match_release_kind
-      - workflow.dispatch_is_not_completion
-      - workflow.success_requires_backend_confirmation
-      - convergence.no_infinite_retry
-    related_symbols:
-      - applyPatchToSvcStatus
-      - applyPatchToAppStatus
-      - applyPatchToInfraStatus
-      - patchReleaseStatus
-      - RunPackageReleaseWorkflow
-      - dispatchWaveResult
-      - svcReleaseHandle.PatchStatus
-      - appReleaseHandle.PatchStatus
-      - infraReleaseHandle.PatchStatus
+        Equally important: `checkRuntimeDeps` must keep the join-phase
+        gate (scylladb / minio / etcd require `*JoinPhase == Verified`,
+        not just systemd active). Weakening this gate to "systemd
+        active is good enough" directly reintroduces INC-2026-0005's
+        race window — the block would be cleared before the dep is
+        actually usable, and the dispatched install would land before
+        the Raft / ring / quorum join completes.
+      related_invariants:
+        - reconcile.dep_block_records_must_be_cleared_when_dep_satisfies
+        - convergence.no_infinite_retry
+        - critical_state.absence_is_not_destructive_intent
+      related_symbols:
+        - writeRuntimeDepBlock
+        - checkRuntimeDeps
+        - hasUnservedNodes
+        - clearRuntimeDepBlock
+      root_cause: |
+        Historical incident — INC-2026-0005 (globule-dell Day-1,
+        2026-05-23). At that time, `writeRuntimeDepBlock` in
+        `critical_key_prereqs.go` recorded a
+        `BLOCKED_MISSING_NATIVE_DEP` latest convergence record AND a
+        `runtime_dep_block` controller action key whenever a native
+        dependency was not active for a node, but there was no
+        symmetric clear path that ran on subsequent ticks. The
+        bootstrap race — node phase advances at t=T while dep
+        observation lands at t=T+Δ — meant blocks written during
+        bootstrap outlived the condition that produced them. Three
+        manual `etcdctl del` waves (6 keys during bootstrap, 34 after
+        workload_ready, 2 for the sctool→scylla-manager dep) were
+        needed to converge globule-dell, because `hasUnservedNodes` in
+        `release_pipeline.go` reads the latest convergence record
+        verbatim and refused to dispatch the very work that would have
+        cleared the records.
 
-  - id: pat.reconcile_stale_dep_block_never_cleared
-    title: Regression guard — the symmetric sweep that clears BLOCKED dep records must remain in place
-    severity: critical
-    failure_mode: reconcile.stale_dep_block_persists_after_dep_active
-    root_cause: |
-      Historical incident — INC-2026-0005 (globule-dell Day-1,
-      2026-05-23). At that time, `writeRuntimeDepBlock` in
-      `critical_key_prereqs.go` recorded a
-      `BLOCKED_MISSING_NATIVE_DEP` latest convergence record AND a
-      `runtime_dep_block` controller action key whenever a native
-      dependency was not active for a node, but there was no
-      symmetric clear path that ran on subsequent ticks. The
-      bootstrap race — node phase advances at t=T while dep
-      observation lands at t=T+Δ — meant blocks written during
-      bootstrap outlived the condition that produced them. Three
-      manual `etcdctl del` waves (6 keys during bootstrap, 34 after
-      workload_ready, 2 for the sctool→scylla-manager dep) were
-      needed to converge globule-dell, because `hasUnservedNodes` in
-      `release_pipeline.go` reads the latest convergence record
-      verbatim and refused to dispatch the very work that would have
-      cleared the records.
+        Runtime fix (already shipped, 2026-05-24):
+          - commit e47c2316 — `clearRuntimeDepBlock` + edge-triggered
+            clear in `reconcileResolved`.
+          - commit dba27d03 — `sweepRuntimeDepBlocks` (level-triggered
+            safety net) + unconditional call at the top of
+            `reconcileNodes`.
+          - `checkRuntimeDeps` gates stateful infra deps (scylladb /
+            minio / etcd) on `*JoinPhase == Verified`, not just systemd
+            active. This is what closes INC-2026-0005's race window.
 
-      Runtime fix (already shipped, 2026-05-24):
-        - commit e47c2316 — `clearRuntimeDepBlock` + edge-triggered
-          clear in `reconcileResolved`.
-        - commit dba27d03 — `sweepRuntimeDepBlocks` (level-triggered
-          safety net) + unconditional call at the top of
-          `reconcileNodes`.
-        - `checkRuntimeDeps` gates stateful infra deps (scylladb /
-          minio / etcd) on `*JoinPhase == Verified`, not just systemd
-          active. This is what closes INC-2026-0005's race window.
-
-      This pattern is now a regression guard. The architectural
-      answer is the `writeRuntimeDepBlock` + `clearRuntimeDepBlock`
-      + `sweepRuntimeDepBlocks` triad with conservative
-      `checkRuntimeDeps`. The historical edit shape — write without
-      a symmetric clear — is captured here so a future regression is
-      flagged before it ships.
-    lesson: |
-      Every controller-written BLOCKED state must remain paired
-      with a structural sweep that clears it when the blocking
-      condition is observed false again. Writing the block is half
-      the contract; writing the clear is the other half. The clear
-      sweep must remain level-triggered (every reconcile tick),
-      idempotent, and gated on a fresh `checkRuntimeDeps`
-      evaluation. A manual `etcdctl del` runbook is not a
-      substitute for the sweep — if you ever need it on a healthy
-      cluster, the sweep is broken.
-
-      Equally important: `checkRuntimeDeps` must keep the join-phase
-      gate (scylladb / minio / etcd require `*JoinPhase == Verified`,
-      not just systemd active). Weakening this gate to "systemd
-      active is good enough" directly reintroduces INC-2026-0005's
-      race window — the block would be cleared before the dep is
-      actually usable, and the dispatched install would land before
-      the Raft / ring / quorum join completes.
-    edit_shapes:
-      - removing or hoisting `srv.sweepRuntimeDepBlocks(ctx, nodes)` behind a feature flag in `reconcileNodes`
-      - refactoring `sweepRuntimeDepBlocks` to clear records without re-running `checkRuntimeDeps` (e.g. using a "dep reported active recently" timestamp instead of a fresh evaluation)
-      - widening the sweep's filter so it deletes BLOCKED outcomes whose ReasonCode is not `runtime_deps_not_ready`
-      - changing `clearRuntimeDepBlock` to delete only the action key OR only the latest convergence record (must remain BOTH)
-      - changing the deterministic action ID format without updating `runtimeDepBlockKindFromActionID`
-      - loosening `checkRuntimeDeps` to drop the join-phase gate for scylladb / minio / etcd
-    wrong_fixes:
-      - elevating `etcdctl del` of the two stale keys to "supported recovery procedure" — implies the sweep is acceptable to bypass
-      - masking BLOCKED records in `hasUnservedNodes` so dispatch proceeds anyway — defeats the dep-block gate for legitimate inactive cases
-      - increasing the dep-block record's TTL so it expires naturally — replaces a known stall with a longer one
-      - one-shot clear inside `checkRuntimeDeps` at install time only — bootstrap window can re-write the record after install runs
-      - hardcoding which packages can ignore stale dep-blocks (special-casing always wears out)
-      - removing the join-phase gate to "make convergence faster" — directly reintroduces INC-2026-0005
-    files:
-      - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
-      - golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
-      - golang/cluster_controller/cluster_controller_server/release_pipeline.go
-    related_invariants:
-      - reconcile.dep_block_records_must_be_cleared_when_dep_satisfies
-      - convergence.no_infinite_retry
-      - critical_state.absence_is_not_destructive_intent
-    related_symbols:
-      - writeRuntimeDepBlock
-      - checkRuntimeDeps
-      - hasUnservedNodes
-      - clearRuntimeDepBlock
-
-  - id: pat.heartbeat_stale_kind_manifest_old_pid_loop
-    title: Heartbeat processes old artifact versions with stale kind, permanently deleting correct installed-state records and producing old_pid_after_upgrade
-    severity: critical
-    failure_mode: heartbeat.stale_kind_manifest_poisons_installed_state
-    root_cause: |
-      syncRepoArtifactsToEtcd called ListArtifacts() and iterated every returned version.
-      When an artifact's kind changed between releases (e.g., mcp: INFRASTRUCTURE in
-      1.2.131/1.2.132, SERVICE in 1.2.133), the old INFRASTRUCTURE manifests were still
-      present in the repo. The heartbeat's staleService deletion logic saw the INFRASTRUCTURE
-      manifest, found the correctly-installed SERVICE/mcp@1.2.133 record, treated it as
-      misclassified, deleted it, and replaced it with INFRASTRUCTURE/mcp@1.2.132 with a
-      fresh updatedUnix. On the next heartbeat cycle the same thing happened again.
-      The fresh updatedUnix kept ApplyTime permanently ahead of the process start time,
-      firing service.old_pid_after_upgrade on every doctor cycle. Install dispatches
-      succeeded and were immediately undone.
-      INC-2026-0019, commit 72cc72b2.
-    lesson: |
-      ListArtifacts() is NOT a "latest version" API — it returns every published version.
-      Iterating all versions for kind resolution is wrong. Only the latest version per
-      (name, platform) is authoritative for kind. Any deduplication bypass reintroduces
-      the poison loop.
-    edit_shapes:
-      - removing the latestArts deduplication map from syncRepoArtifactsToEtcd
-      - replacing the per-(name,platform) winner logic with any form of "process all returned manifests"
-      - adding a special-case exemption for specific artifact names instead of deduplicating generically
-    wrong_fixes:
-      - deleting old artifact versions from the repository to stop heartbeat poisoning (destroys audit trail; correct fix is deduplication in heartbeat)
-      - adding a name-based allowlist of artifacts to skip in syncRepoArtifactsToEtcd (fragile; misses future reclassifications)
-      - suppressing service.old_pid_after_upgrade globally (loses the upgrade-bug signal)
-    files:
-      - golang/node_agent/node_agent_server/heartbeat.go
-    related_invariants:
-      - infra.heartbeat_observer_only_not_authority
-    related_symbols:
-      - syncRepoArtifactsToEtcd
+        This pattern is now a regression guard. The architectural
+        answer is the `writeRuntimeDepBlock` + `clearRuntimeDepBlock`
+        + `sweepRuntimeDepBlocks` triad with conservative
+        `checkRuntimeDeps`. The historical edit shape — write without
+        a symmetric clear — is captured here so a future regression is
+        flagged before it ships.
+      severity: critical
+      title: Regression guard — the symmetric sweep that clears BLOCKED dep records must remain in place
+      wrong_fixes:
+        - elevating `etcdctl del` of the two stale keys to "supported recovery procedure" — implies the sweep is acceptable to bypass
+        - masking BLOCKED records in `hasUnservedNodes` so dispatch proceeds anyway — defeats the dep-block gate for legitimate inactive cases
+        - increasing the dep-block record's TTL so it expires naturally — replaces a known stall with a longer one
+        - one-shot clear inside `checkRuntimeDeps` at install time only — bootstrap window can re-write the record after install runs
+        - hardcoding which packages can ignore stale dep-blocks (special-casing always wears out)
+        - removing the join-phase gate to "make convergence faster" — directly reintroduces INC-2026-0005
+    - edit_shapes:
+        - removing the latestArts deduplication map from syncRepoArtifactsToEtcd
+        - replacing the per-(name,platform) winner logic with any form of "process all returned manifests"
+        - adding a special-case exemption for specific artifact names instead of deduplicating generically
+      failure_mode: heartbeat.stale_kind_manifest_poisons_installed_state
+      files:
+        - golang/node_agent/node_agent_server/heartbeat.go
+      id: pat.heartbeat_stale_kind_manifest_old_pid_loop
+      lesson: |
+        ListArtifacts() is NOT a "latest version" API — it returns every published version.
+        Iterating all versions for kind resolution is wrong. Only the latest version per
+        (name, platform) is authoritative for kind. Any deduplication bypass reintroduces
+        the poison loop.
+      related_invariants:
+        - infra.heartbeat_observer_only_not_authority
+      related_symbols:
+        - syncRepoArtifactsToEtcd
+      root_cause: |
+        syncRepoArtifactsToEtcd called ListArtifacts() and iterated every returned version.
+        When an artifact's kind changed between releases (e.g., mcp: INFRASTRUCTURE in
+        1.2.131/1.2.132, SERVICE in 1.2.133), the old INFRASTRUCTURE manifests were still
+        present in the repo. The heartbeat's staleService deletion logic saw the INFRASTRUCTURE
+        manifest, found the correctly-installed SERVICE/mcp@1.2.133 record, treated it as
+        misclassified, deleted it, and replaced it with INFRASTRUCTURE/mcp@1.2.132 with a
+        fresh updatedUnix. On the next heartbeat cycle the same thing happened again.
+        The fresh updatedUnix kept ApplyTime permanently ahead of the process start time,
+        firing service.old_pid_after_upgrade on every doctor cycle. Install dispatches
+        succeeded and were immediately undone.
+        INC-2026-0019, commit 72cc72b2.
+      severity: critical
+      title: Heartbeat processes old artifact versions with stale kind, permanently deleting correct installed-state records and producing old_pid_after_upgrade
+      wrong_fixes:
+        - deleting old artifact versions from the repository to stop heartbeat poisoning (destroys audit trail; correct fix is deduplication in heartbeat)
+        - adding a name-based allowlist of artifacts to skip in syncRepoArtifactsToEtcd (fragile; misses future reclassifications)
+        - suppressing service.old_pid_after_upgrade globally (loses the upgrade-bug signal)

@@ -31,6 +31,7 @@ import (
 var (
 	auditVerbose bool
 	auditCIMode  bool // CI mode: exit 1 on any FAIL
+	auditFix     bool // auto-fix mechanical issues
 )
 
 var awarenessAuditCmd = &cobra.Command{
@@ -48,7 +49,11 @@ Checks:
   test-coverage          Critical/high invariants missing required_tests?
 
 Use --check for CI: exits 1 if any check is FAIL.
-Use --verbose for per-finding details.`,
+Use --verbose for per-finding details.
+Use --fix to auto-repair mechanical issues:
+  - Stale embeddata → rebuild
+  - Stale file refs → remove entries pointing at deleted files
+  - Oxigraph reload after any fix`,
 	RunE: runAwarenessAudit,
 }
 
@@ -79,6 +84,8 @@ type auditCheck struct {
 	result  checkLevel
 	summary string
 	details []string
+	fixFn   func() error // nil = no auto-fix available
+	fixDesc string       // human-readable description of what --fix will do
 }
 
 // ── entry point ──────────────────────────────────────────────────────────
@@ -107,11 +114,23 @@ func runAwarenessAudit(cmd *cobra.Command, args []string) error {
 	fmt.Println("  generating N-Triples...")
 	ntBytes, totalTriples, yamlCount, genErr := generateNTriples(inputDirs, intentDir, svcRepo, agRepo)
 
+	seedPath := filepath.Join(agRepo, "golang", "server", "embeddata", "awareness.nt")
+
 	// 1. Embeddata freshness
 	if genErr != nil {
 		checks = append(checks, auditCheck{name: "embeddata-freshness", result: checkFAIL, summary: genErr.Error()})
 	} else {
-		checks = append(checks, auditEmbeddataFreshness(ntBytes, agRepo))
+		c := auditEmbeddataFreshness(ntBytes, agRepo)
+		if c.result == checkFAIL {
+			c.fixDesc = "rebuild embeddata + reload Oxigraph"
+			c.fixFn = func() error {
+				if err := updateEmbeddataAndReload(ntBytes, seedPath); err != nil {
+					return err
+				}
+				return nil
+			}
+		}
+		checks = append(checks, c)
 	}
 
 	// 2. YAML validity (strict)
@@ -135,7 +154,25 @@ func runAwarenessAudit(cmd *cobra.Command, args []string) error {
 
 	// 5. Stale file references
 	if genErr == nil {
-		checks = append(checks, auditStaleFileRefs(svcRepo, ntBytes))
+		c := auditStaleFileRefs(svcRepo, ntBytes)
+		if c.result != checkPASS && len(c.details) > 0 {
+			staleFiles := append([]string{}, c.details...) // capture
+			c.fixDesc = fmt.Sprintf("remove %d stale SourceFile entries from YAML + rebuild", len(staleFiles))
+			c.fixFn = func() error {
+				removed := removeStaleFileRefsFromYAML(svcRepo, agRepo, staleFiles)
+				if removed > 0 {
+					fmt.Printf("    removed %d stale file references from YAML\n", removed)
+					fmt.Println("    rebuilding...")
+					newNT, _, _, err := generateNTriples(inputDirs, intentDir, svcRepo, agRepo)
+					if err != nil {
+						return err
+					}
+					return updateEmbeddataAndReload(newNT, seedPath)
+				}
+				return nil
+			}
+		}
+		checks = append(checks, c)
 	}
 
 	// 6. Test coverage for critical invariants
@@ -166,6 +203,32 @@ func runAwarenessAudit(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Printf("  %d checks: %d pass, %d warn, %d fail\n",
 		len(checks), len(checks)-fails-warns, warns, fails)
+
+	// ── auto-fix ─────────────────────────────────────────────────────────
+	if auditFix {
+		var fixable []auditCheck
+		for _, c := range checks {
+			if c.result != checkPASS && c.fixFn != nil {
+				fixable = append(fixable, c)
+			}
+		}
+		if len(fixable) == 0 {
+			fmt.Println("\n  --fix: nothing to auto-fix")
+		} else {
+			fmt.Printf("\n  --fix: %d fixable issue(s)\n", len(fixable))
+			fixed := 0
+			for _, c := range fixable {
+				fmt.Printf("\n  fixing: %s — %s\n", c.name, c.fixDesc)
+				if err := c.fixFn(); err != nil {
+					fmt.Printf("    FAILED: %v\n", err)
+				} else {
+					fmt.Println("    done")
+					fixed++
+				}
+			}
+			fmt.Printf("\n  %d/%d fixes applied\n", fixed, len(fixable))
+		}
+	}
 
 	if auditCIMode && fails > 0 {
 		os.Exit(1)
@@ -428,6 +491,128 @@ func collectFilePathsFromNT(ntBytes []byte) map[string]bool {
 	return paths
 }
 
+// ── fix helpers ──────────────────────────────────────────────────────────
+
+// updateEmbeddataAndReload writes the NT seed and reloads Oxigraph.
+func updateEmbeddataAndReload(ntBytes []byte, seedPath string) error {
+	updated, err := updateEmbeddata(ntBytes, seedPath)
+	if err != nil {
+		return err
+	}
+	if updated {
+		fmt.Printf("    embeddata updated: %s\n", seedPath)
+	}
+	if err := reloadOxigraph(ntBytes); err != nil {
+		fmt.Printf("    Oxigraph reload: skipped (%v)\n", err)
+	} else {
+		fmt.Println("    Oxigraph reload: ok")
+	}
+	return nil
+}
+
+// removeStaleFileRefsFromYAML scans awareness YAML files and removes
+// entries whose protects.files list references only deleted files.
+// Returns the number of entries cleaned.
+func removeStaleFileRefsFromYAML(svcRepo, agRepo string, stalePaths []string) int {
+	staleSet := make(map[string]bool, len(stalePaths))
+	for _, p := range stalePaths {
+		staleSet[p] = true
+	}
+
+	// The stale refs come from two sources:
+	// 1. Services repo YAML (protects.files in invariants, failure_modes, etc.)
+	// 2. Awareness-graph repo YAML (code_symbols, edges)
+	//
+	// For services repo: clean protects.files lists.
+	// For awareness-graph repo refs (golang/server/*, golang/store/*, etc.):
+	// these are awareness-graph-relative paths authored in awareness-graph YAML.
+	// We can't fix those from here — they need fixing in the awareness-graph repo.
+
+	cleaned := 0
+	awarenessDir := filepath.Join(svcRepo, "docs", "awareness")
+
+	for _, yamlFile := range []string{
+		"invariants.yaml", "failure_modes.yaml", "incident_patterns.yaml",
+		"forbidden_fixes.yaml", "required_tests.yaml",
+	} {
+		path := filepath.Join(awarenessDir, yamlFile)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+
+		var doc map[string]interface{}
+		if err := yaml.Unmarshal(raw, &doc); err != nil {
+			continue
+		}
+
+		modified := false
+		for _, listKey := range []string{
+			"invariants", "failure_modes", "incident_patterns",
+			"forbidden_fixes", "required_tests",
+		} {
+			entries, ok := doc[listKey].([]interface{})
+			if !ok {
+				continue
+			}
+			for _, entry := range entries {
+				m, ok := entry.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				// Clean protects.files
+				if protects, ok := m["protects"].(map[string]interface{}); ok {
+					if files, ok := protects["files"].([]interface{}); ok {
+						var kept []interface{}
+						for _, f := range files {
+							fs, ok := f.(string)
+							if !ok || !staleSet[fs] {
+								kept = append(kept, f)
+							} else {
+								cleaned++
+								modified = true
+							}
+						}
+						if len(kept) == 0 {
+							delete(protects, "files")
+						} else {
+							protects["files"] = kept
+						}
+					}
+				}
+				// Clean top-level files (incident_patterns)
+				if files, ok := m["files"].([]interface{}); ok {
+					var kept []interface{}
+					for _, f := range files {
+						fs, ok := f.(string)
+						if !ok || !staleSet[fs] {
+							kept = append(kept, f)
+						} else {
+							cleaned++
+							modified = true
+						}
+					}
+					if len(kept) == 0 {
+						delete(m, "files")
+					} else {
+						m["files"] = kept
+					}
+				}
+			}
+		}
+
+		if modified {
+			out, err := yaml.Marshal(doc)
+			if err != nil {
+				continue
+			}
+			_ = os.WriteFile(path, out, 0o644)
+		}
+	}
+
+	return cleaned
+}
+
 // ── wiring ───────────────────────────────────────────────────────────────
 
 func init() {
@@ -435,6 +620,8 @@ func init() {
 		"Show per-finding details for WARN and FAIL checks")
 	awarenessAuditCmd.Flags().BoolVar(&auditCIMode, "check", false,
 		"Exit 1 if any check is FAIL (CI mode)")
+	awarenessAuditCmd.Flags().BoolVar(&auditFix, "fix", false,
+		"Auto-repair mechanical issues (stale embeddata, stale file refs)")
 
 	awarenessCmd.AddCommand(awarenessAuditCmd)
 }
