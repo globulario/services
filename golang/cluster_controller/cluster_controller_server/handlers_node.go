@@ -643,9 +643,28 @@ func (srv *server) drainNode(ctx context.Context, node *nodeState, opID string) 
 		return nil // Nothing to drain
 	}
 
-	// Plan dispatch removed — drain should use workflow-native path.
-	log.Printf("drain: plan dispatch skipped for node %s (plan system removed)", node.NodeID)
-	_ = plan
-	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, cluster_controllerpb.OperationPhase_OP_RUNNING, "drain skipped (plan removed)", 50, false, ""))
+	// Stop each service via the node-agent ControlService RPC.
+	agent, agentErr := srv.getAgentClient(ctx, node.AgentEndpoint)
+	if agentErr != nil {
+		return fmt.Errorf("drain: cannot reach node-agent at %s: %w", node.AgentEndpoint, agentErr)
+	}
+
+	var stopErrors []string
+	for _, ua := range plan.UnitActions {
+		resp, err := agent.ControlService(ctx, ua.UnitName, "stop")
+		if err != nil {
+			stopErrors = append(stopErrors, fmt.Sprintf("%s: %v", ua.UnitName, err))
+			log.Printf("drain: stop %s on %s failed: %v", ua.UnitName, node.NodeID, err)
+			continue
+		}
+		log.Printf("drain: stop %s on %s → %s (%s)", ua.UnitName, node.NodeID, resp.GetState(), resp.GetMessage())
+	}
+
+	srv.broadcastOperationEvent(srv.newOperationEvent(opID, node.NodeID, cluster_controllerpb.OperationPhase_OP_RUNNING,
+		fmt.Sprintf("drained %d/%d services", len(plan.UnitActions)-len(stopErrors), len(plan.UnitActions)), 50, false, ""))
+
+	if len(stopErrors) > 0 {
+		return fmt.Errorf("drain: %d/%d services failed to stop: %v", len(stopErrors), len(plan.UnitActions), stopErrors)
+	}
 	return nil
 }

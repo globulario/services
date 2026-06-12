@@ -66,9 +66,32 @@ func (srv *server) buildNodeRemoveControllerConfig() engine.NodeRemoveController
 		DeleteState: func(ctx context.Context, nodeID string) error {
 			srv.lock("node-remove-delete-state")
 			defer srv.unlock()
-			if _, exists := srv.state.Nodes[nodeID]; !exists {
+			node, exists := srv.state.Nodes[nodeID]
+			if !exists {
 				// Idempotent: a re-run finds the node already deleted.
 				return nil
+			}
+			// Clean MinioPoolNodes: remove the node's IP so stale entries
+			// don't persist after removal. filterEligiblePoolIPsLocked
+			// filters at publish time, but cleaning here keeps the state
+			// consistent and avoids stale-ref drift on controller restart.
+			if len(srv.state.MinioPoolNodes) > 0 && node != nil {
+				nodeIP := node.StableIP(srv.clusterVIP())
+				if nodeIP == "" {
+					nodeIP = node.PrimaryIP()
+				}
+				if nodeIP != "" {
+					var kept []string
+					for _, ip := range srv.state.MinioPoolNodes {
+						if ip != nodeIP {
+							kept = append(kept, ip)
+						}
+					}
+					if len(kept) != len(srv.state.MinioPoolNodes) {
+						log.Printf("node-remove: cleaned MinioPoolNodes: removed %s for node %s", nodeIP, nodeID)
+						srv.state.MinioPoolNodes = kept
+					}
+				}
 			}
 			delete(srv.state.Nodes, nodeID)
 			if err := srv.persistStateLocked(true); err != nil {
