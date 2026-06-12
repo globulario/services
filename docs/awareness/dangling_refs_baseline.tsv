@@ -521,11 +521,39 @@ https://globular.io/awareness#ForbiddenFix	trust_archive_entry_names
 https://globular.io/awareness#ForbiddenFix	trust_gate_bypassed_in_live_execution
 https://globular.io/awareness#ForbiddenFix	trust_node_by_ip_without_certificate_check
 https://globular.io/awareness#ForbiddenFix	trusting_tcp_connect_as_proof_of_service_identity
+https://globular.io/awareness#ForbiddenFix	ui.fix.accept_last_arriving_response_as_latest
 https://globular.io/awareness#ForbiddenFix	ui.fix.ai_invents_state
+https://globular.io/awareness#ForbiddenFix	ui.fix.cache_not_invalidated_on_backend_generation_change
+https://globular.io/awareness#ForbiddenFix	ui.fix.color_only_status
+https://globular.io/awareness#ForbiddenFix	ui.fix.data_holder_as_status_authority
 https://globular.io/awareness#ForbiddenFix	ui.fix.derive_runtime_from_desired
+https://globular.io/awareness#ForbiddenFix	ui.fix.disabled_button_without_reason
+https://globular.io/awareness#ForbiddenFix	ui.fix.display_name_as_identity
+https://globular.io/awareness#ForbiddenFix	ui.fix.dom_dataset_as_backend_truth
+https://globular.io/awareness#ForbiddenFix	ui.fix.double_submit_starts_duplicate_workflow
+https://globular.io/awareness#ForbiddenFix	ui.fix.empty_state_hides_permission_denied
 https://globular.io/awareness#ForbiddenFix	ui.fix.enable_action_without_permission
+https://globular.io/awareness#ForbiddenFix	ui.fix.error_boundary_blanks_operator_context
+https://globular.io/awareness#ForbiddenFix	ui.fix.error_boundary_hides_critical_warning
+https://globular.io/awareness#ForbiddenFix	ui.fix.event_detail_as_backend_truth
+https://globular.io/awareness#ForbiddenFix	ui.fix.full_page_reload_for_local_state_change
+https://globular.io/awareness#ForbiddenFix	ui.fix.global_event_bus_without_contract
 https://globular.io/awareness#ForbiddenFix	ui.fix.hide_warning_on_small_viewport
+https://globular.io/awareness#ForbiddenFix	ui.fix.list_key_uses_array_index
+https://globular.io/awareness#ForbiddenFix	ui.fix.listener_without_cleanup
+https://globular.io/awareness#ForbiddenFix	ui.fix.no_abort_or_generation_for_concurrent_requests
+https://globular.io/awareness#ForbiddenFix	ui.fix.operational_context_lost_on_navigation
 https://globular.io/awareness#ForbiddenFix	ui.fix.place_critical_warning_in_collapsed_section
+https://globular.io/awareness#ForbiddenFix	ui.fix.polling_loop_survives_component_unmount
+https://globular.io/awareness#ForbiddenFix	ui.fix.refresh_screen_to_hide_state_bug
+https://globular.io/awareness#ForbiddenFix	ui.fix.retry_creates_new_mutation_without_idempotency_key
+https://globular.io/awareness#ForbiddenFix	ui.fix.selected_resource_only_in_ephemeral_state
+https://globular.io/awareness#ForbiddenFix	ui.fix.spinner_hides_backend_failure
+https://globular.io/awareness#ForbiddenFix	ui.fix.stale_subscription_updates_new_screen
+https://globular.io/awareness#ForbiddenFix	ui.fix.time_only_cache_for_operator_state
+https://globular.io/awareness#ForbiddenFix	ui.fix.unknown_rendered_as_empty_success
+https://globular.io/awareness#ForbiddenFix	ui.fix.untyped_custom_event_payload
+https://globular.io/awareness#ForbiddenFix	ui.fix.warning_only_visible_on_hover
 https://globular.io/awareness#ForbiddenFix	unknown_mode_treated_as_ignore
 https://globular.io/awareness#ForbiddenFix	unknown_source_treated_as_authoritative
 https://globular.io/awareness#ForbiddenFix	unmarshal_without_len_guard_after_getitem
@@ -559,6 +587,7 @@ https://globular.io/awareness#ForbiddenFix	writing_service_desired_version_direc
 https://globular.io/awareness#Test	Globular/internal/globule/banner_test.go::TestPrintBannerNeverWritesToStdout
 https://globular.io/awareness#Test	TestAIExplanation_DoesNotInvertBackendFact
 https://globular.io/awareness#Test	TestAIText_ShowsBlockedReason_NotGenericMessage
+https://globular.io/awareness#Test	TestAbortedRequest_DoesNotMutateComponentState
 https://globular.io/awareness#Test	TestAbsentRecord_ClassifiedAsUnknown_NotKnownBad
 https://globular.io/awareness#Test	TestAbsoluteTarPathFails
 https://globular.io/awareness#Test	TestActionButton_Disabled_WhenPermissionDenied
@@ -604,6 +633,7 @@ https://globular.io/awareness#Test	TestAwarenessReadiness_WritablePathsAdvertise
 https://globular.io/awareness#Test	TestAwarenessToolsDialThroughGateway
 https://globular.io/awareness#Test	TestBOMCorrectionRequiresNewEntry
 https://globular.io/awareness#Test	TestBOMMembership_DoesNotImplyInstalled
+https://globular.io/awareness#Test	TestBackendFailure_NotRenderedAsInfiniteSpinner
 https://globular.io/awareness#Test	TestBootstrapRecordIgnoredAsFinalByConsumers
 https://globular.io/awareness#Test	TestBootstrapRecoveryWithLocalBOMCache
 https://globular.io/awareness#Test	TestBuildIDMapsToSingleArtifactIdentity
@@ -613,6 +643,7 @@ https://globular.io/awareness#Test	TestBuildStepReceiptPayload_BlockedFields
 https://globular.io/awareness#Test	TestCLI_PolsWorkflowUntilTerminal
 https://globular.io/awareness#Test	TestCLI_ReportsTerminalWorkflowState
 https://globular.io/awareness#Test	TestCLI_WaitsForTerminalWorkflowState
+https://globular.io/awareness#Test	TestCacheInvalidates_WhenGenerationChanges
 https://globular.io/awareness#Test	TestCachedStatus_MarkedStale_WhenExpired
 https://globular.io/awareness#Test	TestCanScyllaDDLProceed_Group0Unknown_BlocksDDL
 https://globular.io/awareness#Test	TestCanSkipDueToExistingState_NullManifestJSONRefusesSkip
@@ -639,6 +670,7 @@ https://globular.io/awareness#Test	TestCollectorGap_ProducesUnknown_NotHealthy
 https://globular.io/awareness#Test	TestCollisionRepairArchivesOnlyUnpinnedDuplicate
 https://globular.io/awareness#Test	TestCollisionRepairRefusesDesiredPinnedArtifact
 https://globular.io/awareness#Test	TestCommandPackageWithNoUnitProducesNoFinding
+https://globular.io/awareness#Test	TestComponentUnmount_RemovesDomListener
 https://globular.io/awareness#Test	TestCompose_NoMatchIsNeverSafe
 https://globular.io/awareness#Test	TestCompose_StaleBundleBlocksSafetyVerdict
 https://globular.io/awareness#Test	TestComputeDesiredState_ControllerSRVOnlyHealthy
@@ -661,6 +693,9 @@ https://globular.io/awareness#Test	TestCorruptLKGRejectedPriorStateRetained
 https://globular.io/awareness#Test	TestCoverageReport_NoRepoRootIsUnverifiedNotCritical
 https://globular.io/awareness#Test	TestCriticalDependencyDeclaresDegradationMode
 https://globular.io/awareness#Test	TestDNSReconcilerExcludesVIPFromPerNodeARecords
+https://globular.io/awareness#Test	TestDataHolderRefresh_DoesNotReloadWholePage
+https://globular.io/awareness#Test	TestDataHolder_DoesNotInventRuntimeStatus
+https://globular.io/awareness#Test	TestDataHolder_InvalidatesFromBackendEvent
 https://globular.io/awareness#Test	TestDataIncomplete_SuppressesCritical_WhenNoKnownBad
 https://globular.io/awareness#Test	TestDay1ClassifyNodeMCPToolReturnsBLOCKForScyllaDown
 https://globular.io/awareness#Test	TestDay1FinalizeClearsBootstrapFlag
@@ -697,6 +732,7 @@ https://globular.io/awareness#Test	TestDerivedLaneErrorDoesNotFlipAuthorityToBlo
 https://globular.io/awareness#Test	TestDesiredBuildIDImmutableAfterWrite
 https://globular.io/awareness#Test	TestDesiredEnabled_DoesNotImplyHealthy
 https://globular.io/awareness#Test	TestDestructiveAction_RequiresConfirmation
+https://globular.io/awareness#Test	TestDestructiveWarning_AnnouncedToAssistiveTech
 https://globular.io/awareness#Test	TestDestructiveWarning_NotHiddenByThemeChange
 https://globular.io/awareness#Test	TestDestructiveWarning_VisibleAtAllBreakpoints
 https://globular.io/awareness#Test	TestDetectDrift_AllErrored_Unknown
@@ -713,6 +749,7 @@ https://globular.io/awareness#Test	TestDetectEffectiveUnitDrift_MissingFragmentP
 https://globular.io/awareness#Test	TestDetectEffectiveUnitDrift_TypeDiffers_Drift
 https://globular.io/awareness#Test	TestDeterministicFailureDoesNotRetryForever
 https://globular.io/awareness#Test	TestDeviceFileFails
+https://globular.io/awareness#Test	TestDisabledAction_ExposesReason
 https://globular.io/awareness#Test	TestDiscoveredDependenciesAreDeclaredOrClassified
 https://globular.io/awareness#Test	TestDispatchOrderAbandonedBeforeCooldown
 https://globular.io/awareness#Test	TestDispatchSuccessWithoutVerificationIsPending
@@ -731,6 +768,8 @@ https://globular.io/awareness#Test	TestDoctorRule_DNSRecordsMatchRuntimeHealth
 https://globular.io/awareness#Test	TestDoctorRule_OldPidAfterUpgrade
 https://globular.io/awareness#Test	TestDoctorRule_RepositoryDesiredBuildIDsResolve
 https://globular.io/awareness#Test	TestDoctorRule_RunningBinaryHashMismatch
+https://globular.io/awareness#Test	TestDomEvent_HasTypedPayloadContract
+https://globular.io/awareness#Test	TestDoubleClick_DoesNotCreateDuplicateMutation
 https://globular.io/awareness#Test	TestDownloadArtifactToDir_AlwaysResolvesManifestEvenIfEntrypointHashProvided
 https://globular.io/awareness#Test	TestDownloadArtifactToDir_RejectsDownloadWhenManifestUnavailable
 https://globular.io/awareness#Test	TestDownloadArtifactToDir_ResolvesChecksumWhenEmpty
@@ -760,6 +799,8 @@ https://globular.io/awareness#Test	TestEnter_RefreshesPrimaryErrorAndAffectedPat
 https://globular.io/awareness#Test	TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
 https://globular.io/awareness#Test	TestEnvoyLDSWedge_ColdInit_NoFinding
 https://globular.io/awareness#Test	TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
+https://globular.io/awareness#Test	TestErrorBoundary_PreservesCriticalWarning
+https://globular.io/awareness#Test	TestErrorBoundary_ShowsFailedComponentAndResourceId
 https://globular.io/awareness#Test	TestEtcdAdvertiseURL_UsesStableIP_NotVIP
 https://globular.io/awareness#Test	TestEtcdMemberMatchAcceptsAnyOfNodeIps
 https://globular.io/awareness#Test	TestEtcdOutageServesFromLKG
@@ -797,6 +838,8 @@ https://globular.io/awareness#Test	TestFileClientUsesResolvedServerName
 https://globular.io/awareness#Test	TestFileServiceDependenciesClassified
 https://globular.io/awareness#Test	TestFileServiceTLSIdentityMatchesRegistry
 https://globular.io/awareness#Test	TestFileService_FallbackToLocalEmitsFinding
+https://globular.io/awareness#Test	TestFilterState_RoundTripsThroughURL
+https://globular.io/awareness#Test	TestFilteredList_DoesNotMoveStateBetweenRows
 https://globular.io/awareness#Test	TestFindLocalPackage_EmptyVersion_AllowsWildcard
 https://globular.io/awareness#Test	TestFindLocalPackage_ExplicitVersion_NoExact_ReturnsEmpty
 https://globular.io/awareness#Test	TestFindLocalPackage_ExplicitVersion_ReturnsExactMatch
@@ -853,6 +896,7 @@ https://globular.io/awareness#Test	TestJoinRefusedBelowFoundingQuorum
 https://globular.io/awareness#Test	TestJoiningNodeWithWrongCAIsRejected
 https://globular.io/awareness#Test	TestKeepalivedConfigContainsHealthScript
 https://globular.io/awareness#Test	TestKnownPathClasses_NoneUndefined
+https://globular.io/awareness#Test	TestLateResponse_DoesNotOverwriteNewerState
 https://globular.io/awareness#Test	TestLayoutDrift_ClusterDoctorAliasesAreDeterministic
 https://globular.io/awareness#Test	TestLayoutDrift_EmptyLegacyAliasOfInstalledService_IsCleanupCandidate
 https://globular.io/awareness#Test	TestLayoutDrift_HiddenDir_IsSilent
@@ -869,6 +913,7 @@ https://globular.io/awareness#Test	TestLeaderView_ShowsStableNodeIP_NotVIP
 https://globular.io/awareness#Test	TestLearnFromFix_DoesNotApplyWeightsWithoutApproval
 https://globular.io/awareness#Test	TestLearningLoopClosesOnReoccurrence
 https://globular.io/awareness#Test	TestListArtifactsWhenMinIODown
+https://globular.io/awareness#Test	TestListReorder_PreservesRowStateByBackendId
 https://globular.io/awareness#Test	TestListRepositoryFindings_MissingLocalAndMirror_StaysCritical
 https://globular.io/awareness#Test	TestListRepositoryFindings_MissingLocalButPresentInMirror_DowngradedToInfo
 https://globular.io/awareness#Test	TestListenerBind_Uses0000_NotLoopback
@@ -893,6 +938,7 @@ https://globular.io/awareness#Test	TestMCPServiceReachesActiveAfterRestart
 https://globular.io/awareness#Test	TestMCPStartFailsWhenOrphanHoldsPort
 https://globular.io/awareness#Test	TestMCPStartedAfterDay1Install
 https://globular.io/awareness#Test	TestMalformedDisableDoesNotStopRuntime
+https://globular.io/awareness#Test	TestMalformedDomEvent_DoesNotMutateAuthoritativeState
 https://globular.io/awareness#Test	TestManifestJSONPresent_DirectChecks
 https://globular.io/awareness#Test	TestMarkNodeSucceeded_AttributedToActorNotWorkflowService
 https://globular.io/awareness#Test	TestMarkNodeSucceeded_StoresBinarySHA_NotReleaseIdentity
@@ -967,6 +1013,8 @@ https://globular.io/awareness#Test	TestPathScoring_VerifiedDecisionPathBeatsDecl
 https://globular.io/awareness#Test	TestPendingSyncRecovery
 https://globular.io/awareness#Test	TestPerActionSafetyGateDeterministic
 https://globular.io/awareness#Test	TestPermCacheGrantTTLIsBounded
+https://globular.io/awareness#Test	TestPermissionCacheInvalidates_WhenUserOrRoleChanges
+https://globular.io/awareness#Test	TestPermissionDenied_NotRenderedAsEmptyList
 https://globular.io/awareness#Test	TestPermissionDenied_RenderedDistinctlyFromNetworkError
 https://globular.io/awareness#Test	TestPermissionDenied_RenderedDistinctly_NotAsNetworkError
 https://globular.io/awareness#Test	TestPlatformMatchesTarget
@@ -1015,6 +1063,7 @@ https://globular.io/awareness#Test	TestRecreateServiceUnitFromSpec_MissingPackag
 https://globular.io/awareness#Test	TestRedactAssetURL_PlainURL
 https://globular.io/awareness#Test	TestRedactAssetURL_StripsQueryParams
 https://globular.io/awareness#Test	TestRedactGitError
+https://globular.io/awareness#Test	TestRefreshPreservesExpandedPanelAndSelection
 https://globular.io/awareness#Test	TestRegistryKeyHasCompletePolicy
 https://globular.io/awareness#Test	TestRejectInvariantWithMissingRequiredTest
 https://globular.io/awareness#Test	TestReleaseApplyWorkflows_DispatchOneRunPerReleaseWithPerNodeForeach
@@ -1040,6 +1089,7 @@ https://globular.io/awareness#Test	TestResolveByBuildIDOrphaned_ReturnsFailedPre
 https://globular.io/awareness#Test	TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
 https://globular.io/awareness#Test	TestRestartSingleflightGate
 https://globular.io/awareness#Test	TestRetryButton_NotShown_ForPermissionDenied
+https://globular.io/awareness#Test	TestRetry_ReusesIdempotencyKey
 https://globular.io/awareness#Test	TestRevokeSafety_DesiredBuildID_IsBlocked
 https://globular.io/awareness#Test	TestRuleguardRulesHavePositiveControl
 https://globular.io/awareness#Test	TestRunInstallPackageHashSchema_PhantomHashIsConvergenceIdentity
@@ -1094,12 +1144,14 @@ https://globular.io/awareness#Test	TestStableIP_ExcludesVIP
 https://globular.io/awareness#Test	TestStaleApprovalGenerationRejected
 https://globular.io/awareness#Test	TestStaleMajorityTopologyRejectedWhileSafeActionsRun
 https://globular.io/awareness#Test	TestStatusBadge_BoundToRuntimeProbe_NotDesiredState
+https://globular.io/awareness#Test	TestStatusBadge_HasTextAndAriaLabel
 https://globular.io/awareness#Test	TestStatusIndicator_MarkedStale_WhenCollectorLags
 https://globular.io/awareness#Test	TestStatusIndicator_ShowsFreshnessTimestamp
 https://globular.io/awareness#Test	TestStatusRollup_DegradedSubsystem_PropagatesToSummary
 https://globular.io/awareness#Test	TestStatusRollup_UnknownSubsystem_NotGreen
 https://globular.io/awareness#Test	TestStepReceipt_CarriesRunIDAndStepID
 https://globular.io/awareness#Test	TestStorageTopology_StandaloneAuthorityRejectsRoundRobinEndpoint
+https://globular.io/awareness#Test	TestSubscriptionCleanup_PreventsDuplicateRefresh
 https://globular.io/awareness#Test	TestSuccessToast_NotShown_OnDispatchOnly
 https://globular.io/awareness#Test	TestSuccessToast_ShownOnly_OnWorkflowTerminal
 https://globular.io/awareness#Test	TestSuggestIncident_ControlPlaneCascade_EtcdFirst
@@ -1126,6 +1178,7 @@ https://globular.io/awareness#Test	TestTryRemoveScyllaGhostVoters_RequiresMinQuo
 https://globular.io/awareness#Test	TestUnauthorizedAttemptIsLoggedAndRejected
 https://globular.io/awareness#Test	TestUnhealthyMasterLosesPriorityBelowBackup
 https://globular.io/awareness#Test	TestUnknownModeIsRejected
+https://globular.io/awareness#Test	TestUnknownState_NotRenderedAsHealthyOrEmpty
 https://globular.io/awareness#Test	TestUnknownWriterRejected
 https://globular.io/awareness#Test	TestUnsupportedSchemaFails
 https://globular.io/awareness#Test	TestUploadAllowsSafeHTTPSTarget
@@ -1176,6 +1229,7 @@ https://globular.io/awareness#Test	TestWorkflowDispatch_ReturnsAccepted_NotSucce
 https://globular.io/awareness#Test	TestWorkflowGateBurstOpensExactlyOnce
 https://globular.io/awareness#Test	TestWorkflowOrphanKilledBeforeRestart
 https://globular.io/awareness#Test	TestWorkflowProgress_BoundToWorkflowTerminalState
+https://globular.io/awareness#Test	TestWorkflowRunSelection_SurvivesReload
 https://globular.io/awareness#Test	TestWorst_ReturnsLowest
 https://globular.io/awareness#Test	TestWriteMinioContractAtomic_OverwritesCorrupt
 https://globular.io/awareness#Test	TestWriteMinioContractAtomic_RoundTrip
