@@ -1,0 +1,24 @@
+code_symbols:
+  - id: globular.web_client:code.ts.web_client.config
+    namespace: globular.web_client
+    language: typescript
+    file: typescript/config.ts
+    component: web_client.config
+    risk: high
+    annotations:
+      enforces:
+        - globular.web_client:invariant.ts.client.endpoints_resolved_not_hardcoded
+      partially_violates:
+        - globular.web_client:invariant.ts.client.no_localhost_fallback
+  - id: globular.web_client:code.ts.web_client.locator.defaultServiceLocator
+    namespace: globular.web_client
+    language: typescript
+    file: typescript/config.ts
+    symbol: defaultServiceLocator
+    kind: function
+    component: web_client.locator
+    risk: high
+    annotations:
+      enforces:
+        - globular.web_client:invariant.ts.client.endpoints_resolved_not_hardcoded
+        - globular.web_client:invariant.ts.client.no_service_port_literals

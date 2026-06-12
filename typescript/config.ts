@@ -1,3 +1,9 @@
+// @awareness namespace=globular.web_client
+// @awareness component=web_client.config
+// @awareness file_role=client_endpoint_config
+// @awareness enforces=globular.web_client:invariant.ts.client.endpoints_resolved_not_hardcoded
+// @awareness partially_violates=globular.web_client:invariant.ts.client.no_localhost_fallback
+// @awareness risk=high
 
 export type TokenProvider = () => Promise<string> | string;
 
@@ -61,6 +67,10 @@ export function setConfig(next: Partial<GlobularConfig>) {
  * - else use protocol default port
  * - endpoint shape: `${protocol}://${domain}:${port}`
  */
+// @awareness component=web_client.locator
+// @awareness enforces=globular.web_client:invariant.ts.client.endpoints_resolved_not_hardcoded
+// @awareness enforces=globular.web_client:invariant.ts.client.no_service_port_literals
+// @awareness risk=high
 export const defaultServiceLocator: ServiceLocator = (serviceId: string) => {
   const { protocol, domain, ports } = config;
   const byService = ports?.services?.[serviceId];

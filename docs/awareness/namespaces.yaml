@@ -14,6 +14,12 @@ namespaces:
       - awareness-graph
     description: RDF-backed awareness service exposing briefing, impact, resolve, and query.
 
+  - id: globular.web_client
+    label: TypeScript gRPC-Web Client Kit
+    owns:
+      - typescript
+    description: Browser-side client kit (gRPC-Web through the Envoy origin). First non-Go Tier-1 extraction surface.
+
   - id: globular.examples.echo_service
     label: Echo Service Example
     owns:

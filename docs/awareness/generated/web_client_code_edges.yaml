@@ -1,0 +1,13 @@
+code_edges:
+  - from: globular.web_client:code.ts.web_client.config
+    relation: enforces
+    to: globular.web_client:invariant.ts.client.endpoints_resolved_not_hardcoded
+  - from: globular.web_client:code.ts.web_client.config
+    relation: partially_violates
+    to: globular.web_client:invariant.ts.client.no_localhost_fallback
+  - from: globular.web_client:code.ts.web_client.locator.defaultServiceLocator
+    relation: enforces
+    to: globular.web_client:invariant.ts.client.endpoints_resolved_not_hardcoded
+  - from: globular.web_client:code.ts.web_client.locator.defaultServiceLocator
+    relation: enforces
+    to: globular.web_client:invariant.ts.client.no_service_port_literals
