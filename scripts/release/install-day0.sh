@@ -493,8 +493,6 @@ BOOTSTRAP_REST_PKGS=(
   "node-agent_0.0.1_linux_amd64.tgz"
   "cluster-controller_0.0.1_linux_amd64.tgz"
   "cluster-doctor_0.0.1_linux_amd64.tgz"
-  # oxigraph is the RDF store backend for awareness-graph; no ScyllaDB dependency.
-  "oxigraph_0.5.8_linux_amd64.tgz"
 )
 
 CONTROL_PLANE_PKGS=(
@@ -519,8 +517,6 @@ OPS_PKGS=(
   "log_0.0.1_linux_amd64.tgz"
   "backup-manager_0.0.1_linux_amd64.tgz"
   "mcp_0.0.2_linux_amd64.tgz"
-  # awareness-graph requires oxigraph (installed in BOOTSTRAP_REST_PKGS).
-  "awareness-graph_0.0.6_linux_amd64.tgz"
   "ai-memory_0.0.1_linux_amd64.tgz"
   "ai-watcher_0.0.1_linux_amd64.tgz"
   "ai-executor_0.0.1_linux_amd64.tgz"

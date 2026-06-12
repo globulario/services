@@ -293,17 +293,5 @@
     "go_target": "",
     "kind": "command",
     "platform_version": false
-  },
-  "awareness-graph": {
-    "binary": "awareness-graph",
-    "go_target": "",
-    "kind": "service",
-    "platform_version": false
-  },
-  "oxigraph": {
-    "binary": "oxigraph",
-    "go_target": "",
-    "kind": "infrastructure",
-    "platform_version": false
   }
 }

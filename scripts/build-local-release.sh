@@ -80,7 +80,7 @@ log "Previous version: $PREV_VERSION"
 step "Extract infra binaries from previous bundle"
 INFRA_PKGS=(etcd etcdctl envoy minio mc prometheus alertmanager node_exporter
             sidekick restic rclone sha256sum yt-dlp ffmpeg
-            scylla_manager scylla_manager_agent sctool oxigraph awareness-graph noop)
+            scylla_manager scylla_manager_agent sctool noop)
 
 for tgz in "$PREV_DIR/packages/"*.tgz; do
   [[ -f "$tgz" ]] || continue

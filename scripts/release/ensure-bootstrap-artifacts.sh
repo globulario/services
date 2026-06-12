@@ -114,8 +114,6 @@ CORE_PACKAGES=(
   "log_*_linux_amd64.tgz"
   "backup-manager_*_linux_amd64.tgz"
   "mcp_*_linux_amd64.tgz"
-  "awareness-graph_*_linux_amd64.tgz"
-  "oxigraph_*_linux_amd64.tgz"
   "ai-memory_*_linux_amd64.tgz"
   "ai-watcher_*_linux_amd64.tgz"
   "ai-executor_*_linux_amd64.tgz"
