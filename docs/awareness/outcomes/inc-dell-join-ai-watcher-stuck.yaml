@@ -1,0 +1,36 @@
+id: outcome.dell_join_ai_watcher_install_retry_never_dispatched
+class: OutcomeFeedback
+label: dell join — ai-watcher install retry never dispatched after mesh reload; fixed via idempotent desired re-assert
+status: active
+
+decision: applied
+outcome_status: success
+observed_at: "2026-06-12"
+
+for_task: "fix version:ai-watcher FAIL not installed (desired 1.2.208) on joining node globule-dell"
+for_finding: "version:ai-watcher not installed (node 4c2b3cb3-d02a-56d3-93cf-4e2c8728e8a4)"
+for_workflow_run: "install_workloads step FAILED 25/25 at 20:43:03 (envoy mid-reload, :443 refused; release-index.json correctly absent on Day-1)"
+
+used_preflight_status: OK
+used_risk_class: CONVERGENCE_RISK
+
+used_knowledge_nodes:
+  - invariant:convergence.no_infinite_retry
+  - implementation_pattern:globular.pattern.workflow_durable_step_receipt
+  - repair_plan:globular.repair.workflow_resume_blocked_step
+
+reason_code: transient_mesh_reload_terminalized_install
+
+notes: |
+  awareness_diagnose scoped the failure (one package of 25; everything else
+  self-healed exactly as its forbidden_conclusions predicted) and node-agent
+  logs gave the root cause: envoy reload during the xds topology push for the
+  joining node refused :443 for seconds; the failed install step's retry was
+  dispatched for 24 packages but never for ai-watcher, whose unit (laid down
+  before its binary) flapped to start-limit. The legal fix was the smallest
+  typed lever: `globular services desired set ai-watcher 1.2.208` — an
+  idempotent re-assert that bumped the desired generation and let convergence
+  re-plan; install + healthy unit followed in under a minute. No etcd
+  surgery, no unit hacks, no apply-desired (sidecar-skipping path).
+  Candidate failure mode filed:
+  join.mesh_reload_must_not_terminalize_install_retries (candidates queue).

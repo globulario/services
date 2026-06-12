@@ -86,3 +86,39 @@ candidates:
       Phase 5 design + implementation; awareness-graph v0.0.11; commit 1c45551 +
       8a00d3a + 930d934 @ 2026-06-02 18:00-18:25 EDT.
     review_required: true
+
+  - id: join.mesh_reload_must_not_terminalize_install_retries
+    class: failure_mode
+    label: |
+      During Day-1 join, envoy/xds mesh reload makes :443 transiently refuse
+      connections; a node-agent install step that fails on that transient is
+      recorded terminally for some packages and never retried — the package
+      stays "not installed" (with its unit flapping) until an operator bumps
+      the desired generation.
+    source_file: golang/node_agent/node_agent_server/main.go
+    evidence: |
+      2026-06-12 globule-dell join (node 4c2b3cb3): at 20:43:03 the workflow
+      step install_workloads FAILED for all 25 SERVICE packages with "resolve
+      package version: ... dial tcp 10.0.0.63:443: connect: connection
+      refused" — envoy was mid-reload from the xds topology push for the new
+      node. The Day-0 fallback also failed correctly (release-index.json does
+      not exist on Day-1 nodes). Convergence subsequently re-installed 24/25
+      packages, but ai-watcher's retry was never dispatched; its unit file
+      (laid down before the binary) flapped failed/failed x10 until
+      start-limit. Fix: `globular services desired set ai-watcher 1.2.208`
+      (idempotent re-assert) bumped the generation and the install completed
+      in under a minute. Same family as INC-2026-0017 (wave-blocked workflow
+      result must dispatch retry) and meta.write_creates_completion_obligation
+      (desired state creates an install obligation that a transient dial
+      error must not silently cancel). Sibling smell: unit-file-before-binary
+      is meta.half_done_must_not_look_done.
+    proposed_required_test: |
+      A node_agent test where the repository dial fails transiently during
+      install_workloads must assert a retry is dispatched (or the action is
+      left in a retryable, non-terminal state) — not a permanent FAILED with
+      no successor.
+    status: candidate
+    discovered_from: |
+      Live dell join repair driven by awareness_diagnose + node-agent log
+      walk; awareness-graph 0.0.23; 2026-06-12 ~00:40-01:00 UTC.
+    review_required: true
