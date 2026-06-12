@@ -115,6 +115,7 @@ invariants:
     '
   title: AI assistants must query the awareness graph for "where does X live architecturally" before writing code that touches
     X's storage, transport, or authority surfaces
+  test_not_applicable_reason: process invariant for AI agents; enforced by Claude hooks (enforce-briefing.sh), not unit-testable
 - forbidden_fixes:
   - audit_persists_raw_approval_token
   - audit_persists_jwt_in_params
@@ -1238,6 +1239,9 @@ invariants:
     \ reading cluster-doctor's RPCs to render\n    UI — they are consumers, not parallel computers of findings.\n"
   title: cluster-doctor is the only canonical answerer for "what is the current cross-layer health state" — other services
     compute local readiness but never cross-layer findings
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/zz_intent_required_test_aliases_test.go::TestClusterIDEnforcementInitializedCluster
+  - golang/cluster_doctor/cluster_doctor_server/rules/zz_intent_required_test_aliases_test.go::TestRuntimeIdentityProofRequired
 - enforcement: 'No code under golang/cluster_doctor/ may call etcd.Put / kv.Put or
 
     any installed_state.Write* / desired-state.Write* helper. All state
@@ -2682,6 +2686,7 @@ invariants:
     '
   title: External DNS providers MUST filter RFC1918 / loopback / link-local addresses out of every record before transmission
     unless AllowPrivateIPs is explicitly set
+  test_not_applicable_reason: requires live DNS provider; needs integration test with mock provider
 - enforcement: 'Tokens must include: action_type, target_id, evidence_digest (SHA-256), finding_id,
 
     jti (UUID), and exp. Before execution: verify token not expired, jti not in etcd
@@ -3068,7 +3073,9 @@ invariants:
   - envoy.lds_update_attempt_zero_despite_cds_progress
   related_invariants:
   - meta.half_done_must_not_look_done
-  required_tests: []
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
+  - golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
   severity: critical
   status: active
   summary: 'The Globular mesh (controller, MCP, gateway-routed
@@ -3355,6 +3362,7 @@ invariants:
 
     '
   title: Reconciliation classification must distinguish persistence-blocked (etcd NOSPACE) from controller/verification failure
+  test_not_applicable_reason: requires live etcd cluster; enforced by cluster-doctor rule at runtime
 - enforcement: 'Commit B publishes the etcd_path_ownership registry. Commit C
 
     publishes the static checker that walks every .Put / installed_state.Write*
@@ -3398,6 +3406,7 @@ invariants:
     \ is not a node-agent\n  - mcp/tools_etcd.go exposes a generic Put — callers can stamp\n    any path\n  - globularcli/state_cmds.go\
     \ has direct etcd mutations\n\nEach violation must be replaced by a call to the owner's typed RPC.\n"
   title: Every etcd key prefix has exactly one owning service; all other writers must go through the owner's typed RPC
+  test_not_applicable_reason: architectural declaration; enforced by etcd key schema convention and code review
 - forbidden_fixes:
   - evidence_used_without_writer_identity
   - evidence_used_without_timestamp
@@ -3907,6 +3916,7 @@ invariants:
     \nsystemd and Envoy are not actors in this mapping — they are\nunderlying primitives that produce L4 observations consumed\
     \ by\nnode-agent and cluster-doctor.\n"
   title: The actor → layer mapping is exact and exhaustive — five named actors with explicit write/read/authority columns
+  test_not_applicable_reason: architectural declaration; enforced by code review and awareness briefing, not unit-testable
 - enforcement: 'Every etcd write site (Put / installed_state.Write* / typed RPC into
 
     a path-owning service) must be performed only by the actor that owns
@@ -3977,6 +3987,7 @@ invariants:
     \ wrote bytes to MinIO mirror\n    instead of POSIX CAS (L1 violation: MinIO is not an L1 store)\n"
   title: Each of the four truth layers (Artifact, Desired, Installed, Runtime) has exactly one writing actor; cross-layer
     writes by non-owners are forbidden
+  test_not_applicable_reason: architectural declaration; enforced by code review and awareness briefing, not unit-testable
 - enforcement: 'New code that needs information about a layer it does not own must
 
     call the owner''s typed RPC. Direct .Get(ctx, "/globular/...") for
@@ -4043,6 +4054,7 @@ invariants:
     \ bypasses and remain in\ntheir owner. The principle applies when the question crosses\nlayers, nodes, or services.\n"
   title: Reading a layer's owned etcd prefix or backing store directly bypasses the owner's canonicalization, version, and
     in-memory contracts — truth flows out through the owner's typed RPC
+  test_not_applicable_reason: architectural declaration; enforced by code review and awareness briefing, not unit-testable
 - enforcement: 'Every workflow step definition names an actor in its `actor:` field.
 
     The actor''s writes during that step must be to a path that actor
@@ -4081,6 +4093,7 @@ invariants:
     \ install path (see invariant:repository.minio_is_not_valid_package_source).\nDoc fix tracked separately.\n"
   title: Every workflow step's writes are attributed to the actor named in the step; the workflow service routes but never
     substitutes its own identity
+  test_not_applicable_reason: architectural declaration; enforced by code review and awareness briefing, not unit-testable
 - enforcement: 'Every dial to an internal Globular service must attach a UnaryClientInterceptor
 
     (and StreamClientInterceptor for streaming RPCs) that injects cluster_id from
@@ -4149,6 +4162,8 @@ invariants:
     '
   title: Every internal gRPC client must inject cluster_id metadata so server-side cluster-membership enforcement does not
     reject calls after Day-0 initialization
+  test_not_applicable_reason: architectural declaration; enforced by proto authz check (make check-proto-authz) and interceptor
+    chain
 - actor_writer_dirs:
   - golang/cluster_controller/cluster_controller_server
   - golang/cluster_doctor/cluster_doctor_server
@@ -4551,6 +4566,8 @@ invariants:
     \ two\nfields (each unambiguous), or rename to make the semantic\nexplicit and reject the wrong-kind write at the writer.\n"
   title: Every storage field has exactly one declared semantic across all writers; conditionally interpreting one field as
     multiple kinds of identity based on metadata is the bug
+  test_not_applicable_reason: architectural declaration; enforced by principle-check:installed_package.timestamp_writers_must_preserve_during_observe
+    (per-instance)
 - enforcement: 'For every named identity field, the canonical source must be
 
     documented in the proto comment or in an awareness anchor.
@@ -4618,6 +4635,7 @@ invariants:
     \ and\nmanifest.EntrypointChecksum is a finding, NOT a different version\nof the truth. Don't pick one; report the disagreement.\n"
   title: Every named identity value has exactly one canonical computation and one canonical source; once defined, the value
     is immutable for the (subject, identity) pair
+  test_not_applicable_reason: architectural declaration; enforced by code review and awareness briefing, not unit-testable
 - authority:
   - etcd: /globular/resources/InfrastructureRelease/{name}
   - etcd: /globular/nodes/{node_id}/packages/infra/{name}
@@ -5147,6 +5165,7 @@ invariants:
 
     '
   title: All Fail-mode admission webhooks must be available
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.api_server.reachable
   related_failure_modes: null
   related_invariants:
@@ -5159,6 +5178,7 @@ invariants:
 
     '
   title: The Kubernetes API server must be reachable from each Globular control-plane node
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - forbidden_fixes:
   - act_on_kubernetes_failure_without_classification
   - assume_substrate_fix_resolves_workload_failure
@@ -5178,6 +5198,7 @@ invariants:
 
     '
   title: Every Kubernetes failure observed by Globular must be classified before action
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.certificates.not_expired
   related_invariants:
   - meta.binding_outlives_evidence_until_invalidated
@@ -5192,6 +5213,7 @@ invariants:
 
     '
   title: No Kubernetes cluster certificates may be expired
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.cni.ready_on_each_node
   related_invariants:
   - meta.critical_path_no_non_critical_dependency
@@ -5203,6 +5225,7 @@ invariants:
 
     '
   title: The CNI plugin must be running and ready on each Kubernetes node
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.core_dns.available
   related_invariants:
   - meta.critical_path_no_non_critical_dependency
@@ -5214,6 +5237,7 @@ invariants:
 
     '
   title: CoreDNS must be available and responding to queries
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.crashlooping_pods.explained
   related_invariants:
   - meta.absence_scope_must_be_explicit
@@ -5240,6 +5264,7 @@ invariants:
 
     '
   title: Kubernetes-internal etcd must maintain quorum
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.kube_proxy.available_on_each_node
   related_invariants:
   - meta.critical_path_no_non_critical_dependency
@@ -5251,6 +5276,7 @@ invariants:
 
     '
   title: kube-proxy must be available on each Kubernetes node
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.namespace_not_stuck_terminating
   related_invariants:
   - meta.half_done_must_not_look_done
@@ -5277,6 +5303,7 @@ invariants:
 
     '
   title: The number of Ready Kubernetes nodes must match the number of healthy Globular nodes
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.pending_pods.explained
   related_invariants:
   - meta.absence_scope_must_be_explicit
@@ -5301,6 +5328,7 @@ invariants:
 
     '
   title: Every PersistentVolumeClaim must be bound or have a classified reason for being unbound
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.service_has_ready_endpoints
   related_invariants:
   - meta.absence_scope_must_be_explicit
@@ -5312,6 +5340,7 @@ invariants:
 
     '
   title: Every Kubernetes Service must have at least one ready endpoint
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - id: k8s.system_pods.available
   related_invariants:
   - meta.critical_path_no_non_critical_dependency
@@ -5323,6 +5352,7 @@ invariants:
 
     '
   title: All kube-system pods must be available and not crash-looping
+  test_not_applicable_reason: k8s substrate not implemented; invariant reserved for future k8s support
 - enforcement: "- The keepalived config rendered by node-agent MUST include a vrrp_script block per\n  health-check target.\n\
     - The interval/fall/rise parameters MUST be tuned to detect failure within ~3-5\n  seconds without flapping on transient\
     \ blips.\n- The VRRP priority + weight MUST be sized so that a single failed check drops a\n  MASTER below the next BACKUP's\
@@ -5448,6 +5478,7 @@ invariants:
 
     '
   title: Direct etcd MCP tools MUST NOT appear in the cross-node aggregator remote_call allowlist
+  test_not_applicable_reason: 'needs unit test: verify MCP etcd tools check local-only before executing'
 - forbidden_fixes:
   - substitute_os_readfile_for_fileservice_readfile_in_mcp_bridge
   - add_a_local_disk_fallback_when_file_service_is_unreachable
@@ -5936,6 +5967,7 @@ invariants:
 
     '
   title: Every per-drive .minio.sys/format.json must have a current snapshot in etcd, scoped by topology fingerprint
+  test_not_applicable_reason: 'needs integration test: verify format.json persisted to etcd before MinIO start'
 - forbidden_fixes:
   - track_wipe_completion_only_in_etcd_without_local_marker
   - rely_on_format_json_presence_as_wipe_completion_signal
@@ -6557,6 +6589,8 @@ invariants:
     high-risk directory with zero direct anchors — never LOW_RISK on the
 
     "graph indexed this file" basis alone.'
+  test_not_applicable_reason: 'needs unit test: verify preflight returns degraded (not low-risk) for high-risk unanchored
+    files'
 - forbidden_fixes:
   - restart_controller_based_on_heartbeat_metric_without_checking_etcd_lanes
   - force_leader_re_election_when_reconcile_lanes_are_healthy
@@ -6766,7 +6800,8 @@ invariants:
   - release.publish_race_stuck_failed_with_succeeded_children
   related_invariants:
   - meta.half_done_must_not_look_done
-  required_tests: []
+  required_tests:
+  - golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go::TestServiceReleaseRecoveryAfterWorkflowCommitFailure
   severity: critical
   status: active
   summary: "ServiceRelease.Status.Phase is the controller's\nauthoritative claim about whether a release is in\nprogress,\

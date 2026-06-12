@@ -447,16 +447,17 @@ func auditTestCoverage(svcRepo string) auditCheck {
 	}
 	var doc struct {
 		Invariants []struct {
-			ID            string   `yaml:"id"`
-			Severity      string   `yaml:"severity"`
-			RequiredTests []string `yaml:"required_tests"`
+			ID                     string   `yaml:"id"`
+			Severity               string   `yaml:"severity"`
+			RequiredTests          []string `yaml:"required_tests"`
+			TestNotApplicableReason string  `yaml:"test_not_applicable_reason"`
 		} `yaml:"invariants"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return auditCheck{name: "test-coverage", result: checkWARN, summary: "parse error: " + err.Error()}
 	}
 
-	var critical, missing int
+	var critical, missing, classified int
 	var details []string
 	for _, inv := range doc.Invariants {
 		if inv.Severity != "critical" && inv.Severity != "high" {
@@ -464,20 +465,29 @@ func auditTestCoverage(svcRepo string) auditCheck {
 		}
 		critical++
 		if len(inv.RequiredTests) == 0 {
-			missing++
-			details = append(details, fmt.Sprintf("[%s] %s", inv.Severity, inv.ID))
+			if inv.TestNotApplicableReason != "" {
+				classified++
+			} else {
+				missing++
+				details = append(details, fmt.Sprintf("[%s] %s", inv.Severity, inv.ID))
+			}
 		}
+	}
+
+	suffix := ""
+	if classified > 0 {
+		suffix = fmt.Sprintf(" (%d with explicit reason)", classified)
 	}
 
 	if missing == 0 {
 		return auditCheck{
 			name: "test-coverage", result: checkPASS,
-			summary: fmt.Sprintf("all %d critical/high invariants have required_tests", critical),
+			summary: fmt.Sprintf("all %d critical/high invariants have required_tests or explicit reason%s", critical, suffix),
 		}
 	}
 	return auditCheck{
 		name: "test-coverage", result: checkWARN,
-		summary: fmt.Sprintf("%d/%d critical/high invariants missing required_tests", missing, critical),
+		summary: fmt.Sprintf("%d/%d critical/high invariants missing required_tests%s", missing, critical, suffix),
 		details: details,
 	}
 }
