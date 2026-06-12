@@ -399,7 +399,7 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.critical_path_no_non_critical_dependency` | Critical path blocked/flooded by non-critical service |
 | `meta.circular_dependency_must_have_break_glass` | Self-deploying system stuck — deploy pipeline can't deploy fix for itself |
 
-**Perception** (8) — "is the screen telling the truth about the system?" (GUI meta-principles; Nielsen/WCAG/Material re-grounded in operator truth)
+**Perception** (15) — "is the screen telling the truth about the system?" (GUI meta-principles; Nielsen/WCAG/Material/ISO 9241-110/Shneiderman/GOV.UK/EEMUA 191 re-grounded in operator truth)
 | Principle | What it catches |
 |-----------|----------------|
 | `meta.ui.screen_claim_must_bind_to_authority` | Desired/cached/optimistic/confirmed state collapsed into one visual meaning |
@@ -410,6 +410,13 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.ui.provenance_over_recall` | Claim shown without which-node/as-of-when/which-version |
 | `meta.ui.meaning_must_survive_presentation_loss` | Warning/meaning exists only in color, hover, or desktop layout |
 | `meta.ui.decoration_must_not_impersonate_authority` | Placeholder/cosmetic/AI-generated content confusable with live state |
+| `meta.ui.simplicity_must_not_hide_operational_truth` | "Clean" UI hides node, generation, stale state, failed receipt, authority source |
+| `meta.ui.operator_must_remain_in_control` | Automation/auto-refresh/optimistic update/AI changes state without visible consent |
+| `meta.ui.control_must_be_reversible_or_guarded` | Irreversible action without undo/dry-run/preflight; shortcut bypasses the guard |
+| `meta.ui.workflow_must_yield_closure` | Operation ends with no receipt, terminal state, or next action; fake progress animation |
+| `meta.ui.ai_assistance_must_be_explainable_and_bounded` | AI summary asserts state without source, timestamp, confidence, evidence boundary |
+| `meta.ui.task_path_must_match_operator_goal` | Screen mirrors proto/RPC schema instead of the operator's task |
+| `meta.ui.notification_volume_must_match_operator_capacity` | Alarm flood, N symptom toasts for one cause, standing red badges nobody acts on |
 
 If one fits → add `related_invariants: [meta.<id>]` to the error entry.
 If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom out with human).

@@ -5189,3 +5189,214 @@ invariants:
     related_invariants:
       - ui.ai_text_must_not_invent_state
       - ui.visible_state_requires_authority
+
+  # ── Perception, second pass ─────────────────────────────────────────────────
+  # Added lineages: ISO 9241-110 dialogue principles, Shneiderman's Eight
+  # Golden Rules, Apple HIG (user control), GOV.UK Design Principles,
+  # EEMUA 191 / ISA-18.2 alarm management. Selection lens: the principles
+  # that most constrain an AI agent GENERATING GUI code — the failure modes
+  # an agent reaches for instinctively (clean lies, fake progress, CRUD-dump
+  # screens, unconsented automation, unbounded AI prose, notification floods).
+
+  - id: meta.ui.simplicity_must_not_hide_operational_truth
+    title: "Simplicity must not hide operational truth — a clean lie is worse than a messy truth"
+    category: perception
+    antipattern: "We removed the node column and the generation badge — the dashboard looks much cleaner now"
+    wrong_instinct: Worship clean — hide the ugly details because most users will not need them
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — GOV.UK "do the hard work to make it simple", inverted for operators
+    summary: |
+      A UI may simplify presentation, but it must not hide operational facts
+      required for a safe decision. Node identity, authority source,
+      generation, freshness, failure state, partial quorum, missing receipts,
+      and runtime evidence must remain visible whenever they affect the
+      meaning of the screen. Modern design culture rewards "clean"; a cluster
+      console is cockpit instrumentation — the gremlins (stale generation,
+      node mismatch, failed receipt, wrong authority) are not clutter, they
+      ARE the information. GOV.UK's principle done right: do the hard work to
+      make it simple — simplify the path to truth, never the truth itself.
+    enforcement: |
+      Before removing, collapsing, or hiding any operational detail in the
+      name of visual simplicity, ask: can a safe decision still be made
+      without it on THIS screen? If the detail affects meaning, it may move
+      one interaction away at most — never disappear. Declutter decoration,
+      never evidence.
+    related_invariants:
+      - ui.status_freshness_must_be_surfaced
+      - ui.floating_identity_must_not_be_hidden
+      - meta.ui.provenance_over_recall
+      - meta.structure_must_not_be_stripped_in_projection
+
+  - id: meta.ui.operator_must_remain_in_control
+    title: "The operator remains in control — automation, auto-refresh, optimistic updates, and AI assistance must not change state without visible intent and consent"
+    category: perception
+    antipattern: "The wizard auto-applied the recommended topology while the operator was reading it"
+    wrong_instinct: Be helpful — pre-select, auto-apply, auto-refresh, and auto-fix so the operator has less to do
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — ISO 9241-110 controllability + Apple HIG user control + Shneiderman locus of control + NASA automation surprise
+    summary: |
+      The UI must not let automation change operational state without clear
+      operator intent, visible authority, and a recoverable outcome. This
+      covers auto-refresh that discards context, wizards that pre-execute,
+      optimistic updates that render unconfirmed mutations as done, and AI
+      suggestions that shade into AI actions. The aviation lesson (automation
+      surprise, mode confusion) applies verbatim: the operator must always be
+      able to answer "what is it doing, why did it do that, what will it do
+      next". Every automated state change must be attributable on screen —
+      what acted, under what authority, with what evidence.
+    enforcement: |
+      Before adding any automatic behavior that mutates state or replaces
+      operator decisions: require explicit consent at the point of action,
+      render automated changes as attributed events (actor, authority,
+      time), and keep a visible path to halt or reverse the automation.
+      Suggestion and execution must be visually and mechanically distinct.
+    related_invariants:
+      - ui.partial_update_preserves_screen_context
+      - meta.ui.destructive_action_requires_confirmed_authority
+      - meta.state_mutations_must_be_durably_committed_before_side_effects
+
+  - id: meta.ui.control_must_be_reversible_or_guarded
+    title: "Dangerous actions are reversible or guarded — undo, dry-run, preflight, or explicit risk display before execution, with no fast path around the guard"
+    category: perception
+    antipattern: "Power users can skip the confirmation with shift-click"
+    wrong_instinct: Confirmation dialogs annoy experts — add a shortcut that bypasses the ceremony
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — Shneiderman easy reversal + permit shortcuts, reconciled for safety-critical UIs
+    summary: |
+      Any destructive, security-sensitive, or topology-changing action must
+      provide at least one of: an undo path, a dry-run/preview, a
+      backend-backed preflight, or an explicit risk display with
+      confirmation. Shneiderman's reversal rule, hardened: where true undo
+      is impossible (wipe, key rotation, node removal), the guard before
+      execution carries the full weight. And his shortcuts rule, bounded:
+      expert speed may skip ceremony, never safety — a keyboard shortcut or
+      bulk action that bypasses RBAC checks, confirmation, preview, or risk
+      display is a privilege escalation through the UI layer.
+    enforcement: |
+      For every irreversible action: name its guard (undo | dry-run |
+      preflight | risk-confirm). Verify every path to the action — button,
+      shortcut, bulk operation, API-driven UI action — passes through the
+      same guard. A guard with a bypass is not a guard.
+    related_invariants:
+      - ui.dangerous_warning_must_remain_visible
+      - ui.form_submit_must_be_idempotent_or_singleflight
+      - meta.ui.destructive_action_requires_confirmed_authority
+
+  - id: meta.ui.workflow_must_yield_closure
+    title: "Every workflow yields closure — the final state, receipt, or required next action must be visible; a disappeared spinner is not a result"
+    category: perception
+    antipattern: "The dialog closed and the spinner went away, so it probably worked"
+    wrong_instinct: End the interaction at submission — the backend will take it from here
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — Shneiderman closure, fused with the lifecycle principles
+    summary: |
+      Every operational workflow must end with explicit closure: terminal
+      state, receipt identity, error with diagnostic context, or the next
+      required action. A submitted form, dismissed dialog, or vanished
+      spinner proves only that the UI moved on — not that the operation
+      completed. This is the perception twin of
+      meta.write_creates_completion_obligation and
+      meta.half_done_must_not_look_done: dispatch is not completion, and the
+      screen must not let an intermediate state read as a terminal one.
+      Progress indication must report real work — a progress element not
+      bound to backend workflow evidence (run id, step receipts, phase) is
+      animation impersonating progress.
+    enforcement: |
+      Every mutating flow must render its terminal state from workflow
+      authority (receipt, terminal status, error) — never infer it from
+      dispatch success or UI transition. Progress bars and spinners must
+      bind to backend progress evidence or visually declare themselves
+      indeterminate waits.
+    related_invariants:
+      - ui.success_requires_authoritative_confirmation
+      - meta.write_creates_completion_obligation
+      - meta.half_done_must_not_look_done
+
+  - id: meta.ui.ai_assistance_must_be_explainable_and_bounded
+    title: "AI assistance is explainable and bounded — summaries cite source, time, and confidence; recommendations show the evidence boundary"
+    category: perception
+    antipattern: "Everything looks healthy! — generated from a model with no cluster evidence in context"
+    wrong_instinct: Let the assistant speak naturally — citations and uncertainty markers make the text clunky
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — Apple HIG ML/AI guidance + AWG authority model; extends ui.ai_text_must_not_invent_state
+    summary: |
+      AI-generated UI text may summarize or decorate authoritative evidence,
+      but must not invent state, collapse uncertainty, omit source
+      authority, or recommend actions without showing the evidence boundary
+      — what the AI actually saw, from where, as of when, and how confident
+      it is. An unsourced fluent paragraph about cluster state is the most
+      dangerous element on a screen: it carries the authority of prose with
+      the provenance of nothing. Where evidence is partial, the text must
+      say so; where the AI is uncertain, the rendering must carry the
+      uncertainty rather than absorb it.
+    enforcement: |
+      Every AI-generated claim about system state must be traceable on
+      screen to its evidence: source authority, observation time, and
+      confidence or evidence-completeness. Recommendations must distinguish
+      "the evidence shows" from "the model suggests". Unsourced generated
+      text may exist only in clearly decorative, non-status form.
+    related_invariants:
+      - ui.ai_text_must_not_invent_state
+      - meta.ui.decoration_must_not_impersonate_authority
+      - meta.authority_must_express_uncertainty
+
+  - id: meta.ui.task_path_must_match_operator_goal
+    title: "The screen serves the operator's task, not the system's schema — API shape is not information architecture"
+    category: perception
+    antipattern: "One page per proto message, one form field per proto field, one table per RPC"
+    wrong_instinct: Mirror the backend API in the UI — it is complete, already typed, and easy to generate
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — ISO 9241-110 suitability for the task + GOV.UK "start with user needs"
+    summary: |
+      Operators arrive with goals — "is the cluster safe after the power
+      cut", "why is this release stuck", "take this node out safely" — not
+      with the desire to browse resources. A UI organized by backend schema
+      (one screen per service, one widget per RPC) forces the operator to
+      perform the join across screens in their head, under stress. This is
+      the default failure of GENERATED UIs: an AI agent given a proto will
+      instinctively render the proto. The task, not the type system, owns
+      the information architecture; the schema is plumbing below it.
+    enforcement: |
+      Before creating a screen, name the operator task it serves and the
+      decision it enables. If the screen's structure mirrors a proto/RPC
+      rather than a task, justify it (raw resource inspectors are legitimate
+      — as explicitly secondary surfaces). Group what the task needs
+      together, even when it crosses services.
+    related_invariants:
+      - ui.navigation_state_must_be_shareable_when_operationally_relevant
+
+  - id: meta.ui.notification_volume_must_match_operator_capacity
+    title: "Notification volume must match operator capacity — an alarm flood is a perception outage"
+    category: perception
+    antipattern: "Every finding, state change, and retry raises a toast — the operator will appreciate the transparency"
+    wrong_instinct: More alerts means more safety — surface everything and let the operator filter
+    severity: high
+    status: active
+    # origin: { type: globular_incident, confidence: high } — EEMUA 191 / ISA-18.2 alarm management; UI twin of meta.diagnostic_output_must_be_bounded; backend precedent: doctor event amplification incident
+    summary: |
+      Forty years of control-room engineering says alarm floods cause
+      incidents: beyond a handful of notifications per unit time, operators
+      stop reading, then stop trusting, then disable. Every alert the UI
+      raises must be rationalized — actionable, prioritized, deduplicated,
+      and rate-aware. A flood of toasts during a cascade buries the one
+      warning that matters under twenty that don't, exactly as the doctor
+      event-amplification incident flooded the event bus on the backend.
+      Standing alarms (permanently red badges nobody acts on) are the static
+      version of the same failure: they train the eye to ignore red.
+    enforcement: |
+      Every notification class must declare: what action the operator should
+      take, its priority, and its dedup/aggregation rule. Cascades must
+      collapse into one root-cause notification with detail beneath, not N
+      symptom toasts. Audit standing indicators: any permanently-asserted
+      warning that has no pending action is alarm pollution to fix at the
+      source or re-classify.
+    related_invariants:
+      - ui.dangerous_warning_must_remain_visible
+      - meta.diagnostic_output_must_be_bounded
+      - meta.failure_response_must_contract_not_amplify
