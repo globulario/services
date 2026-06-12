@@ -71,7 +71,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__globular__awareness_briefing",
+        "matcher": "mcp__awg__awareness_briefing",
         "hooks": [
           {
             "type": "command",

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse hook for Edit / Write / MultiEdit.
 # Blocks any edit targeting a file under a high-risk directory (CLAUDE.md
-# hard rule #7) unless mcp__globular__awareness_briefing has already been
+# hard rule #7) unless mcp__awg__awareness_briefing has already been
 # called for that exact file in the current session.
 #
 # High-risk prefixes are listed below — keep in sync with CLAUDE.md and
@@ -70,7 +70,7 @@ cat <<EOF
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "CLAUDE.md hard rule #7: call mcp__globular__awareness_briefing with file=\"$rel\" BEFORE editing this high-risk path. No 'simple fix' exemption. After the briefing returns, retry this edit."
+    "permissionDecisionReason": "CLAUDE.md hard rule #7: call mcp__awg__awareness_briefing with file=\"$rel\" BEFORE editing this high-risk path. No 'simple fix' exemption. After the briefing returns, retry this edit."
   }
 }
 EOF

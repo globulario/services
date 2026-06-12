@@ -10,13 +10,13 @@ Claude has no continuous memory between sessions. The rules below are loaded as 
 
 1. **MEMORY = ai-memory, not flat files.** For project `globular-services`, use `mcp__globular__memory_store` / `memory_query` / `memory_update`. A `PreToolUse` hook (`block-flat-memory.sh`) will deny Write/Edit to `~/.claude/projects/.../memory/` entry files. `MEMORY.md` (the index) is still editable for migration cleanup, but new entries must go to ai-memory.
 
-2. **AWARENESS-FIRST in high-risk dirs.** Before any edit to `golang/{node_agent,cluster_controller,repository,rbac,security,cluster_doctor,mcp,ai_executor,services_manager}/`, `docs/awareness/`, or `docs/intent/` — call `mcp__globular__awareness_briefing(file=<path>)` FIRST. Two `PreToolUse` hooks enforce this:
+2. **AWARENESS-FIRST in high-risk dirs.** Before any edit to `golang/{node_agent,cluster_controller,repository,rbac,security,cluster_doctor,mcp,ai_executor,services_manager}/`, `docs/awareness/`, or `docs/intent/` — call `mcp__awg__awareness_briefing(file=<path>)` FIRST. Two `PreToolUse` hooks enforce this:
    - `enforce-briefing.sh` — denies Edit/Write/MultiEdit on these paths without a briefing.
    - `enforce-briefing-bash.sh` — denies Bash commands that mutate these paths (`>`, `>>`, `tee`, `cp`, `mv`, `sed -i`, `python -c "...open('docs/awareness/...', 'w')..."` etc.) without a briefing. Best-effort: catches obvious patterns; the bypass `python3 /tmp/script.py` where the script writes is not detectable from the command line alone — don't rely on that bypass.
 
    No "simple fix" exemption.
 
-3. **Ask the graph, don't grep.** When you need an invariant, intent, failure mode, or forbidden fix, use `mcp__globular__awareness_query` / `awareness_resolve` / `awareness_briefing`. Do NOT grep over `docs/intent/` or `docs/awareness/` — the YAML files are inputs to the graph, not the queryable surface.
+3. **Ask the graph, don't grep.** When you need an invariant, intent, failure mode, or forbidden fix, use `mcp__awg__awareness_query` / `awareness_resolve` / `awareness_briefing`. Do NOT grep over `docs/intent/` or `docs/awareness/` — the YAML files are inputs to the graph, not the queryable surface.
 
 4. **End non-trivial tasks with the AWG summary line**: `AWG: briefing(<target>) | invariants: X, Y | uncertainty: Z`. See the AWARENESS USAGE section for variants (degraded, empty+high-risk, empty+low-risk=omit).
 

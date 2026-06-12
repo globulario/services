@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PostToolUse hook for mcp__globular__awareness_briefing.
+# PostToolUse hook for mcp__awg__awareness_briefing.
 # Records that a briefing was obtained for a specific file path, so
 # enforce-briefing.sh can authorize subsequent Edit/Write/MultiEdit calls
 # against that file in the same session.

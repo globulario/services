@@ -22,10 +22,10 @@ globular awareness impact   --file <path>          # if briefing was thin
 globular awareness preflight --task "<what you're about to do>"
 ```
 
-MCP equivalents: `mcp__globular__awareness_briefing`,
-`mcp__globular__awareness_impact`, `mcp__globular__awareness_preflight`,
-`mcp__globular__awareness_resolve`, `mcp__globular__awareness_query`,
-`mcp__globular__awareness_diagnose`.
+MCP equivalents: `mcp__awg__awareness_briefing`,
+`mcp__awg__awareness_impact`, `mcp__awg__awareness_preflight`,
+`mcp__awg__awareness_resolve`, `mcp__awg__awareness_query`,
+`mcp__awg__awareness_diagnose`.
 
 ---
 

@@ -134,7 +134,7 @@ entries:
       - Input: `file=<relative-path>` OR `task=<description>`
       - Returns: invariants, failure modes, forbidden fixes, required tests, and intent
         context relevant to that file or task. ~500 tokens by default.
-      - MCP tool: `mcp__globular__awareness_briefing`
+      - MCP tool: `mcp__awg__awareness_briefing`
       - CLI: `globular awareness briefing --file golang/mcp/tools_awareness.go`
       - CLI: `globular awareness briefing --task "fix etcd key permissions"`
       - When to use `file=`: you know which file you're editing.
@@ -147,13 +147,13 @@ entries:
       - Returns: all invariants and failure modes that directly reference this file as a
         protected or implementing file. Direct anchors only — inferred fields are reserved
         in v0 (see `docs/awareness/decisions/inference-v0-direct-anchors-only.md`).
-      - MCP tool: `mcp__globular__awareness_impact`
+      - MCP tool: `mcp__awg__awareness_impact`
       - CLI: `globular awareness impact --file golang/cluster_controller/reconciler.go`
 
       **3. Resolve** — call when a briefing returns a `referenced_id` you need to expand.
       - Input: `id=<referenced_id>`
       - Returns: full text of the invariant, failure mode, forbidden fix, or required test.
-      - MCP tool: `mcp__globular__awareness_resolve`
+      - MCP tool: `mcp__awg__awareness_resolve`
       - CLI: `globular awareness resolve --id install.result.atomic_commit`
       - When: always resolve any referenced_id marked `severity: high` or `critical` before
         writing code that touches the referenced file or behavior.
@@ -161,7 +161,7 @@ entries:
       **4. Query** — raw SPARQL against the Oxigraph store. Advanced use only.
       - Input: `sparql=<SPARQL SELECT or CONSTRUCT query>`
       - Returns: SPARQL result set (JSON format).
-      - MCP tool: `mcp__globular__awareness_query`
+      - MCP tool: `mcp__awg__awareness_query`
       - When: custom graph traversals not covered by the three typed RPCs above — e.g.,
         "find all invariants that reference both etcd and the repository service".
       - Caution: Oxigraph is the live store; queries are read-only but expensive queries
@@ -395,7 +395,7 @@ entries:
       globular awareness preflight --task "rotate the service CA" --files golang/security/ca.go
       ```
 
-      **MCP:** `mcp__globular__awareness_preflight`
+      **MCP:** `mcp__awg__awareness_preflight`
 
       **Critical rule:** EMPTY does NOT mean LOW_RISK. The server only collapses to
       EMPTY when coverage is sufficient — if the graph doesn't know the area, it
@@ -504,7 +504,7 @@ entries:
       **CLI:** there is no direct CLI yet — call via MCP or via the awareness
       MCP bridge (`cmd/awareness-mcp` in the awareness-graph repo).
 
-      **MCP:** `mcp__globular__awareness_diagnose`
+      **MCP:** `mcp__awg__awareness_diagnose`
     links:
       awareness_invariants:
         - awareness.no_false_silence_for_sensitive_tasks

@@ -243,7 +243,7 @@ for cand in "${candidates[@]}"; do
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "CLAUDE.md hard rule #7 (Bash path): this Bash command appears to mutate \"$rel\" — a high-risk file — but mcp__globular__awareness_briefing has not been called for it in this session. Call awareness_briefing first, then retry. Hook coverage is best-effort for Bash; if the detection is a false positive (e.g. command only reads the file), call briefing once to acknowledge the path before retrying. To narrow your scope, name only the file you intend to mutate."
+    "permissionDecisionReason": "CLAUDE.md hard rule #7 (Bash path): this Bash command appears to mutate \"$rel\" — a high-risk file — but mcp__awg__awareness_briefing has not been called for it in this session. Call awareness_briefing first, then retry. Hook coverage is best-effort for Bash; if the detection is a false positive (e.g. command only reads the file), call briefing once to acknowledge the path before retrying. To narrow your scope, name only the file you intend to mutate."
   }
 }
 EOF
