@@ -58,10 +58,10 @@ var ProfilePackages = map[string][]string{
 	},
 	"control-plane": {
 		"ai-executor", "ai-memory", "ai-watcher", "alertmanager",
-		"awareness-graph", "backup-manager", "cluster-controller", "cluster-doctor",
+		"backup-manager", "cluster-controller", "cluster-doctor",
 		"dns", "envoy", "etcd", "etcdctl", "gateway",
 		"keepalived", "mcp", "minio", "monitoring", "node-exporter",
-		"oxigraph", "prometheus", "resource", "sctool", "scylla-manager",
+		"prometheus", "resource", "sctool", "scylla-manager",
 		"scylla-manager-agent", "scylladb", "workflow", "xds",
 	},
 	"core": {

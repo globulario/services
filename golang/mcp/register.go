@@ -98,9 +98,6 @@ func registerAllTools(s *server) {
 	if g.AIExecutor {
 		registerAIExecutorTools(s)
 	}
-	if g.Awareness {
-		registerAwarenessTools(s)
-	}
 	if g.Aggregator {
 		registerAggregatorTools(s)
 	}

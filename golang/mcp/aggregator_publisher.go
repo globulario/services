@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -35,7 +33,6 @@ const (
 	mcpRegistryLeaseTTL  = 60 // seconds
 	mcpRegistryRefresh   = 30 * time.Second
 	mcpRegistryDeadline  = 5 * time.Second
-	mcpAwarenessBundleSymlink = "/var/lib/globular/awareness/current"
 )
 
 // publishMCPNodeRegistry begins publishing this node's MCP endpoint metadata
@@ -98,7 +95,6 @@ func writeMCPRegistryEntry(parent context.Context, scheme, advertiseHost string,
 		MCPPort:                port,
 		ClusterID:              readClusterID(),
 		ReleaseVersion:         readReleaseVersion(),
-		AwarenessBundleVersion: readAwarenessBundleVersion(),
 		LastSeen:               time.Now().UTC(),
 		Status:                 "RUNNING",
 	}
@@ -157,27 +153,3 @@ func readReleaseVersion() string {
 	return idx.Release
 }
 
-// readAwarenessBundleVersion resolves the awareness bundle version by reading
-// /var/lib/globular/awareness/current/manifest.json (when the bundle symlink exists).
-// Falls back to the resolved symlink directory name when no manifest is present.
-func readAwarenessBundleVersion() string {
-	manifestPath := filepath.Join(mcpAwarenessBundleSymlink, "manifest.json")
-	if data, err := os.ReadFile(manifestPath); err == nil {
-		var m struct {
-			Version string `json:"version"`
-			Release string `json:"release"`
-		}
-		if err := json.Unmarshal(data, &m); err == nil {
-			if m.Version != "" {
-				return m.Version
-			}
-			if m.Release != "" {
-				return m.Release
-			}
-		}
-	}
-	if target, err := os.Readlink(mcpAwarenessBundleSymlink); err == nil {
-		return strings.TrimSpace(filepath.Base(target))
-	}
-	return ""
-}

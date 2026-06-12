@@ -23,20 +23,6 @@ package main
 // Mutating tools (etcd.put/delete, workflow.execute, nodeagent.apply, etc.) are
 // forbidden by default and must never be added here without controller/workflow policy.
 var allowedRemoteTools = map[string]bool{
-	// Awareness evidence pipeline
-	"awareness.bundle_status":     true,
-	"awareness.runtime_errors":    true,
-	"awareness.normalize_errors":  true,
-	"awareness.day1_classify_node": true,
-	"awareness.explain_blocker":   true,
-
-	// Awareness bundle serve (Phase B) — read-only, returns manifest/metadata only.
-	// Bundle bytes themselves are streamed via HTTPS at /awareness/bundle, not
-	// returned in the JSON response, so these are safe to expose remotely.
-	"mcp.awareness_bundle_manifest":    true,
-	"mcp.awareness_bundle_stream":      true,
-	"mcp.awareness_freshness_status":   true,
-
 	// Node agent read-only tools
 	"nodeagent_get_inventory":          true,
 	"nodeagent_list_installed_packages": true,

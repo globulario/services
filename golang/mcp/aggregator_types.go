@@ -38,7 +38,6 @@ type MCPNodeEntry struct {
 	ClusterID              string    `json:"cluster_id,omitempty"`
 	ReleaseVersion         string    `json:"release_version,omitempty"`
 	BuildID                string    `json:"build_id,omitempty"`
-	AwarenessBundleVersion string    `json:"awareness_bundle_version,omitempty"`
 	LastSeen               time.Time `json:"last_seen"`
 	Status                 string    `json:"status"`
 }

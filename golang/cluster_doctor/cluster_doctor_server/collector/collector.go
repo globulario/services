@@ -57,7 +57,6 @@ import (
 	"sync"
 	"time"
 
-	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
@@ -88,7 +87,6 @@ type Collector struct {
 	repoClient           repopb.PackageRepositoryClient     // optional; nil until WithRepositoryClient
 	repoEndpointMissing  bool                               // true when etcd has no entry for repository.PackageRepository
 	aiMemoryClient       ai_memorypb.AiMemoryServiceClient  // optional; nil until WithAiMemoryClient
-	awarenessGraphClient awarenesspb.AwarenessGraphClient   // optional; nil until WithAwarenessGraphClient
 	clusterID            string
 	cache                *SnapshotCache
 
@@ -147,15 +145,6 @@ func (c *Collector) WithAiMemoryClient(mem ai_memorypb.AiMemoryServiceClient) *C
 	return c
 }
 
-// WithAwarenessGraphClient attaches an awareness-graph client so the collector
-// can probe the RDF store and detect an empty graph (embedded seed failed or
-// Oxigraph was wiped after startup). Used by the "awareness_graph.seed_empty"
-// rule to surface the running-but-empty state. Optional — if nil, the rule
-// produces no findings.
-func (c *Collector) WithAwarenessGraphClient(aw awarenesspb.AwarenessGraphClient) *Collector {
-	c.awarenessGraphClient = aw
-	return c
-}
 
 // SetRepositoryEndpointMissing records that the repository service endpoint
 // was not found in etcd at startup. The flag is propagated into each Snapshot
@@ -614,11 +603,6 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 		c.fetchOpsKnowledgeMemoryEntries(ctx, snap)
 	}
 
-	// ── 8b. awareness-graph probe (optional) ────────────────────────────────
-	if c.awarenessGraphClient != nil {
-		c.fetchAwarenessGraphStatus(ctx, snap)
-	}
-
 	// ── 9. Phase 9 runtime verification ─────────────────────────────────────
 	// Reads desired state from etcd, reconciles against the per-node proofs
 	// already gathered in step 4, persists the per-target result under
@@ -671,33 +655,6 @@ func (c *Collector) fetchOpsKnowledgeMemoryEntries(ctx context.Context, snap *Sn
 	}
 	snap.OpsKnowledgeMemoryEntries = out
 	snap.addSource("ai_memory.Query(seed)")
-}
-
-// fetchAwarenessGraphStatus probes the awareness-graph service with a minimal
-// Query (class=Invariant, limit=1) to determine whether the RDF store contains
-// any triples. Sets AwarenessGraphReachable=true on a successful call and
-// AwarenessGraphQueryEmpty=true when the response has zero rows.
-//
-// A zero-row response while the service is running indicates that the embedded
-// NT seed was not applied (either Oxigraph was wiped after startup, or the
-// startup seed itself failed). The "awareness_graph.seed_empty" invariant
-// surfaces this as a WARN finding with a restart-to-reseed remediation.
-func (c *Collector) fetchAwarenessGraphStatus(ctx context.Context, snap *Snapshot) {
-	qctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	resp, err := c.awarenessGraphClient.Query(qctx, &awarenesspb.QueryRequest{
-		Mode:  awarenesspb.QueryMode_QUERY_MODE_BY_CLASS,
-		Class: awarenesspb.QueryClass_QUERY_CLASS_INVARIANT,
-		Limit: 1,
-	})
-	if err != nil {
-		snap.addError("awareness_graph", "Query(by_class,Invariant,limit=1)", err)
-		return
-	}
-	snap.AwarenessGraphReachable = true
-	snap.AwarenessGraphQueryEmpty = len(resp.GetRows()) == 0
-	snap.addSource("awareness_graph.Query")
 }
 
 // fetchWorkflowTelemetry pulls bounded convergence signals from the workflow

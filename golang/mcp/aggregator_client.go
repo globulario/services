@@ -395,9 +395,6 @@ var snapshotTools = []struct {
 	tool string
 	args map[string]interface{}
 }{
-	{"awareness_bundle",  "awareness.bundle_status",     nil},
-	{"awareness_errors",  "awareness.runtime_errors",    nil},
-	{"day1_verdict",      "awareness.day1_classify_node", nil},
 	{"inventory",         "nodeagent_get_inventory",      nil},
 	{"packages",          "nodeagent_list_installed_packages", nil},
 	{"pki",               "nodeagent_get_certificate_status",  nil},

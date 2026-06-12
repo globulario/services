@@ -80,7 +80,7 @@ func TestTopologyScoping_StorageQuorum_DoesNotBlockControlPlaneServices(t *testi
 		"rbac", "resource", "event", "log", "monitoring", "prometheus",
 		"alertmanager", "ai-executor", "ai-memory", "ai-router", "ai-watcher",
 		"mcp", "media", "file", "search", "title", "persistence",
-		"workflow", "torrent", "awareness-graph", "ldap", "mail",
+		"workflow", "torrent", "ldap", "mail",
 		"globular-cli", "node-exporter", "scylla-manager-agent",
 		"cluster-doctor", "etcd",
 	} {

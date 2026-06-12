@@ -206,7 +206,7 @@ Returns the remote tool result wrapped in a node-scoped envelope with tls_trust 
 	s.register(toolDef{
 		Name: "mcp.compare_nodes",
 		Description: `Compares selected nodes across one or more aspects to surface drift.
-Supported aspects: "release" (installed versions), "awareness_bundle" (bundle version/build_id), "packages" (all installed packages), "pki" (certificate status).
+Supported aspects: "release" (installed versions), "packages" (all installed packages), "pki" (certificate status).
 Returns per-node data and a diff summary listing nodes that differ from the first responding node.`,
 		InputSchema: inputSchema{
 			Type: "object",
@@ -238,7 +238,6 @@ Returns per-node data and a diff summary listing nodes that differ from the firs
 		// Map aspect → tool to call.
 		aspectTool := map[string]string{
 			"release":          "nodeagent_list_installed_packages",
-			"awareness_bundle": "awareness.bundle_status",
 			"packages":         "nodeagent_list_installed_packages",
 			"pki":              "nodeagent_get_certificate_status",
 		}

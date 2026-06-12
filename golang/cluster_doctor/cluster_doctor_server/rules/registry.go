@@ -241,9 +241,6 @@ func NewRegistry(cfg Config) *Registry {
 		opsKnowledgeSeedDeferred{},
 		// awareness-graph RDF store empty: fires when the awareness-graph
 		// service is reachable but returns zero triples. The embedded NT seed
-		// only fires on a fresh store at startup — a runtime wipe requires
-		// a service restart. HealPropose only.
-		awarenessGraphSeedEmpty{},
 		// Install-receipt authority drift (post sidecar retirement). Surfaces
 		// the two states produced by node-agent's checkUnitHashDrift after the
 		// 4-layer authority fix:

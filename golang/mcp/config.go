@@ -85,7 +85,6 @@ type ToolGroupConfig struct {
 	Monitoring  bool `json:"monitoring"`  // default true (Prometheus metrics)
 	Browser     bool `json:"browser"`     // default true (Chrome DevTools Protocol bridge)
 	AIExecutor  bool `json:"ai_executor"` // default true (AI executor peer collaboration)
-	Awareness   bool `json:"awareness"`   // default true (forwards to awareness-graph gRPC service)
 	Auth        bool `json:"auth"`        // default false (deferred)
 	DNS         bool `json:"dns"`         // default false (deferred)
 	Aggregator  bool `json:"aggregator"`  // default true (cluster MCP aggregator)
@@ -152,7 +151,6 @@ func defaultConfig() *MCPConfig {
 			Monitoring:  true,
 			Browser:     true,
 			AIExecutor:  true,
-			Awareness:   true,
 			Auth:        false, // deferred
 			DNS:         false, // deferred
 			Aggregator:  true,
@@ -252,7 +250,6 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 		"workflow":   &cfg.ToolGroups.Workflow,
 		"etcd":       &cfg.ToolGroups.Etcd,
 		"monitoring": &cfg.ToolGroups.Monitoring,
-		"awareness":  &cfg.ToolGroups.Awareness,
 		"aggregator": &cfg.ToolGroups.Aggregator,
 	}
 

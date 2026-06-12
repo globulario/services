@@ -176,7 +176,7 @@ func packageTopologySensitivities(packageName string) (map[string]bool, bool) {
 		"event", "log", "monitoring", "prometheus", "alertmanager",
 		"ai-executor", "ai-memory", "ai-router", "ai-watcher",
 		"mcp", "media", "file", "search", "title", "persistence",
-		"workflow", "torrent", "awareness-graph", "ldap", "mail",
+		"workflow", "torrent", "ldap", "mail",
 		"globular-cli", "node-exporter", "scylla-manager-agent",
 		"cluster-doctor", "etcd", "blog", "catalog", "conversation",
 		"compute", "domain", "globular-cli-bin":

@@ -562,24 +562,6 @@ func buildCatalog() []*Component {
 			RuntimeLocalDependencies: []string{"event"},
 			PlatformDefault:          true,
 		},
-		{
-			Name:                     "awareness-graph",
-			Unit:                     "globular-awareness-graph.service",
-			Kind:                     KindWorkload,
-			Priority:                 1000,
-			Profiles:                 []string{"control-plane"},
-			RuntimeLocalDependencies: []string{"oxigraph"},
-			PlatformDefault:          true,
-		},
-		{
-			Name:        "oxigraph",
-			Unit:        "globular-oxigraph.service",
-			Kind:        KindInfrastructure,
-			Priority:    12,
-			Profiles:    []string{"control-plane"},
-			HealthCheck: &HealthCheckHintC{Unit: "globular-oxigraph.service", Port: 7878},
-		},
-
 		// node-agent: bootstrapped by the Day-0 join script, not by the join workflow.
 		// Listed here for kind classification only so the doctor rule emits SERVICE,
 		// not INFRASTRUCTURE. InstallModeDay0Join prevents the join-workflow coverage test

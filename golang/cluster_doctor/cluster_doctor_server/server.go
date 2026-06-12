@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	awarenesspb "github.com/globulario/awareness-graph/golang/pb"
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
@@ -265,21 +264,6 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		logger.Info("ai-memory endpoint not in etcd — seed drift detection disabled (pre-Day-1)")
 	}
 
-	// Attach awareness-graph client so the collector can probe the RDF store
-	// and detect an empty graph (embedded seed failed or Oxigraph was wiped
-	// after startup). Optional — if unreachable, no findings are emitted.
-	awEndpoint := config.ResolveServiceAddr("awareness.AwarenessGraphService", "")
-	if awEndpoint != "" {
-		awTarget := config.ResolveDialTarget(awEndpoint)
-		if awConn, awErr := grpc.NewClient(awTarget.Address,
-			dialOptionsForInternalService(awTarget.ServerName)...); awErr == nil {
-			col.WithAwarenessGraphClient(awarenesspb.NewAwarenessGraphClient(awConn))
-		} else {
-			logger.Warn("awareness-graph client init failed — seed_empty detection disabled", "err", awErr)
-		}
-	} else {
-		logger.Info("awareness-graph endpoint not in etcd — seed_empty detection disabled (pre-Day-1)")
-	}
 
 	reg := rules.NewRegistry(rules.Config{
 		HeartbeatStale:  cfg.heartbeatStale(),
