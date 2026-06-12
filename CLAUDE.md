@@ -18,7 +18,7 @@ Claude has no continuous memory between sessions. The rules below are loaded as 
 
 3. **Ask the graph, don't grep.** When you need an invariant, intent, failure mode, or forbidden fix, use `mcp__globular__awareness_query` / `awareness_resolve` / `awareness_briefing`. Do NOT grep over `docs/intent/` or `docs/awareness/` — the YAML files are inputs to the graph, not the queryable surface.
 
-4. **End non-trivial tasks with the awareness template** (briefing used, invariants touched, tests run, remaining uncertainty). See the AWARENESS USAGE section below.
+4. **End non-trivial tasks with the AWG summary line**: `AWG: briefing(<target>) | invariants: X, Y | uncertainty: Z`. See the AWARENESS USAGE section for variants (degraded, empty+high-risk, empty+low-risk=omit).
 
 If you find yourself defaulting to flat-file memory, grepping over awareness sources, or editing high-risk code without calling briefing — STOP. That is the drift this prelude exists to prevent. Today's session (2026-06-03) produced this prelude because the same drift kept happening.
 
@@ -132,7 +132,11 @@ Two reasons, both non-negotiable:
 
 The briefing is lightweight (13ms, ~500 tokens). There is no cost to justify skipping it.
 
-Call `awareness.briefing` first, then write code. If the briefing returns `empty`, say so explicitly and continue cautiously. If it returns `degraded`, do not proceed with architectural changes without explicit user approval.
+Call `awareness.briefing` first, then write code. Handle the result per the empty-briefing policy:
+- **Low-risk / no-behavior edit**: empty briefing is fine — proceed quietly, omit the AWG summary line.
+- **High-risk target, minor edit**: treat empty as DEGRADED — announce it, check `high_risk_files.yaml`, use code/tests/docs as fallback.
+- **Behavior change in high-risk code**: empty briefing triggers escalation — run `impact`, `briefing(task=)`, or query related domains before editing. If still empty, continue only with explicit uncertainty and tests.
+- **Degraded (service unavailable)**: do not proceed with architectural changes without explicit user approval.
 
 ---
 
@@ -322,41 +326,38 @@ The canonical script is at `scripts/clean-node.sh` (also embedded in the gateway
 
 Awareness is the compact gRPC map of project intent, invariants, failure modes, incident patterns, required tests, and forbidden fixes. It does NOT replace reading code, running tests, or checking runtime state — it shows which floorboards are fragile before you walk in.
 
-**Call awareness before non-trivial edits to:** service lifecycle, package publish/install, repository/discovery, cluster state, etcd state, RBAC/security/token logic, filesystem/upload paths, remediation/recovery code, install scripts, or tests that encode operational contracts.
-
-**Also call awareness before edits to:** ScyllaDB join/topology/DDL preflight paths, objectstore/MinIO topology, awareness-graph itself (yaml2nt, scanner, briefing/impact/query handlers), or repository publish/artifact-state/release-index paths.
-
 **Workflow:**
-1. `awareness.briefing` with `file` or `task` — start every non-trivial task here. Reads ~500 tokens by default.
-2. `awareness.impact` on each target file when briefing's coverage is thin — direct anchors only (inferred fields are reserved in v0; see `docs/awareness/decisions/inference-v0-direct-anchors-only.md`).
+1. `awareness.briefing` with `file` or `task` — start every non-trivial task here (~500 tokens, ~13ms).
+2. `awareness.impact` on each target file when briefing's coverage is thin.
 3. `awareness.resolve` on any `referenced_id` you need expanded.
-4. Read the actual code. Patch. Run the required tests from awareness output + nearby regressions.
-5. End the response with the awareness template (below).
+4. Read the actual code. Patch. Run required tests from awareness output + nearby regressions.
+5. End the response with the AWG summary line (below).
 
 **Status handling:**
-- `ok` — treat returned rules as active context. Follow invariants and forbidden fixes; run required tests. Resolve any referenced_id marked high or critical.
-- `empty` — NOT proof of safety. Say "no direct awareness anchors were found" and continue cautiously. Check `high_risk_files.yaml`.
-- `degraded` or transport error — report degraded awareness. Do NOT proceed with high-risk architectural changes (state authority, security, package install, repository identity, convergence) unless the user explicitly approves. Use code/tests/docs/runtime as fallback evidence and say so.
+- `ok` — follow invariants, forbidden fixes, required tests. Resolve any high/critical referenced_id.
+- `empty` — handle per risk tier (see empty-briefing policy below).
+- `degraded` — do NOT proceed with high-risk architectural changes without user approval. Use code/tests/docs as fallback evidence and say so.
 
-**Final response template** (append to every non-trivial code task):
+**Empty-briefing policy** (empty ≠ safe, but empty ≠ always noisy):
 
-```text
-Awareness used:
-- briefing:
-- impact:
-- resolved IDs:
-- invariants touched:
-- failure modes considered:
-- forbidden fixes avoided:
-- required tests:
-- tests run:
-- remaining uncertainty:
+| Risk tier | Example | Action |
+|-----------|---------|--------|
+| **Low-risk / no-behavior** | Typo fix, formatting, comment, import reorder | Proceed quietly. Omit AWG line from summary. |
+| **High-risk target, minor edit** | Rename in node_agent, log message in repository | Treat as DEGRADED. Announce. Check `high_risk_files.yaml`. Use code/tests/docs as fallback. |
+| **Behavior change in high-risk code** | New convergence path, auth check change, workflow resume logic | Escalate: run `impact(file=)`, `briefing(task=)`, or query related domains. If still empty, continue only with explicit uncertainty and tests. |
+
+**AWG summary line** (append to every non-trivial code task — replaces the old 9-field template):
+
+```
+AWG: briefing(<target>) | invariants: X, Y | uncertainty: Z
 ```
 
-If awareness was unavailable: `Awareness status: DEGRADED — fallback evidence: …`
-If awareness was empty: `Awareness status: EMPTY for the target — code/docs checked manually: …`
+Variants:
+- Degraded: `AWG: DEGRADED — fallback: <what was checked>`
+- Empty + high-risk: `AWG: DEGRADED — empty briefing for high-risk target; proceeded with fallback reasoning/tests`
+- Empty + low-risk: omit the AWG line entirely.
 
-Awareness explains *why* code exists, *what* it protects, *which fixes are forbidden*. Awareness cannot prove current etcd state, cluster membership, runtime health, or installed-package state — verify those with live tools.
+Awareness explains *why* code exists, *what* it protects, *which fixes are forbidden*. It cannot prove current etcd state, cluster membership, runtime health, or installed-package state — verify those with live tools.
 
 ### PRINCIPLE EXTRACTION PROTOCOL — when processing errors
 
@@ -415,23 +416,14 @@ If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom ou
 
 Full machine-readable rules: [`docs/awareness/activation_rules.yaml`](docs/awareness/activation_rules.yaml)
 
-Awareness is **mandatory** for the following. No exceptions.
+Two rules. Hook enforcement unchanged.
 
-| Rule | Trigger | Tools required |
-|---|---|---|
-| **R1 Annotated file** | File has `@awareness` annotations or CodeSymbol entries in graph | `briefing(file=)` |
-| **R2 High-risk directory** | Edit targets `golang/node_agent/`, `golang/cluster_controller/`, `golang/services_manager/`, `golang/repository/`, `golang/rbac/`, `golang/security/`, `golang/mcp/`, `golang/cluster_doctor/`, `golang/ai_executor/`, `docs/awareness/`, `docs/intent/` | `briefing(file=)` then `impact(file=)` |
-| **R3 State authority** | Task involves desired state, installed state, runtime state, convergence, reconciliation, service health, package install/publish, repository identity, etcd truth, node-agent authority, cluster controller | `briefing(task=)` then `impact(file=)` when files are known |
-| **R4 Awareness internals** | Modifying yaml2nt, annotation-scanner, CodeSymbol importer, RDF vocabulary, Oxigraph load/seed, or MCP awareness tools | `briefing(file=)` then `resolve()` for any high/critical referenced_id |
-| **R5 Shortcut fix** | Proposed fix changes authority boundary, weakens validation, ignores stale data, treats missing data as healthy, bypasses gateway/pool, or removes strict mode | `impact(file=)` and check forbidden fixes |
-| **R6 Final report** | Every non-trivial code task | Append awareness template to response |
+| Rule | Trigger | Enforcement | Tool |
+|------|---------|-------------|------|
+| **AUTO** | Edit in high-risk dir (`node_agent`, `cluster_controller`, `services_manager`, `repository`, `rbac`, `security`, `mcp`, `cluster_doctor`, `ai_executor`, `docs/awareness/`, `docs/intent/`) | Hook-enforced | `briefing(file=)` |
+| **MANUAL** | Task touches authority surface: desired state, installed state, runtime evidence, convergence, security/RBAC, repository publish/installability, workflow resume/receipts, cluster-doctor remediation, awareness-graph internals | Agent judgment | `briefing(task=)` then `impact(file=)` |
 
-Awareness is **optional** (but always allowed) for:
-- Typo-only README or doc edits (no code, no annotation blocks)
-- Formatting-only changes (gofmt, import reorder)
-- Comment-only changes outside `@awareness` annotation blocks
-- Low-risk pure-helpers with no state, security, or runtime behavior
-- Test data fixtures with no production code path
+**Low-risk exemption**: if the edit changes no behavior, awareness is optional. The hook still fires in high-risk dirs (it can't know intent), but the agent satisfies it with the briefing call and moves on quietly.
 
 ---
 
