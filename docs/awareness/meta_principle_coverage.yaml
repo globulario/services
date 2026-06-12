@@ -130,3 +130,56 @@ meta_principle_coverage:
   - principle: meta.uniform_naming_reduces_conceptual_load
     tier: review_only
     reason: Naming uniformity is a judgment a linter would approximate worse than review; a design lens.
+
+  # ── Perception (GUI) principles — review_only ───────────────────────────
+  # The perception category protects operator truth on screens. No admin
+  # console exists yet; when frontend Tier-2 enforcement lands (Semgrep/
+  # ESLint per intent.awareness.multi_language_extraction), several of
+  # these become mechanizable and MUST be re-classified then. Until a
+  # frontend codebase exists, design review + briefing-time surfacing is
+  # the honest tier, not a silent gap.
+  - principle: meta.ui.screen_claim_must_bind_to_authority
+    tier: review_only
+    reason: Whether a rendered claim binds to the correct authority is a data-flow judgment per screen; gate tests (see the objectstore topology screen contract) enforce it per page once components exist.
+  - principle: meta.ui.state_certainty_must_be_visually_distinct
+    tier: review_only
+    reason: Visual distinctness of epistemic states is a design-review judgment; per-screen gate tests cover the concrete cases.
+  - principle: meta.ui.same_truth_same_language
+    tier: review_only
+    reason: One-meaning-one-rendering is enforced by the shared component vocabulary at review time; no static artifact exists before the design system does.
+  - principle: meta.ui.destructive_action_requires_confirmed_authority
+    tier: review_only
+    reason: RBAC-bound enablement is per-action wiring; the topology screen contract's gate test covers the first concrete instance. Candidate for ESLint mechanization when frontend Tier-2 lands.
+  - principle: meta.ui.failure_must_preserve_diagnostic_context
+    tier: review_only
+    reason: What context a fallback must preserve depends on the screen's diagnostic role — semantic, not syntactic.
+  - principle: meta.ui.provenance_over_recall
+    tier: review_only
+    reason: Which provenance is operationally relevant per claim is a design judgment; review lens at screen-contract time.
+  - principle: meta.ui.meaning_must_survive_presentation_loss
+    tier: review_only
+    reason: Channel-loss survival is provable per component via a11y/visual tests once components exist; until then design review. Candidate for behavioral tier with the first component test suite.
+  - principle: meta.ui.decoration_must_not_impersonate_authority
+    tier: review_only
+    reason: Whether decoration is confusable with state is a perceptual judgment; no artifact can prove it.
+  - principle: meta.ui.simplicity_must_not_hide_operational_truth
+    tier: review_only
+    reason: Whether a removed detail was decision-relevant is exactly the judgment a reviewer must make; irreducibly human.
+  - principle: meta.ui.operator_must_remain_in_control
+    tier: review_only
+    reason: Consent boundaries for automation are product decisions per surface; review lens plus per-screen contracts.
+  - principle: meta.ui.control_must_be_reversible_or_guarded
+    tier: review_only
+    reason: Guard sufficiency (undo vs dry-run vs preflight) is per-action; the topology contract names the first concrete guard chain and gate test.
+  - principle: meta.ui.workflow_must_yield_closure
+    tier: review_only
+    reason: Closure binding is per-flow wiring; the topology contract gate test (receipt-not-submit-success) covers the first instance. Candidate for behavioral tier as flows accumulate.
+  - principle: meta.ui.ai_assistance_must_be_explainable_and_bounded
+    tier: review_only
+    reason: Evidence-boundary sufficiency for generated prose is a judgment about the claim, not a pattern; review plus the ai_text concrete invariant.
+  - principle: meta.ui.task_path_must_match_operator_goal
+    tier: review_only
+    reason: Whether a screen serves a task or mirrors a schema is an information-architecture judgment; preflight surfaces it at design time.
+  - principle: meta.ui.notification_volume_must_match_operator_capacity
+    tier: review_only
+    reason: Alarm rationalization (actionability, priority, dedup per class) is an operational design decision; candidate for behavioral budget tests once a notification layer exists.
