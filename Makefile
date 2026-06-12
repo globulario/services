@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-services check-awareness check-awareness-validate check-awareness-audit test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
 
 # ── Security boundary checks ────────────────────────────────────────────────
 #
@@ -64,6 +64,30 @@ check-nodeagent-exec-boundary: check-target-paths-exist
 check-proto-authz:
 	@echo "Checking proto authz annotation coverage..."
 	@bash scripts/check_proto_authz.sh
+
+# ── Awareness graph checks ───────────────────────────────────────────────────
+#
+# check-awareness-validate: offline YAML structural check — dangling invariant
+#   refs, missing files, duplicate IDs. No cluster or gRPC needed. Fast (~1s).
+#   Exits non-zero on any finding with severity=error.
+#
+# check-awareness-audit: full awareness pipeline check — embeddata freshness,
+#   YAML validity, N-Triples, coverage gaps, stale file refs, test coverage.
+#   Requires awareness-graph repo as sibling. Exits non-zero on any FAIL.
+#
+# check-awareness: runs both. Use for pre-commit or CI.
+
+check-awareness-validate:
+	@echo "Running awareness YAML validation..."
+	@cd golang && go run ./globularcli awareness validate
+	@echo "OK: awareness YAML validation passed"
+
+check-awareness-audit:
+	@echo "Running awareness audit (--check)..."
+	@cd golang && go run ./globularcli awareness audit --check
+	@echo "OK: awareness audit passed"
+
+check-awareness: check-awareness-validate check-awareness-audit
 
 # ── Aggregate check target ───────────────────────────────────────────────────
 

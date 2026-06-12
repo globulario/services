@@ -8252,6 +8252,7 @@ invariants:
             - day0LogPath
       related_invariants:
         - meta.half_done_must_not_look_done
+      related_intents:
         - workflow.source_of_operational_truth
       required_tests:
         - test.workflow.day0_trace_import_idempotent_and_best_effort
@@ -8701,9 +8702,10 @@ invariants:
         - meta.state_mutations_must_be_durably_committed_before_side_effects
         - meta.storage_is_not_semantic_authority
         - meta.write_creates_completion_obligation
+        - four_layer.workflow_actor_attribution_required
+      related_intents:
         - workflow.source_of_operational_truth
         - workflow.four_layer_is_template_instantiated_per_artifact_node
-        - four_layer.workflow_actor_attribution_required
         - four_layer.layer_has_single_writing_actor
         - four_layer.actor_layer_mapping
         - workflow.dispatch_is_not_completion

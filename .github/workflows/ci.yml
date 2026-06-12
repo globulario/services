@@ -141,40 +141,19 @@ jobs:
           ./bin/validate-deps --services .. --packages ../../packages
         working-directory: services/golang
 
-      # ──────────────────────────────────────────────────────────────────
-      # Awareness CI evidence chain — DEFERRED.
-      #
-      # The four steps that used to live here:
-      #   - "Run awareness tests and generate CI evidence"
-      #   - "Check awareness strict_verified (no regression)"
-      #   - "Intent audit (architecture regression check)"
-      #   - "Awareness semantic-diff authority gate"
-      # all depend on CLI subcommands that are not implemented in
-      # `golang/globularcli` today:
-      #   - awareness test-results
-      #   - awareness ci-check
-      #   - awareness intent-audit
-      #   - awareness semantic-diff git
-      # AND on a Go package `golang/awareness/` (used by both the test
-      # target `go test ./awareness/...` and the dependency validator
-      # `./awareness/cmd/validate-deps`) that does not exist in master.
-      #
-      # Building all four subcommands plus the supporting Go package is
-      # a substantial new ticket — Option A in the original triage was
-      # rejected as too large. This block replaces them with a single
-      # explicit deferred-notice step so the workflow runs green while
-      # the missing infrastructure is documented.
-      #
-      # To restore: implement the subcommands + the awareness Go
-      # package, then re-add the original four steps (preserved in
-      # commit history; see services/master @ 5d303515 and earlier).
-      #
-      # Lint version backlog ticket and the 205 v1→v2 findings are
-      # tracked separately; not addressed here.
-      # ──────────────────────────────────────────────────────────────────
-      - name: Awareness CI evidence (deferred)
-        run: |
-          echo "::notice::Awareness CI evidence chain deferred — globular awareness {test-results, ci-check, intent-audit, semantic-diff} subcommands and the golang/awareness package are not implemented. See backlog ticket: 'restore awareness CI evidence chain'."
+      # 3. Awareness YAML structural check (always runs — no AG checkout
+      #    or cluster dependency). Catches dangling related_invariants,
+      #    missing source files, duplicate IDs. Exits non-zero on errors.
+      - name: Enforce awareness YAML validity (validate, hard gate)
+        run: go run ./globularcli awareness validate
+
+      # 4. Full awareness audit (requires AG checkout for embeddata
+      #    freshness + dual-repo stale-file-ref checking). Exits 1 on
+      #    any FAIL (embeddata stale, YAML invalid, bad N-Triples).
+      #    WARNs (coverage gaps, missing tests) don't block CI.
+      - name: Enforce awareness audit (audit --check, hard gate)
+        if: steps.checkout_awareness_graph.outcome == 'success'
+        run: go run ./globularcli awareness audit --check
 
   proto-check:
     runs-on: ubuntu-latest

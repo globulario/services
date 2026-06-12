@@ -849,9 +849,10 @@ failure_modes:
       id: controller.platform_upgrade_bypassed_workflow_authority
       related_invariants:
         - meta.state_mutations_must_be_durably_committed_before_side_effects
-        - workflow.source_of_operational_truth
         - controller.platform_upgrade_must_gate_per_node_per_package
         - controller.apply_package_release_requires_manifest_checksum
+      related_intents:
+        - workflow.source_of_operational_truth
       required_tests:
         - TestEvaluate_ProfileMismatch_SkipsWithProfileSkip
         - TestEvaluate_NotInstalled_RespectsRemoval
@@ -2462,6 +2463,7 @@ failure_modes:
       id: interceptors.rbac_fallback_allows_user_mutation_on_outage
       related_invariants:
         - meta.fail_safe_defaults_when_authority_is_uncertain
+      related_intents:
         - security.deny_overrides_allow
       related_services:
         - interceptors
@@ -2638,6 +2640,7 @@ failure_modes:
       id: mcp.governor_bypass_via_ad_hoc_execute_tool
       related_invariants:
         - meta.state_mutations_must_be_durably_committed_before_side_effects
+      related_intents:
         - mcp.governor.plan_validate_approve_execute_is_only_execute_path
       severity: critical
       status: active
@@ -5241,6 +5244,7 @@ failure_modes:
       related_invariants:
         - meta.silence_is_not_valid_for_unexpected
         - meta.state_mutations_must_be_durably_committed_before_side_effects
+      related_intents:
         - reconciliation.must_be_idempotent_and_bounded
       related_services:
         - workflow
@@ -5278,6 +5282,7 @@ failure_modes:
       related_invariants:
         - meta.state_mutations_must_be_durably_committed_before_side_effects
         - workflow.every_state_mutation_belongs_to_a_workflow_instance
+      related_intents:
         - reconciliation.must_be_idempotent_and_bounded
       related_services:
         - workflow
