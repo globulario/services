@@ -9,5 +9,7 @@ files:
   - golang/node_agent/node_agent_server/internal/supervisor/
   - golang/repository/repository_server/scylla_store.go
   - golang/node_agent/node_agent_server/minio_systemd_reconcile.go
-  - golang/xds/xds_server/applied_generation.go
-  - golang/envoy/envoy_server/applied_generation.go
+  # xds/envoy applied_generation: planned files never created.
+  # The applied_generation concept lives in
+  # golang/workflow/engine/actors_objectstore.go (workflow actor).
+  # Re-add here if standalone xds/envoy packages are created.
