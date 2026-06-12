@@ -33,9 +33,9 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage_backend"
 	"github.com/globulario/services/golang/workflow"
+	Utility "github.com/globulario/utility"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -120,16 +120,16 @@ type server struct {
 	// --- Repository-Specific Fields ---
 	Root              string                   // Base data directory (artifacts/ lives under this)
 	GCRetentionWindow int                      // Number of PUBLISHED builds per series kept from GC (default 3)
-	MinioConfig    *config.MinioProxyConfig  // MinIO config from etcd (optional mirror)
-	minioClient    *minio.Client
-	storage        storage_backend.Storage
-	localStorage   *storage_backend.OSStorage // local POSIX CAS — never nil after initStorage
-	mirrorStorage  storage_backend.Storage    // optional MinIO mirror — nil when unavailable
-	localStorePath string // POSIX CAS root — /var/lib/globular/repository
-	cache       *manifestCache                          // in-memory TTL cache for manifest reads
-	scylla      manifestLedger                          // ScyllaDB manifest metadata store (nil until connected)
-	listCache   *depcache.Cache[string, []manifestRow]  // display-path Scylla list cache (PolicyRepositoryListView)
-	depHealth   *depHealthWatchdog                      // dependency health monitor
+	MinioConfig       *config.MinioProxyConfig // MinIO config from etcd (optional mirror)
+	minioClient       *minio.Client
+	storage           storage_backend.Storage
+	localStorage      *storage_backend.OSStorage             // local POSIX CAS — never nil after initStorage
+	mirrorStorage     storage_backend.Storage                // optional MinIO mirror — nil when unavailable
+	localStorePath    string                                 // POSIX CAS root — /var/lib/globular/repository
+	cache             *manifestCache                         // in-memory TTL cache for manifest reads
+	scylla            manifestLedger                         // ScyllaDB manifest metadata store (nil until connected)
+	listCache         *depcache.Cache[string, []manifestRow] // display-path Scylla list cache (PolicyRepositoryListView)
+	depHealth         *depHealthWatchdog                     // dependency health monitor
 
 	// --- Repository artifact pipeline state cache ---
 	// Mirrors the durable Scylla artifact_state column. Always written on
@@ -608,41 +608,29 @@ func (srv *server) initStorage() error {
 	}
 	localStore := storage_backend.NewOSStorage(localRoot)
 
-	// MinIO is optional — it becomes a best-effort mirror only when topology is safe.
-	var mirror storage_backend.Storage
-	if srv.minioEnabled() {
-		// Topology pre-flight: refuse mirror if NFS/network mount detected on this node.
-		admCtx, admCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		admStatus, admReason := checkMinioTopologySafe(admCtx, srv.Id, srv.Mac)
-		admCancel()
-		if admStatus == MirrorAdmissionInvalid {
-			logger.Error("MinIO mirror BLOCKED by topology check — local POSIX store only",
-				"reason", admReason,
-				"doctor", "objectstore.duplicate_physical_path / objectstore.network_mount_used",
-			)
-		} else {
-			if err := srv.ensureMinioClient(); err != nil {
-				logger.Warn("MinIO client init failed — operating with local store only", "err", err)
-			} else {
-				m, err := storage_backend.NewMinioStorage(srv.minioClient, srv.MinioConfig.Bucket, srv.MinioConfig.Prefix)
-				if err != nil {
-					logger.Warn("MinIO storage init failed — operating with local store only", "err", err)
-				} else {
-					mirror = m
-					logger.Info("minio storage initialized as mirror",
-						"endpoint", srv.MinioConfig.Endpoint,
-						"bucket", srv.MinioConfig.Bucket)
-				}
-			}
-		}
-	} else {
-		logger.Info("MinIO not configured — running with local POSIX store only")
-	}
+	// HARD RULE: packages NEVER live in MinIO — not even as a mirror tier.
+	//
+	// The repository's blob authority is the local POSIX CAS, full stop. MinIO
+	// is reserved for secondary user data (files, search indexes). The previous
+	// best-effort MinIO blob mirror blurred that boundary: package bytes ended
+	// up in the shared object store and the mirror tier silently became a
+	// cross-node distribution channel, so an objectstore topology reset could
+	// appear to threaten package availability. Operator decision 2026-06-12:
+	// the blob mirror tier is removed; mirror stays nil permanently (all
+	// mirrorStorage call-sites are nil-guarded by design — "MinIO optional
+	// mode" — and now permanently take that path).
+	//
+	// Cross-node blob availability is provided instead by the day-1 CAS seeder
+	// (blob_seed.go): a joined node materializes PUBLISHED blobs into its own
+	// local CAS from the staged join packages, digest-verified against the
+	// Scylla manifest authority.
+	var mirror storage_backend.Storage // intentionally nil — packages never in MinIO
 
 	srv.storage = storage_backend.NewResilientStorage(localStore, mirror)
 	srv.localStorage = localStore
 	srv.mirrorStorage = mirror
-	logger.Info("repository storage initialized", "local", localRoot, "mirror_available", mirror != nil)
+	logger.Info("repository storage initialized — local POSIX CAS only (MinIO blob mirror disabled by policy)",
+		"local", localRoot)
 	return nil
 }
 
@@ -949,6 +937,15 @@ func main() {
 	if s.storage != nil {
 		s.MigrateBuildIDs(ctx)
 	}
+
+	// 7d3. Day-1 local CAS seeding (idempotent, background): a freshly joined
+	// node has every package archive staged under /var/lib/globular/packages
+	// (gateway /join/packages/) but an empty repository blob store. Seed the
+	// local CAS from those staged archives, digest-verified against the Scylla
+	// manifest authority, so this instance can serve PUBLISHED blobs from day
+	// one and the missing_blob_for_published_manifest findings never appear on
+	// healthy joins. Waits internally for Scylla; never blocks serving.
+	go s.seedLocalCASFromStagedPackages(ctx)
 
 	// 7d2b. Phase 6: write release/build aliases for legacy artifacts whose
 	// manifests carry upstream import records but predate the alias model.
