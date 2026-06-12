@@ -1,0 +1,119 @@
+id: admin_console.objectstore_topology_screen_contract
+level: contract
+title: "Law of the page: ObjectStore topology screen — defined before any component exists"
+intent: >
+  First admin-console screen protected by the perception principle pack,
+  per the implementation gate: create the law of the page before creating
+  the page. Route /admin/objectstore/topology, screen
+  ObjectStoreTopologyPage.
+
+  OPERATOR TASK: "Is the object store safe, converged, and redundant right
+  now — and can I change its topology without destroying data?" The screen
+  serves that decision; it is not a MinIO resource browser
+  (meta.ui.task_path_must_match_operator_goal).
+
+  AUTHORITY TABLE — every screen claim binds to its exact source
+  (meta.ui.screen_claim_must_bind_to_authority):
+  desired topology contract = etcd /globular/objectstore/config;
+  desired generation = /globular/objectstore/topology/generation;
+  applied generation = /globular/objectstore/applied_generation —
+  desired vs applied generation is THE drift indicator and the two values
+  must render as the pair they are, never collapsed;
+  admitted/rejected disks = /globular/objectstore/disk/admitted/{node}/{hash}
+  and /globular/objectstore/disk/rejected/* (operator CLI approvals);
+  pending proposals = /globular/objectstore/topology/proposals/*;
+  apply in flight = /globular/objectstore/topology/apply_request,
+  apply_result, restart_in_progress, last_restart_result;
+  applied fingerprint = /globular/objectstore/topology/applied_state_fingerprint
+  and applied_volumes_hash;
+  destructive approval = /globular/objectstore/delete_approval/* — wipe
+  consent is an etcd record, never a UI checkbox;
+  format backups = /globular/objectstore/format_backup/*;
+  node-local contract = /var/lib/globular/objectstore/minio.json plus
+  minio_contract-last-known-good.json (node-agent authority, surfaced via
+  node-agent inventory RPC);
+  node admission verdict = node-agent minio_topology_gate (admitted /
+  not-admitted with reason and gen);
+  runtime health = MinIO service runtime evidence (unit state via
+  node-agent, Prometheus minio metrics) — NEVER inferred from desired
+  config or applied generation;
+  degradation findings = cluster-doctor report (e.g.
+  minio_mirror_unavailable: mirror skipped, local POSIX CAS authoritative);
+  permission = RBAC validate RPC result for the topology-apply action;
+  action outcome = workflow run terminal state and step receipts for the
+  apply workflow.
+
+  REQUIRED VISIBLE EVIDENCE: desired gen vs applied gen side by side;
+  per-node admission status with reason; per-disk admitted/rejected state;
+  erasure/redundancy mode and what is lost on the proposed transition;
+  drive-count change flag (format.json blast radius — a drive-count change
+  means silent reformat risk; mc mirror backup REQUIRED before apply);
+  restart-in-progress and last-restart-result; doctor degradation findings;
+  freshness (as-of-when) on every status
+  (meta.ui.simplicity_must_not_hide_operational_truth — these are the
+  cockpit instruments, not clutter).
+
+  FORBIDDEN VISUAL SHORTCUTS: no green from desired state or applied
+  generation alone (runtime evidence only); no inferring applied from
+  desired; no collapsing not-admitted into unhealthy or into empty; no
+  hiding wipe risk behind "advanced" disclosure; no rendering apply_request
+  acceptance as success (meta.ui.workflow_must_yield_closure); no AI
+  summary of topology safety without citing generation, evidence source,
+  and observation time (meta.ui.ai_assistance_must_be_explainable_and_bounded).
+
+  STATE SET (meta.ui.state_certainty_must_be_visually_distinct): every
+  panel declares and renders distinctly: loading, unknown (authority
+  unreachable — NOT healthy, NOT empty), stale (shown with age), confirmed,
+  degraded (doctor finding), apply-in-flight, failed (with diagnostic
+  context preserved per meta.ui.failure_must_preserve_diagnostic_context).
+
+  DESTRUCTIVE ACTIONS AND GUARDS
+  (meta.ui.control_must_be_reversible_or_guarded): topology apply is the
+  destructive action. Guards, all mandatory: RBAC-confirmed enablement
+  (disabled-with-reason otherwise); backend-backed preflight (proposal
+  diff: drive counts, volumes hash change, data-loss statement); explicit
+  risk text when drive count changes (objects lost; re-publish required);
+  delete_approval etcd record required before the backend accepts — the UI
+  renders that approval state, it does not fabricate it; single-flight
+  submit; no shortcut or bulk path around any guard.
+
+  CLOSURE (meta.ui.workflow_must_yield_closure): the flow ends only at
+  workflow terminal state — receipt identity, applied_generation advanced
+  to match, fingerprint updated, last_restart_result rendered. apply_result
+  written + restart completed + doctor re-check is the closure chain;
+  dialog dismissal and spinner disappearance prove nothing.
+agent_guidance: >
+  Read this contract via briefing BEFORE creating or editing any component
+  of ObjectStoreTopologyPage. Implement the screen against the authority
+  table verbatim — if a claim cannot name its source from the table, the
+  claim does not render. The four gate tests below are the minimum bar and
+  must exist before the screen merges. Do not author ui.fix.* nodes or the
+  frontend_* MCP tools as part of this screen work — prove the principle
+  pack on this one real screen first. If this screen can be built and
+  refactored without hiding risk, breaking layout, or inventing state,
+  frontend awareness is proven (canonical-first-screen test from the
+  frontend-awareness design doc).
+activation_triggers:
+  - ObjectStoreTopologyPage
+  - objectstore topology screen
+  - /admin/objectstore/topology
+  - admin console topology
+  - topology apply UI
+  - minio topology screen
+bad_smells:
+  - health badge bound to /globular/objectstore/config instead of runtime evidence
+  - applied generation rendered from desired generation
+  - apply button enabled before RBAC validation result arrives
+  - wipe risk text behind an expander or tooltip
+  - success toast on apply_request write
+  - one spinner covering loading, unknown, and failed
+  - drive-count change rendered without data-loss statement
+required_tests:
+  - admin-console:TestTopologyBadge_NeverGreenFromDesiredStateAlone
+  - admin-console:TestStaleUnknownFailed_VisuallyDistinctOnTopologyPage
+  - admin-console:TestTopologyApply_RequiresConfirmedRBACAndRiskText
+  - admin-console:TestApplyCompletion_RequiresWorkflowReceiptNotSubmitSuccess
+related_to:
+  - awareness.multi_language_extraction
+  - awareness.architectural_memory_not_semantic_engine
+status: seed
