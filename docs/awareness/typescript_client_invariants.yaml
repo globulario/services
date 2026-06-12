@@ -1,0 +1,163 @@
+# TypeScript gRPC-Web client kit invariants (Tier 0)
+#
+# First non-Go awareness coverage, per intent.awareness.multi_language_extraction:
+# Tier 0 is pure YAML knowledge — these invariants fire in briefings for
+# typescript/ paths today, with no extractor or enforcement tooling. The
+# TypeScript pilot for Tier 1 (tree-sitter annotation extraction) and
+# Tier 2a (Semgrep structural rules) builds on these anchors later.
+#
+# Ground truth (typescript/config.ts): endpoints are computed by
+# defaultServiceLocator as `${protocol}://${domain}:${port}` from a single
+# GlobularConfig; domain derives from window.location.hostname (the serving
+# origin — the VIP/proxy that served the app); default ports are the
+# standard protocol ports 443/80, which are protocol definitions, not
+# configuration. The browser client never talks to a service directly —
+# all gRPC-Web traffic goes through the Envoy/gateway mesh at the origin.
+
+invariants:
+
+  - id: ts.client.endpoints_resolved_not_hardcoded
+    title: TypeScript client endpoints come from GlobularConfig/serviceLocator — never literal hosts
+    severity: critical
+    status: active
+    summary: |
+      Every endpoint the TypeScript client kit dials is computed through the
+      config object (setConfig + serviceLocator), seeded from the serving
+      origin. No client module may embed a literal hostname, IP address, or
+      FQDN. This is the browser-side mirror of the Go hard rule "resolve
+      from etcd, never hardcode" — the browser cannot reach etcd, so the
+      serving origin IS its discovery mechanism, and the config object is
+      the only sanctioned carrier of that truth.
+    enforcement: |
+      Before editing any file under typescript/, check that new network
+      calls obtain their base URL from config.ts (defaultServiceLocator or
+      the configured serviceLocator). A string literal containing a scheme,
+      hostname, IP, or FQDN in client source is a violation regardless of
+      intent ("test value", "sensible default", "temporary").
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
+    protects:
+      files:
+        - typescript/
+        - typescript/config.ts
+
+  - id: ts.client.no_localhost_fallback
+    title: Missing browser context must not silently default the domain to localhost
+    severity: high
+    status: active
+    summary: |
+      config.ts:33 currently falls back to 'localhost' when window is
+      undefined (non-browser context: SSR, tests, node tooling). This is a
+      known violation of meta.fallback_must_degrade_semantics — the
+      fallback returns the same shape as truth, so a misconfigured non-browser
+      consumer silently dials localhost instead of failing loudly. In a
+      non-browser context the domain MUST come from explicit setConfig();
+      absence of explicit config is an error, not localhost.
+    enforcement: |
+      Do not extend the localhost fallback to new code paths. On the next
+      behavioral edit to config.ts, replace the fallback with an explicit
+      throw (or a sentinel that fails the first locator call) when window
+      is undefined and no domain was set via setConfig(). Until then, any
+      new non-browser consumer must call setConfig({domain}) before first use.
+    related_invariants:
+      - meta.fallback_must_degrade_semantics
+    protects:
+      files:
+        - typescript/config.ts
+
+  - id: ts.client.no_service_port_literals
+    title: Per-service gRPC ports are runtime config — never literals in client source
+    severity: high
+    status: active
+    summary: |
+      Service ports are runtime attributes owned by etcd/the mesh; the
+      browser reaches every service through the origin's standard ports
+      (443/80 — protocol definitions, allowed). The ports.services override
+      map exists for exceptional runtime-provided values only. Committing a
+      numeric service port into client source recreates the exact drift the
+      Go side bans ("NO hardcoded gRPC ports") in a place the cluster
+      cannot heal, because shipped browser bundles cannot be reconciled.
+    enforcement: |
+      Reject any edit that writes a numeric port into ports.services, a URL
+      literal, or a locator default — other than the protocol ports 443/80
+      already in config.ts. If a service genuinely needs a port override,
+      it must arrive via setConfig() at app bootstrap from a server-provided
+      document, never from source.
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
+    protects:
+      files:
+        - typescript/config.ts
+        - typescript/
+
+  - id: ts.client.proxy_and_tls_assumptions_preserved
+    title: gRPC-Web traffic stays on https through the Envoy/gateway origin — no downgrades, no direct dials
+    severity: critical
+    status: active
+    summary: |
+      The client kit assumes: protocol https by default, domain = serving
+      origin, all gRPC-Web framing terminated by Envoy at that origin,
+      mTLS between Envoy and backend services handled cluster-side. An edit
+      that downgrades protocol to http, dials a service host directly
+      (bypassing the origin), or disables TLS verification breaks the trust
+      chain in a way no cluster-side control can detect — the cluster only
+      sees valid traffic that never arrives.
+    enforcement: |
+      Any edit touching protocol selection, endpoint shape, or transport
+      options in typescript/ must preserve: https default, single-origin
+      routing, no TLS-bypass options. Treat "http for local dev" requests
+      as setConfig() overrides in the consuming app, never as changed
+      defaults in the kit.
+    related_invariants:
+      - meta.connection_errors_must_not_be_absorbed
+    protects:
+      files:
+        - typescript/
+        - typescript/config.ts
+
+  - id: ts.client.tokens_ephemeral_via_provider
+    title: Tokens flow through tokenProvider at call time — never embedded in source or config literals
+    severity: high
+    status: active
+    summary: |
+      Authentication tokens are ephemeral and reach requests only through
+      the tokenProvider callback at call time (default: localStorage
+      lookup). Embedding a token, API key, or credential in client source,
+      a config literal, or a build artifact is forbidden — the platform-wide
+      "no tokens stored in the codebase" rule applies to the TypeScript
+      kit exactly as it does to Go services.
+    enforcement: |
+      Reject any edit that assigns a literal token/credential value
+      anywhere in typescript/, including test fixtures (use obviously-fake
+      placeholder shapes). Token acquisition changes must keep the
+      provider-callback indirection so rotation never requires a client
+      rebuild.
+    related_invariants:
+      - meta.binding_outlives_evidence_until_invalidated
+    protects:
+      files:
+        - typescript/
+
+  - id: ts.client.shared_invariant_identity_with_go
+    title: TypeScript client edits cite the same global invariant IDs as Go — no parallel TS-only principle set
+    severity: high
+    status: active
+    summary: |
+      Per invariant awareness.reference_ids_are_global_across_languages
+      (awareness-graph repo): the principles constraining this client are
+      the same meta.* and platform invariants that constrain Go code. This
+      file anchors them to typescript/ paths; it does not fork them. New
+      TypeScript-specific knowledge must reference existing IDs where a
+      principle already covers the case, and only mint ts.client.* IDs for
+      genuinely client-specific contracts.
+    enforcement: |
+      When adding an entry to this file, first query the graph for an
+      existing invariant covering the failure shape. A new ts.client.* ID
+      duplicating an existing principle is a violation — link the existing
+      ID in related_invariants instead.
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
+    protects:
+      files:
+        - typescript/
+        - docs/awareness/typescript_client_invariants.yaml
