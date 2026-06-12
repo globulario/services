@@ -125,35 +125,25 @@ jobs:
           go test -count=1 -run 'TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock' ./cluster_controller/cluster_controller_server/...
           go test -count=1 -run 'TestRemediator_UnknownTierFailsSafeNoAutoExecute' ./ai_executor/ai_executor_server/...
 
-      - name: Validate awareness contracts against code (depends_on drift)
-        # Walks every packages/metadata/<svc>/awareness.yaml, parses depends_on,
-        # and confirms each claimed dependency has evidence in golang/<svc>/.
-        # Catches the failure mode where awareness.yaml says "depends on
-        # ScyllaDB" but the code actually uses Badger / Mongo / etcd / etc.
-        #
-        # Currently warn-only (continue-on-error) because 6 known contracts
-        # drift today. Flip to hard-fail once those are fixed — the validator
-        # already exits non-zero when drift exists, so removing the
-        # continue-on-error line is the only change.
-        continue-on-error: true
-        run: |
-          go build -o bin/validate-deps ./awareness/cmd/validate-deps
-          ./bin/validate-deps --services .. --packages ../../packages
-        working-directory: services/golang
-
-      # 3. Awareness YAML structural check (always runs — no AG checkout
-      #    or cluster dependency). Catches dangling related_invariants,
-      #    missing source files, duplicate IDs. Exits non-zero on errors.
-      - name: Enforce awareness YAML validity (validate, hard gate)
-        run: go run ./globularcli awareness validate
-
-      # 4. Full awareness audit (requires AG checkout for embeddata
-      #    freshness + dual-repo stale-file-ref checking). Exits 1 on
-      #    any FAIL (embeddata stale, YAML invalid, bad N-Triples).
-      #    WARNs (coverage gaps, missing tests) don't block CI.
-      - name: Enforce awareness audit (audit --check, hard gate)
+      # 3. Awareness YAML structural check. The `globular awareness` CLI
+      #    was removed when AWG became a standalone sidecar (1c8a4888);
+      #    validation now lives in the awareness-graph repo as
+      #    `awg validate`, so this gate requires the AG checkout.
+      #    Catches dangling related refs, missing source files, dup IDs.
+      #    (The old validate-deps step is gone with golang/awareness/.)
+      - name: Enforce awareness YAML validity (awg validate, hard gate)
         if: steps.checkout_awareness_graph.outcome == 'success'
-        run: go run ./globularcli awareness audit --check
+        working-directory: ${{ github.workspace }}/awareness-graph
+        run: go run ./cmd/awg validate -repo-root ${{ github.workspace }}/services
+
+      # 4. Full awareness audit (embeddata freshness via the canonical
+      #    deduped generation, YAML validity, N-Triples validity,
+      #    coverage gaps, stale file refs, test coverage). Exits 1 on
+      #    any FAIL; WARNs don't block CI.
+      - name: Enforce awareness audit (awg audit -check, hard gate)
+        if: steps.checkout_awareness_graph.outcome == 'success'
+        working-directory: ${{ github.workspace }}/awareness-graph
+        run: go run ./cmd/awg audit -check -services-repo ${{ github.workspace }}/services -ag-repo .
 
   proto-check:
     runs-on: ubuntu-latest

@@ -56,6 +56,14 @@ code_symbols:
         - globular.awareness_graph:failure_mode.awareness.rdf.unvalidated_ntriples_corrupt_store
       tested_by:
         - cmd/yaml2nt/main_test.go:TestRunDeterministic
+  - id: globular.awareness_graph:code.go.extractor
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/extractor/dedup_ntriples.go
+    component: extractor
+    annotations:
+      enforces:
+        - globular.awareness_graph:invariant.awareness.rdf.yaml_is_source_of_truth
   - id: globular.awareness_graph:code.go.extractor.ImportAwarenessYAMLs
     namespace: globular.awareness_graph
     language: go
@@ -178,6 +186,15 @@ code_symbols:
     language: go
     file: golang/server/implementation_patterns.go
     component: server.implementation_patterns
+    risk: low
+    annotations:
+      implements:
+        - globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
+  - id: globular.awareness_graph:code.go.server.intent_triggers
+    namespace: globular.awareness_graph
+    language: go
+    file: golang/server/intent_triggers.go
+    component: server.intent_triggers
     risk: low
     annotations:
       implements:

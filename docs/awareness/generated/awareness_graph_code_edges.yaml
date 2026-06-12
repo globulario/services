@@ -32,6 +32,9 @@ code_edges:
   - from: globular.awareness_graph:code.go.build.yaml2nt.run
     relation: tested_by
     to: cmd/yaml2nt/main_test.go:TestRunDeterministic
+  - from: globular.awareness_graph:code.go.extractor
+    relation: enforces
+    to: globular.awareness_graph:invariant.awareness.rdf.yaml_is_source_of_truth
   - from: globular.awareness_graph:code.go.extractor.ImportAwarenessYAMLs
     relation: implements
     to: globular.awareness_graph:intent.awareness.yaml_importer_does_not_silently_skip_in_strict_mode
@@ -90,6 +93,9 @@ code_edges:
     relation: tested_by
     to: golang/server/impact_test.go:TestImpactStoreNil
   - from: globular.awareness_graph:code.go.server.implementation_patterns
+    relation: implements
+    to: globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
+  - from: globular.awareness_graph:code.go.server.intent_triggers
     relation: implements
     to: globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
   - from: globular.awareness_graph:code.go.server.metadata

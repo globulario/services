@@ -5520,7 +5520,6 @@ invariants:
   id: mcp.tools.use_gateway_client_pool
   protects:
     files:
-    - golang/mcp/tools_awareness.go
     - golang/mcp/tools_backup.go
     - golang/mcp/tools_cluster.go
     - golang/mcp/clients.go

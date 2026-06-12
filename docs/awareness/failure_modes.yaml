@@ -5550,3 +5550,153 @@ failure_modes:
         - 'installed_state shows status=installed for a service whose globular-<svc>.service unit does not exist on disk'
         - 'describe/port-config best-effort error: stat /usr/lib/globular/bin/<name>_server: no such file or directory'
       title: SERVICE package with a missing systemd unit is misclassified binary-only — apply reports installed, unit never starts, reconciler reinstalls forever and the release abandons
+
+    # ── Frontend perception-bug failure modes (fm.ui.*) ─────────────────────
+    # Referenced by the frontend execution-mechanics invariants ported from
+    # the predecessor awareness repo (services@ac4bda3b). Origin: principle-
+    # derived (no Globular incident yet — the admin console does not exist);
+    # each names the anticipated bug class its invariant guards against.
+    # Tests are the declared per-invariant gate tests; they become real with
+    # the first console components.
+
+    - id: fm.ui.data_holder_becomes_authority
+      title: A DOM element or component store silently becomes the authority for backend truth
+      severity: high
+      root_cause: |
+        A data-holder element (component store, dataset attribute, frontend
+        singleton) was introduced as a render cache, then other code started
+        reading domain truth (runtime health, permission, completion) from it
+        instead of from the owning service. The mirror became the source.
+      related_invariants:
+        - ui.data_holder_is_cache_not_authority
+        - meta.code.local_state_must_not_become_hidden_authority
+      required_tests:
+        - TestDataHolder_DoesNotInventRuntimeStatus
+
+    - id: fm.ui.untyped_dom_event_causes_wrong_refresh
+      title: An untyped or generic DOM event triggers the wrong component refresh
+      severity: medium
+      root_cause: |
+        A CustomEvent named "refresh"/"update" with an untyped payload became
+        an undocumented global event bus; a malformed or unrelated dispatch
+        refreshed the wrong region or mutated state from event detail treated
+        as backend truth.
+      related_invariants:
+        - ui.dom_event_contract_must_be_typed_and_scoped
+      required_tests:
+        - TestMalformedDomEvent_DoesNotMutateAuthoritativeState
+
+    - id: fm.ui.full_page_reload_masks_state_bug
+      title: A full-page reload hides a state-management bug and destroys operator context
+      severity: medium
+      root_cause: |
+        A local state bug was "fixed" with location.reload(), erasing expanded
+        panels, selection, filters, and warning visibility — the bug remained,
+        now invisible, and the operator paid the context cost on every update.
+      related_invariants:
+        - ui.partial_update_preserves_screen_context
+      required_tests:
+        - TestRefreshPreservesExpandedPanelAndSelection
+
+    - id: fm.ui.stale_async_response_reverts_state
+      title: A slow stale response overwrites newer frontend state
+      severity: high
+      root_cause: |
+        Concurrent requests against the same target state raced; the older
+        response arrived last and silently reverted the UI to stale values —
+        no guard (abort, generation counter, revision check) existed.
+      related_invariants:
+        - ui.async_result_must_not_overwrite_newer_state
+        - meta.binding_outlives_evidence_until_invalidated
+      required_tests:
+        - TestLateResponse_DoesNotOverwriteNewerState
+
+    - id: fm.ui.listener_leak_duplicates_refresh
+      title: Leaked listeners or polling loops cause duplicate refreshes and post-unmount mutations
+      severity: medium
+      root_cause: |
+        A component registered listeners/timers/subscriptions without owning
+        cleanup; after unmount or navigation the orphans kept firing —
+        duplicate refreshes, stale updates to the new screen, memory growth.
+      related_invariants:
+        - ui.subscription_lifecycle_must_be_owned
+      required_tests:
+        - TestSubscriptionCleanup_PreventsDuplicateRefresh
+
+    - id: fm.ui.index_key_moves_row_state
+      title: Array-index row keys attach state to the wrong item after reorder or filter
+      severity: high
+      root_cause: |
+        A dynamic list keyed rows by array index or display name; sorting,
+        filtering, or virtualization reordered the list and expanded/selected/
+        edit state silently migrated to a different operational object.
+      related_invariants:
+        - ui.list_identity_must_use_backend_id
+      required_tests:
+        - TestListReorder_PreservesRowStateByBackendId
+
+    - id: fm.ui.permission_denied_rendered_as_empty
+      title: Permission denied or backend failure renders as a clean empty state
+      severity: high
+      root_cause: |
+        The result pipeline collapsed denied/failed/unknown into the generic
+        empty state; the operator read "zero results" where the truth was "you
+        may not see this" or "the query failed" — a perception bug with
+        authority implications.
+      related_invariants:
+        - ui.empty_loading_unknown_failed_are_distinct
+        - meta.ui.state_certainty_must_be_visually_distinct
+      required_tests:
+        - TestPermissionDenied_NotRenderedAsEmptyList
+
+    - id: fm.ui.double_submit_creates_duplicate_mutation
+      title: Double-click or retry creates duplicate workflows or backend mutations
+      severity: high
+      root_cause: |
+        A mutating submit lacked idempotency and single-flight guarding;
+        double-click, Enter+click, or network retry dispatched the mutation
+        twice — duplicate workflow runs, duplicate approvals, double applies.
+      related_invariants:
+        - ui.form_submit_must_be_idempotent_or_singleflight
+      required_tests:
+        - TestDoubleClick_DoesNotCreateDuplicateMutation
+
+    - id: fm.ui.operational_context_lost_on_navigation
+      title: Operationally relevant screen context is lost on reload or cannot be shared
+      severity: medium
+      root_cause: |
+        Selected node/run/filter context lived only in ephemeral component
+        state; reload, back-navigation, or sharing a URL with a colleague
+        dropped the diagnostic context mid-incident.
+      related_invariants:
+        - ui.navigation_state_must_be_shareable_when_operationally_relevant
+      required_tests:
+        - TestWorkflowRunSelection_SurvivesReload
+
+    - id: fm.ui.time_only_cache_hides_backend_change
+      title: A TTL-only frontend cache outlives the backend generation it mirrors
+      severity: high
+      root_cause: |
+        Operator-critical state was cached with time-only expiry and no
+        authority identity (generation, revision, build_id, invalidation
+        event); the backend moved on and the screen kept showing the old
+        truth until the timer happened to fire.
+      related_invariants:
+        - ui.cache_invalidation_must_follow_authority_generation
+        - meta.binding_outlives_evidence_until_invalidated
+      required_tests:
+        - TestCacheInvalidates_WhenGenerationChanges
+
+    - id: fm.ui.error_boundary_loses_diagnostic_context
+      title: An error boundary blanks the screen and erases the operator's diagnostic context
+      severity: high
+      root_cause: |
+        A rendering failure triggered a catch-all fallback that replaced the
+        whole region — selected resource identity, last-known data timestamp,
+        visible warnings, and safe recovery actions all vanished exactly when
+        the operator needed them most.
+      related_invariants:
+        - ui.error_boundary_must_preserve_diagnostic_context
+        - meta.ui.failure_must_preserve_diagnostic_context
+      required_tests:
+        - TestErrorBoundary_PreservesCriticalWarning
