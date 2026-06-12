@@ -110,6 +110,12 @@ code_edges:
   - from: globular.platform:code.go.platform_node_agent.install
     relation: implements
     to: globular.platform:intent.node_agent.is_executor_not_cluster_brain
+  - from: globular.platform:code.go.platform_node_agent.install
+    relation: implements
+    to: globular.platform:invariant.install.join_path_must_complete_install_contract
+  - from: globular.platform:code.go.platform_node_agent.install
+    relation: implements
+    to: globular.platform:invariant.package.install.service_unit_missing_must_not_be_binary_only
   - from: globular.platform:code.go.platform_node_agent.install_receipt
     relation: enforces
     to: globular.platform:invariant.state.installed_not_catalog

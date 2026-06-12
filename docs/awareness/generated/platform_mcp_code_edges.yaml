@@ -26,21 +26,6 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.audit
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
-  - from: globular.platform:code.go.platform_mcp.awareness_bridge
-    relation: implements
-    to: globular.platform:intent.awareness.graph_is_compiled_context_not_authority
-  - from: globular.platform:code.go.platform_mcp.awareness_bridge
-    relation: implements
-    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
-  - from: globular.platform:code.go.platform_mcp.awareness_diagnose
-    relation: implements
-    to: globular.platform:intent.awareness.graph_is_compiled_context_not_authority
-  - from: globular.platform:code.go.platform_mcp.awareness_diagnose
-    relation: implements
-    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
-  - from: globular.platform:code.go.platform_mcp.awareness_diagnose
-    relation: implements
-    to: globular.platform:intent.runtime_observation_must_not_mutate_desired
   - from: globular.platform:code.go.platform_mcp.clients
     relation: enforces
     to: globular.platform:invariant.mcp.tools.use_gateway_client_pool

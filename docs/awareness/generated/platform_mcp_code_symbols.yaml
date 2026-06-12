@@ -57,27 +57,6 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
-  - id: globular.platform:code.go.platform_mcp.awareness_bridge
-    namespace: globular.platform
-    language: go
-    file: golang/mcp/tools_awareness.go
-    component: platform_mcp.awareness_bridge
-    risk: low
-    annotations:
-      implements:
-        - globular.platform:intent.awareness.graph_is_compiled_context_not_authority
-        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
-  - id: globular.platform:code.go.platform_mcp.awareness_diagnose
-    namespace: globular.platform
-    language: go
-    file: golang/mcp/tools_awareness_diagnose.go
-    component: platform_mcp.awareness_diagnose
-    risk: medium
-    annotations:
-      implements:
-        - globular.platform:intent.awareness.graph_is_compiled_context_not_authority
-        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
-        - globular.platform:intent.runtime_observation_must_not_mutate_desired
   - id: globular.platform:code.go.platform_mcp.clients
     namespace: globular.platform
     language: go

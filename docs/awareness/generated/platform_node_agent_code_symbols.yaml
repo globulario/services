@@ -195,6 +195,18 @@ code_symbols:
   - id: globular.platform:code.go.platform_node_agent.install
     namespace: globular.platform
     language: go
+    file: golang/node_agent/node_agent_server/apply_package_service_unit_recovery.go
+    component: platform_node_agent.install
+    risk: critical
+    annotations:
+      failure_mode:
+        - observability.service_unit_missing_classified_binary_only
+      implements:
+        - globular.platform:invariant.install.join_path_must_complete_install_contract
+        - globular.platform:invariant.package.install.service_unit_missing_must_not_be_binary_only
+  - id: globular.platform:code.go.platform_node_agent.install
+    namespace: globular.platform
+    language: go
     file: golang/node_agent/node_agent_server/apply_package_release.go
     component: platform_node_agent.install
     risk: critical

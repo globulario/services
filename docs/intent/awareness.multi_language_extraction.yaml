@@ -1,0 +1,52 @@
+id: awareness.multi_language_extraction
+level: principle
+title: AWG extends to non-Go languages via tiered extraction, not parallel graphs
+intent: >
+  The awareness graph is language-neutral knowledge with language-specific
+  extraction at the edges. Support for Rust, C/C++, Java, and TypeScript/
+  JavaScript arrives in three tiers. Tier 0 (already true): YAML intents,
+  invariants, failure modes, forbidden fixes, and path-based briefings work
+  for any language today — no extraction needed. Tier 1: annotation
+  extraction for non-Go languages uses tree-sitter — the same @awareness
+  key=value comment grammar, per-language query files that attach comment
+  blocks to the nearest following symbol, emitting the same CodeSymbol/
+  TestSymbol triples as the Go scanner, plus aw:language on SourceFile and
+  CodeSymbol output. Tier 2: enforcement is per-language and added only
+  when justified — portable structural checks (forbidden calls, hardcoded
+  endpoints/ports, localhost literals) as tree-sitter query files; deep
+  semantic checks only for high-risk known bug shapes using language-native
+  tools (Rust: clippy/dylint; C/C++: clang-tidy; TypeScript/JavaScript:
+  ESLint plugin; Java: Error Prone). Pilot language is TypeScript:
+  services/typescript/ already exists, it is real gRPC-Web client code, and
+  it has invariants worth anchoring — no hardcoded endpoints, no
+  localhost/127.0.0.1 literals, no hardcoded service ports, preserve
+  proxy/discovery/TLS assumptions.
+agent_guidance: >
+  Do not migrate the Go scanner to tree-sitter yet — it stays go/ast-based
+  until the tree-sitter path is proven. Do not introduce N native parsers;
+  one tree-sitter extractor with per-language grammars and query files is
+  the only sanctioned multi-language path. Do not let the file_role
+  taxonomy drift per language — one shared vocabulary, validated by the
+  scanner in strict mode. Do not fork invariant identity by language: a
+  Rust, TypeScript, and Go source file must be able to cite the same
+  invariant ID, and the reference validator remains the cross-language
+  authority for ID resolution. Implementation is deferred until the
+  v1.2.211 reinstall validates the standalone AWG setup — until then this
+  intent is architecture capture only.
+activation_triggers:
+  - tree-sitter
+  - multi-language
+  - annotation extraction
+  - TypeScript awareness
+  - Rust awareness
+  - aw:language
+  - non-Go scanner
+bad_smells:
+  - a second graph or namespace scheme per language
+  - language-specific invariant IDs duplicating an existing principle
+  - native parser added for a language tree-sitter already covers
+  - file_role values that exist for only one language
+  - Go scanner rewritten to tree-sitter before the pilot proves the path
+related_to:
+  - awareness.graph_is_compiled_context_not_authority
+status: seed
