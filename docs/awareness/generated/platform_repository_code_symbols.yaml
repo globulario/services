@@ -90,6 +90,16 @@ code_symbols:
       implements:
         - globular.platform:intent.repository.local_cas_is_installability_authority
         - globular.platform:intent.repository.metadata_is_authority
+  - id: globular.platform:code.go.platform_repository.blob_seed
+    namespace: globular.platform
+    language: go
+    file: golang/repository/repository_server/blob_seed.go
+    component: platform_repository.blob_seed
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.repository.local_cas_is_installability_authority
+        - globular.platform:intent.repository.metadata_is_authority
   - id: globular.platform:code.go.platform_repository.gc
     namespace: globular.platform
     language: go

@@ -50,6 +50,9 @@ code_edges:
   - from: globular.awareness_graph:code.go.mcp.bridge.main
     relation: relates_to
     to: globular.awareness_graph:intent.awareness.mcp_tools_use_gateway_client_pool
+  - from: globular.awareness_graph:code.go.server.authority_domains
+    relation: implements
+    to: globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
   - from: globular.awareness_graph:code.go.server.briefing
     relation: implements
     to: globular.awareness_graph:intent.awareness.briefing_returns_explicit_status
@@ -68,6 +71,9 @@ code_edges:
   - from: globular.awareness_graph:code.go.server.briefing.server_Briefing
     relation: tested_by
     to: golang/server/main_test.go:TestBriefingStoreNil
+  - from: globular.awareness_graph:code.go.server.change_impact
+    relation: implements
+    to: globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
   - from: globular.awareness_graph:code.go.server.impact
     relation: implements
     to: globular.awareness_graph:intent.awareness.impact_distinguishes_direct_and_inferred
@@ -98,6 +104,9 @@ code_edges:
   - from: globular.awareness_graph:code.go.server.preflight.server_Preflight
     relation: implements
     to: globular.awareness_graph:intent.awareness.briefing_returns_explicit_status
+  - from: globular.awareness_graph:code.go.server.preflight_cli
+    relation: implements
+    to: globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
   - from: globular.awareness_graph:code.go.server.query
     relation: implements
     to: globular.awareness_graph:intent.awareness.query_does_not_expose_arbitrary_sparql
@@ -119,6 +128,9 @@ code_edges:
   - from: globular.awareness_graph:code.go.server.query.server_Query
     relation: tested_by
     to: golang/server/query_test.go:TestQueryUnknownMode
+  - from: globular.awareness_graph:code.go.server.repair_plans
+    relation: implements
+    to: globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
   - from: globular.awareness_graph:code.go.server.resolve
     relation: implements
     to: globular.awareness_graph:intent.awareness.resolve_returns_precise_node_by_class_and_id
@@ -137,3 +149,6 @@ code_edges:
   - from: globular.awareness_graph:code.go.server.resolve.server_Resolve
     relation: tested_by
     to: golang/server/resolve_test.go:TestResolveNotFound
+  - from: globular.awareness_graph:code.go.server.runtime_evidence
+    relation: implements
+    to: globular.awareness_graph:intent.awareness.graph_is_compiled_context_not_authority
