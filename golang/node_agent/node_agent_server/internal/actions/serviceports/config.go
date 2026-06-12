@@ -16,6 +16,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ports"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // EnsureServicePortConfig normalizes (or creates) the runtime config for a service,
@@ -252,7 +253,18 @@ func executableForService(svc string) string {
 			return id.Binary
 		}
 	}
-	// Fallback for unknown services: convention is name_server.
+	// Manifest-declared entrypoint sidecar (Project T). This is the canonical
+	// binary name the installer persisted from the package's own package.json
+	// at install time — NOT a heuristic guess or a secondary observation. It
+	// resolves services whose binary does not follow the {name}_server
+	// convention (e.g. awareness-graph ships bin/awareness-graph, not
+	// awareness_graph_server). Resolving from the manifest keeps describe,
+	// hash, and port-config pointed at the real binary.
+	if entry := versionutil.ReadEntrypoint(name); entry != "" {
+		return filepath.Base(entry)
+	}
+	// Last-resort fallback for pre-Project-T installs whose sidecar was never
+	// written: convention is name_server.
 	return strings.ReplaceAll(name, "-", "_") + "_server"
 }
 

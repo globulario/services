@@ -640,6 +640,36 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// Check for the unit file first; if absent, the install boundary is the
 	// binary itself — report success without touching systemctl.
 	unitPath := "/etc/systemd/system/" + unit
+
+	// A SERVICE is a long-running daemon and MUST have a systemd unit. If the
+	// unit file is missing the service was never fully provisioned (or its unit
+	// was removed): installPayload only writes units a package bundles under
+	// systemd/, but service-dist packages ship the unit *inline* in the spec's
+	// install_services step, so nothing was written. Reporting this as a
+	// "binary-only" success leaves the daemon permanently down and makes the
+	// reconciler reinstall forever (installed_state matches, unit gone — the
+	// installSkipDeniedUnitGone loop). Recover by running the package's bundled
+	// spec through the installer engine (writes+enables+starts the unit), then
+	// fall through to the normal enable/restart/verify path below. If recovery
+	// cannot produce a unit, fail loudly — never report a SERVICE installed with
+	// no runnable unit. (install.join_path_must_complete_install_contract,
+	// meta.half_done_must_not_look_done,
+	// meta.failure_response_must_contract_not_amplify)
+	if _, statErr := os.Stat(unitPath); os.IsNotExist(statErr) && isServiceKind(kind) {
+		if rerr := srv.recreateServiceUnitFromSpec(ctx, name, version); rerr != nil {
+			return srv.writeServiceUnitUnrecoverableInstalledState(ctx, req, name, kind, version, unitPath, rerr), nil
+		}
+		if _, st2 := os.Stat(unitPath); os.IsNotExist(st2) {
+			return srv.writeServiceUnitUnrecoverableInstalledState(ctx, req, name, kind, version, unitPath,
+				fmt.Errorf("no install_services unit found in the bundled package spec")), nil
+		}
+		log.Printf("apply-package: recreated missing unit %s from package spec — proceeding to enable/restart/verify", unit)
+	}
+
+	// Genuine binary-only packages have no systemd unit (INFRASTRUCTURE whose
+	// spec sets install_systemd=false: etcdctl, mc, rclone, restic, sctool,
+	// sha256sum, yt-dlp). A SERVICE never reaches this branch — the block above
+	// either recreated its unit or failed loudly.
 	if _, statErr := os.Stat(unitPath); os.IsNotExist(statErr) {
 		log.Printf("apply-package: %s has no systemd unit — binary-only package, skipping restart", unit)
 

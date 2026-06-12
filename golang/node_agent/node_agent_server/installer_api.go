@@ -141,6 +141,25 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	// reinstall or self-heal without any external dependency.
 	pinArtifact(name, version, platform, artifactPath)
 
+	// Project T: persist the manifest's entrypoint binary filename as a
+	// sidecar so the verifier/drift logic can resolve the installed binary
+	// path without inferring it from the package name. Pre-fix, packages
+	// whose name uses hyphens but whose entrypoint uses underscores (e.g.
+	// scylla-manager → scylla_manager) caused the verifier to look at the
+	// wrong path and the drift reconciler to dispatch reinstall forever.
+	//
+	// This MUST run BEFORE the install switch: the SERVICE install path
+	// (installPayload) does a best-effort --describe port-config that resolves
+	// the binary via serviceports.executableForService, which reads this
+	// sidecar. Writing it first lets that resolution find the real binary
+	// (e.g. awareness-graph, not awareness_graph_server) on the very first
+	// install instead of only on subsequent reconciles.
+	if entrypoint := readArtifactManifestEntrypoint(artifactPath); entrypoint != "" {
+		if err := versionutil.WriteEntrypoint(name, entrypoint); err != nil {
+			log.Printf("installer-api: warn write entrypoint sidecar for %s: %v", name, err)
+		}
+	}
+
 	// Install.
 	var installErr error
 	switch strings.ToUpper(kind) {
@@ -151,18 +170,6 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	}
 	if installErr != nil {
 		return installErr
-	}
-
-	// Project T: persist the manifest's entrypoint binary filename as a
-	// sidecar so the verifier/drift logic can resolve the installed binary
-	// path without inferring it from the package name. Pre-fix, packages
-	// whose name uses hyphens but whose entrypoint uses underscores (e.g.
-	// scylla-manager → scylla_manager) caused the verifier to look at the
-	// wrong path and the drift reconciler to dispatch reinstall forever.
-	if entrypoint := readArtifactManifestEntrypoint(artifactPath); entrypoint != "" {
-		if err := versionutil.WriteEntrypoint(name, entrypoint); err != nil {
-			log.Printf("installer-api: warn write entrypoint sidecar for %s: %v", name, err)
-		}
 	}
 
 	// Write entrypoint_checksum to the etcd installed-state record. Without

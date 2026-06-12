@@ -871,3 +871,57 @@ required_tests:
       - held non-member nodes whose IP is in the applied pool are reset NonMember->None
       - held non-members outside the applied pool stay NonMember (no bootstrap wedge)
       - existing Verified members are left untouched
+
+  - id: test.describe_stdout_is_machine_only
+    title: A binary's --describe must emit only JSON on stdout; banner/logs go to stderr
+    protects:
+      invariants:
+        - observability.describe_stdout_is_machine_only
+      failure_modes:
+        - observability.describe_banner_pollutes_stdout_breaks_port_preflight
+    required_for_changes:
+      paths:
+        - cmd/gateway/**
+        - cmd/xds/**
+        - internal/globule/**
+        - golang/globular_service/**
+      task_terms:
+        - describe
+        - port preflight
+        - banner
+        - stdout
+        - PrintBanner
+    commands:
+      - go test ./internal/globule/ -run TestPrintBannerNeverWritesToStdout
+    evidence:
+      - PrintBanner writes nothing to stdout (captured os.Stdout is empty)
+      - gateway --describe and xds --describe emit a single JSON line on stdout with all logs/banner on stderr
+
+  - id: test.service_unit_missing_recovered_or_fails_loud
+    title: A SERVICE with a missing systemd unit is recovered from its bundled spec or fails loudly — never silently binary-only
+    protects:
+      invariants:
+        - package.install.service_unit_missing_must_not_be_binary_only
+        - package.install.installed_state_requires_runtime_artifact_integrity
+      failure_modes:
+        - package.install.service_unit_missing_classified_binary_only
+    required_for_changes:
+      paths:
+        - golang/node_agent/node_agent_server/apply_package_release.go
+        - golang/node_agent/node_agent_server/apply_package_service_unit_recovery.go
+        - golang/node_agent/node_agent_server/installer_api.go
+        - golang/node_agent/node_agent_server/internal/actions/serviceports/**
+      task_terms:
+        - binary-only
+        - systemd unit
+        - install_services
+        - service install
+        - reinstall loop
+        - entrypoint
+    commands:
+      - go test ./golang/node_agent/node_agent_server/ -run 'TestIsServiceKind|TestServiceUnitUnrecoverableResponse_FailsLoud|TestRecreateServiceUnitFromSpec_MissingPackageFails'
+      - go test ./golang/node_agent/node_agent_server/internal/actions/serviceports/ -run ExecutableForService
+    evidence:
+      - a SERVICE with a missing unit routes to spec-based recovery, not binary-only
+      - an unrecoverable SERVICE unit fails loud (Ok=false, status=failed), never installed
+      - non-_server binaries (awareness-graph) resolve from the manifest entrypoint sidecar

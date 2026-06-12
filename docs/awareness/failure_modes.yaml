@@ -5451,3 +5451,102 @@ failure_modes:
         - package kind in spec differs from package.json or catalog classification
         - controller log shows "kind=service" but reconciler routes it as "kind=infrastructure"
       title: xds or gateway stuck in infra_preparing due to package kind classification conflict
+    - architecture_fix: |
+        Send all decorative/diagnostic output to stderr; reserve stdout for the
+        --describe JSON. Concretely: slog handlers target os.Stderr (including
+        the nil-logger fallbacks in globule.New / xds server.New / watcher.New),
+        and PrintBanner writes to os.Stderr. The --describe branch then emits
+        exactly one JSON line to stdout. Verified by running
+        `<bin> --describe 1>out 2>err` and asserting out parses as JSON.
+      forbidden_fixes:
+        - moving the --describe branch earlier but leaving the logger/banner on os.Stdout (the next stdout write reintroduces the bug)
+        - teaching the node agent to strip non-JSON lines / scan for the JSON line (papers over a corrupt machine channel; --version and the verifier probe still break)
+        - silencing the node agent's "describe failed ... skipping port preflight" log instead of fixing the producer
+      id: observability.describe_banner_pollutes_stdout_breaks_port_preflight
+      related_invariants:
+        - observability.describe_stdout_is_machine_only
+        - meta.silence_is_not_valid_for_unexpected
+      related_services:
+        - gateway
+        - xds
+      required_tests:
+        - TestPrintBannerNeverWritesToStdout
+      root_cause: |
+        gateway/xds main() construct their slog logger on os.Stdout, and gateway
+        constructs a globule (globule.New -> PrintBanner) BEFORE the --describe
+        branch. PrintBanner did color.Green.Println / fmt.Println to stdout
+        ("Globular v1.0.0 ..."). So `gateway --describe` emitted:
+            Globular v1.0.0 (build 0)
+            ...
+            {"Id":"gateway.GatewayService",...}
+        The node agent parses the first bytes as JSON -> "invalid character 'G'".
+        xds had the same shape via its always-on "loaded/missing service config"
+        Info line (offending char 't' from "time=..."). Both repos' nil-logger
+        fallbacks (globule.New, xds server.New, watcher.New) also defaulted to
+        os.Stdout — latent siblings of the same class.
+      severity: degraded
+      status: active
+      symptoms:
+        - 'node-agent log: "start: describe failed for /usr/lib/globular/bin/gateway; skipping port preflight ... invalid character ''G'' looking for beginning of value"'
+        - port preflight silently skipped for gateway/xds — a port conflict would not be caught before unit start
+        - '`<bin> --describe` stdout contains the Globular banner or slog lines before the JSON'
+      title: gateway/xds --describe emits the banner and logs on stdout, corrupting the JSON the node agent parses for port preflight (preflight then silently skipped)
+    - architecture_fix: |
+        Classify the missing-unit case by package kind, not by os.Stat alone:
+          - SERVICE + unit missing -> recover the unit by running the package's
+            bundled spec (specs/<svc>.yaml) through the installer engine
+            (install_services/enable/start), then enable/restart/verify. If no
+            unit can be produced, fail loudly: installed_state=failed, Ok=false.
+            Never report a unit-less SERVICE installed.
+          - INFRASTRUCTURE (install_systemd=false) / COMMAND + unit missing ->
+            genuine binary-only; unchanged.
+        Plus resolve the installed binary from the manifest entrypoint sidecar
+        (versionutil.ReadEntrypoint) before the {name}_server guess, and write
+        that sidecar BEFORE the install switch so the first-install describe/
+        port-config resolves the real binary (awareness-graph, not
+        awareness_graph_server).
+      forbidden_fixes:
+        - classifying a SERVICE with a missing unit as binary-only and returning Ok/installed (leaves the daemon down, drives the reinstall storm)
+        - reporting installed_state=installed for a SERVICE whose unit could not be created (half-done must not look done)
+        - guessing the binary path as ReplaceAll(name,'-','_')+'_server' instead of reading the manifest entrypoint sidecar
+        - special-casing awareness-graph in the verifier/reconciler instead of teaching the SERVICE install path to create the unit
+      id: package.install.service_unit_missing_classified_binary_only
+      related_invariants:
+        - package.install.service_unit_missing_must_not_be_binary_only
+        - package.install.installed_state_requires_runtime_artifact_integrity
+        - install.join_path_must_complete_install_contract
+        - meta.half_done_must_not_look_done
+        - meta.failure_response_must_contract_not_amplify
+      related_services:
+        - node-agent
+        - awareness-graph
+      required_tests:
+        - TestIsServiceKind
+        - TestServiceUnitUnrecoverableResponse_FailsLoud
+        - TestRecreateServiceUnitFromSpec_MissingPackageFails
+        - TestExecutableForServiceResolvesManifestEntrypoint
+      root_cause: |
+        installer_api.go InstallPackage routes INFRASTRUCTURE through the
+        installer engine (runs the full spec, creates units) but SERVICE/COMMAND
+        through installPayload, which writes only units a package bundles under
+        systemd/. service-dist packages (e.g. awareness-graph 0.0.22) ship the
+        unit *inline* in the spec's install_services step and bundle specs/<svc>.yaml
+        instead of systemd/<unit> — so installPayload wrote the binary but never
+        the unit. The apply path then os.Stat'd /etc/systemd/system/<unit>, found
+        nothing, logged "binary-only package, skipping restart", and wrote
+        installed_state=installed with Ok=true. The reconciler saw
+        installed_state matching desired but the unit gone (installSkipDeniedUnitGone),
+        forced a reinstall, which re-ran the same binary-only path — reinstall
+        every ~2 min forever, while the ServiceRelease verify_runtime kept failing
+        (status=inactive) and ultimately ABANDONED after 5 defers. Compounded by
+        the describe/port-config best-effort step resolving the binary as
+        awareness_graph_server (the {name}_server guess) which does not exist.
+      severity: degraded
+      status: active
+      symptoms:
+        - 'node-agent log: "apply-package: <unit> has no systemd unit — binary-only package, skipping restart" for a SERVICE'
+        - 'node-agent log: "install-package <svc>: installed_state matches but <unit> is missing; reinstalling" every ~2 min (reinstall storm)'
+        - ServiceRelease ABANDONED after 5/5 defers on verify_runtime with status=inactive (want active)
+        - 'installed_state shows status=installed for a service whose globular-<svc>.service unit does not exist on disk'
+        - 'describe/port-config best-effort error: stat /usr/lib/globular/bin/<name>_server: no such file or directory'
+      title: SERVICE package with a missing systemd unit is misclassified binary-only — apply reports installed, unit never starts, reconciler reinstalls forever and the release abandons

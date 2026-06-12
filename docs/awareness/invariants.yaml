@@ -10034,3 +10034,122 @@ invariants:
   workflow_step_handler_files: []
   required_tests:
   - principle-check:workflow.workflow_service_writes_only_own_runtime_state
+- id: observability.describe_stdout_is_machine_only
+  protects:
+    files:
+    - golang/globular_service/describe_health.go
+    symbols:
+    - PrintBanner
+    - emitGatewayDescribe
+    - emitXDSDescribe
+    - HandleInformationalFlags
+  related_invariants:
+  - meta.silence_is_not_valid_for_unexpected
+  severity: high
+  status: active
+  summary: |
+    A service binary's stdout is a machine channel. The node agent runs
+    `<binary> --describe` and parses stdout as the service's port JSON
+    ({"Id","Address","Port"}) for port preflight before starting the unit.
+    Therefore stdout MUST carry ONLY that JSON. All decorative and diagnostic
+    output — the "Globular v..." banner, slog lines, warnings, progress — MUST
+    go to stderr.
+
+    The trap: the --describe branch runs AFTER constructing loggers / the
+    globule (globule.New calls PrintBanner). If a logger or the banner targets
+    os.Stdout, the describe JSON is prefixed with noise and the consumer sees
+    "invalid character 'G' looking for beginning of value". The node agent then
+    SILENTLY skips port preflight (logs INFO, continues) — invisible until a
+    real port conflict slips through. That silent skip is the
+    meta.silence_is_not_valid_for_unexpected amplification.
+
+    Rule for every binary that supports --describe:
+      - slog handlers default to os.Stderr, never os.Stdout — including the
+        nil-logger fallbacks in globule.New / xds server.New / watcher.New.
+      - PrintBanner and any human-facing decoration write to os.Stderr.
+      - the --describe path emits exactly one line of JSON to os.Stdout.
+
+    Binds binaries in BOTH repos: services-repo binaries via
+    golang/globular_service HandleInformationalFlags, and the Globular-repo
+    binaries (gateway, xds) which roll their own --describe.
+  title: A binary's stdout is a machine channel — --describe must emit only JSON; banner/logs go to stderr, or the node agent silently skips port preflight
+  required_tests:
+  - Globular/internal/globule/banner_test.go::TestPrintBannerNeverWritesToStdout
+- id: package.install.service_unit_missing_must_not_be_binary_only
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/apply_package_release.go
+    - golang/node_agent/node_agent_server/apply_package_service_unit_recovery.go
+    symbols:
+    - isServiceKind
+    - recreateServiceUnitFromSpec
+    - ApplyPackageRelease
+  related_invariants:
+  - meta.half_done_must_not_look_done
+  - install.join_path_must_complete_install_contract
+  - meta.failure_response_must_contract_not_amplify
+  severity: critical
+  status: active
+  summary: |
+    The node-agent apply path classifies a package as "binary-only" (no unit to
+    start; install boundary = the binary itself) purely by os.Stat of
+    /etc/systemd/system/<unit>. That is correct ONLY for genuinely unit-less
+    packages: COMMAND CLIs, and INFRASTRUCTURE packages whose spec sets
+    install_systemd=false (etcdctl, mc, rclone, restic, sctool, sha256sum,
+    yt-dlp). A SERVICE is a long-running daemon and MUST have a systemd unit —
+    a missing unit for a SERVICE is a defect, never "binary-only".
+
+    Two ways a SERVICE loses its unit: (a) the unit was removed; (b) the package
+    was built by service-dist, which ships the unit *inline* in the spec's
+    install_services step rather than as a bundled systemd/ file, so installPayload
+    (which only writes bundled systemd/ units) never wrote it.
+
+    When a SERVICE's unit is missing, the apply path MUST recover it by running
+    the package's own bundled spec (specs/<svc>.yaml) through the installer
+    engine — install_services/enable/start — then verify runtime. If no unit can
+    be produced, it MUST fail loudly (installed_state=failed, Ok=false) and NEVER
+    report the service installed. Reporting a unit-less SERVICE as "installed"
+    leaves the daemon permanently down and makes the reconciler reinstall forever
+    (installed_state matches, unit gone — the installSkipDeniedUnitGone loop).
+  title: A SERVICE package with a missing systemd unit is not binary-only — the apply path must recreate the unit from the bundled spec (or fail loudly), never report it installed
+  required_tests:
+  - golang/node_agent/node_agent_server/apply_package_service_unit_recovery_test.go::TestIsServiceKind
+  - golang/node_agent/node_agent_server/apply_package_service_unit_recovery_test.go::TestServiceUnitUnrecoverableResponse_FailsLoud
+- id: package.install.installed_state_requires_runtime_artifact_integrity
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/apply_package_release.go
+    - golang/node_agent/node_agent_server/installer_api.go
+    - golang/node_agent/node_agent_server/internal/actions/serviceports/config.go
+    symbols:
+    - ApplyPackageRelease
+    - installedBinaryPath
+    - executableForService
+  related_invariants:
+  - meta.half_done_must_not_look_done
+  - install.join_path_must_complete_install_contract
+  - runtime.success_requires_expected_binary_checksum
+  - desired_installed_runtime_identity_must_match
+  severity: critical
+  status: active
+  summary: |
+    installed_state="installed" is a claim that the runtime artifact is present
+    and runnable. The apply path may write it only after the full install
+    contract is satisfied for the package's kind: for a SERVICE that means the
+    systemd unit exists, the unit started, the service is active, AND the on-disk
+    binary hash matches the manifest entrypoint_checksum. A SERVICE whose unit is
+    missing has not satisfied the contract; marking it installed is a
+    half-done-looks-done violation that drives a reinstall storm.
+
+    Corollary on binary identity: describe, hash-verify, and port-config MUST
+    resolve the installed binary from the package's manifest entrypoint (the
+    sidecar versionutil.WriteEntrypoint persists at install time), NOT from a
+    ReplaceAll(name,'-','_')+'_server' guess. A wrong binary path makes the
+    runtime probe inspect a file that does not exist (awareness-graph vs
+    awareness_graph_server), breaking the integrity proof AND feeding the drift
+    reconciler a false "missing" it reinstalls forever. Resolving from the
+    manifest is canonical-source resolution — not recovery from a secondary
+    observation (the sidecar is written FROM package.json, the canonical source).
+  title: installed_state=installed requires the full runtime-artifact-integrity contract for the package kind — for SERVICE the unit must be present, active, and hash-verified; the binary path is resolved from the manifest, never guessed
+  required_tests:
+  - golang/node_agent/node_agent_server/internal/actions/serviceports/config_entrypoint_test.go::TestExecutableForServiceResolvesManifestEntrypoint
