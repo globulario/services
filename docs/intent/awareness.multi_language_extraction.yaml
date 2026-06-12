@@ -20,7 +20,13 @@ intent: >
   services/typescript/ already exists, it is real gRPC-Web client code, and
   it has invariants worth anchoring — no hardcoded endpoints, no
   localhost/127.0.0.1 literals, no hardcoded service ports, preserve
-  proxy/discovery/TLS assumptions.
+  proxy/discovery/TLS assumptions. Driver: Globular services will be
+  implemented in gRPC-supported languages over time, and any service
+  living in the cluster needs the same briefing-before-edit discipline Go
+  has today — AWG language coverage follows the Globular
+  service-implementation roadmap, not generic language popularity. This
+  remains secondary priority: Go is the primary surface until non-Go
+  Globular services actually land.
 agent_guidance: >
   Do not migrate the Go scanner to tree-sitter yet — it stays go/ast-based
   until the tree-sitter path is proven. Do not introduce N native parsers;
