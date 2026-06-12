@@ -154,7 +154,7 @@ func runAwarenessAudit(cmd *cobra.Command, args []string) error {
 
 	// 5. Stale file references
 	if genErr == nil {
-		c := auditStaleFileRefs(svcRepo, ntBytes)
+		c := auditStaleFileRefs(svcRepo, agRepo, ntBytes)
 		if c.result != checkPASS && len(c.details) > 0 {
 			staleFiles := append([]string{}, c.details...) // capture
 			c.fixDesc = fmt.Sprintf("remove %d stale SourceFile entries from YAML + rebuild", len(staleFiles))
@@ -387,33 +387,52 @@ func auditCoverageGaps(svcRepo string, ntBytes []byte) auditCheck {
 
 // ── check 5: stale file references ───────────────────────────────────────
 
-func auditStaleFileRefs(svcRepo string, ntBytes []byte) auditCheck {
+func auditStaleFileRefs(svcRepo, agRepo string, ntBytes []byte) auditCheck {
 	fileRefs := collectFilePathsFromNT(ntBytes)
 
 	var stale []string
 	checked := 0
+	skippedGlobs := 0
 	for path := range fileRefs {
 		// Only check paths that look like repo-relative Go/YAML files.
 		if !strings.HasPrefix(path, "golang/") && !strings.HasPrefix(path, "docs/") &&
 			!strings.HasPrefix(path, "proto/") && !strings.HasPrefix(path, "typescript/") {
 			continue
 		}
-		checked++
-		absPath := filepath.Join(svcRepo, path)
-		if _, err := os.Stat(absPath); err != nil {
-			stale = append(stale, path)
+		// Skip glob/template patterns — these are intent YAML references
+		// like "golang/*/*_server/zz_version_generated.go" that describe
+		// a class of files, not a single literal path.
+		if strings.ContainsAny(path, "*?[") {
+			skippedGlobs++
+			continue
 		}
+		checked++
+		// Check both repos: awareness-graph annotations produce paths
+		// like golang/server/briefing.go that exist in the AG repo,
+		// not the services repo.
+		svcPath := filepath.Join(svcRepo, path)
+		agPath := filepath.Join(agRepo, path)
+		if _, err := os.Stat(svcPath); err != nil {
+			if _, err2 := os.Stat(agPath); err2 != nil {
+				stale = append(stale, path)
+			}
+		}
+	}
+
+	suffix := ""
+	if skippedGlobs > 0 {
+		suffix = fmt.Sprintf(" (%d glob patterns skipped)", skippedGlobs)
 	}
 
 	if len(stale) == 0 {
 		return auditCheck{
 			name: "stale-file-refs", result: checkPASS,
-			summary: fmt.Sprintf("all %d referenced files exist", checked),
+			summary: fmt.Sprintf("all %d referenced files exist%s", checked, suffix),
 		}
 	}
 	return auditCheck{
 		name: "stale-file-refs", result: checkWARN,
-		summary: fmt.Sprintf("%d/%d referenced files missing from disk", len(stale), checked),
+		summary: fmt.Sprintf("%d/%d referenced files missing from disk%s", len(stale), checked, suffix),
 		details: stale,
 	}
 }

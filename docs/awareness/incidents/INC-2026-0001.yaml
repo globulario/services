@@ -42,9 +42,9 @@ suspected_root_cause: >
   convention (annotations are only written in production code). The text scanner should do the same.
 
 related_files:
-  - golang/awareness/enforce/annotations.go
-  - golang/awareness/enforce/annotations_test.go
-  - golang/awareness/enforce/audit_test.go
+  # Originally golang/awareness/enforce/ — moved to awareness-graph repo.
+  - golang/scanner/scanner.go
+  - golang/scanner/scanner_test.go
 
 related_symbols:
   - enforce.ValidateAnnotations
