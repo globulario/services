@@ -4945,3 +4945,247 @@ invariants:
       - meta.absence_scope_must_be_explicit
       - meta.authority_must_express_uncertainty
       - meta.observability_must_match_decision_horizon
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # PERCEPTION — GUI meta-principles (operational GUI truth)
+  #
+  # Fifth meta-principle category, alongside authority/signal/lifecycle/
+  # dependency. These are generative principles for screens: they derive
+  # correctness for UI cases that have no specific ui.* invariant yet.
+  #
+  # Lineage: translated from classic GUI doctrine — Nielsen usability
+  # heuristics, WCAG 2.2 (perceivable/operable/understandable/robust),
+  # Material Design hierarchy — but re-grounded in operator truth:
+  #
+  #   Material Design says how the page feels.
+  #   AWG frontend awareness says whether the page tells the truth.
+  #
+  # A good GUI is not just beautiful. A good GUI is honest, predictable,
+  # recoverable, accessible, and bound to the right authority. A green badge
+  # lying about a cluster is worse than an ugly button.
+  #
+  # Each principle links the concrete ui.* invariants (frontend_invariants.yaml)
+  # that instantiate it. New UI invariants should cite one of these as parent.
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - id: meta.ui.screen_claim_must_bind_to_authority
+    title: "Every screen claim binds to the correct authority — desired, cached, optimistic, and confirmed state must not collapse into one visual meaning"
+    category: perception
+    antipattern: "The badge is green because the model in memory said so"
+    wrong_instinct: Render whatever state is at hand — it is available, typed correctly, and probably right
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high }
+    summary: |
+      The screen is a projection of system truth, and a projection inherits the
+      authority of its source. A claim about runtime health must trace to the
+      runtime authority; a claim about installation to the installed-state
+      record; a claim about permission to RBAC; a claim about action outcome
+      to workflow receipts. Desired state, cached state, optimistic local
+      state, and runtime-confirmed state are four different epistemic levels —
+      rendering any of them through the same visual meaning makes the screen
+      lie with confidence. This is the UI projection of
+      meta.storage_is_not_semantic_authority: a component store or DOM node
+      holding a value does not make that value true.
+    enforcement: |
+      For every status badge, indicator, count, or claim rendered: name the
+      authority that backs it. If the binding cannot be named, the element is
+      displaying guesswork and must be changed to either bind correctly or
+      visibly mark its uncertainty.
+    related_invariants:
+      - ui.visible_state_requires_authority
+      - ui.data_holder_is_cache_not_authority
+      - ui.success_requires_authoritative_confirmation
+      - meta.storage_is_not_semantic_authority
+
+  - id: meta.ui.state_certainty_must_be_visually_distinct
+    title: "Certainty is part of the value — loading, stale, unknown, optimistic, and confirmed must each look like what they are"
+    category: perception
+    antipattern: "One spinner and one green check cover every situation"
+    wrong_instinct: Reduce visual noise by collapsing in-between states into the nearest clean state
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — Nielsen H1 (visibility of system status), re-grounded
+    summary: |
+      Nielsen's first heuristic says the system must keep users informed of
+      its status. The operational version is stronger: the CERTAINTY of a
+      value is part of the value. Loading is not empty; stale is not current;
+      unknown is not healthy; optimistic is not confirmed; denied is not zero
+      results. Each epistemic state must be visually distinguishable, because
+      an operator acts differently on "confirmed down" than on "status
+      unknown". This is the UI projection of
+      meta.authority_must_express_uncertainty and
+      meta.fallback_must_degrade_semantics: a screen that renders a fallback
+      or cached value in the same visual form as confirmed truth has absorbed
+      the uncertainty the operator needed.
+    enforcement: |
+      Before shipping any state-rendering component, enumerate which of
+      empty/loading/unknown/stale/optimistic/denied/failed/confirmed it can
+      occupy, and verify each occupied state has a distinct, non-confusable
+      rendering. A state the component can occupy but cannot display is a
+      lie waiting for traffic.
+    related_invariants:
+      - ui.empty_loading_unknown_failed_are_distinct
+      - ui.status_freshness_must_be_surfaced
+      - meta.authority_must_express_uncertainty
+      - meta.fallback_must_degrade_semantics
+
+  - id: meta.ui.same_truth_same_language
+    title: "One meaning, one visual language — the same operational state must render identically everywhere it appears"
+    category: perception
+    antipattern: "Red means failed on this screen, disabled on that one, and destructive on a third"
+    wrong_instinct: Style each screen locally — consistency is a polish concern for later
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — Nielsen H4 (consistency and standards), re-grounded
+    summary: |
+      Operators build a visual vocabulary: this shade means degraded, this
+      icon means converged, this badge means permission denied. Every screen
+      that breaks the vocabulary forces re-learning and invites
+      misclassification under stress. This is the UI projection of
+      meta.identity_computation_must_be_invariant: one state, one meaning,
+      one canonical rendering, everywhere. The vocabulary belongs to the
+      design system layer (component library, tokens), and screens must
+      consume it rather than re-invent it.
+    enforcement: |
+      Before introducing a new color/icon/badge for an operational state,
+      check whether the state already has a rendering in the shared
+      vocabulary; reuse it. Before reusing an existing color/icon for a NEW
+      meaning, verify it does not already carry a different operational
+      meaning elsewhere.
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
+
+  - id: meta.ui.destructive_action_requires_confirmed_authority
+    title: "An enabled destructive button is an assertion — permission and risk state must be confirmed before the action is offered"
+    category: perception
+    antipattern: "Enable the button and let the backend reject it"
+    wrong_instinct: The backend enforces RBAC anyway, so the frontend gate is redundant work
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — Nielsen H5 (error prevention), re-grounded
+    summary: |
+      An enabled action is itself a screen claim: "you may do this, and it is
+      sane to do now". Offering a destructive action (wipe, topology apply,
+      node remove, force rollback) without confirmed RBAC permission and
+      visible risk state asserts safety the system has not granted. Backend
+      enforcement protects the cluster but not the operator's mental model —
+      a button that fails on click after looking available has already lied.
+      Error prevention beats error handling: gate the offer, not just the
+      execution, and make duplicate submission impossible rather than
+      recoverable.
+    enforcement: |
+      Before rendering any mutating or destructive control: bind enablement
+      to an RBAC validation result (not assumption), surface the risk state
+      the action carries, expose the reason when disabled, and guard
+      submission with idempotency or single-flight.
+    related_invariants:
+      - ui.action_requires_permission_contract
+      - ui.dangerous_warning_must_remain_visible
+      - ui.form_submit_must_be_idempotent_or_singleflight
+
+  - id: meta.ui.failure_must_preserve_diagnostic_context
+    title: "Failure is when the screen matters most — errors must preserve context and offer a path, never blank the operator's world"
+    category: perception
+    antipattern: "Something went wrong. [Reload]"
+    wrong_instinct: Replace the broken region with a clean generic error so the UI looks controlled
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — Nielsen H9 (help users recognize, diagnose, recover), re-grounded
+    summary: |
+      The moment something fails is the moment the operator needs the screen
+      the most. An error path that erases selection, hides which component
+      failed, discards last-known data and its timestamp, or collapses a
+      specific backend failure into a generic message converts a recoverable
+      incident into a blind one. Recovery requires context: what failed,
+      what was known last and when, what is still trustworthy on screen, and
+      what safe action exists. Full-screen blanking for a partial failure is
+      the UI equivalent of a process crash taking down healthy siblings.
+    enforcement: |
+      Every error boundary and failure rendering must answer: which region
+      failed, what the operator was looking at, when data was last known
+      good, and what the safe next action is. Generic catch-all error
+      surfaces are acceptable only as the outermost last resort, never as
+      the first response to a component failure.
+    related_invariants:
+      - ui.error_boundary_must_preserve_diagnostic_context
+      - ui.partial_update_preserves_screen_context
+
+  - id: meta.ui.provenance_over_recall
+    title: "Operational claims carry their provenance — source, node, generation, and version are shown, not remembered"
+    category: perception
+    antipattern: "The operator can check which node that was on the other screen"
+    wrong_instinct: Strip identifying detail to keep the layout clean — power users know the context
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — Nielsen H6 (recognition rather than recall), re-grounded
+    summary: |
+      Recognition-over-recall in an operator UI means a claim's provenance
+      travels with the claim: which node reported it, which generation it
+      belongs to, which version produced it, when it was observed. Forcing
+      operators to reconstruct provenance from memory or other screens
+      strips the scope off an assertion — the perception-layer twin of
+      meta.assertions_must_carry_their_scope. "Healthy" without which-node
+      and as-of-when is not information; it is reassurance.
+    enforcement: |
+      When rendering aggregated or summarized state, preserve the scope:
+      counts say out-of-how-many, statuses say as-of-when, identities say
+      which-node/which-version. If the layout cannot fit the provenance,
+      make it one interaction away — never absent.
+    related_invariants:
+      - ui.status_freshness_must_be_surfaced
+      - ui.floating_identity_must_not_be_hidden
+      - meta.assertions_must_carry_their_scope
+
+  - id: meta.ui.meaning_must_survive_presentation_loss
+    title: "Meaning must survive presentation loss — color removal, layout collapse, keyboard-only, and theme changes must not change what the screen asserts"
+    category: perception
+    antipattern: "The warning is the red tint on the row"
+    wrong_instinct: Treat accessibility and responsive layout as cosmetic passes after the screen works
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — WCAG 2.2 (perceivable/operable/robust) + skin contracts, re-grounded
+    summary: |
+      WCAG's four principles, re-grounded for operators: any single
+      presentation channel can be lost — color (vision deficit, monochrome,
+      glare), layout (mobile collapse, overflow, truncation), pointer
+      (keyboard-only), styling (theme/skin change) — and the screen's
+      operational assertions must survive each loss. A destructive-action
+      warning that exists only as a hover, a color, or a desktop-width
+      element is a warning that conditionally exists. Skins may change
+      presentation; skins must not change meaning.
+    enforcement: |
+      For every critical state rendering, verify the meaning is carried by
+      text or structure, not only by color/hover/animation/position; that
+      responsive collapse never drops warnings or risk indicators; and that
+      theme changes cannot reduce a critical signal below visibility.
+    related_invariants:
+      - ui.accessibility_must_preserve_operational_meaning
+      - ui.dangerous_warning_must_remain_visible
+
+  - id: meta.ui.decoration_must_not_impersonate_authority
+    title: "Decoration must not impersonate authority — cosmetic elements and generated prose stay visually subordinate to authoritative state"
+    category: perception
+    antipattern: "An illustrative all-green dashboard hero while two nodes are degraded below the fold"
+    wrong_instinct: Make it feel alive — placeholder data, optimistic animations, and friendly AI prose improve the experience
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — Nielsen H8 (minimalism) + Material hierarchy, re-grounded
+    summary: |
+      Visual hierarchy is an authority claim: whatever dominates the screen
+      is what the operator believes first. Decorative elements that LOOK
+      like state — sample charts, placeholder counts, optimistic success
+      animations, AI-generated prose with status-shaped sentences — compete
+      with real authority and sometimes win. Material's hierarchy doctrine,
+      re-grounded: important operational truth must dominate cosmetic
+      layout, and nothing cosmetic may be confusable with truth. AI may
+      decorate the explanation; AI must not invent the state.
+    enforcement: |
+      Before adding any decorative, placeholder, illustrative, or generated
+      element: verify it cannot be read as live state (no status colors, no
+      realistic counts, no checkmarks), and verify the screen's visual
+      weight ranks authoritative state above decoration — risk and failure
+      must never sit below the fold of an ornament.
+    related_invariants:
+      - ui.ai_text_must_not_invent_state
+      - ui.visible_state_requires_authority

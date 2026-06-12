@@ -363,7 +363,7 @@ Awareness explains *why* code exists, *what* it protects, *which fixes are forbi
 
 When documenting an error (incident, failure mode, finding), don't just record WHAT broke — classify WHY against the generative meta-principles. This turns error documentation into architectural learning.
 
-**Step 1 — CLASSIFY** the error against `invariant:meta.*` (4 categories, 18 principles). Source of truth: `docs/awareness/state_authority_invariants.yaml`; re-query the graph if this table feels stale.
+**Step 1 — CLASSIFY** the error against `invariant:meta.*` (5 categories). Source of truth: `docs/awareness/state_authority_invariants.yaml`; re-query the graph if this table feels stale.
 
 **Authority** (4) — "who owns this truth, and is this code that owner?"
 | Principle | What it catches |
@@ -398,6 +398,18 @@ When documenting an error (incident, failure mode, finding), don't just record W
 |-----------|----------------|
 | `meta.critical_path_no_non_critical_dependency` | Critical path blocked/flooded by non-critical service |
 | `meta.circular_dependency_must_have_break_glass` | Self-deploying system stuck — deploy pipeline can't deploy fix for itself |
+
+**Perception** (8) — "is the screen telling the truth about the system?" (GUI meta-principles; Nielsen/WCAG/Material re-grounded in operator truth)
+| Principle | What it catches |
+|-----------|----------------|
+| `meta.ui.screen_claim_must_bind_to_authority` | Desired/cached/optimistic/confirmed state collapsed into one visual meaning |
+| `meta.ui.state_certainty_must_be_visually_distinct` | Loading/stale/unknown/optimistic rendered like confirmed truth |
+| `meta.ui.same_truth_same_language` | Same operational state rendered differently across screens |
+| `meta.ui.destructive_action_requires_confirmed_authority` | Destructive control offered without confirmed RBAC + visible risk |
+| `meta.ui.failure_must_preserve_diagnostic_context` | Error path blanks selection, context, last-known data |
+| `meta.ui.provenance_over_recall` | Claim shown without which-node/as-of-when/which-version |
+| `meta.ui.meaning_must_survive_presentation_loss` | Warning/meaning exists only in color, hover, or desktop layout |
+| `meta.ui.decoration_must_not_impersonate_authority` | Placeholder/cosmetic/AI-generated content confusable with live state |
 
 If one fits → add `related_invariants: [meta.<id>]` to the error entry.
 If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom out with human).
