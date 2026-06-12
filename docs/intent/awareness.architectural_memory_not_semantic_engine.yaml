@@ -1,0 +1,52 @@
+id: awareness.architectural_memory_not_semantic_engine
+level: vision
+title: AWG is a lightweight architectural memory graph, not a semantic code engine
+intent: >
+  AWG is not a heavyweight semantic code graph engine. The core is a
+  lightweight architectural memory graph. The current Go extraction is
+  deliberately shallow: stdlib only (go/ast, go/parser, go/token); find
+  @awareness key=value comment blocks; attach them to the declaration
+  immediately below, or to the package/file level; emit SourceFile,
+  CodeSymbol, TestSymbol, and relation edges. There is no deep semantic
+  code analysis in the core extraction layer — that shallowness is a
+  feature, not a gap: it is what makes the extraction portable, fast,
+  and cheap to maintain.
+
+  The tier separation stays explicit. Tier 0: language-neutral YAML
+  knowledge graph — intents, invariants, failure modes, forbidden fixes,
+  paths, file roles. Tier 1: shallow annotation extraction —
+  comment-block-to-symbol attachment, language-specific syntax only;
+  tree-sitter is acceptable here because it provides generic parsing for
+  comments and declarations. Tier 2: optional semantic enforcement —
+  language-native tools only when justified; ruleguard stays Go-only and
+  quarantined in principle-check.
+
+  Product note: AWG does not need to fully understand a programming
+  language to provide value. Its base value comes from binding
+  architectural intent, invariants, and failure modes to files and
+  symbols, then exposing that memory to AI agents before code changes.
+agent_guidance: >
+  Do not add semantic analysis (type checking, dataflow, call graphs) to
+  the core extraction layer — semantic depth belongs exclusively to Tier 2
+  enforcement tools, which are per-language, optional, and quarantined.
+  When describing AWG in docs, packaging, or product material, lead with
+  the architectural-memory framing, not with code analysis. When
+  evaluating a new extraction or enforcement library, ask which tier it
+  belongs to first; a library that collapses the tiers (one engine doing
+  extraction AND semantic enforcement) is a smell, not a convenience.
+activation_triggers:
+  - semantic analysis
+  - code graph engine
+  - AWG product framing
+  - architectural memory
+  - extraction depth
+  - ruleguard scope
+bad_smells:
+  - type-aware or dataflow logic appearing in golang/scanner or the extractor
+  - ruleguard invoked for a non-Go language
+  - core graph schema gaining language-semantic node classes
+  - product copy describing AWG as a code analysis engine
+related_to:
+  - awareness.multi_language_extraction
+  - awareness.graph_is_compiled_context_not_authority
+status: seed
