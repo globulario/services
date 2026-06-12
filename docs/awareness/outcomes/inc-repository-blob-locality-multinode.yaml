@@ -1,0 +1,41 @@
+id: outcome.repository_blob_locality_multinode_57_findings
+class: OutcomeFeedback
+label: 57 missing_blob findings after multi-node joins — node-local CAS never seeded on day-1; fixed in code (v1.2.210) plus MinIO blob mirror removed by policy
+status: active
+
+decision: applied
+outcome_status: success
+observed_at: "2026-06-12"
+
+for_task: "explain why /var/lib/globular/repository/artifacts is empty on day-1 joined nodes and ensure packages never end up in MinIO"
+for_finding: "repository.identity.missing_blob_for_published_manifest ×57 (dell + nuc repository instances, scope-blind summaries)"
+
+used_preflight_status: OK
+used_risk_class: ARCHITECTURE_SENSITIVE
+
+used_knowledge_nodes:
+  - authority_domain:authority.repository_artifact_metadata
+  - implementation_pattern:globular.pattern.repository_metadata_authority
+  - invariant:repository.artifact.installable_compound_predicate
+
+reason_code: day1_join_never_seeded_repository_local_cas
+
+notes: |
+  Root cause was an architecture seam, not data loss: all 236 blobs were
+  intact on ryzen. The repository's blob authority is node-local POSIX CAS
+  (/var/lib/globular/repository/artifacts); Scylla metadata is cluster-wide;
+  day-1 joins staged archives to /var/lib/globular/packages (node-agent
+  cache) but nothing populated the new repository instance's own CAS — so
+  dell/nuc instances truthfully reported "missing HERE" as 57 scope-blind
+  cluster-sounding errors. A MinIO blob "mirror tier" existed in code as the
+  implied cross-node transport, contradicting the hard rule that packages
+  never live in MinIO.
+
+  Operator decision (Dave, 2026-06-12): enforce the hard rule. Fix shipped in
+  services v1.2.210 (commit 4b3173ab): (1) initStorage no longer constructs
+  the MinIO blob mirror — local POSIX CAS is the sole blob tier; (2) new
+  day-1 seeder (blob_seed.go) materializes PUBLISHED blobs into the local CAS
+  from the staged join packages, digest-gated against the Scylla manifest
+  checksum via atomic verified writes — metadata is authority, staged files
+  are evidence, filenames never decide identity. Regression tests
+  TestBlobSeed_* encode the contract. Day-0→day-1 reinstall test pending.

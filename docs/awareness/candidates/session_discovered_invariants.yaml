@@ -122,3 +122,32 @@ candidates:
       Live dell join repair driven by awareness_diagnose + node-agent log
       walk; awareness-graph 0.0.23; 2026-06-12 ~00:40-01:00 UTC.
     review_required: true
+
+  - id: repository.day1_repository_instance_must_seed_local_cas_from_staged_packages
+    class: invariant
+    label: |
+      A repository instance starting on a freshly joined node must seed its
+      local POSIX CAS from the staged join packages (digest-gated against the
+      Scylla manifest authority) before it can be considered a full replica —
+      Scylla metadata without local blobs is a half-replica that floods the
+      doctor with scope-blind missing_blob findings.
+    source_file: golang/repository/repository_server/blob_seed.go
+    evidence: |
+      2026-06-12 dell + nuc joins: 57 missing_blob_for_published_manifest
+      findings from the new instances' empty local CAS while all 236 blobs sat
+      intact on ryzen. The implied cross-node transport was a MinIO blob
+      mirror tier, contradicting the packages-never-in-MinIO hard rule;
+      operator removed the mirror and the day-1 seeder shipped in v1.2.210
+      (TestBlobSeed_* encode the contract). Related principle observed in the
+      same incident: blob findings must carry their instance scope
+      (meta.assertions_must_carry_their_scope) — already stamped in evidence
+      fields, still absent from doctor summary lines.
+    proposed_required_test: |
+      TestBlobSeed_PublishedWithMatchingStagedArchiveIsSeeded and siblings
+      (already exist, v1.2.210); a day-1 integration assertion that a joined
+      node reports zero missing_blob findings within one seeding pass.
+    status: candidate
+    discovered_from: |
+      Live multi-node join debugging via doctor findings + repository
+      explain_artifact + code walk; fixed same-day in v1.2.210.
+    review_required: true
