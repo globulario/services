@@ -17,9 +17,11 @@ intent: >
   paths, file roles. Tier 1: shallow annotation extraction —
   comment-block-to-symbol attachment, language-specific syntax only;
   tree-sitter is acceptable here because it provides generic parsing for
-  comments and declarations. Tier 2: optional semantic enforcement —
-  language-native tools only when justified; ruleguard stays Go-only and
-  quarantined in principle-check.
+  comments and declarations. Tier 2: optional enforcement, split in two —
+  Tier 2a portable structural rules (Semgrep OSS is the named candidate;
+  tree-sitter queries the lighter alternative), Tier 2b deep semantic
+  checks via language-native tools only when justified; ruleguard is the
+  Go Tier 2b tool and stays Go-only, quarantined in principle-check.
 
   Product note: AWG does not need to fully understand a programming
   language to provide value. Its base value comes from binding

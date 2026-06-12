@@ -16,7 +16,16 @@ intent: >
   endpoints/ports, localhost literals) as tree-sitter query files; deep
   semantic checks only for high-risk known bug shapes using language-native
   tools (Rust: clippy/dylint; C/C++: clang-tidy; TypeScript/JavaScript:
-  ESLint plugin; Java: Error Prone). Pilot language is TypeScript:
+  ESLint plugin; Java: Error Prone). Tier 2 splits into two layers:
+  Tier 2a is the portable structural rule layer — Semgrep OSS is the
+  named candidate engine (one rule format across Go, Java, TypeScript/
+  JavaScript, Python, C#; rules read like the source they match; fast,
+  offline, no license constraint), with tree-sitter query files as the
+  lighter alternative; Tier 2a rules may also run against Go alongside
+  ruleguard for purely syntactic shapes. Tier 2b is the deep semantic
+  layer — type-aware/dataflow analysis, language-native only, added per
+  known high-risk bug shape; ruleguard is the Go Tier 2b tool and stays
+  Go-only. Pilot language is TypeScript:
   services/typescript/ already exists, it is real gRPC-Web client code, and
   it has invariants worth anchoring — no hardcoded endpoints, no
   localhost/127.0.0.1 literals, no hardcoded service ports, preserve
@@ -41,6 +50,7 @@ agent_guidance: >
   intent is architecture capture only.
 activation_triggers:
   - tree-sitter
+  - semgrep
   - multi-language
   - annotation extraction
   - TypeScript awareness
