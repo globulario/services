@@ -5617,3 +5617,304 @@ invariants:
     related_invariants:
       - meta.ui.color_must_have_semantic_contract
       - meta.ui.same_truth_same_language
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # STRUCTURE — code structure & reusability meta-principles
+  #
+  # Seventh category. Not UI-specific: meta.code.* governs Go services and
+  # TypeScript components alike. Lineage: Parnas information hiding (modules
+  # hide decisions likely to change), separation of concerns, low coupling /
+  # high cohesion, Ousterhout's deep modules, Hyrum's Law, and platform-
+  # native composition (Web Components: custom elements, Shadow DOM, slots).
+  #
+  # The guiding star for agents generating UI units: prefer reusable units
+  # whose public contract is semantic, browser-native where practical,
+  # inspectable, lifecycle-owned, and independent from framework fashion.
+  # Web Components are not mandated — they are one very good hatchling of
+  # the dragon egg below. When the first admin-console component exists,
+  # promote this guidance into an ImplementationPattern with that component
+  # as its reference file.
+  #
+  # Folded rather than added: component_must_own_one_lifecycle (inside the
+  # anchor's statement; concrete twin ui.subscription_lifecycle_must_be_owned),
+  # generated_code_must_not_erase_source_intent (clause of debuggability),
+  # Hyrum's Law (woven into contract_must_outlive_implementation_fashion).
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - id: meta.code.reusable_unit_must_have_a_stable_semantic_boundary
+    title: "A reusable unit is a stable semantic concept — explicit contract, hidden complexity, owned lifecycle, inspectable behavior, explicit extension"
+    category: structure
+    antipattern: "A 'shared' component whose consumers import its internals, patch its DOM, and break on every refactor"
+    wrong_instinct: Extract whatever repeats into a shared unit and let consumers adapt to it
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — the category anchor; Parnas + coupling/cohesion synthesized
+    summary: |
+      A reusable unit must represent a stable semantic concept with an
+      explicit public contract, hidden internal complexity, owned lifecycle
+      (subscriptions, timers, listeners, async work — acquired and released
+      locally), inspectable runtime behavior, and extension points that do
+      not require consumers to depend on private implementation details.
+      Every other structure principle elaborates one clause of this one.
+      <globular-node-health> done right is the shape: the tag is a
+      contract, the internals are nobody's business, the lifecycle ends at
+      disconnectedCallback.
+    enforcement: |
+      Before extracting or publishing a reusable unit, write its boundary
+      first: name the concept, the inputs, the outputs/events, the states
+      it exposes, the extension points, and what its lifecycle acquires and
+      releases. If the boundary cannot be written without describing
+      internals, the unit is not ready to be shared.
+    related_invariants:
+      - meta.ui.same_truth_same_language
+
+  - id: meta.code.contract_must_outlive_implementation_fashion
+    title: "Contracts outlive implementation fashion — callers depend on semantic inputs/outputs/events, never private structure"
+    category: structure
+    antipattern: "The admin console imports a component's internal store because 'it was right there'"
+    wrong_instinct: Expose whatever is convenient now — internal structure, framework objects, generated classes; we can clean it up later
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — Parnas information hiding + Hyrum's Law
+    summary: |
+      Reusable code must expose stable contracts that survive implementation
+      changes, framework trends, and internal refactors. Callers depend on
+      semantic inputs, outputs, events, and states — not private structure.
+      Hyrum's Law is the enforcement pressure behind this: with enough
+      consumers, EVERY observable behavior becomes a contract whether you
+      meant it or not — so the observable surface must be deliberate and
+      minimal, and anything observable-but-private must be made genuinely
+      unobservable (Shadow DOM, unexported symbols, reserved fields) rather
+      than merely documented as off-limits.
+    enforcement: |
+      Before changing a unit's public surface, enumerate what consumers can
+      observe — not just what is documented. Before publishing one, minimize
+      that observable surface. A consumer found depending on private
+      structure is a boundary failure to fix in the unit, not just in the
+      consumer.
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
+
+  - id: meta.code.complexity_must_be_hidden_behind_honest_boundaries
+    title: "Hide complexity, never truth — the boundary must expose the states, failures, side effects, and authority assumptions callers need"
+    category: structure
+    antipattern: "The component swallows the gRPC error and renders its cached value — 'the caller shouldn't have to care'"
+    wrong_instinct: A clean API means fewer states and no error types — absorb the mess inside
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — encapsulation, corrected by the Globular truth model
+    summary: |
+      A component or module may hide internal complexity — that is its job —
+      but its public boundary must honestly expose the states, failures,
+      side effects, and authority assumptions callers need. Encapsulation
+      must not become concealment of operational truth: a boundary that
+      absorbs connection errors, collapses unknown into a default, or hides
+      which authority its data came from has converted information hiding
+      into lying (the structural root of
+      meta.connection_errors_must_not_be_absorbed and
+      meta.fallback_must_degrade_semantics). Hiding complexity is good.
+      Hiding truth is poison.
+    enforcement: |
+      For every boundary: internals (algorithms, markup, storage layout,
+      retries) are hidden; truth (error states, staleness, uncertainty,
+      authority source, side effects) is exposed in the contract. If
+      simplifying the API required deleting a state callers would act on
+      differently, the simplification went too far.
+    related_invariants:
+      - meta.connection_errors_must_not_be_absorbed
+      - meta.fallback_must_degrade_semantics
+      - meta.ui.screen_claim_must_bind_to_authority
+
+  - id: meta.code.reuse_must_follow_semantic_cohesion
+    title: "Reuse follows meaning, not resemblance — shared code represents one coherent concept, never a visual or structural coincidence"
+    category: structure
+    antipattern: "These two screens both have a table, so I made GenericMegaTableOfEverything with 14 boolean props"
+    wrong_instinct: Deduplicate anything that looks similar — DRY means zero repetition
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — cohesion; Sandi Metz: duplication is far cheaper than the wrong abstraction
+    summary: |
+      Code should be reused only when the reused unit represents one
+      coherent concept or responsibility. Merging unrelated use cases
+      because their current markup, fields, or control flow look similar
+      creates a unit with as many reasons to change as it has consumers —
+      the definition of low cohesion. Duplication is far cheaper than the
+      wrong abstraction: two similar tables that serve different operator
+      tasks will diverge, and the shared mega-component becomes a
+      flag-riddled hostage. This is a top AI-generation failure: models
+      pattern-match on surface resemblance, not semantic identity.
+    enforcement: |
+      Before extracting shared code, name the ONE concept the unit
+      represents and verify every consumer means that concept — not merely
+      renders the same shape today. When an existing shared unit grows
+      mode flags per consumer, split it along the real concepts instead of
+      adding the next flag.
+    related_invariants:
+      - meta.ui.task_path_must_match_operator_goal
+
+  - id: meta.code.composition_must_prefer_standard_protocols
+    title: "Compose through standard protocols first — platform contracts (DOM, events, HTTP, gRPC, a11y) before private framework mechanisms"
+    category: structure
+    antipattern: "Two components coordinate through a framework-specific global store nobody can observe from outside"
+    wrong_instinct: Use the framework's idiomatic mechanism for everything — that's what it's for
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — framework-agnostic composition; Web Components as the platform-native expression
+    summary: |
+      Components should compose through platform or project-standard
+      protocols before private framework mechanisms: browser contracts
+      (custom elements, attributes/properties, DOM events, slots, CSS
+      custom properties, accessibility semantics), network contracts
+      (HTTP, gRPC), and typed project contracts — over hidden global
+      state or framework-locked coupling. Standard protocols survive
+      framework churn, are observable with ordinary tools, and let units
+      built years apart compose. This is where Web Components earn their
+      place: the composition surface IS the platform.
+    enforcement: |
+      When wiring units together, reach for the standard protocol first
+      and require justification to descend into a framework-private
+      mechanism. Cross-unit coordination through module-level mutable
+      state or framework context that crosses semantic boundaries is a
+      coupling decision — make it explicitly or not at all.
+    related_invariants:
+      - meta.code.contract_must_outlive_implementation_fashion
+
+  - id: meta.code.debuggability_is_part_of_correctness
+    title: "Debuggability is correctness — structure must preserve inspection, tracing, and a path from runtime behavior back to source intent"
+    category: structure
+    antipattern: "Five build layers later, the rendered DOM has no relationship anyone can trace to the source tree"
+    wrong_instinct: Accept opaque magic for less boilerplate — productivity now, archaeology later
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — operational software practice; includes generated-code traceability
+    summary: |
+      Code structure must preserve the ability to inspect, trace, and
+      diagnose behavior with ordinary tools. Abstractions that hide state
+      transitions, generated markup, errors, network calls, or ownership
+      boundaries reduce system correctness even when they reduce
+      boilerplate — operational code is read in anger at 3am, and "pretty
+      productivity fog" is a real cost paid then. The same rule binds the
+      build pipeline: transpilers, generators, and framework compilers
+      must preserve a traceable path from runtime behavior back to source
+      intent; a generated layer nobody can map back to source is too
+      expensive for operational code regardless of what it saves at
+      write time.
+    enforcement: |
+      For every abstraction or build step adopted, answer: at runtime, can
+      a developer with browser devtools / delve / journalctl see the
+      states, events, and calls this layer manages, and map what they see
+      back to source? If the answer requires "install the framework's
+      special devtools and hope", weigh that as real cost, not zero.
+    related_invariants:
+      - meta.diagnostic_output_must_be_bounded
+
+  - id: meta.code.local_state_must_not_become_hidden_authority
+    title: "Local state caches and stages — it never becomes the authority for domain truth, permission, completion, or health"
+    category: structure
+    antipattern: "The component 'knows' the workflow succeeded because its own submit handler set done=true"
+    wrong_instinct: The component already has the value — asking the service again is wasteful
+    severity: critical
+    status: active
+    # origin: { type: principle, confidence: high } — the four-layer model projected into code structure
+    summary: |
+      Component-local state may cache, stage, or render information, but
+      must not become the authority for domain truth, permission, workflow
+      completion, or runtime health. Authority-bearing state remains bound
+      to its owning service or contract; the local copy is a mirror with a
+      freshness obligation. This is the structural enforcement of
+      meta.storage_is_not_semantic_authority at component scale — and the
+      generative parent of ui.data_holder_is_cache_not_authority. The four
+      questions for any field a unit holds: which layer owns this truth,
+      which contract reads it, when does my copy expire, and what marks it
+      stale.
+    enforcement: |
+      Classify every piece of unit-local state as either local UI state
+      (selection, drafts, expansion) or a cache of authority-owned truth.
+      Caches name their authority and their invalidation trigger. A unit
+      answering an authority question (may the user do X? did Y complete?)
+      from its own state without a freshness contract is a violation.
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
+      - meta.ui.screen_claim_must_bind_to_authority
+
+  - id: meta.code.extension_points_must_be_explicit
+    title: "Variation happens at declared extension points — slots, properties, events, adapters — never by reaching into private internals"
+    category: structure
+    antipattern: "The consumer customizes the component by querySelector-ing into its shadow root and patching styles"
+    wrong_instinct: Consumers can always override what they need — flexibility through openness
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — open/closed done concretely; Web Components map: attributes=inputs, events=outputs, slots=content, CSS parts=styling, methods=imperative last resort
+    summary: |
+      Reusable modules must define where variation is allowed: slots,
+      properties, events, interfaces, configuration, adapters, callbacks.
+      Consumers must not customize behavior by reaching into private
+      internals, monkey-patching, or relying on undocumented structure —
+      every such reach converts an internal into load-bearing API
+      (Hyrum's Law, self-inflicted). The Web Components mapping makes the
+      vocabulary concrete: attributes/properties are inputs, events are
+      outputs, slots extend content, CSS custom properties/parts extend
+      styling, imperative methods only where declarative contracts cannot
+      express the need.
+    enforcement: |
+      When a consumer needs variation the unit does not offer, add the
+      extension point to the unit — never patch around the boundary. A
+      review that finds internals-reaching treats it as the unit's gap
+      AND the consumer's violation, and fixes both.
+    related_invariants:
+      - meta.code.contract_must_outlive_implementation_fashion
+
+  - id: meta.code.abstraction_must_be_deeper_than_its_interface
+    title: "Modules must be deep — an abstraction earns existence by hiding more complexity than its interface adds"
+    category: structure
+    antipattern: "Six 5-line wrapper helpers, each adding a name, a file, and an import — and hiding nothing"
+    wrong_instinct: More layers means more structure — wrap everything in a manager/service/util for tidiness
+    severity: high
+    status: active
+    # origin: { type: principle, confidence: high } — Ousterhout, A Philosophy of Software Design: deep modules; shallow modules are complexity ADDED
+    summary: |
+      A module is worth its boundary only when the complexity it hides
+      exceeds the complexity its interface adds. Shallow units — wrappers
+      that rename, pass-through layers, single-caller helpers extracted
+      for "cleanliness" — add interface area, indirection, files, and
+      naming burden while hiding nothing; they make the system HARDER to
+      understand while looking tidier. This is among the most common
+      AI-generation failures: models produce layers because layers look
+      like architecture. Few deep units beat many shallow ones, in Go
+      packages and UI components alike.
+    enforcement: |
+      Before creating a wrapper, layer, helper, or base class, state what
+      complexity it hides that callers would otherwise carry. "It groups
+      related calls" or "it shortens a name" hides nothing. Prefer
+      inlining a shallow abstraction over preserving it; prefer widening
+      a deep unit over stacking a thin one on top.
+    related_invariants:
+      - meta.code.reuse_must_follow_semantic_cohesion
+
+  - id: meta.code.framework_dependency_must_be_earned
+    title: "A framework dependency must earn its rent — durable leverage greater than its coupling, lifecycle, build, debugging, and portability costs"
+    category: structure
+    antipattern: "A full SPA framework adopted for an admin console that is forms, tables, and four workflows"
+    wrong_instinct: Everyone uses framework X — starting without it is reinventing wheels
+    severity: medium
+    status: active
+    # origin: { type: principle, confidence: high } — dependency economics; deliberately not "never React"
+    summary: |
+      A framework or library dependency must provide durable leverage
+      greater than its coupling cost, lifecycle risk (major-version
+      migrations on the framework's schedule, not yours), build
+      complexity, debugging cost, and portability loss. Convenience alone
+      is not enough when platform-native contracts are sufficient — and
+      for UI units, Web Components + small libraries cover a large share
+      of operator-console needs with zero framework lock. This is not
+      "never React": it is prove the dependency earns its rent, in
+      writing, before it owns your contract surface.
+    enforcement: |
+      Adopting a framework/major library requires a stated case: what it
+      provides that platform contracts cannot, what it costs across
+      coupling/lifecycle/build/debug/portability, and what the exit path
+      is. Re-justify at major-version bumps — the rent is recurring, not
+      one-time.
+    related_invariants:
+      - meta.code.composition_must_prefer_standard_protocols
+      - meta.critical_path_no_non_critical_dependency

@@ -363,7 +363,7 @@ Awareness explains *why* code exists, *what* it protects, *which fixes are forbi
 
 When documenting an error (incident, failure mode, finding), don't just record WHAT broke — classify WHY against the generative meta-principles. This turns error documentation into architectural learning.
 
-**Step 1 — CLASSIFY** the error against `invariant:meta.*` (6 categories). Source of truth: `docs/awareness/state_authority_invariants.yaml`; re-query the graph if this table feels stale.
+**Step 1 — CLASSIFY** the error against `invariant:meta.*` (7 categories). Source of truth: `docs/awareness/state_authority_invariants.yaml`; re-query the graph if this table feels stale.
 
 **Authority** (4) — "who owns this truth, and is this code that owner?"
 | Principle | What it catches |
@@ -428,6 +428,20 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.ui.color_must_have_semantic_contract` | Success color on desired/optimistic state; one hue serving conflicting roles; no unknown/stale roles |
 | `meta.ui.typography_must_express_information_hierarchy` | Warning typographically indistinguishable from metadata |
 | `meta.ui.theme_tokens_must_encode_roles_not_preferences` | Raw color/size literals in components instead of semantic tokens |
+
+**Structure** (10) — "is this unit shaped to be reused, inspected, and outlive its implementation?" (code structure/reusability; Parnas, coupling/cohesion, Ousterhout, Hyrum; applies to Go AND TypeScript)
+| Principle | What it catches |
+|-----------|----------------|
+| `meta.code.reusable_unit_must_have_a_stable_semantic_boundary` | Shared unit whose consumers import internals and break on refactor (anchor) |
+| `meta.code.contract_must_outlive_implementation_fashion` | Callers depend on private structure; observable surface undeliberate (Hyrum) |
+| `meta.code.complexity_must_be_hidden_behind_honest_boundaries` | Boundary absorbs errors/staleness/authority — encapsulation became concealment |
+| `meta.code.reuse_must_follow_semantic_cohesion` | GenericMegaTable: merged because markup looked similar, not same concept |
+| `meta.code.composition_must_prefer_standard_protocols` | Units coordinate via framework-private global state instead of platform contracts |
+| `meta.code.debuggability_is_part_of_correctness` | Abstraction/build layer with no path from runtime behavior to source intent |
+| `meta.code.local_state_must_not_become_hidden_authority` | Component answers permission/completion/health from its own state |
+| `meta.code.extension_points_must_be_explicit` | Consumer customizes by reaching into shadow root / private internals |
+| `meta.code.abstraction_must_be_deeper_than_its_interface` | Pass-through wrappers, layer stacking, single-caller helpers (Ousterhout) |
+| `meta.code.framework_dependency_must_be_earned` | Framework adopted on convenience; no written cost case or exit path |
 
 If one fits → add `related_invariants: [meta.<id>]` to the error entry.
 If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom out with human).

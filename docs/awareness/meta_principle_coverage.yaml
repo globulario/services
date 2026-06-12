@@ -210,3 +210,38 @@ meta_principle_coverage:
   - principle: meta.ui.theme_tokens_must_encode_roles_not_preferences
     tier: review_only
     reason: First composition principle to mechanize when frontend Tier-2 lands — a token-only lint (no raw color/size literals in components) is a trivial Semgrep/ESLint rule. review_only until that codebase exists.
+
+  # ── Structure (code reusability) principles — review_only ───────────────
+  # meta.code.* governs Go and TypeScript alike. Several are mechanizable
+  # once a frontend codebase exists (named below); until then design review
+  # plus briefing-time surfacing.
+  - principle: meta.code.reusable_unit_must_have_a_stable_semantic_boundary
+    tier: review_only
+    reason: Boundary completeness (contract + lifecycle + extension points) is the synthesis judgment the other structure principles decompose; reviewed per unit.
+  - principle: meta.code.contract_must_outlive_implementation_fashion
+    tier: review_only
+    reason: Whether a surface is semantic-vs-private is a design judgment; candidate for import-boundary lint (no consumer imports of internal paths) when the component tree exists.
+  - principle: meta.code.complexity_must_be_hidden_behind_honest_boundaries
+    tier: review_only
+    reason: Whether a hidden state was operationally load-bearing requires understanding caller decisions; the error-absorption half is partially covered by existing connection-error scanners on the Go side.
+  - principle: meta.code.reuse_must_follow_semantic_cohesion
+    tier: review_only
+    reason: Semantic identity vs surface resemblance is irreducibly a design judgment; flag-count heuristics would misfire.
+  - principle: meta.code.composition_must_prefer_standard_protocols
+    tier: review_only
+    reason: Protocol choice is per-integration; candidate for a no-framework-global-state lint once the frontend stack is chosen.
+  - principle: meta.code.debuggability_is_part_of_correctness
+    tier: review_only
+    reason: Inspection-cost judgments span tooling and build layers; no static artifact proves them.
+  - principle: meta.code.local_state_must_not_become_hidden_authority
+    tier: review_only
+    reason: Authority classification of local fields is semantic; concrete twin ui.data_holder_is_cache_not_authority carries per-screen gate tests once components exist.
+  - principle: meta.code.extension_points_must_be_explicit
+    tier: review_only
+    reason: "Candidate for mechanization (lint: no shadow-root reaching, no deep imports into component internals) when frontend Tier-2 lands."
+  - principle: meta.code.abstraction_must_be_deeper_than_its_interface
+    tier: review_only
+    reason: Depth-vs-interface weighing is a design judgment (Ousterhout); pass-through-wrapper detection heuristics misfire on legitimate adapters.
+  - principle: meta.code.framework_dependency_must_be_earned
+    tier: review_only
+    reason: Dependency economics is a written-case review at adoption and major bumps, not a scannable property.
