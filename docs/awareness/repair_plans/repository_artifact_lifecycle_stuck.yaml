@@ -50,8 +50,8 @@ rollback_steps:
   - "Quarantine or mark repair-needed through the repository-owned RPC path — never delete the blob directly."
 
 required_tests:
-  - test:TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
-  - test:TestRepositoryRepairDoesNotRequireInstallableState
+  - "test:TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected"
+  - "test:TestRepositoryRepairDoesNotRequireInstallableState"
 produces_outcome_feedback: "record an OutcomeFeedback linking repository_metadata_authority + installable_compound_predicate with the resolved/blocked status"
 
 notes: |

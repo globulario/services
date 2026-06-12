@@ -249,6 +249,10 @@ github.com/glendc/go-external-ip v0.1.0 h1:iX3xQ2Q26atAmLTbd++nUce2P5ht5P4uD4V7c
 github.com/glendc/go-external-ip v0.1.0/go.mod h1:CNx312s2FLAJoWNdJWZ2Fpf5O4oLsMFwuYviHjS4uJE=
 github.com/globulario/awareness-graph v0.0.10 h1:0eejlY625Zpaip16lzRMgBuVQ3L2DFGuQd+k9JxEdFw=
 github.com/globulario/awareness-graph v0.0.10/go.mod h1:rNNl2wxqYD1xgoFiLlGbsgUjAB/qargU1lzEv+7L2ZE=
+github.com/globulario/awareness-graph v0.0.22 h1:mWuOOCsMwS6HDpvuzYIXqfV6LPIBjXG5NgdOHUYu+OU=
+github.com/globulario/awareness-graph v0.0.22/go.mod h1:YaH+nNau4liAdSNj2jCS6Up8RX6HunGb5wNvIEkBV80=
+github.com/globulario/awareness-graph v0.0.23 h1:BTbyXWLby3U6ypyewHEkw+VhQI6WrOZyjLiLPdziBIU=
+github.com/globulario/awareness-graph v0.0.23/go.mod h1:YaH+nNau4liAdSNj2jCS6Up8RX6HunGb5wNvIEkBV80=
 github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8 h1:vpiNkv6Wx5JJOTovyUhrxQKBSzWGzba1jZ9t3SP84Ng=
 github.com/globulario/globular-installer v0.0.0-20260520194113-156f49163ef8/go.mod h1:n8tkQBstO03f6ZHc6Q3poBy0KWEI0tq89dQRWYC3mTY=
 github.com/globulario/utility v0.1.9 h1:gGaBd7HXMKpqj3uH7a2Kqv3Ikm5rtOMiVdhT6+riTl4=

@@ -49,9 +49,9 @@ rollback_steps:
   - "Remediation rolls back through its own workflow run / actor Verify path; the doctor never reverses state directly."
 
 required_tests:
-  - test:TestRemediationBlocksOnStaleEvidence
-  - test:TestAutoRemediationCooldown_AllowsFirstBlocksSecond
-  - test:TestRemediationAuditCarriesCorrelationFields
+  - "test:TestRemediationBlocksOnStaleEvidence"
+  - "test:TestAutoRemediationCooldown_AllowsFirstBlocksSecond"
+  - "test:TestRemediationAuditCarriesCorrelationFields"
 produces_outcome_feedback: "record an OutcomeFeedback for the finding with decision (executed/blocked/rejected) and the convergence result"
 
 notes: |

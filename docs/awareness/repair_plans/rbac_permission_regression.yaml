@@ -47,8 +47,8 @@ rollback_steps:
   - "Revert the permission change through the RBAC typed RPC; an explicit deny added during repair stays until removed via RPC."
 
 required_tests:
-  - test:TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
-  - test:TestNodeExecutorCannotPerformRBACAdmin
+  - "test:TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap"
+  - "test:TestNodeExecutorCannotPerformRBACAdmin"
 produces_outcome_feedback: "record an OutcomeFeedback noting whether deny precedence held after the change"
 
 notes: |

@@ -204,8 +204,8 @@ func auditYAMLValidity(inputDirs []string, intentDir, svcRepo, agRepo string, to
 	opts := extractor.ImportDirOptions{
 		StripPathPrefixes: []string{agRepo, svcRepo},
 	}
-	var skipped int
-	var details []string
+	var invalidCount, unknownCount int
+	var invalidDetails, unknownDetails []string
 
 	scanDir := func(dir string) {
 		_, report, err := extractor.ImportAwarenessDirWithOpts(dir, &bytes.Buffer{}, opts)
@@ -213,9 +213,13 @@ func auditYAMLValidity(inputDirs []string, intentDir, svcRepo, agRepo string, to
 			return
 		}
 		for _, f := range report.Skipped() {
-			if f.Status == extractor.StatusUnknownSchema || f.Status == extractor.StatusInvalid {
-				skipped++
-				details = append(details, fmt.Sprintf("%s: %s (%s)", f.Status, f.Path, f.Reason))
+			switch f.Status {
+			case extractor.StatusInvalid:
+				invalidCount++
+				invalidDetails = append(invalidDetails, fmt.Sprintf("INVALID: %s (%s)", f.Path, f.Reason))
+			case extractor.StatusUnknownSchema:
+				unknownCount++
+				unknownDetails = append(unknownDetails, fmt.Sprintf("unknown: %s (%s)", f.Path, f.Reason))
 			}
 		}
 	}
@@ -227,11 +231,21 @@ func auditYAMLValidity(inputDirs []string, intentDir, svcRepo, agRepo string, to
 		scanDir(intentDir)
 	}
 
-	if skipped > 0 {
+	allDetails := append(invalidDetails, unknownDetails...)
+
+	// Invalid files (parse errors) are FAIL. Unknown schemas (awaiting importers) are WARN.
+	if invalidCount > 0 {
 		return auditCheck{
 			name: "yaml-validity", result: checkFAIL,
-			summary: fmt.Sprintf("%d/%d files unknown or invalid", skipped, totalFiles),
-			details: details,
+			summary: fmt.Sprintf("%d invalid, %d unknown schema (of %d files)", invalidCount, unknownCount, totalFiles),
+			details: allDetails,
+		}
+	}
+	if unknownCount > 0 {
+		return auditCheck{
+			name: "yaml-validity", result: checkWARN,
+			summary: fmt.Sprintf("%d unknown schema, 0 invalid (of %d files)", unknownCount, totalFiles),
+			details: allDetails,
 		}
 	}
 	return auditCheck{name: "yaml-validity", result: checkPASS, summary: fmt.Sprintf("%d files clean", totalFiles)}

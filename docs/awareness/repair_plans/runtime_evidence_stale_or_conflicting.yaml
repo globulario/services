@@ -47,8 +47,8 @@ rollback_steps:
   - "No state was mutated — this plan only re-classifies and re-requests evidence; there is nothing to roll back."
 
 required_tests:
-  - test:TestNoRuleEmitsConfidentFailureOnErroredSnapshot
-  - test:TestFindingIncludesEvidenceTrustLevel
+  - "test:TestNoRuleEmitsConfidentFailureOnErroredSnapshot"
+  - "test:TestFindingIncludesEvidenceTrustLevel"
 produces_outcome_feedback: "record an OutcomeFeedback noting the evidence classification and whether a PASS was correctly withheld"
 
 notes: |
