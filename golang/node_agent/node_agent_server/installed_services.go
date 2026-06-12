@@ -243,7 +243,6 @@ var skipSystemdUnits = map[string]bool{
 	"node-exporter": true, "prometheus": true, "alertmanager": true,
 	"scylla-manager": true, "scylla-manager-agent": true,
 	"scylladb": true, "keepalived": true, "sidekick": true,
-	"oxigraph": true,
 	// CLI tools — not daemons (from /packages/specs/*_cmd.yaml)
 	"claude-cmd": true, "etcdctl-cmd": true, "ffmpeg-cmd": true,
 	"globular-cli-cmd": true, "mc-cmd": true, "rclone-cmd": true,
