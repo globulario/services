@@ -30,6 +30,8 @@ goog.exportSymbol('proto.cluster_controller.ApproveJoinRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ApproveJoinResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.ArtifactKind', null, global);
 goog.exportSymbol('proto.cluster_controller.ArtifactRef', null, global);
+goog.exportSymbol('proto.cluster_controller.CleanupGhostNodePackagesRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.CleanupGhostNodePackagesResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.ClusterInfo', null, global);
 goog.exportSymbol('proto.cluster_controller.ClusterNetworkSpec', null, global);
 goog.exportSymbol('proto.cluster_controller.CompleteOperationRequest', null, global);
@@ -37,8 +39,15 @@ goog.exportSymbol('proto.cluster_controller.CompleteOperationResponse', null, gl
 goog.exportSymbol('proto.cluster_controller.ConfigFileDiff', null, global);
 goog.exportSymbol('proto.cluster_controller.ControllerSubsystemHealth', null, global);
 goog.exportSymbol('proto.cluster_controller.ControllerSubsystemState', null, global);
+goog.exportSymbol('proto.cluster_controller.CreateDNSProviderRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.CreateDNSProviderResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.CreateExternalDomainRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.CreateExternalDomainResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.CreateJoinTokenRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.CreateJoinTokenResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.DNSProviderEntry', null, global);
+goog.exportSymbol('proto.cluster_controller.DeleteExternalDomainRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.DeleteExternalDomainResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.DeployControlPlanePackageRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.DeployControlPlanePackageResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.DesiredNetwork', null, global);
@@ -50,22 +59,51 @@ goog.exportSymbol('proto.cluster_controller.DomainMigration.MigrationState', nul
 goog.exportSymbol('proto.cluster_controller.EmitWorkflowEventRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.EmitWorkflowEventResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.ExternalDNSConfig', null, global);
+goog.exportSymbol('proto.cluster_controller.ExternalDomainACMEConfig', null, global);
+goog.exportSymbol('proto.cluster_controller.ExternalDomainEntry', null, global);
+goog.exportSymbol('proto.cluster_controller.ExternalDomainIngressConfig', null, global);
 goog.exportSymbol('proto.cluster_controller.GetClusterHealthRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.GetClusterHealthResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.GetClusterHealthV1Request', null, global);
 goog.exportSymbol('proto.cluster_controller.GetClusterHealthV1Response', null, global);
 goog.exportSymbol('proto.cluster_controller.GetControllerSubsystemHealthRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.GetControllerSubsystemHealthResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.GetIngressStatusRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.GetIngressStatusResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.GetJoinRequestStatusRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.GetJoinRequestStatusResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.GetNodeHealthDetailV1Request', null, global);
 goog.exportSymbol('proto.cluster_controller.GetNodeHealthDetailV1Response', null, global);
+goog.exportSymbol('proto.cluster_controller.GetRoutingRefreshRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.GetRoutingRefreshResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.GetScyllaSchemaGuardStatusRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.GetScyllaSchemaGuardStatusResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.InfraConfigField', null, global);
+goog.exportSymbol('proto.cluster_controller.InfraLifecycleObservation', null, global);
+goog.exportSymbol('proto.cluster_controller.InfraLifecycleState', null, global);
+goog.exportSymbol('proto.cluster_controller.InfraProbeResult', null, global);
+goog.exportSymbol('proto.cluster_controller.InfraViolation', null, global);
+goog.exportSymbol('proto.cluster_controller.IngressNodeStatus', null, global);
 goog.exportSymbol('proto.cluster_controller.InstallPolicy', null, global);
+goog.exportSymbol('proto.cluster_controller.JoinAuthorizationRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.JoinAuthorizationResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.JoinRequestRecord', null, global);
+goog.exportSymbol('proto.cluster_controller.ListDNSProvidersRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.ListDNSProvidersResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.ListDesiredBuildIDsRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.ListDesiredBuildIDsResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.ListExternalDomainsRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.ListExternalDomainsResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.ListInfrastructureReleasesJsonRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.ListInfrastructureReleasesJsonResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.ListJoinRequestsRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ListJoinRequestsResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.ListNodesRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ListNodesResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.ListServiceReleasesJsonRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.ListServiceReleasesJsonResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.ListServicesRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.ListServicesResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.NodeCapabilities', null, global);
 goog.exportSymbol('proto.cluster_controller.NodeChange', null, global);
 goog.exportSymbol('proto.cluster_controller.NodeHealth', null, global);
@@ -87,12 +125,17 @@ goog.exportSymbol('proto.cluster_controller.RemoveNodeRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.RemoveNodeResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.ReportNodeStatusRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ReportNodeStatusResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.RequestIngressRepublishRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.RequestIngressRepublishResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.RequestJoinRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.RequestJoinResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.RequestScyllaSchemaEnforceRequest', null, global);
+goog.exportSymbol('proto.cluster_controller.RequestScyllaSchemaEnforceResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.ResignLeadershipRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ResignLeadershipResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.ResolveNodeRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ResolveNodeResponse', null, global);
+goog.exportSymbol('proto.cluster_controller.ScyllaKeyspaceGuardStatus', null, global);
 goog.exportSymbol('proto.cluster_controller.SeedDesiredStateRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.SeedDesiredStateRequest.Mode', null, global);
 goog.exportSymbol('proto.cluster_controller.ServiceChangePreview', null, global);
@@ -386,6 +429,48 @@ if (goog.DEBUG && !COMPILED) {
    * @override
    */
   proto.cluster_controller.GetJoinRequestStatusResponse.displayName = 'proto.cluster_controller.GetJoinRequestStatusResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.JoinAuthorizationRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.JoinAuthorizationRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.JoinAuthorizationRequest.displayName = 'proto.cluster_controller.JoinAuthorizationRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.JoinAuthorizationResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.JoinAuthorizationResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.JoinAuthorizationResponse.displayName = 'proto.cluster_controller.JoinAuthorizationResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1132,6 +1217,90 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
+proto.cluster_controller.InfraConfigField = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.InfraConfigField, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.InfraConfigField.displayName = 'proto.cluster_controller.InfraConfigField';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.InfraViolation = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.InfraViolation, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.InfraViolation.displayName = 'proto.cluster_controller.InfraViolation';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.InfraLifecycleObservation = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.InfraLifecycleObservation, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.InfraLifecycleObservation.displayName = 'proto.cluster_controller.InfraLifecycleObservation';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.InfraProbeResult = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.InfraProbeResult.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.InfraProbeResult, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.InfraProbeResult.displayName = 'proto.cluster_controller.InfraProbeResult';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
 proto.cluster_controller.NodeStatus = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.NodeStatus.repeatedFields_, null);
 };
@@ -1499,6 +1668,762 @@ if (goog.DEBUG && !COMPILED) {
    * @override
    */
   proto.cluster_controller.DesiredState.displayName = 'proto.cluster_controller.DesiredState';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListDesiredBuildIDsRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ListDesiredBuildIDsRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListDesiredBuildIDsRequest.displayName = 'proto.cluster_controller.ListDesiredBuildIDsRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.GetRoutingRefreshRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.GetRoutingRefreshRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.GetRoutingRefreshRequest.displayName = 'proto.cluster_controller.GetRoutingRefreshRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListExternalDomainsRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ListExternalDomainsRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListExternalDomainsRequest.displayName = 'proto.cluster_controller.ListExternalDomainsRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListServicesRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ListServicesRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListServicesRequest.displayName = 'proto.cluster_controller.ListServicesRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.GetIngressStatusRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.GetIngressStatusRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.GetIngressStatusRequest.displayName = 'proto.cluster_controller.GetIngressStatusRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.IngressNodeStatus = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.IngressNodeStatus, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.IngressNodeStatus.displayName = 'proto.cluster_controller.IngressNodeStatus';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.GetIngressStatusResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.GetIngressStatusResponse.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.GetIngressStatusResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.GetIngressStatusResponse.displayName = 'proto.cluster_controller.GetIngressStatusResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.RequestIngressRepublishRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.RequestIngressRepublishRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.RequestIngressRepublishRequest.displayName = 'proto.cluster_controller.RequestIngressRepublishRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.RequestIngressRepublishResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.RequestIngressRepublishResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.RequestIngressRepublishResponse.displayName = 'proto.cluster_controller.RequestIngressRepublishResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ExternalDomainACMEConfig = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ExternalDomainACMEConfig, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ExternalDomainACMEConfig.displayName = 'proto.cluster_controller.ExternalDomainACMEConfig';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ExternalDomainIngressConfig = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ExternalDomainIngressConfig, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ExternalDomainIngressConfig.displayName = 'proto.cluster_controller.ExternalDomainIngressConfig';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.CreateExternalDomainRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.CreateExternalDomainRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.CreateExternalDomainRequest.displayName = 'proto.cluster_controller.CreateExternalDomainRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.CreateExternalDomainResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.CreateExternalDomainResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.CreateExternalDomainResponse.displayName = 'proto.cluster_controller.CreateExternalDomainResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.DeleteExternalDomainRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.DeleteExternalDomainRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.DeleteExternalDomainRequest.displayName = 'proto.cluster_controller.DeleteExternalDomainRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.DeleteExternalDomainResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.DeleteExternalDomainResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.DeleteExternalDomainResponse.displayName = 'proto.cluster_controller.DeleteExternalDomainResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.CreateDNSProviderRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.CreateDNSProviderRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.CreateDNSProviderRequest.displayName = 'proto.cluster_controller.CreateDNSProviderRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.CreateDNSProviderResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.CreateDNSProviderResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.CreateDNSProviderResponse.displayName = 'proto.cluster_controller.CreateDNSProviderResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListDNSProvidersRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ListDNSProvidersRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListDNSProvidersRequest.displayName = 'proto.cluster_controller.ListDNSProvidersRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.DNSProviderEntry = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.DNSProviderEntry, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.DNSProviderEntry.displayName = 'proto.cluster_controller.DNSProviderEntry';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListDNSProvidersResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.ListDNSProvidersResponse.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.ListDNSProvidersResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListDNSProvidersResponse.displayName = 'proto.cluster_controller.ListDNSProvidersResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListServiceReleasesJsonRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ListServiceReleasesJsonRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListServiceReleasesJsonRequest.displayName = 'proto.cluster_controller.ListServiceReleasesJsonRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.ListServiceReleasesJsonResponse.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.ListServiceReleasesJsonResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListServiceReleasesJsonResponse.displayName = 'proto.cluster_controller.ListServiceReleasesJsonResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ListInfrastructureReleasesJsonRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListInfrastructureReleasesJsonRequest.displayName = 'proto.cluster_controller.ListInfrastructureReleasesJsonRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.ListInfrastructureReleasesJsonResponse.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.ListInfrastructureReleasesJsonResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListInfrastructureReleasesJsonResponse.displayName = 'proto.cluster_controller.ListInfrastructureReleasesJsonResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.CleanupGhostNodePackagesRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.CleanupGhostNodePackagesRequest.displayName = 'proto.cluster_controller.CleanupGhostNodePackagesRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.CleanupGhostNodePackagesResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.CleanupGhostNodePackagesResponse.displayName = 'proto.cluster_controller.CleanupGhostNodePackagesResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.GetScyllaSchemaGuardStatusRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.displayName = 'proto.cluster_controller.GetScyllaSchemaGuardStatusRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ScyllaKeyspaceGuardStatus, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ScyllaKeyspaceGuardStatus.displayName = 'proto.cluster_controller.ScyllaKeyspaceGuardStatus';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.GetScyllaSchemaGuardStatusResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.displayName = 'proto.cluster_controller.GetScyllaSchemaGuardStatusResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.RequestScyllaSchemaEnforceRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.RequestScyllaSchemaEnforceRequest.displayName = 'proto.cluster_controller.RequestScyllaSchemaEnforceRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.RequestScyllaSchemaEnforceResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.RequestScyllaSchemaEnforceResponse.displayName = 'proto.cluster_controller.RequestScyllaSchemaEnforceResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListServicesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.ListServicesResponse.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.ListServicesResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListServicesResponse.displayName = 'proto.cluster_controller.ListServicesResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ExternalDomainEntry = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.ExternalDomainEntry, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ExternalDomainEntry.displayName = 'proto.cluster_controller.ExternalDomainEntry';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListExternalDomainsResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.ListExternalDomainsResponse.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.ListExternalDomainsResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListExternalDomainsResponse.displayName = 'proto.cluster_controller.ListExternalDomainsResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.GetRoutingRefreshResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.cluster_controller.GetRoutingRefreshResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.GetRoutingRefreshResponse.displayName = 'proto.cluster_controller.GetRoutingRefreshResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.ListDesiredBuildIDsResponse.repeatedFields_, null);
+};
+goog.inherits(proto.cluster_controller.ListDesiredBuildIDsResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.cluster_controller.ListDesiredBuildIDsResponse.displayName = 'proto.cluster_controller.ListDesiredBuildIDsResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -5345,7 +6270,8 @@ nodeId: jspb.Message.getFieldWithDefault(msg, 2, ""),
 profilesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
 message: jspb.Message.getFieldWithDefault(msg, 4, ""),
 nodeToken: jspb.Message.getFieldWithDefault(msg, 5, ""),
-nodePrincipal: jspb.Message.getFieldWithDefault(msg, 6, "")
+nodePrincipal: jspb.Message.getFieldWithDefault(msg, 6, ""),
+planJson: msg.getPlanJson_asB64()
   };
 
   if (includeInstance) {
@@ -5405,6 +6331,10 @@ proto.cluster_controller.GetJoinRequestStatusResponse.deserializeBinaryFromReade
     case 6:
       var value = /** @type {string} */ (reader.readString());
       msg.setNodePrincipal(value);
+      break;
+    case 7:
+      var value = /** @type {!Uint8Array} */ (reader.readBytes());
+      msg.setPlanJson(value);
       break;
     default:
       reader.skipField();
@@ -5474,6 +6404,13 @@ proto.cluster_controller.GetJoinRequestStatusResponse.serializeBinaryToWriter = 
   if (f.length > 0) {
     writer.writeString(
       6,
+      f
+    );
+  }
+  f = message.getPlanJson_asU8();
+  if (f.length > 0) {
+    writer.writeBytes(
+      7,
       f
     );
   }
@@ -5604,6 +6541,678 @@ proto.cluster_controller.GetJoinRequestStatusResponse.prototype.getNodePrincipal
  */
 proto.cluster_controller.GetJoinRequestStatusResponse.prototype.setNodePrincipal = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional bytes plan_json = 7;
+ * @return {string}
+ */
+proto.cluster_controller.GetJoinRequestStatusResponse.prototype.getPlanJson = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * optional bytes plan_json = 7;
+ * This is a type-conversion wrapper around `getPlanJson()`
+ * @return {string}
+ */
+proto.cluster_controller.GetJoinRequestStatusResponse.prototype.getPlanJson_asB64 = function() {
+  return /** @type {string} */ (jspb.Message.bytesAsB64(
+      this.getPlanJson()));
+};
+
+
+/**
+ * optional bytes plan_json = 7;
+ * Note that Uint8Array is not supported on all browsers.
+ * @see http://caniuse.com/Uint8Array
+ * This is a type-conversion wrapper around `getPlanJson()`
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.GetJoinRequestStatusResponse.prototype.getPlanJson_asU8 = function() {
+  return /** @type {!Uint8Array} */ (jspb.Message.bytesAsU8(
+      this.getPlanJson()));
+};
+
+
+/**
+ * @param {!(string|Uint8Array)} value
+ * @return {!proto.cluster_controller.GetJoinRequestStatusResponse} returns this
+ */
+proto.cluster_controller.GetJoinRequestStatusResponse.prototype.setPlanJson = function(value) {
+  return jspb.Message.setProto3BytesField(this, 7, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.JoinAuthorizationRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.JoinAuthorizationRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.JoinAuthorizationRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+joinToken: jspb.Message.getFieldWithDefault(msg, 1, ""),
+identity: (f = msg.getIdentity()) && proto.cluster_controller.NodeIdentity.toObject(includeInstance, f),
+labelsMap: (f = msg.getLabelsMap()) ? f.toObject(includeInstance, undefined) : [],
+capabilities: (f = msg.getCapabilities()) && proto.cluster_controller.NodeCapabilities.toObject(includeInstance, f),
+nonce: jspb.Message.getFieldWithDefault(msg, 5, ""),
+installerVersion: jspb.Message.getFieldWithDefault(msg, 6, ""),
+clusterId: jspb.Message.getFieldWithDefault(msg, 7, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.JoinAuthorizationRequest;
+  return proto.cluster_controller.JoinAuthorizationRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.JoinAuthorizationRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setJoinToken(value);
+      break;
+    case 2:
+      var value = new proto.cluster_controller.NodeIdentity;
+      reader.readMessage(value,proto.cluster_controller.NodeIdentity.deserializeBinaryFromReader);
+      msg.setIdentity(value);
+      break;
+    case 3:
+      var value = msg.getLabelsMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
+      break;
+    case 4:
+      var value = new proto.cluster_controller.NodeCapabilities;
+      reader.readMessage(value,proto.cluster_controller.NodeCapabilities.deserializeBinaryFromReader);
+      msg.setCapabilities(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNonce(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setInstallerVersion(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setClusterId(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.JoinAuthorizationRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.JoinAuthorizationRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.JoinAuthorizationRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getJoinToken();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getIdentity();
+  if (f != null) {
+    writer.writeMessage(
+      2,
+      f,
+      proto.cluster_controller.NodeIdentity.serializeBinaryToWriter
+    );
+  }
+  f = message.getLabelsMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(3, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getCapabilities();
+  if (f != null) {
+    writer.writeMessage(
+      4,
+      f,
+      proto.cluster_controller.NodeCapabilities.serializeBinaryToWriter
+    );
+  }
+  f = message.getNonce();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getInstallerVersion();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getClusterId();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string join_token = 1;
+ * @return {string}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.getJoinToken = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.setJoinToken = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional NodeIdentity identity = 2;
+ * @return {?proto.cluster_controller.NodeIdentity}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.getIdentity = function() {
+  return /** @type{?proto.cluster_controller.NodeIdentity} */ (
+    jspb.Message.getWrapperField(this, proto.cluster_controller.NodeIdentity, 2));
+};
+
+
+/**
+ * @param {?proto.cluster_controller.NodeIdentity|undefined} value
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+*/
+proto.cluster_controller.JoinAuthorizationRequest.prototype.setIdentity = function(value) {
+  return jspb.Message.setWrapperField(this, 2, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.clearIdentity = function() {
+  return this.setIdentity(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.hasIdentity = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * map<string, string> labels = 3;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.getLabelsMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 3, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.clearLabelsMap = function() {
+  this.getLabelsMap().clear();
+  return this;
+};
+
+
+/**
+ * optional NodeCapabilities capabilities = 4;
+ * @return {?proto.cluster_controller.NodeCapabilities}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.getCapabilities = function() {
+  return /** @type{?proto.cluster_controller.NodeCapabilities} */ (
+    jspb.Message.getWrapperField(this, proto.cluster_controller.NodeCapabilities, 4));
+};
+
+
+/**
+ * @param {?proto.cluster_controller.NodeCapabilities|undefined} value
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+*/
+proto.cluster_controller.JoinAuthorizationRequest.prototype.setCapabilities = function(value) {
+  return jspb.Message.setWrapperField(this, 4, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.clearCapabilities = function() {
+  return this.setCapabilities(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.hasCapabilities = function() {
+  return jspb.Message.getField(this, 4) != null;
+};
+
+
+/**
+ * optional string nonce = 5;
+ * @return {string}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.getNonce = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.setNonce = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string installer_version = 6;
+ * @return {string}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.getInstallerVersion = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.setInstallerVersion = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional string cluster_id = 7;
+ * @return {string}
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.getClusterId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.JoinAuthorizationRequest} returns this
+ */
+proto.cluster_controller.JoinAuthorizationRequest.prototype.setClusterId = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.JoinAuthorizationResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.JoinAuthorizationResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.JoinAuthorizationResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+allowed: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+deniedReason: jspb.Message.getFieldWithDefault(msg, 2, ""),
+joinId: jspb.Message.getFieldWithDefault(msg, 3, ""),
+planJson: msg.getPlanJson_asB64(),
+controllerGeneration: jspb.Message.getFieldWithDefault(msg, 5, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.JoinAuthorizationResponse}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.JoinAuthorizationResponse;
+  return proto.cluster_controller.JoinAuthorizationResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.JoinAuthorizationResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.JoinAuthorizationResponse}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setAllowed(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDeniedReason(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setJoinId(value);
+      break;
+    case 4:
+      var value = /** @type {!Uint8Array} */ (reader.readBytes());
+      msg.setPlanJson(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setControllerGeneration(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.JoinAuthorizationResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.JoinAuthorizationResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.JoinAuthorizationResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAllowed();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+  f = message.getDeniedReason();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getJoinId();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getPlanJson_asU8();
+  if (f.length > 0) {
+    writer.writeBytes(
+      4,
+      f
+    );
+  }
+  f = message.getControllerGeneration();
+  if (f !== 0) {
+    writer.writeInt64(
+      5,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional bool allowed = 1;
+ * @return {boolean}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.getAllowed = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.JoinAuthorizationResponse} returns this
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.setAllowed = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional string denied_reason = 2;
+ * @return {string}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.getDeniedReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.JoinAuthorizationResponse} returns this
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.setDeniedReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string join_id = 3;
+ * @return {string}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.getJoinId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.JoinAuthorizationResponse} returns this
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.setJoinId = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional bytes plan_json = 4;
+ * @return {string}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.getPlanJson = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * optional bytes plan_json = 4;
+ * This is a type-conversion wrapper around `getPlanJson()`
+ * @return {string}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.getPlanJson_asB64 = function() {
+  return /** @type {string} */ (jspb.Message.bytesAsB64(
+      this.getPlanJson()));
+};
+
+
+/**
+ * optional bytes plan_json = 4;
+ * Note that Uint8Array is not supported on all browsers.
+ * @see http://caniuse.com/Uint8Array
+ * This is a type-conversion wrapper around `getPlanJson()`
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.getPlanJson_asU8 = function() {
+  return /** @type {!Uint8Array} */ (jspb.Message.bytesAsU8(
+      this.getPlanJson()));
+};
+
+
+/**
+ * @param {!(string|Uint8Array)} value
+ * @return {!proto.cluster_controller.JoinAuthorizationResponse} returns this
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.setPlanJson = function(value) {
+  return jspb.Message.setProto3BytesField(this, 4, value);
+};
+
+
+/**
+ * optional int64 controller_generation = 5;
+ * @return {number}
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.getControllerGeneration = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.JoinAuthorizationResponse} returns this
+ */
+proto.cluster_controller.JoinAuthorizationResponse.prototype.setControllerGeneration = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
 };
 
 
@@ -12434,12 +14043,1725 @@ proto.cluster_controller.NodeUnitStatus.prototype.setDetails = function(value) {
 
 
 
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.InfraConfigField.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.InfraConfigField.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.InfraConfigField} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.InfraConfigField.toObject = function(includeInstance, msg) {
+  var f, obj = {
+fieldName: jspb.Message.getFieldWithDefault(msg, 1, ""),
+expectedValue: jspb.Message.getFieldWithDefault(msg, 2, ""),
+actualValue: jspb.Message.getFieldWithDefault(msg, 3, ""),
+valid: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+violation: jspb.Message.getFieldWithDefault(msg, 5, ""),
+severity: jspb.Message.getFieldWithDefault(msg, 6, ""),
+evidence: jspb.Message.getFieldWithDefault(msg, 7, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.InfraConfigField}
+ */
+proto.cluster_controller.InfraConfigField.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.InfraConfigField;
+  return proto.cluster_controller.InfraConfigField.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.InfraConfigField} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.InfraConfigField}
+ */
+proto.cluster_controller.InfraConfigField.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFieldName(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setExpectedValue(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setActualValue(value);
+      break;
+    case 4:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setValid(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setViolation(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSeverity(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setEvidence(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.InfraConfigField.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.InfraConfigField.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.InfraConfigField} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.InfraConfigField.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getFieldName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getExpectedValue();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getActualValue();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getValid();
+  if (f) {
+    writer.writeBool(
+      4,
+      f
+    );
+  }
+  f = message.getViolation();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getSeverity();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getEvidence();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string field_name = 1;
+ * @return {string}
+ */
+proto.cluster_controller.InfraConfigField.prototype.getFieldName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraConfigField} returns this
+ */
+proto.cluster_controller.InfraConfigField.prototype.setFieldName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string expected_value = 2;
+ * @return {string}
+ */
+proto.cluster_controller.InfraConfigField.prototype.getExpectedValue = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraConfigField} returns this
+ */
+proto.cluster_controller.InfraConfigField.prototype.setExpectedValue = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string actual_value = 3;
+ * @return {string}
+ */
+proto.cluster_controller.InfraConfigField.prototype.getActualValue = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraConfigField} returns this
+ */
+proto.cluster_controller.InfraConfigField.prototype.setActualValue = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional bool valid = 4;
+ * @return {boolean}
+ */
+proto.cluster_controller.InfraConfigField.prototype.getValid = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 4, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.InfraConfigField} returns this
+ */
+proto.cluster_controller.InfraConfigField.prototype.setValid = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 4, value);
+};
+
+
+/**
+ * optional string violation = 5;
+ * @return {string}
+ */
+proto.cluster_controller.InfraConfigField.prototype.getViolation = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraConfigField} returns this
+ */
+proto.cluster_controller.InfraConfigField.prototype.setViolation = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string severity = 6;
+ * @return {string}
+ */
+proto.cluster_controller.InfraConfigField.prototype.getSeverity = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraConfigField} returns this
+ */
+proto.cluster_controller.InfraConfigField.prototype.setSeverity = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional string evidence = 7;
+ * @return {string}
+ */
+proto.cluster_controller.InfraConfigField.prototype.getEvidence = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraConfigField} returns this
+ */
+proto.cluster_controller.InfraConfigField.prototype.setEvidence = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.InfraViolation.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.InfraViolation.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.InfraViolation} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.InfraViolation.toObject = function(includeInstance, msg) {
+  var f, obj = {
+id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+severity: jspb.Message.getFieldWithDefault(msg, 2, ""),
+message: jspb.Message.getFieldWithDefault(msg, 3, ""),
+evidence: jspb.Message.getFieldWithDefault(msg, 4, ""),
+remediation: jspb.Message.getFieldWithDefault(msg, 5, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.InfraViolation}
+ */
+proto.cluster_controller.InfraViolation.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.InfraViolation;
+  return proto.cluster_controller.InfraViolation.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.InfraViolation} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.InfraViolation}
+ */
+proto.cluster_controller.InfraViolation.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSeverity(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMessage(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setEvidence(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRemediation(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.InfraViolation.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.InfraViolation.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.InfraViolation} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.InfraViolation.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getSeverity();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getMessage();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getEvidence();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getRemediation();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string id = 1;
+ * @return {string}
+ */
+proto.cluster_controller.InfraViolation.prototype.getId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraViolation} returns this
+ */
+proto.cluster_controller.InfraViolation.prototype.setId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string severity = 2;
+ * @return {string}
+ */
+proto.cluster_controller.InfraViolation.prototype.getSeverity = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraViolation} returns this
+ */
+proto.cluster_controller.InfraViolation.prototype.setSeverity = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string message = 3;
+ * @return {string}
+ */
+proto.cluster_controller.InfraViolation.prototype.getMessage = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraViolation} returns this
+ */
+proto.cluster_controller.InfraViolation.prototype.setMessage = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string evidence = 4;
+ * @return {string}
+ */
+proto.cluster_controller.InfraViolation.prototype.getEvidence = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraViolation} returns this
+ */
+proto.cluster_controller.InfraViolation.prototype.setEvidence = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string remediation = 5;
+ * @return {string}
+ */
+proto.cluster_controller.InfraViolation.prototype.getRemediation = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraViolation} returns this
+ */
+proto.cluster_controller.InfraViolation.prototype.setRemediation = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.InfraLifecycleObservation.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.InfraLifecycleObservation} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.InfraLifecycleObservation.toObject = function(includeInstance, msg) {
+  var f, obj = {
+state: jspb.Message.getFieldWithDefault(msg, 1, 0),
+stateLabel: jspb.Message.getFieldWithDefault(msg, 2, ""),
+observedAtUnix: jspb.Message.getFieldWithDefault(msg, 3, 0),
+stateAgeSeconds: jspb.Message.getFieldWithDefault(msg, 4, 0),
+lastTransition: jspb.Message.getFieldWithDefault(msg, 5, ""),
+blockingReason: jspb.Message.getFieldWithDefault(msg, 6, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.InfraLifecycleObservation}
+ */
+proto.cluster_controller.InfraLifecycleObservation.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.InfraLifecycleObservation;
+  return proto.cluster_controller.InfraLifecycleObservation.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.InfraLifecycleObservation} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.InfraLifecycleObservation}
+ */
+proto.cluster_controller.InfraLifecycleObservation.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {!proto.cluster_controller.InfraLifecycleState} */ (reader.readEnum());
+      msg.setState(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setStateLabel(value);
+      break;
+    case 3:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setObservedAtUnix(value);
+      break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setStateAgeSeconds(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setLastTransition(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBlockingReason(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.InfraLifecycleObservation.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.InfraLifecycleObservation} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.InfraLifecycleObservation.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getState();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      1,
+      f
+    );
+  }
+  f = message.getStateLabel();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getObservedAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      3,
+      f
+    );
+  }
+  f = message.getStateAgeSeconds();
+  if (f !== 0) {
+    writer.writeInt64(
+      4,
+      f
+    );
+  }
+  f = message.getLastTransition();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getBlockingReason();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional InfraLifecycleState state = 1;
+ * @return {!proto.cluster_controller.InfraLifecycleState}
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.getState = function() {
+  return /** @type {!proto.cluster_controller.InfraLifecycleState} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {!proto.cluster_controller.InfraLifecycleState} value
+ * @return {!proto.cluster_controller.InfraLifecycleObservation} returns this
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.setState = function(value) {
+  return jspb.Message.setProto3EnumField(this, 1, value);
+};
+
+
+/**
+ * optional string state_label = 2;
+ * @return {string}
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.getStateLabel = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraLifecycleObservation} returns this
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.setStateLabel = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional int64 observed_at_unix = 3;
+ * @return {number}
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.getObservedAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.InfraLifecycleObservation} returns this
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.setObservedAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 3, value);
+};
+
+
+/**
+ * optional int64 state_age_seconds = 4;
+ * @return {number}
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.getStateAgeSeconds = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.InfraLifecycleObservation} returns this
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.setStateAgeSeconds = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional string last_transition = 5;
+ * @return {string}
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.getLastTransition = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraLifecycleObservation} returns this
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.setLastTransition = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string blocking_reason = 6;
+ * @return {string}
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.getBlockingReason = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraLifecycleObservation} returns this
+ */
+proto.cluster_controller.InfraLifecycleObservation.prototype.setBlockingReason = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+
 /**
  * List of repeated fields within this message type.
  * @private {!Array<number>}
  * @const
  */
-proto.cluster_controller.NodeStatus.repeatedFields_ = [3,4,10];
+proto.cluster_controller.InfraProbeResult.repeatedFields_ = [9,10,11,12,19];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.InfraProbeResult.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.InfraProbeResult} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.InfraProbeResult.toObject = function(includeInstance, msg) {
+  var f, obj = {
+component: jspb.Message.getFieldWithDefault(msg, 1, ""),
+nodeId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+installed: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
+daemonActive: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+healthy: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+configValid: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+summary: jspb.Message.getFieldWithDefault(msg, 7, ""),
+lifecycle: (f = msg.getLifecycle()) && proto.cluster_controller.InfraLifecycleObservation.toObject(includeInstance, f),
+configFieldsList: jspb.Message.toObjectList(msg.getConfigFieldsList(),
+    proto.cluster_controller.InfraConfigField.toObject, includeInstance),
+violationsList: jspb.Message.toObjectList(msg.getViolationsList(),
+    proto.cluster_controller.InfraViolation.toObject, includeInstance),
+expectedPeersList: (f = jspb.Message.getRepeatedField(msg, 11)) == null ? undefined : f,
+observedPeersList: (f = jspb.Message.getRepeatedField(msg, 12)) == null ? undefined : f,
+peersMatch: jspb.Message.getBooleanFieldWithDefault(msg, 13, false),
+desiredMap: (f = msg.getDesiredMap()) ? f.toObject(includeInstance, undefined) : [],
+renderedMap: (f = msg.getRenderedMap()) ? f.toObject(includeInstance, undefined) : [],
+runtimeMap: (f = msg.getRuntimeMap()) ? f.toObject(includeInstance, undefined) : [],
+probedAtUnix: jspb.Message.getFieldWithDefault(msg, 17, 0),
+probeDurationMs: jspb.Message.getFieldWithDefault(msg, 18, 0),
+errorsList: (f = jspb.Message.getRepeatedField(msg, 19)) == null ? undefined : f,
+probeStale: jspb.Message.getBooleanFieldWithDefault(msg, 20, false),
+probeAgeSeconds: jspb.Message.getFieldWithDefault(msg, 21, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.InfraProbeResult}
+ */
+proto.cluster_controller.InfraProbeResult.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.InfraProbeResult;
+  return proto.cluster_controller.InfraProbeResult.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.InfraProbeResult} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.InfraProbeResult}
+ */
+proto.cluster_controller.InfraProbeResult.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setComponent(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 3:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setInstalled(value);
+      break;
+    case 4:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setDaemonActive(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setHealthy(value);
+      break;
+    case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setConfigValid(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSummary(value);
+      break;
+    case 8:
+      var value = new proto.cluster_controller.InfraLifecycleObservation;
+      reader.readMessage(value,proto.cluster_controller.InfraLifecycleObservation.deserializeBinaryFromReader);
+      msg.setLifecycle(value);
+      break;
+    case 9:
+      var value = new proto.cluster_controller.InfraConfigField;
+      reader.readMessage(value,proto.cluster_controller.InfraConfigField.deserializeBinaryFromReader);
+      msg.addConfigFields(value);
+      break;
+    case 10:
+      var value = new proto.cluster_controller.InfraViolation;
+      reader.readMessage(value,proto.cluster_controller.InfraViolation.deserializeBinaryFromReader);
+      msg.addViolations(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addExpectedPeers(value);
+      break;
+    case 12:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addObservedPeers(value);
+      break;
+    case 13:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setPeersMatch(value);
+      break;
+    case 14:
+      var value = msg.getDesiredMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
+      break;
+    case 15:
+      var value = msg.getRenderedMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
+      break;
+    case 16:
+      var value = msg.getRuntimeMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
+      break;
+    case 17:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setProbedAtUnix(value);
+      break;
+    case 18:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setProbeDurationMs(value);
+      break;
+    case 19:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addErrors(value);
+      break;
+    case 20:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setProbeStale(value);
+      break;
+    case 21:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setProbeAgeSeconds(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.InfraProbeResult.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.InfraProbeResult} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.InfraProbeResult.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getComponent();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getInstalled();
+  if (f) {
+    writer.writeBool(
+      3,
+      f
+    );
+  }
+  f = message.getDaemonActive();
+  if (f) {
+    writer.writeBool(
+      4,
+      f
+    );
+  }
+  f = message.getHealthy();
+  if (f) {
+    writer.writeBool(
+      5,
+      f
+    );
+  }
+  f = message.getConfigValid();
+  if (f) {
+    writer.writeBool(
+      6,
+      f
+    );
+  }
+  f = message.getSummary();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getLifecycle();
+  if (f != null) {
+    writer.writeMessage(
+      8,
+      f,
+      proto.cluster_controller.InfraLifecycleObservation.serializeBinaryToWriter
+    );
+  }
+  f = message.getConfigFieldsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      9,
+      f,
+      proto.cluster_controller.InfraConfigField.serializeBinaryToWriter
+    );
+  }
+  f = message.getViolationsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      10,
+      f,
+      proto.cluster_controller.InfraViolation.serializeBinaryToWriter
+    );
+  }
+  f = message.getExpectedPeersList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      11,
+      f
+    );
+  }
+  f = message.getObservedPeersList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      12,
+      f
+    );
+  }
+  f = message.getPeersMatch();
+  if (f) {
+    writer.writeBool(
+      13,
+      f
+    );
+  }
+  f = message.getDesiredMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(14, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getRenderedMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(15, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getRuntimeMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(16, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getProbedAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      17,
+      f
+    );
+  }
+  f = message.getProbeDurationMs();
+  if (f !== 0) {
+    writer.writeInt64(
+      18,
+      f
+    );
+  }
+  f = message.getErrorsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      19,
+      f
+    );
+  }
+  f = message.getProbeStale();
+  if (f) {
+    writer.writeBool(
+      20,
+      f
+    );
+  }
+  f = message.getProbeAgeSeconds();
+  if (f !== 0) {
+    writer.writeInt64(
+      21,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string component = 1;
+ * @return {string}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getComponent = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setComponent = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string node_id = 2;
+ * @return {string}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional bool installed = 3;
+ * @return {boolean}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getInstalled = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 3, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setInstalled = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 3, value);
+};
+
+
+/**
+ * optional bool daemon_active = 4;
+ * @return {boolean}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getDaemonActive = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 4, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setDaemonActive = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 4, value);
+};
+
+
+/**
+ * optional bool healthy = 5;
+ * @return {boolean}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getHealthy = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setHealthy = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+/**
+ * optional bool config_valid = 6;
+ * @return {boolean}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getConfigValid = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setConfigValid = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
+};
+
+
+/**
+ * optional string summary = 7;
+ * @return {string}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getSummary = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setSummary = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional InfraLifecycleObservation lifecycle = 8;
+ * @return {?proto.cluster_controller.InfraLifecycleObservation}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getLifecycle = function() {
+  return /** @type{?proto.cluster_controller.InfraLifecycleObservation} */ (
+    jspb.Message.getWrapperField(this, proto.cluster_controller.InfraLifecycleObservation, 8));
+};
+
+
+/**
+ * @param {?proto.cluster_controller.InfraLifecycleObservation|undefined} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+*/
+proto.cluster_controller.InfraProbeResult.prototype.setLifecycle = function(value) {
+  return jspb.Message.setWrapperField(this, 8, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearLifecycle = function() {
+  return this.setLifecycle(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.hasLifecycle = function() {
+  return jspb.Message.getField(this, 8) != null;
+};
+
+
+/**
+ * repeated InfraConfigField config_fields = 9;
+ * @return {!Array<!proto.cluster_controller.InfraConfigField>}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getConfigFieldsList = function() {
+  return /** @type{!Array<!proto.cluster_controller.InfraConfigField>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.cluster_controller.InfraConfigField, 9));
+};
+
+
+/**
+ * @param {!Array<!proto.cluster_controller.InfraConfigField>} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+*/
+proto.cluster_controller.InfraProbeResult.prototype.setConfigFieldsList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 9, value);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.InfraConfigField=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.InfraConfigField}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.addConfigFields = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.cluster_controller.InfraConfigField, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearConfigFieldsList = function() {
+  return this.setConfigFieldsList([]);
+};
+
+
+/**
+ * repeated InfraViolation violations = 10;
+ * @return {!Array<!proto.cluster_controller.InfraViolation>}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getViolationsList = function() {
+  return /** @type{!Array<!proto.cluster_controller.InfraViolation>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.cluster_controller.InfraViolation, 10));
+};
+
+
+/**
+ * @param {!Array<!proto.cluster_controller.InfraViolation>} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+*/
+proto.cluster_controller.InfraProbeResult.prototype.setViolationsList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 10, value);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.InfraViolation=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.InfraViolation}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.addViolations = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 10, opt_value, proto.cluster_controller.InfraViolation, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearViolationsList = function() {
+  return this.setViolationsList([]);
+};
+
+
+/**
+ * repeated string expected_peers = 11;
+ * @return {!Array<string>}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getExpectedPeersList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 11));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setExpectedPeersList = function(value) {
+  return jspb.Message.setField(this, 11, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.addExpectedPeers = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 11, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearExpectedPeersList = function() {
+  return this.setExpectedPeersList([]);
+};
+
+
+/**
+ * repeated string observed_peers = 12;
+ * @return {!Array<string>}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getObservedPeersList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 12));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setObservedPeersList = function(value) {
+  return jspb.Message.setField(this, 12, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.addObservedPeers = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 12, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearObservedPeersList = function() {
+  return this.setObservedPeersList([]);
+};
+
+
+/**
+ * optional bool peers_match = 13;
+ * @return {boolean}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getPeersMatch = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 13, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setPeersMatch = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 13, value);
+};
+
+
+/**
+ * map<string, string> desired = 14;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getDesiredMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 14, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearDesiredMap = function() {
+  this.getDesiredMap().clear();
+  return this;
+};
+
+
+/**
+ * map<string, string> rendered = 15;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getRenderedMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 15, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearRenderedMap = function() {
+  this.getRenderedMap().clear();
+  return this;
+};
+
+
+/**
+ * map<string, string> runtime = 16;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getRuntimeMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 16, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearRuntimeMap = function() {
+  this.getRuntimeMap().clear();
+  return this;
+};
+
+
+/**
+ * optional int64 probed_at_unix = 17;
+ * @return {number}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getProbedAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 17, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setProbedAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 17, value);
+};
+
+
+/**
+ * optional int64 probe_duration_ms = 18;
+ * @return {number}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getProbeDurationMs = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 18, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setProbeDurationMs = function(value) {
+  return jspb.Message.setProto3IntField(this, 18, value);
+};
+
+
+/**
+ * repeated string errors = 19;
+ * @return {!Array<string>}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getErrorsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 19));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setErrorsList = function(value) {
+  return jspb.Message.setField(this, 19, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.addErrors = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 19, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.clearErrorsList = function() {
+  return this.setErrorsList([]);
+};
+
+
+/**
+ * optional bool probe_stale = 20;
+ * @return {boolean}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getProbeStale = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 20, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setProbeStale = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 20, value);
+};
+
+
+/**
+ * optional int64 probe_age_seconds = 21;
+ * @return {number}
+ */
+proto.cluster_controller.InfraProbeResult.prototype.getProbeAgeSeconds = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 21, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.InfraProbeResult} returns this
+ */
+proto.cluster_controller.InfraProbeResult.prototype.setProbeAgeSeconds = function(value) {
+  return jspb.Message.setProto3IntField(this, 21, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.NodeStatus.repeatedFields_ = [3,4,10,14];
 
 
 
@@ -12485,7 +15807,9 @@ installedVersionsMap: (f = msg.getInstalledVersionsMap()) ? f.toObject(includeIn
 installedUnitFilesList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
 inventoryComplete: jspb.Message.getBooleanFieldWithDefault(msg, 11, false),
 capabilities: (f = msg.getCapabilities()) && proto.cluster_controller.NodeCapabilities.toObject(includeInstance, f),
-installedBuildIdsMap: (f = msg.getInstalledBuildIdsMap()) ? f.toObject(includeInstance, undefined) : []
+installedBuildIdsMap: (f = msg.getInstalledBuildIdsMap()) ? f.toObject(includeInstance, undefined) : [],
+infraProbesList: jspb.Message.toObjectList(msg.getInfraProbesList(),
+    proto.cluster_controller.InfraProbeResult.toObject, includeInstance)
   };
 
   if (includeInstance) {
@@ -12581,6 +15905,11 @@ proto.cluster_controller.NodeStatus.deserializeBinaryFromReader = function(msg, 
       reader.readMessage(value, function(message, reader) {
         jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
          });
+      break;
+    case 14:
+      var value = new proto.cluster_controller.InfraProbeResult;
+      reader.readMessage(value,proto.cluster_controller.InfraProbeResult.deserializeBinaryFromReader);
+      msg.addInfraProbes(value);
       break;
     default:
       reader.skipField();
@@ -12699,6 +16028,14 @@ proto.cluster_controller.NodeStatus.serializeBinaryToWriter = function(message, 
   f = message.getInstalledBuildIdsMap(true);
   if (f && f.getLength() > 0) {
     f.serializeBinary(13, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+  f = message.getInfraProbesList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      14,
+      f,
+      proto.cluster_controller.InfraProbeResult.serializeBinaryToWriter
+    );
   }
 };
 
@@ -13059,6 +16396,44 @@ proto.cluster_controller.NodeStatus.prototype.getInstalledBuildIdsMap = function
 proto.cluster_controller.NodeStatus.prototype.clearInstalledBuildIdsMap = function() {
   this.getInstalledBuildIdsMap().clear();
   return this;
+};
+
+
+/**
+ * repeated InfraProbeResult infra_probes = 14;
+ * @return {!Array<!proto.cluster_controller.InfraProbeResult>}
+ */
+proto.cluster_controller.NodeStatus.prototype.getInfraProbesList = function() {
+  return /** @type{!Array<!proto.cluster_controller.InfraProbeResult>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.cluster_controller.InfraProbeResult, 14));
+};
+
+
+/**
+ * @param {!Array<!proto.cluster_controller.InfraProbeResult>} value
+ * @return {!proto.cluster_controller.NodeStatus} returns this
+*/
+proto.cluster_controller.NodeStatus.prototype.setInfraProbesList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 14, value);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.InfraProbeResult=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.InfraProbeResult}
+ */
+proto.cluster_controller.NodeStatus.prototype.addInfraProbes = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 14, opt_value, proto.cluster_controller.InfraProbeResult, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.NodeStatus} returns this
+ */
+proto.cluster_controller.NodeStatus.prototype.clearInfraProbesList = function() {
+  return this.setInfraProbesList([]);
 };
 
 
@@ -16637,7 +20012,8 @@ serviceId: jspb.Message.getFieldWithDefault(msg, 1, ""),
 version: jspb.Message.getFieldWithDefault(msg, 2, ""),
 platform: jspb.Message.getFieldWithDefault(msg, 3, ""),
 buildNumber: jspb.Message.getFieldWithDefault(msg, 4, 0),
-status: jspb.Message.getFieldWithDefault(msg, 5, "")
+status: jspb.Message.getFieldWithDefault(msg, 5, ""),
+buildId: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -16693,6 +20069,10 @@ proto.cluster_controller.DesiredService.deserializeBinaryFromReader = function(m
     case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.setStatus(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBuildId(value);
       break;
     default:
       reader.skipField();
@@ -16755,6 +20135,13 @@ proto.cluster_controller.DesiredService.serializeBinaryToWriter = function(messa
   if (f.length > 0) {
     writer.writeString(
       5,
+      f
+    );
+  }
+  f = message.getBuildId();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
       f
     );
   }
@@ -16848,6 +20235,24 @@ proto.cluster_controller.DesiredService.prototype.getStatus = function() {
  */
 proto.cluster_controller.DesiredService.prototype.setStatus = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string build_id = 6;
+ * @return {string}
+ */
+proto.cluster_controller.DesiredService.prototype.getBuildId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DesiredService} returns this
+ */
+proto.cluster_controller.DesiredService.prototype.setBuildId = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
@@ -17037,6 +20442,5951 @@ proto.cluster_controller.DesiredState.prototype.getRevision = function() {
  * @return {!proto.cluster_controller.DesiredState} returns this
  */
 proto.cluster_controller.DesiredState.prototype.setRevision = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListDesiredBuildIDsRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListDesiredBuildIDsRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListDesiredBuildIDsRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListDesiredBuildIDsRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListDesiredBuildIDsRequest}
+ */
+proto.cluster_controller.ListDesiredBuildIDsRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListDesiredBuildIDsRequest;
+  return proto.cluster_controller.ListDesiredBuildIDsRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListDesiredBuildIDsRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListDesiredBuildIDsRequest}
+ */
+proto.cluster_controller.ListDesiredBuildIDsRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListDesiredBuildIDsRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListDesiredBuildIDsRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListDesiredBuildIDsRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListDesiredBuildIDsRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.GetRoutingRefreshRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.GetRoutingRefreshRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.GetRoutingRefreshRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetRoutingRefreshRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.GetRoutingRefreshRequest}
+ */
+proto.cluster_controller.GetRoutingRefreshRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.GetRoutingRefreshRequest;
+  return proto.cluster_controller.GetRoutingRefreshRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.GetRoutingRefreshRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.GetRoutingRefreshRequest}
+ */
+proto.cluster_controller.GetRoutingRefreshRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.GetRoutingRefreshRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.GetRoutingRefreshRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.GetRoutingRefreshRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetRoutingRefreshRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListExternalDomainsRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListExternalDomainsRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListExternalDomainsRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListExternalDomainsRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListExternalDomainsRequest}
+ */
+proto.cluster_controller.ListExternalDomainsRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListExternalDomainsRequest;
+  return proto.cluster_controller.ListExternalDomainsRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListExternalDomainsRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListExternalDomainsRequest}
+ */
+proto.cluster_controller.ListExternalDomainsRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListExternalDomainsRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListExternalDomainsRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListExternalDomainsRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListExternalDomainsRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListServicesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListServicesRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListServicesRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListServicesRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListServicesRequest}
+ */
+proto.cluster_controller.ListServicesRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListServicesRequest;
+  return proto.cluster_controller.ListServicesRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListServicesRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListServicesRequest}
+ */
+proto.cluster_controller.ListServicesRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListServicesRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListServicesRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListServicesRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListServicesRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.GetIngressStatusRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.GetIngressStatusRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.GetIngressStatusRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetIngressStatusRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.GetIngressStatusRequest}
+ */
+proto.cluster_controller.GetIngressStatusRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.GetIngressStatusRequest;
+  return proto.cluster_controller.GetIngressStatusRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.GetIngressStatusRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.GetIngressStatusRequest}
+ */
+proto.cluster_controller.GetIngressStatusRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.GetIngressStatusRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.GetIngressStatusRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.GetIngressStatusRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetIngressStatusRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.IngressNodeStatus.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.IngressNodeStatus} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.IngressNodeStatus.toObject = function(includeInstance, msg) {
+  var f, obj = {
+nodeId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+phase: jspb.Message.getFieldWithDefault(msg, 2, ""),
+vrrpState: jspb.Message.getFieldWithDefault(msg, 3, ""),
+hasVip: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+lastError: jspb.Message.getFieldWithDefault(msg, 5, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.IngressNodeStatus}
+ */
+proto.cluster_controller.IngressNodeStatus.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.IngressNodeStatus;
+  return proto.cluster_controller.IngressNodeStatus.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.IngressNodeStatus} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.IngressNodeStatus}
+ */
+proto.cluster_controller.IngressNodeStatus.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPhase(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setVrrpState(value);
+      break;
+    case 4:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setHasVip(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setLastError(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.IngressNodeStatus.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.IngressNodeStatus} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.IngressNodeStatus.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getPhase();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getVrrpState();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getHasVip();
+  if (f) {
+    writer.writeBool(
+      4,
+      f
+    );
+  }
+  f = message.getLastError();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string node_id = 1;
+ * @return {string}
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.IngressNodeStatus} returns this
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string phase = 2;
+ * @return {string}
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.getPhase = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.IngressNodeStatus} returns this
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.setPhase = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string vrrp_state = 3;
+ * @return {string}
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.getVrrpState = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.IngressNodeStatus} returns this
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.setVrrpState = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional bool has_vip = 4;
+ * @return {boolean}
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.getHasVip = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 4, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.IngressNodeStatus} returns this
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.setHasVip = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 4, value);
+};
+
+
+/**
+ * optional string last_error = 5;
+ * @return {string}
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.getLastError = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.IngressNodeStatus} returns this
+ */
+proto.cluster_controller.IngressNodeStatus.prototype.setLastError = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.GetIngressStatusResponse.repeatedFields_ = [7];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.GetIngressStatusResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.GetIngressStatusResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetIngressStatusResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+specPresent: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+generation: jspb.Message.getFieldWithDefault(msg, 2, 0),
+mode: jspb.Message.getFieldWithDefault(msg, 3, ""),
+explicitDisabled: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+writerLeaderId: jspb.Message.getFieldWithDefault(msg, 5, ""),
+writtenAtUnix: jspb.Message.getFieldWithDefault(msg, 6, 0),
+nodesList: jspb.Message.toObjectList(msg.getNodesList(),
+    proto.cluster_controller.IngressNodeStatus.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.GetIngressStatusResponse}
+ */
+proto.cluster_controller.GetIngressStatusResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.GetIngressStatusResponse;
+  return proto.cluster_controller.GetIngressStatusResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.GetIngressStatusResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.GetIngressStatusResponse}
+ */
+proto.cluster_controller.GetIngressStatusResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setSpecPresent(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setGeneration(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMode(value);
+      break;
+    case 4:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setExplicitDisabled(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setWriterLeaderId(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setWrittenAtUnix(value);
+      break;
+    case 7:
+      var value = new proto.cluster_controller.IngressNodeStatus;
+      reader.readMessage(value,proto.cluster_controller.IngressNodeStatus.deserializeBinaryFromReader);
+      msg.addNodes(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.GetIngressStatusResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.GetIngressStatusResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetIngressStatusResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getSpecPresent();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+  f = message.getGeneration();
+  if (f !== 0) {
+    writer.writeInt64(
+      2,
+      f
+    );
+  }
+  f = message.getMode();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getExplicitDisabled();
+  if (f) {
+    writer.writeBool(
+      4,
+      f
+    );
+  }
+  f = message.getWriterLeaderId();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getWrittenAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      6,
+      f
+    );
+  }
+  f = message.getNodesList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      7,
+      f,
+      proto.cluster_controller.IngressNodeStatus.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional bool spec_present = 1;
+ * @return {boolean}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.getSpecPresent = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.GetIngressStatusResponse} returns this
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.setSpecPresent = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional int64 generation = 2;
+ * @return {number}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.getGeneration = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.GetIngressStatusResponse} returns this
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.setGeneration = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+/**
+ * optional string mode = 3;
+ * @return {string}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.getMode = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.GetIngressStatusResponse} returns this
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.setMode = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional bool explicit_disabled = 4;
+ * @return {boolean}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.getExplicitDisabled = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 4, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.GetIngressStatusResponse} returns this
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.setExplicitDisabled = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 4, value);
+};
+
+
+/**
+ * optional string writer_leader_id = 5;
+ * @return {string}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.getWriterLeaderId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.GetIngressStatusResponse} returns this
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.setWriterLeaderId = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional int64 written_at_unix = 6;
+ * @return {number}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.getWrittenAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.GetIngressStatusResponse} returns this
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.setWrittenAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+/**
+ * repeated IngressNodeStatus nodes = 7;
+ * @return {!Array<!proto.cluster_controller.IngressNodeStatus>}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.getNodesList = function() {
+  return /** @type{!Array<!proto.cluster_controller.IngressNodeStatus>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.cluster_controller.IngressNodeStatus, 7));
+};
+
+
+/**
+ * @param {!Array<!proto.cluster_controller.IngressNodeStatus>} value
+ * @return {!proto.cluster_controller.GetIngressStatusResponse} returns this
+*/
+proto.cluster_controller.GetIngressStatusResponse.prototype.setNodesList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 7, value);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.IngressNodeStatus=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.IngressNodeStatus}
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.addNodes = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 7, opt_value, proto.cluster_controller.IngressNodeStatus, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.GetIngressStatusResponse} returns this
+ */
+proto.cluster_controller.GetIngressStatusResponse.prototype.clearNodesList = function() {
+  return this.setNodesList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.RequestIngressRepublishRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.RequestIngressRepublishRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.RequestIngressRepublishRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.RequestIngressRepublishRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.RequestIngressRepublishRequest}
+ */
+proto.cluster_controller.RequestIngressRepublishRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.RequestIngressRepublishRequest;
+  return proto.cluster_controller.RequestIngressRepublishRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.RequestIngressRepublishRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.RequestIngressRepublishRequest}
+ */
+proto.cluster_controller.RequestIngressRepublishRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.RequestIngressRepublishRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.RequestIngressRepublishRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.RequestIngressRepublishRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.RequestIngressRepublishRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.RequestIngressRepublishResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.RequestIngressRepublishResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.RequestIngressRepublishResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.RequestIngressRepublishResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+requestUnix: jspb.Message.getFieldWithDefault(msg, 1, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.RequestIngressRepublishResponse}
+ */
+proto.cluster_controller.RequestIngressRepublishResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.RequestIngressRepublishResponse;
+  return proto.cluster_controller.RequestIngressRepublishResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.RequestIngressRepublishResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.RequestIngressRepublishResponse}
+ */
+proto.cluster_controller.RequestIngressRepublishResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setRequestUnix(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.RequestIngressRepublishResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.RequestIngressRepublishResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.RequestIngressRepublishResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.RequestIngressRepublishResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRequestUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional int64 request_unix = 1;
+ * @return {number}
+ */
+proto.cluster_controller.RequestIngressRepublishResponse.prototype.getRequestUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.RequestIngressRepublishResponse} returns this
+ */
+proto.cluster_controller.RequestIngressRepublishResponse.prototype.setRequestUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ExternalDomainACMEConfig.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ExternalDomainACMEConfig} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.toObject = function(includeInstance, msg) {
+  var f, obj = {
+enabled: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+challengeType: jspb.Message.getFieldWithDefault(msg, 2, ""),
+email: jspb.Message.getFieldWithDefault(msg, 3, ""),
+directory: jspb.Message.getFieldWithDefault(msg, 4, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ExternalDomainACMEConfig}
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ExternalDomainACMEConfig;
+  return proto.cluster_controller.ExternalDomainACMEConfig.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ExternalDomainACMEConfig} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ExternalDomainACMEConfig}
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setEnabled(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setChallengeType(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setEmail(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDirectory(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ExternalDomainACMEConfig.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ExternalDomainACMEConfig} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getEnabled();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+  f = message.getChallengeType();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getEmail();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getDirectory();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional bool enabled = 1;
+ * @return {boolean}
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.getEnabled = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.ExternalDomainACMEConfig} returns this
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.setEnabled = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional string challenge_type = 2;
+ * @return {string}
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.getChallengeType = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ExternalDomainACMEConfig} returns this
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.setChallengeType = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string email = 3;
+ * @return {string}
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.getEmail = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ExternalDomainACMEConfig} returns this
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.setEmail = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string directory = 4;
+ * @return {string}
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.getDirectory = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ExternalDomainACMEConfig} returns this
+ */
+proto.cluster_controller.ExternalDomainACMEConfig.prototype.setDirectory = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ExternalDomainIngressConfig.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ExternalDomainIngressConfig} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.toObject = function(includeInstance, msg) {
+  var f, obj = {
+enabled: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+service: jspb.Message.getFieldWithDefault(msg, 2, ""),
+port: jspb.Message.getFieldWithDefault(msg, 3, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ExternalDomainIngressConfig}
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ExternalDomainIngressConfig;
+  return proto.cluster_controller.ExternalDomainIngressConfig.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ExternalDomainIngressConfig} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ExternalDomainIngressConfig}
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setEnabled(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setService(value);
+      break;
+    case 3:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setPort(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ExternalDomainIngressConfig.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ExternalDomainIngressConfig} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getEnabled();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+  f = message.getService();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getPort();
+  if (f !== 0) {
+    writer.writeInt32(
+      3,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional bool enabled = 1;
+ * @return {boolean}
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.prototype.getEnabled = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.ExternalDomainIngressConfig} returns this
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.prototype.setEnabled = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional string service = 2;
+ * @return {string}
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.prototype.getService = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ExternalDomainIngressConfig} returns this
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.prototype.setService = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional int32 port = 3;
+ * @return {number}
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.prototype.getPort = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.ExternalDomainIngressConfig} returns this
+ */
+proto.cluster_controller.ExternalDomainIngressConfig.prototype.setPort = function(value) {
+  return jspb.Message.setProto3IntField(this, 3, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.CreateExternalDomainRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.CreateExternalDomainRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CreateExternalDomainRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+fqdn: jspb.Message.getFieldWithDefault(msg, 1, ""),
+zone: jspb.Message.getFieldWithDefault(msg, 2, ""),
+nodeId: jspb.Message.getFieldWithDefault(msg, 3, ""),
+targetIp: jspb.Message.getFieldWithDefault(msg, 4, ""),
+providerRef: jspb.Message.getFieldWithDefault(msg, 5, ""),
+ttl: jspb.Message.getFieldWithDefault(msg, 6, 0),
+publishExternal: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
+useWildcardCert: jspb.Message.getBooleanFieldWithDefault(msg, 8, false),
+acme: (f = msg.getAcme()) && proto.cluster_controller.ExternalDomainACMEConfig.toObject(includeInstance, f),
+ingress: (f = msg.getIngress()) && proto.cluster_controller.ExternalDomainIngressConfig.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.CreateExternalDomainRequest;
+  return proto.cluster_controller.CreateExternalDomainRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.CreateExternalDomainRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFqdn(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setZone(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTargetIp(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setProviderRef(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setTtl(value);
+      break;
+    case 7:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setPublishExternal(value);
+      break;
+    case 8:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setUseWildcardCert(value);
+      break;
+    case 9:
+      var value = new proto.cluster_controller.ExternalDomainACMEConfig;
+      reader.readMessage(value,proto.cluster_controller.ExternalDomainACMEConfig.deserializeBinaryFromReader);
+      msg.setAcme(value);
+      break;
+    case 10:
+      var value = new proto.cluster_controller.ExternalDomainIngressConfig;
+      reader.readMessage(value,proto.cluster_controller.ExternalDomainIngressConfig.deserializeBinaryFromReader);
+      msg.setIngress(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.CreateExternalDomainRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.CreateExternalDomainRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CreateExternalDomainRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getFqdn();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getZone();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getTargetIp();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getProviderRef();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getTtl();
+  if (f !== 0) {
+    writer.writeInt32(
+      6,
+      f
+    );
+  }
+  f = message.getPublishExternal();
+  if (f) {
+    writer.writeBool(
+      7,
+      f
+    );
+  }
+  f = message.getUseWildcardCert();
+  if (f) {
+    writer.writeBool(
+      8,
+      f
+    );
+  }
+  f = message.getAcme();
+  if (f != null) {
+    writer.writeMessage(
+      9,
+      f,
+      proto.cluster_controller.ExternalDomainACMEConfig.serializeBinaryToWriter
+    );
+  }
+  f = message.getIngress();
+  if (f != null) {
+    writer.writeMessage(
+      10,
+      f,
+      proto.cluster_controller.ExternalDomainIngressConfig.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional string fqdn = 1;
+ * @return {string}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getFqdn = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setFqdn = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string zone = 2;
+ * @return {string}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getZone = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setZone = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string node_id = 3;
+ * @return {string}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string target_ip = 4;
+ * @return {string}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getTargetIp = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setTargetIp = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string provider_ref = 5;
+ * @return {string}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getProviderRef = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setProviderRef = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional int32 ttl = 6;
+ * @return {number}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getTtl = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setTtl = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+/**
+ * optional bool publish_external = 7;
+ * @return {boolean}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getPublishExternal = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 7, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setPublishExternal = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 7, value);
+};
+
+
+/**
+ * optional bool use_wildcard_cert = 8;
+ * @return {boolean}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getUseWildcardCert = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 8, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setUseWildcardCert = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 8, value);
+};
+
+
+/**
+ * optional ExternalDomainACMEConfig acme = 9;
+ * @return {?proto.cluster_controller.ExternalDomainACMEConfig}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getAcme = function() {
+  return /** @type{?proto.cluster_controller.ExternalDomainACMEConfig} */ (
+    jspb.Message.getWrapperField(this, proto.cluster_controller.ExternalDomainACMEConfig, 9));
+};
+
+
+/**
+ * @param {?proto.cluster_controller.ExternalDomainACMEConfig|undefined} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+*/
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setAcme = function(value) {
+  return jspb.Message.setWrapperField(this, 9, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.clearAcme = function() {
+  return this.setAcme(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.hasAcme = function() {
+  return jspb.Message.getField(this, 9) != null;
+};
+
+
+/**
+ * optional ExternalDomainIngressConfig ingress = 10;
+ * @return {?proto.cluster_controller.ExternalDomainIngressConfig}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.getIngress = function() {
+  return /** @type{?proto.cluster_controller.ExternalDomainIngressConfig} */ (
+    jspb.Message.getWrapperField(this, proto.cluster_controller.ExternalDomainIngressConfig, 10));
+};
+
+
+/**
+ * @param {?proto.cluster_controller.ExternalDomainIngressConfig|undefined} value
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+*/
+proto.cluster_controller.CreateExternalDomainRequest.prototype.setIngress = function(value) {
+  return jspb.Message.setWrapperField(this, 10, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.cluster_controller.CreateExternalDomainRequest} returns this
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.clearIngress = function() {
+  return this.setIngress(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.cluster_controller.CreateExternalDomainRequest.prototype.hasIngress = function() {
+  return jspb.Message.getField(this, 10) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.CreateExternalDomainResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.CreateExternalDomainResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.CreateExternalDomainResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CreateExternalDomainResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.CreateExternalDomainResponse}
+ */
+proto.cluster_controller.CreateExternalDomainResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.CreateExternalDomainResponse;
+  return proto.cluster_controller.CreateExternalDomainResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.CreateExternalDomainResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.CreateExternalDomainResponse}
+ */
+proto.cluster_controller.CreateExternalDomainResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.CreateExternalDomainResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.CreateExternalDomainResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.CreateExternalDomainResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CreateExternalDomainResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.DeleteExternalDomainRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.DeleteExternalDomainRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.DeleteExternalDomainRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.DeleteExternalDomainRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+fqdn: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.DeleteExternalDomainRequest}
+ */
+proto.cluster_controller.DeleteExternalDomainRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.DeleteExternalDomainRequest;
+  return proto.cluster_controller.DeleteExternalDomainRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.DeleteExternalDomainRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.DeleteExternalDomainRequest}
+ */
+proto.cluster_controller.DeleteExternalDomainRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFqdn(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.DeleteExternalDomainRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.DeleteExternalDomainRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.DeleteExternalDomainRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.DeleteExternalDomainRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getFqdn();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string fqdn = 1;
+ * @return {string}
+ */
+proto.cluster_controller.DeleteExternalDomainRequest.prototype.getFqdn = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DeleteExternalDomainRequest} returns this
+ */
+proto.cluster_controller.DeleteExternalDomainRequest.prototype.setFqdn = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.DeleteExternalDomainResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.DeleteExternalDomainResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.DeleteExternalDomainResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.DeleteExternalDomainResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.DeleteExternalDomainResponse}
+ */
+proto.cluster_controller.DeleteExternalDomainResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.DeleteExternalDomainResponse;
+  return proto.cluster_controller.DeleteExternalDomainResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.DeleteExternalDomainResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.DeleteExternalDomainResponse}
+ */
+proto.cluster_controller.DeleteExternalDomainResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.DeleteExternalDomainResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.DeleteExternalDomainResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.DeleteExternalDomainResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.DeleteExternalDomainResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.CreateDNSProviderRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.CreateDNSProviderRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CreateDNSProviderRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, ""),
+zone: jspb.Message.getFieldWithDefault(msg, 3, ""),
+defaultTtl: jspb.Message.getFieldWithDefault(msg, 4, 0),
+credentialsMap: (f = msg.getCredentialsMap()) ? f.toObject(includeInstance, undefined) : []
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.CreateDNSProviderRequest}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.CreateDNSProviderRequest;
+  return proto.cluster_controller.CreateDNSProviderRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.CreateDNSProviderRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.CreateDNSProviderRequest}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setType(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setZone(value);
+      break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setDefaultTtl(value);
+      break;
+    case 5:
+      var value = msg.getCredentialsMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.CreateDNSProviderRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.CreateDNSProviderRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CreateDNSProviderRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getType();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getZone();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getDefaultTtl();
+  if (f !== 0) {
+    writer.writeInt32(
+      4,
+      f
+    );
+  }
+  f = message.getCredentialsMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(5, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+  }
+};
+
+
+/**
+ * optional string name = 1;
+ * @return {string}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CreateDNSProviderRequest} returns this
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string type = 2;
+ * @return {string}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.getType = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CreateDNSProviderRequest} returns this
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.setType = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string zone = 3;
+ * @return {string}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.getZone = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CreateDNSProviderRequest} returns this
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.setZone = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional int32 default_ttl = 4;
+ * @return {number}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.getDefaultTtl = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.CreateDNSProviderRequest} returns this
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.setDefaultTtl = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * map<string, string> credentials = 5;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.getCredentialsMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 5, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.cluster_controller.CreateDNSProviderRequest} returns this
+ */
+proto.cluster_controller.CreateDNSProviderRequest.prototype.clearCredentialsMap = function() {
+  this.getCredentialsMap().clear();
+  return this;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.CreateDNSProviderResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.CreateDNSProviderResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.CreateDNSProviderResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CreateDNSProviderResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.CreateDNSProviderResponse}
+ */
+proto.cluster_controller.CreateDNSProviderResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.CreateDNSProviderResponse;
+  return proto.cluster_controller.CreateDNSProviderResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.CreateDNSProviderResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.CreateDNSProviderResponse}
+ */
+proto.cluster_controller.CreateDNSProviderResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.CreateDNSProviderResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.CreateDNSProviderResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.CreateDNSProviderResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CreateDNSProviderResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListDNSProvidersRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListDNSProvidersRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListDNSProvidersRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListDNSProvidersRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListDNSProvidersRequest}
+ */
+proto.cluster_controller.ListDNSProvidersRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListDNSProvidersRequest;
+  return proto.cluster_controller.ListDNSProvidersRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListDNSProvidersRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListDNSProvidersRequest}
+ */
+proto.cluster_controller.ListDNSProvidersRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListDNSProvidersRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListDNSProvidersRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListDNSProvidersRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListDNSProvidersRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.DNSProviderEntry.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.DNSProviderEntry} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.DNSProviderEntry.toObject = function(includeInstance, msg) {
+  var f, obj = {
+name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+type: jspb.Message.getFieldWithDefault(msg, 2, ""),
+zone: jspb.Message.getFieldWithDefault(msg, 3, ""),
+defaultTtl: jspb.Message.getFieldWithDefault(msg, 4, 0),
+credentialKeyCount: jspb.Message.getFieldWithDefault(msg, 5, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.DNSProviderEntry}
+ */
+proto.cluster_controller.DNSProviderEntry.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.DNSProviderEntry;
+  return proto.cluster_controller.DNSProviderEntry.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.DNSProviderEntry} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.DNSProviderEntry}
+ */
+proto.cluster_controller.DNSProviderEntry.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setType(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setZone(value);
+      break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setDefaultTtl(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setCredentialKeyCount(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.DNSProviderEntry.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.DNSProviderEntry} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.DNSProviderEntry.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getType();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getZone();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getDefaultTtl();
+  if (f !== 0) {
+    writer.writeInt32(
+      4,
+      f
+    );
+  }
+  f = message.getCredentialKeyCount();
+  if (f !== 0) {
+    writer.writeInt32(
+      5,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string name = 1;
+ * @return {string}
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DNSProviderEntry} returns this
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string type = 2;
+ * @return {string}
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.getType = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DNSProviderEntry} returns this
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.setType = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string zone = 3;
+ * @return {string}
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.getZone = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.DNSProviderEntry} returns this
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.setZone = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional int32 default_ttl = 4;
+ * @return {number}
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.getDefaultTtl = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.DNSProviderEntry} returns this
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.setDefaultTtl = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional int32 credential_key_count = 5;
+ * @return {number}
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.getCredentialKeyCount = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.DNSProviderEntry} returns this
+ */
+proto.cluster_controller.DNSProviderEntry.prototype.setCredentialKeyCount = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.ListDNSProvidersResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListDNSProvidersResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListDNSProvidersResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListDNSProvidersResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListDNSProvidersResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+providersList: jspb.Message.toObjectList(msg.getProvidersList(),
+    proto.cluster_controller.DNSProviderEntry.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListDNSProvidersResponse}
+ */
+proto.cluster_controller.ListDNSProvidersResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListDNSProvidersResponse;
+  return proto.cluster_controller.ListDNSProvidersResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListDNSProvidersResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListDNSProvidersResponse}
+ */
+proto.cluster_controller.ListDNSProvidersResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.cluster_controller.DNSProviderEntry;
+      reader.readMessage(value,proto.cluster_controller.DNSProviderEntry.deserializeBinaryFromReader);
+      msg.addProviders(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListDNSProvidersResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListDNSProvidersResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListDNSProvidersResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListDNSProvidersResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getProvidersList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.cluster_controller.DNSProviderEntry.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated DNSProviderEntry providers = 1;
+ * @return {!Array<!proto.cluster_controller.DNSProviderEntry>}
+ */
+proto.cluster_controller.ListDNSProvidersResponse.prototype.getProvidersList = function() {
+  return /** @type{!Array<!proto.cluster_controller.DNSProviderEntry>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.cluster_controller.DNSProviderEntry, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.cluster_controller.DNSProviderEntry>} value
+ * @return {!proto.cluster_controller.ListDNSProvidersResponse} returns this
+*/
+proto.cluster_controller.ListDNSProvidersResponse.prototype.setProvidersList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.DNSProviderEntry=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.DNSProviderEntry}
+ */
+proto.cluster_controller.ListDNSProvidersResponse.prototype.addProviders = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.cluster_controller.DNSProviderEntry, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.ListDNSProvidersResponse} returns this
+ */
+proto.cluster_controller.ListDNSProvidersResponse.prototype.clearProvidersList = function() {
+  return this.setProvidersList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListServiceReleasesJsonRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListServiceReleasesJsonRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListServiceReleasesJsonRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListServiceReleasesJsonRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListServiceReleasesJsonRequest}
+ */
+proto.cluster_controller.ListServiceReleasesJsonRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListServiceReleasesJsonRequest;
+  return proto.cluster_controller.ListServiceReleasesJsonRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListServiceReleasesJsonRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListServiceReleasesJsonRequest}
+ */
+proto.cluster_controller.ListServiceReleasesJsonRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListServiceReleasesJsonRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListServiceReleasesJsonRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListServiceReleasesJsonRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListServiceReleasesJsonRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListServiceReleasesJsonResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListServiceReleasesJsonResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+releasesJsonList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListServiceReleasesJsonResponse}
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListServiceReleasesJsonResponse;
+  return proto.cluster_controller.ListServiceReleasesJsonResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListServiceReleasesJsonResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListServiceReleasesJsonResponse}
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addReleasesJson(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListServiceReleasesJsonResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListServiceReleasesJsonResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getReleasesJsonList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * repeated string releases_json = 1;
+ * @return {!Array<string>}
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.prototype.getReleasesJsonList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.cluster_controller.ListServiceReleasesJsonResponse} returns this
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.prototype.setReleasesJsonList = function(value) {
+  return jspb.Message.setField(this, 1, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.ListServiceReleasesJsonResponse} returns this
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.prototype.addReleasesJson = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.ListServiceReleasesJsonResponse} returns this
+ */
+proto.cluster_controller.ListServiceReleasesJsonResponse.prototype.clearReleasesJsonList = function() {
+  return this.setReleasesJsonList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListInfrastructureReleasesJsonRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListInfrastructureReleasesJsonRequest}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListInfrastructureReleasesJsonRequest;
+  return proto.cluster_controller.ListInfrastructureReleasesJsonRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListInfrastructureReleasesJsonRequest}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListInfrastructureReleasesJsonRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListInfrastructureReleasesJsonResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+releasesJsonList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListInfrastructureReleasesJsonResponse}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListInfrastructureReleasesJsonResponse;
+  return proto.cluster_controller.ListInfrastructureReleasesJsonResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListInfrastructureReleasesJsonResponse}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addReleasesJson(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListInfrastructureReleasesJsonResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getReleasesJsonList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * repeated string releases_json = 1;
+ * @return {!Array<string>}
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.prototype.getReleasesJsonList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.cluster_controller.ListInfrastructureReleasesJsonResponse} returns this
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.prototype.setReleasesJsonList = function(value) {
+  return jspb.Message.setField(this, 1, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.ListInfrastructureReleasesJsonResponse} returns this
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.prototype.addReleasesJson = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.ListInfrastructureReleasesJsonResponse} returns this
+ */
+proto.cluster_controller.ListInfrastructureReleasesJsonResponse.prototype.clearReleasesJsonList = function() {
+  return this.setReleasesJsonList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.CleanupGhostNodePackagesRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.CleanupGhostNodePackagesRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+nodeId: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.CleanupGhostNodePackagesRequest}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.CleanupGhostNodePackagesRequest;
+  return proto.cluster_controller.CleanupGhostNodePackagesRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.CleanupGhostNodePackagesRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.CleanupGhostNodePackagesRequest}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNodeId(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.CleanupGhostNodePackagesRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.CleanupGhostNodePackagesRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getNodeId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string node_id = 1;
+ * @return {string}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest.prototype.getNodeId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.CleanupGhostNodePackagesRequest} returns this
+ */
+proto.cluster_controller.CleanupGhostNodePackagesRequest.prototype.setNodeId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.CleanupGhostNodePackagesResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.CleanupGhostNodePackagesResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+deleted: jspb.Message.getFieldWithDefault(msg, 1, 0),
+refusedActiveNode: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.CleanupGhostNodePackagesResponse}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.CleanupGhostNodePackagesResponse;
+  return proto.cluster_controller.CleanupGhostNodePackagesResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.CleanupGhostNodePackagesResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.CleanupGhostNodePackagesResponse}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setDeleted(value);
+      break;
+    case 2:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setRefusedActiveNode(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.CleanupGhostNodePackagesResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.CleanupGhostNodePackagesResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getDeleted();
+  if (f !== 0) {
+    writer.writeInt32(
+      1,
+      f
+    );
+  }
+  f = message.getRefusedActiveNode();
+  if (f) {
+    writer.writeBool(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional int32 deleted = 1;
+ * @return {number}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.prototype.getDeleted = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.CleanupGhostNodePackagesResponse} returns this
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.prototype.setDeleted = function(value) {
+  return jspb.Message.setProto3IntField(this, 1, value);
+};
+
+
+/**
+ * optional bool refused_active_node = 2;
+ * @return {boolean}
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.prototype.getRefusedActiveNode = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 2, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.CleanupGhostNodePackagesResponse} returns this
+ */
+proto.cluster_controller.CleanupGhostNodePackagesResponse.prototype.setRefusedActiveNode = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 2, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.GetScyllaSchemaGuardStatusRequest}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.GetScyllaSchemaGuardStatusRequest;
+  return proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.GetScyllaSchemaGuardStatusRequest}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ScyllaKeyspaceGuardStatus.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.toObject = function(includeInstance, msg) {
+  var f, obj = {
+keyspace: jspb.Message.getFieldWithDefault(msg, 1, ""),
+currentRf: jspb.Message.getFieldWithDefault(msg, 2, 0),
+requiredRf: jspb.Message.getFieldWithDefault(msg, 3, 0),
+violation: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+lastError: jspb.Message.getFieldWithDefault(msg, 5, ""),
+updatedAtUnix: jspb.Message.getFieldWithDefault(msg, 6, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ScyllaKeyspaceGuardStatus;
+  return proto.cluster_controller.ScyllaKeyspaceGuardStatus.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setKeyspace(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setCurrentRf(value);
+      break;
+    case 3:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setRequiredRf(value);
+      break;
+    case 4:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setViolation(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setLastError(value);
+      break;
+    case 6:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setUpdatedAtUnix(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ScyllaKeyspaceGuardStatus.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getKeyspace();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getCurrentRf();
+  if (f !== 0) {
+    writer.writeInt32(
+      2,
+      f
+    );
+  }
+  f = message.getRequiredRf();
+  if (f !== 0) {
+    writer.writeInt32(
+      3,
+      f
+    );
+  }
+  f = message.getViolation();
+  if (f) {
+    writer.writeBool(
+      4,
+      f
+    );
+  }
+  f = message.getLastError();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getUpdatedAtUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string keyspace = 1;
+ * @return {string}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.getKeyspace = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} returns this
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.setKeyspace = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional int32 current_rf = 2;
+ * @return {number}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.getCurrentRf = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} returns this
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.setCurrentRf = function(value) {
+  return jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+/**
+ * optional int32 required_rf = 3;
+ * @return {number}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.getRequiredRf = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} returns this
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.setRequiredRf = function(value) {
+  return jspb.Message.setProto3IntField(this, 3, value);
+};
+
+
+/**
+ * optional bool violation = 4;
+ * @return {boolean}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.getViolation = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 4, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} returns this
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.setViolation = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 4, value);
+};
+
+
+/**
+ * optional string last_error = 5;
+ * @return {string}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.getLastError = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} returns this
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.setLastError = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional int64 updated_at_unix = 6;
+ * @return {number}
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.getUpdatedAtUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus} returns this
+ */
+proto.cluster_controller.ScyllaKeyspaceGuardStatus.prototype.setUpdatedAtUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 6, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+keyspacesList: jspb.Message.toObjectList(msg.getKeyspacesList(),
+    proto.cluster_controller.ScyllaKeyspaceGuardStatus.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.GetScyllaSchemaGuardStatusResponse;
+  return proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.cluster_controller.ScyllaKeyspaceGuardStatus;
+      reader.readMessage(value,proto.cluster_controller.ScyllaKeyspaceGuardStatus.deserializeBinaryFromReader);
+      msg.addKeyspaces(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getKeyspacesList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.cluster_controller.ScyllaKeyspaceGuardStatus.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated ScyllaKeyspaceGuardStatus keyspaces = 1;
+ * @return {!Array<!proto.cluster_controller.ScyllaKeyspaceGuardStatus>}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.prototype.getKeyspacesList = function() {
+  return /** @type{!Array<!proto.cluster_controller.ScyllaKeyspaceGuardStatus>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.cluster_controller.ScyllaKeyspaceGuardStatus, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.cluster_controller.ScyllaKeyspaceGuardStatus>} value
+ * @return {!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse} returns this
+*/
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.prototype.setKeyspacesList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ScyllaKeyspaceGuardStatus=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.ScyllaKeyspaceGuardStatus}
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.prototype.addKeyspaces = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.cluster_controller.ScyllaKeyspaceGuardStatus, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse} returns this
+ */
+proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.prototype.clearKeyspacesList = function() {
+  return this.setKeyspacesList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.RequestScyllaSchemaEnforceRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.RequestScyllaSchemaEnforceRequest}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.RequestScyllaSchemaEnforceRequest;
+  return proto.cluster_controller.RequestScyllaSchemaEnforceRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.RequestScyllaSchemaEnforceRequest}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.RequestScyllaSchemaEnforceRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.RequestScyllaSchemaEnforceResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+requestUnix: jspb.Message.getFieldWithDefault(msg, 1, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.RequestScyllaSchemaEnforceResponse}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.RequestScyllaSchemaEnforceResponse;
+  return proto.cluster_controller.RequestScyllaSchemaEnforceResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.RequestScyllaSchemaEnforceResponse}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setRequestUnix(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.RequestScyllaSchemaEnforceResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRequestUnix();
+  if (f !== 0) {
+    writer.writeInt64(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional int64 request_unix = 1;
+ * @return {number}
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse.prototype.getRequestUnix = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.RequestScyllaSchemaEnforceResponse} returns this
+ */
+proto.cluster_controller.RequestScyllaSchemaEnforceResponse.prototype.setRequestUnix = function(value) {
+  return jspb.Message.setProto3IntField(this, 1, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.ListServicesResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListServicesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListServicesResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListServicesResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListServicesResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+servicesJsonList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListServicesResponse}
+ */
+proto.cluster_controller.ListServicesResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListServicesResponse;
+  return proto.cluster_controller.ListServicesResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListServicesResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListServicesResponse}
+ */
+proto.cluster_controller.ListServicesResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addServicesJson(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListServicesResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListServicesResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListServicesResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListServicesResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getServicesJsonList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * repeated string services_json = 1;
+ * @return {!Array<string>}
+ */
+proto.cluster_controller.ListServicesResponse.prototype.getServicesJsonList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.cluster_controller.ListServicesResponse} returns this
+ */
+proto.cluster_controller.ListServicesResponse.prototype.setServicesJsonList = function(value) {
+  return jspb.Message.setField(this, 1, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.ListServicesResponse} returns this
+ */
+proto.cluster_controller.ListServicesResponse.prototype.addServicesJson = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.ListServicesResponse} returns this
+ */
+proto.cluster_controller.ListServicesResponse.prototype.clearServicesJsonList = function() {
+  return this.setServicesJsonList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ExternalDomainEntry.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ExternalDomainEntry} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ExternalDomainEntry.toObject = function(includeInstance, msg) {
+  var f, obj = {
+fqdn: jspb.Message.getFieldWithDefault(msg, 1, ""),
+ingressEnabled: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+ingressService: jspb.Message.getFieldWithDefault(msg, 3, ""),
+ingressPort: jspb.Message.getFieldWithDefault(msg, 4, 0),
+acmeEnabled: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+statusPhase: jspb.Message.getFieldWithDefault(msg, 6, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ExternalDomainEntry}
+ */
+proto.cluster_controller.ExternalDomainEntry.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ExternalDomainEntry;
+  return proto.cluster_controller.ExternalDomainEntry.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ExternalDomainEntry} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ExternalDomainEntry}
+ */
+proto.cluster_controller.ExternalDomainEntry.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFqdn(value);
+      break;
+    case 2:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIngressEnabled(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setIngressService(value);
+      break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setIngressPort(value);
+      break;
+    case 5:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setAcmeEnabled(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setStatusPhase(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ExternalDomainEntry.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ExternalDomainEntry} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ExternalDomainEntry.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getFqdn();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getIngressEnabled();
+  if (f) {
+    writer.writeBool(
+      2,
+      f
+    );
+  }
+  f = message.getIngressService();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getIngressPort();
+  if (f !== 0) {
+    writer.writeInt32(
+      4,
+      f
+    );
+  }
+  f = message.getAcmeEnabled();
+  if (f) {
+    writer.writeBool(
+      5,
+      f
+    );
+  }
+  f = message.getStatusPhase();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string fqdn = 1;
+ * @return {string}
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.getFqdn = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ExternalDomainEntry} returns this
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.setFqdn = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional bool ingress_enabled = 2;
+ * @return {boolean}
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.getIngressEnabled = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 2, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.ExternalDomainEntry} returns this
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.setIngressEnabled = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 2, value);
+};
+
+
+/**
+ * optional string ingress_service = 3;
+ * @return {string}
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.getIngressService = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ExternalDomainEntry} returns this
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.setIngressService = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional int32 ingress_port = 4;
+ * @return {number}
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.getIngressPort = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.ExternalDomainEntry} returns this
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.setIngressPort = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional bool acme_enabled = 5;
+ * @return {boolean}
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.getAcmeEnabled = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.cluster_controller.ExternalDomainEntry} returns this
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.setAcmeEnabled = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+/**
+ * optional string status_phase = 6;
+ * @return {string}
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.getStatusPhase = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ExternalDomainEntry} returns this
+ */
+proto.cluster_controller.ExternalDomainEntry.prototype.setStatusPhase = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.ListExternalDomainsResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListExternalDomainsResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListExternalDomainsResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListExternalDomainsResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListExternalDomainsResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+domainsList: jspb.Message.toObjectList(msg.getDomainsList(),
+    proto.cluster_controller.ExternalDomainEntry.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListExternalDomainsResponse}
+ */
+proto.cluster_controller.ListExternalDomainsResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListExternalDomainsResponse;
+  return proto.cluster_controller.ListExternalDomainsResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListExternalDomainsResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListExternalDomainsResponse}
+ */
+proto.cluster_controller.ListExternalDomainsResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.cluster_controller.ExternalDomainEntry;
+      reader.readMessage(value,proto.cluster_controller.ExternalDomainEntry.deserializeBinaryFromReader);
+      msg.addDomains(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListExternalDomainsResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListExternalDomainsResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListExternalDomainsResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListExternalDomainsResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getDomainsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.cluster_controller.ExternalDomainEntry.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated ExternalDomainEntry domains = 1;
+ * @return {!Array<!proto.cluster_controller.ExternalDomainEntry>}
+ */
+proto.cluster_controller.ListExternalDomainsResponse.prototype.getDomainsList = function() {
+  return /** @type{!Array<!proto.cluster_controller.ExternalDomainEntry>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.cluster_controller.ExternalDomainEntry, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.cluster_controller.ExternalDomainEntry>} value
+ * @return {!proto.cluster_controller.ListExternalDomainsResponse} returns this
+*/
+proto.cluster_controller.ListExternalDomainsResponse.prototype.setDomainsList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ExternalDomainEntry=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.ExternalDomainEntry}
+ */
+proto.cluster_controller.ListExternalDomainsResponse.prototype.addDomains = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.cluster_controller.ExternalDomainEntry, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.ListExternalDomainsResponse} returns this
+ */
+proto.cluster_controller.ListExternalDomainsResponse.prototype.clearDomainsList = function() {
+  return this.setDomainsList([]);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.GetRoutingRefreshResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.GetRoutingRefreshResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+epoch: jspb.Message.getFieldWithDefault(msg, 1, 0),
+leaderAddr: jspb.Message.getFieldWithDefault(msg, 2, ""),
+timestamp: (f = msg.getTimestamp()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.GetRoutingRefreshResponse}
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.GetRoutingRefreshResponse;
+  return proto.cluster_controller.GetRoutingRefreshResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.GetRoutingRefreshResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.GetRoutingRefreshResponse}
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {number} */ (reader.readUint64());
+      msg.setEpoch(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setLeaderAddr(value);
+      break;
+    case 3:
+      var value = new google_protobuf_timestamp_pb.Timestamp;
+      reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
+      msg.setTimestamp(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.GetRoutingRefreshResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.GetRoutingRefreshResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getEpoch();
+  if (f !== 0) {
+    writer.writeUint64(
+      1,
+      f
+    );
+  }
+  f = message.getLeaderAddr();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getTimestamp();
+  if (f != null) {
+    writer.writeMessage(
+      3,
+      f,
+      google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional uint64 epoch = 1;
+ * @return {number}
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.getEpoch = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.cluster_controller.GetRoutingRefreshResponse} returns this
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.setEpoch = function(value) {
+  return jspb.Message.setProto3IntField(this, 1, value);
+};
+
+
+/**
+ * optional string leader_addr = 2;
+ * @return {string}
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.getLeaderAddr = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.GetRoutingRefreshResponse} returns this
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.setLeaderAddr = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional google.protobuf.Timestamp timestamp = 3;
+ * @return {?proto.google.protobuf.Timestamp}
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.getTimestamp = function() {
+  return /** @type{?proto.google.protobuf.Timestamp} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_timestamp_pb.Timestamp, 3));
+};
+
+
+/**
+ * @param {?proto.google.protobuf.Timestamp|undefined} value
+ * @return {!proto.cluster_controller.GetRoutingRefreshResponse} returns this
+*/
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.setTimestamp = function(value) {
+  return jspb.Message.setWrapperField(this, 3, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.cluster_controller.GetRoutingRefreshResponse} returns this
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.clearTimestamp = function() {
+  return this.setTimestamp(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.cluster_controller.GetRoutingRefreshResponse.prototype.hasTimestamp = function() {
+  return jspb.Message.getField(this, 3) != null;
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.cluster_controller.ListDesiredBuildIDsResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.cluster_controller.ListDesiredBuildIDsResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+buildIdsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
+revision: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.cluster_controller.ListDesiredBuildIDsResponse}
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.cluster_controller.ListDesiredBuildIDsResponse;
+  return proto.cluster_controller.ListDesiredBuildIDsResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.cluster_controller.ListDesiredBuildIDsResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.cluster_controller.ListDesiredBuildIDsResponse}
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addBuildIds(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRevision(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.cluster_controller.ListDesiredBuildIDsResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.cluster_controller.ListDesiredBuildIDsResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getBuildIdsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      1,
+      f
+    );
+  }
+  f = message.getRevision();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * repeated string build_ids = 1;
+ * @return {!Array<string>}
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.prototype.getBuildIdsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.cluster_controller.ListDesiredBuildIDsResponse} returns this
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.prototype.setBuildIdsList = function(value) {
+  return jspb.Message.setField(this, 1, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.ListDesiredBuildIDsResponse} returns this
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.prototype.addBuildIds = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.ListDesiredBuildIDsResponse} returns this
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.prototype.clearBuildIdsList = function() {
+  return this.setBuildIdsList([]);
+};
+
+
+/**
+ * optional string revision = 2;
+ * @return {string}
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.prototype.getRevision = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.cluster_controller.ListDesiredBuildIDsResponse} returns this
+ */
+proto.cluster_controller.ListDesiredBuildIDsResponse.prototype.setRevision = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -20770,6 +30120,26 @@ proto.cluster_controller.OperationPhase = {
   OP_RUNNING: 2,
   OP_SUCCEEDED: 3,
   OP_FAILED: 4
+};
+
+/**
+ * @enum {number}
+ */
+proto.cluster_controller.InfraLifecycleState = {
+  INFRA_LIFECYCLE_UNKNOWN: 0,
+  INFRA_NOT_PRESENT: 1,
+  INFRA_PACKAGE_INSTALLED: 2,
+  INFRA_CONFIG_RENDERED: 3,
+  INFRA_CONFIG_ATTESTED: 4,
+  INFRA_DAEMON_STARTING: 5,
+  INFRA_LOCAL_API_READY: 6,
+  INFRA_CQL_READY: 7,
+  INFRA_CLUSTER_CONTACTED: 8,
+  INFRA_JOINING: 9,
+  INFRA_SCHEMA_AGREEING: 10,
+  INFRA_MEMBER_READY: 11,
+  INFRA_DEGRADED: 12,
+  INFRA_STALLED: 13
 };
 
 /**

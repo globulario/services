@@ -6916,7 +6916,8 @@ proto.cluster_doctor.ActionType = {
   ETCD_DELETE: 5,
   ETCD_PUT: 6,
   PACKAGE_REINSTALL: 7,
-  NODE_REMOVE: 8
+  NODE_REMOVE: 8,
+  DELETE_CACHE_ARTIFACT: 9
 };
 
 /**

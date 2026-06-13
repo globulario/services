@@ -10152,3 +10152,251 @@ invariants:
   title: installed_state=installed requires the full runtime-artifact-integrity contract for the package kind — for SERVICE the unit must be present, active, and hash-verified; the binary path is resolved from the manifest, never guessed
   required_tests:
   - golang/node_agent/node_agent_server/internal/actions/serviceports/config_entrypoint_test.go::TestExecutableForServiceResolvesManifestEntrypoint
+- id: infra.process_active_is_not_health
+  title: A process being active is never sufficient evidence that external infrastructure is correct — health requires desired/rendered/runtime/lifecycle evidence
+  summary: |
+    systemd "active" (and a non-error log) proves a process is running, not that
+    it is doing the right thing. External infrastructure (ScyllaDB, etcd, Envoy,
+    MinIO) must be represented as desired state, rendered config, runtime truth
+    from the native API, lifecycle FSM state, and violations. The InfraProbeResult
+    keeps daemon_active, healthy, and config_valid as SEPARATE booleans so a green
+    daemon can never mask an invalid config or a partial failure
+    (fm.industry.partial_failure_hidden_by_global_green).
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/scylla_probe.go
+    - golang/node_agent/node_agent_server/infra_truth/lifecycle.go
+  related_invariants:
+  - meta.half_done_must_not_look_done
+  - state.runtime_not_desired
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_ConfigInvalidStalled
+- id: infra.config_file_is_artifact_not_authority
+  title: A rendered infrastructure config file is an artifact, not authority — repair targets the owner that generated it, never a manual file edit
+  summary: |
+    /etc/scylla/scylla.yaml (and any rendered infra config) is produced FROM the
+    controller-provided desired state by the package renderer. It is downstream
+    output, not the source of truth. Treating the file as authority (hand-editing
+    it to "fix" a node) is undone by the next render and hides the real defect in
+    the owner. Every infra violation's remediation must point at the owner
+    (renderer + desired-state inputs).
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/attestation.go
+  related_invariants:
+  - meta.storage_is_not_semantic_authority
+  - infra.repair_must_target_owner_desired_state_not_manual_file_edit
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_RemediationTargetsOwnerNotManualEdit
+- id: infra.runtime_truth_must_be_observed_via_native_api
+  title: Infrastructure runtime truth must be observed via the component's native API, not inferred from desired state or systemd
+  summary: |
+    Runtime truth (operation mode, gossip peers, CQL readiness, host id) comes
+    from the component's own API (ScyllaDB REST/CQL), bounded by timeouts. It is
+    never inferred from desired state or from the fact that a unit is active. A
+    down native API yields a PARTIAL ScyllaRuntimeState with evidence in errors,
+    never a fabricated "healthy".
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/scylla_probe.go
+  related_invariants:
+  - four_layer.truth_read_via_owner_rpc_not_direct_storage
+  related_intents:
+  - runtime_health.requires_live_observation
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestProbeScyllaStructured_NotInstalled
+- id: infra.join_must_have_lifecycle_fsm
+  title: Infrastructure join/health must be expressed as a lifecycle FSM with explicit stall states, not a single up/down boolean
+  summary: |
+    A component progresses through ordered stages (package installed → config
+    rendered → attested → daemon starting → local API → CQL → cluster contacted →
+    joining → schema agreeing → member ready). DEGRADED/STALLED are explicit
+    error states. A STALLED state means the component cannot progress on its own
+    and needs the owner fixed — never "give it more time". The FSM lets doctor and
+    AI agents say WHERE a node is stuck, not just THAT it is down.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/lifecycle.go
+  related_intents:
+  - controller.join_lifecycle_fsm_gates_cluster_decisions
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_MemberReady
+  - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_NotInstalled
+- id: infra.config_must_be_attested_before_start
+  title: Infrastructure config must be attested against desired state — a daemon running on a critically-invalid config is STALLED, not healthy
+  summary: |
+    Config attestation (loopback-free cluster addresses, non-self seeds for
+    joining nodes, non-empty matching cluster_name, listen address matching the
+    local node) is a precondition for considering a daemon healthy. If the daemon
+    is active but the config has a CRITICAL violation, the lifecycle is STALLED —
+    half-done must not look done.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/attestation.go
+    - golang/node_agent/node_agent_server/infra_truth/lifecycle.go
+  related_invariants:
+  - meta.half_done_must_not_look_done
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_ValidConfig
+  - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_ConfigInvalidStalled
+- id: infra.loopback_address_forbidden_for_cluster_members
+  title: A clustered infrastructure member must not advertise a loopback or unspecified cluster-facing address
+  summary: |
+    listen_address, broadcast_address, and broadcast_rpc_address must be a
+    concrete routable address — never 127.0.0.1/localhost/::1 (peers can't reach
+    it) and never 0.0.0.0/:: (no identity to advertise). rpc_address may be the
+    unspecified bind-all but not loopback. api_address (local admin REST) is
+    allowed to be loopback. This is the infra-config analogue of the platform
+    NO-localhost rule.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/attestation.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_LocalhostListenAddress
+  - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_LocalhostRPCAddress
+  - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_BroadcastLoopback
+- id: infra.stale_lifecycle_transition_must_raise_violation
+  title: A stalled or stale infrastructure lifecycle transition must surface explicitly, never be silently absorbed
+  summary: |
+    When a component stops progressing (config invalid but daemon active, joining
+    too long, bootstrap 100% but no gossip, CQL ready but no peers on a joining
+    node), the lifecycle must report STALLED with a blocking_reason. Cached probe
+    results carried on the heartbeat must be stamped probe_stale/probe_age_seconds
+    so a stale cache is never served as live truth
+    (fm.industry.stale_cache_served_as_live_state).
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/lifecycle.go
+    - golang/node_agent/node_agent_server/infra_truth/cache.go
+  related_invariants:
+  - meta.silence_is_not_valid_for_unexpected
+  related_intents:
+  - degraded_is_explicit_not_hidden
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestProbeCache_HeartbeatUsesCachedResult
+  - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_CQLReadyButNoPeersJoining
+- id: infra.agent_must_receive_structured_state_not_raw_logs
+  title: AI agents and doctor must receive structured infrastructure state (desired/rendered/runtime/lifecycle/violations), not raw logs
+  summary: |
+    The infra truth plane returns typed InfraProbeResult messages — not log
+    dumps. Doctor projects them into operator-language findings and MCP
+    infra_explain_stall returns a causal explanation (expected vs actual state,
+    blocking violations, last successful stage, owner to repair, safe next
+    commands). Raw logs are evidence of last resort, not the diagnostic surface.
+  severity: medium
+  status: active
+  protects:
+    files:
+    - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra.go
+    - golang/mcp/tools_infra.go
+  related_intents:
+  - doctor.findings_are_operator_language
+  required_tests:
+  - golang/mcp/tools_infra_test.go::TestInfraExplainStall_ConfigViolation
+- id: infra.repair_must_target_owner_desired_state_not_manual_file_edit
+  title: Infrastructure repair must target the owner of the desired state/renderer, never a manual edit of the rendered config file
+  summary: |
+    Because config files are artifacts (infra.config_file_is_artifact_not_authority),
+    the permanent fix for a bad infra config is to fix the owner: the
+    controller-provided desired state and the package post-install renderer. A
+    manual file edit is at most an emergency stopgap and must be followed by the
+    owner fix, or the next render reintroduces the defect. Every doctor/MCP
+    remediation for infra states this explicitly.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra.go
+    - golang/node_agent/node_agent_server/infra_truth/attestation.go
+  related_invariants:
+  - four_layer.layer_has_single_writing_actor
+  - meta.storage_is_not_semantic_authority
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaJoinStalled_Detection
+- id: scylla.loopback_forbidden
+  title: ScyllaDB cluster-facing addresses must not be loopback (CRITICAL) — a loopback listen/broadcast address isolates the node from the ring
+  summary: |
+    Per-component instance of infra.loopback_address_forbidden_for_cluster_members
+    for ScyllaDB. A loopback listen_address/broadcast_address means peers can
+    never reach the node; it forms an isolated single-node ring while appearing
+    "active". Detected by attestation and raised as a CRITICAL doctor finding.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra.go
+  related_invariants:
+  - infra.loopback_address_forbidden_for_cluster_members
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaLoopbackForbidden_RPC
+- id: scylla.config_valid
+  title: ScyllaDB rendered config must match desired state — non-empty matching cluster_name, non-self seeds for joining nodes, listen address matching the node
+  summary: |
+    Per-component instance of infra.config_must_be_attested_before_start for
+    ScyllaDB. Empty/mismatched cluster_name, self-only seeds on a joining node, or
+    a listen address not belonging to this node are ERROR-level config violations
+    that prevent correct ring membership.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_EmptyClusterName
+  - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_SelfOnlySeed_JoiningNode
+  - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaConfigValid_LocalhostDetected
+- id: scylla.join_not_stalled
+  title: A ScyllaDB join must not be stalled (CRITICAL) — daemon-active-on-invalid-config, isolated joining node, or non-converging bootstrap is a stuck join
+  summary: |
+    Per-component instance of infra.join_must_have_lifecycle_fsm for ScyllaDB. The
+    lifecycle FSM marks STALLED when the daemon is active on a critically-invalid
+    config, when CQL is ready but a joining node sees no peers, or when bootstrap
+    streamed to 100% without gossip convergence. Doctor raises a CRITICAL finding
+    with the blocking reason; a stalled join needs the owner fixed, not more time.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra.go
+  related_invariants:
+  - infra.join_must_have_lifecycle_fsm
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaJoinStalled_Detection
+  - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_ConfigInvalidStalled
+- id: scylla.peers_match_expected
+  title: ScyllaDB observed live peers must cover the expected cluster members — a missing peer on an active daemon is a real convergence gap
+  summary: |
+    When the daemon is active and a multi-node ring is expected, the gossip-live
+    peers must cover the expected (non-self) members. A persistent mismatch is an
+    ERROR-level doctor finding pointing at gossip/connectivity/seed reachability —
+    distinct from a config violation.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra.go
+  related_invariants:
+  - infra.join_must_have_lifecycle_fsm
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaPeersMatch_MissingPeer

@@ -36,6 +36,7 @@ const (
 	NodeAgentService_SearchServiceLogs_FullMethodName      = "/node_agent.NodeAgentService/SearchServiceLogs"
 	NodeAgentService_GetCertificateStatus_FullMethodName   = "/node_agent.NodeAgentService/GetCertificateStatus"
 	NodeAgentService_GetSubsystemHealth_FullMethodName     = "/node_agent.NodeAgentService/GetSubsystemHealth"
+	NodeAgentService_GetInfraProbe_FullMethodName          = "/node_agent.NodeAgentService/GetInfraProbe"
 	NodeAgentService_RunWorkflow_FullMethodName            = "/node_agent.NodeAgentService/RunWorkflow"
 	NodeAgentService_ApplyPackageRelease_FullMethodName    = "/node_agent.NodeAgentService/ApplyPackageRelease"
 	NodeAgentService_VerifyPackageIntegrity_FullMethodName = "/node_agent.NodeAgentService/VerifyPackageIntegrity"
@@ -75,6 +76,14 @@ type NodeAgentServiceClient interface {
 	GetCertificateStatus(ctx context.Context, in *GetCertificateStatusRequest, opts ...grpc.CallOption) (*GetCertificateStatusResponse, error)
 	// Observability: subsystem health registry
 	GetSubsystemHealth(ctx context.Context, in *GetSubsystemHealthRequest, opts ...grpc.CallOption) (*GetSubsystemHealthResponse, error)
+	// GetInfraProbe returns the infrastructure truth-plane probe for an external
+	// component (Phase 1: scylladb). Unlike systemd "active", it returns desired
+	// state (with provenance), parsed/attested rendered config, native-API runtime
+	// truth, a lifecycle FSM state, and typed violations. Read-only and bounded by
+	// per-component timeouts; a down CQL/REST endpoint yields a PARTIAL result with
+	// errors, never a failed RPC. By default it serves the local probe cache;
+	// bypass_cache forces a fresh bounded probe.
+	GetInfraProbe(ctx context.Context, in *GetInfraProbeRequest, opts ...grpc.CallOption) (*GetInfraProbeResponse, error)
 	// Workflow execution: run a workflow definition on this node
 	RunWorkflow(ctx context.Context, in *RunWorkflowRequest, opts ...grpc.CallOption) (*RunWorkflowResponse, error)
 	// Remote package apply: fetch from repository, install, restart, health check.
@@ -314,6 +323,16 @@ func (c *nodeAgentServiceClient) GetSubsystemHealth(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *nodeAgentServiceClient) GetInfraProbe(ctx context.Context, in *GetInfraProbeRequest, opts ...grpc.CallOption) (*GetInfraProbeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetInfraProbeResponse)
+	err := c.cc.Invoke(ctx, NodeAgentService_GetInfraProbe_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeAgentServiceClient) RunWorkflow(ctx context.Context, in *RunWorkflowRequest, opts ...grpc.CallOption) (*RunWorkflowResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RunWorkflowResponse)
@@ -414,6 +433,14 @@ type NodeAgentServiceServer interface {
 	GetCertificateStatus(context.Context, *GetCertificateStatusRequest) (*GetCertificateStatusResponse, error)
 	// Observability: subsystem health registry
 	GetSubsystemHealth(context.Context, *GetSubsystemHealthRequest) (*GetSubsystemHealthResponse, error)
+	// GetInfraProbe returns the infrastructure truth-plane probe for an external
+	// component (Phase 1: scylladb). Unlike systemd "active", it returns desired
+	// state (with provenance), parsed/attested rendered config, native-API runtime
+	// truth, a lifecycle FSM state, and typed violations. Read-only and bounded by
+	// per-component timeouts; a down CQL/REST endpoint yields a PARTIAL result with
+	// errors, never a failed RPC. By default it serves the local probe cache;
+	// bypass_cache forces a fresh bounded probe.
+	GetInfraProbe(context.Context, *GetInfraProbeRequest) (*GetInfraProbeResponse, error)
 	// Workflow execution: run a workflow definition on this node
 	RunWorkflow(context.Context, *RunWorkflowRequest) (*RunWorkflowResponse, error)
 	// Remote package apply: fetch from repository, install, restart, health check.
@@ -523,6 +550,9 @@ func (UnimplementedNodeAgentServiceServer) GetCertificateStatus(context.Context,
 }
 func (UnimplementedNodeAgentServiceServer) GetSubsystemHealth(context.Context, *GetSubsystemHealthRequest) (*GetSubsystemHealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSubsystemHealth not implemented")
+}
+func (UnimplementedNodeAgentServiceServer) GetInfraProbe(context.Context, *GetInfraProbeRequest) (*GetInfraProbeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetInfraProbe not implemented")
 }
 func (UnimplementedNodeAgentServiceServer) RunWorkflow(context.Context, *RunWorkflowRequest) (*RunWorkflowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunWorkflow not implemented")
@@ -864,6 +894,24 @@ func _NodeAgentService_GetSubsystemHealth_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeAgentService_GetInfraProbe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInfraProbeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAgentServiceServer).GetInfraProbe(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAgentService_GetInfraProbe_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAgentServiceServer).GetInfraProbe(ctx, req.(*GetInfraProbeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _NodeAgentService_RunWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RunWorkflowRequest)
 	if err := dec(in); err != nil {
@@ -1060,6 +1108,10 @@ var NodeAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSubsystemHealth",
 			Handler:    _NodeAgentService_GetSubsystemHealth_Handler,
+		},
+		{
+			MethodName: "GetInfraProbe",
+			Handler:    _NodeAgentService_GetInfraProbe_Handler,
 		},
 		{
 			MethodName: "RunWorkflow",

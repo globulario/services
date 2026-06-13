@@ -371,6 +371,109 @@ message NodeUnitStatus {
   string details = 3;
 }
 
+// ── Infrastructure Truth Plane (Phase 1) ────────────────────────────────────
+// External infrastructure (ScyllaDB first; etcd/Envoy/MinIO later) must be
+// represented as desired state, rendered config, runtime truth, lifecycle
+// state, and violations — never just "the process is active". These messages
+// live here (rather than in node_agent.proto) because NodeStatus carries them
+// in the heartbeat and node_agent.proto already imports cluster_controller.proto;
+// putting them in node_agent.proto would create a circular import. The
+// node_agent GetInfraProbe RPC references these same messages.
+//
+// Design rule: keep the messages generic so etcd/Envoy/MinIO adapters can reuse
+// them without a redesign. Component-specific facts go into the desired/rendered/
+// runtime string maps and the typed config_fields/violations lists.
+
+// InfraLifecycleState is the finite-state model for an infrastructure component's
+// join/health lifecycle. Numbers are ordered by progress; DEGRADED/STALLED are
+// terminal-ish error states, not points on the happy path.
+enum InfraLifecycleState {
+  INFRA_LIFECYCLE_UNKNOWN = 0;
+  INFRA_NOT_PRESENT       = 1;  // package not installed
+  INFRA_PACKAGE_INSTALLED = 2;  // installed, config not yet rendered
+  INFRA_CONFIG_RENDERED   = 3;  // config file exists
+  INFRA_CONFIG_ATTESTED   = 4;  // config passed attestation rules
+  INFRA_DAEMON_STARTING   = 5;  // unit active, local API not yet up
+  INFRA_LOCAL_API_READY   = 6;  // native REST/admin API answers
+  INFRA_CQL_READY         = 7;  // query protocol answers (Scylla: CQL)
+  INFRA_CLUSTER_CONTACTED  = 8; // gossip/peer contact established
+  INFRA_JOINING           = 9;  // bootstrap/streaming in progress
+  INFRA_SCHEMA_AGREEING   = 10; // schema version converging
+  INFRA_MEMBER_READY      = 11; // full, healthy cluster member
+  INFRA_DEGRADED          = 12; // running but impaired
+  INFRA_STALLED           = 13; // stuck — see blocking_reason
+}
+
+// InfraConfigField is one attested field from a rendered config file: the
+// expected value (from desired state), the actual value (from the file), and
+// whether it passed. `evidence` records where the value came from.
+message InfraConfigField {
+  string field_name     = 1;
+  string expected_value = 2;
+  string actual_value   = 3;
+  bool   valid          = 4;
+  string violation      = 5; // invariant id violated (empty when valid)
+  string severity       = 6; // CRITICAL | ERROR | WARN | INFO
+  string evidence       = 7;
+}
+
+// InfraViolation is a single attested or runtime problem with remediation that
+// points at the OWNER of the bad state — never "edit the file by hand".
+message InfraViolation {
+  string id          = 1; // invariant/failure-mode id, e.g. scylla.loopback_forbidden
+  string severity    = 2; // CRITICAL | ERROR | WARN | INFO
+  string message     = 3;
+  string evidence    = 4;
+  string remediation = 5; // owner-targeted fix, not manual file edit
+}
+
+// InfraLifecycleObservation is the FSM state plus staleness metadata. state_age
+// is approximate in Phase 1 (no persisted transition history yet).
+message InfraLifecycleObservation {
+  InfraLifecycleState state            = 1;
+  string              state_label      = 2;
+  int64               observed_at_unix = 3;
+  int64               state_age_seconds = 4;
+  string              last_transition  = 5;
+  string              blocking_reason  = 6; // why progress stopped (empty when healthy)
+}
+
+// InfraProbeResult is the full structured truth for one component on one node.
+// Booleans are deliberately separate (daemon_active vs healthy vs config_valid)
+// so a "green" daemon can never hide an invalid config or a partial failure.
+message InfraProbeResult {
+  string component = 1; // "scylladb", later "etcd"/"envoy"/"minio"
+  string node_id   = 2;
+
+  bool installed     = 3;
+  bool daemon_active = 4;
+  bool healthy       = 5;
+  bool config_valid  = 6;
+
+  string summary = 7;
+
+  InfraLifecycleObservation lifecycle    = 8;
+  repeated InfraConfigField  config_fields = 9;
+  repeated InfraViolation    violations   = 10;
+
+  repeated string expected_peers = 11;
+  repeated string observed_peers = 12;
+  bool            peers_match    = 13;
+
+  map<string, string> desired  = 14; // computed desired state (provenance in desired["source"])
+  map<string, string> rendered = 15; // parsed config file
+  map<string, string> runtime  = 16; // native-API observed truth
+
+  int64 probed_at_unix   = 17;
+  int64 probe_duration_ms = 18;
+  repeated string errors = 19; // partial-failure evidence; non-empty != whole probe failed
+
+  // probe_stale / probe_age_seconds let a heartbeat-attached cached result
+  // announce that it is NOT fresh — cache must never be served as live truth.
+  bool  probe_stale       = 20;
+  int64 probe_age_seconds = 21;
+}
+
 message NodeStatus {
   string node_id = 1;
   NodeIdentity identity = 2;
@@ -408,6 +511,11 @@ message NodeStatus {
   // the repository-assigned build_id (UUIDv7). Used for convergence identity
   // comparison — build_id is authoritative, version strings are informational.
   map<string, string> installed_build_ids = 13;
+  // Cached infrastructure truth-plane probe results (Phase 1: scylladb only).
+  // Attached from the node-agent's probe cache — NEVER produced inline in the
+  // heartbeat path. Each result carries probe_stale/probe_age_seconds so the
+  // controller can tell live truth from a stale cache snapshot.
+  repeated InfraProbeResult infra_probes = 14;
 }
 
 message ReportNodeStatusRequest {

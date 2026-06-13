@@ -24,9 +24,9 @@ For Scylla-backed services, the persistent state stays where it is —
 shared between source and target during the overlap. For most cases this
 collapses recovery from minutes (full reinstall) to seconds (rebind).
 
-The principle is named in
-[`meta.mobility_is_stronger_recovery_than_replication`](../awareness/state_authority_invariants.yaml)
-and motivated by Eden Black 1985 §3.2.3, which observed that mobility is
+The principle is named `meta.mobility_is_stronger_recovery_than_replication`
+(in the shared meta-principle corpus, which now lives in the awareness-graph
+repo) and motivated by Eden Black 1985 §3.2.3, which observed that mobility is
 strictly stronger than replication for the single-node-loss case
 (replication preserves data but you still need to re-establish the
 service somewhere; mobility does both together).

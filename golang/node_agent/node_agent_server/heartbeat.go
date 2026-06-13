@@ -50,9 +50,9 @@ import (
 const etcdEndpointsSystemKey = "/globular/system/etcd_endpoints"
 
 var (
-	readEtcdEndpointsFile  = os.ReadFile
-	writeEtcdEndpointsFile = os.WriteFile
-	resetSharedEtcdClient   = config.ResetEtcdClient
+	readEtcdEndpointsFile    = os.ReadFile
+	writeEtcdEndpointsFile   = os.WriteFile
+	resetSharedEtcdClient    = config.ResetEtcdClient
 	fetchSystemEtcdEndpoints = func(ctx context.Context) (string, error) {
 		cli, err := config.GetEtcdClient()
 		if err != nil || cli == nil {
@@ -70,6 +70,11 @@ var (
 
 func (srv *NodeAgentServer) StartHeartbeat(ctx context.Context) {
 	go srv.heartbeatLoop(ctx)
+
+	// Start the infra truth-plane probe refresher. It keeps the probe cache warm
+	// on its own timer so the heartbeat can attach probe data WITHOUT ever
+	// running a slow CQL/REST/nodetool call inline on the heartbeat path.
+	srv.startInfraProbeRefresher(ctx)
 
 	// Start event publisher — monitors systemd units and publishes
 	// state changes to the event service for the ai_watcher.
@@ -1142,6 +1147,14 @@ func (srv *NodeAgentServer) reportStatus(ctx context.Context) error {
 	// on a healthy peer when this node is removed from the cluster.
 	if hostID := readScyllaHostID(ctx); hostID != "" {
 		statusReq.InstalledBuildIds[scyllaHostIDKey] = hostID
+	}
+
+	// Attach the infra truth-plane probe results from the cache. This is a pure
+	// in-memory snapshot — NO slow probe runs here. Each result is stamped with
+	// probe_stale/probe_age_seconds so the controller can distinguish live truth
+	// from a stale cache entry (never serve cache as live).
+	if srv.infraProbeCache != nil {
+		statusReq.InfraProbes = srv.infraProbeCache.Snapshot(time.Now(), infraCacheStaleAfter)
 	}
 
 	// Phase 1: local discovery (systemd units, version markers, config files).

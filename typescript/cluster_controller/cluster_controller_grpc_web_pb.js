@@ -1541,6 +1541,921 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.getDesi
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ListDesiredBuildIDsRequest,
+ *   !proto.cluster_controller.ListDesiredBuildIDsResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ListDesiredBuildIDs = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ListDesiredBuildIDs',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ListDesiredBuildIDsRequest,
+  proto.cluster_controller.ListDesiredBuildIDsResponse,
+  /**
+   * @param {!proto.cluster_controller.ListDesiredBuildIDsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ListDesiredBuildIDsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ListDesiredBuildIDsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ListDesiredBuildIDsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ListDesiredBuildIDsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.listDesiredBuildIDs =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListDesiredBuildIDs',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListDesiredBuildIDs,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ListDesiredBuildIDsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ListDesiredBuildIDsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.listDesiredBuildIDs =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListDesiredBuildIDs',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListDesiredBuildIDs);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.GetRoutingRefreshRequest,
+ *   !proto.cluster_controller.GetRoutingRefreshResponse>}
+ */
+const methodDescriptor_ClusterControllerService_GetRoutingRefresh = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/GetRoutingRefresh',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.GetRoutingRefreshRequest,
+  proto.cluster_controller.GetRoutingRefreshResponse,
+  /**
+   * @param {!proto.cluster_controller.GetRoutingRefreshRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.GetRoutingRefreshResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.GetRoutingRefreshRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.GetRoutingRefreshResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.GetRoutingRefreshResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.getRoutingRefresh =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/GetRoutingRefresh',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetRoutingRefresh,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.GetRoutingRefreshRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.GetRoutingRefreshResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.getRoutingRefresh =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/GetRoutingRefresh',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetRoutingRefresh);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ListExternalDomainsRequest,
+ *   !proto.cluster_controller.ListExternalDomainsResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ListExternalDomains = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ListExternalDomains',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ListExternalDomainsRequest,
+  proto.cluster_controller.ListExternalDomainsResponse,
+  /**
+   * @param {!proto.cluster_controller.ListExternalDomainsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ListExternalDomainsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ListExternalDomainsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ListExternalDomainsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ListExternalDomainsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.listExternalDomains =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListExternalDomains',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListExternalDomains,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ListExternalDomainsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ListExternalDomainsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.listExternalDomains =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListExternalDomains',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListExternalDomains);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ListServicesRequest,
+ *   !proto.cluster_controller.ListServicesResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ListServices = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ListServices',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ListServicesRequest,
+  proto.cluster_controller.ListServicesResponse,
+  /**
+   * @param {!proto.cluster_controller.ListServicesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ListServicesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ListServicesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ListServicesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ListServicesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.listServices =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListServices',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListServices,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ListServicesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ListServicesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.listServices =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListServices',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListServices);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.GetIngressStatusRequest,
+ *   !proto.cluster_controller.GetIngressStatusResponse>}
+ */
+const methodDescriptor_ClusterControllerService_GetIngressStatus = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/GetIngressStatus',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.GetIngressStatusRequest,
+  proto.cluster_controller.GetIngressStatusResponse,
+  /**
+   * @param {!proto.cluster_controller.GetIngressStatusRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.GetIngressStatusResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.GetIngressStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.GetIngressStatusResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.GetIngressStatusResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.getIngressStatus =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/GetIngressStatus',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetIngressStatus,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.GetIngressStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.GetIngressStatusResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.getIngressStatus =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/GetIngressStatus',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetIngressStatus);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.RequestIngressRepublishRequest,
+ *   !proto.cluster_controller.RequestIngressRepublishResponse>}
+ */
+const methodDescriptor_ClusterControllerService_RequestIngressRepublish = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/RequestIngressRepublish',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.RequestIngressRepublishRequest,
+  proto.cluster_controller.RequestIngressRepublishResponse,
+  /**
+   * @param {!proto.cluster_controller.RequestIngressRepublishRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.RequestIngressRepublishResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.RequestIngressRepublishRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.RequestIngressRepublishResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.RequestIngressRepublishResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.requestIngressRepublish =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/RequestIngressRepublish',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RequestIngressRepublish,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.RequestIngressRepublishRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.RequestIngressRepublishResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.requestIngressRepublish =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/RequestIngressRepublish',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RequestIngressRepublish);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.CreateExternalDomainRequest,
+ *   !proto.cluster_controller.CreateExternalDomainResponse>}
+ */
+const methodDescriptor_ClusterControllerService_CreateExternalDomain = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/CreateExternalDomain',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.CreateExternalDomainRequest,
+  proto.cluster_controller.CreateExternalDomainResponse,
+  /**
+   * @param {!proto.cluster_controller.CreateExternalDomainRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.CreateExternalDomainResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.CreateExternalDomainRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.CreateExternalDomainResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.CreateExternalDomainResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.createExternalDomain =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/CreateExternalDomain',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_CreateExternalDomain,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.CreateExternalDomainRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.CreateExternalDomainResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.createExternalDomain =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/CreateExternalDomain',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_CreateExternalDomain);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.DeleteExternalDomainRequest,
+ *   !proto.cluster_controller.DeleteExternalDomainResponse>}
+ */
+const methodDescriptor_ClusterControllerService_DeleteExternalDomain = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/DeleteExternalDomain',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.DeleteExternalDomainRequest,
+  proto.cluster_controller.DeleteExternalDomainResponse,
+  /**
+   * @param {!proto.cluster_controller.DeleteExternalDomainRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.DeleteExternalDomainResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.DeleteExternalDomainRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.DeleteExternalDomainResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.DeleteExternalDomainResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.deleteExternalDomain =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/DeleteExternalDomain',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_DeleteExternalDomain,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.DeleteExternalDomainRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.DeleteExternalDomainResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.deleteExternalDomain =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/DeleteExternalDomain',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_DeleteExternalDomain);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.CreateDNSProviderRequest,
+ *   !proto.cluster_controller.CreateDNSProviderResponse>}
+ */
+const methodDescriptor_ClusterControllerService_CreateDNSProvider = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/CreateDNSProvider',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.CreateDNSProviderRequest,
+  proto.cluster_controller.CreateDNSProviderResponse,
+  /**
+   * @param {!proto.cluster_controller.CreateDNSProviderRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.CreateDNSProviderResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.CreateDNSProviderRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.CreateDNSProviderResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.CreateDNSProviderResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.createDNSProvider =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/CreateDNSProvider',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_CreateDNSProvider,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.CreateDNSProviderRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.CreateDNSProviderResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.createDNSProvider =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/CreateDNSProvider',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_CreateDNSProvider);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ListDNSProvidersRequest,
+ *   !proto.cluster_controller.ListDNSProvidersResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ListDNSProviders = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ListDNSProviders',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ListDNSProvidersRequest,
+  proto.cluster_controller.ListDNSProvidersResponse,
+  /**
+   * @param {!proto.cluster_controller.ListDNSProvidersRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ListDNSProvidersResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ListDNSProvidersRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ListDNSProvidersResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ListDNSProvidersResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.listDNSProviders =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListDNSProviders',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListDNSProviders,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ListDNSProvidersRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ListDNSProvidersResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.listDNSProviders =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListDNSProviders',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListDNSProviders);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ListServiceReleasesJsonRequest,
+ *   !proto.cluster_controller.ListServiceReleasesJsonResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ListServiceReleasesJson = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ListServiceReleasesJson',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ListServiceReleasesJsonRequest,
+  proto.cluster_controller.ListServiceReleasesJsonResponse,
+  /**
+   * @param {!proto.cluster_controller.ListServiceReleasesJsonRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ListServiceReleasesJsonResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ListServiceReleasesJsonRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ListServiceReleasesJsonResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ListServiceReleasesJsonResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.listServiceReleasesJson =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListServiceReleasesJson',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListServiceReleasesJson,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ListServiceReleasesJsonRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ListServiceReleasesJsonResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.listServiceReleasesJson =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListServiceReleasesJson',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListServiceReleasesJson);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ListInfrastructureReleasesJsonRequest,
+ *   !proto.cluster_controller.ListInfrastructureReleasesJsonResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ListInfrastructureReleasesJson = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ListInfrastructureReleasesJson',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ListInfrastructureReleasesJsonRequest,
+  proto.cluster_controller.ListInfrastructureReleasesJsonResponse,
+  /**
+   * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ListInfrastructureReleasesJsonResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ListInfrastructureReleasesJsonResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ListInfrastructureReleasesJsonResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.listInfrastructureReleasesJson =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListInfrastructureReleasesJson',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListInfrastructureReleasesJson,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ListInfrastructureReleasesJsonRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ListInfrastructureReleasesJsonResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.listInfrastructureReleasesJson =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ListInfrastructureReleasesJson',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ListInfrastructureReleasesJson);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.CleanupGhostNodePackagesRequest,
+ *   !proto.cluster_controller.CleanupGhostNodePackagesResponse>}
+ */
+const methodDescriptor_ClusterControllerService_CleanupGhostNodePackages = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/CleanupGhostNodePackages',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.CleanupGhostNodePackagesRequest,
+  proto.cluster_controller.CleanupGhostNodePackagesResponse,
+  /**
+   * @param {!proto.cluster_controller.CleanupGhostNodePackagesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.CleanupGhostNodePackagesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.CleanupGhostNodePackagesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.CleanupGhostNodePackagesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.CleanupGhostNodePackagesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.cleanupGhostNodePackages =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/CleanupGhostNodePackages',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_CleanupGhostNodePackages,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.CleanupGhostNodePackagesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.CleanupGhostNodePackagesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.cleanupGhostNodePackages =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/CleanupGhostNodePackages',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_CleanupGhostNodePackages);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.GetScyllaSchemaGuardStatusRequest,
+ *   !proto.cluster_controller.GetScyllaSchemaGuardStatusResponse>}
+ */
+const methodDescriptor_ClusterControllerService_GetScyllaSchemaGuardStatus = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/GetScyllaSchemaGuardStatus',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.GetScyllaSchemaGuardStatusRequest,
+  proto.cluster_controller.GetScyllaSchemaGuardStatusResponse,
+  /**
+   * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.GetScyllaSchemaGuardStatusResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.GetScyllaSchemaGuardStatusResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.getScyllaSchemaGuardStatus =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/GetScyllaSchemaGuardStatus',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetScyllaSchemaGuardStatus,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.GetScyllaSchemaGuardStatusRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.GetScyllaSchemaGuardStatusResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.getScyllaSchemaGuardStatus =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/GetScyllaSchemaGuardStatus',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_GetScyllaSchemaGuardStatus);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.RequestScyllaSchemaEnforceRequest,
+ *   !proto.cluster_controller.RequestScyllaSchemaEnforceResponse>}
+ */
+const methodDescriptor_ClusterControllerService_RequestScyllaSchemaEnforce = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/RequestScyllaSchemaEnforce',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.RequestScyllaSchemaEnforceRequest,
+  proto.cluster_controller.RequestScyllaSchemaEnforceResponse,
+  /**
+   * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.RequestScyllaSchemaEnforceResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.RequestScyllaSchemaEnforceResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.RequestScyllaSchemaEnforceResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.requestScyllaSchemaEnforce =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/RequestScyllaSchemaEnforce',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RequestScyllaSchemaEnforce,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.RequestScyllaSchemaEnforceRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.RequestScyllaSchemaEnforceResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.requestScyllaSchemaEnforce =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/RequestScyllaSchemaEnforce',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RequestScyllaSchemaEnforce);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.cluster_controller.UpsertDesiredServiceRequest,
  *   !proto.cluster_controller.DesiredState>}
  */
@@ -1962,6 +2877,67 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.deployC
       request,
       metadata || {},
       methodDescriptor_ClusterControllerService_DeployControlPlanePackage);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.JoinAuthorizationRequest,
+ *   !proto.cluster_controller.JoinAuthorizationResponse>}
+ */
+const methodDescriptor_ClusterControllerService_RequestJoinAuthorization = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/RequestJoinAuthorization',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.JoinAuthorizationRequest,
+  proto.cluster_controller.JoinAuthorizationResponse,
+  /**
+   * @param {!proto.cluster_controller.JoinAuthorizationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.JoinAuthorizationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.JoinAuthorizationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.JoinAuthorizationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.JoinAuthorizationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.requestJoinAuthorization =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/RequestJoinAuthorization',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RequestJoinAuthorization,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.JoinAuthorizationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.JoinAuthorizationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.requestJoinAuthorization =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/RequestJoinAuthorization',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RequestJoinAuthorization);
 };
 
 

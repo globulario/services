@@ -234,6 +234,14 @@ func NewRegistry(cfg Config) *Registry {
 		// running but no Scylla cluster is registered with it — the
 		// "running but unconfigured" state Project R recovered from.
 		scyllaManagerClusterRegistered{},
+		// Infrastructure truth plane (Phase 1): ScyllaDB config attestation,
+		// loopback detection, stalled-join detection, peer convergence, and
+		// "installed but no probe" — fed by the node-agent GetInfraProbe RPC.
+		scyllaLoopbackForbidden{},
+		scyllaConfigValid{},
+		scyllaJoinNotStalled{},
+		scyllaPeersMatchExpected{},
+		scyllaProbeRequiredWhenInstalled{},
 		// AI knowledge-base integrity: fires when ai-memory is running but
 		// the operational-knowledge seed entries are absent (day-0 deferred
 		// seed not yet applied). Auto-heals by seeding from the installed

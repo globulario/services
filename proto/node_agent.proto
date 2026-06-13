@@ -407,6 +407,22 @@ service NodeAgentService {
     };
   };
 
+  // GetInfraProbe returns the infrastructure truth-plane probe for an external
+  // component (Phase 1: scylladb). Unlike systemd "active", it returns desired
+  // state (with provenance), parsed/attested rendered config, native-API runtime
+  // truth, a lifecycle FSM state, and typed violations. Read-only and bounded by
+  // per-component timeouts; a down CQL/REST endpoint yields a PARTIAL result with
+  // errors, never a failed RPC. By default it serves the local probe cache;
+  // bypass_cache forces a fresh bounded probe.
+  rpc GetInfraProbe(GetInfraProbeRequest) returns (GetInfraProbeResponse) {
+    option (globular.auth.authz) = {
+      action: "node_agent.infra_probe.read"
+      permission: "read"
+      resource_template: "/node_agent/infra_probes"
+      default_role_hint: "viewer"
+    };
+  };
+
   // Workflow execution: run a workflow definition on this node
   rpc RunWorkflow(RunWorkflowRequest) returns (RunWorkflowResponse) {
     option (globular.auth.authz) = {
@@ -641,6 +657,22 @@ message GetSubsystemHealthRequest {}
 message GetSubsystemHealthResponse {
   repeated SubsystemHealth subsystems = 1;
   SubsystemState           overall    = 2;
+}
+
+// ── Infrastructure Truth Plane (Phase 1) ──
+// The InfraProbeResult/InfraViolation/etc. messages live in
+// cluster_controller.proto (NodeStatus carries them in the heartbeat and the
+// import direction is node_agent -> cluster_controller). These wrappers select
+// which component to probe and carry the results back.
+
+message GetInfraProbeRequest {
+  string node_id      = 1; // informational/audit; the handler always probes the local node
+  string component    = 2; // "scylladb" | "all" (Phase 1: "all" == scylladb only)
+  bool   bypass_cache = 3; // force a fresh bounded probe instead of serving the cache
+}
+
+message GetInfraProbeResponse {
+  repeated cluster_controller.InfraProbeResult results = 1;
 }
 
 // ── Workflow execution ──

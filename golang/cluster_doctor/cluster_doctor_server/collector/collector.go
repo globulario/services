@@ -81,14 +81,14 @@ type CollectorConfig struct {
 
 // Collector gathers upstream state and maintains a SnapshotCache.
 type Collector struct {
-	cfg                  CollectorConfig
-	controllerClient     cluster_controllerpb.ClusterControllerServiceClient
-	workflowClient       workflowpb.WorkflowServiceClient
-	repoClient           repopb.PackageRepositoryClient     // optional; nil until WithRepositoryClient
-	repoEndpointMissing  bool                               // true when etcd has no entry for repository.PackageRepository
-	aiMemoryClient       ai_memorypb.AiMemoryServiceClient  // optional; nil until WithAiMemoryClient
-	clusterID            string
-	cache                *SnapshotCache
+	cfg                 CollectorConfig
+	controllerClient    cluster_controllerpb.ClusterControllerServiceClient
+	workflowClient      workflowpb.WorkflowServiceClient
+	repoClient          repopb.PackageRepositoryClient    // optional; nil until WithRepositoryClient
+	repoEndpointMissing bool                              // true when etcd has no entry for repository.PackageRepository
+	aiMemoryClient      ai_memorypb.AiMemoryServiceClient // optional; nil until WithAiMemoryClient
+	clusterID           string
+	cache               *SnapshotCache
 
 	connMu     sync.Mutex
 	agentConns map[string]*grpc.ClientConn // keyed by AgentEndpoint
@@ -144,7 +144,6 @@ func (c *Collector) WithAiMemoryClient(mem ai_memorypb.AiMemoryServiceClient) *C
 	c.aiMemoryClient = mem
 	return c
 }
-
 
 // SetRepositoryEndpointMissing records that the repository service endpoint
 // was not found in etcd at startup. The flag is propagated into each Snapshot
@@ -622,9 +621,9 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 // active awareness bundle and what ai-memory actually has.
 func (c *Collector) fetchOpsKnowledgeMemoryEntries(ctx context.Context, snap *Snapshot) {
 	const (
-		project   = "globular-services"
-		seedTag   = "seed"
-		queryCap  = 1000 // generous; current bundle has 64 entries
+		project  = "globular-services"
+		seedTag  = "seed"
+		queryCap = 1000 // generous; current bundle has 64 entries
 	)
 	qctx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer cancel()
@@ -921,6 +920,35 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 				snap.RuntimeProofs[nid] = proofResp.GetProofs()
 				snap.mu.Unlock()
 				snap.addSource("node_agent.GetServiceRuntimeProof@" + nid)
+			}
+
+			// Infra truth-plane probe (Phase 1: scylladb). Read via the owner's
+			// typed RPC — never direct etcd. Unimplemented (a node-agent binary
+			// that predates GetInfraProbe) is recorded as a capability gap so the
+			// scylla.probe_required_when_installed rule can tell "old binary" from
+			// "genuinely no data"; it is NOT treated as a real error. Any other
+			// failure surfaces to the snapshot error stream (→ data_incomplete) so
+			// a rule never concludes "healthy" from a failed source.
+			infraCtx, infraCancel := context.WithTimeout(ctx, c.cfg.NodeTimeout*2)
+			infraResp, infraErr := agentClient.GetInfraProbe(infraCtx, &node_agentpb.GetInfraProbeRequest{
+				NodeId:    nid,
+				Component: "all",
+			})
+			infraCancel()
+			if infraErr != nil {
+				if strings.Contains(infraErr.Error(), "Unimplemented") {
+					snap.mu.Lock()
+					snap.InfraProbeCapabilityMissing[nid] = true
+					snap.mu.Unlock()
+					log.Printf("collector: GetInfraProbe on node=%s not supported (old binary), capability_missing", nid)
+				} else {
+					snap.addError("node_agent@"+nid, "GetInfraProbe", infraErr)
+				}
+			} else {
+				snap.mu.Lock()
+				snap.InfraProbes[nid] = infraResp
+				snap.mu.Unlock()
+				snap.addSource("node_agent.GetInfraProbe@" + nid)
 			}
 		}(nodeID, endpoint)
 	}
