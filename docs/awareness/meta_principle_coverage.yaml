@@ -28,6 +28,24 @@
 
 schema_version: 1
 
+# ── Gate-to-principle ratchet (keep-it-honest check) ────────────────────────
+# AWG's value comes from MECHANICAL enforcement, not declared advice. The
+# danger is the unenforced pile growing silently until the meta-principle set
+# is a beautiful document instead of a system that bites.
+#
+# `review_only` is the terminal tier: no artifact can prove the principle, so
+# it is enforced only by design review. This ceiling caps how many there may
+# be. Adding a review_only principle FAILS the build unless you bump this
+# number in the same commit — the moment to ask "should this be mechanized
+# instead?" When you convert a review_only principle to behavioral/code_scanner
+# (e.g. when the admin console lands and the GUI principles gain ESLint /
+# component-test gates), LOWER this number to lock in the gain.
+#
+# Enforced by TestMetaPrincipleCoverage (cmd/principle-check). It also prints
+# the mechanized-vs-unenforced ratio on every run so the number stays visible.
+enforcement_ratchet:
+  max_review_only: 43
+
 meta_principle_coverage:
 
   # ── behavioral: gated by a runtime/integration test ──────────────────────
