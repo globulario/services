@@ -10205,8 +10205,9 @@ invariants:
     files:
     - golang/node_agent/node_agent_server/infra_truth/scylla_probe.go
   related_invariants:
-  - runtime_health.requires_live_observation
   - four_layer.truth_read_via_owner_rpc_not_direct_storage
+  related_intents:
+  - runtime_health.requires_live_observation
   required_tests:
   - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestProbeScyllaStructured_NotInstalled
 - id: infra.join_must_have_lifecycle_fsm
@@ -10223,7 +10224,7 @@ invariants:
   protects:
     files:
     - golang/node_agent/node_agent_server/infra_truth/lifecycle.go
-  related_invariants:
+  related_intents:
   - controller.join_lifecycle_fsm_gates_cluster_decisions
   required_tests:
   - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_MemberReady
@@ -10284,6 +10285,7 @@ invariants:
     - golang/node_agent/node_agent_server/infra_truth/cache.go
   related_invariants:
   - meta.silence_is_not_valid_for_unexpected
+  related_intents:
   - degraded_is_explicit_not_hidden
   required_tests:
   - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestProbeCache_HeartbeatUsesCachedResult
@@ -10302,7 +10304,7 @@ invariants:
     files:
     - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra.go
     - golang/mcp/tools_infra.go
-  related_invariants:
+  related_intents:
   - doctor.findings_are_operator_language
   required_tests:
   - golang/mcp/tools_infra_test.go::TestInfraExplainStall_ConfigViolation
