@@ -138,6 +138,7 @@ type NodeAgentServer struct {
 	useInsecure              bool
 	joinPollCancel           context.CancelFunc
 	joinPollMu               sync.Mutex
+	wasJoining               bool // true when this process started with join credentials; never cleared
 	etcdMode                 string
 	controllerCAPath         string
 	controllerSNI            string
@@ -344,6 +345,15 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 	// action reads it via the controller's GetDesiredState typed RPC
 	// — never via direct etcd Get.
 	actions.SetDesiredVersionResolver(srv.resolveDesiredVersions)
+
+	// Record whether this process started with join credentials so
+	// post-install scripts can detect Day-1 context. The join_id and
+	// join_token are cleared from state.json by applyApprovedNodeID
+	// before infrastructure packages are installed — but the post-install
+	// scripts (e.g. ScyllaDB) need to know this is a fresh join, not an
+	// upgrade. This flag is never cleared during the process lifetime.
+	srv.wasJoining = state.JoinID != "" || strings.TrimSpace(cfg.JoinToken) != ""
+	actions.SetJoinActiveFunc(func() bool { return srv.wasJoining })
 
 	return srv
 }

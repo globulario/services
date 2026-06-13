@@ -855,7 +855,11 @@ func runPostInstallScript(ctx context.Context, scriptsDir, stateRoot string) err
 	defer cancel()
 
 	cmd := exec.CommandContext(cctx, "/bin/bash", script)
-	cmd.Env = append(os.Environ(), "STATE_DIR="+stateRoot)
+	env := append(os.Environ(), "STATE_DIR="+stateRoot)
+	if IsJoinActive() {
+		env = append(env, "GLOBULAR_JOIN_ACTIVE=true")
+	}
+	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	// Clean up extracted scripts regardless of outcome.
 	os.RemoveAll(scriptsDir)

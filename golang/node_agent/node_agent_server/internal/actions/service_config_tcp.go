@@ -115,7 +115,30 @@ var (
 
 	// ActionArtifactRepoRoot is the root directory for local artifact resolution.
 	ActionArtifactRepoRoot = "/var/lib/globular/repository/artifacts"
+
+	// joinActiveFunc reports whether this node is in a Day-1 join.
+	// Set by the node-agent at boot via SetJoinActiveFunc. When true,
+	// post-install scripts receive GLOBULAR_JOIN_ACTIVE=true so they
+	// can detect fresh-join context even after join credentials are
+	// cleared from state.json.
+	joinActiveFunc func() bool
 )
+
+// SetJoinActiveFunc installs the callback that reports whether the
+// node-agent is in a Day-1 join lifecycle. Called once at boot.
+func SetJoinActiveFunc(fn func() bool) {
+	if fn != nil {
+		joinActiveFunc = fn
+	}
+}
+
+// IsJoinActive returns true when the node-agent is performing a Day-1 join.
+func IsJoinActive() bool {
+	if joinActiveFunc != nil {
+		return joinActiveFunc()
+	}
+	return false
+}
 
 func installBinDir() string { return ActionBinDir }
 func stateRoot() string     { return ActionStateDir }
