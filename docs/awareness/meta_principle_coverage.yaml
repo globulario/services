@@ -44,7 +44,12 @@ schema_version: 1
 # Enforced by TestMetaPrincipleCoverage (cmd/principle-check). It also prints
 # the mechanized-vs-unenforced ratio on every run so the number stays visible.
 enforcement_ratchet:
-  max_review_only: 43
+  # 43 → 42 (2026-06-12): meta.ui.theme_tokens_must_encode_roles_not_preferences
+  # was mechanized (review_only → behavioral, CI-gated against globular-admin),
+  # freeing a slot. The 16th perception principle landed as `planned` (concrete
+  # mechanism named), not review_only, so it did not consume the slot. First
+  # time the ratchet TIGHTENED — exactly the "improve by mechanizing" path.
+  max_review_only: 42
 
 meta_principle_coverage:
 
@@ -226,8 +231,27 @@ meta_principle_coverage:
     tier: review_only
     reason: Type-role sufficiency is a legibility judgment; component tests can cover concrete cases once components exist.
   - principle: meta.ui.theme_tokens_must_encode_roles_not_preferences
-    tier: review_only
-    reason: First composition principle to mechanize when frontend Tier-2 lands — a token-only lint (no raw color/size literals in components) is a trivial Semgrep/ESLint rule. review_only until that codebase exists.
+    tier: behavioral
+    reason: >
+      MECHANIZED 2026-06-12. The first GUI meta-principle moved from review_only
+      to an enforced gate, against the globular-admin frontend codebase. The
+      gate is a raw-color-literal ratchet (count frozen, can only decrease;
+      token-definition CSS excluded), run in CI on every push. This is the
+      proof the gate-to-principle ratchet improves by mechanizing once a real
+      frontend codebase exists.
+    tests:
+      - globular-admin:scripts/check-theme-tokens.sh
+
+  # ── Perception (newer GUI principle) — planned ──────────────────────────
+  - principle: meta.ui.interactive_element_must_have_stable_identity
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a styled-element-identity lint against globular-admin
+      (data-carrying spans/badges/counts must have id|data-bind|data-*), the
+      sibling gate to check-theme-tokens.sh. Classified planned (not
+      review_only) because the mechanism is concrete and named — the gate is
+      simply not built yet. Discovered by the admin incidents-page audit.
 
   # ── Structure (code reusability) principles — review_only ───────────────
   # meta.code.* governs Go and TypeScript alike. Several are mechanizable

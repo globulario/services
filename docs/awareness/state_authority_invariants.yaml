@@ -5401,6 +5401,38 @@ invariants:
       - meta.diagnostic_output_must_be_bounded
       - meta.failure_response_must_contract_not_amplify
 
+  - id: meta.ui.interactive_element_must_have_stable_identity
+    title: "Elements that carry operational meaning must be individually addressable — a styled span with no identity is invisible to tooling, tests, and the operator's tools"
+    category: perception
+    antipattern: "Status counts and filter pills rendered as anonymous <span> with inline styles — no id, no data-bind, no data-*"
+    wrong_instinct: It renders correctly, so it's done — identity is for forms and inputs, not display elements
+    severity: high
+    status: active
+    # origin: { type: globular_incident, confidence: high } — discovered in the globular-admin incidents-page audit (meta_principle_findings.yaml mpf): filter pills used data-filter but their inner count spans had no identity. A real codebase created this class — the 16th perception principle.
+    summary: |
+      Every UI element that carries operational meaning — a status count, a
+      health badge, a filter state, a node identifier — must be individually
+      addressable: an id, a data-bind, or a data-* attribute. Anonymous styled
+      spans are invisible to the things that make an operator UI trustworthy:
+      automated tests can't assert on them, accessibility tooling can't name
+      them, screen-scraping diagnostics can't read them, and a targeted refresh
+      can't update them without re-rendering the whole region (which destroys
+      operator context). Addressability is the UI projection of
+      meta.code.extension_points_must_be_explicit and the precondition for
+      meta.ui.state_certainty (you cannot mark one datum stale if you cannot
+      name it). Discovered on the admin incidents page: filter pills carried
+      data-filter, but the count spans inside them carried nothing.
+    enforcement: |
+      Before shipping a component that renders operational state, verify each
+      data-carrying or interactive element has a stable identity (id / data-bind
+      / data-*) — not just the container. Counts, badges, and status text that
+      sit inside an identified parent still need their own handle if anything
+      (test, refresh, a11y, diagnostic) must address them individually.
+    related_invariants:
+      - meta.code.extension_points_must_be_explicit
+      - meta.ui.state_certainty_must_be_visually_distinct
+      - meta.ui.provenance_over_recall
+
   # ════════════════════════════════════════════════════════════════════════════
   # COMPOSITION — visual composition meta-principles
   #

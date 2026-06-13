@@ -399,7 +399,7 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.critical_path_no_non_critical_dependency` | Critical path blocked/flooded by non-critical service |
 | `meta.circular_dependency_must_have_break_glass` | Self-deploying system stuck — deploy pipeline can't deploy fix for itself |
 
-**Perception** (15) — "is the screen telling the truth about the system?" (GUI meta-principles; Nielsen/WCAG/Material/ISO 9241-110/Shneiderman/GOV.UK/EEMUA 191 re-grounded in operator truth)
+**Perception** (16) — "is the screen telling the truth about the system?" (GUI meta-principles; Nielsen/WCAG/Material/ISO 9241-110/Shneiderman/GOV.UK/EEMUA 191 re-grounded in operator truth)
 | Principle | What it catches |
 |-----------|----------------|
 | `meta.ui.screen_claim_must_bind_to_authority` | Desired/cached/optimistic/confirmed state collapsed into one visual meaning |
@@ -417,6 +417,7 @@ When documenting an error (incident, failure mode, finding), don't just record W
 | `meta.ui.ai_assistance_must_be_explainable_and_bounded` | AI summary asserts state without source, timestamp, confidence, evidence boundary |
 | `meta.ui.task_path_must_match_operator_goal` | Screen mirrors proto/RPC schema instead of the operator's task |
 | `meta.ui.notification_volume_must_match_operator_capacity` | Alarm flood, N symptom toasts for one cause, standing red badges nobody acts on |
+| `meta.ui.interactive_element_must_have_stable_identity` | Anonymous styled span carrying a count/status — no id/data-* — invisible to tests, a11y, targeted refresh |
 
 **Composition** (7) — "does the layout make truth easy to perceive?" (visual composition; Gestalt/typography/color theory/design tokens — composition is evidence architecture: pretty cards, wrong order is the failure)
 | Principle | What it catches |
