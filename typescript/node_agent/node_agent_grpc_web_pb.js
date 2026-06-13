@@ -1114,6 +1114,67 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.getSubsystemHealth =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.GetInfraProbeRequest,
+ *   !proto.node_agent.GetInfraProbeResponse>}
+ */
+const methodDescriptor_NodeAgentService_GetInfraProbe = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/GetInfraProbe',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.GetInfraProbeRequest,
+  proto.node_agent.GetInfraProbeResponse,
+  /**
+   * @param {!proto.node_agent.GetInfraProbeRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.GetInfraProbeResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.GetInfraProbeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.GetInfraProbeResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.GetInfraProbeResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.getInfraProbe =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetInfraProbe',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetInfraProbe,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.GetInfraProbeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.GetInfraProbeResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.getInfraProbe =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetInfraProbe',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetInfraProbe);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.node_agent.RunWorkflowRequest,
  *   !proto.node_agent.RunWorkflowResponse>}
  */
@@ -1297,6 +1358,67 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.verifyPackageIntegrity 
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.GetServiceRuntimeProofRequest,
+ *   !proto.node_agent.GetServiceRuntimeProofResponse>}
+ */
+const methodDescriptor_NodeAgentService_GetServiceRuntimeProof = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/GetServiceRuntimeProof',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.GetServiceRuntimeProofRequest,
+  proto.node_agent.GetServiceRuntimeProofResponse,
+  /**
+   * @param {!proto.node_agent.GetServiceRuntimeProofRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.GetServiceRuntimeProofResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.GetServiceRuntimeProofRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.GetServiceRuntimeProofResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.GetServiceRuntimeProofResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.getServiceRuntimeProof =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetServiceRuntimeProof',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetServiceRuntimeProof,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.GetServiceRuntimeProofRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.GetServiceRuntimeProofResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.getServiceRuntimeProof =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/GetServiceRuntimeProof',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_GetServiceRuntimeProof);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.node_agent.DeleteCacheArtifactRequest,
  *   !proto.node_agent.DeleteCacheArtifactResponse>}
  */
@@ -1413,6 +1535,67 @@ proto.node_agent.NodeAgentServicePromiseClient.prototype.cleanupDiskJournal =
       request,
       metadata || {},
       methodDescriptor_NodeAgentService_CleanupDiskJournal);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.node_agent.CollectBackupSecretsRequest,
+ *   !proto.node_agent.CollectBackupSecretsResponse>}
+ */
+const methodDescriptor_NodeAgentService_CollectBackupSecrets = new grpc.web.MethodDescriptor(
+  '/node_agent.NodeAgentService/CollectBackupSecrets',
+  grpc.web.MethodType.UNARY,
+  proto.node_agent.CollectBackupSecretsRequest,
+  proto.node_agent.CollectBackupSecretsResponse,
+  /**
+   * @param {!proto.node_agent.CollectBackupSecretsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.node_agent.CollectBackupSecretsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.node_agent.CollectBackupSecretsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.node_agent.CollectBackupSecretsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.node_agent.CollectBackupSecretsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.node_agent.NodeAgentServiceClient.prototype.collectBackupSecrets =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/node_agent.NodeAgentService/CollectBackupSecrets',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_CollectBackupSecrets,
+      callback);
+};
+
+
+/**
+ * @param {!proto.node_agent.CollectBackupSecretsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.node_agent.CollectBackupSecretsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.node_agent.NodeAgentServicePromiseClient.prototype.collectBackupSecrets =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/node_agent.NodeAgentService/CollectBackupSecrets',
+      request,
+      metadata || {},
+      methodDescriptor_NodeAgentService_CollectBackupSecrets);
 };
 
 

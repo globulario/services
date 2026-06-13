@@ -41,6 +41,14 @@ var allowedRemoteTools = map[string]bool{
 
 	// Doctor findings (read-only diagnosis)
 	"cluster_get_doctor_report": true,
+
+	// Infrastructure truth plane (read-only diagnosis; Phase 1: scylladb).
+	// These observe a node's infra via GetInfraProbe and never mutate state,
+	// so they belong with the other read-only remote tools.
+	"infra_probe_component": true,
+	"infra_probe_all":       true,
+	"infra_explain_stall":   true,
+	"infra_diff":            true,
 }
 
 // forbiddenRemoteTools lists tools that must never be called remotely.

@@ -32,15 +32,15 @@ import (
 //
 // HASH SCHEMA — kept separate by kind so the verifier can compare like-to-like:
 //
-//   DesiredEntrypointChecksum  binary sha256 — fetched from repository manifest
-//                              (entrypoint_checksum field). Compared against
-//                              ServiceRuntimeProof.InstalledSha256 and
-//                              ServiceRuntimeProof.RunningExeSha256.
+//	DesiredEntrypointChecksum  binary sha256 — fetched from repository manifest
+//	                           (entrypoint_checksum field). Compared against
+//	                           ServiceRuntimeProof.InstalledSha256 and
+//	                           ServiceRuntimeProof.RunningExeSha256.
 //
-//   DesiredPackageDigest       package tarball sha256 — same as
-//                              rel.Status.ResolvedArtifactDigest. Reserved
-//                              for future tarball-integrity audits.
-//                              NEVER compared against a binary hash.
+//	DesiredPackageDigest       package tarball sha256 — same as
+//	                           rel.Status.ResolvedArtifactDigest. Reserved
+//	                           for future tarball-integrity audits.
+//	                           NEVER compared against a binary hash.
 //
 // Mixing these two was the v1.2.56 false-positive bug. Don't.
 type DesiredServiceTarget struct {
@@ -115,6 +115,21 @@ type Snapshot struct {
 	// not obtain a report (dial failure, unimplemented on that
 	// node's running binary, etc).
 	IntegrityReports map[string]*IntegrityReport
+
+	// Per-node infrastructure truth-plane probes, populated from the
+	// GetInfraProbe RPC (Phase 1: scylladb). Consumed by the "scylla.*"
+	// invariant family in rules/ to surface loopback config, self-only
+	// seeds, stalled joins, and config-vs-runtime drift as doctor findings.
+	// Keyed by NodeId. A missing entry means the collector could not obtain a
+	// probe (dial failure, or the node's running binary predates GetInfraProbe);
+	// the "scylla.probe_required_when_installed" rule distinguishes that from
+	// a genuinely not-installed node.
+	InfraProbes map[string]*node_agentpb.GetInfraProbeResponse
+
+	// InfraProbeCapabilityMissing records nodes whose running node-agent does
+	// not implement GetInfraProbe yet (Unimplemented). Used so doctor can say
+	// "capability missing" instead of silently treating it as no-data.
+	InfraProbeCapabilityMissing map[string]bool
 
 	// OpsKnowledgeMemoryEntries maps each operational-knowledge seed
 	// entry id (as ai-memory currently has it) to the seed_sha256
@@ -445,26 +460,28 @@ type IntegrityFinding struct {
 
 func newSnapshot(id string) *Snapshot {
 	return &Snapshot{
-		SnapshotID:               id,
-		GeneratedAt:              time.Now(),
-		NodeHealths:              make(map[string]*cluster_controllerpb.NodeHealth),
-		Inventories:              make(map[string]*node_agentpb.Inventory),
-		SubsystemHealth:          make(map[string]*node_agentpb.GetSubsystemHealthResponse),
-		CertificateStatus:        make(map[string]*node_agentpb.GetCertificateStatusResponse),
-		IntegrityReports:         make(map[string]*IntegrityReport),
-		NodeRenderedGenerations:  make(map[string]int64),
-		NodeRenderedFingerprints: make(map[string]string),
-		DiskCandidates:           make(map[string][]*config.DiskCandidate),
-		IngressNodeStatus:        make(map[string]map[string]interface{}),
-		ScyllaSchemaGuardStatus:  make(map[string]map[string]interface{}),
-		DNSZoneReloadStatus:      make(map[string]interface{}),
-		ReconcileLaneStatus:      make(map[string]map[string]interface{}),
-		CriticalKeyPresent:       make(map[string]bool),
-		CriticalKeyQueryError:    make(map[string]error),
-		NodePackageKinds:         make(map[string]map[string]string),
-		ActiveLocalOverrides:     make(map[string]*cluster_controllerpb.LocalOverride),
-		RuntimeProofs:            make(map[string][]*node_agentpb.ServiceRuntimeProof),
-		DesiredServiceTargets:    make(map[string]*DesiredServiceTarget),
+		SnapshotID:                  id,
+		GeneratedAt:                 time.Now(),
+		NodeHealths:                 make(map[string]*cluster_controllerpb.NodeHealth),
+		Inventories:                 make(map[string]*node_agentpb.Inventory),
+		SubsystemHealth:             make(map[string]*node_agentpb.GetSubsystemHealthResponse),
+		CertificateStatus:           make(map[string]*node_agentpb.GetCertificateStatusResponse),
+		IntegrityReports:            make(map[string]*IntegrityReport),
+		InfraProbes:                 make(map[string]*node_agentpb.GetInfraProbeResponse),
+		InfraProbeCapabilityMissing: make(map[string]bool),
+		NodeRenderedGenerations:     make(map[string]int64),
+		NodeRenderedFingerprints:    make(map[string]string),
+		DiskCandidates:              make(map[string][]*config.DiskCandidate),
+		IngressNodeStatus:           make(map[string]map[string]interface{}),
+		ScyllaSchemaGuardStatus:     make(map[string]map[string]interface{}),
+		DNSZoneReloadStatus:         make(map[string]interface{}),
+		ReconcileLaneStatus:         make(map[string]map[string]interface{}),
+		CriticalKeyPresent:          make(map[string]bool),
+		CriticalKeyQueryError:       make(map[string]error),
+		NodePackageKinds:            make(map[string]map[string]string),
+		ActiveLocalOverrides:        make(map[string]*cluster_controllerpb.LocalOverride),
+		RuntimeProofs:               make(map[string][]*node_agentpb.ServiceRuntimeProof),
+		DesiredServiceTargets:       make(map[string]*DesiredServiceTarget),
 	}
 }
 

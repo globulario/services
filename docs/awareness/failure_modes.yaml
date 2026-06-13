@@ -5700,3 +5700,64 @@ failure_modes:
         - meta.ui.failure_must_preserve_diagnostic_context
       required_tests:
         - TestErrorBoundary_PreservesCriticalWarning
+    - id: scylla.wrong_config_appears_healthy
+      title: A ScyllaDB node with a wrong (e.g. loopback) config looks healthy because the daemon is active — it silently forms an isolated single-node ring
+      severity: high
+      status: active
+      root_cause: |
+        Before the infrastructure truth plane, a node's ScyllaDB health was judged
+        by "is scylla-server.service active?" plus log scraping. A misrendered
+        config — listen_address/seeds pointing at 127.0.0.1, an empty or mismatched
+        cluster_name, or a self-only seed list on a joining node — still produces a
+        running daemon. systemd reports active, CQL answers locally, and nothing
+        errors loudly. The node bootstraps an ISOLATED single-node ring while every
+        coarse signal says "green". The wrongness only surfaces later as missing
+        data, RF/quorum failures, or a join that never converges — far from the
+        root cause. This is the infra instance of
+        fm.industry.partial_failure_hidden_by_global_green: a green daemon masks an
+        invalid config.
+      trigger: |
+        The ScyllaDB post-install renderer (or controller-provided desired state)
+        emits a config with a loopback cluster-facing address, empty/mismatched
+        cluster_name, or self-only seeds on a joining node — and the daemon starts
+        anyway.
+      symptoms:
+        - scylla-server.service is active and CQL answers locally, but the node sees no peers
+        - new keyspaces/data do not replicate; RF cannot be satisfied
+        - a joining node never converges into the existing ring
+        - doctor/heartbeat report the node healthy until a downstream quorum failure
+      blast_radius:
+        - Stateful platform services backed by ScyllaDB silently lose redundancy
+        - A "successful" join leaves an isolated node that diverges from the ring
+      architecture_fix: |
+        The infra truth plane attests the rendered config against desired state
+        BEFORE trusting "active": loopback cluster addresses are CRITICAL
+        (scylla.loopback_forbidden), config mismatches are ERROR
+        (scylla.config_valid), and the lifecycle FSM marks the node STALLED (not
+        healthy) when the daemon is active on a critically-invalid config or when a
+        joining node is isolated. daemon_active, healthy, and config_valid are kept
+        as separate signals so "active" can never imply "healthy". Doctor raises the
+        finding; MCP infra_explain_stall gives the causal answer and points repair
+        at the config owner, never a manual file edit.
+      forbidden_fixes:
+        - treat_systemd_active_as_scylla_health
+        - hand_edit_scylla_yaml_as_the_permanent_fix_instead_of_the_renderer
+      related_invariants:
+        - infra.process_active_is_not_health
+        - infra.config_must_be_attested_before_start
+        - scylla.loopback_forbidden
+        - scylla.config_valid
+        - scylla.join_not_stalled
+        - meta.half_done_must_not_look_done
+      related_services:
+        - node-agent
+        - cluster-doctor
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/infra_truth/attestation.go
+            - golang/node_agent/node_agent_server/infra_truth/lifecycle.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra.go
+      required_tests:
+        - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_LocalhostListenAddress
+        - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_ConfigInvalidStalled
+        - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaJoinStalled_Detection

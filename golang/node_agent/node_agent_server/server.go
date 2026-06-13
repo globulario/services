@@ -28,6 +28,7 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/healthchecks"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/infra_truth"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/certs"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/installreceipt"
@@ -166,6 +167,14 @@ type NodeAgentServer struct {
 	// Workflow tracing (nil-safe, fire-and-forget)
 	workflowRec *workflow.Recorder
 	clusterID   string
+
+	// Infrastructure truth plane (Phase 1: ScyllaDB). Lazily initialized via
+	// ensureInfraTruth so both NewNodeAgentServer and literal test construction
+	// get a working cache/prober. The cache is read by the heartbeat (never a
+	// slow inline probe) and refreshed by a background goroutine.
+	infraOnce       sync.Once
+	infraProbeCache *infra_truth.InfraProbeCache
+	scyllaProber    *infra_truth.ScyllaProber
 
 	// Bootstrap-time config passed from CLI flags (no os.Getenv at runtime)
 	cfg NodeAgentConfig
@@ -356,6 +365,21 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 	actions.SetJoinActiveFunc(func() bool { return srv.wasJoining })
 
 	return srv
+}
+
+// ensureInfraTruth lazily initializes the infra truth-plane cache and prober.
+// It is idempotent and safe to call from multiple goroutines; using sync.Once
+// means both NewNodeAgentServer instances and literal test constructions get a
+// working cache/prober without touching the constructor.
+func (srv *NodeAgentServer) ensureInfraTruth() {
+	srv.infraOnce.Do(func() {
+		if srv.infraProbeCache == nil {
+			srv.infraProbeCache = infra_truth.NewInfraProbeCache()
+		}
+		if srv.scyllaProber == nil {
+			srv.scyllaProber = infra_truth.NewScyllaProber()
+		}
+	})
 }
 
 // resolveDesiredVersions fetches the cluster-wide desired-state map
@@ -1400,7 +1424,7 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	srv.nodeID = nodeID
 	srv.state.NodeID = nodeID
 	srv.state.RequestID = ""
-	srv.state.JoinID = ""       // clear v2 join_id so auto-join doesn't re-fire on restart
+	srv.state.JoinID = ""        // clear v2 join_id so auto-join doesn't re-fire on restart
 	srv.state.JoinPlanJSON = nil // clear stored plan; no longer needed after approval
 	srv.joinRequestID = ""
 	srv.joinToken = "" // clear so auto-join doesn't re-fire on restart

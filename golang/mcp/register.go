@@ -24,6 +24,7 @@ func registerAllTools(s *server) {
 	}
 	if g.Doctor {
 		registerDoctorTools(s)
+		registerInfraTools(s)
 	}
 	if g.NodeAgent {
 		registerNodeAgentTools(s)
