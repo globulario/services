@@ -3,6 +3,7 @@ package infra_truth
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -181,5 +182,34 @@ func TestAttestScyllaConfig_NotPresentNoViolations(t *testing.T) {
 	v := AttestScyllaConfig(joiningDesired(), &ScyllaRenderedConfig{Path: ScyllaConfigPath, Present: false})
 	if len(v) != 0 {
 		t.Fatalf("absent config must yield no config violations, got %+v", v)
+	}
+}
+
+// TestAttestScyllaConfig_RemediationTargetsOwnerNotManualEdit directly covers
+// infra.config_file_is_artifact_not_authority: the rendered config is an
+// artifact, so every attestation violation must point repair at the OWNER that
+// generated it (renderer + desired state) and must NOT present a manual edit of
+// scylla.yaml as the fix — a render would overwrite it.
+func TestAttestScyllaConfig_RemediationTargetsOwnerNotManualEdit(t *testing.T) {
+	r := validRendered()
+	r.ListenAddress = "127.0.0.1" // force a violation to inspect its remediation
+	v := AttestScyllaConfig(joiningDesired(), r)
+	if len(v) == 0 {
+		t.Fatal("expected at least one violation to inspect remediation")
+	}
+	for _, viol := range v {
+		rem := viol.GetRemediation()
+		if strings.TrimSpace(rem) == "" {
+			t.Errorf("violation %q has empty remediation; config-is-artifact requires owner-targeted repair", viol.GetId())
+			continue
+		}
+		// Owner-targeted: names the renderer/desired-state owner.
+		if !strings.Contains(rem, "renderer") {
+			t.Errorf("violation %q remediation must target the config owner (renderer/desired state); got: %q", viol.GetId(), rem)
+		}
+		// Must forbid a manual file edit as the permanent fix.
+		if !strings.Contains(rem, "Do NOT hand-edit") {
+			t.Errorf("violation %q remediation must forbid manual scylla.yaml edits; got: %q", viol.GetId(), rem)
+		}
 	}
 }

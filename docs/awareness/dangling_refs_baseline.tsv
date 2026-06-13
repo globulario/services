@@ -1306,3 +1306,4 @@ https://globular.io/awareness#Test	golang/cluster_doctor/cluster_doctor_server/r
 https://globular.io/awareness#Test	golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaJoinStalled_Detection
 https://globular.io/awareness#Test	golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaPeersMatch_MissingPeer
 https://globular.io/awareness#Test	golang/mcp/tools_infra_test.go::TestInfraExplainStall_ConfigViolation
+https://globular.io/awareness#Test	golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_RemediationTargetsOwnerNotManualEdit
