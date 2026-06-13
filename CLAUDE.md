@@ -363,7 +363,7 @@ Awareness explains *why* code exists, *what* it protects, *which fixes are forbi
 
 When documenting an error (incident, failure mode, finding), don't just record WHAT broke — classify WHY against the generative meta-principles. This turns error documentation into architectural learning.
 
-**Step 1 — CLASSIFY** the error against `invariant:meta.*` (7 categories). Source of truth: `docs/awareness/state_authority_invariants.yaml`; re-query the graph if this table feels stale.
+**Step 1 — CLASSIFY** the error against `invariant:meta.*` (7 categories). Source of truth: the shared corpus now lives in the awareness-graph repo at `docs/awareness/generic/state_authority_invariants.yaml` (moved out of services 2026-06-13 so the knowledge is portable); re-query the graph if this table feels stale. Edit meta-principles there, not in services.
 
 **Authority** (4) — "who owns this truth, and is this code that owner?"
 | Principle | What it catches |

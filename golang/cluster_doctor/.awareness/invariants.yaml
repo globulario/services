@@ -96,7 +96,7 @@ invariants:
     status: active
     # origin: { type: globular_incident, confidence: very_high }
     # code: node_ip_matching.go, objectstore_physical_overlap.go
-    # related: docs/awareness/state_authority_invariants.yaml — identity.stable_node_identity_not_floating_vip
+    # related: awareness-graph docs/awareness/generic/state_authority_invariants.yaml — identity.stable_node_identity_not_floating_vip
     summary: |
       PrimaryIP() returns the floating VIP when a node holds it. Using PrimaryIP() for pool
       membership matching produces wrong answers when the VIP moves. Use StableIP(clusterVIP)
