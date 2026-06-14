@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,12 +18,54 @@ import (
 
 // Default native-API endpoints and timeouts for ScyllaDB. The probe is bounded
 // so it can never become a new availability risk.
+//
+// The loopback defaults are the FALLBACK only. The real probe targets are
+// derived per-probe from the rendered config (api_address for REST, rpc_address
+// for CQL) — ScyllaDB binds those ports to the cluster-facing node IP, not
+// loopback, so a hardcoded 127.0.0.1 dial gets connection-refused and the probe
+// would falsely report a healthy node as daemon_starting. Honors
+// infra.runtime_truth_must_be_observed_via_native_api: observe the address the
+// daemon actually binds. See resolveEndpoints.
 const (
+	scyllaRESTPort = 10000 // protocol-standard ScyllaDB REST admin API port
+	scyllaCQLPort  = 9042  // protocol-standard CQL native transport port
+
 	defaultScyllaRESTBase   = "http://127.0.0.1:10000"
 	defaultScyllaCQLAddr    = "127.0.0.1:9042"
 	defaultComponentTimeout = 2 * time.Second        // overall budget per probe
 	defaultSubTimeout       = 800 * time.Millisecond // per native-API call
 )
+
+// localProbeHost picks the host to dial for the locally-running daemon given a
+// rendered bind address. A specific address (loopback or node IP) is dialed as
+// rendered; an empty or bind-all (0.0.0.0/::) address means "all interfaces",
+// for which loopback is the safe local target.
+func localProbeHost(addr string) string {
+	a := stripQuotes(strings.TrimSpace(addr))
+	if a == "" || a == "0.0.0.0" || a == "::" {
+		return "127.0.0.1"
+	}
+	return a
+}
+
+// resolveEndpoints returns the REST base URL and CQL address to probe. Explicit
+// injections (a prober configured with a non-default RESTBase/CQLAddr, e.g. a
+// test httptest server) are honored verbatim; otherwise the targets are derived
+// from the rendered config so the probe observes the address ScyllaDB actually
+// binds to (api_address for REST, rpc_address for CQL).
+func (p *ScyllaProber) resolveEndpoints(rendered *ScyllaRenderedConfig) (restBase, cqlAddr string) {
+	restBase, cqlAddr = p.RESTBase, p.CQLAddr
+	if rendered == nil {
+		return restBase, cqlAddr
+	}
+	if restBase == "" || restBase == defaultScyllaRESTBase {
+		restBase = fmt.Sprintf("http://%s:%d", localProbeHost(rendered.APIAddress), scyllaRESTPort)
+	}
+	if cqlAddr == "" || cqlAddr == defaultScyllaCQLAddr {
+		cqlAddr = net.JoinHostPort(localProbeHost(rendered.RPCAddress), strconv.Itoa(scyllaCQLPort))
+	}
+	return restBase, cqlAddr
+}
 
 // ScyllaProber probes one local ScyllaDB instance. Use NewScyllaProber for
 // production defaults; the injection points exist so tests can run without a
@@ -162,8 +205,10 @@ func (p *ScyllaProber) ProbeStructured(ctx context.Context, desired *InfraDesire
 	res.Violations = violations
 	res.ConfigValid = rendered.Present && !hasSeverity(violations, SeverityCritical) && !hasSeverity(violations, SeverityError)
 
-	// Layer 3: runtime truth (best effort, bounded).
-	runtime := p.probeRuntime(ctx)
+	// Layer 3: runtime truth (best effort, bounded). Probe the address ScyllaDB
+	// actually binds (from the rendered config), not a hardcoded loopback.
+	restBase, cqlAddr := p.resolveEndpoints(rendered)
+	runtime := p.probeRuntime(ctx, restBase, cqlAddr)
 	res.DaemonActive = runtime.DaemonActive
 	res.Runtime = runtimeMap(runtime)
 	res.ObservedPeers = runtime.ObservedPeers
@@ -180,7 +225,7 @@ func (p *ScyllaProber) ProbeStructured(ctx context.Context, desired *InfraDesire
 
 // probeRuntime gathers native-API truth in layers. Each layer is independently
 // bounded and its failure is recorded as evidence rather than aborting.
-func (p *ScyllaProber) probeRuntime(ctx context.Context) *ScyllaRuntimeState {
+func (p *ScyllaProber) probeRuntime(ctx context.Context, restBase, cqlAddr string) *ScyllaRuntimeState {
 	rt := &ScyllaRuntimeState{BootstrapProgress: -1, GossipLive: -1}
 
 	rt.DaemonActive = p.unitActive(ctx)
@@ -190,7 +235,7 @@ func (p *ScyllaProber) probeRuntime(ctx context.Context) *ScyllaRuntimeState {
 	}
 
 	// REST: operation mode (also proves the local API is up).
-	if mode, err := p.restString(ctx, "/storage_service/operation_mode"); err == nil {
+	if mode, err := p.restString(ctx, restBase, "/storage_service/operation_mode"); err == nil {
 		rt.RESTAPIReady = true
 		rt.OperationMode = mode
 	} else {
@@ -198,7 +243,7 @@ func (p *ScyllaProber) probeRuntime(ctx context.Context) *ScyllaRuntimeState {
 	}
 
 	// REST: live gossip endpoints → observed peers + gossip live count.
-	if live, err := p.restStringSlice(ctx, "/gossiper/endpoint/live"); err == nil {
+	if live, err := p.restStringSlice(ctx, restBase, "/gossiper/endpoint/live"); err == nil {
 		rt.ObservedPeers = live
 		rt.GossipLive = len(live)
 	} else {
@@ -206,25 +251,25 @@ func (p *ScyllaProber) probeRuntime(ctx context.Context) *ScyllaRuntimeState {
 	}
 
 	// REST: local host id (best effort).
-	if hid, err := p.restString(ctx, "/storage_service/hostid/local"); err == nil {
+	if hid, err := p.restString(ctx, restBase, "/storage_service/hostid/local"); err == nil {
 		rt.HostID = hid
 	}
 
 	// CQL: optional, separately bounded TCP reachability check.
 	if p.EnableCQL {
-		if p.tcpReachable(ctx, p.CQLAddr) {
+		if p.tcpReachable(ctx, cqlAddr) {
 			rt.CQLReady = true
 		} else {
-			rt.Errors = append(rt.Errors, fmt.Sprintf("cql %s not reachable", p.CQLAddr))
+			rt.Errors = append(rt.Errors, fmt.Sprintf("cql %s not reachable", cqlAddr))
 		}
 	}
 	return rt
 }
 
-func (p *ScyllaProber) restBytes(ctx context.Context, path string) ([]byte, error) {
+func (p *ScyllaProber) restBytes(ctx context.Context, base, path string) ([]byte, error) {
 	sub, cancel := context.WithTimeout(ctx, p.SubTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(sub, http.MethodGet, p.RESTBase+path, nil)
+	req, err := http.NewRequestWithContext(sub, http.MethodGet, base+path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -244,8 +289,8 @@ func (p *ScyllaProber) restBytes(ctx context.Context, path string) ([]byte, erro
 }
 
 // restString fetches a JSON string scalar (ScyllaDB returns e.g. "NORMAL").
-func (p *ScyllaProber) restString(ctx context.Context, path string) (string, error) {
-	body, err := p.restBytes(ctx, path)
+func (p *ScyllaProber) restString(ctx context.Context, base, path string) (string, error) {
+	body, err := p.restBytes(ctx, base, path)
 	if err != nil {
 		return "", err
 	}
@@ -258,8 +303,8 @@ func (p *ScyllaProber) restString(ctx context.Context, path string) (string, err
 }
 
 // restStringSlice fetches a JSON array of strings (e.g. live endpoints).
-func (p *ScyllaProber) restStringSlice(ctx context.Context, path string) ([]string, error) {
-	body, err := p.restBytes(ctx, path)
+func (p *ScyllaProber) restStringSlice(ctx context.Context, base, path string) ([]string, error) {
+	body, err := p.restBytes(ctx, base, path)
 	if err != nil {
 		return nil, err
 	}

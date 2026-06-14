@@ -5761,3 +5761,58 @@ failure_modes:
         - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_LocalhostListenAddress
         - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_ConfigInvalidStalled
         - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaJoinStalled_Detection
+
+    - id: scylla.probe_dials_loopback_not_rendered_bind
+      title: The infra probe dialed a hardcoded 127.0.0.1 for ScyllaDB's REST/CQL instead of the rendered bind address, so a healthy node was falsely reported daemon_starting
+      severity: high
+      status: active
+      root_cause: |
+        The Phase-1 infra truth-plane probe (ScyllaProber) hardcoded its native-API
+        targets to http://127.0.0.1:10000 (REST) and 127.0.0.1:9042 (CQL). ScyllaDB
+        binds those ports to the CLUSTER-FACING address — rpc_address for CQL and
+        api_address for REST — which Globular renders to the node IP (e.g.
+        10.0.0.63), NOT loopback. The probe even parsed the rendered config (it
+        reported api_address/rpc_address=10.0.0.63 in result.rendered) but never
+        used those values for the dial. So on every healthy node the loopback dial
+        got connection-refused, the probe set rest_api_ready=false/cql_ready=false,
+        and the lifecycle FSM reported daemon_starting forever. Doctor then raised a
+        false scylla.probe_required_when_installed ERROR against a node that was
+        serving CQL and gossiping normally. This is the INVERSE of
+        scylla.wrong_config_appears_healthy: there a sick node looked green; here a
+        healthy node looked sick — both because a health signal was not bound to the
+        address the daemon actually uses.
+      trigger: |
+        ScyllaDB binds rpc_address/api_address to a non-loopback node IP (the normal
+        cluster-facing configuration) and the infra probe runs its REST/CQL
+        reachability checks against 127.0.0.1.
+      symptoms:
+        - infra_explain_stall/infra_probe_component report daemon_starting with rest_api_ready=false while scylla-server is active and serving
+        - probe errors show "connection refused" dialing 127.0.0.1 port 10000 (REST) and 127.0.0.1 port 9042 (CQL)
+        - result.rendered shows api_address/rpc_address = node IP, contradicting the loopback dial in the errors
+        - doctor emits ERROR scylla.probe_required_when_installed on a node whose ScyllaDB is healthy
+      blast_radius:
+        - False ERROR findings on every healthy node whose ScyllaDB binds the node IP — erodes trust in doctor and masks real probe failures
+        - A node can never reach INFRA_MEMBER_READY via the probe even though it is a working ring member
+      architecture_fix: |
+        The probe derives its native-API targets from the rendered config at probe
+        time (ScyllaProber.resolveEndpoints): REST base from api_address, CQL address
+        from rpc_address, falling back to loopback only when the rendered value is
+        empty or a bind-all address (0.0.0.0/::). Explicit injections (a test
+        httptest server) are honored verbatim. 127.0.0.1 is now a fallback, never a
+        hardcoded assumption — the probe observes the address ScyllaDB actually binds.
+      forbidden_fixes:
+        - hardcode_loopback_for_infra_native_api_probe
+        - treat_loopback_connection_refused_as_daemon_not_ready_without_checking_rendered_bind_address
+      related_invariants:
+        - infra.runtime_truth_must_be_observed_via_native_api
+        - infra.process_active_is_not_health
+        - meta.assertions_must_carry_their_scope
+      related_services:
+        - node-agent
+        - cluster-doctor
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/infra_truth/scylla_probe.go
+      required_tests:
+        - golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_UsesRenderedBindAddress
+        - golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_HonorsExplicitInjection
