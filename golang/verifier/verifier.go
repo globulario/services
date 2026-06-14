@@ -34,6 +34,7 @@
 // owned by the caller via EtcdKeyForVerification):
 //
 //	/globular/verification/runtime/<node_id>/<service_name>
+//
 // @awareness namespace=globular.platform
 // @awareness component=platform_verifier
 // @awareness file_role=binary_runtime_verifier
@@ -134,6 +135,20 @@ func isDay0UnprovenGrace(target Target, now time.Time) bool {
 // (which are minutes or hours older than the apply).
 const applyGraceWindow = 30 * time.Second
 
+// restartPendingWindow bounds how long after an upgrade apply a PID that
+// predates ApplyTime is treated as a benign in-flight restart instead of a
+// stale process. It only applies when the live PID is ALREADY serving the
+// current on-disk binary (running entrypoint == installed entrypoint — the
+// authoritative hash signal), so the "old" start time is the wall-clock apply
+// timestamp running ahead of a self-hosted restart, not stale bytes. This is
+// the upgrade analog of the first-install bootstrap_ordering_skew grace.
+//
+// Sized to cover a self-hosted restart across a doctor sweep or two (~60s
+// each) with margin. A PID that outlives this window while still predating
+// ApplyTime is a restart that genuinely did not take, and escalates to
+// critical service.old_pid_after_upgrade on the next sweep.
+const restartPendingWindow = 3 * time.Minute
+
 // Day0UnprovenGraceWindow caps how long after a first-install we treat
 // "no runtime proof captured yet" as benign Day-0 sequencing instead of
 // a degraded condition. The doctor sweep runs every ~60s, the node-agent
@@ -151,6 +166,7 @@ const applyGraceWindow = 30 * time.Second
 //   - short enough that a genuinely stuck-no-proof service (proof RPC
 //     broken, node-agent crashed) still escalates to degraded within
 //     the same operator session.
+//
 // Exported so the cluster_controller health handler can apply the same
 // grace window when the verifier hasn't yet written a verdict for a
 // freshly-installed service (the doctor sweep can lag service apply by
@@ -167,6 +183,7 @@ const (
 	FindingRunningVersionMismatch      = "service.running_version_mismatch"
 	FindingOldPidAfterUpgrade          = "service.old_pid_after_upgrade"
 	FindingBootstrapOrderingSkew       = "service.bootstrap_ordering_skew"
+	FindingRestartPending              = "service.restart_pending"
 	FindingRuntimeIdentityUnproven     = "service.runtime_identity_unproven"
 
 	// FindingPackageWrapsUpstreamBinary fires (at info severity) for
@@ -212,18 +229,18 @@ const (
 // entry verifier.hash_schema_confusion (and the fix brief at
 // /home/dave/Downloads/claude_fix_verifier_hash_schema_false_positive.md).
 //
-//   DesiredEntrypointChecksum
-//     sha256 of the installed service binary (e.g. /usr/lib/globular/bin/file_server).
-//     Source: package manifest's `entrypoint_checksum`. This is what the
-//     verifier compares against ServiceRuntimeProof.InstalledSha256 and
-//     ServiceRuntimeProof.RunningExeSha256 — both of which are binary hashes.
+//	DesiredEntrypointChecksum
+//	  sha256 of the installed service binary (e.g. /usr/lib/globular/bin/file_server).
+//	  Source: package manifest's `entrypoint_checksum`. This is what the
+//	  verifier compares against ServiceRuntimeProof.InstalledSha256 and
+//	  ServiceRuntimeProof.RunningExeSha256 — both of which are binary hashes.
 //
-//   DesiredPackageDigest
-//     sha256 of the package tarball (e.g. file_1.2.56_linux_amd64.tgz).
-//     Source: package manifest's `package_digest` / release status
-//     `ResolvedArtifactDigest`. Kept separately so future checks can
-//     compare against a tarball digest (e.g. artifact integrity audits)
-//     without re-confusing the binary comparison surface.
+//	DesiredPackageDigest
+//	  sha256 of the package tarball (e.g. file_1.2.56_linux_amd64.tgz).
+//	  Source: package manifest's `package_digest` / release status
+//	  `ResolvedArtifactDigest`. Kept separately so future checks can
+//	  compare against a tarball digest (e.g. artifact integrity audits)
+//	  without re-confusing the binary comparison surface.
 //
 // Comparing the binary on disk against the tarball digest is the exact
 // false-positive bug v1.2.56 shipped. Don't.
@@ -347,12 +364,12 @@ type Verdict struct {
 // Result is the cluster-wide roll-up across all per-target verdicts +
 // any cross-cutting findings (cross-node drift, active fallbacks).
 type Result struct {
-	Verdicts        []Verdict
-	DriftVerdicts   []crossnodedrift.DriftVerdict
-	Fallbacks       []fallback.Active
-	CrossFindings   []Finding
-	GeneratedAt     time.Time
-	Summary         Summary
+	Verdicts      []Verdict
+	DriftVerdicts []crossnodedrift.DriftVerdict
+	Fallbacks     []fallback.Active
+	CrossFindings []Finding
+	GeneratedAt   time.Time
+	Summary       Summary
 }
 
 // Summary counts roll-ups for monitoring/alerting consumers.
@@ -549,9 +566,18 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	if !target.ApplyTime.IsZero() && proof.GetProcessStartTime() != nil {
 		started := proof.GetProcessStartTime().AsTime()
 		if !started.IsZero() && started.Before(target.ApplyTime.Add(-applyGraceWindow)) {
+			// runningMatchesInstalled is the authoritative proof that the live
+			// PID is serving the CURRENT on-disk binary: check 2 above raises
+			// running_binary_hash_mismatch (critical) exactly when these differ.
+			// When they agree, an "old" PID start cannot mean stale bytes — it
+			// means the apply timestamp is running ahead of a (self-hosted)
+			// restart. Both hashes must be present; an unknown hash is not proof.
+			runningMatchesInstalled := installedEntrypoint != "" &&
+				runningEntrypoint != "" && installedEntrypoint == runningEntrypoint
 			findingID := FindingOldPidAfterUpgrade
 			severity := SeverityCritical
-			if target.IsFirstInstall {
+			switch {
+			case target.IsFirstInstall:
 				// First-install timing skew is expected sequencing, not drift:
 				// install.sh starts services before the controller bootstrap
 				// records the apply timestamp. The binary-identity checks
@@ -560,6 +586,17 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 				// pattern stays critical — different finding id + severity.
 				findingID = FindingBootstrapOrderingSkew
 				severity = SeverityInfo
+			case runningMatchesInstalled && now.Sub(target.ApplyTime) < restartPendingWindow:
+				// Upgrade just applied and the live PID is ALREADY serving the
+				// current on-disk binary. The "old" start time is the wall-clock
+				// apply timestamp running ahead of the restart (the self-hosted
+				// services restart themselves after the apply RPC records the
+				// timestamp), not stale bytes. Treat as a transient restart-
+				// pending (degraded) inside the window; a PID that outlives the
+				// window while still predating ApplyTime falls through to
+				// critical old_pid_after_upgrade on a later sweep.
+				findingID = FindingRestartPending
+				severity = SeverityDegraded
 			}
 			v.Findings = append(v.Findings, Finding{
 				ID:       findingID,
@@ -568,11 +605,13 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 				NodeID:   target.NodeID,
 				Detected: now,
 				Evidence: map[string]string{
-					"running_pid":        fmt.Sprintf("%d", proof.GetRunningPid()),
-					"process_start_time": started.Format(time.RFC3339),
-					"last_apply_time":    target.ApplyTime.Format(time.RFC3339),
-					"is_first_install":   fmt.Sprintf("%v", target.IsFirstInstall),
-					"apply_time_source":  target.ApplyTimeSource,
+					"running_pid":               fmt.Sprintf("%d", proof.GetRunningPid()),
+					"process_start_time":        started.Format(time.RFC3339),
+					"last_apply_time":           target.ApplyTime.Format(time.RFC3339),
+					"is_first_install":          fmt.Sprintf("%v", target.IsFirstInstall),
+					"apply_time_source":         target.ApplyTimeSource,
+					"running_matches_installed": fmt.Sprintf("%v", runningMatchesInstalled),
+					"restart_pending_window":    restartPendingWindow.String(),
 				},
 			})
 		}
