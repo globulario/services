@@ -282,11 +282,11 @@ func httpOpen(url, authToken string) (io.ReadCloser, ArtifactMeta, error) {
 		return nil, ArtifactMeta{}, fmt.Errorf("GET %s: %w", RedactAssetURL(url), err)
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, ArtifactMeta{}, fmt.Errorf("GET %s returned 404: %w", RedactAssetURL(url), ErrNotFound)
 	}
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, ArtifactMeta{}, fmt.Errorf("GET %s returned %d", RedactAssetURL(url), resp.StatusCode)
 	}
 	meta := ArtifactMeta{
