@@ -10152,6 +10152,55 @@ invariants:
   title: installed_state=installed requires the full runtime-artifact-integrity contract for the package kind — for SERVICE the unit must be present, active, and hash-verified; the binary path is resolved from the manifest, never guessed
   required_tests:
   - golang/node_agent/node_agent_server/internal/actions/serviceports/config_entrypoint_test.go::TestExecutableForServiceResolvesManifestEntrypoint
+- id: package.entrypoint_binary_identity_single_source_of_truth
+  title: A package's entrypoint binary is declared in three places (pkg-map.json, registry.yaml, spec metadata.entrypoint) — they MUST agree, or the build silently ships the wrong payload
+  summary: |
+    The binary that becomes a package's installed entrypoint is declared in THREE
+    independent files:
+
+      1. services/golang/build/pkg-map.json  ["<pkg>"]["binary"]   ← AUTHORITATIVE
+      2. packages/registry.yaml               binary: <name>
+      3. packages/specs/<pkg>_{service,cmd}.yaml  metadata.entrypoint
+
+    The release builder (release.yml and scripts/build-local-release.sh) reads
+    pkg-map.json to decide WHICH binary to copy into the package payload and then
+    computes entrypoint_checksum from whatever it copied. registry.yaml and the
+    spec entrypoint express the SAME fact but are read by other paths
+    (packages/build.sh, and the node-agent verifier's expectation of the installed
+    artifact). Because the checksum is derived from the packaged bytes, a
+    disagreement is invisible to the verifier: the package is internally
+    self-consistent while shipping the wrong binary.
+
+    This bit in v1.2.216: claude was reworked into a fetch-at-install wrapper
+    (registry + spec moved to the `noop` sentinel, real CLI fetched at install),
+    but pkg-map.json still said binary=claude. The build copied the previous
+    bundle's 12.3 MB Claude CLI v2.1.80 into the payload instead of the noop
+    sentinel the spec's install-payload step and the verifier expected — and
+    stamped entrypoint_checksum from it, so nothing flagged the mismatch.
+
+    The three declaration sites are competing writers of one identity fact; they
+    must converge or be fenced behind a single authoritative source. The only
+    legitimate divergence is a DOCUMENTED build-time rename (globular-cli is built
+    as `globularcli`, distributed as `globular`); such cases live in the guard's
+    RENAME_EXCEPTIONS, not as silent drift. scripts/check-package-binary-consistency.py
+    enforces agreement across all packages and must run before release.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/build/pkg-map.json
+    - scripts/build-local-release.sh
+    - scripts/check-package-binary-consistency.py
+    - .github/workflows/release.yml
+  related_invariants:
+  - meta.competing_writers_must_converge_or_be_fenced
+  - meta.half_done_must_not_look_done
+  - meta.storage_is_not_semantic_authority
+  forbidden_fixes:
+  - change_binary_in_one_declaration_site_without_the_others
+  - rely_on_entrypoint_checksum_to_catch_a_wrong_but_self_consistent_payload
+  required_tests:
+  - scripts/check-package-binary-consistency.py
 - id: infra.process_active_is_not_health
   title: A process being active is never sufficient evidence that external infrastructure is correct — health requires desired/rendered/runtime/lifecycle evidence
   summary: |

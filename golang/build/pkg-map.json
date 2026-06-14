@@ -289,7 +289,7 @@
     "platform_version": false
   },
   "claude": {
-    "binary": "claude",
+    "binary": "noop",
     "go_target": "",
     "kind": "command",
     "platform_version": false
