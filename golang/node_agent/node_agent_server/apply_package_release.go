@@ -397,9 +397,13 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		}, nil
 	}
 
-	// Mark as updating in installed-state.
+	// Mark as updating in installed-state. Preserve existing metadata
+	// (especially receipt fields like unit_file_sha256) so that if the
+	// install fails after this point, the heartbeat can still compare
+	// the on-disk unit file against the previous receipt instead of
+	// falling to sidecar migration and reporting false unit_file_drift.
 	now := time.Now().Unix()
-	_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
+	updatingPkg := &node_agentpb.InstalledPackage{
 		NodeId:      srv.nodeID,
 		Name:        name,
 		Version:     version,
@@ -409,7 +413,11 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		OperationId: operationID,
 		BuildNumber: req.GetBuildNumber(),
 		BuildId:     buildID,
-	})
+	}
+	if previousInstalled != nil {
+		PreserveInstallReceiptMetadata(previousInstalled, updatingPkg)
+	}
+	_ = installed_state.WriteInstalledPackage(ctx, updatingPkg)
 
 	// Use the existing InstallPackage method which handles:
 	// - Fetching from repository (with fallback to local packages)
