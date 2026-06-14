@@ -7947,7 +7947,7 @@ invariants:
     critical if the PID outlives the window. The timing tell must never override
     the authoritative hash signal to assert drift the hash does not support.
     Conversely, when running != installed the hash signal proves stale bytes and
-    the finding stays critical.
+    the finding stays critical. First observed as INC-2026-0020.
 - forbidden_fixes:
   - declare_noarch_artifact_with_linux_amd64_to_work_around_filter
   - add_kind_specific_bypass_for_awareness_bundle_in_sync_loop

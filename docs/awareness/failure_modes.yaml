@@ -2077,6 +2077,8 @@ failure_modes:
         benign, self-correcting transient — churning doctor incidents on every self-hosted
         upgrade. Sibling of the INC-2026-0016 timestamp-anchoring class, but triggered by
         the apply-time write + restart lag rather than the heartbeat refresh.
+        Tracked as INC-2026-0020 (cluster-controller v1.2.215 / build eb9a2dac,
+        observed then self-cleared 2026-06-14).
       severity: high
       symptoms:
         - critical service.old_pid_after_upgrade appears for a self-hosted service right after an upgrade and clears within minutes
