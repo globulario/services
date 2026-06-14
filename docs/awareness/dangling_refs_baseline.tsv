@@ -1312,3 +1312,11 @@ https://globular.io/awareness#ForbiddenFix	rely_on_entrypoint_checksum_to_catch_
 https://globular.io/awareness#Test	golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_HonorsExplicitInjection
 https://globular.io/awareness#Test	golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_UsesRenderedBindAddress
 https://globular.io/awareness#Test	scripts/check-package-binary-consistency.py
+https://globular.io/awareness#Test	TestHTTPGet_404ReturnsErrNotFound
+https://globular.io/awareness#Test	TestHTTPGet_5xxIsNotErrNotFound
+https://globular.io/awareness#Test	TestClassifyUpstreamFetchError_NotFound
+https://globular.io/awareness#Test	TestClassifyUpstreamFetchError_TransientStaysUnavailable
+https://globular.io/awareness#Test	TestClassifyUpstreamFetchError_LocalDirNotFound
+https://globular.io/awareness#Test	TestVerifyTarget_RecentUpgradeRunningMatchesInstalled_RestartPending
+https://globular.io/awareness#Test	TestVerifyTarget_StuckRestartBeyondWindow_EscalatesToOldPid
+https://globular.io/awareness#Test	TestVerifyTarget_RecentUpgradeRunningDiffersFromInstalled_StaysCritical
