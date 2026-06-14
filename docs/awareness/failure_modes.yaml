@@ -2033,6 +2033,58 @@ failure_modes:
         - PUBLISHED artifact has no blob in the authoritative POSIX CAS but the publish RPC returned SUCCESS
         - cluster-doctor and another service emit disagreeing health verdicts for the same (service, node) pair because both compute it independently
       title: A write by an actor outside its assigned layer creates persistent cross-layer drift that surfaces as a different symptom in every observer until the layer authority is restored
+    - affects:
+        files:
+            - golang/verifier/verifier.go
+        symbols:
+            - VerifyTarget
+            - FindingRestartPending
+            - restartPendingWindow
+      detection: |
+        - cluster-doctor shows critical service.old_pid_after_upgrade for a self-hosted service (cluster-controller / cluster-doctor / repository) right after an upgrade apply
+        - the SAME service has NO service.running_binary_hash_mismatch finding (running entrypoint == installed entrypoint)
+        - the finding clears on its own within a sweep or two once the service restarts onto the new binary
+      id: verifier.self_hosted_restart_window_flagged_as_critical_old_pid
+      known_bad_fixes:
+        - suppressing service.old_pid_after_upgrade globally (loses the genuine stale-PID upgrade signal)
+        - widening applyGraceWindow to minutes (masks genuinely stale PIDs that are seconds-to-minutes old)
+        - gating the downgrade on installed==desired entrypoint checksum (that comparison is intentionally omitted — CI computes the checksum from a different artifact, so it is systematically false)
+        - marking the finding PASS/info so it never surfaces (a restart that never completes must still escalate to critical)
+      related_invariants:
+        - meta.authority_must_express_uncertainty
+        - runtime.identity_attestation_must_bind_pid_hash_service_and_build
+        - verifier.timing_tell_must_not_override_authoritative_hash
+      required_tests:
+        - TestVerifyTarget_RecentUpgradeRunningMatchesInstalled_RestartPending
+        - TestVerifyTarget_StuckRestartBeyondWindow_EscalatesToOldPid
+        - TestVerifyTarget_RecentUpgradeRunningDiffersFromInstalled_StaysCritical
+      resolution: |
+        verifier.go case 4: when the live PID predates ApplyTime on an upgrade but the
+        running entrypoint already equals the installed entrypoint (the authoritative
+        running-vs-installed hash proves current bytes) AND the apply is within
+        restartPendingWindow (3m), emit degraded service.restart_pending instead of
+        critical service.old_pid_after_upgrade. A PID that outlives the window while
+        still predating ApplyTime falls through to critical (the restart genuinely did
+        not take). Genuine stale bytes (running != installed) are never downgraded —
+        service.running_binary_hash_mismatch + critical old_pid still fire.
+      root_cause: |
+        old_pid_after_upgrade fires when process_start < ApplyTime - applyGraceWindow on
+        an upgrade. For self-hosted services the apply RPC records ApplyTime (wall clock)
+        and the service then restarts ITSELF; there is a window where the binary on disk
+        is already the new version (running == installed) but ApplyTime is ahead of the
+        restart. The 30s applyGraceWindow covers systemd second-rounding, not a
+        multi-sweep self-hosted restart, so the verifier raised a CRITICAL finding for a
+        benign, self-correcting transient — churning doctor incidents on every self-hosted
+        upgrade. Sibling of the INC-2026-0016 timestamp-anchoring class, but triggered by
+        the apply-time write + restart lag rather than the heartbeat refresh.
+        Tracked as INC-2026-0020 (cluster-controller v1.2.215 / build eb9a2dac,
+        observed then self-cleared 2026-06-14).
+      severity: high
+      symptoms:
+        - critical service.old_pid_after_upgrade appears for a self-hosted service right after an upgrade and clears within minutes
+        - no accompanying service.running_binary_hash_mismatch (running bytes already match installed)
+        - doctor/incident churn on every self-hosted control-plane upgrade
+      title: Self-hosted upgrade restart window flagged as critical old_pid_after_upgrade even though the live PID already serves the current binary
     - architecture_fix: |
         After ListArtifacts(), deduplicate to keep only the highest-version manifest per
         (name, platform) before iterating. Only the latest published version is authoritative

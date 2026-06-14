@@ -7916,6 +7916,38 @@ invariants:
 
     '
   title: Artifact signature must be verified before install begins
+- id: verifier.timing_tell_must_not_override_authoritative_hash
+  protects:
+    files:
+    - golang/verifier/verifier.go
+    symbols:
+    - VerifyTarget
+    - FindingRestartPending
+    - FindingOldPidAfterUpgrade
+  related_failure_modes:
+  - verifier.self_hosted_restart_window_flagged_as_critical_old_pid
+  related_invariants:
+  - meta.authority_must_express_uncertainty
+  - runtime.identity_attestation_must_bind_pid_hash_service_and_build
+  required_tests:
+  - TestVerifyTarget_RecentUpgradeRunningMatchesInstalled_RestartPending
+  - TestVerifyTarget_StuckRestartBeyondWindow_EscalatesToOldPid
+  - TestVerifyTarget_RecentUpgradeRunningDiffersFromInstalled_StaysCritical
+  severity: high
+  status: active
+  summary: >-
+    The verifier's apply-time-vs-process-start check (the "timing tell",
+    service.old_pid_after_upgrade) is a SECONDARY signal. When the authoritative
+    running-vs-installed hash proves the live PID is already serving the current
+    on-disk binary (running entrypoint == installed entrypoint), an "old" PID
+    start cannot mean stale bytes — it means the wall-clock apply timestamp is
+    running ahead of a (self-hosted) restart. In that state the timing tell must
+    NOT raise a critical drift finding; it degrades to a transient
+    service.restart_pending within restartPendingWindow and only escalates to
+    critical if the PID outlives the window. The timing tell must never override
+    the authoritative hash signal to assert drift the hash does not support.
+    Conversely, when running != installed the hash signal proves stale bytes and
+    the finding stays critical. First observed as INC-2026-0020.
 - id: repository.upstream_absence_must_classify_notfound_not_unavailable
   protects:
     files:
