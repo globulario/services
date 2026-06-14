@@ -1,18 +1,20 @@
 // repo_upstream_cmds.go — Upstream source management for the repository.
 //
 // Commands:
-//   globular repo register-upstream --name <n> --url <index-url> [--channel <c>] [--platform <p>] [--disabled]
-//   globular repo list-upstreams
-//   globular repo remove-upstream <name>
-//   globular pkg sync-upstream --source <name> --tag <tag> [--dry-run] [--only a,b,c]
+//
+//	globular repo register-upstream --name <n> --url <index-url> [--channel <c>] [--platform <p>] [--disabled]
+//	globular repo list-upstreams
+//	globular repo remove-upstream <name>
+//	globular pkg sync-upstream --source <name> --tag <tag> [--dry-run] [--only a,b,c]
 //
 // Sync entrypoint:
-//   pkg sync-upstream triggers the repository.sync.upstream workflow via the
-//   centralized WorkflowService. The workflow executes three steps on the
-//   repository actor (dispatched through the cluster-controller):
-//     1. validate_source  — confirm source exists and is enabled
-//     2. sync             — fetch index, verify digests, import artifacts
-//     3. report           — emit structured audit outcome
+//
+//	pkg sync-upstream triggers the repository.sync.upstream workflow via the
+//	centralized WorkflowService. The workflow executes three steps on the
+//	repository actor (dispatched through the cluster-controller):
+//	  1. validate_source  — confirm source exists and is enabled
+//	  2. sync             — fetch index, verify digests, import artifacts
+//	  3. report           — emit structured audit outcome
 package main
 
 import (
@@ -129,7 +131,10 @@ For audited Day-1 upgrades, use 'globular pkg sync-upstream' instead.`,
 
   # Import only specific packages
   globular repo sync --source globulario-github --tag v1.0.27 --only dns,rbac`,
-	RunE: runRepoSync,
+	// A sync RPC failure (e.g. tag not on upstream) is a runtime error, not a
+	// usage error — don't dump the cobra usage text after the error message.
+	SilenceUsage: true,
+	RunE:         runRepoSync,
 }
 
 var pkgSyncUpstreamCmd = &cobra.Command{

@@ -7916,6 +7916,47 @@ invariants:
 
     '
   title: Artifact signature must be verified before install begins
+- id: repository.upstream_absence_must_classify_notfound_not_unavailable
+  protects:
+    files:
+    - golang/repository/repository_server/sync_from_upstream.go
+    - golang/repository/upstream/source.go
+    - golang/repository/upstream/github.go
+    - golang/repository/upstream/local_source.go
+    symbols:
+    - classifyUpstreamFetchError
+    - ErrNotFound
+    - httpGet
+    - httpOpen
+  related_failure_modes:
+  - repository.upstream_404_absorbed_into_unavailable
+  related_invariants:
+  - meta.connection_errors_must_not_be_absorbed
+  - meta.absence_scope_must_be_explicit
+  required_tests:
+  - TestHTTPGet_404ReturnsErrNotFound
+  - TestHTTPGet_5xxIsNotErrNotFound
+  - TestClassifyUpstreamFetchError_NotFound
+  - TestClassifyUpstreamFetchError_TransientStaysUnavailable
+  - TestClassifyUpstreamFetchError_LocalDirNotFound
+  severity: high
+  status: active
+  summary: >-
+    A definitive absence from an upstream release provider — an HTTP 404 (the
+    requested release tag does not exist on this provider) or a missing local
+    index file — MUST be classified as codes.NotFound, never codes.Unavailable.
+    Unavailable means "transient, retry me"; an absent tag is permanent and will
+    never appear by retrying. Providers express this with the provider-neutral
+    sentinel upstream.ErrNotFound (wrapped via %w in httpGet/httpOpen/
+    doGitHubRequest and the LOCAL_DIR os.IsNotExist path); the sync pipeline maps
+    it through classifyUpstreamFetchError. This is the common, BENIGN case for a
+    locally-built release whose version was never published to the upstream
+    (e.g. GitHub releases): Day-0 bootstrap must treat "tag absent on this
+    provider" as nothing-to-import, not as a retryable failure. Conflating the
+    two made ensure-bootstrap-artifacts.sh retry a guaranteed-404 three times and
+    surface a transient-looking error for a permanent condition. Provider-neutral
+    by construction — the fact is identical for GitHub, HTTP index, Git, or local
+    dir.
 - forbidden_fixes:
   - declare_noarch_artifact_with_linux_amd64_to_work_around_filter
   - add_kind_specific_bypass_for_awareness_bundle_in_sync_loop

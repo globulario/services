@@ -47,6 +47,20 @@ type ReleaseSource interface {
 // ErrListUnsupported is returned by providers that do not support ListReleases.
 var ErrListUnsupported = fmt.Errorf("this provider does not support listing releases — use an explicit tag")
 
+// ErrNotFound signals that an upstream resource (a release index for a tag, or
+// an artifact) is DEFINITIVELY absent on this provider — e.g. an HTTP 404. It is
+// distinct from transient unavailability (network failure, 5xx, timeout): a tag
+// that returns ErrNotFound will not appear by retrying, so callers MUST map it to
+// codes.NotFound and MUST NOT retry. Providers wrap their 404 / missing-resource
+// errors with %w on this sentinel; the sync pipeline checks it via errors.Is.
+//
+// This is provider-neutral by construction: "the requested release does not exist
+// here" is the same fact whether the provider is GitHub, an HTTP index, a Git
+// repo, or a local directory. Conflating it with Unavailable is what made a
+// local-only build's Day-0 upstream sync retry a guaranteed-404 three times and
+// surface a transient-looking error for a permanent condition.
+var ErrNotFound = fmt.Errorf("upstream resource not found")
+
 // ErrProviderUnimplemented is returned for provider types that are not yet implemented.
 var ErrProviderUnimplemented = fmt.Errorf("provider type not yet implemented")
 

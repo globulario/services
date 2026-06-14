@@ -208,9 +208,9 @@ func doGitHubRequest(url, authToken string) ([]byte, error) {
 		// success
 	case http.StatusNotFound:
 		if authToken == "" {
-			return nil, fmt.Errorf("GitHub release not found (404) — if this is a private repo, set credentials_ref")
+			return nil, fmt.Errorf("GitHub release not found (404) — if this is a private repo, set credentials_ref: %w", ErrNotFound)
 		}
-		return nil, fmt.Errorf("GitHub release not found (404) — verify the repo, tag, and token permissions")
+		return nil, fmt.Errorf("GitHub release not found (404) — verify the repo, tag, and token permissions: %w", ErrNotFound)
 	case http.StatusForbidden:
 		remaining := resp.Header.Get("X-RateLimit-Remaining")
 		reset := resp.Header.Get("X-RateLimit-Reset")
@@ -251,6 +251,9 @@ func httpGet(url, authToken string) ([]byte, error) {
 		return nil, fmt.Errorf("GET %s: %w", RedactAssetURL(url), err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("GET %s returned 404: %w", RedactAssetURL(url), ErrNotFound)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s returned %d", RedactAssetURL(url), resp.StatusCode)
 	}
@@ -278,8 +281,12 @@ func httpOpen(url, authToken string) (io.ReadCloser, ArtifactMeta, error) {
 	if err != nil {
 		return nil, ArtifactMeta{}, fmt.Errorf("GET %s: %w", RedactAssetURL(url), err)
 	}
+	if resp.StatusCode == http.StatusNotFound {
+		_ = resp.Body.Close()
+		return nil, ArtifactMeta{}, fmt.Errorf("GET %s returned 404: %w", RedactAssetURL(url), ErrNotFound)
+	}
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, ArtifactMeta{}, fmt.Errorf("GET %s returned %d", RedactAssetURL(url), resp.StatusCode)
 	}
 	meta := ArtifactMeta{
