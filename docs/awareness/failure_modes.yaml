@@ -3993,6 +3993,61 @@ failure_modes:
         - repository reports MinIO unavailable
         - MinIO cannot start because node-agent cannot install it
       title: Repository and MinIO form a recovery deadlock
+    - affects:
+        files:
+            - golang/repository/repository_server/sync_from_upstream.go
+            - golang/repository/upstream/github.go
+            - scripts/release/ensure-bootstrap-artifacts.sh
+        symbols:
+            - classifyUpstreamFetchError
+            - httpGet
+            - httpOpen
+      detection: |
+        - `globular repo sync --tag <local-only-tag>` returns "code = Unavailable" for a GitHub 404
+        - Day-0 ensure-bootstrap-artifacts.sh retries the sync 3x, every attempt a guaranteed 404
+        - install log shows "Upstream sync failed (non-fatal)" with a release-index.json 404 in the message
+        - cobra "Usage:" text dumped to stderr after the sync error
+      id: repository.upstream_404_absorbed_into_unavailable
+      known_bad_fixes:
+        - widening the script's transient-retry regex to also match 404 (treats the symptom; the error code still lies about being transient)
+        - skipping the Day-0 upstream sync entirely (loses Day-1+ sync for real clusters)
+        - hardcoding the local version to a known-good GitHub tag (fabricates false provenance)
+        - returning codes.OK / empty result for a 404 (hides genuine missing-release on real clusters)
+      related_invariants:
+        - meta.connection_errors_must_not_be_absorbed
+        - meta.absence_scope_must_be_explicit
+        - repository.upstream_absence_must_classify_notfound_not_unavailable
+      required_tests:
+        - TestHTTPGet_404ReturnsErrNotFound
+        - TestHTTPGet_5xxIsNotErrNotFound
+        - TestClassifyUpstreamFetchError_NotFound
+        - TestClassifyUpstreamFetchError_TransientStaysUnavailable
+      resolution: |
+        upstream package: providers wrap 404 / missing-index with the provider-neutral
+        sentinel upstream.ErrNotFound (httpGet, httpOpen, doGitHubRequest, and the
+        LOCAL_DIR os.IsNotExist path). sync_from_upstream.go: classifyUpstreamFetchError
+        maps errors.Is(err, upstream.ErrNotFound) -> codes.NotFound, everything else
+        (network, 5xx, timeout) -> codes.Unavailable. ensure-bootstrap-artifacts.sh: a
+        NotFound sync result is logged as benign info ("tag not on upstream — expected
+        for local/dev builds; using locally published artifacts") and never retried.
+        globularcli repo sync: SilenceUsage:true so an RPC error doesn't dump cobra usage.
+      root_cause: |
+        sync_from_upstream.go wrapped ALL provider.GetReleaseIndex errors as
+        codes.Unavailable. A GitHub 404 (the release tag does not exist on that
+        provider) is permanent, not transient. For a locally-built release whose
+        version was never published to GitHub, the Day-0 bootstrap sync 404s by
+        construction; the Unavailable classification drove the script's transient-retry
+        loop to retry a guaranteed-404 three times and surfaced a transient-looking
+        error for a permanent, benign condition. Maps to two Signal meta-principles:
+        a definitive absence absorbed into a generic transient (connection_errors_must_not_be_absorbed)
+        with its scope unstated (absence_scope_must_be_explicit).
+      severity: high
+      symptoms:
+        - repo sync from globulario-github returns "code = Unavailable" for an HTTP 404
+        - Day-0 install log shows a GitHub release-index.json 404 surfaced as a sync failure
+        - the same 404 is retried 3 times before giving up
+        - cobra "Usage:" text printed after the sync RPC error
+      title: Upstream 404 absorbed into codes.Unavailable causes guaranteed-404 retries and a transient-looking error for a permanent absence
     - detection: |
         - repository_upstream_sync with only=<bundle-name> returns empty results array
         - cqlsh "SELECT count(*) FROM repository.manifests WHERE name='globular-awareness-bundle';" returns 0

@@ -62,6 +62,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -87,6 +88,21 @@ import (
 const upstreamEtcdPrefix = "/globular/repository/upstreams/"
 
 func upstreamEtcdKey(name string) string { return upstreamEtcdPrefix + name }
+
+// classifyUpstreamFetchError maps a provider GetReleaseIndex failure to a gRPC
+// status. A definitive absence (upstream.ErrNotFound — e.g. HTTP 404 or a missing
+// local index) is codes.NotFound: a permanent, non-retryable condition. The
+// common case is a locally-built release whose tag was never published to the
+// upstream (e.g. GitHub releases), so Day-0 bootstrap must treat it as benign
+// rather than retrying a guaranteed-404. Everything else (network failure, 5xx,
+// timeout) is transient and maps to codes.Unavailable so callers may retry.
+func classifyUpstreamFetchError(fetchErr error, sourceName, releaseTag string) error {
+	if errors.Is(fetchErr, upstream.ErrNotFound) {
+		return status.Errorf(codes.NotFound,
+			"release %q not found on upstream %q: %v", releaseTag, sourceName, fetchErr)
+	}
+	return status.Errorf(codes.Unavailable, "fetch release index from %q: %v", sourceName, fetchErr)
+}
 
 // ── RegisterUpstream ─────────────────────────────────────────────────────────
 
@@ -284,7 +300,7 @@ func (srv *server) SyncFromUpstream(ctx context.Context, req *repopb.SyncFromUps
 	// ── Fetch release index via provider ─────────────────────────────────
 	indexData, fetchErr := provider.GetReleaseIndex(ctx, opts, releaseTag)
 	if fetchErr != nil {
-		return nil, status.Errorf(codes.Unavailable, "fetch release index from %q: %v", sourceName, fetchErr)
+		return nil, classifyUpstreamFetchError(fetchErr, sourceName, releaseTag)
 	}
 	idx, err := parseReleaseIndex(indexData)
 	if err != nil {
@@ -977,21 +993,21 @@ func (srv *server) importUpstreamArtifact(
 					}
 				}
 				slog.Info("upstream: identical artifact already exists (blob verified), skipping import",
-						"source", src.GetName(), "publisher", n.Publisher,
-						"name", n.Name, "version", n.Version, "platform", n.Platform,
-						"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
-						"digest", truncDigest(digest),
-						"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
-						"publish_state", state.String())
-					if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), digest, n.OriginRelease, src.GetName()); err != nil {
-						if isAliasConflictError(err) {
-							return fmt.Errorf("alias conflict for %s build_number=%d: %w", releaseTag, n.BuildNumber, err)
-						}
-						slog.Warn("upstream: failed to persist release/build alias", "err", err,
-							"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
+					"source", src.GetName(), "publisher", n.Publisher,
+					"name", n.Name, "version", n.Version, "platform", n.Platform,
+					"build_number", existing.GetBuildNumber(), "build_id", existing.GetBuildId(),
+					"digest", truncDigest(digest),
+					"blob_key", blobKeyForRef(ref, existing.GetBuildNumber()),
+					"publish_state", state.String())
+				if err := srv.ensureReleaseBuildAlias(ctx, ref, releaseTag, n.BuildNumber, n.BuildID, existing.GetBuildId(), digest, n.OriginRelease, src.GetName()); err != nil {
+					if isAliasConflictError(err) {
+						return fmt.Errorf("alias conflict for %s build_number=%d: %w", releaseTag, n.BuildNumber, err)
 					}
-					return nil
+					slog.Warn("upstream: failed to persist release/build alias", "err", err,
+						"release_tag", releaseTag, "build_number", n.BuildNumber, "canonical_build_id", existing.GetBuildId())
 				}
+				return nil
+			}
 			// Same digest but different build_number is dedupe/alias territory.
 			// Keep canonical local artifact identity; do not duplicate rows only
 			// to mirror an upstream locator.
@@ -1066,20 +1082,20 @@ func (srv *server) importUpstreamArtifact(
 		Provisional:        false,
 		Channel:            channelFromString(n.Channel),
 		UpstreamImport: &repopb.UpstreamImportRecord{
-			SourceName:             src.GetName(),
-			ReleaseTag:             releaseTag,
-			AssetUrl:               resolveProvenanceAssetURL(n),
-			IndexUrl:               strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
-			ImportedAt:             time.Now().Unix(),
-			Publisher:              n.Publisher,
-			Kind:                   n.Kind,
-			Channel:                n.Channel,
-			BuildNumber:            n.BuildNumber,
-			Checksum:               digest,
-			OriginRelease:          n.OriginRelease,
-			ChangedInRelease:       n.ChangedInRelease,
-			PlatformRelease:        n.PlatformRelease,
-			PackageContractDigest:  n.PackageContractDigest,
+			SourceName:            src.GetName(),
+			ReleaseTag:            releaseTag,
+			AssetUrl:              resolveProvenanceAssetURL(n),
+			IndexUrl:              strings.ReplaceAll(src.GetIndexUrl(), "{tag}", releaseTag),
+			ImportedAt:            time.Now().Unix(),
+			Publisher:             n.Publisher,
+			Kind:                  n.Kind,
+			Channel:               n.Channel,
+			BuildNumber:           n.BuildNumber,
+			Checksum:              digest,
+			OriginRelease:         n.OriginRelease,
+			ChangedInRelease:      n.ChangedInRelease,
+			PlatformRelease:       n.PlatformRelease,
+			PackageContractDigest: n.PackageContractDigest,
 		},
 	}
 
@@ -1361,10 +1377,11 @@ func resolveProvenanceAssetURL(n *normalizedEntry) string {
 // TODO(streaming): This function reads the full artifact into memory (up to
 // maxArtifactBytes = 500 MiB). For large packages this causes memory pressure.
 // Refactor to stream through a temp file:
-//   1. provider.OpenArtifact → stream to os.CreateTemp while hashing
-//   2. Verify sha256 after complete write
-//   3. Pass temp file path to importUpstreamArtifact (which writes to MinIO)
-//   4. Delete temp file after MinIO write
+//  1. provider.OpenArtifact → stream to os.CreateTemp while hashing
+//  2. Verify sha256 after complete write
+//  3. Pass temp file path to importUpstreamArtifact (which writes to MinIO)
+//  4. Delete temp file after MinIO write
+//
 // This avoids holding 500 MiB in memory during import.
 // Tracked as: https://github.com/globulario/services/issues/TBD
 func downloadAndVerifyFromProvider(

@@ -795,6 +795,13 @@ else
     echo "$SYNC_OUT" | grep -E "^(Imported|Skipped)" | while IFS= read -r line; do
       log_info "  $line"
     done
+  elif echo "$SYNC_OUT" | grep -qiE "code = NotFound|not found on upstream"; then
+    # Definitive absence: this tag was never published to the upstream. This is
+    # the expected, benign case for a locally-built release (the version exists
+    # only in the local bundle, not on GitHub). There is nothing to import and
+    # nothing to retry — the artifacts are already published locally at Day-0.
+    log_info "Tag ${SYNC_TAG} is not published on upstream '${UPSTREAM_NAME}' — expected for local/dev builds."
+    log_info "Day-0 continues with locally published artifacts (nothing to import from upstream)."
   else
     log_warn "Upstream sync failed (non-fatal): ${SYNC_OUT}"
     log_warn "Retry: globular repo sync --source ${UPSTREAM_NAME} --tag ${SYNC_TAG}"

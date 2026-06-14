@@ -85,6 +85,11 @@ func (s *LocalDirSource) GetReleaseIndex(ctx context.Context, opts SourceOpts, t
 	}
 	data, readErr := os.ReadFile(path)
 	if readErr != nil {
+		if os.IsNotExist(readErr) {
+			// Definitive absence (no index for this tag) — provider-neutral
+			// NotFound, not a transient read failure. Callers must not retry.
+			return nil, fmt.Errorf("LOCAL_DIR: release-index.json for tag %q not found: %w", tag, ErrNotFound)
+		}
 		return nil, fmt.Errorf("LOCAL_DIR: read release-index.json: %w", readErr)
 	}
 	return data, nil
