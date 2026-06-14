@@ -1307,3 +1307,8 @@ https://globular.io/awareness#Test	golang/cluster_doctor/cluster_doctor_server/r
 https://globular.io/awareness#Test	golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaPeersMatch_MissingPeer
 https://globular.io/awareness#Test	golang/mcp/tools_infra_test.go::TestInfraExplainStall_ConfigViolation
 https://globular.io/awareness#Test	golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_RemediationTargetsOwnerNotManualEdit
+https://globular.io/awareness#ForbiddenFix	change_binary_in_one_declaration_site_without_the_others
+https://globular.io/awareness#ForbiddenFix	rely_on_entrypoint_checksum_to_catch_a_wrong_but_self_consistent_payload
+https://globular.io/awareness#Test	golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_HonorsExplicitInjection
+https://globular.io/awareness#Test	golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_UsesRenderedBindAddress
+https://globular.io/awareness#Test	scripts/check-package-binary-consistency.py
