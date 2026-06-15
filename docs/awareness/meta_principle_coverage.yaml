@@ -49,7 +49,11 @@ enforcement_ratchet:
   # freeing a slot. The 16th perception principle landed as `planned` (concrete
   # mechanism named), not review_only, so it did not consume the slot. First
   # time the ratchet TIGHTENED — exactly the "improve by mechanizing" path.
-  max_review_only: 42
+  # 42 → 43: meta.code.identity_bound_state_must_not_be_copied added as
+  # review_only — a cross-language (etcd/Go + vite/TS) identity/aliasing
+  # principle that is design judgement, not yet a scannable property. Conscious
+  # bump; revisit if a copylock-style scanner is later wired (→ behavioral).
+  max_review_only: 43
 
 meta_principle_coverage:
 
@@ -287,3 +291,12 @@ meta_principle_coverage:
   - principle: meta.code.framework_dependency_must_be_earned
     tier: review_only
     reason: Dependency economics is a written-case review at adoption and major bumps, not a scannable property.
+  - principle: meta.code.identity_bound_state_must_not_be_copied
+    tier: review_only
+    reason: >
+      Values whose semantics depend on identity, hidden mutable state, aliasing,
+      synchronization, cursor position, or lifecycle ownership require design
+      judgement. A scanner cannot generally decide whether a copy/share is
+      invalid or a legitimate defensive copy. Corroborated independently in
+      Go/etcd and TypeScript/Vite. Candidate pending review and future
+      mechanization strategy.
