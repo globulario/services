@@ -5923,3 +5923,35 @@ failure_modes:
       required_tests:
         - golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_UsesRenderedBindAddress
         - golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_HonorsExplicitInjection
+    - id: node_agent.state_path_default_desync_from_backup_exclusion
+      title: Node-agent state-path default drifts out of sync with backup-manager exclusion config
+      severity: high
+      root_cause: |
+        The default node-agent state path is defined in node_agent_server/main.go, and
+        the backup manager maintains an independent exclusion list that references that
+        path. Changing the default (e.g. to /var/lib/globular/node-agent/state.json) in
+        main.go without updating the backup exclusion leaves the backup config pointing
+        at the old path — node-agent runtime state is then backed up or excluded at the
+        wrong location. The same value lives in two places with no single source, so the
+        two drift apart silently.
+      symptoms:
+        - backup config references a node-agent state path that main.go no longer uses
+        - node-agent state.json is unexpectedly included in (or excluded from) backups
+        - moving the default state path silently breaks backup coverage with no error
+      architecture_fix: |
+        The state-path default must be a single source consumed by BOTH the node-agent
+        main and the backup-manager exclusion config (derive the exclusion from the same
+        constant/config key, never a hand-copied literal). A regression test asserts the
+        backup exclusion entry equals the node-agent state-path default.
+      related_services:
+        - node_agent
+        - backup_manager
+      no_test_yet_reason: |
+        Flagged by a P1 PR review on node_agent_server/main.go; no test yet asserts that
+        the state-path default equals the backup exclusion entry. A sync-assertion test
+        (default == exclusion) should be added together with the single-source fix.
+      discovered_from: |
+        cold-source audit of globulario/services (2026-06-15), dedup-verified as not
+        covered by node_agent.state_poisoning_from_stale_reconciler (stale reconciler,
+        different) or migration.state_path_upgrade_must_be_idempotent (idempotent path
+        upgrade, different).
