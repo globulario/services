@@ -242,6 +242,37 @@ func NewRegistry(cfg Config) *Registry {
 		scyllaJoinNotStalled{},
 		scyllaPeersMatchExpected{},
 		scyllaProbeRequiredWhenInstalled{},
+		// Infrastructure truth plane (Phase 2): etcd config attestation,
+		// loopback detection, stalled-member detection (CORRUPT/critical config),
+		// member convergence, and "installed but no probe" — fed by the node-agent
+		// GetInfraProbe RPC. Distinct from etcdQuorumHealth/etcdStaleMember, which
+		// are Prometheus/etcd-member-derived rather than truth-plane-derived.
+		etcdInfraLoopbackForbidden{},
+		etcdInfraConfigValid{},
+		etcdInfraJoinNotStalled{},
+		etcdInfraPeersMatchExpected{},
+		etcdInfraProbeRequiredWhenInstalled{},
+		// Infrastructure truth plane (Phase 3): MinIO topology attestation
+		// (format.json blast-radius guard), loopback detection, split-brain
+		// stalled-member detection, live write-quorum loss, and "installed but no
+		// probe" — fed by the node-agent GetInfraProbe RPC. Distinct from the
+		// objectstore* rules, which derive from desired topology + disk candidates.
+		minioInfraLoopbackForbidden{},
+		minioInfraTopologyMatchesDesired{},
+		minioInfraConfigValid{},
+		minioInfraNotStalled{},
+		minioInfraWriteQuorum{},
+		minioInfraProbeRequiredWhenInstalled{},
+		// Infrastructure truth plane (Phase 4): Envoy data-plane bootstrap
+		// attestation, the per-node admin-API-derived LDS wedge (CDS progressed but
+		// LDS update_attempt==0), listeners-not-active, and "installed but no
+		// probe". Diagnostic only — never auto-restarts Envoy (a restart deepens
+		// the wedge). The LDS-wedge rule complements the cluster-scope,
+		// Prometheus-derived envoyLDSWedge with direct per-node observation.
+		envoyInfraConfigValid{},
+		envoyInfraLDSProgress{},
+		envoyInfraListenersActive{},
+		envoyInfraProbeRequiredWhenInstalled{},
 		// AI knowledge-base integrity: fires when ai-memory is running but
 		// the operational-knowledge seed entries are absent (day-0 deferred
 		// seed not yet applied). Auto-heals by seeding from the installed

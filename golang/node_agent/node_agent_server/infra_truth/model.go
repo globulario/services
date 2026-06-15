@@ -28,14 +28,31 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 )
 
-// Component names. Phase 1 implements only ScyllaDB.
+// Component names. Phase 1 ScyllaDB; Phase 2 etcd; Phase 3 MinIO; Phase 4 Envoy.
 const (
 	ComponentScylla = "scylladb"
+	ComponentEtcd   = "etcd"
+	ComponentMinio  = "minio"
+	ComponentEnvoy  = "envoy"
 	ComponentAll    = "all"
 )
 
 // Default on-disk location of the rendered ScyllaDB config.
 const ScyllaConfigPath = "/etc/scylla/scylla.yaml"
+
+// Default on-disk location of the rendered etcd config (written by the
+// cluster-controller's reconcileServiceConfigs; never hand-edited).
+const EtcdConfigPath = "/var/lib/globular/config/etcd.yaml"
+
+// Default on-disk location of the rendered MinIO environment file (written from
+// the controller-published ObjectStoreDesiredState via config.RenderMinioEnv;
+// never hand-edited).
+const MinioConfigPath = "/var/lib/globular/minio/minio.env"
+
+// Default on-disk location of the rendered Envoy bootstrap (written by the
+// gateway/xDS control plane on startup; never hand-edited). It lives under /run
+// because it is a per-boot runtime artifact, not persistent state.
+const EnvoyBootstrapPath = "/run/globular/envoy/envoy-bootstrap.json"
 
 // Severity strings carried on violations/config fields. These mirror the
 // cluster-doctor severity vocabulary so the doctor can map them 1:1.

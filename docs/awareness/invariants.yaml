@@ -3067,6 +3067,8 @@ invariants:
   protects:
     files:
     - golang/node_agent/node_agent_server/xds_config_reconcile.go
+    - golang/node_agent/node_agent_server/infra_truth/envoy_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra.go
     symbols:
     - reconcileXDSConfig
   related_failure_modes:
@@ -3076,6 +3078,8 @@ invariants:
   required_tests:
   - golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
   - golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
+  - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestDeriveEnvoyLifecycle_States
+  - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraLDSProgress_WedgeDetected
   severity: critical
   status: active
   summary: 'The Globular mesh (controller, MCP, gateway-routed
@@ -10522,3 +10526,227 @@ invariants:
   - infra.join_must_have_lifecycle_fsm
   required_tests:
   - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaPeersMatch_MissingPeer
+- id: etcd.loopback_forbidden
+  title: etcd cluster-facing URLs must not advertise loopback/unspecified (CRITICAL) — a loopback peer/client URL isolates the member from the raft cluster
+  summary: |
+    Per-component instance of infra.loopback_address_forbidden_for_cluster_members
+    for etcd. A loopback or 0.0.0.0 listen-peer-urls / initial-advertise-peer-urls /
+    advertise-client-urls means peers and joining members can never reach this
+    member; it forms an isolated single-member cluster while appearing "active".
+    The Globular renderer uses the routable node IP, so a loopback URL signals a
+    broken render (e.g. the node had no routable IP at render time). Detected by
+    attestation and raised as a CRITICAL doctor finding.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/etcd_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+  related_invariants:
+  - infra.loopback_address_forbidden_for_cluster_members
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_LoopbackPeerURL
+  - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraLoopbackForbidden
+- id: etcd.config_valid
+  title: etcd rendered config must match desired state — member present in its own initial-cluster, non-self peers for joining nodes, matching cluster token, and peer TLS material
+  summary: |
+    Per-component instance of infra.config_must_be_attested_before_start for etcd.
+    A member absent from its own initial-cluster (rendered without a routable
+    identity), a self-only initial-cluster on a joining node (isolated single-member
+    cluster), an empty/mismatched initial-cluster-token (forms a parallel cluster),
+    or missing peer-transport-security material (members cannot mTLS-authenticate
+    each other) are ERROR-level config violations that prevent correct membership.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/etcd_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  related_intents:
+  - infrastructure.etcd.quorum_backed_config_authority
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_SelfOnlyInitialCluster_JoiningNode
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_MissingPeerTrustedCA
+  - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraConfigValid_SelfOnlyInitialCluster
+- id: etcd.member_not_stalled
+  title: An etcd member must not be stalled (CRITICAL) — daemon-active-on-invalid-config or a CORRUPT alarm is a stuck member that needs the owner fixed, not more time
+  summary: |
+    Per-component instance of infra.join_must_have_lifecycle_fsm for etcd. The
+    lifecycle FSM marks STALLED when the daemon is active on a critically-invalid
+    config or when etcd raises a CORRUPT alarm (a damaged member cannot heal itself
+    and needs a controller-driven wipe+rejoin). A leaderless cluster or an
+    in-progress learner is DEGRADED/JOINING, not STALLED, because those can still
+    converge on their own. Doctor raises a CRITICAL finding with the blocking reason.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/etcd_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+  related_invariants:
+  - infra.join_must_have_lifecycle_fsm
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestDeriveEtcdLifecycle_States
+  - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraJoinStalled_Corrupt
+- id: etcd.peers_match_expected
+  title: etcd observed members must cover the expected cluster members — a missing member on a reachable daemon is a real convergence gap
+  summary: |
+    When the daemon is up and a multi-member cluster is expected, the member-list
+    peers must cover the expected (non-self) members. A persistent mismatch is an
+    ERROR-level doctor finding pointing at peer connectivity (port 2380) or a stale
+    initial-cluster the controller has not re-rendered after a MemberAdd — distinct
+    from a config violation.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/etcd_probe.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+  related_invariants:
+  - infra.join_must_have_lifecycle_fsm
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraPeersMatch_MissingMember
+- id: minio.loopback_forbidden
+  title: MinIO distributed volume endpoints must not advertise loopback/unspecified (CRITICAL) — a loopback pool endpoint isolates the member from the erasure set
+  summary: |
+    Per-component instance of infra.loopback_address_forbidden_for_cluster_members
+    for MinIO. A distributed MINIO_VOLUMES entry whose host is loopback/0.0.0.0
+    means pool peers can never reach this member; the erasure set cannot form.
+    Detected by attestation of the rendered minio.env and raised as a CRITICAL
+    doctor finding.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.loopback_address_forbidden_for_cluster_members
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_LoopbackVolume
+  - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraLoopbackForbidden
+- id: minio.topology_matches_desired
+  title: MinIO rendered MINIO_VOLUMES topology must match the desired ObjectStore topology (CRITICAL) — a standalone-in-cluster split-brain or drive-count mismatch risks a format.json reformat
+  summary: |
+    The format.json blast-radius guard. A desired-distributed pool rendered as
+    standalone means the node forms an ISOLATED single-node store and diverges
+    from the pool (split-brain); a rendered MINIO_VOLUMES entry count that
+    disagrees with desired nodes×drives means the node would format a different
+    drive topology. MinIO can silently reformat drives when the topology changes
+    underneath it, so both are CRITICAL and mark the lifecycle STALLED.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  related_intents:
+  - infrastructure.minio.objectstore_contract_and_topology
+  - objectstore.topology_requires_contract
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_SplitBrainStandaloneInCluster
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_DriveCountMismatch
+  - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraTopologyMatchesDesired_SplitBrain
+- id: minio.config_valid
+  title: MinIO rendered minio.env must be valid — non-empty MINIO_VOLUMES and this node present among the distributed pool endpoints
+  summary: |
+    Per-component instance of infra.config_must_be_attested_before_start for
+    MinIO. Empty MINIO_VOLUMES (nothing to serve) or a distributed env whose
+    endpoints do not include this node (rendered for the wrong identity) are
+    ERROR-level config violations.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_SelfNotInPool
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_EmptyVolumes
+- id: minio.member_not_stalled
+  title: A MinIO member must not be stalled (CRITICAL) — a daemon active on a topology that diverges from the pool (split-brain/loopback) is a stuck member that needs the owner fixed, not more time
+  summary: |
+    Per-component instance of infra.join_must_have_lifecycle_fsm for MinIO. The
+    lifecycle FSM marks STALLED when the daemon is active on a critically-invalid
+    topology (split-brain standalone-in-cluster, loopback endpoint, or drive-count
+    mismatch). A live-but-no-write-quorum member is DEGRADED, not STALLED, because
+    the pool can recover when peers/drives return.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.join_must_have_lifecycle_fsm
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestDeriveMinioLifecycle_States
+  - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraNotStalled_Detection
+- id: minio.write_quorum
+  title: A live MinIO member must have pool write quorum — live-but-no-write-quorum (from /minio/health/cluster) is a real upload-failure signal
+  summary: |
+    When the local MinIO server is live but the native /minio/health/cluster
+    endpoint reports no write quorum, uploads will fail. This is an ERROR-level
+    doctor finding sourced from the live health endpoint — distinct from the
+    disk-topology-derived objectstore.write_quorum_lost. Recoverable when enough
+    drives/peers return.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.runtime_truth_must_be_observed_via_native_api
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraWriteQuorum_Lost
+- id: envoy.config_valid
+  title: The Envoy bootstrap must be able to drive the mesh — ads_config/cds_config/lds_config present, the ADS cluster defined in static_resources, node id set
+  summary: |
+    Per-component instance of infra.config_must_be_attested_before_start for the
+    Envoy data plane. Envoy is xDS-dynamic, so the bootstrap mostly wires the ADS
+    handshake. Missing dynamic_resources.ads_config (no dynamic config at all) or
+    lds_config (no listeners ever load — the static form of the LDS wedge, port 443
+    never binds) are CRITICAL; missing cds_config, an ADS cluster not defined in
+    static_resources, an empty node id, or a missing admin address are config
+    violations that leave the mesh dead or unobservable while the daemon is
+    "active". Unlike the clustered components there is NO loopback rule — the admin
+    interface and local xDS upstream are intentionally on loopback.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/envoy_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  related_intents:
+  - infrastructure.envoy.service_mesh_data_plane_with_xds_authority
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestAttestEnvoyConfig_MissingLDS_CriticalStaticWedge
+  - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestAttestEnvoyConfig_ADSClusterUndefined_Critical
+  - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraConfigValid_MissingLDS
+- id: envoy.listeners_active
+  title: A live Envoy with CDS+LDS progress must have at least one active listener — zero active listeners means port 443 is not serving even though LDS was attempted
+  summary: |
+    Once CDS and LDS have both progressed (so it is not the cold-init window and
+    not the LDS wedge), Envoy must have an active listener or it is not actually
+    serving traffic — rejected listener config from xDS leaves total_listeners_active
+    at 0. This is an ERROR-level doctor finding from the per-node admin API,
+    distinct from the LDS wedge (which is lds.update_attempt==0).
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/envoy_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra.go
+  related_invariants:
+  - envoy.lds_progress_required_for_http_mesh_readiness
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraListenersActive_NoneActive

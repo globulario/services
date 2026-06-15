@@ -168,13 +168,16 @@ type NodeAgentServer struct {
 	workflowRec *workflow.Recorder
 	clusterID   string
 
-	// Infrastructure truth plane (Phase 1: ScyllaDB). Lazily initialized via
-	// ensureInfraTruth so both NewNodeAgentServer and literal test construction
-	// get a working cache/prober. The cache is read by the heartbeat (never a
-	// slow inline probe) and refreshed by a background goroutine.
+	// Infrastructure truth plane (Phase 1: ScyllaDB; Phase 2: etcd). Lazily
+	// initialized via ensureInfraTruth so both NewNodeAgentServer and literal test
+	// construction get a working cache/probers. The cache is read by the heartbeat
+	// (never a slow inline probe) and refreshed by a background goroutine.
 	infraOnce       sync.Once
 	infraProbeCache *infra_truth.InfraProbeCache
 	scyllaProber    *infra_truth.ScyllaProber
+	etcdProber      *infra_truth.EtcdProber
+	minioProber     *infra_truth.MinioProber
+	envoyProber     *infra_truth.EnvoyProber
 
 	// Bootstrap-time config passed from CLI flags (no os.Getenv at runtime)
 	cfg NodeAgentConfig
@@ -378,6 +381,25 @@ func (srv *NodeAgentServer) ensureInfraTruth() {
 		}
 		if srv.scyllaProber == nil {
 			srv.scyllaProber = infra_truth.NewScyllaProber()
+		}
+		if srv.etcdProber == nil {
+			p := infra_truth.NewEtcdProber()
+			// Inject the node-agent's native-API observer; without it the runtime
+			// layer reports "not observed" rather than fabricating health.
+			p.Observe = observeEtcdRuntime
+			srv.etcdProber = p
+		}
+		if srv.minioProber == nil {
+			p := infra_truth.NewMinioProber()
+			// Inject the node-agent's MinIO health observer (credential-free).
+			p.Observe = observeMinioRuntime
+			srv.minioProber = p
+		}
+		if srv.envoyProber == nil {
+			p := infra_truth.NewEnvoyProber()
+			// Inject the node-agent's Envoy admin-API observer.
+			p.Observe = observeEnvoyRuntime
+			srv.envoyProber = p
 		}
 	})
 }

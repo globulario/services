@@ -5869,6 +5869,211 @@ failure_modes:
         - golang/node_agent/node_agent_server/infra_truth/lifecycle_test.go::TestDeriveScyllaLifecycle_ConfigInvalidStalled
         - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaJoinStalled_Detection
 
+    - id: etcd.wrong_config_appears_healthy
+      title: An etcd member with a wrong (loopback, self-not-in-initial-cluster, or self-only) config looks healthy because the daemon is active — it silently forms an isolated single-member cluster
+      severity: high
+      status: active
+      root_cause: |
+        Before the infrastructure truth plane covered etcd, a node's etcd health was
+        judged by "is globular-etcd.service active?". A misrendered config —
+        listen-peer-urls / advertise-client-urls pointing at 127.0.0.1 or 0.0.0.0, a
+        member absent from its own initial-cluster (rendered when the node had no
+        routable IP), a self-only initial-cluster on a joining node, or an empty /
+        mismatched initial-cluster-token — still produces a running daemon. systemd
+        reports active and the local v3 API answers, yet the member bootstraps an
+        ISOLATED single-member cluster (or a parallel cluster under a different token)
+        while every coarse signal says "green". The wrongness only surfaces later as a
+        join that never converges, a control-plane that cannot reach quorum, or a
+        split-brain etcd — far from the root cause. This is the etcd instance of
+        fm.industry.partial_failure_hidden_by_global_green.
+      trigger: |
+        The cluster-controller etcd renderer emits a config with a loopback/0.0.0.0
+        cluster-facing URL, a member missing from its own initial-cluster, a self-only
+        initial-cluster on a joining node, or a mismatched initial-cluster-token — and
+        the daemon starts anyway.
+      symptoms:
+        - globular-etcd.service is active and the local v3 API answers, but member list does not cover the expected members
+        - a joining member never appears in the existing cluster's member list
+        - control-plane services intermittently fail to reach etcd quorum
+        - doctor/heartbeat report the member healthy until a downstream quorum failure
+      blast_radius:
+        - The control plane loses quorum redundancy while appearing healthy
+        - A "successful" join leaves an isolated etcd member or a split-brain cluster
+      architecture_fix: |
+        The infra truth plane attests the rendered etcd.yaml against desired state
+        BEFORE trusting "active": loopback/unspecified cluster URLs are CRITICAL
+        (etcd.loopback_forbidden), membership/token/peer-TLS mismatches are ERROR
+        (etcd.config_valid), and the lifecycle FSM marks the member STALLED (not
+        healthy) when the daemon is active on a critically-invalid config or on a
+        CORRUPT alarm. daemon_active, healthy, and config_valid stay separate signals
+        so "active" can never imply "healthy". The runtime observer dials the member's
+        advertised client URL (never a hardcoded loopback) and reads the native v3 API
+        (status, member list, alarms). Doctor raises the finding; MCP
+        infra_explain_stall gives the causal answer and points repair at the config
+        owner (the controller renderer), never a manual etcd.yaml edit.
+      forbidden_fixes:
+        - treat_systemd_active_as_scylla_health
+        - hand_edit_scylla_yaml_as_the_permanent_fix_instead_of_the_renderer
+      related_invariants:
+        - infra.process_active_is_not_health
+        - infra.config_must_be_attested_before_start
+        - etcd.loopback_forbidden
+        - etcd.config_valid
+        - etcd.member_not_stalled
+        - meta.half_done_must_not_look_done
+      related_intents:
+        - infrastructure.etcd.quorum_backed_config_authority
+      related_services:
+        - node-agent
+        - cluster-doctor
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/infra_truth/etcd_attestation.go
+            - golang/node_agent/node_agent_server/infra_truth/etcd_lifecycle.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+      required_tests:
+        - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_LoopbackPeerURL
+        - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestDeriveEtcdLifecycle_States
+        - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraJoinStalled_Corrupt
+
+    - id: minio.wrong_topology_appears_healthy
+      title: A MinIO node rendered standalone (or with a wrong drive count) looks healthy because the daemon is active — it silently forms an isolated store and can reformat drives
+      severity: critical
+      status: active
+      root_cause: |
+        Before the infrastructure truth plane covered MinIO, a node's MinIO health
+        was judged by "is globular-minio.service active?" plus a TCP dial of :9000.
+        A misrendered minio.env — MINIO_VOLUMES carrying a single local path while
+        the desired topology is distributed, a volume count that disagrees with
+        desired nodes×drives, or a loopback endpoint — still produces a running
+        daemon. systemd reports active and the S3 port answers, yet the node forms
+        an ISOLATED single-node store that diverges from the pool, and MinIO can
+        silently reformat the drives (format.json) when the volume topology changes
+        underneath it. The wrongness surfaces later as object-not-found errors,
+        lost redundancy, or an erasure set that never forms — far from the root
+        cause. This is the MinIO instance of
+        fm.industry.partial_failure_hidden_by_global_green, and it carries the
+        format.json blast radius (drive-count mismatch → silent reformat).
+      trigger: |
+        config.RenderMinioEnv emits a standalone MINIO_VOLUMES (single local path)
+        for a node whose ObjectStoreDesiredState is distributed, a volume count
+        that disagrees with desired nodes×drives, or a loopback volume endpoint —
+        and globular-minio.service starts anyway.
+      symptoms:
+        - globular-minio.service is active and :9000 answers, but the node is not part of the erasure set
+        - objects written via the pool are not found on this node (or vice versa)
+        - redundancy/erasure coding is silently lost; a single node is a SPOF
+        - drives get reformatted (format.json) after a topology change, dropping data
+      blast_radius:
+        - Object redundancy is silently lost while the node reports active
+        - A drive-count mismatch can trigger a format.json reformat that drops stored objects
+      architecture_fix: |
+        The infra truth plane attests the rendered minio.env against the
+        controller-published ObjectStoreDesiredState BEFORE trusting "active":
+        loopback volume endpoints are CRITICAL (minio.loopback_forbidden), a
+        standalone-in-cluster split-brain or a drive-count mismatch is CRITICAL
+        (minio.topology_matches_desired — the format.json blast-radius guard), and
+        the lifecycle FSM marks the member STALLED (not healthy) when the daemon is
+        active on such a topology. daemon_active, healthy, and config_valid stay
+        separate signals. The runtime observer reads MinIO's native, credential-free
+        /minio/health/live and /minio/health/cluster endpoints so a live member with
+        no write quorum is reported DEGRADED, never healthy. Doctor raises the
+        finding; MCP infra_explain_stall points repair at the config owner
+        (ObjectStoreDesiredState + RenderMinioEnv), never a manual minio.env edit.
+      forbidden_fixes:
+        - hand_edit_scylla_yaml_as_the_permanent_fix_instead_of_the_renderer
+      related_invariants:
+        - infra.process_active_is_not_health
+        - infra.config_must_be_attested_before_start
+        - minio.loopback_forbidden
+        - minio.topology_matches_desired
+        - minio.member_not_stalled
+        - meta.half_done_must_not_look_done
+      related_intents:
+        - infrastructure.minio.objectstore_contract_and_topology
+        - objectstore.topology_requires_contract
+      related_services:
+        - node-agent
+        - cluster-doctor
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/infra_truth/minio_attestation.go
+            - golang/node_agent/node_agent_server/infra_truth/minio_lifecycle.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+      required_tests:
+        - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_SplitBrainStandaloneInCluster
+        - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_DriveCountMismatch
+        - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestDeriveMinioLifecycle_States
+
+    - id: envoy.active_but_mesh_dead
+      title: An Envoy data plane looks healthy because the daemon is active, but a missing lds_config or an LDS wedge means port 443 never binds and the HTTP mesh is down
+      severity: critical
+      status: active
+      root_cause: |
+        Before the infrastructure truth plane covered Envoy, the data plane's
+        health was judged by "is globular-envoy.service active?". But Envoy is an
+        xDS-dynamic data plane: a bootstrap missing dynamic_resources.lds_config (or
+        an ADS cluster not defined in static_resources) produces a running daemon
+        with NO listeners — port 443 never binds. Worse, even with a correct
+        bootstrap, the LDS handshake can wedge: CDS applies cluster config but LDS
+        update_attempt stays at 0 (the root cause is usually an upstream restart
+        storm that SIGTERMs Envoy before LDS completes). In both cases systemd
+        reports active and the admin /server_info may even say the process is up,
+        yet HTTP routing through Envoy is dead. This is the Envoy instance of
+        fm.industry.partial_failure_hidden_by_global_green and overlaps the runtime
+        wedge anchored as envoy.lds_update_attempt_zero_despite_cds_progress.
+      trigger: |
+        The gateway/xDS writes a bootstrap missing lds_config / ads_config / the
+        ADS cluster, OR an upstream restart storm wedges the LDS handshake so CDS
+        progresses while listener_manager.lds.update_attempt stays 0 — and
+        globular-envoy.service is active either way.
+      symptoms:
+        - globular-envoy.service is active but curl to https://<node>:443 hangs/refuses
+        - admin /stats shows cluster_manager.cds.update_success > 0 while listener_manager.lds.update_attempt == 0
+        - listener_manager.total_listeners_active == 0
+        - the HTTP mesh (controller, MCP, gateway-routed traffic) is unreachable
+      blast_radius:
+        - The entire HTTP mesh on the node is down while the node reports active
+        - Restarting Envoy to "fix" it deepens the wedge when the cause is a restart storm
+      architecture_fix: |
+        The infra truth plane attests the rendered bootstrap BEFORE trusting
+        "active": a missing ads_config/lds_config or an undefined ADS cluster is
+        CRITICAL (envoy.config_valid) and marks the lifecycle STALLED. The runtime
+        observer reads Envoy's native admin API (/ready, /server_info, /stats)
+        per-node and classifies the LDS wedge (cds_update_success>0 &&
+        lds_update_attempt==0) as STALLED, pinning
+        envoy.lds_progress_required_for_http_mesh_readiness — complementing the
+        cluster-scope, Prometheus-derived envoy.lds_wedge rule with direct per-node
+        observation that works even when Prometheus has not scraped. daemon_active,
+        healthy, and config_valid stay separate signals. The doctor rule is
+        diagnostic-only and explicitly tells the operator NOT to restart Envoy —
+        a restart loop deepens the wedge.
+      forbidden_fixes:
+        - restart_envoy_in_an_infinite_loop_to_hide_lds_zero_state
+        - assume_cds_progress_implies_lds_progress_because_they_share_an_ads_stream
+      related_invariants:
+        - infra.process_active_is_not_health
+        - infra.config_must_be_attested_before_start
+        - envoy.config_valid
+        - envoy.lds_progress_required_for_http_mesh_readiness
+        - meta.half_done_must_not_look_done
+      related_failure_modes:
+        - envoy.lds_update_attempt_zero_despite_cds_progress
+      related_intents:
+        - infrastructure.envoy.service_mesh_data_plane_with_xds_authority
+      related_services:
+        - node-agent
+        - cluster-doctor
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/infra_truth/envoy_attestation.go
+            - golang/node_agent/node_agent_server/infra_truth/envoy_lifecycle.go
+            - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra.go
+      required_tests:
+        - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestAttestEnvoyConfig_MissingLDS_CriticalStaticWedge
+        - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestEnvoyProbeStructured_LDSWedgeStalled
+        - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraLDSProgress_WedgeDetected
+
     - id: scylla.probe_dials_loopback_not_rendered_bind
       title: The infra probe dialed a hardcoded 127.0.0.1 for ScyllaDB's REST/CQL instead of the rendered bind address, so a healthy node was falsely reported daemon_starting
       severity: high
