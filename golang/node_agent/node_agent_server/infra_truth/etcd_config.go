@@ -146,22 +146,6 @@ func parseInitialCluster(s string) (map[string]string, []string) {
 	return m, names
 }
 
-// hostsFromURLs extracts the host (without port/scheme) of each URL. Unparseable
-// entries are skipped. Used to compare advertised addresses against desired.
-func hostsFromURLs(urls []string) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, raw := range urls {
-		h := hostFromURL(raw)
-		if h == "" || seen[h] {
-			continue
-		}
-		seen[h] = true
-		out = append(out, h)
-	}
-	return out
-}
-
 // hostFromURL returns the bare host of a URL like "https://10.0.0.63:2380".
 func hostFromURL(raw string) string {
 	raw = stripQuotes(raw)
