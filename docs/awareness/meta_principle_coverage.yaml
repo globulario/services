@@ -300,3 +300,95 @@ meta_principle_coverage:
       invalid or a legitimate defensive copy. Corroborated independently in
       Go/etcd and TypeScript/Vite. Candidate pending review and future
       mechanization strategy.
+
+  # ── Evolution (safe project change) principles ──────────────────────────
+  # The eighth category, defined in awareness-graph docs/awareness/generic.
+  # These govern HOW the project may change, not what is true about it. Two are
+  # already gated by behavioral tests; the rest are mechanizable and named
+  # `planned` (concrete gate identified, not yet built) — none consume a
+  # review_only slot, so the ratchet ceiling is unchanged.
+  - principle: meta.generated_artifacts_must_be_fresh_before_merge
+    tier: behavioral
+    reason: >
+      The ownership-aware seed-freshness gate proves every artifact derived from
+      the corpus matches its source: owned drift fails, paired cross-repo lag is
+      tolerated. Wired into build-awareness-graph.sh --check and the principle
+      pack --check.
+    tests:
+      - TestClassifySeedDiff_RealOwnedDriftStillFails
+      - TestClassifySeedDiff_MissingOwnedTripleStillFails
+      - TestClassifySeedDiff_MixedDriftFailsOnOwned
+      - TestClassifySeedDiff_IdenticalIsClean
+  - principle: meta.discovery_produces_candidates_not_facts
+    tier: behavioral
+    reason: >
+      Extraction/mining emit status:candidate proposals, never corpus facts; the
+      tests assert the discovery paths produce candidate entries that require a
+      separate human promotion step.
+    tests:
+      - TestExtractMisuseCandidates
+      - TestExtractPatternCandidates
+  - principle: meta.main_branch_must_remain_releasable
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a meta-test pinning that the merge gate runs build + go
+      test + awg validate + seed-freshness on the merge result (the CI pipeline
+      already does this; a guard test that asserts the gate composition is the
+      concrete mechanism). Planned, not review_only — the gate is named, just not
+      yet pinned by a test.
+  - principle: meta.change_must_be_split_into_reviewable_slices
+    tier: planned
+    intended_tier: code_scanner
+    reason: >
+      Mechanizable as a diff-shape scanner that raises a reviewable candidate when
+      a change exceeds a size threshold or crosses N boundaries / M high-critical
+      invariants. Advisory (candidate), never a hard block. Mechanism named; gate
+      not yet built.
+  - principle: meta.high_risk_change_requires_test_evidence
+    tier: planned
+    intended_tier: code_scanner
+    reason: >
+      Mechanizable as a scanner mapping changed files → protected high/critical
+      invariants → linked/required tests, raising a missing-test candidate when a
+      high-risk diff carries no test evidence. Mechanism named; gate not yet built.
+  - principle: meta.graph_truth_must_come_from_approved_corpus
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a test asserting the served graph is read-only (no
+      fact-writing RPC) and that promotion appends to a corpus YAML + rebuilds
+      rather than mutating the store. The promotion path already enforces this; a
+      guard test pinning the read-only boundary is the named gate.
+  - principle: meta.runtime_change_requires_observability_path
+    tier: planned
+    intended_tier: code_scanner
+    reason: >
+      Mechanizable as a scanner flagging changes to runtime/lifecycle paths that
+      add no log / metric / state-transition / status and no asserting test.
+      Mechanism named; gate not yet built.
+  - principle: meta.cross_repo_reference_must_be_validated
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Already implemented by awg validate and yaml2nt -validate-refs (dangling
+      cross-references and missing source files fail), run by
+      build-awareness-graph.sh --check against an allowed-dangling baseline.
+      Planned pending a dedicated go test pinning the dangling-ref gate (the
+      integration gate runs today).
+  - principle: meta.exception_must_have_reason_owner_and_expiry
+    tier: planned
+    intended_tier: code_scanner
+    reason: >
+      Mechanizable as a checker that every allowlist / baseline / suppression
+      entry carries reason, owner, and expiry/review metadata, reporting expired
+      or unowned entries so the list can shrink. Mechanism named; gate not yet
+      built.
+  - principle: meta.architectural_intent_must_change_before_structural_drift
+    tier: planned
+    intended_tier: code_scanner
+    reason: >
+      Mechanizable as a scanner detecting structural diffs to spine entities
+      (component / boundary / contract) or high/critical invariants that lack a
+      corresponding intent / decision / invariant update, raising a
+      drift-without-decision candidate. Mechanism named; gate not yet built.
