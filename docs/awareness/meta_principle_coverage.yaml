@@ -53,7 +53,15 @@ enforcement_ratchet:
   # review_only — a cross-language (etcd/Go + vite/TS) identity/aliasing
   # principle that is design judgement, not yet a scannable property. Conscious
   # bump; revisit if a copylock-style scanner is later wired (→ behavioral).
-  max_review_only: 43
+  # 43 → 45 (2026-06-17): the two contract-first resolution principles
+  # (meta.contract_must_be_explicit_before_resolution and
+  # meta.no_resolution_without_a_respected_contract) added as review_only.
+  # Whether a governing contract was identified before a change is called
+  # "resolved" — and whether the patch respects it — is an epistemic design
+  # judgement made at review time; no static artifact can prove it in general.
+  # Conscious bump; revisit if the contract-first repair protocol's `awg gate`
+  # step is wired into CI against a frozen contract set (→ behavioral).
+  max_review_only: 45
 
 meta_principle_coverage:
 
@@ -157,6 +165,30 @@ meta_principle_coverage:
   - principle: meta.uniform_naming_reduces_conceptual_load
     tier: review_only
     reason: Naming uniformity is a judgment a linter would approximate worse than review; a design lens.
+
+  # ── Perception (resolution epistemics) principles — review_only ──────────
+  # The contract-first resolution principles govern what "resolved" is allowed
+  # to mean. They are foundational design philosophy: a reviewer (or the agent
+  # itself, honestly) must judge whether a governing contract was identified
+  # before claiming resolution, and whether the patch respects it. No general
+  # static artifact can prove this. Candidate for behavioral mechanization when
+  # the contract-first repair protocol's `awg gate` step runs in CI against a
+  # frozen contract set (see awareness-graph docs/design/contract-first-resolution.md).
+  - principle: meta.contract_must_be_explicit_before_resolution
+    tier: review_only
+    reason: >
+      Whether the governing contract was identified, inferred, or proposed
+      before a change is called "resolved" is an epistemic judgment about the
+      task, not a code pattern. A green test cannot prove a contract was
+      respected — only that an oracle was matched. Surfaces via awareness.briefing
+      at repair time.
+  - principle: meta.no_resolution_without_a_respected_contract
+    tier: review_only
+    reason: >
+      The operational form: "resolved" requires contract explicit ∧ respected ∧
+      evidence-backed. Whether a patch respects an identified contract is design
+      judgment until a contract carries a mechanizable detect rule; until then,
+      review plus briefing-time surfacing is the honest tier, not a silent gap.
 
   # ── Perception (GUI) principles — review_only ───────────────────────────
   # The perception category protects operator truth on screens. No admin
