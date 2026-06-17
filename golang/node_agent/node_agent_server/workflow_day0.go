@@ -412,7 +412,9 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", "", "")
 		},
 		IsServiceActive: func(name string) bool {
-			return engine.DefaultIsServiceActive(name)
+			// Truth-plane-backed readiness (see srv.isServiceReady): a STALLED
+			// infra component is not ready even while its unit is active.
+			return srv.isServiceReady(name)
 		},
 		SyncInstalledState: func(ctx context.Context) error {
 			srv.syncInstalledStateToEtcd(ctx)
