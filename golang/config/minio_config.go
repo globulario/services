@@ -37,13 +37,25 @@ type MinIOConfig struct {
 	Endpoint  string
 	AccessKey string
 	SecretKey string
-	Secure    bool
+	// SecretKeyFile, when set, is the node-local path (0600) holding the root
+	// secret_key. It is read in preference to the inline SecretKey so the
+	// credential lives on one node's disk rather than in the replicated etcd
+	// value (Tier-3 credential relocation; hard rule §6 — use file references).
+	// A path is not a secret, so it is safe to carry in the etcd config.
+	SecretKeyFile string
+	Secure        bool
 	// Bucket is the MinIO bucket where Globular stores objects. Empty = "globular".
 	Bucket string
 	// Prefix is the key prefix within the bucket (typically the cluster domain,
 	// e.g. "globular.internal"). Services prepend this to their storage keys.
 	Prefix string
 }
+
+// MinioRootSecretKeyFile is the well-known node-local path (0600) where the
+// MinIO root secret_key is provisioned (by Day-0/join). The controller
+// publishes this path in the MinIO config; LoadMinIOConfig reads it in
+// preference to the inline etcd value (Tier-3 credential relocation).
+const MinioRootSecretKeyFile = "/var/lib/globular/secrets/minio/root_secret_key"
 
 // EtcdKeyMinioConfig is the sole source of truth for MinIO connection info.
 // Written by the cluster controller whenever the MinIO pool state changes.
@@ -91,12 +103,13 @@ func LoadMinIOConfig() (MinIOConfig, error) {
 	}
 
 	var stored struct {
-		Endpoint  string `json:"endpoint"`
-		AccessKey string `json:"access_key"`
-		SecretKey string `json:"secret_key"`
-		Secure    bool   `json:"secure"`
-		Bucket    string `json:"bucket"`
-		Prefix    string `json:"prefix"`
+		Endpoint      string `json:"endpoint"`
+		AccessKey     string `json:"access_key"`
+		SecretKey     string `json:"secret_key"`
+		SecretKeyFile string `json:"secret_key_file"`
+		Secure        bool   `json:"secure"`
+		Bucket        string `json:"bucket"`
+		Prefix        string `json:"prefix"`
 	}
 	if err := json.Unmarshal(resp.Kvs[0].Value, &stored); err != nil {
 		return MinIOConfig{}, fmt.Errorf("minio config: parse %s: %w", EtcdKeyMinioConfig, err)
@@ -111,13 +124,30 @@ func LoadMinIOConfig() (MinIOConfig, error) {
 		stored.Bucket = "globular"
 	}
 	return MinIOConfig{
-		Endpoint:  stored.Endpoint,
-		AccessKey: stored.AccessKey,
-		SecretKey: stored.SecretKey,
-		Secure:    stored.Secure,
-		Bucket:    stored.Bucket,
-		Prefix:    stored.Prefix,
+		Endpoint:      stored.Endpoint,
+		AccessKey:     stored.AccessKey,
+		SecretKey:     resolveSecretKey(stored.SecretKey, stored.SecretKeyFile),
+		SecretKeyFile: stored.SecretKeyFile,
+		Secure:        stored.Secure,
+		Bucket:        stored.Bucket,
+		Prefix:        stored.Prefix,
 	}, nil
+}
+
+// resolveSecretKey prefers a node-local 0600 secret file over the inline etcd
+// value. During migration the inline value is the fallback so existing clusters
+// keep working until every node is provisioned and the etcd value is scrubbed.
+// A missing/unreadable/empty file falls back to the inline value rather than
+// erroring. (Tier-3 credential relocation; meta.storage_is_not_semantic_authority)
+func resolveSecretKey(inlineValue, secretKeyFile string) string {
+	if secretKeyFile != "" {
+		if b, err := os.ReadFile(secretKeyFile); err == nil {
+			if v := strings.TrimSpace(string(b)); v != "" {
+				return v
+			}
+		}
+	}
+	return inlineValue
 }
 
 // BuildMinioProxyConfig returns a MinioProxyConfig populated from the etcd
@@ -169,19 +199,21 @@ func SaveMinIOConfig(cfg MinIOConfig) error {
 		return fmt.Errorf("minio config: endpoint %q is a DNS hostname — only bare IP:port endpoints are allowed; fix the controller to publish MinioPoolNodes[0]+\":9000\"", cfg.Endpoint)
 	}
 	stored := struct {
-		Endpoint  string `json:"endpoint"`
-		AccessKey string `json:"access_key"`
-		SecretKey string `json:"secret_key"`
-		Secure    bool   `json:"secure"`
-		Bucket    string `json:"bucket"`
-		Prefix    string `json:"prefix"`
+		Endpoint      string `json:"endpoint"`
+		AccessKey     string `json:"access_key"`
+		SecretKey     string `json:"secret_key"`
+		SecretKeyFile string `json:"secret_key_file,omitempty"`
+		Secure        bool   `json:"secure"`
+		Bucket        string `json:"bucket"`
+		Prefix        string `json:"prefix"`
 	}{
-		Endpoint:  cfg.Endpoint,
-		AccessKey: cfg.AccessKey,
-		SecretKey: cfg.SecretKey,
-		Secure:    cfg.Secure,
-		Bucket:    cfg.Bucket,
-		Prefix:    cfg.Prefix,
+		Endpoint:      cfg.Endpoint,
+		AccessKey:     cfg.AccessKey,
+		SecretKey:     cfg.SecretKey,
+		SecretKeyFile: cfg.SecretKeyFile,
+		Secure:        cfg.Secure,
+		Bucket:        cfg.Bucket,
+		Prefix:        cfg.Prefix,
 	}
 	data, err := json.Marshal(stored)
 	if err != nil {

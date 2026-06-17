@@ -1236,9 +1236,14 @@ func (srv *server) publishMinioConfigLocked() {
 		Endpoint:  endpoint,
 		AccessKey: srv.state.MinioCredentials.RootUser,
 		SecretKey: srv.state.MinioCredentials.RootPassword,
-		Secure:    true,
-		Bucket:    "globular",
-		Prefix:    domain,
+		// Publish the well-known node-local secret-file path. Readers prefer the
+		// file once Day-0/join provisions it; until then they fall back to the
+		// inline SecretKey below (dual-write migration). The etcd value is
+		// scrubbed in the final cutover step. (Tier-3 credential relocation)
+		SecretKeyFile: config.MinioRootSecretKeyFile,
+		Secure:        true,
+		Bucket:        "globular",
+		Prefix:        domain,
 	}
 	if err := config.SaveMinIOConfig(cfg); err != nil {
 		log.Printf("publish minio config to etcd failed: %v", err)
