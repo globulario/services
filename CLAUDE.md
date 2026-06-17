@@ -363,86 +363,13 @@ Awareness explains *why* code exists, *what* it protects, *which fixes are forbi
 
 When documenting an error (incident, failure mode, finding), don't just record WHAT broke — classify WHY against the generative meta-principles. This turns error documentation into architectural learning.
 
-**Step 1 — CLASSIFY** the error against `invariant:meta.*` (7 categories). Source of truth: the shared corpus now lives in the awareness-graph repo at `docs/awareness/generic/state_authority_invariants.yaml` (moved out of services 2026-06-13 so the knowledge is portable); re-query the graph if this table feels stale. Edit meta-principles there, not in services.
+**Step 1 — CLASSIFY** the error against the `meta.*` corpus. The corpus is NOT duplicated here — it lives in the awareness-graph service and is the queryable source of truth. Do not maintain a copy in this file; an inline table goes stale (it did). To get the current set, query the graph:
 
-**Authority** (4) — "who owns this truth, and is this code that owner?"
-| Principle | What it catches |
-|-----------|----------------|
-| `meta.storage_is_not_semantic_authority` | Wrong actor writes/reads truth |
-| `meta.identity_computation_must_be_invariant` | Right actor, wrong meaning across contexts |
-| `meta.competing_writers_must_converge_or_be_fenced` | Two writers with different state fight by timing |
-| `meta.structure_must_not_be_stripped_in_projection` | Value projected to a primitive carries the lie of universality — scope/subject/source were part of the meaning |
+- `awareness.query(mode=by_class, class=invariant)` and filter for `meta.*` ids, or
+- `awareness.briefing(task=<the error>)` — surfaces the relevant principles for the case you're classifying, or
+- `awareness.resolve(<meta.id>)` to expand one.
 
-**Signal** (5) — "is the truth arriving intact, or degraded / silent / absorbed?"
-| Principle | What it catches |
-|-----------|----------------|
-| `meta.fallback_must_degrade_semantics` | Fallback returns same shape as truth |
-| `meta.authority_must_express_uncertainty` | Owner can't say "unknown" → callers fabricate certainty |
-| `meta.absence_scope_must_be_explicit` | Not-found-where treated as does-not-exist |
-| `meta.connection_errors_must_not_be_absorbed` | TLS/auth error absorbed into generic timeout |
-| `meta.assertions_must_carry_their_scope` | Positive or negative assertion aggregated without naming its scope (which node, which moment) — strips truth |
-
-**Lifecycle** (7) — "will this operation complete, and what happens if it fails?"
-| Principle | What it catches |
-|-----------|----------------|
-| `meta.write_creates_completion_obligation` | Write without cleanup path → permanent stall |
-| `meta.half_done_must_not_look_done` | Intermediate state satisfies completeness check |
-| `meta.silence_is_not_valid_for_unexpected` | Unhandled case is silent no-op |
-| `meta.failure_response_must_contract_not_amplify` | Unbounded retry/re-enqueue turns one failure into a cascade |
-| `meta.diagnostic_output_must_be_bounded` | One error → N log lines fills disk → cascade to healthy services |
-| `meta.binding_outlives_evidence_until_invalidated` | Decision durable, but the evidence it was bound to has moved — binding authorizes the wrong present |
-| `meta.state_mutations_must_be_durably_committed_before_side_effects` | Intent must commit before action; retry is the ONLY response; no alternative path once committed (audit lies if "X failed so I tried Y") |
-
-**Dependency** (2) — "what breaks if a non-critical thing fails? what if A needs B needs A?"
-| Principle | What it catches |
-|-----------|----------------|
-| `meta.critical_path_no_non_critical_dependency` | Critical path blocked/flooded by non-critical service |
-| `meta.circular_dependency_must_have_break_glass` | Self-deploying system stuck — deploy pipeline can't deploy fix for itself |
-
-**Perception** (16) — "is the screen telling the truth about the system?" (GUI meta-principles; Nielsen/WCAG/Material/ISO 9241-110/Shneiderman/GOV.UK/EEMUA 191 re-grounded in operator truth)
-| Principle | What it catches |
-|-----------|----------------|
-| `meta.ui.screen_claim_must_bind_to_authority` | Desired/cached/optimistic/confirmed state collapsed into one visual meaning |
-| `meta.ui.state_certainty_must_be_visually_distinct` | Loading/stale/unknown/optimistic rendered like confirmed truth |
-| `meta.ui.same_truth_same_language` | Same operational state rendered differently across screens |
-| `meta.ui.destructive_action_requires_confirmed_authority` | Destructive control offered without confirmed RBAC + visible risk |
-| `meta.ui.failure_must_preserve_diagnostic_context` | Error path blanks selection, context, last-known data |
-| `meta.ui.provenance_over_recall` | Claim shown without which-node/as-of-when/which-version |
-| `meta.ui.meaning_must_survive_presentation_loss` | Warning/meaning exists only in color, hover, or desktop layout |
-| `meta.ui.decoration_must_not_impersonate_authority` | Placeholder/cosmetic/AI-generated content confusable with live state |
-| `meta.ui.simplicity_must_not_hide_operational_truth` | "Clean" UI hides node, generation, stale state, failed receipt, authority source |
-| `meta.ui.operator_must_remain_in_control` | Automation/auto-refresh/optimistic update/AI changes state without visible consent |
-| `meta.ui.control_must_be_reversible_or_guarded` | Irreversible action without undo/dry-run/preflight; shortcut bypasses the guard |
-| `meta.ui.workflow_must_yield_closure` | Operation ends with no receipt, terminal state, or next action; fake progress animation |
-| `meta.ui.ai_assistance_must_be_explainable_and_bounded` | AI summary asserts state without source, timestamp, confidence, evidence boundary |
-| `meta.ui.task_path_must_match_operator_goal` | Screen mirrors proto/RPC schema instead of the operator's task |
-| `meta.ui.notification_volume_must_match_operator_capacity` | Alarm flood, N symptom toasts for one cause, standing red badges nobody acts on |
-| `meta.ui.interactive_element_must_have_stable_identity` | Anonymous styled span carrying a count/status — no id/data-* — invisible to tests, a11y, targeted refresh |
-
-**Composition** (7) — "does the layout make truth easy to perceive?" (visual composition; Gestalt/typography/color theory/design tokens — composition is evidence architecture: pretty cards, wrong order is the failure)
-| Principle | What it catches |
-|-----------|----------------|
-| `meta.ui.visual_hierarchy_must_match_decision_hierarchy` | Decorative summary louder than drift/risk; safety evidence below the fold |
-| `meta.ui.visual_grouping_must_match_semantic_grouping` | Mixed-authority values blended in one card read as one confirmed truth |
-| `meta.ui.spacing_must_encode_relationships` | Uniform spacing flattens real relationships or fabricates false ones |
-| `meta.ui.proportion_must_reflect_operational_weight` | Destructive button more prominent than its own risk evidence |
-| `meta.ui.color_must_have_semantic_contract` | Success color on desired/optimistic state; one hue serving conflicting roles; no unknown/stale roles |
-| `meta.ui.typography_must_express_information_hierarchy` | Warning typographically indistinguishable from metadata |
-| `meta.ui.theme_tokens_must_encode_roles_not_preferences` | Raw color/size literals in components instead of semantic tokens |
-
-**Structure** (10) — "is this unit shaped to be reused, inspected, and outlive its implementation?" (code structure/reusability; Parnas, coupling/cohesion, Ousterhout, Hyrum; applies to Go AND TypeScript)
-| Principle | What it catches |
-|-----------|----------------|
-| `meta.code.reusable_unit_must_have_a_stable_semantic_boundary` | Shared unit whose consumers import internals and break on refactor (anchor) |
-| `meta.code.contract_must_outlive_implementation_fashion` | Callers depend on private structure; observable surface undeliberate (Hyrum) |
-| `meta.code.complexity_must_be_hidden_behind_honest_boundaries` | Boundary absorbs errors/staleness/authority — encapsulation became concealment |
-| `meta.code.reuse_must_follow_semantic_cohesion` | GenericMegaTable: merged because markup looked similar, not same concept |
-| `meta.code.composition_must_prefer_standard_protocols` | Units coordinate via framework-private global state instead of platform contracts |
-| `meta.code.debuggability_is_part_of_correctness` | Abstraction/build layer with no path from runtime behavior to source intent |
-| `meta.code.local_state_must_not_become_hidden_authority` | Component answers permission/completion/health from its own state |
-| `meta.code.extension_points_must_be_explicit` | Consumer customizes by reaching into shadow root / private internals |
-| `meta.code.abstraction_must_be_deeper_than_its_interface` | Pass-through wrappers, layer stacking, single-caller helpers (Ousterhout) |
-| `meta.code.framework_dependency_must_be_earned` | Framework adopted on convenience; no written cost case or exit path |
+The corpus is grouped into categories — Authority (who owns this truth), Signal (is the truth arriving intact / degraded / silent / absorbed), Lifecycle (will this operation complete, and what on failure), Dependency (critical-path and circular), Structure (is this unit shaped to be reused/inspected/outlive its impl), and the GUI families Perception and Composition. Edit principles in the awareness-graph repo (`docs/awareness/generic/state_authority_invariants.yaml` and siblings), never here.
 
 If one fits → add `related_invariants: [meta.<id>]` to the error entry.
 If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom out with human).
