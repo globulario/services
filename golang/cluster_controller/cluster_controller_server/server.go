@@ -1144,10 +1144,18 @@ func (srv *server) persistStateLocked(force bool) error {
 	if !force && time.Since(srv.lastStateSave) < statePersistInterval {
 		return nil
 	}
-	// Primary: persist to etcd (authoritative for leadership transfers).
-	if err := srv.state.saveToEtcd(srv.etcdClient); err != nil {
-		log.Printf("persist state to etcd failed: %v", err)
-		// Continue to save to disk even if etcd write fails.
+	// Primary: persist to etcd (authoritative for leadership transfers). A
+	// failure here means the mutation did NOT durably commit to the authority:
+	// on a leadership transfer the new leader loads from etcd (loadFromEtcd
+	// overwrites local state), so a change that only reached disk is lost.
+	// Callers use persistStateLocked as a commit gate before side effects
+	// (issuing a join token, acking a heartbeat), so the failure must be
+	// returned, not swallowed into a disk-only "success". The local-disk write
+	// below remains a same-leader recovery aid.
+	// (meta.state_mutations_must_be_durably_committed_before_side_effects)
+	etcdErr := srv.state.saveToEtcd(srv.etcdClient)
+	if etcdErr != nil {
+		log.Printf("persist state to etcd failed: %v", etcdErr)
 	}
 	// Publish MinIO connection info (consumer key) and objectstore desired state
 	// (topology key for node-agent rendering). Both use bare IPs — never DNS names.
@@ -1156,9 +1164,19 @@ func (srv *server) persistStateLocked(force bool) error {
 	// Publish CA fingerprint so node agents can detect CA rotation without
 	// querying the gateway. Node agent compares its local CA SPKI to this value.
 	srv.publishCAMetadataLocked()
-	// Backup: persist to local disk.
+	// Backup: persist to local disk (same-leader recovery aid only).
 	if err := srv.state.save(srv.statePath); err != nil {
+		if etcdErr != nil {
+			return fmt.Errorf("persist state: authoritative etcd write failed (%v) and disk write failed: %w", etcdErr, err)
+		}
 		return err
+	}
+	// The authoritative commit is the etcd write. If it failed, the mutation is
+	// not durably committed even though the disk backup succeeded — report the
+	// failure so the caller's commit gate trips, and leave lastStateSave unset
+	// so the next call retries.
+	if etcdErr != nil {
+		return fmt.Errorf("persist state: authoritative etcd write failed: %w", etcdErr)
 	}
 	srv.lastStateSave = time.Now()
 	return nil
