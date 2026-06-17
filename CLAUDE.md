@@ -20,7 +20,48 @@ Claude has no continuous memory between sessions. The rules below are loaded as 
 
 4. **End non-trivial tasks with the AWG summary line**: `AWG: briefing(<target>) | invariants: X, Y | uncertainty: Z`. See the AWARENESS USAGE section for variants (degraded, empty+high-risk, empty+low-risk=omit).
 
+5. **CONTRACT-FIRST before edits.** Before resolving any error / bug / failing test, identify the governing contract — `briefing → resolve IDs → related contracts → invariants → failure modes → intent → only then patch` — and complete the pre-edit checklist in the CONTRACT-FIRST RESOLUTION section below. **No checklist, no edit.** A green test with no identified contract is an oracle match, not a resolution.
+
 If you find yourself defaulting to flat-file memory, grepping over awareness sources, or editing high-risk code without calling briefing — STOP. That is the drift this prelude exists to prevent. Today's session (2026-06-03) produced this prelude because the same drift kept happening.
+
+---
+
+## CONTRACT-FIRST RESOLUTION — identify the contract before you edit
+
+AWG now treats every error as a **contract-discovery problem before it is treated as a code-editing problem.** Before resolving any error, bug, failing test, warning, or reported problem, identify the governing contract that defines what "correct" means. A fix is valid only when the governing contract is identified, respected, and evidence-backed — **a passing test with no identified contract is an oracle match, not a resolution.**
+
+This is the operational form of two foundational AWG meta-principles — `meta.contract_must_be_explicit_before_resolution` and `meta.no_resolution_without_a_respected_contract` — authored in the awareness-graph corpus.
+
+### The graph is the pre-repair search space
+
+Traverse it before touching code, in this order:
+
+```text
+briefing → resolve IDs → follow related contracts → check invariants
+         → check failure modes → check intent → only then patch
+```
+
+### Required pre-edit checklist (no checklist, no edit)
+
+Before modifying any code, write down:
+
+1. **Contract status** — found / inferred / missing / unknown
+2. **Contract source** — the AWG node IDs or files that ground it
+3. **Relevant invariants** — what must stay true
+4. **Relevant failure modes** — how this path has broken before
+5. **Forbidden fixes** — patches the graph already rules out
+6. **Verification plan** — how respect for the contract will be proven
+
+Then act on the contract status — this is the line between fixing within the rules and doing local patch surgery that damages the organism elsewhere:
+
+- **found** → fix within the rule.
+- **inferred** → propose, then verify carefully; flag it for promotion to an explicit contract.
+- **missing** → extract a candidate invariant; do not apply a behavioral fix without approval unless the change is purely diagnostic or reversible.
+- **unknown** → stop pretending. Emit a revision request or an architecture question. Do not say "fixed".
+
+**Enforcement level:** this is **agent discipline** (prompt-level), *not yet* a mechanical CI gate. The principles are classified `review_only` in `docs/awareness/meta_principle_coverage.yaml`; mechanization is the Phase-2 `awg gate` step against a frozen contract set. Until then, this checklist is the gate.
+
+Full protocol — contract statuses, per-status output templates, the contract-extraction duty, and forbidden behaviors: [docs/design/contract-first-resolution-protocol.md](docs/design/contract-first-resolution-protocol.md).
 
 ---
 
