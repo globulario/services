@@ -64,6 +64,17 @@ func DefaultEvalCond(ctx context.Context, expr string, inputs, outputs map[strin
 		return true, nil
 	}
 
+	// Unary negation: !<expr>  (e.g. !inputs.dry_run). Must come before the
+	// "!=" inequality check below, which matches an embedded "!=" not a
+	// leading "!".
+	if strings.HasPrefix(expr, "!") && !strings.HasPrefix(expr, "!=") {
+		ok, err := DefaultEvalCond(ctx, strings.TrimSpace(expr[1:]), inputs, outputs)
+		if err != nil {
+			return false, err
+		}
+		return !ok, nil
+	}
+
 	// contains(inputs.X, 'val') or contains(X, 'val')
 	if strings.HasPrefix(expr, "contains(") {
 		return evalContains(expr, inputs, outputs)
@@ -84,8 +95,63 @@ func DefaultEvalCond(ctx context.Context, expr string, inputs, outputs map[strin
 		return evalEquality(expr, inputs, outputs)
 	}
 
-	// Unknown expression — default to true (pass-through).
-	return true, nil
+	// Bare boolean reference: inputs.X / outputs.X / X used directly as a guard
+	// (e.g. "inputs.dry_run", "all_installed"). Resolve and interpret as bool.
+	// An undefined identifier fails CLOSED to false (consistent with evalLen:
+	// undefined != truthy) — many guards are optional booleans — but a
+	// non-boolean value cannot be used as a condition and must error.
+	if isIdentifierPath(expr) {
+		switch v := resolveVar(expr, inputs, outputs).(type) {
+		case nil:
+			return false, nil
+		case bool:
+			return v, nil
+		case string:
+			switch v {
+			case "true":
+				return true, nil
+			case "false", "":
+				return false, nil
+			default:
+				return false, fmt.Errorf("non-boolean string %q for condition %q", v, expr)
+			}
+		default:
+			return false, fmt.Errorf("non-boolean value for condition %q", expr)
+		}
+	}
+
+	// Genuinely unrecognized / unparseable expression — fail closed with an
+	// error. Silently returning true (the prior behavior) let a side-effecting
+	// step run when its guard could not be understood — a typo, a new
+	// operator, a malformed condition. The engine is fail-closed elsewhere
+	// (evalLen returns -1 for undefined vars; preflight rejects unresolvable
+	// handlers); an unrecognized guard must surface an error, not authorize
+	// execution. (meta.silence_is_not_valid_for_unexpected)
+	return false, fmt.Errorf("unrecognized condition expression %q", expr)
+}
+
+// isIdentifierPath reports whether expr is a bare variable path such as
+// "inputs.dry_run", "outputs.repair_plan.ready", or "ok": letters, digits,
+// underscores and dots only, starting with a letter or underscore. Used to
+// distinguish an undefined-but-valid boolean guard (fail closed to false)
+// from genuinely unparseable garbage (error).
+func isIdentifierPath(expr string) bool {
+	if expr == "" {
+		return false
+	}
+	for i := 0; i < len(expr); i++ {
+		c := expr[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_':
+		case (c >= '0' && c <= '9') || c == '.':
+			if i == 0 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // splitTopLevel splits `expr` on the given operator at top-level,

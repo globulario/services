@@ -515,3 +515,47 @@ func TestForeachWithSubSteps_ItemInputsAvailable(t *testing.T) {
 		t.Errorf("item_index[1] = %v, want 1", receivedInputs[1]["item_index"])
 	}
 }
+
+// TestForeach_UnresolvedCollectionFails locks in the AWG re-audit fix
+// (meta.silence_is_not_valid_for_unexpected): a foreach whose collection
+// reference does not resolve to a list — because a prior step never exported
+// it — must FAIL the step, not silently SKIP it and report SUCCEEDED. A
+// silent skip drops real fan-out work (install-on-every-node) while the run
+// looks done.
+func TestForeach_UnresolvedCollectionFails(t *testing.T) {
+	router := NewRouter()
+	RegisterNodeDirectApplyActions(router, NodeDirectApplyConfig{
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error { return nil },
+	})
+	eng := &Engine{Router: router}
+
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "test-foreach-unresolved"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Strategy: v1alpha1.ExecutionStrategy{Mode: v1alpha1.StrategySingle},
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:       "fan_out",
+					Foreach:  &v1alpha1.ScalarString{Raw: "$.candidate_nodes"}, // never provided / defaulted
+					ItemName: &v1alpha1.ScalarString{Raw: "target"},
+					Actor:    v1alpha1.ActorNodeAgent,
+					Action:   "node.install_package",
+				},
+			},
+		},
+	}
+
+	run, _ := eng.Execute(context.Background(), def, map[string]any{})
+	if run.Status != RunFailed {
+		t.Fatalf("expected run FAILED for unresolved foreach collection, got %s", run.Status)
+	}
+	st := run.Steps["fan_out"]
+	if st == nil || st.Status != StepFailed {
+		t.Fatalf("expected fan_out step FAILED, got %v", st)
+	}
+	if !strings.Contains(st.Error, "did not resolve") {
+		t.Errorf("expected 'did not resolve' error, got %q", st.Error)
+	}
+}
