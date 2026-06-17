@@ -68,16 +68,23 @@ func (srv *NodeAgentServer) infraReadiness(name string) (ready bool, decided boo
 	}
 }
 
-// envoyDataPlaneStalled reports whether the local Envoy data plane is in the
-// STALLED lifecycle state — an LDS wedge (CDS applied but listeners never load)
-// or a critically-invalid bootstrap: active but not serving traffic. It is the
-// confident signal that the systemd-only convergence gate cannot see, and is
-// STALLED-only (never blocks on a warming/degraded/unobserved Envoy), so it
-// fences a wedged mesh without false-negating during normal startup.
-func (srv *NodeAgentServer) envoyDataPlaneStalled() bool {
-	res := srv.cachedInfraProbe(infra_truth.ComponentEnvoy)
+// infraComponentStalled reports whether the cached infra probe for a component
+// shows the STALLED lifecycle — active but definitively not serving (an Envoy LDS
+// wedge, etcd CORRUPT / no quorum, MinIO split-brain, or a critically-invalid
+// config). Cache-only: a missing or stale entry returns false so a caller never
+// blocks or fails on absent evidence (it keeps the systemd-only behaviour).
+func (srv *NodeAgentServer) infraComponentStalled(component string) bool {
+	res := srv.cachedInfraProbe(component)
 	return res != nil && res.GetInstalled() &&
 		res.GetLifecycle().GetState() == cluster_controllerpb.InfraLifecycleState_INFRA_STALLED
+}
+
+// envoyDataPlaneStalled reports whether the local Envoy data plane is STALLED —
+// an LDS wedge (CDS applied but listeners never load) or a critically-invalid
+// bootstrap: active but not serving traffic. STALLED-only, so it fences a wedged
+// mesh without false-negating while Envoy is still warming up.
+func (srv *NodeAgentServer) envoyDataPlaneStalled() bool {
+	return srv.infraComponentStalled(infra_truth.ComponentEnvoy)
 }
 
 // cachedInfraProbe returns the most recent cached probe for a component WITHOUT

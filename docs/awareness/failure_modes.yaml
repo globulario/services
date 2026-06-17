@@ -6077,7 +6077,7 @@ failure_modes:
     - id: health_gate_trusts_systemd_active_blind_to_runtime
       title: A readiness / convergence / bootstrap gate trusts `systemctl is-active` as proof a component is serving, blind to the runtime states (no quorum, no listeners, wrong topology) that the infra truth plane detects
       severity: high
-      status: active
+      status: resolved
       root_cause: |
         The infrastructure truth plane (infra.process_active_is_not_health) made one
         component, ScyllaDB, prove readiness by a CQL port probe rather than systemd —
@@ -6115,8 +6115,8 @@ failure_modes:
       audit_sites:
         - "REMEDIATED golang/workflow/engine/actors.go::DefaultIsServiceActive — the node-agent now injects IsServiceActive=srv.isServiceReady (golang/node_agent/node_agent_server/infra_readiness.go), which blocks readiness on a STALLED infra component and passes on MEMBER_READY, falling back to DefaultIsServiceActive otherwise. Covers the workflow readiness gate (nodeVerifyServicesActive) on both the workflow-runner and day-0 paths."
         - "REMEDIATED golang/node_agent/node_agent_server/server.go::envoyUnitActive — the cert-watcher convergence gate (certificate.go) now also fails on srv.envoyDataPlaneStalled, so a STALLED Envoy (LDS wedge) no longer passes the post-cert-restart network validation. STALLED-only, no warmup false-negative."
-        - golang/node_agent/node_agent_server/workflow_day0.go::ValidateClusterHealth (day-0 completion gated on is-active of etcd/gateway/xds — STILL UNFIXED)
-        - golang/node_agent/node_agent_server/internal/ingress/status.go::DetectVRRPState (VRRP state derived from is-active keepalived, not the VRRP protocol — STILL UNFIXED)
+        - "REMEDIATED golang/node_agent/node_agent_server/workflow_day0.go::ValidateClusterHealth — day-0 health now also fails when srv.infraComponentStalled(etcd) shows etcd active-but-STALLED (no quorum/leader/CORRUPT), cache-only so a cold bootstrap cache keeps the is-active verdict."
+        - "REMEDIATED golang/node_agent/node_agent_server/internal/ingress/status.go::DetectVRRPState — VRRP state is now derived from the authoritative VIP-ownership fact (holds VIP => MASTER) instead of is-active + journal-log scraping; also fixed a real bug where `ip addr show \"\" iface` (stray empty arg) made VIP detection always fail."
       related_invariants:
         - infra.process_active_is_not_health
         - infra.runtime_truth_must_be_observed_via_native_api
@@ -6125,19 +6125,17 @@ failure_modes:
         - workflow
         - node-agent
         - cluster-doctor
-      no_test_reason: |
-        Partially remediated: the workflow readiness gate is now truth-plane-backed
-        and tested (see required_tests). The remaining three sites (envoyUnitActive,
-        ValidateClusterHealth, DetectVRRPState) are still-unfixed audit findings; a
-        regression test is owed as each is converted to runtime observation.
       required_tests:
         - golang/node_agent/node_agent_server/infra_readiness_test.go::TestInfraReadiness_DecisionMatrix
         - golang/node_agent/node_agent_server/infra_readiness_test.go::TestEnvoyDataPlaneStalled
+        - golang/node_agent/node_agent_server/internal/ingress/vrrp_state_test.go::TestDeriveVRRPState
       protects:
         files:
             - golang/workflow/engine/actors.go
             - golang/node_agent/node_agent_server/infra_readiness.go
             - golang/node_agent/node_agent_server/certificate.go
+            - golang/node_agent/node_agent_server/workflow_day0.go
+            - golang/node_agent/node_agent_server/internal/ingress/status.go
             - golang/node_agent/node_agent_server/server.go
 
     - id: etcd.auto_rejoin_leader_guard_fails_open

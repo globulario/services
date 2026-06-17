@@ -20,6 +20,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/component_catalog"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/infra_truth"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/engine"
@@ -265,11 +266,23 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 				"globular-xds.service",
 			}
 			var inactive []string
+			etcdActive := true
 			for _, unit := range critical {
 				out, err := exec.CommandContext(ctx, "systemctl", "is-active", unit).Output()
 				if err != nil || strings.TrimSpace(string(out)) != "active" {
 					inactive = append(inactive, unit)
+					if unit == "globular-etcd.service" {
+						etcdActive = false
+					}
 				}
+			}
+			// etcd being active is not enough: a STALLED etcd (no quorum/leader,
+			// CORRUPT) is not healthy even while its unit reports active. Use the
+			// truth-plane signal when the probe cache has fresh data (cache-only —
+			// a cold cache during early bootstrap simply leaves the is-active
+			// verdict, never a new false failure).
+			if etcdActive && srv.infraComponentStalled(infra_truth.ComponentEtcd) {
+				inactive = append(inactive, "globular-etcd.service (STALLED: no quorum/leader)")
 			}
 			if len(inactive) > 0 {
 				return fmt.Errorf("inactive services: %s", strings.Join(inactive, ", "))
