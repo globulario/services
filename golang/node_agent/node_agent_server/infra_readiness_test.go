@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -71,22 +70,21 @@ func TestInfraReadiness_DecisionMatrix(t *testing.T) {
 func TestEnvoyDataPlaneStalled(t *testing.T) {
 	srv := &NodeAgentServer{}
 	srv.ensureInfraTruth()
-	ctx := context.Background()
 
 	seedInfraProbe(srv, infra_truth.ComponentEnvoy, false, cluster_controllerpb.InfraLifecycleState_INFRA_NOT_PRESENT)
-	if srv.envoyDataPlaneStalled(ctx) {
+	if srv.envoyDataPlaneStalled() {
 		t.Error("not-installed envoy must not be reported stalled")
 	}
 	seedInfraProbe(srv, infra_truth.ComponentEnvoy, true, cluster_controllerpb.InfraLifecycleState_INFRA_MEMBER_READY)
-	if srv.envoyDataPlaneStalled(ctx) {
+	if srv.envoyDataPlaneStalled() {
 		t.Error("MEMBER_READY envoy must not be reported stalled")
 	}
 	seedInfraProbe(srv, infra_truth.ComponentEnvoy, true, cluster_controllerpb.InfraLifecycleState_INFRA_DAEMON_STARTING)
-	if srv.envoyDataPlaneStalled(ctx) {
+	if srv.envoyDataPlaneStalled() {
 		t.Error("warming envoy (DAEMON_STARTING) must not be reported stalled")
 	}
 	seedInfraProbe(srv, infra_truth.ComponentEnvoy, true, cluster_controllerpb.InfraLifecycleState_INFRA_STALLED)
-	if !srv.envoyDataPlaneStalled(ctx) {
+	if !srv.envoyDataPlaneStalled() {
 		t.Error("STALLED envoy (LDS wedge) must be reported stalled")
 	}
 }
