@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -293,15 +294,24 @@ func (s *ScyllaStore) ensureKeyspaceAndTable(opts OpenOptions) error {
 		// acceptable for single-node dev setups.
 		rf := opts.ReplicationFactor
 		if rf <= 1 {
-			// Auto-detect cluster size: count ScyllaDB peers.
-			var peerCount int
-			if err := sysSession.Query(`SELECT count(*) FROM system.peers`).Consistency(gocql.One).Scan(&peerCount); err == nil && peerCount > 0 {
-				rf = peerCount + 1 // peers + self
-				if rf > 3 {
-					rf = 3 // cap at 3 for performance
-				}
-			} else {
+			// Derive the replication factor from the configured cluster topology
+			// (the hosts this store connected with, sourced from
+			// config.GetScyllaHosts — the authoritative membership), NOT from a
+			// runtime `SELECT count(*) FROM system.peers`. system.peers excludes the
+			// local node and, on a multi-host gocql session, the query routes to an
+			// arbitrary coordinator whose gossip view may be incomplete — under-
+			// counting peers and silently setting RF too low (under-replication).
+			// This is the storage-layer instance of
+			// infra.node_specific_truth_must_be_observed_via_node_local_client: a
+			// cluster-wide decision must not be read from one member's gossip view
+			// through a load-balanced client. The configured host set is the same
+			// desired-state membership source the rest of the platform uses.
+			rf = distinctHostCount(s.cluster.Hosts)
+			if rf < 1 {
 				rf = 1 // single node fallback
+			}
+			if rf > 3 {
+				rf = 3 // cap at 3 for performance
 			}
 		}
 		cql := fmt.Sprintf(`CREATE KEYSPACE IF NOT EXISTS "%s" WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}`,
@@ -333,6 +343,29 @@ func (s *ScyllaStore) ensureKeyspaceAndTable(opts OpenOptions) error {
 	}
 
 	return nil
+}
+
+// distinctHostCount returns the number of unique hosts in a "host" or
+// "host:port" list, ignoring the port. It is the authoritative cluster-size
+// signal for replication-factor selection — derived from the configured
+// topology rather than a gossip-dependent system.peers query (see the comment in
+// ensureKeyspaceAndTable).
+func distinctHostCount(hosts []string) int {
+	seen := make(map[string]struct{}, len(hosts))
+	for _, hp := range hosts {
+		hp = strings.TrimSpace(hp)
+		if hp == "" {
+			continue
+		}
+		host := hp
+		if h, _, err := net.SplitHostPort(hp); err == nil {
+			host = h
+		}
+		if host = strings.TrimSpace(host); host != "" {
+			seen[host] = struct{}{}
+		}
+	}
+	return len(seen)
 }
 
 // open creates the session and initializes schema.
