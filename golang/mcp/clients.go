@@ -54,6 +54,13 @@ func newClientPool(allowInsecure bool) *clientPool {
 }
 
 func (p *clientPool) get(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
+	if endpoint == "" {
+		// An empty endpoint means upstream resolution (the mesh address from
+		// etcd) failed. Fail fast with the real cause instead of dialing "" and
+		// letting the failure surface as an opaque empty-target gRPC error.
+		// (meta.connection_errors_must_not_be_absorbed)
+		return nil, fmt.Errorf("mcp: no service endpoint resolved — mesh address unavailable from etcd")
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -155,10 +162,17 @@ func saToken() string {
 // (repository, backup-manager, cluster-doctor, rbac, resource, …) are routed
 // through Envoy via gRPC path-prefix matching — no per-service port needed.
 func gatewayEndpoint() string {
-	if mesh, err := config.GetMeshAddress(); err == nil {
-		return mesh
+	mesh, err := config.GetMeshAddress()
+	if err != nil {
+		// Do not absorb the resolution error silently. Callers receive "" and
+		// clientPool.get turns that into a clear error; log the precise cause
+		// here so diagnosis points at etcd/mesh resolution rather than a
+		// generic downstream dial failure.
+		// (meta.connection_errors_must_not_be_absorbed)
+		log.Printf("[ERROR] mcp: gateway endpoint unresolved (mesh address from etcd): %v", err)
+		return ""
 	}
-	return ""
+	return mesh
 }
 
 // controllerEndpoint routes through Envoy like all other registered services.
