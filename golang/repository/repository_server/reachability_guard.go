@@ -51,13 +51,29 @@ import (
 // ── etcd helpers ──────────────────────────────────────────────────────────
 
 // collectInstalledBuildIDs queries the etcd installed-state registry and returns
-// the set of all build_ids currently installed on any cluster node.
-// Best-effort: returns an empty (non-nil) map on error so callers degrade
-// gracefully (safety checks become retention-window-only rather than failing).
-func collectInstalledBuildIDs(ctx context.Context) map[string]bool {
+// (set of all build_ids installed on any cluster node, trusted). trusted is
+// false only when the registry read failed — the empty map then means
+// "unknown", NOT "nothing installed".
+//
+// Destructive callers MUST refuse to proceed when trusted=false. This is the
+// asymmetric twin of collectDesiredBuildIDs's fence: treating a transient read
+// failure as "not installed" lets an actively-installed artifact that is past
+// its retention window be archived/deleted/revoked — the "build_id not found
+// for name=" cascade the desired-state fence already prevents.
+// (meta.absence_scope_must_be_explicit)
+//
+// Indirected through collectInstalledBuildIDsFn so tests can inject a trusted
+// or untrusted installed set without live etcd — mirroring collectDesiredBuildIDs.
+var collectInstalledBuildIDsFn = collectInstalledBuildIDsLive
+
+func collectInstalledBuildIDs(ctx context.Context) (map[string]bool, bool) {
+	return collectInstalledBuildIDsFn(ctx)
+}
+
+func collectInstalledBuildIDsLive(ctx context.Context) (map[string]bool, bool) {
 	pkgs, err := installed_state.ListAllNodes(ctx, "", "")
 	if err != nil {
-		return map[string]bool{}
+		return map[string]bool{}, false
 	}
 	ids := make(map[string]bool, len(pkgs))
 	for _, p := range pkgs {
@@ -65,7 +81,7 @@ func collectInstalledBuildIDs(ctx context.Context) map[string]bool {
 			ids[id] = true
 		}
 	}
-	return ids
+	return ids, true
 }
 
 // collectDesiredBuildIDsFn is the package-level hook for test injection.
@@ -268,7 +284,12 @@ func (srv *server) checkDeletionSafety(
 	catalog []*repopb.ArtifactManifest,
 ) (safe bool, reason string, code PurgeBlockedReason) {
 	rCfg := srv.reachabilityConfig()
-	installed := collectInstalledBuildIDs(ctx)
+	installed, instTrusted := collectInstalledBuildIDs(ctx)
+	if !instTrusted {
+		// Cannot verify whether the build is installed anywhere — refuse rather
+		// than risk deleting an actively-installed, past-retention artifact.
+		return false, "installed-state unverifiable — registry read failed; retry when healthy", PurgeBlockedReferencedByInstalled
+	}
 	desired, trusted := collectDesiredBuildIDs(ctx)
 	if !trusted {
 		// Cannot verify whether the artifact is pinned by desired state —
@@ -342,7 +363,15 @@ func (srv *server) checkRevokeSafety(
 		return false, "", PurgeBlockedNone
 	}
 	buildID := target.GetBuildId()
-	installed := collectInstalledBuildIDs(ctx)
+	installed, instTrusted := collectInstalledBuildIDs(ctx)
+	if !instTrusted {
+		return true, fmt.Sprintf(
+			"%s/%s build_id=%s installed status unverifiable — registry read failed. "+
+				"Refusing to revoke under partial knowledge. Retry when healthy. "+
+				"Administrators may revoke immediately.",
+			target.GetRef().GetPublisherId(), target.GetRef().GetName(), buildID,
+		), PurgeBlockedReferencedByInstalled
+	}
 	if installed[buildID] {
 		return true, fmt.Sprintf(
 			"%s/%s build_id=%s is currently installed on one or more cluster nodes. "+

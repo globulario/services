@@ -112,6 +112,9 @@ func TestDeletionSafety_EmptyCatalog_IsAllowed(t *testing.T) {
 // would let GC archive active artifacts and cascade into
 // repository.desired_build_id_orphaned.
 func TestDeletionSafety_DesiredStateUnknown_Refuses(t *testing.T) {
+	// Installed-state is reachable (trusted, empty) so the installed fence
+	// passes and we reach the desired-state check under test.
+	stubInstalledEmptyTrusted(t)
 	// Stub: simulate "controller unreachable" — empty + untrusted.
 	prev := collectDesiredBuildIDsFn
 	collectDesiredBuildIDsFn = func(context.Context) (map[string]bool, bool) {
@@ -163,8 +166,41 @@ func TestRevokeSafety_Admin_Bypasses(t *testing.T) {
 func TestCollectInstalledBuildIDs_ReturnsNonNilMap(t *testing.T) {
 	// Whether or not etcd is reachable, the function must always return
 	// a non-nil map — callers rely on map lookups, not nil checks.
-	ids := collectInstalledBuildIDs(context.Background())
+	ids, _ := collectInstalledBuildIDs(context.Background())
 	if ids == nil {
 		t.Error("collectInstalledBuildIDs must return non-nil map (even on etcd error)")
+	}
+}
+
+// TestDeletionSafety_InstalledStateUnknown_Refuses locks in the AWG re-audit
+// fix (meta.absence_scope_must_be_explicit): when the installed-state registry
+// read fails (untrusted), checkDeletionSafety must REFUSE rather than treat the
+// empty set as "not installed anywhere" and delete an artifact that may be
+// actively installed but past its retention window. This is the asymmetric twin
+// of the desired-state fence.
+func TestDeletionSafety_InstalledStateUnknown_Refuses(t *testing.T) {
+	stubDesiredEmptyTrusted(t) // desired reachable+empty; isolate the installed fence
+	prev := collectInstalledBuildIDsFn
+	collectInstalledBuildIDsFn = func(context.Context) (map[string]bool, bool) {
+		return map[string]bool{}, false // registry read failed -> untrusted
+	}
+	t.Cleanup(func() { collectInstalledBuildIDsFn = prev })
+
+	// An artifact that would otherwise be safe (outside the retention window).
+	catalog := []*repopb.ArtifactManifest{
+		makePublishedManifest("core", "echo", "1.0.1", "linux_amd64", 1, "bid-1", nil),
+		makePublishedManifest("core", "echo", "1.0.2", "linux_amd64", 2, "bid-2", nil),
+		makePublishedManifest("core", "echo", "1.0.3", "linux_amd64", 3, "bid-3", nil),
+		makePublishedManifest("core", "echo", "1.0.4", "linux_amd64", 4, "bid-4", nil),
+	}
+	target := catalog[0] // bid-1, outside window=3
+
+	srv := &server{}
+	safe, reason, code := srv.checkDeletionSafety(context.Background(), target, catalog)
+	if safe {
+		t.Fatalf("must refuse deletion when installed-state is unverifiable; got safe=true reason=%q", reason)
+	}
+	if code != PurgeBlockedReferencedByInstalled {
+		t.Errorf("expected PurgeBlockedReferencedByInstalled, got %v", code)
 	}
 }

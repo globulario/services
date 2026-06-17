@@ -123,7 +123,14 @@ func (srv *server) ArchiveUnreachableArtifacts(
 	if !trusted {
 		return nil, fmt.Errorf("gc: desired-state pin set unverifiable (controller unreachable) — aborting cycle, will retry")
 	}
-	explicit := mergeBuildIDRoots(collectInstalledBuildIDs(ctx), desired)
+	installed, instTrusted := collectInstalledBuildIDs(ctx)
+	if !instTrusted {
+		// An installed-state read failure must abort the cycle, not silently
+		// produce an empty installed-root set that marks active artifacts
+		// unreachable. (meta.absence_scope_must_be_explicit)
+		return nil, fmt.Errorf("gc: installed-state build_id set unverifiable (registry read failed) — aborting cycle, will retry")
+	}
+	explicit := mergeBuildIDRoots(installed, desired)
 	rs := ComputeReachable(catalog, explicit, srv.reachabilityConfig())
 	duplicateReasons := duplicateDigestArchiveReasons(all, explicit)
 
