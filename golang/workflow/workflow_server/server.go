@@ -1204,8 +1204,15 @@ func (srv *server) GetRun(_ context.Context, req *workflowpb.GetRunRequest) (*wo
 }
 
 func (srv *server) ListRuns(_ context.Context, req *workflowpb.ListRunsRequest) (*workflowpb.ListRunsResponse, error) {
-	// No requireHealthy — list helpers handle nil session by returning empty slices.
-	// When ScyllaDB is degraded we return an empty list rather than a 503.
+	// A degraded/reconnecting ScyllaDB must surface as DEPENDENCY_UNAVAILABLE,
+	// not as an empty list. The list helpers swallow a nil session into empty
+	// slices, so callers (admin UI, GetCurrentRunsForNode readiness signal,
+	// reconcilers) would read Total:0 as "no active runs" exactly when the
+	// truth is unknown. Fail fast with the same uncertainty the other read
+	// paths express. (meta.authority_must_express_uncertainty)
+	if _, err := srv.getSessionOrError(); err != nil {
+		return nil, err
+	}
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 50
