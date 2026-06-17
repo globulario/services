@@ -10706,6 +10706,32 @@ invariants:
   - infra.runtime_truth_must_be_observed_via_native_api
   required_tests:
   - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraWriteQuorum_Lost
+- id: infra.node_specific_truth_must_be_observed_via_node_local_client
+  title: Per-node / per-endpoint runtime truth must be read from a client pinned to that node, never from a shared multi-member pooled client that may route elsewhere
+  summary: |
+    A child of infra.runtime_truth_must_be_observed_via_native_api. When the
+    question is about ONE specific node/member ("is THIS member the leader", "what
+    is THIS endpoint's status", "who are THIS node's gossip peers"), the answer
+    must come from a client dialed at that node. A shared cluster-wide client (a
+    multi-host gocql session, the shared pooled etcd client, an arbitrary
+    Endpoints()[0]) can route the query to a DIFFERENT member, and per-node tables
+    (system.peers excludes self; an endpoint's leader view can be stale under a
+    partition) then yield an answer that belongs to the wrong node. This is the
+    generalization of INC-2026-0011 (gocql routed system.local/peers to the wrong
+    member -> false group0-stale verdict) and the etcd infra-truth observer's
+    local-only dial. Reading per-node truth through a pooled client is forbidden
+    when the result drives a node-scoped or destructive decision.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/etcd_runtime.go
+    - golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
+  related_invariants:
+  - infra.runtime_truth_must_be_observed_via_native_api
+  - cluster_event_must_carry_node_or_cluster_scope
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestEtcdProbeStructured_HealthyMember
 - id: envoy.config_valid
   title: The Envoy bootstrap must be able to drive the mesh — ads_config/cds_config/lds_config present, the ADS cluster defined in static_resources, node id set
   summary: |

@@ -6074,6 +6074,118 @@ failure_modes:
         - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestEnvoyProbeStructured_LDSWedgeStalled
         - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraLDSProgress_WedgeDetected
 
+    - id: health_gate_trusts_systemd_active_blind_to_runtime
+      title: A readiness / convergence / bootstrap gate trusts `systemctl is-active` as proof a component is serving, blind to the runtime states (no quorum, no listeners, wrong topology) that the infra truth plane detects
+      severity: high
+      status: active
+      root_cause: |
+        The infrastructure truth plane (infra.process_active_is_not_health) made one
+        component, ScyllaDB, prove readiness by a CQL port probe rather than systemd —
+        the comment in DefaultIsServiceActive literally notes "systemd shows active
+        during Raft join but CQL isn't ready yet." But the same lesson was never
+        applied to the OTHER gates: workflow service-readiness, day-0 cluster-health
+        validation, the post-cert-restart network gate, and ingress/VRRP state all
+        still treat `systemctl is-active <unit>` as the verdict. etcd can be active
+        without quorum or a leader; Envoy can be active but LDS-wedged (no listeners,
+        port 443 unbound); MinIO can be active but split-brain standalone; keepalived
+        can be active but not the VRRP MASTER. Each gate then declares "ready /
+        converged / bootstrapped" on top of a component that is up but not serving.
+        This is a systemic, cross-component instance of
+        fm.industry.partial_failure_hidden_by_global_green discovered by auditing the
+        codebase with the truth-plane lens (2026-06-16).
+      trigger: |
+        Any readiness/convergence/health gate calls `systemctl is-active` (or
+        systemd ActiveState) for an infra component and returns the result as the
+        ready/healthy verdict, without observing the component's native runtime
+        truth (etcd member/leader, MinIO /minio/health/cluster, Envoy admin
+        /stats listeners, keepalived VRRP state).
+      symptoms:
+        - a workflow/day-0 step reports SUCCEEDED / "cluster health validated" while etcd has no quorum, Envoy has no listeners, or MinIO is split-brain
+        - DNS/ingress includes a node whose keepalived is active but not the VRRP master
+        - convergence appears complete while traffic through the mesh is dead
+      blast_radius:
+        - Gates admit a node / complete a bootstrap on top of a non-serving component, hiding the real failure until a downstream request fails
+      architecture_fix: |
+        Back each gate with the component's native runtime observation — the same
+        signals the infra truth plane already computes (GetInfraProbe lifecycle
+        MEMBER_READY, the Envoy LDS-progress check, the MinIO write-quorum check,
+        an etcd leader/member check), or at minimum a port/health probe like the
+        ScyllaDB branch of DefaultIsServiceActive already does. Keep `is-active`
+        only as a cheap pre-gate before the real observation, never as the verdict.
+      audit_sites:
+        - golang/workflow/engine/actors.go::DefaultIsServiceActive (etcd/minio/envoy/gateway fall through to is-active; only scylladb probes a port)
+        - golang/node_agent/node_agent_server/server.go::envoyUnitActive (network-readiness gate trusts is-active, blind to the LDS wedge)
+        - golang/node_agent/node_agent_server/workflow_day0.go::ValidateClusterHealth (day-0 completion gated on is-active of etcd/gateway/xds)
+        - golang/node_agent/node_agent_server/internal/ingress/status.go::DetectVRRPState (VRRP state derived from is-active keepalived, not the VRRP protocol)
+      related_invariants:
+        - infra.process_active_is_not_health
+        - infra.runtime_truth_must_be_observed_via_native_api
+        - meta.half_done_must_not_look_done
+      related_services:
+        - workflow
+        - node-agent
+        - cluster-doctor
+      no_test_reason: |
+        Audit-discovered, not yet remediated — these are still-unfixed violation
+        sites. The positive control (correct pattern) is the ScyllaDB branch of
+        DefaultIsServiceActive and the infra-truth probes; a regression test is owed
+        once each gate is converted to runtime observation.
+      protects:
+        files:
+            - golang/workflow/engine/actors.go
+            - golang/node_agent/node_agent_server/server.go
+
+    - id: etcd.auto_rejoin_leader_guard_fails_open
+      title: The "never auto-rejoin the etcd leader" guard failed OPEN — when the leader could not be identified it proceeded with an empty leaderNodeID and could wipe the leader, destroying quorum
+      severity: critical
+      status: resolved
+      root_cause: |
+        reconcileEtcdAutoRejoin identifies the current etcd leader so it never wipes
+        it (wiping the leader's data dir destroys quorum with no recovery path). The
+        identification was best-effort inside an `if err == nil` block: if Status
+        errored, MemberList errored, no leader was elected (Leader==0), or the
+        reported leader did not map to a known node, leaderNodeID stayed empty and
+        the "never wipe the leader" guard (`if leaderNodeID != "" && ...`) was simply
+        skipped. A node in EtcdJoinRejoinRequired that was in fact the leader could
+        then be wiped. The safety check failed OPEN on exactly the uncertainty
+        (no quorum, partition, election in progress) where wiping is most dangerous —
+        a destructive action proceeding on missing evidence
+        (evidence.missing_is_not_known_bad inverted).
+      trigger: |
+        The controller runs reconcileEtcdAutoRejoin while the etcd Status/MemberList
+        read fails or returns no elected leader (quorum loss, partition, election),
+        with at least one node in EtcdJoinRejoinRequired.
+      symptoms:
+        - an etcd node is wiped/rejoined during quorum loss instead of being left alone
+        - cluster loses etcd quorum with no automatic recovery after an auto-rejoin
+      blast_radius:
+        - Destroying the etcd leader destroys cluster quorum and the control plane
+      architecture_fix: |
+        The leader identification now FAILS CLOSED. reconcileEtcdAutoRejoin refuses
+        ALL auto-rejoins this cycle (returns without mutation, retries next reconcile)
+        when the endpoint list is empty, Status errors, no leader is elected, the
+        member list errors, or the reported leader is not a mappable current member.
+        The mapping logic is extracted into the pure helper resolveEtcdLeaderNode,
+        whose leaderKnown=false output is the fail-closed signal. Honors
+        node_recovery.fence_before_destructive_reseed and
+        inventory.missing_means_uncertain.
+      forbidden_fixes:
+        - proceed_with_auto_rejoin_when_the_etcd_leader_cannot_be_identified
+      related_invariants:
+        - destructive_actions.require_explicit_guard
+        - evidence.missing_is_not_known_bad
+        - infra.node_specific_truth_must_be_observed_via_node_local_client
+      related_intents:
+        - node_recovery.fence_before_destructive_reseed
+        - infrastructure.etcd.quorum_backed_config_authority
+      related_services:
+        - cluster-controller
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/etcd_members.go
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/etcd_rejoin_test.go::TestResolveEtcdLeaderNode_FailsClosedWhenUncertain
+
     - id: scylla.probe_dials_loopback_not_rendered_bind
       title: The infra probe dialed a hardcoded 127.0.0.1 for ScyllaDB's REST/CQL instead of the rendered bind address, so a healthy node was falsely reported daemon_starting
       severity: high
