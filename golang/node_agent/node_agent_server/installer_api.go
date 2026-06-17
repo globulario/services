@@ -417,12 +417,20 @@ func pinArtifact(name, version, platform, artifactPath string) {
 //     caller has no authoritative version and the Day-1 bootstrap wildcard
 //     fallback is permitted.
 func (srv *NodeAgentServer) findLocalPackage(name, version, platform string) string {
+	explicitVersion := isExplicitVersion(version)
 	candidates := []string{
 		fmt.Sprintf("%s_%s_%s.tgz", name, version, platform),
 		fmt.Sprintf("%s_%s.tgz", name, version),
-		fmt.Sprintf("%s.tgz", name),
 	}
-	explicitVersion := isExplicitVersion(version)
+	if !explicitVersion {
+		// The bare "<name>.tgz" carries no version in its filename. Accepting it
+		// for an explicit-version request would install an unknown version under
+		// the pinned label and declare success — the same wrong-binary class as
+		// the wildcard fallback (INC-2026-0012). Only the non-explicit
+		// (empty/dev) bootstrap path may fall back to the un-versioned archive.
+		// Enforces installer.explicit_version_requires_exact_artifact.
+		candidates = append(candidates, fmt.Sprintf("%s.tgz", name))
+	}
 	for _, dir := range localPackageDirs {
 		for _, c := range candidates {
 			path := filepath.Join(dir, c)

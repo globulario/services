@@ -113,6 +113,45 @@ func TestFindLocalPackage_DevVersion_AllowsWildcard(t *testing.T) {
 	}
 }
 
+// TestFindLocalPackage_ExplicitVersion_RejectsBareUnversionedArchive locks in
+// the AWG re-audit gap: an explicit-version request must not be satisfied by
+// the un-versioned "<name>.tgz" candidate, which carries no version in its
+// filename and would install an unknown binary under the pinned label — the
+// same wrong-binary-declares-success class as the wildcard fallback
+// (installer.explicit_version_requires_exact_artifact, INC-2026-0012).
+func TestFindLocalPackage_ExplicitVersion_RejectsBareUnversionedArchive(t *testing.T) {
+	dir := t.TempDir()
+	bare := filepath.Join(dir, "repository.tgz")
+	writeTgz(t, bare)
+
+	withLocalPackageDirs(t, dir)
+	srv := &NodeAgentServer{}
+	got := srv.findLocalPackage("repository", "1.2.115", "linux_amd64")
+	if got == bare {
+		t.Fatalf("explicit version 1.2.115 resolved to un-versioned %q — a bare "+
+			"<name>.tgz must never satisfy an explicit-version request", got)
+	}
+	if got != "" {
+		t.Fatalf("findLocalPackage = %q, want \"\" (no versioned match exists)", got)
+	}
+}
+
+// TestFindLocalPackage_EmptyVersion_AllowsBareUnversionedArchive — the
+// complement: the non-explicit (Day-1 bootstrap) path may still use the bare
+// archive when the caller has no authoritative version.
+func TestFindLocalPackage_EmptyVersion_AllowsBareUnversionedArchive(t *testing.T) {
+	dir := t.TempDir()
+	bare := filepath.Join(dir, "envoy.tgz")
+	writeTgz(t, bare)
+
+	withLocalPackageDirs(t, dir)
+	srv := &NodeAgentServer{}
+	got := srv.findLocalPackage("envoy", "", "linux_amd64")
+	if got != bare {
+		t.Fatalf("empty version should accept bare envoy.tgz, got %q", got)
+	}
+}
+
 // TestIsExplicitVersion verifies the predicate directly.
 func TestIsExplicitVersion(t *testing.T) {
 	cases := []struct {
