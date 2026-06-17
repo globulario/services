@@ -109,6 +109,56 @@ func TestEtcdRejoin_RefuseIfSoleMember(t *testing.T) {
 	}
 }
 
+// resolveEtcdLeaderNode is the fail-closed gate for the "never auto-rejoin the
+// etcd leader" safety check in reconcileEtcdAutoRejoin. If the leader cannot be
+// confidently identified, leaderKnown must be false so the caller refuses all
+// destructive auto-rejoins this cycle — otherwise a node that IS the leader could
+// be wiped, destroying quorum with no recovery path.
+func TestResolveEtcdLeaderNode_FailsClosedWhenUncertain(t *testing.T) {
+	leaderNode := makeNode("n0", "ryzen", "10.0.0.63", []string{"core"}, nil)
+	otherNode := makeNode("n1", "nuc", "10.0.0.8", []string{"core"}, nil)
+	nodes := []*nodeState{leaderNode, otherNode}
+
+	const ryzenMember = uint64(0xAAAA)
+	const nucMember = uint64(0xBBBB)
+	members := map[uint64]string{
+		ryzenMember: "https://10.0.0.63:2380",
+		nucMember:   "https://10.0.0.8:2380",
+	}
+
+	// 1. No leader elected (Leader==0) → not known → caller must fail closed.
+	if _, known := resolveEtcdLeaderNode(0, members, nodes); known {
+		t.Error("leaderID=0 (no leader / quorum lost) must report leaderKnown=false")
+	}
+
+	// 2. Reported leader is not a current member we can map → fail closed.
+	if _, known := resolveEtcdLeaderNode(0xCCCC, members, nodes); known {
+		t.Error("a leader id absent from the member list must report leaderKnown=false")
+	}
+
+	// 3. A member present but with no peer URL is absent from the map → fail closed
+	//    (we cannot confirm whether it is one of the rejoin candidates).
+	if _, known := resolveEtcdLeaderNode(ryzenMember, map[uint64]string{}, nodes); known {
+		t.Error("a leader with no mappable peer URL must report leaderKnown=false")
+	}
+
+	// 4. Leader maps to a node in the candidate set → identified so the guard
+	//    protects it from being wiped.
+	if id, known := resolveEtcdLeaderNode(ryzenMember, members, nodes); !known || id != "n0" {
+		t.Errorf("expected the leader to map to node n0, got id=%q known=%v", id, known)
+	}
+
+	// 5. Leader is a real member but NOT in the candidate set → known, empty node
+	//    id (safe: it simply will not be wiped this cycle).
+	id, known := resolveEtcdLeaderNode(0xDDDD, map[uint64]string{0xDDDD: "https://10.0.0.99:2380"}, nodes)
+	if !known {
+		t.Error("a real member leader outside the node set must still be leaderKnown=true")
+	}
+	if id != "" {
+		t.Errorf("expected empty leaderNodeID for a leader outside the node set, got %q", id)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // markEtcdRejoinInProgress / workflow initiation tests
 // ---------------------------------------------------------------------------

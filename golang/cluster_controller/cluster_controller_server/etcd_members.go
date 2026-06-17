@@ -195,6 +195,35 @@ func nodeAnyIPIsEtcdMember(node *nodeState, existingURLs map[string]bool) bool {
 	return false
 }
 
+// resolveEtcdLeaderNode maps a reported etcd leader member id to a node id and
+// reports whether the leader was CONFIDENTLY identified. It is the fail-closed
+// gate for the "never auto-rejoin the etcd leader" safety check: leaderKnown is
+// false — and the caller MUST refuse all destructive auto-rejoins this cycle —
+// when the leader id is 0 (no leader elected / quorum lost) or the reported
+// leader is not a current member with a peer URL. A leaderKnown=true with an
+// empty leaderNodeID is legitimate and safe: the leader is a real member that is
+// simply not in the candidate `nodes` set, so it will not be wiped.
+//
+// memberPeerURLs maps each current member id to its first peer URL (members with
+// no peer URL are intentionally absent, which fails closed for that leader).
+func resolveEtcdLeaderNode(leaderID uint64, memberPeerURLs map[uint64]string, nodes []*nodeState) (leaderNodeID string, leaderKnown bool) {
+	if leaderID == 0 {
+		return "", false
+	}
+	peerURL, ok := memberPeerURLs[leaderID]
+	if !ok {
+		return "", false // reported leader is not a current member we can map
+	}
+	leaderKnown = true
+	urlSet := map[string]bool{peerURL: true}
+	for _, n := range nodes {
+		if n != nil && nodeAnyIPIsEtcdMember(n, urlSet) {
+			leaderNodeID = n.NodeID
+		}
+	}
+	return leaderNodeID, leaderKnown
+}
+
 // etcdMemberManager handles automatic etcd cluster membership changes.
 // It drives the etcd join state machine: nodes transition through
 // prepared → member_added → started → verified, with rollback on failure.
@@ -851,24 +880,48 @@ func (m *etcdMemberManager) reconcileEtcdAutoRejoin(ctx context.Context, nodes [
 
 	// Safety: identify the current etcd leader. NEVER auto-rejoin the leader —
 	// wiping its data directory destroys cluster quorum with no recovery path.
-	var leaderNodeID string
+	//
+	// This identification FAILS CLOSED. If we cannot confidently determine the
+	// leader — Status/MemberList error, no leader elected yet (Leader==0), an
+	// empty endpoint list, or a reported leader that is not a known member — we
+	// REFUSE all auto-rejoins this cycle and retry next reconcile. Proceeding with
+	// an empty leaderNodeID would skip the "never wipe the leader" guard below and
+	// could wipe the leader itself. Missing leader evidence is uncertainty, not
+	// "there is no leader to protect" (intent.inventory.missing_means_uncertain,
+	// node_recovery.fence_before_destructive_reseed).
 	statusCtx, statusCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer statusCancel()
-	if resp, err := m.client.Status(statusCtx, m.client.Endpoints()[0]); err == nil {
-		leaderMemberID := resp.Leader
-		// Map leader member ID back to a node.
-		if membResp, err := m.client.MemberList(statusCtx); err == nil {
-			for _, mem := range membResp.Members {
-				if mem.ID == leaderMemberID && len(mem.PeerURLs) > 0 {
-					urlSet := map[string]bool{mem.PeerURLs[0]: true}
-					for _, n := range nodes {
-						if n != nil && nodeAnyIPIsEtcdMember(n, urlSet) {
-							leaderNodeID = n.NodeID
-						}
-					}
-				}
-			}
+
+	eps := m.client.Endpoints()
+	if len(eps) == 0 {
+		log.Printf("etcd auto-rejoin: etcd client has no endpoints — refusing all auto-rejoins this cycle (fail-closed; will retry)")
+		return false
+	}
+	resp, err := m.client.Status(statusCtx, eps[0])
+	if err != nil {
+		log.Printf("etcd auto-rejoin: cannot read etcd status to identify the leader (%v) — refusing all auto-rejoins this cycle (fail-closed; will retry)", err)
+		return false
+	}
+	leaderMemberID := resp.Leader
+	if leaderMemberID == 0 {
+		log.Printf("etcd auto-rejoin: etcd reports no elected leader (election in progress or quorum lost) — refusing all auto-rejoins this cycle (fail-closed; will retry)")
+		return false
+	}
+	membResp, err := m.client.MemberList(statusCtx)
+	if err != nil {
+		log.Printf("etcd auto-rejoin: cannot read etcd member list to map the leader (%v) — refusing all auto-rejoins this cycle (fail-closed; will retry)", err)
+		return false
+	}
+	memberPeerURLs := make(map[uint64]string, len(membResp.Members))
+	for _, mem := range membResp.Members {
+		if len(mem.PeerURLs) > 0 {
+			memberPeerURLs[mem.ID] = mem.PeerURLs[0]
 		}
+	}
+	leaderNodeID, leaderKnown := resolveEtcdLeaderNode(leaderMemberID, memberPeerURLs, nodes)
+	if !leaderKnown {
+		log.Printf("etcd auto-rejoin: reported leader memberID=%d could not be confidently mapped to a current member — refusing all auto-rejoins this cycle (fail-closed; will retry)", leaderMemberID)
+		return false
 	}
 
 	for _, node := range nodes {
