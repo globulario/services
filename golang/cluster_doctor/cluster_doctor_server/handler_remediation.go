@@ -74,7 +74,9 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 		return nil, status.Error(codes.InvalidArgument, "finding_id is required")
 	}
 
-	// Look up finding in the last-report cache.
+	// External callers identify the finding by id; resolve it from the
+	// last-report cache. Internal callers that already hold the Finding call
+	// executeRemediationForFinding directly and never touch this cache.
 	s.lastFindingsMu.RLock()
 	cached := make([]rules.Finding, len(s.lastFindings))
 	copy(cached, s.lastFindings)
@@ -86,6 +88,27 @@ func (s *ClusterDoctorServer) ExecuteRemediation(ctx context.Context, req *clust
 			"finding %s not found in last snapshot; call GetClusterReport first",
 			findingID)
 	}
+
+	return s.executeRemediationForFinding(ctx, f, req)
+}
+
+// executeRemediationForFinding runs a single remediation step against an
+// already-resolved Finding. Both the public ExecuteRemediation RPC (which
+// resolves finding_id from the last-report cache for external callers) and the
+// internal healer dispatcher (which already holds the Finding) funnel through
+// here. The Finding is passed BY VALUE — never fished back out of the shared
+// lastFindings cache — so a concurrent GetClusterReport/GetNodeReport cannot
+// overwrite the cache between a write and the read and make remediation act on
+// the wrong evidence (or spuriously NotFound).
+// (meta.code.local_state_must_not_become_hidden_authority)
+func (s *ClusterDoctorServer) executeRemediationForFinding(ctx context.Context, f rules.Finding, req *cluster_doctorpb.ExecuteRemediationRequest) (*cluster_doctorpb.ExecuteRemediationResponse, error) {
+	// Side-effecting — leader only. Enforced at the public RPC too, but the
+	// internal dispatcher path must be gated here as well (doctor.remediation
+	// _requires_leader / execute_remediation_on_follower_instance forbidden).
+	if !s.isAuthoritative.Load() {
+		return nil, status.Error(codes.FailedPrecondition, "not leader: remediation requires the authoritative doctor instance")
+	}
+	findingID := f.FindingID
 
 	// Select the step.
 	steps := f.Remediation
