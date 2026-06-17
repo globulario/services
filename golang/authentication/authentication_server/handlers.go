@@ -555,7 +555,15 @@ func (srv *server) Authenticate(ctx context.Context, rqst *authenticationpb.Auth
 		nodes, _ := srv.getNodeIdentities()
 		if len(nodes) > 0 {
 			uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
-			defer Utility.RemoveString(srv.authentications_, uuid)
+			// RemoveString returns a NEW slice; the previous bare deferred call
+			// discarded that return value, so the uuid was never removed from
+			// srv.authentications_ and every later attempt with the same
+			// (name+password+issuer) was permanently rejected by the Contains
+			// guard below. Reassign the field so the in-flight marker is cleared.
+			// (meta.write_creates_completion_obligation)
+			defer func() {
+				srv.authentications_ = Utility.RemoveString(srv.authentications_, uuid)
+			}()
 			if Utility.Contains(srv.authentications_, uuid) {
 				return nil, errors.New("failed to authenticate " + rqst.Name + " on " + rqst.Issuer)
 			}
