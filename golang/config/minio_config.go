@@ -55,12 +55,16 @@ const EtcdKeyMinioConfig = "/globular/cluster/minio/config"
 // disk fallbacks, no hardcoded defaults. The endpoint is a DNS name
 // (minio.globular.internal) resolved via the cluster DNS, so no IP is ever
 // baked into a service or a systemd unit.
+//
+// DEPRECATED for new callers: this swallows the etcd-resolution error into a
+// zero MinIOConfig that has the same shape as a valid config, so downstream
+// callers see a generic empty-endpoint dial error instead of the precise
+// cause ("etcd has no %s — controller must publish it" / "etcd unavailable").
+// Prefer LoadMinIOConfig, which returns the typed error.
+// (meta.fallback_must_degrade_semantics)
 func GetMinIOConfig() MinIOConfig {
 	cfg, err := LoadMinIOConfig()
 	if err != nil {
-		// Return zero config; callers that actually need MinIO will fail at
-		// connect time with a clear error instead of silently connecting to a
-		// stale/wrong endpoint.
 		return MinIOConfig{}
 	}
 	return cfg
@@ -230,7 +234,10 @@ func newMinIOClient(cfg MinIOConfig) (*minio.Client, error) {
 
 // EnsureClusterConfigBucket creates the config bucket if it doesn't exist.
 func EnsureClusterConfigBucket() error {
-	cfg := GetMinIOConfig()
+	cfg, err := LoadMinIOConfig()
+	if err != nil {
+		return fmt.Errorf("minio config unavailable: %w", err)
+	}
 	client, err := newMinIOClient(cfg)
 	if err != nil {
 		return fmt.Errorf("minio client: %w", err)
@@ -253,7 +260,10 @@ func EnsureClusterConfigBucket() error {
 
 // PutClusterConfig uploads a config object to the shared bucket.
 func PutClusterConfig(key string, data []byte) error {
-	cfg := GetMinIOConfig()
+	cfg, err := LoadMinIOConfig()
+	if err != nil {
+		return fmt.Errorf("minio config unavailable: %w", err)
+	}
 	client, err := newMinIOClient(cfg)
 	if err != nil {
 		return fmt.Errorf("minio client: %w", err)
@@ -273,7 +283,10 @@ func PutClusterConfig(key string, data []byte) error {
 // GetClusterConfig downloads a config object from the shared bucket.
 // Returns nil, nil if the key doesn't exist.
 func GetClusterConfig(key string) ([]byte, error) {
-	cfg := GetMinIOConfig()
+	cfg, err := LoadMinIOConfig()
+	if err != nil {
+		return nil, fmt.Errorf("minio config unavailable: %w", err)
+	}
 	client, err := newMinIOClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("minio client: %w", err)
@@ -301,7 +314,10 @@ func GetClusterConfig(key string) ([]byte, error) {
 
 // ListClusterConfigPrefix returns all keys in the config bucket matching the given prefix.
 func ListClusterConfigPrefix(prefix string) ([]string, error) {
-	cfg := GetMinIOConfig()
+	cfg, err := LoadMinIOConfig()
+	if err != nil {
+		return nil, fmt.Errorf("minio config unavailable: %w", err)
+	}
 	client, err := newMinIOClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("minio client: %w", err)
