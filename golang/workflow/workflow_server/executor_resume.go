@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -203,14 +204,23 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 		},
 	}
 
-	// ── 6. Reconstruct inputs from the original run ──────────────────────
-	// The original inputs are not persisted in workflow_runs (they're in
-	// the correlation context). For resume, we pass empty inputs — the
-	// completed steps already have their outputs in the engine, and
-	// remaining steps will get their inputs from the DAG.
-	//
-	// TODO: persist inputs_json in workflow_runs for full resume fidelity.
+	// ── 6. Reconstruct inputs from the persisted run record ──────────────
+	// The run's original inputs are persisted in workflow_runs.inputs_json at
+	// dispatch time (ExecuteWorkflow). Re-execution of the remaining steps must
+	// use them: when-conditions, foreach collections, and resolveCompiledWith
+	// all reference inputs.*, and an empty map silently nils them on the exact
+	// steps a crash interrupted. (meta.binding_outlives_evidence_until_invalidated)
 	inputs := make(map[string]any)
+	if inputsJSON, lerr := srv.loadRunInputs(clusterID, runID); lerr != nil {
+		slog.Warn("resume: could not load persisted inputs; resuming with empty inputs",
+			"run_id", runID, "err", lerr)
+	} else if inputsJSON != "" {
+		if uerr := json.Unmarshal([]byte(inputsJSON), &inputs); uerr != nil {
+			slog.Warn("resume: inputs_json unmarshal failed; resuming with empty inputs",
+				"run_id", runID, "err", uerr)
+			inputs = make(map[string]any)
+		}
+	}
 
 	// ── 7. Execute (engine skips completed steps) ────────────────────────
 	_, execErr := eng.Execute(ctx, def, inputs)

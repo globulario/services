@@ -332,6 +332,15 @@ func (srv *server) connectScylla() error {
 			return fmt.Errorf("schema init: %w", err)
 		}
 	}
+	// Additive column migrations for tables that already exist on upgraded
+	// clusters. Idempotent: tolerate the "column already exists" error (fresh
+	// clusters already have the column from the CREATE statements).
+	for _, stmt := range schemaAlterStatements {
+		if err := session.Query(stmt).Exec(); err != nil && !isExistingColumnError(err) {
+			session.Close()
+			return fmt.Errorf("schema migrate: %w", err)
+		}
+	}
 	_ = tableCount
 
 	// Install session into the manager and keep srv.session in sync.
@@ -360,6 +369,19 @@ func (srv *server) getSessionOrError() (*gocql.Session, error) {
 		return nil, fmt.Errorf("WORKFLOW_DEPENDENCY_UNAVAILABLE: dependency=scylla session=nil")
 	}
 	return s, nil
+}
+
+// isExistingColumnError reports whether err is ScyllaDB/Cassandra's response to
+// an ALTER TABLE ADD for a column that already exists — the idempotent case for
+// an additive schema migration.
+func isExistingColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	m := strings.ToLower(err.Error())
+	return strings.Contains(m, "conflicts with an existing column") ||
+		strings.Contains(m, "already exists") ||
+		strings.Contains(m, "duplicate column")
 }
 
 func (srv *server) closeScylla() {
@@ -2278,6 +2300,39 @@ func (srv *server) updateRunByID(sess *gocql.Session, clusterID, runID string, f
 		return fmt.Errorf("lookup run started_at: %w", err)
 	}
 	return fn(startedAt)
+}
+
+// persistRunInputs durably records the workflow-level inputs for a run so an
+// orphan resume re-executes against the same context the run started with,
+// rather than an empty map (which silently nils every inputs.* reference in
+// when-conditions, foreach collections, and resolveCompiledWith).
+// (meta.binding_outlives_evidence_until_invalidated)
+func (srv *server) persistRunInputs(clusterID string, startedAt time.Time, runID, inputsJSON string) error {
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return err
+	}
+	return sess.Query(
+		`UPDATE workflow_runs SET inputs_json=? WHERE cluster_id=? AND started_at=? AND id=?`,
+		inputsJSON, clusterID, startedAt, runID,
+	).Exec()
+}
+
+// loadRunInputs returns the persisted inputs_json for a run, or "" if none was
+// recorded (pre-migration runs, or runs started without inputs).
+func (srv *server) loadRunInputs(clusterID, runID string) (string, error) {
+	sess, err := srv.getSessionOrError()
+	if err != nil {
+		return "", err
+	}
+	var inputsJSON string
+	if err := sess.Query(
+		`SELECT inputs_json FROM workflow_runs WHERE cluster_id=? AND id=? LIMIT 1 ALLOW FILTERING`,
+		clusterID, runID,
+	).Scan(&inputsJSON); err != nil {
+		return "", err
+	}
+	return inputsJSON, nil
 }
 
 func (srv *server) loadRunByID(clusterID, runID string) (*workflowpb.WorkflowRun, error) {
