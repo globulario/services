@@ -6114,7 +6114,7 @@ failure_modes:
         only as a cheap pre-gate before the real observation, never as the verdict.
       audit_sites:
         - "REMEDIATED golang/workflow/engine/actors.go::DefaultIsServiceActive — the node-agent now injects IsServiceActive=srv.isServiceReady (golang/node_agent/node_agent_server/infra_readiness.go), which blocks readiness on a STALLED infra component and passes on MEMBER_READY, falling back to DefaultIsServiceActive otherwise. Covers the workflow readiness gate (nodeVerifyServicesActive) on both the workflow-runner and day-0 paths."
-        - golang/node_agent/node_agent_server/server.go::envoyUnitActive (network-readiness gate trusts is-active, blind to the LDS wedge — STILL UNFIXED)
+        - "REMEDIATED golang/node_agent/node_agent_server/server.go::envoyUnitActive — the cert-watcher convergence gate (certificate.go) now also fails on srv.envoyDataPlaneStalled, so a STALLED Envoy (LDS wedge) no longer passes the post-cert-restart network validation. STALLED-only, no warmup false-negative."
         - golang/node_agent/node_agent_server/workflow_day0.go::ValidateClusterHealth (day-0 completion gated on is-active of etcd/gateway/xds — STILL UNFIXED)
         - golang/node_agent/node_agent_server/internal/ingress/status.go::DetectVRRPState (VRRP state derived from is-active keepalived, not the VRRP protocol — STILL UNFIXED)
       related_invariants:
@@ -6132,10 +6132,12 @@ failure_modes:
         regression test is owed as each is converted to runtime observation.
       required_tests:
         - golang/node_agent/node_agent_server/infra_readiness_test.go::TestInfraReadiness_DecisionMatrix
+        - golang/node_agent/node_agent_server/infra_readiness_test.go::TestEnvoyDataPlaneStalled
       protects:
         files:
             - golang/workflow/engine/actors.go
             - golang/node_agent/node_agent_server/infra_readiness.go
+            - golang/node_agent/node_agent_server/certificate.go
             - golang/node_agent/node_agent_server/server.go
 
     - id: etcd.auto_rejoin_leader_guard_fails_open

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -62,5 +63,30 @@ func TestInfraReadiness_DecisionMatrix(t *testing.T) {
 	seedInfraProbe(srv, infra_truth.ComponentScylla, false, cluster_controllerpb.InfraLifecycleState_INFRA_NOT_PRESENT)
 	if _, decided := srv.infraReadiness("scylladb"); decided {
 		t.Error("not-installed scylladb must be undecided")
+	}
+}
+
+// envoyDataPlaneStalled fences the convergence gate on an LDS wedge — STALLED
+// only, never on a warming/ready/not-installed Envoy (no false-negative).
+func TestEnvoyDataPlaneStalled(t *testing.T) {
+	srv := &NodeAgentServer{}
+	srv.ensureInfraTruth()
+	ctx := context.Background()
+
+	seedInfraProbe(srv, infra_truth.ComponentEnvoy, false, cluster_controllerpb.InfraLifecycleState_INFRA_NOT_PRESENT)
+	if srv.envoyDataPlaneStalled(ctx) {
+		t.Error("not-installed envoy must not be reported stalled")
+	}
+	seedInfraProbe(srv, infra_truth.ComponentEnvoy, true, cluster_controllerpb.InfraLifecycleState_INFRA_MEMBER_READY)
+	if srv.envoyDataPlaneStalled(ctx) {
+		t.Error("MEMBER_READY envoy must not be reported stalled")
+	}
+	seedInfraProbe(srv, infra_truth.ComponentEnvoy, true, cluster_controllerpb.InfraLifecycleState_INFRA_DAEMON_STARTING)
+	if srv.envoyDataPlaneStalled(ctx) {
+		t.Error("warming envoy (DAEMON_STARTING) must not be reported stalled")
+	}
+	seedInfraProbe(srv, infra_truth.ComponentEnvoy, true, cluster_controllerpb.InfraLifecycleState_INFRA_STALLED)
+	if !srv.envoyDataPlaneStalled(ctx) {
+		t.Error("STALLED envoy (LDS wedge) must be reported stalled")
 	}
 }

@@ -78,3 +78,15 @@ func (srv *NodeAgentServer) infraReadiness(name string) (ready bool, decided boo
 		return false, false
 	}
 }
+
+// envoyDataPlaneStalled reports whether the local Envoy data plane is in the
+// STALLED lifecycle state — an LDS wedge (CDS applied but listeners never load)
+// or a critically-invalid bootstrap: active but not serving traffic. It is the
+// confident signal that the systemd-only convergence gate cannot see. It is
+// STALLED-only (never blocks on a warming/degraded/unobserved Envoy), so it
+// fences a wedged mesh without false-negating during normal startup.
+func (srv *NodeAgentServer) envoyDataPlaneStalled(ctx context.Context) bool {
+	res := srv.envoyInfraProbe(ctx, false)
+	return res != nil && res.GetInstalled() &&
+		res.GetLifecycle().GetState() == cluster_controllerpb.InfraLifecycleState_INFRA_STALLED
+}
