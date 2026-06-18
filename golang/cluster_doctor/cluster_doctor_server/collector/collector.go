@@ -62,6 +62,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -1207,6 +1208,42 @@ func versionIndexFromManifests(in []*repopb.ArtifactManifest) map[string]map[str
 }
 
 // agentClient returns a cached or new NodeAgent gRPC client for the given endpoint.
+// localClusterIDFn resolves the local cluster_id. It defaults to the reliable
+// local source (security.GetLocalClusterID) and is indirected only so tests can
+// stub it — this is NOT keying injection on an optional setup field.
+var localClusterIDFn = security.GetLocalClusterID
+
+// clusterIDInjectingUnaryInterceptor injects the local cluster_id into outgoing
+// node-agent calls so the node-agent's post-init cluster-membership enforcement
+// accepts them. The cluster_id is read from the reliable local source
+// (security.GetLocalClusterID), NOT from an optionally-populated struct field —
+// keying it on collector.clusterID (set only via the optional WithWorkflowClient
+// path) would silently skip injection when that path didn't run, failing every
+// RPC (forbidden_fix:guard_cluster_id_injection_on_optionally_propagated_field).
+func clusterIDInjectingUnaryInterceptor() grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_id")) == 0 {
+			if cid, err := localClusterIDFn(); err == nil && cid != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", cid)
+			}
+		}
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
+
+// clusterIDInjectingStreamInterceptor is the streaming counterpart of
+// clusterIDInjectingUnaryInterceptor.
+func clusterIDInjectingStreamInterceptor() grpc.StreamClientInterceptor {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_id")) == 0 {
+			if cid, err := localClusterIDFn(); err == nil && cid != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", cid)
+			}
+		}
+		return streamer(ctx, desc, cc, method, opts...)
+	}
+}
+
 func (c *Collector) agentClient(endpoint string) (node_agentpb.NodeAgentServiceClient, error) {
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
@@ -1216,7 +1253,17 @@ func (c *Collector) agentClient(endpoint string) (node_agentpb.NodeAgentServiceC
 	}
 
 	dt := config.ResolveDialTarget(endpoint)
-	conn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(agentClientTLSCreds(dt.ServerName)))
+	conn, err := grpc.NewClient(dt.Address,
+		grpc.WithTransportCredentials(agentClientTLSCreds(dt.ServerName)),
+		// Inject cluster_id like every other internal doctor client. Without
+		// it, the node-agent's post-init cluster-membership enforcement rejects
+		// the call ("cluster_id required after cluster initialization"); the
+		// collector's node-agent dial was the lone internal client bypassing
+		// this, silently starving GetInventory/GetInfraProbe.
+		// (grpc.backbone.contract; collector.cluster_id_metadata_missing_starves_evidence)
+		grpc.WithUnaryInterceptor(clusterIDInjectingUnaryInterceptor()),
+		grpc.WithStreamInterceptor(clusterIDInjectingStreamInterceptor()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("dial node agent %s: %w", dt.Address, err)
 	}
