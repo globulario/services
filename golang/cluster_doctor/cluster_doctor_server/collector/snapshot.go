@@ -14,6 +14,7 @@ package collector
 // | STALE | UNTRUSTED) can reject decisions based on outdated data.
 
 import (
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -493,9 +494,17 @@ func (s *Snapshot) addSource(name string) {
 
 func (s *Snapshot) addError(service, rpc string, err error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.DataErrors = append(s.DataErrors, DataError{Service: service, RPC: rpc, Err: err})
 	s.DataIncomplete = true
+	s.mu.Unlock()
+	// Do not absorb the failure. The underlying error is the only signal that
+	// distinguishes a deadline from an auth/dial/unimplemented failure; without
+	// it the harvest degrades to reduced-harvest with NO recorded cause, and the
+	// operator sees only a generic "could not fetch <rpc>" finding. Every
+	// per-node fetch error funnels through here, so logging once at the sink
+	// makes the whole harvest path debuggable.
+	// (meta.connection_errors_must_not_be_absorbed)
+	log.Printf("collector: data-source fetch failed (reduced harvest) service=%s rpc=%s: %v", service, rpc, err)
 }
 
 // HadError reports whether a sub-fetch for the given (service, rpc)
