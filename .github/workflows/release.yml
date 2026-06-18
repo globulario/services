@@ -47,6 +47,25 @@ jobs:
           # Always checkout the triggering ref (branch for workflow_dispatch, tag for push tags).
           ref: ${{ github.ref }}
 
+      - name: Resolve globular-installer ref
+        id: installer_ref
+        working-directory: services
+        run: |
+          line="$(grep -E '^[[:space:]]*github.com/globulario/globular-installer[[:space:]]+v0\.0\.0-' golang/go.mod | head -n1)"
+          if [[ -z "$line" ]]; then
+            echo "globular-installer dependency not found in services/golang/go.mod" >&2
+            exit 1
+          fi
+          version="$(awk '{print $2}' <<<"$line")"
+          ref="${version##*-}"
+          if [[ -z "$ref" ]]; then
+            echo "could not derive globular-installer ref from version: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Using globular-installer $version ($ref)"
+
       - name: Checkout packages
         uses: actions/checkout@v4
         with:
@@ -64,6 +83,7 @@ jobs:
         with:
           repository: globulario/globular-installer
           path: globular-installer
+          ref: ${{ steps.installer_ref.outputs.ref }}
 
       # ── Free disk space (runner has ~14GB, large binaries fill it fast) ──
       - name: Free disk space
