@@ -136,3 +136,34 @@ func TestSnapshotClusterMembershipUsesStableIP(t *testing.T) {
 		t.Errorf("non-VIP-holder member.IP = %q, want 10.0.0.20", byID["node-without-vip"])
 	}
 }
+
+func TestSnapshotClusterMembershipFallsBackToClusterDomain(t *testing.T) {
+	srv := &server{
+		cfg: defaultClusterControllerConfig(),
+		state: &controllerState{
+			Nodes: map[string]*nodeState{
+				"node-1": {
+					NodeID:   "node-1",
+					Profiles: []string{"core", "control-plane", "storage"},
+					Identity: storedIdentity{
+						Hostname: "globule-ryzen",
+						Ips:      []string{"10.0.0.63"},
+					},
+				},
+			},
+			ClusterId: "",
+			ClusterNetworkSpec: &cluster_controllerpb.ClusterNetworkSpec{
+				ClusterDomain: "globular.internal",
+				Protocol:      "https",
+			},
+		},
+	}
+
+	got := srv.snapshotClusterMembership()
+	if got == nil {
+		t.Fatal("snapshotClusterMembership returned nil")
+	}
+	if got.ClusterID != "globular.internal" {
+		t.Fatalf("ClusterID = %q, want globular.internal", got.ClusterID)
+	}
+}
