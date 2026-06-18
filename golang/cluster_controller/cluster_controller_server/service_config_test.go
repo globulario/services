@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -293,6 +294,36 @@ func TestRenderEtcdConfig(t *testing.T) {
 			t.Error("renderEtcdConfig() should return false for node without etcd profile")
 		}
 	})
+}
+
+// TestRenderEtcdConfig_TokenIsFixedConstant is a regression guard for the
+// 2026-06-18 etcd.config_valid incident: cluster_id became "globular.internal"
+// while the running cluster (installer-bootstrapped) carried the immutable token
+// "globular-etcd-cluster". Deriving the rendered token from cluster_id produced a
+// permanent "mismatched token forms a separate cluster" violation. The rendered
+// token MUST be the fixed config.EtcdClusterToken regardless of cluster_id.
+func TestRenderEtcdConfig_TokenIsFixedConstant(t *testing.T) {
+	for _, clusterID := range []string{"globular.internal", "globular", "anything-else", ""} {
+		ctx := &serviceConfigContext{
+			Membership: &clusterMembership{
+				ClusterID: clusterID,
+				Nodes: []memberNode{
+					{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+				},
+			},
+			CurrentNode: &memberNode{NodeID: "n1", Hostname: "host1", IP: "192.168.1.10", Profiles: []string{"core"}},
+			ClusterID:   clusterID,
+		}
+		config, ok := renderEtcdConfig(ctx)
+		if !ok {
+			t.Fatalf("renderEtcdConfig() returned false for cluster_id=%q", clusterID)
+		}
+		want := fmt.Sprintf("initial-cluster-token: %q", configpkg.EtcdClusterToken)
+		if !strings.Contains(config, want) {
+			t.Errorf("cluster_id=%q: token must be the fixed constant %q, got:\n%s",
+				clusterID, configpkg.EtcdClusterToken, config)
+		}
+	}
 }
 
 func TestRenderEtcdEndpoints(t *testing.T) {

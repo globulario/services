@@ -30,6 +30,20 @@ var (
 	cliShared *clientv3.Client
 )
 
+// EtcdClusterToken is the etcd initial-cluster-token shared by every Globular
+// member. It is a fixed bootstrap constant — NOT derived from cluster_id.
+//
+// Rationale: initial-cluster-token is bootstrap-immutable. etcd bakes it into
+// the cluster at formation and never re-reads it; you cannot change a running
+// cluster's token. The installer hard-codes this exact value when it bootstraps
+// and joins members (globular-installer/pkg/installer/etcd_join_step.go), so the
+// only token any running member actually carries is this literal. Deriving the
+// "desired"/rendered token from the mutable cluster_id (e.g. "<id>-etcd-cluster")
+// produced a false "mismatched token forms a separate cluster" violation the
+// moment cluster_id drifted from the historical "globular" — the controller and
+// node-agent must derive the same immutable value from here, not recompute it.
+const EtcdClusterToken = "globular-etcd-cluster"
+
 // ErrEtcdCorrupt is returned when etcd appears to be in a CORRUPT alarm state
 // or when errors clearly indicate a corrupted data-dir.
 var ErrEtcdCorrupt = errors.New("etcd store appears to be corrupted")

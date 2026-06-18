@@ -145,13 +145,12 @@ func (srv *NodeAgentServer) refreshEtcdInfraProbe(ctx context.Context) *cluster_
 // buildEtcdDesiredInputs gathers this node's view of etcd desired state from
 // local identity and the controller-rendered etcd endpoints list. The endpoints
 // file is both the membership truth and the initial-cluster source. The cluster
-// token is derived the same way the controller renders it ("<clusterID>-etcd-cluster").
+// token is the fixed bootstrap constant the installer and controller render
+// (config.EtcdClusterToken) — it is bootstrap-immutable, never derived from the
+// mutable cluster_id, so the desired token always matches the running member's.
 func (srv *NodeAgentServer) buildEtcdDesiredInputs() infra_truth.EtcdDesiredInputs {
 	peers := etcdPeerHostsFromConfig()
-	token := ""
-	if id := strings.TrimSpace(srv.clusterID); id != "" {
-		token = id + "-etcd-cluster"
-	}
+	token := config.EtcdClusterToken
 	return infra_truth.EtcdDesiredInputs{
 		NodeID:       srv.nodeID,
 		ClusterID:    srv.clusterID,

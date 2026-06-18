@@ -19,8 +19,9 @@ type EtcdDesiredInputs struct {
 	// self), derived from the controller-rendered etcd endpoints list.
 	Peers []string
 
-	// ClusterToken is the expected initial-cluster-token. Globular derives it as
-	// "<clusterID>-etcd-cluster"; empty means "no authoritative value wired".
+	// ClusterToken is the expected initial-cluster-token — the fixed
+	// bootstrap-immutable constant (config.EtcdClusterToken), not a value derived
+	// from cluster_id. Empty means "no authoritative value wired".
 	ClusterToken string
 
 	// BootstrapIntentOverride, when non-empty, wins over the membership-derived
