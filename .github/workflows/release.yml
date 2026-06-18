@@ -83,7 +83,15 @@ jobs:
         with:
           repository: globulario/globular-installer
           path: globular-installer
-          ref: ${{ steps.installer_ref.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Pin globular-installer revision
+        working-directory: globular-installer
+        run: |
+          set -euo pipefail
+          ref="${{ steps.installer_ref.outputs.ref }}"
+          git checkout "$ref"
+          echo "Pinned globular-installer to $(git rev-parse HEAD)"
 
       # ── Free disk space (runner has ~14GB, large binaries fill it fast) ──
       - name: Free disk space
