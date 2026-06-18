@@ -102,6 +102,15 @@ meta_principle_coverage:
     tests:
       - TestRuleguardRulesHavePositiveControl
       - TestArchitecturalDeclarationsComplete
+  - principle: meta.contract_must_define_repair_scope
+    tier: behavioral
+    reason: >
+      The contract gate now verifies that a repair contract names required
+      scope, detects underconstrained scope, and flags neighboring out-of-scope
+      edits instead of treating any semantically related change as acceptable.
+    tests:
+      - TestEvaluateContracts_UnderconstrainedContractScopeWarning
+      - TestEvaluateContracts_ScopedContractDetectsNeighboringEdit
   - principle: meta.alert_must_name_a_violated_invariant_not_a_crossed_threshold
     tier: behavioral
     reason: >
