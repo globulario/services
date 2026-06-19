@@ -11,10 +11,10 @@ metadata:
     the knowledge graph — including after a fresh install where Oxigraph has been wiped.
   source_documents:
     - awareness-graph/docs/initialize.md
+    - awareness-graph/docs/cli-reference.md
     - awareness-graph/scripts/build-awareness-graph.sh
     - docs/awareness/activation_rules.yaml
-    - golang/mcp/tools_awareness.go
-    - golang/mcp/clients.go
+    - docs/operational-knowledge/awg-operator-guide.md
 
 entries:
 
@@ -81,14 +81,16 @@ entries:
 
   - id: ops.awareness.init.cluster-refresh
     type: SKILL
-    title: "Refreshing the awareness graph on a running cluster"
+    title: "Refreshing the awareness graph (standalone sidecar)"
     tags: [day-1, day-2, awareness-graph, runbook]
     applies_when:
       cluster_phases: [day-1, day-2]
-      services_present: [awareness-graph]
+      services_present: []
     content: |
-      Run this when source code or YAML intent/invariant files have changed and you want
-      the running cluster to reflect the latest knowledge.
+      Run this when source code or YAML intent/invariant files have changed and you want the
+      running AWG sidecar to reflect the latest knowledge. AWG is a standalone sidecar (no
+      Globular package / reconciler / `globular pkg publish` step anymore) — you rebuild the
+      graph in place with the `awg` CLI.
 
       **Prerequisites:**
       - Both repos cloned as siblings:
@@ -97,93 +99,71 @@ entries:
           services/
           awareness-graph/
         ```
-      - Go toolchain installed, `globular auth login` authenticated
-      - Oxigraph running (`systemctl status globular-oxigraph.service` → active)
+      - Go toolchain installed; the AWG sidecar reachable (`awg serve` running, or start it).
 
-      **Full rebuild + deploy procedure:**
-
+      **Rebuild the graph from current sources (preferred):**
       ```bash
-      # 1. Run the full build pipeline (annotation-scan + yaml2nt + loadnt)
       cd ~/Documents/github.com/globulario/awareness-graph
-      bash scripts/build-awareness-graph.sh
-      # This: scans annotations, builds awareness.nt, clears Oxigraph, loads .nt,
-      # then rebuilds the awareness-graph binary embedding the fresh .nt as seed.
-
-      # 2. Deploy the new binary to the cluster
-      globular pkg build --spec packages/metadata/awareness-graph/specs/awareness_graph_service.yaml
-      globular auth login --user sa --password <sa-password>
-      globular pkg publish --name awareness-graph
-
-      # 3. The reconciler will deploy the new binary. Wait for convergence:
-      globular cluster node <node-id>  # version:awareness-graph should show ok
+      awg rebuild        # scan YAML -> N-Triples -> validate -> update embeddata -> reload Oxigraph
+      awg rebuild --check  # CI: exit 1 if the committed embeddata/awareness.nt is stale
       ```
+      `awg rebuild` updates `golang/server/embeddata/awareness.nt` AND reloads the live
+      Oxigraph store. Use `--no-runtime-reload` to update the file only.
 
-      **Quick reload only (no binary rebuild — just refresh the graph store):**
-      If you only want to reload the graph without changing the binary (e.g., after
-      editing a YAML intent file), you can skip the build and just reload:
-
+      **Manual reload (equivalent, if you prefer the raw pipeline):**
       ```bash
       cd ~/Documents/github.com/globulario/awareness-graph
-      # Regenerate .nt from current sources
       go run ./cmd/yaml2nt \
-          -input ../services/docs/awareness \
-          -input ../services/docs/intent \
-          -input ./docs/awareness \
-          -output /tmp/awareness.nt
-      # Wipe and reload Oxigraph
+          -input ../services/docs/awareness -input ../services/docs/intent \
+          -input ./docs/awareness -output /tmp/awareness.nt
       curl -X DELETE http://localhost:7878/store?default
       curl -X POST -H "Content-Type: application/n-triples" \
            --data-binary @/tmp/awareness.nt http://localhost:7878/store?default
       ```
 
-      **Verify the graph loaded:**
+      **Verify:**
       ```bash
-      curl -s "http://localhost:7878/query" \
-           --data-urlencode "query=SELECT (COUNT(*) as ?c) WHERE { ?s ?p ?o }" \
-           -H "Accept: application/sparql-results+json"
-      # Expect: c > 15000 (a healthy graph has ~17,000+ triples)
+      awg metadata                       # coverage_state SUFFICIENT, seed_state CURRENT
+      awg seed-status --require-current   # live store contains the current embedded seed?
       ```
     links:
       cli_commands:
-        - "bash awareness-graph/scripts/build-awareness-graph.sh"
-        - "globular pkg build --spec packages/metadata/awareness-graph/..."
-        - "globular pkg publish --name awareness-graph"
+        - "awg rebuild"
+        - "awg metadata"
+        - "awg seed-status --require-current"
 
   - id: ops.awareness.init.day0-seed
     type: REFERENCE
-    title: "Day-0 awareness seed — what's available before the cluster runs"
+    title: "Embedded awareness seed — baseline knowledge on a fresh store"
     tags: [day-0, awareness-graph, bootstrap]
     applies_when:
-      cluster_phases: [day-0]
+      cluster_phases: [day-0, day-1]
       services_present: []
     content: |
-      On Day-0, Oxigraph is installed by the Day-0 install script
-      (`scripts/release/install-day0.sh`). The `awareness-graph` binary ships with an
-      embedded seed (`awareness.nt`) baked in at compile time. When Oxigraph starts empty,
-      the awareness-graph server loads this seed automatically.
+      The AWG server binary ships with an embedded seed (`awareness.nt`) baked in at compile
+      time via `//go:embed`. When `awg serve` finds the Oxigraph store empty
+      (`CountTriples == 0`), it loads this embedded seed automatically before accepting RPCs.
 
       This means:
-      - Awareness tools (briefing/impact/resolve) work immediately after `globular-oxigraph`
-        and `globular-awareness-graph` services are active — no operator action required.
-      - The embedded seed reflects the knowledge at build time. It may be slightly behind
-        the latest `services/docs/awareness/` YAML if code was changed since the last
-        awareness-graph binary build.
+      - Awareness tools (briefing/impact/preflight/resolve) work immediately after the sidecar
+        starts — no manual data-load step required — as long as you do NOT pass `--no-seed`.
+        (`--no-seed` is for cold-start projects that build their own graph.)
+      - The embedded seed reflects knowledge at build time. It may lag the latest
+        `services/docs/awareness/` YAML; run `awg rebuild` to refresh.
 
-      To check whether the embedded seed is loaded or a fresh graph was populated:
+      To check coverage and seed freshness, prefer the typed verdicts over raw counts:
       ```bash
-      # Count triples in the running store
+      awg metadata        # coverage_state (EMPTY/THIN/SUFFICIENT), seed_state (CURRENT/STALE)
+      awg seed-status     # does the live store contain the embedded seed marker?
+      ```
+      Raw fallback:
+      ```bash
       curl -s "http://localhost:7878/query" \
            --data-urlencode "query=SELECT (COUNT(*) as ?c) WHERE { ?s ?p ?o }" \
            -H "Accept: application/sparql-results+json"
       ```
-      - < 1000 triples: the store is nearly empty; either Oxigraph is freshly started
-        and the seed hasn't loaded yet, or seed loading failed.
-      - 15,000–18,000 triples: healthy graph with full seed.
-
-      If the graph is empty and the service is running, check service logs:
-      ```bash
-      journalctl -u globular-awareness-graph.service -n 50 --no-pager | grep -i "load\|seed\|error"
-      ```
+      `< 1000` triples → store nearly empty (seed not loaded yet or load failed).
+      `15,000–18,000` → healthy graph with full seed.
 
   - id: ops.awareness.annotations.how-to-write
     type: REFERENCE
@@ -287,62 +267,50 @@ entries:
 
       6. **Verify with a briefing call:**
          ```bash
-         globular awareness briefing --file golang/<new-service>/<new-service>_server/server.go
+         awg briefing --file golang/<new-service>/<new-service>_server/server.go
          ```
          Expect `status: ok` and at least one invariant or failure_mode returned.
     links:
       cli_commands:
-        - "globular awareness briefing --file golang/<service>/<service>_server/server.go"
+        - "awg briefing --file golang/<service>/<service>_server/server.go"
         - "bash awareness-graph/scripts/build-awareness-graph.sh"
 
   - id: ops.awareness.diagnose.failures
     type: DEBUG
-    title: "Diagnosing awareness graph failures"
+    title: "Diagnosing AWG sidecar failures"
     tags: [day-1, day-2, awareness-graph, debug]
     applies_when:
       cluster_phases: [day-1, day-2]
-      services_present: [awareness-graph]
+      services_present: []
     content: |
-      **Symptom: awareness tools return HTML (`text/html`) instead of gRPC response**
-      Root cause: the MCP server (or the caller) is dialing the Envoy gateway address for
-      awareness-graph. Envoy does not route awareness-graph — it has its own port (10120).
-      When Go TLS dials an IP address, it suppresses the IP as SNI (Go spec: IP addresses
-      are not valid SNI hostnames). Envoy gets an empty SNI and falls to its default filter
-      chain, which returns the Globular web UI (HTML 200).
+      AWG is a standalone sidecar — there is no Envoy route, no etcd registration, and no
+      `globular-awareness-graph.service` to inspect. Diagnose with the `awg` CLI.
 
-      Fix: ensure callers use `awarenessEndpoint()` which reads `Address` directly from
-      etcd: `config.GetServiceConfigurationById("awareness-graph")["Address"]`.
-      Never use `gatewayEndpoint()` for awareness tools.
-
-      **Symptom: `task` parameter not supported, only `file` works**
-      Root cause: old binary deployed. `task=` briefing support was added in awareness-graph
-      v0.0.7. Check `journalctl -u globular-awareness-graph.service | grep version`.
-      Fix: rebuild and redeploy the awareness-graph package.
+      **Symptom: MCP tools return DEGRADED / connection refused**
+      The `awareness-mcp` bridge cannot reach the gRPC server. Check the sidecar is up and the
+      bridge `--awareness-addr` matches the server's listen `--addr` (server default `:10120`;
+      bridge default `localhost:9090`). Start/restart: `awg serve &`.
 
       **Symptom: briefing returns `status: empty` for everything**
-      Causes (in order of likelihood):
-      1. Oxigraph store is empty — triple count is 0. Run the rebuild pipeline.
-      2. yaml2nt produced an empty .nt file (parse error in source YAML). Check
-         `bash scripts/build-awareness-graph.sh` output for YAML errors.
-      3. The queried file/task has no annotations and no intent file coverage.
-         This is not always a problem — `empty` means "no direct anchors found",
-         not "this code is safe to change without thinking".
+      Causes, most likely first:
+      1. Oxigraph store empty (`awg metadata` → `coverage_state=EMPTY` / `triple_count` 0).
+         Rebuild: `awg rebuild`.
+      2. yaml2nt produced an empty .nt (parse error in source YAML). Re-run
+         `bash scripts/build-awareness-graph.sh` (or `awg build --strict`) and read the errors.
+      3. The file/task genuinely has no anchors. `empty` means "no direct anchors found", not
+         "safe to change without thinking" — confirm with `awg metadata`.
 
-      **Symptom: awareness-graph service keeps restarting**
-      Check: `journalctl -u globular-awareness-graph.service -n 30 --no-pager`
-      Common causes:
-      - Oxigraph is not running (`systemctl status globular-oxigraph.service`)
-      - Port 10120 already in use from a previous crashed instance
-      - Missing service cert at `/var/lib/globular/pki/issued/services/service.crt`
+      **Symptom: `awg metadata` shows `seed_state=STALE`**
+      The live store predates the embedded seed. Reload additively (`awg rebuild`, or
+      `loadnt` of `embeddata/awareness.nt`); confirm with `awg seed-status --require-current`.
 
-      **Symptom: after `build-awareness-graph.sh`, triple count did not increase**
-      The loadnt tool POSTs to Oxigraph which APPENDS by default. If the previous
-      graph was already loaded, running loadnt again without a DELETE first will
-      produce duplicates, not new knowledge. Always DELETE before a full refresh.
-      The `build-awareness-graph.sh` script handles this; if running loadnt manually,
-      always `curl -X DELETE http://localhost:7878/store?default` first.
+      **Symptom: after a manual reload, triple count did not change**
+      `loadnt` / a raw POST APPENDS. A full refresh must `curl -X DELETE
+      http://localhost:7878/store?default` first, then load. `awg rebuild` and
+      `build-awareness-graph.sh` handle the wipe for you.
     links:
       cli_commands:
-        - "systemctl status globular-oxigraph.service globular-awareness-graph.service"
-        - "journalctl -u globular-awareness-graph.service -n 50 --no-pager"
+        - "awg metadata"
+        - "awg seed-status --require-current"
+        - "awg rebuild"
         - "curl -s http://localhost:7878/query --data-urlencode 'query=SELECT (COUNT(*) as ?c) WHERE { ?s ?p ?o }' -H 'Accept: application/sparql-results+json'"
