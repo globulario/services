@@ -5595,8 +5595,9 @@ failure_modes:
             - golang/workflow/engine/engine.go
       related_invariants:
         - meta.silence_is_not_valid_for_unexpected
-        - workflow.run_outputs_data_race
         - meta.competing_writers_must_converge_or_be_fenced
+      related_failure_modes:
+        - workflow.run_outputs_data_race
       required_tests:
         - TestForeach_WhenGuardSkipsBeforeUnresolvedCollection
         - TestForeach_WhenGuardTrueStillFansOut
