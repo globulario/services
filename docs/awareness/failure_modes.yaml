@@ -5593,6 +5593,8 @@ failure_modes:
       protects:
         files:
             - golang/workflow/engine/engine.go
+      violates_contracts:
+        - contract.workflow.foreach_guard_order
       related_invariants:
         - meta.silence_is_not_valid_for_unexpected
         - meta.competing_writers_must_converge_or_be_fenced
