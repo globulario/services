@@ -720,6 +720,12 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 	// files not owned by its euid. This safety net ensures file ownership is
 	// correct regardless of which user the agent runs as.
 	chownCtx, chownCancel := context.WithCancel(ctx)
+	// Guard every return path: the explicit chownCancel() at pollDone provides
+	// ordered shutdown on the happy path, but the early error returns below
+	// (e.g. --restore-tables failure) would otherwise leak the watcher goroutine
+	// until the parent ctx dies. cancel is idempotent, so this is safe alongside
+	// the explicit call.
+	defer chownCancel()
 	chownDone := make(chan struct{})
 	go func() {
 		defer close(chownDone)

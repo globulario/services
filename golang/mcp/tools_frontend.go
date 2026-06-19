@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,7 +79,7 @@ Use this to find services that need Vite proxy entries or are down.`,
 			}
 
 			// Quick TCP reachability check
-			endpoint := fmt.Sprintf("%s:%d", addr, int(port))
+			endpoint := net.JoinHostPort(addr, strconv.Itoa(int(port)))
 			conn, dialErr := net.DialTimeout("tcp", endpoint, 2*time.Second)
 			if dialErr != nil {
 				entry["reachable"] = false
