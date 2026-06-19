@@ -1,1 +1,33 @@
 code_symbols:
+test_symbols:
+  - id: golang/evidence/trust_test.go:TestClassify_AuthoritativeWhenFresh
+    file: golang/evidence/trust_test.go
+    symbol: TestClassify_AuthoritativeWhenFresh
+    package: evidence
+    language: go
+  - id: golang/evidence/trust_test.go:TestClassify_DegradedPastFreshnessWindow
+    file: golang/evidence/trust_test.go
+    symbol: TestClassify_DegradedPastFreshnessWindow
+    package: evidence
+    language: go
+  - id: golang/evidence/trust_test.go:TestClassify_StalePastTwiceWindow
+    file: golang/evidence/trust_test.go
+    symbol: TestClassify_StalePastTwiceWindow
+    package: evidence
+    language: go
+  - id: golang/evidence/trust_test.go:TestClassify_UntrustedWhenProvenanceIncomplete
+    file: golang/evidence/trust_test.go
+    symbol: TestClassify_UntrustedWhenProvenanceIncomplete
+    package: evidence
+    language: go
+  - id: golang/evidence/trust_test.go:TestPreflightReportsWeakEvidenceAsUncertain
+    file: golang/evidence/trust_test.go
+    symbol: TestPreflightReportsWeakEvidenceAsUncertain
+    package: evidence
+    language: go
+    doc: "TestPreflightReportsWeakEvidenceAsUncertain — contract test.\nPreflight callers must surface DEGRADED evidence as \"uncertain\", and STALE\nor UNTRUSTED as \"reject\". An agent that asks \"may I proceed?\" needs an\nanswer it can act on — silently dropping the trust level back to \"ok\"\nwould let stale facts authorize privileged actions."
+  - id: golang/evidence/trust_test.go:TestWorst_ReturnsLowest
+    file: golang/evidence/trust_test.go
+    symbol: TestWorst_ReturnsLowest
+    package: evidence
+    language: go

@@ -861,8 +861,48 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 	st := run.Steps[step.ID]
 	run.stepsMu.RUnlock()
 
-	// Resolve collection from inputs/outputs. Three cases must NOT be
-	// collapsed into one silent SKIP (meta.silence_is_not_valid_for_unexpected):
+	// Snapshot outputs once under lock for every read below — the when guard
+	// AND the foreach-collection resolution. Reading run.Outputs unlocked
+	// races parallel step writers (failure_mode:workflow.run_outputs_data_race;
+	// meta.competing_writers_must_converge_or_be_fenced). The non-foreach
+	// dispatch path in executeStep already snapshots this way.
+	run.outputMu.Lock()
+	outputSnap := make(map[string]any, len(run.Outputs))
+	for k, v := range run.Outputs {
+		outputSnap[k] = v
+	}
+	run.outputMu.Unlock()
+
+	// Evaluate the when guard BEFORE resolving the collection. A step gated
+	// off by `when: false` must skip without ever touching its foreach: the
+	// guard is an explicit "do not run" decision, not a silent drop, so it
+	// does NOT violate meta.silence_is_not_valid_for_unexpected. This mirrors
+	// the non-foreach path (executeStep evaluates when before the body) and
+	// stops an unresolved/nil collection from FAILING a step the author
+	// deliberately gated off — e.g. dispatch_remediations, guarded by
+	// `len(remediation_items) > 0`, when classify_drift produced none (the
+	// empty result serializes to JSON null across the actor boundary, so the
+	// collection arrives as nil rather than as an empty list).
+	if step.When != nil {
+		ok, err := e.evalCondition(ctx, step.When, run.Inputs, outputSnap)
+		if err != nil {
+			st.Status = StepFailed
+			st.Error = fmt.Sprintf("condition eval: %v", err)
+			e.notifyStep(run, st)
+			return nil
+		}
+		if !ok {
+			st.Status = StepSkipped
+			log.Printf("workflow: step %s skipped (condition not met)", step.ID)
+			e.notifyStep(run, st)
+			return nil
+		}
+	}
+
+	// Resolve collection from inputs/outputs. The when guard is already
+	// satisfied (or absent), so the step IS supposed to run — the three cases
+	// must NOT be collapsed into one silent SKIP
+	// (meta.silence_is_not_valid_for_unexpected):
 	//   - resolves to a list (any slice kind) -> iterate; may be legitimately empty
 	//   - resolves to nil / unresolved        -> FAIL: a prior step never exported it
 	//   - resolves to a non-collection scalar  -> FAIL: misconfiguration
@@ -872,7 +912,7 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 	var items []any
 	resolved := true // no foreach reference at all -> nothing to resolve, legit no-op
 	if step.Foreach.Raw != "" {
-		raw := resolveValue(step.Foreach.Raw, run.Inputs, run.Outputs)
+		raw := resolveValue(step.Foreach.Raw, run.Inputs, outputSnap)
 		switch list := raw.(type) {
 		case []any:
 			items = list
@@ -906,21 +946,6 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 		log.Printf("workflow: step %s skipped (foreach collection empty)", step.ID)
 		e.notifyStep(run, st)
 		return nil
-	}
-
-	// Evaluate when condition once before iterating.
-	if step.When != nil {
-		ok, err := e.evalCondition(ctx, step.When, run.Inputs, run.Outputs)
-		if err != nil {
-			st.Status = StepFailed
-			st.Error = fmt.Sprintf("condition eval: %v", err)
-			return nil
-		}
-		if !ok {
-			st.Status = StepSkipped
-			e.notifyStep(run, st)
-			return nil
-		}
 	}
 
 	// Nested sub-steps: execute a sub-DAG per item.

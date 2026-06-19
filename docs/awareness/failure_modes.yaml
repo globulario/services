@@ -1,5 +1,117 @@
 failure_modes:
     - architecture_fix: |
+        A handler whose result crosses the actor boundary into a workflow `when`
+        guard or `foreach` MUST return an initialized empty slice ([]any{}),
+        never a nil slice. reconcileClassifyDrift now returns []any{} for an
+        empty drift report (same precedent as selectReleaseTargets);
+        reconcileScanDrift initializes driftItems to []any{}. Defence in depth in
+        the engine: executeForeach evaluates the `when` guard BEFORE resolving
+        the collection, so a step gated by `when: len(x) > 0` skips cleanly
+        instead of failing when x resolves to nil (commit 057be407 + the output
+        snapshot-under-lock refinement). The evaluator's fail-closed contract is
+        deliberate and unchanged — evalLen treats a nil/absent value as length
+        -1 so a producer bug surfaces rather than silently short-circuiting; the
+        fix belongs in the producer, not the evaluator.
+      forbidden_fixes:
+        - return_nil_slice_for_an_empty_collection_that_crosses_the_actor_boundary
+        - change_evalLen_to_treat_nil_as_length_0_instead_of_fixing_the_producer
+        - collapse_unresolved_foreach_collection_into_a_silent_skip
+      id: workflow.reconcile_nil_collection_fails_foreach_run_storm
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+            - golang/workflow/engine/engine.go
+            - golang/workflow/engine/conditions.go
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+        - meta.fallback_must_degrade_semantics
+      related_services:
+        - cluster-controller
+        - workflow-service
+      required_tests:
+        - TestReconcileClassifyDrift_EmptyReturnsNonNilSlice
+        - TestDefaultEvalCond_Len
+      root_cause: |
+        reconcileClassifyDrift returned `nil, nil` when the drift report was
+        empty (the common no-drift case). That nil became the run output
+        remediation_items, which crosses the actor boundary and serializes to
+        JSON null, resolving back as nil. The reconcile workflow's guards use the
+        len() idiom: short_circuit_clean `len(remediation_items) == 0` and
+        dispatch_remediations `len(remediation_items) > 0`. evalLen deliberately
+        treats a nil value as length -1 (fail-closed), so BOTH guards evaluated
+        false: short_circuit_clean never finalized the clean case, and (on the
+        deployed binary, whose executeForeach resolved the collection before the
+        when guard) the dispatch_remediations foreach hit a nil collection and
+        FAILED, emitting workflow.run.failed every reconcile tick (~every 90s).
+        That storm of workflow.run.failed incidents is what the ai_executor then
+        re-diagnosed on every repeat — see
+        ai_executor.repeat_diagnosis_drains_personal_subscription.
+      severity: high
+      symptoms:
+        - workflow.run.failed emitted by cluster.reconcile every reconcile interval on a healthy cluster
+        - reconcile step dispatch_remediations fails with "foreach collection did not resolve to a list"
+        - short_circuit_clean never runs even when there is no drift
+        - a downstream ai_executor incident storm re-diagnosing the same workflow failure
+      title: Reconcile classify_drift returns nil for empty drift, failing the foreach and storming workflow.run.failed
+    - architecture_fix: |
+        Two independent defects compounded into the drain; both are now closed.
+        (1) Credential source: the anthropic client must use only an explicitly
+        provisioned, separately-billed credential (Anthropic.ApiKey, or a key at
+        the service-user path). It MUST NOT scan /home/* for a developer's
+        personal Claude login, and the autonomous diagnoser MUST NOT fall back to
+        the `claude` CLI (which spends whatever interactive subscription is logged
+        in). No key -> deterministic analyzer (AI is supplementary, never
+        required). (2) Dedup: every diagnosis is persisted under a stable
+        incident signature (rule|event|service) and reads/writes share the same
+        fp:<fingerprint> tag; a repeated signature reuses the prior diagnosis and
+        skips the LLM, bumping an occurrence counter. This restores the intent
+        ai.memory_queried_before_claude_to_boost_confidence, which existed but was
+        non-functional.
+      forbidden_fixes:
+        - harvest_personal_claude_credentials_by_scanning_home_dirs
+        - fall_back_to_claude_cli_subscription_on_the_autonomous_incident_path
+        - persist_incident_diagnosis_only_on_the_remediation_path
+        - use_different_tags_for_the_dedup_read_query_and_write_store
+        - include_incident_id_in_the_dedup_fingerprint
+      id: ai_executor.repeat_diagnosis_drains_personal_subscription
+      protects:
+        files:
+            - golang/ai_executor/ai_executor_server/dedup.go
+            - golang/ai_executor/ai_executor_server/diagnoser.go
+            - golang/ai_executor/ai_executor_server/anthropic_client.go
+      related_invariants:
+        - meta.critical_path_no_non_critical_dependency
+        - meta.absence_scope_must_be_explicit
+        - meta.storage_is_not_semantic_authority
+      related_services:
+        - ai-executor
+      required_tests:
+        - TestIncidentFingerprint_StableAcrossOccurrences
+        - TestIncidentFingerprint_DistinguishesSignatures
+        - TestIncidentFingerprint_UnitFallback
+      root_cause: |
+        diagnoser had no working dedup: the only ai_memory write (recordOutcome)
+        ran on the remediation path, so tier-0 observe-only incidents were never
+        persisted; the read query was tagged by ruleID while the write was tagged
+        by root_cause, so tags never matched; and there was no occurrence counter.
+        ai_memory incident count stayed 0, so every occurrence looked new. A
+        workflow failing every ~90s (workflow_foreach_null_collection) therefore
+        triggered a full AI diagnosis on each repeat. The AI backend, in turn,
+        harvested a developer's personal Claude Max OAuth token from /home/*,
+        replicated it into etcd, tried the API with a stale model id
+        (claude-sonnet-4-20250514 -> 404), and fell back to `claude --print` on
+        that personal subscription — so each redundant diagnosis billed a human's
+        account. Mechanism (CLI subscription fallback) x volume (no dedup) = an
+        unbounded silent drain.
+      severity: high
+      symptoms:
+        - a background `claude --print` process runs as the service user and spends an operator's personal Claude tokens
+        - ai_executor logs "anthropic API failed, falling back to CLI" then "claude: invoking CLI" on a loop
+        - the same incident root_cause is re-diagnosed every ~90s with proposed_action observe_and_record
+        - ai_memory has zero stored incidents despite continuous incident processing
+        - a personal Claude Max OAuth token is present in etcd at /globular/secrets/anthropic-credentials
+      title: AI executor re-diagnoses every repeat of the same incident and drains a personal Claude subscription
+    - architecture_fix: |
         Auto-execute requires an EXPLICIT tier==1. Any other value fails safe to
         approval-required (ACTION_PENDING) with a WARN log — the dangerous action
         is the explicit grant, the unknown case defaults to deny.
@@ -5456,6 +5568,54 @@ failure_modes:
         - Race detector fires under parallel step execution during resume
         - Corrupted step outputs or panic from concurrent map access
       title: run.Outputs read/written without outputMu in resume and condition evaluation — concurrent map access UB
+    - blast_radius:
+        - A foreach step gated by `when` fails every reconcile pass on a healthy cluster
+        - cluster.reconcile run FAILS continuously; repeated dispatch rejections trip the workflow.backend_pressure WARN
+        - Self-healing remediation dispatch path appears broken even when nothing is wrong
+      description: |
+        executeForeach evaluated the step `when` guard AFTER resolving the
+        foreach collection and AFTER the nil-collection FAIL / empty-collection
+        SKIP checks. The non-foreach dispatch path (executeStep) evaluates
+        `when` BEFORE the step body, so foreach steps were asymmetric: a step
+        explicitly gated off by `when: false` could still FAIL because its
+        collection reference resolved to nil. cluster.reconcile's
+        dispatch_remediations is guarded by `len(remediation_items) > 0`, but on
+        a clean cluster classify_drift produces no items and the empty result
+        serializes to JSON null across the actor RPC boundary, so the collection
+        arrives as nil (not an empty list) — never reaching the empty-SKIP path,
+        and FAILing the gated step every ~30s.
+      id: workflow.foreach_when_guard_evaluated_after_collection_resolution
+      fixed_in: infra-truth-plane-etcd-minio-envoy
+      known_bad_fixes:
+        - Collapsing the nil-collection case into a silent SKIP for all foreach steps (re-breaks meta.silence_is_not_valid_for_unexpected — an UNGATED foreach over nil must still FAIL loudly)
+        - Making classify_drift emit a sentinel non-empty list to dodge the nil case
+        - Removing the `when` guard from dispatch_remediations and relying on the empty-SKIP path (fails because the value is nil, not [])
+      protects:
+        files:
+            - golang/workflow/engine/engine.go
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+        - workflow.run_outputs_data_race
+        - meta.competing_writers_must_converge_or_be_fenced
+      required_tests:
+        - TestForeach_WhenGuardSkipsBeforeUnresolvedCollection
+        - TestForeach_WhenGuardTrueStillFansOut
+        - TestForeach_UnresolvedCollectionFails
+      resolution: |
+        In executeForeach, evaluate the `when` guard FIRST, against a run.Outputs
+        snapshot taken under outputMu (the same lock discipline as the
+        non-foreach path; this also closes the unlocked read flagged by
+        workflow.run_outputs_data_race). If when==false -> SKIP without touching
+        the collection. Only when the guard passes (or is absent) resolve the
+        collection and keep the nil->FAIL invariant for steps that are actually
+        supposed to run.
+      severity: high
+      status: fixed
+      symptoms:
+        - 'reconcile:<ts> runs FAILED every ~30s with: step dispatch_remediations: foreach collection "$.remediation_items" did not resolve to a list'
+        - doctor WARN workflow.backend_pressure with sustained dispatch rejections on an otherwise-healthy cluster
+        - short_circuit_clean (len == 0) succeeds in the same run while dispatch_remediations (len > 0) fails — proves the value is nil, not a real list
+      title: foreach `when` guard evaluated after collection resolution — gated step FAILs on a nil collection
     - id: workflow.stale_definitions_block_expected_sha256_propagation
       known_bad_fixes:
         - using a cluster-controller binary bridge to mask the missing field

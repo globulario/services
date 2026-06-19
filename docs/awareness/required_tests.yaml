@@ -1,4 +1,59 @@
 required_tests:
+- id: TestDefaultEvalCond_Len
+  title: DefaultEvalCond len() must fail closed on nil or missing values
+  protects:
+    failure_modes:
+    - workflow.reconcile_nil_collection_fails_foreach_run_storm
+    files:
+    - golang/workflow/engine/conditions.go
+    - golang/workflow/engine/conditions_test.go
+  run:
+    commands:
+    - go test ./golang/workflow/... -run TestDefaultEvalCond_Len
+- id: TestReconcileClassifyDrift_EmptyReturnsNonNilSlice
+  title: reconcileClassifyDrift must return an initialized empty slice for no drift
+  protects:
+    failure_modes:
+    - workflow.reconcile_nil_collection_fails_foreach_run_storm
+    files:
+    - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+    - golang/cluster_controller/cluster_controller_server/reconcile_classify_drift_empty_test.go
+  run:
+    commands:
+    - go test ./golang/cluster_controller/... -run TestReconcileClassifyDrift_EmptyReturnsNonNilSlice
+- id: TestIncidentFingerprint_StableAcrossOccurrences
+  title: Incident fingerprint must stay stable across repeated occurrences of the same signature
+  protects:
+    failure_modes:
+    - ai_executor.repeat_diagnosis_drains_personal_subscription
+    files:
+    - golang/ai_executor/ai_executor_server/dedup.go
+    - golang/ai_executor/ai_executor_server/dedup_test.go
+  run:
+    commands:
+    - go test ./golang/ai_executor/... -run TestIncidentFingerprint_StableAcrossOccurrences
+- id: TestIncidentFingerprint_DistinguishesSignatures
+  title: Incident fingerprint must distinguish different rule, event, and service signatures
+  protects:
+    failure_modes:
+    - ai_executor.repeat_diagnosis_drains_personal_subscription
+    files:
+    - golang/ai_executor/ai_executor_server/dedup.go
+    - golang/ai_executor/ai_executor_server/dedup_test.go
+  run:
+    commands:
+    - go test ./golang/ai_executor/... -run TestIncidentFingerprint_DistinguishesSignatures
+- id: TestIncidentFingerprint_UnitFallback
+  title: Incident fingerprint must fall back to unit when service is absent
+  protects:
+    failure_modes:
+    - ai_executor.repeat_diagnosis_drains_personal_subscription
+    files:
+    - golang/ai_executor/ai_executor_server/dedup.go
+    - golang/ai_executor/ai_executor_server/dedup_test.go
+  run:
+    commands:
+    - go test ./golang/ai_executor/... -run TestIncidentFingerprint_UnitFallback
 - id: test.desired_build_id_immutable_after_write
   title: Desired build_id must not change after resolution
   protects:

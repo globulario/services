@@ -1,0 +1,26 @@
+code_symbols:
+test_symbols:
+  - id: golang/dependency/modes_test.go:TestCriticalDependencyDeclaresDegradationMode
+    file: golang/dependency/modes_test.go
+    symbol: TestCriticalDependencyDeclaresDegradationMode
+    package: dependency
+    language: go
+    doc: "TestCriticalDependencyDeclaresDegradationMode — contract test. Every\nservice the registry knows about declares at least one dependency, and\nevery declared dependency has a known mode. A service may not register a\nhalf-formed contract that ignores the dependency-mode discipline."
+  - id: golang/dependency/modes_test.go:TestRepositoryMinioIsDegradedNotReadOnly
+    file: golang/dependency/modes_test.go
+    symbol: TestRepositoryMinioIsDegradedNotReadOnly
+    package: dependency
+    language: go
+    doc: "TestRepositoryMinioIsDegradedNotReadOnly — contract test. The\nrepository's MinIO dependency is a SECONDARY (mirror) authority, not a\nprimary one — the local POSIX CAS is the installability authority.\nWhen MinIO is down, the repository degrades (mirror writes skipped)\nbut continues to accept writes against the local POSIX CAS. This is\ndistinct from the ScyllaDB dependency, where unavailability does\ndrop the service to read_only. See\ndocs/operators/remediation-contracts.md §6 and dep_health.go."
+  - id: golang/dependency/modes_test.go:TestUnknownModeIsRejected
+    file: golang/dependency/modes_test.go
+    symbol: TestUnknownModeIsRejected
+    package: dependency
+    language: go
+    doc: "TestUnknownModeIsRejected — defense-in-depth. A future contributor who\nadds a service contract with a typo in the mode string must trip the\nvalidator, not silently allow operations."
+  - id: golang/dependency/modes_test.go:TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
+    file: golang/dependency/modes_test.go
+    symbol: TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
+    package: dependency
+    language: go
+    doc: "TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop — contract\ntest. When a workflow dependency is declared ModeStop, dispatch must be\nrefused. The block must apply to read AND dispatch since stop is total."

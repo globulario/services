@@ -30,29 +30,32 @@ type diagnoser struct {
 	memoryAddr     string
 	claude         *claudeClient
 	anthropic      *anthropicClient
+	ledger         *incidentLedger
 }
 
 func newDiagnoser(cfg AnthropicConfig) *diagnoser {
 	return &diagnoser{
 		claude:    newClaudeClient(),
 		anthropic: newAnthropicClient(cfg),
+		ledger:    &incidentLedger{},
 	}
 }
 
-// sendPrompt routes to the best available backend: API > CLI > error.
-// Falls through to CLI if the API call fails (e.g. OAuth tokens not supported by API).
+// sendPrompt calls the configured Anthropic API backend, or errors so the
+// caller falls back to deterministic analysis.
+//
+// The autonomous incident path deliberately does NOT fall back to the Claude
+// CLI: the CLI spends whatever interactive subscription happens to be logged in
+// on the host (a developer's personal Max account), and an incident storm turns
+// that into an unbounded, silent drain. AI diagnosis here is opt-in via an
+// explicit, separately-billed API key in service config (Anthropic.ApiKey).
+// With no key, isAvailable() is false and diagnose() uses the deterministic
+// analyzer — AI is supplementary, never required.
 func (d *diagnoser) sendPrompt(ctx context.Context, prompt string) (string, error) {
 	if d.anthropic != nil && d.anthropic.isAvailable() {
-		resp, err := d.anthropic.sendPrompt(ctx, prompt)
-		if err == nil {
-			return resp, nil
-		}
-		logger.Warn("anthropic API failed, falling back to CLI", "err", err)
+		return d.anthropic.sendPrompt(ctx, prompt)
 	}
-	if d.claude != nil && d.claude.isAvailable() {
-		return d.claude.sendPrompt(ctx, prompt)
-	}
-	return "", fmt.Errorf("no AI backend available (set ANTHROPIC_API_KEY or install claude CLI)")
+	return "", fmt.Errorf("no AI backend available (set Anthropic.ApiKey in service config)")
 }
 
 // diagnose gathers context and builds a diagnosis for an incident.
@@ -108,10 +111,32 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		}
 	}
 
-	// 3. Try Claude for intelligent analysis (falls back to deterministic).
+	// 3. Dedup gate: if we have already diagnosed this incident signature,
+	// reuse the prior diagnosis and skip the LLM entirely. This is what stops
+	// a workflow that fails every ~90s from re-diagnosing the identical
+	// signature hundreds of times a day. fromLedger records whether the answer
+	// came from a prior diagnosis (so we don't re-persist it below).
+	fingerprint := incidentFingerprint(req)
 	var proposedAction, actionReason string
+	fromLedger := false
+	if d.ledger != nil {
+		if entry := d.ledger.lookup(callCtx, fingerprint); entry != nil {
+			rootCause = entry.rootCause
+			confidence = entry.confidence
+			proposedAction = entry.proposedAction
+			actionReason = entry.actionReason
+			fromLedger = true
+			evidence = append(evidence, fmt.Sprintf(
+				"recurring incident signature (seen %dx) — reusing prior diagnosis, skipping AI call",
+				entry.occurrences+1))
+			d.ledger.recordRepeat(callCtx, entry)
+		}
+	}
 
-	aiAvailable := (d.anthropic != nil && d.anthropic.isAvailable()) || (d.claude != nil && d.claude.isAvailable())
+	// 4. Try the AI backend for a first-time analysis (falls back to
+	// deterministic). Only the dedicated Anthropic API key counts as available
+	// here — the CLI subscription path is intentionally excluded.
+	aiAvailable := d.anthropic != nil && d.anthropic.isAvailable()
 	if aiAvailable && rootCause == "" {
 		healthStr := ""
 		if health != nil {
@@ -153,7 +178,7 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		}
 	}
 
-	// 4. Deterministic fallback if Claude didn't provide an answer.
+	// 5. Deterministic fallback if no AI answer and not a recurring signature.
 	if rootCause == "" {
 		rootCause, confidence = d.analyzeEventPattern(eventName, eventPayload, req.GetEventBatch())
 	}
@@ -183,7 +208,7 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		ruleID, eventName, svcName, len(req.GetEventBatch()), rootCause, confidence*100,
 		strings.Join(evidence, "\n  - "))
 
-	return &ai_executorpb.Diagnosis{
+	diagnosis := &ai_executorpb.Diagnosis{
 		IncidentId:     req.GetIncidentId(),
 		Summary:        summary,
 		Detail:         detail,
@@ -193,7 +218,18 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		ProposedAction: proposedAction,
 		ActionReason:   actionReason,
 		DiagnosedAtMs:  time.Now().UnixMilli(),
-	}, nil
+	}
+
+	// 6. Persist the diagnosis under its signature so the next occurrence
+	// deduplicates — for every incident, regardless of tier or whether the AI
+	// ran. This is the write half of the dedup contract; without it the ledger
+	// stays empty and every repeat looks new (the bug that drove the storm).
+	// Skipped when the answer itself came from the ledger (already recorded).
+	if d.ledger != nil && !fromLedger && rootCause != "" {
+		d.ledger.recordNew(ctx, fingerprint, diagnosis)
+	}
+
+	return diagnosis, nil
 }
 
 // analyzeEventPattern determines the likely root cause from the event type.

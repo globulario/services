@@ -186,7 +186,10 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 		includeSet[fmt.Sprint(n)] = true
 	}
 
-	var driftItems []any
+	// Initialized, never nil: drift_report is a boundary-crossing collection;
+	// a nil slice marshals to JSON null and a future len(drift_report) guard
+	// would mis-evaluate (see reconcileClassifyDrift). []any{} marshals to [].
+	driftItems := []any{}
 
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
@@ -332,7 +335,19 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 // reconcileClassifyDrift categorizes drift items by severity and type.
 func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any, maxRemediations int) ([]any, error) {
 	if len(driftReport) == 0 {
-		return nil, nil
+		// Return an INITIALIZED empty slice, never nil. remediation_items
+		// crosses the actor boundary into the workflow `when` guards
+		// (len(remediation_items) == 0 / > 0). A nil slice marshals to JSON
+		// null and resolves back as nil, which evalLen deliberately treats as
+		// length -1 (fail-closed, undefined != empty) — so BOTH short_circuit
+		// and dispatch guards evaluate false and the reconcile foreach fails on
+		// a nil collection (the workflow.run.failed storm). An empty []any{}
+		// marshals to [] and resolves to length 0, letting short_circuit_clean
+		// finalize the no-drift case. Same precedent as selectReleaseTargets.
+		// (meta.fallback_must_degrade_semantics; failure_mode
+		// ai_executor.repeat_diagnosis_drains_personal_subscription was the
+		// downstream symptom of this storm.)
+		return []any{}, nil
 	}
 
 	// Priority order: infra_unhealthy > missing_package > version_drift > unmanaged_package

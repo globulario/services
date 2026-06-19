@@ -22,3 +22,76 @@ code_symbols:
       enforces:
         - globular.examples.echo_service:invariant.echo_rpc_is_stateless
         - globular.examples.echo_service:invariant.echo_rpc_preserves_message_bytes
+test_symbols:
+  - id: golang/echo/echo_client/echo_test.go:TestEcho
+    file: golang/echo/echo_client/echo_test.go
+    symbol: TestEcho
+    package: echo_client
+    language: go
+    doc: "Test various function here."
+  - id: golang/echo/echo_server/config_test.go:TestConfigCanonicalDomain
+    file: golang/echo/echo_server/config_test.go
+    symbol: TestConfigCanonicalDomain
+    package: main
+    language: go
+    doc: "TestConfigCanonicalDomain verifies the default config uses a canonical cluster domain.\nNo env vars — service config comes from etcd, not environment."
+  - id: golang/echo/echo_server/config_test.go:TestConfigClone
+    file: golang/echo/echo_server/config_test.go
+    symbol: TestConfigClone
+    package: main
+    language: go
+    doc: "TestConfigClone verifies deep copy functionality"
+  - id: golang/echo/echo_server/config_test.go:TestConfigFileOperations
+    file: golang/echo/echo_server/config_test.go
+    symbol: TestConfigFileOperations
+    package: main
+    language: go
+    doc: "TestConfigFileOperations verifies file-based config save/load"
+  - id: golang/echo/echo_server/config_test.go:TestConfigValidation
+    file: golang/echo/echo_server/config_test.go
+    symbol: TestConfigValidation
+    package: main
+    language: go
+    doc: "TestConfigValidation verifies config validation"
+  - id: golang/echo/echo_server/config_test.go:TestDefaultConfig
+    file: golang/echo/echo_server/config_test.go
+    symbol: TestDefaultConfig
+    package: main
+    language: go
+    doc: "TestDefaultConfig verifies the default configuration"
+  - id: golang/echo/echo_server/server_test.go:TestBehaviorInvariant
+    file: golang/echo/echo_server/server_test.go
+    symbol: TestBehaviorInvariant
+    package: main
+    language: go
+    doc: "TestBehaviorInvariant documents the core Echo service behavior\n\n@awareness namespace=globular.examples.echo_service\n@awareness component=server.test\n@awareness enforces=globular.examples.echo_service:invariant.echo_rpc_is_stateless\n@awareness enforces=globular.examples.echo_service:invariant.echo_rpc_preserves_message_bytes\n@awareness enforces=globular.examples.echo_service:intent.echo_rpc_returns_input_unchanged"
+  - id: golang/echo/echo_server/server_test.go:TestDefaultValues
+    file: golang/echo/echo_server/server_test.go
+    symbol: TestDefaultValues
+    package: main
+    language: go
+    doc: "TestDefaultValues verifies service initialization defaults"
+  - id: golang/echo/echo_server/server_test.go:TestDescribeOutputFormat
+    file: golang/echo/echo_server/server_test.go
+    symbol: TestDescribeOutputFormat
+    package: main
+    language: go
+    doc: "TestDescribeOutputFormat validates --describe JSON output structure"
+  - id: golang/echo/echo_server/server_test.go:TestEchoHandler
+    file: golang/echo/echo_server/server_test.go
+    symbol: TestEchoHandler
+    package: main
+    language: go
+    doc: "TestEchoHandler validates the Echo RPC handler behavior\nPhase 1 Step 2: Save() side effect removed - handler is now pure!\n\n@awareness namespace=globular.examples.echo_service\n@awareness component=server.test\n@awareness enforces=globular.examples.echo_service:invariant.echo_rpc_is_stateless\n@awareness enforces=globular.examples.echo_service:invariant.echo_rpc_preserves_message_bytes"
+  - id: golang/echo/echo_server/server_test.go:TestGetterSetterContract
+    file: golang/echo/echo_server/server_test.go
+    symbol: TestGetterSetterContract
+    package: main
+    language: go
+    doc: "TestGetterSetterContract verifies the Globular service contract"
+  - id: golang/echo/echo_server/server_test.go:TestServerInitialization
+    file: golang/echo/echo_server/server_test.go
+    symbol: TestServerInitialization
+    package: main
+    language: go
+    doc: "TestServerInitialization validates server struct initialization"
