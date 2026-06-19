@@ -7,7 +7,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - http/router.go
+      - internal/gateway/http/router.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -19,7 +19,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -31,7 +31,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -44,7 +44,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -57,7 +57,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -70,7 +70,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -83,7 +83,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -96,7 +96,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -108,7 +108,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -120,7 +120,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -132,7 +132,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -144,7 +144,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -156,7 +156,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -168,7 +168,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -180,7 +180,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -193,7 +193,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -205,7 +205,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -217,7 +217,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -229,7 +229,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -242,7 +242,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/admin/admin.go
+      - internal/gateway/handlers/admin/admin.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -254,7 +254,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/cluster/cluster.go
+      - internal/gateway/handlers/cluster/cluster.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -266,7 +266,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/cluster/cluster.go
+      - internal/gateway/handlers/cluster/cluster.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -278,7 +278,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/cluster/cluster.go
+      - internal/gateway/handlers/cluster/cluster.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -290,7 +290,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/cluster/cluster.go
+      - internal/gateway/handlers/cluster/cluster.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -302,7 +302,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -314,7 +314,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -327,7 +327,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -339,7 +339,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/domains/domains.go
+      - internal/gateway/handlers/domains/domains.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -351,7 +351,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/domains/domains.go
+      - internal/gateway/handlers/domains/domains.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -364,7 +364,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/files/files.go
+      - internal/gateway/handlers/files/files.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -377,7 +377,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -390,7 +390,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/files/files.go
+      - internal/gateway/handlers/files/files.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -403,7 +403,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/media/media.go
+      - internal/gateway/handlers/media/media.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -416,7 +416,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/media/media.go
+      - internal/gateway/handlers/media/media.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -429,7 +429,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/media/media.go
+      - internal/gateway/handlers/media/media.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -442,7 +442,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/media/media.go
+      - internal/gateway/handlers/media/media.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -455,7 +455,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -468,7 +468,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -481,7 +481,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -494,7 +494,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/files/files.go
+      - internal/gateway/handlers/files/files.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -506,7 +506,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -518,7 +518,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -530,7 +530,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -542,7 +542,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -555,7 +555,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -568,7 +568,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -580,7 +580,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/cluster/cluster.go
+      - internal/gateway/handlers/cluster/cluster.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -593,7 +593,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -606,7 +606,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -619,7 +619,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -632,7 +632,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -644,7 +644,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/handlers.go
+      - internal/gateway/handlers/handlers.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -656,7 +656,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/handlers.go
+      - internal/gateway/handlers/handlers.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -668,7 +668,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - http/router.go
+      - internal/gateway/http/router.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -680,7 +680,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/cluster/cluster.go
+      - internal/gateway/handlers/cluster/cluster.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -692,7 +692,7 @@ contracts:
     kind: http
     assertion: inferred
     source_files:
-      - handlers/cluster/cluster.go
+      - internal/gateway/handlers/cluster/cluster.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -705,7 +705,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - http/router.go
+      - cmd/gateway/main.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -718,7 +718,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/handlers.go
+      - internal/gateway/handlers/handlers.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -731,7 +731,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/handlers.go
+      - internal/gateway/handlers/handlers.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -744,7 +744,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/config/config.go
+      - internal/gateway/handlers/config/config.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -757,7 +757,7 @@ contracts:
     read_or_write: read
     assertion: inferred
     source_files:
-      - handlers/stats/stats.go
+      - internal/gateway/handlers/stats/stats.go
     uml:
       kind: Interface
       stereotype: http_endpoint
@@ -770,7 +770,7 @@ contracts:
     read_or_write: write
     assertion: inferred
     source_files:
-      - handlers/files/files.go
+      - internal/gateway/handlers/files/files.go
     uml:
       kind: Interface
       stereotype: http_endpoint
