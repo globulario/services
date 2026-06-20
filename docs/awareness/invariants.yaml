@@ -10714,6 +10714,41 @@ invariants:
   - infra.runtime_truth_must_be_observed_via_native_api
   required_tests:
   - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraWriteQuorum_Lost
+- id: minio.is_commodity_not_a_pillar
+  title: MinIO is a commodity object-store tier, never a pillar — it must not gate a primary service's health nor block node convergence
+  summary: |
+    The pillars of a Globular cluster are etcd (config truth), ScyllaDB (indexed
+    state), and envoy (mesh data plane). MinIO is a COMMODITY tier for secondary
+    user data only (files, search indexes) — an unreliable friend you don't lean
+    on. It holds no system config, no packages, and no service's authority data.
+    Two consequences are invariant:
+    1. No primary service may register MinIO as a health-gating (stop-mode)
+       dependency. RBAC's authority is ScyllaDB; gating RBAC's RPCs on MinIO lets
+       a commodity tier take cluster-wide authorization down with it. MinIO usage
+       must stay best-effort and degrade (ModeDegraded / ModeIgnore), never stop.
+    2. MinIO/sidekick being inactive must not count as a convergence-blocking
+       node-health failure. Below the 3-node object-store quorum the pool never
+       forms, so the units are inactive BY DESIGN; on a non-member node they are
+       dropped from the required-unit set. A genuine pool member with a dead MinIO
+       still surfaces.
+    Root cause (globule-nuc, 2026-06-20): a healthy 2-node cluster stalled mid
+    Day-1 because (a) RBAC gated all RPCs on MinIO and (b) the controller node
+    health gate counted minio/sidekick inactive as failing — so the node read
+    unhealthy and ~10 services never installed. Per-component instance of
+    dependency_failure_must_not_create_hidden_authority for the object-store tier.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/rbac/rbac_server/server.go
+    - golang/cluster_controller/cluster_controller_server/handlers_health.go
+  related_invariants:
+  - dependency_failure_must_not_create_hidden_authority
+  - repository.minio_independence
+  - infrastructure.sidekick.minio_auxiliary_must_not_be_identity_authority
+  required_tests:
+  - golang/rbac/rbac_server/dependency_minio_excluded_test.go::TestDependencyHealthDeps_ExcludesMinio
+  - golang/cluster_controller/cluster_controller_server/minio_non_member_health_test.go::TestDropMinioCommodityUnitsForNonMember
 - id: infra.node_specific_truth_must_be_observed_via_node_local_client
   title: Per-node / per-endpoint runtime truth must be read from a client pinned to that node, never from a shared multi-member pooled client that may route elsewhere
   summary: |

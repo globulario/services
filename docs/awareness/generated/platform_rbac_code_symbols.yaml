@@ -32,6 +32,12 @@ test_symbols:
     symbol: Test_RBAC_Suite
     package: rbac_client
     language: go
+  - id: golang/rbac/rbac_server/dependency_minio_excluded_test.go:TestDependencyHealthDeps_ExcludesMinio
+    file: golang/rbac/rbac_server/dependency_minio_excluded_test.go
+    symbol: TestDependencyHealthDeps_ExcludesMinio
+    package: main
+    language: go
+    doc: "TestDependencyHealthDeps_ExcludesMinio pins HARD RULE #8 for RBAC: MinIO is a\ncommodity for secondary user data and must NEVER be a health-gating dependency\nof RBAC, whose authority for permissions is ScyllaDB. Gating RBAC's RPCs on\nMinIO would let a commodity tier take cluster-wide authorization down with it\nand, below the 3-node object-store quorum (where the MinIO pool never forms),\nwould permanently wedge a healthy cluster.\n\nRegression (globule-nuc, 2026-06-20): rbac registered minio in its dependency\nwatchdog → minio absent on a 2-node cluster → rbac RPCs Unavailable → unit\n\"failed\" → node unhealthy → service convergence blocked."
   - id: golang/rbac/rbac_server/rbac_actions_test.go:TestCanonicalizeAction
     file: golang/rbac/rbac_server/rbac_actions_test.go
     symbol: TestCanonicalizeAction

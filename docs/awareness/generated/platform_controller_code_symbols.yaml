@@ -2615,6 +2615,12 @@ test_symbols:
     package: main
     language: go
     doc: "TestListServices_DegradesGracefullyWhenRegistryUnavailable confirms\nthe handler returns an error (rather than panicking) when the\nservice registry cannot be fetched. Operating without an etcd\nconnection in the test environment, the underlying\nconfig.GetServicesConfigurations either returns an error or an\nempty list; either outcome is acceptable as long as the handler\ndoes not crash."
+  - id: golang/cluster_controller/cluster_controller_server/minio_non_member_health_test.go:TestDropMinioCommodityUnitsForNonMember
+    file: golang/cluster_controller/cluster_controller_server/minio_non_member_health_test.go
+    symbol: TestDropMinioCommodityUnitsForNonMember
+    package: main
+    language: go
+    doc: "TestDropMinioCommodityUnitsForNonMember pins the shared gating helper used by\nBOTH the per-node health detail (GetNodeHealthDetailV1) and the readiness gate\n(deriveNodeStatus). MinIO/sidekick are a commodity object-store tier — never a\npillar like etcd/scylla/envoy. On a non-member node (held out of the pool, e.g.\nbelow the 3-node object-store quorum) they are inactive by design and MUST be\ndropped from the required-unit set, or Healthy=allOK=false blocks convergence.\n\nRegression (globule-nuc, 2026-06-20): a 2-node cluster below quorum had\nminio/sidekick inactive by design, but GetNodeHealthDetailV1 still counted\nthem as failing unit checks → node reported unhealthy → reconcile saw the node\nas not converged → the remaining service packages never installed."
   - id: golang/cluster_controller/cluster_controller_server/minio_non_member_health_test.go:TestEvaluateNodeStatus_MinioMember_RequiresMinio
     file: golang/cluster_controller/cluster_controller_server/minio_non_member_health_test.go
     symbol: TestEvaluateNodeStatus_MinioMember_RequiresMinio

@@ -5034,6 +5034,17 @@ required_tests:
   protects:
     failure_modes:
     - minio.write_quorum
+- id: golang/rbac/rbac_server/dependency_minio_excluded_test.go::TestDependencyHealthDeps_ExcludesMinio
+  title: RBAC Dependency Health Deps Excludes Minio
+  protects:
+    invariants:
+    - minio.is_commodity_not_a_pillar
+    - dependency_failure_must_not_create_hidden_authority
+- id: golang/cluster_controller/cluster_controller_server/minio_non_member_health_test.go::TestDropMinioCommodityUnitsForNonMember
+  title: Drop Minio Commodity Units For Non Member
+  protects:
+    invariants:
+    - minio.is_commodity_not_a_pillar
 - id: golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaConfigValid_LocalhostDetected
   title: Scylla Config Valid Localhost Detected
   protects:
