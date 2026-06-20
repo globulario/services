@@ -1,0 +1,603 @@
+syntax = "proto3";
+
+package behavioral_memory;
+
+option go_package = "github.com/globulario/services/golang/ai_memory/behavioral_memorypb";
+
+import "globular_auth.proto";
+
+// BehavioralMemoryService is the protocol-shaped surface of the behavioral-memory
+// kernel — a governed-learning layer that turns raw operational signals into
+// evidence-backed, authority-mapped, condition-scoped behavioral principles, and
+// then enforces them at action time.
+//
+// It is deployed *inside* the ai-memory service today (one binary, two gRPC
+// services) but is defined as a standalone service contract so the kernel can be
+// promoted to its own deployment later without changing the domain model.
+//
+// The vocabulary (EvidenceLaneMode, PromotionDecision, the governance status
+// ladder) deliberately mirrors the awareness-graph (AWG) governance model so the
+// two can share a kernel in the future. AWG governs *code/repair* contracts;
+// this service governs *runtime/operation* contracts. Same meta-principle:
+// no claim of resolution without authority, condition scope, evidence, and proof.
+//
+// PR-1 scope: contract + skeleton only. All RPCs currently return UNIMPLEMENTED.
+service BehavioralMemoryService {
+
+    // ── Ingestion / the governance ladder ────────────────────────────────────
+
+    // RecordSignal captures raw operational input (logs, probes, health checks,
+    // agent decisions, operator corrections, test results, status snapshots).
+    rpc RecordSignal(RecordSignalRequest) returns (RecordSignalResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/signals"
+            default_role_hint: "operator"
+        };
+    };
+
+    // ExtractClaim turns one or more raw signals into structured claim(s).
+    rpc ExtractClaim(ExtractClaimRequest) returns (ExtractClaimResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/claims"
+            default_role_hint: "operator"
+        };
+    };
+
+    // RecordEvidence attaches supporting evidence to a claim or a principle.
+    rpc RecordEvidence(RecordEvidenceRequest) returns (RecordEvidenceResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/evidence"
+            default_role_hint: "operator"
+        };
+    };
+
+    // MapAuthority identifies who or what governs a claim/principle.
+    rpc MapAuthority(MapAuthorityRequest) returns (MapAuthorityResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/authorities"
+            default_role_hint: "operator"
+        };
+    };
+
+    // RecordContradiction records conflicts between claims, evidence, conditions
+    // or rules — contradictions are surfaced, never hidden.
+    rpc RecordContradiction(RecordContradictionRequest) returns (RecordContradictionResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/contradictions"
+            default_role_hint: "operator"
+        };
+    };
+
+    // ── Governance ────────────────────────────────────────────────────────────
+
+    // ProposePrinciple creates a candidate behavioral rule (not yet enforced).
+    rpc ProposePrinciple(ProposePrincipleRequest) returns (ProposePrincipleResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/principles"
+            default_role_hint: "operator"
+        };
+    };
+
+    // PromotePrinciple promotes a candidate only after the governance gate passes
+    // (evidence, authority, condition scope, contradiction checks). High-risk or
+    // irreversible principles return PROMOTION_REVIEW_REQUIRED for human approval.
+    rpc PromotePrinciple(PromotePrincipleRequest) returns (PromotePrincipleResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.promote"
+            permission: "write"
+            resource_template: "/ai/behavioral/principles/{principle_id}"
+            default_role_hint: "admin"
+        };
+    };
+
+    // RevokePrinciple revokes, narrows, or supersedes a promoted rule.
+    rpc RevokePrinciple(RevokePrincipleRequest) returns (RevokePrincipleResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.promote"
+            permission: "write"
+            resource_template: "/ai/behavioral/principles/{principle_id}"
+            default_role_hint: "admin"
+        };
+    };
+
+    // ExplainPrinciple explains why a principle exists, what promoted it, when it
+    // applies, and how it can be revoked.
+    rpc ExplainPrinciple(ExplainPrincipleRequest) returns (ExplainPrincipleResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            resource_template: "/ai/behavioral/principles/{principle_id}"
+            default_role_hint: "viewer"
+        };
+    };
+
+    // ── Runtime decision support (the agent hot path) ─────────────────────────
+
+    // ResolveGovernedContext is the operator-brain retrieval endpoint: given a
+    // runtime situation or goal, it returns applicable principles, required
+    // evidence, forbidden moves, unresolved authority, contradictions, prior
+    // outcomes, and recommended behavior.
+    rpc ResolveGovernedContext(ResolveGovernedContextRequest) returns (ResolveGovernedContextResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            collection_template: "/ai/behavioral/context"
+            default_role_hint: "viewer"
+        };
+    };
+
+    // CheckAction decides whether a proposed action is allowed, blocked, needs
+    // evidence, needs authority, or needs human approval under current governed
+    // memory. This is the pre-action gate.
+    rpc CheckAction(CheckActionRequest) returns (CheckActionResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            collection_template: "/ai/behavioral/action_checks"
+            default_role_hint: "viewer"
+        };
+    };
+
+    // RecordOutcome records what happened after an action (success/failure/
+    // blocked/reverted), feeding the learning loop.
+    rpc RecordOutcome(RecordOutcomeRequest) returns (RecordOutcomeResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/outcomes"
+            default_role_hint: "operator"
+        };
+    };
+}
+
+// ── Enums (names/semantics aligned with awareness-graph) ─────────────────────
+
+// GovernanceStatus is the promotion ladder. Only forward transitions are valid,
+// except the terminal revocation set (REVOKED/SUPERSEDED/NARROWED).
+enum GovernanceStatus {
+    GOVERNANCE_STATUS_UNSPECIFIED = 0;
+    RAW_SIGNAL                    = 1;
+    EXTRACTED_CLAIM               = 2;
+    CANDIDATE_FACT                = 3;
+    EVIDENCE_LINKED               = 4;
+    AUTHORITY_MAPPED              = 5;
+    CONDITION_SCOPED              = 6;
+    CONTRADICTION_TESTED          = 7;
+    PROPOSED_PRINCIPLE            = 8;
+    PROMOTED_PRINCIPLE            = 9;
+    REVOKED                       = 10;
+    SUPERSEDED                    = 11;
+    NARROWED                      = 12;
+}
+
+// EvidenceLaneMode mirrors AWG EvidenceLaneMode: which burden of proof a piece
+// of evidence (or a required-evidence slot) satisfies.
+enum EvidenceLaneMode {
+    EVIDENCE_LANE_MODE_UNSPECIFIED = 0;
+    EVIDENCE_LANE_STATIC_ONLY      = 1; // authored / static proof only
+    EVIDENCE_LANE_RUNTIME_REQUIRED = 2; // must include runtime evidence
+    EVIDENCE_LANE_HYBRID           = 3; // both static and runtime accepted
+}
+
+// PromotionDecision mirrors AWG PromotionDecision.
+enum PromotionDecision {
+    PROMOTION_DECISION_UNSPECIFIED = 0;
+    PROMOTION_ALLOWED              = 1;
+    PROMOTION_BLOCKED              = 2;
+    PROMOTION_REVIEW_REQUIRED      = 3;
+}
+
+// SignalKind keeps observed-fact / interpretation / correction / automated-health
+// distinct so they are never collapsed into one untyped note.
+enum SignalKind {
+    SIGNAL_KIND_UNSPECIFIED      = 0;
+    SIGNAL_OBSERVED_RUNTIME_FACT = 1;
+    SIGNAL_AGENT_INTERPRETATION  = 2;
+    SIGNAL_HUMAN_CORRECTION      = 3;
+    SIGNAL_AUTOMATED_HEALTH      = 4;
+    SIGNAL_HISTORICAL_MEMORY     = 5;
+    SIGNAL_PROMOTED_PRINCIPLE    = 6;
+}
+
+// ── Shared objects ───────────────────────────────────────────────────────────
+//
+// These are domain-generic. Cluster-specific concepts (etcd, scylla, minio …)
+// are carried only as opaque string refs in `domain`, `applies_when`,
+// `authorities`, `forbidden_moves`, etc. — never as typed fields here. `metadata`
+// is an extension hatch only and must never be the real schema for authority,
+// evidence, conditions, contradictions, promotion status, or forbidden moves.
+
+// Signal is raw operational input.
+message Signal {
+    string              id          = 1;
+    string              project     = 2;
+    string              domain      = 3;  // opaque domain ref, e.g. "cluster_operator"
+    SignalKind          kind        = 4;
+    string              source_kind = 5;  // log|metric|probe|agent|human|test|status
+    string              source_ref  = 6;  // pointer to origin
+    string              entity_ref  = 7;  // the entity the signal concerns
+    string              scope       = 8;  // generic scope id (e.g. cluster id)
+    int64               observed_at = 9;
+    string              payload     = 10;
+    float               confidence  = 11;
+    string              agent_id    = 12;
+    string              memory_id   = 13; // link to ai_memory.memories provenance
+    GovernanceStatus    status      = 14;
+    int64               created_at  = 15;
+    map<string, string> metadata    = 16; // extension hatch only
+}
+
+// Claim is a structured statement derived from a signal.
+message Claim {
+    string              id             = 1;
+    string              project        = 2;
+    string              domain         = 3;
+    string              signal_id      = 4;
+    string              statement      = 5;
+    string              subject_entity = 6;
+    string              predicate      = 7;
+    string              object_value   = 8;
+    int64               time_ref       = 9;
+    GovernanceStatus    status         = 10;
+    float               confidence     = 11;
+    string              source_id      = 12;
+    int64               created_at     = 13;
+    int64               updated_at     = 14;
+    map<string, string> metadata       = 15;
+}
+
+// Evidence supports a claim or a principle.
+message Evidence {
+    string              id          = 1;
+    string              project     = 2;
+    string              domain      = 3;
+    string              target_kind = 4; // claim|principle
+    string              target_id   = 5; // → bm:supportedBy (inverse): the claim/principle this supports
+    string              evidence_kind = 6; // test_result|probe|metric|log|snapshot|human
+    EvidenceLaneMode    lane        = 7;
+    string              result      = 8; // pass|fail|stale|unknown
+    string              probe_ref   = 9;
+    int64               observed_at = 10;
+    string              payload     = 11;
+    string              provenance  = 12;
+    int64               created_at  = 13;
+    map<string, string> metadata    = 14;
+    // RDF-readiness relations (first-class, never in metadata):
+    string              observed_from = 15; // → bm:observedFrom: signal/source id this evidence came from
+    repeated string     satisfies     = 16; // → bm:satisfies: required_evidence refs this evidence fulfils
+}
+
+// Authority identifies the owner of a runtime truth (catalog entry).
+message Authority {
+    string              id              = 1; // e.g. authority.<domain>.<...>
+    string              project         = 2;
+    string              domain          = 3;
+    string              title           = 4;
+    string              governs         = 5;
+    string              owner_kind      = 6; // datastore|service_rpc|human|proxy|dns
+    string              read_path       = 7;
+    string              write_path      = 8;
+    string              identity_source = 9;
+    GovernanceStatus    status          = 10;
+    map<string, string> metadata        = 11;
+    // RDF-readiness relation: → bm:governs (first-class). The targets this
+    // authority governs — domain/condition/principle refs.
+    repeated string     governs_refs    = 12;
+}
+
+// Condition is a runtime condition that scopes a rule (catalog entry).
+message Condition {
+    string              id          = 1;
+    string              project     = 2;
+    string              domain      = 3;
+    string              title       = 4;
+    string              detect_spec = 5; // how it is evaluated (probe ref + predicate)
+    string              severity    = 6;
+    GovernanceStatus    status      = 7;
+    map<string, string> metadata    = 8;
+}
+
+// Contradiction records a conflict that must be resolved before promotion.
+message Contradiction {
+    string              id         = 1;
+    string              project    = 2;
+    string              domain     = 3;
+    string              kind       = 4; // claim_vs_claim|evidence_stale|authority_narrower|rule_conflict
+    string              left_ref   = 5;
+    string              right_ref  = 6;
+    string              resolution = 7; // open|resolved|superseded
+    string              note       = 8;
+    int64               created_at = 9;
+    map<string, string> metadata   = 10;
+}
+
+// Principle is a governed behavioral rule (generic — no cluster-typed fields).
+message Principle {
+    string              id                 = 1;
+    string              project            = 2;
+    string              domain             = 3;
+    string              title              = 4;
+    repeated string     applies_when       = 5; // condition refs
+    repeated string     authorities        = 6; // authority refs
+    repeated string     required_evidence  = 7; // required-evidence refs
+    repeated string     forbidden_moves    = 8; // forbidden-move refs
+    string              recommended_action = 9;
+    string              risk_level         = 10; // info|low|high|irreversible
+    string              revocation_rule    = 11;
+    string              promotion_reason   = 12;
+    GovernanceStatus    status             = 13;
+    string              superseded_by      = 14; // → bm:supersededBy: principle id that supersedes this one
+    int32               version            = 15;
+    string              proposed_by        = 16; // actor (not a node ref)
+    string              promoted_by        = 17; // actor who promoted (not a node ref)
+    int64               created_at         = 18;
+    int64               updated_at         = 19;
+    map<string, string> metadata           = 20;
+    // RDF-readiness relations (first-class, never in metadata):
+    string              promotion_decision_id = 21; // → bm:promotedBy: PromotionDecision node id
+    string              revocation_rule_id    = 22; // → bm:revokedBy: RevocationRule node id
+    string              narrowed_by           = 23; // → bm:narrowedBy: principle id that narrowed this one
+    // Promotion-gate inputs (first-class, never in metadata):
+    bool                contradiction_checked = 24; // a contradiction check was performed before promotion
+    string              approved_by           = 25; // human approver for high-risk/irreversible promotion
+    string              approval_reason       = 26;
+    int64               approved_at           = 27;
+    // Seed/compiler lineage (first-class, never in metadata). Populated by the
+    // future Operational Knowledge Compiler (PR-5A) so a generated principle
+    // traces back to its source; preserved here so PR-5A needs no schema change.
+    repeated string     source_refs    = 28; // → bm:sourceRef: provenance source links (seed entry/memory ids)
+    repeated string     generated_from = 29; // → bm:generatedFrom: OperationalKnowledgeEntry ids
+}
+
+// ForbiddenMove is an action shape ruled out under a condition (catalog entry).
+message ForbiddenMove {
+    string              id                 = 1;
+    string              project            = 2;
+    string              domain             = 3;
+    string              title              = 4;
+    string              summary            = 5;
+    string              reason             = 6;
+    string              action_type        = 7; // the action shape it forbids
+    string              target_pattern     = 8;
+    repeated string     related_principles = 9;
+    GovernanceStatus    status             = 10;
+    map<string, string> metadata           = 11;
+}
+
+// RequiredEvidence is an evidence slot a principle requires before it applies.
+message RequiredEvidence {
+    string              id         = 1;
+    string              project    = 2;
+    string              domain     = 3;
+    string              title      = 4;
+    EvidenceLaneMode    lane       = 5;
+    string              probe_ref  = 6;
+    string              predicate  = 7;
+    repeated string     applies_to = 8; // principle ids
+    map<string, string> metadata   = 9;
+}
+
+// Outcome records what happened after an action.
+message Outcome {
+    string              id              = 1;
+    string              project         = 2;
+    string              domain          = 3;
+    string              action_check_id = 4; // → bm:resultedFrom: the ActionCheck this outcome followed
+    repeated string     principle_ids   = 5; // general association (all principles referenced)
+    repeated string     evidence_ids    = 6;
+    string              status          = 7; // success|failure|blocked|reverted
+    bool                severe          = 8;
+    bool                human_marked    = 9;
+    string              incident_id     = 10;
+    string              theme           = 11; // grouping key for promotion proposals
+    string              note            = 12;
+    string              agent_id        = 13;
+    int64               created_at      = 14;
+    map<string, string> metadata        = 15;
+    // RDF-readiness relations (first-class, never in metadata): directional
+    // outcome→principle edges, kept distinct from the neutral principle_ids.
+    repeated string     supports_principles = 16; // → bm:supportsPrinciple
+    repeated string     weakens_principles  = 17; // → bm:weakensPrinciple
+}
+
+// PromotionDecisionRecord is the audit record of a promotion gate evaluation.
+message PromotionDecisionRecord {
+    string              id                   = 1;
+    string              project              = 2;
+    string              domain               = 3;
+    string              principle_id         = 4;
+    PromotionDecision   decision             = 5;
+    string              verdict              = 6; // certification-verdict detail string
+    repeated string     missing_evidence     = 7;
+    repeated string     blocked_by_forbidden = 8;
+    string              reviewer             = 9;
+    string              reason               = 10;
+    int64               created_at           = 11;
+    map<string, string> metadata             = 12;
+    // PR-3 gate detail (first-class). Blocked promotion is also memory.
+    repeated string     unresolved_authority    = 13;
+    repeated string     unresolved_conditions   = 14;
+    repeated string     blocking_contradictions = 15;
+    string              risk_level              = 16;
+    bool                review_required         = 17;
+    string              approved_by             = 18;
+    string              promotion_reason        = 19;
+    string              actor                   = 20; // who attempted the promotion
+}
+
+// RevocationRule expresses when/how a principle should be revoked or narrowed.
+message RevocationRule {
+    string              id           = 1;
+    string              project      = 2;
+    string              domain       = 3;
+    string              principle_id = 4;
+    string              condition    = 5; // when to revoke/narrow
+    string              action       = 6; // REVOKED|SUPERSEDED|NARROWED
+    string              note         = 7;
+    int64               created_at   = 8;
+    map<string, string> metadata     = 9;
+    // PR-3 first-class revocation detail (never in metadata):
+    string              revocation_reason = 10;
+    string              actor             = 11;
+    string              superseded_by     = 12; // required when action = SUPERSEDED
+    string              narrowed_scope    = 13; // required when action = NARROWED
+}
+
+// GovernedContext is the operator-brain retrieval bundle.
+message GovernedContext {
+    repeated string        relevant_memory_ids   = 1;
+    repeated Signal        signals               = 2;
+    repeated Claim         claims                = 3;
+    repeated Principle     applicable_principles = 4;
+    repeated Condition     matched_conditions    = 5;
+    repeated RequiredEvidence required_evidence  = 6;
+    repeated ForbiddenMove forbidden_moves       = 7;
+    repeated Authority     unresolved_authority  = 8;
+    repeated Contradiction known_contradictions  = 9;
+    repeated Outcome       prior_outcomes        = 10;
+    string                 recommended_behavior  = 11;
+    string                 confidence            = 12; // certainty classification
+}
+
+// ActionCheck is the result of evaluating a proposed action against governed memory.
+message ActionCheck {
+    string          id                   = 1;
+    string          project              = 2;
+    string          domain               = 3;
+    string          action_type          = 4;
+    string          target               = 5;
+    repeated string conditions           = 6;
+    bool            allowed              = 7;
+    string          status               = 8; // allowed|blocked|needs_evidence|needs_authority|needs_human_approval
+    repeated string violated_principles  = 9;  // subset of checked_against that this action violates
+    repeated string missing_evidence     = 10; // → bm:missingEvidence: required_evidence refs not yet satisfied
+    repeated string unresolved_authority = 11;
+    repeated string forbidden_matched    = 12; // → bm:blockedBy: forbidden_move refs the action matched
+    repeated string recommended_steps    = 13;
+    string          explanation          = 14;
+    string          agent_id             = 15;
+    int64           created_at           = 16;
+    // RDF-readiness relation: → bm:checkedAgainst: every principle considered
+    // (superset of violated_principles), so the semantic graph records what was
+    // evaluated, not only what failed.
+    repeated string checked_against_principles = 17;
+    map<string, string> metadata               = 18; // extension hatch only
+}
+
+// ── Request / response messages ──────────────────────────────────────────────
+
+message RecordSignalRequest  { Signal signal = 1; }
+message RecordSignalResponse { string signal_id = 1; GovernanceStatus status = 2; }
+
+message ExtractClaimRequest {
+    string         signal_id = 1;
+    string         project   = 2;
+    string         domain    = 3;
+    repeated Claim claims    = 4; // proposed structured claims derived from the signal
+}
+message ExtractClaimResponse { repeated string claim_ids = 1; }
+
+message RecordEvidenceRequest  { Evidence evidence = 1; }
+message RecordEvidenceResponse { string evidence_id = 1; }
+
+message MapAuthorityRequest {
+    string          target_kind   = 1; // claim|principle
+    string          target_id     = 2;
+    string          project       = 3;
+    string          domain        = 4;
+    repeated string authority_ids = 5;
+}
+message MapAuthorityResponse { GovernanceStatus status = 1; }
+
+message RecordContradictionRequest  { Contradiction contradiction = 1; }
+message RecordContradictionResponse { string contradiction_id = 1; }
+
+message ProposePrincipleRequest  { Principle principle = 1; }
+message ProposePrincipleResponse { string principle_id = 1; GovernanceStatus status = 2; }
+
+message PromotePrincipleRequest {
+    string principle_id    = 1;
+    string project         = 2;
+    string domain          = 3;
+    string approver        = 4; // deprecated alias of approved_by
+    // Explicit human approval (first-class, never in metadata). Required for
+    // high/irreversible principles to promote instead of REVIEW_REQUIRED.
+    string approved_by     = 5;
+    string approval_reason = 6;
+    string actor           = 7; // who attempted the promotion (recorded on the decision)
+}
+message PromotePrincipleResponse {
+    PromotionDecision       decision = 1;
+    GovernanceStatus        status   = 2;
+    PromotionDecisionRecord record   = 3;
+}
+
+message RevokePrincipleRequest {
+    string principle_id   = 1;
+    string project        = 2;
+    string domain         = 3;
+    string action         = 4; // REVOKED|SUPERSEDED|NARROWED
+    string superseded_by  = 5; // required when action = SUPERSEDED
+    string reason         = 6; // revocation reason
+    string narrowed_scope = 7; // required when action = NARROWED
+    string actor          = 8;
+}
+message RevokePrincipleResponse { GovernanceStatus status = 1; }
+
+message ExplainPrincipleRequest {
+    string principle_id = 1;
+    string project      = 2;
+    string domain       = 3;
+}
+message ExplainPrincipleResponse {
+    Principle                        principle         = 1;
+    repeated Evidence                evidence          = 2;
+    repeated Authority               authorities       = 3;
+    repeated Condition               conditions        = 4;
+    repeated Contradiction           contradictions    = 5;
+    repeated PromotionDecisionRecord promotion_history = 6;
+    string                           explanation       = 7;
+    repeated RevocationRule          revocation_rules  = 8;
+}
+
+message ResolveGovernedContextRequest {
+    string          project    = 1;
+    string          domain     = 2;
+    string          goal       = 3;
+    repeated string conditions = 4;
+    string          entity_ref = 5;
+    string          scope      = 6; // generic scope id (e.g. cluster id)
+    int32           limit      = 7;
+}
+message ResolveGovernedContextResponse { GovernedContext context = 1; }
+
+message CheckActionRequest {
+    string          project               = 1;
+    string          domain                = 2;
+    string          action_type           = 3;
+    string          target                = 4; // target_ref of the proposed action
+    repeated string current_conditions    = 5;
+    string          scope                 = 6;
+    string          agent_id              = 7;
+    // Evidence the agent declares it already has (required-evidence refs or
+    // evidence ids). CheckAction evaluates these + already-recorded evidence —
+    // it never runs a probe.
+    repeated string provided_evidence_refs = 8;
+    string          human_approval         = 9; // approver, satisfies needs_human_approval
+}
+message CheckActionResponse { ActionCheck result = 1; }
+
+message RecordOutcomeRequest  { Outcome outcome = 1; }
+message RecordOutcomeResponse { string outcome_id = 1; }

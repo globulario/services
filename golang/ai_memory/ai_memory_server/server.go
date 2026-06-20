@@ -23,6 +23,9 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/ai_memory/ai_memorypb"
+	"github.com/globulario/services/golang/ai_memory/behavioral/domain"
+	"github.com/globulario/services/golang/ai_memory/behavioral/store"
+	cluster_operator "github.com/globulario/services/golang/ai_memory/domains/cluster_operator"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -224,6 +227,13 @@ func (srv *server) connectScylla() error {
 
 	if err := srv.runSchemaWithCoordination(ctx); err != nil {
 		return fmt.Errorf("scylla schema: %w", err)
+	}
+
+	// Behavioral-memory keyspace migrates under its OWN etcd lock, independent of
+	// the ai_memory keyspace above (PR-2 ingestion tables). Failure here must not
+	// be silently ignored — the behavioral surface depends on these tables.
+	if err := srv.runBehavioralSchemaWithCoordination(ctx); err != nil {
+		return fmt.Errorf("behavioral scylla schema: %w", err)
 	}
 
 	// Connect with keyspace set for normal operation.
@@ -1003,7 +1013,42 @@ func initializeServerDefaults() *server {
 
 func setupGrpcService(s *server) {
 	ai_memorypb.RegisterAiMemoryServiceServer(s.grpcServer, s)
+	// Behavioral-memory: a second, protocol-shaped gRPC service hosted in the
+	// same binary. PR-2 wires the Scylla-backed store (shared session) for the
+	// ingestion-half RPCs; the rest stay dark. Does not touch AiMemoryService.
+	var behavioralBackend store.Store = store.Unconfigured{}
+	if s.session != nil {
+		behavioralBackend = store.NewScyllaStore(s.session)
+	}
+	registerBehavioralService(s.grpcServer, behavioralBackend)
+	// Load the cluster_operator domain pack's catalogs + proposed principles into
+	// the store (idempotent, non-destructive, NEVER auto-promotes). Best-effort:
+	// the seed is supplementary, so a failure logs and the service continues.
+	loadBehavioralSeed(behavioralBackend)
 	reflection.Register(s.grpcServer)
+}
+
+// loadBehavioralSeed loads the cluster_operator domain pack into the behavioral
+// store under the canonical seed project. Guarded — never fatal.
+func loadBehavioralSeed(st store.Store) {
+	if _, ok := st.(store.Unconfigured); ok {
+		return // no persistence backend wired
+	}
+	pack, err := cluster_operator.New()
+	if err != nil {
+		logger.Error("behavioral seed: cluster_operator pack invalid", "err", err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	res, err := domain.LoadCatalogs(ctx, st, behavioralSeedProject, pack)
+	if err != nil {
+		logger.Warn("behavioral seed: cluster_operator load failed (non-fatal)", "err", err)
+		return
+	}
+	logger.Info("behavioral seed: cluster_operator loaded",
+		"authorities", res.Authorities, "conditions", res.Conditions,
+		"principles_seeded", res.PrinciplesSeeded, "principles_skipped", res.PrinciplesSkipped)
 }
 
 func main() {

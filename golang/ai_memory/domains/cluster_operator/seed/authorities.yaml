@@ -1,0 +1,32 @@
+# cluster_operator authority catalog — who owns which runtime truth.
+# Generic shape: id + title + opaque fields. No behavioral-kernel types here.
+- id: authority.cluster.etcd.member_health
+  title: etcd member-health / quorum authority
+  owner_kind: datastore
+  governs: distributed coordination quorum, member health, alarm state
+  read_path: etcd member list + endpoint health + alarm list
+- id: authority.cluster.scylla.schema_agreement
+  title: ScyllaDB schema-agreement authority
+  owner_kind: datastore
+  governs: distributed schema version agreement across the ring
+  read_path: system.local / system.peers schema_version
+- id: authority.cluster.minio.pool_health
+  title: MinIO pool/topology authority
+  owner_kind: datastore
+  governs: erasure-set pool health, drive topology, format identity
+  read_path: mc admin info / heal status
+- id: authority.cluster.envoy.route_config
+  title: Envoy route-config authority
+  owner_kind: proxy
+  governs: xDS route/listener/cluster configuration
+  read_path: xDS config dump
+- id: authority.cluster.owner_service.runtime_state
+  title: Owner-service runtime-state authority
+  owner_kind: service_rpc
+  governs: runtime state owned by the service that owns the desired/observed contract
+  read_path: owner service typed status RPC
+- id: authority.cluster.human.irreversible_ops
+  title: Human authority for irreversible operations
+  owner_kind: human
+  governs: product intent and risky/irreversible operations
+  read_path: explicit operator approval

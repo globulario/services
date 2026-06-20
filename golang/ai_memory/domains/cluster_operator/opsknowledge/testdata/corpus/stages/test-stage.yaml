@@ -1,0 +1,14 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Test stage — fixture lifecycle phase"
+entries:
+  - id: ops.test-stage.overview
+    type: REFERENCE
+    title: "test stage overview"
+    tags: [day-1, test]
+    applies_when:
+      cluster_phases: [day-1]
+    content: "Fixture stage for compiler tests."
+    provenance:
+      source: seed

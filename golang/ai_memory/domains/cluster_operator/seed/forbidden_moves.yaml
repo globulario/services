@@ -1,0 +1,28 @@
+# cluster_operator forbidden-move catalog.
+# MANDATORY: every forbidden move carries a paired generative `recommended_behavior`
+# (and where useful a safe_next_step) — negative-only rules are not allowed.
+- id: forbidden.cluster.restart_before_quorum_check
+  title: Restart dependent services before checking quorum
+  reason: a blind restart under etcd pressure can lose quorum and cascade failures
+  recommended_behavior: Establish member health, alarm state, and compaction/defrag safety, then restart only if quorum is preserved.
+  safe_next_step: gather evidence.cluster.etcd.member_health and evidence.cluster.etcd.alarm_status first
+- id: forbidden.cluster.claim_recovery_without_authoritative_evidence
+  title: Claim recovery after a command succeeds
+  reason: a command result is action evidence, not recovery; the owner authority defines recovery
+  recommended_behavior: Claim recovery only after the owner authority's desired vs observed state compares clean.
+  safe_next_step: gather evidence.cluster.owner_service.desired_state and evidence.cluster.owner_service.observed_state
+- id: forbidden.cluster.direct_runtime_mutation_without_owner_authority
+  title: Mutate runtime state without the owning service's authority
+  reason: bypassing the owner's typed API corrupts the authority boundary
+  recommended_behavior: Route every runtime mutation through the owner service's typed API.
+  safe_next_step: resolve authority.cluster.owner_service.runtime_state before acting
+- id: forbidden.cluster.minio_topology_change_without_pool_authority
+  title: Change MinIO topology without pool/format authority
+  reason: drive-count/topology changes can trigger silent reformat and data loss
+  recommended_behavior: Reason from pool health, format/topology authority, and convergence evidence before any topology change; mirror first.
+  safe_next_step: gather evidence.cluster.minio.pool_health before topology mutation
+- id: forbidden.cluster.controller_executes_local_mutation
+  title: Controller performs local node mutation
+  reason: collapsing decide/execute authority puts execution into a decision service
+  recommended_behavior: Keep decide/coordinate/execute separate — controller decides, workflow coordinates, node-agent executes.
+  safe_next_step: dispatch a workflow rather than executing locally from the controller

@@ -1,0 +1,25 @@
+# cluster_operator condition catalog — runtime conditions that scope rules.
+- id: condition.cluster.etcd.nospace_alarm
+  title: etcd NOSPACE alarm raised
+  severity: high
+  detect_spec: etcd alarm list contains NOSPACE
+- id: condition.cluster.scylla.schema_disagreement
+  title: ScyllaDB schema disagreement across the ring
+  severity: high
+  detect_spec: distinct schema_version values across system.peers
+- id: condition.cluster.minio.pool_degraded
+  title: MinIO pool degraded / drives offline
+  severity: high
+  detect_spec: mc admin info reports offline drives or degraded sets
+- id: condition.cluster.envoy.route_missing
+  title: Envoy route config missing for an expected service
+  severity: warning
+  detect_spec: xDS config dump lacks an expected route/cluster
+- id: condition.cluster.service.desired_observed_mismatch
+  title: Desired vs observed service state mismatch
+  severity: warning
+  detect_spec: owner-service desired state differs from observed runtime state
+- id: condition.cluster.node_removal_requested
+  title: Node removal requested
+  severity: warning
+  detect_spec: an operator/workflow requested removal of a node

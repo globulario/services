@@ -1,0 +1,88 @@
+# cluster_operator seed principles — authored as PROPOSED, never auto-promoted.
+# Each is generative (recommended_action) and pairs forbidden moves with the safe
+# behavior to prefer. source_refs / generated_from trace lineage for PR-5A.
+- id: principle.cluster.no_recovery_claim_without_authoritative_evidence
+  title: No recovery claim without authoritative evidence
+  applies_when:
+    - condition.cluster.service.desired_observed_mismatch
+  authorities:
+    - authority.cluster.owner_service.runtime_state
+  required_evidence:
+    - evidence.cluster.owner_service.desired_state
+    - evidence.cluster.owner_service.observed_state
+  forbidden_moves:
+    - forbidden.cluster.claim_recovery_without_authoritative_evidence
+  recommended_action: >-
+    Before claiming recovery, compare desired state and observed runtime state through
+    the owner authority and summarize the remaining mismatch if any.
+  risk_level: high
+  revocation_rule: narrow if the owner-service desired/observed contract changes
+  promotion_reason: repeated false-recovery incidents where a command success was mistaken for recovery
+  source_refs:
+    - seed:operational-knowledge/incidents
+  generated_from:
+    - opsknowledge:service-roles
+    - opsknowledge:incidents
+- id: principle.cluster.preserve_quorum_before_restart_under_etcd_pressure
+  title: Preserve quorum before restart under etcd pressure
+  applies_when:
+    - condition.cluster.etcd.nospace_alarm
+  authorities:
+    - authority.cluster.etcd.member_health
+  required_evidence:
+    - evidence.cluster.etcd.alarm_status
+    - evidence.cluster.etcd.member_health
+    - evidence.cluster.etcd.compaction_state
+  forbidden_moves:
+    - forbidden.cluster.restart_before_quorum_check
+  recommended_action: >-
+    When etcd reports pressure, first establish member health, alarm state, and
+    compaction/defrag safety before restarting dependent services.
+  risk_level: irreversible
+  revocation_rule: narrow if a newer etcd version changes NOSPACE/alarm semantics
+  promotion_reason: blind restarts under etcd pressure have cascaded into quorum loss
+  source_refs:
+    - seed:operational-knowledge/runbooks
+  generated_from:
+    - opsknowledge:runbooks
+- id: principle.cluster.preserve_owner_executor_boundary
+  title: Preserve owner/executor boundary
+  applies_when:
+    - condition.cluster.service.desired_observed_mismatch
+  authorities:
+    - authority.cluster.owner_service.runtime_state
+  required_evidence: []
+  forbidden_moves:
+    - forbidden.cluster.controller_executes_local_mutation
+    - forbidden.cluster.direct_runtime_mutation_without_owner_authority
+  recommended_action: >-
+    Keep decision authority and execution authority separate: controllers decide desired
+    state, workflow coordinates, node-local executors mutate local runtime.
+  risk_level: high
+  revocation_rule: narrow if the decide/coordinate/execute topology changes
+  promotion_reason: repair attempts that moved execution into controllers damaged the architecture
+  source_refs:
+    - seed:operational-knowledge/service-roles
+  generated_from:
+    - opsknowledge:service-roles
+- id: principle.cluster.treat_minio_topology_as_stateful_authority
+  title: Treat MinIO topology as stateful authority
+  applies_when:
+    - condition.cluster.minio.pool_degraded
+  authorities:
+    - authority.cluster.minio.pool_health
+  required_evidence:
+    - evidence.cluster.minio.pool_health
+  forbidden_moves:
+    - forbidden.cluster.minio_topology_change_without_pool_authority
+  recommended_action: >-
+    For objectstore topology changes, reason from pool health, format/topology authority,
+    and convergence evidence before restart or topology mutation.
+  risk_level: irreversible
+  revocation_rule: narrow if MinIO erasure/format model changes
+  promotion_reason: drive-count changes without pool authority triggered silent reformat
+  source_refs:
+    - seed:operational-knowledge/runbooks
+  generated_from:
+    - opsknowledge:runbooks
+    - opsknowledge:incidents

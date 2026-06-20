@@ -1,0 +1,40 @@
+# cluster_operator required-evidence catalog.
+# Each entry maps to a runtime probe (probe_ref). PR-5 records the spec only —
+# probe EXECUTION stays explicit and outside the runtime hot path (see
+# evidence_probes.go). The gate evaluates already-recorded / declared evidence.
+- id: evidence.cluster.etcd.alarm_status
+  title: etcd alarm status
+  lane: runtime_required
+  probe_ref: etcd.alarm_status
+- id: evidence.cluster.etcd.member_health
+  title: etcd member health
+  lane: runtime_required
+  probe_ref: etcd.member_health
+- id: evidence.cluster.etcd.compaction_state
+  title: etcd compaction / defrag safety state
+  lane: runtime_required
+  probe_ref: etcd.compaction_state
+- id: evidence.cluster.scylla.schema_agreement
+  title: ScyllaDB schema agreement
+  lane: runtime_required
+  probe_ref: scylla.schema_agreement
+- id: evidence.cluster.minio.pool_health
+  title: MinIO pool health
+  lane: runtime_required
+  probe_ref: minio.pool_health
+- id: evidence.cluster.envoy.route_config
+  title: Envoy route config presence
+  lane: runtime_required
+  probe_ref: envoy.route_config
+- id: evidence.cluster.owner_service.desired_state
+  title: Owner-service desired state
+  lane: runtime_required
+  probe_ref: owner_service.desired_state
+- id: evidence.cluster.owner_service.observed_state
+  title: Owner-service observed runtime state
+  lane: runtime_required
+  probe_ref: owner_service.observed_state
+- id: evidence.cluster.human.irreversible_approval
+  title: Human approval for an irreversible operation
+  lane: static_only
+  probe_ref: human.irreversible_approval

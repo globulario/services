@@ -75,6 +75,7 @@ type ToolGroupConfig struct {
 	CLI         bool `json:"cli"`         // default true
 	Governor    bool `json:"governor"`    // default true
 	Memory      bool `json:"memory"`      // default true (AI memory service)
+	Behavioral  bool `json:"behavioral"`  // default true (behavioral-memory governed runtime)
 	Skills      bool `json:"skills"`      // default true (operational skill playbooks)
 	Workflow    bool `json:"workflow"`    // default true (reconciliation workflow tracing)
 	Etcd        bool `json:"etcd"`        // default true (direct etcd access)
@@ -138,6 +139,7 @@ func defaultConfig() *MCPConfig {
 			CLI:         true,
 			Governor:    true,
 			Memory:      true,
+			Behavioral:  true,
 			Skills:      true,
 			Workflow:    true,
 			File:        true,
@@ -246,6 +248,7 @@ func applyToolGroupDefaults(rawJSON []byte, cfg *MCPConfig) {
 		"cli":        &cfg.ToolGroups.CLI,
 		"governor":   &cfg.ToolGroups.Governor,
 		"memory":     &cfg.ToolGroups.Memory,
+		"behavioral": &cfg.ToolGroups.Behavioral,
 		"skills":     &cfg.ToolGroups.Skills,
 		"workflow":   &cfg.ToolGroups.Workflow,
 		"etcd":       &cfg.ToolGroups.Etcd,
