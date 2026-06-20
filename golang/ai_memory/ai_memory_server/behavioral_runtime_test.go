@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/ai_memory/behavioral/api"
@@ -233,6 +234,64 @@ func TestCheckActionAllowed(t *testing.T) {
 	})
 	if ac.GetStatus() != "allowed" || !ac.GetAllowed() {
 		t.Errorf("status=%q allowed=%v, want allowed", ac.GetStatus(), ac.GetAllowed())
+	}
+}
+
+// §4 CheckAction keeps evidence provenance trust DISTINCT
+// (intent:evidence.provenance_trust_levels): a verdict satisfied only by caller
+// self-assertion is recorded as such and caveated; one backed by a recorded
+// authoritative evidence row is not flagged. CheckAction must never silently
+// equate the two.
+func TestCheckActionDistinguishesSelfAssertedEvidence(t *testing.T) {
+	ctx := context.Background()
+
+	// Case A — required evidence satisfied ONLY by a self-asserted ref.
+	stA, hA := newGovHandler()
+	_ = stA.PutCondition(ctx, &api.Condition{ID: condNospace, Project: testProject, Domain: testDomain})
+	_ = stA.PutAuthority(ctx, &api.Authority{ID: "auth.etcd", Project: testProject, Domain: testDomain})
+	seedPromotedPrinciple(t, stA, &api.Principle{
+		ID: "p-selfassert", Authorities: []api.AuthorityRef{"auth.etcd"},
+		RequiredEvidence: []api.RequiredEvidenceRef{"req.alarm"}, RiskLevel: "low",
+	})
+	acA := checkAction(t, hA, &bpb.CheckActionRequest{
+		ActionType: "do-thing", CurrentConditions: []string{condNospace}, ProvidedEvidenceRefs: []string{"req.alarm"},
+	})
+	if acA.GetStatus() != "allowed" {
+		t.Fatalf("self-asserted case: status=%q, want allowed", acA.GetStatus())
+	}
+	if acA.GetMetadata()["self_asserted_evidence"] != "req.alarm" {
+		t.Errorf("self-asserted evidence not preserved on audit row: metadata=%v", acA.GetMetadata())
+	}
+	caveat := false
+	for _, s := range acA.GetRecommendedSteps() {
+		if strings.Contains(s, "SELF-ASSERTED") {
+			caveat = true
+		}
+	}
+	if !caveat {
+		t.Error("expected a self-asserted caveat in recommended_steps")
+	}
+
+	// Case B — same requirement satisfied by a RECORDED authoritative evidence row.
+	stB, hB := newGovHandler()
+	_ = stB.PutCondition(ctx, &api.Condition{ID: condNospace, Project: testProject, Domain: testDomain})
+	_ = stB.PutAuthority(ctx, &api.Authority{ID: "auth.etcd", Project: testProject, Domain: testDomain})
+	seedPromotedPrinciple(t, stB, &api.Principle{
+		ID: "p-recorded", Authorities: []api.AuthorityRef{"auth.etcd"},
+		RequiredEvidence: []api.RequiredEvidenceRef{"req.alarm"}, RiskLevel: "low",
+	})
+	if err := stB.PutEvidence(ctx, &api.Evidence{
+		ID: "ev-1", Project: testProject, Domain: testDomain, TargetKind: "principle", TargetID: "p-recorded",
+		Satisfies: []api.RequiredEvidenceRef{"req.alarm"},
+	}); err != nil {
+		t.Fatalf("PutEvidence: %v", err)
+	}
+	acB := checkAction(t, hB, &bpb.CheckActionRequest{ActionType: "do-thing", CurrentConditions: []string{condNospace}})
+	if acB.GetStatus() != "allowed" {
+		t.Fatalf("recorded case: status=%q, want allowed", acB.GetStatus())
+	}
+	if _, flagged := acB.GetMetadata()["self_asserted_evidence"]; flagged {
+		t.Errorf("recorded authoritative evidence must NOT be flagged self-asserted: metadata=%v", acB.GetMetadata())
 	}
 }
 

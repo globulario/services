@@ -199,12 +199,15 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 		}
 	}
 
-	// 3. Required evidence satisfaction: declared refs + already-recorded evidence
-	//    whose Satisfies covers the required ref. CheckAction never runs a probe.
-	provided := map[string]bool{}
-	for _, r := range req.ProvidedEvidenceRefs {
-		provided[r] = true
-	}
+	// 3. Required evidence satisfaction — two provenance lanes kept DISTINCT
+	//    (evidence.provenance_trust_levels). Authoritative evidence is a recorded
+	//    Evidence row whose Satisfies covers the ref. Self-asserted evidence is a
+	//    bare ref the caller passed in ProvidedEvidenceRefs with no backing row.
+	//    CheckAction never runs a probe, so it cannot upgrade a self-assertion to
+	//    authoritative — and it must not silently treat the two as equal, which
+	//    would let an "allowed" verdict rest on an unverified claim with the trust
+	//    provenance erased from the audit trail.
+	recorded := map[string]bool{} // satisfied by an authoritative recorded evidence row
 	for _, p := range principles {
 		evs, err := s.store.ListEvidenceForTarget(ctx, proj, dom, p.ID)
 		if err != nil {
@@ -212,16 +215,38 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 		}
 		for _, e := range evs {
 			for _, sref := range e.Satisfies {
-				provided[string(sref)] = true
+				recorded[string(sref)] = true
 			}
 		}
 	}
+	asserted := map[string]bool{} // satisfied only by caller self-assertion
+	for _, r := range req.ProvidedEvidenceRefs {
+		if !recorded[r] {
+			asserted[r] = true
+		}
+	}
+	var selfAsserted []string
 	for _, p := range principles {
 		for _, r := range p.RequiredEvidence {
-			if !provided[string(r)] {
+			switch {
+			case recorded[string(r)]:
+				// authoritative — satisfied
+			case asserted[string(r)]:
+				selfAsserted = appendUnique(selfAsserted, string(r))
+			default:
 				ac.MissingEvidence = appendUniqueRef(ac.MissingEvidence, r)
 			}
 		}
+	}
+	// Preserve the trust provenance on the audit row: a verdict resting on
+	// self-asserted evidence is weaker than one backed by a recorded row, and the
+	// distinction must survive into the audit trail rather than be collapsed.
+	if len(selfAsserted) > 0 {
+		sort.Strings(selfAsserted)
+		if ac.Metadata == nil {
+			ac.Metadata = map[string]string{}
+		}
+		ac.Metadata["self_asserted_evidence"] = strings.Join(selfAsserted, ",")
 	}
 
 	// 4. Authority resolvability.
@@ -265,6 +290,11 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 		ac.RecommendedSteps = []string{"obtain explicit human approval before proceeding (high/irreversible risk)"}
 	default:
 		ac.Status, ac.Allowed = "allowed", true
+		if len(selfAsserted) > 0 {
+			ac.RecommendedSteps = append(ac.RecommendedSteps,
+				"allowed on SELF-ASSERTED evidence ("+strings.Join(selfAsserted, ", ")+
+					"): not backed by a recorded authoritative evidence row — verify before relying on this verdict for an irreversible action")
+		}
 	}
 	ac.Explanation = fmt.Sprintf("checked %q against %d promoted principle(s): %s",
 		req.ActionType, len(principles), ac.Status)
