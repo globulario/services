@@ -6064,8 +6064,9 @@ failure_modes:
         - A "successful" join leaves an isolated etcd member or a split-brain cluster
       architecture_fix: |
         The infra truth plane attests the rendered etcd.yaml against desired state
-        BEFORE trusting "active": loopback/unspecified cluster URLs are CRITICAL
-        (etcd.loopback_forbidden), membership/token/peer-TLS mismatches are ERROR
+        BEFORE trusting "active": loopback/unspecified ADVERTISE URLs are CRITICAL
+        (etcd.loopback_forbidden — listen/bind URLs may be 0.0.0.0, only loopback
+        is forbidden there), membership/token/peer-TLS mismatches are ERROR
         (etcd.config_valid), and the lifecycle FSM marks the member STALLED (not
         healthy) when the daemon is active on a critically-invalid config or on a
         CORRUPT alarm. daemon_active, healthy, and config_valid stay separate signals

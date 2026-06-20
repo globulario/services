@@ -1268,6 +1268,12 @@ test_symbols:
     symbol: TestAttestEtcdConfig_EmptyName
     package: infra_truth
     language: go
+  - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_LoopbackListenClientURL
+    file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
+    symbol: TestAttestEtcdConfig_LoopbackListenClientURL
+    package: infra_truth
+    language: go
+    doc: "TestAttestEtcdConfig_LoopbackListenClientURL keeps the genuine failure guarded:\nbinding listen-client-urls to loopback alone isolates the member, so it must\nstill be CRITICAL even though unspecified is now allowed on listen fields."
   - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_LoopbackPeerURL
     file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
     symbol: TestAttestEtcdConfig_LoopbackPeerURL
@@ -1313,6 +1319,12 @@ test_symbols:
     symbol: TestAttestEtcdConfig_UnspecifiedAdvertiseClientURL
     package: infra_truth
     language: go
+  - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_UnspecifiedListenURLs_OK
+    file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
+    symbol: TestAttestEtcdConfig_UnspecifiedListenURLs_OK
+    package: infra_truth
+    language: go
+    doc: "TestAttestEtcdConfig_UnspecifiedListenURLs_OK pins the Day-1 join contract:\nlisten-peer-urls / listen-client-urls are bind addresses, and 0.0.0.0 (bind\nevery interface) is the correct, renderer-produced value — it must NOT raise\netcd.loopback_forbidden. A false CRITICAL here stalls a healthy joining etcd\nmember and blocks the node's service-layer convergence (globule-nuc, 2026-06-20:\nnode had a 2-member raft with a leader yet never installed any SERVICE package)."
   - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_Valid
     file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
     symbol: TestAttestEtcdConfig_Valid

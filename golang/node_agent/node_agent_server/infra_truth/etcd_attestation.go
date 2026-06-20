@@ -29,14 +29,18 @@ func AttestEtcdConfig(desired *InfraDesiredState, rendered *EtcdRenderedConfig) 
 		}
 	}
 
-	// Cluster-facing URLs must not advertise loopback/unspecified — peers and
-	// joining nodes could never reach this member. listen-client-urls is the one
-	// clients dial; it too must be routable in Globular (the renderer uses the
-	// node IP, never loopback or 0.0.0.0).
-	add(attestEtcdURLsNoLoopback("listen-peer-urls", rendered.ListenPeerURLs, true))
+	// The *advertise* URLs are what peers and clients dial — they must be a
+	// concrete routable address, never loopback (isolates the member) nor the
+	// unspecified address 0.0.0.0 (meaningless as something to dial). The
+	// *listen* URLs are bind addresses: 0.0.0.0 is correct and standard (bind
+	// every interface) — only loopback is forbidden there, since a member that
+	// binds peer/client traffic to 127.0.0.1 alone can never be reached. The
+	// renderer reflects exactly this split (advertise=node IP, listen=0.0.0.0),
+	// so forbidUnspecified is true only for the advertise fields.
+	add(attestEtcdURLsNoLoopback("listen-peer-urls", rendered.ListenPeerURLs, false))
 	add(attestEtcdURLsNoLoopback("initial-advertise-peer-urls", rendered.InitialAdvertisePeerURLs, true))
 	add(attestEtcdURLsNoLoopback("advertise-client-urls", rendered.AdvertiseClientURLs, true))
-	add(attestEtcdURLsNoLoopback("listen-client-urls", rendered.ListenClientURLs, true))
+	add(attestEtcdURLsNoLoopback("listen-client-urls", rendered.ListenClientURLs, false))
 
 	add(attestEtcdName(rendered))
 	add(attestEtcdInitialClusterToken(desired, rendered))

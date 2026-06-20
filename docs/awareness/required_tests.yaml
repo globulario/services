@@ -5171,8 +5171,22 @@ required_tests:
   protects:
     invariants:
     - envoy.active_but_mesh_dead
+- id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_LoopbackListenClientURL
+  title: Attest Etcd Config Loopback Listen Client URL
+  protects:
+    invariants:
+    - etcd.wrong_config_appears_healthy
+    failure_modes:
+    - etcd.loopback_forbidden
 - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_LoopbackPeerURL
   title: Attest Etcd Config Loopback Peer URL
+  protects:
+    invariants:
+    - etcd.wrong_config_appears_healthy
+    failure_modes:
+    - etcd.loopback_forbidden
+- id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_UnspecifiedListenURLs_OK
+  title: Attest Etcd Config Unspecified Listen URLs OK
   protects:
     invariants:
     - etcd.wrong_config_appears_healthy

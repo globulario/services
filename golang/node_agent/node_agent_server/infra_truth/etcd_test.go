@@ -135,6 +135,34 @@ func TestAttestEtcdConfig_LoopbackPeerURL(t *testing.T) {
 	}
 }
 
+// TestAttestEtcdConfig_UnspecifiedListenURLs_OK pins the Day-1 join contract:
+// listen-peer-urls / listen-client-urls are bind addresses, and 0.0.0.0 (bind
+// every interface) is the correct, renderer-produced value — it must NOT raise
+// etcd.loopback_forbidden. A false CRITICAL here stalls a healthy joining etcd
+// member and blocks the node's service-layer convergence (globule-nuc, 2026-06-20:
+// node had a 2-member raft with a leader yet never installed any SERVICE package).
+func TestAttestEtcdConfig_UnspecifiedListenURLs_OK(t *testing.T) {
+	r := validEtcdRendered()
+	r.ListenPeerURLs = []string{"https://0.0.0.0:2380"}
+	r.ListenClientURLs = []string{"https://0.0.0.0:2379"}
+	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	if containsViolation(v, "etcd.loopback_forbidden", SeverityCritical) {
+		t.Fatalf("listen-*-urls=0.0.0.0 is a valid bind address and must not be flagged loopback_forbidden, got %+v", v)
+	}
+}
+
+// TestAttestEtcdConfig_LoopbackListenClientURL keeps the genuine failure guarded:
+// binding listen-client-urls to loopback alone isolates the member, so it must
+// still be CRITICAL even though unspecified is now allowed on listen fields.
+func TestAttestEtcdConfig_LoopbackListenClientURL(t *testing.T) {
+	r := validEtcdRendered()
+	r.ListenClientURLs = []string{"https://127.0.0.1:2379"}
+	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	if !containsViolation(v, "etcd.loopback_forbidden", SeverityCritical) {
+		t.Fatalf("expected CRITICAL etcd.loopback_forbidden for loopback listen-client-urls, got %+v", v)
+	}
+}
+
 func TestAttestEtcdConfig_UnspecifiedAdvertiseClientURL(t *testing.T) {
 	r := validEtcdRendered()
 	r.AdvertiseClientURLs = []string{"https://0.0.0.0:2379"}

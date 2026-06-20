@@ -10530,12 +10530,18 @@ invariants:
   title: etcd cluster-facing URLs must not advertise loopback/unspecified (CRITICAL) — a loopback peer/client URL isolates the member from the raft cluster
   summary: |
     Per-component instance of infra.loopback_address_forbidden_for_cluster_members
-    for etcd. A loopback or 0.0.0.0 listen-peer-urls / initial-advertise-peer-urls /
-    advertise-client-urls means peers and joining members can never reach this
-    member; it forms an isolated single-member cluster while appearing "active".
-    The Globular renderer uses the routable node IP, so a loopback URL signals a
-    broken render (e.g. the node had no routable IP at render time). Detected by
-    attestation and raised as a CRITICAL doctor finding.
+    for etcd. The rule distinguishes ADVERTISE URLs from LISTEN/bind URLs:
+    initial-advertise-peer-urls and advertise-client-urls are what peers and
+    clients dial, so they must be a concrete routable address — never loopback
+    (isolates the member) nor the unspecified address 0.0.0.0 (meaningless as
+    something to dial). listen-peer-urls and listen-client-urls are bind
+    addresses: 0.0.0.0 (bind every interface) is the correct, renderer-produced
+    value and is NOT a violation — only loopback is forbidden there, since a
+    member that binds peer/client traffic to 127.0.0.1 alone can never be reached.
+    A wrong advertise URL forms an isolated single-member cluster while appearing
+    "active". Flagging 0.0.0.0 on the listen fields is itself a bug: it stalls a
+    healthy joining member and blocks service-layer convergence (globule-nuc,
+    2026-06-20). Detected by attestation and raised as a CRITICAL doctor finding.
   severity: critical
   status: active
   protects:
@@ -10546,6 +10552,8 @@ invariants:
   - infra.loopback_address_forbidden_for_cluster_members
   required_tests:
   - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_LoopbackPeerURL
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_UnspecifiedListenURLs_OK
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_LoopbackListenClientURL
   - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraLoopbackForbidden
 - id: etcd.config_valid
   title: etcd rendered config must match desired state — member present in its own initial-cluster, non-self peers for joining nodes, matching cluster token, and peer TLS material
