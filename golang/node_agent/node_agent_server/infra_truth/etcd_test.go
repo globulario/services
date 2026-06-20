@@ -120,7 +120,7 @@ func TestParseEtcdYAML_Missing(t *testing.T) {
 // ── attestation ──────────────────────────────────────────────────────────────
 
 func TestAttestEtcdConfig_Valid(t *testing.T) {
-	v := AttestEtcdConfig(etcdJoiningDesired(), validEtcdRendered())
+	v := AttestEtcdConfig(etcdJoiningDesired(), validEtcdRendered(), nil)
 	if len(v) != 0 {
 		t.Fatalf("expected no violations, got %d: %+v", len(v), v)
 	}
@@ -129,7 +129,7 @@ func TestAttestEtcdConfig_Valid(t *testing.T) {
 func TestAttestEtcdConfig_LoopbackPeerURL(t *testing.T) {
 	r := validEtcdRendered()
 	r.ListenPeerURLs = []string{"https://127.0.0.1:2380"}
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if !containsViolation(v, "etcd.loopback_forbidden", SeverityCritical) {
 		t.Fatalf("expected CRITICAL etcd.loopback_forbidden, got %+v", v)
 	}
@@ -145,7 +145,7 @@ func TestAttestEtcdConfig_UnspecifiedListenURLs_OK(t *testing.T) {
 	r := validEtcdRendered()
 	r.ListenPeerURLs = []string{"https://0.0.0.0:2380"}
 	r.ListenClientURLs = []string{"https://0.0.0.0:2379"}
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if containsViolation(v, "etcd.loopback_forbidden", SeverityCritical) {
 		t.Fatalf("listen-*-urls=0.0.0.0 is a valid bind address and must not be flagged loopback_forbidden, got %+v", v)
 	}
@@ -157,7 +157,7 @@ func TestAttestEtcdConfig_UnspecifiedListenURLs_OK(t *testing.T) {
 func TestAttestEtcdConfig_LoopbackListenClientURL(t *testing.T) {
 	r := validEtcdRendered()
 	r.ListenClientURLs = []string{"https://127.0.0.1:2379"}
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if !containsViolation(v, "etcd.loopback_forbidden", SeverityCritical) {
 		t.Fatalf("expected CRITICAL etcd.loopback_forbidden for loopback listen-client-urls, got %+v", v)
 	}
@@ -166,7 +166,7 @@ func TestAttestEtcdConfig_LoopbackListenClientURL(t *testing.T) {
 func TestAttestEtcdConfig_UnspecifiedAdvertiseClientURL(t *testing.T) {
 	r := validEtcdRendered()
 	r.AdvertiseClientURLs = []string{"https://0.0.0.0:2379"}
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if !containsViolation(v, "etcd.loopback_forbidden", SeverityCritical) {
 		t.Fatalf("expected CRITICAL for unspecified advertise-client-urls, got %+v", v)
 	}
@@ -176,7 +176,7 @@ func TestAttestEtcdConfig_SelfNotInInitialCluster(t *testing.T) {
 	r := validEtcdRendered()
 	delete(r.InitialCluster, "globule-ryzen")
 	r.InitialClusterNames = []string{"globule-dell", "globule-nuc"}
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if !containsViolation(v, "etcd.config_valid", SeverityError) {
 		t.Fatalf("expected ERROR etcd.config_valid for self absent from initial-cluster, got %+v", v)
 	}
@@ -186,7 +186,7 @@ func TestAttestEtcdConfig_SelfOnlyInitialCluster_JoiningNode(t *testing.T) {
 	r := validEtcdRendered()
 	r.InitialCluster = map[string]string{"globule-ryzen": "https://10.0.0.63:2380"}
 	r.InitialClusterNames = []string{"globule-ryzen"}
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if !containsViolation(v, "etcd.config_valid", SeverityError) {
 		t.Fatalf("expected ERROR etcd.config_valid for self-only initial-cluster on a joining node, got %+v", v)
 	}
@@ -199,16 +199,83 @@ func TestAttestEtcdConfig_SelfOnlyInitialCluster_FirstNodeAllowed(t *testing.T) 
 	r := validEtcdRendered()
 	r.InitialCluster = map[string]string{"globule-ryzen": "https://10.0.0.63:2380"}
 	r.InitialClusterNames = []string{"globule-ryzen"}
-	v := AttestEtcdConfig(d, r)
+	v := AttestEtcdConfig(d, r, nil)
 	if containsViolation(v, "etcd.config_valid", SeverityError) {
 		t.Fatalf("self-only initial-cluster must be allowed for first-node, got %+v", v)
+	}
+}
+
+// TestAttestEtcdConfig_SelfOnlyInitialCluster_EstablishedMember_NoError covers the
+// sibling of the ScyllaDB false-positive fix: a member whose membership-derived
+// intent is "joining" and whose initial-cluster is self-only is NOT broken if
+// runtime proves it is already part of an established quorum (a leader exists,
+// member_count >= 2, and a non-self peer is observed). The "isolated single-member
+// cluster" prediction is counterfactual there, so it must be an INFO note, never an
+// ERROR that degrades a healthy member.
+func TestAttestEtcdConfig_SelfOnlyInitialCluster_EstablishedMember_NoError(t *testing.T) {
+	r := validEtcdRendered()
+	r.InitialCluster = map[string]string{"globule-ryzen": "https://10.0.0.63:2380"}
+	r.InitialClusterNames = []string{"globule-ryzen"}
+	rt := &EtcdRuntimeState{
+		DaemonActive:   true,
+		LocalReachable: true,
+		HasLeader:      true,
+		MemberCount:    2,
+		ObservedPeers:  []string{"10.0.0.63", "10.0.0.8"}, // self + a real peer
+	}
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, rt)
+	if containsViolation(v, "etcd.config_valid", SeverityError) {
+		t.Fatalf("self-only initial-cluster on an established quorum member must NOT be an ERROR, got %+v", v)
+	}
+	if !containsViolation(v, "etcd.config_valid", SeverityInfo) {
+		t.Fatalf("expected an INFO membership-hygiene note for self-only initial-cluster on an established member, got %+v", v)
+	}
+}
+
+// TestAttestEtcdConfig_SelfOnlyInitialCluster_ActuallyIsolated_StillError ensures
+// the fix does NOT mask a genuinely isolated member: member_count 1 (only self) is
+// the etcd.wrong_config_appears_healthy failure mode and must remain an ERROR.
+func TestAttestEtcdConfig_SelfOnlyInitialCluster_ActuallyIsolated_StillError(t *testing.T) {
+	r := validEtcdRendered()
+	r.InitialCluster = map[string]string{"globule-ryzen": "https://10.0.0.63:2380"}
+	r.InitialClusterNames = []string{"globule-ryzen"}
+	rt := &EtcdRuntimeState{
+		DaemonActive:   true,
+		LocalReachable: true,
+		HasLeader:      true,
+		MemberCount:    1, // a one-member cluster — genuinely isolated
+		ObservedPeers:  []string{"10.0.0.63"},
+	}
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, rt)
+	if !containsViolation(v, "etcd.config_valid", SeverityError) {
+		t.Fatalf("self-only initial-cluster + single-member quorum is genuinely isolated; expected ERROR, got %+v", v)
+	}
+}
+
+// TestAttestEtcdConfig_SelfOnlyInitialCluster_PreBootstrap_StillError ensures a
+// config that would isolate a fresh member is caught before runtime can refute it:
+// nil runtime or a leaderless member keeps the ERROR
+// (infra.config_must_be_attested_before_start).
+func TestAttestEtcdConfig_SelfOnlyInitialCluster_PreBootstrap_StillError(t *testing.T) {
+	r := validEtcdRendered()
+	r.InitialCluster = map[string]string{"globule-ryzen": "https://10.0.0.63:2380"}
+	r.InitialClusterNames = []string{"globule-ryzen"}
+
+	if v := AttestEtcdConfig(etcdJoiningDesired(), r, nil); !containsViolation(v, "etcd.config_valid", SeverityError) {
+		t.Fatalf("self-only initial-cluster with no runtime proof must be ERROR, got %+v", v)
+	}
+
+	// No leader yet (still forming) is not proof of an established quorum.
+	rt := &EtcdRuntimeState{DaemonActive: true, LocalReachable: true, HasLeader: false, MemberCount: 2, ObservedPeers: []string{"10.0.0.63", "10.0.0.8"}}
+	if v := AttestEtcdConfig(etcdJoiningDesired(), r, rt); !containsViolation(v, "etcd.config_valid", SeverityError) {
+		t.Fatalf("self-only initial-cluster with no leader must be ERROR, got %+v", v)
 	}
 }
 
 func TestAttestEtcdConfig_EmptyName(t *testing.T) {
 	r := validEtcdRendered()
 	r.Name = ""
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if !containsViolation(v, "etcd.config_valid", SeverityError) {
 		t.Fatalf("expected ERROR etcd.config_valid for empty name, got %+v", v)
 	}
@@ -217,7 +284,7 @@ func TestAttestEtcdConfig_EmptyName(t *testing.T) {
 func TestAttestEtcdConfig_TokenMismatch(t *testing.T) {
 	r := validEtcdRendered()
 	r.InitialClusterToken = "some-other-token"
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if !containsViolation(v, "etcd.config_valid", SeverityError) {
 		t.Fatalf("expected ERROR etcd.config_valid for token mismatch, got %+v", v)
 	}
@@ -226,14 +293,14 @@ func TestAttestEtcdConfig_TokenMismatch(t *testing.T) {
 func TestAttestEtcdConfig_MissingPeerTrustedCA(t *testing.T) {
 	r := validEtcdRendered()
 	r.PeerTrustedCA = ""
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if !containsViolation(v, "etcd.config_valid", SeverityError) {
 		t.Fatalf("expected ERROR etcd.config_valid for missing peer trusted-ca, got %+v", v)
 	}
 }
 
 func TestAttestEtcdConfig_NotPresentNoViolations(t *testing.T) {
-	v := AttestEtcdConfig(etcdJoiningDesired(), &EtcdRenderedConfig{Path: EtcdConfigPath, Present: false})
+	v := AttestEtcdConfig(etcdJoiningDesired(), &EtcdRenderedConfig{Path: EtcdConfigPath, Present: false}, nil)
 	if len(v) != 0 {
 		t.Fatalf("absent config must yield no config violations, got %+v", v)
 	}
@@ -242,7 +309,7 @@ func TestAttestEtcdConfig_NotPresentNoViolations(t *testing.T) {
 func TestAttestEtcdConfig_RemediationTargetsOwnerNotManualEdit(t *testing.T) {
 	r := validEtcdRendered()
 	r.ListenPeerURLs = []string{"https://127.0.0.1:2380"} // force a violation
-	v := AttestEtcdConfig(etcdJoiningDesired(), r)
+	v := AttestEtcdConfig(etcdJoiningDesired(), r, nil)
 	if len(v) == 0 {
 		t.Fatal("expected at least one violation to inspect remediation")
 	}

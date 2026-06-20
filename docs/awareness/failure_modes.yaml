@@ -6407,6 +6407,90 @@ failure_modes:
       required_tests:
         - golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_UsesRenderedBindAddress
         - golang/node_agent/node_agent_server/infra_truth/scylla_probe_endpoints_test.go::TestResolveEndpoints_HonorsExplicitInjection
+    - id: infra.self_only_seed_isolation_false_positive_on_established_member
+      title: Static self-only seed / initial-cluster attestation flags an already-converged founding member as a joining node that "will form an isolated ring" — a healthy node falsely degraded
+      severity: high
+      status: active
+      root_cause: |
+        bootstrap_intent is derived from cluster membership: any non-self peer or
+        seed in the desired state makes deriveBootstrapIntent return "joining"
+        (deriveBootstrapIntent in desired.go / etcd_desired.go). That classifier is
+        identity- and time-blind — it conflates "the cluster currently has more than
+        one member" with "THIS node is joining an existing ring". So once a second
+        node joins, the FOUNDING node's expected_peers grows to include it and the
+        founder is retroactively reclassified as "joining".
+
+        The seed / initial-cluster attestation then fires statically: a joining node
+        whose seeds (ScyllaDB) or initial-cluster (etcd) contain only self is
+        predicted to "bootstrap an isolated single-node/member ring" and raised as an
+        ERROR (scylla.config_valid / etcd.config_valid). But that is a PREDICTION
+        about a future bootstrap, evaluated with no reference to runtime. For an
+        established founder the bootstrap already happened and did NOT isolate it:
+        operation_mode is NORMAL with live non-self gossip peers (ScyllaDB), or a
+        leader exists with member_count >= 2 (etcd). The ERROR drags a genuinely
+        healthy member to lifecycle DEGRADED and can trigger needless remediation of
+        a working ring. The lifecycle FSM already reasons correctly from runtime
+        (lifecycle.go: isolation only when a joining node observes zero peers), so the
+        static attestation CONTRADICTED the FSM's own runtime view. This is the same
+        class as scylla.probe_dials_loopback_not_rendered_bind — a healthy node made
+        to look sick because a config-derived signal was not reconciled against the
+        address/state the daemon actually has.
+      trigger: |
+        A founding node (seeds/initial-cluster = self) remains in a cluster that a
+        second node has joined, so its membership-derived bootstrap_intent flips to
+        "joining" while its rendered seed/initial-cluster list is still self-only —
+        and the node is already a NORMAL/leader-backed ring member.
+      symptoms:
+        - infra_probe_component reports config_valid=false / lifecycle=degraded for a node whose runtime shows operation_mode=NORMAL, gossip_live>=2, peers_match=true (ScyllaDB) or has_leader=true, member_count>=2 (etcd)
+        - the violation evidence reads "seeds=<self> bootstrap_intent=joining-node" / "initial-cluster=<self> bootstrap_intent=joining-node" on the founding node
+        - doctor raises ERROR scylla.config_valid / etcd.config_valid against a healthy ring member
+        - the violation's predicted harm ("will bootstrap an isolated single-node ring") is directly contradicted by the same probe's observed_peers
+      blast_radius:
+        - Healthy founding nodes report DEGRADED, eroding trust in the truth plane and masking real config violations
+        - An automated remediator acting on the false ERROR could disrupt a working ring (re-render / restart of a healthy member)
+      architecture_fix: |
+        The self-only seed / initial-cluster rule is reconciled against runtime
+        before it fires. The probe gathers runtime truth BEFORE attestation and
+        passes it in (AttestScyllaConfig/AttestEtcdConfig take a runtime arg). When
+        runtime PROVES established multi-node membership — ScyllaDB operation_mode
+        NORMAL with a live non-self gossip peer (scyllaProvenEstablishedMember), or
+        etcd has_leader with member_count >= 2 and a non-self observed peer
+        (etcdProvenEstablishedMember) — the prediction is counterfactual and the
+        violation is downgraded from ERROR to an INFO seed/membership-hygiene note
+        (not silenced: a wiped restart with self-only seeds would still re-isolate).
+        With no runtime proof (nil runtime, or not yet NORMAL/leaderless) the rule
+        stays an ERROR so a config that would isolate a FRESH node is still caught
+        before start (infra.config_must_be_attested_before_start). A genuinely
+        isolated node (NORMAL but self-only gossip / member_count 1) still raises the
+        ERROR — the fix narrows the false positive without masking
+        scylla.wrong_config_appears_healthy / etcd.wrong_config_appears_healthy.
+      forbidden_fixes:
+        - silence_self_only_seed_rule_entirely_losing_pre_bootstrap_protection
+        - trust_systemd_active_or_daemon_active_alone_as_proof_of_ring_membership
+        - hand_edit_scylla_yaml_or_etcd_yaml_as_the_permanent_fix_instead_of_the_renderer
+      related_invariants:
+        - infra.process_active_is_not_health
+        - infra.runtime_truth_must_be_observed_via_native_api
+        - infra.config_must_be_attested_before_start
+        - scylla.config_valid
+        - etcd.config_valid
+        - meta.assertions_must_carry_their_scope
+      related_services:
+        - node-agent
+        - cluster-doctor
+      protects:
+        files:
+            - golang/node_agent/node_agent_server/infra_truth/attestation.go
+            - golang/node_agent/node_agent_server/infra_truth/etcd_attestation.go
+            - golang/node_agent/node_agent_server/infra_truth/scylla_probe.go
+            - golang/node_agent/node_agent_server/infra_truth/etcd_probe.go
+      required_tests:
+        - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_SelfOnlySeed_EstablishedMember_NoError
+        - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_SelfOnlySeed_ActuallyIsolated_StillError
+        - golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_SelfOnlySeed_PreBootstrap_StillError
+        - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_SelfOnlyInitialCluster_EstablishedMember_NoError
+        - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_SelfOnlyInitialCluster_ActuallyIsolated_StillError
+        - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_SelfOnlyInitialCluster_PreBootstrap_StillError
     - id: node_agent.state_path_default_desync_from_backup_exclusion
       title: Node-agent state-path default drifts out of sync with backup-manager exclusion config
       severity: high

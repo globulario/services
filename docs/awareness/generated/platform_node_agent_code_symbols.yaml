@@ -1153,6 +1153,18 @@ test_symbols:
     package: infra_truth
     language: go
     doc: "TestAttestScyllaConfig_RemediationTargetsOwnerNotManualEdit directly covers\ninfra.config_file_is_artifact_not_authority: the rendered config is an\nartifact, so every attestation violation must point repair at the OWNER that\ngenerated it (renderer + desired state) and must NOT present a manual edit of\nscylla.yaml as the fix — a render would overwrite it."
+  - id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go:TestAttestScyllaConfig_SelfOnlySeed_ActuallyIsolated_StillError
+    file: golang/node_agent/node_agent_server/infra_truth/attestation_test.go
+    symbol: TestAttestScyllaConfig_SelfOnlySeed_ActuallyIsolated_StillError
+    package: infra_truth
+    language: go
+    doc: "TestAttestScyllaConfig_SelfOnlySeed_ActuallyIsolated_StillError ensures the fix\ndoes NOT mask a genuinely isolated node: a joining node that came up NORMAL but\nobserves only itself in live gossip really did form a one-node ring. That is the\nscylla.wrong_config_appears_healthy failure mode and must remain an ERROR."
+  - id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go:TestAttestScyllaConfig_SelfOnlySeed_EstablishedMember_NoError
+    file: golang/node_agent/node_agent_server/infra_truth/attestation_test.go
+    symbol: TestAttestScyllaConfig_SelfOnlySeed_EstablishedMember_NoError
+    package: infra_truth
+    language: go
+    doc: "TestAttestScyllaConfig_SelfOnlySeed_EstablishedMember_NoError covers the\nfalse-positive fix: a node whose membership-derived intent is \"joining\" and\nwhose rendered seeds are self-only is NOT broken if runtime proves it is already\na converged member of a multi-node ring (operation_mode NORMAL + a live non-self\ngossip peer). The \"will bootstrap an isolated ring\" prediction is counterfactual\nthere, so it must NOT be an ERROR — it is downgraded to an INFO seed-hygiene\nnote. This is the founding-node-flagged-as-joining case (INC: scylla.config_valid\nfalse positive on globule-ryzen after globule-nuc joined)."
   - id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go:TestAttestScyllaConfig_SelfOnlySeed_FirstNodeAllowed
     file: golang/node_agent/node_agent_server/infra_truth/attestation_test.go
     symbol: TestAttestScyllaConfig_SelfOnlySeed_FirstNodeAllowed
@@ -1163,6 +1175,12 @@ test_symbols:
     symbol: TestAttestScyllaConfig_SelfOnlySeed_JoiningNode
     package: infra_truth
     language: go
+  - id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go:TestAttestScyllaConfig_SelfOnlySeed_PreBootstrap_StillError
+    file: golang/node_agent/node_agent_server/infra_truth/attestation_test.go
+    symbol: TestAttestScyllaConfig_SelfOnlySeed_PreBootstrap_StillError
+    package: infra_truth
+    language: go
+    doc: "TestAttestScyllaConfig_SelfOnlySeed_PreBootstrap_StillError ensures a config\nthat would isolate a fresh node is caught BEFORE the daemon proves otherwise:\nwith no runtime proof (nil) or a not-yet-NORMAL node, the rule stays an ERROR\n(infra.config_must_be_attested_before_start)."
   - id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go:TestAttestScyllaConfig_ValidConfig
     file: golang/node_agent/node_agent_server/infra_truth/attestation_test.go
     symbol: TestAttestScyllaConfig_ValidConfig
@@ -1299,6 +1317,18 @@ test_symbols:
     symbol: TestAttestEtcdConfig_SelfNotInInitialCluster
     package: infra_truth
     language: go
+  - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_SelfOnlyInitialCluster_ActuallyIsolated_StillError
+    file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
+    symbol: TestAttestEtcdConfig_SelfOnlyInitialCluster_ActuallyIsolated_StillError
+    package: infra_truth
+    language: go
+    doc: "TestAttestEtcdConfig_SelfOnlyInitialCluster_ActuallyIsolated_StillError ensures\nthe fix does NOT mask a genuinely isolated member: member_count 1 (only self) is\nthe etcd.wrong_config_appears_healthy failure mode and must remain an ERROR."
+  - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_SelfOnlyInitialCluster_EstablishedMember_NoError
+    file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
+    symbol: TestAttestEtcdConfig_SelfOnlyInitialCluster_EstablishedMember_NoError
+    package: infra_truth
+    language: go
+    doc: "TestAttestEtcdConfig_SelfOnlyInitialCluster_EstablishedMember_NoError covers the\nsibling of the ScyllaDB false-positive fix: a member whose membership-derived\nintent is \"joining\" and whose initial-cluster is self-only is NOT broken if\nruntime proves it is already part of an established quorum (a leader exists,\nmember_count >= 2, and a non-self peer is observed). The \"isolated single-member\ncluster\" prediction is counterfactual there, so it must be an INFO note, never an\nERROR that degrades a healthy member."
   - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_SelfOnlyInitialCluster_FirstNodeAllowed
     file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
     symbol: TestAttestEtcdConfig_SelfOnlyInitialCluster_FirstNodeAllowed
@@ -1309,6 +1339,12 @@ test_symbols:
     symbol: TestAttestEtcdConfig_SelfOnlyInitialCluster_JoiningNode
     package: infra_truth
     language: go
+  - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_SelfOnlyInitialCluster_PreBootstrap_StillError
+    file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
+    symbol: TestAttestEtcdConfig_SelfOnlyInitialCluster_PreBootstrap_StillError
+    package: infra_truth
+    language: go
+    doc: "TestAttestEtcdConfig_SelfOnlyInitialCluster_PreBootstrap_StillError ensures a\nconfig that would isolate a fresh member is caught before runtime can refute it:\nnil runtime or a leaderless member keeps the ERROR\n(infra.config_must_be_attested_before_start)."
   - id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go:TestAttestEtcdConfig_TokenMismatch
     file: golang/node_agent/node_agent_server/infra_truth/etcd_test.go
     symbol: TestAttestEtcdConfig_TokenMismatch

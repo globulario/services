@@ -17,7 +17,14 @@ const etcdRemediationOwner = "Repair the owner that generated this config: the c
 // and returns the violations found (empty == config valid). It attests nothing
 // when the config file is absent — that is a lifecycle fact (not yet rendered),
 // not a config violation.
-func AttestEtcdConfig(desired *InfraDesiredState, rendered *EtcdRenderedConfig) []*cluster_controllerpb.InfraViolation {
+//
+// runtime may be nil (before the daemon is up, or in pure static tests). It is
+// consulted only by rules whose predicted harm is an empirical runtime fact —
+// notably the self-only initial-cluster "isolated single-member cluster"
+// prediction, which is refuted once the member is observed in an established
+// quorum. A nil runtime means "no runtime proof", so those rules fire exactly as
+// the static config implies.
+func AttestEtcdConfig(desired *InfraDesiredState, rendered *EtcdRenderedConfig, runtime *EtcdRuntimeState) []*cluster_controllerpb.InfraViolation {
 	if rendered == nil || !rendered.Present {
 		return nil
 	}
@@ -45,7 +52,7 @@ func AttestEtcdConfig(desired *InfraDesiredState, rendered *EtcdRenderedConfig) 
 	add(attestEtcdName(rendered))
 	add(attestEtcdInitialClusterToken(desired, rendered))
 	add(attestEtcdSelfInInitialCluster(desired, rendered))
-	add(attestEtcdInitialClusterMembers(desired, rendered))
+	add(attestEtcdInitialClusterMembers(desired, rendered, runtime))
 	add(attestEtcdPeerTLS(rendered))
 
 	return v
@@ -183,7 +190,17 @@ func attestEtcdSelfInInitialCluster(desired *InfraDesiredState, rendered *EtcdRe
 // attestEtcdInitialClusterMembers checks the membership against bootstrap intent.
 // A joining node whose initial-cluster contains only itself will bootstrap an
 // isolated single-member cluster instead of joining the existing ring.
-func attestEtcdInitialClusterMembers(desired *InfraDesiredState, rendered *EtcdRenderedConfig) *cluster_controllerpb.InfraViolation {
+//
+// Like the ScyllaDB seed rule, this is a prediction about a *future* bootstrap.
+// Once runtime proves the member is part of an established quorum (a leader exists,
+// member_count >= 2, and a non-self peer is observed), the prediction is
+// counterfactual — keeping it an ERROR would falsely degrade a healthy member and
+// could trigger needless remediation of a working cluster. There it is downgraded
+// to an INFO membership-hygiene note (a wiped restart with self-only
+// initial-cluster would still re-isolate). Before that proof (runtime nil / not yet
+// in a quorum) it stays an ERROR so a config that would isolate a fresh member is
+// caught early (infra.config_must_be_attested_before_start).
+func attestEtcdInitialClusterMembers(desired *InfraDesiredState, rendered *EtcdRenderedConfig, runtime *EtcdRuntimeState) *cluster_controllerpb.InfraViolation {
 	if desired == nil || desired.BootstrapIntent != BootstrapJoining {
 		return nil
 	}
@@ -199,6 +216,15 @@ func attestEtcdInitialClusterMembers(desired *InfraDesiredState, rendered *EtcdR
 			return nil // at least one non-self member — good
 		}
 	}
+	if etcdProvenEstablishedMember(desired, runtime) {
+		return newViolation(
+			"etcd.config_valid",
+			SeverityInfo,
+			fmt.Sprintf("initial-cluster contains only this node (%s); the member is already part of an established quorum so it is not isolated now, but a wiped restart with a self-only initial-cluster would re-bootstrap an isolated single-member cluster — repair the rendered membership for restart safety", self),
+			fmt.Sprintf("initial-cluster=%s bootstrap_intent=%s has_leader=%t member_count=%d observed_peers=%s", strings.Join(rendered.InitialClusterNames, ","), desired.BootstrapIntent, runtime.HasLeader, runtime.MemberCount, strings.Join(runtime.ObservedPeers, ",")),
+			etcdRemediationOwner,
+		)
+	}
 	return newViolation(
 		"etcd.config_valid",
 		SeverityError,
@@ -206,6 +232,27 @@ func attestEtcdInitialClusterMembers(desired *InfraDesiredState, rendered *EtcdR
 		fmt.Sprintf("initial-cluster=%s bootstrap_intent=%s", strings.Join(rendered.InitialClusterNames, ","), desired.BootstrapIntent),
 		etcdRemediationOwner,
 	)
+}
+
+// etcdProvenEstablishedMember reports whether runtime truth proves this node is
+// already a member of an established multi-member quorum: a leader exists,
+// member_count >= 2, and at least one non-self peer is observed. This is the
+// empirical refutation of the "joining node will bootstrap an isolated
+// single-member cluster" prediction. A member that genuinely isolated itself
+// reports member_count 1 (only self) — that is NOT established membership, so the
+// violation must stand. A nil runtime (no proof yet) is never "established".
+func etcdProvenEstablishedMember(desired *InfraDesiredState, runtime *EtcdRuntimeState) bool {
+	if runtime == nil {
+		return false
+	}
+	if !runtime.HasLeader || runtime.MemberCount < 2 {
+		return false
+	}
+	self := ""
+	if desired != nil && len(desired.ExpectedListenAddresses) > 0 {
+		self = stripQuotes(desired.ExpectedListenAddresses[0])
+	}
+	return hasNonSelf(runtime.ObservedPeers, self)
 }
 
 // attestEtcdPeerTLS requires the peer transport security material. Without a

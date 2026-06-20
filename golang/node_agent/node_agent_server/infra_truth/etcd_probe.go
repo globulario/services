@@ -188,19 +188,23 @@ func (p *EtcdProber) ProbeStructured(ctx context.Context, desired *InfraDesiredS
 	}
 	res.Rendered = rendered.renderedMap()
 
-	// Layer 2: attestation.
-	violations = append(violations, AttestEtcdConfig(desired, rendered)...)
-	res.Violations = violations
-	res.ConfigValid = rendered.Present && !hasSeverity(violations, SeverityCritical) && !hasSeverity(violations, SeverityError)
-
 	// Layer 3: runtime truth (best effort, bounded). Observe the member at the
-	// address it actually advertises, not a hardcoded loopback.
+	// address it actually advertises, not a hardcoded loopback. Gathered BEFORE
+	// attestation so config rules whose predicted harm is an empirical runtime fact
+	// (e.g. a self-only initial-cluster "will isolate a joining member") can be
+	// reconciled against the observed quorum instead of firing a false positive on
+	// an already-established member.
 	runtime := p.probeRuntime(ctx, rendered)
 	res.DaemonActive = runtime.DaemonActive
 	res.Runtime = etcdRuntimeMap(runtime)
 	res.ObservedPeers = runtime.ObservedPeers
 	res.Errors = append(res.Errors, runtime.Errors...)
 	res.PeersMatch = peersMatch(desired, runtime.ObservedPeers)
+
+	// Layer 2: attestation (runtime-aware where a rule's harm is empirical).
+	violations = append(violations, AttestEtcdConfig(desired, rendered, runtime)...)
+	res.Violations = violations
+	res.ConfigValid = rendered.Present && !hasSeverity(violations, SeverityCritical) && !hasSeverity(violations, SeverityError)
 
 	// Layer 4: lifecycle FSM.
 	res.Lifecycle = deriveEtcdLifecycle(true, desired, rendered, runtime, violations, p.now())

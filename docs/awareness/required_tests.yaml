@@ -5155,6 +5155,40 @@ required_tests:
   protects:
     failure_modes:
     - scylla.config_valid
+- id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_SelfOnlySeed_EstablishedMember_NoError
+  title: Self-only Scylla seed on an established NORMAL multi-node member is INFO, not ERROR
+  protects:
+    failure_modes:
+    - infra.self_only_seed_isolation_false_positive_on_established_member
+- id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_SelfOnlySeed_ActuallyIsolated_StillError
+  title: Self-only Scylla seed with self-only gossip is a genuinely isolated ring — still ERROR
+  protects:
+    failure_modes:
+    - infra.self_only_seed_isolation_false_positive_on_established_member
+    - scylla.wrong_config_appears_healthy
+- id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_SelfOnlySeed_PreBootstrap_StillError
+  title: Self-only Scylla seed before bootstrap proof stays ERROR (attested before start)
+  protects:
+    failure_modes:
+    - infra.self_only_seed_isolation_false_positive_on_established_member
+    - infra.config_must_be_attested_before_start
+- id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_SelfOnlyInitialCluster_EstablishedMember_NoError
+  title: Self-only etcd initial-cluster on an established quorum member is INFO, not ERROR
+  protects:
+    failure_modes:
+    - infra.self_only_seed_isolation_false_positive_on_established_member
+- id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_SelfOnlyInitialCluster_ActuallyIsolated_StillError
+  title: Self-only etcd initial-cluster with a single-member quorum is genuinely isolated — still ERROR
+  protects:
+    failure_modes:
+    - infra.self_only_seed_isolation_false_positive_on_established_member
+    - etcd.wrong_config_appears_healthy
+- id: golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_SelfOnlyInitialCluster_PreBootstrap_StillError
+  title: Self-only etcd initial-cluster before quorum proof stays ERROR (attested before start)
+  protects:
+    failure_modes:
+    - infra.self_only_seed_isolation_false_positive_on_established_member
+    - infra.config_must_be_attested_before_start
 - id: golang/node_agent/node_agent_server/infra_truth/attestation_test.go::TestAttestScyllaConfig_ValidConfig
   title: Attest Scylla Config Valid Config
   protects:
