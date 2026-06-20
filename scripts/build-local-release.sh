@@ -84,6 +84,11 @@ INFRA_PKGS=(etcd etcdctl envoy minio mc prometheus alertmanager node_exporter
 
 for tgz in "$PREV_DIR/packages/"*.tgz; do
   [[ -f "$tgz" ]] || continue
+  # Skip extracted dev sidecars (oxigraph, awareness-graph) — not cluster
+  # packages since the AWG extraction; don't pull their binaries into bin/.
+  case "$(basename "$tgz")" in
+    oxigraph_*|awareness-graph_*) continue ;;
+  esac
   TMPX="$WORK/extract-$(basename "$tgz" .tgz)"
   mkdir -p "$TMPX"
   tar -xzf "$tgz" -C "$TMPX" ./bin/ 2>/dev/null || true
@@ -274,6 +279,16 @@ fname = '$fname'
 m = re.match(r'^(.+?)_(\d+[\.\d]+.*)_(linux_amd64)\.tgz\$', fname)
 print(m.group(1) if m else fname)
 ")
+  # Extracted dev sidecars — NOT cluster packages since the AWG extraction.
+  # Mirrors CI release.yml, which intentionally does not ship oxigraph or
+  # awareness-graph ("not a cluster package since v1.2.211"). A stale pre-
+  # extraction base bundle (e.g. <1.2.211 passed via --prev) still carries them;
+  # never carry them forward into a cluster bundle / Day-0 install set.
+  case "$pkg_name" in
+    oxigraph|awareness-graph)
+      log "SKIP (extracted dev sidecar, not a cluster package): $pkg_name"
+      continue ;;
+  esac
   if echo "$CHANGED_SET" | grep -qx "$pkg_name"; then
     log "SKIP (rebuilt): $pkg_name"
     continue
@@ -301,11 +316,17 @@ entries = []
 for tgz_path in sorted(glob.glob(f"{pkg_out}/*.tgz")):
     fname = os.path.basename(tgz_path)
     # Parse name from filename: <name>_<version>_<platform>.tgz
-    parts = fname.rsplit('_', 2)
+    # The platform is linux_amd64 (it contains an internal underscore), so the
+    # bare name is everything before the LAST THREE underscore tokens
+    # (version, "linux", "amd64") — rsplit 3, not 2. The package.json name is
+    # the authority; the filename parse is only a fallback.
+    parts = fname.rsplit('_', 3)
     name = parts[0]
 
     with tarfile.open(tgz_path) as tf:
         pj = json.loads(tf.extractfile('./package.json').read())
+    if pj.get('name'):
+        name = pj['name']
 
     raw = open(tgz_path, 'rb').read()
     pkg_digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
