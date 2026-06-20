@@ -6458,11 +6458,17 @@ failure_modes:
         adds a len(row.ManifestJSON)==0 guard; every read query feeding it (GetManifest /
         ListManifests / FindByEntrypointChecksum) SELECTs manifest_json, so a genuinely
         published row never false-negatives. manifestJSONPresent returns true when Scylla
-        is nil, so legacy/no-ledger deployments are unaffected.
+        is nil, so legacy/no-ledger deployments are unaffected. The blob-loss sibling
+        (same principle, different mechanism) is closed in isInstallableForRef: a row can
+        read PUBLISHED while its local CAS blob is gone (lost before the
+        BROKEN_MISSING_BLOB transition, or a legacy artifact_state=="" row), so the
+        install gate now also requires artifactBlobPresent — local POSIX CAS is the
+        installability authority; mirror presence is not consulted.
       forbidden_fixes:
         - promote_to_published_without_confirming_manifest_json_present
         - report_row_installable_from_state_columns_without_manifest_json
         - make_state_writes_succeed_while_manifest_sync_is_best_effort
+        - report_installable_when_local_cas_blob_is_missing
       id_note: same class as INC-2026-0012; these are the sibling sites the principle predicted
       protects:
         files:
@@ -6477,6 +6483,7 @@ failure_modes:
       required_tests:
         - TestPromoteToPublished_RefusesSkeletonRow
         - TestVA3_NonPublishedArtifact_NotInstallable
+        - TestIsInstallableForRef_RequiresBlobPresent
     - id: repository.update_artifact_binary_soft_fails_immutability_rejection
       root_cause: |
         UpdateArtifactBinary (delta-deploy) wrote a new build of an already-published

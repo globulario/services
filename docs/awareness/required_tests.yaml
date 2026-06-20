@@ -6060,6 +6060,13 @@ required_tests:
     - repository.artifact_presence_requires_metadata_and_blob
     failure_modes:
     - repository.skeleton_row_promoted_or_reported_installable
+- id: TestIsInstallableForRef_RequiresBlobPresent
+  title: isInstallableForRef returns false when the local CAS blob is missing for a PUBLISHED row
+  protects:
+    invariants:
+    - repository.artifact_presence_requires_metadata_and_blob
+    failure_modes:
+    - repository.skeleton_row_promoted_or_reported_installable
 - id: TestUpdateArtifactBinary_RejectsSameVersionDifferentDigest
   title: UpdateArtifactBinary rejects same-version/different-digest up front (idempotent on same digest)
   protects:

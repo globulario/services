@@ -496,12 +496,26 @@ func (srv *server) isInstallableForRef(ctx context.Context, ref *repopb.Artifact
 	default:
 		return false
 	}
-	// Signature policy: refuse if a signature is required for this
-	// artifact and not present / invalid / from a revoked key.
 	expectedDigest := ""
+	var expectedSize int64
 	if _, _, m, _ := srv.readManifestAndStateByKey(ctx, key); m != nil {
 		expectedDigest = m.GetChecksum()
+		expectedSize = m.GetSizeBytes()
 	}
+	// Blob-presence gate (repository.artifact_presence_requires_metadata_and_blob
+	// / meta.half_done_must_not_look_done): a row can read PUBLISHED while its
+	// local CAS blob is gone — lost before the BROKEN_MISSING_BLOB transition
+	// landed, or a legacy artifact_state=="" row whose blob never materialized.
+	// The install gate must not report such a row installable on metadata alone;
+	// DownloadArtifact would fail closed, but resolve/list would otherwise mislead
+	// the 4-layer view (DesiredBuildIdOrphaned churn). Local POSIX CAS is the
+	// installability authority (repository.local_cas_is_installability_authority);
+	// mirror presence is deliberately NOT consulted here.
+	if !srv.artifactBlobPresent(ctx, ref, buildNumber, expectedSize) {
+		return false
+	}
+	// Signature policy: refuse if a signature is required for this
+	// artifact and not present / invalid / from a revoked key.
 	dec := srv.signaturePolicyDecision(ctx, ref, key, expectedDigest, "")
 	return dec.Allowed
 }
