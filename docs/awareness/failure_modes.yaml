@@ -6482,7 +6482,7 @@ failure_modes:
         - repository
       required_tests:
         - TestPromoteToPublished_RefusesSkeletonRow
-        - TestVA3_NonPublishedArtifact_NotInstallable
+        - repository:TestVA3_NonPublishedArtifact_NotInstallable
         - TestIsInstallableForRef_RequiresBlobPresent
     - id: repository.update_artifact_binary_soft_fails_immutability_rejection
       root_cause: |

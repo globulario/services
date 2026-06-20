@@ -680,6 +680,12 @@ test_symbols:
     symbol: TestBackfillArtifactState
     package: main
     language: go
+  - id: golang/repository/repository_server/artifact_state_test.go:TestIsInstallableForRef_RequiresBlobPresent
+    file: golang/repository/repository_server/artifact_state_test.go
+    symbol: TestIsInstallableForRef_RequiresBlobPresent
+    package: main
+    language: go
+    doc: "TestIsInstallableForRef_RequiresBlobPresent is the F2b regression: the install\ngate must not report a PUBLISHED row installable from its metadata/state columns\nalone when the local CAS blob is gone (lost before the BROKEN_MISSING_BLOB\ntransition, or a legacy artifact_state==\"\" row). Local POSIX CAS is the\ninstallability authority.\n(repository.artifact_presence_requires_metadata_and_blob / meta.half_done_must_not_look_done.)"
   - id: golang/repository/repository_server/artifact_state_test.go:TestIsTransitionAllowed_HappyPathChain
     file: golang/repository/repository_server/artifact_state_test.go
     symbol: TestIsTransitionAllowed_HappyPathChain
@@ -2478,6 +2484,12 @@ test_symbols:
     symbol: TestRecordAndListInstalledRevisions
     package: main
     language: go
+  - id: golang/repository/repository_server/scylla_first_test.go:TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable
+    file: golang/repository/repository_server/scylla_first_test.go
+    symbol: TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable
+    package: main
+    language: go
+    doc: "TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable is the F4 regression:\nwhen the published catalog can't be read (Scylla degraded → loadPublishedCatalog\nreturns nil), the two cross-artifact law rules (acyclic hard_deps / no\ndep-on-application) cannot run. For an artifact that DECLARES hard_deps those\nrules are the gate, so promotion must be refused rather than degraded open.\n(repository.publish_pipeline_is_ordered / meta.failure_response_must_contract_not_amplify.)"
   - id: golang/repository/repository_server/scylla_first_test.go:TestGetArtifactVersionsUsesScyllaWhenMinioEmpty
     file: golang/repository/repository_server/scylla_first_test.go
     symbol: TestGetArtifactVersionsUsesScyllaWhenMinioEmpty
@@ -2499,6 +2511,12 @@ test_symbols:
     symbol: TestPromoteToPublishedFailsIfScyllaStateUpdateFails
     package: main
     language: go
+  - id: golang/repository/repository_server/scylla_first_test.go:TestPromoteToPublished_RefusesSkeletonRow
+    file: golang/repository/repository_server/scylla_first_test.go
+    symbol: TestPromoteToPublished_RefusesSkeletonRow
+    package: main
+    language: go
+    doc: "TestPromoteToPublished_RefusesSkeletonRow is the F1 regression for INC-2026-0012:\na row whose manifest_json never landed (interrupted syncManifestToScylla) must\nNOT be promoted to PUBLISHED. Otherwise the publish_state / artifact_state\nUPSERTs in promoteToPublished manufacture a row that reads PUBLISHED with a NULL\nmanifest — a half-done row readers can never resolve.\n(repository.artifact_presence_requires_metadata_and_blob / meta.half_done_must_not_look_done.)"
   - id: golang/repository/repository_server/scylla_first_test.go:TestPromoteToPublished_ReturnsErrorWhenArtifactStateTransitionFails
     file: golang/repository/repository_server/scylla_first_test.go
     symbol: TestPromoteToPublished_ReturnsErrorWhenArtifactStateTransitionFails
@@ -2519,6 +2537,12 @@ test_symbols:
     symbol: TestResolveLatestBuildNumberUsesScyllaNotMinio
     package: main
     language: go
+  - id: golang/repository/repository_server/scylla_first_test.go:TestUpdateArtifactBinary_RejectsSameVersionDifferentDigest
+    file: golang/repository/repository_server/scylla_first_test.go
+    symbol: TestUpdateArtifactBinary_RejectsSameVersionDifferentDigest
+    package: main
+    language: go
+    doc: "TestUpdateArtifactBinary_RejectsSameVersionDifferentDigest is the F3 regression:\ndelta-deploy of an already-PUBLISHED version with DIFFERENT bytes must be\nrejected up front (AlreadyExists), not stored as a divergent-digest VERIFIED\nphantom and reported as soft \"verified\" success. Same bytes is an idempotent\nno-op. (repository.artifact.content_immutable_after_publish /\nmeta.silence_is_not_valid_for_unexpected.)"
   - id: golang/repository/repository_server/scylla_trust_model_test.go:TestTrustModel_S1_LocalBlobPresent_Installable
     file: golang/repository/repository_server/scylla_trust_model_test.go
     symbol: TestTrustModel_S1_LocalBlobPresent_Installable
