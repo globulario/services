@@ -205,8 +205,10 @@ BUILD_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
 
 for pkg_name in "${CHANGED_NAMES[@]}"; do
   meta_dir="$PACKAGES_ROOT/metadata/$pkg_name"
-  spec_file="$PACKAGES_ROOT/specs/${pkg_name//-/_}_service.yaml"
-  [[ -f "$spec_file" ]] || spec_file="$PACKAGES_ROOT/specs/${pkg_name//-/_}_cmd.yaml"
+  # Single source of truth: metadata/<name>/specs/ (top-level specs/ was removed
+  # in the 2026-06 spec consolidation).
+  spec_file="$meta_dir/specs/${pkg_name//-/_}_service.yaml"
+  [[ -f "$spec_file" ]] || spec_file="$meta_dir/specs/${pkg_name//-/_}_cmd.yaml"
 
   [[ -d "$meta_dir" ]] || { log "SKIP $pkg_name: no metadata dir"; continue; }
   [[ -f "$spec_file" ]] || { log "SKIP $pkg_name: no spec yaml"; continue; }
