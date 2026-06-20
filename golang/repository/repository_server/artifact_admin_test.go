@@ -250,6 +250,11 @@ func TestResolverFilter_ExcludesNonInstallableStates(t *testing.T) {
 		}, false},
 	}
 	for _, tc := range cases {
+		// Every row here represents a real (non-skeleton) artifact; this table
+		// exercises publish_state/artifact_state filtering, not the manifest-
+		// presence guard. Give each row a manifest so the state switch is what's
+		// tested. Skeleton-row rejection is covered by TestVA3.
+		tc.row.ManifestJSON = []byte("{}")
 		got := isRowInstallable(&tc.row)
 		if got != tc.installable {
 			t.Errorf("%s: got %v, want %v", tc.name, got, tc.installable)

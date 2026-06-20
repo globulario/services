@@ -6438,3 +6438,100 @@ failure_modes:
         covered by node_agent.state_poisoning_from_stale_reconciler (stale reconciler,
         different) or migration.state_path_upgrade_must_be_idempotent (idempotent path
         upgrade, different).
+    - id: repository.skeleton_row_promoted_or_reported_installable
+      root_cause: |
+        manifest_json is written only by syncManifestToScylla, which is best-effort
+        (warn + return on PutManifest failure). The downstream state writes in
+        promoteToPublished — UpdatePublishState and transitionArtifactState — are bare
+        Scylla UPDATEs (UPSERT). If the manifest sync failed transiently but the state
+        UPSERTs succeed, the result is a row that reads publish_state=PUBLISHED +
+        artifact_state=PUBLISHED with manifest_json=NULL — a "skeleton row" readers can
+        never resolve (proto syntax error forever). The skip path guarded this via
+        manifestJSONPresent (after INC-2026-0012), but two siblings did not: the
+        promotion chokepoint (promoteToPublished) and the install predicate
+        (isRowInstallable), which reported such a row installable from its state columns
+        alone.
+      architecture_fix: |
+        promoteToPublished refuses to write PUBLISHED unless manifestJSONPresent(ctx,key)
+        — one chokepoint covering every promotion path (upload + reconciler). The caller
+        (UploadArtifact) returns Result=false so the publish is retried. isRowInstallable
+        adds a len(row.ManifestJSON)==0 guard; every read query feeding it (GetManifest /
+        ListManifests / FindByEntrypointChecksum) SELECTs manifest_json, so a genuinely
+        published row never false-negatives. manifestJSONPresent returns true when Scylla
+        is nil, so legacy/no-ledger deployments are unaffected.
+      forbidden_fixes:
+        - promote_to_published_without_confirming_manifest_json_present
+        - report_row_installable_from_state_columns_without_manifest_json
+        - make_state_writes_succeed_while_manifest_sync_is_best_effort
+      id_note: same class as INC-2026-0012; these are the sibling sites the principle predicted
+      protects:
+        files:
+            - golang/repository/repository_server/publish_workflow.go
+            - golang/repository/repository_server/artifact_state.go
+            - golang/repository/repository_server/artifact_handlers.go
+      related_invariants:
+        - repository.artifact_presence_requires_metadata_and_blob
+        - meta.half_done_must_not_look_done
+      related_services:
+        - repository
+      required_tests:
+        - TestPromoteToPublished_RefusesSkeletonRow
+        - TestVA3_NonPublishedArtifact_NotInstallable
+    - id: repository.update_artifact_binary_soft_fails_immutability_rejection
+      root_cause: |
+        UpdateArtifactBinary (delta-deploy) wrote a new build of an already-published
+        version, then on completePublish failure downgraded the error to slog.Warn and
+        returned Status="verified" with no gRPC error — after already writing a
+        divergent-digest VERIFIED manifest, Scylla row, and provenance. When the failure
+        was the ledger's permanent immutability rejection (appendToLedger, repair=nil),
+        it was reported identically to a transient "retry later" deferral, leaving a
+        phantom the reconciler can never promote, with the caller misled into thinking
+        the operation succeeded.
+      architecture_fix: |
+        Mirror UploadArtifact's gate up front: getPublishedDigest for the version — same
+        digest is an idempotent no-op (return Status=published, no new build); a different
+        digest returns codes.AlreadyExists before any bytes/manifest/provenance are
+        written. The durable immutability invariant was always held by appendToLedger;
+        this makes the rejection early, explicit, and phantom-free. To deploy new bytes,
+        bump the version.
+      forbidden_fixes:
+        - report_verified_success_when_completePublish_rejected_for_immutability
+        - store_divergent_digest_phantom_for_an_already_published_version
+        - conflate_permanent_immutability_rejection_with_transient_deferral
+      protects:
+        files:
+            - golang/repository/repository_server/artifact_handlers.go
+      related_invariants:
+        - repository.artifact.content_immutable_after_publish
+        - meta.silence_is_not_valid_for_unexpected
+      related_services:
+        - repository
+      required_tests:
+        - TestUpdateArtifactBinary_RejectsSameVersionDifferentDigest
+    - id: repository.law_gate_degrades_open_when_catalog_unavailable
+      root_cause: |
+        completePublish loads the published catalog for cross-artifact law validation
+        (no-dep-on-application, acyclic hard_deps). On a Scylla read failure
+        loadPublishedCatalog returns nil; the code logged a warning and proceeded with
+        the cross-artifact rules silently skipped. For an artifact that declares hard_deps
+        those rules are the entire gate, so a dependency cycle or a dep-on-application
+        could reach PUBLISHED during the degraded window.
+      architecture_fix: |
+        When catalog==nil AND the manifest declares hard_deps, completePublish returns an
+        error and refuses promotion rather than degrading the gate open. Artifacts with no
+        hard_deps still proceed (the cross-artifact rules are moot for them), preserving
+        availability where it is safe.
+      forbidden_fixes:
+        - promote_hard_deps_artifact_with_cross_artifact_validation_skipped
+        - treat_nil_catalog_load_failure_as_empty_catalog
+      protects:
+        files:
+            - golang/repository/repository_server/publish_workflow.go
+      related_invariants:
+        - meta.failure_response_must_contract_not_amplify
+      related_intents:
+        - repository.publish_pipeline_is_ordered
+      related_services:
+        - repository
+      required_tests:
+        - TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable

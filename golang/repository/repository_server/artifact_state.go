@@ -440,6 +440,18 @@ func isRowInstallable(row *manifestRow) bool {
 	if row.PublishState != repopb.PublishState_PUBLISHED.String() {
 		return false
 	}
+	// Skeleton-row guard (INC-2026-0012 / repository.metadata_is_authority /
+	// meta.half_done_must_not_look_done): a row carrying state columns but no
+	// manifest_json is a half-done row — an interrupted manifest sync that later
+	// received state UPSERTs. It must NOT be reported installable; readers cannot
+	// resolve a NULL manifest (proto syntax error forever). The skip path already
+	// guards this via manifestJSONPresent; the install path must too. Every read
+	// query that feeds this predicate (GetManifest / ListManifests /
+	// FindByEntrypointChecksum) SELECTs manifest_json, so a genuinely-published
+	// row never false-negatives here.
+	if len(row.ManifestJSON) == 0 {
+		return false
+	}
 	switch ArtifactPipelineState(strings.ToUpper(strings.TrimSpace(row.ArtifactState))) {
 	case PipelinePublished, PipelineUnspecified:
 		return true

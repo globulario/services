@@ -6053,3 +6053,24 @@ required_tests:
   title: Doctor Finding Workflow Happy Path
 - id: workflow_engine:TestDoctorFindingWorkflow_PipelineSteps
   title: Doctor Finding Workflow Pipeline Steps
+- id: TestPromoteToPublished_RefusesSkeletonRow
+  title: promoteToPublished refuses to promote a skeleton row (manifest_json absent)
+  protects:
+    invariants:
+    - repository.artifact_presence_requires_metadata_and_blob
+    failure_modes:
+    - repository.skeleton_row_promoted_or_reported_installable
+- id: TestUpdateArtifactBinary_RejectsSameVersionDifferentDigest
+  title: UpdateArtifactBinary rejects same-version/different-digest up front (idempotent on same digest)
+  protects:
+    invariants:
+    - repository.artifact.content_immutable_after_publish
+    failure_modes:
+    - repository.update_artifact_binary_soft_fails_immutability_rejection
+- id: TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable
+  title: completePublish refuses to promote a hard_deps artifact when the published catalog is unavailable
+  protects:
+    invariants:
+    - meta.failure_response_must_contract_not_amplify
+    failure_modes:
+    - repository.law_gate_degrades_open_when_catalog_unavailable

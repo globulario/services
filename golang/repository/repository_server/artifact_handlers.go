@@ -2522,6 +2522,27 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 		return status.Errorf(codes.Internal, "read latest manifest %q: %v", latestKey, mErr)
 	}
 
+	// ── Immutability gate (mirror UploadArtifact) ───────────────────────
+	// content_immutable_after_publish: a version already PUBLISHED with a
+	// DIFFERENT digest must not be re-published as new bytes. Reject up front
+	// instead of storing a divergent-digest VERIFIED phantom that the ledger
+	// (appendToLedger, repair=nil) will refuse to promote — which previously
+	// surfaced as a soft "verified" success masking a permanent immutability
+	// rejection (meta.silence_is_not_valid_for_unexpected). Same digest is an
+	// idempotent no-op; to deploy new bytes, bump the version.
+	if publishedDigest := srv.getPublishedDigest(ctx, ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()); publishedDigest != "" {
+		if digestEqual(publishedDigest, actualChecksum) {
+			return stream.SendAndClose(&repopb.UpdateArtifactBinaryResponse{
+				BuildNumber: latestBuild,
+				Checksum:    actualChecksum,
+				Status:      "published",
+			})
+		}
+		return status.Errorf(codes.AlreadyExists,
+			"version %s is already published with a different digest (immutable) — bump the version to deploy new bytes",
+			ref.GetVersion())
+	}
+
 	// ── Assign next build number ────────────────────────────────────────
 	newBuild := latestBuild + 1
 	newKey := artifactKeyWithBuild(ref, newBuild)
