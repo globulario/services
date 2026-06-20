@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/component_catalog"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/infra_truth"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/engine"
@@ -36,6 +37,39 @@ const (
 )
 
 var day0RemovePathFn = os.Remove
+
+// startUnitAfterDay0Install starts a freshly-installed package's systemd unit.
+//
+// service.install_payload only extracts the binary + unit file and runs
+// daemon-reload; it does NOT enable or start the unit. Day-0 then imports
+// installed==desired, so the controller's desired-vs-installed drift reconciler
+// never dispatches a start for these units — the same gap the Day-1 join path
+// fixes inline in workflow_runner.go. Without this the bootstrap node's services
+// stay inactive until an indirect remediation restart catches up. The install
+// path must complete the install contract — start the unit
+// (install.join_path_must_complete_install_contract).
+//
+// minio and sidekick are excluded: minio requires MinIO cluster membership
+// before it can start and sidekick is its sidecar; both are activated by the
+// dedicated storage-join workflow once membership is established. COMMAND-kind
+// packages (mc, etcdctl, restic, …) have no unit, so packageUnit returns "" and
+// they are skipped. Non-fatal: a unit that crash-loops waiting for a not-yet-
+// ready dependency is restarted by systemd and converges once the dependency
+// comes up — same resilience the Day-1 path relies on.
+func startUnitAfterDay0Install(ctx context.Context, name string) {
+	if name == "minio" || name == "sidekick" {
+		return
+	}
+	unit := packageUnit(name)
+	if unit == "" {
+		return
+	}
+	if err := supervisor.Start(ctx, unit); err != nil {
+		log.Printf("day0: %s post-install start failed (non-fatal): %v", name, err)
+	} else {
+		log.Printf("day0: %s started after install", name)
+	}
+}
 
 // RunDay0BootstrapWorkflow executes the day0.bootstrap workflow definition
 // to perform the full cluster bootstrap sequence. This replaces the manual
@@ -131,7 +165,11 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		InstallPackage: func(ctx context.Context, name string) error {
 			// Day-0 bootstrap: no build pinning — fetch layer will resolve
 			// the latest published digest from the manifest.
-			return srv.InstallPackage(ctx, name, "SERVICE", repoAddr, "", "", "")
+			if err := srv.InstallPackage(ctx, name, "SERVICE", repoAddr, "", "", ""); err != nil {
+				return err
+			}
+			startUnitAfterDay0Install(ctx, name)
+			return nil
 		},
 
 		InstallPackageSet: func(ctx context.Context, packages []string) error {
@@ -140,7 +178,9 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 				kind := inferPackageKind(pkg)
 				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr, "", "", ""); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: %v", pkg, err))
+					continue
 				}
+				startUnitAfterDay0Install(ctx, pkg)
 			}
 			if len(errs) > 0 {
 				return fmt.Errorf("install failures: %s", strings.Join(errs, "; "))
@@ -177,7 +217,9 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 				kind := inferPackageKind(pkg)
 				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr, "", "", ""); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: %v", pkg, err))
+					continue
 				}
+				startUnitAfterDay0Install(ctx, pkg)
 			}
 			if len(errs) > 0 {
 				return fmt.Errorf("install failures: %s", strings.Join(errs, "; "))
@@ -422,7 +464,11 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
 			// Engine PackageRef does not carry build_id/digest yet;
 			// the fetch layer resolves the manifest digest automatically.
-			return srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", "", "")
+			if err := srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", "", ""); err != nil {
+				return err
+			}
+			startUnitAfterDay0Install(ctx, pkg.Name)
+			return nil
 		},
 		IsServiceActive: func(name string) bool {
 			// Truth-plane-backed readiness (see srv.isServiceReady): a STALLED
