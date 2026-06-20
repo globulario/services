@@ -5579,6 +5579,12 @@ required_tests:
   protects:
     failure_modes:
     - heartbeat_must_not_take_non_critical_dependencies
+- id: principle-check:minio_commodity_no_hard_dependency
+  title: minio commodity no hard dependency
+  protects:
+    invariants:
+    - minio_commodity_no_hard_dependency
+    - minio.is_commodity_not_a_pillar
 - id: principle-check:installed_package.timestamp_writers_must_preserve_during_observe
   title: installed package.timestamp writers must preserve during observe
   protects:

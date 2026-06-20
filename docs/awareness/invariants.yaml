@@ -4518,6 +4518,63 @@ invariants:
   workflow_step_handler_files: []
   required_tests:
   - principle-check:heartbeat_must_not_take_non_critical_dependencies
+- actor_writer_dirs:
+  - golang/rbac/rbac_server
+  - golang/event/event_server
+  - golang/workflow/workflow_server
+  - golang/resource/resource_server
+  - golang/dns/dns_server
+  analysis_mode: ruleguard
+  exception_files: []
+  id: minio_commodity_no_hard_dependency
+  related_invariants:
+  - minio.is_commodity_not_a_pillar
+  - dependency_failure_must_not_create_hidden_authority
+  ruleguard_rules_file: cmd/principle-check/rules/minio_commodity_no_hard_dependency.go
+  scan_pattern: placeholder_unused_when_analysis_mode_is_ruleguard
+  severity: critical
+  status: active
+  summary: 'Per-instance, mechanically-enforced instance of minio.is_commodity_not_a_pillar.
+
+    The bug shape: a primary service registers MinIO as a health-gating
+
+    dependency via dephealth.Dep("minio", ...). dephealth.RequireHealthy() then
+
+    gates ALL of that service''s RPCs with codes.Unavailable when MinIO is down.
+
+    MinIO is a commodity object-store tier for secondary user data, never a
+
+    pillar like etcd / scylla / envoy, and below the 3-node object-store quorum
+
+    the pool never forms — so this wedges a healthy cluster.
+
+
+    Incident (globule-nuc, 2026-06-20): rbac registered dephealth.Dep("minio",
+
+    ...); MinIO was correctly absent on a 2-node cluster; rbac RPCs returned
+
+    Unavailable; globular-rbac.service went failed; the node was reported
+
+    unhealthy and Day-1 convergence stalled with ~10 services never installed.
+
+
+    Fixed in rbac (MinIO removed from the watchdog). There are ZERO legitimate
+
+    dephealth.Dep("minio", ...) sites, so exception_files is empty — any match is
+
+    drift. Repository''s degraded-mode mirror uses its own depHealthWatchdog and
+
+    never dephealth.Dep, so it does not match. The ruleguard rule fires on the
+
+    exact dephealth.Dep("minio", ...) call shape across primary-service dirs.
+
+    '
+  title: No primary service may register MinIO as a health-gating dependency — MinIO
+    is a commodity, not a pillar
+  unknown_helper_files: []
+  workflow_step_handler_files: []
+  required_tests:
+  - principle-check:minio_commodity_no_hard_dependency
 - enforcement: 'Proto comments and awareness anchors are the binding semantic.
 
     Code review must reject any writer that violates the declared
