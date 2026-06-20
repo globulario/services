@@ -230,10 +230,16 @@ func (srv *server) connectScylla() error {
 	}
 
 	// Behavioral-memory keyspace migrates under its OWN etcd lock, independent of
-	// the ai_memory keyspace above (PR-2 ingestion tables). Failure here must not
-	// be silently ignored — the behavioral surface depends on these tables.
+	// the ai_memory keyspace above. Failure here is NON-FATAL: behavioral-memory
+	// is a supplementary surface, and the established AiMemoryService (memory
+	// CRUD + sessions, plus consumers like ai_watcher and the MCP memory tools)
+	// must not be taken down by a behavioral-only schema problem ("AI is
+	// supplementary, never required"). On failure we log and continue; the
+	// behavioral RPCs then degrade (they error until the keyspace exists) while
+	// AiMemoryService keeps working. The DDL is idempotent, so a later restart or
+	// a node that wins the migration lock will create the tables.
 	if err := srv.runBehavioralSchemaWithCoordination(ctx); err != nil {
-		return fmt.Errorf("behavioral scylla schema: %w", err)
+		logger.Error("behavioral_memory schema unavailable — behavioral RPCs will degrade; AiMemoryService unaffected", "err", err)
 	}
 
 	// Connect with keyspace set for normal operation.
