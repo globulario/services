@@ -753,6 +753,12 @@ func (srv *server) GetNodeHealthDetailV1(ctx context.Context, req *cluster_contr
 	// 2. Unit checks — compare required units from plan vs reported unit states
 	plan, _ := srv.computeNodePlan(node)
 	required := requiredUnitsFromPlan(plan)
+	// MinIO/sidekick are a commodity object-store tier, not a pillar like etcd,
+	// scylla, or envoy. On a non-member node (held out of the pool — e.g. below
+	// the 3-node object-store quorum) those units are inactive BY DESIGN; counting
+	// them as failing would force Healthy=false and block service convergence on a
+	// healthy 2-node cluster. Mirrors the deriveNodeStatus readiness gate.
+	dropMinioCommodityUnitsForNonMember(required, node)
 	// keepalived is ingress-gated. When /globular/ingress/v1/spec.mode is
 	// "disabled" or explicit_disabled=true (e.g. Day-0 default before
 	// `globular cluster network ...`), keepalived MUST NOT run; flagging it
@@ -1118,8 +1124,7 @@ func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord)
 	// set so the node can reach "ready" status and allow service releases to
 	// converge on the node.
 	if node.MinioJoinPhase == MinioJoinNonMember {
-		delete(required, "globular-minio.service")
-		delete(required, "globular-sidekick.service")
+		dropMinioCommodityUnitsForNonMember(required, node)
 		if len(required) == 0 {
 			return "ready", ""
 		}
@@ -1229,4 +1234,20 @@ func toControllerSubsystemState(s globular_service.SubsystemState) cluster_contr
 	default:
 		return cluster_controllerpb.ControllerSubsystemState_CONTROLLER_SUBSYSTEM_STATE_UNSPECIFIED
 	}
+}
+
+// dropMinioCommodityUnitsForNonMember removes the MinIO and sidekick units from
+// the required-unit set when the node is held out of the MinIO pool
+// (MinioJoinNonMember). MinIO is a commodity object-store tier — an unreliable
+// friend you don't lean on — not a pillar like etcd, scylla, or envoy. Below the
+// 3-node object-store quorum the pool never forms, so these units are inactive
+// BY DESIGN and must never be counted as a convergence-blocking health failure.
+// A genuine pool member (any phase other than non_member) keeps them required,
+// so a real dead MinIO on a member still surfaces.
+func dropMinioCommodityUnitsForNonMember(required map[string]struct{}, node *nodeState) {
+	if node == nil || node.MinioJoinPhase != MinioJoinNonMember {
+		return
+	}
+	delete(required, "globular-minio.service")
+	delete(required, "globular-sidekick.service")
 }

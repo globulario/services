@@ -122,7 +122,10 @@ type server struct {
 
 	minioClient *minio.Client
 
-	// Dependency health watchdog — gates RPCs when ScyllaDB/MinIO are down.
+	// Dependency health watchdog — gates RPCs when ScyllaDB (RBAC's authority
+	// for permissions) is down. MinIO is NOT a dependency: it is a commodity for
+	// secondary user data only and must never gate permission enforcement
+	// (HARD RULE #8 / meta: dependency_failure_must_not_create_hidden_authority).
 	depHealth *dephealth.Watchdog
 }
 
@@ -700,7 +703,9 @@ func (srv *server) Stop(ctx context.Context, _ *rbacpb.StopRqst) (*rbacpb.StopRe
 	return &rbacpb.StopResponse{}, srv.StopService()
 }*/
 
-// requireHealthy gates RPCs — returns codes.Unavailable if ScyllaDB or MinIO are down.
+// requireHealthy gates RPCs — returns codes.Unavailable if ScyllaDB (the
+// authority for RBAC permissions) is down. MinIO is intentionally not gated:
+// it holds only secondary user data and must never block permission enforcement.
 func (srv *server) requireHealthy() error {
 	return srv.depHealth.RequireHealthy()
 }
@@ -1088,33 +1093,14 @@ func main() {
 	}
 
 	// --- Dependency health watchdog ---
-	// Gates all RPCs with codes.Unavailable when ScyllaDB (or MinIO) is down.
-	deps := []dephealth.Dependency{
-		dephealth.Dep("scylladb", func(ctx context.Context) error {
-			store, err := srv.getPermissionsStore()
-			if err != nil {
-				return err
-			}
-			if scylla, ok := store.(*storage_store.ScyllaStore); ok {
-				return scylla.Ping()
-			}
-			return nil
-		}),
-	}
-	if srv.minioEnabled() {
-		deps = append(deps, dephealth.Dep("minio", func(ctx context.Context) error {
-			if err := srv.ensureMinioClient(); err != nil {
-				return err
-			}
-			_, err := srv.minioClient.BucketExists(ctx, srv.MinioConfig.Bucket)
-			return err
-		}))
-	}
-	srv.depHealth = dephealth.NewWatchdog(logger, deps...)
+	// Gates all RPCs with codes.Unavailable when ScyllaDB (RBAC's authority for
+	// permissions) is down. MinIO is intentionally excluded — see
+	// dependencyHealthDeps.
+	srv.depHealth = dephealth.NewWatchdog(logger, srv.dependencyHealthDeps()...)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go srv.depHealth.Start(ctx)
-	logger.Info("dependency health watchdog started", "deps", len(deps))
+	logger.Info("dependency health watchdog started", "deps", len(srv.dependencyHealthDeps()))
 
 	// Clear precomputed USED_SPACE keys on startup (ensures fresh computation)
 	logger.Debug("clearing precomputed USED_SPACE cache keys")
@@ -1204,4 +1190,30 @@ func printVersion() {
 	}
 	data, _ := json.MarshalIndent(info, "", "  ")
 	fmt.Println(string(data))
+}
+
+// dependencyHealthDeps returns the dependencies whose health gates RBAC's RPCs.
+// ScyllaDB is the ONLY hard dependency: it is RBAC's authority for permissions.
+//
+// MinIO is deliberately absent. It is a commodity for secondary user data — an
+// unreliable friend you don't lean on, not a pillar like etcd, scylla, or
+// envoy. Below the 3-node object-store quorum the MinIO pool does not even form.
+// Gating permission enforcement on MinIO would let a commodity tier take RBAC
+// (and therefore the whole cluster's authorization) down with it, violating
+// HARD RULE #8 and dependency_failure_must_not_create_hidden_authority. The
+// narrow MinIO lookups in storageExists/storageStat stay best-effort and degrade
+// to "not found" when MinIO is absent, never blocking permission checks.
+func (srv *server) dependencyHealthDeps() []dephealth.Dependency {
+	return []dephealth.Dependency{
+		dephealth.Dep("scylladb", func(ctx context.Context) error {
+			store, err := srv.getPermissionsStore()
+			if err != nil {
+				return err
+			}
+			if scylla, ok := store.(*storage_store.ScyllaStore); ok {
+				return scylla.Ping()
+			}
+			return nil
+		}),
+	}
 }
