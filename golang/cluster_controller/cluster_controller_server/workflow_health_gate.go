@@ -235,6 +235,7 @@ func (cb *reconcileCircuitBreaker) Allow() error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 	cb.pruneOld()
+	cb.expireCooldownIfDueLocked()
 
 	if time.Now().Before(cb.openUntil) {
 		// Half-open: allow one probe to see if things recovered.
@@ -274,6 +275,7 @@ func (cb *reconcileCircuitBreaker) RecordTimeout() {
 	probeFailed := alreadyOpen
 	cb.openUntil = time.Now().Add(cb.cooldownPeriod)
 	cb.halfOpenProbe.Store(false)
+	reconcileCircuitOpenGauge.Set(1)
 	if probeFailed {
 		log.Printf("reconcile circuit breaker: half-open probe failed — re-arming cooldown %s",
 			cb.cooldownPeriod)
@@ -293,6 +295,7 @@ func (cb *reconcileCircuitBreaker) RecordSuccess() {
 	cb.halfOpenProbe.Store(false)
 	cb.timeouts = nil
 	if wasOpen {
+		reconcileCircuitOpenGauge.Set(0)
 		log.Printf("reconcile circuit breaker: CLOSED — reconcile succeeded")
 	}
 }
@@ -303,7 +306,29 @@ func (cb *reconcileCircuitBreaker) IsOpen() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 	cb.pruneOld()
+	cb.expireCooldownIfDueLocked()
 	return time.Now().Before(cb.openUntil)
+}
+
+// expireCooldownIfDueLocked closes the circuit when the cooldown deadline has
+// elapsed without RecordSuccess having been driven. The periodic reconcile
+// normally calls Allow()→reconcile→RecordSuccess every tick, but if reconcile
+// stops being scheduled while the breaker is open, nothing clears the gauge and
+// the doctor reports CRITICAL "reconcile suspended" forever on an otherwise-idle
+// controller. Clearing here keeps the gauge in sync with the real (closed)
+// state. Mirrors workflowHealthGate.expireCooldownIfDueLocked. Caller must hold
+// cb.mu. See diagnostics.must_measure_reality.
+func (cb *reconcileCircuitBreaker) expireCooldownIfDueLocked() {
+	if cb.openUntil.IsZero() {
+		return
+	}
+	if time.Now().Before(cb.openUntil) {
+		return
+	}
+	cb.openUntil = time.Time{}
+	cb.halfOpenProbe.Store(false)
+	cb.timeouts = nil
+	reconcileCircuitOpenGauge.Set(0)
 }
 
 func (cb *reconcileCircuitBreaker) pruneOld() {

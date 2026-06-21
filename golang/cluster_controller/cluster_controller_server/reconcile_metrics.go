@@ -153,11 +153,27 @@ var (
 
 	// reconcileCircuitOpenTotal counts times the reconcile circuit breaker
 	// opened or rejected a dispatch due to repeated reconcile failures.
+	// Monotonic counter — kept for audit/alerting only. The cluster-doctor
+	// rule must NOT consume this directly: a counter only ever grows, so the
+	// finding would fire CRITICAL forever after a single transient open and
+	// never auto-clear. Consume reconcileCircuitOpenGauge (current state)
+	// instead. See diagnostics.must_measure_reality.
 	reconcileCircuitOpenTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "globular",
 		Subsystem: "controller",
 		Name:      "reconcile_circuit_open_total",
 		Help:      "Times the reconcile circuit breaker opened or rejected dispatch.",
+	})
+
+	// reconcileCircuitOpenGauge is 1 when the reconcile circuit breaker is
+	// currently open (periodic reconcile suspended), 0 when closed. This is
+	// the current-state signal the doctor consumes so the finding auto-clears
+	// when reconcile recovers — mirroring workflowCircuitOpenGauge.
+	reconcileCircuitOpenGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "globular",
+		Subsystem: "controller",
+		Name:      "reconcile_circuit_open",
+		Help:      "1 when the reconcile circuit breaker is open (periodic reconcile suspended), 0 when closed.",
 	})
 
 	// applyLoopDetectedTotal counts packages quarantined due to repeated

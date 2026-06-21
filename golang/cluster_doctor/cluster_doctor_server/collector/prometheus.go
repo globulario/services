@@ -63,7 +63,11 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		// The raw counter above is kept for audit but must NOT be consumed by
 		// rules directly (a counter only ever grows → finding fires forever).
 		"drift_kind_mismatch_rate_15m": "sum(increase(globular_controller_drift_kind_mismatch_total[15m]))",
-		"reconcile_circuit_open":     "globular_controller_reconcile_circuit_open_total",
+		// Current-state gauge (1 = breaker open now, 0 = closed). The raw
+		// globular_controller_reconcile_circuit_open_total counter must NOT be
+		// consumed here: a counter only ever grows, so the finding would fire
+		// CRITICAL forever after a single transient open and never auto-clear.
+		"reconcile_circuit_open":     "globular_controller_reconcile_circuit_open",
 		// Raw counter — kept for backwards compatibility / audit. The rule
 		// itself should NOT consume this directly: a counter only ever
 		// grows, so the finding would fire forever after a single
