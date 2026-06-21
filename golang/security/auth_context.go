@@ -13,6 +13,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/globulario/services/golang/netutil"
 	"google.golang.org/grpc/credentials"
@@ -63,6 +64,38 @@ var authContextKey = contextKey{}
 // - IsBootstrap: Check GLOBULAR_BOOTSTRAP env var
 // - IsLoopback: Extract peer address and check if 127.0.0.1 or ::1
 //
+// perMethodLogLimiter rate-limits a noisy log line to at most one emission per
+// key per window. It is used for steady-state security observations that would
+// otherwise fire on every call (e.g. unverified cluster_id on proxy-fronted
+// paths). The first occurrence per key always logs; subsequent ones within the
+// window are suppressed. Concurrency-safe.
+type perMethodLogLimiter struct {
+	window time.Duration
+	mu     sync.Mutex
+	last   map[string]time.Time
+}
+
+func newPerMethodLogLimiter(window time.Duration) *perMethodLogLimiter {
+	return &perMethodLogLimiter{window: window, last: make(map[string]time.Time)}
+}
+
+// allow reports whether the caller should log for key now. It returns true at
+// most once per window per key.
+func (l *perMethodLogLimiter) allow(key string) bool {
+	now := time.Now()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if t, ok := l.last[key]; ok && now.Sub(t) < l.window {
+		return false
+	}
+	l.last[key] = now
+	return true
+}
+
+// unverifiedClusterIDLog throttles the "ClusterID sourced from unverified gRPC
+// metadata" WARN to once per method per 5 minutes.
+var unverifiedClusterIDLog = newPerMethodLogLimiter(5 * time.Minute)
+
 func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error) {
 	authCtx := &AuthContext{
 		GRPCMethod:    grpcMethod,
@@ -198,10 +231,19 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 		if md, ok := metadata.FromIncomingContext(ctx); ok {
 			if vals := md["cluster_id"]; len(vals) > 0 && vals[0] != "" {
 				authCtx.ClusterID = vals[0]
-				slog.Warn("AuthContext: ClusterID sourced from unverified gRPC metadata — not suitable for authorization",
-					"cluster_id", authCtx.ClusterID,
-					"method", grpcMethod,
-				)
+				// This is a steady-state condition on proxy-fronted call paths
+				// (the mTLS cert is stripped at the gateway, cluster_id arrives
+				// as metadata), so it fires on EVERY such call. Logging it
+				// per-call buried the journal: ~300/min on a 37-package reconcile
+				// loop hammering GetArtifactManifest, drowning real WARNs and
+				// desensitizing this genuine security signal. Rate-limit to once
+				// per method per window so the signal survives without the spam.
+				if unverifiedClusterIDLog.allow(grpcMethod) {
+					slog.Warn("AuthContext: ClusterID sourced from unverified gRPC metadata — not suitable for authorization",
+						"cluster_id", authCtx.ClusterID,
+						"method", grpcMethod,
+					)
+				}
 			}
 		}
 	}
