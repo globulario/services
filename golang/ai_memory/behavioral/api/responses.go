@@ -72,3 +72,25 @@ type CheckActionResponse struct {
 type RecordOutcomeResponse struct {
 	OutcomeID string
 }
+
+// GeneratePromotionCandidateResponse returns the queued review candidate and
+// the supporting outcome count used to justify it.
+type GeneratePromotionCandidateResponse struct {
+	Candidate    PromotionCandidate
+	OutcomeCount int32
+}
+
+// ListPromotionCandidatesResponse returns queued promotion candidates.
+type ListPromotionCandidatesResponse struct {
+	Candidates []PromotionCandidate
+}
+
+// GenerateReconciliationReportResponse returns the stored advisory report.
+type GenerateReconciliationReportResponse struct {
+	Report ReconciliationReport
+}
+
+// ListReconciliationReportsResponse returns stored advisory reports.
+type ListReconciliationReportsResponse struct {
+	Reports []ReconciliationReport
+}

@@ -295,6 +295,162 @@ func TestCheckActionDistinguishesSelfAssertedEvidence(t *testing.T) {
 	}
 }
 
+func TestGeneratePromotionCandidateQueuesRepeatedTheme(t *testing.T) {
+	st, h := newGovHandler()
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		if _, err := h.RecordOutcome(ctx, &bpb.RecordOutcomeRequest{Outcome: &bpb.Outcome{
+			Project: testProject, Domain: testDomain, Status: "failure", Theme: "scylla.group0.quorum_loss",
+			EvidenceIds: []string{"ev.truth.group0"},
+		}}); err != nil {
+			t.Fatalf("RecordOutcome(%d): %v", i, err)
+		}
+	}
+
+	resp, err := h.GeneratePromotionCandidate(ctx, &bpb.GeneratePromotionCandidateRequest{
+		Project:    testProject,
+		Domain:     testDomain,
+		Theme:      "scylla.group0.quorum_loss",
+		MinRepeats: 2,
+		Actor:      "operator-dave",
+		DraftPrinciple: &bpb.Principle{
+			Title:            "Protect group0 before schema mutation",
+			AppliesWhen:      []string{"condition.cluster.scylla.group0_quorum_loss"},
+			Authorities:      []string{"authority.cluster.infra_probe.scylla"},
+			RequiredEvidence: []string{"required.cluster.scylla.group0_probe"},
+			RiskLevel:        "high",
+			RevocationRule:   "revoke when quorum loss no longer reproduces",
+			PromotionReason:  "repeated runtime failures justify review",
+		},
+		SupportingEvidenceIds: []string{"ev.truth.group0"},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePromotionCandidate: %v", err)
+	}
+	c := resp.GetCandidate()
+	if c.GetStatus() != bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_QUEUED {
+		t.Fatalf("status=%v, want QUEUED", c.GetStatus())
+	}
+	if resp.GetOutcomeCount() != 2 {
+		t.Fatalf("outcome_count=%d, want 2", resp.GetOutcomeCount())
+	}
+	if c.GetDraftPrinciple().GetStatus() != bpb.GovernanceStatus_PROPOSED_PRINCIPLE {
+		t.Fatalf("draft status=%v, want PROPOSED_PRINCIPLE", c.GetDraftPrinciple().GetStatus())
+	}
+	if got, err := st.ListPromotionCandidates(ctx, testProject, testDomain, "scylla.group0.quorum_loss", api.PromotionCandidateStatusQueued, 10); err != nil || len(got) != 1 {
+		t.Fatalf("ListPromotionCandidates store=%d err=%v", len(got), err)
+	}
+}
+
+func TestGeneratePromotionCandidateRequiresRepeatedOutcomes(t *testing.T) {
+	_, h := newGovHandler()
+	_, err := h.GeneratePromotionCandidate(context.Background(), &bpb.GeneratePromotionCandidateRequest{
+		Project:    testProject,
+		Domain:     testDomain,
+		Theme:      "singleton.theme",
+		MinRepeats: 2,
+		Actor:      "operator-dave",
+		DraftPrinciple: &bpb.Principle{
+			Title:            "T",
+			AppliesWhen:      []string{"cond.a"},
+			Authorities:      []string{"auth.a"},
+			RequiredEvidence: []string{"req.a"},
+			RiskLevel:        "low",
+			RevocationRule:   "r",
+			PromotionReason:  "p",
+		},
+		SupportingEvidenceIds: []string{"ev.a"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "need at least 2") {
+		t.Fatalf("expected repeated-outcome error, got %v", err)
+	}
+}
+
+func TestGenerateReconciliationReportFlagsMissingAWGMapping(t *testing.T) {
+	st, h := newGovHandler()
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		if _, err := h.RecordOutcome(ctx, &bpb.RecordOutcomeRequest{Outcome: &bpb.Outcome{
+			Project: testProject, Domain: testDomain, Status: "failure", Theme: "doctor.group0.quorum_loss",
+			EvidenceIds: []string{"ev.group0"},
+		}}); err != nil {
+			t.Fatalf("RecordOutcome(%d): %v", i, err)
+		}
+	}
+	cand, err := h.GeneratePromotionCandidate(ctx, &bpb.GeneratePromotionCandidateRequest{
+		Project: testProject, Domain: testDomain, Theme: "doctor.group0.quorum_loss", MinRepeats: 2, Actor: "operator-dave",
+		DraftPrinciple: &bpb.Principle{
+			Title: "Protect group0", AppliesWhen: []string{"cond.group0"}, Authorities: []string{"auth.group0"},
+			RequiredEvidence: []string{"req.group0"}, RiskLevel: "high", RevocationRule: "r", PromotionReason: "p",
+		},
+		SupportingEvidenceIds: []string{"ev.group0"},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePromotionCandidate: %v", err)
+	}
+	rep, err := h.GenerateReconciliationReport(ctx, &bpb.GenerateReconciliationReportRequest{
+		Project: testProject, Domain: testDomain, PromotionCandidateId: cand.GetCandidate().GetId(), Actor: "operator-dave",
+	})
+	if err != nil {
+		t.Fatalf("GenerateReconciliationReport: %v", err)
+	}
+	findings := rep.GetReport().GetFindings()
+	if len(findings) == 0 || findings[0] != "BEHAVIORAL_CANDIDATE_MISSING_AWG_MAPPING" {
+		t.Fatalf("findings=%v", findings)
+	}
+	if got, err := st.ListReconciliationReports(ctx, testProject, testDomain, "doctor.group0.quorum_loss", cand.GetCandidate().GetId(), 10); err != nil || len(got) != 1 {
+		t.Fatalf("ListReconciliationReports=%d err=%v", len(got), err)
+	}
+}
+
+func TestGenerateReconciliationReportContradictionAndMissingTest(t *testing.T) {
+	_, h := newGovHandler()
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		_, _ = h.RecordOutcome(ctx, &bpb.RecordOutcomeRequest{Outcome: &bpb.Outcome{
+			Project: testProject, Domain: testDomain, Status: "failure", Theme: "watcher.policy_embed_drift",
+		}})
+	}
+	cand, _ := h.GeneratePromotionCandidate(ctx, &bpb.GeneratePromotionCandidateRequest{
+		Project: testProject, Domain: testDomain, Theme: "watcher.policy_embed_drift", MinRepeats: 2, Actor: "operator-dave",
+		DraftPrinciple: &bpb.Principle{
+			Title: "Avoid stale grants", AppliesWhen: []string{"cond.stale.grants"}, Authorities: []string{"auth.controller"},
+			RequiredEvidence: []string{"req.controller"}, RiskLevel: "low", RevocationRule: "r", PromotionReason: "p",
+		},
+		SupportingEvidenceIds: []string{"ev.controller"},
+	})
+	rep, err := h.GenerateReconciliationReport(ctx, &bpb.GenerateReconciliationReportRequest{
+		Project: testProject, Domain: testDomain, PromotionCandidateId: cand.GetCandidate().GetId(),
+		AwgInvariantIds: []string{"invariant.controller.stale_grant"}, RuntimeRelevant: true, Actor: "operator-dave",
+	})
+	if err != nil {
+		t.Fatalf("GenerateReconciliationReport: %v", err)
+	}
+	if !strings.Contains(strings.Join(rep.GetReport().GetFindings(), ","), "RUNTIME_CONTRADICTS_AWG") {
+		t.Fatalf("findings=%v", rep.GetReport().GetFindings())
+	}
+	if !strings.Contains(strings.Join(rep.GetReport().GetFindings(), ","), "AWG_MAPPING_MISSING_TEST_CANDIDATE") {
+		t.Fatalf("findings=%v", rep.GetReport().GetFindings())
+	}
+}
+
+func TestGenerateReconciliationReportAWGWithoutBehavioralCandidate(t *testing.T) {
+	_, h := newGovHandler()
+	rep, err := h.GenerateReconciliationReport(context.Background(), &bpb.GenerateReconciliationReportRequest{
+		Project: testProject, Domain: testDomain, Theme: "doctor.runtime_adjacent", RuntimeRelevant: true,
+		AwgInvariantIds: []string{"invariant.runtime.adjacent"}, Actor: "operator-dave",
+	})
+	if err != nil {
+		t.Fatalf("GenerateReconciliationReport: %v", err)
+	}
+	if !strings.Contains(strings.Join(rep.GetReport().GetFindings(), ","), "AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE") {
+		t.Fatalf("findings=%v", rep.GetReport().GetFindings())
+	}
+	if rep.GetReport().GetProposedBehavioralTheme() != "doctor.runtime_adjacent" {
+		t.Fatalf("proposed_behavioral_theme=%q", rep.GetReport().GetProposedBehavioralTheme())
+	}
+}
+
 // §4 CheckAction persists an action_checks audit row for every verdict.
 func TestCheckActionPersistsAuditRow(t *testing.T) {
 	st, h := newGovHandler()

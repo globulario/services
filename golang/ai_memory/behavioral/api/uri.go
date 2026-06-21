@@ -16,19 +16,21 @@ package api
 type EntityKind string
 
 const (
-	KindSignal            EntityKind = "signal"
-	KindClaim             EntityKind = "claim"
-	KindEvidence          EntityKind = "evidence"
-	KindAuthority         EntityKind = "authority"
-	KindCondition         EntityKind = "condition"
-	KindContradiction     EntityKind = "contradiction"
-	KindPrinciple         EntityKind = "principle"
-	KindForbiddenMove     EntityKind = "forbidden_move"
-	KindRequiredEvidence  EntityKind = "required_evidence"
-	KindOutcome           EntityKind = "outcome"
-	KindPromotionDecision EntityKind = "promotion_decision"
-	KindRevocationRule    EntityKind = "revocation_rule"
-	KindActionCheck       EntityKind = "action_check"
+	KindSignal               EntityKind = "signal"
+	KindClaim                EntityKind = "claim"
+	KindEvidence             EntityKind = "evidence"
+	KindAuthority            EntityKind = "authority"
+	KindCondition            EntityKind = "condition"
+	KindContradiction        EntityKind = "contradiction"
+	KindPrinciple            EntityKind = "principle"
+	KindForbiddenMove        EntityKind = "forbidden_move"
+	KindRequiredEvidence     EntityKind = "required_evidence"
+	KindOutcome              EntityKind = "outcome"
+	KindPromotionCandidate   EntityKind = "promotion_candidate"
+	KindReconciliationReport EntityKind = "reconciliation_report"
+	KindPromotionDecision    EntityKind = "promotion_decision"
+	KindRevocationRule       EntityKind = "revocation_rule"
+	KindActionCheck          EntityKind = "action_check"
 )
 
 // AllEntityKinds is the closed set of first-class entity kinds. The RDF-readiness
@@ -36,7 +38,7 @@ const (
 var AllEntityKinds = []EntityKind{
 	KindSignal, KindClaim, KindEvidence, KindAuthority, KindCondition,
 	KindContradiction, KindPrinciple, KindForbiddenMove, KindRequiredEvidence,
-	KindOutcome, KindPromotionDecision, KindRevocationRule, KindActionCheck,
+	KindOutcome, KindPromotionCandidate, KindReconciliationReport, KindPromotionDecision, KindRevocationRule, KindActionCheck,
 }
 
 // URIPrefix is the CURIE prefix for behavioral-memory canonical URIs. The

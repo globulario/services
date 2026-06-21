@@ -102,3 +102,50 @@ type CheckActionRequest struct {
 type RecordOutcomeRequest struct {
 	Outcome Outcome
 }
+
+// GeneratePromotionCandidateRequest asks the kernel to turn a repeated outcome
+// theme into a review-queue item. The repeated-pattern check is automatic; the
+// governance fields remain explicit human/agent input.
+type GeneratePromotionCandidateRequest struct {
+	Project               string
+	Domain                DomainRef
+	Theme                 string
+	MinRepeats            int32
+	DraftPrinciple        Principle
+	Actor                 string
+	Rationale             string
+	SupportingEvidenceIDs []string
+}
+
+// ListPromotionCandidatesRequest lists review-queue items, optionally scoped by
+// theme and/or queue status.
+type ListPromotionCandidatesRequest struct {
+	Project string
+	Domain  DomainRef
+	Theme   string
+	Status  PromotionCandidateStatus
+	Limit   int32
+}
+
+// GenerateReconciliationReportRequest creates an advisory bridge report between
+// behavioral-memory and AWG.
+type GenerateReconciliationReportRequest struct {
+	Project              string
+	Domain               DomainRef
+	PromotionCandidateID string
+	Theme                string
+	AWGInvariantIDs      []string
+	AWGFailureModeIDs    []string
+	AWGTestIDs           []string
+	RuntimeRelevant      bool
+	Actor                string
+}
+
+// ListReconciliationReportsRequest lists stored reconciliation reports.
+type ListReconciliationReportsRequest struct {
+	Project              string
+	Domain               DomainRef
+	Theme                string
+	PromotionCandidateID string
+	Limit                int32
+}

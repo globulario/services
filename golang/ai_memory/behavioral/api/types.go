@@ -21,20 +21,24 @@ type Provenance struct {
 
 // Signal is raw operational input.
 type Signal struct {
-	ID         string
-	Project    string
-	Domain     DomainRef
-	Kind       SignalKind
-	SourceKind string // log|metric|probe|agent|human|test|status
-	SourceRef  string
-	EntityRef  string
-	Scope      string // generic scope id (e.g. cluster id)
-	ObservedAt int64
-	Payload    string
-	Confidence float32
-	Status     GovernanceStatus
-	Provenance Provenance
-	Metadata   map[string]string
+	ID             string
+	Project        string
+	Domain         DomainRef
+	Kind           SignalKind
+	SourceKind     string // log|metric|probe|agent|human|test|status
+	SourceRef      string
+	EntityRef      string
+	Scope          string // generic scope id (e.g. cluster id)
+	ClusterID      string
+	ConditionRef   string
+	Severity       string
+	AuthorityLevel ObservationAuthorityLevel
+	ObservedAt     int64
+	Payload        string
+	Confidence     float32
+	Status         GovernanceStatus
+	Provenance     Provenance
+	Metadata       map[string]string
 }
 
 // Claim is a structured statement derived from a signal.
@@ -57,18 +61,25 @@ type Claim struct {
 
 // Evidence supports a claim or a principle.
 type Evidence struct {
-	ID         string
-	Project    string
-	Domain     DomainRef
-	TargetKind string // claim|principle
-	TargetID   string // → bm:supportedBy (inverse): the claim/principle this supports
-	Kind       string // test_result|probe|metric|log|snapshot|human
-	Lane       EvidenceLane
-	Result     string // pass|fail|stale|unknown
-	ProbeRef   string
-	ObservedAt int64
-	Payload    string
-	Provenance Provenance
+	ID             string
+	Project        string
+	Domain         DomainRef
+	TargetKind     string // signal|claim|principle
+	TargetID       string // → bm:supportedBy (inverse): the signal/claim/principle this supports
+	Kind           string // test_result|probe|metric|log|snapshot|human
+	Lane           EvidenceLane
+	Result         string // pass|fail|stale|unknown
+	ProbeRef       string
+	SourceKind     string
+	SourceRef      string
+	EntityRef      string
+	ClusterID      string
+	ConditionRef   string
+	Severity       string
+	AuthorityLevel ObservationAuthorityLevel
+	ObservedAt     int64
+	Payload        string
+	Provenance     Provenance
 	// RDF-readiness relations (first-class, never in Metadata):
 	ObservedFrom string                // → bm:observedFrom: signal/source id this evidence came from
 	Satisfies    []RequiredEvidenceRef // → bm:satisfies: required-evidence slots fulfilled
@@ -208,6 +219,57 @@ type Outcome struct {
 	Metadata           map[string]string
 }
 
+// PromotionCandidate is a human-review queue item derived from repeated
+// runtime outcomes. It captures an explicit principle draft plus the supporting
+// repeated outcomes/evidence that made it review-worthy. It is NOT a principle
+// row and never implies auto-promotion.
+type PromotionCandidate struct {
+	ID                      string
+	Project                 string
+	Domain                  DomainRef
+	Theme                   string
+	Status                  PromotionCandidateStatus
+	Title                   string
+	Summary                 string
+	Rationale               string
+	SupportingOutcomeIDs    []string
+	SupportingEvidenceIDs   []string
+	RepeatCount             int32
+	DraftPrinciple          Principle
+	GeneratedBy             string
+	CreatedAt               int64
+	UpdatedAt               int64
+	MaterializedPrincipleID string
+	Metadata                map[string]string
+}
+
+// ReconciliationReport is an advisory bridge artifact between behavioral-memory
+// and AWG. It records detected drift/reinforcement plus proposed review links;
+// it never mutates either governance surface automatically.
+type ReconciliationReport struct {
+	ID                        string
+	Project                   string
+	Domain                    DomainRef
+	PromotionCandidateID      string
+	Theme                     string
+	AWGInvariantIDs           []string
+	AWGFailureModeIDs         []string
+	AWGTestIDs                []string
+	Findings                  []string
+	Summary                   string
+	OutcomeCount              int32
+	FailureCount              int32
+	SuccessCount              int32
+	SevereCount               int32
+	ProposedAWGInvariantIDs   []string
+	ProposedAWGFailureModeIDs []string
+	ProposedAWGTestIDs        []string
+	ProposedBehavioralTheme   string
+	Actor                     string
+	CreatedAt                 int64
+	Metadata                  map[string]string
+}
+
 // PromotionDecisionRecord is the audit record of a promotion gate evaluation.
 type PromotionDecisionRecord struct {
 	ID                 string
@@ -277,8 +339,8 @@ type ActionCheck struct {
 	Target              string
 	Conditions          []ConditionRef
 	Allowed             bool
-	Status              string   // allowed|blocked|needs_evidence|needs_authority|needs_human_approval
-	ViolatedPrinciples  []string // subset of CheckedAgainstPrinciples that this action violates
+	Status              string                // allowed|blocked|needs_evidence|needs_authority|needs_human_approval
+	ViolatedPrinciples  []string              // subset of CheckedAgainstPrinciples that this action violates
 	MissingEvidence     []RequiredEvidenceRef // → bm:missingEvidence
 	UnresolvedAuthority []AuthorityRef
 	ForbiddenMatched    []ForbiddenMoveRef // → bm:blockedBy

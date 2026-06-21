@@ -42,4 +42,8 @@ type Core interface {
 	ResolveGovernedContext(ctx context.Context, req *ResolveGovernedContextRequest) (*ResolveGovernedContextResponse, error)
 	CheckAction(ctx context.Context, req *CheckActionRequest) (*CheckActionResponse, error)
 	RecordOutcome(ctx context.Context, req *RecordOutcomeRequest) (*RecordOutcomeResponse, error)
+	GeneratePromotionCandidate(ctx context.Context, req *GeneratePromotionCandidateRequest) (*GeneratePromotionCandidateResponse, error)
+	ListPromotionCandidates(ctx context.Context, req *ListPromotionCandidatesRequest) (*ListPromotionCandidatesResponse, error)
+	GenerateReconciliationReport(ctx context.Context, req *GenerateReconciliationReportRequest) (*GenerateReconciliationReportResponse, error)
+	ListReconciliationReports(ctx context.Context, req *ListReconciliationReportsRequest) (*ListReconciliationReportsResponse, error)
 }

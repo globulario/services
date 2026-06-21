@@ -19,18 +19,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BehavioralMemoryService_RecordSignal_FullMethodName           = "/behavioral_memory.BehavioralMemoryService/RecordSignal"
-	BehavioralMemoryService_ExtractClaim_FullMethodName           = "/behavioral_memory.BehavioralMemoryService/ExtractClaim"
-	BehavioralMemoryService_RecordEvidence_FullMethodName         = "/behavioral_memory.BehavioralMemoryService/RecordEvidence"
-	BehavioralMemoryService_MapAuthority_FullMethodName           = "/behavioral_memory.BehavioralMemoryService/MapAuthority"
-	BehavioralMemoryService_RecordContradiction_FullMethodName    = "/behavioral_memory.BehavioralMemoryService/RecordContradiction"
-	BehavioralMemoryService_ProposePrinciple_FullMethodName       = "/behavioral_memory.BehavioralMemoryService/ProposePrinciple"
-	BehavioralMemoryService_PromotePrinciple_FullMethodName       = "/behavioral_memory.BehavioralMemoryService/PromotePrinciple"
-	BehavioralMemoryService_RevokePrinciple_FullMethodName        = "/behavioral_memory.BehavioralMemoryService/RevokePrinciple"
-	BehavioralMemoryService_ExplainPrinciple_FullMethodName       = "/behavioral_memory.BehavioralMemoryService/ExplainPrinciple"
-	BehavioralMemoryService_ResolveGovernedContext_FullMethodName = "/behavioral_memory.BehavioralMemoryService/ResolveGovernedContext"
-	BehavioralMemoryService_CheckAction_FullMethodName            = "/behavioral_memory.BehavioralMemoryService/CheckAction"
-	BehavioralMemoryService_RecordOutcome_FullMethodName          = "/behavioral_memory.BehavioralMemoryService/RecordOutcome"
+	BehavioralMemoryService_RecordSignal_FullMethodName                 = "/behavioral_memory.BehavioralMemoryService/RecordSignal"
+	BehavioralMemoryService_ExtractClaim_FullMethodName                 = "/behavioral_memory.BehavioralMemoryService/ExtractClaim"
+	BehavioralMemoryService_RecordEvidence_FullMethodName               = "/behavioral_memory.BehavioralMemoryService/RecordEvidence"
+	BehavioralMemoryService_MapAuthority_FullMethodName                 = "/behavioral_memory.BehavioralMemoryService/MapAuthority"
+	BehavioralMemoryService_RecordContradiction_FullMethodName          = "/behavioral_memory.BehavioralMemoryService/RecordContradiction"
+	BehavioralMemoryService_ProposePrinciple_FullMethodName             = "/behavioral_memory.BehavioralMemoryService/ProposePrinciple"
+	BehavioralMemoryService_PromotePrinciple_FullMethodName             = "/behavioral_memory.BehavioralMemoryService/PromotePrinciple"
+	BehavioralMemoryService_RevokePrinciple_FullMethodName              = "/behavioral_memory.BehavioralMemoryService/RevokePrinciple"
+	BehavioralMemoryService_ExplainPrinciple_FullMethodName             = "/behavioral_memory.BehavioralMemoryService/ExplainPrinciple"
+	BehavioralMemoryService_ResolveGovernedContext_FullMethodName       = "/behavioral_memory.BehavioralMemoryService/ResolveGovernedContext"
+	BehavioralMemoryService_CheckAction_FullMethodName                  = "/behavioral_memory.BehavioralMemoryService/CheckAction"
+	BehavioralMemoryService_RecordOutcome_FullMethodName                = "/behavioral_memory.BehavioralMemoryService/RecordOutcome"
+	BehavioralMemoryService_GeneratePromotionCandidate_FullMethodName   = "/behavioral_memory.BehavioralMemoryService/GeneratePromotionCandidate"
+	BehavioralMemoryService_ListPromotionCandidates_FullMethodName      = "/behavioral_memory.BehavioralMemoryService/ListPromotionCandidates"
+	BehavioralMemoryService_GenerateReconciliationReport_FullMethodName = "/behavioral_memory.BehavioralMemoryService/GenerateReconciliationReport"
+	BehavioralMemoryService_ListReconciliationReports_FullMethodName    = "/behavioral_memory.BehavioralMemoryService/ListReconciliationReports"
 )
 
 // BehavioralMemoryServiceClient is the client API for BehavioralMemoryService service.
@@ -89,6 +93,18 @@ type BehavioralMemoryServiceClient interface {
 	// RecordOutcome records what happened after an action (success/failure/
 	// blocked/reverted), feeding the learning loop.
 	RecordOutcome(ctx context.Context, in *RecordOutcomeRequest, opts ...grpc.CallOption) (*RecordOutcomeResponse, error)
+	// GeneratePromotionCandidate turns a repeated outcome theme plus an explicit
+	// draft rule into a human-review queue item. It never creates or promotes a
+	// principle automatically.
+	GeneratePromotionCandidate(ctx context.Context, in *GeneratePromotionCandidateRequest, opts ...grpc.CallOption) (*GeneratePromotionCandidateResponse, error)
+	// ListPromotionCandidates returns queued human-review candidates.
+	ListPromotionCandidates(ctx context.Context, in *ListPromotionCandidatesRequest, opts ...grpc.CallOption) (*ListPromotionCandidatesResponse, error)
+	// GenerateReconciliationReport creates an advisory bridge artifact between
+	// behavioral-memory and AWG. It surfaces drift/reinforcement and proposed
+	// review links only; it never mutates either governance surface.
+	GenerateReconciliationReport(ctx context.Context, in *GenerateReconciliationReportRequest, opts ...grpc.CallOption) (*GenerateReconciliationReportResponse, error)
+	// ListReconciliationReports returns stored advisory bridge reports.
+	ListReconciliationReports(ctx context.Context, in *ListReconciliationReportsRequest, opts ...grpc.CallOption) (*ListReconciliationReportsResponse, error)
 }
 
 type behavioralMemoryServiceClient struct {
@@ -219,6 +235,46 @@ func (c *behavioralMemoryServiceClient) RecordOutcome(ctx context.Context, in *R
 	return out, nil
 }
 
+func (c *behavioralMemoryServiceClient) GeneratePromotionCandidate(ctx context.Context, in *GeneratePromotionCandidateRequest, opts ...grpc.CallOption) (*GeneratePromotionCandidateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GeneratePromotionCandidateResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_GeneratePromotionCandidate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *behavioralMemoryServiceClient) ListPromotionCandidates(ctx context.Context, in *ListPromotionCandidatesRequest, opts ...grpc.CallOption) (*ListPromotionCandidatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPromotionCandidatesResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_ListPromotionCandidates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *behavioralMemoryServiceClient) GenerateReconciliationReport(ctx context.Context, in *GenerateReconciliationReportRequest, opts ...grpc.CallOption) (*GenerateReconciliationReportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateReconciliationReportResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_GenerateReconciliationReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *behavioralMemoryServiceClient) ListReconciliationReports(ctx context.Context, in *ListReconciliationReportsRequest, opts ...grpc.CallOption) (*ListReconciliationReportsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListReconciliationReportsResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_ListReconciliationReports_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BehavioralMemoryServiceServer is the server API for BehavioralMemoryService service.
 // All implementations should embed UnimplementedBehavioralMemoryServiceServer
 // for forward compatibility.
@@ -275,6 +331,18 @@ type BehavioralMemoryServiceServer interface {
 	// RecordOutcome records what happened after an action (success/failure/
 	// blocked/reverted), feeding the learning loop.
 	RecordOutcome(context.Context, *RecordOutcomeRequest) (*RecordOutcomeResponse, error)
+	// GeneratePromotionCandidate turns a repeated outcome theme plus an explicit
+	// draft rule into a human-review queue item. It never creates or promotes a
+	// principle automatically.
+	GeneratePromotionCandidate(context.Context, *GeneratePromotionCandidateRequest) (*GeneratePromotionCandidateResponse, error)
+	// ListPromotionCandidates returns queued human-review candidates.
+	ListPromotionCandidates(context.Context, *ListPromotionCandidatesRequest) (*ListPromotionCandidatesResponse, error)
+	// GenerateReconciliationReport creates an advisory bridge artifact between
+	// behavioral-memory and AWG. It surfaces drift/reinforcement and proposed
+	// review links only; it never mutates either governance surface.
+	GenerateReconciliationReport(context.Context, *GenerateReconciliationReportRequest) (*GenerateReconciliationReportResponse, error)
+	// ListReconciliationReports returns stored advisory bridge reports.
+	ListReconciliationReports(context.Context, *ListReconciliationReportsRequest) (*ListReconciliationReportsResponse, error)
 }
 
 // UnimplementedBehavioralMemoryServiceServer should be embedded to have
@@ -319,6 +387,18 @@ func (UnimplementedBehavioralMemoryServiceServer) CheckAction(context.Context, *
 }
 func (UnimplementedBehavioralMemoryServiceServer) RecordOutcome(context.Context, *RecordOutcomeRequest) (*RecordOutcomeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecordOutcome not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) GeneratePromotionCandidate(context.Context, *GeneratePromotionCandidateRequest) (*GeneratePromotionCandidateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GeneratePromotionCandidate not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) ListPromotionCandidates(context.Context, *ListPromotionCandidatesRequest) (*ListPromotionCandidatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPromotionCandidates not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) GenerateReconciliationReport(context.Context, *GenerateReconciliationReportRequest) (*GenerateReconciliationReportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateReconciliationReport not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) ListReconciliationReports(context.Context, *ListReconciliationReportsRequest) (*ListReconciliationReportsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListReconciliationReports not implemented")
 }
 func (UnimplementedBehavioralMemoryServiceServer) testEmbeddedByValue() {}
 
@@ -556,6 +636,78 @@ func _BehavioralMemoryService_RecordOutcome_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BehavioralMemoryService_GeneratePromotionCandidate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GeneratePromotionCandidateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).GeneratePromotionCandidate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_GeneratePromotionCandidate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).GeneratePromotionCandidate(ctx, req.(*GeneratePromotionCandidateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BehavioralMemoryService_ListPromotionCandidates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPromotionCandidatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).ListPromotionCandidates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_ListPromotionCandidates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).ListPromotionCandidates(ctx, req.(*ListPromotionCandidatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BehavioralMemoryService_GenerateReconciliationReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateReconciliationReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).GenerateReconciliationReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_GenerateReconciliationReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).GenerateReconciliationReport(ctx, req.(*GenerateReconciliationReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BehavioralMemoryService_ListReconciliationReports_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListReconciliationReportsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).ListReconciliationReports(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_ListReconciliationReports_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).ListReconciliationReports(ctx, req.(*ListReconciliationReportsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BehavioralMemoryService_ServiceDesc is the grpc.ServiceDesc for BehavioralMemoryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -610,6 +762,22 @@ var BehavioralMemoryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecordOutcome",
 			Handler:    _BehavioralMemoryService_RecordOutcome_Handler,
+		},
+		{
+			MethodName: "GeneratePromotionCandidate",
+			Handler:    _BehavioralMemoryService_GeneratePromotionCandidate_Handler,
+		},
+		{
+			MethodName: "ListPromotionCandidates",
+			Handler:    _BehavioralMemoryService_ListPromotionCandidates_Handler,
+		},
+		{
+			MethodName: "GenerateReconciliationReport",
+			Handler:    _BehavioralMemoryService_GenerateReconciliationReport_Handler,
+		},
+		{
+			MethodName: "ListReconciliationReports",
+			Handler:    _BehavioralMemoryService_ListReconciliationReports_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -55,6 +55,10 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.signals (
     created_at   bigint,
     updated_at   bigint,
     metadata     map<text, text>,
+    cluster_id   text,
+    condition_ref text,
+    severity     text,
+    authority_level text,
     PRIMARY KEY ((project, domain, id))
 )`
 
@@ -99,6 +103,13 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.evidence (
     created_at    bigint,
     updated_at    bigint,
     metadata      map<text, text>,
+    source_kind   text,
+    source_ref    text,
+    entity_ref    text,
+    cluster_id    text,
+    condition_ref text,
+    severity      text,
+    authority_level text,
     PRIMARY KEY ((project, domain, id))
 )`
 
@@ -356,6 +367,71 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.outcomes_by_theme (
     PRIMARY KEY ((project, domain, theme), created_at, id)
 ) WITH CLUSTERING ORDER BY (created_at DESC, id ASC)`
 
+// promotion_candidates is the PR-10 human-review queue for repeated outcome
+// themes. It stores an explicit principle draft plus the supporting repeated
+// outcomes/evidence that justified surfacing the candidate.
+const createPromotionCandidatesTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.promotion_candidates (
+    project                  text,
+    domain                   text,
+    id                       text,
+    theme                    text,
+    status                   text,
+    title                    text,
+    summary                  text,
+    rationale                text,
+    supporting_outcome_ids   list<text>,
+    supporting_evidence_ids  list<text>,
+    repeat_count             int,
+    draft_principle_id       text,
+    draft_title              text,
+    draft_applies_when       set<text>,
+    draft_authorities        set<text>,
+    draft_required_evidence  set<text>,
+    draft_forbidden_moves    set<text>,
+    draft_recommended_action text,
+    draft_risk_level         text,
+    draft_revocation_rule    text,
+    draft_promotion_reason   text,
+    draft_status             text,
+    draft_version            int,
+    draft_proposed_by        text,
+    draft_source_refs        set<text>,
+    draft_generated_from     set<text>,
+    generated_by             text,
+    created_at               bigint,
+    updated_at               bigint,
+    materialized_principle_id text,
+    metadata                 map<text, text>,
+    PRIMARY KEY ((project, domain, id))
+)`
+
+const createReconciliationReportsTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.reconciliation_reports (
+    project                    text,
+    domain                     text,
+    id                         text,
+    promotion_candidate_id     text,
+    theme                      text,
+    awg_invariant_ids          list<text>,
+    awg_failure_mode_ids       list<text>,
+    awg_test_ids               list<text>,
+    findings                   list<text>,
+    summary                    text,
+    outcome_count              int,
+    failure_count              int,
+    success_count              int,
+    severe_count               int,
+    proposed_awg_invariant_ids list<text>,
+    proposed_awg_failure_mode_ids list<text>,
+    proposed_awg_test_ids      list<text>,
+    proposed_behavioral_theme  text,
+    actor                      text,
+    created_at                 bigint,
+    metadata                   map<text, text>,
+    PRIMARY KEY ((project, domain, id))
+)`
+
 // behavioralSchemaStatements is the ordered list of table DDL (keyspace created
 // separately). All use IF NOT EXISTS and are safe to re-run.
 var behavioralSchemaStatements = []string{
@@ -377,4 +453,6 @@ var behavioralSchemaStatements = []string{
 	createActionChecksTableCQL,
 	createOutcomesTableCQL,
 	createOutcomesByThemeTableCQL,
+	createPromotionCandidatesTableCQL,
+	createReconciliationReportsTableCQL,
 }

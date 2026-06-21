@@ -172,6 +172,42 @@ func TestRecordEvidenceLinksTargetAndAdvancesClaim(t *testing.T) {
 	}
 }
 
+// PR-9 observation evidence may attach directly to a signal without forcing an
+// early claim extraction. That preserves observation as input rather than
+// pretending governance already exists.
+func TestRecordEvidenceCanTargetSignalWithAuthority(t *testing.T) {
+	st := store.NewMemoryStore()
+	h := newBehavioralHandler(st)
+	ctx := context.Background()
+	sigID := recordTestSignal(t, h)
+
+	resp, err := h.RecordEvidence(ctx, &bpb.RecordEvidenceRequest{
+		Evidence: &bpb.Evidence{
+			Project: testProject, Domain: testDomain, TargetKind: "signal", TargetId: sigID,
+			EvidenceKind: "probe", Result: "observed", SourceKind: "infra_probe_truth_plane",
+			AuthorityLevel: bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_TRUTH_PLANE,
+			ClusterId:      "cluster-a", ConditionRef: "scylla.group0.quorum_loss", Severity: "critical",
+			ObservedFrom: sigID,
+		},
+	})
+	if err != nil {
+		t.Fatalf("RecordEvidence(signal): %v", err)
+	}
+	list, err := st.ListEvidenceForTarget(ctx, testProject, testDomain, sigID)
+	if err != nil {
+		t.Fatalf("ListEvidenceForTarget(signal): %v", err)
+	}
+	if len(list) != 1 || list[0].ID != resp.GetEvidenceId() {
+		t.Fatalf("signal evidence list = %+v", list)
+	}
+	if list[0].AuthorityLevel != api.ObservationAuthorityTruthPlane {
+		t.Fatalf("authority=%q, want truth-plane", list[0].AuthorityLevel)
+	}
+	if list[0].ClusterID != "cluster-a" || list[0].ConditionRef != "scylla.group0.quorum_loss" || list[0].Severity != "critical" {
+		t.Fatalf("observation fields = %+v", list[0])
+	}
+}
+
 // #5 MapAuthority records an authority→target mapping (no cluster-typed fields)
 // and advances the claim to AUTHORITY_MAPPED.
 func TestMapAuthorityRecordsMapping(t *testing.T) {

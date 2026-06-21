@@ -27,6 +27,8 @@ var entityTypes = []struct {
 	{KindForbiddenMove, reflect.TypeOf(ForbiddenMove{})},
 	{KindRequiredEvidence, reflect.TypeOf(RequiredEvidence{})},
 	{KindOutcome, reflect.TypeOf(Outcome{})},
+	{KindPromotionCandidate, reflect.TypeOf(PromotionCandidate{})},
+	{KindReconciliationReport, reflect.TypeOf(ReconciliationReport{})},
 	{KindPromotionDecision, reflect.TypeOf(PromotionDecisionRecord{})},
 	{KindRevocationRule, reflect.TypeOf(RevocationRule{})},
 	{KindActionCheck, reflect.TypeOf(ActionCheck{})},

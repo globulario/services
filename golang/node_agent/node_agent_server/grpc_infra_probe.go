@@ -93,6 +93,7 @@ func (srv *NodeAgentServer) refreshScyllaInfraProbe(ctx context.Context) *cluste
 	desired, derr := infra_truth.BuildScyllaDesiredState(srv.buildScyllaDesiredInputs())
 	res := srv.scyllaProber.ProbeStructured(ctx, desired, derr)
 	srv.infraProbeCache.Put(infra_truth.ComponentScylla, res, time.Now())
+	go emitBehavioralInfraProbe(context.Background(), srv.clusterID, res)
 	return res
 }
 
@@ -139,6 +140,7 @@ func (srv *NodeAgentServer) refreshEtcdInfraProbe(ctx context.Context) *cluster_
 	desired, derr := infra_truth.BuildEtcdDesiredState(srv.buildEtcdDesiredInputs())
 	res := srv.etcdProber.ProbeStructured(ctx, desired, derr)
 	srv.infraProbeCache.Put(infra_truth.ComponentEtcd, res, time.Now())
+	go emitBehavioralInfraProbe(context.Background(), srv.clusterID, res)
 	return res
 }
 
@@ -205,6 +207,7 @@ func (srv *NodeAgentServer) refreshMinioInfraProbe(ctx context.Context) *cluster
 	desired, derr := infra_truth.BuildMinioDesiredState(srv.buildMinioDesiredInputs(ctx))
 	res := srv.minioProber.ProbeStructured(ctx, desired, derr)
 	srv.infraProbeCache.Put(infra_truth.ComponentMinio, res, time.Now())
+	go emitBehavioralInfraProbe(context.Background(), srv.clusterID, res)
 	return res
 }
 
@@ -255,6 +258,7 @@ func (srv *NodeAgentServer) refreshEnvoyInfraProbe(ctx context.Context) *cluster
 	desired, derr := infra_truth.BuildEnvoyDesiredState(srv.buildEnvoyDesiredInputs())
 	res := srv.envoyProber.ProbeStructured(ctx, desired, derr)
 	srv.infraProbeCache.Put(infra_truth.ComponentEnvoy, res, time.Now())
+	go emitBehavioralInfraProbe(context.Background(), srv.clusterID, res)
 	return res
 }
 

@@ -127,8 +127,13 @@ func (s *Service) RecordEvidence(ctx context.Context, req *api.RecordEvidenceReq
 	if e.TargetKind == "" || e.TargetID == "" {
 		return nil, fmt.Errorf("evidence target_kind and target_id are required")
 	}
-	// Claim targets must exist (so we never index evidence against a phantom row
-	// or silently upsert a partial claim via the status update).
+	// Observation evidence can attach directly to a signal; claim and signal
+	// targets must resolve so we never index evidence against a phantom row.
+	if e.TargetKind == "signal" {
+		if _, err := s.store.GetSignal(ctx, e.Project, string(e.Domain), e.TargetID); err != nil {
+			return nil, fmt.Errorf("record evidence: target signal %q: %w", e.TargetID, err)
+		}
+	}
 	if e.TargetKind == "claim" {
 		if _, err := s.store.GetClaim(ctx, e.Project, string(e.Domain), e.TargetID); err != nil {
 			return nil, fmt.Errorf("record evidence: target claim %q: %w", e.TargetID, err)

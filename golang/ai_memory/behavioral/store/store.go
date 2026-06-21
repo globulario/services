@@ -7,9 +7,10 @@
 //   - memory_store.go  — an in-memory adapter for tests and local-first dev.
 //
 // Dependency direction (enforced by the kernel-hygiene test):
-//   behavioral/core  →  store.Store (interface)
-//   store/scylla_store.go  →  ScyllaDB
-//   ai_memory_server →  behavioral/core + the chosen adapter (composition root)
+//
+//	behavioral/core  →  store.Store (interface)
+//	store/scylla_store.go  →  ScyllaDB
+//	ai_memory_server →  behavioral/core + the chosen adapter (composition root)
 //
 // PR-2 surface: persistence for the ingestion half of the ladder (signals,
 // claims, evidence, authorities, conditions, contradictions). Promotion/runtime
@@ -103,6 +104,17 @@ type Store interface {
 	RecordOutcome(ctx context.Context, o *api.Outcome) error
 	GetOutcome(ctx context.Context, project, domain, id string) (*api.Outcome, error)
 	ListOutcomesByTheme(ctx context.Context, project, domain, theme string) ([]api.Outcome, error)
+
+	// Promotion-candidate review queue (PR-10). Queue entries are not principles
+	// and never imply auto-promotion.
+	UpsertPromotionCandidate(ctx context.Context, c *api.PromotionCandidate) error
+	GetPromotionCandidate(ctx context.Context, project, domain, id string) (*api.PromotionCandidate, error)
+	ListPromotionCandidates(ctx context.Context, project, domain, theme string, status api.PromotionCandidateStatus, limit int32) ([]api.PromotionCandidate, error)
+
+	// Reconciliation reports (PR-11). Advisory bridge artifacts only.
+	PutReconciliationReport(ctx context.Context, r *api.ReconciliationReport) error
+	GetReconciliationReport(ctx context.Context, project, domain, id string) (*api.ReconciliationReport, error)
+	ListReconciliationReports(ctx context.Context, project, domain, theme, promotionCandidateID string, limit int32) ([]api.ReconciliationReport, error)
 }
 
 // Unconfigured is the no-persistence Store. It is the fallback when no backend is
@@ -183,7 +195,9 @@ func (Unconfigured) DeindexPromotedPrinciple(context.Context, *api.Principle) er
 func (Unconfigured) ListPrincipleIDsByCondition(context.Context, string, string, string) ([]string, error) {
 	return nil, ErrUnconfigured
 }
-func (Unconfigured) RecordActionCheck(context.Context, *api.ActionCheck) error { return ErrUnconfigured }
+func (Unconfigured) RecordActionCheck(context.Context, *api.ActionCheck) error {
+	return ErrUnconfigured
+}
 func (Unconfigured) GetActionCheck(context.Context, string, string, string) (*api.ActionCheck, error) {
 	return nil, ErrUnconfigured
 }
@@ -192,5 +206,23 @@ func (Unconfigured) GetOutcome(context.Context, string, string, string) (*api.Ou
 	return nil, ErrUnconfigured
 }
 func (Unconfigured) ListOutcomesByTheme(context.Context, string, string, string) ([]api.Outcome, error) {
+	return nil, ErrUnconfigured
+}
+func (Unconfigured) UpsertPromotionCandidate(context.Context, *api.PromotionCandidate) error {
+	return ErrUnconfigured
+}
+func (Unconfigured) GetPromotionCandidate(context.Context, string, string, string) (*api.PromotionCandidate, error) {
+	return nil, ErrUnconfigured
+}
+func (Unconfigured) ListPromotionCandidates(context.Context, string, string, string, api.PromotionCandidateStatus, int32) ([]api.PromotionCandidate, error) {
+	return nil, ErrUnconfigured
+}
+func (Unconfigured) PutReconciliationReport(context.Context, *api.ReconciliationReport) error {
+	return ErrUnconfigured
+}
+func (Unconfigured) GetReconciliationReport(context.Context, string, string, string) (*api.ReconciliationReport, error) {
+	return nil, ErrUnconfigured
+}
+func (Unconfigured) ListReconciliationReports(context.Context, string, string, string, string, int32) ([]api.ReconciliationReport, error) {
 	return nil, ErrUnconfigured
 }

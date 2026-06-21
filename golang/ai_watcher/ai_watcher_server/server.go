@@ -29,8 +29,8 @@ import (
 	"github.com/globulario/services/golang/event/eventpb"
 	globular_client "github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
-	Utility "github.com/globulario/utility"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	Utility "github.com/globulario/utility"
 	"github.com/gocql/gocql"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -97,9 +97,9 @@ type server struct {
 	eventClient *event_client.Event_Client
 
 	// Runtime stats
-	stats      watcherStats
-	statsMu    sync.Mutex
-	startedAt  time.Time
+	stats     watcherStats
+	statsMu   sync.Mutex
+	startedAt time.Time
 
 	// Incident tracking
 	incidents   map[string]*ai_watcherpb.Incident
@@ -133,31 +133,31 @@ type watcherStats struct {
 // Globular service contract (getters/setters)
 // -----------------------------------------------------------------------------
 
-func (srv *server) GetConfigurationPath() string        { return srv.ConfigPath }
-func (srv *server) SetConfigurationPath(path string)    { srv.ConfigPath = path }
-func (srv *server) GetAddress() string                  { return srv.Address }
-func (srv *server) SetAddress(address string)           { srv.Address = address }
-func (srv *server) GetProcess() int                     { return srv.Process }
-func (srv *server) SetProcess(pid int)                  { srv.Process = pid }
-func (srv *server) GetProxyProcess() int                { return srv.ProxyProcess }
-func (srv *server) SetProxyProcess(pid int)             { srv.ProxyProcess = pid }
-func (srv *server) GetState() string                    { return srv.State }
-func (srv *server) SetState(state string)               { srv.State = state }
-func (srv *server) GetLastError() string                { return srv.LastError }
-func (srv *server) SetLastError(err string)             { srv.LastError = err }
-func (srv *server) SetModTime(modtime int64)            { srv.ModTime = modtime }
-func (srv *server) GetModTime() int64                   { return srv.ModTime }
-func (srv *server) GetId() string                       { return srv.Id }
-func (srv *server) SetId(id string)                     { srv.Id = id }
-func (srv *server) GetName() string                     { return srv.Name }
-func (srv *server) SetName(name string)                 { srv.Name = name }
-func (srv *server) GetMac() string                      { return srv.Mac }
-func (srv *server) SetMac(mac string)                   { srv.Mac = mac }
-func (srv *server) GetDescription() string              { return srv.Description }
-func (srv *server) SetDescription(description string)   { srv.Description = description }
-func (srv *server) GetKeywords() []string               { return srv.Keywords }
-func (srv *server) SetKeywords(keywords []string)       { srv.Keywords = keywords }
-func (srv *server) Dist(path string) (string, error)    { return globular.Dist(path, srv) }
+func (srv *server) GetConfigurationPath() string      { return srv.ConfigPath }
+func (srv *server) SetConfigurationPath(path string)  { srv.ConfigPath = path }
+func (srv *server) GetAddress() string                { return srv.Address }
+func (srv *server) SetAddress(address string)         { srv.Address = address }
+func (srv *server) GetProcess() int                   { return srv.Process }
+func (srv *server) SetProcess(pid int)                { srv.Process = pid }
+func (srv *server) GetProxyProcess() int              { return srv.ProxyProcess }
+func (srv *server) SetProxyProcess(pid int)           { srv.ProxyProcess = pid }
+func (srv *server) GetState() string                  { return srv.State }
+func (srv *server) SetState(state string)             { srv.State = state }
+func (srv *server) GetLastError() string              { return srv.LastError }
+func (srv *server) SetLastError(err string)           { srv.LastError = err }
+func (srv *server) SetModTime(modtime int64)          { srv.ModTime = modtime }
+func (srv *server) GetModTime() int64                 { return srv.ModTime }
+func (srv *server) GetId() string                     { return srv.Id }
+func (srv *server) SetId(id string)                   { srv.Id = id }
+func (srv *server) GetName() string                   { return srv.Name }
+func (srv *server) SetName(name string)               { srv.Name = name }
+func (srv *server) GetMac() string                    { return srv.Mac }
+func (srv *server) SetMac(mac string)                 { srv.Mac = mac }
+func (srv *server) GetDescription() string            { return srv.Description }
+func (srv *server) SetDescription(description string) { srv.Description = description }
+func (srv *server) GetKeywords() []string             { return srv.Keywords }
+func (srv *server) SetKeywords(keywords []string)     { srv.Keywords = keywords }
+func (srv *server) Dist(path string) (string, error)  { return globular.Dist(path, srv) }
 func (srv *server) GetDependencies() []string {
 	if srv.Dependencies == nil {
 		srv.Dependencies = []string{}
@@ -537,6 +537,7 @@ func (srv *server) fireBatch(rule *ai_watcherpb.EventRule) {
 		"events", len(events),
 		"trigger", events[0],
 	)
+	go emitBehavioralWatcherIncident(context.Background(), incident)
 
 	// Store trigger event data for the executor.
 	if len(triggerData) > 0 {

@@ -231,6 +231,63 @@ func (h *behavioralHandler) RecordOutcome(ctx context.Context, req *bpb.RecordOu
 	return &bpb.RecordOutcomeResponse{OutcomeId: resp.OutcomeID}, nil
 }
 
+func (h *behavioralHandler) GeneratePromotionCandidate(ctx context.Context, req *bpb.GeneratePromotionCandidateRequest) (*bpb.GeneratePromotionCandidateResponse, error) {
+	resp, err := h.core.GeneratePromotionCandidate(ctx, &api.GeneratePromotionCandidateRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()), Theme: req.GetTheme(), MinRepeats: req.GetMinRepeats(),
+		DraftPrinciple: pbToPrinciple(req.GetDraftPrinciple()), Actor: req.GetActor(), Rationale: req.GetRationale(),
+		SupportingEvidenceIDs: req.GetSupportingEvidenceIds(),
+	})
+	if err != nil {
+		return nil, behavioralErr("GeneratePromotionCandidate", err)
+	}
+	return &bpb.GeneratePromotionCandidateResponse{
+		Candidate:    promotionCandidateToPB(&resp.Candidate),
+		OutcomeCount: resp.OutcomeCount,
+	}, nil
+}
+
+func (h *behavioralHandler) ListPromotionCandidates(ctx context.Context, req *bpb.ListPromotionCandidatesRequest) (*bpb.ListPromotionCandidatesResponse, error) {
+	resp, err := h.core.ListPromotionCandidates(ctx, &api.ListPromotionCandidatesRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()), Theme: req.GetTheme(),
+		Status: pbPromotionCandidateStatusToAPI(req.GetStatus()), Limit: req.GetLimit(),
+	})
+	if err != nil {
+		return nil, behavioralErr("ListPromotionCandidates", err)
+	}
+	out := &bpb.ListPromotionCandidatesResponse{}
+	for i := range resp.Candidates {
+		out.Candidates = append(out.Candidates, promotionCandidateToPB(&resp.Candidates[i]))
+	}
+	return out, nil
+}
+
+func (h *behavioralHandler) GenerateReconciliationReport(ctx context.Context, req *bpb.GenerateReconciliationReportRequest) (*bpb.GenerateReconciliationReportResponse, error) {
+	resp, err := h.core.GenerateReconciliationReport(ctx, &api.GenerateReconciliationReportRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()), PromotionCandidateID: req.GetPromotionCandidateId(),
+		Theme: req.GetTheme(), AWGInvariantIDs: req.GetAwgInvariantIds(), AWGFailureModeIDs: req.GetAwgFailureModeIds(),
+		AWGTestIDs: req.GetAwgTestIds(), RuntimeRelevant: req.GetRuntimeRelevant(), Actor: req.GetActor(),
+	})
+	if err != nil {
+		return nil, behavioralErr("GenerateReconciliationReport", err)
+	}
+	return &bpb.GenerateReconciliationReportResponse{Report: reconciliationReportToPB(&resp.Report)}, nil
+}
+
+func (h *behavioralHandler) ListReconciliationReports(ctx context.Context, req *bpb.ListReconciliationReportsRequest) (*bpb.ListReconciliationReportsResponse, error) {
+	resp, err := h.core.ListReconciliationReports(ctx, &api.ListReconciliationReportsRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()), Theme: req.GetTheme(),
+		PromotionCandidateID: req.GetPromotionCandidateId(), Limit: req.GetLimit(),
+	})
+	if err != nil {
+		return nil, behavioralErr("ListReconciliationReports", err)
+	}
+	out := &bpb.ListReconciliationReportsResponse{}
+	for i := range resp.Reports {
+		out.Reports = append(out.Reports, reconciliationReportToPB(&resp.Reports[i]))
+	}
+	return out, nil
+}
+
 // Compile-time assertion that the handler satisfies the generated server interface.
 var _ bpb.BehavioralMemoryServiceServer = (*behavioralHandler)(nil)
 
@@ -241,20 +298,24 @@ func pbToSignal(s *bpb.Signal) api.Signal {
 		return api.Signal{}
 	}
 	return api.Signal{
-		ID:         s.GetId(),
-		Project:    s.GetProject(),
-		Domain:     api.DomainRef(s.GetDomain()),
-		Kind:       pbSignalKindToAPI(s.GetKind()),
-		SourceKind: s.GetSourceKind(),
-		SourceRef:  s.GetSourceRef(),
-		EntityRef:  s.GetEntityRef(),
-		Scope:      s.GetScope(),
-		ObservedAt: s.GetObservedAt(),
-		Payload:    s.GetPayload(),
-		Confidence: s.GetConfidence(),
-		Status:     pbGovStatusToAPI(s.GetStatus()),
-		Provenance: api.Provenance{AgentID: s.GetAgentId(), MemoryID: s.GetMemoryId(), CreatedAt: s.GetCreatedAt()},
-		Metadata:   s.GetMetadata(),
+		ID:             s.GetId(),
+		Project:        s.GetProject(),
+		Domain:         api.DomainRef(s.GetDomain()),
+		Kind:           pbSignalKindToAPI(s.GetKind()),
+		SourceKind:     s.GetSourceKind(),
+		SourceRef:      s.GetSourceRef(),
+		EntityRef:      s.GetEntityRef(),
+		Scope:          s.GetScope(),
+		ClusterID:      s.GetClusterId(),
+		ConditionRef:   s.GetConditionRef(),
+		Severity:       s.GetSeverity(),
+		AuthorityLevel: pbObservationAuthorityToAPI(s.GetAuthorityLevel()),
+		ObservedAt:     s.GetObservedAt(),
+		Payload:        s.GetPayload(),
+		Confidence:     s.GetConfidence(),
+		Status:         pbGovStatusToAPI(s.GetStatus()),
+		Provenance:     api.Provenance{AgentID: s.GetAgentId(), MemoryID: s.GetMemoryId(), CreatedAt: s.GetCreatedAt()},
+		Metadata:       s.GetMetadata(),
 	}
 }
 
@@ -285,21 +346,28 @@ func pbToEvidence(e *bpb.Evidence) api.Evidence {
 		return api.Evidence{}
 	}
 	return api.Evidence{
-		ID:           e.GetId(),
-		Project:      e.GetProject(),
-		Domain:       api.DomainRef(e.GetDomain()),
-		TargetKind:   e.GetTargetKind(),
-		TargetID:     e.GetTargetId(),
-		Kind:         e.GetEvidenceKind(),
-		Lane:         pbLaneToAPI(e.GetLane()),
-		Result:       e.GetResult(),
-		ProbeRef:     e.GetProbeRef(),
-		ObservedAt:   e.GetObservedAt(),
-		Payload:      e.GetPayload(),
-		ObservedFrom: e.GetObservedFrom(),
-		Satisfies:    toRequiredEvidenceRefs(e.GetSatisfies()),
-		Provenance:   api.Provenance{SourceRef: e.GetProvenance(), CreatedAt: e.GetCreatedAt()},
-		Metadata:     e.GetMetadata(),
+		ID:             e.GetId(),
+		Project:        e.GetProject(),
+		Domain:         api.DomainRef(e.GetDomain()),
+		TargetKind:     e.GetTargetKind(),
+		TargetID:       e.GetTargetId(),
+		Kind:           e.GetEvidenceKind(),
+		Lane:           pbLaneToAPI(e.GetLane()),
+		Result:         e.GetResult(),
+		ProbeRef:       e.GetProbeRef(),
+		SourceKind:     e.GetSourceKind(),
+		SourceRef:      e.GetSourceRef(),
+		EntityRef:      e.GetEntityRef(),
+		ClusterID:      e.GetClusterId(),
+		ConditionRef:   e.GetConditionRef(),
+		Severity:       e.GetSeverity(),
+		AuthorityLevel: pbObservationAuthorityToAPI(e.GetAuthorityLevel()),
+		ObservedAt:     e.GetObservedAt(),
+		Payload:        e.GetPayload(),
+		ObservedFrom:   e.GetObservedFrom(),
+		Satisfies:      toRequiredEvidenceRefs(e.GetSatisfies()),
+		Provenance:     api.Provenance{SourceRef: e.GetProvenance(), CreatedAt: e.GetCreatedAt()},
+		Metadata:       e.GetMetadata(),
 	}
 }
 
@@ -574,22 +642,29 @@ func revocationRuleToPB(r *api.RevocationRule) *bpb.RevocationRule {
 
 func evidenceToPB(e *api.Evidence) *bpb.Evidence {
 	return &bpb.Evidence{
-		Id:           e.ID,
-		Project:      e.Project,
-		Domain:       string(e.Domain),
-		TargetKind:   e.TargetKind,
-		TargetId:     e.TargetID,
-		EvidenceKind: e.Kind,
-		Lane:         apiLaneToPB(e.Lane),
-		Result:       e.Result,
-		ProbeRef:     e.ProbeRef,
-		ObservedAt:   e.ObservedAt,
-		Payload:      e.Payload,
-		Provenance:   e.Provenance.SourceRef,
-		CreatedAt:    e.Provenance.CreatedAt,
-		ObservedFrom: e.ObservedFrom,
-		Satisfies:    refSlice(e.Satisfies),
-		Metadata:     e.Metadata,
+		Id:             e.ID,
+		Project:        e.Project,
+		Domain:         string(e.Domain),
+		TargetKind:     e.TargetKind,
+		TargetId:       e.TargetID,
+		EvidenceKind:   e.Kind,
+		Lane:           apiLaneToPB(e.Lane),
+		Result:         e.Result,
+		ProbeRef:       e.ProbeRef,
+		ObservedAt:     e.ObservedAt,
+		Payload:        e.Payload,
+		Provenance:     e.Provenance.SourceRef,
+		CreatedAt:      e.Provenance.CreatedAt,
+		ObservedFrom:   e.ObservedFrom,
+		Satisfies:      refSlice(e.Satisfies),
+		Metadata:       e.Metadata,
+		SourceKind:     e.SourceKind,
+		SourceRef:      e.SourceRef,
+		EntityRef:      e.EntityRef,
+		ClusterId:      e.ClusterID,
+		ConditionRef:   e.ConditionRef,
+		Severity:       e.Severity,
+		AuthorityLevel: apiObservationAuthorityToPB(e.AuthorityLevel),
 	}
 }
 
@@ -664,6 +739,40 @@ func apiLaneToPB(l api.EvidenceLane) bpb.EvidenceLaneMode {
 	}
 }
 
+func pbObservationAuthorityToAPI(l bpb.ObservationAuthorityLevel) api.ObservationAuthorityLevel {
+	switch l {
+	case bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_INTERPRETATION:
+		return api.ObservationAuthorityInterpretation
+	case bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_EVENT_STREAM:
+		return api.ObservationAuthorityEventStream
+	case bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_DIAGNOSTIC_CLAIM:
+		return api.ObservationAuthorityDiagnostic
+	case bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_DERIVED_EVIDENCE:
+		return api.ObservationAuthorityDerived
+	case bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_TRUTH_PLANE:
+		return api.ObservationAuthorityTruthPlane
+	default:
+		return api.ObservationAuthorityUnspecified
+	}
+}
+
+func apiObservationAuthorityToPB(l api.ObservationAuthorityLevel) bpb.ObservationAuthorityLevel {
+	switch l {
+	case api.ObservationAuthorityInterpretation:
+		return bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_INTERPRETATION
+	case api.ObservationAuthorityEventStream:
+		return bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_EVENT_STREAM
+	case api.ObservationAuthorityDiagnostic:
+		return bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_DIAGNOSTIC_CLAIM
+	case api.ObservationAuthorityDerived:
+		return bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_DERIVED_EVIDENCE
+	case api.ObservationAuthorityTruthPlane:
+		return bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_TRUTH_PLANE
+	default:
+		return bpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_UNSPECIFIED
+	}
+}
+
 // ── PR-4 runtime converters ───────────────────────────────────────────────────
 
 func pbToOutcome(o *bpb.Outcome) api.Outcome {
@@ -713,6 +822,90 @@ func outcomeToPB(o *api.Outcome) *bpb.Outcome {
 	}
 }
 
+func promotionCandidateToPB(c *api.PromotionCandidate) *bpb.PromotionCandidate {
+	if c == nil {
+		return nil
+	}
+	return &bpb.PromotionCandidate{
+		Id:                      c.ID,
+		Project:                 c.Project,
+		Domain:                  string(c.Domain),
+		Theme:                   c.Theme,
+		Status:                  apiPromotionCandidateStatusToPB(c.Status),
+		Title:                   c.Title,
+		Summary:                 c.Summary,
+		Rationale:               c.Rationale,
+		SupportingOutcomeIds:    c.SupportingOutcomeIDs,
+		SupportingEvidenceIds:   c.SupportingEvidenceIDs,
+		RepeatCount:             c.RepeatCount,
+		DraftPrinciple:          principleToPB(&c.DraftPrinciple),
+		GeneratedBy:             c.GeneratedBy,
+		CreatedAt:               c.CreatedAt,
+		UpdatedAt:               c.UpdatedAt,
+		MaterializedPrincipleId: c.MaterializedPrincipleID,
+		Metadata:                c.Metadata,
+	}
+}
+
+func reconciliationReportToPB(r *api.ReconciliationReport) *bpb.ReconciliationReport {
+	if r == nil {
+		return nil
+	}
+	return &bpb.ReconciliationReport{
+		Id:                        r.ID,
+		Project:                   r.Project,
+		Domain:                    string(r.Domain),
+		PromotionCandidateId:      r.PromotionCandidateID,
+		Theme:                     r.Theme,
+		AwgInvariantIds:           r.AWGInvariantIDs,
+		AwgFailureModeIds:         r.AWGFailureModeIDs,
+		AwgTestIds:                r.AWGTestIDs,
+		Findings:                  r.Findings,
+		Summary:                   r.Summary,
+		OutcomeCount:              r.OutcomeCount,
+		FailureCount:              r.FailureCount,
+		SuccessCount:              r.SuccessCount,
+		SevereCount:               r.SevereCount,
+		ProposedAwgInvariantIds:   r.ProposedAWGInvariantIDs,
+		ProposedAwgFailureModeIds: r.ProposedAWGFailureModeIDs,
+		ProposedAwgTestIds:        r.ProposedAWGTestIDs,
+		ProposedBehavioralTheme:   r.ProposedBehavioralTheme,
+		Actor:                     r.Actor,
+		CreatedAt:                 r.CreatedAt,
+		Metadata:                  r.Metadata,
+	}
+}
+
+func pbPromotionCandidateStatusToAPI(s bpb.PromotionCandidateStatus) api.PromotionCandidateStatus {
+	switch s {
+	case bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_QUEUED:
+		return api.PromotionCandidateStatusQueued
+	case bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_REVIEWED:
+		return api.PromotionCandidateStatusReviewed
+	case bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_DISMISSED:
+		return api.PromotionCandidateStatusDismissed
+	case bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_MATERIALIZED:
+		return api.PromotionCandidateStatusMaterialized
+	default:
+		return api.PromotionCandidateStatusUnspecified
+	}
+}
+
+func apiPromotionCandidateStatusToPB(s api.PromotionCandidateStatus) bpb.PromotionCandidateStatus {
+	switch s {
+	case api.PromotionCandidateStatusQueued:
+		return bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_QUEUED
+	case api.PromotionCandidateStatusReviewed:
+		return bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_REVIEWED
+	case api.PromotionCandidateStatusDismissed:
+		return bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_DISMISSED
+	case api.PromotionCandidateStatusMaterialized:
+		return bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_MATERIALIZED
+	default:
+		return bpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_UNSPECIFIED
+	}
+}
+
 func actionCheckToPB(a *api.ActionCheck) *bpb.ActionCheck {
 	return &bpb.ActionCheck{
 		Id:                       a.ID,
@@ -740,6 +933,7 @@ func signalToPB(s *api.Signal) *bpb.Signal {
 	return &bpb.Signal{
 		Id: s.ID, Project: s.Project, Domain: string(s.Domain), Kind: apiSignalKindToPB(s.Kind),
 		SourceKind: s.SourceKind, SourceRef: s.SourceRef, EntityRef: s.EntityRef, Scope: s.Scope,
+		ClusterId: s.ClusterID, ConditionRef: s.ConditionRef, Severity: s.Severity, AuthorityLevel: apiObservationAuthorityToPB(s.AuthorityLevel),
 		ObservedAt: s.ObservedAt, Payload: s.Payload, Confidence: s.Confidence, Status: apiGovStatusToPB(s.Status),
 		AgentId: s.Provenance.AgentID, MemoryId: s.Provenance.MemoryID, CreatedAt: s.Provenance.CreatedAt, Metadata: s.Metadata,
 	}

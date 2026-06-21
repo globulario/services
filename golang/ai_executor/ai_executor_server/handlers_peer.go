@@ -134,6 +134,9 @@ func (srv *server) ProposeAction(ctx context.Context, req *ai_executorpb.PeerPro
 	if req.Tier >= 2 && vote == ai_executorpb.PeerVote_VOTE_APPROVE {
 		vote = ai_executorpb.PeerVote_VOTE_ESCALATE
 		reason = "tier 2+ actions require human approval (safety policy)"
+		go emitBehavioralSelfOperation(ctx, newSafetyHookSelfOperation(req, reason))
+	} else if vote == ai_executorpb.PeerVote_VOTE_REJECT || vote == ai_executorpb.PeerVote_VOTE_ESCALATE {
+		go emitBehavioralSelfOperation(ctx, newClassifierDenialSelfOperation(req, vote, reason))
 	}
 
 	return &ai_executorpb.PeerProposalResponse{

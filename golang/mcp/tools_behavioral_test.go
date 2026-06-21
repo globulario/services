@@ -16,8 +16,11 @@ import (
 // (the real governance logic is tested in ai_memory_server); it implements all 12
 // RPCs as required by the generated server interface.
 type fakeBehavioralServer struct {
-	lastSignal  *behavioralpb.Signal
-	lastOutcome *behavioralpb.Outcome
+	lastSignal    *behavioralpb.Signal
+	lastEvidence  *behavioralpb.Evidence
+	lastOutcome   *behavioralpb.Outcome
+	lastCandidate *behavioralpb.GeneratePromotionCandidateRequest
+	lastRecon     *behavioralpb.GenerateReconciliationReportRequest
 }
 
 func (f *fakeBehavioralServer) RecordSignal(_ context.Context, r *behavioralpb.RecordSignalRequest) (*behavioralpb.RecordSignalResponse, error) {
@@ -27,8 +30,9 @@ func (f *fakeBehavioralServer) RecordSignal(_ context.Context, r *behavioralpb.R
 func (f *fakeBehavioralServer) ExtractClaim(context.Context, *behavioralpb.ExtractClaimRequest) (*behavioralpb.ExtractClaimResponse, error) {
 	return &behavioralpb.ExtractClaimResponse{}, nil
 }
-func (f *fakeBehavioralServer) RecordEvidence(context.Context, *behavioralpb.RecordEvidenceRequest) (*behavioralpb.RecordEvidenceResponse, error) {
-	return &behavioralpb.RecordEvidenceResponse{}, nil
+func (f *fakeBehavioralServer) RecordEvidence(_ context.Context, r *behavioralpb.RecordEvidenceRequest) (*behavioralpb.RecordEvidenceResponse, error) {
+	f.lastEvidence = r.GetEvidence()
+	return &behavioralpb.RecordEvidenceResponse{EvidenceId: "ev-1"}, nil
 }
 func (f *fakeBehavioralServer) MapAuthority(context.Context, *behavioralpb.MapAuthorityRequest) (*behavioralpb.MapAuthorityResponse, error) {
 	return &behavioralpb.MapAuthorityResponse{}, nil
@@ -85,6 +89,38 @@ func (f *fakeBehavioralServer) RecordOutcome(_ context.Context, r *behavioralpb.
 	f.lastOutcome = r.GetOutcome()
 	return &behavioralpb.RecordOutcomeResponse{OutcomeId: "out-1"}, nil
 }
+func (f *fakeBehavioralServer) GeneratePromotionCandidate(_ context.Context, r *behavioralpb.GeneratePromotionCandidateRequest) (*behavioralpb.GeneratePromotionCandidateResponse, error) {
+	f.lastCandidate = r
+	return &behavioralpb.GeneratePromotionCandidateResponse{
+		Candidate: &behavioralpb.PromotionCandidate{
+			Id: "pc-1", Theme: r.GetTheme(), Status: behavioralpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_QUEUED,
+			DraftPrinciple: &behavioralpb.Principle{Title: r.GetDraftPrinciple().GetTitle()},
+			GeneratedBy:    r.GetActor(),
+		},
+		OutcomeCount: 3,
+	}, nil
+}
+func (f *fakeBehavioralServer) ListPromotionCandidates(_ context.Context, r *behavioralpb.ListPromotionCandidatesRequest) (*behavioralpb.ListPromotionCandidatesResponse, error) {
+	return &behavioralpb.ListPromotionCandidatesResponse{Candidates: []*behavioralpb.PromotionCandidate{{
+		Id: "pc-1", Theme: r.GetTheme(), Status: behavioralpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_QUEUED,
+		Title: "Repeated pattern", RepeatCount: 3, DraftPrinciple: &behavioralpb.Principle{Title: "draft"},
+		GeneratedBy: "operator-dave", CreatedAt: 123,
+	}}}, nil
+}
+func (f *fakeBehavioralServer) GenerateReconciliationReport(_ context.Context, r *behavioralpb.GenerateReconciliationReportRequest) (*behavioralpb.GenerateReconciliationReportResponse, error) {
+	f.lastRecon = r
+	return &behavioralpb.GenerateReconciliationReportResponse{Report: &behavioralpb.ReconciliationReport{
+		Id: "rr-1", PromotionCandidateId: r.GetPromotionCandidateId(), Theme: r.GetTheme(),
+		Findings: []string{"RUNTIME_CONTRADICTS_AWG", "AWG_MAPPING_MISSING_TEST_CANDIDATE"},
+		Summary:  "reconciliation surfaced", ProposedAwgInvariantIds: []string{"invariant.theme"},
+	}}, nil
+}
+func (f *fakeBehavioralServer) ListReconciliationReports(_ context.Context, r *behavioralpb.ListReconciliationReportsRequest) (*behavioralpb.ListReconciliationReportsResponse, error) {
+	return &behavioralpb.ListReconciliationReportsResponse{Reports: []*behavioralpb.ReconciliationReport{{
+		Id: "rr-1", PromotionCandidateId: r.GetPromotionCandidateId(), Theme: r.GetTheme(),
+		Findings: []string{"RUNTIME_CONTRADICTS_AWG"}, Summary: "reconciliation surfaced", CreatedAt: 456,
+	}}}, nil
+}
 
 // startFakeBehavioral starts the fake on a local TCP listener and returns a server
 // wired to it through a pre-inserted insecure conn (bypassing the TLS dial path).
@@ -120,14 +156,16 @@ func startFakeBehavioral(t *testing.T) (*server, *fakeBehavioralServer) {
 	return s, fake
 }
 
-// All 8 behavioral tools register under the behavioral group; default is on.
+// All behavioral tools register under the behavioral group; default is on.
 func TestBehavioralToolsRegister(t *testing.T) {
 	s := &server{tools: make(map[string]*registeredTool), cfg: &MCPConfig{}}
 	registerBehavioralTools(s)
 	for _, name := range []string{
 		"behavioral_resolve_context", "behavioral_check_action", "behavioral_record_signal",
-		"behavioral_record_outcome", "behavioral_explain_principle", "behavioral_propose_principle",
+		"behavioral_record_evidence", "behavioral_record_outcome", "behavioral_explain_principle", "behavioral_propose_principle",
 		"behavioral_promote_principle", "behavioral_revoke_principle",
+		"behavioral_generate_promotion_candidate", "behavioral_list_promotion_candidates",
+		"behavioral_generate_reconciliation_report", "behavioral_list_reconciliation_reports",
 	} {
 		if !s.hasTool(name) {
 			t.Errorf("tool %q not registered", name)
@@ -176,6 +214,24 @@ func TestBehavioralOperatorLoop(t *testing.T) {
 	if fake.lastSignal.GetKind() != behavioralpb.SignalKind_SIGNAL_OBSERVED_RUNTIME_FACT {
 		t.Error("signal kind not passed through to RPC")
 	}
+	if fake.lastSignal.GetAuthorityLevel() != behavioralpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_UNSPECIFIED {
+		t.Error("unexpected default authority level on signal")
+	}
+
+	// 1b. record evidence with explicit authority
+	r1b, err := s.callTool(ctx, "behavioral_record_evidence", mergeArgs(base, map[string]interface{}{
+		"target_kind": "signal", "target_id": "sig-1", "evidence_kind": "probe", "result": "observed",
+		"source_kind": "infra_probe_truth_plane", "authority_level": "TRUTH_PLANE", "cluster_id": "c-1",
+	}))
+	if err != nil {
+		t.Fatalf("record_evidence: %v", err)
+	}
+	if m := r1b.(map[string]interface{}); m["evidence_id"] != "ev-1" {
+		t.Errorf("record_evidence result = %+v", m)
+	}
+	if fake.lastEvidence.GetAuthorityLevel() != behavioralpb.ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_TRUTH_PLANE {
+		t.Error("evidence authority level not passed through to RPC")
+	}
 
 	// 2. resolve context
 	r2, err := s.callTool(ctx, "behavioral_resolve_context", mergeArgs(base, map[string]interface{}{"conditions": "condition.cluster.etcd.nospace_alarm"}))
@@ -206,6 +262,50 @@ func TestBehavioralOperatorLoop(t *testing.T) {
 	}
 	if fake.lastOutcome.GetStatus() != "success" {
 		t.Error("outcome status not passed through to RPC")
+	}
+
+	// 5. generate/list promotion candidates
+	r5, err := s.callTool(ctx, "behavioral_generate_promotion_candidate", mergeArgs(base, map[string]interface{}{
+		"theme": "scylla.group0.quorum_loss", "title": "Protect group0", "applies_when": "cond.a",
+		"authorities": "auth.a", "required_evidence": "req.a", "risk_level": "high",
+		"revocation_rule": "revoke when fixed", "promotion_reason": "repeated pattern", "actor": "operator-dave",
+		"supporting_evidence_ids": "ev-1",
+	}))
+	if err != nil {
+		t.Fatalf("generate_promotion_candidate: %v", err)
+	}
+	if m := r5.(map[string]interface{}); m["candidate_id"] != "pc-1" || m["status"] != "QUEUED" {
+		t.Errorf("generate_promotion_candidate result = %+v", m)
+	}
+	if fake.lastCandidate == nil || fake.lastCandidate.GetDraftPrinciple().GetAuthorities()[0] != "auth.a" {
+		t.Fatal("candidate request not passed through to RPC")
+	}
+	r6, err := s.callTool(ctx, "behavioral_list_promotion_candidates", mergeArgs(base, map[string]interface{}{"theme": "scylla.group0.quorum_loss", "status": "QUEUED"}))
+	if err != nil {
+		t.Fatalf("list_promotion_candidates: %v", err)
+	}
+	if m := r6.(map[string]interface{}); m["count"] != 1 {
+		t.Errorf("list_promotion_candidates result = %+v", m)
+	}
+
+	r7, err := s.callTool(ctx, "behavioral_generate_reconciliation_report", mergeArgs(base, map[string]interface{}{
+		"promotion_candidate_id": "pc-1", "theme": "scylla.group0.quorum_loss", "awg_invariant_ids": "invariant.group0", "actor": "operator-dave",
+	}))
+	if err != nil {
+		t.Fatalf("generate_reconciliation_report: %v", err)
+	}
+	if m := r7.(map[string]interface{}); m["report_id"] != "rr-1" {
+		t.Errorf("generate_reconciliation_report result = %+v", m)
+	}
+	if fake.lastRecon == nil || fake.lastRecon.GetAwgInvariantIds()[0] != "invariant.group0" {
+		t.Fatal("reconciliation request not passed through to RPC")
+	}
+	r8, err := s.callTool(ctx, "behavioral_list_reconciliation_reports", mergeArgs(base, map[string]interface{}{"theme": "scylla.group0.quorum_loss", "promotion_candidate_id": "pc-1"}))
+	if err != nil {
+		t.Fatalf("list_reconciliation_reports: %v", err)
+	}
+	if m := r8.(map[string]interface{}); m["count"] != 1 {
+		t.Errorf("list_reconciliation_reports result = %+v", m)
 	}
 }
 

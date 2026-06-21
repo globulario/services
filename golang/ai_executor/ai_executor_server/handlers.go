@@ -77,6 +77,7 @@ func (srv *server) ProcessIncident(ctx context.Context, req *ai_executorpb.Proce
 // executeJob runs the proposed action for a job and records the outcome.
 func (srv *server) executeJob(ctx context.Context, job *ai_executorpb.Job) *ai_executorpb.RemediationAction {
 	srv.jobStore.markExecuting(job.GetIncidentId())
+	go emitBehavioralSelfOperation(ctx, newSelfOperationAttempt(job))
 
 	action := srv.remediator.execute(ctx, job.GetDiagnosis(), job.GetTier())
 
@@ -148,6 +149,7 @@ func (srv *server) DenyAction(ctx context.Context, req *ai_executorpb.DenyAction
 		"denied_by", req.GetDeniedBy(),
 		"reason", req.GetReason(),
 	)
+	go emitBehavioralSelfOperation(ctx, newBlockedSelfOperation(job))
 
 	srv.notifier.notify(ctx, buildNotification(job, NotifyDenied))
 

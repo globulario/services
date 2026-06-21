@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/globulario/services/golang/ai_memory/behavioral/api"
 	"github.com/gocql/gocql"
@@ -51,12 +52,13 @@ func refsToStrings[T ~string](in []T) []string {
 
 func (s *ScyllaStore) PutSignal(ctx context.Context, sig *api.Signal) error {
 	const q = `INSERT INTO behavioral_memory.signals
-(project, domain, id, kind, source_kind, source_ref, entity_ref, scope, observed_at, payload, confidence, status, agent_id, memory_id, created_at, updated_at, metadata)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+(project, domain, id, kind, source_kind, source_ref, entity_ref, scope, observed_at, payload, confidence, status, agent_id, memory_id, created_at, updated_at, metadata, cluster_id, condition_ref, severity, authority_level)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if err := s.session.Query(q,
 		sig.Project, string(sig.Domain), sig.ID, string(sig.Kind), sig.SourceKind, sig.SourceRef,
 		sig.EntityRef, sig.Scope, sig.ObservedAt, sig.Payload, sig.Confidence, string(sig.Status),
 		sig.Provenance.AgentID, sig.Provenance.MemoryID, sig.Provenance.CreatedAt, sig.Provenance.UpdatedAt, sig.Metadata,
+		sig.ClusterID, sig.ConditionRef, sig.Severity, string(sig.AuthorityLevel),
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("put signal: %w", err)
 	}
@@ -64,19 +66,21 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 }
 
 func (s *ScyllaStore) GetSignal(ctx context.Context, project, domain, id string) (*api.Signal, error) {
-	const q = `SELECT kind, source_kind, source_ref, entity_ref, scope, observed_at, payload, confidence, status, agent_id, memory_id, created_at, updated_at, metadata
+	const q = `SELECT kind, source_kind, source_ref, entity_ref, scope, observed_at, payload, confidence, status, agent_id, memory_id, created_at, updated_at, metadata, cluster_id, condition_ref, severity, authority_level
 FROM behavioral_memory.signals WHERE project = ? AND domain = ? AND id = ?`
 	sig := &api.Signal{ID: id, Project: project, Domain: api.DomainRef(domain)}
-	var kind, status string
+	var kind, status, authorityLevel string
 	if err := s.session.Query(q, project, domain, id).WithContext(ctx).Scan(
 		&kind, &sig.SourceKind, &sig.SourceRef, &sig.EntityRef, &sig.Scope, &sig.ObservedAt, &sig.Payload,
 		&sig.Confidence, &status, &sig.Provenance.AgentID, &sig.Provenance.MemoryID,
 		&sig.Provenance.CreatedAt, &sig.Provenance.UpdatedAt, &sig.Metadata,
+		&sig.ClusterID, &sig.ConditionRef, &sig.Severity, &authorityLevel,
 	); err != nil {
 		return nil, mapNotFound(err)
 	}
 	sig.Kind = api.SignalKind(kind)
 	sig.Status = api.GovernanceStatus(status)
+	sig.AuthorityLevel = api.ObservationAuthorityLevel(authorityLevel)
 	return sig, nil
 }
 
@@ -126,11 +130,12 @@ func (s *ScyllaStore) PutEvidence(ctx context.Context, e *api.Evidence) error {
 	// A logged batch keeps evidence and its evidence_by_target index consistent.
 	batch := s.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(`INSERT INTO behavioral_memory.evidence
-(project, domain, id, target_kind, target_id, evidence_kind, lane, result, probe_ref, observed_at, payload, provenance, observed_from, satisfies, created_at, updated_at, metadata)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+(project, domain, id, target_kind, target_id, evidence_kind, lane, result, probe_ref, observed_at, payload, provenance, observed_from, satisfies, created_at, updated_at, metadata, source_kind, source_ref, entity_ref, cluster_id, condition_ref, severity, authority_level)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.Project, string(e.Domain), e.ID, e.TargetKind, e.TargetID, e.Kind, string(e.Lane), e.Result, e.ProbeRef,
 		e.ObservedAt, e.Payload, e.Provenance.SourceRef, e.ObservedFrom, refsToStrings(e.Satisfies),
 		e.Provenance.CreatedAt, e.Provenance.UpdatedAt, e.Metadata,
+		e.SourceKind, e.SourceRef, e.EntityRef, e.ClusterID, e.ConditionRef, e.Severity, string(e.AuthorityLevel),
 	)
 	if e.TargetID != "" {
 		batch.Query(`INSERT INTO behavioral_memory.evidence_by_target
@@ -563,6 +568,156 @@ FROM behavioral_memory.outcomes_by_theme WHERE project = ? AND domain = ? AND th
 	}
 	if err := iter.Close(); err != nil {
 		return nil, fmt.Errorf("list outcomes by theme: %w", err)
+	}
+	return out, nil
+}
+
+func (s *ScyllaStore) UpsertPromotionCandidate(ctx context.Context, c *api.PromotionCandidate) error {
+	const q = `INSERT INTO behavioral_memory.promotion_candidates
+(project, domain, id, theme, status, title, summary, rationale, supporting_outcome_ids, supporting_evidence_ids,
+ repeat_count, draft_principle_id, draft_title, draft_applies_when, draft_authorities, draft_required_evidence,
+ draft_forbidden_moves, draft_recommended_action, draft_risk_level, draft_revocation_rule, draft_promotion_reason,
+ draft_status, draft_version, draft_proposed_by, draft_source_refs, draft_generated_from, generated_by, created_at,
+ updated_at, materialized_principle_id, metadata)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if err := s.session.Query(q,
+		c.Project, string(c.Domain), c.ID, c.Theme, string(c.Status), c.Title, c.Summary, c.Rationale,
+		c.SupportingOutcomeIDs, c.SupportingEvidenceIDs, c.RepeatCount, c.DraftPrinciple.ID, c.DraftPrinciple.Title,
+		refsToStrings(c.DraftPrinciple.AppliesWhen), refsToStrings(c.DraftPrinciple.Authorities), refsToStrings(c.DraftPrinciple.RequiredEvidence),
+		refsToStrings(c.DraftPrinciple.ForbiddenMoves), c.DraftPrinciple.RecommendedAction, c.DraftPrinciple.RiskLevel,
+		c.DraftPrinciple.RevocationRule, c.DraftPrinciple.PromotionReason, string(c.DraftPrinciple.Status),
+		c.DraftPrinciple.Version, c.DraftPrinciple.ProposedBy, c.DraftPrinciple.SourceRefs, c.DraftPrinciple.GeneratedFrom,
+		c.GeneratedBy, c.CreatedAt, c.UpdatedAt, c.MaterializedPrincipleID, c.Metadata,
+	).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("upsert promotion candidate: %w", err)
+	}
+	return nil
+}
+
+func (s *ScyllaStore) GetPromotionCandidate(ctx context.Context, project, domain, id string) (*api.PromotionCandidate, error) {
+	const q = `SELECT theme, status, title, summary, rationale, supporting_outcome_ids, supporting_evidence_ids,
+ repeat_count, draft_principle_id, draft_title, draft_applies_when, draft_authorities, draft_required_evidence,
+ draft_forbidden_moves, draft_recommended_action, draft_risk_level, draft_revocation_rule, draft_promotion_reason,
+ draft_status, draft_version, draft_proposed_by, draft_source_refs, draft_generated_from, generated_by, created_at,
+ updated_at, materialized_principle_id, metadata
+FROM behavioral_memory.promotion_candidates WHERE project = ? AND domain = ? AND id = ?`
+	var status string
+	var appliesWhen, authorities, requiredEvidence, forbiddenMoves []string
+	c := &api.PromotionCandidate{ID: id, Project: project, Domain: api.DomainRef(domain)}
+	if err := s.session.Query(q, project, domain, id).WithContext(ctx).Scan(
+		&c.Theme, &status, &c.Title, &c.Summary, &c.Rationale, &c.SupportingOutcomeIDs, &c.SupportingEvidenceIDs,
+		&c.RepeatCount, &c.DraftPrinciple.ID, &c.DraftPrinciple.Title, &appliesWhen, &authorities,
+		&requiredEvidence, &forbiddenMoves, &c.DraftPrinciple.RecommendedAction,
+		&c.DraftPrinciple.RiskLevel, &c.DraftPrinciple.RevocationRule, &c.DraftPrinciple.PromotionReason,
+		&c.DraftPrinciple.Status, &c.DraftPrinciple.Version, &c.DraftPrinciple.ProposedBy, &c.DraftPrinciple.SourceRefs,
+		&c.DraftPrinciple.GeneratedFrom, &c.GeneratedBy, &c.CreatedAt, &c.UpdatedAt, &c.MaterializedPrincipleID, &c.Metadata,
+	); err != nil {
+		return nil, mapNotFound(err)
+	}
+	c.Status = api.PromotionCandidateStatus(status)
+	c.DraftPrinciple.Project = project
+	c.DraftPrinciple.Domain = api.DomainRef(domain)
+	c.DraftPrinciple.AppliesWhen = toConditionRefs(appliesWhen)
+	c.DraftPrinciple.Authorities = toAuthorityRefsStore(authorities)
+	c.DraftPrinciple.RequiredEvidence = toRequiredEvidenceRefsStore(requiredEvidence)
+	c.DraftPrinciple.ForbiddenMoves = toForbiddenMoveRefs(forbiddenMoves)
+	return c, nil
+}
+
+func (s *ScyllaStore) ListPromotionCandidates(ctx context.Context, project, domain, theme string, status api.PromotionCandidateStatus, limit int32) ([]api.PromotionCandidate, error) {
+	const q = `SELECT id FROM behavioral_memory.promotion_candidates WHERE project = ? AND domain = ?`
+	iter := s.session.Query(q, project, domain).WithContext(ctx).Iter()
+	var id string
+	var out []api.PromotionCandidate
+	for iter.Scan(&id) {
+		c, err := s.GetPromotionCandidate(ctx, project, domain, id)
+		if err != nil {
+			return nil, err
+		}
+		if theme != "" && c.Theme != theme {
+			continue
+		}
+		if status != api.PromotionCandidateStatusUnspecified && c.Status != status {
+			continue
+		}
+		out = append(out, *c)
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list promotion candidates: %w", err)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt == out[j].CreatedAt {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].CreatedAt > out[j].CreatedAt
+	})
+	if limit > 0 && int(limit) < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (s *ScyllaStore) PutReconciliationReport(ctx context.Context, r *api.ReconciliationReport) error {
+	const q = `INSERT INTO behavioral_memory.reconciliation_reports
+(project, domain, id, promotion_candidate_id, theme, awg_invariant_ids, awg_failure_mode_ids, awg_test_ids,
+ findings, summary, outcome_count, failure_count, success_count, severe_count, proposed_awg_invariant_ids,
+ proposed_awg_failure_mode_ids, proposed_awg_test_ids, proposed_behavioral_theme, actor, created_at, metadata)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if err := s.session.Query(q,
+		r.Project, string(r.Domain), r.ID, r.PromotionCandidateID, r.Theme, r.AWGInvariantIDs, r.AWGFailureModeIDs, r.AWGTestIDs,
+		r.Findings, r.Summary, r.OutcomeCount, r.FailureCount, r.SuccessCount, r.SevereCount, r.ProposedAWGInvariantIDs,
+		r.ProposedAWGFailureModeIDs, r.ProposedAWGTestIDs, r.ProposedBehavioralTheme, r.Actor, r.CreatedAt, r.Metadata,
+	).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("put reconciliation report: %w", err)
+	}
+	return nil
+}
+
+func (s *ScyllaStore) GetReconciliationReport(ctx context.Context, project, domain, id string) (*api.ReconciliationReport, error) {
+	const q = `SELECT promotion_candidate_id, theme, awg_invariant_ids, awg_failure_mode_ids, awg_test_ids,
+ findings, summary, outcome_count, failure_count, success_count, severe_count, proposed_awg_invariant_ids,
+ proposed_awg_failure_mode_ids, proposed_awg_test_ids, proposed_behavioral_theme, actor, created_at, metadata
+FROM behavioral_memory.reconciliation_reports WHERE project = ? AND domain = ? AND id = ?`
+	r := &api.ReconciliationReport{ID: id, Project: project, Domain: api.DomainRef(domain)}
+	if err := s.session.Query(q, project, domain, id).WithContext(ctx).Scan(
+		&r.PromotionCandidateID, &r.Theme, &r.AWGInvariantIDs, &r.AWGFailureModeIDs, &r.AWGTestIDs,
+		&r.Findings, &r.Summary, &r.OutcomeCount, &r.FailureCount, &r.SuccessCount, &r.SevereCount, &r.ProposedAWGInvariantIDs,
+		&r.ProposedAWGFailureModeIDs, &r.ProposedAWGTestIDs, &r.ProposedBehavioralTheme, &r.Actor, &r.CreatedAt, &r.Metadata,
+	); err != nil {
+		return nil, mapNotFound(err)
+	}
+	return r, nil
+}
+
+func (s *ScyllaStore) ListReconciliationReports(ctx context.Context, project, domain, theme, promotionCandidateID string, limit int32) ([]api.ReconciliationReport, error) {
+	const q = `SELECT id FROM behavioral_memory.reconciliation_reports WHERE project = ? AND domain = ?`
+	iter := s.session.Query(q, project, domain).WithContext(ctx).Iter()
+	var id string
+	var out []api.ReconciliationReport
+	for iter.Scan(&id) {
+		r, err := s.GetReconciliationReport(ctx, project, domain, id)
+		if err != nil {
+			return nil, err
+		}
+		if theme != "" && r.Theme != theme {
+			continue
+		}
+		if promotionCandidateID != "" && r.PromotionCandidateID != promotionCandidateID {
+			continue
+		}
+		out = append(out, *r)
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list reconciliation reports: %w", err)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt == out[j].CreatedAt {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].CreatedAt > out[j].CreatedAt
+	})
+	if limit > 0 && int(limit) < len(out) {
+		out = out[:limit]
 	}
 	return out, nil
 }

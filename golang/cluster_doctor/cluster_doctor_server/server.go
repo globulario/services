@@ -264,7 +264,6 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		logger.Info("ai-memory endpoint not in etcd — seed drift detection disabled (pre-Day-1)")
 	}
 
-
 	reg := rules.NewRegistry(rules.Config{
 		HeartbeatStale:  cfg.heartbeatStale(),
 		EmitAuditEvents: cfg.EmitAuditEvents,
@@ -378,6 +377,7 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 	// the authority for the cluster.finding.* event delta.
 	s.cacheFindings(findings, true)
 	report := render.ClusterReport(snap, findings, s.version, fresh)
+	s.emitBehavioralClusterReport(report)
 	if report.CountsByCategory == nil {
 		report.CountsByCategory = map[string]uint32{}
 	}

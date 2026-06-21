@@ -51,8 +51,11 @@ const (
 	// behavioralSchemaVersion is independent of the ai_memory schemaVersion. Bump
 	// when behavioral_memory tables change. v1 (PR-2) ingestion tables; v2 (PR-3)
 	// governance tables + contradictions_by_target; v3 (PR-4) runtime tables
-	// (principles_by_condition, action_checks, outcomes, outcomes_by_theme).
-	behavioralSchemaVersion = 3
+	// (principles_by_condition, action_checks, outcomes, outcomes_by_theme);
+	// v4 (PR-9) governed observation fields for signals/evidence; v5 (PR-10)
+	// outcome-derived promotion-candidate review queue; v6 (PR-11)
+	// AWG↔behavioral advisory reconciliation reports.
+	behavioralSchemaVersion = 6
 )
 
 // runBehavioralSchemaWithCoordination applies the behavioral_memory schema under

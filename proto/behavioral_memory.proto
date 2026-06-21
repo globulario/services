@@ -160,6 +160,50 @@ service BehavioralMemoryService {
             default_role_hint: "operator"
         };
     };
+
+    // GeneratePromotionCandidate turns a repeated outcome theme plus an explicit
+    // draft rule into a human-review queue item. It never creates or promotes a
+    // principle automatically.
+    rpc GeneratePromotionCandidate(GeneratePromotionCandidateRequest) returns (GeneratePromotionCandidateResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/promotion_candidates"
+            default_role_hint: "operator"
+        };
+    };
+
+    // ListPromotionCandidates returns queued human-review candidates.
+    rpc ListPromotionCandidates(ListPromotionCandidatesRequest) returns (ListPromotionCandidatesResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            collection_template: "/ai/behavioral/promotion_candidates"
+            default_role_hint: "viewer"
+        };
+    };
+
+    // GenerateReconciliationReport creates an advisory bridge artifact between
+    // behavioral-memory and AWG. It surfaces drift/reinforcement and proposed
+    // review links only; it never mutates either governance surface.
+    rpc GenerateReconciliationReport(GenerateReconciliationReportRequest) returns (GenerateReconciliationReportResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/reconciliation_reports"
+            default_role_hint: "operator"
+        };
+    };
+
+    // ListReconciliationReports returns stored advisory bridge reports.
+    rpc ListReconciliationReports(ListReconciliationReportsRequest) returns (ListReconciliationReportsResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            collection_template: "/ai/behavioral/reconciliation_reports"
+            default_role_hint: "viewer"
+        };
+    };
 }
 
 // ── Enums (names/semantics aligned with awareness-graph) ─────────────────────
@@ -211,6 +255,29 @@ enum SignalKind {
     SIGNAL_PROMOTED_PRINCIPLE    = 6;
 }
 
+// ObservationAuthorityLevel keeps source trust explicit. Different observation
+// sources can all be useful while still entering the ladder with distinct
+// authority semantics: interpretation < event/diagnostic claim < derived
+// evidence < truth-plane observation.
+enum ObservationAuthorityLevel {
+    OBSERVATION_AUTHORITY_LEVEL_UNSPECIFIED = 0;
+    OBSERVATION_AUTHORITY_LEVEL_INTERPRETATION = 1;
+    OBSERVATION_AUTHORITY_LEVEL_EVENT_STREAM = 2;
+    OBSERVATION_AUTHORITY_LEVEL_DIAGNOSTIC_CLAIM = 3;
+    OBSERVATION_AUTHORITY_LEVEL_DERIVED_EVIDENCE = 4;
+    OBSERVATION_AUTHORITY_LEVEL_TRUTH_PLANE = 5;
+}
+
+// PromotionCandidateStatus is the review-queue state for an outcome-derived
+// promotion candidate. These are queue items, not promoted principles.
+enum PromotionCandidateStatus {
+    PROMOTION_CANDIDATE_STATUS_UNSPECIFIED = 0;
+    PROMOTION_CANDIDATE_STATUS_QUEUED      = 1;
+    PROMOTION_CANDIDATE_STATUS_REVIEWED    = 2;
+    PROMOTION_CANDIDATE_STATUS_DISMISSED   = 3;
+    PROMOTION_CANDIDATE_STATUS_MATERIALIZED = 4;
+}
+
 // ── Shared objects ───────────────────────────────────────────────────────────
 //
 // These are domain-generic. Cluster-specific concepts (etcd, scylla, minio …)
@@ -237,6 +304,10 @@ message Signal {
     GovernanceStatus    status      = 14;
     int64               created_at  = 15;
     map<string, string> metadata    = 16; // extension hatch only
+    string              cluster_id  = 17; // authoritative cluster scope id when known
+    string              condition_ref = 18; // condition implicated by the observation, if known
+    string              severity    = 19; // info|warning|error|critical|...
+    ObservationAuthorityLevel authority_level = 20;
 }
 
 // Claim is a structured statement derived from a signal.
@@ -263,8 +334,8 @@ message Evidence {
     string              id          = 1;
     string              project     = 2;
     string              domain      = 3;
-    string              target_kind = 4; // claim|principle
-    string              target_id   = 5; // → bm:supportedBy (inverse): the claim/principle this supports
+    string              target_kind = 4; // signal|claim|principle
+    string              target_id   = 5; // → bm:supportedBy (inverse): the signal/claim/principle this supports
     string              evidence_kind = 6; // test_result|probe|metric|log|snapshot|human
     EvidenceLaneMode    lane        = 7;
     string              result      = 8; // pass|fail|stale|unknown
@@ -277,6 +348,13 @@ message Evidence {
     // RDF-readiness relations (first-class, never in metadata):
     string              observed_from = 15; // → bm:observedFrom: signal/source id this evidence came from
     repeated string     satisfies     = 16; // → bm:satisfies: required_evidence refs this evidence fulfils
+    string              source_kind   = 17; // probe|doctor_finding|watcher_incident|agent|...
+    string              source_ref    = 18; // pointer to the origin
+    string              entity_ref    = 19; // entity this evidence concerns
+    string              cluster_id    = 20; // authoritative cluster scope id when known
+    string              condition_ref = 21; // condition implicated by the observation, if known
+    string              severity      = 22; // info|warning|error|critical|...
+    ObservationAuthorityLevel authority_level = 23;
 }
 
 // Authority identifies the owner of a runtime truth (catalog entry).
@@ -410,6 +488,55 @@ message Outcome {
     // outcome→principle edges, kept distinct from the neutral principle_ids.
     repeated string     supports_principles = 16; // → bm:supportsPrinciple
     repeated string     weakens_principles  = 17; // → bm:weakensPrinciple
+}
+
+// PromotionCandidate is a human-review queue item derived from repeated
+// outcomes. It captures the explicit draft principle plus its supporting
+// repeated outcomes/evidence. It never implies auto-promotion.
+message PromotionCandidate {
+    string                   id                       = 1;
+    string                   project                  = 2;
+    string                   domain                   = 3;
+    string                   theme                    = 4;
+    PromotionCandidateStatus status                   = 5;
+    string                   title                    = 6;
+    string                   summary                  = 7;
+    string                   rationale                = 8;
+    repeated string          supporting_outcome_ids   = 9;
+    repeated string          supporting_evidence_ids  = 10;
+    int32                    repeat_count             = 11;
+    Principle                draft_principle          = 12;
+    string                   generated_by             = 13;
+    int64                    created_at               = 14;
+    int64                    updated_at               = 15;
+    string                   materialized_principle_id = 16;
+    map<string, string>      metadata                 = 17;
+}
+
+// ReconciliationReport is an advisory bridge artifact between
+// behavioral-memory and AWG. It never writes either governance surface.
+message ReconciliationReport {
+    string              id                           = 1;
+    string              project                      = 2;
+    string              domain                       = 3;
+    string              promotion_candidate_id       = 4;
+    string              theme                        = 5;
+    repeated string     awg_invariant_ids            = 6;
+    repeated string     awg_failure_mode_ids         = 7;
+    repeated string     awg_test_ids                 = 8;
+    repeated string     findings                     = 9;
+    string              summary                      = 10;
+    int32               outcome_count                = 11;
+    int32               failure_count                = 12;
+    int32               success_count                = 13;
+    int32               severe_count                 = 14;
+    repeated string     proposed_awg_invariant_ids   = 15;
+    repeated string     proposed_awg_failure_mode_ids = 16;
+    repeated string     proposed_awg_test_ids        = 17;
+    string              proposed_behavioral_theme    = 18;
+    string              actor                        = 19;
+    int64               created_at                   = 20;
+    map<string, string> metadata                     = 21;
 }
 
 // PromotionDecisionRecord is the audit record of a promotion gate evaluation.
@@ -601,3 +728,49 @@ message CheckActionResponse { ActionCheck result = 1; }
 
 message RecordOutcomeRequest  { Outcome outcome = 1; }
 message RecordOutcomeResponse { string outcome_id = 1; }
+
+message GeneratePromotionCandidateRequest {
+    string          project                 = 1;
+    string          domain                  = 2;
+    string          theme                   = 3;
+    int32           min_repeats             = 4;
+    Principle       draft_principle         = 5;
+    string          actor                   = 6;
+    string          rationale               = 7;
+    repeated string supporting_evidence_ids = 8;
+}
+message GeneratePromotionCandidateResponse {
+    PromotionCandidate candidate     = 1;
+    int32              outcome_count = 2;
+}
+
+message ListPromotionCandidatesRequest {
+    string                   project = 1;
+    string                   domain  = 2;
+    string                   theme   = 3;
+    PromotionCandidateStatus status  = 4;
+    int32                    limit   = 5;
+}
+message ListPromotionCandidatesResponse { repeated PromotionCandidate candidates = 1; }
+
+message GenerateReconciliationReportRequest {
+    string          project                = 1;
+    string          domain                 = 2;
+    string          promotion_candidate_id = 3;
+    string          theme                  = 4;
+    repeated string awg_invariant_ids      = 5;
+    repeated string awg_failure_mode_ids   = 6;
+    repeated string awg_test_ids           = 7;
+    bool            runtime_relevant       = 8;
+    string          actor                  = 9;
+}
+message GenerateReconciliationReportResponse { ReconciliationReport report = 1; }
+
+message ListReconciliationReportsRequest {
+    string project                = 1;
+    string domain                 = 2;
+    string theme                  = 3;
+    string promotion_candidate_id = 4;
+    int32  limit                  = 5;
+}
+message ListReconciliationReportsResponse { repeated ReconciliationReport reports = 1; }

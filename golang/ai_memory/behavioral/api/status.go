@@ -61,6 +61,18 @@ const (
 	PromotionReviewRequired PromotionDecision = "REVIEW_REQUIRED"
 )
 
+// PromotionCandidateStatus is the human-review queue state for outcome-derived
+// promotion candidates. These are NOT promoted principles; they are review work.
+type PromotionCandidateStatus string
+
+const (
+	PromotionCandidateStatusUnspecified  PromotionCandidateStatus = ""
+	PromotionCandidateStatusQueued       PromotionCandidateStatus = "QUEUED"
+	PromotionCandidateStatusReviewed     PromotionCandidateStatus = "REVIEWED"
+	PromotionCandidateStatusDismissed    PromotionCandidateStatus = "DISMISSED"
+	PromotionCandidateStatusMaterialized PromotionCandidateStatus = "MATERIALIZED"
+)
+
 // SignalKind keeps observed-fact / interpretation / correction / automated-health
 // distinct so they are never collapsed into one untyped note.
 type SignalKind string
@@ -73,6 +85,20 @@ const (
 	SignalAutomatedHealth     SignalKind = "AUTOMATED_HEALTH"
 	SignalHistoricalMemory    SignalKind = "HISTORICAL_MEMORY"
 	SignalPromotedPrinciple   SignalKind = "PROMOTED_PRINCIPLE"
+)
+
+// ObservationAuthorityLevel keeps source trust explicit for governed
+// observation intake. Different inputs may all be useful without carrying equal
+// authority.
+type ObservationAuthorityLevel string
+
+const (
+	ObservationAuthorityUnspecified    ObservationAuthorityLevel = ""
+	ObservationAuthorityInterpretation ObservationAuthorityLevel = "INTERPRETATION"
+	ObservationAuthorityEventStream    ObservationAuthorityLevel = "EVENT_STREAM"
+	ObservationAuthorityDiagnostic     ObservationAuthorityLevel = "DIAGNOSTIC_CLAIM"
+	ObservationAuthorityDerived        ObservationAuthorityLevel = "DERIVED_EVIDENCE"
+	ObservationAuthorityTruthPlane     ObservationAuthorityLevel = "TRUTH_PLANE"
 )
 
 // Opaque reference types. The kernel never interprets their contents — a
