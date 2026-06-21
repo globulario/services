@@ -82,7 +82,7 @@ func runReleaseVerifyBoundary(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("connect to cluster controller: %w", err)
 	}
-	defer ctrlConn.Close()
+	defer func() { _ = ctrlConn.Close() }()
 	ctrl := cluster_controllerpb.NewClusterControllerServiceClient(ctrlConn)
 
 	// Repository (reuses the shared CLI repo client helper).
@@ -213,6 +213,6 @@ func dialNodeAgentForNode(ctx context.Context, ctrl cluster_controllerpb.Cluster
 	}
 	return &nodeAgentConn{
 		client: node_agentpb.NewNodeAgentServiceClient(conn),
-		close:  func() { conn.Close() },
+		close:  func() { _ = conn.Close() },
 	}, canonicalID, nil
 }
