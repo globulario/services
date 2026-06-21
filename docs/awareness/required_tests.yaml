@@ -6146,3 +6146,16 @@ required_tests:
     - meta.failure_response_must_contract_not_amplify
     failure_modes:
     - repository.law_gate_degrades_open_when_catalog_unavailable
+- id: TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
+  title: ai_watcher scylla_group0 probe emits a governed DIAGNOSTIC_CLAIM finding on group0 quorum loss without promoting
+  protects:
+    invariants:
+    - scylladb.group0_voter_quorum_must_hold
+    failure_modes:
+    - scylladb.group0_quorum_loss_invisible_to_watcher
+    files:
+    - golang/ai_watcher/ai_watcher_server/probe_scylla_group0.go
+    - golang/ai_watcher/ai_watcher_server/probes_test.go
+  run:
+    commands:
+    - go test ./golang/ai_watcher/ai_watcher_server/ -run TestScyllaGroup0Probe

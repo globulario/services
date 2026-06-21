@@ -6627,3 +6627,42 @@ failure_modes:
         - repository
       required_tests:
         - TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable
+    - id: scylladb.group0_quorum_loss_invisible_to_watcher
+      root_cause: |
+        ai_watcher was event-name driven: it only reacted to named events someone
+        chose to publish. A Scylla group0 (cluster-metadata Raft) quorum loss
+        emits no such event — and because CQL stays readable when group0 is down,
+        nothing crashed and no service.* event fired. The condition was found only
+        by a manual infra_probe. The infra-probe scylladb runtime map exposes
+        cql_ready / gossip_live / observed_peers but no first-class group0 voter
+        count, so even an automated reader of the truth plane could not see quorum
+        directly.
+      architecture_fix: |
+        PR-14 adds ai_watcher runtime vigilance probes: governed interval health
+        checks that detect condition CLASSES, not named events. The scylla_group0
+        probe sources the infra-probe truth plane (node-agent GetInfraProbe
+        scylladb) and emits a DIAGNOSTIC_CLAIM finding into behavioral-memory when
+        group0 quorum looks lost — inferred from an explicit group0/raft/quorum
+        violation or from membership-majority math (trusted only at founding
+        quorum >=3). The probe never queries Scylla directly (a competing source
+        of truth) and never auto-promotes. The remaining gap — making the group0
+        voter count first-class on the infra-probe truth plane so detection stops
+        being proxy inference — is recorded as a candidate invariant on every
+        finding and as behavioral-memory proposed principle
+        principle.scylladb.group0_voter_quorum_must_hold (human-gated).
+      forbidden_fixes:
+        - watcher_queries_scylla_directly_or_auto_promotes_probe_finding
+      protects:
+        files:
+            - golang/ai_watcher/ai_watcher_server/probes.go
+            - golang/ai_watcher/ai_watcher_server/probe_scylla_group0.go
+            - golang/node_agent/node_agent_server/infra_truth/scylla_probe.go
+      related_invariants:
+        - scylladb.group0_voter_quorum_must_hold
+        - meta.authority_must_express_uncertainty
+      related_services:
+        - ai-watcher
+        - scylladb
+        - node-agent
+      required_tests:
+        - TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
