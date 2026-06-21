@@ -10928,3 +10928,52 @@ invariants:
   - TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
   forbidden_fixes:
   - watcher_queries_scylla_directly_or_auto_promotes_probe_finding
+- id: etcd.mutex_key_must_not_prefix_non_lock_keys
+  title: An etcd concurrency.Mutex key must not be a prefix of any non-lock key
+  severity: high
+  status: active
+  summary: >
+    etcd's concurrency.Mutex treats EVERY key under its prefix as a lock
+    contender — it acquires by PUTting <mutexKey>/<lease> and waiting on the
+    lowest-create-revision key with that prefix. If a non-lock key (state,
+    config, data) is nested under the mutex prefix, it is mistaken for an
+    un-releasable lock holder: every Mutex.Lock waits for it forever and times
+    out, deadlocking the critical section it guards. A distributed-lock mutex key
+    must therefore be a LEAF sibling of any related data key, never a prefix of
+    it (e.g. mutex ".../foo/lock" + state ".../foo/state", never mutex ".../foo"
+    + state ".../foo/state"). The behavioral_memory migration shipped the broken
+    layout and every cross-version migration timed out until the state key was
+    cleared.
+  protects:
+    files:
+    - golang/ai_memory/ai_memory_server/behavioral_migration.go
+  related_invariants:
+  - meta.authority_must_express_uncertainty
+  required_tests:
+  - TestBehavioralMigrationMutexKeyNotPrefixOfStateKey
+  forbidden_fixes:
+  - nest_a_data_key_under_an_etcd_mutex_prefix
+- id: scylla.added_column_requires_backfill_alter_for_upgrades
+  title: A column added to a CREATE TABLE must ship a matching backfill ALTER for upgrades
+  severity: high
+  status: active
+  summary: >
+    CREATE TABLE IF NOT EXISTS is a no-op on a table that already exists, so a
+    column added only to a CREATE statement reaches fresh installs but NEVER
+    existing deployments. Any schema change that adds a column MUST also ship an
+    idempotent ALTER TABLE ADD (tolerating "column already exists") and bump the
+    schema version so the migration re-applies on already-migrated clusters.
+    Otherwise upgraded clusters silently lack the column and writes fail with
+    "Unknown identifier <col>". The behavioral_memory PR-9 columns
+    (cluster_id/condition_ref/severity/authority_level on signals/evidence)
+    shipped only in CREATE TABLE, so pre-PR-9 clusters lost all behavioral writes.
+  protects:
+    files:
+    - golang/ai_memory/ai_memory_server/behavioral_schema.go
+    - golang/ai_memory/ai_memory_server/behavioral_migration.go
+  related_invariants:
+  - meta.failure_response_must_contract_not_amplify
+  required_tests:
+  - TestBehavioralSchemaPR9ColumnsHaveBackfillAlter
+  forbidden_fixes:
+  - add_column_only_to_create_table_without_backfill_alter

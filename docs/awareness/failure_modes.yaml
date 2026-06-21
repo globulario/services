@@ -6703,3 +6703,61 @@ failure_modes:
         - node-agent
       required_tests:
         - TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
+    - id: behavioral.migration_mutex_prefix_poisoned_by_state_key
+      root_cause: |
+        The behavioral_memory schema migration used an etcd concurrency.Mutex
+        whose key (/globular/migrations/scylla/behavioral_memory) was a PREFIX of
+        its own state key (.../behavioral_memory/state). etcd's Mutex treats every
+        key under its prefix as a lock contender, so the permanent /state key
+        (lowest create_revision) was mistaken for an un-releasable lock holder;
+        every Mutex.Lock waited for it and timed out after ~3 minutes
+        (migrationTimeout). The lock-acquire runs before gRPC Serve(), so each
+        ai_memory restart blocked the WHOLE service (port 10009 connection
+        refused) for ~3 minutes, then degraded behavioral. Only bites when
+        state<target (a real cross-version migration), which hid it until a schema
+        bump (deploying behavioralSchemaVersion=7 against state stuck at v3).
+      architecture_fix: |
+        Move the mutex key to a leaf sibling (.../behavioral_memory/lock) that is
+        never a prefix of /state, and document the invariant
+        (etcd.mutex_key_must_not_prefix_non_lock_keys). Live recovery deleted the
+        poisoning /state key (migration then completed in 2ms); the code fix makes
+        it durable. See services PR #46.
+      forbidden_fixes:
+        - nest_a_data_key_under_an_etcd_mutex_prefix
+      protects:
+        files:
+            - golang/ai_memory/ai_memory_server/behavioral_migration.go
+      related_invariants:
+        - etcd.mutex_key_must_not_prefix_non_lock_keys
+      related_services:
+        - ai-memory
+      required_tests:
+        - TestBehavioralMigrationMutexKeyNotPrefixOfStateKey
+    - id: behavioral.schema_column_missing_on_upgrade_no_backfill_alter
+      root_cause: |
+        PR-9 added cluster_id/condition_ref/severity/authority_level to the
+        behavioral_memory.signals and .evidence CREATE TABLE statements but shipped
+        NO ALTER TABLE ADD for them. CREATE TABLE IF NOT EXISTS is a no-op on an
+        existing table, so clusters whose behavioral tables predate PR-9 never got
+        the columns; the live signals table had only the 17 pre-PR-9 columns. The
+        newer handler writes cluster_id, so every RecordSignal/RecordEvidence
+        failed with CQL "Unknown identifier cluster_id" — all behavioral writes
+        broken on upgraded clusters.
+      architecture_fix: |
+        Add idempotent backfill ALTER TABLE ADD statements for all four PR-9
+        columns on signals + evidence (tolerating "column already exists"), and
+        bump behavioralSchemaVersion 7->8 so the repair re-applies on clusters
+        already marked complete-but-missing-columns. Live recovery ALTER-added the
+        columns by hand; the code fix makes it durable. See services PR #46.
+      forbidden_fixes:
+        - add_column_only_to_create_table_without_backfill_alter
+      protects:
+        files:
+            - golang/ai_memory/ai_memory_server/behavioral_schema.go
+            - golang/ai_memory/ai_memory_server/behavioral_migration.go
+      related_invariants:
+        - scylla.added_column_requires_backfill_alter_for_upgrades
+      related_services:
+        - ai-memory
+      required_tests:
+        - TestBehavioralSchemaPR9ColumnsHaveBackfillAlter

@@ -6172,3 +6172,29 @@ required_tests:
   run:
     commands:
     - go test ./golang/ai_watcher/ai_watcher_server/ -run TestScyllaGroup0Probe
+- id: TestBehavioralMigrationMutexKeyNotPrefixOfStateKey
+  title: behavioral migration mutex key must never be a prefix of the state key (etcd Mutex poisoning guard)
+  protects:
+    invariants:
+    - etcd.mutex_key_must_not_prefix_non_lock_keys
+    failure_modes:
+    - behavioral.migration_mutex_prefix_poisoned_by_state_key
+    files:
+    - golang/ai_memory/ai_memory_server/behavioral_migration.go
+    - golang/ai_memory/ai_memory_server/behavioral_migration_fix_test.go
+  run:
+    commands:
+    - go test ./golang/ai_memory/ai_memory_server/ -run TestBehavioralMigrationMutexKeyNotPrefixOfStateKey
+- id: TestBehavioralSchemaPR9ColumnsHaveBackfillAlter
+  title: every PR-9 signals/evidence column must have a backfill ALTER positioned after its CREATE
+  protects:
+    invariants:
+    - scylla.added_column_requires_backfill_alter_for_upgrades
+    failure_modes:
+    - behavioral.schema_column_missing_on_upgrade_no_backfill_alter
+    files:
+    - golang/ai_memory/ai_memory_server/behavioral_schema.go
+    - golang/ai_memory/ai_memory_server/behavioral_migration_fix_test.go
+  run:
+    commands:
+    - go test ./golang/ai_memory/ai_memory_server/ -run TestBehavioralSchemaPR9ColumnsHaveBackfillAlter

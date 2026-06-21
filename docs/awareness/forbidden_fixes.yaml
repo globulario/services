@@ -3806,3 +3806,30 @@ forbidden_fixes:
     truth-plane ref; it never owns truth-plane authority. Probe findings enter
     behavioral-memory as RAW_SIGNAL + evidence only and are promoted, if ever,
     through the human-gated promotion path.
+- id: nest_a_data_key_under_an_etcd_mutex_prefix
+  summary: >
+    Store a state/config/data key under an etcd concurrency.Mutex key prefix
+    (e.g. mutex ".../foo" with state ".../foo/state"), or "fix" the resulting
+    Mutex.Lock deadlock by lengthening the timeout or by deleting the data key as
+    a permanent workaround.
+  related_invariants:
+    - etcd.mutex_key_must_not_prefix_non_lock_keys
+  safe_alternative: >
+    Make the mutex key a leaf sibling of any related data key (mutex ".../foo/lock",
+    state ".../foo/state") so the Mutex prefix scan never sees a non-lock key.
+    Deleting a poisoning data key is a one-time RECOVERY only; the durable fix is
+    the disjoint key layout plus a regression test asserting the mutex key is not
+    a prefix of the data key.
+- id: add_column_only_to_create_table_without_backfill_alter
+  summary: >
+    Add a column to a CREATE TABLE statement (relying on CREATE TABLE IF NOT
+    EXISTS) without shipping a matching idempotent ALTER TABLE ADD, or treat a
+    one-off manual ALTER on a single cluster as the permanent fix.
+  related_invariants:
+    - scylla.added_column_requires_backfill_alter_for_upgrades
+  safe_alternative: >
+    Ship an idempotent ALTER TABLE ADD for the new column (tolerating "column
+    already exists") in the ordered migration statements after the CREATE, and
+    bump the schema version so it re-applies on already-migrated clusters. A
+    manual ALTER on the live cluster is RECOVERY only; the code must carry the
+    backfill so every upgrade path gets the column.
