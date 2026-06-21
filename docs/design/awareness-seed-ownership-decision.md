@@ -22,6 +22,34 @@
 > Conclusion: A is not a viable shared-gate strategy. The proven path is
 > **[complete the determinism fix] → [Path B]**. See
 > `awareness-ownership-B-implementation-plan.md`.
+>
+> **UPDATE 2026-06-21 (later, corrected) — determinism #2 is ALREADY FIXED; the
+> blocker is now ownership coverage, not provenance determinism.** Direct test of
+> the awareness-graph maintainer's active branch `feat/contract-centered-repair-spine`
+> against services #37 *and* services master shows:
+> 1. **The second `authoredIn` determinism leak is already fixed there.**
+>    `component.scripts` now uses **stable** provenance —
+>    `docs/awareness/generated/components.yaml` and
+>    `docs/awareness/generated/python_import_graph.yaml` — **no `/tmp/tmp.XXXXX`.**
+>    The "second determinism bug #106 did not cover" framing above is **superseded**.
+> 2. **The remaining issue is incomplete ownership-model B.** The feature branch
+>    tolerates most services-generated triples as external (4426), but these families
+>    still enter the **owned-drift** set:
+>    - `component.*` services-generated triples, esp. `component.scripts`
+>      `authoredIn` / `anchoredIn`;
+>    - generated `sourceFile → failureMode` `implements` edges (e.g. `…/engine.go`);
+>    - generated `test` triples / labels / `authoredIn` (e.g. `…/tests.yaml`);
+>    - `contract.workflow.foreach_guard_order → violatedBy failureMode/…`.
+> 3. **It passes services #37 only because its seed embeds #37-era services content**
+>    (A-flavored), not because B is complete — it **fails the services-master control**
+>    (17 owned drift) for those same families.
+> 4. **Required fix:** extend the `svcGeneratedSubjects` / ownership classifier so
+>    these services-generated families are external/tolerated, while genuine
+>    AWG-owned drift still fails. **Do not** use branch-specific seed embedding.
+>
+> Net: **the remaining blocker is no longer provenance determinism — it is ownership
+> coverage.** Stable services-generated provenance exists; the classifier does not yet
+> treat all services-generated subject families as external/tolerated.
 
 ## The situation in one paragraph
 
