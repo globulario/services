@@ -10,8 +10,15 @@ package main
 // would change ai_memory call sites, which PR-2 must not touch.
 //
 // etcd keys:
-//   /globular/migrations/scylla/behavioral_memory       — mutex
+//   /globular/migrations/scylla/behavioral_memory/lock  — mutex
 //   /globular/migrations/scylla/behavioral_memory/state — JSON migration record
+//
+// IMPORTANT: the mutex key and the state key must be SIBLINGS — the mutex key
+// must never be a prefix of the state key. etcd's concurrency.Mutex treats every
+// key under its prefix as a lock contender, so a non-lock key nested under the
+// mutex prefix (the historical bug: mutex="…/behavioral_memory", state nested at
+// "…/behavioral_memory/state") is mistaken for an un-releasable lock holder and
+// every Mutex.Lock waits for it forever, timing out. Keep both as leaf siblings.
 //
 // Failure handling matches the ai_memory coordinator: etcd-unreachable falls
 // back to uncoordinated (IF NOT EXISTS) DDL; all DDL is idempotent.
@@ -46,7 +53,11 @@ func newSchemaSession(hosts []string, port, rf int) (*gocql.Session, error) {
 }
 
 const (
-	behavioralMigrationMutexKey = "/globular/migrations/scylla/behavioral_memory"
+	// behavioralMigrationMutexKey MUST be a leaf sibling of behavioralMigrationStateKey,
+	// never a prefix of it (see the package comment). The historical value
+	// "/globular/migrations/scylla/behavioral_memory" was a prefix of the state
+	// key, which poisoned every Mutex.Lock; the "/lock" suffix fixes that.
+	behavioralMigrationMutexKey = "/globular/migrations/scylla/behavioral_memory/lock"
 	behavioralMigrationStateKey = "/globular/migrations/scylla/behavioral_memory/state"
 
 	// behavioralSchemaVersion is independent of the ai_memory schemaVersion. Bump
@@ -56,8 +67,11 @@ const (
 	// v4 (PR-9) governed observation fields for signals/evidence; v5 (PR-10)
 	// outcome-derived promotion-candidate review queue; v6 (PR-11)
 	// AWG↔behavioral advisory reconciliation reports; v7 (PR-13) action_checks
-	// governed column + governance_coverage counters.
-	behavioralSchemaVersion = 7
+	// governed column + governance_coverage counters; v8 backfills the PR-9
+	// signals/evidence columns via ALTER (they shipped only in CREATE TABLE, so
+	// pre-PR-9 tables never got them) — the bump forces re-application on
+	// clusters already marked complete-but-missing-columns.
+	behavioralSchemaVersion = 8
 )
 
 // runBehavioralSchemaWithCoordination applies the behavioral_memory schema under

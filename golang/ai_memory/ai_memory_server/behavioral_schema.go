@@ -336,6 +336,27 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.action_checks (
 // error (the idempotent re-run / fresh-install case).
 const alterActionChecksAddGovernedCQL = `ALTER TABLE behavioral_memory.action_checks ADD governed boolean`
 
+// PR-9 added governed-observation columns (cluster_id, condition_ref, severity,
+// authority_level) to signals and evidence — but ONLY in their CREATE TABLE
+// statements. CREATE TABLE IF NOT EXISTS does not add columns to a table that
+// already exists, so any deployment whose signals/evidence tables predate PR-9
+// is missing these columns and every RecordSignal/RecordEvidence write fails
+// with "Unknown identifier <col>". These backfill ALTERs repair such tables;
+// like the action_checks backfill, ScyllaDB has no ALTER ... ADD IF NOT EXISTS,
+// so the migration runs them best-effort and tolerates the "column already
+// exists" error (the idempotent re-run / fresh-install case). Whenever a column
+// is added to a CREATE TABLE, a matching backfill ALTER MUST be added here.
+const (
+	alterSignalsAddClusterID       = `ALTER TABLE behavioral_memory.signals ADD cluster_id text`
+	alterSignalsAddConditionRef    = `ALTER TABLE behavioral_memory.signals ADD condition_ref text`
+	alterSignalsAddSeverity        = `ALTER TABLE behavioral_memory.signals ADD severity text`
+	alterSignalsAddAuthorityLevel  = `ALTER TABLE behavioral_memory.signals ADD authority_level text`
+	alterEvidenceAddClusterID      = `ALTER TABLE behavioral_memory.evidence ADD cluster_id text`
+	alterEvidenceAddConditionRef   = `ALTER TABLE behavioral_memory.evidence ADD condition_ref text`
+	alterEvidenceAddSeverity       = `ALTER TABLE behavioral_memory.evidence ADD severity text`
+	alterEvidenceAddAuthorityLevel = `ALTER TABLE behavioral_memory.evidence ADD authority_level text`
+)
+
 // governance_coverage counts CheckAction verdicts that were governed (an
 // applicable promoted principle was evaluated) vs ungoverned (default-allow), so
 // the gate's reach is measurable. Counter columns require a counter-only table.
@@ -478,4 +499,15 @@ var behavioralSchemaStatements = []string{
 	createReconciliationReportsTableCQL,
 	// PR-13 governance-coverage counters.
 	createGovernanceCoverageTableCQL,
+	// v8 backfill: PR-9 columns that shipped only in CREATE TABLE, so pre-PR-9
+	// signals/evidence tables are missing them. Runs after the CREATEs above;
+	// tolerates "column already exists" on fresh installs / re-runs.
+	alterSignalsAddClusterID,
+	alterSignalsAddConditionRef,
+	alterSignalsAddSeverity,
+	alterSignalsAddAuthorityLevel,
+	alterEvidenceAddClusterID,
+	alterEvidenceAddConditionRef,
+	alterEvidenceAddSeverity,
+	alterEvidenceAddAuthorityLevel,
 }
