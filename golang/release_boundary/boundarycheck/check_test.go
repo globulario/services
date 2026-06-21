@@ -145,20 +145,6 @@ func TestMapInputs_DigestPrefixNormalized_A2A3Proven(t *testing.T) {
 	}
 }
 
-func TestNormalizeDigest(t *testing.T) {
-	cases := map[string]string{
-		"sha256:ABCDEF": "abcdef",
-		"  ABCDEF  ":    "abcdef",
-		"abcdef":        "abcdef",
-		"":              "",
-	}
-	for in, want := range cases {
-		if got := normalizeDigest(in); got != want {
-			t.Errorf("normalizeDigest(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestParseInstalledAtUnix(t *testing.T) {
 	cases := []struct {
 		in   map[string]string

@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/digest"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/release_boundary"
 	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
@@ -200,7 +201,7 @@ func MapInputs(serviceID, nodeID string, ev *Evidence) release_boundary.Inputs {
 		in.Manifest = &release_boundary.ManifestEvidence{
 			BuildID:            ev.Manifest.GetBuildId(),
 			PublishState:       publishStateString(ev.Manifest.GetPublishState()),
-			EntrypointChecksum: normalizeDigest(ev.Manifest.GetEntrypointChecksum()),
+			EntrypointChecksum: digest.CanonicalSHA256(ev.Manifest.GetEntrypointChecksum()),
 			ProvenanceGitSHA:   ev.Manifest.GetProvenance().GetBuildCommit(),
 		}
 	}
@@ -218,7 +219,7 @@ func MapInputs(serviceID, nodeID string, ev *Evidence) release_boundary.Inputs {
 	if ev.Installed != nil {
 		in.Installed = &release_boundary.InstalledEvidence{
 			BuildID:              ev.Installed.GetBuildId(),
-			EntrypointChecksum:   normalizeDigest(ev.Installed.GetMetadata()["entrypoint_checksum"]),
+			EntrypointChecksum:   digest.CanonicalSHA256(ev.Installed.GetMetadata()["entrypoint_checksum"]),
 			InstallCommittedUnix: parseInstalledAtUnix(ev.Installed.GetMetadata()),
 		}
 	}
@@ -227,7 +228,7 @@ func MapInputs(serviceID, nodeID string, ev *Evidence) release_boundary.Inputs {
 		in.Runtime = &release_boundary.RuntimeEvidence{
 			Running:          ev.Runtime.GetSystemdActiveState() == "active",
 			PID:              int(ev.Runtime.GetRunningPid()),
-			RunningExeSHA256: normalizeDigest(ev.Runtime.GetRunningExeSha256()),
+			RunningExeSHA256: digest.CanonicalSHA256(ev.Runtime.GetRunningExeSha256()),
 			ProcessStartUnix: timestampUnix(ev.Runtime),
 		}
 		// Wrapper / unhashable detection from the owner-reported installed_path
@@ -288,16 +289,6 @@ func parseInstalledAtUnix(metadata map[string]string) int64 {
 		return 0
 	}
 	return v
-}
-
-// normalizeDigest canonicalizes a sha256 digest so the evaluator compares
-// like with like: the repository manifest stores the entrypoint checksum with a
-// "sha256:" prefix, while the node-agent records bare lowercase hex. Without
-// this, A2/A3 report a false checksum mismatch on byte-identical binaries.
-// Mirrors node_agent normalizeSHA256Digest (lowercase, trim, strip prefix).
-func normalizeDigest(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	return strings.TrimPrefix(s, "sha256:")
 }
 
 // publishStateString maps the PublishState enum to the exact string the
