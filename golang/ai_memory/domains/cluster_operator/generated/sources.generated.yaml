@@ -39,12 +39,12 @@
 - ref: opsknowledge:runbook.doctor_minio_data_incomplete_false_positives
   kind: runbook
   path: docs/operational-knowledge/runbooks/doctor-minio-data-incomplete-false-positives.yaml
-  hash: 620bfe2d6f4f63f3cd531255948790f6cbd9a741f881a38a4d67998a8bafdd5a
+  hash: 6cb6b65dfbd87ef987e0deddfcee712c56d2e96aa46b8cc2726ecd886c1c0804
   title: Runbook — cluster-doctor MinIO CRITICAL false positives on DataIncomplete snapshots
 - ref: opsknowledge:runbook.fix_doctor_error_findings
   kind: runbook
   path: docs/operational-knowledge/runbooks/fix-doctor-error-findings.yaml
-  hash: 762e235cae294740bfe4778b325a58ab1c7f3e1eb8ef1c82c3d34d74f76386de
+  hash: 8c0e4fc53d303a239793dd2f3d19d6e69bebaa3b8e76795cc78b4a671c6187e6
   title: Fixing cluster-doctor ERROR and WARN findings — root causes and remediation
 - ref: opsknowledge:runbook.initialize_awareness_graph
   kind: runbook
@@ -144,7 +144,7 @@
 - ref: opsknowledge:service_role.cluster_doctor
   kind: service_role
   path: docs/operational-knowledge/service-roles/cluster-doctor.yaml
-  hash: a3872c639680c0069cdddb1999135bf46a2e9a746824b7071ce59c44ef72d75a
+  hash: 42d0c35ccc95fd55166cc273c1ae955ef43874f21f3fd2b5653333a5eb3c99d2
   title: Service role — cluster-doctor
 - ref: opsknowledge:service_role.dns
   kind: service_role
@@ -184,7 +184,7 @@
 - ref: opsknowledge:stage.day_0_bootstrap
   kind: stage
   path: docs/operational-knowledge/stages/day-0-bootstrap.yaml
-  hash: 6e94b6ab2025bd245f1ce425da60e7f0251c0acd6f7b005b4243e992506b8185
+  hash: d8e53688b5f4e0fb95ac2f9ffd72da19414afc0a4ba3a63c0ef9fa8b8d82c820
   title: Day-0 — Initial cluster bootstrap
 - ref: opsknowledge:stage.day_1_deploy_pipeline
   kind: stage
@@ -224,7 +224,7 @@
 - ref: opsknowledge:stage.installed_artifact_system
   kind: stage
   path: docs/operational-knowledge/stages/installed-artifact-system.yaml
-  hash: 133e4b28d8a7543c22f5babf1e9141977e22b4ef76addd4d53c14682eeceb4cc
+  hash: 32b40149da97b910c10f65dcfe89f6bddfb0c115aeb0cd788d59616046b2f5c9
   title: Installed artifact system — filesystem layout, authority, and permissions
 - ref: opsknowledge:stage.package_system
   kind: stage

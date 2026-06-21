@@ -142,5 +142,14 @@ func GenerateToDir(corpusDir, outDir string) error {
 			return fmt.Errorf("write %s: %w", name, err)
 		}
 	}
+	// Also emit the flat-recall artifact (distinct from the behavioral catalogs)
+	// that ai-memory self-seeds into the memories table at startup.
+	recall, err := RenderRecall(corpusDir)
+	if err != nil {
+		return fmt.Errorf("render recall: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(outDir, FileRecall), recall, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", FileRecall, err)
+	}
 	return nil
 }
