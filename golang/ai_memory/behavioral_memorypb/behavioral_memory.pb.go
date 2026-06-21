@@ -2882,8 +2882,12 @@ type ActionCheck struct {
 	// evaluated, not only what failed.
 	CheckedAgainstPrinciples []string          `protobuf:"bytes,17,rep,name=checked_against_principles,json=checkedAgainstPrinciples,proto3" json:"checked_against_principles,omitempty"`
 	Metadata                 map[string]string `protobuf:"bytes,18,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // extension hatch only
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Coverage provenance: true iff at least one applicable promoted principle was
+	// evaluated. Distinguishes "allowed: principles satisfied" (governed) from
+	// "allowed: no applicable principle" (ungoverned default-allow).
+	Governed      bool `protobuf:"varint,19,opt,name=governed,proto3" json:"governed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ActionCheck) Reset() {
@@ -3040,6 +3044,13 @@ func (x *ActionCheck) GetMetadata() map[string]string {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *ActionCheck) GetGoverned() bool {
+	if x != nil {
+		return x.Governed
+	}
+	return false
 }
 
 type RecordSignalRequest struct {
@@ -4391,6 +4402,129 @@ func (x *CheckActionResponse) GetResult() *ActionCheck {
 	return nil
 }
 
+// Governance coverage: how much of the action surface is actually under
+// governance (an applicable promoted principle existed) vs default-allowed for
+// lack of any applicable principle. Lets the gate's reach be measured, not assumed.
+type GetGovernanceCoverageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Project       string                 `protobuf:"bytes,1,opt,name=project,proto3" json:"project,omitempty"`
+	Domain        string                 `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGovernanceCoverageRequest) Reset() {
+	*x = GetGovernanceCoverageRequest{}
+	mi := &file_behavioral_memory_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGovernanceCoverageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGovernanceCoverageRequest) ProtoMessage() {}
+
+func (x *GetGovernanceCoverageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_behavioral_memory_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGovernanceCoverageRequest.ProtoReflect.Descriptor instead.
+func (*GetGovernanceCoverageRequest) Descriptor() ([]byte, []int) {
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *GetGovernanceCoverageRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *GetGovernanceCoverageRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+type GetGovernanceCoverageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Total         int64                  `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Governed      int64                  `protobuf:"varint,2,opt,name=governed,proto3" json:"governed,omitempty"`                                 // CheckActions where >=1 applicable promoted principle was evaluated
+	Ungoverned    int64                  `protobuf:"varint,3,opt,name=ungoverned,proto3" json:"ungoverned,omitempty"`                             // CheckActions allowed only because no principle applied
+	CoverageRatio float64                `protobuf:"fixed64,4,opt,name=coverage_ratio,json=coverageRatio,proto3" json:"coverage_ratio,omitempty"` // governed / total (0 when total == 0)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGovernanceCoverageResponse) Reset() {
+	*x = GetGovernanceCoverageResponse{}
+	mi := &file_behavioral_memory_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGovernanceCoverageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGovernanceCoverageResponse) ProtoMessage() {}
+
+func (x *GetGovernanceCoverageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_behavioral_memory_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGovernanceCoverageResponse.ProtoReflect.Descriptor instead.
+func (*GetGovernanceCoverageResponse) Descriptor() ([]byte, []int) {
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *GetGovernanceCoverageResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *GetGovernanceCoverageResponse) GetGoverned() int64 {
+	if x != nil {
+		return x.Governed
+	}
+	return 0
+}
+
+func (x *GetGovernanceCoverageResponse) GetUngoverned() int64 {
+	if x != nil {
+		return x.Ungoverned
+	}
+	return 0
+}
+
+func (x *GetGovernanceCoverageResponse) GetCoverageRatio() float64 {
+	if x != nil {
+		return x.CoverageRatio
+	}
+	return 0
+}
+
 type RecordOutcomeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Outcome       *Outcome               `protobuf:"bytes,1,opt,name=outcome,proto3" json:"outcome,omitempty"`
@@ -4400,7 +4534,7 @@ type RecordOutcomeRequest struct {
 
 func (x *RecordOutcomeRequest) Reset() {
 	*x = RecordOutcomeRequest{}
-	mi := &file_behavioral_memory_proto_msgTypes[38]
+	mi := &file_behavioral_memory_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4412,7 +4546,7 @@ func (x *RecordOutcomeRequest) String() string {
 func (*RecordOutcomeRequest) ProtoMessage() {}
 
 func (x *RecordOutcomeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[38]
+	mi := &file_behavioral_memory_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4425,7 +4559,7 @@ func (x *RecordOutcomeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordOutcomeRequest.ProtoReflect.Descriptor instead.
 func (*RecordOutcomeRequest) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{38}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *RecordOutcomeRequest) GetOutcome() *Outcome {
@@ -4444,7 +4578,7 @@ type RecordOutcomeResponse struct {
 
 func (x *RecordOutcomeResponse) Reset() {
 	*x = RecordOutcomeResponse{}
-	mi := &file_behavioral_memory_proto_msgTypes[39]
+	mi := &file_behavioral_memory_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4456,7 +4590,7 @@ func (x *RecordOutcomeResponse) String() string {
 func (*RecordOutcomeResponse) ProtoMessage() {}
 
 func (x *RecordOutcomeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[39]
+	mi := &file_behavioral_memory_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4469,7 +4603,7 @@ func (x *RecordOutcomeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordOutcomeResponse.ProtoReflect.Descriptor instead.
 func (*RecordOutcomeResponse) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{39}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *RecordOutcomeResponse) GetOutcomeId() string {
@@ -4495,7 +4629,7 @@ type GeneratePromotionCandidateRequest struct {
 
 func (x *GeneratePromotionCandidateRequest) Reset() {
 	*x = GeneratePromotionCandidateRequest{}
-	mi := &file_behavioral_memory_proto_msgTypes[40]
+	mi := &file_behavioral_memory_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4507,7 +4641,7 @@ func (x *GeneratePromotionCandidateRequest) String() string {
 func (*GeneratePromotionCandidateRequest) ProtoMessage() {}
 
 func (x *GeneratePromotionCandidateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[40]
+	mi := &file_behavioral_memory_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4520,7 +4654,7 @@ func (x *GeneratePromotionCandidateRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use GeneratePromotionCandidateRequest.ProtoReflect.Descriptor instead.
 func (*GeneratePromotionCandidateRequest) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{40}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *GeneratePromotionCandidateRequest) GetProject() string {
@@ -4589,7 +4723,7 @@ type GeneratePromotionCandidateResponse struct {
 
 func (x *GeneratePromotionCandidateResponse) Reset() {
 	*x = GeneratePromotionCandidateResponse{}
-	mi := &file_behavioral_memory_proto_msgTypes[41]
+	mi := &file_behavioral_memory_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4601,7 +4735,7 @@ func (x *GeneratePromotionCandidateResponse) String() string {
 func (*GeneratePromotionCandidateResponse) ProtoMessage() {}
 
 func (x *GeneratePromotionCandidateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[41]
+	mi := &file_behavioral_memory_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4614,7 +4748,7 @@ func (x *GeneratePromotionCandidateResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use GeneratePromotionCandidateResponse.ProtoReflect.Descriptor instead.
 func (*GeneratePromotionCandidateResponse) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{41}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GeneratePromotionCandidateResponse) GetCandidate() *PromotionCandidate {
@@ -4644,7 +4778,7 @@ type ListPromotionCandidatesRequest struct {
 
 func (x *ListPromotionCandidatesRequest) Reset() {
 	*x = ListPromotionCandidatesRequest{}
-	mi := &file_behavioral_memory_proto_msgTypes[42]
+	mi := &file_behavioral_memory_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4656,7 +4790,7 @@ func (x *ListPromotionCandidatesRequest) String() string {
 func (*ListPromotionCandidatesRequest) ProtoMessage() {}
 
 func (x *ListPromotionCandidatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[42]
+	mi := &file_behavioral_memory_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4669,7 +4803,7 @@ func (x *ListPromotionCandidatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPromotionCandidatesRequest.ProtoReflect.Descriptor instead.
 func (*ListPromotionCandidatesRequest) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{42}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListPromotionCandidatesRequest) GetProject() string {
@@ -4716,7 +4850,7 @@ type ListPromotionCandidatesResponse struct {
 
 func (x *ListPromotionCandidatesResponse) Reset() {
 	*x = ListPromotionCandidatesResponse{}
-	mi := &file_behavioral_memory_proto_msgTypes[43]
+	mi := &file_behavioral_memory_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4728,7 +4862,7 @@ func (x *ListPromotionCandidatesResponse) String() string {
 func (*ListPromotionCandidatesResponse) ProtoMessage() {}
 
 func (x *ListPromotionCandidatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[43]
+	mi := &file_behavioral_memory_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4741,7 +4875,7 @@ func (x *ListPromotionCandidatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPromotionCandidatesResponse.ProtoReflect.Descriptor instead.
 func (*ListPromotionCandidatesResponse) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{43}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ListPromotionCandidatesResponse) GetCandidates() []*PromotionCandidate {
@@ -4768,7 +4902,7 @@ type GenerateReconciliationReportRequest struct {
 
 func (x *GenerateReconciliationReportRequest) Reset() {
 	*x = GenerateReconciliationReportRequest{}
-	mi := &file_behavioral_memory_proto_msgTypes[44]
+	mi := &file_behavioral_memory_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4780,7 +4914,7 @@ func (x *GenerateReconciliationReportRequest) String() string {
 func (*GenerateReconciliationReportRequest) ProtoMessage() {}
 
 func (x *GenerateReconciliationReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[44]
+	mi := &file_behavioral_memory_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4793,7 +4927,7 @@ func (x *GenerateReconciliationReportRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use GenerateReconciliationReportRequest.ProtoReflect.Descriptor instead.
 func (*GenerateReconciliationReportRequest) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{44}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *GenerateReconciliationReportRequest) GetProject() string {
@@ -4868,7 +5002,7 @@ type GenerateReconciliationReportResponse struct {
 
 func (x *GenerateReconciliationReportResponse) Reset() {
 	*x = GenerateReconciliationReportResponse{}
-	mi := &file_behavioral_memory_proto_msgTypes[45]
+	mi := &file_behavioral_memory_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4880,7 +5014,7 @@ func (x *GenerateReconciliationReportResponse) String() string {
 func (*GenerateReconciliationReportResponse) ProtoMessage() {}
 
 func (x *GenerateReconciliationReportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[45]
+	mi := &file_behavioral_memory_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4893,7 +5027,7 @@ func (x *GenerateReconciliationReportResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use GenerateReconciliationReportResponse.ProtoReflect.Descriptor instead.
 func (*GenerateReconciliationReportResponse) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{45}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *GenerateReconciliationReportResponse) GetReport() *ReconciliationReport {
@@ -4916,7 +5050,7 @@ type ListReconciliationReportsRequest struct {
 
 func (x *ListReconciliationReportsRequest) Reset() {
 	*x = ListReconciliationReportsRequest{}
-	mi := &file_behavioral_memory_proto_msgTypes[46]
+	mi := &file_behavioral_memory_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4928,7 +5062,7 @@ func (x *ListReconciliationReportsRequest) String() string {
 func (*ListReconciliationReportsRequest) ProtoMessage() {}
 
 func (x *ListReconciliationReportsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[46]
+	mi := &file_behavioral_memory_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4941,7 +5075,7 @@ func (x *ListReconciliationReportsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListReconciliationReportsRequest.ProtoReflect.Descriptor instead.
 func (*ListReconciliationReportsRequest) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{46}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *ListReconciliationReportsRequest) GetProject() string {
@@ -4988,7 +5122,7 @@ type ListReconciliationReportsResponse struct {
 
 func (x *ListReconciliationReportsResponse) Reset() {
 	*x = ListReconciliationReportsResponse{}
-	mi := &file_behavioral_memory_proto_msgTypes[47]
+	mi := &file_behavioral_memory_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5000,7 +5134,7 @@ func (x *ListReconciliationReportsResponse) String() string {
 func (*ListReconciliationReportsResponse) ProtoMessage() {}
 
 func (x *ListReconciliationReportsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_behavioral_memory_proto_msgTypes[47]
+	mi := &file_behavioral_memory_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5013,7 +5147,7 @@ func (x *ListReconciliationReportsResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ListReconciliationReportsResponse.ProtoReflect.Descriptor instead.
 func (*ListReconciliationReportsResponse) Descriptor() ([]byte, []int) {
-	return file_behavioral_memory_proto_rawDescGZIP(), []int{47}
+	return file_behavioral_memory_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ListReconciliationReportsResponse) GetReports() []*ReconciliationReport {
@@ -5384,7 +5518,7 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"\x14recommended_behavior\x18\v \x01(\tR\x13recommendedBehavior\x12\x1e\n" +
 	"\n" +
 	"confidence\x18\f \x01(\tR\n" +
-	"confidence\"\xe4\x05\n" +
+	"confidence\"\x80\x06\n" +
 	"\vActionCheck\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x16\n" +
@@ -5408,7 +5542,8 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x10 \x01(\x03R\tcreatedAt\x12<\n" +
 	"\x1achecked_against_principles\x18\x11 \x03(\tR\x18checkedAgainstPrinciples\x12H\n" +
-	"\bmetadata\x18\x12 \x03(\v2,.behavioral_memory.ActionCheck.MetadataEntryR\bmetadata\x1a;\n" +
+	"\bmetadata\x18\x12 \x03(\v2,.behavioral_memory.ActionCheck.MetadataEntryR\bmetadata\x12\x1a\n" +
+	"\bgoverned\x18\x13 \x01(\bR\bgoverned\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"H\n" +
@@ -5511,7 +5646,17 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"\x16provided_evidence_refs\x18\b \x03(\tR\x14providedEvidenceRefs\x12%\n" +
 	"\x0ehuman_approval\x18\t \x01(\tR\rhumanApproval\"M\n" +
 	"\x13CheckActionResponse\x126\n" +
-	"\x06result\x18\x01 \x01(\v2\x1e.behavioral_memory.ActionCheckR\x06result\"L\n" +
+	"\x06result\x18\x01 \x01(\v2\x1e.behavioral_memory.ActionCheckR\x06result\"P\n" +
+	"\x1cGetGovernanceCoverageRequest\x12\x18\n" +
+	"\aproject\x18\x01 \x01(\tR\aproject\x12\x16\n" +
+	"\x06domain\x18\x02 \x01(\tR\x06domain\"\x98\x01\n" +
+	"\x1dGetGovernanceCoverageResponse\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x03R\x05total\x12\x1a\n" +
+	"\bgoverned\x18\x02 \x01(\x03R\bgoverned\x12\x1e\n" +
+	"\n" +
+	"ungoverned\x18\x03 \x01(\x03R\n" +
+	"ungoverned\x12%\n" +
+	"\x0ecoverage_ratio\x18\x04 \x01(\x01R\rcoverageRatio\"L\n" +
 	"\x14RecordOutcomeRequest\x124\n" +
 	"\aoutcome\x18\x01 \x01(\v2\x1a.behavioral_memory.OutcomeR\aoutcome\"6\n" +
 	"\x15RecordOutcomeResponse\x12\x1d\n" +
@@ -5609,7 +5754,7 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"!PROMOTION_CANDIDATE_STATUS_QUEUED\x10\x01\x12'\n" +
 	"#PROMOTION_CANDIDATE_STATUS_REVIEWED\x10\x02\x12(\n" +
 	"$PROMOTION_CANDIDATE_STATUS_DISMISSED\x10\x03\x12+\n" +
-	"'PROMOTION_CANDIDATE_STATUS_MATERIALIZED\x10\x042\xee\x17\n" +
+	"'PROMOTION_CANDIDATE_STATUS_MATERIALIZED\x10\x042\xb7\x19\n" +
 	"\x17BehavioralMemoryService\x12\xa3\x01\n" +
 	"\fRecordSignal\x12&.behavioral_memory.RecordSignalRequest\x1a'.behavioral_memory.RecordSignalResponse\"B\x82\xb5\x18>\n" +
 	"\x13ai.behavioral.write\x12\x05write\"\x16/ai/behavioral/signals*\boperator\x12\xa2\x01\n" +
@@ -5642,7 +5787,9 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"\x1cGenerateReconciliationReport\x126.behavioral_memory.GenerateReconciliationReportRequest\x1a7.behavioral_memory.GenerateReconciliationReportResponse\"Q\x82\xb5\x18M\n" +
 	"\x13ai.behavioral.write\x12\x05write\"%/ai/behavioral/reconciliation_reports*\boperator\x12\xd5\x01\n" +
 	"\x19ListReconciliationReports\x123.behavioral_memory.ListReconciliationReportsRequest\x1a4.behavioral_memory.ListReconciliationReportsResponse\"M\x82\xb5\x18I\n" +
-	"\x12ai.behavioral.read\x12\x04read\"%/ai/behavioral/reconciliation_reports*\x06viewerBEZCgithub.com/globulario/services/golang/ai_memory/behavioral_memorypbb\x06proto3"
+	"\x12ai.behavioral.read\x12\x04read\"%/ai/behavioral/reconciliation_reports*\x06viewer\x12\xc6\x01\n" +
+	"\x15GetGovernanceCoverage\x12/.behavioral_memory.GetGovernanceCoverageRequest\x1a0.behavioral_memory.GetGovernanceCoverageResponse\"J\x82\xb5\x18F\n" +
+	"\x12ai.behavioral.read\x12\x04read\"\"/ai/behavioral/governance_coverage*\x06viewerBEZCgithub.com/globulario/services/golang/ai_memory/behavioral_memorypbb\x06proto3"
 
 var (
 	file_behavioral_memory_proto_rawDescOnce sync.Once
@@ -5657,7 +5804,7 @@ func file_behavioral_memory_proto_rawDescGZIP() []byte {
 }
 
 var file_behavioral_memory_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_behavioral_memory_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
+var file_behavioral_memory_proto_msgTypes = make([]protoimpl.MessageInfo, 65)
 var file_behavioral_memory_proto_goTypes = []any{
 	(GovernanceStatus)(0),                        // 0: behavioral_memory.GovernanceStatus
 	(EvidenceLaneMode)(0),                        // 1: behavioral_memory.EvidenceLaneMode
@@ -5703,61 +5850,63 @@ var file_behavioral_memory_proto_goTypes = []any{
 	(*ResolveGovernedContextResponse)(nil),       // 41: behavioral_memory.ResolveGovernedContextResponse
 	(*CheckActionRequest)(nil),                   // 42: behavioral_memory.CheckActionRequest
 	(*CheckActionResponse)(nil),                  // 43: behavioral_memory.CheckActionResponse
-	(*RecordOutcomeRequest)(nil),                 // 44: behavioral_memory.RecordOutcomeRequest
-	(*RecordOutcomeResponse)(nil),                // 45: behavioral_memory.RecordOutcomeResponse
-	(*GeneratePromotionCandidateRequest)(nil),    // 46: behavioral_memory.GeneratePromotionCandidateRequest
-	(*GeneratePromotionCandidateResponse)(nil),   // 47: behavioral_memory.GeneratePromotionCandidateResponse
-	(*ListPromotionCandidatesRequest)(nil),       // 48: behavioral_memory.ListPromotionCandidatesRequest
-	(*ListPromotionCandidatesResponse)(nil),      // 49: behavioral_memory.ListPromotionCandidatesResponse
-	(*GenerateReconciliationReportRequest)(nil),  // 50: behavioral_memory.GenerateReconciliationReportRequest
-	(*GenerateReconciliationReportResponse)(nil), // 51: behavioral_memory.GenerateReconciliationReportResponse
-	(*ListReconciliationReportsRequest)(nil),     // 52: behavioral_memory.ListReconciliationReportsRequest
-	(*ListReconciliationReportsResponse)(nil),    // 53: behavioral_memory.ListReconciliationReportsResponse
-	nil, // 54: behavioral_memory.Signal.MetadataEntry
-	nil, // 55: behavioral_memory.Claim.MetadataEntry
-	nil, // 56: behavioral_memory.Evidence.MetadataEntry
-	nil, // 57: behavioral_memory.Authority.MetadataEntry
-	nil, // 58: behavioral_memory.Condition.MetadataEntry
-	nil, // 59: behavioral_memory.Contradiction.MetadataEntry
-	nil, // 60: behavioral_memory.Principle.MetadataEntry
-	nil, // 61: behavioral_memory.ForbiddenMove.MetadataEntry
-	nil, // 62: behavioral_memory.RequiredEvidence.MetadataEntry
-	nil, // 63: behavioral_memory.Outcome.MetadataEntry
-	nil, // 64: behavioral_memory.PromotionCandidate.MetadataEntry
-	nil, // 65: behavioral_memory.ReconciliationReport.MetadataEntry
-	nil, // 66: behavioral_memory.PromotionDecisionRecord.MetadataEntry
-	nil, // 67: behavioral_memory.RevocationRule.MetadataEntry
-	nil, // 68: behavioral_memory.ActionCheck.MetadataEntry
+	(*GetGovernanceCoverageRequest)(nil),         // 44: behavioral_memory.GetGovernanceCoverageRequest
+	(*GetGovernanceCoverageResponse)(nil),        // 45: behavioral_memory.GetGovernanceCoverageResponse
+	(*RecordOutcomeRequest)(nil),                 // 46: behavioral_memory.RecordOutcomeRequest
+	(*RecordOutcomeResponse)(nil),                // 47: behavioral_memory.RecordOutcomeResponse
+	(*GeneratePromotionCandidateRequest)(nil),    // 48: behavioral_memory.GeneratePromotionCandidateRequest
+	(*GeneratePromotionCandidateResponse)(nil),   // 49: behavioral_memory.GeneratePromotionCandidateResponse
+	(*ListPromotionCandidatesRequest)(nil),       // 50: behavioral_memory.ListPromotionCandidatesRequest
+	(*ListPromotionCandidatesResponse)(nil),      // 51: behavioral_memory.ListPromotionCandidatesResponse
+	(*GenerateReconciliationReportRequest)(nil),  // 52: behavioral_memory.GenerateReconciliationReportRequest
+	(*GenerateReconciliationReportResponse)(nil), // 53: behavioral_memory.GenerateReconciliationReportResponse
+	(*ListReconciliationReportsRequest)(nil),     // 54: behavioral_memory.ListReconciliationReportsRequest
+	(*ListReconciliationReportsResponse)(nil),    // 55: behavioral_memory.ListReconciliationReportsResponse
+	nil, // 56: behavioral_memory.Signal.MetadataEntry
+	nil, // 57: behavioral_memory.Claim.MetadataEntry
+	nil, // 58: behavioral_memory.Evidence.MetadataEntry
+	nil, // 59: behavioral_memory.Authority.MetadataEntry
+	nil, // 60: behavioral_memory.Condition.MetadataEntry
+	nil, // 61: behavioral_memory.Contradiction.MetadataEntry
+	nil, // 62: behavioral_memory.Principle.MetadataEntry
+	nil, // 63: behavioral_memory.ForbiddenMove.MetadataEntry
+	nil, // 64: behavioral_memory.RequiredEvidence.MetadataEntry
+	nil, // 65: behavioral_memory.Outcome.MetadataEntry
+	nil, // 66: behavioral_memory.PromotionCandidate.MetadataEntry
+	nil, // 67: behavioral_memory.ReconciliationReport.MetadataEntry
+	nil, // 68: behavioral_memory.PromotionDecisionRecord.MetadataEntry
+	nil, // 69: behavioral_memory.RevocationRule.MetadataEntry
+	nil, // 70: behavioral_memory.ActionCheck.MetadataEntry
 }
 var file_behavioral_memory_proto_depIdxs = []int32{
 	3,  // 0: behavioral_memory.Signal.kind:type_name -> behavioral_memory.SignalKind
 	0,  // 1: behavioral_memory.Signal.status:type_name -> behavioral_memory.GovernanceStatus
-	54, // 2: behavioral_memory.Signal.metadata:type_name -> behavioral_memory.Signal.MetadataEntry
+	56, // 2: behavioral_memory.Signal.metadata:type_name -> behavioral_memory.Signal.MetadataEntry
 	4,  // 3: behavioral_memory.Signal.authority_level:type_name -> behavioral_memory.ObservationAuthorityLevel
 	0,  // 4: behavioral_memory.Claim.status:type_name -> behavioral_memory.GovernanceStatus
-	55, // 5: behavioral_memory.Claim.metadata:type_name -> behavioral_memory.Claim.MetadataEntry
+	57, // 5: behavioral_memory.Claim.metadata:type_name -> behavioral_memory.Claim.MetadataEntry
 	1,  // 6: behavioral_memory.Evidence.lane:type_name -> behavioral_memory.EvidenceLaneMode
-	56, // 7: behavioral_memory.Evidence.metadata:type_name -> behavioral_memory.Evidence.MetadataEntry
+	58, // 7: behavioral_memory.Evidence.metadata:type_name -> behavioral_memory.Evidence.MetadataEntry
 	4,  // 8: behavioral_memory.Evidence.authority_level:type_name -> behavioral_memory.ObservationAuthorityLevel
 	0,  // 9: behavioral_memory.Authority.status:type_name -> behavioral_memory.GovernanceStatus
-	57, // 10: behavioral_memory.Authority.metadata:type_name -> behavioral_memory.Authority.MetadataEntry
+	59, // 10: behavioral_memory.Authority.metadata:type_name -> behavioral_memory.Authority.MetadataEntry
 	0,  // 11: behavioral_memory.Condition.status:type_name -> behavioral_memory.GovernanceStatus
-	58, // 12: behavioral_memory.Condition.metadata:type_name -> behavioral_memory.Condition.MetadataEntry
-	59, // 13: behavioral_memory.Contradiction.metadata:type_name -> behavioral_memory.Contradiction.MetadataEntry
+	60, // 12: behavioral_memory.Condition.metadata:type_name -> behavioral_memory.Condition.MetadataEntry
+	61, // 13: behavioral_memory.Contradiction.metadata:type_name -> behavioral_memory.Contradiction.MetadataEntry
 	0,  // 14: behavioral_memory.Principle.status:type_name -> behavioral_memory.GovernanceStatus
-	60, // 15: behavioral_memory.Principle.metadata:type_name -> behavioral_memory.Principle.MetadataEntry
+	62, // 15: behavioral_memory.Principle.metadata:type_name -> behavioral_memory.Principle.MetadataEntry
 	0,  // 16: behavioral_memory.ForbiddenMove.status:type_name -> behavioral_memory.GovernanceStatus
-	61, // 17: behavioral_memory.ForbiddenMove.metadata:type_name -> behavioral_memory.ForbiddenMove.MetadataEntry
+	63, // 17: behavioral_memory.ForbiddenMove.metadata:type_name -> behavioral_memory.ForbiddenMove.MetadataEntry
 	1,  // 18: behavioral_memory.RequiredEvidence.lane:type_name -> behavioral_memory.EvidenceLaneMode
-	62, // 19: behavioral_memory.RequiredEvidence.metadata:type_name -> behavioral_memory.RequiredEvidence.MetadataEntry
-	63, // 20: behavioral_memory.Outcome.metadata:type_name -> behavioral_memory.Outcome.MetadataEntry
+	64, // 19: behavioral_memory.RequiredEvidence.metadata:type_name -> behavioral_memory.RequiredEvidence.MetadataEntry
+	65, // 20: behavioral_memory.Outcome.metadata:type_name -> behavioral_memory.Outcome.MetadataEntry
 	5,  // 21: behavioral_memory.PromotionCandidate.status:type_name -> behavioral_memory.PromotionCandidateStatus
 	12, // 22: behavioral_memory.PromotionCandidate.draft_principle:type_name -> behavioral_memory.Principle
-	64, // 23: behavioral_memory.PromotionCandidate.metadata:type_name -> behavioral_memory.PromotionCandidate.MetadataEntry
-	65, // 24: behavioral_memory.ReconciliationReport.metadata:type_name -> behavioral_memory.ReconciliationReport.MetadataEntry
+	66, // 23: behavioral_memory.PromotionCandidate.metadata:type_name -> behavioral_memory.PromotionCandidate.MetadataEntry
+	67, // 24: behavioral_memory.ReconciliationReport.metadata:type_name -> behavioral_memory.ReconciliationReport.MetadataEntry
 	2,  // 25: behavioral_memory.PromotionDecisionRecord.decision:type_name -> behavioral_memory.PromotionDecision
-	66, // 26: behavioral_memory.PromotionDecisionRecord.metadata:type_name -> behavioral_memory.PromotionDecisionRecord.MetadataEntry
-	67, // 27: behavioral_memory.RevocationRule.metadata:type_name -> behavioral_memory.RevocationRule.MetadataEntry
+	68, // 26: behavioral_memory.PromotionDecisionRecord.metadata:type_name -> behavioral_memory.PromotionDecisionRecord.MetadataEntry
+	69, // 27: behavioral_memory.RevocationRule.metadata:type_name -> behavioral_memory.RevocationRule.MetadataEntry
 	6,  // 28: behavioral_memory.GovernedContext.signals:type_name -> behavioral_memory.Signal
 	7,  // 29: behavioral_memory.GovernedContext.claims:type_name -> behavioral_memory.Claim
 	12, // 30: behavioral_memory.GovernedContext.applicable_principles:type_name -> behavioral_memory.Principle
@@ -5767,7 +5916,7 @@ var file_behavioral_memory_proto_depIdxs = []int32{
 	9,  // 34: behavioral_memory.GovernedContext.unresolved_authority:type_name -> behavioral_memory.Authority
 	11, // 35: behavioral_memory.GovernedContext.known_contradictions:type_name -> behavioral_memory.Contradiction
 	15, // 36: behavioral_memory.GovernedContext.prior_outcomes:type_name -> behavioral_memory.Outcome
-	68, // 37: behavioral_memory.ActionCheck.metadata:type_name -> behavioral_memory.ActionCheck.MetadataEntry
+	70, // 37: behavioral_memory.ActionCheck.metadata:type_name -> behavioral_memory.ActionCheck.MetadataEntry
 	6,  // 38: behavioral_memory.RecordSignalRequest.signal:type_name -> behavioral_memory.Signal
 	0,  // 39: behavioral_memory.RecordSignalResponse.status:type_name -> behavioral_memory.GovernanceStatus
 	7,  // 40: behavioral_memory.ExtractClaimRequest.claims:type_name -> behavioral_memory.Claim
@@ -5807,29 +5956,31 @@ var file_behavioral_memory_proto_depIdxs = []int32{
 	38, // 74: behavioral_memory.BehavioralMemoryService.ExplainPrinciple:input_type -> behavioral_memory.ExplainPrincipleRequest
 	40, // 75: behavioral_memory.BehavioralMemoryService.ResolveGovernedContext:input_type -> behavioral_memory.ResolveGovernedContextRequest
 	42, // 76: behavioral_memory.BehavioralMemoryService.CheckAction:input_type -> behavioral_memory.CheckActionRequest
-	44, // 77: behavioral_memory.BehavioralMemoryService.RecordOutcome:input_type -> behavioral_memory.RecordOutcomeRequest
-	46, // 78: behavioral_memory.BehavioralMemoryService.GeneratePromotionCandidate:input_type -> behavioral_memory.GeneratePromotionCandidateRequest
-	48, // 79: behavioral_memory.BehavioralMemoryService.ListPromotionCandidates:input_type -> behavioral_memory.ListPromotionCandidatesRequest
-	50, // 80: behavioral_memory.BehavioralMemoryService.GenerateReconciliationReport:input_type -> behavioral_memory.GenerateReconciliationReportRequest
-	52, // 81: behavioral_memory.BehavioralMemoryService.ListReconciliationReports:input_type -> behavioral_memory.ListReconciliationReportsRequest
-	23, // 82: behavioral_memory.BehavioralMemoryService.RecordSignal:output_type -> behavioral_memory.RecordSignalResponse
-	25, // 83: behavioral_memory.BehavioralMemoryService.ExtractClaim:output_type -> behavioral_memory.ExtractClaimResponse
-	27, // 84: behavioral_memory.BehavioralMemoryService.RecordEvidence:output_type -> behavioral_memory.RecordEvidenceResponse
-	29, // 85: behavioral_memory.BehavioralMemoryService.MapAuthority:output_type -> behavioral_memory.MapAuthorityResponse
-	31, // 86: behavioral_memory.BehavioralMemoryService.RecordContradiction:output_type -> behavioral_memory.RecordContradictionResponse
-	33, // 87: behavioral_memory.BehavioralMemoryService.ProposePrinciple:output_type -> behavioral_memory.ProposePrincipleResponse
-	35, // 88: behavioral_memory.BehavioralMemoryService.PromotePrinciple:output_type -> behavioral_memory.PromotePrincipleResponse
-	37, // 89: behavioral_memory.BehavioralMemoryService.RevokePrinciple:output_type -> behavioral_memory.RevokePrincipleResponse
-	39, // 90: behavioral_memory.BehavioralMemoryService.ExplainPrinciple:output_type -> behavioral_memory.ExplainPrincipleResponse
-	41, // 91: behavioral_memory.BehavioralMemoryService.ResolveGovernedContext:output_type -> behavioral_memory.ResolveGovernedContextResponse
-	43, // 92: behavioral_memory.BehavioralMemoryService.CheckAction:output_type -> behavioral_memory.CheckActionResponse
-	45, // 93: behavioral_memory.BehavioralMemoryService.RecordOutcome:output_type -> behavioral_memory.RecordOutcomeResponse
-	47, // 94: behavioral_memory.BehavioralMemoryService.GeneratePromotionCandidate:output_type -> behavioral_memory.GeneratePromotionCandidateResponse
-	49, // 95: behavioral_memory.BehavioralMemoryService.ListPromotionCandidates:output_type -> behavioral_memory.ListPromotionCandidatesResponse
-	51, // 96: behavioral_memory.BehavioralMemoryService.GenerateReconciliationReport:output_type -> behavioral_memory.GenerateReconciliationReportResponse
-	53, // 97: behavioral_memory.BehavioralMemoryService.ListReconciliationReports:output_type -> behavioral_memory.ListReconciliationReportsResponse
-	82, // [82:98] is the sub-list for method output_type
-	66, // [66:82] is the sub-list for method input_type
+	46, // 77: behavioral_memory.BehavioralMemoryService.RecordOutcome:input_type -> behavioral_memory.RecordOutcomeRequest
+	48, // 78: behavioral_memory.BehavioralMemoryService.GeneratePromotionCandidate:input_type -> behavioral_memory.GeneratePromotionCandidateRequest
+	50, // 79: behavioral_memory.BehavioralMemoryService.ListPromotionCandidates:input_type -> behavioral_memory.ListPromotionCandidatesRequest
+	52, // 80: behavioral_memory.BehavioralMemoryService.GenerateReconciliationReport:input_type -> behavioral_memory.GenerateReconciliationReportRequest
+	54, // 81: behavioral_memory.BehavioralMemoryService.ListReconciliationReports:input_type -> behavioral_memory.ListReconciliationReportsRequest
+	44, // 82: behavioral_memory.BehavioralMemoryService.GetGovernanceCoverage:input_type -> behavioral_memory.GetGovernanceCoverageRequest
+	23, // 83: behavioral_memory.BehavioralMemoryService.RecordSignal:output_type -> behavioral_memory.RecordSignalResponse
+	25, // 84: behavioral_memory.BehavioralMemoryService.ExtractClaim:output_type -> behavioral_memory.ExtractClaimResponse
+	27, // 85: behavioral_memory.BehavioralMemoryService.RecordEvidence:output_type -> behavioral_memory.RecordEvidenceResponse
+	29, // 86: behavioral_memory.BehavioralMemoryService.MapAuthority:output_type -> behavioral_memory.MapAuthorityResponse
+	31, // 87: behavioral_memory.BehavioralMemoryService.RecordContradiction:output_type -> behavioral_memory.RecordContradictionResponse
+	33, // 88: behavioral_memory.BehavioralMemoryService.ProposePrinciple:output_type -> behavioral_memory.ProposePrincipleResponse
+	35, // 89: behavioral_memory.BehavioralMemoryService.PromotePrinciple:output_type -> behavioral_memory.PromotePrincipleResponse
+	37, // 90: behavioral_memory.BehavioralMemoryService.RevokePrinciple:output_type -> behavioral_memory.RevokePrincipleResponse
+	39, // 91: behavioral_memory.BehavioralMemoryService.ExplainPrinciple:output_type -> behavioral_memory.ExplainPrincipleResponse
+	41, // 92: behavioral_memory.BehavioralMemoryService.ResolveGovernedContext:output_type -> behavioral_memory.ResolveGovernedContextResponse
+	43, // 93: behavioral_memory.BehavioralMemoryService.CheckAction:output_type -> behavioral_memory.CheckActionResponse
+	47, // 94: behavioral_memory.BehavioralMemoryService.RecordOutcome:output_type -> behavioral_memory.RecordOutcomeResponse
+	49, // 95: behavioral_memory.BehavioralMemoryService.GeneratePromotionCandidate:output_type -> behavioral_memory.GeneratePromotionCandidateResponse
+	51, // 96: behavioral_memory.BehavioralMemoryService.ListPromotionCandidates:output_type -> behavioral_memory.ListPromotionCandidatesResponse
+	53, // 97: behavioral_memory.BehavioralMemoryService.GenerateReconciliationReport:output_type -> behavioral_memory.GenerateReconciliationReportResponse
+	55, // 98: behavioral_memory.BehavioralMemoryService.ListReconciliationReports:output_type -> behavioral_memory.ListReconciliationReportsResponse
+	45, // 99: behavioral_memory.BehavioralMemoryService.GetGovernanceCoverage:output_type -> behavioral_memory.GetGovernanceCoverageResponse
+	83, // [83:100] is the sub-list for method output_type
+	66, // [66:83] is the sub-list for method input_type
 	66, // [66:66] is the sub-list for extension type_name
 	66, // [66:66] is the sub-list for extension extendee
 	0,  // [0:66] is the sub-list for field type_name
@@ -5846,7 +5997,7 @@ func file_behavioral_memory_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_behavioral_memory_proto_rawDesc), len(file_behavioral_memory_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   63,
+			NumMessages:   65,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

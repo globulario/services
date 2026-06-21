@@ -33,6 +33,7 @@ type MemoryStore struct {
 	outcomesByTheme       map[string][]string // (project|domain|theme) -> outcome ids
 	promotionCandidates   map[string]*api.PromotionCandidate
 	reconciliationReports map[string]*api.ReconciliationReport
+	coverage              map[string][2]int64 // (project|domain) -> [governed, ungoverned]
 }
 
 var _ Store = (*MemoryStore)(nil)
@@ -57,6 +58,7 @@ func NewMemoryStore() *MemoryStore {
 		outcomesByTheme:       map[string][]string{},
 		promotionCandidates:   map[string]*api.PromotionCandidate{},
 		reconciliationReports: map[string]*api.ReconciliationReport{},
+		coverage:              map[string][2]int64{},
 	}
 }
 
@@ -392,6 +394,27 @@ func (m *MemoryStore) GetActionCheck(_ context.Context, project, domain, id stri
 	}
 	cp := *a
 	return &cp, nil
+}
+
+func (m *MemoryStore) IncrementCoverage(_ context.Context, project, domain string, governed bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	k := key(project, domain, "")
+	c := m.coverage[k]
+	if governed {
+		c[0]++
+	} else {
+		c[1]++
+	}
+	m.coverage[k] = c
+	return nil
+}
+
+func (m *MemoryStore) GetCoverage(_ context.Context, project, domain string) (int64, int64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	c := m.coverage[key(project, domain, "")]
+	return c[0], c[1], nil
 }
 
 func (m *MemoryStore) RecordOutcome(_ context.Context, o *api.Outcome) error {

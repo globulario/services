@@ -46,4 +46,9 @@ type Core interface {
 	ListPromotionCandidates(ctx context.Context, req *ListPromotionCandidatesRequest) (*ListPromotionCandidatesResponse, error)
 	GenerateReconciliationReport(ctx context.Context, req *GenerateReconciliationReportRequest) (*GenerateReconciliationReportResponse, error)
 	ListReconciliationReports(ctx context.Context, req *ListReconciliationReportsRequest) (*ListReconciliationReportsResponse, error)
+
+	// GetGovernanceCoverage reports how many CheckActions were governed (an
+	// applicable promoted principle existed) vs ungoverned (default-allow), so the
+	// gate's reach is measurable. Read-only.
+	GetGovernanceCoverage(ctx context.Context, req *GetGovernanceCoverageRequest) (*GetGovernanceCoverageResponse, error)
 }

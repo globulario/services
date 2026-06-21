@@ -100,6 +100,12 @@ type Store interface {
 	RecordActionCheck(ctx context.Context, a *api.ActionCheck) error
 	GetActionCheck(ctx context.Context, project, domain, id string) (*api.ActionCheck, error)
 
+	// Governance-coverage counters (PR-13). IncrementCoverage bumps the governed or
+	// ungoverned tally for one CheckAction; GetCoverage reads the running totals so
+	// the gate's reach is measurable. These never affect any verdict.
+	IncrementCoverage(ctx context.Context, project, domain string, governed bool) error
+	GetCoverage(ctx context.Context, project, domain string) (governed, ungoverned int64, err error)
+
 	// Outcomes. RecordOutcome also maintains outcomes_by_theme.
 	RecordOutcome(ctx context.Context, o *api.Outcome) error
 	GetOutcome(ctx context.Context, project, domain, id string) (*api.Outcome, error)
@@ -200,6 +206,12 @@ func (Unconfigured) RecordActionCheck(context.Context, *api.ActionCheck) error {
 }
 func (Unconfigured) GetActionCheck(context.Context, string, string, string) (*api.ActionCheck, error) {
 	return nil, ErrUnconfigured
+}
+func (Unconfigured) IncrementCoverage(context.Context, string, string, bool) error {
+	return ErrUnconfigured
+}
+func (Unconfigured) GetCoverage(context.Context, string, string) (int64, int64, error) {
+	return 0, 0, ErrUnconfigured
 }
 func (Unconfigured) RecordOutcome(context.Context, *api.Outcome) error { return ErrUnconfigured }
 func (Unconfigured) GetOutcome(context.Context, string, string, string) (*api.Outcome, error) {

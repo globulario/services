@@ -223,6 +223,19 @@ func (h *behavioralHandler) CheckAction(ctx context.Context, req *bpb.CheckActio
 	return &bpb.CheckActionResponse{Result: actionCheckToPB(&resp.Result)}, nil
 }
 
+func (h *behavioralHandler) GetGovernanceCoverage(ctx context.Context, req *bpb.GetGovernanceCoverageRequest) (*bpb.GetGovernanceCoverageResponse, error) {
+	resp, err := h.core.GetGovernanceCoverage(ctx, &api.GetGovernanceCoverageRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()),
+	})
+	if err != nil {
+		return nil, behavioralErr("GetGovernanceCoverage", err)
+	}
+	c := resp.Coverage
+	return &bpb.GetGovernanceCoverageResponse{
+		Total: c.Total, Governed: c.Governed, Ungoverned: c.Ungoverned, CoverageRatio: c.Ratio,
+	}, nil
+}
+
 func (h *behavioralHandler) RecordOutcome(ctx context.Context, req *bpb.RecordOutcomeRequest) (*bpb.RecordOutcomeResponse, error) {
 	resp, err := h.core.RecordOutcome(ctx, &api.RecordOutcomeRequest{Outcome: pbToOutcome(req.GetOutcome())})
 	if err != nil {
@@ -926,6 +939,7 @@ func actionCheckToPB(a *api.ActionCheck) *bpb.ActionCheck {
 		CreatedAt:                a.CreatedAt,
 		CheckedAgainstPrinciples: a.CheckedAgainstPrinciples,
 		Metadata:                 a.Metadata,
+		Governed:                 a.Governed,
 	}
 }
 

@@ -351,5 +351,22 @@ type ActionCheck struct {
 	// RDF-readiness relation: → bm:checkedAgainst. Every principle considered
 	// (superset of ViolatedPrinciples).
 	CheckedAgainstPrinciples []string
-	Metadata                 map[string]string
+	// Governed is true iff at least one applicable promoted principle was
+	// evaluated. It separates a governed allow ("principles satisfied") from a
+	// default ungoverned allow ("no applicable principle") — without it the two
+	// are indistinguishable and the gate's reach cannot be measured.
+	Governed bool
+	Metadata map[string]string
+}
+
+// GovernanceCoverage measures how much of the action surface is actually under
+// governance: how many CheckActions had an applicable promoted principle
+// (Governed) vs were default-allowed for lack of one (Ungoverned).
+type GovernanceCoverage struct {
+	Project    string
+	Domain     string
+	Total      int64
+	Governed   int64
+	Ungoverned int64
+	Ratio      float64 // Governed / Total (0 when Total == 0)
 }

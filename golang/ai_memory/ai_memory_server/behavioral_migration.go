@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -54,8 +55,9 @@ const (
 	// (principles_by_condition, action_checks, outcomes, outcomes_by_theme);
 	// v4 (PR-9) governed observation fields for signals/evidence; v5 (PR-10)
 	// outcome-derived promotion-candidate review queue; v6 (PR-11)
-	// AWG↔behavioral advisory reconciliation reports.
-	behavioralSchemaVersion = 6
+	// AWG↔behavioral advisory reconciliation reports; v7 (PR-13) action_checks
+	// governed column + governance_coverage counters.
+	behavioralSchemaVersion = 7
 )
 
 // runBehavioralSchemaWithCoordination applies the behavioral_memory schema under
@@ -151,10 +153,35 @@ func (srv *server) applyBehavioralSchema(_ context.Context) error {
 	}
 	for _, stmt := range behavioralSchemaStatements {
 		if err := session.Query(stmt).Exec(); err != nil {
+			// Additive ALTER TABLE ADD is idempotent but ScyllaDB has no
+			// ADD IF NOT EXISTS: tolerate the "column already exists" response so a
+			// re-run (or a fresh install whose CREATE already added the column)
+			// does not block the migration. Every other DDL is CREATE ... IF NOT
+			// EXISTS and must still succeed.
+			if isAlterStatement(stmt) && isExistingColumnError(err) {
+				continue
+			}
 			return fmt.Errorf("behavioral schema DDL: %w", err)
 		}
 	}
 	return nil
+}
+
+// isAlterStatement reports whether a DDL statement is an ALTER TABLE.
+func isAlterStatement(stmt string) bool {
+	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(stmt)), "ALTER ")
+}
+
+// isExistingColumnError reports whether err is ScyllaDB/Cassandra's response to an
+// ALTER TABLE ADD for a column that already exists — the idempotent case.
+func isExistingColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	m := strings.ToLower(err.Error())
+	return strings.Contains(m, "conflicts with an existing column") ||
+		strings.Contains(m, "already exists") ||
+		strings.Contains(m, "duplicate column")
 }
 
 func isBehavioralMigrationComplete(ctx context.Context, cli *clientv3.Client) (bool, error) {

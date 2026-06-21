@@ -149,3 +149,9 @@ type ListReconciliationReportsRequest struct {
 	PromotionCandidateID string
 	Limit                int32
 }
+
+// GetGovernanceCoverageRequest scopes a coverage query to a project/domain.
+type GetGovernanceCoverageRequest struct {
+	Project string
+	Domain  DomainRef
+}

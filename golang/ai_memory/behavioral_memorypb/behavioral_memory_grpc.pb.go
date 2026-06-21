@@ -35,6 +35,7 @@ const (
 	BehavioralMemoryService_ListPromotionCandidates_FullMethodName      = "/behavioral_memory.BehavioralMemoryService/ListPromotionCandidates"
 	BehavioralMemoryService_GenerateReconciliationReport_FullMethodName = "/behavioral_memory.BehavioralMemoryService/GenerateReconciliationReport"
 	BehavioralMemoryService_ListReconciliationReports_FullMethodName    = "/behavioral_memory.BehavioralMemoryService/ListReconciliationReports"
+	BehavioralMemoryService_GetGovernanceCoverage_FullMethodName        = "/behavioral_memory.BehavioralMemoryService/GetGovernanceCoverage"
 )
 
 // BehavioralMemoryServiceClient is the client API for BehavioralMemoryService service.
@@ -105,6 +106,11 @@ type BehavioralMemoryServiceClient interface {
 	GenerateReconciliationReport(ctx context.Context, in *GenerateReconciliationReportRequest, opts ...grpc.CallOption) (*GenerateReconciliationReportResponse, error)
 	// ListReconciliationReports returns stored advisory bridge reports.
 	ListReconciliationReports(ctx context.Context, in *ListReconciliationReportsRequest, opts ...grpc.CallOption) (*ListReconciliationReportsResponse, error)
+	// GetGovernanceCoverage reports how many CheckAction verdicts were governed
+	// (an applicable promoted principle existed) vs ungoverned (default-allow with
+	// no applicable principle) for a project/domain — so the gate's actual reach
+	// is measurable, not assumed. Read-only; never mutates governance.
+	GetGovernanceCoverage(ctx context.Context, in *GetGovernanceCoverageRequest, opts ...grpc.CallOption) (*GetGovernanceCoverageResponse, error)
 }
 
 type behavioralMemoryServiceClient struct {
@@ -275,6 +281,16 @@ func (c *behavioralMemoryServiceClient) ListReconciliationReports(ctx context.Co
 	return out, nil
 }
 
+func (c *behavioralMemoryServiceClient) GetGovernanceCoverage(ctx context.Context, in *GetGovernanceCoverageRequest, opts ...grpc.CallOption) (*GetGovernanceCoverageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGovernanceCoverageResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_GetGovernanceCoverage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BehavioralMemoryServiceServer is the server API for BehavioralMemoryService service.
 // All implementations should embed UnimplementedBehavioralMemoryServiceServer
 // for forward compatibility.
@@ -343,6 +359,11 @@ type BehavioralMemoryServiceServer interface {
 	GenerateReconciliationReport(context.Context, *GenerateReconciliationReportRequest) (*GenerateReconciliationReportResponse, error)
 	// ListReconciliationReports returns stored advisory bridge reports.
 	ListReconciliationReports(context.Context, *ListReconciliationReportsRequest) (*ListReconciliationReportsResponse, error)
+	// GetGovernanceCoverage reports how many CheckAction verdicts were governed
+	// (an applicable promoted principle existed) vs ungoverned (default-allow with
+	// no applicable principle) for a project/domain — so the gate's actual reach
+	// is measurable, not assumed. Read-only; never mutates governance.
+	GetGovernanceCoverage(context.Context, *GetGovernanceCoverageRequest) (*GetGovernanceCoverageResponse, error)
 }
 
 // UnimplementedBehavioralMemoryServiceServer should be embedded to have
@@ -399,6 +420,9 @@ func (UnimplementedBehavioralMemoryServiceServer) GenerateReconciliationReport(c
 }
 func (UnimplementedBehavioralMemoryServiceServer) ListReconciliationReports(context.Context, *ListReconciliationReportsRequest) (*ListReconciliationReportsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListReconciliationReports not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) GetGovernanceCoverage(context.Context, *GetGovernanceCoverageRequest) (*GetGovernanceCoverageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGovernanceCoverage not implemented")
 }
 func (UnimplementedBehavioralMemoryServiceServer) testEmbeddedByValue() {}
 
@@ -708,6 +732,24 @@ func _BehavioralMemoryService_ListReconciliationReports_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BehavioralMemoryService_GetGovernanceCoverage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGovernanceCoverageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).GetGovernanceCoverage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_GetGovernanceCoverage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).GetGovernanceCoverage(ctx, req.(*GetGovernanceCoverageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BehavioralMemoryService_ServiceDesc is the grpc.ServiceDesc for BehavioralMemoryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -778,6 +820,10 @@ var BehavioralMemoryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListReconciliationReports",
 			Handler:    _BehavioralMemoryService_ListReconciliationReports_Handler,
+		},
+		{
+			MethodName: "GetGovernanceCoverage",
+			Handler:    _BehavioralMemoryService_GetGovernanceCoverage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -204,6 +204,19 @@ service BehavioralMemoryService {
             default_role_hint: "viewer"
         };
     };
+
+    // GetGovernanceCoverage reports how many CheckAction verdicts were governed
+    // (an applicable promoted principle existed) vs ungoverned (default-allow with
+    // no applicable principle) for a project/domain — so the gate's actual reach
+    // is measurable, not assumed. Read-only; never mutates governance.
+    rpc GetGovernanceCoverage(GetGovernanceCoverageRequest) returns (GetGovernanceCoverageResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            collection_template: "/ai/behavioral/governance_coverage"
+            default_role_hint: "viewer"
+        };
+    };
 }
 
 // ── Enums (names/semantics aligned with awareness-graph) ─────────────────────
@@ -621,6 +634,10 @@ message ActionCheck {
     // evaluated, not only what failed.
     repeated string checked_against_principles = 17;
     map<string, string> metadata               = 18; // extension hatch only
+    // Coverage provenance: true iff at least one applicable promoted principle was
+    // evaluated. Distinguishes "allowed: principles satisfied" (governed) from
+    // "allowed: no applicable principle" (ungoverned default-allow).
+    bool governed = 19;
 }
 
 // ── Request / response messages ──────────────────────────────────────────────
@@ -725,6 +742,17 @@ message CheckActionRequest {
     string          human_approval         = 9; // approver, satisfies needs_human_approval
 }
 message CheckActionResponse { ActionCheck result = 1; }
+
+// Governance coverage: how much of the action surface is actually under
+// governance (an applicable promoted principle existed) vs default-allowed for
+// lack of any applicable principle. Lets the gate's reach be measured, not assumed.
+message GetGovernanceCoverageRequest  { string project = 1; string domain = 2; }
+message GetGovernanceCoverageResponse {
+    int64  total          = 1;
+    int64  governed       = 2; // CheckActions where >=1 applicable promoted principle was evaluated
+    int64  ungoverned     = 3; // CheckActions allowed only because no principle applied
+    double coverage_ratio = 4; // governed / total (0 when total == 0)
+}
 
 message RecordOutcomeRequest  { Outcome outcome = 1; }
 message RecordOutcomeResponse { string outcome_id = 1; }

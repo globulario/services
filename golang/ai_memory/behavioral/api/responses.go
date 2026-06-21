@@ -94,3 +94,8 @@ type GenerateReconciliationReportResponse struct {
 type ListReconciliationReportsResponse struct {
 	Reports []ReconciliationReport
 }
+
+// GetGovernanceCoverageResponse returns the coverage measure for a project/domain.
+type GetGovernanceCoverageResponse struct {
+	Coverage GovernanceCoverage
+}

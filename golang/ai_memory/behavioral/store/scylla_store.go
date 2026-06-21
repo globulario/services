@@ -486,12 +486,12 @@ WHERE project = ? AND domain = ? AND condition_id = ?`
 func (s *ScyllaStore) RecordActionCheck(ctx context.Context, a *api.ActionCheck) error {
 	const q = `INSERT INTO behavioral_memory.action_checks
 (project, domain, id, action_type, target, conditions, allowed, status, violated_principles, checked_against_principles,
- missing_evidence, unresolved_authority, forbidden_matched, recommended_steps, explanation, agent_id, created_at, metadata)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+ missing_evidence, unresolved_authority, forbidden_matched, recommended_steps, explanation, agent_id, created_at, metadata, governed)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if err := s.session.Query(q,
 		a.Project, string(a.Domain), a.ID, a.ActionType, a.Target, refsToStrings(a.Conditions), a.Allowed, a.Status,
 		a.ViolatedPrinciples, a.CheckedAgainstPrinciples, refsToStrings(a.MissingEvidence), refsToStrings(a.UnresolvedAuthority),
-		refsToStrings(a.ForbiddenMatched), a.RecommendedSteps, a.Explanation, a.AgentID, a.CreatedAt, a.Metadata,
+		refsToStrings(a.ForbiddenMatched), a.RecommendedSteps, a.Explanation, a.AgentID, a.CreatedAt, a.Metadata, a.Governed,
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("record action check: %w", err)
 	}
@@ -500,13 +500,13 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 func (s *ScyllaStore) GetActionCheck(ctx context.Context, project, domain, id string) (*api.ActionCheck, error) {
 	const q = `SELECT action_type, target, conditions, allowed, status, violated_principles, checked_against_principles,
- missing_evidence, unresolved_authority, forbidden_matched, recommended_steps, explanation, agent_id, created_at, metadata
+ missing_evidence, unresolved_authority, forbidden_matched, recommended_steps, explanation, agent_id, created_at, metadata, governed
 FROM behavioral_memory.action_checks WHERE project = ? AND domain = ? AND id = ?`
 	a := &api.ActionCheck{ID: id, Project: project, Domain: api.DomainRef(domain)}
 	var conditions, missing, unresolved, forbidden []string
 	if err := s.session.Query(q, project, domain, id).WithContext(ctx).Scan(
 		&a.ActionType, &a.Target, &conditions, &a.Allowed, &a.Status, &a.ViolatedPrinciples, &a.CheckedAgainstPrinciples,
-		&missing, &unresolved, &forbidden, &a.RecommendedSteps, &a.Explanation, &a.AgentID, &a.CreatedAt, &a.Metadata,
+		&missing, &unresolved, &forbidden, &a.RecommendedSteps, &a.Explanation, &a.AgentID, &a.CreatedAt, &a.Metadata, &a.Governed,
 	); err != nil {
 		return nil, mapNotFound(err)
 	}
@@ -515,6 +515,31 @@ FROM behavioral_memory.action_checks WHERE project = ? AND domain = ? AND id = ?
 	a.UnresolvedAuthority = toAuthorityRefsStore(unresolved)
 	a.ForbiddenMatched = toForbiddenMoveRefs(forbidden)
 	return a, nil
+}
+
+func (s *ScyllaStore) IncrementCoverage(ctx context.Context, project, domain string, governed bool) error {
+	// Two fixed const queries (never interpolate the column) so the counter update
+	// stays injection-free and the no-ALLOW-FILTERING scanners see literal CQL.
+	q := `UPDATE behavioral_memory.governance_coverage SET ungoverned_count = ungoverned_count + 1 WHERE project = ? AND domain = ?`
+	if governed {
+		q = `UPDATE behavioral_memory.governance_coverage SET governed_count = governed_count + 1 WHERE project = ? AND domain = ?`
+	}
+	if err := s.session.Query(q, project, domain).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("increment coverage: %w", err)
+	}
+	return nil
+}
+
+func (s *ScyllaStore) GetCoverage(ctx context.Context, project, domain string) (int64, int64, error) {
+	const q = `SELECT governed_count, ungoverned_count FROM behavioral_memory.governance_coverage WHERE project = ? AND domain = ?`
+	var g, u int64
+	if err := s.session.Query(q, project, domain).WithContext(ctx).Scan(&g, &u); err != nil {
+		if err == gocql.ErrNotFound {
+			return 0, 0, nil // no checks recorded yet → zero coverage, not an error
+		}
+		return 0, 0, fmt.Errorf("get coverage: %w", err)
+	}
+	return g, u, nil
 }
 
 func (s *ScyllaStore) RecordOutcome(ctx context.Context, o *api.Outcome) error {

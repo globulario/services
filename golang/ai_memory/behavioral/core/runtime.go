@@ -296,14 +296,56 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 					"): not backed by a recorded authoritative evidence row — verify before relying on this verdict for an irreversible action")
 		}
 	}
-	ac.Explanation = fmt.Sprintf("checked %q against %d promoted principle(s): %s",
-		req.ActionType, len(principles), ac.Status)
+
+	// Coverage provenance: was this verdict actually governed (did any applicable
+	// promoted principle apply), or default-allowed for lack of one? Without this,
+	// "allowed" hides whether the gate had any reach over the action.
+	ac.Governed = len(principles) > 0
+	if ac.Status == "allowed" && !ac.Governed {
+		ac.Explanation = fmt.Sprintf("allowed: no applicable promoted principle for %q (ungoverned default-allow)", req.ActionType)
+	} else {
+		ac.Explanation = fmt.Sprintf("checked %q against %d promoted principle(s): %s",
+			req.ActionType, len(principles), ac.Status)
+	}
 
 	// Persist every verdict — the audit row is part of the contract.
 	if err := s.store.RecordActionCheck(ctx, &ac); err != nil {
 		return nil, fmt.Errorf("check action: persist: %w", err)
 	}
+	// Best-effort coverage accounting — a counter failure must never fail the
+	// verdict; the gate's correctness does not depend on the metric.
+	_ = s.store.IncrementCoverage(ctx, proj, dom, ac.Governed)
 	return &api.CheckActionResponse{Result: ac}, nil
+}
+
+// GetGovernanceCoverage reports how many CheckActions were governed (an applicable
+// promoted principle was evaluated) vs ungoverned (default-allow) for a
+// project/domain, so the gate's reach can be measured rather than assumed. It is
+// read-only and never mutates governance.
+func (s *Service) GetGovernanceCoverage(ctx context.Context, req *api.GetGovernanceCoverageRequest) (*api.GetGovernanceCoverageResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if err := requireScope(req.Project, req.Domain); err != nil {
+		return nil, err
+	}
+	governed, ungoverned, err := s.store.GetCoverage(ctx, req.Project, string(req.Domain))
+	if err != nil {
+		return nil, fmt.Errorf("get governance coverage: %w", err)
+	}
+	total := governed + ungoverned
+	var ratio float64
+	if total > 0 {
+		ratio = float64(governed) / float64(total)
+	}
+	return &api.GetGovernanceCoverageResponse{Coverage: api.GovernanceCoverage{
+		Project:    req.Project,
+		Domain:     string(req.Domain),
+		Total:      total,
+		Governed:   governed,
+		Ungoverned: ungoverned,
+		Ratio:      ratio,
+	}}, nil
 }
 
 // RecordOutcome records what happened after an action/check. It records facts

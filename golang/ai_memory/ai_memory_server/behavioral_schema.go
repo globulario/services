@@ -325,7 +325,27 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.action_checks (
     agent_id                  text,
     created_at                bigint,
     metadata                  map<text, text>,
+    governed                  boolean,
     PRIMARY KEY ((project, domain, id))
+)`
+
+// alterActionChecksAddGovernedCQL backfills the governed column on deployments
+// whose action_checks table predates PR-13 (CREATE IF NOT EXISTS does not add
+// columns to an existing table). ScyllaDB has no ALTER ... ADD IF NOT EXISTS, so
+// the migration runs this best-effort and tolerates the "column already exists"
+// error (the idempotent re-run / fresh-install case).
+const alterActionChecksAddGovernedCQL = `ALTER TABLE behavioral_memory.action_checks ADD governed boolean`
+
+// governance_coverage counts CheckAction verdicts that were governed (an
+// applicable promoted principle was evaluated) vs ungoverned (default-allow), so
+// the gate's reach is measurable. Counter columns require a counter-only table.
+const createGovernanceCoverageTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.governance_coverage (
+    project          text,
+    domain           text,
+    governed_count   counter,
+    ungoverned_count counter,
+    PRIMARY KEY ((project, domain))
 )`
 
 // outcomes records what happened after an action/check.
@@ -451,8 +471,11 @@ var behavioralSchemaStatements = []string{
 	// PR-4 runtime tables.
 	createPrinciplesByConditionTableCQL,
 	createActionChecksTableCQL,
+	alterActionChecksAddGovernedCQL, // PR-13: backfill governed on pre-existing tables
 	createOutcomesTableCQL,
 	createOutcomesByThemeTableCQL,
 	createPromotionCandidatesTableCQL,
 	createReconciliationReportsTableCQL,
+	// PR-13 governance-coverage counters.
+	createGovernanceCoverageTableCQL,
 }

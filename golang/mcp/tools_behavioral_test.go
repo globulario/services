@@ -65,6 +65,9 @@ func (f *fakeBehavioralServer) ExplainPrinciple(_ context.Context, r *behavioral
 		Explanation: "why this principle exists",
 	}, nil
 }
+func (f *fakeBehavioralServer) GetGovernanceCoverage(context.Context, *behavioralpb.GetGovernanceCoverageRequest) (*behavioralpb.GetGovernanceCoverageResponse, error) {
+	return &behavioralpb.GetGovernanceCoverageResponse{Total: 5, Governed: 2, Ungoverned: 3, CoverageRatio: 0.4}, nil
+}
 func (f *fakeBehavioralServer) ResolveGovernedContext(context.Context, *behavioralpb.ResolveGovernedContextRequest) (*behavioralpb.ResolveGovernedContextResponse, error) {
 	return &behavioralpb.ResolveGovernedContextResponse{Context: &behavioralpb.GovernedContext{
 		ApplicablePrinciples: []*behavioralpb.Principle{{Id: "p1", Title: "preserve quorum", RiskLevel: "high",
