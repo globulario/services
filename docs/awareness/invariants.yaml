@@ -10977,3 +10977,27 @@ invariants:
   - TestBehavioralSchemaPR9ColumnsHaveBackfillAlter
   forbidden_fixes:
   - add_column_only_to_create_table_without_backfill_alter
+- id: cluster_doctor.degraded_mode_must_not_depend_on_diagnosed_path
+  title: cluster-doctor must cross-check the direct backend before declaring a service down
+  severity: high
+  status: active
+  summary: >
+    A cluster-doctor that can only reach services through the same gateway it is
+    diagnosing is useless exactly when it is needed. When a service is
+    unreachable via the Envoy gateway, the doctor must cross-check the direct
+    backend port before concluding the service is down. A gateway route that
+    answers a non-gRPC content-type (text/html) while the backend is healthy is a
+    BROKEN ROUTE, not a down service — the correct verdict is "route/filter-chain
+    suspected", not "service down". Degraded-mode checks must not depend solely on
+    the path they diagnose, and a cross-check that cannot be completed is
+    INVARIANT_UNKNOWN / CHECK_ERROR, never a confident FAIL.
+  protects:
+    files:
+    - golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence.go
+    - golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence.go
+  related_invariants:
+  - meta.authority_must_express_uncertainty
+  required_tests:
+  - TestGatewayBackendDivergence_RouteBrokenBackendHealthy
+  forbidden_fixes:
+  - doctor_reports_service_down_from_gateway_path_alone

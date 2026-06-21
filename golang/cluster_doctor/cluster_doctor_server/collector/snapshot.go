@@ -74,6 +74,30 @@ type DataError struct {
 	Err     error
 }
 
+// GatewayBackendProbe is a degraded-mode reachability comparison between the
+// Envoy gateway path and the direct backend port for a single service (PR-15).
+//
+// The doctor must not depend exclusively on the systems it diagnoses: when the
+// gateway path is broken, probing the backend directly lets the doctor tell a
+// broken route apart from a down service. GatewayContentType carries the
+// distinctive misrouting signal — a healthy gateway speaks gRPC; a route that
+// has fallen through to a web handler answers with "text/html". Reflection does
+// not route through the gateway normally, so only the content-type signal is a
+// trustworthy gateway-route verdict (a plain unavailable is inconclusive).
+type GatewayBackendProbe struct {
+	Service          string // gRPC service name, e.g. "ai_memory.AiMemoryService"
+	GatewayEndpoint  string
+	BackendEndpoint  string
+	GatewayReachable bool   // gateway path answered gRPC
+	GatewayHTML      bool   // gateway path answered with an HTML/non-gRPC content-type
+	GatewayContentType string // observed content-type when non-gRPC (e.g. "text/html")
+	GatewayErr       string // gateway path error (empty when reachable)
+	BackendChecked   bool   // false => no backend endpoint to cross-check against
+	BackendReachable bool   // direct backend reflection succeeded
+	BackendErr       string // backend path error (empty when reachable)
+	ObservedAtUnix   int64
+}
+
 // DesiredVersionEntry is the per-record name+version tuple the
 // package_version_authority rule consumes from
 // Snapshot.DesiredVersionIndex. Populated by the collector from
@@ -408,6 +432,13 @@ type Snapshot struct {
 	// persisted to etcd at /globular/verification/runtime/<node>/<service>
 	// for cross-process consumption.
 	VerifierResult *verifier.Result
+
+	// GatewayBackendProbes are degraded-mode gateway-vs-backend reachability
+	// comparisons for selected services (PR-15). Populated best-effort by the
+	// collector; nil/empty = not probed. Consumed by the
+	// "gateway.backend_divergence" rule to distinguish a broken gateway route
+	// from a down backend.
+	GatewayBackendProbes []GatewayBackendProbe
 
 	mu sync.Mutex
 }

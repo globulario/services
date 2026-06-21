@@ -6198,3 +6198,16 @@ required_tests:
   run:
     commands:
     - go test ./golang/ai_memory/ai_memory_server/ -run TestBehavioralSchemaPR9ColumnsHaveBackfillAlter
+- id: TestGatewayBackendDivergence_RouteBrokenBackendHealthy
+  title: cluster-doctor reports a broken gateway route (text/html) with a healthy backend as route-suspected, not service-down
+  protects:
+    invariants:
+    - cluster_doctor.degraded_mode_must_not_depend_on_diagnosed_path
+    failure_modes:
+    - cluster_doctor.gateway_route_failure_misdiagnosed_as_service_down
+    files:
+    - golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go
+  run:
+    commands:
+    - go test ./golang/cluster_doctor/cluster_doctor_server/rules/ -run TestGatewayBackendDivergence

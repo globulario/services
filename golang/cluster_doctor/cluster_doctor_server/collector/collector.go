@@ -612,6 +612,12 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	c.fetchDesiredServiceTargets(ctx, snap)
 	c.runVerification(ctx, snap)
 
+	// ── 10. Degraded-mode gateway/backend divergence (PR-15) ────────────────
+	// Compares the Envoy gateway path against the direct backend port for
+	// selected services so the doctor can tell a broken route from a down
+	// service. Best-effort; failures fold into the snapshot as data.
+	c.fetchGatewayBackendDivergence(ctx, snap)
+
 	return snap, nil
 }
 

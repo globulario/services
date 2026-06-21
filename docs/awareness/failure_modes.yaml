@@ -6761,3 +6761,38 @@ failure_modes:
         - ai-memory
       required_tests:
         - TestBehavioralSchemaPR9ColumnsHaveBackfillAlter
+    - id: cluster_doctor.gateway_route_failure_misdiagnosed_as_service_down
+      root_cause: |
+        cluster-doctor reaches services through the same Envoy gateway it
+        diagnoses. When a gateway route returns a non-gRPC content-type
+        (text/html) — a misrouted request or wrong filter-chain — but the
+        backend is healthy on its direct port, a gateway-only doctor would
+        report the service as down. Observed during PR-14: ai_memory behavioral_*
+        calls returned content-type text/html while the ai_memory backend was
+        healthy on its direct port 10.0.0.63:10009 (behavioral signal
+        signal.ai_memory.gateway_returns_html_for_behavioral_mcp_tools). The
+        doctor must distinguish a broken route from a down service.
+      architecture_fix: |
+        PR-15 degraded-mode gateway/backend divergence. The collector probes BOTH
+        the Envoy gateway path and the direct backend port for selected services
+        (the direct-backend probe does not depend on the failing gateway). The
+        gateway.backend_divergence rule reports "route/filter-chain suspected, NOT
+        service-down" when the gateway answers text/html and the backend is
+        healthy. Only the distinctive content-type signal is a verdict — a plain
+        unavailable is inconclusive (reflection does not normally route through
+        the gateway), so a healthy gateway is never falsely accused; a backend
+        that cannot be cross-checked yields INVARIANT_UNKNOWN, never FAIL.
+      forbidden_fixes:
+        - doctor_reports_service_down_from_gateway_path_alone
+      protects:
+        files:
+            - golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence.go
+            - golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence.go
+      related_invariants:
+        - cluster_doctor.degraded_mode_must_not_depend_on_diagnosed_path
+        - meta.authority_must_express_uncertainty
+      related_services:
+        - cluster-doctor
+        - ai-memory
+      required_tests:
+        - TestGatewayBackendDivergence_RouteBrokenBackendHealthy
