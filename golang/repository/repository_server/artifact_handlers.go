@@ -58,12 +58,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gocql/gocql"
+	"github.com/globulario/services/golang/digest"
 	"github.com/globulario/services/golang/fallback"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/repository/upstream"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/versionutil"
+	"github.com/gocql/gocql"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1402,7 +1403,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		// that is actually inside the uploaded archive.
 		actualEntryCS := computeBinaryChecksumFromArchive(data)
 		if actualEntryCS != "" {
-			if declared := normalizeDigest(pkg.EntrypointChecksum); declared != "" && declared != actualEntryCS {
+			if declared := digest.CanonicalSHA256(pkg.EntrypointChecksum); declared != "" && declared != actualEntryCS {
 				return status.Errorf(codes.InvalidArgument,
 					"entrypoint_checksum mismatch: package.json=%s archive=%s",
 					canonicalDigest(pkg.EntrypointChecksum), canonicalDigest(actualEntryCS))
