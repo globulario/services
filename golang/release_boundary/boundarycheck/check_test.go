@@ -126,6 +126,39 @@ func TestMapInputs_WrapperPackage_NotApplicable(t *testing.T) {
 	}
 }
 
+// Regression for the live INC: the manifest stores the entrypoint checksum
+// with a "sha256:" prefix while the node-agent records bare lowercase hex. The
+// bytes are identical, so A2/A3 must PROVE — a prefix difference is not drift.
+func TestMapInputs_DigestPrefixNormalized_A2A3Proven(t *testing.T) {
+	const bare = "b4429a27015b20bf573bc8bb8f13f850a68a71af92df77ed725084bf46509937"
+	ev := validEvidence()
+	ev.Manifest.EntrypointChecksum = "sha256:" + bare // prefixed (repository form)
+	ev.Installed.Metadata["entrypoint_checksum"] = bare
+	ev.Runtime.RunningExeSha256 = bare
+
+	rep := release_boundary.Evaluate(MapInputs("globular/echo", "globule-ryzen", ev))
+	if a := findAssertion(t, rep, release_boundary.AssertionInstalledMatches); a.Verdict != release_boundary.VerdictProven {
+		t.Errorf("A2 = %q, want PROVEN (prefix-only difference is not drift): %s", a.Verdict, a.Reason)
+	}
+	if a := findAssertion(t, rep, release_boundary.AssertionRuntimeMatches); a.Verdict != release_boundary.VerdictProven {
+		t.Errorf("A3 = %q, want PROVEN: %s", a.Verdict, a.Reason)
+	}
+}
+
+func TestNormalizeDigest(t *testing.T) {
+	cases := map[string]string{
+		"sha256:ABCDEF": "abcdef",
+		"  ABCDEF  ":    "abcdef",
+		"abcdef":        "abcdef",
+		"":              "",
+	}
+	for in, want := range cases {
+		if got := normalizeDigest(in); got != want {
+			t.Errorf("normalizeDigest(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestParseInstalledAtUnix(t *testing.T) {
 	cases := []struct {
 		in   map[string]string
