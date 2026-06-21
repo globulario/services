@@ -10878,3 +10878,26 @@ invariants:
   - envoy.lds_progress_required_for_http_mesh_readiness
   required_tests:
   - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraListenersActive_NoneActive
+- id: gateway.cohosted_grpc_services_must_be_declared
+  title: A process that hosts multiple gRPC services must declare every reachable hosted service
+  severity: high
+  status: active
+  summary: >
+    A runtime process may serve more than one gRPC service on a single port (e.g.
+    ai_memory also serves behavioral_memory.BehavioralMemoryService on the same
+    gRPC server). The gateway/xDS route model only sees declared service names, so
+    every externally reachable hosted service MUST be declared in service-registration
+    metadata (HostedServices). xDS/gateway route generation must emit a route for
+    the registered service Name AND each declared hosted service name, all targeting
+    the same backend cluster unless explicitly overridden. Otherwise the gateway can
+    lie: the backend is healthy on its direct port while the gateway has no route for
+    the undeclared service, so requests fall through to the HTTP catch-all and return
+    HTTP 200 text/html.
+  protects:
+    files:
+    - golang/ai_memory/ai_memory_server/server.go
+    - Globular/internal/xds/watchers/watcher.go
+  required_tests:
+  - xds_emits_routes_for_hosted_services
+  forbidden_fixes:
+  - clients_must_not_permanently_bypass_gateway_for_cohosted_services

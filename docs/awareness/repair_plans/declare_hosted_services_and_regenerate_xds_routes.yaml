@@ -1,0 +1,53 @@
+id: globular.repair.declare_hosted_services_and_regenerate_xds_routes
+class: RepairPlan
+label: Restore gateway routing for a co-hosted gRPC service
+status: active
+confidence: high
+blast_radius: service
+approval_gate: review_required
+
+when_to_use:
+  - "a co-hosted gRPC service returns HTTP 200 text/html through the gateway"
+  - "backend healthy on its direct port but the gateway route is missing"
+  - "native-gRPC calls to a service fail with unexpected content-type text/html"
+  - "a second gRPC service on an existing process is unreachable via the gateway"
+
+covers_paths:
+  - golang/ai_memory/ai_memory_server/
+  - Globular/internal/xds/watchers/
+
+repairs_finding_classes:
+  - gateway.cohosted_grpc_service_route_missing_returns_html
+
+must_not_violate_invariants:
+  - invariant:gateway.cohosted_grpc_services_must_be_declared
+
+preconditions:
+  - "The backend serves the co-hosted gRPC service on its direct port (confirm with a direct-port reflection/RPC probe)."
+  - "The gateway failure is the distinctive content-type signal (HTTP 200 text/html), not a plain Unavailable."
+
+requires_runtime_evidence:
+  - "memory_* (or another registered-service RPC) succeeds through the gateway while the co-hosted service returns text/html over the same endpoint — proving path-based route absence, not a down backend."
+
+repair_steps:
+  - "Declare the co-hosted service in the host service's registration metadata (HostedServices) so it is serialized into the etcd service config."
+  - "Ensure xDS route generation emits a prefix route for each declared hosted name targeting the host service's cluster (Globular internal/xds/watchers/watcher.go)."
+  - "Rebuild and redeploy BOTH the host service (so it re-registers with HostedServices) and the xDS/gateway (so it reads the field and regenerates the route table)."
+
+verification_steps:
+  - "Through the gateway: the co-hosted service RPC now succeeds (no text/html), the registered service RPC still succeeds, and the direct-port probe still succeeds."
+  - "Do NOT close the runtime finding on source-merge or green tests — close it only after the gateway probe confirms the co-hosted RPC succeeds at runtime."
+
+rollback_steps:
+  - "Removing the HostedServices declaration and regenerating xDS reverts to the prior route table; no destructive state change is involved."
+
+required_tests:
+  - "test:xds_emits_routes_for_hosted_services"
+
+produces_outcome_feedback: "update the runtime finding's behavioral signal runtime_status to RESOLVED once the gateway probe confirms the co-hosted RPC succeeds"
+
+notes: |
+  This is a release-boundary repair: the source change is inert until both the
+  host service and the xDS/gateway redeploy. Direct-port access is diagnostic /
+  degraded-mode evidence only and must never become the permanent client path
+  (see forbidden_fix clients_must_not_permanently_bypass_gateway_for_cohosted_services).

@@ -3776,3 +3776,16 @@ forbidden_fixes:
   related_invariants:
     - meta.state_mutations_must_be_durably_committed_before_side_effects
     - meta.storage_is_not_semantic_authority
+- id: clients_must_not_permanently_bypass_gateway_for_cohosted_services
+  summary: >
+    Fix missing hosted-service routing by teaching clients, MCP tools, or agents
+    to permanently use direct backend ports instead of the gateway for a
+    co-hosted gRPC service whose gateway route is absent.
+  related_invariants:
+    - gateway.cohosted_grpc_services_must_be_declared
+  safe_alternative: >
+    Direct-port access is diagnostic / degraded-mode evidence only — never the
+    permanent path. Repair the gateway route: declare the hosted service in
+    registration metadata (HostedServices) and have xDS emit a route per hosted
+    name to the backend cluster, then redeploy both the service and the
+    xDS/gateway so the route table regenerates.

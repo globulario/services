@@ -6146,3 +6146,16 @@ required_tests:
     - meta.failure_response_must_contract_not_amplify
     failure_modes:
     - repository.law_gate_degrades_open_when_catalog_unavailable
+- id: xds_emits_routes_for_hosted_services
+  title: xDS emits a gateway route for each declared HostedServices entry, targeting the host service's cluster
+  protects:
+    invariants:
+    - gateway.cohosted_grpc_services_must_be_declared
+    failure_modes:
+    - gateway.cohosted_grpc_service_route_missing_returns_html
+    files:
+    - Globular/internal/xds/watchers/watcher.go
+    - Globular/internal/xds/watchers/hosted_services_test.go
+  run:
+    commands:
+    - go test ./internal/xds/watchers/ -run TestHostedServiceRoutes
