@@ -5,6 +5,23 @@
 > awareness-graph `awg audit` embeddata-freshness gate. This note frames the
 > three options (A/B/C) so the seed/ownership model is decided **before** anyone
 > regenerates a seed or changes ownership rules. It does not implement anything.
+>
+> **UPDATE 2026-06-21 (empirical) — Path A is ruled out.** Path A was *executed*
+> (ag master seed rebuilt against services #37, on top of the #106 determinism
+> branch) and **failed on two counts**:
+> 1. **It did not green #37** — `embeddata-freshness` still FAILED with a stable 4
+>    owned drift. Those 4 are `component.scripts authoredIn` triples where the
+>    audit's generation still mints a per-run `/tmp/tmp.XXXXX/` path — a **second
+>    determinism bug** that PR #106 did not cover. No seed regen can converge
+>    while that path is non-deterministic.
+> 2. **It broke the shared control** — auditing the #37-built seed against
+>    services *master* then FAILED with 21 owned drift. Embedding one branch's
+>    services content into awareness-graph master's shared seed breaks every other
+>    services PR's CI against that master until #37 merges.
+>
+> Conclusion: A is not a viable shared-gate strategy. The proven path is
+> **[complete the determinism fix] → [Path B]**. See
+> `awareness-ownership-B-implementation-plan.md`.
 
 ## The situation in one paragraph
 
@@ -61,13 +78,17 @@ The only open question is the **seed/ownership publishing model** below.
   paying it each time. It needs the awareness-graph maintainers' judgment on the
   exact owned/external boundary, plus tests that prove real AWG-owned drift is
   still caught.
-- **Pragmatic ship-it:** **A**, *if #37 must land soon as one branch.* Accept the
-  large seed diff as a reviewed, branch-tied generated artifact — with eyes open
-  that it recurs until B is done.
-- **C** only if reviewers cannot tolerate A's diff and B is not ready.
+- **Pragmatic ship-it:** ~~**A**~~ **— withdrawn.** A was executed and is
+  non-viable (see the UPDATE callout at the top): it does not converge (second
+  determinism bug) and it breaks the shared services-master control. Do not
+  attempt coordinated seed regeneration for #37 again.
+- **C** only if reviewers need the branch carved for review reasons; it does not
+  fix the underlying model and does not unblock the gate by itself.
 
-Suggested sequence: ship **A** for #37 if it's time-critical, and **schedule B**
-as the durable fix so the next large awareness PR doesn't re-enter this fog.
+Proven sequence: **complete the determinism fix** (kill the second
+`/tmp/tmp.XXXXX/` `component.scripts` authoredIn source, extending #106), **then
+ship B** as the durable fix so services-generated awareness is tolerated as
+external and master's seed never has to embed branch-specific services content.
 
 ## Guardrails for whoever executes the decision
 
