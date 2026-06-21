@@ -70,8 +70,11 @@ const (
 	// governed column + governance_coverage counters; v8 backfills the PR-9
 	// signals/evidence columns via ALTER (they shipped only in CREATE TABLE, so
 	// pre-PR-9 tables never got them) — the bump forces re-application on
-	// clusters already marked complete-but-missing-columns.
-	behavioralSchemaVersion = 8
+	// clusters already marked complete-but-missing-columns; v9 completes the
+	// evidence backfill (source_kind/source_ref/entity_ref — added to evidence in
+	// PR-9 but missed by the v8 backfill; surfaced live as RecordEvidence
+	// "Unknown identifier source_kind" when the infra_probe feed went active).
+	behavioralSchemaVersion = 9
 )
 
 // runBehavioralSchemaWithCoordination applies the behavioral_memory schema under

@@ -355,6 +355,14 @@ const (
 	alterEvidenceAddConditionRef   = `ALTER TABLE behavioral_memory.evidence ADD condition_ref text`
 	alterEvidenceAddSeverity       = `ALTER TABLE behavioral_memory.evidence ADD severity text`
 	alterEvidenceAddAuthorityLevel = `ALTER TABLE behavioral_memory.evidence ADD authority_level text`
+	// evidence (unlike signals) also gained source_kind/source_ref/entity_ref in
+	// PR-9 — signals carried those from v1, but the evidence table added them, so
+	// pre-PR-9 evidence tables lack them and RecordEvidence fails with
+	// "Unknown identifier source_kind" (observed live when the infra_probe feed
+	// went active). Backfill them too.
+	alterEvidenceAddSourceKind = `ALTER TABLE behavioral_memory.evidence ADD source_kind text`
+	alterEvidenceAddSourceRef  = `ALTER TABLE behavioral_memory.evidence ADD source_ref text`
+	alterEvidenceAddEntityRef  = `ALTER TABLE behavioral_memory.evidence ADD entity_ref text`
 )
 
 // governance_coverage counts CheckAction verdicts that were governed (an
@@ -510,4 +518,7 @@ var behavioralSchemaStatements = []string{
 	alterEvidenceAddConditionRef,
 	alterEvidenceAddSeverity,
 	alterEvidenceAddAuthorityLevel,
+	alterEvidenceAddSourceKind,
+	alterEvidenceAddSourceRef,
+	alterEvidenceAddEntityRef,
 }

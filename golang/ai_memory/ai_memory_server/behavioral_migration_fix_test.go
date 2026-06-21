@@ -31,8 +31,13 @@ func TestBehavioralMigrationMutexKeyNotPrefixOfStateKey(t *testing.T) {
 // created before the column existed (CREATE IF NOT EXISTS is a no-op on them)
 // never get it and behavioral writes fail with "Unknown identifier <col>".
 func TestBehavioralSchemaPR9ColumnsHaveBackfillAlter(t *testing.T) {
-	cols := []string{"cluster_id", "condition_ref", "severity", "authority_level"}
-	tables := []string{"signals", "evidence"}
+	// Per-table PR-9 column sets: signals carried source_kind/source_ref/entity_ref
+	// from v1, but the evidence table ADDED them in PR-9 — so evidence needs all
+	// seven backfilled, signals only the four newer ones.
+	colsByTable := map[string][]string{
+		"signals":  {"cluster_id", "condition_ref", "severity", "authority_level"},
+		"evidence": {"cluster_id", "condition_ref", "severity", "authority_level", "source_kind", "source_ref", "entity_ref"},
+	}
 
 	indexOf := func(substr string) int {
 		for i, s := range behavioralSchemaStatements {
@@ -43,7 +48,7 @@ func TestBehavioralSchemaPR9ColumnsHaveBackfillAlter(t *testing.T) {
 		return -1
 	}
 
-	for _, table := range tables {
+	for table, cols := range colsByTable {
 		createIdx := indexOf("CREATE TABLE IF NOT EXISTS behavioral_memory." + table + " (")
 		if createIdx < 0 {
 			t.Fatalf("no CREATE TABLE for behavioral_memory.%s in behavioralSchemaStatements", table)
