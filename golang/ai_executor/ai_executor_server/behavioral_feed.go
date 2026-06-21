@@ -61,8 +61,18 @@ func recordBehavioralExperience(ctx context.Context, diagnosis *ai_executorpb.Di
 	if err != nil {
 		return
 	}
-	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
-	cc, err := grpc.Dial(addr, opts...)
+	// grpc.Dial/WithTimeout are deprecated. NOT migrated to grpc.NewClient here:
+	//  - semantics: this dial has no WithBlock, so it is already lazy; WithTimeout
+	//    is inert without WithBlock, and the real deadline is the per-RPC
+	//    context.WithTimeout below. So the OLD code does NOT depend on
+	//    eager/blocking dial behavior.
+	//  - why NewClient would still change behavior: it switches default target
+	//    resolution (dns vs Dial's passthrough) — a runtime change we will not make
+	//    unvalidated in this high-risk observer path during a lint-only cleanup.
+	//  - future migration: grpc.NewClient(addr, baseOpts...), drop WithTimeout,
+	//    validated against the mesh resolver.
+	opts := append(baseOpts, grpc.WithTimeout(2*time.Second)) //nolint:staticcheck // see note above
+	cc, err := grpc.Dial(addr, opts...)                       //nolint:staticcheck // see note above
 	if err != nil {
 		return
 	}

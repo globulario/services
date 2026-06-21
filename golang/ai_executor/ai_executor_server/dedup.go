@@ -87,8 +87,11 @@ func (l *incidentLedger) dial() (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
-	return grpc.Dial(addr, opts...)
+	// Lazy dial (no WithBlock); WithTimeout inert, per-RPC ctx carries the deadline.
+	// Not migrated to grpc.NewClient in a lint cleanup — it changes default target
+	// resolution (dns vs passthrough). Future: NewClient + drop WithTimeout.
+	opts := append(baseOpts, grpc.WithTimeout(2*time.Second)) //nolint:staticcheck // see note
+	return grpc.Dial(addr, opts...)                           //nolint:staticcheck // see note
 }
 
 // lookup returns the prior diagnosis for this signature, or nil if it has never

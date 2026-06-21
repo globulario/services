@@ -54,8 +54,11 @@ func recordBehavioralSelfOperation(ctx context.Context, event behavioralSelfOper
 	if err != nil {
 		return
 	}
-	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
-	cc, err := grpc.Dial(addr, opts...)
+	// Lazy dial (no WithBlock); WithTimeout inert, per-RPC ctx carries the deadline.
+	// Not migrated to grpc.NewClient in a lint cleanup — it changes default target
+	// resolution (dns vs passthrough). Future: NewClient + drop WithTimeout.
+	opts := append(baseOpts, grpc.WithTimeout(2*time.Second)) //nolint:staticcheck // see note
+	cc, err := grpc.Dial(addr, opts...)                       //nolint:staticcheck // see note
 	if err != nil {
 		return
 	}

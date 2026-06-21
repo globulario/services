@@ -1385,7 +1385,13 @@ func StartEtcdServer() error {
 	// Ports / addresses
 	const clientPort = "2379"
 	const peerPort = "2380"
-	listenAddress := strings.TrimSpace(config.GetLocalIP())
+	// config.GetLocalIP is deprecated in favor of GetRoutableIP (which returns an
+	// error instead of a loopback fallback). NOT migrated in a lint cleanup: this
+	// site deliberately relies on getting a value back and then explicitly handles
+	// the loopback/unspecified case on the next line, so swapping to the
+	// error-returning API is a real behavior change, not a rename. Future migration:
+	// adopt GetRoutableIP's (ip, error) result and fold the loopback handling in.
+	listenAddress := strings.TrimSpace(config.GetLocalIP()) //nolint:staticcheck // see note above
 	if hostIsLoopbackOrUnspecified(listenAddress) {
 		if routable := strings.TrimSpace(config.GetRoutableIPv4()); !hostIsLoopbackOrUnspecified(routable) {
 			slog.Warn("etcd listen address was not routable; using detected routable IPv4 instead", "listen_address", listenAddress, "routable", routable)

@@ -30,7 +30,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
+	"google.golang.org/grpc/reflection/grpc_reflection_v1"
 )
 
 // gatewayDivergenceServices is the set of services probed for gateway/backend
@@ -60,19 +60,25 @@ func (reflectionProber) probe(ctx context.Context, endpoint, service string) pro
 	}
 	pctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(pctx, endpoint, opts...)
+	// grpc.DialContext is deprecated. NOT migrated to grpc.NewClient in a lint
+	// cleanup: this dial has no WithBlock (already lazy — pctx bounds the reflection
+	// RPCs below, not the dial), so the OLD code does NOT depend on eager/blocking
+	// dial. NewClient would still change default target resolution (dns vs
+	// passthrough) — a runtime change we won't make unvalidated in this degraded-mode
+	// probe. Future: grpc.NewClient(endpoint, opts...), pctx stays on the streams.
+	conn, err := grpc.DialContext(pctx, endpoint, opts...) //nolint:staticcheck // see note above
 	if err != nil {
 		return classifyProbeErr(err)
 	}
 	defer func() { _ = conn.Close() }()
 
-	ref := grpc_reflection_v1alpha.NewServerReflectionClient(conn)
+	ref := grpc_reflection_v1.NewServerReflectionClient(conn)
 	stream, err := ref.ServerReflectionInfo(pctx)
 	if err != nil {
 		return classifyProbeErr(err)
 	}
-	if err := stream.Send(&grpc_reflection_v1alpha.ServerReflectionRequest{
-		MessageRequest: &grpc_reflection_v1alpha.ServerReflectionRequest_FileContainingSymbol{
+	if err := stream.Send(&grpc_reflection_v1.ServerReflectionRequest{
+		MessageRequest: &grpc_reflection_v1.ServerReflectionRequest_FileContainingSymbol{
 			FileContainingSymbol: service,
 		},
 	}); err != nil {
