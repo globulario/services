@@ -270,3 +270,44 @@ func TestMatchesExcludePattern_Glob(t *testing.T) {
 		}
 	}
 }
+
+// TestResticSnapshotsToValidate_CoversEveryNode locks in the AWG re-audit fix
+// (meta.assertions_must_carry_their_scope): deep validation of a cluster restic
+// backup must verify EVERY node's snapshot, not just the top-level (first
+// node's) snapshot_id, before the artifact is promoted to VALIDATED.
+func TestResticSnapshotsToValidate_CoversEveryNode(t *testing.T) {
+	// A cluster fan-out: top-level snapshot_id is node-a's; per-node IDs recorded.
+	outputs := map[string]string{
+		"snapshot_id":         "aaa",
+		"snapshot_id_node-a":  "aaa",
+		"snapshot_id_node-b":  "bbb",
+		"snapshot_id_node-c":  "ccc",
+		"node_count":          "3",
+	}
+	got := resticSnapshotsToValidate(outputs)
+	if len(got) != 3 {
+		t.Fatalf("expected all 3 per-node snapshots to validate, got %d: %v", len(got), got)
+	}
+	for _, node := range []string{"node-a", "node-b", "node-c"} {
+		if got[node] == "" {
+			t.Errorf("missing snapshot to validate for %s", node)
+		}
+	}
+}
+
+// TestResticSnapshotsToValidate_SingleNodeBackwardCompat — a pre-fan-out backup
+// records only the top-level snapshot_id; it must still be validated.
+func TestResticSnapshotsToValidate_SingleNodeBackwardCompat(t *testing.T) {
+	got := resticSnapshotsToValidate(map[string]string{"snapshot_id": "solo"})
+	if len(got) != 1 || got[""] != "solo" {
+		t.Fatalf("single-node backup must validate its one snapshot; got %v", got)
+	}
+}
+
+// TestResticSnapshotsToValidate_None — no snapshot recorded → nothing to
+// validate (caller emits the missing-id warning).
+func TestResticSnapshotsToValidate_None(t *testing.T) {
+	if got := resticSnapshotsToValidate(map[string]string{"node_count": "2"}); len(got) != 0 {
+		t.Fatalf("expected no snapshots to validate, got %v", got)
+	}
+}

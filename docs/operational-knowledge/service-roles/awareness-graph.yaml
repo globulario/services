@@ -1,199 +1,124 @@
 schema_version: 1
 file_kind: service-role
 metadata:
-  title: "Service role — awareness-graph"
+  title: "Service role — awareness-graph (AWG standalone sidecar)"
   description: |
-    What awareness-graph IS, what it owns, its critical routing rule (direct dial only —
-    never through Envoy), how to call its four RPCs, and how to interpret degraded or empty
-    status responses. This is the primary seed reference for AI agents that need to call
-    awareness tools before editing Globular code.
+    What AWG (the Awareness Graph) IS after its extraction from Globular: a standalone
+    sidecar tool (its own repo, own binary, own MCP bridge — no Globular imports). It is
+    NO LONGER a reconciler-managed cluster service: there is no Globular package, no etcd
+    registration, no Envoy route, and the old `globular awareness ...` subcommands and the
+    `awareness_diagnose` MCP composite were removed. Agents now reach it through the `awg`
+    MCP bridge (`mcp__awg__*`, seven tools) and operators drive it with the standalone `awg`
+    CLI. This is the primary seed reference for AI agents that need awareness context before
+    editing Globular code.
   source_documents:
-    - docs/awareness/activation_rules.yaml
-    - docs/awareness/mcp_tools.md
-    - golang/mcp/clients.go
-    - awareness-graph/docs/initialize.md
-    - awareness-graph/docs/globular-packaging.md
+    - awareness-graph/docs/agent-usage.md
+    - awareness-graph/docs/cli-reference.md
+    - awareness-graph/docs/api-reference.md
+    - awareness-graph/proto/awareness_graph.proto
+    - docs/operational-knowledge/awg-operator-guide.md
 
 entries:
 
   - id: ops.role.awareness-graph
     type: ARCHITECTURE
-    title: "awareness-graph — RDF/SPARQL knowledge graph of codebase intent"
+    title: "awareness-graph (AWG) — standalone sidecar knowledge graph of codebase intent"
     tags: [always, awareness-graph, role]
     applies_when:
       cluster_phases: [day-1, day-2]
       services_present: []
     content: |
-      **What it is**: A gRPC service that answers questions about the Globular codebase —
-      what invariants a file must uphold, which failure modes it is involved in, which fixes
-      are forbidden, and which tests are required. It is the AI agent's primary preflight
-      tool before non-trivial edits.
+      **What it is**: AWG answers questions about a codebase — what invariants a file must
+      uphold, which failure modes it is involved in, which fixes are forbidden, which tests
+      pin the contract, and which architectural intent governs it. It is the AI agent's
+      primary preflight tool before non-trivial edits.
 
-      **Port**: 10120 (gRPC over mTLS). Default configured in
-      `awareness-graph/golang/server/config.go` as `defaultServicePort = 10120`.
-      DNS: `<node>.globular.internal:10120`.
+      **Status (since 2026-06-12)**: AWG was extracted from Globular and now runs as a
+      **standalone sidecar tool** living in the `awareness-graph` repo. The services repo no
+      longer imports it, packages it, registers it in etcd, or manages its version with the
+      reconciler. The old `globular awareness ...` CLI subcommands and the platform MCP
+      awareness tools (including `awareness_diagnose`) were deleted. Do NOT look for a
+      `globular-awareness-graph` package, an Envoy route, or a component-catalog entry — none
+      exist anymore.
 
-      **Backend**: Oxigraph SPARQL triplestore. Current seed size: ~17,200 triples / 3.4 MB.
-      The binary embeds a compiled `awareness.nt` at build time; on startup Oxigraph is
-      populated from this embedded file if the store is empty.
+      **Three moving parts** (all in the awareness-graph repo):
+      1. **`awg` CLI** — ~30 subcommands (query, build, authoring, validation, gating, eval).
+      2. **`awg serve`** — starts the gRPC server (default `:10120`) AND a managed Oxigraph
+         SPARQL store (default `127.0.0.1:7878`) as one unit. No Docker required.
+      3. **`awareness-mcp` bridge** — a stdio MCP server that re-exposes the gRPC service as
+         the seven `mcp__awg__*` tools an agent calls.
 
-      **Package kind**: SERVICE (not INFRASTRUCTURE). The cluster reconciler manages its
-      version. Spec: `packages/metadata/awareness-graph/specs/awareness_graph_service.yaml`.
-      Service unit: `globular-awareness-graph.service`.
+      **Backend**: Oxigraph (single-binary SPARQL store, RocksDB-backed). The server binary
+      embeds a compiled `awareness.nt` seed; on startup it loads the seed if the store is
+      empty.
 
       **What it OWNS**:
-      - The RDF graph of codebase invariants, failure modes, forbidden fixes, required tests,
-        intents, and code symbol annotations
-      - Briefing, Impact, Resolve, and Query RPCs for AI agents
-      - Oxigraph query endpoint (internal, localhost:7878) — not exposed directly to agents
+      - The RDF graph of invariants, failure modes, forbidden fixes, required tests, intents,
+        the architectural spine (Component/Boundary/Contract/Decision/Evidence), design/
+        implementation patterns, meta-principles, and `@awareness` code-symbol annotations.
+      - The seven gRPC RPCs (see `ops.role.awareness-graph.rpcs`).
 
-      **What feeds the graph** (build pipeline, not runtime):
-      1. `@awareness` annotations in Go source files (scanned by annotation-scanner)
-      2. `docs/awareness/*.yaml` — invariants, failure_modes, forbidden_fixes, required_tests,
-         incident_patterns, intents
-      3. `docs/intent/*.yaml` — 200+ intent files expressing design context per feature
-      Build sequence: annotation-scanner → yaml2nt → loadnt → Oxigraph seed file.
-
-      **etcd registration**: awareness-graph registers its Address in etcd on startup via
-      `GetServiceConfigurationById("awareness-graph")`. The Address field is the host:port
-      that MCP tools use for direct-dial.
+      **What feeds the graph** (build pipeline, not runtime): `@awareness` annotations in Go
+      source + `docs/awareness/*.yaml` + `docs/intent/*.yaml`, compiled by
+      annotation-scanner → yaml2nt → loadnt → Oxigraph. See the
+      `awareness-graph-operations` stage entries.
     links:
       awareness_invariants:
         - awareness.no_false_silence_for_sensitive_tasks
         - awareness.graph_edges_need_provenance
         - awareness.preflight.required_before_edit
-
-  - id: ops.role.awareness-graph.routing
-    type: ARCHITECTURE
-    title: "awareness-graph ROUTING TRAP — direct dial only, never through Envoy"
-    tags: [always, awareness-graph, routing, critical]
-    applies_when:
-      cluster_phases: [day-1, day-2]
-      services_present: [awareness-graph]
-    content: |
-      **CRITICAL**: awareness-graph does NOT route through the Envoy gateway. It binds on
-      its own port (10120) and is NOT registered as a path-routed backend in Envoy.
-
-      **The trap**: If an MCP tool or CLI dials the Envoy gateway address (e.g.,
-      `<vip>:443` or the gateway host:port) for awareness-graph, Go's TLS stack suppresses
-      the IP address as the SNI value. Envoy receives an empty SNI field, matches the wrong
-      filter chain, and returns HTTP 200 with an HTML page — not a gRPC response.
-
-      **Symptom**: awareness tools return `"text/html"` content or a `200 OK` where a gRPC
-      status is expected. The Briefing, Impact, Resolve, and Query calls all fail silently
-      with what looks like a successful HTTP response.
-
-      **Correct behavior** (implemented in `golang/mcp/clients.go:awarenessEndpoint()`):
-      1. Call `config.GetServiceConfigurationById("awareness-graph")` to read the service
-         config from etcd.
-      2. Extract the `Address` field — this is the node IP:port where awareness-graph is
-         listening (e.g., `10.0.0.63:10120`).
-      3. Dial that address directly with mTLS. The service cert SANs include the node IP,
-         so direct TLS to IP works fine.
-
-      **Why this works**: awareness-graph registers its own IP:port in etcd at startup. The
-      MCP server reads that registration and bypasses the Envoy client pool specifically for
-      awareness calls. Every other MCP tool uses the shared gateway client pool via
-      `gatewayEndpoint()` — awareness-graph is the one documented exception.
-
-      **Operator check**: if awareness tools are returning HTML or empty responses, verify:
-      ```
-      globular etcd get /globular/services/awareness-graph/config
-      # Should show Address = <node-ip>:10120
-      # If empty: awareness-graph has not registered yet — wait for it to start
-      ```
-    links:
-      awareness_invariants:
-        - mcp.tools.use_gateway_client_pool
     related_ids:
-      - ops.role.awareness-graph
       - ops.role.awareness-graph.rpcs
+      - ops.role.awareness-graph.tool-decision-tree
 
   - id: ops.role.awareness-graph.rpcs
     type: REFERENCE
-    title: "awareness-graph — core pre-edit RPCs (briefing, impact, resolve, query)"
+    title: "awareness-graph — the seven RPCs and seven MCP tools"
     tags: [always, awareness-graph, rpcs, agent-usage]
     applies_when:
       cluster_phases: [day-1, day-2]
-      services_present: [awareness-graph]
+      services_present: []
     content: |
-      The awareness-graph service exposes SIX gRPC RPCs: Briefing, Impact, Resolve,
-      Query, Metadata, Preflight. The MCP server adds a SEVENTH composite tool —
-      `awareness_diagnose` — that correlates Briefing with live cluster_doctor and
-      cluster_controller findings.
+      AWG exposes **seven** gRPC RPCs. The `awareness-mcp` bridge re-exposes each as one
+      `mcp__awg__*` tool. There is no `awareness_diagnose` tool anymore (removed with the
+      extraction), and `globular awareness ...` no longer exists — use the `awg` CLI.
 
-      This entry documents the four classic pre-edit RPCs (Briefing, Impact,
-      Resolve, Query). For the others, see:
-      - `ops.role.awareness-graph.preflight` — risk classifier (file/task → risk_class)
-      - `ops.role.awareness-graph.metadata` — graph coverage and freshness signals
-      - `ops.role.awareness-graph.diagnose` — runtime-correlated diagnostic composer
-      - `ops.role.awareness-graph.tool-decision-tree` — which tool to call when
+      | # | RPC / MCP tool | Use it to… |
+      |---|---|---|
+      | 1 | `Briefing` · `mcp__awg__awareness_briefing` | get ~500-token prose context for a file or task — **call first** |
+      | 2 | `Impact` · `mcp__awg__awareness_impact` | get the same anchors as typed nodes (no prose) |
+      | 3 | `Preflight` · `mcp__awg__awareness_preflight` | get a typed `risk_class` + actions to branch on before reading |
+      | 4 | `EditCheck` · `mcp__awg__awareness_edit_check` | warn (advisory) if a proposed edit's content violates an in-scope rule |
+      | 5 | `Resolve` · `mcp__awg__awareness_resolve` | fetch one node by `class` + bare `id` (expand a referenced_id) |
+      | 6 | `Query` · `mcp__awg__awareness_query` | typed/whitelisted browse (`by_file`/`by_id`/`by_class`/`related`) — **no raw SPARQL** |
+      | 7 | `Metadata` · `mcp__awg__awareness_metadata` | graph-level coverage/freshness; disambiguate an EMPTY briefing |
 
-      **1. Briefing** — call FIRST, before editing any high-risk file or starting a
-      non-trivial task.
-      - Input: `file=<relative-path>` OR `task=<description>`
-      - Returns: invariants, failure modes, forbidden fixes, required tests, and intent
-        context relevant to that file or task. ~500 tokens by default.
-      - MCP tool: `mcp__awg__awareness_briefing`
-      - CLI: `globular awareness briefing --file golang/mcp/tools_awareness.go`
-      - CLI: `globular awareness briefing --task "fix etcd key permissions"`
-      - When to use `file=`: you know which file you're editing.
-      - When to use `task=`: you have a description but haven't identified the exact files
-        yet. The graph uses alias matching and semantic scoring to find relevant nodes.
+      **CLI equivalents** (run the standalone binary from the awareness-graph repo):
+      ```bash
+      awg briefing --file golang/cluster_controller/reconciler.go
+      awg briefing --task "fix etcd key permissions"
+      awg impact   --file golang/cluster_controller/reconciler.go
+      awg preflight --task "rotate the service CA" --file golang/security/ca.go
+      awg edit-check --file golang/foo/bar.go --content-file -    # content on stdin
+      awg resolve invariant install.result.atomic_commit
+      awg query --mode by_class --class invariant --limit 5
+      awg metadata
+      ```
 
-      **2. Impact** — call when briefing coverage is thin (few invariants returned) or
-      when you need file-specific anchors.
-      - Input: `file=<relative-path>`
-      - Returns: all invariants and failure modes that directly reference this file as a
-        protected or implementing file. Direct anchors only — inferred fields are reserved
-        in v0 (see `docs/awareness/decisions/inference-v0-direct-anchors-only.md`).
-      - MCP tool: `mcp__awg__awareness_impact`
-      - CLI: `globular awareness impact --file golang/cluster_controller/reconciler.go`
-
-      **3. Resolve** — call when a briefing returns a `referenced_id` you need to expand.
-      - Input: `id=<referenced_id>`
-      - Returns: full text of the invariant, failure mode, forbidden fix, or required test.
-      - MCP tool: `mcp__awg__awareness_resolve`
-      - CLI: `globular awareness resolve --id install.result.atomic_commit`
-      - When: always resolve any referenced_id marked `severity: high` or `critical` before
-        writing code that touches the referenced file or behavior.
-
-      **4. Query** — raw SPARQL against the Oxigraph store. Advanced use only.
-      - Input: `sparql=<SPARQL SELECT or CONSTRUCT query>`
-      - Returns: SPARQL result set (JSON format).
-      - MCP tool: `mcp__awg__awareness_query`
-      - When: custom graph traversals not covered by the three typed RPCs above — e.g.,
-        "find all invariants that reference both etcd and the repository service".
-      - Caution: Oxigraph is the live store; queries are read-only but expensive queries
-        can slow Briefing/Impact for concurrent callers.
-
-      **Mandatory activation rules** (from `docs/awareness/activation_rules.yaml`):
-      - R1: File has `@awareness` annotations → call `briefing(file=)`
-      - R2: Editing high-risk directory → call `briefing(file=)` then `impact(file=)`
-        High-risk directories: `golang/mcp/`, `golang/cluster_controller/`,
-        `golang/node_agent/`, `golang/cluster_controller/`, `golang/repository/`,
-        `golang/rbac/`, `golang/security/`, `golang/ai_executor/`, `golang/cluster_doctor/`
-      - R3: State authority task (desired state, installed state, convergence, package
-        install/publish, repository identity, etcd truth) → `briefing(task=)` then
-        `impact(file=)` when files are known
-      - R4: Editing awareness internals (yaml2nt, annotation-scanner, CodeSymbol importer,
-        Oxigraph load/seed, MCP awareness tools) → `briefing(file=)` then `resolve()` for
-        any high/critical referenced_id
-      - R5: Proposed fix changes authority boundary, weakens validation, bypasses gateway,
-        or removes strict mode → `impact(file=)` and check forbidden fixes
-      - R6: Every non-trivial code task → append the awareness end-of-response template
-        (see `ops.role.awareness-graph.status-handling`)
+      **Domain scoping**: when the graph hosts more than one repo domain, Briefing / Impact /
+      Preflight / EditCheck MUST be scoped with `--domain`/`domain=` or they fail closed
+      (never mix domains). A single-domain graph resolves an empty domain trivially.
     links:
       awareness_invariants:
         - awareness.preflight.required_before_edit
         - awareness.no_false_silence_for_sensitive_tasks
     related_ids:
       - ops.role.awareness-graph
-      - ops.role.awareness-graph.routing
       - ops.role.awareness-graph.preflight
-      - ops.role.awareness-graph.diagnose
+      - ops.role.awareness-graph.edit-check
       - ops.role.awareness-graph.metadata
       - ops.role.awareness-graph.tool-decision-tree
+      - ops.role.awareness-graph.write-path
 
   - id: ops.role.awareness-graph.status-handling
     type: DEBUG
@@ -203,69 +128,51 @@ entries:
       cluster_phases: [day-1, day-2]
       services_present: []
     content: |
-      Every Briefing and Impact response carries a status. Handle each case differently.
+      Every Briefing / Impact / Preflight response carries an explicit status. Handle each
+      case differently.
 
-      **status: ok**
-      The graph returned direct anchors. Treat the returned invariants, failure modes,
-      forbidden fixes, and required tests as active context. Follow all invariants; run all
-      required tests listed; resolve any referenced_id marked `severity: high` or `critical`
-      before writing code.
+      **OK** — direct anchors found. Treat the returned invariants, failure modes, forbidden
+      fixes, and required tests as active context. Resolve any referenced_id marked
+      `high`/`critical` before writing code.
 
-      **status: empty**
-      No direct awareness anchors were found for this file or task. This is NOT proof that
-      the edit is safe. Proceed cautiously. Say explicitly: "no direct awareness anchors
-      found for <file/task>". Check `docs/awareness/high_risk_files.yaml` for files that
-      are implicitly sensitive even without annotations. Proceed by reading the code,
-      checking nearby tests, and consulting docs — but do not skip the check.
+      **EMPTY** — no direct anchors for this file/task. This is NOT proof the edit is safe.
+      Say explicitly "no direct awareness anchors found for <target>", then call
+      `awareness_metadata`: if the graph is healthy overall, the silence is probably real; if
+      counts are low, the empty means nothing. Proceed by reading the code, nearby tests, and
+      docs.
 
-      **status: degraded** (or transport error / HTML response)
-      The awareness-graph service is unavailable or returned a non-gRPC response. Do NOT
-      make high-risk architectural changes without explicit user approval. High-risk changes
-      include: state authority boundaries, security boundaries, package install paths,
-      repository identity logic, convergence logic, etcd key semantics. Use code, tests,
-      docs, and runtime state as fallback evidence and say so in your response.
+      **DEGRADED** (or a transport error) — the AWG sidecar is unavailable. Do NOT make
+      high-risk architectural changes without explicit user approval. Fall back to code,
+      tests, docs, and runtime state, and say so.
 
-      Common degraded causes:
-      1. awareness-graph service not running (`systemctl status globular-awareness-graph`
-         on any control-plane node)
-      2. MCP dialing the wrong endpoint — Envoy returning HTML (see ops.role.awareness-graph.routing)
-      3. Oxigraph query endpoint unreachable (local port 7878 — check `AW_OXIGRAPH_QUERY_URL`
-         env in the systemd unit)
-      4. `awareness.degraded_source_sentinel_collapsed_to_critical` — MCP is running outside
-         a git checkout; internal coverage checks emit false critical alerts. These are
-         telemetry false positives and do NOT affect Briefing/Impact/Resolve quality.
+      Common degraded causes (sidecar model — no Envoy/etcd involved):
+      1. `awg serve` is not running, or the MCP bridge can't reach it on `--awareness-addr`
+         (default `localhost:9090`; the server's own default listen port is `:10120`).
+      2. Oxigraph is up but the store is empty (seed load failed or was skipped).
+      3. `awareness.degraded_source_sentinel_collapsed_to_critical` — AWG running outside a
+         git checkout emits false-critical coverage telemetry. These are false positives and
+         do NOT affect Briefing/Impact/Resolve quality.
 
       **Operator recovery**:
-      ```
-      # Check service
-      systemctl status globular-awareness-graph.service
+      ```bash
+      # Is the sidecar up and is its store populated?
+      awg metadata                         # triple_count, coverage_state, seed_state
+      awg seed-status --require-current     # does the live store have the embedded seed?
 
-      # Check etcd registration
-      globular etcd get /globular/services/awareness-graph/config
+      # Restart the sidecar (it manages its own Oxigraph):
+      awg serve --no-seed &                 # or without --no-seed to load the embedded seed
 
-      # Restart if stuck
-      sudo systemctl restart globular-awareness-graph.service
-
-      # Verify triple count after restart
-      curl -s http://localhost:7878/query \
+      # Raw triple count if needed:
+      curl -s 'http://localhost:7878/query' \
         -H 'Accept: application/sparql-results+json' \
-        --data-urlencode 'query=SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }' \
-        | python3 -m json.tool
-      # Expect: ~17,200 triples
+        --data-urlencode 'query=SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }'
       ```
 
       **Required end-of-response template** (append to every non-trivial task response):
       ```
-      Awareness used:
-      - briefing: <file/task called>
-      - impact: <files called, or "not called">
-      - resolved IDs: <list or "none">
-      - invariants touched: <list or "none">
-      - failure modes considered: <list or "none">
-      - forbidden fixes avoided: <list or "none">
-      - required tests: <list or "none">
-      - tests run: <list or "not run">
-      - remaining uncertainty: <what you could not verify>
+      AWG: preflight(<task>) -> <risk_class> | briefing(<files>) |
+           invariants: <ids> | forbidden-fixes avoided: <ids> |
+           tests run: <ids> | proposed: <kind/id or none> | uncertainty: <what you couldn't verify>
       ```
     links:
       awareness_failure_modes:
@@ -282,55 +189,46 @@ entries:
     tags: [always, awareness-graph, agent-usage]
     applies_when:
       cluster_phases: [day-1, day-2]
-      services_present: [awareness-graph]
+      services_present: []
     content: |
-      Seven tools are reachable from MCP. Use this table to pick the right one;
-      do NOT default to `briefing` for every situation.
+      Seven tools are reachable via the `awg` MCP bridge. Pick the right one; do NOT default
+      to `briefing` for everything.
 
       | I am about to… | Call | Why |
       |---|---|---|
-      | Edit a specific file | `awareness_briefing(file=<path>)` | direct anchors + intent + invariants for that file |
-      | Investigate "should I touch this area at all?" | `awareness_preflight(task=…, files=[…])` | typed `risk_class` + `confidence` so you can branch before reading prose |
-      | Investigate a live symptom or incident | `awareness_diagnose(symptom=…, node_id=…, service_id=…)` | correlates authored awareness with current doctor/drift findings + freshness + forbidden_conclusions |
-      | Expand a `referenced_id` from another call | `awareness_resolve(class=<Class>, id=<bare-id>)` | full node text + provenance anchor |
-      | Get all direct anchors for one file (no prose) | `awareness_impact(file=<path>)` | typed nodes, no narration; cheaper to chain |
-      | Tell whether `empty` means "no rule here" vs "graph thin in this area" | `awareness_metadata` | graph build commit, triple/node counts, server uptime |
-      | Custom graph traversal (admin only) | `awareness_query(mode=…)` | typed/constrained — no raw SPARQL |
+      | Decide whether/how to touch an area | `awareness_preflight(task=…, files=[…])` | typed `risk_class` + `confidence` to branch on before reading prose |
+      | Edit a specific file | `awareness_briefing(file=<path>)` | direct anchors + intent + patterns for that file |
+      | Chain on file anchors (no prose) | `awareness_impact(file=<path>)` | typed nodes, cheaper to process |
+      | Sanity-check a concrete edit's content | `awareness_edit_check(file=, proposed_content=)` | advisory warning if the edit's shape violates a rule (never blocks) |
+      | Expand a `referenced_id` | `awareness_resolve(class=<Class>, id=<bare-id>)` | full node text + provenance anchor |
+      | Tell "no rule here" vs "graph thin here" | `awareness_metadata` | triple/node counts, coverage_state, build/seed freshness |
+      | Operator/debug browse | `awareness_query(mode=…)` | typed/whitelisted — no raw SPARQL |
 
-      **Tool-selection anti-patterns to avoid:**
-      - Calling `briefing` for a live runtime symptom — use `diagnose`. Briefing
-        only sees authored YAML/annotations; it cannot see drift, doctor findings,
-        or freshness.
-      - Calling `briefing` with `task=` for a file you already know — use
-        `briefing(file=)`. File-anchored briefings return direct invariants;
-        task-only briefings only return implementation patterns and rely on
-        keyword matching.
-      - Treating `briefing` status `empty` as "no risk" — call `metadata` to
-        check whether the graph is well-covered overall, or fall back to
-        `awareness_diagnose` which has runtime guardrails even when authored
-        anchors are thin.
-      - Calling `query` from agent code — it's admin/debug only and may be
-        gated by RBAC. Stick to the typed RPCs.
+      **Anti-patterns:**
+      - Treating a `briefing`/`preflight` `EMPTY` as "no risk" — call `metadata` first; an
+        empty over a thin graph means nothing. `EMPTY` is never `LOW_RISK`.
+      - Using `briefing(task=)` for a file you already know — use `briefing(file=)`;
+        file-anchored briefings return direct invariants, task-only ones rely on keyword
+        matching + patterns.
+      - Looking for `awareness_diagnose` or `globular awareness ...` — both were removed in
+        the extraction. Use the `awg` CLI and the seven `mcp__awg__*` tools.
 
       **Common chains:**
-      - Pre-edit, file known: `briefing(file=)` → resolve high/critical referenced_ids
-        → edit → run required_tests.
-      - Pre-edit, file unknown, task only: `preflight(task=, files=[best guesses])` →
-        branch on risk_class → if not LOW_RISK, `briefing(file=)` on each file.
-      - Live incident: `diagnose(symptom=, node_id=)` → read correlated_findings →
-        run suggested `next_checks` → optionally `resolve(class=, id=)` on a
-        referenced invariant.
-      - Empty briefing: `metadata` to see graph coverage; if graph is healthy
-        (≥15k triples, high source_file_count) and briefing is still empty, the
-        domain is genuinely unannotated — proceed cautiously.
+      - Pre-edit, file known: `briefing(file=)` → `resolve` high/critical referenced_ids →
+        edit → optional `edit_check` → run required_tests.
+      - Pre-edit, file unknown: `preflight(task=, files=[best guesses])` → branch on
+        `risk_class` → `briefing(file=)` per file if not LOW_RISK.
+      - After a fix that taught something durable: `awg propose --kind … --contract …`
+        (see `ops.role.awareness-graph.write-path`).
     links:
       awareness_invariants:
         - awareness.preflight.required_before_edit
     related_ids:
       - ops.role.awareness-graph.rpcs
       - ops.role.awareness-graph.preflight
-      - ops.role.awareness-graph.diagnose
+      - ops.role.awareness-graph.edit-check
       - ops.role.awareness-graph.metadata
+      - ops.role.awareness-graph.write-path
 
   - id: ops.role.awareness-graph.preflight
     type: SKILL
@@ -338,75 +236,41 @@ entries:
     tags: [always, awareness-graph, preflight, agent-usage]
     applies_when:
       cluster_phases: [day-1, day-2]
-      services_present: [awareness-graph]
+      services_present: []
     content: |
-      Preflight is the agent's branch-able pre-edit RPC. Where Briefing returns
-      prose for a human to read, Preflight returns a typed `risk_class` so the
-      agent can decide what to do *programmatically* before reading anything.
+      Preflight is the agent's branch-able pre-edit RPC. Where Briefing returns prose,
+      Preflight returns a typed `risk_class` so the agent can decide what to do
+      *programmatically* before reading anything.
 
-      **Input:**
-      - `task` (free-form description) — required if no files
-      - `files` (list of repo-relative paths) — optional but recommended
-      - `mode`: `PREFLIGHT_COMPACT` (default, top 3 anchors) or `PREFLIGHT_STANDARD`
-        (top 7 anchors, ≤10 action items)
+      **Input:** `task` (free-form; required if no files), `files` (repo-relative paths;
+      optional but recommended), `mode` (`compact` default / `standard`), `domain` (scope).
 
-      **Response — load-bearing fields:**
+      **`status`:** `OK` (≥1 anchor or ≥1 pattern) · `EMPTY` (zero anchors AND coverage
+      sufficient) · `DEGRADED` (store unavailable; `risk_class=UNKNOWN_IMPACT`).
 
-      `status`:
-      - `PREFLIGHT_STATUS_OK` — ≥1 direct anchor OR ≥1 pattern matched
-      - `PREFLIGHT_STATUS_EMPTY` — zero anchors AND coverage is sufficient (graph
-        knows this domain; the absence of anchors is real)
-      - `PREFLIGHT_STATUS_DEGRADED` — store unavailable; response is best-effort
-        with `risk_class=UNKNOWN_IMPACT`
+      **`risk_class` (branch on this):**
+      - `LOW_RISK` — proceed; action list short/empty
+      - `ARCHITECTURE_SENSITIVE` — read `files_to_read`; brief every file in the edit set
+      - `CONVERGENCE_RISK` — touches the desired/installed/runtime/repository truth model
+      - `SECURITY_RISK` — auth/tokens/PKI/RBAC/secret keys → user approval required
+      - `DATA_LOSS_RISK` — install/wipe/rollback/migration → user approval required
+      - `UNKNOWN_IMPACT` — graph cannot classify (degraded or sparse) → behave as
+        SECURITY_RISK until proven otherwise
 
-      `risk_class` (the agent branches on this):
-      - `LOW_RISK` — proceed; required_actions is short or empty
-      - `ARCHITECTURE_SENSITIVE` — read files_to_read first; call briefing for
-        every file in the edit set
-      - `CONVERGENCE_RISK` — touches the 4-layer truth model (desired/installed/
-        runtime/repository); call diagnose to check current cluster state first
-      - `SECURITY_RISK` — touches auth/tokens/PKI/RBAC/etcd-secret keys; user
-        approval required before applying any edit
-      - `DATA_LOSS_RISK` — touches install/wipe/rollback/migration paths; user
-        approval required
-      - `UNKNOWN_IMPACT` — the graph cannot classify (DEGRADED, or sparse
-        coverage in this area); behave as if SECURITY_RISK until proven otherwise
+      **`confidence`:** `HIGH` (≥3 direct anchors AND coverage sufficient) · `MEDIUM` (1–2
+      anchors OR strong pattern) · `LOW` (anything else, incl. degraded).
 
-      `confidence`:
-      - `CONFIDENCE_HIGH` — ≥3 direct anchors AND coverage sufficient
-      - `CONFIDENCE_MEDIUM` — 1–2 direct anchors OR strong pattern match
-      - `CONFIDENCE_LOW` — anything else (including DEGRADED)
+      **Action lists (bounded by mode):** `required_actions`, `forbidden_fixes`,
+      `tests_to_run`, `files_to_read`, `blind_spots`; plus a `coverage` summary with a
+      load-bearing `sufficient` flag.
 
-      **Action lists (bounded by mode):**
-      - `required_actions` — what to do before the edit
-      - `forbidden_fixes` — short strings naming patterns to avoid
-      - `tests_to_run` — concrete test IDs the graph knows about
-      - `files_to_read` — files the graph says you should read alongside
-      - `blind_spots` — gaps the classifier itself noted (e.g.
-        "files_not_indexed: 2", "graph store unavailable")
-
-      `coverage`:
-      - `direct_anchor_count`, `file_count`, `indexed_file_count`
-      - `sufficient: bool` — load-bearing input to the classifier
-      - `note: string` — human-readable summary
-
-      **CLI:**
-      ```
-      globular awareness preflight --task "rotate the service CA" --files golang/security/ca.go
-      ```
-
+      **CLI:** `awg preflight --task "rotate the service CA" --file golang/security/ca.go`
       **MCP:** `mcp__awg__awareness_preflight`
 
-      **Critical rule:** EMPTY does NOT mean LOW_RISK. The server only collapses to
-      EMPTY when coverage is sufficient — if the graph doesn't know the area, it
-      returns OK with `risk_class=UNKNOWN_IMPACT` and `blind_spots` populated.
-      Always check both `status` AND `risk_class` before acting.
-
-      **When to use Preflight vs Briefing:**
-      - Preflight when you need to BRANCH (do I edit at all? do I need user approval?)
-      - Briefing when you've decided to edit and need the substantive context
-      Often you call both: Preflight first for the branch, then Briefing per file
-      for the read.
+      **Critical rule:** EMPTY does NOT mean LOW_RISK. The server only collapses to EMPTY
+      when coverage is explicitly sufficient; otherwise it returns OK with
+      `risk_class=UNKNOWN_IMPACT` and populated `blind_spots`. Always read BOTH `status` and
+      `risk_class`.
     links:
       awareness_invariants:
         - awareness.preflight.required_before_edit
@@ -414,105 +278,86 @@ entries:
       - ops.role.awareness-graph.rpcs
       - ops.role.awareness-graph.tool-decision-tree
 
-  - id: ops.role.awareness-graph.diagnose
+  - id: ops.role.awareness-graph.edit-check
     type: SKILL
-    title: "awareness-graph Diagnose — runtime-correlated diagnostic composer"
-    tags: [always, awareness-graph, diagnose, agent-usage, debug]
+    title: "awareness-graph EditCheck — advisory edit-time guard (never blocks)"
+    tags: [always, awareness-graph, edit-check, agent-usage]
     applies_when:
       cluster_phases: [day-1, day-2]
-      services_present: [awareness-graph, cluster-doctor, cluster-controller]
+      services_present: []
     content: |
-      `awareness_diagnose` is the MCP-only composite tool (NOT a gRPC RPC on
-      awareness-graph). It correlates authored awareness with currently-active
-      runtime findings. Use it for live symptoms, incidents, or any question
-      where "what is the cluster currently doing" matters.
+      EditCheck evaluates a proposed edit's CONTENT against the active repo-scoped advisory
+      rules (`detect` blocks) that apply to the file. It is **warning-only**: it never blocks
+      and never modifies code. Use it as a cheap sanity check on a concrete diff before you
+      apply it.
 
-      Implementation: `golang/mcp/tools_awareness_diagnose.go`. Internally it
-      calls THREE services in parallel and stitches the results:
-      - `awareness-graph.Briefing` → authored invariants/intents/failure_modes
-      - `cluster_doctor.GetClusterReport` → active runtime findings with
-        invariant_id back-references
-      - `cluster_controller.GetDriftReport` → desired-vs-applied drift items
+      **Input:** `file` (repo-relative), `proposed_content` (full file or edited region — the
+      MCP bridge accepts up to 8 MB), `domain` (scope; required on a multi-domain graph).
 
-      **Input:**
-      - `symptom` (required) — free-form description of what's wrong or what you
-        are investigating
-      - `file` (optional) — anchors authored context to a file
-      - `service_id` (optional) — narrows correlation to one service
-      - `node_id` (optional) — narrows correlation to one node
-      - `package_id` (optional) — narrows correlation to one package
-      - `mode`: `compact` (default) or `standard`
+      **Output:** `warnings[]` (each naming `rule_id`, `class` = Invariant|ForbiddenFix,
+      `severity` = warning, `message`, `detail` = which pattern tripped, `provenance`,
+      `enforcement` = warn|block) and `rules_evaluated` (distinguishes "checked, clean" from
+      "nothing to check").
 
-      **Response sections — read these in order:**
+      **CLI:** `awg edit-check --file golang/foo/bar.go --content-file -` (content on stdin),
+      or `--content "<inline>"`.
+      **MCP:** `mcp__awg__awareness_edit_check`
 
-      `status`:
-      - `ok` — at least one source returned usable data
-      - `empty` — no authored context AND no runtime findings matched
-      - `degraded` — at least one source failed; sections from that source are
-        empty but the call still completed
-
-      `authored_context` — Briefing output: briefing_prose, coverage_status,
-      referenced_ids. Treat as static context.
-
-      `runtime_evidence` — `doctor_findings`, `drift_items`, `node_health`,
-      `node_inventory`, plus `freshness` (per-source `observed_at`,
-      `snapshot_age_seconds`, `freshness_mode`, `data_incomplete`). Treat as
-      live observation with freshness caveats.
-
-      `correlated_findings` — runtime findings that match authored awareness or
-      request hints. Each carries `confidence` (`high` / `medium`) and
-      `match_reason` (`invariant_id_exact`, `node_hint`, etc.). HIGH confidence
-      = finding's invariant_id exactly matches a briefing reference. MEDIUM =
-      node/entity/keyword hint.
-
-      `possible_related_evidence` — keyword-overlap-only matches. `confidence:
-      low`. The tool explicitly warns "keyword overlap is a hint, not a
-      correlation". NEVER treat as causal.
-
-      `forbidden_conclusions` — FIXED LIST returned with every response. Reading
-      these is mandatory because they enumerate what you must NOT conclude:
-      - "Missing runtime evidence does not imply delete-desired-state intent"
-      - "Runtime observation is not authored truth — never rewrite invariants
-        from doctor/drift findings"
-      - "Stale or partial runtime evidence must be labeled as such, never
-        collapsed into 'unknown' or treated as 'no problem'"
-      - "Keyword overlap alone does not establish causality"
-
-      `blind_spots` — explicit gaps the tool noticed (e.g.
-      `weak_authored_runtime_correlation: 0 high-confidence matches`).
-
-      `next_checks` — concrete tool calls the diagnose composer recommends
-      (e.g. `cluster_get_node_full_status(node_id=…)`).
-
-      **Critical safety rules (enforced by the tool, mirror them in your reasoning):**
-      - `forbidden_conclusions` is always emitted — never skip reading it
-      - Missing runtime data is labeled as `blind_spots`, never collapsed to OK
-      - `authored_context` and `runtime_evidence` stay in separate sections — do
-        not merge them in your summary; the user needs to see what came from
-        where
-      - Per-source freshness is reported — quote `snapshot_age_seconds` and
-        `freshness_mode` when reporting findings; "snapshot is 4s old, FRESHNESS_CACHED"
-        is meaningfully different from "fresh read just taken"
-      - Single-source failures degrade individual sections, not the whole call
-
-      **When to use Diagnose vs Briefing:**
-      - Diagnose for live symptoms ("node X says drift", "service Y in hash_drift")
-      - Briefing for static edits ("I'm about to change file Z")
-      - Calling both is normal: diagnose to understand the symptom, briefing on
-        any file you decide to edit as a result.
-
-      **CLI:** there is no direct CLI yet — call via MCP or via the awareness
-      MCP bridge (`cmd/awareness-mcp` in the awareness-graph repo).
-
-      **MCP:** `mcp__awg__awareness_diagnose`
+      **Related: `awg gate`** runs EditCheck over the added/changed lines of a git diff and
+      reports which findings WOULD block — also advisory by default. `awg gate --contracts
+      <file> --enforce` is the only mode that can exit non-zero (frozen-contract gate, no
+      server needed). EditCheck itself is always advisory.
     links:
       awareness_invariants:
         - awareness.no_false_silence_for_sensitive_tasks
-        - intent.runtime_observation_must_not_mutate_desired
     related_ids:
       - ops.role.awareness-graph.rpcs
       - ops.role.awareness-graph.tool-decision-tree
-      - ops.role.awareness-graph.status-handling
+
+  - id: ops.role.awareness-graph.write-path
+    type: SKILL
+    title: "awareness-graph write path — record a scar with `awg propose` (contract-first)"
+    tags: [always, awareness-graph, authoring, agent-usage]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: []
+    content: |
+      When a fix taught you something durable — a new failure mode, an invariant you
+      clarified, a forbidden fix you ruled out, a regression test that pins it — record it
+      with ONE typed call. This is the supported write path; it is CLI-only by design (not an
+      MCP tool) so a human stays in the loop.
+
+      ```bash
+      awg propose --kind failure_mode --title "Stale seed served after reload" \
+        --contract "reload must serve fresh triples" \
+        --related-invariant awareness.seed_reload_must_be_fresh \
+        --source-file golang/server/reload.go \
+        --required-test golang/server/reload_test.go:TestReloadFresh \
+        --evidence "observed stale node after PUT"
+      ```
+
+      `--kind` is one of `failure_mode | invariant | required_test | forbidden_fix |
+      contract_unknown`. `propose` appends the entry to the right YAML source, rebuilds the
+      seed, reloads the local store, and `git add`s the change — then STOPS. **It never
+      commits — you review and commit.**
+
+      It is **contract-first**: every entry must answer what contract was violated/clarified,
+      what failure was observed, what test proves it, what fix is forbidden, and which
+      invariant/failure_mode it connects to. Vague notes are rejected (`validation_failed`).
+      If the contract is genuinely unknown, use `--kind contract_unknown` with
+      `--proposed-contract` or `--revision-request`; the entry is parked under
+      `docs/awareness/candidates/` outside the active build until resolved.
+
+      **Stop-hook reminder**: `awg feedback-check` (wired as a Claude Code `Stop` hook) is
+      advisory — it warns when a session changed risky code or added an incident/regression
+      test but wrote no graph feedback. It NEVER blocks. A session that already proposed
+      feedback (or changed nothing risky) stays silent.
+    links:
+      awareness_invariants:
+        - awareness.graph_edges_need_provenance
+    related_ids:
+      - ops.role.awareness-graph.rpcs
+      - ops.role.awareness-graph.tool-decision-tree
 
   - id: ops.role.awareness-graph.metadata
     type: REFERENCE
@@ -520,56 +365,32 @@ entries:
     tags: [always, awareness-graph, metadata, agent-usage]
     applies_when:
       cluster_phases: [day-1, day-2]
-      services_present: [awareness-graph]
+      services_present: []
     content: |
-      `Metadata` reports graph-level coverage and freshness — NOT per-file context.
-      Call it once per session (or per task) to disambiguate `empty` briefings:
-      "the graph is well-covered, this area really has no rules" vs "the graph
-      is thin everywhere, an empty briefing means nothing".
+      `Metadata` reports graph-level coverage and freshness — NOT per-file context. Call it
+      once per session (or per task) to disambiguate an `EMPTY` briefing: "graph well-covered,
+      this area really has no rules" vs "graph thin everywhere, an empty means nothing".
 
-      **Response fields (`MetadataResponse`):**
+      **Server-side verdicts (interpret these, not the raw counts):**
+      - `coverage_state` — `EMPTY` / `THIN` / `SUFFICIENT`
+      - `seed_state` — `CURRENT` / `STALE` / `UNSTAMPED`
+      - `build_provenance_state` — `STAMPED` / `DEV` / `INCOMPLETE`
 
-      Build provenance:
-      - `graph_build_commit` — awareness-graph repo commit when `awareness.nt`
-        was generated. Empty when built without ldflags (local `go build`).
-      - `graph_build_time_unix` — when the .nt was emitted
-      - `source_repo_commit` — services-repo commit at .nt build time. Compare
-        to current HEAD to spot staleness.
-      - `server_version` — `-X main.Version=…`. `0.0.0-dev` means no ldflags.
-
-      Live counts:
-      - `triple_count` — total triples in the default graph (healthy: ~15k–18k)
-      - `invariant_count`, `failure_mode_count`, `incident_pattern_count`,
-        `intent_count`, `forbidden_fix_count`, `required_test_count` — per-class
-        counts of authored knowledge nodes
-      - `source_file_count` — files the graph knows about
-      - `code_symbol_count` — symbols extracted from `@awareness` annotations
-
-      Server runtime:
-      - `server_started_unix` — uptime indicator
-      - `generated_in_ms` — Oxigraph round-trip cost for this response
+      **Useful raw fields:** `triple_count` (healthy graphs run ~15k–18k), per-class counts
+      (`invariant_count`, `failure_mode_count`, `intent_count`, …), `source_file_count`,
+      `code_symbol_count`, build provenance (`graph_build_commit`, `source_repo_commit`),
+      and the architectural-spine counts (`component_count`, `contract_count`, …).
 
       **How to interpret:**
+      - `coverage_state=EMPTY` / `triple_count` < 1000 → store empty or nearly so; rebuild
+        (see the awareness-graph-operations stage / runbook).
+      - `coverage_state=SUFFICIENT` and an EMPTY briefing → trust the empty; this area is
+        genuinely unannotated.
+      - `seed_state=STALE` → live store predates the current embedded seed; reload additively
+        with `awg seed-status` then a `loadnt`/`awg rebuild`.
 
-      - `triple_count` < 1000 → store is empty or nearly so. Run the rebuild
-        runbook (`ops.runbook.initialize-awareness-graph`).
-      - `triple_count` 15k–18k and an `EMPTY` briefing → trust the empty.
-        Graph is healthy; this domain is genuinely unannotated.
-      - `source_repo_commit` is many commits behind services-repo HEAD → graph
-        is stale relative to YAML sources. Rerun the build pipeline if recent
-        YAML changes matter for the task.
-      - `code_symbol_count` low → annotation-scanner ran on few files; coverage
-        of `@awareness` annotations is thin. EMPTY briefings should be weighted
-        accordingly.
-
-      **CLI:** `globular awareness metadata` (if exposed; otherwise via gRPC).
-
-      **MCP:** not exposed as a typed MCP tool by default — call via gRPC or
-      check the `coverage_status` field returned by Briefing/Preflight, which
-      reflects the same underlying counts.
-
-      **Cheap call:** server-side counts are bounded SPARQL queries. Safe to
-      call once per session without context cost.
+      **CLI:** `awg metadata`     **MCP:** `mcp__awg__awareness_metadata`
+      Cheap: bounded SPARQL. Safe to call once per session.
     links: {}
     related_ids:
       - ops.role.awareness-graph.rpcs
@@ -584,75 +405,36 @@ entries:
       cluster_phases: [day-0, day-1, day-2]
       services_present: []
     content: |
-      Awareness coverage is intentionally NOT uniform across the codebase. This
-      is a design choice, not a backlog. Annotation effort has diminishing
-      returns past a point and outright negative returns past another.
+      Awareness coverage is intentionally NOT uniform across the codebase. This is a design
+      choice, not a backlog. Annotation effort has diminishing returns past a point and
+      negative returns past another.
 
-      **What SHOULD be annotated:**
+      **What SHOULD be annotated** — knowledge code cannot express by itself: incident lineage
+      ("this exists because v1.2.141 shipped unverified"), cross-file invariants, forbidden
+      fixes, ordering constraints not enforced by types, authority boundaries, hidden
+      cross-cutting effects (VIP/PrimaryIP pollution, etcd key semantics, cert SANs).
 
-      Files that encode knowledge code cannot express by itself:
-      - **Incident lineage** — "this exists because v1.2.141 shipped unverified"
-      - **Cross-file invariants** — "both install paths must call
-        NormalizeUnitWorkingDirectory"
-      - **Forbidden fixes** — "do not add service.crt to the Scylla probe — it
-        will wipe-loop"
-      - **Ordering constraints** not enforced by types
-      - **Authority boundaries** — "controller decides, workflow coordinates,
-        node-agent executes"
-      - **Hidden cross-cutting effects** — VIP/PrimaryIP pollution, etcd key
-        semantics, certificate SANs
+      **What should NOT be annotated** — self-explanatory or type-enforced code: generated
+      proto/gRPC stubs, pure helpers, self-documenting CRUD, tests. Annotating these dilutes
+      signal-to-noise and trains agents to skim briefings.
 
-      **What should NOT be annotated:**
+      **Why selective annotation is safe:** an `EMPTY` briefing on an uncovered file is not a
+      green light. Pair it with `awareness_metadata` (is the graph healthy overall?) and, for
+      anything non-trivial, `awareness_preflight` — which returns `UNKNOWN_IMPACT` rather than
+      `LOW_RISK` when coverage is thin, so the agent is told to proceed carefully instead of
+      assuming safety. (Note: the old runtime-correlating `awareness_diagnose` composite no
+      longer exists; coverage discipline now lives in Preflight + Metadata.)
 
-      Code that is self-explanatory or where the type system already enforces
-      the rule:
-      - Generated proto/gRPC stubs (`*.pb.go`)
-      - Pure helpers with no state, security, or runtime behavior
-      - Self-documenting CRUD
-      - Tests (the test name is the description)
-      - Files where well-named identifiers and well-typed signatures ARE the
-        documentation
-
-      Annotating these dilutes signal-to-noise and trains agents to skim
-      briefings. A blanket-annotated codebase produces low-utility briefings;
-      agents stop reading them; the tool loses value.
-
-      **Why selective annotation is safe:**
-
-      The `awareness_diagnose` composer correlates authored awareness with live
-      cluster_doctor and cluster_controller findings at call time. For files
-      WITHOUT authored anchors, the runtime side fills the gap — diagnose can
-      still return correlated_findings + forbidden_conclusions + blind_spots
-      from doctor's invariants alone. This means:
-
-      - Authored anchors only need to live where authored intent adds something
-        the runtime layer can't infer.
-      - Empty briefings on uncovered files are not dangerous when paired with
-        diagnose for any runtime-touching change.
-      - The tool's epistemic guardrails (forbidden_conclusions, blind_spots,
-        freshness metadata) hold regardless of authored coverage.
-
-      **Distinguishing "deliberately unannotated" from "should be annotated":**
-
-      Today the tool returns `status: empty` for both cases identically. Until
-      the schema distinguishes them, callers can use `awareness_metadata` to
-      check overall graph health: if the graph is healthy (~15k+ triples,
-      strong source_file_count) and a file's briefing is empty, the silence is
-      most likely intentional. If overall counts are low, all empties are
-      suspect.
-
-      **For annotation authors:**
-
-      When adding a new annotation, ask: "Does removing this annotation lose
-      knowledge the code itself cannot express?" If yes, annotate. If no,
-      don't. The cost of a noisy graph is paid by every agent every call;
-      the cost of a missing annotation is paid only when an incident
-      reveals it. Annotate after incidents, not before.
+      **For annotation authors:** ask "does removing this annotation lose knowledge the code
+      itself cannot express?" If yes, annotate. If no, don't. The cost of a noisy graph is
+      paid by every agent on every call; the cost of a missing annotation is paid only when an
+      incident reveals it. Annotate after incidents, not before — see
+      `ops.role.awareness-graph.write-path`.
     links:
       awareness_invariants:
         - awareness.no_false_silence_for_sensitive_tasks
         - awareness.graph_edges_need_provenance
     related_ids:
       - ops.role.awareness-graph
-      - ops.role.awareness-graph.diagnose
       - ops.role.awareness-graph.metadata
+      - ops.role.awareness-graph.write-path

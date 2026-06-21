@@ -1,1 +1,20 @@
 code_symbols:
+test_symbols:
+  - id: golang/attestation/attestation_test.go:TestOrphanProcessIsUntrustedWithoutAttestation
+    file: golang/attestation/attestation_test.go
+    symbol: TestOrphanProcessIsUntrustedWithoutAttestation
+    package: attestation
+    language: go
+    doc: "TestOrphanProcessIsUntrustedWithoutAttestation — contract test. A\nprocess with no recorded launch authority (no systemd unit, no container\nruntime) is not honored as the expected service even if every other\nbinding lines up."
+  - id: golang/attestation/attestation_test.go:TestRuntimeAttestationBindsPidHashServiceAndBuild
+    file: golang/attestation/attestation_test.go
+    symbol: TestRuntimeAttestationBindsPidHashServiceAndBuild
+    package: attestation
+    language: go
+    doc: "TestRuntimeAttestationBindsPidHashServiceAndBuild — contract test.\nA trusted attestation must bind PID, exe path, binary hash, service id,\nbuild id, launch authority, and observed-after-start. Mismatch on any\nbinding rejects."
+  - id: golang/attestation/attestation_test.go:TestVerifierRejectsAttestationOlderThanProcessStart
+    file: golang/attestation/attestation_test.go
+    symbol: TestVerifierRejectsAttestationOlderThanProcessStart
+    package: attestation
+    language: go
+    doc: "TestVerifierRejectsAttestationOlderThanProcessStart — contract test.\nObservedAt < ProcessStartTime is physically impossible for an honest\nobserver (you can't see a process before it exists). The attestation\nmust be flagged as stale/replayed, never honored as live evidence."

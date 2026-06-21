@@ -192,13 +192,12 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 	}
 	initialCluster := strings.Join(initialClusterParts, ",")
 
-	// Build cluster token from cluster ID
-	clusterToken := ctx.ClusterID
-	if clusterToken == "" {
-		log.Printf("WARNING: renderEtcdConfig: ClusterID is empty — falling back to default \"globular\". This may indicate etcd or system config has not been initialized.")
-		clusterToken = "globular"
-	}
-	clusterToken = clusterToken + "-etcd-cluster"
+	// initial-cluster-token is a bootstrap-immutable constant shared by the
+	// installer and every member — NOT derived from cluster_id. etcd bakes the
+	// token at formation and never re-reads it, so deriving it from the mutable
+	// cluster_id forks the rendered config away from the running cluster's real
+	// token the moment cluster_id drifts (see config.EtcdClusterToken).
+	clusterToken := configpkg.EtcdClusterToken
 
 	// initial-cluster-state: "new" only for first bootstrap, "existing" for all
 	// subsequent operations (expansion, restart). The controller sets EtcdState

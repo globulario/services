@@ -67,3 +67,174 @@ code_symbols:
       implements:
         - globular.platform:intent.domain.spec_is_etcd_authority_for_external_domain_desired_state
         - globular.platform:intent.domain.certs_distributed_via_etcd_not_files
+test_symbols:
+  - id: golang/domain/acme_solver_apex_test.go:TestACMEChallengeRecordName
+    file: golang/domain/acme_solver_apex_test.go
+    symbol: TestACMEChallengeRecordName
+    package: domain
+    language: go
+    doc: "TestACMEChallengeRecordName verifies the complete challenge record name generation\nThis is the critical test that proves no \"@\" appears in the final record name."
+  - id: golang/domain/acme_solver_apex_test.go:TestExtractRelativeName_ApexDomain
+    file: golang/domain/acme_solver_apex_test.go
+    symbol: TestExtractRelativeName_ApexDomain
+    package: domain
+    language: go
+    doc: "TestExtractRelativeName_ApexDomain verifies that apex domains return empty string, not \"@\"\nThis ensures ACME challenge records are created correctly without \"@\" in the name.\n\nRequirement INV-DNS-EXT-1: DNS-01 challenge for apex domain must create:\n  _acme-challenge.example.com\nNOT:\n  _acme-challenge.@.example.com"
+  - id: golang/domain/acme_solver_test.go:TestComputeACMEDNS01Value
+    file: golang/domain/acme_solver_test.go
+    symbol: TestComputeACMEDNS01Value
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestDNS01Solver_ApexDomain
+    file: golang/domain/acme_solver_test.go
+    symbol: TestDNS01Solver_ApexDomain
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestDNS01Solver_CleanUp
+    file: golang/domain/acme_solver_test.go
+    symbol: TestDNS01Solver_CleanUp
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestDNS01Solver_ComputeTXTValue
+    file: golang/domain/acme_solver_test.go
+    symbol: TestDNS01Solver_ComputeTXTValue
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestDNS01Solver_ExtractRelativeName
+    file: golang/domain/acme_solver_test.go
+    symbol: TestDNS01Solver_ExtractRelativeName
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestDNS01Solver_Present
+    file: golang/domain/acme_solver_test.go
+    symbol: TestDNS01Solver_Present
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestDNS01Solver_PropagationTimeout
+    file: golang/domain/acme_solver_test.go
+    symbol: TestDNS01Solver_PropagationTimeout
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestDNS01Solver_ZoneMismatch
+    file: golang/domain/acme_solver_test.go
+    symbol: TestDNS01Solver_ZoneMismatch
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestLegoProvider
+    file: golang/domain/acme_solver_test.go
+    symbol: TestLegoProvider
+    package: domain
+    language: go
+  - id: golang/domain/acme_solver_test.go:TestValidateACMEDNS01
+    file: golang/domain/acme_solver_test.go
+    symbol: TestValidateACMEDNS01
+    package: domain
+    language: go
+  - id: golang/domain/dns_propagation_test.go:TestHasDot
+    file: golang/domain/dns_propagation_test.go
+    symbol: TestHasDot
+    package: domain
+    language: go
+    doc: "TestHasDot verifies FQDN dot checking."
+  - id: golang/domain/dns_propagation_test.go:TestPublicResolverPropagator_CheckTXT_NotFound
+    file: golang/domain/dns_propagation_test.go
+    symbol: TestPublicResolverPropagator_CheckTXT_NotFound
+    package: domain
+    language: go
+    doc: "TestPublicResolverPropagator_CheckTXT_NotFound verifies error when record not found."
+  - id: golang/domain/dns_propagation_test.go:TestPublicResolverPropagator_DefaultResolvers
+    file: golang/domain/dns_propagation_test.go
+    symbol: TestPublicResolverPropagator_DefaultResolvers
+    package: domain
+    language: go
+    doc: "TestPublicResolverPropagator_DefaultResolvers verifies default resolver list."
+  - id: golang/domain/dns_propagation_test.go:TestPublicResolverPropagator_LookupTXT_RealDNS
+    file: golang/domain/dns_propagation_test.go
+    symbol: TestPublicResolverPropagator_LookupTXT_RealDNS
+    package: domain
+    language: go
+    doc: "TestPublicResolverPropagator_LookupTXT_RealDNS tests actual DNS lookup.\nThis is a real network test that queries public resolvers."
+  - id: golang/domain/dns_propagation_test.go:TestPublicResolverPropagator_WaitForTXT_ContextCancellation
+    file: golang/domain/dns_propagation_test.go
+    symbol: TestPublicResolverPropagator_WaitForTXT_ContextCancellation
+    package: domain
+    language: go
+    doc: "TestPublicResolverPropagator_WaitForTXT_ContextCancellation verifies context handling."
+  - id: golang/domain/dns_propagation_test.go:TestPublicResolverPropagator_WaitForTXT_Timeout
+    file: golang/domain/dns_propagation_test.go
+    symbol: TestPublicResolverPropagator_WaitForTXT_Timeout
+    package: domain
+    language: go
+    doc: "TestPublicResolverPropagator_WaitForTXT_Timeout verifies timeout behavior."
+  - id: golang/domain/spec_test.go:TestCondition_JSON
+    file: golang/domain/spec_test.go
+    symbol: TestCondition_JSON
+    package: domain
+    language: go
+  - id: golang/domain/spec_test.go:TestDomainKey
+    file: golang/domain/spec_test.go
+    symbol: TestDomainKey
+    package: domain
+    language: go
+  - id: golang/domain/spec_test.go:TestExternalDomainSpec_JSON
+    file: golang/domain/spec_test.go
+    symbol: TestExternalDomainSpec_JSON
+    package: domain
+    language: go
+  - id: golang/domain/spec_test.go:TestExternalDomainSpec_ParsedTargetIP
+    file: golang/domain/spec_test.go
+    symbol: TestExternalDomainSpec_ParsedTargetIP
+    package: domain
+    language: go
+    doc: "TestExternalDomainSpec_ParsedTargetIP tests IPv4/IPv6 parsing."
+  - id: golang/domain/spec_test.go:TestExternalDomainSpec_RelativeName
+    file: golang/domain/spec_test.go
+    symbol: TestExternalDomainSpec_RelativeName
+    package: domain
+    language: go
+  - id: golang/domain/spec_test.go:TestExternalDomainSpec_TargetIsAuto
+    file: golang/domain/spec_test.go
+    symbol: TestExternalDomainSpec_TargetIsAuto
+    package: domain
+    language: go
+    doc: "TestExternalDomainSpec_TargetIsAuto tests auto IP detection."
+  - id: golang/domain/spec_test.go:TestExternalDomainSpec_Validate
+    file: golang/domain/spec_test.go
+    symbol: TestExternalDomainSpec_Validate
+    package: domain
+    language: go
+  - id: golang/domain/spec_test.go:TestExternalDomainSpec_Validate_IPv6
+    file: golang/domain/spec_test.go
+    symbol: TestExternalDomainSpec_Validate_IPv6
+    package: domain
+    language: go
+    doc: "TestExternalDomainSpec_Validate_IPv6 tests validation with IPv6 addresses."
+  - id: golang/domain/spec_test.go:TestProviderKey
+    file: golang/domain/spec_test.go
+    symbol: TestProviderKey
+    package: domain
+    language: go
+  - id: golang/domain/store_test.go:TestDomainSpecKey
+    file: golang/domain/store_test.go
+    symbol: TestDomainSpecKey
+    package: domain
+    language: go
+    doc: "TestDomainSpecKey verifies the spec key formatting."
+  - id: golang/domain/store_test.go:TestDomainStatusKey
+    file: golang/domain/store_test.go
+    symbol: TestDomainStatusKey
+    package: domain
+    language: go
+    doc: "TestDomainStatusKey verifies the status key formatting."
+  - id: golang/domain/store_test.go:TestDomainStore_KeySeparation
+    file: golang/domain/store_test.go
+    symbol: TestDomainStore_KeySeparation
+    package: domain
+    language: go
+    doc: "TestDomainStore_KeySeparation verifies that spec and status keys are distinct."
+  - id: golang/domain/store_test.go:TestProviderConfigKey
+    file: golang/domain/store_test.go
+    symbol: TestProviderConfigKey
+    package: domain
+    language: go
+    doc: "TestProviderConfigKey verifies the provider config key formatting."

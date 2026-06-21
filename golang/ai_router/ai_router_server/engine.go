@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/ai_router/ai_routerpb"
+	"google.golang.org/protobuf/proto"
 )
 
 // scoringLoop runs the background scoring cycle every 5 seconds.
@@ -39,12 +40,17 @@ func (srv *server) scoringLoop() {
 			srv.LastError = "metrics collection failed: " + err.Error()
 			srv.statsMu.Unlock()
 			// Zero out confidence on cached policy so consumers know data is stale.
+			// Deep-clone first: a shallow copy (*cached) aliases the Services map
+			// and its *ServicePolicy values with the live policy, so zeroing
+			// Confidence in place would mutate objects that GetRoutingPolicy
+			// handlers may be serving concurrently (data race) rather than
+			// producing an isolated stale snapshot.
 			if cached := srv.cachedPolicy.Load(); cached != nil {
-				stalePolicy := *cached // shallow copy
+				stalePolicy := proto.Clone(cached).(*ai_routerpb.RoutingPolicy)
 				for _, sp := range stalePolicy.Services {
 					sp.Confidence = 0
 				}
-				srv.cachedPolicy.Store(&stalePolicy)
+				srv.cachedPolicy.Store(stalePolicy)
 			}
 			continue
 		}

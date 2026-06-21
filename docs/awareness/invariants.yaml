@@ -3067,6 +3067,8 @@ invariants:
   protects:
     files:
     - golang/node_agent/node_agent_server/xds_config_reconcile.go
+    - golang/node_agent/node_agent_server/infra_truth/envoy_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra.go
     symbols:
     - reconcileXDSConfig
   related_failure_modes:
@@ -3076,6 +3078,8 @@ invariants:
   required_tests:
   - golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
   - golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
+  - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestDeriveEnvoyLifecycle_States
+  - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraLDSProgress_WedgeDetected
   severity: critical
   status: active
   summary: 'The Globular mesh (controller, MCP, gateway-routed
@@ -4514,6 +4518,63 @@ invariants:
   workflow_step_handler_files: []
   required_tests:
   - principle-check:heartbeat_must_not_take_non_critical_dependencies
+- actor_writer_dirs:
+  - golang/rbac/rbac_server
+  - golang/event/event_server
+  - golang/workflow/workflow_server
+  - golang/resource/resource_server
+  - golang/dns/dns_server
+  analysis_mode: ruleguard
+  exception_files: []
+  id: minio_commodity_no_hard_dependency
+  related_invariants:
+  - minio.is_commodity_not_a_pillar
+  - dependency_failure_must_not_create_hidden_authority
+  ruleguard_rules_file: cmd/principle-check/rules/minio_commodity_no_hard_dependency.go
+  scan_pattern: placeholder_unused_when_analysis_mode_is_ruleguard
+  severity: critical
+  status: active
+  summary: 'Per-instance, mechanically-enforced instance of minio.is_commodity_not_a_pillar.
+
+    The bug shape: a primary service registers MinIO as a health-gating
+
+    dependency via dephealth.Dep("minio", ...). dephealth.RequireHealthy() then
+
+    gates ALL of that service''s RPCs with codes.Unavailable when MinIO is down.
+
+    MinIO is a commodity object-store tier for secondary user data, never a
+
+    pillar like etcd / scylla / envoy, and below the 3-node object-store quorum
+
+    the pool never forms — so this wedges a healthy cluster.
+
+
+    Incident (globule-nuc, 2026-06-20): rbac registered dephealth.Dep("minio",
+
+    ...); MinIO was correctly absent on a 2-node cluster; rbac RPCs returned
+
+    Unavailable; globular-rbac.service went failed; the node was reported
+
+    unhealthy and Day-1 convergence stalled with ~10 services never installed.
+
+
+    Fixed in rbac (MinIO removed from the watchdog). There are ZERO legitimate
+
+    dephealth.Dep("minio", ...) sites, so exception_files is empty — any match is
+
+    drift. Repository''s degraded-mode mirror uses its own depHealthWatchdog and
+
+    never dephealth.Dep, so it does not match. The ruleguard rule fires on the
+
+    exact dephealth.Dep("minio", ...) call shape across primary-service dirs.
+
+    '
+  title: No primary service may register MinIO as a health-gating dependency — MinIO
+    is a commodity, not a pillar
+  unknown_helper_files: []
+  workflow_step_handler_files: []
+  required_tests:
+  - principle-check:minio_commodity_no_hard_dependency
 - enforcement: 'Proto comments and awareness anchors are the binding semantic.
 
     Code review must reject any writer that violates the declared
@@ -9728,6 +9789,9 @@ invariants:
   - category: exception_4_pre_workflow_primitive
     file: golang/ai_memory/ai_memory_server/migration_coordinator.go
     reason: ai_memory schema migration coordinator (runs at service startup, before any workflow uses the memory service)
+  - category: exception_4_pre_workflow_primitive
+    file: golang/ai_memory/ai_memory_server/behavioral_migration.go
+    reason: ai_memory behavioral-schema migration (runs at service startup, before any workflow uses the memory service) — idempotency-marker sibling of migration_coordinator.go, identical pre-workflow primitive
   - category: exception_5_service_self_config
     file: golang/dns/dns_server/server.go
     reason: DNS zone storage + reload status (typed admin RPC persistence; operator writes a zone, DNS persists it)
@@ -10522,3 +10586,418 @@ invariants:
   - infra.join_must_have_lifecycle_fsm
   required_tests:
   - golang/cluster_doctor/cluster_doctor_server/rules/scylla_infra_test.go::TestScyllaPeersMatch_MissingPeer
+- id: etcd.loopback_forbidden
+  title: etcd cluster-facing URLs must not advertise loopback/unspecified (CRITICAL) — a loopback peer/client URL isolates the member from the raft cluster
+  summary: |
+    Per-component instance of infra.loopback_address_forbidden_for_cluster_members
+    for etcd. The rule distinguishes ADVERTISE URLs from LISTEN/bind URLs:
+    initial-advertise-peer-urls and advertise-client-urls are what peers and
+    clients dial, so they must be a concrete routable address — never loopback
+    (isolates the member) nor the unspecified address 0.0.0.0 (meaningless as
+    something to dial). listen-peer-urls and listen-client-urls are bind
+    addresses: 0.0.0.0 (bind every interface) is the correct, renderer-produced
+    value and is NOT a violation — only loopback is forbidden there, since a
+    member that binds peer/client traffic to 127.0.0.1 alone can never be reached.
+    A wrong advertise URL forms an isolated single-member cluster while appearing
+    "active". Flagging 0.0.0.0 on the listen fields is itself a bug: it stalls a
+    healthy joining member and blocks service-layer convergence (globule-nuc,
+    2026-06-20). Detected by attestation and raised as a CRITICAL doctor finding.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/etcd_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+  related_invariants:
+  - infra.loopback_address_forbidden_for_cluster_members
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_LoopbackPeerURL
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_UnspecifiedListenURLs_OK
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_LoopbackListenClientURL
+  - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraLoopbackForbidden
+- id: etcd.config_valid
+  title: etcd rendered config must match desired state — member present in its own initial-cluster, non-self peers for joining nodes, matching cluster token, and peer TLS material
+  summary: |
+    Per-component instance of infra.config_must_be_attested_before_start for etcd.
+    A member absent from its own initial-cluster (rendered without a routable
+    identity), a self-only initial-cluster on a joining node (isolated single-member
+    cluster), an empty/mismatched initial-cluster-token (forms a parallel cluster),
+    or missing peer-transport-security material (members cannot mTLS-authenticate
+    each other) are ERROR-level config violations that prevent correct membership.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/etcd_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  related_intents:
+  - infrastructure.etcd.quorum_backed_config_authority
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_SelfOnlyInitialCluster_JoiningNode
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestAttestEtcdConfig_MissingPeerTrustedCA
+  - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraConfigValid_SelfOnlyInitialCluster
+- id: etcd.member_not_stalled
+  title: An etcd member must not be stalled (CRITICAL) — daemon-active-on-invalid-config or a CORRUPT alarm is a stuck member that needs the owner fixed, not more time
+  summary: |
+    Per-component instance of infra.join_must_have_lifecycle_fsm for etcd. The
+    lifecycle FSM marks STALLED when the daemon is active on a critically-invalid
+    config or when etcd raises a CORRUPT alarm (a damaged member cannot heal itself
+    and needs a controller-driven wipe+rejoin). A leaderless cluster or an
+    in-progress learner is DEGRADED/JOINING, not STALLED, because those can still
+    converge on their own. Doctor raises a CRITICAL finding with the blocking reason.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/etcd_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+  related_invariants:
+  - infra.join_must_have_lifecycle_fsm
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestDeriveEtcdLifecycle_States
+  - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraJoinStalled_Corrupt
+- id: etcd.peers_match_expected
+  title: etcd observed members must cover the expected cluster members — a missing member on a reachable daemon is a real convergence gap
+  summary: |
+    When the daemon is up and a multi-member cluster is expected, the member-list
+    peers must cover the expected (non-self) members. A persistent mismatch is an
+    ERROR-level doctor finding pointing at peer connectivity (port 2380) or a stale
+    initial-cluster the controller has not re-rendered after a MemberAdd — distinct
+    from a config violation.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/etcd_probe.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
+  related_invariants:
+  - infra.join_must_have_lifecycle_fsm
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraPeersMatch_MissingMember
+- id: minio.loopback_forbidden
+  title: MinIO distributed volume endpoints must not advertise loopback/unspecified (CRITICAL) — a loopback pool endpoint isolates the member from the erasure set
+  summary: |
+    Per-component instance of infra.loopback_address_forbidden_for_cluster_members
+    for MinIO. A distributed MINIO_VOLUMES entry whose host is loopback/0.0.0.0
+    means pool peers can never reach this member; the erasure set cannot form.
+    Detected by attestation of the rendered minio.env and raised as a CRITICAL
+    doctor finding.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.loopback_address_forbidden_for_cluster_members
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_LoopbackVolume
+  - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraLoopbackForbidden
+- id: minio.topology_matches_desired
+  title: MinIO rendered MINIO_VOLUMES topology must match the desired ObjectStore topology (CRITICAL) — a standalone-in-cluster split-brain or drive-count mismatch risks a format.json reformat
+  summary: |
+    The format.json blast-radius guard. A desired-distributed pool rendered as
+    standalone means the node forms an ISOLATED single-node store and diverges
+    from the pool (split-brain); a rendered MINIO_VOLUMES entry count that
+    disagrees with desired nodes×drives means the node would format a different
+    drive topology. MinIO can silently reformat drives when the topology changes
+    underneath it, so both are CRITICAL and mark the lifecycle STALLED.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  related_intents:
+  - infrastructure.minio.objectstore_contract_and_topology
+  - objectstore.topology_requires_contract
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_SplitBrainStandaloneInCluster
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_DriveCountMismatch
+  - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraTopologyMatchesDesired_SplitBrain
+- id: minio.config_valid
+  title: MinIO rendered minio.env must be valid — non-empty MINIO_VOLUMES and this node present among the distributed pool endpoints
+  summary: |
+    Per-component instance of infra.config_must_be_attested_before_start for
+    MinIO. Empty MINIO_VOLUMES (nothing to serve) or a distributed env whose
+    endpoints do not include this node (rendered for the wrong identity) are
+    ERROR-level config violations.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_SelfNotInPool
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestAttestMinioConfig_EmptyVolumes
+- id: minio.member_not_stalled
+  title: A MinIO member must not be stalled (CRITICAL) — a daemon active on a topology that diverges from the pool (split-brain/loopback) is a stuck member that needs the owner fixed, not more time
+  summary: |
+    Per-component instance of infra.join_must_have_lifecycle_fsm for MinIO. The
+    lifecycle FSM marks STALLED when the daemon is active on a critically-invalid
+    topology (split-brain standalone-in-cluster, loopback endpoint, or drive-count
+    mismatch). A live-but-no-write-quorum member is DEGRADED, not STALLED, because
+    the pool can recover when peers/drives return.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.join_must_have_lifecycle_fsm
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/minio_test.go::TestDeriveMinioLifecycle_States
+  - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraNotStalled_Detection
+- id: minio.write_quorum
+  title: A live MinIO member must have pool write quorum — live-but-no-write-quorum (from /minio/health/cluster) is a real upload-failure signal
+  summary: |
+    When the local MinIO server is live but the native /minio/health/cluster
+    endpoint reports no write quorum, uploads will fail. This is an ERROR-level
+    doctor finding sourced from the live health endpoint — distinct from the
+    disk-topology-derived objectstore.write_quorum_lost. Recoverable when enough
+    drives/peers return.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/minio_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra.go
+  related_invariants:
+  - infra.runtime_truth_must_be_observed_via_native_api
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/minio_infra_test.go::TestMinioInfraWriteQuorum_Lost
+- id: minio.is_commodity_not_a_pillar
+  title: MinIO is a commodity object-store tier, never a pillar — it must not gate a primary service's health nor block node convergence
+  summary: |
+    The pillars of a Globular cluster are etcd (config truth), ScyllaDB (indexed
+    state), and envoy (mesh data plane). MinIO is a COMMODITY tier for secondary
+    user data only (files, search indexes) — an unreliable friend you don't lean
+    on. It holds no system config, no packages, and no service's authority data.
+    Two consequences are invariant:
+    1. No primary service may register MinIO as a health-gating (stop-mode)
+       dependency. RBAC's authority is ScyllaDB; gating RBAC's RPCs on MinIO lets
+       a commodity tier take cluster-wide authorization down with it. MinIO usage
+       must stay best-effort and degrade (ModeDegraded / ModeIgnore), never stop.
+    2. MinIO/sidekick being inactive must not count as a convergence-blocking
+       node-health failure. Below the 3-node object-store quorum the pool never
+       forms, so the units are inactive BY DESIGN; on a non-member node they are
+       dropped from the required-unit set. A genuine pool member with a dead MinIO
+       still surfaces.
+    Root cause (globule-nuc, 2026-06-20): a healthy 2-node cluster stalled mid
+    Day-1 because (a) RBAC gated all RPCs on MinIO and (b) the controller node
+    health gate counted minio/sidekick inactive as failing — so the node read
+    unhealthy and ~10 services never installed. Per-component instance of
+    dependency_failure_must_not_create_hidden_authority for the object-store tier.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/rbac/rbac_server/server.go
+    - golang/cluster_controller/cluster_controller_server/handlers_health.go
+  related_invariants:
+  - dependency_failure_must_not_create_hidden_authority
+  required_tests:
+  - golang/rbac/rbac_server/dependency_minio_excluded_test.go::TestDependencyHealthDeps_ExcludesMinio
+  - golang/cluster_controller/cluster_controller_server/minio_non_member_health_test.go::TestDropMinioCommodityUnitsForNonMember
+- id: infra.node_specific_truth_must_be_observed_via_node_local_client
+  title: Per-node / per-endpoint runtime truth must be read from a client pinned to that node, never from a shared multi-member pooled client that may route elsewhere
+  summary: |
+    A child of infra.runtime_truth_must_be_observed_via_native_api. When the
+    question is about ONE specific node/member ("is THIS member the leader", "what
+    is THIS endpoint's status", "who are THIS node's gossip peers"), the answer
+    must come from a client dialed at that node. A shared cluster-wide client (a
+    multi-host gocql session, the shared pooled etcd client, an arbitrary
+    Endpoints()[0]) can route the query to a DIFFERENT member, and per-node tables
+    (system.peers excludes self; an endpoint's leader view can be stale under a
+    partition) then yield an answer that belongs to the wrong node. This is the
+    generalization of INC-2026-0011 (gocql routed system.local/peers to the wrong
+    member -> false group0-stale verdict) and the etcd infra-truth observer's
+    local-only dial. Reading per-node truth through a pooled client is forbidden
+    when the result drives a node-scoped or destructive decision.
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/etcd_runtime.go
+    - golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
+    - golang/storage/storage_store/scylla_store.go
+  related_invariants:
+  - infra.runtime_truth_must_be_observed_via_native_api
+  - cluster_event_must_carry_node_or_cluster_scope
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/etcd_test.go::TestEtcdProbeStructured_HealthyMember
+  - golang/storage/storage_store/scylla_store_rf_test.go::TestDistinctHostCount
+- id: envoy.config_valid
+  title: The Envoy bootstrap must be able to drive the mesh — ads_config/cds_config/lds_config present, the ADS cluster defined in static_resources, node id set
+  summary: |
+    Per-component instance of infra.config_must_be_attested_before_start for the
+    Envoy data plane. Envoy is xDS-dynamic, so the bootstrap mostly wires the ADS
+    handshake. Missing dynamic_resources.ads_config (no dynamic config at all) or
+    lds_config (no listeners ever load — the static form of the LDS wedge, port 443
+    never binds) are CRITICAL; missing cds_config, an ADS cluster not defined in
+    static_resources, an empty node id, or a missing admin address are config
+    violations that leave the mesh dead or unobservable while the daemon is
+    "active". Unlike the clustered components there is NO loopback rule — the admin
+    interface and local xDS upstream are intentionally on loopback.
+  severity: critical
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/envoy_attestation.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra.go
+  related_invariants:
+  - infra.config_must_be_attested_before_start
+  related_intents:
+  - infrastructure.envoy.service_mesh_data_plane_with_xds_authority
+  required_tests:
+  - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestAttestEnvoyConfig_MissingLDS_CriticalStaticWedge
+  - golang/node_agent/node_agent_server/infra_truth/envoy_test.go::TestAttestEnvoyConfig_ADSClusterUndefined_Critical
+  - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraConfigValid_MissingLDS
+- id: envoy.listeners_active
+  title: A live Envoy with CDS+LDS progress must have at least one active listener — zero active listeners means port 443 is not serving even though LDS was attempted
+  summary: |
+    Once CDS and LDS have both progressed (so it is not the cold-init window and
+    not the LDS wedge), Envoy must have an active listener or it is not actually
+    serving traffic — rejected listener config from xDS leaves total_listeners_active
+    at 0. This is an ERROR-level doctor finding from the per-node admin API,
+    distinct from the LDS wedge (which is lds.update_attempt==0).
+  severity: high
+  status: active
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/infra_truth/envoy_lifecycle.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra.go
+  related_invariants:
+  - envoy.lds_progress_required_for_http_mesh_readiness
+  required_tests:
+  - golang/cluster_doctor/cluster_doctor_server/rules/envoy_infra_test.go::TestEnvoyInfraListenersActive_NoneActive
+- id: gateway.cohosted_grpc_services_must_be_declared
+  title: A process that hosts multiple gRPC services must declare every reachable hosted service
+  severity: high
+  status: active
+  summary: >
+    A runtime process may serve more than one gRPC service on a single port (e.g.
+    ai_memory also serves behavioral_memory.BehavioralMemoryService on the same
+    gRPC server). The gateway/xDS route model only sees declared service names, so
+    every externally reachable hosted service MUST be declared in service-registration
+    metadata (HostedServices). xDS/gateway route generation must emit a route for
+    the registered service Name AND each declared hosted service name, all targeting
+    the same backend cluster unless explicitly overridden. Otherwise the gateway can
+    lie: the backend is healthy on its direct port while the gateway has no route for
+    the undeclared service, so requests fall through to the HTTP catch-all and return
+    HTTP 200 text/html.
+  protects:
+    files:
+    - golang/ai_memory/ai_memory_server/server.go
+  required_tests:
+  - xds_emits_routes_for_hosted_services
+  forbidden_fixes:
+  - clients_must_not_permanently_bypass_gateway_for_cohosted_services
+- id: scylladb.group0_voter_quorum_must_hold
+  title: Scylla group0 voter quorum must be observably held before Scylla is runtime-healthy
+  severity: high
+  status: active
+  summary: >
+    Scylla group0 (the cluster-metadata Raft) can lose voter quorum while CQL
+    stays readable: reads/writes to existing keyspaces still succeed, but schema
+    and topology changes are blocked. A Scylla-backed service must therefore not
+    be treated as runtime-healthy on cql_ready alone — group0 voter quorum must
+    be observably held. The authoritative voter count belongs to the infra-probe
+    truth plane (the controller's scylla_group0_view.go already reads
+    system.raft_group0_members for DDL preflight). ai_watcher's scylla_group0
+    probe (PR-14) DIAGNOSES quorum risk as a DIAGNOSTIC_CLAIM finding that cites
+    the truth-plane ref; until the infra probe exposes a first-class group0 voter
+    count, the watcher's membership math is honest proxy evidence only.
+  protects:
+    files:
+    - golang/ai_watcher/ai_watcher_server/probe_scylla_group0.go
+    - golang/cluster_controller/cluster_controller_server/scylla_group0_view.go
+    - golang/node_agent/node_agent_server/infra_truth/scylla_probe.go
+  related_invariants:
+  - scylla.group0_stale_voter_blocks_schema_mutations
+  - meta.authority_must_express_uncertainty
+  required_tests:
+  - TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
+  forbidden_fixes:
+  - watcher_queries_scylla_directly_or_auto_promotes_probe_finding
+- id: etcd.mutex_key_must_not_prefix_non_lock_keys
+  title: An etcd concurrency.Mutex key must not be a prefix of any non-lock key
+  severity: high
+  status: active
+  summary: >
+    etcd's concurrency.Mutex treats EVERY key under its prefix as a lock
+    contender — it acquires by PUTting <mutexKey>/<lease> and waiting on the
+    lowest-create-revision key with that prefix. If a non-lock key (state,
+    config, data) is nested under the mutex prefix, it is mistaken for an
+    un-releasable lock holder: every Mutex.Lock waits for it forever and times
+    out, deadlocking the critical section it guards. A distributed-lock mutex key
+    must therefore be a LEAF sibling of any related data key, never a prefix of
+    it (e.g. mutex ".../foo/lock" + state ".../foo/state", never mutex ".../foo"
+    + state ".../foo/state"). The behavioral_memory migration shipped the broken
+    layout and every cross-version migration timed out until the state key was
+    cleared.
+  protects:
+    files:
+    - golang/ai_memory/ai_memory_server/behavioral_migration.go
+  related_invariants:
+  - meta.authority_must_express_uncertainty
+  required_tests:
+  - TestBehavioralMigrationMutexKeyNotPrefixOfStateKey
+  forbidden_fixes:
+  - nest_a_data_key_under_an_etcd_mutex_prefix
+- id: scylla.added_column_requires_backfill_alter_for_upgrades
+  title: A column added to a CREATE TABLE must ship a matching backfill ALTER for upgrades
+  severity: high
+  status: active
+  summary: >
+    CREATE TABLE IF NOT EXISTS is a no-op on a table that already exists, so a
+    column added only to a CREATE statement reaches fresh installs but NEVER
+    existing deployments. Any schema change that adds a column MUST also ship an
+    idempotent ALTER TABLE ADD (tolerating "column already exists") and bump the
+    schema version so the migration re-applies on already-migrated clusters.
+    Otherwise upgraded clusters silently lack the column and writes fail with
+    "Unknown identifier <col>". The behavioral_memory PR-9 columns
+    (cluster_id/condition_ref/severity/authority_level on signals/evidence)
+    shipped only in CREATE TABLE, so pre-PR-9 clusters lost all behavioral writes.
+  protects:
+    files:
+    - golang/ai_memory/ai_memory_server/behavioral_schema.go
+    - golang/ai_memory/ai_memory_server/behavioral_migration.go
+  related_invariants:
+  - meta.failure_response_must_contract_not_amplify
+  required_tests:
+  - TestBehavioralSchemaPR9ColumnsHaveBackfillAlter
+  forbidden_fixes:
+  - add_column_only_to_create_table_without_backfill_alter
+- id: cluster_doctor.degraded_mode_must_not_depend_on_diagnosed_path
+  title: cluster-doctor must cross-check the direct backend before declaring a service down
+  severity: high
+  status: active
+  summary: >
+    A cluster-doctor that can only reach services through the same gateway it is
+    diagnosing is useless exactly when it is needed. When a service is
+    unreachable via the Envoy gateway, the doctor must cross-check the direct
+    backend port before concluding the service is down. A gateway route that
+    answers a non-gRPC content-type (text/html) while the backend is healthy is a
+    BROKEN ROUTE, not a down service — the correct verdict is "route/filter-chain
+    suspected", not "service down". Degraded-mode checks must not depend solely on
+    the path they diagnose, and a cross-check that cannot be completed is
+    INVARIANT_UNKNOWN / CHECK_ERROR, never a confident FAIL.
+  protects:
+    files:
+    - golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence.go
+    - golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence.go
+  related_invariants:
+  - meta.authority_must_express_uncertainty
+  required_tests:
+  - TestGatewayBackendDivergence_RouteBrokenBackendHealthy
+  forbidden_fixes:
+  - doctor_reports_service_down_from_gateway_path_alone

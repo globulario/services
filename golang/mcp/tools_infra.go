@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -13,19 +14,19 @@ import (
 
 // registerInfraTools registers the infrastructure truth-plane MCP tools. They are
 // read-only (enforces awareness.mcp_bridge_exposes_safe_tools_only) and consume
-// the node-agent GetInfraProbe RPC. Phase 1 covers ScyllaDB. infra_explain_stall
+// the node-agent GetInfraProbe RPC. Covers ScyllaDB, etcd, MinIO, and Envoy. infra_explain_stall
 // is the operator-facing causal tool — it does NOT just dump the probe; it
 // answers "why is this stuck and what is the safe next step".
 func registerInfraTools(s *server) {
 	// ── infra_probe_component ────────────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "infra_probe_component",
-		Description: "Probe one infrastructure component's truth plane (Phase 1: scylladb): desired state, rendered/attested config, native-API runtime truth, lifecycle FSM state, and violations. Read-only.",
+		Description: "Probe one infrastructure component's truth plane (scylladb, etcd, minio, envoy): desired state, rendered/attested config, native-API runtime truth, lifecycle FSM state, and violations. Read-only.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
 				"node_id":      {Type: "string", Description: "Target node ID. Omit for the local node."},
-				"component":    {Type: "string", Description: "Component to probe.", Enum: []string{"scylladb"}, Default: "scylladb"},
+				"component":    {Type: "string", Description: "Component to probe.", Enum: []string{"scylladb", "etcd", "minio", "envoy"}, Default: "scylladb"},
 				"bypass_cache": {Type: "boolean", Description: "Force a fresh probe instead of serving the node's probe cache.", Default: false},
 			},
 		},
@@ -44,7 +45,7 @@ func registerInfraTools(s *server) {
 	// ── infra_probe_all ──────────────────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "infra_probe_all",
-		Description: "Probe every infrastructure component's truth plane on a node (Phase 1: scylladb only). Read-only.",
+		Description: "Probe every infrastructure component's truth plane on a node (scylladb, etcd, minio, envoy). Read-only.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -72,7 +73,7 @@ func registerInfraTools(s *server) {
 			Type: "object",
 			Properties: map[string]propSchema{
 				"node_id":   {Type: "string", Description: "Target node ID. Omit for the local node."},
-				"component": {Type: "string", Description: "Component to explain.", Enum: []string{"scylladb"}, Default: "scylladb"},
+				"component": {Type: "string", Description: "Component to explain.", Enum: []string{"scylladb", "etcd", "minio", "envoy"}, Default: "scylladb"},
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
@@ -91,12 +92,12 @@ func registerInfraTools(s *server) {
 	// ── infra_diff ───────────────────────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "infra_diff",
-		Description: "Show the desired vs rendered vs runtime truth for an infrastructure component side by side (Phase 1: scylladb), highlighting fields that disagree. Read-only.",
+		Description: "Show the desired vs rendered vs runtime truth for an infrastructure component side by side (scylladb, etcd, minio, envoy), highlighting fields that disagree. Read-only.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
 				"node_id":   {Type: "string", Description: "Target node ID. Omit for the local node."},
-				"component": {Type: "string", Description: "Component to diff.", Enum: []string{"scylladb"}, Default: "scylladb"},
+				"component": {Type: "string", Description: "Component to diff.", Enum: []string{"scylladb", "etcd", "minio", "envoy"}, Default: "scylladb"},
 			},
 		},
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
@@ -243,10 +244,25 @@ func explainInfraStall(nodeID string, r *cluster_controllerpb.InfraProbeResult) 
 		"recommended_repair_target": repairTarget,
 		"safe_next_commands": []string{
 			fmt.Sprintf("infra_diff(node_id=%q, component=%q)", nodeID, r.GetComponent()),
-			fmt.Sprintf("nodeagent_get_service_logs(node_id=%q, unit=\"scylla-server\")", nodeID),
+			fmt.Sprintf("nodeagent_get_service_logs(node_id=%q, unit=%q)", nodeID, infraLogUnit(r.GetComponent())),
 			"cluster_get_doctor_report(freshness=\"fresh\")",
 		},
 		"note": "Repair the config OWNER, never hand-edit the rendered config file — a render overwrites it.",
+	}
+}
+
+// infraLogUnit maps a component to the systemd unit whose logs an operator would
+// read when diagnosing it.
+func infraLogUnit(component string) string {
+	switch component {
+	case "etcd":
+		return "globular-etcd"
+	case "minio":
+		return "globular-minio"
+	case "envoy":
+		return "globular-envoy"
+	default:
+		return "scylla-server"
 	}
 }
 
@@ -259,12 +275,14 @@ func repairTargetFromViolation(v *cluster_controllerpb.InfraViolation) string {
 
 // lastSuccessfulStage infers the furthest stage the component actually reached,
 // from the runtime booleans — independent of the (possibly stalled) FSM state.
+// The runtime key names differ per component (Scylla: cql_ready/rest_api_ready;
+// etcd: local_reachable), so this checks the union.
 func lastSuccessfulStage(r *cluster_controllerpb.InfraProbeResult) string {
 	rt := r.GetRuntime()
 	switch {
-	case rt["cql_ready"] == "true":
+	case rt["cql_ready"] == "true" || rt["write_quorum"] == "true" || rt["active_listeners"] != "" && rt["active_listeners"] != "0":
 		return "cql_ready"
-	case rt["rest_api_ready"] == "true":
+	case rt["rest_api_ready"] == "true" || rt["local_reachable"] == "true" || rt["live"] == "true" || rt["admin_reachable"] == "true":
 		return "local_api_ready"
 	case r.GetDaemonActive():
 		return "daemon_starting"
@@ -280,16 +298,39 @@ func lastSuccessfulStage(r *cluster_controllerpb.InfraProbeResult) string {
 }
 
 // infraDiff lays desired/rendered/runtime side by side and flags disagreements
-// on the key cluster-facing fields.
+// on the key cluster-facing fields. The comparable fields differ per component:
+// Scylla compares cluster_name/listen_address/seeds; etcd compares the cluster
+// token and the advertised client host.
 func infraDiff(r *cluster_controllerpb.InfraProbeResult) map[string]interface{} {
 	desired, rendered, runtime := r.GetDesired(), r.GetRendered(), r.GetRuntime()
 
 	// Compare the fields where desired and rendered share a meaning.
 	type row struct{ field, desired, rendered string }
-	checks := []row{
-		{"cluster_name", desired["cluster_name"], rendered["cluster_name"]},
-		{"listen_address", firstCSV(desired["expected_listen"]), rendered["listen_address"]},
-		{"seeds", desired["expected_seeds"], rendered["seeds"]},
+	var checks []row
+	switch r.GetComponent() {
+	case "etcd":
+		checks = []row{
+			{"cluster_token", desired["cluster_name"], rendered["initial_cluster_token"]},
+			{"listen_address", firstCSV(desired["expected_listen"]), hostOfFirstURL(rendered["advertise_client_urls"])},
+		}
+	case "minio":
+		checks = []row{
+			{"mode", desired["mode"], rendered["mode"]},
+			{"volume_count", desired["expected_volume_count"], rendered["volume_count"]},
+		}
+	case "envoy":
+		// Envoy is per-node: the meaningful comparison is the node id and whether
+		// the ADS cluster the bootstrap targets matches the expected name.
+		checks = []row{
+			{"node_id", desired["node_id"], rendered["node_id"]},
+			{"ads_cluster", desired["cluster_name"], rendered["ads_cluster"]},
+		}
+	default:
+		checks = []row{
+			{"cluster_name", desired["cluster_name"], rendered["cluster_name"]},
+			{"listen_address", firstCSV(desired["expected_listen"]), rendered["listen_address"]},
+			{"seeds", desired["expected_seeds"], rendered["seeds"]},
+		}
 	}
 	var mismatches []map[string]string
 	for _, c := range checks {
@@ -314,6 +355,17 @@ func firstCSV(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// hostOfFirstURL returns the bare host of the first URL in a comma-separated
+// list like "https://10.0.0.63:2379,https://...". Used to compare an etcd
+// advertised client URL against the desired listen address.
+func hostOfFirstURL(s string) string {
+	first := firstCSV(s)
+	if u, err := url.Parse(strings.TrimSpace(first)); err == nil && u.Hostname() != "" {
+		return u.Hostname()
+	}
+	return strings.TrimSpace(first)
 }
 
 func sortedKeys(maps ...map[string]string) []string {

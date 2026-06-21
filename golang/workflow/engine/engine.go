@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -321,9 +322,9 @@ type Run struct {
 	Status     RunStatus
 	Inputs     map[string]any
 	Outputs    map[string]any // accumulated exports; write under outputMu
-	outputMu   sync.Mutex    // guards concurrent writes to Outputs from parallel steps
+	outputMu   sync.Mutex     // guards concurrent writes to Outputs from parallel steps
 	Steps      map[string]*StepState
-	stepsMu    sync.RWMutex  // guards concurrent reads/writes to Steps from parallel steps
+	stepsMu    sync.RWMutex // guards concurrent reads/writes to Steps from parallel steps
 	StartedAt  time.Time
 	FinishedAt time.Time
 	Error      string
@@ -376,12 +377,13 @@ type ControlPlaneEventEmitter interface {
 // Engine executes compiled workflows to completion.
 type Engine struct {
 	Router       *Router
-	RunID        string                           // if set, overrides the auto-generated run ID (allows caller to match callbacks)
+	RunID        string // if set, overrides the auto-generated run ID (allows caller to match callbacks)
 	EvalCond     ConditionFunc
 	OnStepDone   func(run *Run, step *StepState) // optional callback for observability
-	PreCompleted map[string]StepStatus            // steps already completed (for resume after crash)
-	IsResume     bool                             // true when re-executing after orphan claim (enables resume policies)
-	Events       ControlPlaneEventEmitter          // optional: emit workflow.* events for AI observability
+	PreCompleted map[string]StepStatus           // steps already completed (for resume after crash)
+	PreOutputs   map[string]any                  // persisted outputs/receipts hydrated before execution
+	IsResume     bool                            // true when re-executing after orphan claim (enables resume policies)
+	Events       ControlPlaneEventEmitter        // optional: emit workflow.* events for AI observability
 }
 
 // Execute compiles a v1alpha1 definition and executes it. This is the
@@ -440,6 +442,9 @@ func (e *Engine) ExecuteCompiled(ctx context.Context, cw *compiler.CompiledWorkf
 		Outputs:    make(map[string]any),
 		Steps:      make(map[string]*StepState, len(cw.Steps)),
 		StartedAt:  time.Now(),
+	}
+	for k, v := range e.PreOutputs {
+		run.Outputs[k] = v
 	}
 	for id := range cw.Steps {
 		run.Steps[id] = &StepState{ID: id, Status: StepPending}
@@ -856,18 +861,84 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 	st := run.Steps[step.ID]
 	run.stepsMu.RUnlock()
 
-	// Resolve collection from inputs/outputs.
+	// Snapshot outputs once under lock for every read below — the when guard
+	// AND the foreach-collection resolution. Reading run.Outputs unlocked
+	// races parallel step writers (failure_mode:workflow.run_outputs_data_race;
+	// meta.competing_writers_must_converge_or_be_fenced). The non-foreach
+	// dispatch path in executeStep already snapshots this way.
+	run.outputMu.Lock()
+	outputSnap := make(map[string]any, len(run.Outputs))
+	for k, v := range run.Outputs {
+		outputSnap[k] = v
+	}
+	run.outputMu.Unlock()
+
+	// Evaluate the when guard BEFORE resolving the collection. A step gated
+	// off by `when: false` must skip without ever touching its foreach: the
+	// guard is an explicit "do not run" decision, not a silent drop, so it
+	// does NOT violate meta.silence_is_not_valid_for_unexpected. This mirrors
+	// the non-foreach path (executeStep evaluates when before the body) and
+	// stops an unresolved/nil collection from FAILING a step the author
+	// deliberately gated off — e.g. dispatch_remediations, guarded by
+	// `len(remediation_items) > 0`, when classify_drift produced none (the
+	// empty result serializes to JSON null across the actor boundary, so the
+	// collection arrives as nil rather than as an empty list).
+	if step.When != nil {
+		ok, err := e.evalCondition(ctx, step.When, run.Inputs, outputSnap)
+		if err != nil {
+			st.Status = StepFailed
+			st.Error = fmt.Sprintf("condition eval: %v", err)
+			e.notifyStep(run, st)
+			return nil
+		}
+		if !ok {
+			st.Status = StepSkipped
+			log.Printf("workflow: step %s skipped (condition not met)", step.ID)
+			e.notifyStep(run, st)
+			return nil
+		}
+	}
+
+	// Resolve collection from inputs/outputs. The when guard is already
+	// satisfied (or absent), so the step IS supposed to run — the three cases
+	// must NOT be collapsed into one silent SKIP
+	// (meta.silence_is_not_valid_for_unexpected):
+	//   - resolves to a list (any slice kind) -> iterate; may be legitimately empty
+	//   - resolves to nil / unresolved        -> FAIL: a prior step never exported it
+	//   - resolves to a non-collection scalar  -> FAIL: misconfiguration
+	// Treating "collection did not resolve" as "zero items" silently skips
+	// real fan-out work (install-on-every-node, verify-each-member) while the
+	// run still reports SUCCEEDED.
 	var items []any
-	if step.Foreach.IsExpr {
-		raw := resolveValue(step.Foreach.Raw, run.Inputs, run.Outputs)
-		if list, ok := raw.([]any); ok {
+	resolved := true // no foreach reference at all -> nothing to resolve, legit no-op
+	if step.Foreach.Raw != "" {
+		raw := resolveValue(step.Foreach.Raw, run.Inputs, outputSnap)
+		switch list := raw.(type) {
+		case []any:
 			items = list
+		case nil:
+			resolved = false
+		default:
+			// A concrete non-[]any slice ([]string, []map, ...) is a real
+			// collection — coerce it rather than dropping it. A non-slice
+			// scalar is a misconfiguration.
+			if rv := reflect.ValueOf(raw); rv.Kind() == reflect.Slice {
+				items = make([]any, rv.Len())
+				for i := 0; i < rv.Len(); i++ {
+					items[i] = rv.Index(i).Interface()
+				}
+			} else {
+				resolved = false
+			}
 		}
-	} else if step.Foreach.Raw != "" {
-		raw := resolveValue(step.Foreach.Raw, run.Inputs, run.Outputs)
-		if list, ok := raw.([]any); ok {
-			items = list
-		}
+	}
+
+	if !resolved {
+		st.Status = StepFailed
+		st.Error = fmt.Sprintf("foreach collection %q did not resolve to a list", step.Foreach.Raw)
+		log.Printf("workflow: step %s FAILED (foreach collection %q did not resolve to a list)", step.ID, step.Foreach.Raw)
+		e.notifyStep(run, st)
+		return fmt.Errorf("step %s: foreach collection %q did not resolve to a list", step.ID, step.Foreach.Raw)
 	}
 
 	if len(items) == 0 {
@@ -875,21 +946,6 @@ func (e *Engine) executeForeach(ctx context.Context, run *Run, step *compiler.Co
 		log.Printf("workflow: step %s skipped (foreach collection empty)", step.ID)
 		e.notifyStep(run, st)
 		return nil
-	}
-
-	// Evaluate when condition once before iterating.
-	if step.When != nil {
-		ok, err := e.evalCondition(ctx, step.When, run.Inputs, run.Outputs)
-		if err != nil {
-			st.Status = StepFailed
-			st.Error = fmt.Sprintf("condition eval: %v", err)
-			return nil
-		}
-		if !ok {
-			st.Status = StepSkipped
-			e.notifyStep(run, st)
-			return nil
-		}
 	}
 
 	// Nested sub-steps: execute a sub-DAG per item.

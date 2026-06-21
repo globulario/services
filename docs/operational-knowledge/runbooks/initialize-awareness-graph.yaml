@@ -3,12 +3,12 @@ file_kind: runbook
 metadata:
   title: "Runbook — Initialize or rebuild the awareness graph"
   description: |
-    The awareness-graph server connects to Oxigraph (localhost:7878) on startup but does NOT
-    seed the triple store automatically. After a fresh install, an Oxigraph restart, or when the
-    YAML sources change, the store must be populated manually. The canonical command is
-    `scripts/build-awareness-graph.sh` in the awareness-graph repo — it runs the annotation
-    scanner across all 33 Go services, converts all YAML sources to N-Triples, updates
-    embeddata/awareness.nt, then a single curl PUT loads Oxigraph.
+    AWG is a standalone sidecar: `awg serve` runs the gRPC server plus a managed Oxigraph
+    store. On an empty store it auto-loads the embedded seed (unless `--no-seed`). When the
+    YAML sources change you rebuild the graph. The one-shot modern command is `awg rebuild`
+    (scan -> N-Triples -> validate -> update embeddata -> reload Oxigraph). The lower-level
+    pipeline `scripts/build-awareness-graph.sh` does the same scan/convert/embeddata-update
+    and is still used in CI; a curl PUT then loads Oxigraph.
   source_documents:
     - docs/awareness/
     - docs/intent/
@@ -24,44 +24,42 @@ entries:
       cluster_phases: [day-0, day-1, day-2]
       services_present: []
     content: |
-      The awareness-graph server (`globular-awareness-graph.service`) connects to an external
-      Oxigraph SPARQL store (http://localhost:7878) but does NOT seed it on startup. The store
-      is empty after any fresh Oxigraph start. The embedded file
-      `awareness-graph/golang/server/embeddata/awareness.nt` is the canonical fallback but it
-      also must be PUT into Oxigraph explicitly.
+      The AWG sidecar (`awg serve`) runs the gRPC server and a managed Oxigraph store
+      (http://localhost:7878). On an empty store it auto-loads the embedded seed
+      (`awareness-graph/golang/server/embeddata/awareness.nt`) unless started with `--no-seed`.
+      After YAML/annotation changes you rebuild the graph so the live store reflects them.
 
       **Trigger this runbook when:**
-      - `awareness briefing` returns `status: degraded` or `error: file is required` for
-        valid files
-      - SPARQL triple count is 0: `curl -s "http://localhost:7878/query" -H "Accept:
-        application/sparql-results+json" --data-urlencode "query=SELECT (COUNT(*) as ?n)
-        WHERE { ?s ?p ?o }"` returns `"value":"0"`
-      - `docs/awareness/*.yaml` or `docs/intent/**/*.yaml` source files were updated and the
-        graph needs to reflect the changes
+      - `awg metadata` shows `coverage_state=EMPTY` (or `triple_count` 0), or briefings return
+        `DEGRADED`
+      - `awg metadata` shows `seed_state=STALE`
+      - `docs/awareness/*.yaml` or `docs/intent/**/*.yaml` were updated and the graph needs to
+        reflect the changes
 
-      **Key invariant:** `briefing(task=...)` is NOT supported — the server requires
-      `briefing(file=<repo-relative-path>)`. Passing a task string returns
-      `InvalidArgument: file is required`. Always use a file path.
+      **Note:** both `briefing(file=<repo-relative-path>)` and `briefing(task=<description>)`
+      are supported (file XOR task). File-anchored briefings return direct invariants;
+      task-only briefings rely on keyword matching + implementation patterns.
 
       **Repos involved:**
       - `services/` — YAML sources: `docs/awareness/`, `docs/intent/`
-      - `awareness-graph/` — yaml2nt converter, embeddata, server
+      - `awareness-graph/` — `awg` CLI, yaml2nt converter, embeddata, server
 
     procedure:
       - phase: observe
-        description: "Verify the store is actually empty"
+        description: "Check coverage/freshness and that the sidecar is up"
         commands:
-          - cmd: |
-              curl -s "http://localhost:7878/query" \
-                -H "Accept: application/sparql-results+json" \
-                --data-urlencode "query=SELECT (COUNT(*) as ?n) WHERE { ?s ?p ?o }"
-            expect: "\"value\":\"0\" means empty — proceed. Non-zero means already loaded."
-          - cmd: "systemctl is-active globular-awareness-graph"
-            expect: "active — if inactive, start it first"
+          - cmd: "awg metadata"
+            expect: "coverage_state=EMPTY (or low triple_count) means rebuild; seed_state=STALE means reload."
+          - cmd: "awg serve &   # start the sidecar if it is not already running"
+            expect: "server listening on :10120; Oxigraph ready on :7878"
 
       - phase: build-and-convert
         description: "Run the canonical pipeline — annotation scanner + yaml2nt + embeddata update (all-in-one)"
         note: |
+          One-shot alternative: `awg rebuild` runs scan -> N-Triples -> validate -> update
+          embeddata -> reload Oxigraph in a single command (use `--check` in CI to diff only).
+          The explicit pipeline below is the lower-level equivalent.
+
           `build-awareness-graph.sh` handles everything: builds both tools from source,
           runs the annotation scanner against all 33 Go services (extracts @awareness
           annotations → code_symbols + code_edges YAML), converts all YAML sources +
@@ -97,20 +95,22 @@ entries:
         description: "Confirm briefing works against a known high-risk file"
         commands:
           - cmd: |
-              globular awareness briefing \
-                --file golang/node_agent/node_agent_server/server.go
+              awg briefing --file golang/node_agent/node_agent_server/server.go
             expect: "status: ok, prose contains at least one intent or invariant"
+          - cmd: "awg seed-status --require-current"
+            expect: "live store contains the current embedded seed marker (exit 0)"
 
     success_criteria:
-      - "Triple count > 13 000 (unique after Oxigraph dedup)"
-      - "`globular awareness briefing --file golang/node_agent/node_agent_server/server.go` returns status: ok"
-      - "embeddata/awareness.nt updated (build-awareness-graph.sh writes it automatically)"
+      - "`awg metadata` reports coverage_state=SUFFICIENT and seed_state=CURRENT (triple count typically 13 000+ unique after Oxigraph dedup)"
+      - "`awg briefing --file golang/node_agent/node_agent_server/server.go` returns status: ok"
+      - "embeddata/awareness.nt updated (awg rebuild / build-awareness-graph.sh writes it automatically)"
 
     important:
-      - "briefing(task=...) is NOT supported — use briefing(file=<path>) only"
-      - "The Oxigraph PUT replaces the entire default graph — no partial merges needed"
-      - "build-awareness-graph.sh also accepts --check to diff committed vs fresh without writing"
-      - "Commit the updated embeddata/awareness.nt and docs/awareness/generated/*.yaml to the awareness-graph and services repos so the next install ships fresh data"
+      - "Both briefing(file=<path>) and briefing(task=<description>) are supported (file XOR task)"
+      - "`awg rebuild` is the modern one-shot; the explicit pipeline is the lower-level equivalent"
+      - "A raw Oxigraph PUT replaces the entire default graph; a POST appends (DELETE first for a clean refresh)"
+      - "build-awareness-graph.sh / awg rebuild accept --check to diff committed vs fresh without writing"
+      - "Commit the updated embeddata/awareness.nt and docs/awareness/generated/*.yaml so the next checkout ships fresh data"
 
     provenance:
       source: seed

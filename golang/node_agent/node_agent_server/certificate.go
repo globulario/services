@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"context"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -11,8 +11,8 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/user"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -409,6 +409,14 @@ func (srv *NodeAgentServer) pollCertGeneration(ctx context.Context) {
 			}
 			if err := checkFn(c, spec); err != nil {
 				return err
+			}
+			// The supplemental checks gate Envoy on `systemctl is-active`, which is
+			// blind to an LDS wedge (active, but no listeners — port 443 unbound).
+			// Fail convergence on a STALLED data plane so a wedged mesh never passes
+			// post-cert-restart validation. STALLED-only — no false-negative while
+			// Envoy is still warming up.
+			if srv.envoyDataPlaneStalled() {
+				return fmt.Errorf("envoy data plane is STALLED (LDS wedge / invalid bootstrap) — active but not serving traffic")
 			}
 			log.Printf("cert watcher: convergence checks passed")
 			return nil

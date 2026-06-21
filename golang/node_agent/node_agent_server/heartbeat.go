@@ -34,6 +34,7 @@ import (
 	"github.com/globulario/services/golang/binhash"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/digest"
 	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -974,7 +975,7 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			}
 		}
 		assignEntrypointChecksumMetadata(pkg,
-			normalizeSHA256Digest(m.GetEntrypointChecksum()),
+			digest.CanonicalSHA256(m.GetEntrypointChecksum()),
 			diskEntry,
 		)
 		// Non-install writer: preserve canonical install-receipt fields
@@ -999,15 +1000,10 @@ func runtimeChecksumFromManifest(m *repositorypb.ArtifactManifest) string {
 	if m == nil {
 		return ""
 	}
-	if ep := normalizeSHA256Digest(m.GetEntrypointChecksum()); ep != "" {
+	if ep := digest.CanonicalSHA256(m.GetEntrypointChecksum()); ep != "" {
 		return ep
 	}
-	return normalizeSHA256Digest(m.GetChecksum())
-}
-
-func normalizeSHA256Digest(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	return strings.TrimPrefix(s, "sha256:")
+	return digest.CanonicalSHA256(m.GetChecksum())
 }
 
 // commandBinaryExists checks whether a COMMAND package's binary is installed

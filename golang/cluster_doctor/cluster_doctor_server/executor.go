@@ -324,6 +324,12 @@ func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 		audit.CorrelationID = audit.AuditID
 	}
 	audit = audit.Redacted()
+	// Record the (redacted) audit in the in-process ring that powers the
+	// cross-attempt failure-rate gate. The etcd writer below is a no-op
+	// (observer-only), so without this the gate has no live data source and
+	// never trips. (meta.write_creates_completion_obligation — the gate's
+	// read obligation needs a writer that actually fills its source.)
+	remediationAudits.push(audit)
 	auditEtcdPersistFn(ctx, audit)
 	return audit.AuditID
 }

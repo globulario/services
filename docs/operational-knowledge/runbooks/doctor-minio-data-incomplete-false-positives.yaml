@@ -117,10 +117,7 @@ entries:
         TestUnapprovedPath_DataComplete_EmptyAdmitted_Fires
     links:
       awareness_invariants:
-        - objectstore.minio.write_quorum_lost
-        - objectstore.minio.fingerprint_divergence
-        - objectstore.minio.post_apply_health
-        - objectstore.minio.unapproved_path
+        - minio.write_quorum
       cli_commands:
         - "globular cluster doctor --category objectstore"
         - "mc admin info local"

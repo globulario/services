@@ -20,7 +20,7 @@ import (
 type AnthropicConfig struct {
 	APIKey          string `json:"ApiKey"`          // Anthropic API key (sk-ant-api...) — standalone billing
 	CredentialsFile string `json:"CredentialsFile"` // Path to Claude Code credentials (uses Max subscription)
-	Model           string `json:"Model"`           // Model ID (default: claude-sonnet-4-20250514)
+	Model           string `json:"Model"`           // Model ID (default: claude-sonnet-4-6)
 	MaxTokens       int    `json:"MaxTokens"`       // Max response tokens (default: 4096)
 	BaseURL         string `json:"BaseURL"`         // API base URL (default: https://api.anthropic.com)
 	SystemPrompt    string `json:"SystemPrompt"`    // Override system prompt (optional)
@@ -54,7 +54,7 @@ type anthropicClient struct {
 // Returns nil if no auth method is available.
 func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 	if cfg.Model == "" {
-		cfg.Model = "claude-sonnet-4-20250514"
+		cfg.Model = "claude-sonnet-4-6"
 	}
 	if cfg.MaxTokens == 0 {
 		cfg.MaxTokens = 4096
@@ -120,10 +120,17 @@ func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 	return nil
 }
 
-// findCredentialsFile returns the path to the Claude Code credentials file.
-// Searches the service user's home, then scans /home/* for any user who has
-// logged into Claude Code — so the ai_executor auto-discovers credentials
-// even when running as the globular system user.
+// findCredentialsFile returns the path to an *explicitly provisioned* Claude
+// Code credentials file: the configured path, or the service user's own home.
+//
+// It deliberately does NOT scan /home/* for other users' logins. That scan used
+// to harvest a developer's personal Claude Max subscription token, copy it into
+// cluster etcd (replicated to every node), and spend it on every incident — an
+// unbounded, silent drain of a personal account plus a credential-exposure. AI
+// diagnosis is now opt-in: an operator places a dedicated, separately-billed
+// credential at the service-user path or sets Anthropic.ApiKey in config. With
+// neither, the client is unavailable and the diagnoser uses deterministic
+// analysis — AI is supplementary, never required.
 func findCredentialsFile(configured string) string {
 	if configured != "" {
 		if _, err := os.Stat(configured); err == nil {
@@ -131,27 +138,13 @@ func findCredentialsFile(configured string) string {
 		}
 	}
 
-	// 1. Check the service user's own home.
+	// The service user's own home — an operator-provisioned credential, not a
+	// harvested personal login.
 	home, _ := os.UserHomeDir()
 	if home != "" {
 		path := filepath.Join(home, ".claude", ".credentials.json")
 		if _, err := os.Stat(path); err == nil {
 			return path
-		}
-	}
-
-	// 2. Scan /home/* for any user with Claude Code credentials.
-	entries, err := os.ReadDir("/home")
-	if err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			path := filepath.Join("/home", entry.Name(), ".claude", ".credentials.json")
-			if _, err := os.Stat(path); err == nil {
-				logger.Info("anthropic: found Claude Code credentials", "path", path)
-				return path
-			}
 		}
 	}
 

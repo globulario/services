@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/globulario/services/golang/digest"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -245,7 +246,7 @@ func shortDigest(d string) string {
 // digestsMatch returns true if two digest strings represent the same content.
 // Handles both bare hex and "sha256:"-prefixed forms.
 func digestsMatch(a, b string) bool {
-	return normalizeDigest(a) == normalizeDigest(b)
+	return digest.CanonicalSHA256(a) == digest.CanonicalSHA256(b)
 }
 
 // getPublishedDigest returns the checksum for an exact (publisher, name, version,

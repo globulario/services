@@ -140,8 +140,8 @@ entries:
             expect: "pool healthy, all drives Ok"
           - cmd: "globular doctor --output json | jq '.findings[] | select(.severity == \"SEVERITY_ERROR\")'"
             expect: "empty (no ERROR findings) — WARNs OK while reconcilers catch up"
-          - cmd: "globular awareness preflight --task 'post-restore validation' --format agent"
-            expect: "no FAIL invariants on the disaster-recovery scope"
+          - cmd: "awg preflight --task 'post-restore validation' --json   # optional: AWG is a standalone sidecar (not on the node) — run from your workstation if available"
+            expect: "risk_class + action lists for the disaster-recovery scope (no high-risk surprises)"
 
     related_ids:
       - ops.day-0.cluster.what-exists

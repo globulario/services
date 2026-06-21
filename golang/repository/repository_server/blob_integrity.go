@@ -24,8 +24,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"strings"
 
+	"github.com/globulario/services/golang/digest"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
@@ -115,27 +115,18 @@ func checksumLocalFile(path string) (string, error) {
 // Both "sha256:abc123" and "abc123" are treated as equivalent.
 // Empty digests never match (returns false).
 func digestEqual(a, b string) bool {
-	a = normalizeDigest(a)
-	b = normalizeDigest(b)
+	a = digest.CanonicalSHA256(a)
+	b = digest.CanonicalSHA256(b)
 	if a == "" || b == "" {
 		return false
 	}
 	return a == b
 }
 
-// normalizeDigest strips the "sha256:" prefix, trims whitespace, and lowercases.
-// Returns "" for empty input.
-func normalizeDigest(d string) string {
-	d = strings.TrimSpace(d)
-	d = strings.ToLower(d)
-	d = strings.TrimPrefix(d, "sha256:")
-	return d
-}
-
 // canonicalDigest returns the digest in canonical "sha256:<hex>" form.
 // Returns "" for empty input.
 func canonicalDigest(d string) string {
-	n := normalizeDigest(d)
+	n := digest.CanonicalSHA256(d)
 	if n == "" {
 		return ""
 	}

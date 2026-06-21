@@ -42,6 +42,49 @@ func runtimeTLSPaths() (tlsDir, fullchain, privkey, ca string) {
 	return config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
 }
 
+func hostIsLoopbackOrUnspecified(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return true
+	}
+	switch strings.ToLower(host) {
+	case "localhost", "0.0.0.0", "::":
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsUnspecified()
+}
+
+func configureEtcdNodeURLs(nodeCfg map[string]interface{}, name, dataDir, scheme, listenAddress, advertiseHost string) error {
+	listenAddress = strings.TrimSpace(listenAddress)
+	advertiseHost = strings.TrimSpace(advertiseHost)
+	if hostIsLoopbackOrUnspecified(listenAddress) {
+		return fmt.Errorf("etcd listen address must be a concrete routable address, got %q", listenAddress)
+	}
+	if hostIsLoopbackOrUnspecified(advertiseHost) {
+		return fmt.Errorf("etcd advertised host must be routable, got %q", advertiseHost)
+	}
+
+	const clientPort = "2379"
+	const peerPort = "2380"
+	listenClientURL := scheme + "://" + net.JoinHostPort(listenAddress, clientPort)
+	listenPeerURL := scheme + "://" + net.JoinHostPort(listenAddress, peerPort)
+	advertiseClientURL := scheme + "://" + net.JoinHostPort(advertiseHost, clientPort)
+	advertisePeerURL := scheme + "://" + net.JoinHostPort(advertiseHost, peerPort)
+
+	nodeCfg["name"] = name
+	nodeCfg["data-dir"] = dataDir
+	nodeCfg["listen-client-urls"] = listenClientURL
+	nodeCfg["listen-peer-urls"] = listenPeerURL
+	nodeCfg["advertise-client-urls"] = advertiseClientURL
+	nodeCfg["initial-advertise-peer-urls"] = advertisePeerURL
+	nodeCfg["initial-cluster-token"] = config.EtcdClusterToken
+	return nil
+}
+
 //
 // =====================================================================================
 // Prometheus metrics
@@ -1342,7 +1385,21 @@ func StartEtcdServer() error {
 	// Ports / addresses
 	const clientPort = "2379"
 	const peerPort = "2380"
-	listenAddress := config.GetLocalIP()
+	// config.GetLocalIP is deprecated in favor of GetRoutableIP (which returns an
+	// error instead of a loopback fallback). NOT migrated in a lint cleanup: this
+	// site deliberately relies on getting a value back and then explicitly handles
+	// the loopback/unspecified case on the next line, so swapping to the
+	// error-returning API is a real behavior change, not a rename. Future migration:
+	// adopt GetRoutableIP's (ip, error) result and fold the loopback handling in.
+	listenAddress := strings.TrimSpace(config.GetLocalIP()) //nolint:staticcheck // see note above
+	if hostIsLoopbackOrUnspecified(listenAddress) {
+		if routable := strings.TrimSpace(config.GetRoutableIPv4()); !hostIsLoopbackOrUnspecified(routable) {
+			slog.Warn("etcd listen address was not routable; using detected routable IPv4 instead", "listen_address", listenAddress, "routable", routable)
+			listenAddress = routable
+		} else {
+			return fmt.Errorf("cannot determine routable listen address for etcd (local=%q fallback=%q)", listenAddress, routable)
+		}
+	}
 	clientHP := net.JoinHostPort(listenAddress, clientPort)
 	peerHP := net.JoinHostPort(listenAddress, peerPort)
 
@@ -1485,27 +1542,12 @@ func StartEtcdServer() error {
 	}
 
 	// Finalize URLs with the scheme we’re actually using
-	listenClientURLs := scheme + "://" + clientHP
-	listenPeerURLs := scheme + "://" + peerHP
 	advClientURL := scheme + "://" + advertiseClientURLs
 	advPeerURL := scheme + "://" + initialAdvertisePeerURLs
 
-	// ===================== Core node config (FIX) =====================
-	nodeCfg["name"] = name
-	nodeCfg["data-dir"] = dataDir
-
-	if wantTLS {
-		// Serve TLS on all interfaces (0.0.0.0 covers both LAN and loopback)
-		nodeCfg["listen-client-urls"] = listenClientURLs + "," + ("https://0.0.0.0:" + clientPort)
-	} else {
-		// In insecure mode, listen on all interfaces
-		nodeCfg["listen-client-urls"] = "http://0.0.0.0:" + clientPort + "," + listenClientURLs
+	if err := configureEtcdNodeURLs(nodeCfg, name, dataDir, scheme, listenAddress, advHost); err != nil {
+		return err
 	}
-	// ================================================================
-
-	nodeCfg["listen-peer-urls"] = listenPeerURLs
-	nodeCfg["advertise-client-urls"] = advClientURL
-	nodeCfg["initial-advertise-peer-urls"] = advPeerURL
 
 	// Initial cluster (use advertised DNS hosts).
 	initialCluster := name + "=" + advPeerURL

@@ -1,31 +1,71 @@
 // @awareness namespace=globular.platform
 // @awareness component=platform_cluster_doctor.remediation_history
-// @awareness file_role=read_only_etcd_audit_history_for_failure_rate_gate
+// @awareness file_role=in_memory_remediation_audit_ring_for_failure_rate_gate
 // @awareness implements=globular.platform:intent.audit.every_authority_change_is_explainable
 // @awareness implements=globular.platform:intent.remediation.failure_rate_policy
 // @awareness risk=medium
 package main
 
-// This file reads /globular/cluster_doctor/audit/rem-* records to power
-// the failure-rate gate inside ExecuteRemediation. It must NEVER mutate
-// audit records — the audit is append-only and TTL-leased. Read failures
-// must NOT silently weaken the gate (returning 0 recent failures from a
-// read error would let a flapping action loop indefinitely).
+// This file powers the cross-attempt failure-rate gate inside
+// ExecuteRemediation. cluster-doctor is observer-only and must NEVER write to
+// etcd (invariant:cluster_doctor.observer_only_never_writes_etcd), so the gate
+// reads recent remediation audits from a bounded IN-PROCESS ring populated by
+// auditRemediation — not from the old /globular/cluster_doctor/audit/ prefix,
+// whose writer was made a no-op in v1.2.166 (which left this gate dead, always
+// counting 0 failures). The ring is per-process; cross-restart durability via
+// ai-memory remains a tracked follow-up. Read paths must NOT weaken the gate.
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
-
-	"github.com/globulario/services/golang/config"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-const remediationAuditEtcdPrefix = "/globular/cluster_doctor/audit/"
+// remediationAuditRing is a bounded, in-process ring of recent RemediationAudit
+// records. It is the live data source for the failure-rate breaker now that the
+// etcd audit writer is a no-op (observer-only). Per-process lifetime only.
+type remediationAuditRing struct {
+	mu      sync.Mutex
+	buf     []RemediationAudit
+	maxSize int
+}
 
-var listRemediationAuditsFn = listRemediationAuditsFromEtcd
+// remediationAudits holds recent per-action audits for the failure-rate gate.
+// 500 matches the limit ExecuteRemediation passes to countRecentFailedActionAttempts.
+var remediationAudits = &remediationAuditRing{maxSize: 500}
+
+func (r *remediationAuditRing) push(a RemediationAudit) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.buf = append(r.buf, a)
+	if len(r.buf) > r.maxSize {
+		r.buf = r.buf[len(r.buf)-r.maxSize:]
+	}
+}
+
+// list returns up to the most recent `limit` audits (all of them if limit<=0).
+func (r *remediationAuditRing) list(limit int) []RemediationAudit {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := len(r.buf)
+	start := 0
+	if limit > 0 && limit < n {
+		start = n - limit
+	}
+	out := make([]RemediationAudit, n-start)
+	copy(out, r.buf[start:])
+	return out
+}
+
+// listRemediationAuditsFn is the seam the failure-rate/history readers use.
+// Default reads the in-process ring; tests inject fixed histories.
+var listRemediationAuditsFn = listRemediationAuditsFromRing
+
+func listRemediationAuditsFromRing(_ context.Context, limit int) ([]RemediationAudit, error) {
+	return remediationAudits.list(limit), nil
+}
 
 type remediationActionStat struct {
 	ActionType string
@@ -71,31 +111,6 @@ func summarizeHistoricalSuccessfulActions(ctx context.Context, invariantID, evid
 		out = out[:3]
 	}
 	return out
-}
-
-func listRemediationAuditsFromEtcd(ctx context.Context, limit int) ([]RemediationAudit, error) {
-	if limit <= 0 {
-		limit = 200
-	}
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return nil, err
-	}
-	getCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	resp, err := cli.Get(getCtx, remediationAuditEtcdPrefix, clientv3.WithPrefix(), clientv3.WithLimit(int64(limit)))
-	if err != nil {
-		return nil, err
-	}
-	out := make([]RemediationAudit, 0, len(resp.Kvs))
-	for _, kv := range resp.Kvs {
-		var a RemediationAudit
-		if err := json.Unmarshal(kv.Value, &a); err != nil {
-			continue
-		}
-		out = append(out, a)
-	}
-	return out, nil
 }
 
 func historicalActionsHint(stats []remediationActionStat) string {

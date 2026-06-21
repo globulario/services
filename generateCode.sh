@@ -37,6 +37,7 @@ GO_TARGETS=(
   "backup_manager:golang/backup_manager/backup_managerpb"
   "backup_hook:golang/backup_hook/backup_hookpb"
   "ai_memory:golang/ai_memory/ai_memorypb"
+  "behavioral_memory:golang/ai_memory/behavioral_memorypb"
   "ai_watcher:golang/ai_watcher/ai_watcherpb"
   "ai_router:golang/ai_router/ai_routerpb"
   "ai_executor:golang/ai_executor/ai_executorpb"

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -262,7 +263,9 @@ func TestForeachWithSubSteps_EmptyCollection(t *testing.T) {
 func TestForeachWithSubSteps_ChildStatesVisibleInParent(t *testing.T) {
 	router := NewRouter()
 	RegisterNodeDirectApplyActions(router, NodeDirectApplyConfig{
-		InstallPackage:         func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error { return nil },
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error {
+			return nil
+		},
 		VerifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
 		SyncInstalledPackage:   func(ctx context.Context, name, version, hash, kind, buildID string) error { return nil },
 	})
@@ -513,5 +516,160 @@ func TestForeachWithSubSteps_ItemInputsAvailable(t *testing.T) {
 	}
 	if receivedInputs[1]["item_index"] != 1 {
 		t.Errorf("item_index[1] = %v, want 1", receivedInputs[1]["item_index"])
+	}
+}
+
+// TestForeach_UnresolvedCollectionFails locks in the AWG re-audit fix
+// (meta.silence_is_not_valid_for_unexpected): a foreach whose collection
+// reference does not resolve to a list — because a prior step never exported
+// it — must FAIL the step, not silently SKIP it and report SUCCEEDED. A
+// silent skip drops real fan-out work (install-on-every-node) while the run
+// looks done.
+func TestForeach_UnresolvedCollectionFails(t *testing.T) {
+	router := NewRouter()
+	RegisterNodeDirectApplyActions(router, NodeDirectApplyConfig{
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error {
+			return nil
+		},
+	})
+	eng := &Engine{Router: router}
+
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "test-foreach-unresolved"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Strategy: v1alpha1.ExecutionStrategy{Mode: v1alpha1.StrategySingle},
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:       "fan_out",
+					Foreach:  &v1alpha1.ScalarString{Raw: "$.candidate_nodes"}, // never provided / defaulted
+					ItemName: &v1alpha1.ScalarString{Raw: "target"},
+					Actor:    v1alpha1.ActorNodeAgent,
+					Action:   "node.install_package",
+				},
+			},
+		},
+	}
+
+	run, _ := eng.Execute(context.Background(), def, map[string]any{})
+	if run.Status != RunFailed {
+		t.Fatalf("expected run FAILED for unresolved foreach collection, got %s", run.Status)
+	}
+	st := run.Steps["fan_out"]
+	if st == nil || st.Status != StepFailed {
+		t.Fatalf("expected fan_out step FAILED, got %v", st)
+	}
+	if !strings.Contains(st.Error, "did not resolve") {
+		t.Errorf("expected 'did not resolve' error, got %q", st.Error)
+	}
+}
+
+// TestForeach_WhenGuardSkipsBeforeUnresolvedCollection locks in the fix for
+// cluster.reconcile's dispatch_remediations failing every ~30s on a healthy
+// cluster. A foreach step whose `when` guard evaluates false must SKIP
+// WITHOUT resolving its collection — even when that collection reference is
+// nil/unresolved. The guard is an explicit "do not run" decision, so honoring
+// it does NOT violate meta.silence_is_not_valid_for_unexpected (that invariant
+// — and TestForeach_UnresolvedCollectionFails above — still applies to UNGATED
+// steps, which must FAIL on a nil collection). The guard must therefore be
+// evaluated BEFORE the nil-collection FAIL check, matching the non-foreach
+// dispatch path in executeStep.
+//
+// Mirrors the real reconcile def: a foreach over $.remediation_items guarded
+// by `len(remediation_items) > 0`, where classify_drift produced none on a
+// clean cluster — the empty result serializes to JSON null across the actor
+// boundary, so the collection arrives as nil rather than as an empty list.
+// Before the fix, foreach resolution + nil-check fired before the guard and
+// FAILED the step (and the whole reconcile run) every pass, manifesting as a
+// workflow.backend_pressure WARN from the repeated dispatch rejections.
+func TestForeach_WhenGuardSkipsBeforeUnresolvedCollection(t *testing.T) {
+	var invoked int32
+	router := NewRouter()
+	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.mark_item_started",
+		func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+			atomic.AddInt32(&invoked, 1)
+			return &ActionResult{OK: true}, nil
+		})
+	eng := &Engine{Router: router}
+
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "test-foreach-when-guard"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Strategy: v1alpha1.ExecutionStrategy{Mode: v1alpha1.StrategySingle},
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:       "dispatch_remediations",
+					When:     &v1alpha1.StepCondition{Expr: "len(remediation_items) > 0"},
+					Foreach:  &v1alpha1.ScalarString{Raw: "$.remediation_items"}, // nil on a clean cluster
+					ItemName: &v1alpha1.ScalarString{Raw: "item"},
+					Actor:    v1alpha1.ActorClusterController,
+					Action:   "controller.reconcile.mark_item_started",
+				},
+			},
+		},
+	}
+
+	run, err := eng.Execute(context.Background(), def, map[string]any{})
+	if err != nil {
+		t.Fatalf("execute: %v — a gated-off foreach over a nil collection must not error", err)
+	}
+	if run.Status != RunSucceeded {
+		t.Fatalf("expected run SUCCEEDED (step gated off), got %s (error: %s)", run.Status, run.Error)
+	}
+	st := run.Steps["dispatch_remediations"]
+	if st == nil || st.Status != StepSkipped {
+		t.Fatalf("expected dispatch_remediations SKIPPED (when=false), got %v", st)
+	}
+	if n := atomic.LoadInt32(&invoked); n != 0 {
+		t.Errorf("expected 0 item invocations for a gated-off step, got %d", n)
+	}
+}
+
+// TestForeach_WhenGuardTrueStillFansOut is the positive control for the
+// guard-first ordering: when the guard passes and the collection resolves,
+// the foreach must still iterate every item (the fix must not over-skip).
+func TestForeach_WhenGuardTrueStillFansOut(t *testing.T) {
+	var invoked int32
+	router := NewRouter()
+	router.Register(v1alpha1.ActorClusterController, "controller.reconcile.mark_item_started",
+		func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
+			atomic.AddInt32(&invoked, 1)
+			return &ActionResult{OK: true}, nil
+		})
+	eng := &Engine{Router: router}
+
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: v1alpha1.APIVersion,
+		Kind:       v1alpha1.Kind,
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "test-foreach-when-guard-true"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Strategy: v1alpha1.ExecutionStrategy{Mode: v1alpha1.StrategySingle},
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:       "dispatch_remediations",
+					When:     &v1alpha1.StepCondition{Expr: "len(remediation_items) > 0"},
+					Foreach:  &v1alpha1.ScalarString{Raw: "$.remediation_items"},
+					ItemName: &v1alpha1.ScalarString{Raw: "item"},
+					Actor:    v1alpha1.ActorClusterController,
+					Action:   "controller.reconcile.mark_item_started",
+				},
+			},
+		},
+	}
+
+	run, err := eng.Execute(context.Background(), def, map[string]any{
+		"remediation_items": []any{"node-a", "node-b", "node-c"},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if run.Status != RunSucceeded {
+		t.Fatalf("expected SUCCEEDED, got %s (error: %s)", run.Status, run.Error)
+	}
+	if n := atomic.LoadInt32(&invoked); n != 3 {
+		t.Errorf("expected 3 item invocations, got %d", n)
 	}
 }

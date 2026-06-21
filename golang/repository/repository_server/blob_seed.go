@@ -36,6 +36,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/globulario/services/golang/digest"
 )
 
 // stagedPackageDirs are the directories the Day-0/Day-1 flows stage package
@@ -165,7 +167,7 @@ func (srv *server) materializeStagedArchive(ctx context.Context, row *manifestRo
 // NARROW the candidate set (cheap); the digest match is the sole gate.
 func findStagedArchiveByDigest(row *manifestRow, dirs []string) string {
 	want := row.Checksum
-	if normalizeDigest(want) == "" {
+	if digest.CanonicalSHA256(want) == "" {
 		return "" // no authority digest — never seed unverified bytes
 	}
 	for _, dir := range dirs {

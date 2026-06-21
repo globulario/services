@@ -23,6 +23,9 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/ai_memory/ai_memorypb"
+	"github.com/globulario/services/golang/ai_memory/behavioral/domain"
+	"github.com/globulario/services/golang/ai_memory/behavioral/store"
+	cluster_operator "github.com/globulario/services/golang/ai_memory/domains/cluster_operator"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -91,6 +94,15 @@ type server struct {
 	ConfigPath         string
 	LastError          string
 	ModTime            int64
+
+	// HostedServices lists additional gRPC service names served on this same
+	// process/port beyond Name. The xDS route builder generates one gateway
+	// route per (Name + HostedServices) entry, all pointing at this service's
+	// cluster. Without this, a co-hosted service (e.g.
+	// behavioral_memory.BehavioralMemoryService, registered on the same gRPC
+	// server) has no gateway route and its requests fall through to the HTML
+	// catch-all (HTTP 200 text/html) even though the backend serves it.
+	HostedServices []string
 
 	// gRPC
 	grpcServer *grpc.Server
@@ -224,6 +236,19 @@ func (srv *server) connectScylla() error {
 
 	if err := srv.runSchemaWithCoordination(ctx); err != nil {
 		return fmt.Errorf("scylla schema: %w", err)
+	}
+
+	// Behavioral-memory keyspace migrates under its OWN etcd lock, independent of
+	// the ai_memory keyspace above. Failure here is NON-FATAL: behavioral-memory
+	// is a supplementary surface, and the established AiMemoryService (memory
+	// CRUD + sessions, plus consumers like ai_watcher and the MCP memory tools)
+	// must not be taken down by a behavioral-only schema problem ("AI is
+	// supplementary, never required"). On failure we log and continue; the
+	// behavioral RPCs then degrade (they error until the keyspace exists) while
+	// AiMemoryService keeps working. The DDL is idempotent, so a later restart or
+	// a node that wins the migration lock will create the tables.
+	if err := srv.runBehavioralSchemaWithCoordination(ctx); err != nil {
+		logger.Error("behavioral_memory schema unavailable — behavioral RPCs will degrade; AiMemoryService unaffected", "err", err)
 	}
 
 	// Connect with keyspace set for normal operation.
@@ -994,6 +1019,10 @@ func initializeServerDefaults() *server {
 		Repositories:    make([]string, 0),
 		Discoveries:     make([]string, 0),
 		Dependencies:    []string{"persistence.PersistenceService"},
+		// behavioral_memory.BehavioralMemoryService is registered on the same
+		// gRPC server (see behavioral_handlers.go). Declare it so xDS builds a
+		// gateway route for it; otherwise its requests hit the HTML catch-all.
+		HostedServices:  []string{"behavioral_memory.BehavioralMemoryService"},
 		Permissions:     make([]interface{}, 0),
 		ScyllaHosts:     nil, // resolved from etcd at Init() — never hardcode
 		ScyllaPort:      9042,
@@ -1003,7 +1032,135 @@ func initializeServerDefaults() *server {
 
 func setupGrpcService(s *server) {
 	ai_memorypb.RegisterAiMemoryServiceServer(s.grpcServer, s)
+	// Behavioral-memory: a second, protocol-shaped gRPC service hosted in the
+	// same binary. PR-2 wires the Scylla-backed store (shared session) for the
+	// ingestion-half RPCs; the rest stay dark. Does not touch AiMemoryService.
+	var behavioralBackend store.Store = store.Unconfigured{}
+	if s.session != nil {
+		behavioralBackend = store.NewScyllaStore(s.session)
+	}
+	registerBehavioralService(s.grpcServer, behavioralBackend)
+	// Load the cluster_operator domain pack's catalogs + proposed principles into
+	// the store (idempotent, non-destructive, NEVER auto-promotes). Best-effort:
+	// the seed is supplementary, so a failure logs and the service continues.
+	loadBehavioralSeed(behavioralBackend)
+	// Self-seed the flat operational-knowledge recall into the memories table.
+	// Auth-free (writes the local store directly), so unlike the day-0/day-1 CLI
+	// seed it does not depend on auth timing and self-heals on every restart.
+	s.loadOpsKnowledgeRecallSeed()
 	reflection.Register(s.grpcServer)
+}
+
+// recallSeedProject is the project under which flat operational-knowledge recall
+// memories are stored — matches the `ops-knowledge seed` CLI so the two paths
+// converge on the same rows.
+const recallSeedProject = "globular-services"
+
+// loadOpsKnowledgeRecallSeed self-seeds the embedded operational-knowledge recall
+// (compiled from docs/operational-knowledge) into the memories table. It is
+// idempotent — entries whose seed_sha256 is unchanged are skipped, changed
+// entries are replaced (the PK ((project), type, created_at, id) clusters on
+// created_at, so a changed entry is deleted then re-inserted to avoid a
+// duplicate row). Strictly best-effort: any failure logs and the service
+// continues (the seed is supplementary, never required).
+func (srv *server) loadOpsKnowledgeRecallSeed() {
+	if srv.session == nil {
+		return
+	}
+	entries, err := cluster_operator.RecallSeedEntries()
+	if err != nil {
+		logger.Warn("ops-knowledge recall seed: load failed (non-fatal)", "err", err)
+		return
+	}
+	if len(entries) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	now := time.Now().Unix()
+	stored, skipped, failed := 0, 0, 0
+	for _, e := range entries {
+		var exType string
+		var exCreated int64
+		exMeta := map[string]string{}
+		scanErr := srv.session.Query(
+			`SELECT type, created_at, metadata FROM memories WHERE project = ? AND id = ? LIMIT 1 ALLOW FILTERING`,
+			recallSeedProject, e.ID).WithContext(ctx).Scan(&exType, &exCreated, &exMeta)
+		exists := scanErr == nil
+		if exists && exMeta["seed_sha256"] == e.SeedSHA256 {
+			skipped++
+			continue
+		}
+		tags := append([]string{}, e.Tags...)
+		if !containsRecallTag(tags, "seed") {
+			tags = append(tags, "seed")
+		}
+		meta := map[string]string{
+			"source":      "seed",
+			"immutable":   "true",
+			"seed_sha256": e.SeedSHA256,
+		}
+		// Replace a changed row (created_at is part of the clustering key, so a
+		// plain insert with a new created_at would leave a duplicate behind).
+		if exists {
+			_ = srv.session.Query(
+				`DELETE FROM memories WHERE project = ? AND type = ? AND created_at = ? AND id = ?`,
+				recallSeedProject, exType, exCreated, e.ID).WithContext(ctx).Exec()
+		}
+		if err := srv.session.Query(
+			`INSERT INTO memories (id, project, type, tags, title, content, created_at, updated_at, agent_id, conversation_id, cluster_id, metadata, related_ids, reference_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			e.ID, recallSeedProject, recallMemType(e.Type), tags, e.Title, e.Content,
+			now, now, "ops-knowledge-seeder", "", "", meta, e.RelatedIDs, 0,
+		).WithContext(ctx).Exec(); err != nil {
+			logger.Debug("ops-knowledge recall seed: upsert failed", "id", e.ID, "err", err)
+			failed++
+			continue
+		}
+		stored++
+	}
+	logger.Info("ops-knowledge recall seed loaded",
+		"stored", stored, "skipped", skipped, "failed", failed, "total", len(entries))
+}
+
+// recallMemType maps a recall entry type to the canonical stored type string,
+// matching the ops-knowledge CLI (defaults to REFERENCE for an unknown type).
+func recallMemType(t string) string {
+	if v, ok := ai_memorypb.MemoryType_value[t]; ok {
+		return memoryTypeToString(ai_memorypb.MemoryType(v))
+	}
+	return memoryTypeToString(ai_memorypb.MemoryType_REFERENCE)
+}
+
+func containsRecallTag(tags []string, want string) bool {
+	for _, t := range tags {
+		if t == want {
+			return true
+		}
+	}
+	return false
+}
+
+// loadBehavioralSeed loads the cluster_operator domain pack into the behavioral
+// store under the canonical seed project. Guarded — never fatal.
+func loadBehavioralSeed(st store.Store) {
+	if _, ok := st.(store.Unconfigured); ok {
+		return // no persistence backend wired
+	}
+	pack, err := cluster_operator.New()
+	if err != nil {
+		logger.Error("behavioral seed: cluster_operator pack invalid", "err", err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	res, err := domain.LoadCatalogs(ctx, st, behavioralSeedProject, pack)
+	if err != nil {
+		logger.Warn("behavioral seed: cluster_operator load failed (non-fatal)", "err", err)
+		return
+	}
+	logger.Info("behavioral seed: cluster_operator loaded",
+		"authorities", res.Authorities, "conditions", res.Conditions,
+		"principles_seeded", res.PrinciplesSeeded, "principles_skipped", res.PrinciplesSkipped)
 }
 
 func main() {

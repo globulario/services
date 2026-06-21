@@ -1,0 +1,57 @@
+id: globular.repair.recover_stuck_behavioral_schema_migration
+class: RepairPlan
+label: Recover a stuck/incomplete behavioral_memory schema migration
+status: active
+confidence: high
+blast_radius: service
+approval_gate: review_required
+
+when_to_use:
+  - "behavioral writes fail with CQL 'Unknown identifier <col>' (e.g. cluster_id)"
+  - "ai_memory blocks ~3 minutes on restart at 'behavioral schema migration: waiting for lock'"
+  - "behavioral schema migration never reaches 'complete' for the current version"
+  - "behavioral_memory tables are missing columns the running handler writes"
+
+covers_paths:
+  - golang/ai_memory/ai_memory_server/
+
+repairs_finding_classes:
+  - behavioral.migration_mutex_prefix_poisoned_by_state_key
+  - behavioral.schema_column_missing_on_upgrade_no_backfill_alter
+
+must_not_violate_invariants:
+  - invariant:etcd.mutex_key_must_not_prefix_non_lock_keys
+  - invariant:scylla.added_column_requires_backfill_alter_for_upgrades
+
+preconditions:
+  - "ai_memory backend is reachable on its direct gRPC port (the service is up, even if behavioral writes fail)."
+  - "etcd and ScyllaDB are reachable for inspection and DDL."
+
+requires_runtime_evidence:
+  - "etcd get --prefix on the migration mutex prefix shows a non-lock key (e.g. /state) nested under it, and/or system_schema.columns shows the expected column missing from the live table."
+
+repair_steps:
+  - "STOPGAP recovery (only if the code fix is not yet deployed): if the migration mutex prefix is poisoned by a nested state key, delete the state key (etcd del /globular/migrations/scylla/behavioral_memory/state) so the mutex prefix is empty; the migration re-runs and re-creates state."
+  - "STOPGAP recovery: for any column the handler writes that is missing from the live table, run an idempotent ALTER TABLE ADD on signals/evidence (cluster_id, condition_ref, severity, authority_level)."
+  - "Restart ai_memory once and confirm 'behavioral schema migration: complete' at the current schema_version."
+  - "DURABLE fix: land the code change — disjoint mutex/state key layout (mutex at .../lock) and backfill ALTERs guarded by a bumped schema version (services PR #46) — so no manual step is needed on the next upgrade."
+
+verification_steps:
+  - "A behavioral write (RecordSignal) succeeds through the gateway (returns a signal id), not just on the direct port."
+  - "system_schema.columns shows the previously-missing columns present on signals and evidence."
+  - "ai_memory restart no longer blocks on the migration lock (acquire completes immediately)."
+
+rollback_steps:
+  - "ALTER TABLE ADD is additive and idempotent; deleting the state key only forces an idempotent re-migration. No destructive rollback is required."
+
+required_tests:
+  - "test:TestBehavioralMigrationMutexKeyNotPrefixOfStateKey"
+  - "test:TestBehavioralSchemaPR9ColumnsHaveBackfillAlter"
+
+produces_outcome_feedback: "record an OutcomeFeedback / behavioral signal noting the recovery (state key cleared and/or columns ALTER-added) and whether the durable code fix is deployed"
+
+notes: |
+  Deleting the state key and hand-running ALTERs are RECOVERY stopgaps, not the
+  fix. The durable fix is the disjoint key layout + version-bumped backfill ALTERs
+  in code (forbidden_fixes: nest_a_data_key_under_an_etcd_mutex_prefix,
+  add_column_only_to_create_table_without_backfill_alter).

@@ -151,17 +151,22 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
-	if opens, ok := snap.PromMetrics["reconcile_circuit_open"]; ok && opens > 0 {
+	// reconcile_circuit_open is a current-state gauge (1 = breaker open now,
+	// 0 = closed) — NOT the raw monotonic _total counter, which only ever grows
+	// and would fire this CRITICAL forever after a single transient open. The
+	// finding auto-clears the moment reconcile recovers (gauge → 0). See
+	// diagnostics.must_measure_reality and the workflow_circuit_open rule below.
+	if open, ok := snap.PromMetrics["reconcile_circuit_open"]; ok && open > 0 {
 		findings = append(findings, Finding{
 			FindingID:   FindingID("cluster.reconcile_circuit_open", "cluster", "controller"),
 			InvariantID: "cluster.reconcile_circuit_open",
 			Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
 			Category:    "control_plane",
 			EntityRef:   "controller",
-			Summary:     fmt.Sprintf("Reconcile circuit breaker opened %d time(s) — periodic reconcile suspended due to repeated failures", int(opens)),
+			Summary:     "Reconcile circuit breaker is OPEN — periodic reconcile suspended until repeated failures clear",
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "circuit_breaker", map[string]string{
-				"total_opens": fmt.Sprintf("%.0f", opens),
-				"timestamp":   snap.PromTS.UTC().Format(time.RFC3339),
+				"circuit_open": fmt.Sprintf("%.0f", open),
+				"timestamp":    snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})

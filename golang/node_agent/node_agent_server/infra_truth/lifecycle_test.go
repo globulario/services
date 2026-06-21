@@ -30,7 +30,7 @@ func TestDeriveScyllaLifecycle_NotInstalled(t *testing.T) {
 func TestDeriveScyllaLifecycle_ConfigInvalidStalled(t *testing.T) {
 	r := validRendered()
 	r.ListenAddress = "127.0.0.1" // critical loopback
-	violations := AttestScyllaConfig(joiningDesired(), r)
+	violations := AttestScyllaConfig(joiningDesired(), r, nil)
 	rt := memberRuntime() // daemon is active...
 	obs := deriveScyllaLifecycle(true, joiningDesired(), r, rt, violations, 100)
 	if obs.GetState() != cluster_controllerpb.InfraLifecycleState_INFRA_STALLED {

@@ -146,7 +146,7 @@ entries:
       awareness_invariants:
         - etcd.endpoint_reachability
       awareness_failure_modes:
-        - service.os_getenv_for_config_addresses
+        - service.endpoint.os_getenv_for_addresses
 
   - id: ops.day-0.observability.dark
     type: REFERENCE
@@ -165,13 +165,19 @@ entries:
       - `ai-router` — needs ai-memory
 
       An AI session entering at day-0 must rely on:
-      1. The on-disk operational knowledge bundle at `/var/lib/globular/operational-knowledge/`
-      2. The awareness graph at `/var/lib/globular/awareness/current/`
-      3. Direct etcd reads (with the cluster CA + service cert)
-      4. systemd unit status (`systemctl status globular-*`)
+      1. The on-disk operational-knowledge bundle at
+         `/var/lib/globular/awareness/current/ops-knowledge/` (these YAML files)
+      2. Direct etcd reads (with the cluster CA + service cert)
+      3. systemd unit status (`systemctl status globular-*`)
 
       Do NOT attempt to call MCP tools that require ai-memory at this stage.
+
+      Note: the AWG graph is NOT a day-0 resource. Since the 2026-06 extraction, AWG is a
+      standalone sidecar (its own `awg` binary + MCP bridge), no longer shipped as a Globular
+      package or deployed to cluster nodes. If you have it, run `awg` from your workstation;
+      do not expect a `globular-awareness-graph` unit or a `globular awareness ...` command on
+      the node. The `/var/lib/globular/awareness/current/` path now holds only the
+      ops-knowledge bundle, not an AWG triple store.
     links:
       cli_commands:
-        - "ls /var/lib/globular/operational-knowledge/"
-        - "globular awareness status"
+        - "ls /var/lib/globular/awareness/current/ops-knowledge/"

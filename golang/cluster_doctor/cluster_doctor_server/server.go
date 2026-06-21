@@ -264,7 +264,6 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		logger.Info("ai-memory endpoint not in etcd — seed drift detection disabled (pre-Day-1)")
 	}
 
-
 	reg := rules.NewRegistry(rules.Config{
 		HeartbeatStale:  cfg.heartbeatStale(),
 		EmitAuditEvents: cfg.EmitAuditEvents,
@@ -378,6 +377,7 @@ func (s *ClusterDoctorServer) GetClusterReport(ctx context.Context, req *cluster
 	// the authority for the cluster.finding.* event delta.
 	s.cacheFindings(findings, true)
 	report := render.ClusterReport(snap, findings, s.version, fresh)
+	s.emitBehavioralClusterReport(report)
 	if report.CountsByCategory == nil {
 		report.CountsByCategory = map[string]uint32{}
 	}
@@ -606,12 +606,14 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 			"auto_action", autoAction)
 		return false, "", nil
 	}
-	// Populate the last-findings cache so ExecuteRemediation can resolve
-	// finding_id back to the Finding object. The healer cycle's scope is
-	// authoritative (cluster-wide=true) when invoked by the leader loop.
-	g.server.cacheFindings([]rules.Finding{f}, false)
-
-	resp, err := g.server.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{
+	// The healer already holds the resolved Finding — execute against it
+	// directly instead of clobbering the shared lastFindings cache with a
+	// one-element slice and round-tripping through finding_id resolution. A
+	// concurrent GetClusterReport/GetNodeReport could otherwise overwrite that
+	// cache between the write and ExecuteRemediation's read, so remediation
+	// could act on the wrong finding or spuriously NotFound.
+	// (meta.code.local_state_must_not_become_hidden_authority)
+	resp, err := g.server.executeRemediationForFinding(ctx, f, &cluster_doctorpb.ExecuteRemediationRequest{
 		FindingId: f.FindingID,
 		StepIndex: uint32(stepIndex),
 		DryRun:    dryRun,

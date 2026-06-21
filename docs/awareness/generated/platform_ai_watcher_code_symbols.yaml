@@ -9,3 +9,4 @@ code_symbols:
       implements:
         - globular.platform:intent.ai.watcher_to_executor_causal_chain
         - globular.platform:intent.event.pub_sub_connects_observability_to_action
+test_symbols:

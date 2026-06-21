@@ -150,7 +150,10 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 			return nil
 		},
 		IsServiceActive: func(name string) bool {
-			return engine.DefaultIsServiceActive(name)
+			// Truth-plane-backed: blocks on a STALLED infra component (the
+			// active-but-broken case is-active hides), passes on MEMBER_READY,
+			// else falls back to DefaultIsServiceActive.
+			return srv.isServiceReady(name)
 		},
 		SyncInstalledState: func(ctx context.Context) error {
 			srv.syncInstalledStateToEtcd(ctx)

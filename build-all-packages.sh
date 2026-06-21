@@ -57,6 +57,17 @@ spec_version() {
     sed -n '/^metadata:/,/^[^ ]/{ s/^[[:space:]]\{1,\}version:[[:space:]]*\(.*\)/\1/p; }' "$1" | head -1 | sed 's/^"\(.*\)"$/\1/'
 }
 
+# spec_path <spec_file> — resolve a spec to its single source of truth under
+# metadata/<name>/specs/. There is no top-level packages/specs/ dir anymore
+# (removed in the 2026-06 spec source-of-truth consolidation). The package name
+# is the spec filename minus _service.yaml/_cmd.yaml with underscores→hyphens,
+# matching the metadata/ dir naming.
+spec_path() {
+    local file="$1" name
+    name="$(echo "${file}" | sed 's/_service\.yaml$//; s/_cmd\.yaml$//' | tr '_' '-')"
+    echo "${PACKAGES_ROOT}/metadata/${name}/specs/${file}"
+}
+
 # Helper: download a binary if version mismatches or missing.
 ensure_binary() {
     local bin="$1" version="$2" check_cmd="$3" download_fn="$4"
@@ -83,17 +94,17 @@ copy_go_bin "${SERVICES_STAGE}/globularcli" "globularcli" "globularcli"
 copy_go_bin "${SERVICES_STAGE}/globularcli" "globular" "globular (cli install name)"
 
 # Read versions from specs (single source of truth)
-ENVOY_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/envoy_service.yaml")
-ETCD_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/etcd_service.yaml")
-PROMETHEUS_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/prometheus_service.yaml")
-ALERTMANAGER_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/alertmanager_service.yaml")
-NODE_EXPORTER_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/node_exporter_service.yaml")
-SIDEKICK_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/sidekick_service.yaml")
-RESTIC_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/restic_cmd.yaml")
-RCLONE_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/rclone_cmd.yaml")
-YT_DLP_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/yt_dlp_cmd.yaml")
-FFMPEG_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/ffmpeg_cmd.yaml")
-COREUTILS_VERSION=$(spec_version "${PACKAGES_ROOT}/specs/sha256sum_cmd.yaml")
+ENVOY_VERSION=$(spec_version "$(spec_path envoy_service.yaml)")
+ETCD_VERSION=$(spec_version "$(spec_path etcd_service.yaml)")
+PROMETHEUS_VERSION=$(spec_version "$(spec_path prometheus_service.yaml)")
+ALERTMANAGER_VERSION=$(spec_version "$(spec_path alertmanager_service.yaml)")
+NODE_EXPORTER_VERSION=$(spec_version "$(spec_path node_exporter_service.yaml)")
+SIDEKICK_VERSION=$(spec_version "$(spec_path sidekick_service.yaml)")
+RESTIC_VERSION=$(spec_version "$(spec_path restic_cmd.yaml)")
+RCLONE_VERSION=$(spec_version "$(spec_path rclone_cmd.yaml)")
+YT_DLP_VERSION=$(spec_version "$(spec_path yt_dlp_cmd.yaml)")
+FFMPEG_VERSION=$(spec_version "$(spec_path ffmpeg_cmd.yaml)")
+COREUTILS_VERSION=$(spec_version "$(spec_path sha256sum_cmd.yaml)")
 
 echo ""
 echo "→ Third-party binary versions (from spec metadata):"
@@ -172,23 +183,15 @@ else
     echo "  ⚠ intent source not found at ${MCP_INTENT_SRC} — skipping intent bundle"
 fi
 
-# Claude CLI — copy from system PATH if available, else install via npm
-CLAUDE_META="${PACKAGES_ROOT}/metadata/claude/package.json"
-CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('${CLAUDE_META}'))['version'])")
-echo "→ claude ${CLAUDE_VERSION}..."
-if command -v claude >/dev/null 2>&1 && claude --version 2>&1 | grep -q "${CLAUDE_VERSION}"; then
-    cp "$(which claude)" "${PACKAGES_ROOT}/bin/claude"
-    chmod +x "${PACKAGES_ROOT}/bin/claude"
-    echo "  ✓ claude ${CLAUDE_VERSION} (from PATH)"
-elif [[ -x "${PACKAGES_ROOT}/bin/claude" ]]; then
-    echo "  ✓ claude already in packages/bin/ ($(ls -lh "${PACKAGES_ROOT}/bin/claude" | awk '{print $5}'))"
-else
-    echo "  → Installing @anthropic-ai/claude-code@${CLAUDE_VERSION} via npm..."
-    npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" --quiet
-    cp "$(which claude)" "${PACKAGES_ROOT}/bin/claude"
-    chmod +x "${PACKAGES_ROOT}/bin/claude"
-    echo "  ✓ claude ${CLAUDE_VERSION} ($(ls -lh "${PACKAGES_ROOT}/bin/claude" | awk '{print $5}'))"
-fi
+# Claude CLI — NOTHING to bundle here. As of the fetch-at-install redesign
+# (packages commit 31fb144), the claude package is a wrapper: its spec has
+# entrypoint=noop and ships only the shared `noop` sentinel in the payload.
+# The real ~250MB proprietary binary is fetched + sha256-verified at INSTALL
+# time by scripts/install-claude.sh and lands at /usr/local/bin/claude (where
+# ai_executor probes first), NOT /usr/lib/globular/bin. Do not copy or npm-install
+# claude into packages/bin/ — packages/build.sh bundles bin/noop via the spec
+# entrypoint and the binary in packages/bin/claude is ignored.
+echo "→ claude: wrapper package (no payload binary; fetched at install)"
 
 echo ""
 

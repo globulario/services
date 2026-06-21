@@ -186,6 +186,66 @@ func TestReconcileBreakerBurstOpensExactlyOnce(t *testing.T) {
 	}
 }
 
+// TestReconcileCircuitGaugeExpiresCooldownEvenWithoutProbe is the sibling of
+// TestWorkflowGateExpiresCooldownEvenWithoutProbe. The cluster-doctor finding
+// cluster.reconcile_circuit_open is driven by the reconcile_circuit_open GAUGE
+// (current state), not the monotonic _total counter. This is the regression for
+// the 2026-06-21 false CRITICAL: the doctor rule consumed the raw counter, so a
+// single transient open left total_opens=3 and the finding fired "periodic
+// reconcile suspended" forever while reconcile was actually succeeding. The
+// gauge must read 1 while open and drop to 0 once the breaker closes — including
+// the idle path where the cooldown elapses without RecordSuccess being driven.
+//
+// Classifies against meta.failure_response_must_contract_not_amplify and
+// diagnostics.must_measure_reality.
+func TestReconcileCircuitGaugeExpiresCooldownEvenWithoutProbe(t *testing.T) {
+	reconcileCircuitOpenGauge.Set(0)
+	cb := newReconcileCircuitBreaker()
+
+	for i := 0; i < cb.timeoutThreshold; i++ {
+		cb.RecordTimeout()
+	}
+	if !cb.IsOpen() {
+		t.Fatal("reconcile circuit should be open after threshold timeouts")
+	}
+	if got := testutil.ToFloat64(reconcileCircuitOpenGauge); got != 1 {
+		t.Fatalf("gauge should be 1 while open, got %v", got)
+	}
+
+	// Move the cooldown deadline into the past without anybody driving
+	// RecordSuccess — the idle-controller scenario.
+	cb.mu.Lock()
+	cb.openUntil = time.Now().Add(-time.Millisecond)
+	cb.mu.Unlock()
+
+	if cb.IsOpen() {
+		t.Error("IsOpen should be false once the cooldown deadline elapses")
+	}
+	if got := testutil.ToFloat64(reconcileCircuitOpenGauge); got != 0 {
+		t.Errorf("gauge should drop to 0 when cooldown expires naturally, got %v", got)
+	}
+}
+
+// TestReconcileCircuitGaugeClearsOnSuccess verifies the active recovery path:
+// a successful reconcile after an open breaker drives the gauge back to 0 so the
+// doctor finding auto-clears.
+func TestReconcileCircuitGaugeClearsOnSuccess(t *testing.T) {
+	reconcileCircuitOpenGauge.Set(0)
+	cb := newReconcileCircuitBreaker()
+
+	for i := 0; i < cb.timeoutThreshold; i++ {
+		cb.RecordTimeout()
+	}
+	if got := testutil.ToFloat64(reconcileCircuitOpenGauge); got != 1 {
+		t.Fatalf("gauge should be 1 while open, got %v", got)
+	}
+
+	cb.RecordSuccess()
+	if got := testutil.ToFloat64(reconcileCircuitOpenGauge); got != 0 {
+		t.Errorf("gauge should be 0 after RecordSuccess closes the breaker, got %v", got)
+	}
+}
+
 // Awareness required-test name wrapper for workflow backend health gate.
 func TestWorkflowBackendHealthGate(t *testing.T) {
 	TestWorkflowGateBackoffPreventsStorm(t)

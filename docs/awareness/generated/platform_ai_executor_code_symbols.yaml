@@ -28,6 +28,16 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - id: globular.platform:code.go.platform_ai_executor.dedup
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/dedup.go
+    component: platform_ai_executor.dedup
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.ai.memory_queried_before_claude_to_boost_confidence
+        - globular.platform:intent.ai.supplementary_not_required
   - id: globular.platform:code.go.platform_ai_executor.diagnoser
     namespace: globular.platform
     language: go
@@ -49,3 +59,73 @@ code_symbols:
       implements:
         - globular.platform:intent.ai.decision_tier.gates_execution
         - globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin
+test_symbols:
+  - id: golang/ai_executor/ai_executor_server/dedup_test.go:TestIncidentFingerprint_DistinguishesSignatures
+    file: golang/ai_executor/ai_executor_server/dedup_test.go
+    symbol: TestIncidentFingerprint_DistinguishesSignatures
+    package: main
+    language: go
+    doc: "TestIncidentFingerprint_DistinguishesSignatures ensures the fingerprint is not\nso coarse that genuinely different problems collapse together (which would\nsuppress real diagnoses). Rule, event, and service each change the signature."
+  - id: golang/ai_executor/ai_executor_server/dedup_test.go:TestIncidentFingerprint_StableAcrossOccurrences
+    file: golang/ai_executor/ai_executor_server/dedup_test.go
+    symbol: TestIncidentFingerprint_StableAcrossOccurrences
+    package: main
+    language: go
+    doc: "TestIncidentFingerprint_StableAcrossOccurrences is the core dedup invariant:\ntwo occurrences of the same problem (same rule + event + service) but with\nDIFFERENT incident_ids must produce the SAME fingerprint. If this regresses,\nevery repeat looks new and the ai_executor re-runs a full LLM diagnosis on\neach one — the workflow-storm token drain that motivated the ledger."
+  - id: golang/ai_executor/ai_executor_server/dedup_test.go:TestIncidentFingerprint_UnitFallback
+    file: golang/ai_executor/ai_executor_server/dedup_test.go
+    symbol: TestIncidentFingerprint_UnitFallback
+    package: main
+    language: go
+    doc: "TestIncidentFingerprint_UnitFallback verifies the signature falls back to the\n\"unit\" field when \"service\" is absent, so systemd-unit incidents still dedup."
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestApprovalTriggersExecution
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestApprovalTriggersExecution
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestApproveIdempotency
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestApproveIdempotency
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestDenialPreventsExecution
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestDenialPreventsExecution
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestExpireStaleApprovals
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestExpireStaleApprovals
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestExpiryPreventsExecution
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestExpiryPreventsExecution
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestFailureHandling
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestFailureHandling
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestIdempotency
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestIdempotency
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestListJobsFilter
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestListJobsFilter
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/job_store_test.go:TestTier0ObserveOnly
+    file: golang/ai_executor/ai_executor_server/job_store_test.go
+    symbol: TestTier0ObserveOnly
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/remediator_tier_default_test.go:TestRemediator_UnknownTierFailsSafeNoAutoExecute
+    file: golang/ai_executor/ai_executor_server/remediator_tier_default_test.go
+    symbol: TestRemediator_UnknownTierFailsSafeNoAutoExecute
+    package: main
+    language: go
+    doc: "TestRemediator_UnknownTierFailsSafeNoAutoExecute is the ratchet for\nmeta.least_privilege_is_not_a_default_it_is_an_explicit_grant. The only path\nthat takes a real action (auto-remediate) must be an EXPLICIT grant (tier==1),\nnever the fall-through. tier is a raw int32 (proto3, no enum), so any value\nother than the three defined tiers — buggy caller, peer proposal, future proto\ntier, garbled field — must default to a NON-executing outcome (approval /\nskip), never EXECUTING. Before 2026-06-09 the execute path was the else branch,\nso any unrecognized tier auto-remediated without approval."

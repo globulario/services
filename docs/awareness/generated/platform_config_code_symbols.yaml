@@ -18,3 +18,393 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.etcd.is_source_of_truth
+test_symbols:
+  - id: golang/config/canonical_tls_test.go:TestCanonicalTLSPathsAreDomainAgnostic
+    file: golang/config/canonical_tls_test.go
+    symbol: TestCanonicalTLSPathsAreDomainAgnostic
+    package: config
+    language: go
+  - id: golang/config/cluster_dns_fallback_test.go:TestControllerToNodeSkipsDNSOnLookupFailure
+    file: golang/config/cluster_dns_fallback_test.go
+    symbol: TestControllerToNodeSkipsDNSOnLookupFailure
+    package: config
+    language: go
+    doc: "TestControllerToNodeSkipsDNSOnLookupFailure verifies that resolveClusterNameFromEtcd\nprovides working Tier-0 IPs for minio/scylla/dns even when the records map\nlookup fails, so controller→node paths remain functional without DNS.\n\nInvariant: recovery.must_not_depend_on_dns_only"
+  - id: golang/config/cluster_dns_fallback_test.go:TestIngressCLIWorksWithDNSDisabled
+    file: golang/config/cluster_dns_fallback_test.go
+    symbol: TestIngressCLIWorksWithDNSDisabled
+    package: config
+    language: go
+    doc: "TestIngressCLIWorksWithDNSDisabled verifies that resolveClusterNameFromEtcd\nresolves cluster names via /globular/cluster/dns/records when DNS is down.\n\nInvariant: recovery.must_not_depend_on_dns_only"
+  - id: golang/config/cluster_dns_fallback_test.go:TestIsTier0ClusterServiceHost
+    file: golang/config/cluster_dns_fallback_test.go
+    symbol: TestIsTier0ClusterServiceHost
+    package: config
+    language: go
+  - id: golang/config/cluster_hosts_cache_test.go:TestHostCacheDeepCopy
+    file: golang/config/cluster_hosts_cache_test.go
+    symbol: TestHostCacheDeepCopy
+    package: config
+    language: go
+    doc: "TestHostCacheDeepCopy verifies that mutating the slice returned by\nGetScyllaHosts does not corrupt the cached entry."
+  - id: golang/config/cluster_hosts_cache_test.go:TestHostCacheInvalidatedOnSave
+    file: golang/config/cluster_hosts_cache_test.go
+    symbol: TestHostCacheInvalidatedOnSave
+    package: config
+    language: go
+    doc: "TestHostCacheInvalidatedOnSave verifies that SaveClusterHostList invalidates\nthe per-key cache entry so the next read re-fetches the updated list."
+  - id: golang/config/cluster_hosts_cache_test.go:TestMinioHostsCacheHit
+    file: golang/config/cluster_hosts_cache_test.go
+    symbol: TestMinioHostsCacheHit
+    package: config
+    language: go
+    doc: "TestMinioHostsCacheHit verifies GetMinioHosts is also cached."
+  - id: golang/config/cluster_hosts_cache_test.go:TestScyllaHostsCacheHit
+    file: golang/config/cluster_hosts_cache_test.go
+    symbol: TestScyllaHostsCacheHit
+    package: config
+    language: go
+    doc: "TestScyllaHostsCacheHit verifies that repeated calls to GetScyllaHosts within\nthe TTL window are served from cache without hitting etcd again."
+  - id: golang/config/cluster_hosts_cache_test.go:TestScyllaHostsCacheStaleOnEtcdDown
+    file: golang/config/cluster_hosts_cache_test.go
+    symbol: TestScyllaHostsCacheStaleOnEtcdDown
+    package: config
+    language: go
+    doc: "TestScyllaHostsCacheStaleOnEtcdDown verifies that when etcd becomes unavailable,\nGetScyllaHosts returns the last known host list rather than an error (within\nthe StaleIfError window). This prevents Scylla reconnect storms from also\nspiking etcd reads.\n\nUses TTL=0 so every Get calls fetch; stale-if-error is tested cleanly without\nbackdating entries."
+  - id: golang/config/config_test.go:TestGetCACertificatePathCanonical
+    file: golang/config/config_test.go
+    symbol: TestGetCACertificatePathCanonical
+    package: config
+    language: go
+    doc: "TestGetCACertificatePathCanonical verifies the CA cert path is always\nderived from the state root — no env var overrides (per hard rules)."
+  - id: golang/config/critical_keys_policy_test.go:TestDeleteCriticalKeyTriggerOwnerRestore
+    file: golang/config/critical_keys_policy_test.go
+    symbol: TestDeleteCriticalKeyTriggerOwnerRestore
+    package: config
+    language: go
+    doc: "TestDeleteCriticalKeyTriggerOwnerRestore verifies that OwnerForKey returns\nthe correct owner for all registered critical keys (including prefix-based\nlookups), and returns an error for keys with no registered owner.\n\nThe semantic intent: when a critical key is deleted, the system must be able\nto identify the authoritative owner who is responsible for restoring it.\n\nInvariant: critical_state.registry_ownership_required"
+  - id: golang/config/critical_keys_policy_test.go:TestRegistryKeyHasCompletePolicy
+    file: golang/config/critical_keys_policy_test.go
+    symbol: TestRegistryKeyHasCompletePolicy
+    package: config
+    language: go
+    doc: "TestRegistryKeyHasCompletePolicy verifies that every key in CriticalEtcdKeys\nand every prefix in CriticalEtcdPrefixes has a corresponding entry in\nCriticalKeyPolicies with all required governance fields populated.\n\nThis test acts as a CI regression guard: adding a key to the live-check list\nwithout a policy entry will fail the build immediately.\n\nInvariant: critical_state.registry_ownership_required"
+  - id: golang/config/critical_keys_policy_test.go:TestUnknownWriterRejected
+    file: golang/config/critical_keys_policy_test.go
+    symbol: TestUnknownWriterRejected
+    package: config
+    language: go
+    doc: "TestUnknownWriterRejected verifies that ValidateCriticalKeyOwner returns an\nerror when the writer is not the registered owner of a critical key, and\nreturns nil for the correct owner and for unregistered keys.\n\nInvariant: critical_state.registry_ownership_required"
+  - id: golang/config/endpoint_resolver_migration_test.go:TestMigratedDialerFilesUseResolver
+    file: golang/config/endpoint_resolver_migration_test.go
+    symbol: TestMigratedDialerFilesUseResolver
+    package: config_test
+    language: go
+  - id: golang/config/endpoint_resolver_structural_test.go:TestNoAdHocLoopbackRewrites
+    file: golang/config/endpoint_resolver_structural_test.go
+    symbol: TestNoAdHocLoopbackRewrites
+    package: config
+    language: go
+    doc: "TestNoAdHocLoopbackRewrites is a structural regression test that scans\nGo source files for patterns indicating ad-hoc loopback rewriting or\ncustom SNI extraction in service-to-service dialers. These patterns\nmust use config.ResolveDialTarget instead.\n\nSee docs/endpoint_resolution_policy.md."
+  - id: golang/config/endpoint_resolver_test.go:TestIsLoopbackEndpoint
+    file: golang/config/endpoint_resolver_test.go
+    symbol: TestIsLoopbackEndpoint
+    package: config
+    language: go
+  - id: golang/config/endpoint_resolver_test.go:TestMustResolveDialTarget
+    file: golang/config/endpoint_resolver_test.go
+    symbol: TestMustResolveDialTarget
+    package: config
+    language: go
+  - id: golang/config/endpoint_resolver_test.go:TestNormalizeLoopback
+    file: golang/config/endpoint_resolver_test.go
+    symbol: TestNormalizeLoopback
+    package: config
+    language: go
+  - id: golang/config/endpoint_resolver_test.go:TestResolveDialTarget
+    file: golang/config/endpoint_resolver_test.go
+    symbol: TestResolveDialTarget
+    package: config
+    language: go
+  - id: golang/config/endpoint_resolver_test.go:TestValidateLANAddress
+    file: golang/config/endpoint_resolver_test.go
+    symbol: TestValidateLANAddress
+    package: config
+    language: go
+    doc: "TestValidateLANAddress covers every rejection class plus the accept paths.\nPins the rollout invariant that loopback / docker0 / link-local / multicast\n/ unspecified addresses can never be treated as canonical LAN identity,\nwhile genuine private-LAN and routable public IPs pass through."
+  - id: golang/config/mesh_routing_test.go:TestGetMeshAddress
+    file: golang/config/mesh_routing_test.go
+    symbol: TestGetMeshAddress
+    package: config
+    language: go
+    doc: "TestGetMeshAddress verifies that GetMeshAddress returns <IP>:443 (Envoy mesh).\nThis is a smoke test — it requires local config to be present on the machine\nrunning the test (CI or dev box with /var/lib/globular/config/config.json)."
+  - id: golang/config/mesh_routing_test.go:TestMeshRouteAddrsLoopbackRejected
+    file: golang/config/mesh_routing_test.go
+    symbol: TestMeshRouteAddrsLoopbackRejected
+    package: config
+    language: go
+    doc: "TestMeshRouteAddrsLoopbackRejected verifies that meshRouteAddrs drops\nloopback addresses (127.0.0.1, localhost) rather than passing them through.\nA loopback address in etcd means a service misconfigured itself — rejecting\nit makes the misconfiguration visible instead of silently routing to a dead port."
+  - id: golang/config/mesh_routing_test.go:TestNormalizePassesThroughHostPort
+    file: golang/config/mesh_routing_test.go
+    symbol: TestNormalizePassesThroughHostPort
+    package: config
+    language: go
+    doc: "TestNormalizePassesThroughHostPort verifies that addresses already in\nhost:port form are returned unchanged — this is the root cause of mesh\nbypass when ResolveServiceAddr feeds into GetClient/normalizeControlAddress."
+  - id: golang/config/mesh_routing_test.go:TestResolveServiceAddrPortBypassesMesh
+    file: golang/config/mesh_routing_test.go
+    symbol: TestResolveServiceAddrPortBypassesMesh
+    package: config
+    language: go
+    doc: "TestResolveServiceAddrPortBypassesMesh documents the CURRENT behavior:\nResolveServiceAddr returns direct ports (e.g. 10.0.0.63:10010), which bypass\nthe Envoy mesh when passed to grpc.Dial.\n\nThis test exists to track when we fix this — once ResolveServiceAddr returns\nmesh addresses (:443), the assertions should flip."
+  - id: golang/config/minio_proxy_io_test.go:TestLoadMinioProxyConfigFrom_InvalidContract
+    file: golang/config/minio_proxy_io_test.go
+    symbol: TestLoadMinioProxyConfigFrom_InvalidContract
+    package: config
+    language: go
+  - id: golang/config/minio_proxy_io_test.go:TestLoadMinioProxyConfigFrom_InvalidType
+    file: golang/config/minio_proxy_io_test.go
+    symbol: TestLoadMinioProxyConfigFrom_InvalidType
+    package: config
+    language: go
+  - id: golang/config/minio_proxy_io_test.go:TestLoadMinioProxyConfigFrom_MissingEndpoint
+    file: golang/config/minio_proxy_io_test.go
+    symbol: TestLoadMinioProxyConfigFrom_MissingEndpoint
+    package: config
+    language: go
+  - id: golang/config/minio_proxy_io_test.go:TestLoadMinioProxyConfigFrom_ValidContract
+    file: golang/config/minio_proxy_io_test.go
+    symbol: TestLoadMinioProxyConfigFrom_ValidContract
+    package: config
+    language: go
+  - id: golang/config/minio_proxy_io_test.go:TestSaveMinioProxyConfigTo_RoundTrip
+    file: golang/config/minio_proxy_io_test.go
+    symbol: TestSaveMinioProxyConfigTo_RoundTrip
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioEnv_CustomNodePaths
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioEnv_CustomNodePaths
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioEnv_DefaultCredentials
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioEnv_DefaultCredentials
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioEnv_Distributed_MultiDrive
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioEnv_Distributed_MultiDrive
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioEnv_Distributed_SingleDrive
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioEnv_Distributed_SingleDrive
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioEnv_NilState
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioEnv_NilState
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioEnv_ParityWithController_Distributed
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioEnv_ParityWithController_Distributed
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioEnv_Standalone
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioEnv_Standalone
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioEnv_Standalone_MultiDrive
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioEnv_Standalone_MultiDrive
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioSystemdOverride_CustomNodePath
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioSystemdOverride_CustomNodePath
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioSystemdOverride_Distributed
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioSystemdOverride_Distributed
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioSystemdOverride_MultiDrive
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioSystemdOverride_MultiDrive
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioSystemdOverride_ParityWithController_Distributed
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioSystemdOverride_ParityWithController_Distributed
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestRenderMinioSystemdOverride_StandaloneNoop
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestRenderMinioSystemdOverride_StandaloneNoop
+    package: config
+    language: go
+  - id: golang/config/minio_runtime_render_test.go:TestTopologyRenderParity
+    file: golang/config/minio_runtime_render_test.go
+    symbol: TestTopologyRenderParity
+    package: config
+    language: go
+    doc: "Awareness required-test name wrapper for topology render parity invariant."
+  - id: golang/config/minio_secret_file_test.go:TestResolveSecretKey
+    file: golang/config/minio_secret_file_test.go
+    symbol: TestResolveSecretKey
+    package: config
+    language: go
+    doc: "TestResolveSecretKey covers the Tier-3 credential-relocation read model:\nthe MinIO root secret_key is read from a node-local file in preference to the\ninline etcd value, and falls back to the inline value when the file is\nabsent/empty/unreadable (so migration is non-breaking)."
+  - id: golang/config/minio_tls_test.go:TestExtractHost
+    file: golang/config/minio_tls_test.go
+    symbol: TestExtractHost
+    package: config
+    language: go
+  - id: golang/config/minio_tls_test.go:TestIsLoopback
+    file: golang/config/minio_tls_test.go
+    symbol: TestIsLoopback
+    package: config
+    language: go
+  - id: golang/config/minio_tls_test.go:TestMinIOTLSConfig_Loopback
+    file: golang/config/minio_tls_test.go
+    symbol: TestMinIOTLSConfig_Loopback
+    package: config
+    language: go
+  - id: golang/config/minio_tls_test.go:TestMinIOTLSConfig_NonLoopback_NoCA
+    file: golang/config/minio_tls_test.go
+    symbol: TestMinIOTLSConfig_NonLoopback_NoCA
+    package: config
+    language: go
+  - id: golang/config/minio_tls_test.go:TestMinIOTLSConfig_NonLoopback_WithCA
+    file: golang/config/minio_tls_test.go
+    symbol: TestMinIOTLSConfig_NonLoopback_WithCA
+    package: config
+    language: go
+  - id: golang/config/mode_validation_test.go:TestValidateServiceEndpoint
+    file: golang/config/mode_validation_test.go
+    symbol: TestValidateServiceEndpoint
+    package: config
+    language: go
+  - id: golang/config/mode_validation_test.go:TestValidateServiceEndpoints
+    file: golang/config/mode_validation_test.go
+    symbol: TestValidateServiceEndpoints
+    package: config
+    language: go
+  - id: golang/config/objectstore_config_test.go:TestObjectStoreDesiredStateReadyFlagsRoundTrip
+    file: golang/config/objectstore_config_test.go
+    symbol: TestObjectStoreDesiredStateReadyFlagsRoundTrip
+    package: config
+    language: go
+    doc: "TestObjectStoreDesiredStateReadyFlagsRoundTrip verifies CredentialsReady and\nEndpointReady survive a marshal/unmarshal cycle."
+  - id: golang/config/objectstore_config_test.go:TestObjectStoreDesiredStateRoundTrip
+    file: golang/config/objectstore_config_test.go
+    symbol: TestObjectStoreDesiredStateRoundTrip
+    package: config
+    language: go
+    doc: "TestObjectStoreDesiredStateRoundTrip verifies that ObjectStoreDesiredState\nsurvives a marshal/unmarshal cycle with all fields intact."
+  - id: golang/config/objectstore_config_test.go:TestObjectStoreModeConstants
+    file: golang/config/objectstore_config_test.go
+    symbol: TestObjectStoreModeConstants
+    package: config
+    language: go
+    doc: "TestObjectStoreModeConstants verifies the mode constants have expected values."
+  - id: golang/config/objectstore_config_test.go:TestSaveObjectStoreDesiredStateAcceptsIP
+    file: golang/config/objectstore_config_test.go
+    symbol: TestSaveObjectStoreDesiredStateAcceptsIP
+    package: config
+    language: go
+    doc: "TestSaveObjectStoreDesiredStateAcceptsIP verifies that a bare IP endpoint\npasses validation in ObjectStoreDesiredState."
+  - id: golang/config/objectstore_config_test.go:TestSaveObjectStoreDesiredStateAllowsEmptyEndpoint
+    file: golang/config/objectstore_config_test.go
+    symbol: TestSaveObjectStoreDesiredStateAllowsEmptyEndpoint
+    package: config
+    language: go
+    doc: "TestSaveObjectStoreDesiredStateAllowsEmptyEndpoint verifies that an empty\nendpoint passes validateEndpoint — it is allowed in degraded contracts where\nEndpointReady=false (controller startup before pool is formed)."
+  - id: golang/config/objectstore_config_test.go:TestSaveObjectStoreDesiredStateRejectsDNS
+    file: golang/config/objectstore_config_test.go
+    symbol: TestSaveObjectStoreDesiredStateRejectsDNS
+    package: config
+    language: go
+    doc: "TestSaveObjectStoreDesiredStateRejectsDNS verifies that\nSaveObjectStoreDesiredState refuses to write an endpoint with a DNS hostname."
+  - id: golang/config/security_regression_test.go:TestSecurityRegressions
+    file: golang/config/security_regression_test.go
+    symbol: TestSecurityRegressions
+    package: config
+    language: go
+    doc: "TestSecurityRegressions ensures Day-0 Security hardening is maintained (H4)\nThis test scans the codebase for patterns that violate security contracts."
+  - id: golang/config/service_config_cache_test.go:TestServiceConfigCacheDeepCopy
+    file: golang/config/service_config_cache_test.go
+    symbol: TestServiceConfigCacheDeepCopy
+    package: config
+    language: go
+    doc: "TestServiceConfigCacheDeepCopy verifies that mutating the map returned by\nGetServicesConfigurations does not corrupt the cached entry."
+  - id: golang/config/service_config_cache_test.go:TestServiceConfigCacheHit
+    file: golang/config/service_config_cache_test.go
+    symbol: TestServiceConfigCacheHit
+    package: config
+    language: go
+    doc: "TestServiceConfigCacheHit verifies that a second GetServicesConfigurations\ncall within the TTL window is served from cache without calling etcd again."
+  - id: golang/config/service_config_cache_test.go:TestServiceConfigCacheInvalidatedOnWrite
+    file: golang/config/service_config_cache_test.go
+    symbol: TestServiceConfigCacheInvalidatedOnWrite
+    package: config
+    language: go
+    doc: "TestServiceConfigCacheInvalidatedOnWrite verifies that after a write-path\ninvalidation (simulating SaveServiceConfiguration / DeleteServiceConfiguration),\nthe next GetServicesConfigurations re-fetches."
+  - id: golang/config/service_config_cache_test.go:TestServiceConfigCacheStaleOnEtcdError
+    file: golang/config/service_config_cache_test.go
+    symbol: TestServiceConfigCacheStaleOnEtcdError
+    package: config
+    language: go
+    doc: "TestServiceConfigCacheStaleOnEtcdError verifies that when etcd becomes\nunavailable, GetServicesConfigurations returns the last successful result\nrather than an error (within the StaleIfError window).\n\nWe use TTL=0 so every Get calls fetch directly — no TTL backdating needed\nto trigger the stale-if-error path. The stale-if-error behaviour is identical\nregardless of TTL; TTL only affects the fast path."
+  - id: golang/config/service_config_cache_test.go:TestServiceConfigCacheWatchInvalidation
+    file: golang/config/service_config_cache_test.go
+    symbol: TestServiceConfigCacheWatchInvalidation
+    package: config
+    language: go
+    doc: "TestServiceConfigCacheWatchInvalidation verifies that the onEvent callback\n(called by WatchInvalidator for every /globular/services/ change) causes the\nnext read to re-fetch rather than returning the TTL-cached value."
+  - id: golang/config/write_class_test.go:TestPutRuntimeWithClass_AppliesPolicyByClass
+    file: golang/config/write_class_test.go
+    symbol: TestPutRuntimeWithClass_AppliesPolicyByClass
+    package: config
+    language: go
+    doc: "TestPutRuntimeWithClass_AppliesPolicyByClass verifies that:\n 1. GetWritePolicy returns a coherent, distinct policy for every class.\n 2. PutRuntimeWithClass succeeds with each class when the underlying KV works.\n 3. An unknown class falls back to NormalRuntimeWrite (not zero-value)."
+  - id: golang/config/write_class_test.go:TestPutRuntimeWithClass_CriticalWriteRetriesWithJitter
+    file: golang/config/write_class_test.go
+    symbol: TestPutRuntimeWithClass_CriticalWriteRetriesWithJitter
+    package: config
+    language: go
+    doc: "TestPutRuntimeWithClass_CriticalWriteRetriesWithJitter verifies that:\n 1. CriticalWrite retries up to MaxRetries times before returning success.\n 2. Jitter is applied: the calculated sleep is within [base, base*(1+jitter)].\n 3. The operation succeeds when the KV eventually accepts the write."
+  - id: golang/config/write_class_test.go:TestPutRuntimeWithClass_StateCommitWritePropagatesError
+    file: golang/config/write_class_test.go
+    symbol: TestPutRuntimeWithClass_StateCommitWritePropagatesError
+    package: config
+    language: go
+    doc: "TestPutRuntimeWithClass_StateCommitWritePropagatesError verifies that:\n 1. StateCommitWrite never swallows an error: every failure is returned to\n    the caller regardless of retry exhaustion.\n 2. The returned error identifies the class and key.\n 3. All MaxRetries+1 attempts are made before returning."
+  - id: golang/config/zz_awareness_required_test_aliases_test.go:TestListenerBind_Uses0000_NotLoopback
+    file: golang/config/zz_awareness_required_test_aliases_test.go
+    symbol: TestListenerBind_Uses0000_NotLoopback
+    package: config
+    language: go
+  - id: golang/config/zz_awareness_required_test_aliases_test.go:TestPublicDirAuthorityUsesClusterRegistry
+    file: golang/config/zz_awareness_required_test_aliases_test.go
+    symbol: TestPublicDirAuthorityUsesClusterRegistry
+    package: config
+    language: go
+  - id: golang/config/zz_awareness_required_test_aliases_test.go:TestServiceErrorsWhenEtcdUnreachable
+    file: golang/config/zz_awareness_required_test_aliases_test.go
+    symbol: TestServiceErrorsWhenEtcdUnreachable
+    package: config
+    language: go
+  - id: golang/config/zz_awareness_required_test_aliases_test.go:TestVIPHolder_DerivedFromRuntimeStatus_NotProfile
+    file: golang/config/zz_awareness_required_test_aliases_test.go
+    symbol: TestVIPHolder_DerivedFromRuntimeStatus_NotProfile
+    package: config
+    language: go
+  - id: golang/config/zz_awareness_required_test_aliases_test.go:TestVIPHolder_ReflectsActualMaster
+    file: golang/config/zz_awareness_required_test_aliases_test.go
+    symbol: TestVIPHolder_ReflectsActualMaster
+    package: config
+    language: go

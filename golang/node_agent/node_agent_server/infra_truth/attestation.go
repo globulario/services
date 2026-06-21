@@ -17,7 +17,13 @@ const remediationOwner = "Repair the owner that generated this config: the Scyll
 // returns the violations found (empty == config valid). It attests nothing when
 // the config file is absent — that is a lifecycle fact (not yet rendered), not a
 // config violation.
-func AttestScyllaConfig(desired *InfraDesiredState, rendered *ScyllaRenderedConfig) []*cluster_controllerpb.InfraViolation {
+//
+// runtime may be nil (e.g. before the daemon is up, or in pure static tests). It
+// is consulted only by rules whose predicted harm is an empirical runtime fact —
+// notably the self-only-seed "isolated ring" prediction, which is refuted once the
+// node is observed as a converged member of a multi-node ring. A nil runtime means
+// "no runtime proof", so those rules fire exactly as the static config implies.
+func AttestScyllaConfig(desired *InfraDesiredState, rendered *ScyllaRenderedConfig, runtime *ScyllaRuntimeState) []*cluster_controllerpb.InfraViolation {
 	if rendered == nil || !rendered.Present {
 		return nil
 	}
@@ -39,7 +45,7 @@ func AttestScyllaConfig(desired *InfraDesiredState, rendered *ScyllaRenderedConf
 	// api_address is intentionally allowed to be loopback (local admin REST API).
 
 	add(attestClusterName(desired, rendered))
-	add(attestSeeds(desired, rendered))
+	add(attestSeeds(desired, rendered, runtime))
 	add(attestAddressMatchesLocalNode(desired, rendered))
 
 	return v
@@ -101,7 +107,19 @@ func attestClusterName(desired *InfraDesiredState, rendered *ScyllaRenderedConfi
 // attestSeeds checks the seed list against bootstrap intent. A joining node must
 // have at least one expected non-self seed; a self-only seed list is only valid
 // for an explicit first-node bootstrap.
-func attestSeeds(desired *InfraDesiredState, rendered *ScyllaRenderedConfig) *cluster_controllerpb.InfraViolation {
+//
+// The self-only-seed rule predicts a *future* event ("it WILL bootstrap an
+// isolated single-node ring"). That prediction must be reconciled against runtime
+// truth: once the node is observed as a converged member of a multi-node ring
+// (operation_mode NORMAL with a live non-self gossip peer), the bootstrap already
+// happened and did NOT isolate the node — keeping it an ERROR is a false positive
+// that drags a healthy member to DEGRADED and can trigger needless remediation of
+// a working ring. In that case the rule is downgraded to an INFO seed-hygiene note
+// rather than silenced, because a future wiped restart with self-only seeds would
+// still re-isolate the node. Before bootstrap (runtime nil / not yet NORMAL) the
+// rule stays an ERROR so a config that would isolate a fresh node is caught early
+// (infra.config_must_be_attested_before_start).
+func attestSeeds(desired *InfraDesiredState, rendered *ScyllaRenderedConfig, runtime *ScyllaRuntimeState) *cluster_controllerpb.InfraViolation {
 	if len(rendered.Seeds) == 0 {
 		return newViolation(
 			"scylla.config_valid",
@@ -122,6 +140,15 @@ func attestSeeds(desired *InfraDesiredState, rendered *ScyllaRenderedConfig) *cl
 	hasNonSelfSeed := hasNonSelf(rendered.Seeds, self)
 
 	if desired.BootstrapIntent == BootstrapJoining && !hasNonSelfSeed {
+		if scyllaProvenEstablishedMember(desired, runtime) {
+			return newViolation(
+				"scylla.config_valid",
+				SeverityInfo,
+				fmt.Sprintf("seeds contains only self (%s); the node is already a NORMAL member of a multi-node ring so it is not isolated now, but a wiped restart with self-only seeds would re-bootstrap an isolated ring — add a non-self seed for restart safety", strings.Join(rendered.Seeds, ",")),
+				fmt.Sprintf("seeds=%s bootstrap_intent=%s operation_mode=%s observed_peers=%s", strings.Join(rendered.Seeds, ","), desired.BootstrapIntent, runtime.OperationMode, strings.Join(runtime.ObservedPeers, ",")),
+				remediationOwner,
+			)
+		}
 		return newViolation(
 			"scylla.config_valid",
 			SeverityError,
@@ -131,6 +158,27 @@ func attestSeeds(desired *InfraDesiredState, rendered *ScyllaRenderedConfig) *cl
 		)
 	}
 	return nil
+}
+
+// scyllaProvenEstablishedMember reports whether runtime truth proves this node is
+// already a converged member of a MULTI-node ring: operation_mode NORMAL with at
+// least one live non-self gossip peer. This is the empirical refutation of the
+// "joining node will bootstrap an isolated single-node ring" prediction. A node
+// that genuinely isolated itself also reports NORMAL, but with only itself in live
+// gossip — that is NOT established membership, so the violation must stand. A nil
+// runtime (no proof yet) is never "established".
+func scyllaProvenEstablishedMember(desired *InfraDesiredState, runtime *ScyllaRuntimeState) bool {
+	if runtime == nil {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(runtime.OperationMode), "NORMAL") {
+		return false
+	}
+	self := ""
+	if desired != nil && len(desired.ExpectedListenAddresses) > 0 {
+		self = desired.ExpectedListenAddresses[0]
+	}
+	return hasNonSelf(runtime.ObservedPeers, self)
 }
 
 // attestAddressMatchesLocalNode verifies the rendered listen address is one of

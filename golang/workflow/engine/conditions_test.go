@@ -163,14 +163,59 @@ func TestDefaultEvalCond_Inequality(t *testing.T) {
 	}
 }
 
-func TestDefaultEvalCond_UnknownDefaultsTrue(t *testing.T) {
+// TestDefaultEvalCond_NegationAndBareBool covers the real condition forms used
+// in production definitions (e.g. backup: "!inputs.dry_run") that previously
+// fell through to the unknown branch and silently returned true.
+func TestDefaultEvalCond_NegationAndBareBool(t *testing.T) {
 	ctx := context.Background()
-	ok, err := DefaultEvalCond(ctx, "some_unknown_expression", nil, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	cases := []struct {
+		expr    string
+		inputs  map[string]any
+		want    bool
+	}{
+		{"inputs.dry_run", map[string]any{"dry_run": true}, true},
+		{"inputs.dry_run", map[string]any{"dry_run": false}, false},
+		{"inputs.dry_run", map[string]any{}, false},          // undefined -> fail closed
+		{"!inputs.dry_run", map[string]any{"dry_run": true}, false},
+		{"!inputs.dry_run", map[string]any{"dry_run": false}, true},
+		{"!inputs.dry_run", map[string]any{}, true},           // !undefined == !false
 	}
-	if !ok {
-		t.Error("unknown expression should default to true")
+	for _, tt := range cases {
+		ok, err := DefaultEvalCond(ctx, tt.expr, tt.inputs, nil)
+		if err != nil {
+			t.Errorf("%q: unexpected error: %v", tt.expr, err)
+			continue
+		}
+		if ok != tt.want {
+			t.Errorf("%q (dry_run=%v) = %v, want %v", tt.expr, tt.inputs["dry_run"], ok, tt.want)
+		}
+	}
+}
+
+// TestDefaultEvalCond_UnknownFailsClosed locks in the fix for the AWG re-audit
+// finding (meta.silence_is_not_valid_for_unexpected): a genuinely unparseable
+// guard must surface an error (fail closed), never silently evaluate to true
+// and authorize a side-effecting step. A valid-but-undefined identifier fails
+// closed to false (not an error) so optional boolean guards still work.
+func TestDefaultEvalCond_UnknownFailsClosed(t *testing.T) {
+	ctx := context.Background()
+
+	// Undefined-but-valid identifier: fail closed to false, no error.
+	ok, err := DefaultEvalCond(ctx, "some_unknown_flag", nil, nil)
+	if err != nil {
+		t.Fatalf("undefined identifier should not error, got %v", err)
+	}
+	if ok {
+		t.Error("undefined boolean guard must fail closed to false")
+	}
+
+	// Genuine garbage: must error, must not evaluate true.
+	ok, err = DefaultEvalCond(ctx, "this is not @ valid expr", nil, nil)
+	if err == nil {
+		t.Fatal("unparseable expression must return an error, got nil")
+	}
+	if ok {
+		t.Error("unparseable expression must not evaluate true (must fail closed)")
 	}
 }
 

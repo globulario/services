@@ -10,7 +10,13 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
+	"strings"
 	"testing"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
@@ -190,9 +196,13 @@ func TestPromoteToPublished_SetsArtifactStatePublished(t *testing.T) {
 	key := artifactKeyWithBuild(ref, 1)
 	binary := []byte("fake-echo-binary")
 
-	// Seed Scylla row (as upload would — publish_state=VERIFIED, artifact_state unset)
+	// Seed Scylla row (as upload would — publish_state=VERIFIED, artifact_state
+	// unset). syncManifestToScylla writes manifest_json on upload, so a real
+	// pre-promote row is never a skeleton; include it or promoteToPublished's
+	// skeleton-row guard refuses promotion.
 	_ = ledger.PutManifest(ctx, manifestRow{
 		ArtifactKey:  key,
+		ManifestJSON: []byte("{}"),
 		PublishState: repopb.PublishState_VERIFIED.String(),
 		PublisherID:  ref.GetPublisherId(),
 		Name:         ref.GetName(),
@@ -255,9 +265,11 @@ func TestOrphanCheck_DoesNotDisagreeWithDiscovery(t *testing.T) {
 	key := artifactKeyWithBuild(ref, 7)
 	binary := []byte("fake-workflow-binary")
 
-	// Seed a VERIFIED row (as upload would).
+	// Seed a VERIFIED row (as upload would — manifest_json present, so the
+	// pre-promote row is not a skeleton and promoteToPublished's guard allows it).
 	_ = ledger.PutManifest(ctx, manifestRow{
 		ArtifactKey:  key,
+		ManifestJSON: []byte("{}"),
 		PublishState: repopb.PublishState_VERIFIED.String(),
 		PublisherID:  ref.GetPublisherId(),
 		Name:         ref.GetName(),
@@ -302,6 +314,165 @@ func TestOrphanCheck_DoesNotDisagreeWithDiscovery(t *testing.T) {
 		t.Errorf("isRowInstallable returned false after promoteToPublished — "+
 			"publish_state=%q artifact_state=%q; node-agent will treat this as DesiredBuildIdOrphaned",
 			row.PublishState, row.ArtifactState)
+	}
+}
+
+// TestPromoteToPublished_RefusesSkeletonRow is the F1 regression for INC-2026-0012:
+// a row whose manifest_json never landed (interrupted syncManifestToScylla) must
+// NOT be promoted to PUBLISHED. Otherwise the publish_state / artifact_state
+// UPSERTs in promoteToPublished manufacture a row that reads PUBLISHED with a NULL
+// manifest — a half-done row readers can never resolve.
+// (repository.artifact_presence_requires_metadata_and_blob / meta.half_done_must_not_look_done.)
+func TestPromoteToPublished_RefusesSkeletonRow(t *testing.T) {
+	ref := &repopb.ArtifactRef{
+		PublisherId: "glob", Name: "echo", Version: "1.0.66",
+		Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	srv, ledger := newLedgerTestServer(t)
+	ctx := context.Background()
+
+	key := artifactKeyWithBuild(ref, 1)
+	binary := []byte("fake-echo-binary")
+
+	// Seed a SKELETON row: state columns present, manifest_json ABSENT — the exact
+	// INC-2026-0012 shape produced when the manifest sync failed but later state
+	// UPSERTs succeeded.
+	_ = ledger.PutManifest(ctx, manifestRow{
+		ArtifactKey:  key,
+		PublishState: repopb.PublishState_VERIFIED.String(),
+		PublisherID:  ref.GetPublisherId(),
+		Name:         ref.GetName(),
+		Version:      ref.GetVersion(),
+		Platform:     ref.GetPlatform(),
+		BuildNumber:  1,
+		// ManifestJSON intentionally omitted → skeleton row.
+	})
+
+	// Blob IS present, so the rejection is specifically the manifest guard, not
+	// the blob-presence check earlier in promoteToPublished.
+	_ = srv.localStorage.MkdirAll(ctx, artifactsDir, 0o755)
+	_ = srv.localStorage.WriteFile(ctx, binaryStorageKey(key), binary, 0o644)
+
+	manifest := &repopb.ArtifactManifest{Ref: ref, BuildNumber: 1, SizeBytes: int64(len(binary))}
+
+	err := srv.promoteToPublished(ctx, key, manifest)
+	if err == nil {
+		t.Fatal("promoteToPublished must refuse to promote a skeleton row (manifest_json absent)")
+	}
+	if !strings.Contains(err.Error(), "skeleton row") {
+		t.Errorf("expected skeleton-row rejection, got: %v", err)
+	}
+
+	// The row must NOT have been advanced to PUBLISHED.
+	row, _ := ledger.GetManifest(ctx, key)
+	if row != nil && row.PublishState == repopb.PublishState_PUBLISHED.String() {
+		t.Error("skeleton row was promoted to PUBLISHED — F1 guard failed")
+	}
+}
+
+// TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable is the F4 regression:
+// when the published catalog can't be read (Scylla degraded → loadPublishedCatalog
+// returns nil), the two cross-artifact law rules (acyclic hard_deps / no
+// dep-on-application) cannot run. For an artifact that DECLARES hard_deps those
+// rules are the gate, so promotion must be refused rather than degraded open.
+// (repository.publish_pipeline_is_ordered / meta.failure_response_must_contract_not_amplify.)
+func TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable(t *testing.T) {
+	srv, _ := newLedgerTestServer(t)
+	// Swap in a ledger whose ListManifests errors → loadPublishedCatalog == nil.
+	srv.scylla = errLedger{err: errors.New("scylla unavailable")}
+	ctx := context.Background()
+
+	manifest := &repopb.ArtifactManifest{
+		Ref: &repopb.ArtifactRef{
+			PublisherId: "glob", Name: "echo", Version: "1.0.0",
+			Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+		},
+		BuildNumber: 1,
+		HardDeps:    []*repopb.ArtifactDependencyRef{{}}, // declares a hard dep
+	}
+	key := artifactKeyWithBuild(manifest.GetRef(), 1)
+
+	err := srv.completePublish(ctx, manifest, key, nil, nil)
+	if err == nil {
+		t.Fatal("completePublish must refuse a hard_deps artifact when the catalog is unavailable")
+	}
+	if !strings.Contains(err.Error(), "catalog unavailable") {
+		t.Errorf("expected catalog-unavailable rejection, got: %v", err)
+	}
+}
+
+// updateBinaryStubStream is a stub PackageRepository_UpdateArtifactBinaryServer
+// that replays a header + chunk and captures the SendAndClose response.
+type updateBinaryStubStream struct {
+	ctx      context.Context
+	msgs     []*repopb.UpdateArtifactBinaryRequest
+	pos      int
+	response *repopb.UpdateArtifactBinaryResponse
+}
+
+func (s *updateBinaryStubStream) Recv() (*repopb.UpdateArtifactBinaryRequest, error) {
+	if s.pos >= len(s.msgs) {
+		return nil, io.EOF
+	}
+	m := s.msgs[s.pos]
+	s.pos++
+	return m, nil
+}
+func (s *updateBinaryStubStream) SendAndClose(r *repopb.UpdateArtifactBinaryResponse) error {
+	s.response = r
+	return nil
+}
+func (s *updateBinaryStubStream) Context() context.Context    { return s.ctx }
+func (s *updateBinaryStubStream) RecvMsg(any) error           { return nil }
+func (s *updateBinaryStubStream) SendMsg(any) error           { return nil }
+func (s *updateBinaryStubStream) SetHeader(metadata.MD) error { return nil }
+func (s *updateBinaryStubStream) SendHeader(metadata.MD) error {
+	return nil
+}
+func (s *updateBinaryStubStream) SetTrailer(metadata.MD) {}
+
+// TestUpdateArtifactBinary_RejectsSameVersionDifferentDigest is the F3 regression:
+// delta-deploy of an already-PUBLISHED version with DIFFERENT bytes must be
+// rejected up front (AlreadyExists), not stored as a divergent-digest VERIFIED
+// phantom and reported as soft "verified" success. Same bytes is an idempotent
+// no-op. (repository.artifact.content_immutable_after_publish /
+// meta.silence_is_not_valid_for_unexpected.)
+func TestUpdateArtifactBinary_RejectsSameVersionDifferentDigest(t *testing.T) {
+	srv := newTestServer(t) // scylla nil → storage fallback resolves the seeded build
+	ctx := context.Background()
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "echo", Version: "1.0.0",
+		Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	origBytes := []byte("original-echo-binary")
+	origDigest := checksumBytes(origBytes)
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "v1",
+		Checksum: origDigest, SizeBytes: int64(len(origBytes)),
+	})
+
+	mkStream := func(data []byte) *updateBinaryStubStream {
+		return &updateBinaryStubStream{ctx: ctx, msgs: []*repopb.UpdateArtifactBinaryRequest{
+			{Payload: &repopb.UpdateArtifactBinaryRequest_Header{Header: &repopb.UpdateArtifactBinaryHeader{Ref: ref}}},
+			{Payload: &repopb.UpdateArtifactBinaryRequest_Chunk{Chunk: data}},
+		}}
+	}
+
+	// Different bytes for the already-published version → AlreadyExists, no phantom.
+	if err := srv.UpdateArtifactBinary(mkStream([]byte("DIFFERENT-bytes"))); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("expected AlreadyExists for same-version/different-digest, got: %v", err)
+	}
+
+	// Same bytes → idempotent published, no error, no new build allocated.
+	s := mkStream(origBytes)
+	if err := srv.UpdateArtifactBinary(s); err != nil {
+		t.Fatalf("idempotent same-digest update must succeed, got: %v", err)
+	}
+	if s.response == nil || s.response.GetStatus() != "published" {
+		t.Errorf("idempotent update must return status=published, got: %+v", s.response)
+	}
+	if s.response != nil && s.response.GetBuildNumber() != 1 {
+		t.Errorf("idempotent update must not allocate a new build, got build %d", s.response.GetBuildNumber())
 	}
 }
 

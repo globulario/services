@@ -1,0 +1,26 @@
+schema_version: 1
+file_kind: runbook
+metadata:
+  title: "Test runbook — fixture recovery"
+entries:
+  - id: ops.test.recover-thing
+    type: SKILL
+    title: "recover the thing"
+    tags: [day-1, test]
+    applies_when:
+      cluster_phases: [day-1]
+    content: "Fixture runbook for compiler tests."
+    procedure:
+      - phase: observe
+        description: "look at the current state"
+      - phase: plan
+        description: "plan the safe fix"
+      - phase: execute
+        description: "Back up data via S3 before the destructive apply"
+        warning: "this step wipes data and is irreversible"
+      - phase: verify
+        description: "confirm the topology converged"
+    success_criteria:
+      - "topology status converged"
+    provenance:
+      source: seed

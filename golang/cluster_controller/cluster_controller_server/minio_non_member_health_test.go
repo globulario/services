@@ -56,6 +56,61 @@ func TestEvaluateNodeStatus_MinioNonMember(t *testing.T) {
 	}
 }
 
+// TestDropMinioCommodityUnitsForNonMember pins the shared gating helper used by
+// BOTH the per-node health detail (GetNodeHealthDetailV1) and the readiness gate
+// (deriveNodeStatus). MinIO/sidekick are a commodity object-store tier — never a
+// pillar like etcd/scylla/envoy. On a non-member node (held out of the pool, e.g.
+// below the 3-node object-store quorum) they are inactive by design and MUST be
+// dropped from the required-unit set, or Healthy=allOK=false blocks convergence.
+//
+// Regression (globule-nuc, 2026-06-20): a 2-node cluster below quorum had
+// minio/sidekick inactive by design, but GetNodeHealthDetailV1 still counted
+// them as failing unit checks → node reported unhealthy → reconcile saw the node
+// as not converged → the remaining service packages never installed.
+func TestDropMinioCommodityUnitsForNonMember(t *testing.T) {
+	mk := func() map[string]struct{} {
+		return map[string]struct{}{
+			"globular-minio.service":    {},
+			"globular-sidekick.service": {},
+			"globular-rbac.service":     {},
+			"globular-etcd.service":     {},
+		}
+	}
+
+	// Non-member: commodity units dropped, pillars + workload services retained.
+	req := mk()
+	dropMinioCommodityUnitsForNonMember(req, &nodeState{MinioJoinPhase: MinioJoinNonMember})
+	if _, ok := req["globular-minio.service"]; ok {
+		t.Error("globular-minio.service must be dropped for a non-member node")
+	}
+	if _, ok := req["globular-sidekick.service"]; ok {
+		t.Error("globular-sidekick.service must be dropped for a non-member node")
+	}
+	if _, ok := req["globular-rbac.service"]; !ok {
+		t.Error("workload units (rbac) must be retained")
+	}
+	if _, ok := req["globular-etcd.service"]; !ok {
+		t.Error("pillar units (etcd) must always be retained")
+	}
+
+	// Pool member: commodity units retained — a real dead MinIO on a member must surface.
+	req2 := mk()
+	dropMinioCommodityUnitsForNonMember(req2, &nodeState{MinioJoinPhase: MinioJoinVerified})
+	if _, ok := req2["globular-minio.service"]; !ok {
+		t.Error("globular-minio.service must remain required for a pool member")
+	}
+	if _, ok := req2["globular-sidekick.service"]; !ok {
+		t.Error("globular-sidekick.service must remain required for a pool member")
+	}
+
+	// nil node: no panic, no mutation.
+	req3 := mk()
+	dropMinioCommodityUnitsForNonMember(req3, nil)
+	if len(req3) != 4 {
+		t.Errorf("nil node must not mutate required set, got %d entries", len(req3))
+	}
+}
+
 // TestEvaluateNodeStatus_MinioMember_RequiresMinio verifies that a node
 // that IS a MinIO pool member (not non_member) still requires minio to
 // be active for "ready" status.

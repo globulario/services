@@ -1,0 +1,8 @@
+code_symbols:
+test_symbols:
+  - id: Globular/internal/globule/banner_test.go:TestPrintBannerNeverWritesToStdout
+    file: Globular/internal/globule/banner_test.go
+    symbol: TestPrintBannerNeverWritesToStdout
+    package: globule
+    language: go
+    doc: "TestPrintBannerNeverWritesToStdout guards the describe contract:\n\nThe node agent runs each service binary with --describe and parses stdout as\nJSON for port preflight. Any decorative/log output on stdout corrupts that\nJSON (\"invalid character 'G' looking for beginning of value\") and silently\ndisables port preflight. PrintBanner is decorative human output, so it MUST\ngo to stderr only.\n\nRegression for: gateway/xds --describe emitting the \"Globular v...\" banner on\nstdout. See invariant observability.describe_stdout_is_machine_only."

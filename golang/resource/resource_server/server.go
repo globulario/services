@@ -19,6 +19,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -236,7 +237,7 @@ func (s *server) SetPermissions(perm []interface{}) { s.Permissions = perm }
 
 // tcpProbe attempts to dial a TCP address and returns true if successful.
 func tcpProbe(host string, port int, timeout time.Duration) bool {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return false

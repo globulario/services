@@ -566,3 +566,43 @@ func TestPipelineState_IsKnown(t *testing.T) {
 		t.Errorf("PipelineUnknown.IsKnown() = true, want false")
 	}
 }
+
+// TestIsInstallableForRef_RequiresBlobPresent is the F2b regression: the install
+// gate must not report a PUBLISHED row installable from its metadata/state columns
+// alone when the local CAS blob is gone (lost before the BROKEN_MISSING_BLOB
+// transition, or a legacy artifact_state=="" row). Local POSIX CAS is the
+// installability authority.
+// (repository.artifact_presence_requires_metadata_and_blob / meta.half_done_must_not_look_done.)
+func TestIsInstallableForRef_RequiresBlobPresent(t *testing.T) {
+	srv := newTestServer(t) // permissive signature policy + OS storage
+	ctx := context.Background()
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "echo", Version: "1.0.0",
+		Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	// seedPublishedArtifact writes the manifest, a size-matched local blob, and the
+	// release ledger entry.
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "v1",
+		Checksum: "sha256:abcd", SizeBytes: 100,
+	})
+	key := artifactKeyWithBuild(ref, 1)
+	if err := srv.transitionArtifactState(ctx, key, PipelinePublished, "test", "", ArtifactStateFields{
+		BlobKey: binaryStorageKey(key), Checksum: "sha256:abcd", SizeBytes: 100,
+	}); err != nil {
+		t.Fatalf("transition: %v", err)
+	}
+
+	// Blob present → installable.
+	if !srv.isInstallableForRef(ctx, ref, 1, repopb.PublishState_PUBLISHED) {
+		t.Fatal("artifact with a present local CAS blob must be installable")
+	}
+
+	// Simulate blob loss from local CAS while the row still reads PUBLISHED.
+	if err := srv.localStorage.Remove(ctx, binaryStorageKey(key)); err != nil {
+		t.Fatalf("remove blob: %v", err)
+	}
+	if srv.isInstallableForRef(ctx, ref, 1, repopb.PublishState_PUBLISHED) {
+		t.Error("PUBLISHED row with a lost CAS blob must NOT be reported installable (F2b)")
+	}
+}

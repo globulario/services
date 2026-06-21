@@ -18,3 +18,4 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.ai.router_safety_validator_overrides_scoring_engine
+test_symbols:

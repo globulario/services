@@ -58,12 +58,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gocql/gocql"
+	"github.com/globulario/services/golang/digest"
 	"github.com/globulario/services/golang/fallback"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/repository/upstream"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/versionutil"
+	"github.com/gocql/gocql"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1402,7 +1403,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		// that is actually inside the uploaded archive.
 		actualEntryCS := computeBinaryChecksumFromArchive(data)
 		if actualEntryCS != "" {
-			if declared := normalizeDigest(pkg.EntrypointChecksum); declared != "" && declared != actualEntryCS {
+			if declared := digest.CanonicalSHA256(pkg.EntrypointChecksum); declared != "" && declared != actualEntryCS {
 				return status.Errorf(codes.InvalidArgument,
 					"entrypoint_checksum mismatch: package.json=%s archive=%s",
 					canonicalDigest(pkg.EntrypointChecksum), canonicalDigest(actualEntryCS))
@@ -2520,6 +2521,27 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	latestManifest, mErr := srv.readManifestByKey(ctx, latestKey)
 	if mErr != nil {
 		return status.Errorf(codes.Internal, "read latest manifest %q: %v", latestKey, mErr)
+	}
+
+	// ── Immutability gate (mirror UploadArtifact) ───────────────────────
+	// content_immutable_after_publish: a version already PUBLISHED with a
+	// DIFFERENT digest must not be re-published as new bytes. Reject up front
+	// instead of storing a divergent-digest VERIFIED phantom that the ledger
+	// (appendToLedger, repair=nil) will refuse to promote — which previously
+	// surfaced as a soft "verified" success masking a permanent immutability
+	// rejection (meta.silence_is_not_valid_for_unexpected). Same digest is an
+	// idempotent no-op; to deploy new bytes, bump the version.
+	if publishedDigest := srv.getPublishedDigest(ctx, ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()); publishedDigest != "" {
+		if digestEqual(publishedDigest, actualChecksum) {
+			return stream.SendAndClose(&repopb.UpdateArtifactBinaryResponse{
+				BuildNumber: latestBuild,
+				Checksum:    actualChecksum,
+				Status:      "published",
+			})
+		}
+		return status.Errorf(codes.AlreadyExists,
+			"version %s is already published with a different digest (immutable) — bump the version to deploy new bytes",
+			ref.GetVersion())
 	}
 
 	// ── Assign next build number ────────────────────────────────────────

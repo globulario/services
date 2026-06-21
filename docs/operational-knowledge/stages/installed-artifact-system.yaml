@@ -109,7 +109,7 @@ entries:
       spec ensure-dirs step AND any ExecStartPre that touches the directory.
 
   - id: ops.artifacts.anti-patterns
-    type: ANTI_PATTERN
+    type: DEBUG
     title: "Filesystem anti-patterns that poison convergence"
     tags: [always, artifacts, anti-pattern]
     applies_when:
@@ -155,13 +155,11 @@ entries:
 
       Awareness invariant: `identity.stable_node_identity_not_floating_vip`
     links:
-      awareness_invariants:
-        - identity.stable_node_identity_not_floating_vip
       awareness_failure_modes:
         - vip_contamination.node_routable_ip_returns_vip
 
   - id: ops.artifacts.current-audit-notes
-    type: WARNING
+    type: REFERENCE
     title: "Current audit note: naming consistency hotspots"
     tags: [always, artifacts, audit]
     applies_when:

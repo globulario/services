@@ -1071,8 +1071,15 @@ func (srv *server) validateProviders(backupID string) []*backup_managerpb.Valida
 			}
 
 		case backup_managerpb.BackupProviderType_BACKUP_PROVIDER_RESTIC:
-			snapID := pr.Outputs["snapshot_id"]
-			if snapID == "" {
+			// A cluster backup fans out per node and records each node's
+			// snapshot under snapshot_id_<nodeID>; the top-level snapshot_id is
+			// only the FIRST node's. Validating just that one and then promoting
+			// the whole artifact to VALIDATED asserts cluster-wide integrity
+			// from a single-node check. Validate EVERY recorded snapshot so the
+			// VALIDATED claim covers the scope it asserts.
+			// (meta.assertions_must_carry_their_scope)
+			perNode := resticSnapshotsToValidate(pr.Outputs)
+			if len(perNode) == 0 {
 				issues = append(issues, &backup_managerpb.ValidationIssue{
 					Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_WARN,
 					Code:     "RESTIC_SNAPSHOT_ID_MISSING",
@@ -1084,7 +1091,7 @@ func (srv *server) validateProviders(backupID string) []*backup_managerpb.Valida
 			if repo == "" {
 				repo = srv.ResticRepo
 			}
-			// Verify exact snapshot_id exists by parsing restic JSON output
+			// Query the repo once, then check every recorded snapshot against it.
 			cmd := exec.CommandContext(context.Background(), "restic", "snapshots", "--json", "--repo", repo)
 			cmd.Env = append(os.Environ(), "RESTIC_REPOSITORY="+repo, "RESTIC_PASSWORD="+srv.ResticPassword)
 			snapOut, err := cmd.CombinedOutput()
@@ -1092,13 +1099,22 @@ func (srv *server) validateProviders(backupID string) []*backup_managerpb.Valida
 				issues = append(issues, &backup_managerpb.ValidationIssue{
 					Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_ERROR,
 					Code:     "RESTIC_REPO_UNREACHABLE",
-					Message:  fmt.Sprintf("cannot access restic repo: %v", err),
+					Message:  fmt.Sprintf("cannot access restic repo %s: %v", repo, err),
 				})
-			} else if !resticSnapshotExists(snapOut, snapID) {
+				continue
+			}
+			for nodeID, snapID := range perNode {
+				if resticSnapshotExists(snapOut, snapID) {
+					continue
+				}
+				msg := fmt.Sprintf("snapshot %s not found in restic repo %s", snapID, repo)
+				if nodeID != "" {
+					msg = fmt.Sprintf("node %s snapshot %s not found in restic repo %s", nodeID, snapID, repo)
+				}
 				issues = append(issues, &backup_managerpb.ValidationIssue{
 					Severity: backup_managerpb.BackupSeverity_BACKUP_SEVERITY_ERROR,
 					Code:     "RESTIC_SNAPSHOT_NOT_FOUND",
-					Message:  fmt.Sprintf("snapshot %s not found in restic repo %s", snapID, repo),
+					Message:  msg,
 				})
 			}
 
@@ -1324,6 +1340,31 @@ func verifyRemoteCapsule(remotePath string, requiredFiles []string, extraArgs []
 }
 
 // --- Helpers ---
+
+// resticSnapshotsToValidate returns the snapshot_id that must be verified for a
+// restic provider result, keyed by node ("" = a pre-fan-out single-node
+// backup). A cluster backup records each node's snapshot under
+// snapshot_id_<nodeID> (node_tasks.go); the top-level snapshot_id is only the
+// first node's. The whole artifact may be promoted to VALIDATED only if ALL of
+// these verify — validating just the top-level snapshot would assert
+// cluster-wide integrity from a single node.
+// (meta.assertions_must_carry_their_scope)
+func resticSnapshotsToValidate(outputs map[string]string) map[string]string {
+	perNode := map[string]string{}
+	for k, v := range outputs {
+		if v != "" && strings.HasPrefix(k, "snapshot_id_") {
+			perNode[strings.TrimPrefix(k, "snapshot_id_")] = v
+		}
+	}
+	// Backward-compat: a single-node / pre-fan-out backup records only the
+	// top-level snapshot_id.
+	if len(perNode) == 0 {
+		if snapID := outputs["snapshot_id"]; snapID != "" {
+			perNode[""] = snapID
+		}
+	}
+	return perNode
+}
 
 // resticSnapshotExists parses restic snapshots JSON output and checks for an exact ID match.
 // Restic returns an array of objects with "id" and "short_id" fields.

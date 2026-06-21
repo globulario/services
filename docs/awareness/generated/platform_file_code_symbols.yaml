@@ -1,0 +1,67 @@
+code_symbols:
+test_symbols:
+  - id: golang/file/file_client/file_test.go:TestFileClient_Errors
+    file: golang/file/file_client/file_test.go
+    symbol: TestFileClient_Errors
+    package: file_client
+    language: go
+  - id: golang/file/file_client/file_test.go:TestFileClient_HtmlToPdf
+    file: golang/file/file_client/file_test.go
+    symbol: TestFileClient_HtmlToPdf
+    package: file_client
+    language: go
+  - id: golang/file/file_client/file_test.go:TestFileClient_ReadDirAndThumbnails
+    file: golang/file/file_client/file_test.go
+    symbol: TestFileClient_ReadDirAndThumbnails
+    package: file_client
+    language: go
+  - id: golang/file/file_client/file_test.go:TestFileClient_SaveReadDelete
+    file: golang/file/file_client/file_test.go
+    symbol: TestFileClient_SaveReadDelete
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestFileClientUsesResolvedServerName
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestFileClientUsesResolvedServerName
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestFileServiceDependenciesClassified
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestFileServiceDependenciesClassified
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestFileServiceTLSIdentityMatchesRegistry
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestFileServiceTLSIdentityMatchesRegistry
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestFileService_FallbackToLocalEmitsFinding
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestFileService_FallbackToLocalEmitsFinding
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestSaveFileAuthorizesPathBeforeWrite
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestSaveFileAuthorizesPathBeforeWrite
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestSaveFileRejectsDataBeforePath
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestSaveFileRejectsDataBeforePath
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestSaveFileRejectsMissingPath
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestSaveFileRejectsMissingPath
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestUploadAllowsSafeHTTPSTarget
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestUploadAllowsSafeHTTPSTarget
+    package: file_client
+    language: go
+  - id: golang/file/file_client/zz_awareness_required_test_aliases_test.go:TestUploadRejectsUnsafeURLTargets
+    file: golang/file/file_client/zz_awareness_required_test_aliases_test.go
+    symbol: TestUploadRejectsUnsafeURLTargets
+    package: file_client
+    language: go

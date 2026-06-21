@@ -26,3 +26,131 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.security.deny_overrides_allow
+test_symbols:
+  - id: golang/rbac/rbac_client/rbac_test.go:Test_RBAC_Suite
+    file: golang/rbac/rbac_client/rbac_test.go
+    symbol: Test_RBAC_Suite
+    package: rbac_client
+    language: go
+  - id: golang/rbac/rbac_server/dependency_minio_excluded_test.go:TestDependencyHealthDeps_ExcludesMinio
+    file: golang/rbac/rbac_server/dependency_minio_excluded_test.go
+    symbol: TestDependencyHealthDeps_ExcludesMinio
+    package: main
+    language: go
+    doc: "TestDependencyHealthDeps_ExcludesMinio pins HARD RULE #8 for RBAC: MinIO is a\ncommodity for secondary user data and must NEVER be a health-gating dependency\nof RBAC, whose authority for permissions is ScyllaDB. Gating RBAC's RPCs on\nMinIO would let a commodity tier take cluster-wide authorization down with it\nand, below the 3-node object-store quorum (where the MinIO pool never forms),\nwould permanently wedge a healthy cluster.\n\nRegression (globule-nuc, 2026-06-20): rbac registered minio in its dependency\nwatchdog → minio absent on a 2-node cluster → rbac RPCs Unavailable → unit\n\"failed\" → node unhealthy → service convergence blocked."
+  - id: golang/rbac/rbac_server/rbac_actions_test.go:TestCanonicalizeAction
+    file: golang/rbac/rbac_server/rbac_actions_test.go
+    symbol: TestCanonicalizeAction
+    package: main
+    language: go
+    doc: "TestCanonicalizeAction verifies path normalization for security\nSecurity Fix #6: Prevent bypass via path tricks"
+  - id: golang/rbac/rbac_server/rbac_actions_test.go:TestMatchesAction
+    file: golang/rbac/rbac_server/rbac_actions_test.go
+    symbol: TestMatchesAction
+    package: main
+    language: go
+    doc: "TestMatchesAction verifies wildcard matching and bypass prevention\nSecurity Fix #6: Ensure no bypass via path normalization"
+  - id: golang/rbac/rbac_server/rbac_actions_test.go:TestMatchesAction_InvalidPatterns
+    file: golang/rbac/rbac_server/rbac_actions_test.go
+    symbol: TestMatchesAction_InvalidPatterns
+    package: main
+    language: go
+    doc: "TestMatchesAction_InvalidPatterns verifies invalid patterns are rejected"
+  - id: golang/rbac/rbac_server/rbac_deny_override_test.go:TestDenyOverridesOwnerAllow
+    file: golang/rbac/rbac_server/rbac_deny_override_test.go
+    symbol: TestDenyOverridesOwnerAllow
+    package: main
+    language: go
+    doc: "TestDenyOverridesOwnerAllow verifies that an explicit deny on a path\nblocks an owner even though owners normally have full access.\nSince owner validation requires the resource service for non-sa accounts,\nwe test this by setting up sa as an owner AND explicitly denied.\nThe deny must win over ownership."
+  - id: golang/rbac/rbac_server/rbac_deny_override_test.go:TestDenyOverridesSAAllow
+    file: golang/rbac/rbac_server/rbac_deny_override_test.go
+    symbol: TestDenyOverridesSAAllow
+    package: main
+    language: go
+    doc: "TestDenyOverridesSAAllow verifies that an explicit deny on a path\nblocks the sa account even though sa normally has full access."
+  - id: golang/rbac/rbac_server/rbac_deny_override_test.go:TestSAAllowedWhenNoDeny
+    file: golang/rbac/rbac_server/rbac_deny_override_test.go
+    symbol: TestSAAllowedWhenNoDeny
+    package: main
+    language: go
+    doc: "TestSAAllowedWhenNoDeny verifies that sa retains full access when\nthere is no explicit deny rule on the path."
+  - id: golang/rbac/rbac_server/rbac_deny_override_test.go:TestSAAllowedWhenNoPermissionsExist
+    file: golang/rbac/rbac_server/rbac_deny_override_test.go
+    symbol: TestSAAllowedWhenNoPermissionsExist
+    package: main
+    language: go
+    doc: "TestSAAllowedWhenNoPermissionsExist verifies that sa works even\nwhen no permissions record exists for the path at all (bootstrap)."
+  - id: golang/rbac/rbac_server/rbac_deny_override_test.go:TestSADenyOnParentPath
+    file: golang/rbac/rbac_server/rbac_deny_override_test.go
+    symbol: TestSADenyOnParentPath
+    package: main
+    language: go
+    doc: "TestSADenyOnParentPath verifies that deny rules on ancestor paths\npropagate correctly and still block sa."
+  - id: golang/rbac/rbac_server/rbac_deny_override_test.go:TestSADifferentPermissionNotDenied
+    file: golang/rbac/rbac_server/rbac_deny_override_test.go
+    symbol: TestSADifferentPermissionNotDenied
+    package: main
+    language: go
+    doc: "TestSADifferentPermissionNotDenied verifies that a deny on one\npermission does not affect a different permission for sa."
+  - id: golang/rbac/rbac_server/rbac_deny_override_test.go:TestSALegacyDomainFormat
+    file: golang/rbac/rbac_server/rbac_deny_override_test.go
+    symbol: TestSALegacyDomainFormat
+    package: main
+    language: go
+    doc: "TestSALegacyDomainFormat verifies deny works for \"sa@domain\" format."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestGetRoleBinding_NotFound_ReturnsEmpty
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestGetRoleBinding_NotFound_ReturnsEmpty
+    package: main
+    language: go
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestListRoleBindings_ReturnsAll
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestListRoleBindings_ReturnsAll
+    package: main
+    language: go
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestMgmtProtection_AdminAllowed
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestMgmtProtection_AdminAllowed
+    package: main
+    language: go
+    doc: "TestMgmtProtection_AdminAllowed verifies that a principal with globular-admin\ncan call all management methods."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestMgmtProtection_BootstrapBypass
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestMgmtProtection_BootstrapBypass
+    package: main
+    language: go
+    doc: "TestMgmtProtection_BootstrapBypass verifies that bootstrap mode allows all\nmanagement operations regardless of caller role."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestMgmtProtection_NonAdminDenied
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestMgmtProtection_NonAdminDenied
+    package: main
+    language: go
+    doc: "TestMgmtProtection_NonAdminDenied verifies that authenticated but non-admin\ncallers are rejected with PermissionDenied."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestMgmtProtection_SelfReadAllowed
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestMgmtProtection_SelfReadAllowed
+    package: main
+    language: go
+    doc: "TestMgmtProtection_SelfReadAllowed verifies that any authenticated principal\ncan read their own binding without needing globular-admin."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestMgmtProtection_UnauthenticatedDenied
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestMgmtProtection_UnauthenticatedDenied
+    package: main
+    language: go
+    doc: "TestMgmtProtection_UnauthenticatedDenied verifies that unauthenticated callers\n(no AuthContext in context) are rejected with Unauthenticated."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestPostBootstrap_NormalRBACWorks
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestPostBootstrap_NormalRBACWorks
+    package: main
+    language: go
+    doc: "TestPostBootstrap_NormalRBACWorks proves that once normal role bindings are in\nplace, subjects succeed through RBAC without requiring bootstrap mode.\nThis is the key invariant: bootstrap is not a steady-state auth path."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestSetGetRoleBinding_RoundTrip
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestSetGetRoleBinding_RoundTrip
+    package: main
+    language: go
+  - id: golang/rbac/rbac_server/zz_intent_required_test_aliases_test.go:TestPermissionChangeAuditRequired
+    file: golang/rbac/rbac_server/zz_intent_required_test_aliases_test.go
+    symbol: TestPermissionChangeAuditRequired
+    package: main
+    language: go

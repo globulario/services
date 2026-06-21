@@ -1,0 +1,14 @@
+schema_version: 1
+file_kind: service-role
+metadata:
+  title: "Service role — test-service"
+entries:
+  - id: ops.role.test-service
+    type: ARCHITECTURE
+    title: "test-service — a fixture role"
+    tags: [always, test-service, role]
+    applies_when:
+      cluster_phases: [day-1]
+    content: "Fixture service role for compiler tests."
+    provenance:
+      source: seed

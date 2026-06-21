@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS workflow.workflow_runs (
     retry_attempt     int,
     max_retries       int,
     backoff_until_ms  bigint,
+    inputs_json       text,
     PRIMARY KEY ((cluster_id), started_at, id)
 ) WITH CLUSTERING ORDER BY (started_at DESC, id ASC)
 `
@@ -343,4 +344,13 @@ var schemaCQLStatements = []string{
 	createExecutorLeasesTableCQL,
 	createStepReceiptsTableCQL,
 	createCorrelationDeferStateTableCQL,
+}
+
+// schemaAlterStatements add columns to tables that already exist on upgraded
+// clusters. CREATE TABLE IF NOT EXISTS does NOT alter a pre-existing table, so
+// a new column reaches existing deployments only via ALTER. These are applied
+// with tolerance for the "column already exists" error so they are idempotent;
+// fresh clusters already have the column from the CREATE statements above.
+var schemaAlterStatements = []string{
+	`ALTER TABLE workflow.workflow_runs ADD inputs_json text`,
 }

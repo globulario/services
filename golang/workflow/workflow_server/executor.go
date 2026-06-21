@@ -342,6 +342,22 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		return nil, fmt.Errorf("workflow %s: run-start commit failed, refusing to execute uncommitted: %w", req.WorkflowName, err)
 	}
 
+	// Persist the run inputs as part of the commit, before any side effect.
+	// An orphan resume rebuilds the engine and must re-execute the remaining
+	// steps against the SAME inputs the run started with — without this the
+	// resume runs with an empty map and every inputs.* reference (candidate
+	// nodes, desired_hash, version, package_kind) silently resolves to nil.
+	// Gated like the run-start commit: if it fails we refuse to dispatch so
+	// the caller retries the whole (idempotent) dispatch.
+	// (meta.binding_outlives_evidence_until_invalidated)
+	if req.InputsJson != "" {
+		if err := srv.persistRunInputs(req.ClusterId, tsToTime(now), runID, req.InputsJson); err != nil {
+			logger.Error("executor: run-inputs commit failed — refusing to dispatch side effects uncommitted",
+				"run_id", runID, "err", err)
+			return nil, fmt.Errorf("workflow %s: run-inputs commit failed, refusing to execute uncommitted: %w", req.WorkflowName, err)
+		}
+	}
+
 	// ── 6. Execute ───────────────────────────────────────────────────────
 	logger.Info("executor: starting workflow",
 		"workflow", req.WorkflowName, "run_id", runID,

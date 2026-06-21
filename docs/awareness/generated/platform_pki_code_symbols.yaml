@@ -68,3 +68,4 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.pki.leaf_cert_rotation_is_proactive_not_reactive
+test_symbols:

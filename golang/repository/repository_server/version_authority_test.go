@@ -240,28 +240,39 @@ func TestVA2_NormalizeEntry_OriginReleaseDefaultsToReleaseTagNotPlatformRelease(
 func TestVA3_NonPublishedArtifact_NotInstallable(t *testing.T) {
 	publishedStr := repopb.PublishState_PUBLISHED.String()
 
+	// A real installable row always carries its manifest_json; isRowInstallable
+	// only checks the column is non-empty (skeleton-row guard), not its content.
+	present := []byte("{}")
+
 	tests := []struct {
 		publishState  string
 		artifactState string
+		manifestJSON  []byte
 		wantInstall   bool
 		desc          string
 	}{
-		{publishedStr, "", true, "PUBLISHED + empty artifact_state (legacy compat)"},
-		{publishedStr, "PUBLISHED", true, "PUBLISHED + PUBLISHED artifact_state"},
-		{"STAGING", "", false, "STAGING publish_state must not install"},
-		{"VERIFIED", "", false, "VERIFIED publish_state must not install — artifact law gate not cleared"},
-		{"BLOB_VERIFIED", "", false, "BLOB_VERIFIED must not install"},
-		{"DOWNLOADING", "", false, "DOWNLOADING must not install"},
-		{"FAILED", "", false, "FAILED must not install"},
-		{publishedStr, "DOWNLOADING", false, "PUBLISHED + DOWNLOADING artifact_state — pipeline incomplete"},
-		{publishedStr, "BROKEN_BINARY", false, "PUBLISHED + BROKEN_BINARY must not install"},
-		{publishedStr, "QUARANTINED", false, "PUBLISHED + QUARANTINED must not install"},
+		{publishedStr, "", present, true, "PUBLISHED + empty artifact_state (legacy compat)"},
+		{publishedStr, "PUBLISHED", present, true, "PUBLISHED + PUBLISHED artifact_state"},
+		{"STAGING", "", present, false, "STAGING publish_state must not install"},
+		{"VERIFIED", "", present, false, "VERIFIED publish_state must not install — artifact law gate not cleared"},
+		{"BLOB_VERIFIED", "", present, false, "BLOB_VERIFIED must not install"},
+		{"DOWNLOADING", "", present, false, "DOWNLOADING must not install"},
+		{"FAILED", "", present, false, "FAILED must not install"},
+		{publishedStr, "DOWNLOADING", present, false, "PUBLISHED + DOWNLOADING artifact_state — pipeline incomplete"},
+		{publishedStr, "BROKEN_BINARY", present, false, "PUBLISHED + BROKEN_BINARY must not install"},
+		{publishedStr, "QUARANTINED", present, false, "PUBLISHED + QUARANTINED must not install"},
+		// Skeleton-row guard (INC-2026-0012): both state columns say PUBLISHED but
+		// manifest_json is absent (interrupted manifest sync + later state UPSERTs).
+		// Must NOT be installable — readers cannot resolve a NULL manifest.
+		{publishedStr, "PUBLISHED", nil, false, "PUBLISHED + PUBLISHED but NULL manifest_json (skeleton row) must not install"},
+		{publishedStr, "", []byte{}, false, "PUBLISHED + empty artifact_state but empty manifest_json (skeleton row) must not install"},
 	}
 
 	for _, tc := range tests {
 		row := &manifestRow{
 			PublishState:  tc.publishState,
 			ArtifactState: tc.artifactState,
+			ManifestJSON:  tc.manifestJSON,
 		}
 		got := isRowInstallable(row)
 		if got != tc.wantInstall {

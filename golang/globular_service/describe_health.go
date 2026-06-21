@@ -147,7 +147,7 @@ func HealthCheck(s Service, opt *HealthOptions) (*HealthReport, error) {
 		timeout = opt.Timeout
 	}
 
-	target := fmt.Sprintf("%s:%d", host, s.GetPort())
+	target := net.JoinHostPort(host, strconv.Itoa(int(s.GetPort())))
 	start := time.Now()
 
 	report := &HealthReport{

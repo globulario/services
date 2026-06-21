@@ -13,13 +13,14 @@ import (
 )
 
 // NodeStatus represents the ingress status for a single node
+//
 //go:schemalint:ignore — implementation type, not schema owner
 type NodeStatus struct {
 	NodeID    string `json:"node_id"`
-	Phase     string `json:"phase"`       // "Ready" | "Error"
-	VRRPState string `json:"vrrp_state"`  // "MASTER" | "BACKUP" | "FAULT" | "UNKNOWN"
-	HasVIP    bool   `json:"has_vip"`     // True if VIP is present on this node's interface
-	VIP       string `json:"vip"`         // The VIP address
+	Phase     string `json:"phase"`      // "Ready" | "Error"
+	VRRPState string `json:"vrrp_state"` // "MASTER" | "BACKUP" | "FAULT" | "UNKNOWN"
+	HasVIP    bool   `json:"has_vip"`    // True if VIP is present on this node's interface
+	VIP       string `json:"vip"`        // The VIP address
 	UpdatedAt int64  `json:"updated_at_unix"`
 	LastError string `json:"last_error,omitempty"`
 }
@@ -42,39 +43,51 @@ func WriteStatus(ctx context.Context, client *clientv3.Client, nodeID string, st
 	return nil
 }
 
-// DetectVRRPState detects the current VRRP state and VIP presence on this node
-// Returns the VRRP state ("MASTER", "BACKUP", "FAULT", "UNKNOWN") and whether the VIP is present
+// DetectVRRPState detects the current VRRP state and VIP presence on this node.
+// Returns the VRRP state ("MASTER", "BACKUP", "FAULT", "UNKNOWN") and whether the
+// VIP is present.
+//
+// The state is derived from the AUTHORITATIVE runtime signal — whether this node
+// actually holds the VIP on its interface — not from `systemctl is-active` plus
+// journal-log scraping alone. A node that holds the VIP IS the master regardless
+// of what the (retention-limited, race-prone) logs say; observing the real
+// network state is the truth, "the keepalived unit is active" is not.
 func DetectVRRPState(iface, vip string) (state string, hasVIP bool) {
-	// Default state
-	state = "UNKNOWN"
-	hasVIP = false
-
-	// Check if VIP is present on the interface
 	hasVIP = checkVIPPresence(iface, vip)
-
-	// Check if keepalived service is active
-	isActive := checkServiceActive("keepalived")
-	if !isActive {
-		state = "FAULT"
-		return state, hasVIP
-	}
-
-	// Parse journalctl for recent VRRP state transitions
-	detectedState := parseKeepalivedLogs()
-	if detectedState != "" {
-		state = detectedState
-	}
-
-	return state, hasVIP
+	return deriveVRRPState(checkServiceActive("keepalived"), hasVIP, parseKeepalivedLogs()), hasVIP
 }
 
-// checkVIPPresence checks if the VIP is assigned to the given interface
+// deriveVRRPState computes the VRRP state from the keepalived liveness, the
+// authoritative VIP-ownership fact, and (only as a FAULT tiebreaker) the last
+// logged transition. Pure and deterministic so it can be unit-tested without
+// exec.
+//
+//   - keepalived not active        → FAULT (the VRRP manager is down)
+//   - holds the VIP                → MASTER (it is the real master)
+//   - active, no VIP, logged FAULT → FAULT
+//   - active, no VIP, otherwise    → BACKUP
+func deriveVRRPState(keepalivedActive, hasVIP bool, loggedState string) string {
+	if !keepalivedActive {
+		return "FAULT"
+	}
+	if hasVIP {
+		return "MASTER"
+	}
+	if strings.EqualFold(strings.TrimSpace(loggedState), "FAULT") {
+		return "FAULT"
+	}
+	return "BACKUP"
+}
+
+// checkVIPPresence checks if the VIP is assigned to the given interface.
 func checkVIPPresence(iface, vip string) bool {
 	// Extract IP address without CIDR notation
 	ipAddr := strings.Split(vip, "/")[0]
 
-	// Run: ip addr show dev <iface>
-	cmd := exec.Command("ip", "addr", "show", "", iface)
+	// Run: ip addr show dev <iface>. (The previous form passed a stray empty
+	// argument — `ip addr show "" <iface>` — which `ip` rejects as a bad device
+	// filter, so this check ALWAYS returned false and the VIP was never seen.)
+	cmd := exec.Command("ip", "addr", "show", "dev", iface)
 	output, err := cmd.Output()
 	if err != nil {
 		return false

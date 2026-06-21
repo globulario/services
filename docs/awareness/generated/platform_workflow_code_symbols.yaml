@@ -204,3 +204,1370 @@ code_symbols:
       implements:
         - globular.platform:intent.workflow.definition_loading_is_etcd_first
         - globular.platform:intent.workflow.source_of_operational_truth
+test_symbols:
+  - id: golang/workflow/adapter/adapter_test.go:TestEndToEndWithEngine
+    file: golang/workflow/adapter/adapter_test.go
+    symbol: TestEndToEndWithEngine
+    package: adapter
+    language: go
+  - id: golang/workflow/adapter/adapter_test.go:TestErrorClassification
+    file: golang/workflow/adapter/adapter_test.go
+    symbol: TestErrorClassification
+    package: adapter
+    language: go
+  - id: golang/workflow/adapter/adapter_test.go:TestExecutorCancel
+    file: golang/workflow/adapter/adapter_test.go
+    symbol: TestExecutorCancel
+    package: adapter
+    language: go
+  - id: golang/workflow/adapter/adapter_test.go:TestRemoteHandlerFailure
+    file: golang/workflow/adapter/adapter_test.go
+    symbol: TestRemoteHandlerFailure
+    package: adapter
+    language: go
+  - id: golang/workflow/adapter/adapter_test.go:TestRemoteHandlerNoHandler
+    file: golang/workflow/adapter/adapter_test.go
+    symbol: TestRemoteHandlerNoHandler
+    package: adapter
+    language: go
+  - id: golang/workflow/adapter/adapter_test.go:TestRemoteHandlerNodeNotFound
+    file: golang/workflow/adapter/adapter_test.go
+    symbol: TestRemoteHandlerNodeNotFound
+    package: adapter
+    language: go
+  - id: golang/workflow/adapter/adapter_test.go:TestRemoteHandlerOverridesNodeID
+    file: golang/workflow/adapter/adapter_test.go
+    symbol: TestRemoteHandlerOverridesNodeID
+    package: adapter
+    language: go
+  - id: golang/workflow/adapter/adapter_test.go:TestRemoteHandlerSuccess
+    file: golang/workflow/adapter/adapter_test.go
+    symbol: TestRemoteHandlerSuccess
+    package: adapter
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestCompileCycleDetection
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestCompileCycleDetection
+    package: compiler
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestCompileDay0Bootstrap
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestCompileDay0Bootstrap
+    package: compiler
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestCompileNodeBootstrap
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestCompileNodeBootstrap
+    package: compiler
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestCompileNodeJoin
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestCompileNodeJoin
+    package: compiler
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestCompileReleaseInfra
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestCompileReleaseInfra
+    package: compiler
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestCompileSubSteps_PreservesDeferPolicy
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestCompileSubSteps_PreservesDeferPolicy
+    package: compiler
+    language: go
+    doc: "TestCompileSubSteps_PreservesDeferPolicy is the regression test for\nthe WF-DEFER B2 hot-deploy live miss: sub-steps inside a foreach\n(e.g. release.apply.package's apply_per_node) silently dropped the\ndefer: block, so the engine took the FAILED path on retry exhaustion\nrather than the DEFERRED path. Lock it down."
+  - id: golang/workflow/compiler/compiler_test.go:TestCompileSubSteps_PreservesStrategy
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestCompileSubSteps_PreservesStrategy
+    package: compiler
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestCompileValidationErrors
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestCompileValidationErrors
+    package: compiler
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestMustCompilePanics
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestMustCompilePanics
+    package: compiler
+    language: go
+  - id: golang/workflow/compiler/compiler_test.go:TestSourceHashDeterministic
+    file: golang/workflow/compiler/compiler_test.go
+    symbol: TestSourceHashDeterministic
+    package: compiler
+    language: go
+  - id: golang/workflow/engine/action_registration_test.go:TestActorCapabilityParity
+    file: golang/workflow/engine/action_registration_test.go
+    symbol: TestActorCapabilityParity
+    package: engine
+    language: go
+    doc: "TestActorCapabilityParity verifies that every action the central\nregistry declares for an actor is also present in that actor's local\nregistration. This is a hard requirement — see\ndocs/centralized-workflow-execution.md §4."
+  - id: golang/workflow/engine/action_registration_test.go:TestAllRegisterFunctionsAreCalled
+    file: golang/workflow/engine/action_registration_test.go
+    symbol: TestAllRegisterFunctionsAreCalled
+    package: engine
+    language: go
+    doc: "TestAllRegisterFunctionsAreCalled walks the engine package source and\nasserts that every `func RegisterXxxActions(router *Router, ...)`\ndeclaration is invoked by registerAllActorsWithStubs.\n\nThis guards against the meta-drift shape that caused the original bug:\nnew actor groups (controller_deploy, ingress, invariant, node_recovery,\nnode_remove, platform_upgrade) shipped a Register*Actions function but\nnobody remembered to add the call here, so the test that was supposed\nto catch unregistered handlers silently ignored entire actor groups.\nWithout this meta-guard the helper would drift again the next time an\nactor group is added."
+  - id: golang/workflow/engine/action_registration_test.go:TestEmbeddedWorkflowsHaveRegisteredActions
+    file: golang/workflow/engine/action_registration_test.go
+    symbol: TestEmbeddedWorkflowsHaveRegisteredActions
+    package: engine
+    language: go
+    doc: "TestEmbeddedWorkflowsHaveRegisteredActions asserts that every\n(actor, action) pair referenced by the workflow YAML files shipped\nin this repo has a Go handler registered with the engine Router.\n\nThe goal is to catch a whole class of bugs at test time instead of\nat runtime:\n\n  - renamed an action in Go? the YAML still references the old name\n    → this test fails.\n  - added a new step in YAML? forgot to register the handler\n    → this test fails.\n  - changed actor constant? mismatched actor/action key\n    → this test fails.\n\nWithout this, the first sign of trouble is a workflow run failing\nin production with \"no handler for actor=X action=Y\". That is much\ntoo late — connective-tissue bugs should be compile/test-time bugs."
+  - id: golang/workflow/engine/action_registration_test.go:TestFallbackResolveExactTakesPrecedence
+    file: golang/workflow/engine/action_registration_test.go
+    symbol: TestFallbackResolveExactTakesPrecedence
+    package: engine
+    language: go
+    doc: "TestFallbackResolveExactTakesPrecedence verifies the Router dispatch\ncontract: exact (actor, action) matches take precedence over fallback\nhandlers, and fallbacks reject unknown actions."
+  - id: golang/workflow/engine/action_registration_test.go:TestYAMLActionsReferenceKnownActors
+    file: golang/workflow/engine/action_registration_test.go
+    symbol: TestYAMLActionsReferenceKnownActors
+    package: engine
+    language: go
+    doc: "TestYAMLActionsReferenceKnownActors ensures every actor type used in YAML\ndefinitions maps to a known actor registration set. If a YAML references\nactor \"foo\" but no registration function exists for it, the action can\nnever be dispatched."
+  - id: golang/workflow/engine/actors_backpressure_test.go:TestInstallWithJoinRetry_BudgetExhausted
+    file: golang/workflow/engine/actors_backpressure_test.go
+    symbol: TestInstallWithJoinRetry_BudgetExhausted
+    package: engine
+    language: go
+    doc: "TestInstallWithJoinRetry_BudgetExhausted verifies failure after all retries.\nAcceptance criteria: result is failed, not silent success, reason includes backpressure."
+  - id: golang/workflow/engine/actors_backpressure_test.go:TestInstallWithJoinRetry_ContextCancelled
+    file: golang/workflow/engine/actors_backpressure_test.go
+    symbol: TestInstallWithJoinRetry_ContextCancelled
+    package: engine
+    language: go
+    doc: "TestInstallWithJoinRetry_ContextCancelled verifies context cancellation is respected."
+  - id: golang/workflow/engine/actors_backpressure_test.go:TestInstallWithJoinRetry_PermanentFailImmediate
+    file: golang/workflow/engine/actors_backpressure_test.go
+    symbol: TestInstallWithJoinRetry_PermanentFailImmediate
+    package: engine
+    language: go
+    doc: "TestInstallWithJoinRetry_PermanentFailImmediate verifies permanent errors\nare not retried. Checksum mismatch must fail on first attempt."
+  - id: golang/workflow/engine/actors_backpressure_test.go:TestInstallWithJoinRetry_SucceedsAfterTransient
+    file: golang/workflow/engine/actors_backpressure_test.go
+    symbol: TestInstallWithJoinRetry_SucceedsAfterTransient
+    package: engine
+    language: go
+    doc: "TestInstallWithJoinRetry_SucceedsAfterTransient verifies retry succeeds.\nAcceptance criteria: ResourceExhausted on first 2 attempts → success on 3rd.\nbootstrap_failed must not be written (the function returns nil)."
+  - id: golang/workflow/engine/actors_backpressure_test.go:TestIsTransientJoinInstallError
+    file: golang/workflow/engine/actors_backpressure_test.go
+    symbol: TestIsTransientJoinInstallError
+    package: engine
+    language: go
+    doc: "TestIsTransientJoinInstallError verifies the backpressure classifier."
+  - id: golang/workflow/engine/actors_backpressure_test.go:TestIsTransientJoinInstallError_GRPCStatusCodes
+    file: golang/workflow/engine/actors_backpressure_test.go
+    symbol: TestIsTransientJoinInstallError_GRPCStatusCodes
+    package: engine
+    language: go
+    doc: "TestIsTransientJoinInstallError_GRPCStatusCodes verifies the classifier\ndetects transient errors via gRPC status codes (before string matching)."
+  - id: golang/workflow/engine/actors_backpressure_test.go:TestNodeInstallPackages_ConcurrencyLimit
+    file: golang/workflow/engine/actors_backpressure_test.go
+    symbol: TestNodeInstallPackages_ConcurrencyLimit
+    package: engine
+    language: go
+    doc: "TestNodeInstallPackages_ConcurrencyLimit verifies no more than\njoinInstallConcurrencyLimit installs run simultaneously."
+  - id: golang/workflow/engine/actors_backpressure_test.go:TestNodeInstallPackages_RetryOnBackpressure
+    file: golang/workflow/engine/actors_backpressure_test.go
+    symbol: TestNodeInstallPackages_RetryOnBackpressure
+    package: engine
+    language: go
+    doc: "TestNodeInstallPackages_RetryOnBackpressure verifies the full integration:\nbackpressure errors from FetchAndInstall are retried inside nodeInstallPackages."
+  - id: golang/workflow/engine/actors_doctor_outcome_test.go:TestVerifyConvergenceEmitsSucceededOutcomeWhenFindingResolved
+    file: golang/workflow/engine/actors_doctor_outcome_test.go
+    symbol: TestVerifyConvergenceEmitsSucceededOutcomeWhenFindingResolved
+    package: engine
+    language: go
+    doc: "TestVerifyConvergenceEmitsSucceededOutcomeWhenFindingResolved — wiring\ntest for workflow.remediation_truth_consistency. After a successful\nexecute step + verify-converged outcome, the verify handler writes a\nstructured remediation_outcome with status SUCCEEDED and is_success\ntrue. Callers (CLI/MCP) read this verdict directly."
+  - id: golang/workflow/engine/actors_doctor_outcome_test.go:TestVerifyConvergenceFailsStepWhenFindingStillPresent
+    file: golang/workflow/engine/actors_doctor_outcome_test.go
+    symbol: TestVerifyConvergenceFailsStepWhenFindingStillPresent
+    package: engine
+    language: go
+    doc: "TestVerifyConvergenceFailsStepWhenFindingStillPresent — the workflow\ntruth-consistency contract: dispatch success + verification reporting\n\"still present\" must fail the step so the workflow run status is not\nreported as success."
+  - id: golang/workflow/engine/actors_doctor_outcome_test.go:TestVerifyConvergenceMarksFailedWhenExecuteNeverRan
+    file: golang/workflow/engine/actors_doctor_outcome_test.go
+    symbol: TestVerifyConvergenceMarksFailedWhenExecuteNeverRan
+    package: engine
+    language: go
+    doc: "TestVerifyConvergenceMarksFailedWhenExecuteNeverRan — defense in\ndepth: if a workflow somehow reaches verify without execute having\nwritten an execution_result (e.g. skipped step, malformed YAML), the\noutcome must NOT default to PENDING — that would look like \"in\nprogress\" forever. It must be FAILED."
+  - id: golang/workflow/engine/actors_doctor_remediation_correlation_test.go:TestDoctorActorHandlersPropagateCorrelationAndRunID
+    file: golang/workflow/engine/actors_doctor_remediation_correlation_test.go
+    symbol: TestDoctorActorHandlersPropagateCorrelationAndRunID
+    package: engine
+    language: go
+    doc: "TestDoctorActorHandlersPropagateCorrelationAndRunID — wiring test for\naudit.retention_and_correlation_policy: the workflow engine MUST stamp\nevery doctor-facing callback with the workflow run id and a correlation\nid derived from (run, step). The doctor reads these via\nremediation.CorrelationFromContext / WorkflowRunFromContext to populate\nCorrelationID and WorkflowRunID on every RemediationAudit."
+  - id: golang/workflow/engine/actors_expected_sha256_test.go:TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
+    file: golang/workflow/engine/actors_expected_sha256_test.go
+    symbol: TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
+    package: engine
+    language: go
+    doc: "TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty mirrors the\nnodeInstallPackage empty-propagation test for the deploy actor."
+  - id: golang/workflow/engine/actors_expected_sha256_test.go:TestDispatch_ControllerDeployPropagatesExpectedSha256
+    file: golang/workflow/engine/actors_expected_sha256_test.go
+    symbol: TestDispatch_ControllerDeployPropagatesExpectedSha256
+    package: engine
+    language: go
+    doc: "TestDispatch_ControllerDeployPropagatesExpectedSha256 asserts that the\ncontroller deploy actor reads expected_sha256 from req.With (set by\nrelease.apply.controller.yaml: expected_sha256: $.expected_sha256) and\nforwards it to the ApplyPackageRelease callback that builds the dispatch."
+  - id: golang/workflow/engine/actors_expected_sha256_test.go:TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
+    file: golang/workflow/engine/actors_expected_sha256_test.go
+    symbol: TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
+    package: engine
+    language: go
+    doc: "TestDispatch_EmptyManifestChecksumPropagatesAsEmpty asserts the actor passes\nan empty string through when the manifest had no entrypoint_checksum. The\nnode-agent verify gate then writes installed_unverified honestly. The forbidden\noutcome is the actor silently filling in any non-empty value."
+  - id: golang/workflow/engine/actors_expected_sha256_test.go:TestDispatch_PopulatesExpectedSha256FromManifest
+    file: golang/workflow/engine/actors_expected_sha256_test.go
+    symbol: TestDispatch_PopulatesExpectedSha256FromManifest
+    package: engine
+    language: go
+    doc: "TestDispatch_PopulatesExpectedSha256FromManifest asserts that\nnodeInstallPackage reads expected_sha256 from req.With and forwards it\nverbatim to the InstallPackage callback. This is the wire from the\nrelease.apply.package workflow's install_package step (which now sets\nexpected_sha256: $.resolved_entrypoint_checksum) into the dispatch path."
+  - id: golang/workflow/engine/actors_expected_sha256_test.go:TestDispatch_WithBlockOverridesInputs
+    file: golang/workflow/engine/actors_expected_sha256_test.go
+    symbol: TestDispatch_WithBlockOverridesInputs
+    package: engine
+    language: go
+    doc: "TestDispatch_WithBlockOverridesInputs verifies the step-level `with:` block\ntakes precedence over workflow-level inputs when both are present. The yaml\npattern is `expected_sha256: $.expected_sha256` (template substitution), and\nresume paths should always honour the step's explicit value."
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveCleanupEtcdPrefixes_ReturnsCount
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveCleanupEtcdPrefixes_ReturnsCount
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveCleanupReleaseStatus_ReturnsCount
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveCleanupReleaseStatus_ReturnsCount
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveDeleteState_Success
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveDeleteState_Success
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveDrain_FailureBlocksWithoutForce
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveDrain_FailureBlocksWithoutForce
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveDrain_FailureContinuesWithForce
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveDrain_FailureContinuesWithForce
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveDrain_Success
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveDrain_Success
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveEtcdMembership_Error
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveEtcdMembership_Error
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveEtcdMembership_Success
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveEtcdMembership_Success
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveHandlers_NilConfigErrors
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveHandlers_NilConfigErrors
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemovePreflight_MissingNodeID
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemovePreflight_MissingNodeID
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemovePreflight_NoViolations
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemovePreflight_NoViolations
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemovePreflight_ViolationsBlockWithoutForce
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemovePreflight_ViolationsBlockWithoutForce
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemovePreflight_ViolationsPassWithForce
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemovePreflight_ViolationsPassWithForce
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveScyllaRing_NonFatalOnError
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveScyllaRing_NonFatalOnError
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestNodeRemoveScyllaRing_Success
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestNodeRemoveScyllaRing_Success
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_node_remove_test.go:TestRegisterNodeRemoveControllerActions_AllRegistered
+    file: golang/workflow/engine/actors_node_remove_test.go
+    symbol: TestRegisterNodeRemoveControllerActions_AllRegistered
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestAcquireTopologyLock_AlreadyHeld
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestAcquireTopologyLock_AlreadyHeld
+    package: engine
+    language: go
+    doc: "TestAcquireTopologyLock_AlreadyHeld simulates a lock contention scenario:\nAcquireTopologyLock returns an error, the action must propagate it."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestAllObjectStoreActionsRegistered
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestAllObjectStoreActionsRegistered
+    package: engine
+    language: go
+    doc: "TestAllObjectStoreActionsRegistered verifies that every action name used in\nthe YAML appears in the registered router. This is the engine-level equivalent\nof TestEmbeddedWorkflowsHaveRegisteredActions for the objectstore workflow."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestAppliedGenerationNotRecordedWhenHealthFails
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestAppliedGenerationNotRecordedWhenHealthFails
+    package: engine
+    language: go
+    doc: "TestAppliedGenerationNotRecordedWhenHealthFails is the core acceptance test:\nif VerifyMinioClusterHealthy fails, the RecordAppliedGeneration function\nmust NOT be called — the workflow fails without advancing applied_generation."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestCheckAllNodesRendered_FingerprintMismatch
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestCheckAllNodesRendered_FingerprintMismatch
+    package: engine
+    language: go
+    doc: "TestCheckAllNodesRendered_FingerprintMismatch simulates a node that rendered\nthe right generation number but with a different topology (wrong volumes_hash\nor mode). The action must propagate the error."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestCheckAllNodesRendered_GenerationMismatch
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestCheckAllNodesRendered_GenerationMismatch
+    package: engine
+    language: go
+    doc: "TestCheckAllNodesRendered_GenerationMismatch simulates a node that hasn't\nrendered the target generation yet. The action must propagate the error\n(making the workflow step retriable)."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestCheckAllNodesRendered_MissingGeneration
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestCheckAllNodesRendered_MissingGeneration
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestCheckAllNodesRendered_MissingNodeIDs
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestCheckAllNodesRendered_MissingNodeIDs
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestCheckAllNodesRendered_Success
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestCheckAllNodesRendered_Success
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestFailureCleanup_ClearsRestartInProgress
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestFailureCleanup_ClearsRestartInProgress
+    package: engine
+    language: go
+    doc: "TestFailureCleanup_ClearsRestartInProgress verifies that failure_cleanup\nclears restart_in_progress so future topology workflows can run."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestFailureCleanup_DefaultReason
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestFailureCleanup_DefaultReason
+    package: engine
+    language: go
+    doc: "TestFailureCleanup_DefaultReason verifies that when no reason is provided,\nthe action defaults to \"workflow_failed\"."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestFailureCleanup_WritesStatusFailed
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestFailureCleanup_WritesStatusFailed
+    package: engine
+    language: go
+    doc: "TestFailureCleanup_WritesStatusFailed simulates the real cleanup function\nand verifies that it writes a result with status=failed (not success)."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestRecordAppliedGeneration_RequiresGeneration
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestRecordAppliedGeneration_RequiresGeneration
+    package: engine
+    language: go
+    doc: "TestRecordAppliedGeneration_RequiresGeneration verifies the action rejects\na call without target_generation."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestRecordAppliedGeneration_Success
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestRecordAppliedGeneration_Success
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestReleaseTopologyLock_Idempotent
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestReleaseTopologyLock_Idempotent
+    package: engine
+    language: go
+    doc: "TestReleaseTopologyLock_Idempotent verifies that releasing a lock that\ndoesn't exist does not cause the action to fail."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestVerifyMinioClusterHealthy_MissingTargetGeneration
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestVerifyMinioClusterHealthy_MissingTargetGeneration
+    package: engine
+    language: go
+    doc: "TestVerifyMinioClusterHealthy_MissingTargetGeneration verifies that the\naction fails fast when the required input is missing."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestVerifyMinioClusterHealthy_ServiceNotActive
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestVerifyMinioClusterHealthy_ServiceNotActive
+    package: engine
+    language: go
+    doc: "TestVerifyMinioClusterHealthy_ServiceNotActive simulates a node where MinIO\ndid not come up after restart. The action must propagate the retriable error\nso the workflow retries before recording applied_generation."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestVerifyMinioClusterHealthy_Success
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestVerifyMinioClusterHealthy_Success
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestVerifyMinioClusterHealthy_VolumesHashChanged
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestVerifyMinioClusterHealthy_VolumesHashChanged
+    package: engine
+    language: go
+    doc: "TestVerifyMinioClusterHealthy_VolumesHashChanged simulates a concurrent\ntopology change mid-workflow: the volumes_hash in etcd no longer matches\nwhat we started the workflow with."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestVerifyRuntimeScope_AllMembersActive
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestVerifyRuntimeScope_AllMembersActive
+    package: engine
+    language: go
+    doc: "TestVerifyRuntimeScope_AllMembersActive verifies the happy path: all nodes\nwith active MinIO are in the pool — no split-brain risk, proceed is granted."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestVerifyRuntimeScope_MissingPoolNodeIDs
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestVerifyRuntimeScope_MissingPoolNodeIDs
+    package: engine
+    language: go
+    doc: "TestVerifyRuntimeScope_MissingPoolNodeIDs verifies that the action fails fast\nwhen the required pool_node_ids input is absent."
+  - id: golang/workflow/engine/actors_objectstore_test.go:TestVerifyRuntimeScope_NonMemberActive
+    file: golang/workflow/engine/actors_objectstore_test.go
+    symbol: TestVerifyRuntimeScope_NonMemberActive
+    package: engine
+    language: go
+    doc: "TestVerifyRuntimeScope_NonMemberActive simulates a node outside the pool\nthat still has globular-minio.service active. The action must fail with an\nerror naming the violating node — this blocks the stop/start sequence."
+  - id: golang/workflow/engine/actors_sync_package_state_checksum_test.go:TestNodeSyncPackageState_FallsBackToEmptyWhenMissingChecksum
+    file: golang/workflow/engine/actors_sync_package_state_checksum_test.go
+    symbol: TestNodeSyncPackageState_FallsBackToEmptyWhenMissingChecksum
+    package: engine
+    language: go
+    doc: "2. Missing key fallback: when resolved_entrypoint_checksum is absent (older\nworkflow definitions / pre-manifest dispatch paths), the actor must pass\nan empty string — NOT silently fall back to desired_hash. The heartbeat\nself-hosted proof writer fills the field from on-disk truth on the next\ncycle."
+  - id: golang/workflow/engine/actors_sync_package_state_checksum_test.go:TestNodeSyncPackageState_HashSchemasMustNotAlias
+    file: golang/workflow/engine/actors_sync_package_state_checksum_test.go
+    symbol: TestNodeSyncPackageState_HashSchemasMustNotAlias
+    package: engine
+    language: go
+    doc: "4. Regression — install_package.hash_schemas_must_not_alias. With BOTH\ndesired_hash and resolved_entrypoint_checksum present, the actor MUST\npick the binary-sha256 (resolved_entrypoint_checksum), never the\nsynthetic identity (desired_hash). Asserts the invariant rule from\nINC-2026-0014 at the actor boundary."
+  - id: golang/workflow/engine/actors_sync_package_state_checksum_test.go:TestNodeSyncPackageState_NilStringFallsBackToEmpty
+    file: golang/workflow/engine/actors_sync_package_state_checksum_test.go
+    symbol: TestNodeSyncPackageState_NilStringFallsBackToEmpty
+    package: engine
+    language: go
+    doc: "3. The synthesized \"<nil>\" string (Go's fmt.Sprint of nil map value) MUST\nalso fall back to empty. Without this guard, the actor would write the\nliteral string \"<nil>\" into Checksum."
+  - id: golang/workflow/engine/actors_sync_package_state_checksum_test.go:TestNodeSyncPackageState_StringValueRoundTripped
+    file: golang/workflow/engine/actors_sync_package_state_checksum_test.go
+    symbol: TestNodeSyncPackageState_StringValueRoundTripped
+    package: engine
+    language: go
+    doc: "5. Non-string types in with: map: ensure fmt.Sprint conversion doesn't\nproduce a garbage value. Some workflow loaders deliver int / int64 for\nnumeric fields. resolved_entrypoint_checksum is always a hex string in\npractice, but the test pins the contract."
+  - id: golang/workflow/engine/actors_sync_package_state_checksum_test.go:TestNodeSyncPackageState_WritesEntrypointChecksumNotDesiredHash
+    file: golang/workflow/engine/actors_sync_package_state_checksum_test.go
+    symbol: TestNodeSyncPackageState_WritesEntrypointChecksumNotDesiredHash
+    package: engine
+    language: go
+    doc: "1. Happy path: the actor reads resolved_entrypoint_checksum from req.With\nand passes it verbatim to SyncInstalledPackage as the hash argument.\nThe forbidden outcome is reading any other key, especially desired_hash."
+  - id: golang/workflow/engine/actors_test.go:TestControllerMarkFailed_SetsBootstrapFailed
+    file: golang/workflow/engine/actors_test.go
+    symbol: TestControllerMarkFailed_SetsBootstrapFailed
+    package: engine
+    language: go
+    doc: "TestControllerMarkFailed_SetsBootstrapFailed ensures that the\ncontroller.bootstrap.mark_failed action advances the node's bootstrap state\nto bootstrap_failed via SetBootstrapPhase. Without this call the node stays\nat whatever mid-join phase it occupied when the workflow failed (e.g.\nxds_ready) and neither the phase timeout nor the recovery mechanism can\nre-trigger the join workflow in time."
+  - id: golang/workflow/engine/actors_test.go:TestNodeJoinWithInstallFailure
+    file: golang/workflow/engine/actors_test.go
+    symbol: TestNodeJoinWithInstallFailure
+    package: engine
+    language: go
+  - id: golang/workflow/engine/actors_test.go:TestNodeJoinWorkflow
+    file: golang/workflow/engine/actors_test.go
+    symbol: TestNodeJoinWorkflow
+    package: engine
+    language: go
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_Compound
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_Compound
+    package: engine
+    language: go
+    doc: "TestDefaultEvalCond_Compound pins the && / || compound-expression\nbehavior that the platform.upgrade dispatch_upgrades step depends on.\nBefore the fix, \"dry_run == false && len(upgrade_targets) > 0\" fell\nthrough every branch and returned true silently (or false from the\nequality check on the unparseable RHS), so the dispatch step was\nalways skipped and platform-upgrade was a no-op. Without these\nassertions, the platform.upgrade YAML's when: clause could regress\nundetected."
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_Contains
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_Contains
+    package: engine
+    language: go
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_ContainsMalformed
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_ContainsMalformed
+    package: engine
+    language: go
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_Equality
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_Equality
+    package: engine
+    language: go
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_Inequality
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_Inequality
+    package: engine
+    language: go
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_Len
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_Len
+    package: engine
+    language: go
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_LenWithMap
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_LenWithMap
+    package: engine
+    language: go
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_Literals
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_Literals
+    package: engine
+    language: go
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_NegationAndBareBool
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_NegationAndBareBool
+    package: engine
+    language: go
+    doc: "TestDefaultEvalCond_NegationAndBareBool covers the real condition forms used\nin production definitions (e.g. backup: \"!inputs.dry_run\") that previously\nfell through to the unknown branch and silently returned true."
+  - id: golang/workflow/engine/conditions_test.go:TestDefaultEvalCond_UnknownFailsClosed
+    file: golang/workflow/engine/conditions_test.go
+    symbol: TestDefaultEvalCond_UnknownFailsClosed
+    package: engine
+    language: go
+    doc: "TestDefaultEvalCond_UnknownFailsClosed locks in the fix for the AWG re-audit\nfinding (meta.silence_is_not_valid_for_unexpected): a genuinely unparseable\nguard must surface an error (fail closed), never silently evaluate to true\nand authorize a side-effecting step. A valid-but-undefined identifier fails\nclosed to false (not an error) so optional boolean guards still work."
+  - id: golang/workflow/engine/day0_test.go:TestDay0BootstrapWorkflow
+    file: golang/workflow/engine/day0_test.go
+    symbol: TestDay0BootstrapWorkflow
+    package: engine
+    language: go
+  - id: golang/workflow/engine/day0_test.go:TestForeachStep
+    file: golang/workflow/engine/day0_test.go
+    symbol: TestForeachStep
+    package: engine
+    language: go
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingDefinitionNoPlanWords
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingDefinitionNoPlanWords
+    package: engine
+    language: go
+    doc: "Extra guard: ensure no plan vocabulary leaks into the workflow spec."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_DryRunSkipsVerify
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_DryRunSkipsVerify
+    package: engine
+    language: go
+    doc: "Dry-run skips verify_convergence by YAML when clause."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_ExecuteRejected
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_ExecuteRejected
+    package: engine
+    language: go
+    doc: "ExecuteRemediation rejected → verify_convergence should not run, onFailure fires."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_HappyPath
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_HappyPath
+    package: engine
+    language: go
+    doc: "Happy path: LOW risk restart, auto-executable, no approval needed, verifies clean."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_HighRiskApproved
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_HighRiskApproved
+    package: engine
+    language: go
+    doc: "HIGH risk WITH approval token → all five stages run."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_MissingApproval
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_MissingApproval
+    package: engine
+    language: go
+    doc: "MEDIUM risk with no approval token → require_approval step runs & fails workflow."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_NoStructuredAction
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_NoStructuredAction
+    package: engine
+    language: go
+    doc: "Finding with no structured action → resolve step fails cleanly."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_NotConverged
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_NotConverged
+    package: engine
+    language: go
+    doc: "Verify returns not-converged → workflow fails, onFailure fires."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_PipelineSteps
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_PipelineSteps
+    package: engine
+    language: go
+    doc: "Pipeline step order is resolve → assess → execute → verify. require_approval\nonly runs when guard trips. Verify the step ID set matches the spec."
+  - id: golang/workflow/engine/doctor_remediation_test.go:TestDoctorFindingWorkflow_ResolverError
+    file: golang/workflow/engine/doctor_remediation_test.go
+    symbol: TestDoctorFindingWorkflow_ResolverError
+    package: engine
+    language: go
+    doc: "Sanity: resolver failure propagates as workflow failure.\n(Schema-level required-field enforcement is out of scope here; the\nengine substitutes $.finding_id literally if unresolved, and the\ninjected resolver is responsible for erroring on unknown IDs.)"
+  - id: golang/workflow/engine/engine_defer_test.go:TestForeachWithDeferYieldsRunDeferred
+    file: golang/workflow/engine/engine_defer_test.go
+    symbol: TestForeachWithDeferYieldsRunDeferred
+    package: engine
+    language: go
+    doc: "TestForeachWithDeferYieldsRunDeferred is the regression test for the\nWF-DEFER B2 hot-deploy live miss: when a foreach sub-DAG step defers,\nthe foreach aggregator was wrapping the StepDeferredError in a\ngeneric \"N/M items failed\" string, which broke errors.As at the\nrun-level catch and produced RunFailed instead of RunDeferred. Lock\nit down — any deferred sub-DAG must propagate as deferred when\nno item hard-failed."
+  - id: golang/workflow/engine/engine_defer_test.go:TestRenderBlockerTags_KeepsRawOnRenderError
+    file: golang/workflow/engine/engine_defer_test.go
+    symbol: TestRenderBlockerTags_KeepsRawOnRenderError
+    package: engine
+    language: go
+    doc: "TestRenderBlockerTags_KeepsRawOnRenderError documents the resilient\nfallback: if a template references a missing nested field, the raw\ntemplate string is preserved (not dropped). The persisted tag is\nthen operator-readable for manual diagnosis even if event matching\nis degraded for that tag."
+  - id: golang/workflow/engine/engine_defer_test.go:TestRenderBlockerTags_Templated
+    file: golang/workflow/engine/engine_defer_test.go
+    symbol: TestRenderBlockerTags_Templated
+    package: engine
+    language: go
+    doc: "TestRenderBlockerTags_Templated verifies WF-DEFER B4: blocker tag\ntemplates with {{ .target.node_id }} / {{ .package_name }} get\nrendered against the run's input/output context at defer time.\nWithout this, persisted tags are useless for event-driven wakeup\nbecause they still contain \"{{ ... }}\" rather than concrete values."
+  - id: golang/workflow/engine/engine_defer_test.go:TestSchedulerOnlyConsidersDeferredStatus
+    file: golang/workflow/engine/engine_defer_test.go
+    symbol: TestSchedulerOnlyConsidersDeferredStatus
+    package: engine
+    language: go
+    doc: "TestSchedulerOnlyConsidersDeferredStatus verifies that PickEligibleDeferred\nignores runs in other statuses, even if a Defer struct is left lying\naround (e.g. a run that previously deferred and then succeeded on\nretry should not be re-picked just because Defer.DeferUntil elapsed)."
+  - id: golang/workflow/engine/engine_defer_test.go:TestSchedulerResumesAfterDeferUntil
+    file: golang/workflow/engine/engine_defer_test.go
+    symbol: TestSchedulerResumesAfterDeferUntil
+    package: engine
+    language: go
+    doc: "TestSchedulerResumesAfterDeferUntil verifies the symmetric case:\nonce now >= DeferUntil, the run is eligible again."
+  - id: golang/workflow/engine/engine_defer_test.go:TestSchedulerSkipsDeferredBeforeUntil
+    file: golang/workflow/engine/engine_defer_test.go
+    symbol: TestSchedulerSkipsDeferredBeforeUntil
+    package: engine
+    language: go
+    doc: "TestSchedulerSkipsDeferredBeforeUntil verifies the smallest scheduler\nbehavior: a deferred run is NOT eligible while now < DeferUntil."
+  - id: golang/workflow/engine/engine_defer_test.go:TestStepExhaustionWithDeferYieldsRunDeferred
+    file: golang/workflow/engine/engine_defer_test.go
+    symbol: TestStepExhaustionWithDeferYieldsRunDeferred
+    package: engine
+    language: go
+    doc: "TestStepExhaustionWithDeferYieldsRunDeferred locks down WF-DEFER's\nsmallest observable loop: a step that always fails AND has a defer:\nblock must produce Run.Status == RunDeferred (not RunFailed) and\npopulate Run.Defer with cooldown/blocker tags / step id."
+  - id: golang/workflow/engine/engine_defer_test.go:TestStepExhaustionWithoutDeferStillFails
+    file: golang/workflow/engine/engine_defer_test.go
+    symbol: TestStepExhaustionWithoutDeferStillFails
+    package: engine
+    language: go
+    doc: "TestStepExhaustionWithoutDeferStillFails confirms the legacy path: a\nstep without a defer: block exhausting retries still produces\nRunFailed (no behavior change for un-flagged definitions)."
+  - id: golang/workflow/engine/engine_state_mutation_ratchet_test.go:TestEngine_AlwaysReachesTerminalState
+    file: golang/workflow/engine/engine_state_mutation_ratchet_test.go
+    symbol: TestEngine_AlwaysReachesTerminalState
+    package: engine
+    language: go
+    doc: "TestEngine_AlwaysReachesTerminalState is the T1 ratchet. Across every handled\nstep outcome (success, business failure, retry-exhaustion-with-defer), the Run\nreturned by Execute MUST be terminal or parked — never RUNNING/PENDING/nil."
+  - id: golang/workflow/engine/engine_state_mutation_ratchet_test.go:TestEngine_NoAlternativePath_OnlyPlanActionsDispatched
+    file: golang/workflow/engine/engine_state_mutation_ratchet_test.go
+    symbol: TestEngine_NoAlternativePath_OnlyPlanActionsDispatched
+    package: engine
+    language: go
+    doc: "TestEngine_NoAlternativePath_OnlyPlanActionsDispatched is the T2 ratchet. When\na step fails, the engine retries that step's OWN action or fails the run — it\nnever substitutes a different action. Every (actor, action) dispatched must be\none declared in the compiled plan; a downstream action whose dependency failed\nmust not be dispatched at all."
+  - id: golang/workflow/engine/engine_state_mutation_ratchet_test.go:TestEngine_PanickingParallelStepDoesNotCrashProcess
+    file: golang/workflow/engine/engine_state_mutation_ratchet_test.go
+    symbol: TestEngine_PanickingParallelStepDoesNotCrashProcess
+    package: engine
+    language: go
+    doc: "TestEngine_PanickingParallelStepDoesNotCrashProcess is the dangerous case: a\npanic inside a parallel/foreach goroutine cannot be recovered by the caller,\nso without per-dispatch recovery it takes down the whole workflow service.\nTwo independent steps run concurrently (DAG, no deps); one panics. The run\nmust still reach a terminal state and the process must survive."
+  - id: golang/workflow/engine/engine_state_mutation_ratchet_test.go:TestEngine_PanickingStepReachesTerminalState
+    file: golang/workflow/engine/engine_state_mutation_ratchet_test.go
+    symbol: TestEngine_PanickingStepReachesTerminalState
+    package: engine
+    language: go
+    doc: "TestEngine_PanickingStepReachesTerminalState extends the terminal-state\nguarantee to the unexpected case: a step handler that panics must be recovered\nand turned into a step failure so the run reaches FAILED — never crash the\nprocess or leave the run non-terminal. Regression for the pre-2026-06-09\nengine, which had no recover() at any dispatch site (a panicking handler\nunwound the stack out of the engine). Classifies against\nmeta.silence_is_not_valid_for_unexpected."
+  - id: golang/workflow/engine/engine_test.go:TestExecuteNodeBootstrap
+    file: golang/workflow/engine/engine_test.go
+    symbol: TestExecuteNodeBootstrap
+    package: engine
+    language: go
+  - id: golang/workflow/engine/engine_test.go:TestParallelSteps
+    file: golang/workflow/engine/engine_test.go
+    symbol: TestParallelSteps
+    package: engine
+    language: go
+  - id: golang/workflow/engine/engine_test.go:TestRetryOnFailure
+    file: golang/workflow/engine/engine_test.go
+    symbol: TestRetryOnFailure
+    package: engine
+    language: go
+  - id: golang/workflow/engine/engine_test.go:TestStepSkippedWhenConditionFalse
+    file: golang/workflow/engine/engine_test.go
+    symbol: TestStepSkippedWhenConditionFalse
+    package: engine
+    language: go
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeachWithSubSteps_AllSucceed
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeachWithSubSteps_AllSucceed
+    package: engine
+    language: go
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeachWithSubSteps_ChildStatesVisibleInParent
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeachWithSubSteps_ChildStatesVisibleInParent
+    package: engine
+    language: go
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeachWithSubSteps_EmptyCollection
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeachWithSubSteps_EmptyCollection
+    package: engine
+    language: go
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeachWithSubSteps_ItemInputsAvailable
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeachWithSubSteps_ItemInputsAvailable
+    package: engine
+    language: go
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeachWithSubSteps_ParallelExecution_FasterThanSerial
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeachWithSubSteps_ParallelExecution_FasterThanSerial
+    package: engine
+    language: go
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeachWithSubSteps_ParallelPartialFailure_OthersComplete
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeachWithSubSteps_ParallelPartialFailure_OthersComplete
+    package: engine
+    language: go
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeachWithSubSteps_PartialFailure
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeachWithSubSteps_PartialFailure
+    package: engine
+    language: go
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeach_UnresolvedCollectionFails
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeach_UnresolvedCollectionFails
+    package: engine
+    language: go
+    doc: "TestForeach_UnresolvedCollectionFails locks in the AWG re-audit fix\n(meta.silence_is_not_valid_for_unexpected): a foreach whose collection\nreference does not resolve to a list — because a prior step never exported\nit — must FAIL the step, not silently SKIP it and report SUCCEEDED. A\nsilent skip drops real fan-out work (install-on-every-node) while the run\nlooks done."
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeach_WhenGuardSkipsBeforeUnresolvedCollection
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeach_WhenGuardSkipsBeforeUnresolvedCollection
+    package: engine
+    language: go
+    doc: "TestForeach_WhenGuardSkipsBeforeUnresolvedCollection locks in the fix for\ncluster.reconcile's dispatch_remediations failing every ~30s on a healthy\ncluster. A foreach step whose `when` guard evaluates false must SKIP\nWITHOUT resolving its collection — even when that collection reference is\nnil/unresolved. The guard is an explicit \"do not run\" decision, so honoring\nit does NOT violate meta.silence_is_not_valid_for_unexpected (that invariant\n— and TestForeach_UnresolvedCollectionFails above — still applies to UNGATED\nsteps, which must FAIL on a nil collection). The guard must therefore be\nevaluated BEFORE the nil-collection FAIL check, matching the non-foreach\ndispatch path in executeStep.\n\nMirrors the real reconcile def: a foreach over $.remediation_items guarded\nby `len(remediation_items) > 0`, where classify_drift produced none on a\nclean cluster — the empty result serializes to JSON null across the actor\nboundary, so the collection arrives as nil rather than as an empty list.\nBefore the fix, foreach resolution + nil-check fired before the guard and\nFAILED the step (and the whole reconcile run) every pass, manifesting as a\nworkflow.backend_pressure WARN from the repeated dispatch rejections."
+  - id: golang/workflow/engine/foreach_substeps_test.go:TestForeach_WhenGuardTrueStillFansOut
+    file: golang/workflow/engine/foreach_substeps_test.go
+    symbol: TestForeach_WhenGuardTrueStillFansOut
+    package: engine
+    language: go
+    doc: "TestForeach_WhenGuardTrueStillFansOut is the positive control for the\nguard-first ordering: when the guard passes and the collection resolves,\nthe foreach must still iterate every item (the fix must not over-skip)."
+  - id: golang/workflow/engine/no_local_engine_test.go:TestNoLocalEngineInMigratedServices
+    file: golang/workflow/engine/no_local_engine_test.go
+    symbol: TestNoLocalEngineInMigratedServices
+    package: engine
+    language: go
+    doc: "TestNoLocalEngineInMigratedServices is a structural regression test that\nverifies no migrated service still instantiates a local engine.Engine for\nproduction workflow execution. All production workflows must execute\nthrough WorkflowService.ExecuteWorkflow.\n\nThis is Track A.1 from test/strategy.md: \"no migrated workflow still uses\nlocal embed/filesystem production path.\"\n\nThe test scans service source files for patterns that indicate local engine\nusage (engine.Engine{, eng.Execute, engine.NewRouter()) and verifies they\nonly appear in allowed contexts (test files, actor_service.go, the engine\npackage itself)."
+  - id: golang/workflow/engine/no_plan_test.go:TestNoPlanVocabularyInWorkflowActions
+    file: golang/workflow/engine/no_plan_test.go
+    symbol: TestNoPlanVocabularyInWorkflowActions
+    package: engine
+    language: go
+    doc: "TestNoPlanVocabularyInWorkflowActions verifies that workflow-native action\nnames do not reference plan concepts. This is a vocabulary guard from the\nfull-workflow-only migration: no new code should introduce plan-oriented\nabstractions."
+  - id: golang/workflow/engine/no_plan_test.go:TestWorkflowReleaseNoPlanArtifacts
+    file: golang/workflow/engine/no_plan_test.go
+    symbol: TestWorkflowReleaseNoPlanArtifacts
+    package: engine
+    language: go
+    doc: "TestWorkflowReleaseNoPlanArtifacts runs the release.apply.package workflow\nand verifies that no plan-related outputs or step IDs appear in the results."
+  - id: golang/workflow/engine/node_repair_test.go:TestNodeRepair_ChecksumDriftSuccess
+    file: golang/workflow/engine/node_repair_test.go
+    symbol: TestNodeRepair_ChecksumDriftSuccess
+    package: engine
+    language: go
+    doc: "Test 1: Checksum drift repaired successfully."
+  - id: golang/workflow/engine/node_repair_test.go:TestNodeRepair_CorruptedPackageReinstall
+    file: golang/workflow/engine/node_repair_test.go
+    symbol: TestNodeRepair_CorruptedPackageReinstall
+    package: engine
+    language: go
+    doc: "Test 3: Corrupted package requires reinstall."
+  - id: golang/workflow/engine/node_repair_test.go:TestNodeRepair_RuntimeFailureRestartOnly
+    file: golang/workflow/engine/node_repair_test.go
+    symbol: TestNodeRepair_RuntimeFailureRestartOnly
+    package: engine
+    language: go
+    doc: "Test 2: Runtime failure repaired by restart only (repair_packages is no-op)."
+  - id: golang/workflow/engine/node_repair_test.go:TestNodeRepair_SkipIsolation
+    file: golang/workflow/engine/node_repair_test.go
+    symbol: TestNodeRepair_SkipIsolation
+    package: engine
+    language: go
+    doc: "Test 5: Skip isolation when isolate_first=false."
+  - id: golang/workflow/engine/node_repair_test.go:TestNodeRepair_UnrecoverableFails
+    file: golang/workflow/engine/node_repair_test.go
+    symbol: TestNodeRepair_UnrecoverableFails
+    package: engine
+    language: go
+    doc: "Test 4: Unrecoverable node → workflow fails, node remains isolated."
+  - id: golang/workflow/engine/preflight_test.go:TestValidatePreflight_AllRegistered
+    file: golang/workflow/engine/preflight_test.go
+    symbol: TestValidatePreflight_AllRegistered
+    package: engine
+    language: go
+  - id: golang/workflow/engine/preflight_test.go:TestValidatePreflight_FallbackAccepted
+    file: golang/workflow/engine/preflight_test.go
+    symbol: TestValidatePreflight_FallbackAccepted
+    package: engine
+    language: go
+  - id: golang/workflow/engine/preflight_test.go:TestValidatePreflight_HookMissing
+    file: golang/workflow/engine/preflight_test.go
+    symbol: TestValidatePreflight_HookMissing
+    package: engine
+    language: go
+  - id: golang/workflow/engine/preflight_test.go:TestValidatePreflight_MissingAction
+    file: golang/workflow/engine/preflight_test.go
+    symbol: TestValidatePreflight_MissingAction
+    package: engine
+    language: go
+  - id: golang/workflow/engine/reconcile_test.go:TestReconcile_CleanCluster
+    file: golang/workflow/engine/reconcile_test.go
+    symbol: TestReconcile_CleanCluster
+    package: engine
+    language: go
+    doc: "Test 1: Clean cluster — no drift, finalize_clean path."
+  - id: golang/workflow/engine/reconcile_test.go:TestReconcile_MixedDrift
+    file: golang/workflow/engine/reconcile_test.go
+    symbol: TestReconcile_MixedDrift
+    package: engine
+    language: go
+    doc: "Test 4: Mixed drift → multiple child workflows."
+  - id: golang/workflow/engine/reconcile_test.go:TestReconcile_OneDegradedNode
+    file: golang/workflow/engine/reconcile_test.go
+    symbol: TestReconcile_OneDegradedNode
+    package: engine
+    language: go
+    doc: "Test 3: One degraded node → launches node.repair."
+  - id: golang/workflow/engine/reconcile_test.go:TestReconcile_OneMissingPackage
+    file: golang/workflow/engine/reconcile_test.go
+    symbol: TestReconcile_OneMissingPackage
+    package: engine
+    language: go
+    doc: "Test 2: One missing package → launches release.apply.package."
+  - id: golang/workflow/engine/release_infra_test.go:TestInfraRelease_MultiNodeFullFailure
+    file: golang/workflow/engine/release_infra_test.go
+    symbol: TestInfraRelease_MultiNodeFullFailure
+    package: engine
+    language: go
+    doc: "Test 4: All nodes fail."
+  - id: golang/workflow/engine/release_infra_test.go:TestInfraRelease_MultiNodePartialFailure
+    file: golang/workflow/engine/release_infra_test.go
+    symbol: TestInfraRelease_MultiNodePartialFailure
+    package: engine
+    language: go
+    doc: "Test 3: Multi-node partial failure (2 succeed, 1 fails) → DEGRADED."
+  - id: golang/workflow/engine/release_infra_test.go:TestInfraRelease_NoPlanArtifacts
+    file: golang/workflow/engine/release_infra_test.go
+    symbol: TestInfraRelease_NoPlanArtifacts
+    package: engine
+    language: go
+    doc: "Test 6: No plan artifacts — verify no plan-related actions are called."
+  - id: golang/workflow/engine/release_infra_test.go:TestInfraRelease_NoopAllConverged
+    file: golang/workflow/engine/release_infra_test.go
+    symbol: TestInfraRelease_NoopAllConverged
+    package: engine
+    language: go
+    doc: "Test 1: No-op — all nodes already converged."
+  - id: golang/workflow/engine/release_infra_test.go:TestInfraRelease_RetryTransientVerifyFailure
+    file: golang/workflow/engine/release_infra_test.go
+    symbol: TestInfraRelease_RetryTransientVerifyFailure
+    package: engine
+    language: go
+    doc: "Test 5: Transient verify failure then success on retry."
+  - id: golang/workflow/engine/release_infra_test.go:TestInfraRelease_SingleNodeSuccess
+    file: golang/workflow/engine/release_infra_test.go
+    symbol: TestInfraRelease_SingleNodeSuccess
+    package: engine
+    language: go
+    doc: "Test 2: Single node success."
+  - id: golang/workflow/engine/release_package_test.go:TestReleasePackage_CommandSkipsRestart
+    file: golang/workflow/engine/release_package_test.go
+    symbol: TestReleasePackage_CommandSkipsRestart
+    package: engine
+    language: go
+    doc: "Test 4: Command rollout — restart_policy='never' should skip restart."
+  - id: golang/workflow/engine/release_package_test.go:TestReleasePackage_NoopAllConverged
+    file: golang/workflow/engine/release_package_test.go
+    symbol: TestReleasePackage_NoopAllConverged
+    package: engine
+    language: go
+    doc: "Test 1: No-op — all targets already converged."
+  - id: golang/workflow/engine/release_package_test.go:TestReleasePackage_ServiceRolloutSuccess
+    file: golang/workflow/engine/release_package_test.go
+    symbol: TestReleasePackage_ServiceRolloutSuccess
+    package: engine
+    language: go
+    doc: "Test 2: Service rollout success."
+  - id: golang/workflow/engine/release_package_test.go:TestReleasePackage_WorkloadPartialFailure
+    file: golang/workflow/engine/release_package_test.go
+    symbol: TestReleasePackage_WorkloadPartialFailure
+    package: engine
+    language: go
+    doc: "Test 3: Workload rollout partial failure → DEGRADED."
+  - id: golang/workflow/engine/resume_policy_test.go:TestResumeFallbackForLegacySteps
+    file: golang/workflow/engine/resume_policy_test.go
+    symbol: TestResumeFallbackForLegacySteps
+    package: engine
+    language: go
+    doc: "TestResumeFallbackForLegacySteps verifies that steps without execution\nmetadata are re-executed normally (backward compatible)."
+  - id: golang/workflow/engine/resume_policy_test.go:TestResumePolicyFail
+    file: golang/workflow/engine/resume_policy_test.go
+    symbol: TestResumePolicyFail
+    package: engine
+    language: go
+    doc: "TestResumePolicyFail verifies that resume_policy=fail fails the step\nconservatively."
+  - id: golang/workflow/engine/resume_policy_test.go:TestResumeRetryPolicy
+    file: golang/workflow/engine/resume_policy_test.go
+    symbol: TestResumeRetryPolicy
+    package: engine
+    language: go
+    doc: "TestResumeRetryPolicy verifies that resume_policy=retry re-executes\nthe step unconditionally (same as legacy behavior)."
+  - id: golang/workflow/engine/resume_policy_test.go:TestResumeVerifyEffectReexecutes
+    file: golang/workflow/engine/resume_policy_test.go
+    symbol: TestResumeVerifyEffectReexecutes
+    package: engine
+    language: go
+    doc: "TestResumeVerifyEffectReexecutes verifies that when verification says\nthe effect is absent, the step is re-executed normally."
+  - id: golang/workflow/engine/resume_policy_test.go:TestResumeVerifyEffectSkips
+    file: golang/workflow/engine/resume_policy_test.go
+    symbol: TestResumeVerifyEffectSkips
+    package: engine
+    language: go
+    doc: "TestResumeVerifyEffectSkips verifies that when verification proves the\neffect exists, the step is skipped without re-execution."
+  - id: golang/workflow/engine/resume_policy_test.go:TestResumeVerifyInconclusiveManualApproval
+    file: golang/workflow/engine/resume_policy_test.go
+    symbol: TestResumeVerifyInconclusiveManualApproval
+    package: engine
+    language: go
+    doc: "TestResumeVerifyInconclusiveManualApproval verifies that inconclusive\nverification + manual_approval idempotency blocks the step."
+  - id: golang/workflow/engine/resume_test.go:TestPreCompletedAllStepsDone
+    file: golang/workflow/engine/resume_test.go
+    symbol: TestPreCompletedAllStepsDone
+    package: engine
+    language: go
+    doc: "TestPreCompletedAllStepsDone verifies that if all steps are pre-completed\nas SUCCEEDED, the run completes immediately without executing anything."
+  - id: golang/workflow/engine/resume_test.go:TestPreCompletedFailedStepBlocksDownstream
+    file: golang/workflow/engine/resume_test.go
+    symbol: TestPreCompletedFailedStepBlocksDownstream
+    package: engine
+    language: go
+    doc: "TestPreCompletedFailedStepBlocksDownstream verifies that a step\npre-completed as FAILED correctly blocks dependent steps."
+  - id: golang/workflow/engine/resume_test.go:TestPreCompletedSkippedStepSatisfiesDeps
+    file: golang/workflow/engine/resume_test.go
+    symbol: TestPreCompletedSkippedStepSatisfiesDeps
+    package: engine
+    language: go
+    doc: "TestPreCompletedSkippedStepSatisfiesDeps verifies that a SKIPPED\npre-completed step counts as a satisfied dependency."
+  - id: golang/workflow/engine/resume_test.go:TestPreCompletedStepsSkipped
+    file: golang/workflow/engine/resume_test.go
+    symbol: TestPreCompletedStepsSkipped
+    package: engine
+    language: go
+    doc: "TestPreCompletedStepsSkipped verifies that the engine skips steps\nmarked as pre-completed (from a prior execution) and only executes\nremaining pending steps."
+  - id: golang/workflow/recorder_test.go:TestDisconnectResetsClient
+    file: golang/workflow/recorder_test.go
+    symbol: TestDisconnectResetsClient
+    package: workflow
+    language: go
+  - id: golang/workflow/recorder_test.go:TestEmptyResolverPreventsConnect
+    file: golang/workflow/recorder_test.go
+    symbol: TestEmptyResolverPreventsConnect
+    package: workflow
+    language: go
+  - id: golang/workflow/recorder_test.go:TestEmptyRunIDSkipsRPC
+    file: golang/workflow/recorder_test.go
+    symbol: TestEmptyRunIDSkipsRPC
+    package: workflow
+    language: go
+  - id: golang/workflow/recorder_test.go:TestIntegrationWorkflowDirect
+    file: golang/workflow/recorder_test.go
+    symbol: TestIntegrationWorkflowDirect
+    package: workflow
+    language: go
+    doc: "TestIntegrationWorkflowDirect verifies direct connection (no Envoy):\n\n\trecorder → workflow_server:10220\n\nThis test is skipped unless GLOBULAR_INTEGRATION=1 is set."
+  - id: golang/workflow/recorder_test.go:TestIntegrationWorkflowThroughEnvoy
+    file: golang/workflow/recorder_test.go
+    symbol: TestIntegrationWorkflowThroughEnvoy
+    package: workflow
+    language: go
+    doc: "TestIntegrationWorkflowThroughEnvoy verifies the full path:\n\n\trecorder → Envoy gateway (:8443) → workflow.WorkflowService\n\nThis test is skipped unless GLOBULAR_INTEGRATION=1 is set."
+  - id: golang/workflow/recorder_test.go:TestMeshResolverUsesConfigGetMeshAddress
+    file: golang/workflow/recorder_test.go
+    symbol: TestMeshResolverUsesConfigGetMeshAddress
+    package: workflow
+    language: go
+  - id: golang/workflow/recorder_test.go:TestNilRecorderIsSafe
+    file: golang/workflow/recorder_test.go
+    symbol: TestNilRecorderIsSafe
+    package: workflow
+    language: go
+  - id: golang/workflow/recorder_test.go:TestResolverCalledLazily
+    file: golang/workflow/recorder_test.go
+    symbol: TestResolverCalledLazily
+    package: workflow
+    language: go
+  - id: golang/workflow/recorder_test.go:TestSequenceNumbersIncrement
+    file: golang/workflow/recorder_test.go
+    symbol: TestSequenceNumbersIncrement
+    package: workflow
+    language: go
+  - id: golang/workflow/recorder_test.go:TestTokenInjectorAddsMetadata
+    file: golang/workflow/recorder_test.go
+    symbol: TestTokenInjectorAddsMetadata
+    package: workflow
+    language: go
+  - id: golang/workflow/v1alpha1/hardening_test.go:TestDeferPolicyParse
+    file: golang/workflow/v1alpha1/hardening_test.go
+    symbol: TestDeferPolicyParse
+    package: v1alpha1
+    language: go
+    doc: "TestDeferPolicyParse exercises the new defer: block (WF-DEFER). A step\nwithout a defer block must keep nil — backwards compatible."
+  - id: golang/workflow/v1alpha1/hardening_test.go:TestHardeningFieldsParse
+    file: golang/workflow/v1alpha1/hardening_test.go
+    symbol: TestHardeningFieldsParse
+    package: v1alpha1
+    language: go
+  - id: golang/workflow/v1alpha1/hardening_test.go:TestLegacyYAMLStillParsesWithoutHardeningFields
+    file: golang/workflow/v1alpha1/hardening_test.go
+    symbol: TestLegacyYAMLStillParsesWithoutHardeningFields
+    package: v1alpha1
+    language: go
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestDispatchOrderAbandonedBeforeCooldown
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestDispatchOrderAbandonedBeforeCooldown
+    package: main
+    language: go
+    doc: "TestDispatchOrderAbandonedBeforeCooldown: when a correlation is BOTH\nabandoned AND has an active cooldown row, the abandonment check must\nfire FIRST (most specific signal). The composition of B2 and B3 is\nabandoned-first, cooldown-second."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestFindByBlockerTag_EmptyTagIsNoop
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestFindByBlockerTag_EmptyTagIsNoop
+    package: main
+    language: go
+    doc: "TestFindByBlockerTag_EmptyTagIsNoop: callers pass exactly one tag\nper wake call. An empty tag is a programming error but must not\nmatch every row — the safer behavior is \"match none\"."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestFindByBlockerTag_MatchesNonAbandoned
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestFindByBlockerTag_MatchesNonAbandoned
+    package: main
+    language: go
+    doc: "TestFindByBlockerTag_MatchesNonAbandoned: wake should target rows\nwhose tags contain the wake key AND are not abandoned. Abandoned\nrows are skipped — the operator-clear path is the only way to\nresume an abandoned correlation."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestMemoryStoreClearByOperator
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestMemoryStoreClearByOperator
+    package: main
+    language: go
+    doc: "TestMemoryStoreClearByOperator: operator clear resets defer_count\nAND clears the abandoned flag, so dispatch can resume."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestMemoryStoreClearOnSuccess
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestMemoryStoreClearOnSuccess
+    package: main
+    language: go
+    doc: "TestMemoryStoreClearOnSuccess: a successful run resets the counter\nso the NEXT defer starts at 1, not at the prior count."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestMemoryStoreCounterSurvivesAcrossCalls
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestMemoryStoreCounterSurvivesAcrossCalls
+    package: main
+    language: go
+    doc: "TestMemoryStoreCounterSurvivesAcrossCalls: the most basic guarantee\n— sequential RecordDefer calls increment correctly. Models multiple\nruns of the same correlation_id deferring without restart."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestMemoryStoreFindByBlockerTag
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestMemoryStoreFindByBlockerTag
+    package: main
+    language: go
+    doc: "TestMemoryStoreFindByBlockerTag: integration test against the\nin-memory store. Records two defers with rendered tags, then asks\nthe store to find them by tag. Documents the production read flow."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestMemoryStoreSurvivesWorkflowServerRestart
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestMemoryStoreSurvivesWorkflowServerRestart
+    package: main
+    language: go
+    doc: "TestMemoryStoreSurvivesWorkflowServerRestart is the regression guard\nfor \"in-memory counter would lose state on restart\". We model two\ndistinct workflow_server processes by creating two separate \"server\"\nfixtures that BOTH point at the same store (same Scylla in prod).\nCounter incremented by writer-1 must be visible to writer-2."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestMemoryStoreUnrelatedCorrelationsIndependent
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestMemoryStoreUnrelatedCorrelationsIndependent
+    package: main
+    language: go
+    doc: "TestMemoryStoreUnrelatedCorrelationsIndependent: a correlation hitting\nabandoned must not affect any other correlation. The whole point of\nthe per-correlation circuit breaker pattern."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestNextDeferStateAbandonsAtMax
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestNextDeferStateAbandonsAtMax
+    package: main
+    language: go
+    doc: "TestNextDeferStateAbandonsAtMax: the count→max threshold flips\nabandoned=true and stamps abandoned_at, exactly once."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestNextDeferStateFirstDefer
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestNextDeferStateFirstDefer
+    package: main
+    language: go
+    doc: "TestNextDeferStateFirstDefer: first defer for a fresh correlation\nmust produce defer_count=1, max from policy, abandoned=false (unless\nmax_defers=1 in which case it abandons immediately)."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestShouldSkipForAbandoned
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestShouldSkipForAbandoned
+    package: main
+    language: go
+    doc: "TestShouldSkipForAbandoned: dispatch must be refused for abandoned\ncorrelations and proceed for everything else (nil row, count below\nmax, manually cleared)."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestWakeIgnoresAbandoned
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestWakeIgnoresAbandoned
+    package: main
+    language: go
+    doc: "TestWakeIgnoresAbandoned: a tag matching an abandoned row must not\nproduce a wake match. B3 abandonment is the explicit \"stop trying\"\nsignal; B4 wake is acceleration *within* the budget, not a\nresurrection mechanism. Operator must Clear an abandoned\ncorrelation explicitly."
+  - id: golang/workflow/workflow_server/correlation_defer_state_test.go:TestWakePreservesDeferCount
+    file: golang/workflow/workflow_server/correlation_defer_state_test.go
+    symbol: TestWakePreservesDeferCount
+    package: main
+    language: go
+    doc: "TestWakePreservesDeferCount: the wake API explicitly does NOT\ndecrement defer_count. Operator stories: a transient blip wakes the\nrun, it succeeds, ClearOnSuccess resets the counter (existing path).\nIf the blip wakes the run but the underlying condition is still\nbad, the next defer keeps counting toward abandonment — the\nmax_defers budget is the same whether we waited the full cooldown\nor a wake fired early."
+  - id: golang/workflow/workflow_server/executor_defer_test.go:TestSchedulerHandlesNilLatestRun
+    file: golang/workflow/workflow_server/executor_defer_test.go
+    symbol: TestSchedulerHandlesNilLatestRun
+    package: main
+    language: go
+    doc: "TestSchedulerHandlesNilLatestRun confirms that the no-prior-run case\n(a fresh correlation_id with nothing recorded) is a pass-through."
+  - id: golang/workflow/workflow_server/executor_defer_test.go:TestSchedulerIgnoresNonDeferredStatuses
+    file: golang/workflow/workflow_server/executor_defer_test.go
+    symbol: TestSchedulerIgnoresNonDeferredStatuses
+    package: main
+    language: go
+    doc: "TestSchedulerIgnoresNonDeferredStatuses confirms the guard does\nnothing to runs in other statuses — pending, executing, succeeded,\nfailed, blocked all flow through normal dispatch."
+  - id: golang/workflow/workflow_server/executor_defer_test.go:TestSchedulerResumesAfterCooldown
+    file: golang/workflow/workflow_server/executor_defer_test.go
+    symbol: TestSchedulerResumesAfterCooldown
+    package: main
+    language: go
+    doc: "TestSchedulerResumesAfterCooldown is the symmetric proof: once\nbackoff_until_ms has elapsed, the scheduler must NOT skip — the\ncaller is free to re-dispatch and the engine will retry the\ndeferred step from scratch."
+  - id: golang/workflow/workflow_server/executor_defer_test.go:TestSchedulerSkipsDeferredBeforeCooldown
+    file: golang/workflow/workflow_server/executor_defer_test.go
+    symbol: TestSchedulerSkipsDeferredBeforeCooldown
+    package: main
+    language: go
+    doc: "TestSchedulerSkipsDeferredBeforeCooldown is the workflow_server-level\nproof that B2 wires up: a deferred run whose backoff_until_ms is in\nthe future causes shouldSkipForDeferral to return true (= dispatch\nis suppressed). Tested in isolation to avoid pulling in scylla."
+  - id: golang/workflow/workflow_server/executor_integration_test.go:TestExecuteWorkflowActorRejectsUnknownAction
+    file: golang/workflow/workflow_server/executor_integration_test.go
+    symbol: TestExecuteWorkflowActorRejectsUnknownAction
+    package: main
+    language: go
+    doc: "TestExecuteWorkflowActorRejectsUnknownAction verifies that when an actor\nreceives an unknown action, the workflow fails cleanly with an explicit\nerror — no silent no-ops."
+  - id: golang/workflow/workflow_server/executor_integration_test.go:TestExecuteWorkflowCallbackInputsPropagated
+    file: golang/workflow/workflow_server/executor_integration_test.go
+    symbol: TestExecuteWorkflowCallbackInputsPropagated
+    package: main
+    language: go
+    doc: "TestExecuteWorkflowCallbackInputsPropagated verifies that workflow inputs\nand accumulated step outputs are correctly serialized and sent to the\nactor callback."
+  - id: golang/workflow/workflow_server/executor_integration_test.go:TestExecuteWorkflowFullRoundTrip
+    file: golang/workflow/workflow_server/executor_integration_test.go
+    symbol: TestExecuteWorkflowFullRoundTrip
+    package: main
+    language: go
+    doc: "TestExecuteWorkflowFullRoundTrip verifies the complete centralized execution\npath: WorkflowService loads a definition, runs the engine, dispatches steps\nto a mock actor via gRPC callback, auto-records steps, and returns a\ncoherent response.\n\nThis is the Track A.2 integration test from test/strategy.md."
+  - id: golang/workflow/workflow_server/executor_integration_test.go:TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects
+    file: golang/workflow/workflow_server/executor_integration_test.go
+    symbol: TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects
+    package: main
+    language: go
+    doc: "TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects is the commit-first\nratchet (T3) for meta.state_mutations_must_be_durably_committed_before_side_effects.\nIf the durable run record (StartRun) cannot commit, ExecuteWorkflow MUST refuse\nto dispatch any actor side effect and MUST return an error so the caller retries\n— never execute uncommitted (the \"lost intent / untraceable change\" bug class).\nRegression for the pre-2026-06-09 executor, which logged the failure and\nproceeded anyway (\"Non-fatal: execution proceeds even if recording fails\")."
+  - id: golang/workflow/workflow_server/executor_lease_test.go:TestClaimRunWithoutScylla
+    file: golang/workflow/workflow_server/executor_lease_test.go
+    symbol: TestClaimRunWithoutScylla
+    package: main
+    language: go
+    doc: "TestClaimRunWithoutScylla verifies that claim always succeeds in\nsingle-node mode (no ScyllaDB)."
+  - id: golang/workflow/workflow_server/executor_lease_test.go:TestLeaseManagerCreation
+    file: golang/workflow/workflow_server/executor_lease_test.go
+    symbol: TestLeaseManagerCreation
+    package: main
+    language: go
+    doc: "TestLeaseManagerCreation verifies the lease manager initializes correctly."
+  - id: golang/workflow/workflow_server/executor_lease_test.go:TestMultipleRunsTracked
+    file: golang/workflow/workflow_server/executor_lease_test.go
+    symbol: TestMultipleRunsTracked
+    package: main
+    language: go
+    doc: "TestMultipleRunsTracked verifies that multiple runs can be managed\nsimultaneously."
+  - id: golang/workflow/workflow_server/executor_lease_test.go:TestOrphanScannerDoesNotPanicWithoutScylla
+    file: golang/workflow/workflow_server/executor_lease_test.go
+    symbol: TestOrphanScannerDoesNotPanicWithoutScylla
+    package: main
+    language: go
+    doc: "TestOrphanScannerDoesNotPanicWithoutScylla verifies the scanner\ngracefully handles no ScyllaDB."
+  - id: golang/workflow/workflow_server/executor_lease_test.go:TestOwnershipExclusivity
+    file: golang/workflow/workflow_server/executor_lease_test.go
+    symbol: TestOwnershipExclusivity
+    package: main
+    language: go
+    doc: "TestOwnershipExclusivity verifies that the lease manager's in-memory\ntracking correctly manages owned runs."
+  - id: golang/workflow/workflow_server/executor_lease_test.go:TestReleaseRunWithoutScylla
+    file: golang/workflow/workflow_server/executor_lease_test.go
+    symbol: TestReleaseRunWithoutScylla
+    package: main
+    language: go
+    doc: "TestReleaseRunWithoutScylla verifies that release is a no-op in\nsingle-node mode."
+  - id: golang/workflow/workflow_server/executor_resume_test.go:TestResumeProbeModePreflight
+    file: golang/workflow/workflow_server/executor_resume_test.go
+    symbol: TestResumeProbeModePreflight
+    package: main
+    language: go
+    doc: "TestResumeProbeModePreflight is the regression test for the bug where\nthe orphan scanner permanently failed in-progress runs instead of\nretrying them when actor handlers weren't yet registered.\n\nRoot cause: ResumeRun called FinishRun(FAILED) on any PreflightError,\neven when actorEndpoints was nil (probe mode). Probe mode builds a router\nwith no remote-actor fallbacks by design, so incomplete runs always hit\na PreflightError — which should be a \"retry later\" signal, not a\npermanent failure."
+  - id: golang/workflow/workflow_server/executor_resume_test.go:TestResumeWithEndpointsPreflight
+    file: golang/workflow/workflow_server/executor_resume_test.go
+    symbol: TestResumeWithEndpointsPreflight
+    package: main
+    language: go
+    doc: "TestResumeWithEndpointsPreflight verifies that when real endpoints ARE\nprovided and the preflight still fails (genuinely missing handler), the\nrun SHOULD be permanently failed — not retried."
+  - id: golang/workflow/workflow_server/executor_test.go:TestActorDispatcherNoEndpoint
+    file: golang/workflow/workflow_server/executor_test.go
+    symbol: TestActorDispatcherNoEndpoint
+    package: main
+    language: go
+    doc: "TestActorDispatcherNoEndpoint verifies the dispatcher fails cleanly\nwhen no endpoint is configured for an actor."
+  - id: golang/workflow/workflow_server/executor_test.go:TestActorDispatcherRejectsUnknownAction
+    file: golang/workflow/workflow_server/executor_test.go
+    symbol: TestActorDispatcherRejectsUnknownAction
+    package: main
+    language: go
+    doc: "TestActorDispatcherRejectsUnknownAction verifies that the dispatcher\npropagates rejection from the actor when an unknown action is sent."
+  - id: golang/workflow/workflow_server/executor_test.go:TestActorDispatcherRemoteCallHappyPath
+    file: golang/workflow/workflow_server/executor_test.go
+    symbol: TestActorDispatcherRemoteCallHappyPath
+    package: main
+    language: go
+    doc: "TestActorDispatcherRemoteCallHappyPath starts a mock actor gRPC server\nand verifies the dispatcher can call it, serialize/deserialize correctly,\nand get results back."
+  - id: golang/workflow/workflow_server/import_day0_test.go:TestImportDay0Trace_IdempotentAcrossRestarts
+    file: golang/workflow/workflow_server/import_day0_test.go
+    symbol: TestImportDay0Trace_IdempotentAcrossRestarts
+    package: main
+    language: go
+    doc: "TestImportDay0Trace_IdempotentAcrossRestarts pins rule 1 (IDEMPOTENT) of\nworkflow.day0_trace_import_is_idempotent_and_best_effort: if the trace\nhas already been imported (correlation_id \"day0-install\" has any rows\nin workflow_runs), a subsequent call must NOT write a duplicate run.\n\nImplementation: the count + write seams let the test simulate the\n\"already imported\" state without touching real Scylla. First call has\ncount=0 → write seam fires; second call has count=1 → write seam must\nNOT fire."
+  - id: golang/workflow/workflow_server/import_day0_test.go:TestImportDay0Trace_MissingLogIsSilent
+    file: golang/workflow/workflow_server/import_day0_test.go
+    symbol: TestImportDay0Trace_MissingLogIsSilent
+    package: main
+    language: go
+    doc: "TestImportDay0Trace_MissingLogIsSilent pins rule 2 (BEST-EFFORT) of\nworkflow.day0_trace_import_is_idempotent_and_best_effort: a missing log\nfile silently returns. The function is called from workflow-server\nstartup; promoting \"missing log\" to a fatal would couple startup to a\nfile that only exists on the founding controller node."
+  - id: golang/workflow/workflow_server/import_day0_test.go:TestImportDay0Trace_NilSessionIsSilent
+    file: golang/workflow/workflow_server/import_day0_test.go
+    symbol: TestImportDay0Trace_NilSessionIsSilent
+    package: main
+    language: go
+    doc: "TestImportDay0Trace_NilSessionIsSilent pins the second half of rule 2:\neven when the log file exists, a nil Scylla session must silently return\n(the workflow service is starting up; the trace import is best-effort)."
+  - id: golang/workflow/workflow_server/incidents_absence_scope_test.go:TestListRuns_DegradedScyllaReturnsUnavailable
+    file: golang/workflow/workflow_server/incidents_absence_scope_test.go
+    symbol: TestListRuns_DegradedScyllaReturnsUnavailable
+    package: main
+    language: go
+    doc: "TestListRuns_DegradedScyllaReturnsUnavailable locks in the AWG re-audit fix\n(meta.authority_must_express_uncertainty): when ScyllaDB is degraded (nil\nsession) ListRuns must surface DEPENDENCY_UNAVAILABLE, not an empty list.\nAn empty Total:0 is indistinguishable from \"no runs\" and was being read by\nreadiness consumers as \"no active work\" exactly when the truth is unknown."
+  - id: golang/workflow/workflow_server/incidents_absence_scope_test.go:TestScanDoctorFindings_UnavailableWhenClientNil
+    file: golang/workflow/workflow_server/incidents_absence_scope_test.go
+    symbol: TestScanDoctorFindings_UnavailableWhenClientNil
+    package: main
+    language: go
+    doc: "TestScanDoctorFindings_UnavailableWhenClientNil locks in the AWG re-audit fix\n(meta.absence_scope_must_be_explicit): when the cluster-doctor source cannot\nbe observed, its category is marked unavailable so resolveAbsent does NOT age\nopen doctor-finding incidents toward RESOLVED. \"Not observed because the\nsource is down\" must not be read as \"the finding is gone.\""
+  - id: golang/workflow/workflow_server/infra_release_handler_test.go:TestDriftWorkflowUsesDesiredHash
+    file: golang/workflow/workflow_server/infra_release_handler_test.go
+    symbol: TestDriftWorkflowUsesDesiredHash
+    package: main
+    language: go
+    doc: "TestDriftWorkflowUsesDesiredHash verifies that INFRASTRUCTURE drift workflows\ncarry the convergence hash (computed by ComputeInfrastructureDesiredHash), not\nthe raw artifact digest (ResolvedArtifactDigest). When the two hashes are\naccidentally equal, the controller has violated the infra_desired_hash schema\nand the node agent's post-install stamp will never match the controller's\nexpectation — causing a perpetual redispatch loop (the Envoy restart storm,\n2026-05-06).\n\nInvariant: infra.desired_hash_consistency"
+  - id: golang/workflow/workflow_server/receipt_failure_classifier_test.go:TestBuildStepReceiptPayload_BlockedFields
+    file: golang/workflow/workflow_server/receipt_failure_classifier_test.go
+    symbol: TestBuildStepReceiptPayload_BlockedFields
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/receipt_failure_classifier_test.go:TestClassifyStepFailureForReceipt_NativeDependencyMissing
+    file: golang/workflow/workflow_server/receipt_failure_classifier_test.go
+    symbol: TestClassifyStepFailureForReceipt_NativeDependencyMissing
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/receipt_failure_classifier_test.go:TestClassifyStepFailureForReceipt_TransientTimeout
+    file: golang/workflow/workflow_server/receipt_failure_classifier_test.go
+    symbol: TestClassifyStepFailureForReceipt_TransientTimeout
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/receipt_failure_classifier_test.go:TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
+    file: golang/workflow/workflow_server/receipt_failure_classifier_test.go
+    symbol: TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
+    package: main
+    language: go
+    doc: "Pins workflow.receipt_classification_monotonic_and_conservative —\nrule 2 (conservative): an unknown/ambiguous error must never be\nclassified as terminal success. The classifier's contract is\nfailure-side only: if it cannot map the error to a known\ntransient or blocked shape, it returns ok=false and the caller\nkeeps the raw status. Any classified result MUST carry a retry\nhint (auto_retry=true OR a non-empty unblock_signals list) — a\nclassified-but-silent block would be a permanent abandonment."
+  - id: golang/workflow/workflow_server/receipt_failure_classifier_test.go:TestReceiptClassificationMonotonic_SucceededNeverReclassified
+    file: golang/workflow/workflow_server/receipt_failure_classifier_test.go
+    symbol: TestReceiptClassificationMonotonic_SucceededNeverReclassified
+    package: main
+    language: go
+    doc: "Pins workflow.receipt_classification_monotonic_and_conservative —\nrule 1 (monotonic): a SUCCEEDED step with no error must NOT be\nreclassified by buildStepReceiptPayload. The classifier branch\nonly fires when step.Error is non-empty; this test guards against\na future change that runs the classifier unconditionally and\nretroactively flips a success into a failure shape (e.g. via a\nlate retry observation or orphan resume)."
+  - id: golang/workflow/workflow_server/retention_test.go:TestIsTerminalStatusInt
+    file: golang/workflow/workflow_server/retention_test.go
+    symbol: TestIsTerminalStatusInt
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/schema_migration_test.go:TestIsExistingColumnError
+    file: golang/workflow/workflow_server/schema_migration_test.go
+    symbol: TestIsExistingColumnError
+    package: main
+    language: go
+    doc: "TestIsExistingColumnError covers the idempotency guard for the additive\nschema migration (inputs_json). An ALTER TABLE ADD for a column that already\nexists must be tolerated so a restart / fresh cluster does not fail schema\ninit, while unrelated errors must still propagate."
+  - id: golang/workflow/workflow_server/schema_migration_test.go:TestSchemaAlterStatements_AddsInputsJson
+    file: golang/workflow/workflow_server/schema_migration_test.go
+    symbol: TestSchemaAlterStatements_AddsInputsJson
+    package: main
+    language: go
+    doc: "TestSchemaAlterStatements_AddsInputsJson pins that the inputs_json column\nmigration is wired so upgraded clusters (whose workflow_runs table predates\nthe column) actually get it — CREATE TABLE IF NOT EXISTS would not add it."
+  - id: golang/workflow/workflow_server/scylla_reconnect_test.go:TestNoConcurrentReconnectStorm
+    file: golang/workflow/workflow_server/scylla_reconnect_test.go
+    symbol: TestNoConcurrentReconnectStorm
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/scylla_reconnect_test.go:TestOldSessionClosedAfterSwap
+    file: golang/workflow/workflow_server/scylla_reconnect_test.go
+    symbol: TestOldSessionClosedAfterSwap
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/scylla_reconnect_test.go:TestWorkflowDispatchRefusedWhenScyllaDown
+    file: golang/workflow/workflow_server/scylla_reconnect_test.go
+    symbol: TestWorkflowDispatchRefusedWhenScyllaDown
+    package: main
+    language: go
+    doc: "Awareness required-test name wrapper: backend unavailability must refuse\nworkflow RPC dispatch while the session is reconnecting."
+  - id: golang/workflow/workflow_server/scylla_reconnect_test.go:TestWorkflowDispatch_ReturnsAccepted_NotSuccess
+    file: golang/workflow/workflow_server/scylla_reconnect_test.go
+    symbol: TestWorkflowDispatch_ReturnsAccepted_NotSuccess
+    package: main
+    language: go
+    doc: "Awareness required-test name wrapper: accepted dispatch is not equivalent\nto terminal workflow success."
+  - id: golang/workflow/workflow_server/scylla_reconnect_test.go:TestWorkflowHealthHealthyAfterReconnect
+    file: golang/workflow/workflow_server/scylla_reconnect_test.go
+    symbol: TestWorkflowHealthHealthyAfterReconnect
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/scylla_reconnect_test.go:TestWorkflowProgress_BoundToWorkflowTerminalState
+    file: golang/workflow/workflow_server/scylla_reconnect_test.go
+    symbol: TestWorkflowProgress_BoundToWorkflowTerminalState
+    package: main
+    language: go
+    doc: "Awareness required-test name wrapper: UI/clients must bind progress to\nterminal state transitions rather than transport-level acceptance."
+  - id: golang/workflow/workflow_server/scylla_reconnect_test.go:TestWorkflowRPCsUnavailableWhileReconnecting
+    file: golang/workflow/workflow_server/scylla_reconnect_test.go
+    symbol: TestWorkflowRPCsUnavailableWhileReconnecting
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/scylla_reconnect_test.go:TestWorkflowScyllaReconnectAfterPingFailure
+    file: golang/workflow/workflow_server/scylla_reconnect_test.go
+    symbol: TestWorkflowScyllaReconnectAfterPingFailure
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/step_receipts_attribution_test.go:TestStepReceipt_CarriesRunIDAndStepID
+    file: golang/workflow/workflow_server/step_receipts_attribution_test.go
+    symbol: TestStepReceipt_CarriesRunIDAndStepID
+    package: main
+    language: go
+    doc: "TestStepReceipt_CarriesRunIDAndStepID pins the pointwise-rule contract on\nthe step_receipts table schema: every receipt is keyed by (run_id, step_id),\nwhich means every step outcome stored in workflow.step_receipts is\nIDENTIFIABLY bound to a workflow instance.\n\nThis is the schema-level proof of the invariant\nworkflow.every_state_mutation_belongs_to_a_workflow_instance: no receipt\ncan exist without naming the run_id + step_id that owns it. The PRIMARY\nKEY enforces the binding at storage time.\n\nFuture drift would look like: removing run_id from the key (allowing\nreceipts without instance ownership), adding a \"global receipt\" path that\nbypasses the table entirely, or letting receipts be written with empty\nrun_id / step_id strings. The DDL is the regression seam."
+  - id: golang/workflow/workflow_server/step_receipts_attribution_test.go:TestWriteStepReceipt_RejectsEmptyReceiptKey
+    file: golang/workflow/workflow_server/step_receipts_attribution_test.go
+    symbol: TestWriteStepReceipt_RejectsEmptyReceiptKey
+    package: main
+    language: go
+    doc: "TestWriteStepReceipt_RejectsEmptyReceiptKey verifies the write path guards\nagainst a degenerate caller pattern: a fire-and-forget receipt with no\nreceipt_key (no semantic identity) is silently dropped rather than\nproducing an orphan row. This is the other half of the pointwise rule\nat the write boundary — receipts must name themselves.\n\nWe exercise the early-return branch by calling writeStepReceipt with an\nempty receiptKey on a server with no Scylla session. If the function\nshort-circuits on receiptKey == \"\" before touching the session, the call\nreturns cleanly. If it later attempts to use the nil session, it would\nstill no-op (the session-nil guard exists at line 52-55), so this test\npins the FIRST guard specifically."
+  - id: golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go:TestDerivedLaneErrorDoesNotFlipAuthorityToBlocked
+    file: golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go
+    symbol: TestDerivedLaneErrorDoesNotFlipAuthorityToBlocked
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go:TestDrainOnStartupCatchesQueuedRequest
+    file: golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go
+    symbol: TestDrainOnStartupCatchesQueuedRequest
+    package: main
+    language: go
+  - id: golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go:TestServiceReleaseRecoveryAfterWorkflowCommitFailure
+    file: golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go
+    symbol: TestServiceReleaseRecoveryAfterWorkflowCommitFailure
+    package: main
+    language: go

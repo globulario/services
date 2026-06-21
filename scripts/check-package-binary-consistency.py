@@ -7,7 +7,7 @@ A package's entrypoint binary is declared in THREE independent places:
      (release.yml and build-local-release.sh read this to decide which binary to
       copy into the package payload and to compute entrypoint_checksum)
   2. packages/registry.yaml                 binary: <name>
-  3. packages/specs/<pkg>_{service,cmd}.yaml  metadata.entrypoint
+  3. packages/metadata/<pkg>/specs/<pkg>_{service,cmd}.yaml  metadata.entrypoint
 
 When these drift, the build SILENTLY ships the wrong payload: in v1.2.216 the
 claude package shipped a 12.3 MB Claude CLI v2.1.80 instead of the `noop`
@@ -48,8 +48,11 @@ def load_registry_binaries(path):
 
 
 def spec_entrypoint(name):
-    for cand in (f"{PKG}/specs/{name.replace('-', '_')}_service.yaml",
-                 f"{PKG}/specs/{name.replace('-', '_')}_cmd.yaml"):
+    # Single source of truth: metadata/<name>/specs/ (top-level specs/ was removed
+    # in the 2026-06 spec consolidation). <name> is the hyphenated package name.
+    base = name.replace('-', '_')
+    for cand in (f"{PKG}/metadata/{name}/specs/{base}_service.yaml",
+                 f"{PKG}/metadata/{name}/specs/{base}_cmd.yaml"):
         if not os.path.exists(cand):
             continue
         inmeta = False

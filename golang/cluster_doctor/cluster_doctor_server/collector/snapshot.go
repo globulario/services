@@ -14,6 +14,7 @@ package collector
 // | STALE | UNTRUSTED) can reject decisions based on outdated data.
 
 import (
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -71,6 +72,30 @@ type DataError struct {
 	Service string
 	RPC     string
 	Err     error
+}
+
+// GatewayBackendProbe is a degraded-mode reachability comparison between the
+// Envoy gateway path and the direct backend port for a single service (PR-15).
+//
+// The doctor must not depend exclusively on the systems it diagnoses: when the
+// gateway path is broken, probing the backend directly lets the doctor tell a
+// broken route apart from a down service. GatewayContentType carries the
+// distinctive misrouting signal — a healthy gateway speaks gRPC; a route that
+// has fallen through to a web handler answers with "text/html". Reflection does
+// not route through the gateway normally, so only the content-type signal is a
+// trustworthy gateway-route verdict (a plain unavailable is inconclusive).
+type GatewayBackendProbe struct {
+	Service            string // gRPC service name, e.g. "ai_memory.AiMemoryService"
+	GatewayEndpoint    string
+	BackendEndpoint    string
+	GatewayReachable   bool   // gateway path answered gRPC
+	GatewayHTML        bool   // gateway path answered with an HTML/non-gRPC content-type
+	GatewayContentType string // observed content-type when non-gRPC (e.g. "text/html")
+	GatewayErr         string // gateway path error (empty when reachable)
+	BackendChecked     bool   // false => no backend endpoint to cross-check against
+	BackendReachable   bool   // direct backend reflection succeeded
+	BackendErr         string // backend path error (empty when reachable)
+	ObservedAtUnix     int64
 }
 
 // DesiredVersionEntry is the per-record name+version tuple the
@@ -408,6 +433,21 @@ type Snapshot struct {
 	// for cross-process consumption.
 	VerifierResult *verifier.Result
 
+	// GatewayBackendProbes are degraded-mode gateway-vs-backend reachability
+	// comparisons for selected services (PR-15). Populated best-effort by the
+	// collector; nil/empty = not probed. Consumed by the
+	// "gateway.backend_divergence" rule to distinguish a broken gateway route
+	// from a down backend.
+	GatewayBackendProbes []GatewayBackendProbe
+
+	// ReleaseBoundaryReports holds PR-16 release-boundary proofs for allowlisted
+	// ordinary services, keyed by "service@node". Populated best-effort by the
+	// collector when a repository client is wired. A MISSING entry for a service
+	// that is allowlisted AND installed on a node means the collector could not
+	// produce a proof — the "release.boundary_unproven" rule treats that as
+	// CHECK_ERROR, never OK (rule must not go silent when the source errored).
+	ReleaseBoundaryReports map[string]*ReleaseBoundaryReport
+
 	mu sync.Mutex
 }
 
@@ -467,6 +507,7 @@ func newSnapshot(id string) *Snapshot {
 		SubsystemHealth:             make(map[string]*node_agentpb.GetSubsystemHealthResponse),
 		CertificateStatus:           make(map[string]*node_agentpb.GetCertificateStatusResponse),
 		IntegrityReports:            make(map[string]*IntegrityReport),
+		ReleaseBoundaryReports:      make(map[string]*ReleaseBoundaryReport),
 		InfraProbes:                 make(map[string]*node_agentpb.GetInfraProbeResponse),
 		InfraProbeCapabilityMissing: make(map[string]bool),
 		NodeRenderedGenerations:     make(map[string]int64),
@@ -493,9 +534,17 @@ func (s *Snapshot) addSource(name string) {
 
 func (s *Snapshot) addError(service, rpc string, err error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.DataErrors = append(s.DataErrors, DataError{Service: service, RPC: rpc, Err: err})
 	s.DataIncomplete = true
+	s.mu.Unlock()
+	// Do not absorb the failure. The underlying error is the only signal that
+	// distinguishes a deadline from an auth/dial/unimplemented failure; without
+	// it the harvest degrades to reduced-harvest with NO recorded cause, and the
+	// operator sees only a generic "could not fetch <rpc>" finding. Every
+	// per-node fetch error funnels through here, so logging once at the sink
+	// makes the whole harvest path debuggable.
+	// (meta.connection_errors_must_not_be_absorbed)
+	log.Printf("collector: data-source fetch failed (reduced harvest) service=%s rpc=%s: %v", service, rpc, err)
 }
 
 // HadError reports whether a sub-fetch for the given (service, rpc)

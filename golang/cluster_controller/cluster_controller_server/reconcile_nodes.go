@@ -1292,8 +1292,19 @@ func (srv *server) snapshotClusterMembership() *clusterMembership {
 	srv.lock("snapshot-membership")
 	defer srv.unlock()
 
+	clusterID := strings.TrimSpace(srv.state.ClusterId)
+	if clusterID == "" && srv.state.ClusterNetworkSpec != nil {
+		clusterID = strings.TrimSpace(srv.state.ClusterNetworkSpec.GetClusterDomain())
+	}
+	if clusterID == "" && srv.cfg != nil {
+		clusterID = strings.TrimSpace(srv.cfg.ClusterDomain)
+	}
+	if clusterID == "" {
+		clusterID = "globular.internal"
+	}
+
 	membership := &clusterMembership{
-		ClusterID: srv.state.ClusterId,
+		ClusterID: clusterID,
 		Nodes:     make([]memberNode, 0, len(srv.state.Nodes)),
 	}
 

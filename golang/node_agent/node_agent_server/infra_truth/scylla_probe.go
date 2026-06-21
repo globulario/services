@@ -200,13 +200,12 @@ func (p *ScyllaProber) ProbeStructured(ctx context.Context, desired *InfraDesire
 	}
 	res.Rendered = rendered.renderedMap()
 
-	// Layer 2: attestation.
-	violations = append(violations, AttestScyllaConfig(desired, rendered)...)
-	res.Violations = violations
-	res.ConfigValid = rendered.Present && !hasSeverity(violations, SeverityCritical) && !hasSeverity(violations, SeverityError)
-
 	// Layer 3: runtime truth (best effort, bounded). Probe the address ScyllaDB
-	// actually binds (from the rendered config), not a hardcoded loopback.
+	// actually binds (from the rendered config), not a hardcoded loopback. Gathered
+	// BEFORE attestation so config rules whose predicted harm is an empirical
+	// runtime fact (e.g. a self-only seed list "will isolate a joining node") can be
+	// reconciled against observed membership instead of firing a false positive on
+	// an already-converged member.
 	restBase, cqlAddr := p.resolveEndpoints(rendered)
 	runtime := p.probeRuntime(ctx, restBase, cqlAddr)
 	res.DaemonActive = runtime.DaemonActive
@@ -214,6 +213,11 @@ func (p *ScyllaProber) ProbeStructured(ctx context.Context, desired *InfraDesire
 	res.ObservedPeers = runtime.ObservedPeers
 	res.Errors = append(res.Errors, runtime.Errors...)
 	res.PeersMatch = peersMatch(desired, runtime.ObservedPeers)
+
+	// Layer 2: attestation (runtime-aware where a rule's harm is empirical).
+	violations = append(violations, AttestScyllaConfig(desired, rendered, runtime)...)
+	res.Violations = violations
+	res.ConfigValid = rendered.Present && !hasSeverity(violations, SeverityCritical) && !hasSeverity(violations, SeverityError)
 
 	// Layer 4: lifecycle FSM.
 	res.Lifecycle = deriveScyllaLifecycle(true, desired, rendered, runtime, violations, p.now())

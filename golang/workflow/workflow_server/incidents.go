@@ -92,19 +92,27 @@ func (srv *server) scanOnce() {
 	// not in this set gets its absent_scans counter incremented.
 	presentIDs := make(map[string]bool)
 
-	srv.scanWorkflowFailures(clusterID, presentIDs)
-	srv.scanDriftStuck(clusterID, presentIDs)
-	srv.scanDoctorFindings(clusterID, presentIDs)
+	// Track categories whose SOURCE was unreachable this scan. An incident in
+	// such a category is absent only because we could not observe it — not
+	// because it was resolved — so resolveAbsent must not age it toward
+	// RESOLVED. (meta.absence_scope_must_be_explicit)
+	unavailable := make(map[string]bool)
+
+	srv.scanWorkflowFailures(clusterID, presentIDs, unavailable)
+	srv.scanDriftStuck(clusterID, presentIDs, unavailable)
+	srv.scanDoctorFindings(clusterID, presentIDs, unavailable)
 
 	// For every OPEN incident NOT present this scan, increment absent_scans;
-	// transition to RESOLVED if absent_scans >= N for its category.
-	srv.resolveAbsent(clusterID, presentIDs)
+	// transition to RESOLVED if absent_scans >= N for its category — but skip
+	// categories whose source was unreachable this scan.
+	srv.resolveAbsent(clusterID, presentIDs, unavailable)
 }
 
 // scanWorkflowFailures opens/updates incidents for steps with failures.
-func (srv *server) scanWorkflowFailures(clusterID string, present map[string]bool) {
+func (srv *server) scanWorkflowFailures(clusterID string, present, unavailable map[string]bool) {
 	sess := srv.getSession()
 	if sess == nil {
+		unavailable[incidentCategoryWorkflowFailure] = true
 		return
 	}
 	iter := sess.Query(
@@ -112,7 +120,6 @@ func (srv *server) scanWorkflowFailures(clusterID string, present map[string]boo
 			success_count, last_error_message, last_finished_at
 		 FROM workflow_step_outcomes WHERE cluster_id=?`, clusterID,
 	).Iter()
-	defer iter.Close()
 	for {
 		var (
 			wf, step, lastErr       string
@@ -154,12 +161,20 @@ func (srv *server) scanWorkflowFailures(clusterID string, present map[string]boo
 		srv.upsertIncident(clusterID, id, incidentCategoryWorkflowFailure, signature,
 			entityRef, "step", headline, int32(fail), ev)
 	}
+	// A query failure yields an empty present set indistinguishable from
+	// "no failing steps" — mark the source unavailable so resolveAbsent does
+	// not age these incidents on an unobserved scan.
+	if err := iter.Close(); err != nil {
+		logger.Warn("incident scanner: workflow_step_outcomes query failed", "err", err)
+		unavailable[incidentCategoryWorkflowFailure] = true
+	}
 }
 
 // scanDriftStuck opens/updates incidents for drift items observed ≥3 cycles.
-func (srv *server) scanDriftStuck(clusterID string, present map[string]bool) {
+func (srv *server) scanDriftStuck(clusterID string, present, unavailable map[string]bool) {
 	sess := srv.getSession()
 	if sess == nil {
+		unavailable[incidentCategoryDriftStuck] = true
 		return
 	}
 	iter := sess.Query(
@@ -167,7 +182,6 @@ func (srv *server) scanDriftStuck(clusterID string, present map[string]bool) {
 			last_observed_at, chosen_workflow
 		 FROM drift_unresolved WHERE cluster_id=?`, clusterID,
 	).Iter()
-	defer iter.Close()
 	for {
 		var (
 			dType, eRef, chosen        string
@@ -205,13 +219,20 @@ func (srv *server) scanDriftStuck(clusterID string, present map[string]bool) {
 		srv.upsertIncident(clusterID, id, incidentCategoryDriftStuck, signature,
 			eRef, entityType, headline, int32(cycles), ev)
 	}
+	if err := iter.Close(); err != nil {
+		logger.Warn("incident scanner: drift_unresolved query failed", "err", err)
+		unavailable[incidentCategoryDriftStuck] = true
+	}
 }
 
 // scanDoctorFindings creates/updates incidents for every active ClusterDoctor finding.
 // Active = invariant status is not PASS (FAIL, PENDING, or UNKNOWN all surface).
 // Severity is taken directly from the finding, bypassing the category-base derivation.
-func (srv *server) scanDoctorFindings(clusterID string, present map[string]bool) {
+func (srv *server) scanDoctorFindings(clusterID string, present, unavailable map[string]bool) {
 	if srv.doctorClient == nil {
+		// Source not wired this scan — cannot observe doctor findings. Their
+		// absence must not be read as "resolved".
+		unavailable[incidentCategoryDoctorFinding] = true
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -220,6 +241,9 @@ func (srv *server) scanDoctorFindings(clusterID string, present map[string]bool)
 	report, err := srv.doctorClient.GetClusterReport(ctx, &cluster_doctorpb.ClusterReportRequest{})
 	if err != nil {
 		logger.Warn("incident scanner: cluster doctor unavailable", "err", err)
+		// Could not observe the doctor's findings this scan; do not let their
+		// absence age open doctor-finding incidents toward RESOLVED.
+		unavailable[incidentCategoryDoctorFinding] = true
 		return
 	}
 
@@ -446,7 +470,7 @@ func (srv *server) upsertIncident(clusterID, id, category, signature, entityRef,
 
 // resolveAbsent increments absent_scans for incidents NOT in the present set.
 // Transitions OPEN → RESOLVED when absent_scans >= N for the category.
-func (srv *server) resolveAbsent(clusterID string, present map[string]bool) {
+func (srv *server) resolveAbsent(clusterID string, present, unavailable map[string]bool) {
 	sess := srv.getSession()
 	if sess == nil {
 		return
@@ -485,6 +509,12 @@ func (srv *server) resolveAbsent(clusterID string, present map[string]bool) {
 	_ = iter.Close()
 
 	for _, t := range toBump {
+		if unavailable[t.category] {
+			// Source for this category was unreachable this scan. "Not observed"
+			// is not "resolved" — leave absent_scans untouched so a transient
+			// dependency outage cannot auto-resolve still-active incidents.
+			continue
+		}
 		newAbsent := t.absent + 1
 		threshold := incidentResolutionN[t.category]
 		if threshold == 0 {

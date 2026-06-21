@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/globulario/services/golang/digest"
 )
 
 // TestSha256OfFile verifies the file hasher matches crypto/sha256 on arbitrary input.
@@ -29,17 +31,18 @@ func TestSha256OfFile(t *testing.T) {
 	}
 }
 
-// TestNormalizeSHA256Digest strips the "sha256:" prefix and lowercases.
+// TestNormalizeSHA256Digest confirms node-agent integrity checks use the
+// shared canonical digest form (strips "sha256:" prefix and lowercases).
 func TestNormalizeSHA256Digest(t *testing.T) {
 	cases := map[string]string{
-		"SHA256:DEADBEEF":                              "deadbeef",
-		"sha256:abc123":                                "abc123",
-		"abc123":                                       "abc123",
-		"  sha256:ABC123  ":                            "abc123",
+		"SHA256:DEADBEEF":   "deadbeef",
+		"sha256:abc123":     "abc123",
+		"abc123":            "abc123",
+		"  sha256:ABC123  ": "abc123",
 	}
 	for in, want := range cases {
-		if got := normalizeSHA256Digest(in); got != want {
-			t.Fatalf("normalizeSHA256Digest(%q) = %q, want %q", in, got, want)
+		if got := digest.CanonicalSHA256(in); got != want {
+			t.Fatalf("digest.CanonicalSHA256(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

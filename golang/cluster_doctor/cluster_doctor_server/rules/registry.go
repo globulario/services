@@ -41,6 +41,7 @@ func NewRegistry(cfg Config) *Registry {
 		nodeUnitFilesPresent{},
 		nodeUnitsRunning{},
 		installedStateRuntimeMismatch{},
+		releaseBoundaryUnproven{},
 		nativeDependencyMissing{},
 		clusterServicesDrift{},
 		clusterNetworkDrift{},
@@ -80,6 +81,10 @@ func NewRegistry(cfg Config) *Registry {
 		// Backbone guard: direct observations of gRPC contract regressions
 		// (cluster_id propagation, call-depth loops, public probe admission).
 		grpcBackboneContract{},
+		// Degraded-mode (PR-15): distinguishes a broken gateway route from a
+		// down service by comparing the Envoy gateway path against the direct
+		// backend port. Consumes Snapshot.GatewayBackendProbes.
+		gatewayBackendDivergence{},
 		// Artifact identity invariants (cache digest, installed digest,
 		// desired/installed build drift). Consumes per-node reports from
 		// VerifyPackageIntegrity collected in Snapshot.IntegrityReports.
@@ -242,6 +247,37 @@ func NewRegistry(cfg Config) *Registry {
 		scyllaJoinNotStalled{},
 		scyllaPeersMatchExpected{},
 		scyllaProbeRequiredWhenInstalled{},
+		// Infrastructure truth plane (Phase 2): etcd config attestation,
+		// loopback detection, stalled-member detection (CORRUPT/critical config),
+		// member convergence, and "installed but no probe" — fed by the node-agent
+		// GetInfraProbe RPC. Distinct from etcdQuorumHealth/etcdStaleMember, which
+		// are Prometheus/etcd-member-derived rather than truth-plane-derived.
+		etcdInfraLoopbackForbidden{},
+		etcdInfraConfigValid{},
+		etcdInfraJoinNotStalled{},
+		etcdInfraPeersMatchExpected{},
+		etcdInfraProbeRequiredWhenInstalled{},
+		// Infrastructure truth plane (Phase 3): MinIO topology attestation
+		// (format.json blast-radius guard), loopback detection, split-brain
+		// stalled-member detection, live write-quorum loss, and "installed but no
+		// probe" — fed by the node-agent GetInfraProbe RPC. Distinct from the
+		// objectstore* rules, which derive from desired topology + disk candidates.
+		minioInfraLoopbackForbidden{},
+		minioInfraTopologyMatchesDesired{},
+		minioInfraConfigValid{},
+		minioInfraNotStalled{},
+		minioInfraWriteQuorum{},
+		minioInfraProbeRequiredWhenInstalled{},
+		// Infrastructure truth plane (Phase 4): Envoy data-plane bootstrap
+		// attestation, the per-node admin-API-derived LDS wedge (CDS progressed but
+		// LDS update_attempt==0), listeners-not-active, and "installed but no
+		// probe". Diagnostic only — never auto-restarts Envoy (a restart deepens
+		// the wedge). The LDS-wedge rule complements the cluster-scope,
+		// Prometheus-derived envoyLDSWedge with direct per-node observation.
+		envoyInfraConfigValid{},
+		envoyInfraLDSProgress{},
+		envoyInfraListenersActive{},
+		envoyInfraProbeRequiredWhenInstalled{},
 		// AI knowledge-base integrity: fires when ai-memory is running but
 		// the operational-knowledge seed entries are absent (day-0 deferred
 		// seed not yet applied). Auto-heals by seeding from the installed
@@ -411,24 +447,62 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 	// ingress, objectstore, CA, schema guard) are shared read-only — copy them
 	// so invariants that run in both "node" and "cluster" scope see full data.
 	nodesnap := &collector.Snapshot{
-		SnapshotID:     snap.SnapshotID,
-		GeneratedAt:    snap.GeneratedAt,
-		DataSources:    snap.DataSources,
-		DataIncomplete: snap.DataIncomplete,
-		DataErrors:     snap.DataErrors,
-		NodeHealths:    snap.NodeHealths,
-		Inventories:    snap.Inventories,
+		SnapshotID:                  snap.SnapshotID,
+		GeneratedAt:                 snap.GeneratedAt,
+		DataSources:                 snap.DataSources,
+		DataIncomplete:              snap.DataIncomplete,
+		DataErrors:                  snap.DataErrors,
+		NodeHealths:                 snap.NodeHealths,
+		Inventories:                 snap.Inventories,
+		SubsystemHealth:             snap.SubsystemHealth,
+		CertificateStatus:           snap.CertificateStatus,
+		IntegrityReports:            snap.IntegrityReports,
+		InfraProbes:                 snap.InfraProbes,
+		InfraProbeCapabilityMissing: snap.InfraProbeCapabilityMissing,
+		RuntimeProofs:               snap.RuntimeProofs,
+		NodePackageKinds:            snap.NodePackageKinds,
+		NodeDriftAge:                snap.NodeDriftAge,
+		NodeRenderedGenerations:     snap.NodeRenderedGenerations,
+		NodeRenderedFingerprints:    snap.NodeRenderedFingerprints,
+		DiskCandidates:              snap.DiskCandidates,
 		// Cluster-scoped state needed by invariants that also run per-node.
 		CriticalKeyPresent:           snap.CriticalKeyPresent,
+		CriticalKeyQueryError:        snap.CriticalKeyQueryError,
+		CriticalKeyPolicyGaps:        snap.CriticalKeyPolicyGaps,
 		IngressSpecPresent:           snap.IngressSpecPresent,
 		IngressSpecLoadError:         snap.IngressSpecLoadError,
 		IngressSpecRaw:               snap.IngressSpecRaw,
 		IngressNodeStatus:            snap.IngressNodeStatus,
 		ScyllaSchemaGuardStatus:      snap.ScyllaSchemaGuardStatus,
+		DNSZoneReloadStatus:          snap.DNSZoneReloadStatus,
+		ReconcileLaneStatus:          snap.ReconcileLaneStatus,
 		ObjectStoreDesired:           snap.ObjectStoreDesired,
 		ObjectStoreDesiredLoadError:  snap.ObjectStoreDesiredLoadError,
 		ObjectStoreAppliedGeneration: snap.ObjectStoreAppliedGeneration,
+		AppliedStateFingerprint:      snap.AppliedStateFingerprint,
+		AppliedVolumesHash:           snap.AppliedVolumesHash,
+		DesiredTopologyTransition:    snap.DesiredTopologyTransition,
+		AdmittedDisks:                snap.AdmittedDisks,
 		CAMetadata:                   snap.CAMetadata,
+		DesiredBuildIDIndex:          snap.DesiredBuildIDIndex,
+		DesiredVersionIndex:          snap.DesiredVersionIndex,
+		RepositoryBuildIDIndex:       snap.RepositoryBuildIDIndex,
+		RepositoryVersionIndex:       snap.RepositoryVersionIndex,
+		RepositoryFindings:           snap.RepositoryFindings,
+		RepositoryOperationalStatus:  snap.RepositoryOperationalStatus,
+		RepositoryEndpointMissing:    snap.RepositoryEndpointMissing,
+		StepOutcomes:                 snap.StepOutcomes,
+		WorkflowSummaries:            snap.WorkflowSummaries,
+		DriftUnresolved:              snap.DriftUnresolved,
+		BlockedRuns:                  snap.BlockedRuns,
+		AbandonedDeferCorrelations:   snap.AbandonedDeferCorrelations,
+		PromMetrics:                  snap.PromMetrics,
+		PromTS:                       snap.PromTS,
+		KindMismatches:               snap.KindMismatches,
+		LeaderPendingUpdate:          snap.LeaderPendingUpdate,
+		ActiveLocalOverrides:         snap.ActiveLocalOverrides,
+		DesiredServiceTargets:        snap.DesiredServiceTargets,
+		VerifierResult:               snap.VerifierResult,
 	}
 	// Filter Nodes to just the requested one.
 	for _, n := range snap.Nodes {

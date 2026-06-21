@@ -34,6 +34,12 @@ import (
 // stubDesiredEmptyTrusted replaces collectDesiredBuildIDsFn with a fake
 // that returns ({}, true) — "controller reachable, no pins". Restores
 // the previous hook on cleanup.
+// stubDesiredEmptyTrusted makes BOTH reachability root sources report
+// "reachable, empty" — desired pins (collectDesiredBuildIDsFn) and
+// installed-state (collectInstalledBuildIDsFn) — so a test can exercise
+// retention-window / desired-pin logic without live etcd or a controller.
+// The installed fence now runs before the desired check, so stubbing the
+// desired source alone is no longer sufficient.
 func stubDesiredEmptyTrusted(t *testing.T) {
 	t.Helper()
 	prev := collectDesiredBuildIDsFn
@@ -41,6 +47,20 @@ func stubDesiredEmptyTrusted(t *testing.T) {
 		return map[string]bool{}, true
 	}
 	t.Cleanup(func() { collectDesiredBuildIDsFn = prev })
+	stubInstalledEmptyTrusted(t)
+}
+
+// stubInstalledEmptyTrusted replaces collectInstalledBuildIDsFn with a fake
+// that returns ({}, true) — "installed-state registry reachable, nothing
+// installed". Needed because the installed fence refuses destructive ops when
+// the registry read is untrusted.
+func stubInstalledEmptyTrusted(t *testing.T) {
+	t.Helper()
+	prev := collectInstalledBuildIDsFn
+	collectInstalledBuildIDsFn = func(context.Context) (map[string]bool, bool) {
+		return map[string]bool{}, true
+	}
+	t.Cleanup(func() { collectInstalledBuildIDsFn = prev })
 }
 
 // ─────────────────────────────────────────────────────────────────────────

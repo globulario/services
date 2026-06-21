@@ -21,6 +21,7 @@ docs/operational-knowledge/
 ├── SCHEMA.md                # YAML schema reference
 ├── packages.md              # canonical reference: what a package is, files, install, validation
 ├── dns-records.md           # canonical reference: managing DNS records (A, AAAA, MX, TXT, SRV, CAA, etc.)
+├── awg-operator-guide.md    # canonical reference: using AWG (standalone sidecar) — 7 tools, CLI, write path
 ├── stages/                  # lifecycle-stage seed entries (what's true at this stage)
 │   ├── day-0-bootstrap.yaml           ✓ shipped
 │   ├── day-1-join.yaml                ✓ shipped (join procedure, stale dep-block recovery)
@@ -52,9 +53,9 @@ docs/operational-knowledge/
 │   ├── recover-failed-platform-upgrade.yaml     (TODO)
 │   └── restore-from-backup.yaml                 (TODO)
 └── service-roles/           # canonical "what is this service for" entries
-    ├── awareness-graph.yaml         ✓ shipped (routing trap, direct-dial, 6 RPCs + diagnose composite,
-    │                                            tool decision tree, preflight/metadata/diagnose semantics,
-    │                                            coverage philosophy, activation rules R1–R6)
+    ├── awareness-graph.yaml         ✓ shipped (standalone sidecar; 7 RPCs + 7 mcp__awg__* tools,
+    │                                            tool decision tree, preflight/edit-check/metadata semantics,
+    │                                            contract-first write path, coverage philosophy)
     ├── cluster-controller.yaml      ✓ shipped
     ├── cluster-doctor.yaml          ✓ shipped (role, invariants catalog, event-amplification bug)
     ├── node-agent.yaml              ✓ shipped
@@ -99,7 +100,7 @@ ongoing ── cluster-doctor runs ops_knowledge.seed_integrity invariant ──
 
 Operational knowledge is signed-on-disk and immutable-in-memory. Three layers:
 
-1. **Bundle integrity (existing)** — YAML files ship inside the awareness bundle, which is already SHA256-manifest-signed. `globular awareness verify` catches tampering at install time.
+1. **Bundle integrity (existing)** — the operational-knowledge YAML files ship inside the on-disk bundle (`/var/lib/globular/awareness/awareness-bundle-*.tar.gz`), which is SHA256-manifest-signed. The installer verifies that manifest at install time, catching tampering. (This is the ops-knowledge bundle, distinct from the AWG graph, which since the 2026-06 extraction is a standalone sidecar no longer shipped as a Globular package.)
 2. **AI Memory immutability (new)** — entries with `provenance.source = "seed"` carry `immutable: true` at the storage layer. `ai-memory` rejects UPDATE/DELETE on these unless the caller's gRPC principal is `seeder` (the day-1 workflow account). Direct memory_store/update/delete RPCs from any other principal are rejected with `PERMISSION_DENIED`.
 3. **Doctor invariant `ops_knowledge.seed_integrity` (new)** — runs on every doctor cycle. For each seed entry in AI Memory: read the manifest, re-compute SHA256, fail if drift. Severity: `warning` (advisory, never gating per `convergence.no_infinite_retry`).
 

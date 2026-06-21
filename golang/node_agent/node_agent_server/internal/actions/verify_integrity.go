@@ -36,6 +36,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/digest"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/repository/repositorypb"
 )
@@ -48,19 +49,19 @@ const defaultVerifyPublisher = "core@globular.io"
 // Local artifact-identity invariant check. For each installed package on this
 // node, compares:
 //
-//   I1. Cached artifact checksum (/var/lib/globular/staging/<pub>/<name>/latest.artifact)
-//       vs the repository manifest digest for the installed build.
-//       FAIL → cache is stale/corrupt and will produce wrong bytes on next install.
+//	I1. Cached artifact checksum (/var/lib/globular/staging/<pub>/<name>/latest.artifact)
+//	    vs the repository manifest digest for the installed build.
+//	    FAIL → cache is stale/corrupt and will produce wrong bytes on next install.
 //
-//   I2. Installed build (etcd installed_state) vs desired build (etcd ServiceDesiredVersion).
-//       FAIL → node is not converged.
+//	I2. Installed build (etcd installed_state) vs desired build (etcd ServiceDesiredVersion).
+//	    FAIL → node is not converged.
 //
-//   I3. Installed artifact checksum (etcd installed_state.Checksum) vs repository
-//       manifest digest for the installed build.
-//       FAIL → installed bytes don't match the published artifact identity.
+//	I3. Installed artifact checksum (etcd installed_state.Checksum) vs repository
+//	    manifest digest for the installed build.
+//	    FAIL → installed bytes don't match the published artifact identity.
 //
-//   I4. Presence: release has resolved digest but no fetched artifact on disk.
-//       (cache missing or inconsistent)
+//	I4. Presence: release has resolved digest but no fetched artifact on disk.
+//	    (cache missing or inconsistent)
 //
 // The action returns a JSON summary of findings in its result string. Each
 // finding has an invariant id, entity ref, and key=value evidence. Callers
@@ -168,7 +169,7 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 			// computed at install time and is the only safe input here.
 			entrypoint := ""
 			if md := p.GetMetadata(); md != nil {
-				entrypoint = normalizeSHA256Digest(md["entrypoint_checksum"])
+				entrypoint = digest.CanonicalSHA256(md["entrypoint_checksum"])
 			}
 			installedMap[k+"/"+name] = installedRef{
 				ref:         pkgs[len(pkgs)-1],
@@ -456,15 +457,9 @@ func kindToProto(k string) repositorypb.ArtifactKind {
 	}
 }
 
-// normalizeSHA256Digest strips "sha256:" and lowercases.
-func normalizeSHA256Digest(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	return strings.TrimPrefix(s, "sha256:")
-}
-
 // shortDigest returns the first 12 hex chars of a sha256 digest.
 func shortDigest(d string) string {
-	d = normalizeSHA256Digest(d)
+	d = digest.CanonicalSHA256(d)
 	if len(d) <= 12 {
 		return d
 	}

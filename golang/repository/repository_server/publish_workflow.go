@@ -58,6 +58,17 @@ func (srv *server) completePublish(ctx context.Context, manifest *repopb.Artifac
 	// operators know cross-artifact validation was degraded for this publish.
 	catalog := srv.loadPublishedCatalog(ctx)
 	if catalog == nil {
+		// A nil catalog means the published set could not be read (Scylla
+		// degraded). The two cross-artifact rules — no-dep-on-application and
+		// acyclic hard_deps — then cannot run. For an artifact that declares
+		// hard_deps those rules ARE the gate: promoting with them disabled would
+		// let a dependency cycle or a dep-on-application reach PUBLISHED. Refuse
+		// rather than degrade the gate open.
+		// (publish_pipeline_is_ordered / meta.failure_response_must_contract_not_amplify.)
+		if len(manifest.GetHardDeps()) > 0 {
+			return fmt.Errorf("promote to PUBLISHED blocked: published catalog unavailable (Scylla degraded) — cannot validate cross-artifact rules (acyclic hard_deps / no dep-on-application) for %s/%s@%s which declares %d hard_deps; refusing to promote with the cross-artifact gate disabled",
+				publisherID, name, version, len(manifest.GetHardDeps()))
+		}
 		slog.Warn("publish workflow: catalog load returned nil — cross-artifact law validation skipped for this publish",
 			"publisher", publisherID, "name", name, "version", version,
 			"impact", "cycle_detection_and_kind_cross_checks_not_enforced")
@@ -273,6 +284,19 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 			return fmt.Errorf("promote to PUBLISHED blocked: local blob checksum mismatch — expected %s, actual %s",
 				expectedDigest, actualDigest)
 		}
+	}
+
+	// Skeleton-row guard (INC-2026-0012 / repository.artifact_presence_requires_metadata_and_blob
+	// / meta.half_done_must_not_look_done): manifest_json is written only by
+	// syncManifestToScylla. If that sync failed transiently, the publish_state /
+	// artifact_state UPSERTs below (UPDATE = UPSERT) would manufacture a row that
+	// reads PUBLISHED with manifest_json=NULL — a half-done row readers can never
+	// resolve. Refuse to promote unless the manifest is durably present; the
+	// caller (UploadArtifact) returns Result=false so the publish is retried.
+	// (manifestJSONPresent returns true when Scylla is nil, so legacy/no-ledger
+	// deployments are unaffected.)
+	if !srv.manifestJSONPresent(ctx, key) {
+		return fmt.Errorf("promote to PUBLISHED blocked: manifest_json not present in ledger for %q (skeleton row) — manifest sync must succeed before promotion", key)
 	}
 
 	// Durability obligation: a PUBLISHED artifact must be recoverable on EVERY

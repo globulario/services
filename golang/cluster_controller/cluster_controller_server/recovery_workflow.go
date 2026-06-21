@@ -489,7 +489,24 @@ func (srv *server) recoveryReseed(ctx context.Context, nodeID string, exactRequi
 		result.Status = cluster_controllerpb.RecoveryArtifactStatusInstalled
 		result.InstalledVersion = art.Version
 		result.InstalledBuildID = art.BuildID
-		_ = srv.putArtifactResult(ctx, result)
+		if perr := srv.putArtifactResult(ctx, result); perr != nil {
+			// The binary was applied, but the terminal Installed record did not
+			// commit. putArtifactResult's output is the durable record the
+			// recovery status RPC reads back, so dropping this error leaves the
+			// per-artifact record stuck at Installing while the enclosing
+			// workflow returns SUCCEEDED — a half-done record contradicting a
+			// done workflow, with no path to reconcile. Count it as failed so
+			// the workflow surfaces an error and recovery retries.
+			// (meta.half_done_must_not_look_done)
+			log.Printf("recovery reseed: applied %s/%s@%s but Installed status write failed: %v",
+				art.Kind, art.Name, art.Version, perr)
+			result.Status = cluster_controllerpb.RecoveryArtifactStatusFailed
+			result.Error = fmt.Sprintf("applied but Installed status write failed: %v", perr)
+			_ = srv.putArtifactResult(ctx, result) // best-effort record of the failure
+			failed++
+			failedNames = append(failedNames, art.Name)
+			continue
+		}
 		installed++
 		log.Printf("recovery reseed: installed %s/%s@%s (build=%s)", art.Kind, art.Name, art.Version, art.BuildID)
 	}

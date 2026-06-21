@@ -54,6 +54,7 @@ func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagn
 		action.Detail = "Tier 1 (observe): diagnosed and recorded, no execution"
 		action.CompletedAtMs = time.Now().UnixMilli()
 		go r.recordOutcome(ctx, diagnosis, action)
+		go recordBehavioralExperience(ctx, diagnosis, action)
 		return action
 	}
 
@@ -130,6 +131,8 @@ func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagn
 
 	// Record to ai_memory.
 	go r.recordOutcome(ctx, diagnosis, action)
+	// Afferent feed into governed behavioral-memory (best-effort, non-fatal).
+	go recordBehavioralExperience(ctx, diagnosis, action)
 
 	return action
 }

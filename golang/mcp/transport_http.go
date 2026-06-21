@@ -59,6 +59,54 @@ var (
 	sessionStore = map[string]*mcpSession{}
 )
 
+const (
+	// sessionIdleTTL is how long a session may go without being touched
+	// before the reaper evicts it. Eviction only forces a re-initialize
+	// (same as a server restart) — it does NOT regenerate or auto-accept
+	// session IDs, so no per-session permission state is bypassed.
+	sessionIdleTTL = 30 * time.Minute
+	// sessionReapPeriod is how often the reaper sweeps the session store.
+	sessionReapPeriod = 5 * time.Minute
+)
+
+// reapIdleSessions evicts sessions whose lastSeen is older than sessionIdleTTL
+// and returns the number evicted. createSession writes an entry whose only
+// client-driven removal is an explicit DELETE; a client that crashes, drops, or
+// skips DELETE would otherwise leak its entry forever and grow the map without
+// bound (slow memory exhaustion of the MCP server). The write created a
+// completion obligation that this fulfils.
+// (meta.write_creates_completion_obligation)
+func reapIdleSessions(now time.Time) int {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+	n := 0
+	for id, s := range sessionStore {
+		if now.Sub(s.lastSeen) > sessionIdleTTL {
+			delete(sessionStore, id)
+			n++
+		}
+	}
+	return n
+}
+
+// startSessionReaper runs reapIdleSessions on a ticker until ctx is done.
+func startSessionReaper(ctx context.Context) {
+	go func() {
+		t := time.NewTicker(sessionReapPeriod)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if n := reapIdleSessions(time.Now()); n > 0 {
+					log.Printf("mcp: reaped %d idle session(s) (idle > %s)", n, sessionIdleTTL)
+				}
+			}
+		}
+	}()
+}
+
 func createSession() string {
 	sid := generateSessionID()
 	now := time.Now()
@@ -88,6 +136,10 @@ func touchSession(id string) bool {
 // serveHTTP starts an HTTP server that accepts JSON-RPC MCP requests via POST.
 // This is the cluster-facing transport for remote MCP clients (via Envoy).
 func (s *server) serveHTTP(ctx context.Context, listenAddr string) error {
+	// Reap idle sessions so a client that drops without DELETE cannot leak its
+	// session entry forever. Tied to the server context.
+	startSessionReaper(ctx)
+
 	mux := http.NewServeMux()
 
 	// MCP endpoint: POST /mcp with JSON-RPC body.

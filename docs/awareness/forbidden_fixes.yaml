@@ -3776,3 +3776,75 @@ forbidden_fixes:
   related_invariants:
     - meta.state_mutations_must_be_durably_committed_before_side_effects
     - meta.storage_is_not_semantic_authority
+- id: clients_must_not_permanently_bypass_gateway_for_cohosted_services
+  summary: >
+    Fix missing hosted-service routing by teaching clients, MCP tools, or agents
+    to permanently use direct backend ports instead of the gateway for a
+    co-hosted gRPC service whose gateway route is absent.
+  related_invariants:
+    - gateway.cohosted_grpc_services_must_be_declared
+  safe_alternative: >
+    Direct-port access is diagnostic / degraded-mode evidence only — never the
+    permanent path. Repair the gateway route: declare the hosted service in
+    registration metadata (HostedServices) and have xDS emit a route per hosted
+    name to the backend cluster, then redeploy both the service and the
+    xDS/gateway so the route table regenerates.
+- id: watcher_queries_scylla_directly_or_auto_promotes_probe_finding
+  summary: >
+    Make ai_watcher detect Scylla group0 quorum by querying Scylla directly
+    (gocql / nodetool / system.raft_group0_members), or have a watcher probe
+    finding auto-promote into an AWG invariant or behavioral principle without
+    human review.
+  related_invariants:
+    - scylladb.group0_voter_quorum_must_hold
+    - scylla.group0_stale_voter_blocks_schema_mutations
+    - meta.authority_must_express_uncertainty
+  safe_alternative: >
+    Source group0 truth from the owning authority — the infra-probe truth plane
+    (and, longer term, a first-class group0 voter count exposed there). The
+    watcher interprets that truth as a DIAGNOSTIC_CLAIM finding that cites the
+    truth-plane ref; it never owns truth-plane authority. Probe findings enter
+    behavioral-memory as RAW_SIGNAL + evidence only and are promoted, if ever,
+    through the human-gated promotion path.
+- id: nest_a_data_key_under_an_etcd_mutex_prefix
+  summary: >
+    Store a state/config/data key under an etcd concurrency.Mutex key prefix
+    (e.g. mutex ".../foo" with state ".../foo/state"), or "fix" the resulting
+    Mutex.Lock deadlock by lengthening the timeout or by deleting the data key as
+    a permanent workaround.
+  related_invariants:
+    - etcd.mutex_key_must_not_prefix_non_lock_keys
+  safe_alternative: >
+    Make the mutex key a leaf sibling of any related data key (mutex ".../foo/lock",
+    state ".../foo/state") so the Mutex prefix scan never sees a non-lock key.
+    Deleting a poisoning data key is a one-time RECOVERY only; the durable fix is
+    the disjoint key layout plus a regression test asserting the mutex key is not
+    a prefix of the data key.
+- id: add_column_only_to_create_table_without_backfill_alter
+  summary: >
+    Add a column to a CREATE TABLE statement (relying on CREATE TABLE IF NOT
+    EXISTS) without shipping a matching idempotent ALTER TABLE ADD, or treat a
+    one-off manual ALTER on a single cluster as the permanent fix.
+  related_invariants:
+    - scylla.added_column_requires_backfill_alter_for_upgrades
+  safe_alternative: >
+    Ship an idempotent ALTER TABLE ADD for the new column (tolerating "column
+    already exists") in the ordered migration statements after the CREATE, and
+    bump the schema version so it re-applies on already-migrated clusters. A
+    manual ALTER on the live cluster is RECOVERY only; the code must carry the
+    backfill so every upgrade path gets the column.
+- id: doctor_reports_service_down_from_gateway_path_alone
+  summary: >
+    Conclude that a service is down from a failed gateway-path probe alone,
+    without cross-checking the direct backend port — or "resolve" a broken
+    gateway route by permanently pointing clients at direct backend ports.
+  related_invariants:
+    - cluster_doctor.degraded_mode_must_not_depend_on_diagnosed_path
+    - meta.authority_must_express_uncertainty
+  safe_alternative: >
+    Cross-check the direct backend before any down verdict. If the gateway
+    answers a non-gRPC content-type (text/html) while the backend is healthy,
+    report the gateway route/filter-chain as suspected and keep the service
+    marked healthy; if the backend cannot be cross-checked, report indeterminate
+    (CHECK_ERROR), not down. Fix the Envoy route/filter-chain; never make a
+    direct-port bypass the permanent path.
