@@ -142,6 +142,15 @@ SHARED_GO_PACKAGES = [
     # platform-upgrade dispatch stayed broken in v1.2.198. Same shape
     # as the v1.2.59 verifier incident the comment above describes.
     "workflow/engine",
+    # RBAC/cluster policy — golang/policy/policy.go //go:embed's
+    # rbac/cluster-roles.json, and cluster_controller deploys that embedded copy
+    # (EnsureClusterRolesDeployed). A change to golang/policy/ (e.g. a new RBAC
+    # grant) is invisible to cluster_controller's own source-tree hash, so without
+    # this entry the deployed policy ships STALE. 2026-06-21: the ai.behavioral.*
+    # grant added for behavioral-memory would not have reached any cluster in
+    # v1.2.229 (cluster_controller unchanged → not rebuilt → old embedded policy).
+    # Same shape as the v1.2.59 verifier and v1.2.198 workflow/engine incidents.
+    "policy",
 ]
 
 
