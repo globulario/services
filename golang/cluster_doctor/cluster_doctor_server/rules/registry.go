@@ -41,6 +41,7 @@ func NewRegistry(cfg Config) *Registry {
 		nodeUnitFilesPresent{},
 		nodeUnitsRunning{},
 		installedStateRuntimeMismatch{},
+		releaseBoundaryUnproven{},
 		nativeDependencyMissing{},
 		clusterServicesDrift{},
 		clusterNetworkDrift{},

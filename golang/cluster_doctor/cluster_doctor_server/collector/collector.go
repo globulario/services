@@ -957,6 +957,21 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 				snap.mu.Unlock()
 				snap.addSource("node_agent.GetInfraProbe@" + nid)
 			}
+
+			// Release-boundary proofs for allowlisted ordinary services
+			// installed on this node (PR-19). Read-only: runs the shared
+			// boundarycheck verifier (owner RPCs only — no writes, no repair).
+			// Gated on a repository client, the allowlist, and actual
+			// installation. A missing report for an allowlisted+installed
+			// service is surfaced by the rule as CHECK_ERROR, never OK.
+			rbCtx, rbCancel := context.WithTimeout(ctx, c.cfg.NodeTimeout*3)
+			for _, rb := range c.collectReleaseBoundary(rbCtx, nid, agentClient, DefaultReleaseBoundaryAllowlist) {
+				snap.mu.Lock()
+				snap.ReleaseBoundaryReports[rb.Service+"@"+rb.Node] = rb
+				snap.mu.Unlock()
+				snap.addSource("release_boundary." + rb.Service + "@" + rb.Node)
+			}
+			rbCancel()
 		}(nodeID, endpoint)
 	}
 
