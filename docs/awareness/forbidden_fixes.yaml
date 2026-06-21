@@ -3776,3 +3776,18 @@ forbidden_fixes:
   related_invariants:
     - meta.state_mutations_must_be_durably_committed_before_side_effects
     - meta.storage_is_not_semantic_authority
+- id: doctor_reports_service_down_from_gateway_path_alone
+  summary: >
+    Conclude that a service is down from a failed gateway-path probe alone,
+    without cross-checking the direct backend port — or "resolve" a broken
+    gateway route by permanently pointing clients at direct backend ports.
+  related_invariants:
+    - cluster_doctor.degraded_mode_must_not_depend_on_diagnosed_path
+    - meta.authority_must_express_uncertainty
+  safe_alternative: >
+    Cross-check the direct backend before any down verdict. If the gateway
+    answers a non-gRPC content-type (text/html) while the backend is healthy,
+    report the gateway route/filter-chain as suspected and keep the service
+    marked healthy; if the backend cannot be cross-checked, report indeterminate
+    (CHECK_ERROR), not down. Fix the Envoy route/filter-chain; never make a
+    direct-port bypass the permanent path.

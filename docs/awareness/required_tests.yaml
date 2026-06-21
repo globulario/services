@@ -6146,3 +6146,16 @@ required_tests:
     - meta.failure_response_must_contract_not_amplify
     failure_modes:
     - repository.law_gate_degrades_open_when_catalog_unavailable
+- id: TestGatewayBackendDivergence_RouteBrokenBackendHealthy
+  title: cluster-doctor reports a broken gateway route (text/html) with a healthy backend as route-suspected, not service-down
+  protects:
+    invariants:
+    - cluster_doctor.degraded_mode_must_not_depend_on_diagnosed_path
+    failure_modes:
+    - cluster_doctor.gateway_route_failure_misdiagnosed_as_service_down
+    files:
+    - golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go
+  run:
+    commands:
+    - go test ./golang/cluster_doctor/cluster_doctor_server/rules/ -run TestGatewayBackendDivergence
