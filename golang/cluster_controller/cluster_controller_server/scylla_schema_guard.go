@@ -60,6 +60,7 @@ var (
 var criticalScyllaKeyspaces = []string{
 	"ai_conversations",
 	"ai_memory",
+	"behavioral_memory",
 	"dns",
 	"globular_events",
 	"globular_projections",
