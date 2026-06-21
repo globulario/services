@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ── Phase 2 tests: workflowHealthGate circuit breaker ────────────────────────
@@ -245,6 +247,82 @@ func TestReconcileCircuitGaugeClearsOnSuccess(t *testing.T) {
 		t.Errorf("gauge should be 0 after RecordSuccess closes the breaker, got %v", got)
 	}
 }
+
+// TestWorkflowGateTripsOnlyOnTransportFailure is the regression for the
+// 2026-06-21 workflow.backend_pressure WARN that fired with no real backend
+// pressure. The single RecordFailure call site (workflow_execute.go) tripped
+// the breaker on ANY non-nil ExecuteWorkflow error, conflating business-level
+// gRPC rejections (a missing workflow definition, invalid inputs, a failed
+// precondition) with genuine backend unreachability. Five config errors in 5m
+// opened a cluster-wide dispatch freeze, and every half-open probe that hit the
+// same business error re-armed it — sustained pressure that never cleared.
+//
+// The breaker must trip ONLY on transport/infra signals. Business codes must
+// leave it closed; transport codes (including DeadlineExceeded, per operator
+// decision) must open it. Classifies against
+// meta.failure_response_must_contract_not_amplify and
+// degraded_is_explicit_not_hidden.
+func TestWorkflowGateTripsOnlyOnTransportFailure(t *testing.T) {
+	businessCodes := []codes.Code{
+		codes.NotFound,
+		codes.InvalidArgument,
+		codes.FailedPrecondition,
+		codes.AlreadyExists,
+		codes.PermissionDenied,
+		codes.Unauthenticated,
+		codes.OutOfRange,
+		codes.Canceled,
+	}
+	for _, c := range businessCodes {
+		if workflowDispatchErrorOpensBreaker(status.Error(c, "business reject")) {
+			t.Errorf("code %s is a business rejection and must NOT open the breaker", c)
+		}
+	}
+
+	transportCodes := []codes.Code{
+		codes.Unavailable,
+		codes.DeadlineExceeded,
+		codes.ResourceExhausted,
+		codes.Internal,
+		codes.Unknown,
+		codes.DataLoss,
+		codes.Aborted,
+	}
+	for _, c := range transportCodes {
+		if !workflowDispatchErrorOpensBreaker(status.Error(c, "transport failure")) {
+			t.Errorf("code %s is a transport/infra failure and MUST open the breaker", c)
+		}
+	}
+
+	// A raw, non-gRPC dial error (no status) is a transport failure → opens.
+	if !workflowDispatchErrorOpensBreaker(errPlainTransport{}) {
+		t.Error("raw non-gRPC transport error must open the breaker")
+	}
+	// nil never opens.
+	if workflowDispatchErrorOpensBreaker(nil) {
+		t.Error("nil error must not open the breaker")
+	}
+
+	// End-to-end: feeding the gate a burst of business-level errors via the
+	// classifier must leave the circuit CLOSED — the actual dispatch-freeze
+	// regression. (RecordFailure is only reached when the classifier returns
+	// true, so a business burst never calls it.)
+	g := newWorkflowHealthGate()
+	for i := 0; i < g.failureThreshold*3; i++ {
+		if workflowDispatchErrorOpensBreaker(status.Error(codes.FailedPrecondition, "dep-blocked")) {
+			g.RecordFailure()
+		}
+	}
+	if g.IsOpen() {
+		t.Error("a burst of business-level FailedPrecondition errors must NOT open the workflow health gate")
+	}
+}
+
+// errPlainTransport is a non-gRPC error (status.FromError reports ok=false),
+// standing in for a raw dial/connection-refused failure.
+type errPlainTransport struct{}
+
+func (errPlainTransport) Error() string { return "connection refused" }
 
 // Awareness required-test name wrapper for workflow backend health gate.
 func TestWorkflowBackendHealthGate(t *testing.T) {

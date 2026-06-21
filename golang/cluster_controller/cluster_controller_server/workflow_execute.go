@@ -17,7 +17,58 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+// workflowDispatchErrorOpensBreaker classifies an ExecuteWorkflow RPC error as
+// either a transport/infrastructure failure (which SHOULD open the workflow
+// health gate) or a business-level rejection (which must NOT).
+//
+// The workflow health gate is a circuit breaker that protects the workflow
+// backend from being hammered while it is genuinely unreachable or overloaded.
+// It must trip only on backend-health signals. A business rejection — a missing
+// workflow definition, invalid inputs, a failed precondition — says nothing
+// about backend health; counting those toward the failure window opened a
+// cluster-wide dispatch freeze on five config errors in 5m (the
+// workflow.backend_pressure WARN with no real backend pressure). Conflating the
+// two also hides real degradation behind noise, violating
+// degraded_is_explicit_not_hidden.
+//
+// Classification is a deny-list by business code: every code NOT in the
+// business set — including raw non-gRPC transport errors, Unavailable,
+// DeadlineExceeded, ResourceExhausted, Internal, and Unknown — opens the
+// breaker. Defaulting ambiguous codes to "transport" is the conservative,
+// protective choice. Per operator decision (2026-06-21), DeadlineExceeded is
+// transport: a synchronous ExecuteWorkflow that times out is backend pressure.
+//
+// See meta.failure_response_must_contract_not_amplify and
+// workflow.health_gate_trips_only_on_transport_failure.
+func workflowDispatchErrorOpensBreaker(err error) bool {
+	if err == nil {
+		return false
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		// Not a gRPC status error — a raw transport/dial failure. Open.
+		return true
+	}
+	switch st.Code() {
+	case codes.NotFound, // workflow definition not registered
+		codes.InvalidArgument,    // malformed inputs
+		codes.FailedPrecondition, // business precondition (dep-blocked, posture)
+		codes.AlreadyExists,      // run dedup
+		codes.PermissionDenied,   // authz reject
+		codes.Unauthenticated,    // authn reject
+		codes.OutOfRange,         // business bound
+		codes.Canceled:           // caller context canceled — not backend health
+		return false
+	default:
+		// Unavailable, DeadlineExceeded, ResourceExhausted, Internal, Unknown,
+		// DataLoss, Aborted, … → transport/infra. Open the breaker.
+		return true
+	}
+}
 
 // workflowGateLastLogMs is the Unix millisecond timestamp of the last
 // "workflow backend unhealthy" log line. Used to rate-limit log spam when
@@ -120,8 +171,12 @@ func (srv *server) executeWorkflowCentralized(
 	})
 	if err != nil {
 		log.Printf("workflow %s (correlation=%s): RPC failed: %v", workflowName, correlationID, err)
-		// Record transport failure for circuit breaker (not business failures).
-		if srv.workflowGate != nil {
+		// Record ONLY transport/infra failures for the circuit breaker — never
+		// business-level gRPC rejections (NotFound, InvalidArgument,
+		// FailedPrecondition, …), which say nothing about backend health and
+		// would otherwise trip a cluster-wide dispatch freeze on config errors.
+		// See workflow.health_gate_trips_only_on_transport_failure.
+		if srv.workflowGate != nil && workflowDispatchErrorOpensBreaker(err) {
 			srv.workflowGate.RecordFailure()
 		}
 		return nil, fmt.Errorf("ExecuteWorkflow %s: %w", workflowName, err)
