@@ -35,6 +35,7 @@ func registerReleaseTools(s *server) {
 			Properties: map[string]propSchema{
 				"service_id": {Type: "string", Description: "Service identifier, e.g. \"globular/echo\" or \"echo\". Matched against desired-state ServiceId."},
 				"node_id":    {Type: "string", Description: "The node to inspect installed + runtime evidence on."},
+				"publisher":  {Type: "string", Description: "Optional publisher override (e.g. \"core@globular.io\") for legacy records that lack a build_id pin. Normally resolved from the artifact by build_id."},
 			},
 			Required: []string{"service_id", "node_id"},
 		},
@@ -48,7 +49,8 @@ func registerReleaseTools(s *server) {
 			nodeID = getStr(args, "node_name")
 		}
 
-		report, ev := boundarycheck.Run(ctx, s.releaseBoundaryFetchers(ctx, nodeID), serviceID, nodeID)
+		opts := boundarycheck.Options{Publisher: getStr(args, "publisher")}
+		report, ev := boundarycheck.Run(ctx, s.releaseBoundaryFetchers(ctx, nodeID), serviceID, nodeID, opts)
 		return boundarycheck.ReportToMap(report, ev), nil
 	})
 }
@@ -86,17 +88,14 @@ func (s *server) releaseBoundaryFetchers(ctx context.Context, nodeID string) bou
 			}
 			return resp.GetServices(), nil
 		},
-		Manifest: func(cctx context.Context, ref *repositorypb.ArtifactRef, buildNumber int64) (*repositorypb.ArtifactManifest, error) {
+		Resolve: func(cctx context.Context, req *repositorypb.ResolveArtifactRequest) (*repositorypb.ArtifactManifest, error) {
 			conn, err := s.clients.get(cctx, repositoryEndpoint())
 			if err != nil {
 				return nil, err
 			}
 			callCtx, cancel := context.WithTimeout(authCtx(cctx), 10*time.Second)
 			defer cancel()
-			resp, err := repositorypb.NewPackageRepositoryClient(conn).GetArtifactManifest(callCtx, &repositorypb.GetArtifactManifestRequest{
-				Ref:         ref,
-				BuildNumber: buildNumber,
-			})
+			resp, err := repositorypb.NewPackageRepositoryClient(conn).ResolveArtifact(callCtx, req)
 			if err != nil {
 				return nil, err
 			}

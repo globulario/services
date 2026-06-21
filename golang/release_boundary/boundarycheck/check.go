@@ -52,18 +52,31 @@ func (e *Evidence) addErr(source, msg string) {
 // Fetchers is the transport a front door supplies. Each closure performs one
 // owner RPC with the caller's own client/auth/timeout and returns raw protos.
 // A nil closure is treated as an unavailable source (→ INDETERMINATE).
+//
+// Resolve calls the repository's deterministic resolver (ResolveArtifact). When
+// the request carries a build_id it resolves by that identity and the returned
+// manifest carries the authoritative publisher-qualified ref — so no front door
+// ever guesses the publisher or scans storage.
 type Fetchers struct {
 	Desired   func(ctx context.Context) ([]*cluster_controllerpb.DesiredService, error)
-	Manifest  func(ctx context.Context, ref *repositorypb.ArtifactRef, buildNumber int64) (*repositorypb.ArtifactManifest, error)
+	Resolve   func(ctx context.Context, req *repositorypb.ResolveArtifactRequest) (*repositorypb.ArtifactManifest, error)
 	Verify    func(ctx context.Context, ref *repositorypb.ArtifactRef, buildID string) (*repositorypb.VerifyArtifactResponse, error)
 	Installed func(ctx context.Context, nodeID, kind, name string) (*node_agentpb.InstalledPackage, error)
 	Runtime   func(ctx context.Context, nodeID, serviceName string) ([]*node_agentpb.ServiceRuntimeProof, error)
 }
 
+// Options carries front-door resolution hints.
+type Options struct {
+	// Publisher is an explicit override for legacy records that lack a build_id
+	// pin and whose service_id is a bare name. It is owner-supplied operator
+	// input, never inferred from storage keys.
+	Publisher string
+}
+
 // Collect performs the owner-RPC fan-out via the supplied Fetchers. Each RPC
 // failure records the real error and leaves that evidence absent; the pure
 // evaluator converts absence into INDETERMINATE.
-func Collect(ctx context.Context, f Fetchers, serviceID, nodeID string) *Evidence {
+func Collect(ctx context.Context, f Fetchers, serviceID, nodeID string, opts Options) *Evidence {
 	ev := &Evidence{}
 	pkgName := serviceShortName(serviceID)
 
@@ -84,30 +97,55 @@ func Collect(ctx context.Context, f Fetchers, serviceID, nodeID string) *Evidenc
 		}
 	}
 
-	// 2 + 3. Repository manifest + verify — keyed by the desired artifact.
+	// 2 + 3. Repository manifest + verify. Resolve the manifest by the desired
+	// build_id (the sole convergence identity) via the repository's own
+	// deterministic resolver; the resolved manifest carries the authoritative
+	// publisher-qualified ref. No publisher guessing, no storage scan.
 	if ev.Desired != nil {
-		ref := &repositorypb.ArtifactRef{
-			PublisherId: servicePublisher(serviceID),
-			Name:        pkgName,
-			Version:     ev.Desired.GetVersion(),
-			Platform:    ev.Desired.GetPlatform(),
-			Kind:        repositorypb.ArtifactKind_SERVICE,
+		publisher := opts.Publisher
+		if publisher == "" {
+			publisher = servicePublisher(serviceID)
 		}
-		if f.Manifest == nil {
-			ev.addErr("manifest", "manifest fetcher unavailable")
-		} else if m, err := f.Manifest(ctx, ref, ev.Desired.GetBuildNumber()); err != nil {
-			ev.addErr("manifest", "GetArtifactManifest: "+err.Error())
-		} else {
-			ev.Manifest = m
+		buildID := ev.Desired.GetBuildId()
+
+		switch {
+		case f.Resolve == nil:
+			ev.addErr("manifest", "resolve fetcher unavailable")
+		case buildID == "" && publisher == "":
+			// Bare service_id, no build_id pin, no override → cannot form an
+			// owner-authoritative reference. INDETERMINATE, never a guess.
+			ev.addErr("manifest", "cannot resolve artifact: desired build_id not pinned and no publisher (pass --publisher)")
+		default:
+			req := &repositorypb.ResolveArtifactRequest{
+				PublisherId: publisher,
+				Name:        pkgName,
+				Kind:        repositorypb.ArtifactKind_SERVICE,
+				Platform:    ev.Desired.GetPlatform(),
+				Version:     ev.Desired.GetVersion(),
+				BuildId:     buildID,
+			}
+			if m, err := f.Resolve(ctx, req); err != nil {
+				ev.addErr("manifest", "ResolveArtifact: "+err.Error())
+			} else {
+				ev.Manifest = m
+			}
 		}
 
-		if f.Verify == nil {
+		// Verify against the authoritative ref — from the resolved manifest when
+		// available, else the publisher-qualified ref we asked for.
+		verifyRef := resolvedRef(ev.Manifest, publisher, pkgName, ev.Desired.GetVersion(), ev.Desired.GetPlatform())
+		switch {
+		case f.Verify == nil:
 			ev.addErr("verify", "verify fetcher unavailable")
-		} else if v, err := f.Verify(ctx, ref, ev.Desired.GetBuildId()); err != nil {
-			ev.VerifyErr = err
-			ev.addErr("verify", "VerifyArtifact: "+err.Error())
-		} else {
-			ev.Verify = v
+		case verifyRef == nil:
+			ev.addErr("verify", "no publisher-qualified ref to verify (manifest unresolved)")
+		default:
+			if v, err := f.Verify(ctx, verifyRef, buildID); err != nil {
+				ev.VerifyErr = err
+				ev.addErr("verify", "VerifyArtifact: "+err.Error())
+			} else {
+				ev.Verify = v
+			}
 		}
 	}
 
@@ -207,10 +245,30 @@ func MapInputs(serviceID, nodeID string, ev *Evidence) release_boundary.Inputs {
 
 // Run is the convenience front-door entry: collect, map, evaluate. It returns
 // both the report and the raw evidence (for surfacing collection errors).
-func Run(ctx context.Context, f Fetchers, serviceID, nodeID string) (release_boundary.Report, *Evidence) {
-	ev := Collect(ctx, f, serviceID, nodeID)
+func Run(ctx context.Context, f Fetchers, serviceID, nodeID string, opts Options) (release_boundary.Report, *Evidence) {
+	ev := Collect(ctx, f, serviceID, nodeID, opts)
 	report := release_boundary.Evaluate(MapInputs(serviceID, nodeID, ev))
 	return report, ev
+}
+
+// resolvedRef returns the publisher-qualified ArtifactRef to verify against:
+// the resolved manifest's ref when present (authoritative), otherwise a ref
+// built from an explicit publisher. Returns nil when neither is available — the
+// caller must not verify without an owner-authoritative reference.
+func resolvedRef(m *repositorypb.ArtifactManifest, publisher, name, version, platform string) *repositorypb.ArtifactRef {
+	if m != nil && m.GetRef() != nil {
+		return m.GetRef()
+	}
+	if publisher == "" {
+		return nil
+	}
+	return &repositorypb.ArtifactRef{
+		PublisherId: publisher,
+		Name:        name,
+		Version:     version,
+		Platform:    platform,
+		Kind:        repositorypb.ArtifactKind_SERVICE,
+	}
 }
 
 // parseInstalledAtUnix reads the per-build install-commit timestamp from the

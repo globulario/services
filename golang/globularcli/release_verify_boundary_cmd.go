@@ -27,8 +27,9 @@ import (
 )
 
 var (
-	verifyBoundaryNode string
-	verifyBoundaryJSON bool
+	verifyBoundaryNode      string
+	verifyBoundaryJSON      bool
+	verifyBoundaryPublisher string
 )
 
 var releaseVerifyBoundaryCmd = &cobra.Command{
@@ -62,6 +63,7 @@ Examples:
 func init() {
 	releaseVerifyBoundaryCmd.Flags().StringVar(&verifyBoundaryNode, "node", "", "Node to inspect installed + runtime evidence on (required)")
 	releaseVerifyBoundaryCmd.Flags().BoolVar(&verifyBoundaryJSON, "json", false, "Emit JSON output for automation / AI executor")
+	releaseVerifyBoundaryCmd.Flags().StringVar(&verifyBoundaryPublisher, "publisher", "", "Publisher override (e.g. core@globular.io) for legacy records lacking a build_id pin")
 	_ = releaseVerifyBoundaryCmd.MarkFlagRequired("node")
 	releaseCmd.AddCommand(releaseVerifyBoundaryCmd)
 }
@@ -113,8 +115,12 @@ func runReleaseVerifyBoundary(cmd *cobra.Command, args []string) error {
 			}
 			return resp.GetServices(), nil
 		},
-		Manifest: func(_ context.Context, ref *repopb.ArtifactRef, buildNumber int64) (*repopb.ArtifactManifest, error) {
-			return repo.GetArtifactManifest(ref, buildNumber)
+		Resolve: func(_ context.Context, req *repopb.ResolveArtifactRequest) (*repopb.ArtifactManifest, error) {
+			resp, err := repo.ResolveArtifact(req)
+			if err != nil {
+				return nil, err
+			}
+			return resp.GetManifest(), nil
 		},
 		Verify: func(_ context.Context, ref *repopb.ArtifactRef, buildID string) (*repopb.VerifyArtifactResponse, error) {
 			return repo.VerifyArtifact(&repopb.VerifyArtifactRequest{
@@ -156,7 +162,7 @@ func runReleaseVerifyBoundary(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	report, ev := boundarycheck.Run(ctx, fetchers, serviceID, nodeID)
+	report, ev := boundarycheck.Run(ctx, fetchers, serviceID, nodeID, boundarycheck.Options{Publisher: verifyBoundaryPublisher})
 
 	if verifyBoundaryJSON {
 		emitJSON(boundarycheck.ReportToMap(report, ev))

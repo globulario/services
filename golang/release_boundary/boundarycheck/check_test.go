@@ -157,7 +157,7 @@ func fetchersFromEvidence(ev *Evidence) Fetchers {
 			}
 			return []*cluster_controllerpb.DesiredService{ev.Desired}, nil
 		},
-		Manifest: func(context.Context, *repositorypb.ArtifactRef, int64) (*repositorypb.ArtifactManifest, error) {
+		Resolve: func(context.Context, *repositorypb.ResolveArtifactRequest) (*repositorypb.ArtifactManifest, error) {
 			return ev.Manifest, nil
 		},
 		Verify: func(context.Context, *repositorypb.ArtifactRef, string) (*repositorypb.VerifyArtifactResponse, error) {
@@ -176,7 +176,7 @@ func fetchersFromEvidence(ev *Evidence) Fetchers {
 }
 
 func TestCollect_HappyPath_Proven(t *testing.T) {
-	report, ev := Run(context.Background(), fetchersFromEvidence(validEvidence()), "globular/echo", "globule-ryzen")
+	report, ev := Run(context.Background(), fetchersFromEvidence(validEvidence()), "globular/echo", "globule-ryzen", Options{})
 	if report.Verdict != release_boundary.VerdictProven {
 		t.Fatalf("verdict = %q, want PROVEN", report.Verdict)
 	}
@@ -191,7 +191,7 @@ func TestCollect_RuntimeRPCError_RecordedAndIndeterminate(t *testing.T) {
 	f.Runtime = func(context.Context, string, string) ([]*node_agentpb.ServiceRuntimeProof, error) {
 		return nil, errors.New("node agent unreachable")
 	}
-	report, ev := Run(context.Background(), f, "globular/echo", "globule-ryzen")
+	report, ev := Run(context.Background(), f, "globular/echo", "globule-ryzen", Options{})
 	if report.Verdict != release_boundary.VerdictIndeterminate {
 		t.Errorf("verdict = %q, want INDETERMINATE", report.Verdict)
 	}
@@ -206,12 +206,58 @@ func TestCollect_DesiredNotFound_NamesLink(t *testing.T) {
 	f.Desired = func(context.Context) ([]*cluster_controllerpb.DesiredService, error) {
 		return []*cluster_controllerpb.DesiredService{{ServiceId: "globular/other"}}, nil
 	}
-	_, ev := Run(context.Background(), f, "globular/echo", "globule-ryzen")
+	_, ev := Run(context.Background(), f, "globular/echo", "globule-ryzen", Options{})
 	if got := ev.CollectionErrors["desired"]; !contains(got, "not found") {
 		t.Errorf("desired error = %q, want 'not found'", got)
 	}
 	if ev.Manifest != nil || ev.Verify != nil {
 		t.Error("manifest/verify must be skipped when desired service is absent")
+	}
+}
+
+// PR-17 core: a BARE service_id (no publisher prefix) with a pinned build_id
+// resolves to a publisher-qualified ref read from the resolved manifest — no
+// publisher guessing — and proves.
+func TestCollect_BareServiceID_ResolvesByBuildID(t *testing.T) {
+	ev := validEvidence()
+	ev.Desired.ServiceId = "echo" // bare, no publisher
+	ev.Manifest.Ref = &repositorypb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
+		Kind: repositorypb.ArtifactKind_SERVICE,
+	}
+	report, e := Run(context.Background(), fetchersFromEvidence(ev), "echo", "globule-ryzen", Options{})
+	if report.Verdict != release_boundary.VerdictProven {
+		t.Fatalf("verdict = %q, want PROVEN (bare id resolved via build_id); errs=%v", report.Verdict, e.CollectionErrors)
+	}
+}
+
+// No build_id pin and no publisher → INDETERMINATE with a named collection
+// error; never a guess, never a storage scan.
+func TestCollect_NoBuildIDNoPublisher_Indeterminate(t *testing.T) {
+	ev := validEvidence()
+	ev.Desired.ServiceId = "echo"
+	ev.Desired.BuildId = ""
+	report, e := Run(context.Background(), fetchersFromEvidence(ev), "echo", "globule-ryzen", Options{})
+	if report.Verdict != release_boundary.VerdictIndeterminate {
+		t.Errorf("verdict = %q, want INDETERMINATE", report.Verdict)
+	}
+	if got := e.CollectionErrors["manifest"]; !contains(got, "cannot resolve artifact") {
+		t.Errorf("manifest error = %q, want 'cannot resolve artifact'", got)
+	}
+}
+
+// Explicit --publisher override resolves a legacy record lacking a build_id pin.
+func TestCollect_PublisherOverride_Resolves(t *testing.T) {
+	ev := validEvidence()
+	ev.Desired.ServiceId = "echo"
+	ev.Desired.BuildId = ""
+	ev.Manifest.Ref = &repositorypb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
+		Kind: repositorypb.ArtifactKind_SERVICE,
+	}
+	_, e := Run(context.Background(), fetchersFromEvidence(ev), "echo", "globule-ryzen", Options{Publisher: "core@globular.io"})
+	if got := e.CollectionErrors["manifest"]; got != "" {
+		t.Errorf("unexpected manifest error with publisher override: %q", got)
 	}
 }
 
