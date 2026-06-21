@@ -63,6 +63,7 @@ Architectural implication: the agent's own operating boundary is already governe
 - Feed `infra_probe` truth-plane results as `Signals` and `Evidence`.
 - Feed `ai_watcher` events as `Signals`.
 - Preserve `source`, `authority`, `condition`, `severity`, `entity_ref`, `cluster_id`, and timestamps.
+- PR-9 must preserve source kind and authority level. `infra_probe` truth-plane observations, `cluster-doctor` diagnostic findings, `ai_watcher` events, and agent interpretations must enter with distinct signal kinds or evidence kinds. Diagnostic findings are claims or evidence, not automatic authority.
 - No auto-promotion.
 - No live repair execution.
 
