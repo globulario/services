@@ -41,7 +41,7 @@ func (r *ScyllaReader) Read(ctx context.Context, opts rdf.ReadOptions) (*rdf.Bun
 	q := func(cql string, scan func(*gocql.Iter) error) error {
 		iter := r.session.Query(cql).WithContext(ctx).Iter()
 		if err := scan(iter); err != nil {
-			iter.Close()
+			_ = iter.Close()
 			return err
 		}
 		return iter.Close()

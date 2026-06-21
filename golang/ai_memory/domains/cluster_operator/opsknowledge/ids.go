@@ -23,9 +23,3 @@ func fileSlug(path string) string {
 	base = strings.TrimSuffix(base, filepath.Ext(base))
 	return slug(base)
 }
-
-// entrySlug derives a slug from an entry id, dropping the "ops." prefix so the
-// generated id stays readable, e.g. "ops.role.cluster-controller" -> "role_cluster_controller".
-func entrySlug(id string) string {
-	return slug(strings.TrimPrefix(id, "ops."))
-}

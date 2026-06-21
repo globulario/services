@@ -90,7 +90,7 @@ func (srv *server) runBehavioralSchemaWithCoordination(ctx context.Context) erro
 		}
 		return nil
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 
 	if done, err := isBehavioralMigrationComplete(ctx, cli); err == nil && done {
 		logger.Debug("behavioral schema migration: already complete (fast path skip)",
@@ -107,7 +107,7 @@ func (srv *server) runBehavioralSchemaWithCoordination(ctx context.Context) erro
 		}
 		return nil
 	}
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 
 	mu := concurrency.NewMutex(sess, behavioralMigrationMutexKey)
 

@@ -19,10 +19,10 @@ type memoryBackfill struct {
 
 // ── deterministic ids + provenance ────────────────────────────────────────────
 
-func signalID(m *ai_memorypb.Memory) string    { return "signal.ai_memory." + m.GetId() }
+func signalID(m *ai_memorypb.Memory) string          { return "signal.ai_memory." + m.GetId() }
 func claimID(m *ai_memorypb.Memory, k string) string { return "claim.ai_memory." + m.GetId() + "." + k }
-func outcomeID(m *ai_memorypb.Memory) string   { return "outcome.ai_memory." + m.GetId() }
-func principleID(m *ai_memorypb.Memory) string { return "principle.ai_memory." + m.GetId() }
+func outcomeID(m *ai_memorypb.Memory) string         { return "outcome.ai_memory." + m.GetId() }
+func principleID(m *ai_memorypb.Memory) string       { return "principle.ai_memory." + m.GetId() }
 
 func sourceRefs(m *ai_memorypb.Memory) []string {
 	refs := []string{SourcePrefix + m.GetId()}
@@ -204,17 +204,17 @@ func (bf *memoryBackfill) maybePrinciple(ctx context.Context, m *ai_memorypb.Mem
 
 	p := &api.Principle{
 		ID: principleID(m), Project: bf.opts.Project, Domain: api.DomainRef(bf.opts.Domain), Title: m.GetTitle(),
-		AppliesWhen:      toCondRefs(csv(appliesWhen)),
-		Authorities:      toAuthRefs(csv(authority)),
-		RequiredEvidence: toReqRefs(csv(requiredEv)),
-		ForbiddenMoves:   toFmRefs(csv(get("forbidden_move", "forbidden_moves"))),
+		AppliesWhen:       toCondRefs(csv(appliesWhen)),
+		Authorities:       toAuthRefs(csv(authority)),
+		RequiredEvidence:  toReqRefs(csv(requiredEv)),
+		ForbiddenMoves:    toFmRefs(csv(get("forbidden_move", "forbidden_moves"))),
 		RecommendedAction: get("recommended_behavior", "safe_behavior"),
 		RiskLevel:         riskLevel, PromotionReason: promotionReason, RevocationRule: revocationRule,
 		Status: api.StatusProposedPrinciple, Version: 1, ProposedBy: "backfill:ai_memory",
 		SourceRefs: sourceRefs(m), GeneratedFrom: generatedFrom(m),
 		Provenance: provenance(m), Metadata: provMeta(m),
 	}
-	bf.writePrinciple(ctx, p)
+	_ = bf.writePrinciple(ctx, p)
 }
 
 // ── idempotent writes (get-before-put; dry-run counts only) ───────────────────
