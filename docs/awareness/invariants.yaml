@@ -9789,6 +9789,9 @@ invariants:
   - category: exception_4_pre_workflow_primitive
     file: golang/ai_memory/ai_memory_server/migration_coordinator.go
     reason: ai_memory schema migration coordinator (runs at service startup, before any workflow uses the memory service)
+  - category: exception_4_pre_workflow_primitive
+    file: golang/ai_memory/ai_memory_server/behavioral_migration.go
+    reason: ai_memory behavioral-schema migration (runs at service startup, before any workflow uses the memory service) — idempotency-marker sibling of migration_coordinator.go, identical pre-workflow primitive
   - category: exception_5_service_self_config
     file: golang/dns/dns_server/server.go
     reason: DNS zone storage + reload status (typed admin RPC persistence; operator writes a zone, DNS persists it)
