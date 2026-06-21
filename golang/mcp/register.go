@@ -21,6 +21,7 @@ func registerAllTools(s *server) {
 	if g.Cluster {
 		registerClusterTools(s)
 		registerConvergenceTools(s)
+		registerReleaseTools(s)
 	}
 	if g.Doctor {
 		registerDoctorTools(s)
