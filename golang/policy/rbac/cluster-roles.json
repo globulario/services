@@ -31,6 +31,7 @@
       "monitoring.targetsmetadata",
       "ai.watch.read",
       "ai.memory.read",
+      "ai.behavioral.read",
       "ai.router.read",
       "cluster_doctor.cluster_report.read",
       "cluster_doctor.drift_report.read",
@@ -86,6 +87,7 @@
       "ai.watch.read",
       "ai.watch.write",
       "ai.memory.read",
+      "ai.behavioral.read",
       "ai.router.read",
       "cluster_doctor.cluster_report.read",
       "cluster_doctor.drift_report.read",
@@ -154,6 +156,8 @@
       "ai.watch.write",
       "ai.memory.read",
       "ai.memory.write",
+      "ai.behavioral.read",
+      "ai.behavioral.write",
       "ai.router.read",
       "ai.router.write",
       "workflow.read",
@@ -294,6 +298,7 @@
 
     "globular-ai-memory-sa": [
       "ai.memory.*",
+      "ai.behavioral.*",
       "workflow.read"
     ],
 
@@ -311,6 +316,8 @@
       "ai.execute",
       "ai.execute.admin",
       "ai.tools.invoke",
+      "ai.behavioral.read",
+      "ai.behavioral.write",
       "workflow.read",
       "cluster_controller.cluster.health",
       "cluster_controller.cluster.info",
