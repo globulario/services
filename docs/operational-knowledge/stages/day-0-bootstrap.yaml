@@ -146,7 +146,7 @@ entries:
       awareness_invariants:
         - etcd.endpoint_reachability
       awareness_failure_modes:
-        - service.os_getenv_for_config_addresses
+        - service.endpoint.os_getenv_for_addresses
 
   - id: ops.day-0.observability.dark
     type: REFERENCE

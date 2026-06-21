@@ -75,9 +75,6 @@ entries:
             expect: "drwx------ (0700)"
           - cmd: "globular cluster doctor --freshness fresh"
             expect: "etcd permissions finding is absent"
-    links:
-      awareness_invariants:
-        - artifact.filesystem_safety_local
 
   - id: ops.runbook.doctor.scylla-manager-unregistered
     type: SKILL
@@ -167,9 +164,6 @@ entries:
         commands:
           - cmd: "sctool --api-url http://<scylla-ip>:5080/api/v1 status"
             expect: "UN/UP for all Scylla nodes"
-    links:
-      awareness_invariants:
-        - scylla_manager.cluster_registered
 
   - id: ops.runbook.doctor.services-state-drift
     type: SKILL
@@ -224,7 +218,7 @@ entries:
       report `hash_drift`. Fix: redeploy via the workflow path (not CLI apply-desired).
     links:
       awareness_invariants:
-        - convergence.services_state_hash
+        - services.drift_must_age_and_escalate
 
   - id: ops.runbook.doctor.unknown-state-dir
     type: SKILL
@@ -269,10 +263,7 @@ entries:
       a genuine platform artifact.
     links:
       awareness_invariants:
-        - artifact.layout_drift_local
         - doctor.layout_drift_must_reflect_real_risk
-      awareness_failure_modes:
-        - forbidden.fix.layout_drift_by_expanding_allowlist_only
 
   - id: ops.runbook.doctor.legacy-alias-dirs
     type: SKILL
@@ -373,5 +364,5 @@ entries:
       wall clock. If you see this finding on a service that was just deployed, check that the
       proof writer is using PID start time and not `time.Now()`.
     links:
-      awareness_invariants:
-        - proof.writer.timestamps_anchor_to_pid_start
+      awareness_failure_modes:
+        - service.old_pid_after_upgrade

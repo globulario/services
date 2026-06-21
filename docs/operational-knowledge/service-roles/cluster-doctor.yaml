@@ -182,9 +182,6 @@ entries:
       journalctl -u globular-cluster-doctor.service | grep 'emit.*finding' | wc -l
       # If > 20 per minute for stable cluster, suspect event amplification
       ```
-    links:
-      awareness_failure_modes:
-        - doctor.finding_event_amplification
 
   - id: ops.role.cluster-doctor.failure-modes
     type: DEBUG
