@@ -6627,3 +6627,40 @@ failure_modes:
         - repository
       required_tests:
         - TestCompletePublish_RefusesHardDepsWhenCatalogUnavailable
+    - id: gateway.cohosted_grpc_service_route_missing_returns_html
+      root_cause: |
+        xDS route generation (Globular internal/xds/watchers/watcher.go
+        buildServiceResources) emits exactly one gateway route per REGISTERED
+        etcd service Name. When a process co-hosts a second gRPC service on the
+        same port without declaring it, xDS emits no route for that service's
+        gRPC path. Native-gRPC / gateway requests to the undeclared service fall
+        through to the HTTP catch-all and return HTTP 200 text/html, while the
+        backend service is healthy on its direct port. Observed:
+        behavioral_memory.BehavioralMemoryService is co-hosted on the ai_memory
+        process (behavioral_handlers.go) but was not declared; memory_* worked
+        through the gateway while behavioral_* returned text/html over the SAME
+        endpoint/connection (signal
+        signal.ai_memory.gateway_route_missing_for_cohosted_service.confirmed).
+      architecture_fix: |
+        Declare co-hosted services in registration metadata (HostedServices) and
+        have xDS emit a prefix route per declared hosted name to the host
+        service's cluster. ai_memory declares
+        behavioral_memory.BehavioralMemoryService (services PR #45); the xDS
+        builder generates the routes (Globular PR #2). Release-boundary repair:
+        takes effect only after BOTH the ai_memory binary (re-registers with
+        HostedServices) and the xDS/gateway binary (reads it, regenerates routes)
+        are redeployed. Until then the gateway route is absent; direct-port access
+        is unaffected and is diagnostic/degraded-mode evidence only.
+      forbidden_fixes:
+        - clients_must_not_permanently_bypass_gateway_for_cohosted_services
+      protects:
+        files:
+            - golang/ai_memory/ai_memory_server/server.go
+            - Globular/internal/xds/watchers/watcher.go
+      related_invariants:
+        - gateway.cohosted_grpc_services_must_be_declared
+      related_services:
+        - ai-memory
+        - gateway
+      required_tests:
+        - xds_emits_routes_for_hosted_services
