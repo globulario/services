@@ -95,6 +95,15 @@ type server struct {
 	LastError          string
 	ModTime            int64
 
+	// HostedServices lists additional gRPC service names served on this same
+	// process/port beyond Name. The xDS route builder generates one gateway
+	// route per (Name + HostedServices) entry, all pointing at this service's
+	// cluster. Without this, a co-hosted service (e.g.
+	// behavioral_memory.BehavioralMemoryService, registered on the same gRPC
+	// server) has no gateway route and its requests fall through to the HTML
+	// catch-all (HTTP 200 text/html) even though the backend serves it.
+	HostedServices []string
+
 	// gRPC
 	grpcServer *grpc.Server
 
@@ -1010,6 +1019,10 @@ func initializeServerDefaults() *server {
 		Repositories:    make([]string, 0),
 		Discoveries:     make([]string, 0),
 		Dependencies:    []string{"persistence.PersistenceService"},
+		// behavioral_memory.BehavioralMemoryService is registered on the same
+		// gRPC server (see behavioral_handlers.go). Declare it so xDS builds a
+		// gateway route for it; otherwise its requests hit the HTML catch-all.
+		HostedServices:  []string{"behavioral_memory.BehavioralMemoryService"},
 		Permissions:     make([]interface{}, 0),
 		ScyllaHosts:     nil, // resolved from etcd at Init() — never hardcode
 		ScyllaPort:      9042,
