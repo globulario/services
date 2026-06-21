@@ -74,11 +74,13 @@ func (p *scyllaGroup0Probe) acquireFromTruthPlane(ctx context.Context) (*cluster
 	if err != nil {
 		return nil, fmt.Errorf("dial options: %w", err)
 	}
-	cc, err := grpc.Dial(addr, opts...)
+	// Lazy dial (no WithBlock). Not migrated to grpc.NewClient in a lint cleanup —
+	// it changes default target resolution (dns vs passthrough). Future: NewClient.
+	cc, err := grpc.Dial(addr, opts...) //nolint:staticcheck // see note
 	if err != nil {
 		return nil, fmt.Errorf("dial node_agent: %w", err)
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 	client := node_agentpb.NewNodeAgentServiceClient(cc)
 	resp, err := client.GetInfraProbe(ctx, &node_agentpb.GetInfraProbeRequest{Component: scyllaComponent})
 	if err != nil {

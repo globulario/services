@@ -26,11 +26,13 @@ func RecordBundle(ctx context.Context, bundle Bundle) error {
 	if err != nil {
 		return fmt.Errorf("behavioral-memory dial options: %w", err)
 	}
-	cc, err := grpc.Dial(addr, opts...)
+	// Lazy dial (no WithBlock). Not migrated to grpc.NewClient in a lint cleanup —
+	// it changes default target resolution (dns vs passthrough). Future: NewClient.
+	cc, err := grpc.Dial(addr, opts...) //nolint:staticcheck // see note
 	if err != nil {
 		return fmt.Errorf("behavioral-memory dial: %w", err)
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	client := behavioralpb.NewBehavioralMemoryServiceClient(cc)
 	callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)

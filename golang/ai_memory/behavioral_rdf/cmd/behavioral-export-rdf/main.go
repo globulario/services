@@ -71,7 +71,7 @@ func main() {
 
 	doc, triples := rdf.ProjectTriples(bundle)
 	if *out == "" {
-		os.Stdout.Write(doc)
+		_, _ = os.Stdout.Write(doc)
 	} else if err := os.WriteFile(*out, doc, 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, "behavioral-export-rdf: write:", err)
 		os.Exit(1)

@@ -26,8 +26,8 @@ import (
 	"time"
 
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
-	backfill "github.com/globulario/services/golang/ai_memory/behavioral_backfill"
 	"github.com/globulario/services/golang/ai_memory/behavioral/store"
+	backfill "github.com/globulario/services/golang/ai_memory/behavioral_backfill"
 	"github.com/globulario/services/golang/config"
 	"github.com/gocql/gocql"
 	"google.golang.org/grpc"
@@ -99,7 +99,7 @@ func dialMemorySource() (backfill.MemorySource, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return backfill.NewRPCSource(ai_memorypb.NewAiMemoryServiceClient(conn)), func() { conn.Close() }, nil
+	return backfill.NewRPCSource(ai_memorypb.NewAiMemoryServiceClient(conn)), func() { _ = conn.Close() }, nil
 }
 
 func openBehavioralStore() (store.Store, func(), error) {
