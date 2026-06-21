@@ -1,7 +1,29 @@
 # Behavioral Memory Runtime Awareness Backlog
 
-> Status: post-PR-8 design note and next-PR backlog.
-> Scope: preserve the three-organ model, capture the architectural blind spots, and rank the next governance increments without starting implementation.
+> Status: **reconciled 2026-06-20 — backlog fully delivered.** Originally a post-PR-8
+> design note that ranked the next governance increments without authorizing
+> implementation. As of 2026-06-20 every proposed increment (PR-9 through PR-12)
+> plus the later PR-13 has shipped; this document is now a delivery record, not a
+> forward backlog.
+> Scope: preserve the three-organ model, record which blind spots are now closed,
+> and point at the evidence for each delivered increment.
+
+## Implementation status (reconciled 2026-06-20)
+
+Each backlog item below has landed. Evidence is in code and commits, not in this note.
+
+| Item | Status | Primary evidence |
+|------|--------|------------------|
+| PR-9 — Governed Observation Ingestion | ✅ delivered | `golang/ai_memory/domains/cluster_operator/observation/{ingest.go,client.go}` (`FromDoctorFinding`, `FromInfraProbe`, `FromWatcherIncident`, `RecordBundle`); live emit paths in cluster_doctor `server.go:380`, ai_watcher `server.go:540`, node_agent `grpc_infra_probe.go` (×4), ai_executor `behavioral_feed.go`; `SignalKind` + `ObservationAuthorityLevel` enums in `proto/behavioral_memory.proto`; commits `d7bcbc52`, `e6a15108` |
+| PR-10 — Outcome-to-Promotion Candidate Queue | ✅ delivered | `golang/ai_memory/behavioral/core/candidates.go` (`GeneratePromotionCandidate`, `ListPromotionCandidates`); `PromotionCandidate` message + `PromotionCandidateStatus` enum (QUEUED/REVIEWED/DISMISSED/MATERIALIZED); MCP `behavioral_generate_promotion_candidate`, `behavioral_list_promotion_candidates` |
+| PR-11 — AWG ↔ Behavioral Reconciliation | ✅ delivered | `golang/ai_memory/behavioral/core/reconciliation.go` (`RUNTIME_CONTRADICTS_AWG`, `RUNTIME_REINFORCES_AWG`, `BEHAVIORAL_CANDIDATE_MISSING_AWG_MAPPING`, `AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE`, `AWG_MAPPING_MISSING_TEST_CANDIDATE`); MCP `behavioral_generate_reconciliation_report`, `behavioral_list_reconciliation_reports` |
+| PR-12 — Agent Self-Operation Governance | ✅ delivered | `golang/ai_executor/ai_executor_server/behavioral_self_operation.go` (`agent_tool_attempt`, `agent_blocked_action`, `agent_classifier_denial`, `agent_safety_hook_event`) |
+| PR-13 — Verdict provenance + governance coverage (beyond original backlog) | ✅ delivered | `PromotionDecisionRecord` message; `GetGovernanceCoverage` RPC; commit `f7f92a18` |
+
+The "What not to do" guardrails below were all honored: observation sources record
+`Signals`/`Evidence` but never auto-promote; behavioral-memory still executes no
+repairs; AWG and behavioral-memory remain distinct surfaces bridged only by explicit
+reconciliation reports; flat `ai_memory` recall is still not treated as governance.
 
 ## Three-organ model
 
@@ -15,7 +37,11 @@ These roles must stay distinct. Runtime learning should not collapse into code-g
 
 ## Ranked blind spots
 
-### 1. Observation is not yet governed input
+> The five blind spots below were the state at the time of writing. Blind spots 1–5
+> are now addressed by PR-9 through PR-12 (see status table above); they are retained
+> here as the architectural rationale that drove each increment.
+
+### 1. Observation is not yet governed input — RESOLVED (PR-9)
 
 - `ai_executor` is only one afferent nerve.
 - `cluster-doctor` findings, `infra_probe` truth-plane state, and `ai_watcher` event streams must become first-class `Signals` and `Evidence`.
@@ -23,7 +49,7 @@ These roles must stay distinct. Runtime learning should not collapse into code-g
 
 Architectural implication: behavioral-memory currently governs decisions after partial intake, but the observation boundary is too narrow. Governed runtime awareness is incomplete until non-agent observation sources enter the same evidence ladder with preserved provenance.
 
-### 2. AWG and behavioral-memory do not yet reconcile
+### 2. AWG and behavioral-memory do not yet reconcile — RESOLVED (PR-11)
 
 - AWG invariants can describe runtime-adjacent facts.
 - behavioral-memory outcomes can reveal runtime behavior that should become AWG invariants or failure modes.
@@ -31,14 +57,21 @@ Architectural implication: behavioral-memory currently governs decisions after p
 
 Architectural implication: the system has two governance surfaces with overlapping truth about operational safety, but no formal reconciliation path. That leaves runtime discoveries stranded unless a human manually translates them.
 
-### 3. Learning loop does not surface promotion candidates
+### 3. Learning loop does not surface promotion candidates — RESOLVED (PR-10)
 
 - Outcomes accumulate, but no candidate generator says "this repeated pattern is ready for review."
 - Human-gated promotion remains correct, but the system needs a safe review queue.
 
 Architectural implication: the current loop records outcomes but does not convert repetition, consistency, and explicit evidence into reviewable proposals. Learning exists as storage, not as a governed promotion pipeline.
 
-### 4. Tonight's lessons are still manual
+### 4. Tonight's lessons are still manual — PARTIALLY RESOLVED (PR-9 ingestion path exists)
+
+> The afferent path now exists (doctor findings, infra_probe truth-plane state, and
+> watcher events enter as governed `Signals`/`Evidence`), so future `group0`/schema
+> incidents arrive as governed input rather than manual recall. Translating a specific
+> past incident into a concrete AWG failure mode/invariant/test is still a human,
+> per-incident act — that is by design (no auto-promotion).
+
 
 - `policy-embed` / `detect-changes` / stale `cluster_controller` grants should become an AWG failure mode, invariant, or test candidate.
 - `group0` quorum or schema mutation failure should become a behavioral-memory signal or outcome candidate and possibly an AWG runtime-adjacent invariant.
@@ -46,7 +79,7 @@ Architectural implication: the current loop records outcomes but does not conver
 
 Architectural implication: incident knowledge is still being preserved informally. That is useful for recall, but insufficient for durable governance or repeatable review.
 
-### 5. Agent self-operation is governed by a third layer
+### 5. Agent self-operation is governed by a third layer — RESOLVED (PR-12)
 
 - Claude Code hooks and classifier policy governed unsafe bypass behavior tonight.
 - AWG did not cover it because it is not code architecture.
@@ -55,9 +88,13 @@ Architectural implication: incident knowledge is still being preserved informall
 
 Architectural implication: the agent's own operating boundary is already governed in practice, but outside both current memory-governance systems. That leaves an important behavioral surface unmodeled.
 
-## Backlog proposal
+## Backlog proposal (all delivered — see status table)
 
-### PR-9 — Governed Observation Ingestion
+> The four increments below are kept verbatim as the original specification each
+> PR was built against. Every one has shipped; the per-PR `Intent` lines describe
+> what the delivered code does.
+
+### PR-9 — Governed Observation Ingestion — ✅ DELIVERED
 
 - Feed `cluster-doctor` findings into behavioral-memory as `Signals` and `Evidence`.
 - Feed `infra_probe` truth-plane results as `Signals` and `Evidence`.
@@ -69,7 +106,7 @@ Architectural implication: the agent's own operating boundary is already governe
 
 Intent: widen the governed afferent path without changing promotion policy or allowing observation components to act.
 
-### PR-10 — Outcome-to-Promotion Candidate Queue
+### PR-10 — Outcome-to-Promotion Candidate Queue — ✅ DELIVERED
 
 - Detect repeated outcomes and themes.
 - Generate `PROPOSED_PRINCIPLE` candidates only when evidence, authority, and conditions are explicit.
@@ -78,7 +115,7 @@ Intent: widen the governed afferent path without changing promotion policy or al
 
 Intent: add a safe review queue that converts repeated governed outcomes into candidate principles without weakening human approval gates.
 
-### PR-11 — AWG ↔ Behavioral-Memory Reconciliation
+### PR-11 — AWG ↔ Behavioral-Memory Reconciliation — ✅ DELIVERED
 
 - Runtime outcome can propose AWG failure mode, invariant, or test candidates.
 - AWG invariant can seed behavioral principle candidates when runtime-relevant.
@@ -86,7 +123,7 @@ Intent: add a safe review queue that converts repeated governed outcomes into ca
 
 Intent: connect the two governance surfaces without merging them, so code intent and runtime behavior can inform one another through explicit proposals and drift reports.
 
-### PR-12 — Agent Self-Operation Governance
+### PR-12 — Agent Self-Operation Governance — ✅ DELIVERED
 
 - Treat agent tool attempts, blocked actions, classifier denials, and safety-hook events as behavioral `Signals` and `Outcomes`.
 - Do not bypass existing hooks.
@@ -104,4 +141,10 @@ Intent: model the agent's own operational behavior as a governed runtime domain 
 
 ## Exit condition for this note
 
-This note is complete when it is used as the architectural reference for post-PR-8 planning only. It does not authorize PR-9 implementation, schema changes, runtime ingestion wiring, or governance-surface unification.
+> **Met as of 2026-06-20.** The original exit condition ("used as the architectural
+> reference for post-PR-8 planning only … does not authorize PR-9 implementation") is
+> obsolete: PR-9 through PR-12 plus PR-13 are implemented, tested, and wired into the
+> live afferent paths. This note has transitioned from a forward backlog to a delivery
+> record.
+
+This note's original intent was to be the architectural reference for post-PR-8 planning. That planning is complete and the increments are delivered. Future governance work (e.g. broadening reconciliation drift detection, or per-incident AWG failure-mode extraction from governed observations) should be tracked in a new design note rather than appended here, so this document stays an accurate record of what the PR-9..PR-13 arc delivered.

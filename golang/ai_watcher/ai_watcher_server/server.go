@@ -117,6 +117,10 @@ type server struct {
 
 	triggerDataMap   map[string][]byte // incident ID -> trigger event raw data
 	triggerDataMapMu sync.Mutex
+
+	// Runtime vigilance probe dedup (PR-14): condition key -> last emission time.
+	lastProbe   map[string]time.Time
+	lastProbeMu sync.Mutex
 }
 
 type watcherStats struct {
@@ -244,6 +248,7 @@ func (srv *server) Init() error {
 	srv.eventBatchData = make(map[string][]byte)
 	srv.batchTimers = make(map[string]*time.Timer)
 	srv.triggerDataMap = make(map[string][]byte)
+	srv.lastProbe = make(map[string]time.Time)
 	srv.startedAt = time.Now()
 
 	return nil
@@ -254,6 +259,10 @@ func (srv *server) Save() error { return globular.SaveService(srv) }
 func (srv *server) StartService() error {
 	// Start event subscription in background.
 	go srv.eventLoop()
+
+	// Start runtime vigilance probes (PR-14): governed health checks that detect
+	// condition classes the event-name pipeline cannot see.
+	go srv.startProbeLoop()
 
 	return globular.StartService(srv, srv.grpcServer)
 }
