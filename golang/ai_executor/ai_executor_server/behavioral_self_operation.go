@@ -59,7 +59,7 @@ func recordBehavioralSelfOperation(ctx context.Context, event behavioralSelfOper
 	if err != nil {
 		return
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	client := bpb.NewBehavioralMemoryServiceClient(cc)
 	callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)

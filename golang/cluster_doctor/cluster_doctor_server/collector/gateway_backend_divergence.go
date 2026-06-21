@@ -46,11 +46,6 @@ type probeResult struct {
 	err         error
 }
 
-// gatewayBackendProber probes a single endpoint for gRPC reachability.
-type gatewayBackendProber interface {
-	probe(ctx context.Context, endpoint, service string) probeResult
-}
-
 // reflectionProber dials an endpoint and asks for the service descriptor via
 // gRPC server reflection. Success => the endpoint speaks gRPC for that service.
 type reflectionProber struct{}
@@ -69,7 +64,7 @@ func (reflectionProber) probe(ctx context.Context, endpoint, service string) pro
 	if err != nil {
 		return classifyProbeErr(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	ref := grpc_reflection_v1alpha.NewServerReflectionClient(conn)
 	stream, err := ref.ServerReflectionInfo(pctx)
@@ -84,7 +79,7 @@ func (reflectionProber) probe(ctx context.Context, endpoint, service string) pro
 		return classifyProbeErr(err)
 	}
 	resp, err := stream.Recv()
-	stream.CloseSend()
+	_ = stream.CloseSend()
 	if err != nil {
 		return classifyProbeErr(err)
 	}

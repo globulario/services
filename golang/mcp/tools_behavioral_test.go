@@ -136,7 +136,7 @@ func startFakeBehavioral(t *testing.T) (*server, *fakeBehavioralServer) {
 	fake := &fakeBehavioralServer{}
 	gs := grpc.NewServer()
 	behavioralpb.RegisterBehavioralMemoryServiceServer(gs, fake)
-	go gs.Serve(lis)
+	go func() { _ = gs.Serve(lis) }()
 	t.Cleanup(gs.Stop)
 
 	addr := lis.Addr().String()
@@ -148,7 +148,7 @@ func startFakeBehavioral(t *testing.T) (*server, *fakeBehavioralServer) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { conn.Close() })
+	t.Cleanup(func() { _ = conn.Close() })
 
 	s := &server{
 		tools:   make(map[string]*registeredTool),

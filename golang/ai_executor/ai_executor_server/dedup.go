@@ -100,7 +100,7 @@ func (l *incidentLedger) lookup(ctx context.Context, fingerprint string) *ledger
 	if err != nil {
 		return nil
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	callCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -137,7 +137,7 @@ func (l *incidentLedger) recordNew(ctx context.Context, fingerprint string, d *a
 	if err != nil {
 		return
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	callCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -170,7 +170,7 @@ func (l *incidentLedger) recordRepeat(ctx context.Context, e *ledgerEntry) {
 	if err != nil {
 		return
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	callCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
