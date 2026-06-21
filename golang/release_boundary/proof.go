@@ -83,10 +83,17 @@ type ManifestEvidence struct {
 }
 
 // InstalledEvidence represents the node's installed-package record.
+//
+// InstallCommittedUnix is the per-build install-commit wall-clock time and is
+// fed from InstalledPackage.metadata["installed_at"] (re-stamped on every
+// upgrade) — NOT from the proto InstalledPackage.InstalledUnix field, which is
+// the preserved first-install time. Using first-install time would let a stale
+// process survive A4 after an upgrade (the service.old_pid_after_upgrade case
+// A4 exists to catch), so the field is named explicitly to prevent miswiring.
 type InstalledEvidence struct {
-	BuildID            string
-	EntrypointChecksum string
-	InstalledUnix      int64
+	BuildID              string
+	EntrypointChecksum   string
+	InstallCommittedUnix int64
 }
 
 // RuntimeEvidence represents the node's runtime proof for the live process.
@@ -356,20 +363,20 @@ func evalA4(in Inputs) AssertionReport {
 		r.Reason = "process start time unavailable"
 		return r
 	}
-	if in.Installed == nil || in.Installed.InstalledUnix == 0 {
+	if in.Installed == nil || in.Installed.InstallCommittedUnix == 0 {
 		r.Verdict = VerdictIndeterminate
-		r.Reason = "installed time unavailable"
+		r.Reason = "install-commit time unavailable (metadata installed_at absent)"
 		return r
 	}
 	r.Evidence["process_start_unix"] = int64Str(in.Runtime.ProcessStartUnix)
-	r.Evidence["installed_unix"] = int64Str(in.Installed.InstalledUnix)
+	r.Evidence["install_committed_unix"] = int64Str(in.Installed.InstallCommittedUnix)
 	switch {
-	case in.Runtime.ProcessStartUnix < in.Installed.InstalledUnix:
+	case in.Runtime.ProcessStartUnix < in.Installed.InstallCommittedUnix:
 		r.Verdict = VerdictFailed
 		r.Reason = "process started before the artifact was installed (stale process)"
-	case in.Runtime.ProcessStartUnix == in.Installed.InstalledUnix:
+	case in.Runtime.ProcessStartUnix == in.Installed.InstallCommittedUnix:
 		r.Verdict = VerdictIndeterminate
-		r.Reason = "process start time ties installed time at ambiguous precision"
+		r.Reason = "process start time ties install-commit time at ambiguous precision"
 	default:
 		r.Verdict = VerdictProven
 		r.Reason = "process started after the artifact was installed"

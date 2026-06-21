@@ -21,9 +21,9 @@ func validInputs() Inputs {
 		},
 		Repository: &RepositoryEvidence{Present: true, Verified: true},
 		Installed: &InstalledEvidence{
-			BuildID:            "build-B",
-			EntrypointChecksum: "ec-sha",
-			InstalledUnix:      1000,
+			BuildID:              "build-B",
+			EntrypointChecksum:   "ec-sha",
+			InstallCommittedUnix: 1000,
 		},
 		Runtime: &RuntimeEvidence{
 			Running:          true,
@@ -75,8 +75,10 @@ func TestEvaluate(t *testing.T) {
 			reasonContains: "repository",
 		},
 		{
-			name:         "3 A0 repository verification failed -> FAILED",
-			mutate:       func(in *Inputs) { in.Repository = &RepositoryEvidence{Present: true, Verified: false, Reason: "checksum mismatch"} },
+			name: "3 A0 repository verification failed -> FAILED",
+			mutate: func(in *Inputs) {
+				in.Repository = &RepositoryEvidence{Present: true, Verified: false, Reason: "checksum mismatch"}
+			},
 			wantOverall:  VerdictFailed,
 			focusID:      AssertionRepositoryArtifactIntact,
 			focusVerdict: VerdictFailed,
@@ -133,19 +135,30 @@ func TestEvaluate(t *testing.T) {
 			focusVerdict: VerdictFailed,
 		},
 		{
-			name:         "11 A4 process started before install -> FAILED",
+			// A4 uses install commit timestamp, not proto InstalledUnix.
+			name:         "11 A4 process started before install-commit -> FAILED",
 			mutate:       func(in *Inputs) { in.Runtime.ProcessStartUnix = 500 },
 			wantOverall:  VerdictFailed,
 			focusID:      AssertionRestartAfterInstall,
 			focusVerdict: VerdictFailed,
 		},
 		{
-			name:           "12 A4 process start equals install -> INDETERMINATE",
-			mutate:         func(in *Inputs) { in.Runtime.ProcessStartUnix = in.Installed.InstalledUnix },
+			name:           "12 A4 process start equals install-commit -> INDETERMINATE",
+			mutate:         func(in *Inputs) { in.Runtime.ProcessStartUnix = in.Installed.InstallCommittedUnix },
 			wantOverall:    VerdictIndeterminate,
 			focusID:        AssertionRestartAfterInstall,
 			focusVerdict:   VerdictIndeterminate,
 			reasonContains: "tie",
+		},
+		{
+			// metadata installed_at absent -> A4 INDETERMINATE (no fallback to
+			// the preserved first-install proto InstalledUnix).
+			name:           "16 A4 install-commit timestamp absent -> INDETERMINATE",
+			mutate:         func(in *Inputs) { in.Installed.InstallCommittedUnix = 0 },
+			wantOverall:    VerdictIndeterminate,
+			focusID:        AssertionRestartAfterInstall,
+			focusVerdict:   VerdictIndeterminate,
+			reasonContains: "install-commit time unavailable",
 		},
 		{
 			name:         "13 wrapper package -> NOT_APPLICABLE",
