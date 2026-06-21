@@ -5,6 +5,24 @@ import (
 	"testing"
 )
 
+// TestNodeExecutorGrantsWorkflowAdmin pins the policy contract behind the
+// bootstrap-symmetry fix (2026-06-21): the founding/controller node binds its
+// own mTLS identity to globular-node-executor at startup so its workflow trace
+// recorder can persist RecordOutcome / RecordPhaseTransition (both require
+// action "workflow.admin", per proto/workflow.proto). That binding is only
+// meaningful if globular-node-executor actually grants workflow.admin — if a
+// future policy edit drops it, the founding node would silently stop recording
+// workflow audit trails again. This test fails loudly if that grant regresses.
+func TestNodeExecutorGrantsWorkflowAdmin(t *testing.T) {
+	ReloadClusterRoles()
+	for _, action := range []string{"workflow.admin"} {
+		if !HasRolePermission([]string{RoleNodeExecutor}, action) {
+			t.Errorf("role %q must grant %q (the founding-node recorder needs it for RecordOutcome/RecordPhaseTransition)",
+				RoleNodeExecutor, action)
+		}
+	}
+}
+
 func TestIsNodePrincipal(t *testing.T) {
 	tests := []struct {
 		subject string
