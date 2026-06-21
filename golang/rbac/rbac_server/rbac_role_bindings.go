@@ -46,7 +46,7 @@ func (srv *server) callerIsAdmin(subject string) (bool, error) {
 	// Deny-overrides-allow still runs first (see validateAccess), so explicit
 	// deny is unaffected; this only restores sa's intended admin authority over
 	// role bindings. bareID normalizes "sa@domain" → "sa".
-	if bareID(subject) == "sa" {
+	if isBuiltinSuperadmin(subject) {
 		return true, nil
 	}
 	data, err := srv.getItem(roleBindingPrefix + subject)

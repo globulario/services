@@ -89,7 +89,7 @@ func (srv *server) addResourceOwner(path, subject, resourceType_ string, subject
 			// The built-in superadmin account "sa" always exists even when the
 			// resource service is temporarily unreachable (e.g. during startup
 			// or when inter-service routing is not yet configured).
-			if strings.EqualFold(subject, "sa") {
+			if isBuiltinSuperadmin(subject) {
 				exist = true
 				a = "sa"
 			}

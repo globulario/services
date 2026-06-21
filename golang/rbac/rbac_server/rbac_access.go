@@ -34,6 +34,20 @@ func bareID(id string) string {
 	return id
 }
 
+// isBuiltinSuperadmin reports whether subject is the built-in superadmin "sa"
+// account, ignoring any @domain routing suffix and case. This is the SINGLE
+// canonical predicate for recognizing the built-in superadmin across the RBAC
+// server — validateAccess, callerIsAdmin, accountExist, and ownership all use
+// it. Authority recognition must not drift between these sites: each ad-hoc
+// variant ("bareID(x)==\"sa\"", "EqualFold(x,\"sa\")" without @-strip, manual
+// @ splitting) recognized a slightly different set, and the un-stripped
+// EqualFold form silently failed to recognize "sa@domain". One crown, one
+// recognizer. See the awareness failure mode
+// rbac.authority_recognition_must_use_canonical_builtin_superadmin_predicate.
+func isBuiltinSuperadmin(subject string) bool {
+	return strings.EqualFold(bareID(subject), "sa")
+}
+
 // matchID returns true if list contains id either exactly or by bare-id (before "@").
 // It also handles the case where list items are FQ and id is bare (or vice-versa).
 func matchID(list []string, id string) bool {
@@ -419,7 +433,7 @@ func (srv *server) validateAccess(subject string, subjectType rbacpb.SubjectType
 	// Validate subject first. For sa we attempt validation but allow
 	// fallthrough if the Resource service is unreachable — sa must work
 	// even during bootstrap.
-	isSA := subjectType == rbacpb.SubjectType_ACCOUNT && bareID(subject) == "sa"
+	isSA := subjectType == rbacpb.SubjectType_ACCOUNT && isBuiltinSuperadmin(subject)
 
 	validatedSubject, err := srv.validateSubject(subject, subjectType)
 	if err != nil {

@@ -407,6 +407,28 @@ func TestMgmtProtection_BootstrapBypass(t *testing.T) {
 
 // --- Built-in superadmin "sa" recognition -----------------------------------
 
+// TestIsBuiltinSuperadmin pins the single canonical superadmin predicate that
+// all RBAC sa-recognition sites converged onto (validateAccess, callerIsAdmin,
+// accountExist, ownership). Before convergence these drifted: some were
+// case-sensitive, and ownership used EqualFold WITHOUT stripping @domain, so it
+// silently failed to recognize "sa@domain". The canonical form is @-stripped
+// AND case-insensitive. This guards against re-drift and the @domain miss.
+func TestIsBuiltinSuperadmin(t *testing.T) {
+	superadmin := []string{"sa", "sa@globular.io", "SA", "Sa@globular.internal"}
+	for _, s := range superadmin {
+		if !isBuiltinSuperadmin(s) {
+			t.Errorf("isBuiltinSuperadmin(%q) = false; must recognize the built-in superadmin (@domain-stripped, case-insensitive)", s)
+		}
+	}
+	notSuperadmin := []string{"sally", "saa", "node_abc", "admin", "", "x@sa", "globular-controller"}
+	for _, s := range notSuperadmin {
+		if isBuiltinSuperadmin(s) {
+			t.Errorf("isBuiltinSuperadmin(%q) = true; only the built-in sa account must match", s)
+		}
+	}
+}
+
+
 // TestCallerIsAdmin_BuiltinSA is the regression for the continuous permissive
 // RBAC fallback (2026-06-21). callerIsAdmin only consulted a subject's STORED
 // role binding, so the built-in superadmin "sa" — which has no stored binding —
