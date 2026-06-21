@@ -6153,9 +6153,6 @@ required_tests:
     - gateway.cohosted_grpc_services_must_be_declared
     failure_modes:
     - gateway.cohosted_grpc_service_route_missing_returns_html
-    files:
-    - Globular/internal/xds/watchers/watcher.go
-    - Globular/internal/xds/watchers/hosted_services_test.go
   run:
     commands:
     - go test ./internal/xds/watchers/ -run TestHostedServiceRoutes

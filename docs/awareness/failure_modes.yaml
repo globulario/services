@@ -6656,7 +6656,6 @@ failure_modes:
       protects:
         files:
             - golang/ai_memory/ai_memory_server/server.go
-            - Globular/internal/xds/watchers/watcher.go
       related_invariants:
         - gateway.cohosted_grpc_services_must_be_declared
       related_services:

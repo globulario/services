@@ -10804,8 +10804,6 @@ invariants:
     - golang/cluster_controller/cluster_controller_server/handlers_health.go
   related_invariants:
   - dependency_failure_must_not_create_hidden_authority
-  - repository.minio_independence
-  - infrastructure.sidekick.minio_auxiliary_must_not_be_identity_authority
   required_tests:
   - golang/rbac/rbac_server/dependency_minio_excluded_test.go::TestDependencyHealthDeps_ExcludesMinio
   - golang/cluster_controller/cluster_controller_server/minio_non_member_health_test.go::TestDropMinioCommodityUnitsForNonMember
@@ -10899,7 +10897,6 @@ invariants:
   protects:
     files:
     - golang/ai_memory/ai_memory_server/server.go
-    - Globular/internal/xds/watchers/watcher.go
   required_tests:
   - xds_emits_routes_for_hosted_services
   forbidden_fixes:
