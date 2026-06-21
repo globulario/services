@@ -80,6 +80,10 @@ func NewRegistry(cfg Config) *Registry {
 		// Backbone guard: direct observations of gRPC contract regressions
 		// (cluster_id propagation, call-depth loops, public probe admission).
 		grpcBackboneContract{},
+		// Degraded-mode (PR-15): distinguishes a broken gateway route from a
+		// down service by comparing the Envoy gateway path against the direct
+		// backend port. Consumes Snapshot.GatewayBackendProbes.
+		gatewayBackendDivergence{},
 		// Artifact identity invariants (cache digest, installed digest,
 		// desired/installed build drift). Consumes per-node reports from
 		// VerifyPackageIntegrity collected in Snapshot.IntegrityReports.
