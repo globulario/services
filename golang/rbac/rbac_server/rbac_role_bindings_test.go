@@ -404,3 +404,72 @@ func TestMgmtProtection_BootstrapBypass(t *testing.T) {
 	}
 	t.Log("✓ bootstrap mode bypasses role check (gate enforces loopback + time window)")
 }
+
+// --- Built-in superadmin "sa" recognition -----------------------------------
+
+// TestCallerIsAdmin_BuiltinSA is the regression for the continuous permissive
+// RBAC fallback (2026-06-21). callerIsAdmin only consulted a subject's STORED
+// role binding, so the built-in superadmin "sa" — which has no stored binding —
+// was reported non-admin, even though validateAccess, accountExist, and
+// ownership all treat it as superadmin. That gap made service-to-service
+// interceptor authorization lookups (which authenticate as "sa") fail with
+// PermissionDenied and fall back to the noisy permissive local-roles path every
+// reconcile tick. callerIsAdmin must recognize the built-in sa, normalized.
+func TestCallerIsAdmin_BuiltinSA(t *testing.T) {
+	srv := newTestServer(t)
+
+	// Real sa service tokens are always lowercase "sa" (security.GenerateServiceToken).
+	// Matching is case-sensitive, consistent with the canonical validateAccess
+	// idiom (bareID(subject) == "sa"); bareID normalizes the @domain suffix.
+	for _, subj := range []string{"sa", "sa@globular.io"} {
+		ok, err := srv.callerIsAdmin(subj)
+		if err != nil {
+			t.Fatalf("callerIsAdmin(%q): unexpected error %v", subj, err)
+		}
+		if !ok {
+			t.Errorf("callerIsAdmin(%q) = false; the built-in superadmin must be admin", subj)
+		}
+	}
+
+	// A subject with no binding (and not sa) must still be non-admin — the fix
+	// must not widen admin beyond the built-in sa.
+	ok, err := srv.callerIsAdmin("random-user@example.com")
+	if err != nil {
+		t.Fatalf("callerIsAdmin(random): unexpected error %v", err)
+	}
+	if ok {
+		t.Error("callerIsAdmin(random-user) = true; only sa should be implicitly admin")
+	}
+}
+
+// TestGetRoleBinding_SAReadsOtherSubject_NoFallback pins the end-to-end fix:
+// the built-in sa (service identity used by interceptor authz lookups) can read
+// ANY subject's binding without PermissionDenied — eliminating the permissive
+// fallback — while a non-admin user reading another subject is STILL denied, so
+// deny is not weakened.
+func TestGetRoleBinding_SAReadsOtherSubject_NoFallback(t *testing.T) {
+	srv := newTestServer(t)
+
+	// Seed a binding for some other subject during bootstrap.
+	if _, err := srv.SetRoleBinding(bootstrapCtx(), &rbacpb.SetRoleBindingRqst{
+		Binding: &rbacpb.RoleBinding{Subject: "globule-ryzen", Roles: []string{"globular-controller-sa"}},
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// sa reads another subject's binding — must succeed (was PermissionDenied,
+	// which triggered the permissive local-roles fallback in the interceptor).
+	resp, err := srv.GetRoleBinding(callerCtx("sa"), &rbacpb.GetRoleBindingRqst{Subject: "globule-ryzen"})
+	if err != nil {
+		t.Fatalf("GetRoleBinding as sa for other subject: want success, got %v", err)
+	}
+	if got := resp.GetBinding().GetRoles(); len(got) != 1 || got[0] != "globular-controller-sa" {
+		t.Errorf("sa read returned roles %v, want [globular-controller-sa]", got)
+	}
+
+	// Deny preserved: a non-admin, non-sa user reading another subject is denied.
+	_, err = srv.GetRoleBinding(callerCtx("operator@example.com"), &rbacpb.GetRoleBindingRqst{Subject: "globule-ryzen"})
+	if code := status.Code(err); code != codes.PermissionDenied {
+		t.Errorf("non-admin reading other subject: want PermissionDenied, got %v (%v)", code, err)
+	}
+}
