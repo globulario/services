@@ -18,6 +18,7 @@ const (
 	SourceKindClusterDoctorEvidence = "cluster_doctor_evidence"
 	SourceKindInfraProbeTruthPlane  = "infra_probe_truth_plane"
 	SourceKindAIWatcherIncident     = "ai_watcher_incident"
+	SourceKindAIWatcherProbe        = "ai_watcher_probe"
 )
 
 type Bundle struct {
@@ -261,4 +262,107 @@ func FromWatcherIncident(project string, domain api.DomainRef, clusterID string,
 		},
 	}
 	return Bundle{Signal: sig}
+}
+
+// WatcherProbeFinding is the governed structured finding emitted by an ai_watcher
+// runtime vigilance probe (PR-14). It is a DIAGNOSTIC CLAIM about a runtime
+// condition class — distinct from, and derived from, the truth-plane
+// InfraProbeResult it cites. The watcher interprets truth-plane evidence; it
+// never owns truth-plane authority. The shape mirrors the agreed runtime-finding
+// contract (source/component/condition/observed/expected/severity/evidence/...).
+type WatcherProbeFinding struct {
+	Source             string   // always "ai_watcher"
+	ProbeName          string   // e.g. "scylla_group0"
+	Component          string   // e.g. "scylladb"
+	Condition          string   // condition class, e.g. "scylla_group0_quorum_loss"
+	Observed           string   // what the probe saw
+	Expected           string   // what healthy looks like
+	Severity           string   // info|warning|error|critical
+	Evidence           []string // string evidence lines
+	CandidateInvariant string   // proposed AWG invariant id — a CANDIDATE, never auto-promoted
+	RecommendedProbe   string   // follow-up probe/command a human or agent should run
+	EntityRef          string   // node/component this is about
+	ClusterID          string
+	TruthPlaneRef      string // source ref of the truth-plane observation this claim cites
+	ObservedAtUnix     int64
+}
+
+// FromWatcherProbe maps a watcher probe finding into a governed observation
+// bundle. Authority is DIAGNOSTIC_CLAIM (a claim derived from truth-plane
+// evidence, never truth-plane itself), signal kind is AUTOMATED_HEALTH, and the
+// bundle carries only a Signal + Evidence — never a Principle. Promotion is a
+// separate, human-gated step; ingesting a probe finding can never promote.
+func FromWatcherProbe(project string, domain api.DomainRef, f WatcherProbeFinding) Bundle {
+	source := f.Source
+	if source == "" {
+		source = "ai_watcher"
+	}
+	entityRef := f.EntityRef
+	if entityRef == "" {
+		entityRef = f.Component
+	}
+	sourceRef := fmt.Sprintf("%s:%s:%s:%d", f.ProbeName, f.Component, entityRef, f.ObservedAtUnix)
+	signalID := "signal.watcher.probe." + stableID(project, string(domain), f.ClusterID, sourceRef)
+
+	meta := map[string]string{
+		"source":            source,
+		"probe":             f.ProbeName,
+		"component":         f.Component,
+		"observed":          f.Observed,
+		"expected":          f.Expected,
+		"evidence":          strings.Join(f.Evidence, ";"),
+		"recommended_probe": f.RecommendedProbe,
+	}
+	if f.CandidateInvariant != "" {
+		// A CANDIDATE only — recorded for human review, never an active invariant.
+		meta["candidate_invariant"] = f.CandidateInvariant
+	}
+	if f.TruthPlaneRef != "" {
+		meta["truth_plane_ref"] = f.TruthPlaneRef
+	}
+
+	sig := api.Signal{
+		ID:             signalID,
+		Project:        project,
+		Domain:         domain,
+		Kind:           api.SignalAutomatedHealth,
+		SourceKind:     SourceKindAIWatcherProbe,
+		SourceRef:      sourceRef,
+		EntityRef:      entityRef,
+		Scope:          f.ClusterID,
+		ClusterID:      f.ClusterID,
+		ConditionRef:   f.Condition,
+		Severity:       f.Severity,
+		AuthorityLevel: api.ObservationAuthorityDiagnostic,
+		ObservedAt:     f.ObservedAtUnix,
+		Payload:        f.Observed,
+		Status:         api.StatusRawSignal,
+		Metadata:       meta,
+	}
+	return Bundle{
+		Signal: sig,
+		Evidence: []api.Evidence{{
+			ID:             signalID + ".evidence.0",
+			Project:        project,
+			Domain:         domain,
+			TargetKind:     "signal",
+			TargetID:       signalID,
+			Kind:           "probe",
+			Lane:           api.LaneRuntimeRequired,
+			Result:         "observed",
+			ProbeRef:       f.ProbeName,
+			SourceKind:     SourceKindAIWatcherProbe,
+			SourceRef:      sourceRef,
+			EntityRef:      entityRef,
+			ClusterID:      f.ClusterID,
+			ConditionRef:   f.Condition,
+			Severity:       f.Severity,
+			AuthorityLevel: api.ObservationAuthorityDiagnostic,
+			ObservedAt:     f.ObservedAtUnix,
+			Payload:        marshalPayload(f),
+			ObservedFrom:   signalID,
+			// Provenance cites the truth-plane observation this claim is derived from.
+			Provenance: api.Provenance{SourceRef: f.TruthPlaneRef, CreatedAt: f.ObservedAtUnix},
+		}},
+	}
 }

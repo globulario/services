@@ -10901,3 +10901,30 @@ invariants:
   - xds_emits_routes_for_hosted_services
   forbidden_fixes:
   - clients_must_not_permanently_bypass_gateway_for_cohosted_services
+- id: scylladb.group0_voter_quorum_must_hold
+  title: Scylla group0 voter quorum must be observably held before Scylla is runtime-healthy
+  severity: high
+  status: active
+  summary: >
+    Scylla group0 (the cluster-metadata Raft) can lose voter quorum while CQL
+    stays readable: reads/writes to existing keyspaces still succeed, but schema
+    and topology changes are blocked. A Scylla-backed service must therefore not
+    be treated as runtime-healthy on cql_ready alone — group0 voter quorum must
+    be observably held. The authoritative voter count belongs to the infra-probe
+    truth plane (the controller's scylla_group0_view.go already reads
+    system.raft_group0_members for DDL preflight). ai_watcher's scylla_group0
+    probe (PR-14) DIAGNOSES quorum risk as a DIAGNOSTIC_CLAIM finding that cites
+    the truth-plane ref; until the infra probe exposes a first-class group0 voter
+    count, the watcher's membership math is honest proxy evidence only.
+  protects:
+    files:
+    - golang/ai_watcher/ai_watcher_server/probe_scylla_group0.go
+    - golang/cluster_controller/cluster_controller_server/scylla_group0_view.go
+    - golang/node_agent/node_agent_server/infra_truth/scylla_probe.go
+  related_invariants:
+  - scylla.group0_stale_voter_blocks_schema_mutations
+  - meta.authority_must_express_uncertainty
+  required_tests:
+  - TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
+  forbidden_fixes:
+  - watcher_queries_scylla_directly_or_auto_promotes_probe_finding

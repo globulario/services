@@ -3789,3 +3789,20 @@ forbidden_fixes:
     registration metadata (HostedServices) and have xDS emit a route per hosted
     name to the backend cluster, then redeploy both the service and the
     xDS/gateway so the route table regenerates.
+- id: watcher_queries_scylla_directly_or_auto_promotes_probe_finding
+  summary: >
+    Make ai_watcher detect Scylla group0 quorum by querying Scylla directly
+    (gocql / nodetool / system.raft_group0_members), or have a watcher probe
+    finding auto-promote into an AWG invariant or behavioral principle without
+    human review.
+  related_invariants:
+    - scylladb.group0_voter_quorum_must_hold
+    - scylla.group0_stale_voter_blocks_schema_mutations
+    - meta.authority_must_express_uncertainty
+  safe_alternative: >
+    Source group0 truth from the owning authority — the infra-probe truth plane
+    (and, longer term, a first-class group0 voter count exposed there). The
+    watcher interprets that truth as a DIAGNOSTIC_CLAIM finding that cites the
+    truth-plane ref; it never owns truth-plane authority. Probe findings enter
+    behavioral-memory as RAW_SIGNAL + evidence only and are promoted, if ever,
+    through the human-gated promotion path.
