@@ -6,9 +6,9 @@ This is the canonical, human- and AI-readable reference for **using AWG**
 [`stages/awareness-graph-operations.yaml`](./stages/awareness-graph-operations.yaml).
 
 The authoritative, always-current docs live in the **awareness-graph repo**:
-- [`docs/agent-usage.md`](../../../awareness-graph/docs/agent-usage.md) — the workflow
-- [`docs/cli-reference.md`](../../../awareness-graph/docs/cli-reference.md) — every command + flag
-- [`docs/api-reference.md`](../../../awareness-graph/docs/api-reference.md) — gRPC + MCP
+- [`docs/agent-usage.md`](https://github.com/globulario/awareness-graph/blob/master/docs/agent-usage.md) — the workflow
+- [`docs/cli-reference.md`](https://github.com/globulario/awareness-graph/blob/master/docs/cli-reference.md) — every command + flag
+- [`docs/api-reference.md`](https://github.com/globulario/awareness-graph/blob/master/docs/api-reference.md) — gRPC + MCP
 
 > **Read this first.** As of 2026-06-12 AWG was **extracted from Globular** and
 > is now a **standalone sidecar tool** (its own repo, binary, and MCP bridge).
