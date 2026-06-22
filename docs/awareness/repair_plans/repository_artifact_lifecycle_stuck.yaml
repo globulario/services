@@ -50,8 +50,8 @@ rollback_steps:
   - "Quarantine or mark repair-needed through the repository-owned RPC path — never delete the blob directly."
 
 required_tests:
-  - "test:TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected"
-  - "test:TestRepositoryRepairDoesNotRequireInstallableState"
+  - "golang/repository/repository_server/zz_awareness_required_test_aliases_test.go::TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected"
+  - "golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryRepairDoesNotRequireInstallableState"
 produces_outcome_feedback: "record an OutcomeFeedback linking repository_metadata_authority + installable_compound_predicate with the resolved/blocked status"
 
 notes: |

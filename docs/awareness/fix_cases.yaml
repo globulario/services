@@ -61,9 +61,9 @@ fix_cases:
       - golang/node_agent/node_agent_server/installed_services.go
       - golang/node_agent/node_agent_server/grpc_workflow.go
     required_tests:
-      - TestInfraDesiredHashConsistency
-      - TestLookupServiceReleaseBuildIDUsesDesiredHash
-      - TestDriftWorkflowUsesDesiredHash
+      - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go::TestInfraDesiredHashConsistency
+      - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go::TestLookupServiceReleaseBuildIDUsesDesiredHash
+      - golang/workflow/workflow_server/infra_release_handler_test.go::TestDriftWorkflowUsesDesiredHash
     dod: All infrastructure convergence paths use ComputeInfrastructureDesiredHash, not ResolvedArtifactDigest.
     notes: "DONE 2026-05-07. infrastructure_reconciler.go: infraReleaseBuildID/infraHashConverged/mustNotUseResolvedArtifactDigest pure helpers. infra_release_handler.go: infraDesiredHashValid/infraWorkflowInputsValid. installed_services.go: StampInfraConvergenceHash stamps convergence hash after INFRASTRUCTURE install. grpc_workflow.go: calls StampInfraConvergenceHash on INFRASTRUCTURE install success. Breaks the Envoy restart storm loop."
 
@@ -240,7 +240,7 @@ fix_cases:
       - golang/globularcli/resilience_cmds.go
       - golang/config/cluster_dns.go
     required_tests:
-      - TestIngressCLIWorksWithDNSDisabled
+      - golang/config/cluster_dns_fallback_test.go::TestIngressCLIWorksWithDNSDisabled
       - TestControllerToNodeSkipsDNSOnLookupFailure
     dod: DNS outage does not block recovery of ingress/objectstore/schema invariants.
     notes: "DONE 2026-05-07. ClusterDialContext now falls back to /globular/cluster/dns/records (etcd hostname→IP map) when DNS UDP fails. Secondary fallback: Tier-0 host lists (GetMinioHosts/GetScyllaHosts/GetDNSHosts). Proven in Docker simulation: DNS stopped on all 3 nodes, etcd accessible, minio.globular.internal resolvable via records map. Both required tests pass."
@@ -258,7 +258,7 @@ fix_cases:
     remaining_files: []
     required_tests:
       - TestMalformedDisableDoesNotStopRuntime
-      - TestExplicitValidDisableStopsRuntimeAndAuditable
+      - golang/cluster_doctor/cluster_doctor_server/rules/destructive_action_audit_test.go::TestExplicitValidDisableStopsRuntimeAndAuditable
     dod: Destructive transitions are always explicit, validated, and attributable.
     notes: "DONE 2026-05-07. IsExplicitDisable() guards node-agent keepalived action (spec.go). Doctor invariant ingressUnguardedDisableIntent fires CRITICAL from the desired spec itself — proactively, before any node processes it. Complements ingressAmbiguousDisableRejected (node status path). 4 tests pass: TestMalformedDisableDoesNotStopRuntime (4 sub-cases), TestExplicitValidDisableStopsRuntimeAndAuditable, TestActiveSpecProducesNoFinding, TestMissingSpecProducesNoFinding."
 

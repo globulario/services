@@ -32,9 +32,9 @@ related_to:
 - repository.metadata_is_authority
 required_tests:
 - workflow:TestAcquireTopologyLock_AlreadyHeld
-- workflow:TestReleaseTopologyLock_Idempotent
+- golang/workflow/engine/actors_objectstore_test.go::TestReleaseTopologyLock_Idempotent
 - workflow:TestVerifyRuntimeScope_AllMembersActive
-- workflow:TestVerifyRuntimeScope_NonMemberActive
+- golang/workflow/engine/actors_objectstore_test.go::TestVerifyRuntimeScope_NonMemberActive
 - workflow:TestVerifyRuntimeScope_MissingPoolNodeIDs
 - workflow:TestVerifyMinioClusterHealthy_Success
 - workflow:TestVerifyMinioClusterHealthy_ServiceNotActive

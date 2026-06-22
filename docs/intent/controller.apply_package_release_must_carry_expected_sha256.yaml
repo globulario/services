@@ -59,10 +59,10 @@ expressed_by:
   - golang/workflow/definitions/release.apply.controller.yaml
 
 required_tests:
-  - TestDispatch_PopulatesExpectedSha256FromManifest
+  - golang/workflow/engine/actors_expected_sha256_test.go::TestDispatch_PopulatesExpectedSha256FromManifest
   - TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
   - TestDispatch_ControllerDeployPropagatesExpectedSha256
   - TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
   - TestDispatch_WithBlockOverridesInputs
-  - TestDispatch_AuditAllCallSitesSetExpectedSha256
+  - golang/cluster_controller/cluster_controller_server/dispatch_expected_sha256_test.go::TestDispatch_AuditAllCallSitesSetExpectedSha256
   - TestDispatch_ResolverEntrypointChecksumIsBinaryHash

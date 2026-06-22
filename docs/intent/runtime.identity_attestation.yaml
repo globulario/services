@@ -47,6 +47,6 @@ change_risk:
   - release_sensitive
 status: accepted
 required_tests:
-  - attestation:TestRuntimeAttestationBindsPidHashServiceAndBuild
-  - attestation:TestOrphanProcessIsUntrustedWithoutAttestation
-  - attestation:TestVerifierRejectsAttestationOlderThanProcessStart
+  - golang/attestation/attestation_test.go::TestRuntimeAttestationBindsPidHashServiceAndBuild
+  - golang/attestation/attestation_test.go::TestOrphanProcessIsUntrustedWithoutAttestation
+  - golang/attestation/attestation_test.go::TestVerifierRejectsAttestationOlderThanProcessStart

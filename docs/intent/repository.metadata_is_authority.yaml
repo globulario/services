@@ -34,6 +34,6 @@ related_to:
 - objectstore.topology_requires_contract
 required_tests:
 - repository:TestVA3_NonPublishedArtifact_NotInstallable
-- repository:TestQuarantinedArtifactNotInstallable
+- golang/repository/repository_server/artifact_admin_test.go::TestQuarantinedArtifactNotInstallable
 - repository:TestGetArtifactVersionsUsesPublishStateColumn
 status: extracted_candidate

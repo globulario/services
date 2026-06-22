@@ -52,7 +52,7 @@ zooms_in_to:
   - workflow.cluster_invariants_gate_mutations
 
 required_tests:
-- workflow_engine:TestDoctorFindingWorkflow_HappyPath
+- golang/workflow/engine/doctor_remediation_test.go::TestDoctorFindingWorkflow_HappyPath
 - cluster_controller:TestMinioTopologyDriftDispatchesWorkflow
 - cluster_doctor:TestRemediationWorkflowNameMatchesCanonical
 change_risk:

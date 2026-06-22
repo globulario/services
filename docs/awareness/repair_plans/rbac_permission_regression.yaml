@@ -47,8 +47,8 @@ rollback_steps:
   - "Revert the permission change through the RBAC typed RPC; an explicit deny added during repair stays until removed via RPC."
 
 required_tests:
-  - "test:TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap"
-  - "test:TestNodeExecutorCannotPerformRBACAdmin"
+  - "golang/interceptors/role_binding_failsafe_test.go::TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap"
+  - "golang/security/node_identity_test.go::TestNodeExecutorCannotPerformRBACAdmin"
 produces_outcome_feedback: "record an OutcomeFeedback noting whether deny precedence held after the change"
 
 notes: |

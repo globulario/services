@@ -33,5 +33,5 @@ related_to:
   - rbac.subject_id_normalization_prevents_bypass
 required_tests:
   - authentication:TestSubjectDomainStripped
-  - rbac:TestSALegacyDomainFormat
+  - golang/rbac/rbac_server/rbac_deny_override_test.go::TestSALegacyDomainFormat
 status: extracted_candidate

@@ -26,4 +26,4 @@ related_to:
 status: extracted_candidate
 
 required_tests:
-  - cluster_controller/cluster_controller_server:TestUIUsesBackendAuthorityPaths
+  - golang/cluster_controller/cluster_controller_server/zz_intent_required_test_aliases_test.go::TestUIUsesBackendAuthorityPaths

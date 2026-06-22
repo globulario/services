@@ -45,6 +45,6 @@ change_risk:
   - control_plane_sensitive
 status: accepted
 required_tests:
-  - remediation:TestFailureRatePolicyBlocksAfterThresholdByActionClass
-  - remediation:TestFailureRatePolicyPersistsAcrossRestart
-  - remediation:TestRemediationCircuitBreakerUsesSharedPolicy
+  - golang/remediation/policy_test.go::TestFailureRatePolicyBlocksAfterThresholdByActionClass
+  - golang/remediation/policy_test.go::TestFailureRatePolicyPersistsAcrossRestart
+  - golang/remediation/policy_test.go::TestRemediationCircuitBreakerUsesSharedPolicy

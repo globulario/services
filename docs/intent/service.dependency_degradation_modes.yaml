@@ -48,7 +48,7 @@ change_risk:
   - data_safety_sensitive
 status: accepted
 required_tests:
-  - dependency:TestCriticalDependencyDeclaresDegradationMode
-  - dependency:TestRepositoryMinioIsDegradedNotReadOnly
-  - dependency:TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
-  - repository:TestDependencyDeclarationMatchesLiveEnforcement
+  - golang/dependency/modes_test.go::TestCriticalDependencyDeclaresDegradationMode
+  - golang/dependency/modes_test.go::TestRepositoryMinioIsDegradedNotReadOnly
+  - golang/dependency/modes_test.go::TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
+  - golang/repository/repository_server/dependency_contract_test.go::TestDependencyDeclarationMatchesLiveEnforcement

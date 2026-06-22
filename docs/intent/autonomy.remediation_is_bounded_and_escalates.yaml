@@ -26,7 +26,7 @@ zooms_in_to:
 related_to:
 - workflow.terminal_runs_must_be_bounded
 required_tests:
-- cluster_doctor/cluster_doctor_server:TestAutoRemediationCooldown_AllowsFirstBlocksSecond
-- cluster_doctor/cluster_doctor_server:TestAutoRemediationCooldown_Expires
+- golang/cluster_doctor/cluster_doctor_server/handler_remediation_cooldown_test.go::TestAutoRemediationCooldown_AllowsFirstBlocksSecond
+- golang/cluster_doctor/cluster_doctor_server/handler_remediation_cooldown_test.go::TestAutoRemediationCooldown_Expires
 - workflow/engine:TestDoctorFindingWorkflow_MissingApproval
 status: seed

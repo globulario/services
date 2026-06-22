@@ -55,11 +55,11 @@ related_to:
   - security.deny_overrides_allow
 
 required_tests:
-  - globular_client:TestMeshConnectionDoesNotSkipTLSVerification
+  - golang/globular_client/clients_tls_test.go::TestMeshConnectionDoesNotSkipTLSVerification
   - interceptors:TestIntegration_BootstrapExpires
   - interceptors:TestIntegration_RemoteBootstrapDenied
-  - interceptors:TestDenyOverridesSAAllow
-  - interceptors:TestClusterIDEnforcementInitializedCluster
+  - golang/rbac/rbac_server/rbac_deny_override_test.go::TestDenyOverridesSAAllow
+  - golang/cluster_doctor/cluster_doctor_server/rules/zz_intent_required_test_aliases_test.go::TestClusterIDEnforcementInitializedCluster
 
 change_risk:
   - security_boundary_sensitive

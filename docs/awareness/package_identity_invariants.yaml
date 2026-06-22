@@ -23,9 +23,9 @@ invariants:
       - overwrite_existing_build_id
       - archive_desired_pinned_artifact_without_safety_check
     required_tests:
-      - TestRepositoryDoctorReportsDuplicateBuildNumberCollision
-      - TestPublishRejectsSameBuildNumberDifferentBuildID
-      - TestRepairDoesNotUseBuildNumberAsIdentity
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryDoctorReportsDuplicateBuildNumberCollision
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestPublishRejectsSameBuildNumberDifferentBuildID
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestRepairDoesNotUseBuildNumberAsIdentity
 
     related_invariants:
       - meta.identity_computation_must_be_invariant
@@ -51,8 +51,8 @@ invariants:
       - rewrite_manifest_to_match_desired
       - silently_pick_first_build_id_match
     required_tests:
-      - TestBuildIDMapsToSingleArtifactIdentity
-      - TestRepositoryDoctorReportsBuildIDReuse
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestBuildIDMapsToSingleArtifactIdentity
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryDoctorReportsBuildIDReuse
 
     related_invariants:
       - meta.identity_computation_must_be_invariant
@@ -78,8 +78,8 @@ invariants:
       - accept_different_digest_same_published_version
       - bypass_version_immutability_on_retry
     required_tests:
-      - TestUploadIdempotentSameDigestReturnsExistingBuildID
-      - TestUploadDifferentDigestSamePublishedVersionRejected
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadIdempotentSameDigestReturnsExistingBuildID
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadDifferentDigestSamePublishedVersionRejected
 
     related_invariants:
       - meta.identity_computation_must_be_invariant
@@ -105,8 +105,8 @@ invariants:
       - say_no_builds_when_broken_rows_exist
       - mutate_desired_to_avoid_repair
     required_tests:
-      - TestRepairArtifactUsesLatestExistingBuildWhenBroken
-      - TestRepositoryRepairDoesNotRequireInstallableState
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestRepairArtifactUsesLatestExistingBuildWhenBroken
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryRepairDoesNotRequireInstallableState
 
     related_invariants:
       - meta.absence_scope_must_be_explicit

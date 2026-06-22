@@ -81,6 +81,6 @@ change_risk:
 status: accepted
 
 required_tests:
-  - repository:TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
-  - repository:TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
-  - repository:TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
+  - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
+  - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
+  - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly

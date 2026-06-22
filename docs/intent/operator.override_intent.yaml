@@ -43,6 +43,6 @@ change_risk:
   - safety_sensitive
 status: accepted
 required_tests:
-  - remediation:TestOverrideRequiresReasonScopeAndExpiry
-  - remediation:TestOverrideStillRequiresVerification
-  - remediation:TestOverrideAuditNamesBypassedPolicy
+  - golang/remediation/override_test.go::TestOverrideRequiresReasonScopeAndExpiry
+  - golang/remediation/override_test.go::TestOverrideStillRequiresVerification
+  - golang/remediation/override_test.go::TestOverrideAuditNamesBypassedPolicy

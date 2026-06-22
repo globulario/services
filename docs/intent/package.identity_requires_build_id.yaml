@@ -33,9 +33,9 @@ related_to:
 required_tests:
 - repository/repository_server:TestVA4_BuildIDIsInstallIdentity_TwoVersionsTwoBuilds
 - repository/repository_server:TestINV3_BuildIdServerGenerated
-- repository/repository_server:TestINV1_ReleasedArtifactImmutable_DifferentDigest
+- golang/repository/repository_server/invariant_test.go::TestINV1_ReleasedArtifactImmutable_DifferentDigest
 - repository/repository_server:TestFindExistingArtifactByDigestIgnoresBuildNumber
-- repository/repository_server:TestMigrateBuildIDs_Idempotent
+- golang/repository/repository_server/invariant_test.go::TestMigrateBuildIDs_Idempotent
 change_risk:
 - state_model_sensitive
 - supply_chain_sensitive

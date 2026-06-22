@@ -137,7 +137,7 @@ invariants:
   related_invariants:
   - meta.diagnostic_output_must_be_bounded
   required_tests:
-  - TestAuditRedactsApprovalTokenMaterial
+  - golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestAuditRedactsApprovalTokenMaterial
   severity: critical
   status: active
   summary: 'RemediationAudit.Redacted() must strip any Params entry whose key indicates a
@@ -178,8 +178,8 @@ invariants:
   related_invariants:
   - meta.binding_outlives_evidence_until_invalidated
   required_tests:
-  - TestRemediationAuditCarriesCorrelationFields
-  - TestAuditRetentionPolicyIsExplicit
+  - golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestRemediationAuditCarriesCorrelationFields
+  - golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestAuditRetentionPolicyIsExplicit
   severity: high
   status: active
   summary: 'Every audit record emitted from the remediation path must include AuditID,
@@ -1480,12 +1480,12 @@ invariants:
   related_invariants:
   - meta.state_mutations_must_be_durably_committed_before_side_effects
   required_tests:
-  - TestDispatch_PopulatesExpectedSha256FromManifest
+  - golang/workflow/engine/actors_expected_sha256_test.go::TestDispatch_PopulatesExpectedSha256FromManifest
   - TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
   - TestDispatch_ControllerDeployPropagatesExpectedSha256
   - TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
   - TestDispatch_WithBlockOverridesInputs
-  - TestDispatch_AuditAllCallSitesSetExpectedSha256
+  - golang/cluster_controller/cluster_controller_server/dispatch_expected_sha256_test.go::TestDispatch_AuditAllCallSitesSetExpectedSha256
   - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
   severity: critical
   status: active
@@ -2217,7 +2217,7 @@ invariants:
   related_invariants:
   - meta.fallback_must_degrade_semantics
   required_tests:
-  - TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
+  - golang/dependency/modes_test.go::TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
   severity: critical
   status: active
   summary: 'When a dependency that holds authority (etcd for config truth, MinIO for object
@@ -2456,7 +2456,7 @@ invariants:
   - meta.state_mutations_must_be_durably_committed_before_side_effects
   required_tests:
   - TestMalformedDisableDoesNotStopRuntime
-  - TestExplicitValidDisableStopsRuntimeAndAuditable
+  - golang/cluster_doctor/cluster_doctor_server/rules/destructive_action_audit_test.go::TestExplicitValidDisableStopsRuntimeAndAuditable
   severity: critical
   status: active
   summary: 'Service stop/delete/destructive-reconfigure actions require explicit validated intent including explicit_disabled=true,
@@ -2561,8 +2561,8 @@ invariants:
   related_invariants:
   - meta.assertions_must_carry_their_scope
   required_tests:
-  - TestComputeDesiredState_PlannedNotInstalled_NoRecord
-  - TestComputeDesiredState_InstalledNotHealthy_NoRecord
+  - golang/cluster_controller/cluster_controller_server/dns_gating_test.go::TestComputeDesiredState_PlannedNotInstalled_NoRecord
+  - golang/cluster_controller/cluster_controller_server/dns_gating_test.go::TestComputeDesiredState_InstalledNotHealthy_NoRecord
   - TestComputeDesiredState_HealthyNode_PublishesRecord
   - TestComputeDesiredState_DrainingNode_WithdrawsRecords
   - TestNodeInfo_ServiceReady_NilMaps_FallsThrough
@@ -3028,7 +3028,7 @@ invariants:
   - meta.absence_scope_must_be_explicit
   - meta.authority_must_express_uncertainty
   required_tests:
-  - TestNoRuleEmitsConfidentFailureOnErroredSnapshot
+  - golang/cluster_doctor/cluster_doctor_server/rules/registry_source_error_enforcement_test.go::TestNoRuleEmitsConfidentFailureOnErroredSnapshot
   - TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable
   - TestClusterScopedRulesRefuseOnSourceError
   ruleguard_rules_file: cmd/principle-check/rules/doctor_rule_must_consume_snap_errors.go
@@ -3434,8 +3434,8 @@ invariants:
   required_tests:
   - TestClassify_AuthoritativeWhenFresh
   - TestClassify_UntrustedWhenProvenanceIncomplete
-  - TestFindingIncludesEvidenceTrustLevel
-  - TestPreflightReportsWeakEvidenceAsUncertain
+  - golang/cluster_doctor/cluster_doctor_server/evidence_provenance_test.go::TestFindingIncludesEvidenceTrustLevel
+  - golang/evidence/trust_test.go::TestPreflightReportsWeakEvidenceAsUncertain
   severity: high
   status: active
   summary: 'Every observation that flows into operator or agent decisions must record where it
@@ -3560,7 +3560,7 @@ invariants:
   related_invariants:
   - meta.fallback_must_degrade_semantics
   required_tests:
-  - TestFileService_FallbackToLocalEmitsFinding
+  - golang/file/file_client/zz_awareness_required_test_aliases_test.go::TestFileService_FallbackToLocalEmitsFinding
   - TestRepository_FallbackToLocalEmitsFinding
   scan_pattern: \bfallback\.Enter\s*\(
   scan_pattern_description: 'Callsites of golang/fallback/fallback.go Enter(). Each match
@@ -3820,7 +3820,7 @@ invariants:
   - meta.binding_outlives_evidence_until_invalidated
   - meta.silence_is_not_valid_for_unexpected
   required_tests:
-  - TestOverrideAuditNamesBypassedPolicy
+  - golang/remediation/override_test.go::TestOverrideAuditNamesBypassedPolicy
   severity: critical
   status: active
   summary: 'Every OverrideAuditEntry must carry BypassedPolicy (the policy id that was
@@ -4734,8 +4734,8 @@ invariants:
   related_invariants:
   - meta.identity_computation_must_be_invariant
   required_tests:
-  - TestInfraDesiredHashConsistency
-  - TestLookupServiceReleaseBuildIDUsesDesiredHash
+  - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go::TestInfraDesiredHashConsistency
+  - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go::TestLookupServiceReleaseBuildIDUsesDesiredHash
   severity: critical
   status: active
   summary: 'ComputeInfrastructureDesiredHash must use identical inputs on the producer side (controller) and the consumer
@@ -4745,8 +4745,8 @@ invariants:
     '
   title: Infrastructure desired_hash must be computed consistently
   verified_by:
-  - TestInfraDesiredHashConsistency
-  - TestLookupServiceReleaseBuildIDUsesDesiredHash
+  - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go::TestInfraDesiredHashConsistency
+  - golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go::TestLookupServiceReleaseBuildIDUsesDesiredHash
   violated_by:
   - convergence.hash_mismatch_loop
 - authority:
@@ -5638,7 +5638,7 @@ invariants:
   related_invariants:
   - meta.half_done_must_not_look_done
   required_tests:
-  - TestMigrateBuildIDs_Idempotent
+  - golang/repository/repository_server/invariant_test.go::TestMigrateBuildIDs_Idempotent
   - TestMigrateLegacyStatePath_Idempotent
   - TestMigrateLegacyStatePath_NodeAgent_Idempotent
   severity: high
@@ -5783,7 +5783,7 @@ invariants:
   - TestNodeExecutorCannotAccessOtherNodesPlans
   - TestNodeExecutorCannotMutateDesiredState
   - TestNodeExecutorCannotPublish
-  - TestNodeExecutorCannotPerformRBACAdmin
+  - golang/security/node_identity_test.go::TestNodeExecutorCannotPerformRBACAdmin
   severity: critical
   status: active
   summary: 'A node-scoped principal (node agent service account) may only report or
@@ -5874,7 +5874,7 @@ invariants:
   related_invariants:
   - meta.half_done_must_not_look_done
   required_tests:
-  - TestReleaseTopologyLock_Idempotent
+  - golang/workflow/engine/actors_objectstore_test.go::TestReleaseTopologyLock_Idempotent
   severity: high
   status: active
   title: MinIO topology lock release must succeed even if lock does not exist
@@ -6122,7 +6122,7 @@ invariants:
   related_invariants:
   - meta.storage_is_not_semantic_authority
   required_tests:
-  - TestVerifyRuntimeScope_NonMemberActive
+  - golang/workflow/engine/actors_objectstore_test.go::TestVerifyRuntimeScope_NonMemberActive
   severity: critical
   status: active
   title: MinIO active on nodes outside the desired pool must block topology operations
@@ -6195,8 +6195,8 @@ invariants:
   related_invariants:
   - meta.binding_outlives_evidence_until_invalidated
   required_tests:
-  - TestOverrideRequiresReasonScopeAndExpiry
-  - TestOverrideStillRequiresVerification
+  - golang/remediation/override_test.go::TestOverrideRequiresReasonScopeAndExpiry
+  - golang/remediation/override_test.go::TestOverrideStillRequiresVerification
   severity: critical
   status: active
   summary: 'An operator-issued override that bypasses a policy gate must be a structured
@@ -6357,8 +6357,8 @@ invariants:
   related_invariants:
   - meta.identity_computation_must_be_invariant
   required_tests:
-  - TestLocalPublish2_LocalVersionSuffixPassesIdentityRules
-  - TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
+  - golang/repository/repository_server/local_publish_test.go::TestLocalPublish2_LocalVersionSuffixPassesIdentityRules
+  - golang/repository/repository_server/local_publish_test.go::TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
   - TestLocalPublish2_OfficialPublisherCannotUseLocalVersionSuffix
   - TestLocalPublish2_FormatLocalVersion
   severity: high
@@ -6833,7 +6833,7 @@ invariants:
   related_invariants:
   - meta.critical_path_no_non_critical_dependency
   required_tests:
-  - TestIngressCLIWorksWithDNSDisabled
+  - golang/config/cluster_dns_fallback_test.go::TestIngressCLIWorksWithDNSDisabled
   - TestControllerToNodeSkipsDNSOnLookupFailure
   severity: high
   status: active
@@ -7058,7 +7058,7 @@ invariants:
   related_invariants:
   - meta.binding_outlives_evidence_until_invalidated
   required_tests:
-  - TestApprovalTokenBindsActionTargetAndGeneration
+  - golang/security/approval_token_test.go::TestApprovalTokenBindsActionTargetAndGeneration
   severity: critical
   status: active
   summary: 'A signed approval token is not a blanket bypass. It must bind to the exact action
@@ -7095,8 +7095,8 @@ invariants:
   related_invariants:
   - meta.failure_response_must_contract_not_amplify
   required_tests:
-  - TestAutoRemediationCooldown_AllowsFirstBlocksSecond
-  - TestAutoRemediationCooldown_Expires
+  - golang/cluster_doctor/cluster_doctor_server/handler_remediation_cooldown_test.go::TestAutoRemediationCooldown_AllowsFirstBlocksSecond
+  - golang/cluster_doctor/cluster_doctor_server/handler_remediation_cooldown_test.go::TestAutoRemediationCooldown_Expires
   severity: high
   status: active
   summary: 'Low-risk auto-remediations may execute without manual approval, but they must be
@@ -7125,7 +7125,7 @@ invariants:
   related_invariants:
   - meta.state_mutations_must_be_durably_committed_before_side_effects
   required_tests:
-  - TestFindingRemainsActiveUntilVerifiedResolution
+  - golang/remediation/outcome_test.go::TestFindingRemainsActiveUntilVerifiedResolution
   severity: high
   status: active
   summary: 'ActiveFindings.Record only clears a finding from the active set when the
@@ -7164,8 +7164,8 @@ invariants:
   related_invariants:
   - meta.assertions_must_carry_their_scope
   required_tests:
-  - TestFailureRatePolicyBlocksAfterThresholdByActionClass
-  - TestRemediationCircuitBreakerUsesSharedPolicy
+  - golang/remediation/policy_test.go::TestFailureRatePolicyBlocksAfterThresholdByActionClass
+  - golang/remediation/policy_test.go::TestRemediationCircuitBreakerUsesSharedPolicy
   severity: high
   status: active
   summary: 'Failure-rate throttling must come from a single shared policy (golang/remediation/
@@ -7205,7 +7205,7 @@ invariants:
   related_invariants:
   - meta.failure_response_must_contract_not_amplify
   required_tests:
-  - TestFailureRatePolicyPersistsAcrossRestart
+  - golang/remediation/policy_test.go::TestFailureRatePolicyPersistsAcrossRestart
   severity: high
   status: active
   summary: 'A remediation attempt for the same (invariant, evidence_digest, action_class)
@@ -7281,10 +7281,10 @@ invariants:
   related_invariants:
   - meta.binding_outlives_evidence_until_invalidated
   required_tests:
-  - TestApprovalTokenRejectsEmptyOrUnsignedToken
-  - TestApprovalTokenRejectsWrongAudience
-  - TestApprovalTokenRejectsExpiredToken
-  - TestApprovalTokenRejectsReplay
+  - golang/security/approval_token_test.go::TestApprovalTokenRejectsEmptyOrUnsignedToken
+  - golang/security/approval_token_test.go::TestApprovalTokenRejectsWrongAudience
+  - golang/security/approval_token_test.go::TestApprovalTokenRejectsExpiredToken
+  - golang/security/approval_token_test.go::TestApprovalTokenRejectsReplay
   severity: critical
   status: active
   summary: 'Every approval token presented to a remediation surface must be a signed JWT
@@ -7315,7 +7315,7 @@ invariants:
   related_invariants:
   - meta.identity_computation_must_be_invariant
   required_tests:
-  - TestINV1_ReleasedArtifactImmutable_DifferentDigest
+  - golang/repository/repository_server/invariant_test.go::TestINV1_ReleasedArtifactImmutable_DifferentDigest
   - TestINV1_ReleasedArtifactImmutable_SameDigest
   severity: critical
   status: active
@@ -7411,7 +7411,7 @@ invariants:
   required_tests:
   - TestPromoteToPublished_SetsArtifactStatePublished
   - TestPromoteToPublished_ReturnsErrorWhenArtifactStateTransitionFails
-  - TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
+  - golang/repository/repository_server/zz_awareness_required_test_aliases_test.go::TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
   - TestOrphanCheck_DoesNotDisagreeWithDiscovery
   severity: critical
   status: active
@@ -7445,8 +7445,8 @@ invariants:
   related_invariants:
   - meta.half_done_must_not_look_done
   required_tests:
-  - TestTransitionArtifactState_RejectsIllegalTransition
-  - TestTransitionArtifactState_IdempotentSelfTransition
+  - golang/repository/repository_server/artifact_state_test.go::TestTransitionArtifactState_RejectsIllegalTransition
+  - golang/repository/repository_server/artifact_state_test.go::TestTransitionArtifactState_IdempotentSelfTransition
   severity: critical
   status: active
   summary: 'The artifact lifecycle state machine (PENDING → BLOB_VERIFIED →
@@ -7534,8 +7534,8 @@ invariants:
   related_invariants:
   - meta.identity_computation_must_be_invariant
   required_tests:
-  - TestPublishRejectsSameBuildNumberDifferentBuildID
-  - TestUploadIdempotentSameDigestReturnsExistingBuildID
+  - golang/repository/repository_server/package_identity_required_tests_test.go::TestPublishRejectsSameBuildNumberDifferentBuildID
+  - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadIdempotentSameDigestReturnsExistingBuildID
   severity: critical
   status: active
   title: build_id is allocated server-side and must never be supplied by the client
@@ -7818,7 +7818,7 @@ invariants:
   related_invariants:
   - meta.identity_computation_must_be_invariant
   required_tests:
-  - TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
+  - golang/repository/repository_server/local_publish_test.go::TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
   - TestLocalPublish2_OfficialPublisherCannotUseLocalVersionSuffix
   severity: critical
   status: active
@@ -8072,9 +8072,9 @@ invariants:
   - meta.silence_is_not_valid_for_unexpected
   required_tests:
   - TestPlatformMatchesTarget
-  - TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
-  - TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
-  - TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
+  - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
+  - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
+  - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
   severity: critical
   status: active
   summary: 'The repository''s sync_from_upstream code walks the BOM and applies a
@@ -8359,7 +8359,7 @@ invariants:
   related_invariants:
   - meta.identity_computation_must_be_invariant
   required_tests:
-  - TestRuntimeAttestationBindsPidHashServiceAndBuild
+  - golang/attestation/attestation_test.go::TestRuntimeAttestationBindsPidHashServiceAndBuild
   severity: critical
   status: active
   summary: 'A running process is not trustworthy by name or port alone. The attestation must
@@ -8809,10 +8809,10 @@ invariants:
   related_invariants:
   - meta.fallback_must_degrade_semantics
   required_tests:
-  - TestCriticalDependencyDeclaresDegradationMode
-  - TestRepositoryMinioIsDegradedNotReadOnly
+  - golang/dependency/modes_test.go::TestCriticalDependencyDeclaresDegradationMode
+  - golang/dependency/modes_test.go::TestRepositoryMinioIsDegradedNotReadOnly
   - TestUnknownModeIsRejected
-  - TestDependencyDeclarationMatchesLiveEnforcement
+  - golang/repository/repository_server/dependency_contract_test.go::TestDependencyDeclarationMatchesLiveEnforcement
   severity: high
   status: active
   summary: 'Each critical service registers a ServiceContract listing every required
@@ -9215,7 +9215,7 @@ invariants:
   related_invariants:
   - meta.binding_outlives_evidence_until_invalidated
   required_tests:
-  - TestRemediationBlocksOnStaleEvidence
+  - golang/cluster_doctor/cluster_doctor_server/evidence_provenance_test.go::TestRemediationBlocksOnStaleEvidence
   - TestWorst_ReturnsLowest
   severity: critical
   status: active
@@ -9247,8 +9247,8 @@ invariants:
   related_invariants:
   - meta.binding_outlives_evidence_until_invalidated
   required_tests:
-  - TestOrphanProcessIsUntrustedWithoutAttestation
-  - TestVerifierRejectsAttestationOlderThanProcessStart
+  - golang/attestation/attestation_test.go::TestOrphanProcessIsUntrustedWithoutAttestation
+  - golang/attestation/attestation_test.go::TestVerifierRejectsAttestationOlderThanProcessStart
   severity: critical
   status: active
   summary: 'Two cases must always reject:
@@ -9549,8 +9549,8 @@ invariants:
   related_invariants:
   - meta.state_mutations_must_be_durably_committed_before_side_effects
   required_tests:
-  - TestDispatch_PopulatesExpectedSha256FromManifest
-  - TestDispatch_AuditAllCallSitesSetExpectedSha256
+  - golang/workflow/engine/actors_expected_sha256_test.go::TestDispatch_PopulatesExpectedSha256FromManifest
+  - golang/cluster_controller/cluster_controller_server/dispatch_expected_sha256_test.go::TestDispatch_AuditAllCallSitesSetExpectedSha256
   severity: critical
   status: active
   summary: 'Active workflow definitions used by the controller (loaded from
@@ -10027,11 +10027,11 @@ invariants:
   - workflow.dispatch_is_not_completion
   - workflow.success_requires_backend_confirmation
   required_tests:
-  - TestClassifyStepFailureForReceipt_NativeDependencyMissing
-  - TestClassifyStepFailureForReceipt_TransientTimeout
-  - TestBuildStepReceiptPayload_BlockedFields
+  - golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestClassifyStepFailureForReceipt_NativeDependencyMissing
+  - golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestClassifyStepFailureForReceipt_TransientTimeout
+  - golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestBuildStepReceiptPayload_BlockedFields
   - TestReceiptClassificationMonotonic_SucceededNeverReclassified
-  - TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
+  - golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
   severity: high
   status: active
   summary: "receipt_failure_classifier.go decides whether a step receipt\nmeans RETRY_LATER (transient), BLOCKED (deterministic\
@@ -10067,8 +10067,8 @@ invariants:
   related_invariants:
   - meta.state_mutations_must_be_durably_committed_before_side_effects
   required_tests:
-  - TestRemediationWorkflowSuccessRequiresFindingResolved
-  - TestDispatchSuccessWithoutVerificationIsPending
+  - golang/remediation/outcome_test.go::TestRemediationWorkflowSuccessRequiresFindingResolved
+  - golang/remediation/outcome_test.go::TestDispatchSuccessWithoutVerificationIsPending
   severity: critical
   status: active
   summary: 'A remediation workflow may report SUCCEEDED to operators only when (a) the

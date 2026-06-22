@@ -686,7 +686,7 @@ failure_modes:
       related_services:
         - cluster-controller
       required_tests:
-        - TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
+        - golang/cluster_controller/cluster_controller_server/clock_skew_lastseen_test.go::TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
       root_cause: |
         ReportNodeStatus stored node.LastSeen = the node's self-reported ReportedAt
         timestamp (falling back to the controller clock only when the node omitted
@@ -848,12 +848,12 @@ failure_modes:
         - runtime.success_requires_expected_binary_checksum
         - desired_installed_runtime_identity_must_match
       required_tests:
-        - TestDispatch_PopulatesExpectedSha256FromManifest
+        - golang/workflow/engine/actors_expected_sha256_test.go::TestDispatch_PopulatesExpectedSha256FromManifest
         - TestDispatch_EmptyManifestChecksumPropagatesAsEmpty
         - TestDispatch_ControllerDeployPropagatesExpectedSha256
         - TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
         - TestDispatch_WithBlockOverridesInputs
-        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+        - golang/cluster_controller/cluster_controller_server/dispatch_expected_sha256_test.go::TestDispatch_AuditAllCallSitesSetExpectedSha256
         - TestDispatch_ResolverEntrypointChecksumIsBinaryHash
       resolution: |
         v1.2.119: every controller ApplyPackageRelease dispatch resolves
@@ -1291,7 +1291,7 @@ failure_modes:
         - cluster-controller
       required_tests:
         - TestMalformedDisableDoesNotStopRuntime
-        - TestExplicitValidDisableStopsRuntimeAndAuditable
+        - golang/cluster_doctor/cluster_doctor_server/rules/destructive_action_audit_test.go::TestExplicitValidDisableStopsRuntimeAndAuditable
       root_cause: |
         Destructive action guard not called on all code paths. Ambiguous disable (missing reason/generation/checksum) accepted as valid stop intent.
       severity: critical
@@ -1357,8 +1357,8 @@ failure_modes:
         - gateway
         - cluster-doctor
       required_tests:
-        - TestComputeDesiredState_PlannedNotInstalled_NoRecord
-        - TestComputeDesiredState_InstalledNotHealthy_NoRecord
+        - golang/cluster_controller/cluster_controller_server/dns_gating_test.go::TestComputeDesiredState_PlannedNotInstalled_NoRecord
+        - golang/cluster_controller/cluster_controller_server/dns_gating_test.go::TestComputeDesiredState_InstalledNotHealthy_NoRecord
         - TestComputeDesiredState_HealthyNode_PublishesRecord
         - TestComputeDesiredState_DrainingNode_WithdrawsRecords
         - TestComputeDesiredState_WildcardExcludesUnhealthy
@@ -1592,8 +1592,8 @@ failure_modes:
         - meta.absence_scope_must_be_explicit
         - envoy.lds_progress_required_for_http_mesh_readiness
       required_tests:
-        - TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
-        - TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
+        - golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
+        - golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
         - TestEnvoyLDSWedge_ColdInit_NoFinding
         - TestDedupCooldown_EnvoyStormScenario_OneDispatchPerWindow
         - TestDedupCooldown_RapidRedispatchSuppressed
@@ -1954,7 +1954,7 @@ failure_modes:
         - TestWriteQuorumLost_DataIncomplete_NoCritical
         - TestFingerprintDivergence_DataIncomplete_SuppressesMissing
         - TestObjectstoreQuorum_AbsentNodeIsUnknownNotDown
-        - TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
+        - golang/cluster_doctor/cluster_doctor_server/rules/node_ip_matching_test.go::TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
         - TestNodeIDByPoolIP_EmptyAdvertiseIpDoesNotPoison
       root_cause: |
         The snapshot collector could not reach one or more nodes — either a transient RPC error,
@@ -2109,7 +2109,7 @@ failure_modes:
         - TestScyllaHosts_ExcludeVIP
         - TestNodeAgentFallback_NeverReturnsVIP
         - TestControllerLeaderMatch_VIPAware
-        - TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
+        - golang/cluster_doctor/cluster_doctor_server/rules/node_ip_matching_test.go::TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
         - TestNodeIDByPoolIP_EmptyAdvertiseIpDoesNotPoison
       root_cause: |
         PrimaryIP() returns the keepalived floating VIP when a node holds it (because the VIP is
@@ -2711,7 +2711,7 @@ failure_modes:
         - interceptors
         - rbac
       required_tests:
-        - TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
+        - golang/interceptors/role_binding_failsafe_test.go::TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
       root_cause: |
         When the RBAC service is unreachable, checkRoleBinding fell back to
         checkLocalRoles, which returns ALLOW if ANY locally-loaded cluster role
@@ -3847,7 +3847,7 @@ failure_modes:
         - dns
         - cluster-controller
       required_tests:
-        - TestIngressCLIWorksWithDNSDisabled
+        - golang/config/cluster_dns_fallback_test.go::TestIngressCLIWorksWithDNSDisabled
       root_cause: |
         CLI and controller used hostname resolution for all cluster operations. Direct IP fallback not implemented. DNS outage is self-referential.
       severity: high
@@ -3950,7 +3950,7 @@ failure_modes:
         - cluster-controller
         - workflow-service
       required_tests:
-        - TestServiceReleaseRecoveryAfterWorkflowCommitFailure
+        - golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go::TestServiceReleaseRecoveryAfterWorkflowCommitFailure
         - TestWaveBlockedSucceededSelfHeals
       root_cause: |
         After a workflow wave completes successfully (packages installed on all nodes), the
@@ -4309,9 +4309,9 @@ failure_modes:
         - repository.imported_package_must_be_local_install_resolvable
       required_tests:
         - TestPlatformMatchesTarget
-        - TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
-        - TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
-        - TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
+        - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
+        - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
+        - golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
       resolution: |
         v1.2.118 sync_from_upstream.go: replace strict equality with platformMatchesTarget helper.
 
@@ -4870,7 +4870,7 @@ failure_modes:
         - health.must_not_use_inventory_as_runtime_truth
       required_tests:
         - TestVerifyTarget_RuntimeVersionDiffers_VersionMismatch
-        - TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
+        - golang/cluster_controller/cluster_controller_server/handlers_health_version_test.go::TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
       root_cause: |
         Runtime version reporting (each service exposing its version via a
         /version endpoint or a gRPC reflection method) is the strongest
@@ -5368,8 +5368,8 @@ failure_modes:
         - TestPublishGatewayUsesStableIP
         - TestNodeIDByPoolIP_MatchesByAnyIP
         - TestNodeIDByPoolIP_EmptyAdvertiseIpDoesNotPoison
-        - TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
-        - TestWriteQuorumLost_VIPHolder_RealDowntimeStillFires
+        - golang/cluster_doctor/cluster_doctor_server/rules/node_ip_matching_test.go::TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
+        - golang/cluster_doctor/cluster_doctor_server/rules/node_ip_matching_test.go::TestWriteQuorumLost_VIPHolder_RealDowntimeStillFires
       root_cause: |
         Two distinct failure mechanisms in the same class — both stem from reducing a multi-IP
         node identity to a single IP for comparison against a curated stable IP list.
@@ -5546,7 +5546,7 @@ failure_modes:
       related_services:
         - workflow
       required_tests:
-        - TestEngine_PanickingStepReachesTerminalState
+        - golang/workflow/engine/engine_state_mutation_ratchet_test.go::TestEngine_PanickingStepReachesTerminalState
         - TestEngine_PanickingParallelStepDoesNotCrashProcess
       root_cause: |
         The engine had no recover() at any dispatch site. A step handler that
@@ -5710,8 +5710,8 @@ failure_modes:
         - controller.apply_package_release_requires_manifest_checksum
         - runtime.success_requires_expected_binary_checksum
       required_tests:
-        - TestDispatch_PopulatesExpectedSha256FromManifest
-        - TestDispatch_AuditAllCallSitesSetExpectedSha256
+        - golang/workflow/engine/actors_expected_sha256_test.go::TestDispatch_PopulatesExpectedSha256FromManifest
+        - golang/cluster_controller/cluster_controller_server/dispatch_expected_sha256_test.go::TestDispatch_AuditAllCallSitesSetExpectedSha256
       resolution: |
         Sync golang/workflow/definitions/*.yaml to /var/lib/globular/workflows/
         (the same operation install-day0.sh performs at Day-0), chown to globular,
@@ -5818,7 +5818,7 @@ failure_modes:
         - gateway
         - xds
       required_tests:
-        - TestPrintBannerNeverWritesToStdout
+        - Globular/internal/globule/banner_test.go::TestPrintBannerNeverWritesToStdout
       root_cause: |
         gateway/xds main() construct their slog logger on os.Stdout, and gateway
         constructs a globule (globule.New -> PrintBanner) BEFORE the --describe
@@ -5869,10 +5869,10 @@ failure_modes:
         - node-agent
         - awareness-graph
       required_tests:
-        - TestIsServiceKind
-        - TestServiceUnitUnrecoverableResponse_FailsLoud
+        - golang/node_agent/node_agent_server/apply_package_service_unit_recovery_test.go::TestIsServiceKind
+        - golang/node_agent/node_agent_server/apply_package_service_unit_recovery_test.go::TestServiceUnitUnrecoverableResponse_FailsLoud
         - TestRecreateServiceUnitFromSpec_MissingPackageFails
-        - TestExecutableForServiceResolvesManifestEntrypoint
+        - golang/node_agent/node_agent_server/internal/actions/serviceports/config_entrypoint_test.go::TestExecutableForServiceResolvesManifestEntrypoint
       root_cause: |
         installer_api.go InstallPackage routes INFRASTRUCTURE through the
         installer engine (runs the full spec, creates units) but SERVICE/COMMAND

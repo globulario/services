@@ -30,7 +30,7 @@ zooms_in_to:
 related_to:
 - degraded_is_explicit_not_hidden
 required_tests:
-- workflow/engine:TestDoctorFindingWorkflow_HappyPath
+- golang/workflow/engine/doctor_remediation_test.go::TestDoctorFindingWorkflow_HappyPath
 - workflow/engine:TestDoctorFindingWorkflow_MissingApproval
 - workflow/engine:TestDoctorFindingWorkflow_HighRiskApproved
 - workflow/engine:TestDoctorFindingWorkflow_NoStructuredAction

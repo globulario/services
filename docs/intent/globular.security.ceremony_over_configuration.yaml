@@ -36,7 +36,7 @@ required_tests:
 - interceptors:TestIntegration_BootstrapExpires
 - interceptors:TestIntegration_RemoteBootstrapDenied
 - interceptors:TestIntegration_AuditLoggingStructured
-- rbac/rbac_server:TestDenyOverridesSAAllow
+- golang/rbac/rbac_server/rbac_deny_override_test.go::TestDenyOverridesSAAllow
 - rbac/rbac_server:TestDenyOverridesOwnerAllow
 - rbac/rbac_server:TestMgmtProtection_BootstrapBypass
 - cluster_controller/cluster_controller_server:TestJoinAuthorization_SignatureVerifiesWithTestKey
