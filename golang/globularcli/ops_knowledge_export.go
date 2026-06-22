@@ -74,7 +74,7 @@ func runOpsKnowledgeExport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("connect to ai-memory: %w (run `globular auth login --user sa --password ...` first)", err)
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 	client := ai_memorypb.NewAiMemoryServiceClient(cc)
 
 	resp, err := client.Query(ctxWithTimeout(), &ai_memorypb.QueryRqst{
@@ -87,7 +87,7 @@ func runOpsKnowledgeExport(cmd *cobra.Command, args []string) error {
 	}
 	memories := resp.GetMemories()
 	if len(memories) == 0 {
-		fmt.Fprintf(cmd.ErrOrStderr(),
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 			"no memories tagged %q in project %q — nothing to export.\n"+
 				"Tag a durable memory with %q and set metadata.promote_id=ops.<...> first.\n",
 			opsKnowledgeExportTag, opsKnowledgeProject, opsKnowledgeExportTag)
@@ -100,11 +100,11 @@ func runOpsKnowledgeExport(cmd *cobra.Command, args []string) error {
 		e, err := memoryToOpsEntry(m)
 		if err != nil {
 			skipped++
-			fmt.Fprintf(cmd.ErrOrStderr(), "  SKIP %s: %v\n", m.GetId(), err)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "  SKIP %s: %v\n", m.GetId(), err)
 			continue
 		}
 		if len(e.Content) > opsknowledge.MaxEntryContentBytes {
-			fmt.Fprintf(cmd.ErrOrStderr(),
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 				"  WARN %s: content is %d bytes (cap %d) — trim before committing\n",
 				e.ID, len(e.Content), opsknowledge.MaxEntryContentBytes)
 		}
@@ -147,7 +147,7 @@ func runOpsKnowledgeExport(cmd *cobra.Command, args []string) error {
 		if err := os.WriteFile(opsKnowledgeExportOut, out, 0o644); err != nil {
 			return fmt.Errorf("write %s: %w", opsKnowledgeExportOut, err)
 		}
-		fmt.Fprintf(cmd.ErrOrStderr(),
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 			"── exported %d entr%s to %s (%d skipped)\n"+
 				"   next: globular ops-knowledge validate  &&  git add %s && commit\n",
 			len(entries), plural(len(entries)), opsKnowledgeExportOut, skipped, opsKnowledgeExportOut)
