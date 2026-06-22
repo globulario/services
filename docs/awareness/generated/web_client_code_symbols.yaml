@@ -22,4 +22,3 @@ code_symbols:
       enforces:
         - globular.web_client:invariant.ts.client.endpoints_resolved_not_hardcoded
         - globular.web_client:invariant.ts.client.no_service_port_literals
-test_symbols:

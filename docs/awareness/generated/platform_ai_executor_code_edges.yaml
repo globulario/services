@@ -14,6 +14,15 @@ code_edges:
   - from: globular.platform:code.go.platform_ai_executor.action_backend
     relation: implements
     to: globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - from: globular.platform:code.go.platform_ai_executor.behavioral_feed
+    relation: implements
+    to: globular.platform:intent.ai.supplementary_not_required
+  - from: globular.platform:code.go.platform_ai_executor.behavioral_feed
+    relation: implements
+    to: globular.platform:intent.ai.watcher_to_executor_causal_chain
+  - from: globular.platform:code.go.platform_ai_executor.behavioral_feed
+    relation: implements
+    to: globular.platform:intent.knowledge.promote_incidents_into_graph
   - from: globular.platform:code.go.platform_ai_executor.dedup
     relation: implements
     to: globular.platform:intent.ai.memory_queried_before_claude_to_boost_confidence
