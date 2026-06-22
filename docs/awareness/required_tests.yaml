@@ -1991,6 +1991,11 @@ required_tests:
   protects:
     invariants:
     - workflow.engine_step_panic_crashes_process
+- id: TestEnqueueReleasesForConvergingNodes_ReadyButUnconverged
+  title: Enqueue Releases For Converging Nodes Ready But Unconverged
+  protects:
+    failure_modes:
+    - rollout.partial_not_converged
 - id: TestEnsureAllPeersFail
   title: Ensure All Peers Fail
   protects:

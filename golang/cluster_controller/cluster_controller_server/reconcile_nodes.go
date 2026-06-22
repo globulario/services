@@ -1088,29 +1088,52 @@ func (srv *server) enqueueInfraReleases() {
 }
 
 // enqueueReleasesForConvergingNodes re-enqueues all ServiceRelease objects
-// when there are bootstrap-ready nodes that are still converging. This closes
-// the Day-1 gap where a new node finishes infra install (hash stabilises) but
-// the AVAILABLE ServiceReleases are never re-enqueued to dispatch workloads,
-// because the hash-change trigger in ReportNodeStatus only fires for nodes
-// already tracked in a release's Status.Nodes.
+// when there are bootstrap-ready nodes that are not yet fully converged
+// (Status=="converging", or a "ready" node that has not stamped a converged
+// AppliedServicesHash). This closes the Day-1 gap where a new node finishes
+// infra install (hash stabilises, Status flips to "ready") but the AVAILABLE
+// ServiceReleases are never re-enqueued to dispatch workloads, because the
+// hash-change trigger in ReportNodeStatus only fires for nodes already tracked
+// in a release's Status.Nodes (rollout.partial_not_converged).
 func (srv *server) enqueueReleasesForConvergingNodes(ctx context.Context) {
 	if srv.resources == nil || srv.releaseEnqueue == nil {
 		return
 	}
 
-	// Check if any bootstrap-ready node is still converging (not "ready").
-	// If all nodes are ready, no sweep needed.
+	// Check if any bootstrap-ready node is not yet fully converged. If every
+	// bootstrap-ready node has stamped a converged services hash, no sweep is
+	// needed.
+	//
+	// Two signals, both required: a node's Status flips to "ready" on infra/
+	// hash convergence BEFORE pre-existing AVAILABLE ServiceReleases dispatch
+	// their workloads to it. Gating only on Status=="converging" misses the
+	// window where a late joiner is "ready" but still has unserved releases —
+	// the rollout.partial_not_converged gap (e.g. mcp AVAILABLE on the founding
+	// node, a second node joins, reaches "ready", never receives mcp because no
+	// release tracks it and the ReportNodeStatus hash-change trigger only fires
+	// for nodes already in a release's Status.Nodes). A bootstrap-ready node
+	// with an empty AppliedServicesHash has never stamped a converged hash, so
+	// it must trigger the sweep regardless of Status string.
 	srv.lock("enqueueReleasesForConvergingNodes")
-	hasConverging := false
+	hasUnconverged := false
 	for _, node := range srv.state.Nodes {
-		if bootstrapPhaseReady(node.BootstrapPhase) && node.Status == "converging" {
-			hasConverging = true
+		if !bootstrapPhaseReady(node.BootstrapPhase) {
+			continue
+		}
+		// Skip nodes that cannot receive a dispatch — hasUnservedNodes filters
+		// these too, but excluding them here avoids pointless re-enqueue churn.
+		if node.Status == "unreachable" || node.Status == "removed" ||
+			node.Status == "blocked" || node.Status == "draining" {
+			continue
+		}
+		if node.Status == "converging" || node.AppliedServicesHash == "" {
+			hasUnconverged = true
 			break
 		}
 	}
 	srv.unlock()
 
-	if !hasConverging {
+	if !hasUnconverged {
 		return
 	}
 
