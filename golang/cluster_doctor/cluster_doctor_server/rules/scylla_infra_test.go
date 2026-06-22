@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"context"
 	"testing"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -131,6 +132,43 @@ func TestScyllaProbeRequired_CapabilityMissingIsWarn(t *testing.T) {
 	f := (scyllaProbeRequiredWhenInstalled{}).Evaluate(snap, testConfig())
 	if len(f) != 1 || f[0].Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
 		t.Fatalf("expected 1 WARN finding (old binary), got %+v", f)
+	}
+}
+
+// TestScyllaProbeRequired_HarvestErrorIsUnknownWarn reproduces the live
+// 2026-06-22 incident: a single context-canceled infra-probe harvest made the
+// doctor emit ERROR / INVARIANT_FAIL "ScyllaDB produced no infra probe" against
+// a fully healthy node. When the no-probe cause is a collector error, the
+// verdict must be INDETERMINATE (WARN + INVARIANT_UNKNOWN + CheckError), not a
+// failure — "could not observe" is not "observed failure"
+// (meta.harvest_and_yield_are_distinct_availability_dimensions). It must still
+// emit a finding (never go silent: degraded_is_explicit_not_hidden).
+func TestScyllaProbeRequired_HarvestErrorIsUnknownWarn(t *testing.T) {
+	snap := &collector.Snapshot{
+		Nodes: nodeListOne("node-1"),
+		Inventories: map[string]*node_agentpb.Inventory{
+			"node-1": {Units: []*node_agentpb.UnitStatus{{Name: "scylla-server.service"}}},
+		},
+		InfraProbes:                 map[string]*node_agentpb.GetInfraProbeResponse{},
+		InfraProbeCapabilityMissing: map[string]bool{},
+		// The harvest's GetInfraProbe sub-fetch errored (dial / context canceled).
+		DataIncomplete: true,
+		DataErrors: []collector.DataError{
+			{Service: "node_agent@node-1", RPC: "GetInfraProbe", Err: context.Canceled},
+		},
+	}
+	f := (scyllaProbeRequiredWhenInstalled{}).Evaluate(snap, testConfig())
+	if len(f) != 1 {
+		t.Fatalf("expected exactly 1 finding (never silent under reduced harvest), got %d: %+v", len(f), f)
+	}
+	if f[0].Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+		t.Errorf("harvest-error no-probe must be WARN, got %v", f[0].Severity)
+	}
+	if f[0].InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN {
+		t.Errorf("harvest-error no-probe must be INVARIANT_UNKNOWN, got %v", f[0].InvariantStatus)
+	}
+	if f[0].CheckError == "" {
+		t.Error("harvest-error no-probe must set CheckError so aggregators do not count it as FAIL")
 	}
 }
 
