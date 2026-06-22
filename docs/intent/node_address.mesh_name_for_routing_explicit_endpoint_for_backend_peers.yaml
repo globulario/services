@@ -53,7 +53,7 @@ related_to:
 
 required_tests:
   - security:TestMeshServerNameFromTarget
-  - security:TestMeshConnectionDoesNotSkipTLSVerification
+  - golang/globular_client/clients_tls_test.go::TestMeshConnectionDoesNotSkipTLSVerification
   - cluster_controller/cluster_controller_server:TestLeaderForward
   - node_agent/node_agent_server:TestApplyPackageFallsBackToResolvedRepositoryAddr
 

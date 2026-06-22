@@ -33,4 +33,4 @@ related_to:
 status: extracted_candidate
 
 required_tests:
-  - workflow/engine:TestDoctorFindingWorkflow_HappyPath
+  - golang/workflow/engine/doctor_remediation_test.go::TestDoctorFindingWorkflow_HappyPath

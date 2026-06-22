@@ -62,4 +62,4 @@ change_risk:
 status: seed
 
 required_tests:
-  - config:TestIngressCLIWorksWithDNSDisabled
+  - golang/config/cluster_dns_fallback_test.go::TestIngressCLIWorksWithDNSDisabled

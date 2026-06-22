@@ -32,12 +32,12 @@ zooms_in_to:
 related_to:
 - bootstrap.window_is_not_steady_state_auth
 required_tests:
-- rbac/rbac_server:TestDenyOverridesSAAllow
+- golang/rbac/rbac_server/rbac_deny_override_test.go::TestDenyOverridesSAAllow
 - rbac/rbac_server:TestSAAllowedWhenNoDeny
 - rbac/rbac_server:TestSAAllowedWhenNoPermissionsExist
 - rbac/rbac_server:TestDenyOverridesOwnerAllow
 - rbac/rbac_server:TestSADenyOnParentPath
-- rbac/rbac_server:TestSALegacyDomainFormat
+- golang/rbac/rbac_server/rbac_deny_override_test.go::TestSALegacyDomainFormat
 - rbac/rbac_server:TestSADifferentPermissionNotDenied
 change_risk:
 - security_sensitive

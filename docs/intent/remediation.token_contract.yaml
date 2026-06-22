@@ -45,8 +45,8 @@ change_risk:
   - authority_sensitive
 status: accepted
 required_tests:
-  - security:TestApprovalTokenRejectsEmptyOrUnsignedToken
-  - security:TestApprovalTokenRejectsWrongAudience
-  - security:TestApprovalTokenRejectsExpiredToken
-  - security:TestApprovalTokenRejectsReplay
-  - security:TestApprovalTokenBindsActionTargetAndGeneration
+  - golang/security/approval_token_test.go::TestApprovalTokenRejectsEmptyOrUnsignedToken
+  - golang/security/approval_token_test.go::TestApprovalTokenRejectsWrongAudience
+  - golang/security/approval_token_test.go::TestApprovalTokenRejectsExpiredToken
+  - golang/security/approval_token_test.go::TestApprovalTokenRejectsReplay
+  - golang/security/approval_token_test.go::TestApprovalTokenBindsActionTargetAndGeneration

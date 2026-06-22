@@ -27,7 +27,7 @@ violation_patterns:
 - "RepairArtifact.*resolveLatestBuildNumber"
 - "repair.*installable"
 required_tests:
-- repository:TestRepairArtifactUsesLatestExistingBuildWhenBroken
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestRepairArtifactUsesLatestExistingBuildWhenBroken
 - repository:TestRepairArtifactDryRunMissingBlob
-- repository:TestRepositoryRepairDoesNotRequireInstallableState
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryRepairDoesNotRequireInstallableState
 status: proposed

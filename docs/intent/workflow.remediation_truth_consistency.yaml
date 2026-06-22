@@ -41,6 +41,6 @@ change_risk:
   - correctness_sensitive
 status: accepted
 required_tests:
-  - remediation:TestRemediationWorkflowSuccessRequiresFindingResolved
-  - remediation:TestDispatchSuccessWithoutVerificationIsPending
-  - remediation:TestFindingRemainsActiveUntilVerifiedResolution
+  - golang/remediation/outcome_test.go::TestRemediationWorkflowSuccessRequiresFindingResolved
+  - golang/remediation/outcome_test.go::TestDispatchSuccessWithoutVerificationIsPending
+  - golang/remediation/outcome_test.go::TestFindingRemainsActiveUntilVerifiedResolution

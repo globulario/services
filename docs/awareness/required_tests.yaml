@@ -1047,27 +1047,27 @@ required_tests:
   protects:
     invariants:
     - cluster_controller.objectstore_apply_watcher_dies_silently
-- id: TestApprovalTokenBindsActionTargetAndGeneration
+- id: golang/security/approval_token_test.go::TestApprovalTokenBindsActionTargetAndGeneration
   title: Approval Token Binds Action Target And Generation
   protects:
     invariants:
     - remediation.approval_must_bind_action_target_and_generation
-- id: TestApprovalTokenRejectsEmptyOrUnsignedToken
+- id: golang/security/approval_token_test.go::TestApprovalTokenRejectsEmptyOrUnsignedToken
   title: Approval Token Rejects Empty Or Unsigned Token
   protects:
     invariants:
     - remediation.token_must_be_scoped_and_non_replayable
-- id: TestApprovalTokenRejectsExpiredToken
+- id: golang/security/approval_token_test.go::TestApprovalTokenRejectsExpiredToken
   title: Approval Token Rejects Expired Token
   protects:
     invariants:
     - remediation.token_must_be_scoped_and_non_replayable
-- id: TestApprovalTokenRejectsReplay
+- id: golang/security/approval_token_test.go::TestApprovalTokenRejectsReplay
   title: Approval Token Rejects Replay
   protects:
     invariants:
     - remediation.token_must_be_scoped_and_non_replayable
-- id: TestApprovalTokenRejectsWrongAudience
+- id: golang/security/approval_token_test.go::TestApprovalTokenRejectsWrongAudience
   title: Approval Token Rejects Wrong Audience
   protects:
     invariants:
@@ -1103,22 +1103,22 @@ required_tests:
     invariants:
     - runtime.last_known_good_required_for_critical_consumers
     - runtime.lkg_corrupt_or_missing
-- id: TestAuditRedactsApprovalTokenMaterial
+- id: golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestAuditRedactsApprovalTokenMaterial
   title: Audit Redacts Approval Token Material
   protects:
     invariants:
     - audit.must_redact_secret_material
-- id: TestAuditRetentionPolicyIsExplicit
+- id: golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestAuditRetentionPolicyIsExplicit
   title: Audit Retention Policy Is Explicit
   protects:
     invariants:
     - audit.records_must_be_correlated_and_retained
-- id: TestAutoRemediationCooldown_AllowsFirstBlocksSecond
+- id: golang/cluster_doctor/cluster_doctor_server/handler_remediation_cooldown_test.go::TestAutoRemediationCooldown_AllowsFirstBlocksSecond
   title: Auto Remediation Cooldown Allows First Blocks Second
   protects:
     invariants:
     - remediation.auto_execution_is_rate_limited
-- id: TestAutoRemediationCooldown_Expires
+- id: golang/cluster_doctor/cluster_doctor_server/handler_remediation_cooldown_test.go::TestAutoRemediationCooldown_Expires
   title: Auto Remediation Cooldown Expires
   protects:
     invariants:
@@ -1200,7 +1200,7 @@ required_tests:
   protects:
     invariants:
     - repository.minio.recovery_cycle
-- id: TestBuildIDMapsToSingleArtifactIdentity
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestBuildIDMapsToSingleArtifactIdentity
   title: Build IDMaps To Single Artifact Identity
   protects:
     invariants:
@@ -1215,7 +1215,7 @@ required_tests:
   protects:
     invariants:
     - node_agent.apply_package_release_buildid_skip_ignores_checksum
-- id: TestBuildStepReceiptPayload_BlockedFields
+- id: golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestBuildStepReceiptPayload_BlockedFields
   title: Build Step Receipt Payload Blocked Fields
   protects:
     invariants:
@@ -1294,12 +1294,12 @@ required_tests:
   protects:
     invariants:
     - day1.scylla_dependency_gate
-- id: TestClassifyStepFailureForReceipt_NativeDependencyMissing
+- id: golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestClassifyStepFailureForReceipt_NativeDependencyMissing
   title: Classify Step Failure For Receipt Native Dependency Missing
   protects:
     invariants:
     - workflow.receipt_classification_monotonic_and_conservative
-- id: TestClassifyStepFailureForReceipt_TransientTimeout
+- id: golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestClassifyStepFailureForReceipt_TransientTimeout
   title: Classify Step Failure For Receipt Transient Timeout
   protects:
     invariants:
@@ -1407,13 +1407,13 @@ required_tests:
     invariants:
     - dns.desired_ghost_records
     - dns.records_must_be_installed_and_runtime_healthy
-- id: TestComputeDesiredState_InstalledNotHealthy_NoRecord
+- id: golang/cluster_controller/cluster_controller_server/dns_gating_test.go::TestComputeDesiredState_InstalledNotHealthy_NoRecord
   title: Compute Desired State Installed Not Healthy No Record
   protects:
     invariants:
     - dns.desired_ghost_records
     - dns.records_must_be_installed_and_runtime_healthy
-- id: TestComputeDesiredState_PlannedNotInstalled_NoRecord
+- id: golang/cluster_controller/cluster_controller_server/dns_gating_test.go::TestComputeDesiredState_PlannedNotInstalled_NoRecord
   title: Compute Desired State Planned Not Installed No Record
   protects:
     invariants:
@@ -1498,7 +1498,7 @@ required_tests:
     invariants:
     - awareness.degraded_source_sentinel_collapsed_to_critical
     - awareness.source_scan_requires_verified_repo_root
-- id: TestCriticalDependencyDeclaresDegradationMode
+- id: golang/dependency/modes_test.go::TestCriticalDependencyDeclaresDegradationMode
   title: Critical Dependency Declares Degradation Mode
   protects:
     invariants:
@@ -1566,7 +1566,7 @@ required_tests:
   protects:
     failure_modes:
     - rollout.partial_not_converged
-- id: TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
+- id: golang/cluster_controller/cluster_controller_server/handlers_health_version_test.go::TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
   title: Decide Version Verdict Build Ids Differ Versions Differ Mismatch
   protects:
     failure_modes:
@@ -1688,7 +1688,7 @@ required_tests:
     invariants:
     - repository.desired_build_id_orphaned
     - repository.purge_must_not_delete_active_desired_builds
-- id: TestDependencyDeclarationMatchesLiveEnforcement
+- id: golang/repository/repository_server/dependency_contract_test.go::TestDependencyDeclarationMatchesLiveEnforcement
   title: Dependency Declaration Matches Live Enforcement
   protects:
     invariants:
@@ -1806,12 +1806,12 @@ required_tests:
     invariants:
     - workflow.abandoned_defer_never_retried
     - workflow.deferred_run_retryable_when_blocker_clears
-- id: TestDispatchSuccessWithoutVerificationIsPending
+- id: golang/remediation/outcome_test.go::TestDispatchSuccessWithoutVerificationIsPending
   title: Dispatch Success Without Verification Is Pending
   protects:
     invariants:
     - workflow.success_requires_verified_invariant_resolution
-- id: TestDispatch_AuditAllCallSitesSetExpectedSha256
+- id: golang/cluster_controller/cluster_controller_server/dispatch_expected_sha256_test.go::TestDispatch_AuditAllCallSitesSetExpectedSha256
   title: Dispatch Audit All Call Sites Set Expected Sha256
   protects:
     invariants:
@@ -1820,6 +1820,7 @@ required_tests:
     failure_modes:
     - controller.apply_package_missing_expected_sha256_blocks_verified_install
     - workflow.stale_definitions_block_expected_sha256_propagation
+    - expected_sha256_param_must_carry_subject_name
 - id: TestDispatch_ControllerDeployEmptyExpectedSha256PropagatesAsEmpty
   title: Dispatch Controller Deploy Empty Expected Sha256 Propagates As Empty
   protects:
@@ -1841,7 +1842,7 @@ required_tests:
     - controller.apply_package_release_requires_manifest_checksum
     failure_modes:
     - controller.apply_package_missing_expected_sha256_blocks_verified_install
-- id: TestDispatch_PopulatesExpectedSha256FromManifest
+- id: golang/workflow/engine/actors_expected_sha256_test.go::TestDispatch_PopulatesExpectedSha256FromManifest
   title: Dispatch Populates Expected Sha256 From Manifest
   protects:
     invariants:
@@ -1850,6 +1851,7 @@ required_tests:
     failure_modes:
     - controller.apply_package_missing_expected_sha256_blocks_verified_install
     - workflow.stale_definitions_block_expected_sha256_propagation
+    - expected_sha256_param_must_carry_subject_name
 - id: TestDispatch_ResolverEntrypointChecksumIsBinaryHash
   title: Dispatch Resolver Entrypoint Checksum Is Binary Hash
   protects:
@@ -1954,7 +1956,7 @@ required_tests:
     invariants:
     - services.drift_must_age_and_escalate
     - services.drift_never_escalates
-- id: TestDriftWorkflowUsesDesiredHash
+- id: golang/workflow/workflow_server/infra_release_handler_test.go::TestDriftWorkflowUsesDesiredHash
   title: Drift Workflow Uses Desired Hash
 - id: TestEnforceFoundingProfiles_RequiresAllThreeProfiles
   title: Enforce Founding Profiles Requires All Three Profiles
@@ -1986,7 +1988,7 @@ required_tests:
   protects:
     invariants:
     - workflow.engine_step_panic_crashes_process
-- id: TestEngine_PanickingStepReachesTerminalState
+- id: golang/workflow/engine/engine_state_mutation_ratchet_test.go::TestEngine_PanickingStepReachesTerminalState
   title: Engine Panicking Step Reaches Terminal State
   protects:
     invariants:
@@ -2056,7 +2058,7 @@ required_tests:
   protects:
     failure_modes:
     - service.silent_fallback_active
-- id: TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
+- id: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
   title: Envoy LDSWedge CDSProgress LDSZero Fires Critical
   protects:
     invariants:
@@ -2066,7 +2068,7 @@ required_tests:
   protects:
     invariants:
     - envoy.lds_update_attempt_zero_despite_cds_progress
-- id: TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
+- id: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
   title: Envoy LDSWedge LDSHealthy Fires Info Pass
   protects:
     invariants:
@@ -2176,11 +2178,6 @@ required_tests:
   protects:
     invariants:
     - mcp.orphan_port_hold
-- id: TestExecutableForServiceResolvesManifestEntrypoint
-  title: Executable For Service Resolves Manifest Entrypoint
-  protects:
-    invariants:
-    - package.install.service_unit_missing_classified_binary_only
 - id: TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects
   title: Execute Workflow Start Run Commit Failure No Side Effects
   protects:
@@ -2212,7 +2209,7 @@ required_tests:
   protects:
     invariants:
     - awareness.impact_analysis.explain_path_required
-- id: TestExplicitValidDisableStopsRuntimeAndAuditable
+- id: golang/cluster_doctor/cluster_doctor_server/rules/destructive_action_audit_test.go::TestExplicitValidDisableStopsRuntimeAndAuditable
   title: Explicit Valid Disable Stops Runtime And Auditable
   protects:
     invariants:
@@ -2253,12 +2250,12 @@ required_tests:
     - install_package.hash_schemas_must_not_alias
     failure_modes:
     - node_agent.install_package_aliases_convergence_hash_into_expected_sha256
-- id: TestFailureRatePolicyBlocksAfterThresholdByActionClass
+- id: golang/remediation/policy_test.go::TestFailureRatePolicyBlocksAfterThresholdByActionClass
   title: Failure Rate Policy Blocks After Threshold By Action Class
   protects:
     invariants:
     - remediation.failure_rate_policy_must_be_cluster_wide
-- id: TestFailureRatePolicyPersistsAcrossRestart
+- id: golang/remediation/policy_test.go::TestFailureRatePolicyPersistsAcrossRestart
   title: Failure Rate Policy Persists Across Restart
   protects:
     invariants:
@@ -2278,7 +2275,7 @@ required_tests:
   protects:
     invariants:
     - file.identity.grpc_service_name_must_match_tls_and_registry_identity
-- id: TestFileService_FallbackToLocalEmitsFinding
+- id: golang/file/file_client/zz_awareness_required_test_aliases_test.go::TestFileService_FallbackToLocalEmitsFinding
   title: File Service Fallback To Local Emits Finding
   protects:
     invariants:
@@ -2318,12 +2315,12 @@ required_tests:
     - installer.explicit_version_requires_exact_artifact
     failure_modes:
     - release.explicit_version_wildcard_installs_wrong_version
-- id: TestFindingIncludesEvidenceTrustLevel
+- id: golang/cluster_doctor/cluster_doctor_server/evidence_provenance_test.go::TestFindingIncludesEvidenceTrustLevel
   title: Finding Includes Evidence Trust Level
   protects:
     invariants:
     - evidence.must_carry_provenance_and_trust_level
-- id: TestFindingRemainsActiveUntilVerifiedResolution
+- id: golang/remediation/outcome_test.go::TestFindingRemainsActiveUntilVerifiedResolution
   title: Finding Remains Active Until Verified Resolution
   protects:
     invariants:
@@ -2481,7 +2478,7 @@ required_tests:
   protects:
     invariants:
     - infra.heartbeat_observer_only_not_authority
-- id: TestINV1_ReleasedArtifactImmutable_DifferentDigest
+- id: golang/repository/repository_server/invariant_test.go::TestINV1_ReleasedArtifactImmutable_DifferentDigest
   title: INV1 Released Artifact Immutable Different Digest
   protects:
     invariants:
@@ -2495,14 +2492,14 @@ required_tests:
   title: Impact Path Changed File To Invariant To Tests
 - id: TestImpactPath_LabelsInferredEdgesLowConfidence
   title: Impact Path Labels Inferred Edges Low Confidence
-- id: TestInfraDesiredHashConsistency
+- id: golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go::TestInfraDesiredHashConsistency
   title: Infra Desired Hash Consistency
   protects:
     invariants:
     - infra.desired_hash_consistency
 - id: TestInfraDriftBatchCoverage
   title: Infra Drift Batch Coverage
-- id: TestIngressCLIWorksWithDNSDisabled
+- id: golang/config/cluster_dns_fallback_test.go::TestIngressCLIWorksWithDNSDisabled
   title: Ingress CLIWorks With DNSDisabled
   protects:
     invariants:
@@ -2595,11 +2592,6 @@ required_tests:
   protects:
     invariants:
     - installer.explicit_version_requires_exact_artifact
-- id: TestIsServiceKind
-  title: Is Service Kind
-  protects:
-    invariants:
-    - package.install.service_unit_missing_classified_binary_only
 - id: TestJoinRefusedBelowFoundingQuorum
   title: Join Refused Below Founding Quorum
   protects:
@@ -2782,12 +2774,12 @@ required_tests:
   protects:
     invariants:
     - package.local_publish_requires_local_identity
-- id: TestLocalPublish2_LocalVersionSuffixPassesIdentityRules
+- id: golang/repository/repository_server/local_publish_test.go::TestLocalPublish2_LocalVersionSuffixPassesIdentityRules
   title: Local Publish2 Local Version Suffix Passes Identity Rules
   protects:
     invariants:
     - package.local_publish_requires_local_identity
-- id: TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
+- id: golang/repository/repository_server/local_publish_test.go::TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
   title: Local Publish2 Official Publisher Cannot Use DEVChannel
   protects:
     invariants:
@@ -2826,7 +2818,7 @@ required_tests:
   protects:
     invariants:
     - objectstore.minio.config_render_source_must_be_etcd
-- id: TestLookupServiceReleaseBuildIDUsesDesiredHash
+- id: golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go::TestLookupServiceReleaseBuildIDUsesDesiredHash
   title: Lookup Service Release Build IDUses Desired Hash
   protects:
     invariants:
@@ -2941,7 +2933,7 @@ required_tests:
   protects:
     invariants:
     - repository.metadata_first
-- id: TestMigrateBuildIDs_Idempotent
+- id: golang/repository/repository_server/invariant_test.go::TestMigrateBuildIDs_Idempotent
   title: Migrate Build IDs Idempotent
   protects:
     invariants:
@@ -3013,7 +3005,7 @@ required_tests:
   protects:
     invariants:
     - service.endpoint.os_getenv_for_addresses
-- id: TestNoRuleEmitsConfidentFailureOnErroredSnapshot
+- id: golang/cluster_doctor/cluster_doctor_server/rules/registry_source_error_enforcement_test.go::TestNoRuleEmitsConfidentFailureOnErroredSnapshot
   title: No Rule Emits Confident Failure On Errored Snapshot
   protects:
     invariants:
@@ -3038,7 +3030,7 @@ required_tests:
   protects:
     invariants:
     - node.scope.agent_has_minimal_read_write_boundary
-- id: TestNodeExecutorCannotPerformRBACAdmin
+- id: golang/security/node_identity_test.go::TestNodeExecutorCannotPerformRBACAdmin
   title: Node Executor Cannot Perform RBACAdmin
   protects:
     invariants:
@@ -3144,22 +3136,22 @@ required_tests:
     - service.endpoint.cgroup_escape_guard
     - service_notify_ready_before_etcd_write
     - service_restart_requires_orphan_kill_first
-- id: TestOrphanProcessIsUntrustedWithoutAttestation
+- id: golang/attestation/attestation_test.go::TestOrphanProcessIsUntrustedWithoutAttestation
   title: Orphan Process Is Untrusted Without Attestation
   protects:
     invariants:
     - stale_or_orphan_process_must_not_be_trusted
-- id: TestOverrideAuditNamesBypassedPolicy
+- id: golang/remediation/override_test.go::TestOverrideAuditNamesBypassedPolicy
   title: Override Audit Names Bypassed Policy
   protects:
     invariants:
     - force_action_must_not_hide_policy_gate
-- id: TestOverrideRequiresReasonScopeAndExpiry
+- id: golang/remediation/override_test.go::TestOverrideRequiresReasonScopeAndExpiry
   title: Override Requires Reason Scope And Expiry
   protects:
     invariants:
     - operator.override_requires_scope_reason_expiry_and_verification
-- id: TestOverrideStillRequiresVerification
+- id: golang/remediation/override_test.go::TestOverrideStillRequiresVerification
   title: Override Still Requires Verification
   protects:
     invariants:
@@ -3275,16 +3267,11 @@ required_tests:
     - service.desired_state.bom_completeness
     - service.desired_state.direct_etcd_write
     - service.desired_state.pipeline_gap
-- id: TestPreflightReportsWeakEvidenceAsUncertain
+- id: golang/evidence/trust_test.go::TestPreflightReportsWeakEvidenceAsUncertain
   title: Preflight Reports Weak Evidence As Uncertain
   protects:
     invariants:
     - evidence.must_carry_provenance_and_trust_level
-- id: TestPrintBannerNeverWritesToStdout
-  title: Print Banner Never Writes To Stdout
-  protects:
-    invariants:
-    - observability.describe_banner_pollutes_stdout_breaks_port_preflight
 - id: TestProjectionHangDoesNotBlockReleaseLane
   title: Projection Hang Does Not Block Release Lane
   protects:
@@ -3329,7 +3316,7 @@ required_tests:
     invariants:
     - assistant.extended_legacy_buggy_path_instead_of_querying_architecture
     - four_layer.cross_layer_write_creates_drift
-- id: TestPublishRejectsSameBuildNumberDifferentBuildID
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestPublishRejectsSameBuildNumberDifferentBuildID
   title: Publish Rejects Same Build Number Different Build ID
   protects:
     invariants:
@@ -3401,7 +3388,7 @@ required_tests:
     invariants:
     - critical_queries.must_be_bounded
     - critical_queries.unbounded_hang
-- id: TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
+- id: golang/interceptors/role_binding_failsafe_test.go::TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
   title: RBACFallback Fails Closed For User Mutation Outside Bootstrap
   protects:
     invariants:
@@ -3423,7 +3410,7 @@ required_tests:
     invariants:
     - scylla.critical_keyspace_replication_policy
     - scylla.critical_keyspace_under_replicated
-- id: TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
+- id: golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
   title: Receipt Classification Conservative Unknown Is Retry Not Success
   protects:
     invariants:
@@ -3537,27 +3524,27 @@ required_tests:
   protects:
     invariants:
     - workflow.every_state_mutation_belongs_to_a_workflow_instance
-- id: TestReleaseTopologyLock_Idempotent
+- id: golang/workflow/engine/actors_objectstore_test.go::TestReleaseTopologyLock_Idempotent
   title: Release Topology Lock Idempotent
   protects:
     failure_modes:
     - objectstore.lock_release_is_idempotent
-- id: TestRemediationAuditCarriesCorrelationFields
+- id: golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestRemediationAuditCarriesCorrelationFields
   title: Remediation Audit Carries Correlation Fields
   protects:
     invariants:
     - audit.records_must_be_correlated_and_retained
-- id: TestRemediationBlocksOnStaleEvidence
+- id: golang/cluster_doctor/cluster_doctor_server/evidence_provenance_test.go::TestRemediationBlocksOnStaleEvidence
   title: Remediation Blocks On Stale Evidence
   protects:
     invariants:
     - stale_evidence_must_not_authorize_remediation
-- id: TestRemediationCircuitBreakerUsesSharedPolicy
+- id: golang/remediation/policy_test.go::TestRemediationCircuitBreakerUsesSharedPolicy
   title: Remediation Circuit Breaker Uses Shared Policy
   protects:
     invariants:
     - remediation.failure_rate_policy_must_be_cluster_wide
-- id: TestRemediationWorkflowSuccessRequiresFindingResolved
+- id: golang/remediation/outcome_test.go::TestRemediationWorkflowSuccessRequiresFindingResolved
   title: Remediation Workflow Success Requires Finding Resolved
   protects:
     invariants:
@@ -3572,37 +3559,32 @@ required_tests:
   protects:
     failure_modes:
     - fm.globular.vip_transition_cascade
-- id: TestRepairArtifactUsesLatestExistingBuildWhenBroken
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestRepairArtifactUsesLatestExistingBuildWhenBroken
   title: Repair Artifact Uses Latest Existing Build When Broken
   protects:
     invariants:
     - repository.repair_selects_existing_build
-- id: TestRepairDoesNotUseBuildNumberAsIdentity
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestRepairDoesNotUseBuildNumberAsIdentity
   title: Repair Does Not Use Build Number As Identity
   protects:
     invariants:
     - repository.package_build_lane_unique
-- id: TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
-  title: Report Node Status Last Seen Uses Server Clock Not Node Clock
-  protects:
-    invariants:
-    - cluster_controller.heartbeat_staleness_uses_node_reported_clock
-- id: TestRepositoryDoctorReportsBuildIDReuse
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryDoctorReportsBuildIDReuse
   title: Repository Doctor Reports Build IDReuse
   protects:
     invariants:
     - repository.build_id_global_unique
-- id: TestRepositoryDoctorReportsDuplicateBuildNumberCollision
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryDoctorReportsDuplicateBuildNumberCollision
   title: Repository Doctor Reports Duplicate Build Number Collision
   protects:
     invariants:
     - repository.package_build_lane_unique
-- id: TestRepositoryMinioIsDegradedNotReadOnly
+- id: golang/dependency/modes_test.go::TestRepositoryMinioIsDegradedNotReadOnly
   title: Repository Minio Is Degraded Not Read Only
   protects:
     invariants:
     - service.dependencies_must_define_degradation_mode
-- id: TestRepositoryRepairDoesNotRequireInstallableState
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryRepairDoesNotRequireInstallableState
   title: Repository Repair Does Not Require Installable State
   protects:
     invariants:
@@ -3628,7 +3610,7 @@ required_tests:
     invariants:
     - repository.desired_build_id_must_resolve
     - repository.desired_build_id_orphaned
-- id: TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
+- id: golang/repository/repository_server/zz_awareness_required_test_aliases_test.go::TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
   title: Resolver Filter Excludes Non Installable States Blob Verified Is Rejected
   protects:
     invariants:
@@ -3675,7 +3657,7 @@ required_tests:
     - release_pipeline.set_fields_routing_must_match_release_kind
     failure_modes:
     - release_pipeline.set_fields_silent_noop_on_wrong_kind
-- id: TestRuntimeAttestationBindsPidHashServiceAndBuild
+- id: golang/attestation/attestation_test.go::TestRuntimeAttestationBindsPidHashServiceAndBuild
   title: Runtime Attestation Binds Pid Hash Service And Build
   protects:
     invariants:
@@ -3811,16 +3793,11 @@ required_tests:
   protects:
     invariants:
     - runtime.installed_state_must_match_package_kind
-- id: TestServiceReleaseRecoveryAfterWorkflowCommitFailure
+- id: golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go::TestServiceReleaseRecoveryAfterWorkflowCommitFailure
   title: Service Release Recovery After Workflow Commit Failure
   protects:
     invariants:
     - release.failed.wave_succeeded_commit_error
-- id: TestServiceUnitUnrecoverableResponse_FailsLoud
-  title: Service Unit Unrecoverable Response Fails Loud
-  protects:
-    invariants:
-    - package.install.service_unit_missing_classified_binary_only
 - id: TestServiceVersion_DescribeReportsBuildTimeVersion
   title: Service Version Describe Reports Build Time Version
   protects:
@@ -3995,21 +3972,21 @@ required_tests:
   protects:
     invariants:
     - awareness.auto_install_requires_verification
-- id: TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
+- id: golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
   title: Sync From Upstream Arch Specific Entry Still Filtered On Mismatch
   protects:
     invariants:
     - repository.sync_must_not_silently_drop_noarch_artifacts
     failure_modes:
     - repository.sync_silently_drops_noarch_artifacts
-- id: TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
+- id: golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
   title: Sync From Upstream Awareness Bundle No Arch Imports Cleanly
   protects:
     invariants:
     - repository.sync_must_not_silently_drop_noarch_artifacts
     failure_modes:
     - repository.sync_silently_drops_noarch_artifacts
-- id: TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
+- id: golang/repository/repository_server/sync_noarch_platform_test.go::TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
   title: Sync From Upstream No Arch Entry Not Filtered By Platform
   protects:
     invariants:
@@ -4042,12 +4019,12 @@ required_tests:
     invariants:
     - objectstore.local_membership_inference
     - objectstore.topology_contract
-- id: TestTransitionArtifactState_IdempotentSelfTransition
+- id: golang/repository/repository_server/artifact_state_test.go::TestTransitionArtifactState_IdempotentSelfTransition
   title: Transition Artifact State Idempotent Self Transition
   protects:
     invariants:
     - repository.artifact.state_transitions_are_forward_only
-- id: TestTransitionArtifactState_RejectsIllegalTransition
+- id: golang/repository/repository_server/artifact_state_test.go::TestTransitionArtifactState_RejectsIllegalTransition
   title: Transition Artifact State Rejects Illegal Transition
   protects:
     invariants:
@@ -4117,12 +4094,12 @@ required_tests:
   protects:
     invariants:
     - four_layer.cross_layer_write_creates_drift
-- id: TestUploadDifferentDigestSamePublishedVersionRejected
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadDifferentDigestSamePublishedVersionRejected
   title: Upload Different Digest Same Published Version Rejected
   protects:
     invariants:
     - repository.publish_idempotent_same_digest
-- id: TestUploadIdempotentSameDigestReturnsExistingBuildID
+- id: golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadIdempotentSameDigestReturnsExistingBuildID
   title: Upload Idempotent Same Digest Returns Existing Build ID
   protects:
     invariants:
@@ -4166,7 +4143,7 @@ required_tests:
   protects:
     invariants:
     - repository.signing.verification_must_precede_install
-- id: TestVerifierRejectsAttestationOlderThanProcessStart
+- id: golang/attestation/attestation_test.go::TestVerifierRejectsAttestationOlderThanProcessStart
   title: Verifier Rejects Attestation Older Than Process Start
   protects:
     invariants:
@@ -4187,7 +4164,7 @@ required_tests:
   protects:
     invariants:
     - diagnostics.must_measure_reality
-- id: TestVerifyRuntimeScope_NonMemberActive
+- id: golang/workflow/engine/actors_objectstore_test.go::TestVerifyRuntimeScope_NonMemberActive
   title: Verify Runtime Scope Non Member Active
   protects:
     invariants:
@@ -4339,7 +4316,7 @@ required_tests:
   protects:
     invariants:
     - service.endpoint.etcd_address_reachability
-- id: TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
+- id: golang/dependency/modes_test.go::TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
   title: Workflow Dispatch Blocks When Required Dependency Mode Is Stop
   protects:
     invariants:
@@ -4398,7 +4375,7 @@ required_tests:
   protects:
     failure_modes:
     - fm.globular.objectstore_partial_snapshot
-- id: TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
+- id: golang/cluster_doctor/cluster_doctor_server/rules/node_ip_matching_test.go::TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
   title: Write Quorum Lost VIPHolder Not Misclassified As Down
   protects:
     invariants:
@@ -4406,7 +4383,7 @@ required_tests:
     failure_modes:
     - fm.globular.objectstore_partial_snapshot
     - fm.globular.vip_transition_cascade
-- id: TestWriteQuorumLost_VIPHolder_RealDowntimeStillFires
+- id: golang/cluster_doctor/cluster_doctor_server/rules/node_ip_matching_test.go::TestWriteQuorumLost_VIPHolder_RealDowntimeStillFires
   title: Write Quorum Lost VIPHolder Real Downtime Still Fires
   protects:
     invariants:
@@ -4444,7 +4421,7 @@ required_tests:
   title: Topology Apply Requires Confirmed RBACAnd Risk Text
 - id: admin-console:TestTopologyBadge_NeverGreenFromDesiredStateAlone
   title: Topology Badge Never Green From Desired State Alone
-- id: admin:TestUIUsesBackendAuthorityPaths
+- id: golang/cluster_controller/cluster_controller_server/zz_intent_required_test_aliases_test.go::TestUIUsesBackendAuthorityPaths
   title: UIUses Backend Authority Paths
 - id: ai_executor:TestActionVerifyReadsClusterStateNotRPCResponse
   title: Action Verify Reads Cluster State Not RPCResponse
@@ -4484,12 +4461,6 @@ required_tests:
   title: Batch Window Collates Related Events
 - id: ai_watcher:TestCooldownPreventsAlertStorm
   title: Cooldown Prevents Alert Storm
-- id: attestation:TestOrphanProcessIsUntrustedWithoutAttestation
-  title: Orphan Process Is Untrusted Without Attestation
-- id: attestation:TestRuntimeAttestationBindsPidHashServiceAndBuild
-  title: Runtime Attestation Binds Pid Hash Service And Build
-- id: attestation:TestVerifierRejectsAttestationOlderThanProcessStart
-  title: Verifier Rejects Attestation Older Than Process Start
 - id: authentication:TestAuthenticateRequiresBcryptValidation
   title: Authenticate Requires Bcrypt Validation
 - id: authentication:TestIssueClientCertificateRequiresValidJWT
@@ -4584,7 +4555,7 @@ required_tests:
   title: Update Recovery Seed After Backup
 - id: backup_manager/backup_manager_server:TestWriteAndLoadRecoverySeed
   title: Write And Load Recovery Seed
-- id: backup_manager/backup_manager_server:TestWriteMainRestoreScript_InsertsPhase1b_BetweenPhase1AndPhase2
+- id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go::TestWriteMainRestoreScript_InsertsPhase1b_BetweenPhase1AndPhase2
   title: Write Main Restore Script Inserts Phase1b Between Phase1 And Phase2
 - id: backup_manager/backup_manager_server:TestWriteRecoverySeed_SkipsLocalDestination
   title: Write Recovery Seed Skips Local Destination
@@ -4634,8 +4605,6 @@ required_tests:
   title: Service Data For Restore Include Rebuildable
 - id: backup_manager:TestServiceDataForRestore_SkipRebuildable
   title: Service Data For Restore Skip Rebuildable
-- id: backup_manager:TestWriteMainRestoreScript_InsertsPhase1b_BetweenPhase1AndPhase2
-  title: Write Main Restore Script Inserts Phase1b Between Phase1 And Phase2
 - id: cluster_controller/cluster_controller_server:TestBuildObjectStore_NilCredentials_PublishesDegradedContract
   title: Build Object Store Nil Credentials Publishes Degraded Contract
 - id: cluster_controller/cluster_controller_server:TestClassifyWorkflowError_CircuitBreaker
@@ -4652,8 +4621,6 @@ required_tests:
   title: Drift Suppressed Transient With Backoff
 - id: cluster_controller/cluster_controller_server:TestHasUnservedNodes_DegradedNode_IsUnserved
   title: Has Unserved Nodes Degraded Node Is Unserved
-- id: cluster_controller/cluster_controller_server:TestInfraDesiredHashConsistency
-  title: Infra Desired Hash Consistency
 - id: cluster_controller/cluster_controller_server:TestJoinAuthorization_NoPlanWhenGatewayAssignsNoProfiles
   title: Join Authorization No Plan When Gateway Assigns No Profiles
 - id: cluster_controller/cluster_controller_server:TestJoinAuthorization_SignatureVerifiesWithTestKey
@@ -4664,8 +4631,6 @@ required_tests:
   title: Join Authorization Wrong Node Identity Fails Validation
 - id: cluster_controller/cluster_controller_server:TestLeaderForward
   title: Leader Forward
-- id: cluster_controller/cluster_controller_server:TestLookupServiceReleaseBuildIDUsesDesiredHash
-  title: Lookup Service Release Build IDUses Desired Hash
 - id: cluster_controller/cluster_controller_server:TestReconcilerSkipsNodeWhenRecoveryPaused
   title: Reconciler Skips Node When Recovery Paused
 - id: cluster_controller/cluster_controller_server:TestRequestJoin_DoesNotAdmitNodeWhenPreflightFails
@@ -4674,13 +4639,11 @@ required_tests:
   title: Request Join Pending Attempt Is Audited But Not Active Node
 - id: cluster_controller/cluster_controller_server:TestStableIPSkipsVIP
   title: Stable IPSkips VIP
-- id: cluster_controller/cluster_controller_server:TestUIUsesBackendAuthorityPaths
-  title: UIUses Backend Authority Paths
-- id: cluster_controller/cluster_controller_server:TestValidateNoReseedCycle_AcceptsDAG
+- id: golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_AcceptsDAG
   title: Validate No Reseed Cycle Accepts DAG
-- id: cluster_controller/cluster_controller_server:TestValidateNoReseedCycle_DetectsCycle
+- id: golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_DetectsCycle
   title: Validate No Reseed Cycle Detects Cycle
-- id: cluster_controller/cluster_controller_server:TestValidateNoReseedCycle_IgnoresExternalDeps
+- id: golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_IgnoresExternalDeps
   title: Validate No Reseed Cycle Ignores External Deps
 - id: cluster_controller/cluster_controller_server:TestWorkflowGateBackoffPreventsStorm
   title: Workflow Gate Backoff Prevents Storm
@@ -4692,18 +4655,10 @@ required_tests:
   title: Workflow Gate Recloses After Healthy Probe
 - id: cluster_controller:TestBootstrap_EtcdRejoin_AdvancesAfterRecovery
   title: Bootstrap Etcd Rejoin Advances After Recovery
-- id: cluster_controller:TestComputeDesiredState_InstalledNotHealthy_NoRecord
-  title: Compute Desired State Installed Not Healthy No Record
-- id: cluster_controller:TestComputeDesiredState_PlannedNotInstalled_NoRecord
-  title: Compute Desired State Planned Not Installed No Record
 - id: cluster_controller:TestComputeServiceProjection_AllConverged
   title: Compute Service Projection All Converged
-- id: cluster_controller:TestComputeServiceProjection_DesiredNotInstalled
-  title: Compute Service Projection Desired Not Installed
 - id: cluster_controller:TestComputeServiceProjection_PartialRollout
   title: Compute Service Projection Partial Rollout
-- id: cluster_controller:TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
-  title: Decide Version Verdict Build Ids Differ Versions Differ Mismatch
 - id: cluster_controller:TestDesiredStateDrivesReconcile
   title: Desired State Drives Reconcile
 - id: cluster_controller:TestDriftPlannerClassifiesActionTypes
@@ -4772,12 +4727,6 @@ required_tests:
   title: Topology Status Output Is Stable And Serializable
 - id: cluster_controller:TestUpgradeDoesNotLoopWhenInstallSucceedsButInstalledStateCommitIsDelayed
   title: Upgrade Does Not Loop When Install Succeeds But Installed State Commit Is Delayed
-- id: cluster_controller:TestValidateNoReseedCycle_AcceptsDAG
-  title: Validate No Reseed Cycle Accepts DAG
-- id: cluster_controller:TestValidateNoReseedCycle_DetectsCycle
-  title: Validate No Reseed Cycle Detects Cycle
-- id: cluster_controller:TestValidateNoReseedCycle_IgnoresExternalDeps
-  title: Validate No Reseed Cycle Ignores External Deps
 - id: cluster_doctor/cluster_doctor_server/rules:TestClusterServicesDrift_EmptyDesiredHash
   title: Cluster Services Drift Empty Desired Hash
 - id: cluster_doctor/cluster_doctor_server/rules:TestDestructiveGuard_FingerprintChange_ApprovedTransition_NoFinding
@@ -4786,16 +4735,10 @@ required_tests:
   title: Destructive Guard Fingerprint Change No Transition Critical
 - id: cluster_doctor/cluster_doctor_server/rules:TestDestructiveGuard_FingerprintChange_UnapprovedTransition_Warn
   title: Destructive Guard Fingerprint Change Unapproved Transition Warn
-- id: cluster_doctor/cluster_doctor_server/rules:TestExplicitValidDisableStopsRuntimeAndAuditable
-  title: Explicit Valid Disable Stops Runtime And Auditable
 - id: cluster_doctor/cluster_doctor_server/rules:TestGrpcBackboneContract_ClusterIDViolation
   title: Grpc Backbone Contract Cluster IDViolation
 - id: cluster_doctor/cluster_doctor_server/rules:TestNodeReachable_FreshHeartbeat
   title: Node Reachable Fresh Heartbeat
-- id: cluster_doctor/cluster_doctor_server:TestAutoRemediationCooldown_AllowsFirstBlocksSecond
-  title: Auto Remediation Cooldown Allows First Blocks Second
-- id: cluster_doctor/cluster_doctor_server:TestAutoRemediationCooldown_Expires
-  title: Auto Remediation Cooldown Expires
 - id: cluster_doctor:TestApplyIngressPolicyToTargets_ActiveKeepsRuntimeNeeded
   title: Apply Ingress Policy To Targets Active Keeps Runtime Needed
 - id: cluster_doctor:TestApplyIngressPolicyToTargets_DisabledClearsKeepalivedRuntimeNeeded
@@ -4858,28 +4801,16 @@ required_tests:
   title: Write Quorum Lost Stale Inventory Data Complete Still Fires
 - id: cluster_doctor:TestWriteQuorumLost_StaleRemoteInventory_Suppressed
   title: Write Quorum Lost Stale Remote Inventory Suppressed
-- id: cluster_doctor:TestWriteQuorumLost_VIPHolder_NotMisclassifiedAsDown
-  title: Write Quorum Lost VIPHolder Not Misclassified As Down
-- id: cluster_doctor:TestWriteQuorumLost_VIPHolder_RealDowntimeStillFires
-  title: Write Quorum Lost VIPHolder Real Downtime Still Fires
 - id: component_catalog:TestNormalizeProfiles_ExpandsInheritanceAndCanonicalizes
   title: Normalize Profiles Expands Inheritance And Canonicalizes
 - id: component_catalog:TestUnknownProfiles
   title: Unknown Profiles
 - id: config:TestGetCACertificatePathCanonical
   title: Get CACertificate Path Canonical
-- id: config:TestIngressCLIWorksWithDNSDisabled
-  title: Ingress CLIWorks With DNSDisabled
 - id: config:TestScyllaHostsCacheStaleOnEtcdDown
   title: Scylla Hosts Cache Stale On Etcd Down
 - id: config:TestServiceConfigCacheStaleOnEtcdError
   title: Service Config Cache Stale On Etcd Error
-- id: dependency:TestCriticalDependencyDeclaresDegradationMode
-  title: Critical Dependency Declares Degradation Mode
-- id: dependency:TestRepositoryMinioIsDegradedNotReadOnly
-  title: Repository Minio Is Degraded Not Read Only
-- id: dependency:TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
-  title: Workflow Dispatch Blocks When Required Dependency Mode Is Stop
 - id: dns/dns_server:TestGetA_NormalizationMatchesStoredKey
   title: Get A Normalization Matches Stored Key
 - id: dns/dns_server:TestGetA_RejectsWhenStorageUnhealthy
@@ -4902,16 +4833,6 @@ required_tests:
   title: Zone Reload Failure Falls Back To Last Known Good
 - id: dns/dns_server:TestZoneStartup_EtcdMirrorRestoredWhenScyllaEmpty
   title: Zone Startup Etcd Mirror Restored When Scylla Empty
-- id: doctor:TestAuditRedactsApprovalTokenMaterial
-  title: Audit Redacts Approval Token Material
-- id: doctor:TestAuditRetentionPolicyIsExplicit
-  title: Audit Retention Policy Is Explicit
-- id: doctor:TestFindingIncludesEvidenceTrustLevel
-  title: Finding Includes Evidence Trust Level
-- id: doctor:TestRemediationAuditCarriesCorrelationFields
-  title: Remediation Audit Carries Correlation Fields
-- id: doctor:TestRemediationBlocksOnStaleEvidence
-  title: Remediation Blocks On Stale Evidence
 - id: domain:TestACMEAccountPersistedAfterFirstRegistration
   title: ACMEAccount Persisted After First Registration
 - id: domain:TestACMEAccountRestoredFromDiskOnRestart
@@ -4942,9 +4863,7 @@ required_tests:
   title: Publish Does Not Guarantee Delivery
 - id: event:TestSubscriberReceivesDuplicateOnReplay
   title: Subscriber Receives Duplicate On Replay
-- id: evidence:TestPreflightReportsWeakEvidenceAsUncertain
-  title: Preflight Reports Weak Evidence As Uncertain
-- id: globular_client:TestMeshConnectionDoesNotSkipTLSVerification
+- id: golang/globular_client/clients_tls_test.go::TestMeshConnectionDoesNotSkipTLSVerification
   title: Mesh Connection Does Not Skip TLSVerification
 - id: globular_service:TestSecurityFlagsDoNotFallbackToEnvInProduction
   title: Security Flags Do Not Fallback To Env In Production
@@ -4974,11 +4893,6 @@ required_tests:
   protects:
     invariants:
     - convergence.restart_must_go_through_singleflight_gate
-- id: golang/cluster_controller/cluster_controller_server/dispatch_expected_sha256_test.go::TestDispatch_AuditAllCallSitesSetExpectedSha256
-  title: Dispatch Audit All Call Sites Set Expected Sha256
-  protects:
-    failure_modes:
-    - expected_sha256_param_must_carry_subject_name
 - id: golang/cluster_controller/cluster_controller_server/etcd_rejoin_test.go::TestResolveEtcdLeaderNode_FailsClosedWhenUncertain
   title: Resolve Etcd Leader Node Fails Closed When Uncertain
   protects:
@@ -5020,16 +4934,6 @@ required_tests:
   protects:
     failure_modes:
     - envoy.listeners_active
-- id: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical
-  title: Envoy LDSWedge CDSProgress LDSZero Fires Critical
-  protects:
-    invariants:
-    - envoy.lds_progress_required_for_http_mesh_readiness
-- id: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go::TestEnvoyLDSWedge_LDSHealthy_FiresInfoPass
-  title: Envoy LDSWedge LDSHealthy Fires Info Pass
-  protects:
-    invariants:
-    - envoy.lds_progress_required_for_http_mesh_readiness
 - id: golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra_test.go::TestEtcdInfraConfigValid_SelfOnlyInitialCluster
   title: Etcd Infra Config Valid Self Only Initial Cluster
   protects:
@@ -5121,16 +5025,6 @@ required_tests:
   protects:
     invariants:
     - objectstore.membership_requires_explicit_desired_state
-- id: golang/dependency/modes_test.go::TestRepositoryMinioIsDegradedNotReadOnly
-  title: Repository Minio Is Degraded Not Read Only
-  protects:
-    invariants:
-    - repository.minio_is_not_valid_package_source
-- id: golang/file/file_client/zz_awareness_required_test_aliases_test.go::TestFileService_FallbackToLocalEmitsFinding
-  title: File Service Fallback To Local Emits Finding
-  protects:
-    invariants:
-    - mcp.file_tool_uses_file_service_not_host_fs
 - id: golang/globularcli/cluster_dial_invariant_test.go::TestRewriteDialInvariantError_TLSHandshake
   title: Rewrite Dial Invariant Error TLSHandshake
   protects:
@@ -5407,21 +5301,6 @@ required_tests:
   protects:
     failure_modes:
     - infra.node_specific_truth_must_be_observed_via_node_local_client
-- id: golang/workflow/engine/actors_expected_sha256_test.go::TestDispatch_PopulatesExpectedSha256FromManifest
-  title: Dispatch Populates Expected Sha256 From Manifest
-  protects:
-    failure_modes:
-    - expected_sha256_param_must_carry_subject_name
-- id: golang/workflow/engine/engine_state_mutation_ratchet_test.go::TestEngine_PanickingStepReachesTerminalState
-  title: Engine Panicking Step Reaches Terminal State
-  protects:
-    invariants:
-    - panic_recovery_must_not_be_silent
-- id: golang/workflow/workflow_server/zz_awareness_required_test_aliases_test.go::TestServiceReleaseRecoveryAfterWorkflowCommitFailure
-  title: Service Release Recovery After Workflow Commit Failure
-  protects:
-    invariants:
-    - release.failed_state_requires_explicit_recovery_or_requeue
 - id: installed_state:TestCommitConvergenceWithInstallPromotion
   title: Commit Convergence With Install Promotion
 - id: installed_state:TestCommitConvergenceWithInstallValidation
@@ -5446,9 +5325,7 @@ required_tests:
   title: Call Depth Propagated In Metadata
 - id: interceptors:TestChainOrderACCBeforeRBAC
   title: Chain Order ACCBefore RBAC
-- id: interceptors:TestClusterIDEnforcementInitializedCluster
-  title: Cluster IDEnforcement Initialized Cluster
-- id: interceptors:TestDenyOverridesSAAllow
+- id: golang/rbac/rbac_server/rbac_deny_override_test.go::TestDenyOverridesSAAllow
   title: Deny Overrides SAAllow
 - id: interceptors:TestIntegration_AuditLogNoDenialSampling
   title: Integration Audit Log No Denial Sampling
@@ -5699,8 +5576,6 @@ required_tests:
     - workflow.workflow_service_writes_only_own_runtime_state
 - id: rbac/rbac_server:TestDenyOverridesOwnerAllow
   title: Deny Overrides Owner Allow
-- id: rbac/rbac_server:TestDenyOverridesSAAllow
-  title: Deny Overrides SAAllow
 - id: rbac/rbac_server:TestMgmtProtection_BootstrapBypass
   title: Mgmt Protection Bootstrap Bypass
 - id: rbac/rbac_server:TestPostBootstrap_NormalRBACWorks
@@ -5713,7 +5588,7 @@ required_tests:
   title: SADeny On Parent Path
 - id: rbac/rbac_server:TestSADifferentPermissionNotDenied
   title: SADifferent Permission Not Denied
-- id: rbac/rbac_server:TestSALegacyDomainFormat
+- id: golang/rbac/rbac_server/rbac_deny_override_test.go::TestSALegacyDomainFormat
   title: SALegacy Domain Format
 - id: rbac:TestAllowMatchesBareSubject
   title: Allow Matches Bare Subject
@@ -5729,26 +5604,6 @@ required_tests:
   title: Permission Inherited From Parent Path
 - id: rbac:TestRbacServiceMethodsExcludedFromInterceptor
   title: Rbac Service Methods Excluded From Interceptor
-- id: rbac:TestSALegacyDomainFormat
-  title: SALegacy Domain Format
-- id: remediation:TestDispatchSuccessWithoutVerificationIsPending
-  title: Dispatch Success Without Verification Is Pending
-- id: remediation:TestFailureRatePolicyBlocksAfterThresholdByActionClass
-  title: Failure Rate Policy Blocks After Threshold By Action Class
-- id: remediation:TestFailureRatePolicyPersistsAcrossRestart
-  title: Failure Rate Policy Persists Across Restart
-- id: remediation:TestFindingRemainsActiveUntilVerifiedResolution
-  title: Finding Remains Active Until Verified Resolution
-- id: remediation:TestOverrideAuditNamesBypassedPolicy
-  title: Override Audit Names Bypassed Policy
-- id: remediation:TestOverrideRequiresReasonScopeAndExpiry
-  title: Override Requires Reason Scope And Expiry
-- id: remediation:TestOverrideStillRequiresVerification
-  title: Override Still Requires Verification
-- id: remediation:TestRemediationCircuitBreakerUsesSharedPolicy
-  title: Remediation Circuit Breaker Uses Shared Policy
-- id: remediation:TestRemediationWorkflowSuccessRequiresFindingResolved
-  title: Remediation Workflow Success Requires Finding Resolved
 - id: repository/repository_server:TestConformance_IdempotentRepublish
   title: Conformance Idempotent Republish
 - id: repository/repository_server:TestDeriveUpstreamBuildID_Deterministic
@@ -5759,8 +5614,6 @@ required_tests:
   title: Find Existing Artifact By Digest Ignores Build Number
 - id: repository/repository_server:TestGetRepositoryStatus_NilWatchdog_ReturnsDegraded
   title: Get Repository Status Nil Watchdog Returns Degraded
-- id: repository/repository_server:TestINV1_ReleasedArtifactImmutable_DifferentDigest
-  title: INV1 Released Artifact Immutable Different Digest
 - id: repository/repository_server:TestINV3_BuildIdServerGenerated
   title: INV3 Build Id Server Generated
 - id: repository/repository_server:TestIsTransitionAllowed_RepairChain
@@ -5769,15 +5622,11 @@ required_tests:
   title: List Repository Findings Build IDChecksum Conflict
 - id: repository/repository_server:TestListRepositoryFindings_PublishedMissingBlob
   title: List Repository Findings Published Missing Blob
-- id: repository/repository_server:TestListRollbackCandidates_PicksPreviousAndEvaluates
+- id: golang/repository/repository_server/rollback_rpc_test.go::TestListRollbackCandidates_PicksPreviousAndEvaluates
   title: List Rollback Candidates Picks Previous And Evaluates
-- id: repository/repository_server:TestListRollbackCandidates_RevokedNotEligible
+- id: golang/repository/repository_server/rollback_rpc_test.go::TestListRollbackCandidates_RevokedNotEligible
   title: List Rollback Candidates Revoked Not Eligible
-- id: repository/repository_server:TestLocalPublish2_LocalVersionSuffixPassesIdentityRules
-  title: Local Publish2 Local Version Suffix Passes Identity Rules
-- id: repository/repository_server:TestMigrateBuildIDs_Idempotent
-  title: Migrate Build IDs Idempotent
-- id: repository/repository_server:TestNormalizeReleaseEntry_ChannelFallsBackToSource
+- id: golang/repository/repository_server/sync_from_upstream_test.go::TestNormalizeReleaseEntry_ChannelFallsBackToSource
   title: Normalize Release Entry Channel Falls Back To Source
 - id: repository/repository_server:TestPublishReconciler_RespectsRetryLimit
   title: Publish Reconciler Respects Retry Limit
@@ -5785,7 +5634,7 @@ required_tests:
   title: Published Metadata Checksum Mismatch Becomes Broken And Repairs
 - id: repository/repository_server:TestPublishedMetadataMissingBlobBecomesBrokenAndRepairs
   title: Published Metadata Missing Blob Becomes Broken And Repairs
-- id: repository/repository_server:TestQuarantinedArtifactNotInstallable
+- id: golang/repository/repository_server/artifact_admin_test.go::TestQuarantinedArtifactNotInstallable
   title: Quarantined Artifact Not Installable
 - id: repository/repository_server:TestRepairArtifactFromUpstream_RebuildsMissingBlob
   title: Repair Artifact From Upstream Rebuilds Missing Blob
@@ -5797,7 +5646,7 @@ required_tests:
   title: Resolver Blocks Missing Required Signature
 - id: repository/repository_server:TestRevokedArtifactNotAutoRepaired
   title: Revoked Artifact Not Auto Repaired
-- id: repository/repository_server:TestRollbackCandidate_BlocksRevokedPublisherKey
+- id: golang/repository/repository_server/signature_policy_test.go::TestRollbackCandidate_BlocksRevokedPublisherKey
   title: Rollback Candidate Blocks Revoked Publisher Key
 - id: repository/repository_server:TestScenarioA_DuplicateUpstreamPackage_DedupesWithAlias
   title: Scenario A Duplicate Upstream Package Dedupes With Alias
@@ -5833,8 +5682,6 @@ required_tests:
   title: T2 Scylla Down Require Write Blocked
 - id: repository/repository_server:TestT6_MinioDown_ServiceModeDegraded
   title: T6 Minio Down Service Mode Degraded
-- id: repository/repository_server:TestTransitionArtifactState_IdempotentSelfTransition
-  title: Transition Artifact State Idempotent Self Transition
 - id: repository/repository_server:TestTrustModel_S2_BlobMissing_UpstreamRepairs
   title: Trust Model S2 Blob Missing Upstream Repairs
 - id: repository/repository_server:TestUpstreamFallbackAllowed_MissingChecksum
@@ -5855,8 +5702,6 @@ required_tests:
   title: Artifact Tuple Does Not Map To Multiple Build IDs
 - id: repository:TestBlobIntegrityLocalOnly
   title: Blob Integrity Local Only
-- id: repository:TestBuildIDMapsToSingleArtifactIdentity
-  title: Build IDMaps To Single Artifact Identity
 - id: repository:TestCheckImportPolicy_AllowedChannels_EntryChannel
   title: Check Import Policy Allowed Channels Entry Channel
 - id: repository:TestCheckImportPolicy_ChannelDefaultsToStable
@@ -5869,8 +5714,6 @@ required_tests:
   title: Config Receipts Redacts Secret Path
 - id: repository:TestDefaultMergeStrategy_PerKind
   title: Default Merge Strategy Per Kind
-- id: repository:TestDependencyDeclarationMatchesLiveEnforcement
-  title: Dependency Declaration Matches Live Enforcement
 - id: repository:TestGCNeverArchivesRevokedOrQuarantined
   title: GCNever Archives Revoked Or Quarantined
 - id: repository:TestGCReachabilityIncludesInstalledState
@@ -5879,16 +5722,8 @@ required_tests:
   title: Get Artifact Versions Uses Publish State Column
 - id: repository:TestInstallabilityRequiresBothMetadataAndBlob
   title: Installability Requires Both Metadata And Blob
-- id: repository:TestListRollbackCandidates_PicksPreviousAndEvaluates
-  title: List Rollback Candidates Picks Previous And Evaluates
-- id: repository:TestListRollbackCandidates_RevokedNotEligible
-  title: List Rollback Candidates Revoked Not Eligible
-- id: repository:TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
-  title: Local Publish2 Official Publisher Cannot Use DEVChannel
 - id: repository:TestMissingSignatureRespectsPolicy
   title: Missing Signature Respects Policy
-- id: repository:TestNormalizeReleaseEntry_ChannelFallsBackToSource
-  title: Normalize Release Entry Channel Falls Back To Source
 - id: repository:TestNormalizeReleaseEntry_ChannelFromEntry
   title: Normalize Release Entry Channel From Entry
 - id: repository:TestPackageInstallFallsBackToMinIOWhenTorrentUnavailable
@@ -5899,10 +5734,6 @@ required_tests:
   title: Publish Pipeline Descriptor Failure Is Non Fatal
 - id: repository:TestPublishPipelineLawValidationBlocksPromotion
   title: Publish Pipeline Law Validation Blocks Promotion
-- id: repository:TestPublishRejectsSameBuildNumberDifferentBuildID
-  title: Publish Rejects Same Build Number Different Build ID
-- id: repository:TestQuarantinedArtifactNotInstallable
-  title: Quarantined Artifact Not Installable
 - id: repository:TestRecordAndListConfigReceipts
   title: Record And List Config Receipts
 - id: repository:TestReleaseIndexV2InstallRejectsMissingBuildID
@@ -5911,18 +5742,8 @@ required_tests:
   title: Repair Actions Require Explicit Intent
 - id: repository:TestRepairArtifactDryRunMissingBlob
   title: Repair Artifact Dry Run Missing Blob
-- id: repository:TestRepairArtifactUsesLatestExistingBuildWhenBroken
-  title: Repair Artifact Uses Latest Existing Build When Broken
-- id: repository:TestRepairDoesNotUseBuildNumberAsIdentity
-  title: Repair Does Not Use Build Number As Identity
 - id: repository:TestRepositoryDoctorCollisionFindingIncludesForbiddenFixes
   title: Repository Doctor Collision Finding Includes Forbidden Fixes
-- id: repository:TestRepositoryDoctorReportsBuildIDReuse
-  title: Repository Doctor Reports Build IDReuse
-- id: repository:TestRepositoryDoctorReportsDuplicateBuildNumberCollision
-  title: Repository Doctor Reports Duplicate Build Number Collision
-- id: repository:TestRepositoryRepairDoesNotRequireInstallableState
-  title: Repository Repair Does Not Require Installable State
 - id: repository:TestReservedNamespaceBlockedForRegularUser
   title: Reserved Namespace Blocked For Regular User
 - id: repository:TestResolveConfigEntry_FillsDefaults
@@ -5939,24 +5760,10 @@ required_tests:
   title: Resolver Missing Returns Not Found
 - id: repository:TestRevokedKeyIsVetoRegardlessOfPolicy
   title: Revoked Key Is Veto Regardless Of Policy
-- id: repository:TestRollbackCandidate_BlocksRevokedPublisherKey
-  title: Rollback Candidate Blocks Revoked Publisher Key
 - id: repository:TestScenarioD_ReleaseIndexPin_ResolveByBuildIDIsDeterministic
   title: Scenario D Release Index Pin Resolve By Build IDIs Deterministic
 - id: repository:TestSuperuserCanWriteReservedNamespace
   title: Superuser Can Write Reserved Namespace
-- id: repository:TestSyncFromUpstream_ArchSpecificEntryStillFilteredOnMismatch
-  title: Sync From Upstream Arch Specific Entry Still Filtered On Mismatch
-- id: repository:TestSyncFromUpstream_AwarenessBundleNoArchImportsCleanly
-  title: Sync From Upstream Awareness Bundle No Arch Imports Cleanly
-- id: repository:TestSyncFromUpstream_NoArchEntryNotFilteredByPlatform
-  title: Sync From Upstream No Arch Entry Not Filtered By Platform
-- id: repository:TestTransitionArtifactState_RejectsIllegalTransition
-  title: Transition Artifact State Rejects Illegal Transition
-- id: repository:TestUploadDifferentDigestSamePublishedVersionRejected
-  title: Upload Different Digest Same Published Version Rejected
-- id: repository:TestUploadIdempotentSameDigestReturnsExistingBuildID
-  title: Upload Idempotent Same Digest Returns Existing Build ID
 - id: repository:TestVA1_V2BOM_PlatformReleaseFieldIsOnTopLevelOnly
   title: VA1 V2 BOM Platform Release Field Is On Top Level Only
 - id: repository:TestVA1_V2BOM_PlatformReleaseIsMetadataNotVersion
@@ -5976,16 +5783,6 @@ required_tests:
   protects:
     invariants:
     - package.entrypoint_binary_identity_single_source_of_truth
-- id: security:TestApprovalTokenBindsActionTargetAndGeneration
-  title: Approval Token Binds Action Target And Generation
-- id: security:TestApprovalTokenRejectsEmptyOrUnsignedToken
-  title: Approval Token Rejects Empty Or Unsigned Token
-- id: security:TestApprovalTokenRejectsExpiredToken
-  title: Approval Token Rejects Expired Token
-- id: security:TestApprovalTokenRejectsReplay
-  title: Approval Token Rejects Replay
-- id: security:TestApprovalTokenRejectsWrongAudience
-  title: Approval Token Rejects Wrong Audience
 - id: security:TestAuthContextClusterIDFromClaimsNotIssuer
   title: Auth Context Cluster IDFrom Claims Not Issuer
 - id: security:TestAuthContextStripsAtDomainSuffix
@@ -6004,8 +5801,6 @@ required_tests:
   title: Is Cluster Initialized False When No Domain
 - id: security:TestIsMutatingRPC_UnknownDefaultsMutating
   title: Is Mutating RPC Unknown Defaults Mutating
-- id: security:TestMeshConnectionDoesNotSkipTLSVerification
-  title: Mesh Connection Does Not Skip TLSVerification
 - id: security:TestMeshServerNameFromTarget
   title: Mesh Server Name From Target
 - id: security:TestMeshServerNameOverride
@@ -6022,36 +5817,12 @@ required_tests:
   title: Validate Cluster ID Match Allowed
 - id: security:TestValidateClusterID_MismatchDenied
   title: Validate Cluster ID Mismatch Denied
-- id: test:TestAutoRemediationCooldown_AllowsFirstBlocksSecond
-  title: Auto Remediation Cooldown Allows First Blocks Second
-- id: test:TestBuildStepReceiptPayload_BlockedFields
-  title: Build Step Receipt Payload Blocked Fields
-- id: test:TestFindingIncludesEvidenceTrustLevel
-  title: Finding Includes Evidence Trust Level
-- id: test:TestNoRuleEmitsConfidentFailureOnErroredSnapshot
-  title: No Rule Emits Confident Failure On Errored Snapshot
-- id: test:TestNodeExecutorCannotPerformRBACAdmin
-  title: Node Executor Cannot Perform RBACAdmin
-- id: test:TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
-  title: RBACFallback Fails Closed For User Mutation Outside Bootstrap
-- id: test:TestReceiptClassificationConservative_UnknownIsRetryNotSuccess
-  title: Receipt Classification Conservative Unknown Is Retry Not Success
-- id: test:TestRemediationAuditCarriesCorrelationFields
-  title: Remediation Audit Carries Correlation Fields
-- id: test:TestRemediationBlocksOnStaleEvidence
-  title: Remediation Blocks On Stale Evidence
-- id: test:TestRepositoryRepairDoesNotRequireInstallableState
-  title: Repository Repair Does Not Require Installable State
-- id: test:TestResolverFilter_ExcludesNonInstallableStates_BlobVerifiedIsRejected
-  title: Resolver Filter Excludes Non Installable States Blob Verified Is Rejected
 - id: verifier:TestClassifyGap_MissingVerdict_SweepAgeUnknown
   title: Classify Gap Missing Verdict Sweep Age Unknown
 - id: verifier:TestEtcdKeyForVerification_LayoutMatchesBrief
   title: Etcd Key For Verification Layout Matches Brief
 - id: verifier:TestInstalledDoesNotImplyRuntimeHealthy
   title: Installed Does Not Imply Runtime Healthy
-- id: verifier:TestRuntimeIdentityProofRequired
-  title: Runtime Identity Proof Required
 - id: versionutil:TestGeneratedVersionFilesContract
   title: Generated Version Files Contract
 - id: workflow/compiler:TestCompile_CyclicDependencyRejected
@@ -6060,7 +5831,7 @@ required_tests:
   title: Compile Digest Is Deterministic
 - id: workflow/engine:TestDoctorFindingDefinitionNoPlanWords
   title: Doctor Finding Definition No Plan Words
-- id: workflow/engine:TestDoctorFindingWorkflow_HappyPath
+- id: golang/workflow/engine/doctor_remediation_test.go::TestDoctorFindingWorkflow_HappyPath
   title: Doctor Finding Workflow Happy Path
 - id: workflow/engine:TestDoctorFindingWorkflow_HighRiskApproved
   title: Doctor Finding Workflow High Risk Approved
@@ -6080,8 +5851,6 @@ required_tests:
   title: Release Infra Bare Digest Rejected
 - id: workflow/engine:TestReleaseInfra_DesiredHashPrefixRequired
   title: Release Infra Desired Hash Prefix Required
-- id: workflow/engine:TestReleaseTopologyLock_Idempotent
-  title: Release Topology Lock Idempotent
 - id: workflow/engine:TestResumePolicyRerunIfNoReceipt_SkipsWhenReceiptExists
   title: Resume Policy Rerun If No Receipt Skips When Receipt Exists
 - id: workflow/engine:TestResumePolicyVerifyEffect_InconclusiveTreatedAsAbsent
@@ -6096,16 +5865,8 @@ required_tests:
   title: Loader Disk Fallback Only At Bootstrap
 - id: workflow/v1alpha1:TestLoader_EtcdTakesPriorityOverDisk
   title: Loader Etcd Takes Priority Over Disk
-- id: workflow/workflow_server:TestBuildStepReceiptPayload_BlockedFields
-  title: Build Step Receipt Payload Blocked Fields
 - id: workflow/workflow_server:TestClaimRunWithoutScylla
   title: Claim Run Without Scylla
-- id: workflow/workflow_server:TestClassifyStepFailureForReceipt_NativeDependencyMissing
-  title: Classify Step Failure For Receipt Native Dependency Missing
-- id: workflow/workflow_server:TestClassifyStepFailureForReceipt_TransientTimeout
-  title: Classify Step Failure For Receipt Transient Timeout
-- id: workflow/workflow_server:TestDriftWorkflowUsesDesiredHash
-  title: Drift Workflow Uses Desired Hash
 - id: workflow/workflow_server:TestOrphanScannerDoesNotPanicWithoutScylla
   title: Orphan Scanner Does Not Panic Without Scylla
 - id: workflow/workflow_server:TestResumeRun_RunningStepResumed
@@ -6136,8 +5897,6 @@ required_tests:
   title: Node Repair Checksum Drift Success
 - id: workflow:TestReconcile_OneMissingPackage
   title: Reconcile One Missing Package
-- id: workflow:TestReleaseTopologyLock_Idempotent
-  title: Release Topology Lock Idempotent
 - id: workflow:TestVerifyMinioClusterHealthy_MissingTargetGeneration
   title: Verify Minio Cluster Healthy Missing Target Generation
 - id: workflow:TestVerifyMinioClusterHealthy_ServiceNotActive
@@ -6150,10 +5909,6 @@ required_tests:
   title: Verify Runtime Scope All Members Active
 - id: workflow:TestVerifyRuntimeScope_MissingPoolNodeIDs
   title: Verify Runtime Scope Missing Pool Node IDs
-- id: workflow:TestVerifyRuntimeScope_NonMemberActive
-  title: Verify Runtime Scope Non Member Active
-- id: workflow_engine:TestDoctorFindingWorkflow_HappyPath
-  title: Doctor Finding Workflow Happy Path
 - id: workflow_engine:TestDoctorFindingWorkflow_PipelineSteps
   title: Doctor Finding Workflow Pipeline Steps
 - id: TestPromoteToPublished_RefusesSkeletonRow

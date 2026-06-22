@@ -37,5 +37,5 @@ expressed_by:
   - golang/cluster_controller/cluster_controller_server/release_pipeline.go
 required_tests:
   - cluster_controller:TestDesiredStateDrivesReconcile
-  - cluster_controller:TestComputeDesiredState_PlannedNotInstalled_NoRecord
+  - golang/cluster_controller/cluster_controller_server/dns_gating_test.go::TestComputeDesiredState_PlannedNotInstalled_NoRecord
 status: seed

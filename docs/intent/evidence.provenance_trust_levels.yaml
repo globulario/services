@@ -48,6 +48,6 @@ change_risk:
   - remediation_sensitive
 status: accepted
 required_tests:
-  - doctor:TestFindingIncludesEvidenceTrustLevel
-  - doctor:TestRemediationBlocksOnStaleEvidence
-  - evidence:TestPreflightReportsWeakEvidenceAsUncertain
+  - golang/cluster_doctor/cluster_doctor_server/evidence_provenance_test.go::TestFindingIncludesEvidenceTrustLevel
+  - golang/cluster_doctor/cluster_doctor_server/evidence_provenance_test.go::TestRemediationBlocksOnStaleEvidence
+  - golang/evidence/trust_test.go::TestPreflightReportsWeakEvidenceAsUncertain

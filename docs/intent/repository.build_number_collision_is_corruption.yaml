@@ -43,7 +43,7 @@ violation_patterns:
 - "BuildNumber.*BuildId.*collision"
 - "resolveLatestBuildNumber.*repair"
 required_tests:
-- repository:TestRepositoryDoctorReportsDuplicateBuildNumberCollision
-- repository:TestPublishRejectsSameBuildNumberDifferentBuildID
-- repository:TestRepairDoesNotUseBuildNumberAsIdentity
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryDoctorReportsDuplicateBuildNumberCollision
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestPublishRejectsSameBuildNumberDifferentBuildID
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestRepairDoesNotUseBuildNumberAsIdentity
 status: proposed

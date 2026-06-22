@@ -22,9 +22,9 @@ zooms_in_to: []
 related_to:
 - repository.signature_policy_gates_trust
 required_tests:
-- repository:TestListRollbackCandidates_PicksPreviousAndEvaluates
-- repository:TestListRollbackCandidates_RevokedNotEligible
-- repository:TestRollbackCandidate_BlocksRevokedPublisherKey
+- golang/repository/repository_server/rollback_rpc_test.go::TestListRollbackCandidates_PicksPreviousAndEvaluates
+- golang/repository/repository_server/rollback_rpc_test.go::TestListRollbackCandidates_RevokedNotEligible
+- golang/repository/repository_server/signature_policy_test.go::TestRollbackCandidate_BlocksRevokedPublisherKey
 - globularcli:TestRunReleaseRollback
 - globularcli:TestRunReleaseRollbackRequiresTarget
 change_risk:

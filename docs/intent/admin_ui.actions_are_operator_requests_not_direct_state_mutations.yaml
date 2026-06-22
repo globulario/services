@@ -14,5 +14,5 @@ activation_triggers:
 related_to:
   - frontend_and_admin_are_clients_not_authorities
 required_tests:
-  - admin:TestUIUsesBackendAuthorityPaths
+  - golang/cluster_controller/cluster_controller_server/zz_intent_required_test_aliases_test.go::TestUIUsesBackendAuthorityPaths
 status: seed

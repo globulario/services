@@ -49,8 +49,8 @@ rollback_steps:
   - "There is no blind rollback — a completed step stays completed; correction flows through a new bounded workflow run."
 
 required_tests:
-  - "test:TestReceiptClassificationConservative_UnknownIsRetryNotSuccess"
-  - "test:TestBuildStepReceiptPayload_BlockedFields"
+  - "golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestReceiptClassificationConservative_UnknownIsRetryNotSuccess"
+  - "golang/workflow/workflow_server/receipt_failure_classifier_test.go::TestBuildStepReceiptPayload_BlockedFields"
 produces_outcome_feedback: "record an OutcomeFeedback for the run with the resume decision and whether replay was avoided"
 
 notes: |

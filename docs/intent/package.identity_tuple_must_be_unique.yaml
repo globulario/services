@@ -49,7 +49,7 @@ violation_patterns:
 - "same.*tuple.*multiple build_id"
 - "build_number.*identity"
 required_tests:
-- repository:TestBuildIDMapsToSingleArtifactIdentity
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestBuildIDMapsToSingleArtifactIdentity
 - repository:TestArtifactTupleDoesNotMapToMultipleBuildIDs
 - repository:TestChecksumStableForBuildID
 status: proposed

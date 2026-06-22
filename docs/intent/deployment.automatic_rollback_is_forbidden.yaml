@@ -26,9 +26,9 @@ zooms_in_to:
 related_to:
 - backup.must_be_restorable_not_just_taken
 required_tests:
-- repository/repository_server:TestListRollbackCandidates_PicksPreviousAndEvaluates
-- repository/repository_server:TestListRollbackCandidates_RevokedNotEligible
-- repository/repository_server:TestRollbackCandidate_BlocksRevokedPublisherKey
+- golang/repository/repository_server/rollback_rpc_test.go::TestListRollbackCandidates_PicksPreviousAndEvaluates
+- golang/repository/repository_server/rollback_rpc_test.go::TestListRollbackCandidates_RevokedNotEligible
+- golang/repository/repository_server/signature_policy_test.go::TestRollbackCandidate_BlocksRevokedPublisherKey
 - globularcli:TestRunReleaseRollback
 - globularcli:TestRunReleaseRollbackRequiresTarget
 change_risk:

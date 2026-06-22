@@ -25,9 +25,9 @@ zooms_in_to:
 related_to:
 - workflow.source_of_operational_truth
 required_tests:
-- cluster_controller/cluster_controller_server:TestValidateNoReseedCycle_DetectsCycle
-- cluster_controller/cluster_controller_server:TestValidateNoReseedCycle_AcceptsDAG
-- cluster_controller/cluster_controller_server:TestValidateNoReseedCycle_IgnoresExternalDeps
+- golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_DetectsCycle
+- golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_AcceptsDAG
+- golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_IgnoresExternalDeps
 - cluster_controller/cluster_controller_server:TestReconcilerSkipsNodeWhenRecoveryPaused
 change_risk:
 - data_loss_sensitive

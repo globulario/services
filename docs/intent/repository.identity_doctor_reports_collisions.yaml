@@ -34,7 +34,7 @@ violation_patterns:
 - "duplicate.*ignored"
 - "collision.*latest"
 required_tests:
-- repository:TestRepositoryDoctorReportsDuplicateBuildNumberCollision
-- repository:TestRepositoryDoctorReportsBuildIDReuse
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryDoctorReportsDuplicateBuildNumberCollision
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestRepositoryDoctorReportsBuildIDReuse
 - repository:TestRepositoryDoctorCollisionFindingIncludesForbiddenFixes
 status: proposed

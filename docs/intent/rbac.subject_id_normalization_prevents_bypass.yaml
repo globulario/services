@@ -33,7 +33,7 @@ zooms_in_to: []
 related_to:
   - security.tokens_certificates_keys.cluster_trust_contract
 required_tests:
-  - rbac:TestSALegacyDomainFormat
+  - golang/rbac/rbac_server/rbac_deny_override_test.go::TestSALegacyDomainFormat
   - rbac:TestDenyMatchesFQDNSubject
   - rbac:TestAllowMatchesBareSubject
 status: extracted_candidate

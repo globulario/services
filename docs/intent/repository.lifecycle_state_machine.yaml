@@ -31,7 +31,7 @@ zooms_in_to:
 related_to:
 - degraded_is_explicit_not_hidden
 required_tests:
-- repository:TestTransitionArtifactState_RejectsIllegalTransition
+- golang/repository/repository_server/artifact_state_test.go::TestTransitionArtifactState_RejectsIllegalTransition
 - repository:TestArtifactStateHappyPathSync
 - repository:TestPromoteArtifact_InvalidTransition
 status: extracted_candidate

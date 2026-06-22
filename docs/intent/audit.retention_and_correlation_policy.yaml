@@ -46,6 +46,6 @@ change_risk:
   - compliance_sensitive
 status: accepted
 required_tests:
-  - doctor:TestRemediationAuditCarriesCorrelationFields
-  - doctor:TestAuditRedactsApprovalTokenMaterial
-  - doctor:TestAuditRetentionPolicyIsExplicit
+  - golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestRemediationAuditCarriesCorrelationFields
+  - golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestAuditRedactsApprovalTokenMaterial
+  - golang/cluster_doctor/cluster_doctor_server/audit_correlation_test.go::TestAuditRetentionPolicyIsExplicit

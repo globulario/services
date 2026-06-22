@@ -33,10 +33,10 @@ required_tests:
 - workflow:TestExecuteNodeBootstrap
 - workflow:TestCompileNodeBootstrap
 - workflow:TestCompileDay0Bootstrap
-- cluster_controller:TestValidateNoReseedCycle_DetectsCycle
-- cluster_controller:TestValidateNoReseedCycle_AcceptsDAG
-- cluster_controller:TestValidateNoReseedCycle_IgnoresExternalDeps
-- workflow:TestReleaseTopologyLock_Idempotent
+- golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_DetectsCycle
+- golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_AcceptsDAG
+- golang/cluster_controller/cluster_controller_server/recovery_test.go::TestValidateNoReseedCycle_IgnoresExternalDeps
+- golang/workflow/engine/actors_objectstore_test.go::TestReleaseTopologyLock_Idempotent
 change_risk:
 - bootstrap_sensitive
 - quorum_sensitive

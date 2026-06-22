@@ -72,14 +72,14 @@ meta_principle_coverage:
       The doctor snap-error contract is gated by services-CI behavioral ratchets,
       not the (too-broad) static doctor_rule scanner.
     tests:
-      - TestNoRuleEmitsConfidentFailureOnErroredSnapshot
+      - golang/cluster_doctor/cluster_doctor_server/rules/registry_source_error_enforcement_test.go::TestNoRuleEmitsConfidentFailureOnErroredSnapshot
       - TestClusterScopedRulesRefuseOnSourceError
       - TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable
   - principle: meta.fail_safe_defaults_when_authority_is_uncertain
     tier: behavioral
     reason: RBAC fails closed and the remediator refuses unknown tiers under uncertainty.
     tests:
-      - TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
+      - golang/interceptors/role_binding_failsafe_test.go::TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
       - TestRemediator_UnknownTierFailsSafeNoAutoExecute
   - principle: meta.authorization_check_is_a_snapshot_not_a_promise
     tier: behavioral
@@ -91,7 +91,7 @@ meta_principle_coverage:
     tier: behavioral
     reason: Node last-seen uses the server clock, not the reporting node's clock, so cross-node comparisons are skew-free.
     tests:
-      - TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
+      - golang/cluster_controller/cluster_controller_server/clock_skew_lastseen_test.go::TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
   - principle: meta.negative_result_requires_coverage_attestation
     tier: behavioral
     reason: >

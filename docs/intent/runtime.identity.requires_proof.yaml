@@ -16,5 +16,5 @@ related_to:
   - state.repository_desired_installed_runtime
   - service.installation_is_not_runtime_truth
 required_tests:
-  - verifier:TestRuntimeIdentityProofRequired
+  - golang/cluster_doctor/cluster_doctor_server/rules/zz_intent_required_test_aliases_test.go::TestRuntimeIdentityProofRequired
 status: seed

@@ -28,4 +28,4 @@ related_to:
 status: extracted_candidate
 
 required_tests:
-  - repository/repository_server:TestLocalPublish2_LocalVersionSuffixPassesIdentityRules
+  - golang/repository/repository_server/local_publish_test.go::TestLocalPublish2_LocalVersionSuffixPassesIdentityRules

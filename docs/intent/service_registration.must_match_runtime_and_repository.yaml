@@ -25,7 +25,7 @@ zooms_in_to: []
 related_to:
 - doctor.findings_are_operator_language
 required_tests:
-- cluster_controller:TestComputeServiceProjection_DesiredNotInstalled
+- golang/cluster_controller/cluster_controller_server/service_projection_test.go::TestComputeServiceProjection_DesiredNotInstalled
 - cluster_controller:TestComputeServiceProjection_AllConverged
 - cluster_controller:TestComputeServiceProjection_PartialRollout
 - cluster_controller:TestRenderServiceConfigsUsesRegistry

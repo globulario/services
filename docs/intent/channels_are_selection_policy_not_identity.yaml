@@ -28,8 +28,8 @@ required_tests:
 - repository:TestCheckImportPolicy_AllowedChannels_EntryChannel
 - repository:TestCheckImportPolicy_ChannelDefaultsToStable
 - repository:TestNormalizeReleaseEntry_ChannelFromEntry
-- repository:TestNormalizeReleaseEntry_ChannelFallsBackToSource
-- repository:TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
+- golang/repository/repository_server/sync_from_upstream_test.go::TestNormalizeReleaseEntry_ChannelFallsBackToSource
+- golang/repository/repository_server/local_publish_test.go::TestLocalPublish2_OfficialPublisherCannotUseDEVChannel
 change_risk:
 - state_model_sensitive
 - release_sensitive
