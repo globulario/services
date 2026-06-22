@@ -1,4 +1,35 @@
 failure_modes:
+    - id: ci.merge_authority_requires_explicit_check_success
+      title: Merge trusted a summarized CI status (gh --watch exit code) instead of explicit per-check pass state
+      severity: high
+      root_cause: |
+        `gh run watch --exit-status` returned exit 0 for runs whose checks had FAILED
+        (observed twice, 2026-06-22: awareness-graph #107 and #108). The watcher's
+        summarized exit status — like mergeStateStatus — is a weather vane, not the law.
+        A red PR was merged because the summary, not the per-check state, was trusted.
+        Merge authority must depend on EXPLICIT per-check success, never a summary.
+      symptoms:
+        - a PR whose build-and-test was red got merged through the normal path
+        - "`gh ... --watch` reports EXIT=0 while `gh pr checks <n>` shows a failing check"
+      forbidden_fixes:
+        - trusting --watch exit code / mergeStateStatus / any summarized status as merge authority
+        - re-running until green as a policy instead of reading per-check state
+        - treating a green summary as proof when per-check states are available and unread
+      no_test_yet_reason: |
+        The contract is mechanizable — a merge-authority guard that exits non-zero unless
+        every required status-check context reports `pass` — but that guard is NOT yet
+        built. Enforcement tier is `planned`, so this is an UNENFORCED (advisory) rule
+        until the guard exists. Until then it is held only by agent discipline: read
+        `gh pr checks <n>` and confirm 0 non-pass / 0 pending before merging. Reported
+        honestly as advisory by awg lifecycle (candidate != authority without enforcement).
+      remediation_plan: |
+        Build the merge-authority guard (CI step or merge wrapper) that verifies every
+        required check context is `pass` for the target ref; then promote this failure_mode
+        to an enforced invariant ci.merge_authority_requires_explicit_check_success and
+        wire branch protection to require it. Where branch protection is unavailable
+        (private repo on GitHub free tier — e.g. awareness-graph), the gate is enforced-
+        in-CI but bypassable; treat that as blocked_by_missing_branch_protection.
+
     - architecture_fix: |
         Introduced a single canonical predicate isBuiltinSuperadmin(subject) in
         rbac_access.go — strings.EqualFold(bareID(subject), "sa"), i.e. @domain-
