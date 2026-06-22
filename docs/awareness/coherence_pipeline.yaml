@@ -1,0 +1,161 @@
+# coherence_pipeline.yaml — how Globular stays coherent as it grows.
+#
+# This file documents the machinery that keeps architectural intent, code, and
+# operational knowledge from drifting apart. It is itself awareness knowledge:
+# the system documenting its own coherence loop so future agents (and humans)
+# can SEE the loop, not just operate inside it. Authored 2026-06-22 after a
+# working session traced how the pieces actually interlock.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THREE MEMORY SYSTEMS — distinct on purpose, do not conflate
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   1. ai-memory            WHAT happened / what we learned (runtime, mutable)
+#      - ScyllaDB-backed knowledge base, project="globular-services".
+#      - Types: feedback, architecture, decision, debug, session, user,
+#        project, reference, scratch.
+#      - Read at session start (tags="always"); written during work as scars,
+#        decisions, and debug notes are discovered.
+#      - MCP tools: memory_store / memory_query / memory_get / memory_update.
+#      - It is a WRITE-AND-RECALL log. It does NOT gate edits.
+#
+#   2. awareness-graph (AWG)  WHY code exists / WHAT it protects (compiled context)
+#      - A queryable RDF graph of intent, invariants, failure_modes,
+#        forbidden_fixes, decisions, repair_plans, implementation_patterns.
+#      - Sources: services/docs/awareness/*.yaml + services/docs/intent/*.yaml
+#        + the awareness-graph repo corpus + Go "// @awareness" annotations.
+#      - Consumed BEFORE edits via briefing(file=) / impact / resolve / query
+#        (mcp__awg__awareness_* or the awg CLI).
+#      - It is COMPILED CONTEXT, NOT runtime authority: it explains the floor,
+#        it does not prove live cluster state. Verify runtime with live MCP
+#        tools (infra_probe, cluster_get_*). See intent
+#        awareness.graph_is_compiled_context_not_authority.
+#
+#   3. behavioral-memory     WHICH rules must always hold (enforced principles)
+#      - Generative meta-principles (meta.*) + evidence/outcome records +
+#        a promotion pipeline (propose -> evidence -> promote).
+#      - Mechanically enforced subset: principle-check ruleguard scanners +
+#        behavioral ratchet tests. The rest is review_only agent discipline.
+#      - MCP tools: behavioral_check_action / propose_principle /
+#        record_evidence / promote_principle / ...
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BUILD PIPELINE (AWG)  —  YAML/annotations become a queryable graph
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   @awareness annotations (Go)  +  docs/awareness/*.yaml  +  docs/intent/*.yaml
+#        |                                                          |
+#        v                                                          v
+#   [1] annotation-scanner  -> docs/awareness/generated/<pkg>_code_{symbols,edges}.yaml
+#        |
+#        v
+#   [2] yaml2nt             -> awareness.nt  (N-Triples; path-prefixes stripped
+#                              so authoredIn is stable repo-relative, not /tmp/...)
+#        |
+#        v
+#   [3] loadnt / embedded   -> Oxigraph store (http://localhost:7878) AND the
+#                              compiled-in seed awareness-graph/golang/server/
+#                              embeddata/awareness.nt (loaded on an empty store)
+#        |
+#        v
+#   [4] awg gRPC sidecar    -> briefing / impact / resolve / query  -> MCP / CLI / agents
+#
+#   Canonical rebuild (from the awareness-graph repo, sibling of services):
+#       SERVICES_REPO=/path/to/services bash scripts/build-awareness-graph.sh
+#       scripts/build-awareness-graph.sh --check   # diff-only, exits 1 if stale
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THE LOOP  —  read path (mature) and write-back path (the learning rung)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   READ PATH (consume before acting) — hook-enforced, mature:
+#     session start: ai-memory recall (tags="always")
+#       -> before any edit in a high-risk dir: awareness.briefing(file=)
+#          (a PreToolUse hook DENIES the edit if no briefing was run)
+#       -> follow invariants / forbidden_fixes / failure_modes the briefing names
+#       -> read the code, patch, run the required tests
+#
+#   WRITE-BACK PATH (teach the system) — the learning loop:
+#     encounter a scar / new failure mode / decision
+#       -> record it in ai-memory (immediate, always)
+#       -> PROMOTE it to docs/awareness (failure_modes.yaml / invariants.yaml /
+#          decisions.yaml / required_tests.yaml) so it becomes graph knowledge
+#       -> rebuild embeddata in the awareness-graph repo
+#       -> CI validates and (goal) gates on freshness
+#
+#   ENFORCEMENT PLANE (CI, services/.github/workflows/ci.yml):
+#     HARD GATES (block merge):
+#       - make principle-check-all          (state-mutation + behavioral scanners)
+#       - behavioral ratchet tests          (runtime invariants source can't see,
+#                                            incl. the doctor harvest-vs-yield ratchet)
+#       - awg validate                      (dangling refs, missing files, dup IDs,
+#                                            cross-repo link integrity)
+#     ADVISORY (signal, not yet gating):
+#       - awg audit -check                  (embeddata freshness + coverage). Held
+#                                            advisory while rebuild determinism and
+#                                            the cross-repo ownership model land;
+#                                            RE-ARM as a hard gate (drop the
+#                                            continue-on-error) once stable.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# HONEST STATUS (2026-06-22)
+# ─────────────────────────────────────────────────────────────────────────────
+#   - Read + validate are automated and enforced (briefing hook + principle-check
+#     + awg validate are hard gates and ran green on real PRs).
+#   - The write-back rung is the weak point: promoting an ai-memory scar into the
+#     graph and rebuilding embeddata is still a manual step that agents defer.
+#     Until the embeddata-freshness gate is re-armed, "the system learned this"
+#     depends on someone cranking the rebuild — drift prevention is then half a
+#     runtime property and half a process hope.
+#   - Embeddata rebuild determinism (the /tmp authoredIn leak that kept the
+#     freshness gate red) is fixed in the awareness-graph repo; awg audit -check
+#     passes. Re-arming the CI gate is the remaining step to close the loop.
+
+decisions:
+  - id: decision.coherence_three_memory_systems
+    title: Coherence rests on three distinct memory systems — ai-memory, awareness-graph, behavioral-memory
+    status: accepted
+    date: 2026-06-22
+    because:
+      - ai-memory is the mutable runtime log of what happened and what was learned (ScyllaDB, project globular-services); it is recalled at session start and written during work, but it does not gate edits
+      - the awareness-graph is compiled context — a queryable graph of intent, invariants, failure_modes, and forbidden_fixes built from docs/awareness, docs/intent, and Go @awareness annotations; it explains why code exists and what it protects, consumed before edits
+      - behavioral-memory is the enforced-principle layer — generative meta-principles plus a mechanically checked subset (principle-check scanners and behavioral ratchet tests)
+      - conflating the three loses the distinction between recall (ai-memory), context (graph), and enforcement (behavioral) — each has a different authority and lifecycle
+    last_verified: 2026-06-22
+    stale_after_days: 365
+
+  - id: decision.awareness_read_path_is_briefing_before_edit
+    title: The read path is briefing-before-edit, hook-enforced in high-risk directories
+    status: accepted
+    date: 2026-06-22
+    because:
+      - before editing any high-risk directory an agent MUST call awareness.briefing(file=) and a PreToolUse hook denies the edit otherwise — there is no "simple fix" exemption
+      - the briefing surfaces the invariants, failure_modes, and forbidden_fixes that govern the target so the local change is connected to global intent
+      - the graph is compiled context, not runtime authority — live cluster state must still be verified with runtime MCP tools, never inferred from the graph
+      - this path is mature and enforced; it caught real design errors (e.g. a 2026-06-22 cluster-doctor fix used the briefing to choose downgrade-to-UNKNOWN over suppression)
+    last_verified: 2026-06-22
+    stale_after_days: 365
+
+  - id: decision.awareness_write_back_is_the_learning_loop
+    title: The write-back path (scar to ai-memory to graph to rebuild to CI) is how the system gets more aware over time
+    status: accepted
+    date: 2026-06-22
+    because:
+      - a newly discovered scar, failure mode, or decision is first recorded in ai-memory, then PROMOTED into docs/awareness so it becomes queryable graph knowledge
+      - promotion requires rebuilding the embeddata in the awareness-graph repo (scripts/build-awareness-graph.sh) so the live graph and compiled seed reflect the new knowledge
+      - the rung is only as strong as its automation — while the embeddata-freshness gate is advisory, promotion depends on someone remembering to rebuild, so drift prevention is partly a process hope rather than a runtime property
+      - the goal state is automatic write-back — new awareness knowledge triggers a rebuild and the freshness gate enforces that the compiled graph never lags the authored corpus
+    last_verified: 2026-06-22
+    stale_after_days: 180
+
+  - id: decision.ci_is_the_coherence_enforcement_plane
+    title: CI is the coherence enforcement plane — principle-check and awg validate hard-gate, awg audit is the freshness signal
+    status: accepted
+    date: 2026-06-22
+    because:
+      - services CI hard-gates on make principle-check-all (state-mutation and behavioral source scanners) and on behavioral ratchet tests that cover runtime invariants the source scanners cannot see
+      - services CI hard-gates on awg validate, which rejects dangling related refs, missing source files, duplicate IDs, and broken cross-repo links in the awareness corpus
+      - awg audit -check (embeddata freshness, coverage gaps, stale file refs) is intentionally advisory until rebuild determinism and the cross-repo ownership model land, after which it should be re-armed as a hard gate by removing its continue-on-error
+      - making freshness a hard gate is what converts the write-back loop from aspiration into enforcement — the last step to make the graph provably never lag its sources
+    last_verified: 2026-06-22
+    stale_after_days: 180
