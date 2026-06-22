@@ -5,10 +5,44 @@ import (
 	"net"
 	"os"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 )
+
+// TestPerMethodLogLimiter is the regression for the repository journal flood
+// (2026-06-21): the "ClusterID sourced from unverified gRPC metadata" WARN fired
+// on every proxy-fronted call (~300/min on the reconcile loop), drowning real
+// WARNs and desensitizing a genuine security signal. The fix throttles it to
+// once per key per window. This pins that behavior: first emission per key
+// passes, repeats within the window are suppressed, and keys are independent.
+func TestPerMethodLogLimiter(t *testing.T) {
+	l := newPerMethodLogLimiter(time.Hour)
+
+	if !l.allow("/repository.PackageRepository/GetArtifactManifest") {
+		t.Fatal("first emission for a key must be allowed")
+	}
+	for i := 0; i < 100; i++ {
+		if l.allow("/repository.PackageRepository/GetArtifactManifest") {
+			t.Fatalf("repeat emission #%d within the window must be suppressed", i)
+		}
+	}
+	// A different method key is throttled independently.
+	if !l.allow("/repository.PackageRepository/ListArtifacts") {
+		t.Fatal("first emission for a distinct key must be allowed")
+	}
+
+	// Once the window elapses, the key is allowed again.
+	expired := newPerMethodLogLimiter(time.Nanosecond)
+	if !expired.allow("m") {
+		t.Fatal("first emission must be allowed")
+	}
+	time.Sleep(time.Millisecond)
+	if !expired.allow("m") {
+		t.Fatal("after the window elapses the key must be allowed again")
+	}
+}
 
 // TestNewAuthContext_Anonymous verifies anonymous context creation
 func TestNewAuthContext_Anonymous(t *testing.T) {

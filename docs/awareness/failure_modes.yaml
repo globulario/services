@@ -1,5 +1,52 @@
 failure_modes:
     - architecture_fix: |
+        Introduced a single canonical predicate isBuiltinSuperadmin(subject) in
+        rbac_access.go — strings.EqualFold(bareID(subject), "sa"), i.e. @domain-
+        stripped AND case-insensitive — and converged ALL five recognition sites
+        onto it: validateAccess, callerIsAdmin, accountExist (two blocks), and
+        resolveOwnership. Previously callerIsAdmin only consulted the STORED role
+        binding (so the built-in sa, which has no stored binding, read as
+        non-admin), and resolveOwnership used EqualFold WITHOUT @-stripping (so
+        "sa@domain" silently failed to match). deny-overrides-allow is unchanged;
+        a real user invoking a mutating method still fails closed. One crown, one
+        recognizer.
+      forbidden_fixes:
+        - reintroduce_an_inline_sa_string_check_instead_of_isBuiltinSuperadmin
+        - recognize_sa_without_stripping_the_domain_suffix
+        - grant_sa_admin_only_via_a_stored_role_binding
+      id: rbac.authority_recognition_predicate_drift_across_sites
+      protects:
+        files:
+            - golang/rbac/rbac_server/rbac_access.go
+            - golang/rbac/rbac_server/rbac_role_bindings.go
+            - golang/rbac/rbac_server/rbac_ownership.go
+            - golang/rbac/rbac_server/server.go
+      related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+      related_services:
+        - rbac
+        - cluster-controller
+        - workflow-service
+      required_tests:
+        - TestIsBuiltinSuperadmin
+        - TestCallerIsAdmin_BuiltinSA
+        - TestGetRoleBinding_SAReadsOtherSubject_NoFallback
+      root_cause: |
+        The built-in superadmin "sa" was recognized by ad-hoc, drifting
+        predicates across the RBAC server: callerIsAdmin (the role-binding admin
+        gate) only read the STORED binding and so reported sa non-admin;
+        validateAccess used bareID(x)=="sa" (case-sensitive); accountExist
+        manually split @domain then EqualFold; resolveOwnership used EqualFold
+        WITHOUT @-strip (missing "sa@domain"). Because service-to-service
+        interceptor authorization lookups authenticate as sa, the callerIsAdmin
+        gap denied GetRoleBinding for any other subject and forced a permissive
+        local-roles RBAC fallback every reconcile tick, which then fail-safe-
+        DENIED the controller's workflow recorder — silently dropping
+        RecordOutcome / RecordPhaseTransition. Four doors knew the king; one
+        guard asked for paperwork. The deeper fault is authority-predicate drift:
+        the same authority decision had five implementations that recognized
+        slightly different sets.
+    - architecture_fix: |
         A handler whose result crosses the actor boundary into a workflow `when`
         guard or `foreach` MUST return an initialized empty slice ([]any{}),
         never a nil slice. reconcileClassifyDrift now returns []any{} for an

@@ -341,6 +341,16 @@ func manifestFromRow(row manifestRow) (*repopb.ArtifactManifest, repopb.PublishS
 	return m, state, nil
 }
 
+// isLedgerRowKey reports whether a manifest-table row is a release-ledger
+// pseudo-row rather than an artifact. Ledger rows share the manifest table but
+// use the artifact_key shape "ledger/<publisher>/<name>" (see release_ledger.go)
+// and carry no artifact identity (version/platform), so they must be excluded
+// from artifact discovery before any manifest parse. Mirrors the guard in
+// artifactStateBackfill.
+func isLedgerRowKey(artifactKey string) bool {
+	return strings.HasPrefix(artifactKey, "ledger/")
+}
+
 // isDiscoveryManifestValid enforces minimum identity integrity for display and
 // version-list APIs. Install resolution has stricter gates elsewhere.
 func isDiscoveryManifestValid(m *repopb.ArtifactManifest) bool {
@@ -1118,6 +1128,15 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 		}
 		var manifests []*repopb.ArtifactManifest
 		for _, row := range rows {
+			// Skip ledger pseudo-rows: they live in the same table but use a
+			// different artifact_key shape ("ledger/<pub>/<name>") and are not
+			// artifacts. Parsing them as manifests always fails
+			// isDiscoveryManifestValid, which previously logged one WARN per row
+			// on every reconcile cycle (~37/cycle of pure noise). Same guard as
+			// artifactStateBackfill.
+			if isLedgerRowKey(row.ArtifactKey) {
+				continue
+			}
 			m, state, parseErr := manifestFromRow(row)
 			if parseErr != nil {
 				slog.Warn("skipping unreadable ledger row", "key", row.ArtifactKey, "err", parseErr)
@@ -1613,6 +1632,13 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 			return nil, status.Errorf(codes.Unavailable, "artifact ledger unavailable: %v", scyllaErr)
 		}
 		for _, row := range rows {
+			// Skip ledger pseudo-rows (same table, different key shape, not
+			// artifacts). Without this they parse into empty manifests that can
+			// leak into search results, since searchFilter does not run
+			// isDiscoveryManifestValid. Same guard as ListArtifacts.
+			if isLedgerRowKey(row.ArtifactKey) {
+				continue
+			}
 			m, state, parseErr := manifestFromRow(row)
 			if parseErr != nil {
 				slog.Warn("skipping unreadable ledger row in SearchArtifacts", "key", row.ArtifactKey, "err", parseErr)

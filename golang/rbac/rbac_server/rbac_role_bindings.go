@@ -34,6 +34,21 @@ const roleBindingPrefix = "ROLE_BINDINGS/"
 // callerIsAdmin reports whether subject holds the globular-admin role.
 // Reads directly from storage to avoid a circular call through GetRoleBinding.
 func (srv *server) callerIsAdmin(subject string) (bool, error) {
+	// The built-in superadmin "sa" is admin throughout the RBAC server —
+	// validateAccess (rbac_access.go), accountExist (server.go), and ownership
+	// all special-case it, and security/path.go lists "sa" as Super admin. This
+	// gate must agree: without it, sa can make access/ownership decisions but
+	// cannot read or manage role bindings. That gap broke service-to-service
+	// interceptor authorization lookups — checkRoleBinding authenticates as sa
+	// via a service token, so reading any other subject's binding hit this gate,
+	// returned false, and forced the noisy permissive local-roles fallback every
+	// reconcile tick (and silently dropped RecordOutcome/RecordPhaseTransition).
+	// Deny-overrides-allow still runs first (see validateAccess), so explicit
+	// deny is unaffected; this only restores sa's intended admin authority over
+	// role bindings. bareID normalizes "sa@domain" → "sa".
+	if isBuiltinSuperadmin(subject) {
+		return true, nil
+	}
 	data, err := srv.getItem(roleBindingPrefix + subject)
 	if err != nil {
 		errMsg := strings.ToLower(err.Error())

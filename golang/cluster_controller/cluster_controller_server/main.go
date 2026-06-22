@@ -325,6 +325,14 @@ func main() {
 	}
 	logger.Info("built-in roles verified (including node-executor)")
 
+	// Bootstrap symmetry: the founding/controller node never goes through the
+	// join flow, so it never receives the node-executor binding that joining
+	// nodes get. Without it, the local workflow trace recorder (which presents
+	// the node's mTLS cert CN) is hard-denied workflow.admin and silently drops
+	// RecordOutcome / RecordPhaseTransition. Bind the local node identity here.
+	// Best-effort + retried; does not block startup.
+	go srv.ensureLocalNodeExecutorBinding()
+
 	// Legacy plan signer init (no-op — plan system removed).
 	if err := srv.initPlanSigner(); err != nil {
 		logger.Warn("plan-signer init failed", "err", err)

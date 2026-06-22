@@ -603,3 +603,53 @@ func TestMCPNotReclassifiedAsInfrastructure(t *testing.T) {
 		t.Errorf("mcp: inferCorrectKind returned %v, want SERVICE (mcp is KindWorkload)", got)
 	}
 }
+
+// TestIsLedgerRowKey is the regression for the repository log-noise incident
+// (2026-06-21): ListArtifacts/SearchArtifacts iterate the manifest table, which
+// also holds release-ledger pseudo-rows keyed "ledger/<publisher>/<name>".
+// Those rows carry no artifact identity, so they failed isDiscoveryManifestValid
+// and logged one WARN per row on EVERY reconcile cycle (~37/cycle), drowning the
+// journal and burying real WARNs. The fix skips them before the parse. This test
+// pins which keys are treated as ledger pseudo-rows vs real artifacts.
+func TestIsLedgerRowKey(t *testing.T) {
+	ledgerKeys := []string{
+		"ledger/core@globular.io/workflow",
+		"ledger/core@globular.io/scylladb",
+		"ledger/",
+	}
+	for _, k := range ledgerKeys {
+		if !isLedgerRowKey(k) {
+			t.Errorf("key %q is a release-ledger pseudo-row and must be skipped from artifact discovery", k)
+		}
+	}
+
+	artifactKeys := []string{
+		"core@globular.io/workflow",
+		"core@globular.io/scylladb",
+		"someledger/x", // "ledger" not at the start — a real key, must NOT be skipped
+		"x/ledger/y",
+		"",
+	}
+	for _, k := range artifactKeys {
+		if isLedgerRowKey(k) {
+			t.Errorf("key %q is a real artifact key and must NOT be skipped", k)
+		}
+	}
+}
+
+// TestLedgerShapedManifestIsInvalidForDiscovery documents WHY ledger rows were
+// noisy before the skip: a ledger row's manifest parses but lacks artifact
+// identity (version/platform), so isDiscoveryManifestValid rejects it. The skip
+// short-circuits this rejection (and its WARN) at the source.
+func TestLedgerShapedManifestIsInvalidForDiscovery(t *testing.T) {
+	ledgerShaped := &repopb.ArtifactManifest{
+		Ref: &repopb.ArtifactRef{
+			PublisherId: "core@globular.io",
+			Name:        "workflow",
+			// no Version, no Platform — ledger rows carry no artifact identity
+		},
+	}
+	if isDiscoveryManifestValid(ledgerShaped) {
+		t.Error("a ledger-shaped manifest (no version/platform) must be invalid for discovery")
+	}
+}

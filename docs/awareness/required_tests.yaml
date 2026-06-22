@@ -1,4 +1,37 @@
 required_tests:
+- id: TestIsBuiltinSuperadmin
+  title: Built-in superadmin "sa" recognized by one canonical predicate (@domain-stripped, case-insensitive)
+  protects:
+    failure_modes:
+    - rbac.authority_recognition_predicate_drift_across_sites
+    files:
+    - golang/rbac/rbac_server/rbac_access.go
+    - golang/rbac/rbac_server/rbac_role_bindings_test.go
+  run:
+    commands:
+    - go test ./golang/rbac/rbac_server/ -run TestIsBuiltinSuperadmin
+- id: TestCallerIsAdmin_BuiltinSA
+  title: callerIsAdmin recognizes the built-in sa superadmin (no stored binding required)
+  protects:
+    failure_modes:
+    - rbac.authority_recognition_predicate_drift_across_sites
+    files:
+    - golang/rbac/rbac_server/rbac_role_bindings.go
+    - golang/rbac/rbac_server/rbac_role_bindings_test.go
+  run:
+    commands:
+    - go test ./golang/rbac/rbac_server/ -run TestCallerIsAdmin_BuiltinSA
+- id: TestGetRoleBinding_SAReadsOtherSubject_NoFallback
+  title: sa reads any subject's binding (no permissive fallback); non-admin reading another subject still denied
+  protects:
+    failure_modes:
+    - rbac.authority_recognition_predicate_drift_across_sites
+    files:
+    - golang/rbac/rbac_server/rbac_role_bindings.go
+    - golang/rbac/rbac_server/rbac_role_bindings_test.go
+  run:
+    commands:
+    - go test ./golang/rbac/rbac_server/ -run TestGetRoleBinding_SAReadsOtherSubject_NoFallback
 - id: TestDefaultEvalCond_Len
   title: DefaultEvalCond len() must fail closed on nil or missing values
   protects:
