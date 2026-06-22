@@ -461,6 +461,26 @@ func (srv *server) Store(ctx context.Context, req *ai_memorypb.StoreRqst) (*ai_m
 	return &ai_memorypb.StoreRsp{Id: id}, nil
 }
 
+// memoryMatchesAllTerms reports whether an entry's title+content contains EVERY
+// term (AND semantics; substring per term). lowerTerms must already be
+// lowercased (strings.Fields(strings.ToLower(query))). An empty term list
+// matches everything. This replaced a whole-query strings.Contains check that
+// treated the entire text_search string as one contiguous substring, so any
+// multi-word query returned zero results even when each term was present —
+// silently masking the seeded ops.* corpus from semantic recall.
+func memoryMatchesAllTerms(title, content string, lowerTerms []string) bool {
+	if len(lowerTerms) == 0 {
+		return true
+	}
+	haystack := strings.ToLower(title) + "\n" + strings.ToLower(content)
+	for _, term := range lowerTerms {
+		if !strings.Contains(haystack, term) {
+			return false
+		}
+	}
+	return true
+}
+
 func (srv *server) Query(ctx context.Context, req *ai_memorypb.QueryRqst) (*ai_memorypb.QueryRsp, error) {
 	project := req.GetProject()
 	if project == "" {
@@ -526,15 +546,17 @@ func (srv *server) Query(ctx context.Context, req *ai_memorypb.QueryRqst) (*ai_m
 		refCount                                                      int
 	)
 
-	lowerSearch := strings.ToLower(textSearch)
+	// Tokenize the query: an entry matches when EVERY whitespace-separated term
+	// appears somewhere in title+content (AND semantics). The previous code
+	// matched the entire query as one contiguous substring, so any multi-word
+	// query (e.g. "rbac sa superadmin") returned zero results even when each
+	// term was present — silently masking the whole corpus from semantic recall.
+	searchTerms := strings.Fields(strings.ToLower(textSearch))
 
 	for iter.Scan(&id, &proj, &memType, &tags, &title, &content, &createdAt, &updatedAt, &agentID, &convID, &clusterID, &metadata, &relatedIDs, &refCount) {
-		// Client-side text filter.
-		if textSearch != "" {
-			if !strings.Contains(strings.ToLower(title), lowerSearch) &&
-				!strings.Contains(strings.ToLower(content), lowerSearch) {
-				continue
-			}
+		// Client-side text filter: every term must be present in title+content.
+		if !memoryMatchesAllTerms(title, content, searchTerms) {
+			continue
 		}
 
 		memories = append(memories, &ai_memorypb.Memory{
