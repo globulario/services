@@ -268,34 +268,10 @@ func (etcdInfraProbeRequiredWhenInstalled) Evaluate(snap *collector.Snapshot, _ 
 			continue // not installed → silence is correct
 		}
 
-		// Installed but no probe. Distinguish "old binary" (capability gap,
-		// expected during rollout → WARN) from a real source failure (ERROR).
-		sev := cluster_doctorpb.Severity_SEVERITY_ERROR
-		reason := "node-agent returned no infra probe (dial failure or source error)"
-		if snap.InfraProbeCapabilityMissing[nid] {
-			sev = cluster_doctorpb.Severity_SEVERITY_WARN
-			reason = "node-agent binary predates GetInfraProbe (capability missing) — upgrade the node-agent to enable infra truth-plane visibility"
-		}
-
-		findings = append(findings, Finding{
-			FindingID:   FindingID("etcd.probe_required_when_installed", nid, ""),
-			InvariantID: "etcd.probe_required_when_installed",
-			Severity:    sev,
-			Category:    "etcd",
-			EntityRef:   nid,
-			Summary:     fmt.Sprintf("Node %s has etcd installed but produced no infra probe: %s", nid, reason),
-			Evidence: []*cluster_doctorpb.Evidence{
-				kvEvidence("node_agent", "GetInfraProbe", map[string]string{
-					"node_id":             nid,
-					"capability_missing":  fmt.Sprintf("%t", snap.InfraProbeCapabilityMissing[nid]),
-					"collector_had_error": fmt.Sprintf("%t", snap.HadError("node_agent@"+nid, "GetInfraProbe")),
-				}),
-			},
-			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, "Ensure the node-agent is reachable and up to date so it can answer GetInfraProbe.", ""),
-			},
-			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
-		})
+		// Installed but no probe. The shared builder distinguishes "could not
+		// observe" (collector error / capability gap → WARN + UNKNOWN) from
+		// "observed nothing despite a complete harvest" (ERROR + FAIL).
+		findings = append(findings, infraProbeRequiredFinding(snap, "etcd", "etcd", nid))
 	}
 	return findings
 }
