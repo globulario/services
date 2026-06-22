@@ -28,6 +28,17 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - id: globular.platform:code.go.platform_ai_executor.behavioral_feed
+    namespace: globular.platform
+    language: go
+    file: golang/ai_executor/ai_executor_server/behavioral_feed.go
+    component: platform_ai_executor.behavioral_feed
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.ai.watcher_to_executor_causal_chain
+        - globular.platform:intent.ai.supplementary_not_required
+        - globular.platform:intent.knowledge.promote_incidents_into_graph
   - id: globular.platform:code.go.platform_ai_executor.dedup
     namespace: globular.platform
     language: go
@@ -60,6 +71,42 @@ code_symbols:
         - globular.platform:intent.ai.decision_tier.gates_execution
         - globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin
 test_symbols:
+  - id: golang/ai_executor/ai_executor_server/behavioral_feed_test.go:TestBehavioralActionVerb
+    file: golang/ai_executor/ai_executor_server/behavioral_feed_test.go
+    symbol: TestBehavioralActionVerb
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/behavioral_feed_test.go:TestBehavioralOutcomeStatus
+    file: golang/ai_executor/ai_executor_server/behavioral_feed_test.go
+    symbol: TestBehavioralOutcomeStatus
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/behavioral_feed_test.go:TestRecordBehavioralExperienceNonFatal
+    file: golang/ai_executor/ai_executor_server/behavioral_feed_test.go
+    symbol: TestRecordBehavioralExperienceNonFatal
+    package: main
+    language: go
+    doc: "The afferent feed must be strictly non-fatal: even with no reachable\nbehavioral-memory (and a cancelled context), it returns without panicking — the\nexecutor's remediation path must never be taken down by a feed problem\n(intent.ai.supplementary_not_required)."
+  - id: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go:TestNewBlockedSelfOperation
+    file: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go
+    symbol: TestNewBlockedSelfOperation
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go:TestNewClassifierAndSafetySelfOperation
+    file: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go
+    symbol: TestNewClassifierAndSafetySelfOperation
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go:TestNewSelfOperationAttempt
+    file: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go
+    symbol: TestNewSelfOperationAttempt
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go:TestRecordBehavioralSelfOperationNonFatal
+    file: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go
+    symbol: TestRecordBehavioralSelfOperationNonFatal
+    package: main
+    language: go
   - id: golang/ai_executor/ai_executor_server/dedup_test.go:TestIncidentFingerprint_DistinguishesSignatures
     file: golang/ai_executor/ai_executor_server/dedup_test.go
     symbol: TestIncidentFingerprint_DistinguishesSignatures

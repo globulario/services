@@ -76,6 +76,9 @@ code_edges:
     to: globular.platform:intent.doctor.findings_are_operator_language
   - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry
     relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry
+    relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
   - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry_harvest_test
     relation: enforces
@@ -242,6 +245,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.rules.unit_receipt_drift
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.snapshot
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
   - from: globular.platform:code.go.platform_cluster_doctor.snapshot
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language

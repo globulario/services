@@ -567,6 +567,18 @@ test_symbols:
     symbol: TestInferCorrectKind
     package: main
     language: go
+  - id: golang/repository/repository_server/artifact_handlers_test.go:TestIsLedgerRowKey
+    file: golang/repository/repository_server/artifact_handlers_test.go
+    symbol: TestIsLedgerRowKey
+    package: main
+    language: go
+    doc: "TestIsLedgerRowKey is the regression for the repository log-noise incident\n(2026-06-21): ListArtifacts/SearchArtifacts iterate the manifest table, which\nalso holds release-ledger pseudo-rows keyed \"ledger/<publisher>/<name>\".\nThose rows carry no artifact identity, so they failed isDiscoveryManifestValid\nand logged one WARN per row on EVERY reconcile cycle (~37/cycle), drowning the\njournal and burying real WARNs. The fix skips them before the parse. This test\npins which keys are treated as ledger pseudo-rows vs real artifacts."
+  - id: golang/repository/repository_server/artifact_handlers_test.go:TestLedgerShapedManifestIsInvalidForDiscovery
+    file: golang/repository/repository_server/artifact_handlers_test.go
+    symbol: TestLedgerShapedManifestIsInvalidForDiscovery
+    package: main
+    language: go
+    doc: "TestLedgerShapedManifestIsInvalidForDiscovery documents WHY ledger rows were\nnoisy before the skip: a ledger row's manifest parses but lacks artifact\nidentity (version/platform), so isDiscoveryManifestValid rejects it. The skip\nshort-circuits this rejection (and its WARN) at the source."
   - id: golang/repository/repository_server/artifact_handlers_test.go:TestLegacyKeyFallback
     file: golang/repository/repository_server/artifact_handlers_test.go
     symbol: TestLegacyKeyFallback

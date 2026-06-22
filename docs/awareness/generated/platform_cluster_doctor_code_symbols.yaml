@@ -126,6 +126,15 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_doctor.invariant_registry
     namespace: globular.platform
     language: go
+    file: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence.go
+    component: platform_cluster_doctor.invariant_registry
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.doctor.findings_are_operator_language
+  - id: globular.platform:code.go.platform_cluster_doctor.invariant_registry
+    namespace: globular.platform
+    language: go
     file: golang/cluster_doctor/cluster_doctor_server/rules/registry.go
     component: platform_cluster_doctor.invariant_registry
     risk: medium
@@ -462,6 +471,15 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.doctor.findings_are_operator_language
+  - id: globular.platform:code.go.platform_cluster_doctor.snapshot
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence.go
+    component: platform_cluster_doctor.snapshot
+    risk: medium
+    annotations:
+      implements:
+        - globular.platform:intent.doctor.findings_are_operator_language
 test_symbols:
   - id: golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd_test.go:TestEtcdReplayStore_EmptyJTIRejected
     file: golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd_test.go
@@ -517,6 +535,11 @@ test_symbols:
     package: main
     language: go
     doc: "TestRemediation_AuditDoesNotLeakToProductionEtcd is the regression\nguard for the Patch C audit-leak fix. It asserts two things:\n\n 1. The package's default audit persistor is NOT the production\n    etcd-writing function. If a future change accidentally reverts\n    the TestMain swap, this test fails immediately.\n\n 2. ExecuteRemediation's audit path writes through auditEtcdPersistFn\n    (not via a private path that bypasses the seam). We assert this\n    by installing a capturing stub and verifying it receives a record\n    when ExecuteRemediation runs.\n\nTogether these prove no unit-test invocation reaches the cluster's\n/globular/cluster_doctor/audit/ namespace."
+  - id: golang/cluster_doctor/cluster_doctor_server/behavioral_observation_test.go:TestEmitBehavioralClusterReportEmitsFindings
+    file: golang/cluster_doctor/cluster_doctor_server/behavioral_observation_test.go
+    symbol: TestEmitBehavioralClusterReportEmitsFindings
+    package: main
+    language: go
   - id: golang/cluster_doctor/cluster_doctor_server/cache_cleanup_test.go:TestCacheCleanup_DryRun_NoMutation
     file: golang/cluster_doctor/cluster_doctor_server/cache_cleanup_test.go
     symbol: TestCacheCleanup_DryRun_NoMutation
@@ -598,6 +621,47 @@ test_symbols:
     symbol: TestSnapshotCacheTTLExposedViaTtlFor
     package: collector
     language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence_test.go:TestClassifyGatewayBackend_FoldsResults
+    file: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence_test.go
+    symbol: TestClassifyGatewayBackend_FoldsResults
+    package: collector
+    language: go
+    doc: "classifyGatewayBackend folds two probe results into a snapshot record faithfully."
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence_test.go:TestClassifyGatewayBackend_NoBackendEndpointIsUnchecked
+    file: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence_test.go
+    symbol: TestClassifyGatewayBackend_NoBackendEndpointIsUnchecked
+    package: collector
+    language: go
+    doc: "No backend endpoint => BackendChecked is false (drives the indeterminate rule path)."
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence_test.go:TestClassifyProbeErr_DetectsHTMLContentType
+    file: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence_test.go
+    symbol: TestClassifyProbeErr_DetectsHTMLContentType
+    package: collector
+    language: go
+    doc: "classifyProbeErr must recognise the distinctive misrouting signal: a gRPC\nclient that got an HTML response instead of a gRPC one."
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence_test.go:TestClassifyProbeErr_PlainUnavailableIsNotHTML
+    file: golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence_test.go
+    symbol: TestClassifyProbeErr_PlainUnavailableIsNotHTML
+    package: collector
+    language: go
+    doc: "A plain unavailable must NOT be classified as an HTML misroute."
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/release_boundary_test.go:TestBoundaryServiceShortName
+    file: golang/cluster_doctor/cluster_doctor_server/collector/release_boundary_test.go
+    symbol: TestBoundaryServiceShortName
+    package: collector
+    language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/release_boundary_test.go:TestDefaultReleaseBoundaryAllowlist_ExcludesSelfHosted
+    file: golang/cluster_doctor/cluster_doctor_server/collector/release_boundary_test.go
+    symbol: TestDefaultReleaseBoundaryAllowlist_ExcludesSelfHosted
+    package: collector
+    language: go
+    doc: "The default allowlist must never include self-hosted control-plane services,\nwhose install timestamps can be PID-start anchored (A4 ambiguous, Phase 1.5)."
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/release_boundary_test.go:TestReleaseBoundarySelfHostedFilter
+    file: golang/cluster_doctor/cluster_doctor_server/collector/release_boundary_test.go
+    symbol: TestReleaseBoundarySelfHostedFilter
+    package: collector
+    language: go
+    doc: "Self-hosted services are filtered even if explicitly allowlisted."
   - id: golang/cluster_doctor/cluster_doctor_server/collector/repository_buildid_index_test.go:TestBuildIDIndex_DocumentedOrphans_StayOutOfIndex
     file: golang/cluster_doctor/cluster_doctor_server/collector/repository_buildid_index_test.go
     symbol: TestBuildIDIndex_DocumentedOrphans_StayOutOfIndex
@@ -1363,6 +1427,36 @@ test_symbols:
     symbol: TestEtcdInfraProbeRequired_WhenInstalledButMissing
     package: rules
     language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go:TestGatewayBackendDivergence_BackendUnchecked_IsIndeterminate
+    file: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go
+    symbol: TestGatewayBackendDivergence_BackendUnchecked_IsIndeterminate
+    package: rules
+    language: go
+    doc: "Gateway HTML + backend not cross-checked → indeterminate (UNKNOWN/CHECK_ERROR),\nnever a confident FAIL."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go:TestGatewayBackendDivergence_HealthyAndEmpty
+    file: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go
+    symbol: TestGatewayBackendDivergence_HealthyAndEmpty
+    package: rules
+    language: go
+    doc: "Healthy gateway path and empty probe set both produce no findings."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go:TestGatewayBackendDivergence_PlainUnavailableIsNotAFalsePositive
+    file: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go
+    symbol: TestGatewayBackendDivergence_PlainUnavailableIsNotAFalsePositive
+    package: rules
+    language: go
+    doc: "A gateway path that is merely unavailable (NOT an HTML content-type) is\ninconclusive — reflection may legitimately not route through the gateway — so\na healthy gateway is never falsely reported as broken."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go:TestGatewayBackendDivergence_RouteBrokenBackendHealthy
+    file: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go
+    symbol: TestGatewayBackendDivergence_RouteBrokenBackendHealthy
+    package: rules
+    language: go
+    doc: "The PR-15 fixture: the exact class the ai_memory gateway route bug exposed —\nthe gateway answers text/html while the backend is healthy on its direct port.\nThe doctor must report \"route suspected, backend healthy\", NOT \"service down\"."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go:TestGatewayBackendDivergence_RouteHTMLAndBackendDown
+    file: golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence_test.go
+    symbol: TestGatewayBackendDivergence_RouteHTMLAndBackendDown
+    package: rules
+    language: go
+    doc: "Gateway HTML + backend also unreachable → FAIL, but framed as route-broken AND\nbackend-not-serving (not a false \"healthy backend\" claim)."
   - id: golang/cluster_doctor/cluster_doctor_server/rules/grpc_backbone_contract_test.go:TestGrpcBackboneContract_CallDepthViolation
     file: golang/cluster_doctor/cluster_doctor_server/rules/grpc_backbone_contract_test.go
     symbol: TestGrpcBackboneContract_CallDepthViolation
@@ -2616,6 +2710,42 @@ test_symbols:
     package: rules
     language: go
     doc: "TestNoRuleEmitsConfidentFailureOnErroredSnapshot is the enforcement ratchet\nfor the doctor masking bug class (FALSE_POSITIVE half): no registered rule may\nemit a confident INVARIANT_FAIL when the collector snapshot is fully errored,\nbecause absence under DataIncomplete is \"unknown\", not \"confirmed\". It pairs\nwith the registry's snapshotSourceUnavailableFindings (which covers the\nFALSE_NEGATIVE / silence half). A new rule that reasons on errored data trips\nthis gate in CI before it can ship.\n\nEnforces doctor_rule_evaluate_must_consult_snap_errors /\nmeta.absence_scope_must_be_explicit at the registry level, across ALL rules,\nnot just the ones audited by hand on 2026-06-09."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go:TestReleaseBoundaryUnproven_CollectionErrorsSurfaced
+    file: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go
+    symbol: TestReleaseBoundaryUnproven_CollectionErrorsSurfaced
+    package: rules
+    language: go
+    doc: "5. Collection errors appear in the finding evidence."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go:TestReleaseBoundaryUnproven_EmptySnapshot
+    file: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go
+    symbol: TestReleaseBoundaryUnproven_EmptySnapshot
+    package: rules
+    language: go
+    doc: "Empty snapshot → no findings (no panic, no silent OK claim)."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go:TestReleaseBoundaryUnproven_Failed
+    file: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go
+    symbol: TestReleaseBoundaryUnproven_Failed
+    package: rules
+    language: go
+    doc: "2. FAILED → finding with INVARIANT_FAIL + failed assertion details."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go:TestReleaseBoundaryUnproven_Indeterminate
+    file: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go
+    symbol: TestReleaseBoundaryUnproven_Indeterminate
+    package: rules
+    language: go
+    doc: "3. INDETERMINATE → finding with INVARIANT_UNKNOWN + CheckError + missing link."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go:TestReleaseBoundaryUnproven_NotApplicable_NotOK
+    file: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go
+    symbol: TestReleaseBoundaryUnproven_NotApplicable_NotOK
+    package: rules
+    language: go
+    doc: "4. NOT_APPLICABLE → finding (never OK), INVARIANT_UNKNOWN + INFO."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go:TestReleaseBoundaryUnproven_Proven_NoFinding
+    file: golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven_test.go
+    symbol: TestReleaseBoundaryUnproven_Proven_NoFinding
+    package: rules
+    language: go
+    doc: "1. PROVEN → no finding."
   - id: golang/cluster_doctor/cluster_doctor_server/rules/repository_dns_invariants_test.go:TestDoctorRule_DNSRecordsMatchRuntimeHealth_HealthyNode_NoFinding
     file: golang/cluster_doctor/cluster_doctor_server/rules/repository_dns_invariants_test.go
     symbol: TestDoctorRule_DNSRecordsMatchRuntimeHealth_HealthyNode_NoFinding

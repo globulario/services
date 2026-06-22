@@ -19,6 +19,336 @@ code_symbols:
       implements:
         - globular.platform:intent.ai.memory_seed_entries_immutable_except_sa_subject
 test_symbols:
+  - id: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go:TestClusterCheckActionBlockedForbidden
+    file: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go
+    symbol: TestClusterCheckActionBlockedForbidden
+    package: main
+    language: go
+    doc: "A promoted cluster principle drives CheckAction → blocked for a matching\nforbidden move."
+  - id: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go:TestClusterCheckActionNeedsEvidence
+    file: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go
+    symbol: TestClusterCheckActionNeedsEvidence
+    package: main
+    language: go
+    doc: "CheckAction → needs_evidence for an unsatisfied cluster required-evidence ref."
+  - id: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go:TestClusterPackLoadsCatalogs
+    file: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go
+    symbol: TestClusterPackLoadsCatalogs
+    package: main
+    language: go
+    doc: "Load writes authority/condition catalog rows + PROPOSED principles."
+  - id: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go:TestClusterResolveReturnsClusterBundle
+    file: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go
+    symbol: TestClusterResolveReturnsClusterBundle
+    package: main
+    language: go
+    doc: "ResolveGovernedContext surfaces cluster authorities/evidence/forbidden moves +\ngenerative behavior."
+  - id: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go:TestClusterSeedPromotionDoesNotBypassGate
+    file: golang/ai_memory/ai_memory_server/behavioral_cluster_test.go
+    symbol: TestClusterSeedPromotionDoesNotBypassGate
+    package: main
+    language: go
+    doc: "Seed loading does NOT bypass the promotion gate."
+  - id: golang/ai_memory/ai_memory_server/behavioral_coverage_test.go:TestCheckActionBlockedIsGoverned
+    file: golang/ai_memory/ai_memory_server/behavioral_coverage_test.go
+    symbol: TestCheckActionBlockedIsGoverned
+    package: main
+    language: go
+    doc: "A non-allow verdict (blocked) is inherently governed — a principle applied."
+  - id: golang/ai_memory/ai_memory_server/behavioral_coverage_test.go:TestCheckActionGovernedAllowMarked
+    file: golang/ai_memory/ai_memory_server/behavioral_coverage_test.go
+    symbol: TestCheckActionGovernedAllowMarked
+    package: main
+    language: go
+    doc: "An allow where a promoted principle applied and was satisfied is governed."
+  - id: golang/ai_memory/ai_memory_server/behavioral_coverage_test.go:TestCheckActionUngovernedAllowMarked
+    file: golang/ai_memory/ai_memory_server/behavioral_coverage_test.go
+    symbol: TestCheckActionUngovernedAllowMarked
+    package: main
+    language: go
+    doc: "An allow with no applicable principle is marked ungoverned + explained as such."
+  - id: golang/ai_memory/ai_memory_server/behavioral_coverage_test.go:TestGovernanceCoverageMetric
+    file: golang/ai_memory/ai_memory_server/behavioral_coverage_test.go
+    symbol: TestGovernanceCoverageMetric
+    package: main
+    language: go
+    doc: "GetGovernanceCoverage tallies governed vs ungoverned CheckActions and the ratio."
+  - id: golang/ai_memory/ai_memory_server/behavioral_demo_test.go:TestDemoOperatorLoop
+    file: golang/ai_memory/ai_memory_server/behavioral_demo_test.go
+    symbol: TestDemoOperatorLoop
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestEveryPromoteAttemptRecordsDecision
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestEveryPromoteAttemptRecordsDecision
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestExplainPrincipleReturnsGovernanceLinks
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestExplainPrincipleReturnsGovernanceLinks
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestIngestionDoesNotAutoPromote
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestIngestionDoesNotAutoPromote
+    package: main
+    language: go
+    doc: "Ingestion (signal/claim/evidence) must never auto-promote a principle."
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestPromoteAllowsLowRiskWhenAllPass
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestPromoteAllowsLowRiskWhenAllPass
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestPromoteBlocksOnMissingGateRequirement
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestPromoteBlocksOnMissingGateRequirement
+    package: main
+    language: go
+    doc: "Table of single-field omissions that must each BLOCK promotion."
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestPromoteBlocksWithOpenContradiction
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestPromoteBlocksWithOpenContradiction
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestPromoteHighRiskAllowedWithApproval
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestPromoteHighRiskAllowedWithApproval
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestPromoteHighRiskReviewRequiredWithoutApproval
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestPromoteHighRiskReviewRequiredWithoutApproval
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestProposePrincipleCreatesProposed
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestProposePrincipleCreatesProposed
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestProposeRejectsDirectPromoted
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestProposeRejectsDirectPromoted
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestRevokeNarrowedRequiresScope
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestRevokeNarrowedRequiresScope
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestRevokeRecordsWithoutDeleting
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestRevokeRecordsWithoutDeleting
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_governance_test.go:TestRevokeSupersededRequiresSupersededBy
+    file: golang/ai_memory/ai_memory_server/behavioral_governance_test.go
+    symbol: TestRevokeSupersededRequiresSupersededBy
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestBothServicesRegisterOnOneServer
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestBothServicesRegisterOnOneServer
+    package: main
+    language: go
+    doc: "Both AiMemoryService and BehavioralMemoryService register on one gRPC server."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestExtractClaimLinksToSignal
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestExtractClaimLinksToSignal
+    package: main
+    language: go
+    doc: "#2 ExtractClaim creates a claim linked to a signal at EXTRACTED_CLAIM."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestExtractClaimRequiresSignal
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestExtractClaimRequiresSignal
+    package: main
+    language: go
+    doc: "ExtractClaim fails loud when the referenced signal does not exist."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestMapAuthorityRecordsMapping
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestMapAuthorityRecordsMapping
+    package: main
+    language: go
+    doc: "#5 MapAuthority records an authority→target mapping (no cluster-typed fields)\nand advances the claim to AUTHORITY_MAPPED."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestNoAllowFilteringInBehavioralStore
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestNoAllowFilteringInBehavioralStore
+    package: main
+    language: go
+    doc: "#11 No persistence/hot-path CQL uses ALLOW FILTERING. We inspect only string\nliterals (where CQL lives) via the Go parser, so prose in comments mentioning\nthe phrase does not produce a false positive."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestRecordContradictionBetweenClaims
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestRecordContradictionBetweenClaims
+    package: main
+    language: go
+    doc: "#6 RecordContradiction records a contradiction between two claims and advances\nboth to CONTRADICTION_TESTED."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestRecordEvidenceCanTargetSignalWithAuthority
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestRecordEvidenceCanTargetSignalWithAuthority
+    package: main
+    language: go
+    doc: "PR-9 observation evidence may attach directly to a signal without forcing an\nearly claim extraction. That preserves observation as input rather than\npretending governance already exists."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestRecordEvidenceLinksTargetAndAdvancesClaim
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestRecordEvidenceLinksTargetAndAdvancesClaim
+    package: main
+    language: go
+    doc: "#3 + #4 RecordEvidence links evidence to a claim, advances it to\nEVIDENCE_LINKED, and maintains evidence_by_target."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestRecordSignalPersists
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestRecordSignalPersists
+    package: main
+    language: go
+    doc: "#1 RecordSignal persists a typed signal and returns its id/scope/status."
+  - id: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go:TestRecordSignalRejectsForbiddenStatus
+    file: golang/ai_memory/ai_memory_server/behavioral_handlers_test.go
+    symbol: TestRecordSignalRejectsForbiddenStatus
+    package: main
+    language: go
+    doc: "Ladder guard: PR-2 must reject promotion-tier statuses on ingest."
+  - id: golang/ai_memory/ai_memory_server/behavioral_migration_fix_test.go:TestBehavioralMigrationMutexKeyNotPrefixOfStateKey
+    file: golang/ai_memory/ai_memory_server/behavioral_migration_fix_test.go
+    symbol: TestBehavioralMigrationMutexKeyNotPrefixOfStateKey
+    package: main
+    language: go
+    doc: "Bug #1 regression: the migration mutex key must be a leaf sibling of the state\nkey, never a prefix of it. etcd's concurrency.Mutex treats every key under its\nprefix as a lock contender, so a state key nested under the mutex prefix\n(the historical \"/globular/migrations/scylla/behavioral_memory\" mutex with the\nstate at \".../behavioral_memory/state\") is mistaken for an un-releasable lock\nholder and every Mutex.Lock waits for it forever, timing out every migration."
+  - id: golang/ai_memory/ai_memory_server/behavioral_migration_fix_test.go:TestBehavioralSchemaPR9ColumnsHaveBackfillAlter
+    file: golang/ai_memory/ai_memory_server/behavioral_migration_fix_test.go
+    symbol: TestBehavioralSchemaPR9ColumnsHaveBackfillAlter
+    package: main
+    language: go
+    doc: "Bug #2 regression: every PR-9 governed-observation column added to the\nsignals/evidence CREATE TABLE must have a matching backfill ALTER in the\nordered migration statements, positioned after the CREATE — otherwise tables\ncreated before the column existed (CREATE IF NOT EXISTS is a no-op on them)\nnever get it and behavioral writes fail with \"Unknown identifier <col>\"."
+  - id: golang/ai_memory/ai_memory_server/behavioral_opsknowledge_test.go:TestGeneratedPrincipleGateNotBypassed
+    file: golang/ai_memory/ai_memory_server/behavioral_opsknowledge_test.go
+    symbol: TestGeneratedPrincipleGateNotBypassed
+    package: main
+    language: go
+    doc: "A generated principle still goes through the promotion gate — no bypass."
+  - id: golang/ai_memory/ai_memory_server/behavioral_opsknowledge_test.go:TestGeneratedPrincipleLoadsAsProposed
+    file: golang/ai_memory/ai_memory_server/behavioral_opsknowledge_test.go
+    symbol: TestGeneratedPrincipleLoadsAsProposed
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestCheckActionAllowed
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestCheckActionAllowed
+    package: main
+    language: go
+    doc: "§4 CheckAction returns allowed when all requirements are satisfied."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestCheckActionBlockedOnForbidden
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestCheckActionBlockedOnForbidden
+    package: main
+    language: go
+    doc: "§4 CheckAction returns blocked when a forbidden move matches the action."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestCheckActionDistinguishesSelfAssertedEvidence
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestCheckActionDistinguishesSelfAssertedEvidence
+    package: main
+    language: go
+    doc: "§4 CheckAction keeps evidence provenance trust DISTINCT\n(intent:evidence.provenance_trust_levels): a verdict satisfied only by caller\nself-assertion is recorded as such and caveated; one backed by a recorded\nauthoritative evidence row is not flagged. CheckAction must never silently\nequate the two."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestCheckActionNeedsAuthority
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestCheckActionNeedsAuthority
+    package: main
+    language: go
+    doc: "§4 CheckAction returns needs_authority when authority is unresolved."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestCheckActionNeedsEvidence
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestCheckActionNeedsEvidence
+    package: main
+    language: go
+    doc: "§4 CheckAction returns needs_evidence when required evidence is missing."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestCheckActionNeedsHumanApproval
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestCheckActionNeedsHumanApproval
+    package: main
+    language: go
+    doc: "§4 CheckAction returns needs_human_approval for high/irreversible risk w/o approval."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestCheckActionPersistsAuditRow
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestCheckActionPersistsAuditRow
+    package: main
+    language: go
+    doc: "§4 CheckAction persists an action_checks audit row for every verdict."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestGeneratePromotionCandidateQueuesRepeatedTheme
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestGeneratePromotionCandidateQueuesRepeatedTheme
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestGeneratePromotionCandidateRequiresRepeatedOutcomes
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestGeneratePromotionCandidateRequiresRepeatedOutcomes
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestGenerateReconciliationReportAWGWithoutBehavioralCandidate
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestGenerateReconciliationReportAWGWithoutBehavioralCandidate
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestGenerateReconciliationReportContradictionAndMissingTest
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestGenerateReconciliationReportContradictionAndMissingTest
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestGenerateReconciliationReportFlagsMissingAWGMapping
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestGenerateReconciliationReportFlagsMissingAWGMapping
+    package: main
+    language: go
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestPromoteInsertsConditionIndex
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestPromoteInsertsConditionIndex
+    package: main
+    language: go
+    doc: "§2 PromotePrinciple inserts principles_by_condition entries."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestRecordOutcomePersistsAndIndexesByTheme
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestRecordOutcomePersistsAndIndexesByTheme
+    package: main
+    language: go
+    doc: "§5 RecordOutcome persists outcome + maintains outcomes_by_theme; supports\nsuccess/failure/severe/human_marked."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestResolveExcludesStaleIndexedNonPromoted
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestResolveExcludesStaleIndexedNonPromoted
+    package: main
+    language: go
+    doc: "Defensive: a stale index entry pointing at a non-promoted principle is excluded."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestResolveIgnoresNonPromoted
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestResolveIgnoresNonPromoted
+    package: main
+    language: go
+    doc: "§3 ResolveGovernedContext ignores non-promoted principles."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestResolveReturnsApplicablePromoted
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestResolveReturnsApplicablePromoted
+    package: main
+    language: go
+    doc: "§3 ResolveGovernedContext returns applicable promoted principles for a condition."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestResolveReturnsContradictions
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestResolveReturnsContradictions
+    package: main
+    language: go
+    doc: "§3 bundle includes open contradictions touching applicable principles."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestRevokeRemovesConditionIndex
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestRevokeRemovesConditionIndex
+    package: main
+    language: go
+    doc: "§2 RevokePrinciple removes the promoted condition lookup."
+  - id: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go:TestRuntimeRPCsDoNotMutatePrincipleStatus
+    file: golang/ai_memory/ai_memory_server/behavioral_runtime_test.go
+    symbol: TestRuntimeRPCsDoNotMutatePrincipleStatus
+    package: main
+    language: go
+    doc: "§10 No CheckAction or ResolveGovernedContext path promotes or revokes."
+  - id: golang/ai_memory/ai_memory_server/behavioral_scylla_integration_test.go:TestScyllaStoreIngestionIntegration
+    file: golang/ai_memory/ai_memory_server/behavioral_scylla_integration_test.go
+    symbol: TestScyllaStoreIngestionIntegration
+    package: main
+    language: go
+    doc: "Integration test for the ScyllaStore adapter against a REAL ScyllaDB.\n\nIt is skipped unless BEHAVIORAL_SCYLLA_HOSTS is set (e.g.\nBEHAVIORAL_SCYLLA_HOSTS=127.0.0.1 go test ./ai_memory/ai_memory_server -run Integration).\nNOT RUN in the default CI/dev environment here because no Scylla container is\navailable; the in-memory store tests (behavioral_handlers_test.go) cover the\nsame ingestion logic deterministically. This test verifies the CQL itself —\nschema DDL, INSERT/SELECT round-trips, the evidence_by_target batch, and the\ngoverns_refs set-add — which the in-memory store cannot."
   - id: golang/ai_memory/ai_memory_server/immutability_test.go:TestAuthorizedSeedMutator
     file: golang/ai_memory/ai_memory_server/immutability_test.go
     symbol: TestAuthorizedSeedMutator
@@ -73,3 +403,234 @@ test_symbols:
     package: main
     language: go
     doc: "TestMigrationVersionGating verifies that only status==complete AND\nversion >= schemaVersion satisfies the completion check."
+  - id: golang/ai_memory/ai_memory_server/text_search_test.go:TestMemoryMatchesAllTerms
+    file: golang/ai_memory/ai_memory_server/text_search_test.go
+    symbol: TestMemoryMatchesAllTerms
+    package: main
+    language: go
+    doc: "TestMemoryMatchesAllTerms is the regression for the 2026-06-21 ai-memory bug:\nmemory_query text_search matched the ENTIRE query as one contiguous substring,\nso any multi-word query returned zero results even when each term was present\n— silently masking the seeded ops.* corpus from semantic recall. The filter\nnow requires every whitespace-separated term to appear in title+content (AND)."
+  - id: golang/ai_memory/behavioral/api/kernel_hygiene_test.go:TestKernelHasNoClusterSpecificImports
+    file: golang/ai_memory/behavioral/api/kernel_hygiene_test.go
+    symbol: TestKernelHasNoClusterSpecificImports
+    package: api
+    language: go
+    doc: "The generic behavioral-memory kernel must stay domain-agnostic: it may never\nimport cluster/operator-specific systems or Globular cluster packages. Cluster\nspecifics arrive only as opaque refs resolved through the domain registry, and\nthe cluster_operator pack lives OUTSIDE behavioral/ (a later PR).\n\nThis test walks every non-test .go file under behavioral/ and fails if any\nimport path contains a forbidden marker. It is the mechanical enforcement of\nthe design's domain-isolation rule."
+  - id: golang/ai_memory/behavioral/api/rdf_readiness_test.go:TestRDFReadiness_CanonicalURI
+    file: golang/ai_memory/behavioral/api/rdf_readiness_test.go
+    symbol: TestRDFReadiness_CanonicalURI
+    package: api
+    language: go
+    doc: "The Scylla id is the semantic identity: the canonical URI derives directly from\nit, and no synthetic identity is invented for an empty id."
+  - id: golang/ai_memory/behavioral/api/rdf_readiness_test.go:TestRDFReadiness_MetadataHatchPresent
+    file: golang/ai_memory/behavioral/api/rdf_readiness_test.go
+    symbol: TestRDFReadiness_MetadataHatchPresent
+    package: api
+    language: go
+    doc: "Every entity type must expose a Metadata map — the extension hatch — so callers\nhave somewhere for non-semantic extras without polluting the typed relations."
+  - id: golang/ai_memory/behavioral/api/rdf_readiness_test.go:TestRDFReadiness_RelationsAreFirstClass
+    file: golang/ai_memory/behavioral/api/rdf_readiness_test.go
+    symbol: TestRDFReadiness_RelationsAreFirstClass
+    package: api
+    language: go
+    doc: "Governance relations must be first-class fields, never hidden in metadata.\nThis is the structural enforcement of design rule #2."
+  - id: golang/ai_memory/behavioral/api/rdf_readiness_test.go:TestRDFReadiness_StableIDAndScope
+    file: golang/ai_memory/behavioral/api/rdf_readiness_test.go
+    symbol: TestRDFReadiness_StableIDAndScope
+    package: api
+    language: go
+    doc: "Every first-class entity must carry a stable canonical id and project/domain\nscope — the prerequisites for becoming an RDF URI with a scope."
+  - id: golang/ai_memory/behavioral/rdf/project_test.go:TestActionCheckAndOutcomeProjection
+    file: golang/ai_memory/behavioral/rdf/project_test.go
+    symbol: TestActionCheckAndOutcomeProjection
+    package: rdf
+    language: go
+  - id: golang/ai_memory/behavioral/rdf/project_test.go:TestDeterministicAndNoDuplicates
+    file: golang/ai_memory/behavioral/rdf/project_test.go
+    symbol: TestDeterministicAndNoDuplicates
+    package: rdf
+    language: go
+  - id: golang/ai_memory/behavioral/rdf/project_test.go:TestPrincipleLineageProjection
+    file: golang/ai_memory/behavioral/rdf/project_test.go
+    symbol: TestPrincipleLineageProjection
+    package: rdf
+    language: go
+  - id: golang/ai_memory/behavioral/rdf/project_test.go:TestPrincipleProjection
+    file: golang/ai_memory/behavioral/rdf/project_test.go
+    symbol: TestPrincipleProjection
+    package: rdf
+    language: go
+  - id: golang/ai_memory/behavioral/rdf/project_test.go:TestProjectorDoesNotCallRuntime
+    file: golang/ai_memory/behavioral/rdf/project_test.go
+    symbol: TestProjectorDoesNotCallRuntime
+    package: rdf
+    language: go
+    doc: "The projector cannot call the runtime decision RPCs: it imports neither\nbehavioral/core (where CheckAction/ResolveGovernedContext live) nor any DB\ndriver, and it never makes a CheckAction/ResolveGovernedContext CALL. We check\nimports + call expressions via the AST (so doc-comment mentions don't false-positive)."
+  - id: golang/ai_memory/behavioral/rdf/project_test.go:TestSignalBackfillLineage
+    file: golang/ai_memory/behavioral/rdf/project_test.go
+    symbol: TestSignalBackfillLineage
+    package: rdf
+    language: go
+  - id: golang/ai_memory/behavioral/rdf/project_test.go:TestSignalClaimEvidenceProjection
+    file: golang/ai_memory/behavioral/rdf/project_test.go
+    symbol: TestSignalClaimEvidenceProjection
+    package: rdf
+    language: go
+  - id: golang/ai_memory/behavioral/rdf/project_test.go:TestStableURIForEveryEntity
+    file: golang/ai_memory/behavioral/rdf/project_test.go
+    symbol: TestStableURIForEveryEntity
+    package: rdf
+    language: go
+    doc: "Every entity type projects to a stable URI subject with the right class."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestDryRunWritesNothing
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestDryRunWritesNothing
+    package: behavioral_backfill
+    language: go
+    doc: "Dry-run writes nothing and reports would-create counts + skip reasons."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestFeedbackToOutcomeOnlyWhenExplicit
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestFeedbackToOutcomeOnlyWhenExplicit
+    package: behavioral_backfill
+    language: go
+    doc: "Feedback → outcome only when explicit; vague feedback skipped with reason."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestIdempotent
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestIdempotent
+    package: behavioral_backfill
+    language: go
+    doc: "Backfill is idempotent: a second run writes nothing new."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestMemoryToSignal
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestMemoryToSignal
+    package: behavioral_backfill
+    language: go
+    doc: "Memory → signal deterministic mapping (+ provenance)."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestMetadataRootCauseToClaim
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestMetadataRootCauseToClaim
+    package: behavioral_backfill
+    language: go
+    doc: "metadata root_cause → claim candidate."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestNeverCreatesPromoted
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestNeverCreatesPromoted
+    package: behavioral_backfill
+    language: go
+    doc: "Backfill NEVER creates a PROMOTED/REVOKED principle."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestNonOperationalSkipped
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestNonOperationalSkipped
+    package: behavioral_backfill
+    language: go
+    doc: "Ambiguous / non-operational memory is skipped with a reason."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestPrincipleOnlyWhenComplete
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestPrincipleOnlyWhenComplete
+    package: behavioral_backfill
+    language: go
+    doc: "Principle is created ONLY when every governance field exists, as PROPOSED;\npartial candidate is reported, never created."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestReRunDoesNotDemotePromoted
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestReRunDoesNotDemotePromoted
+    package: behavioral_backfill
+    language: go
+    doc: "A backfilled PROPOSED principle that was later promoted must NOT be demoted by a re-run."
+  - id: golang/ai_memory/behavioral_backfill/backfill_test.go:TestRequiresProjectAndDomain
+    file: golang/ai_memory/behavioral_backfill/backfill_test.go
+    symbol: TestRequiresProjectAndDomain
+    package: behavioral_backfill
+    language: go
+    doc: "Scoping is mandatory."
+  - id: golang/ai_memory/domains/cluster_operator/observation/ingest_test.go:TestFromDoctorFindingPreservesDiagnosticAuthority
+    file: golang/ai_memory/domains/cluster_operator/observation/ingest_test.go
+    symbol: TestFromDoctorFindingPreservesDiagnosticAuthority
+    package: observation
+    language: go
+  - id: golang/ai_memory/domains/cluster_operator/observation/ingest_test.go:TestFromInfraProbePreservesTruthPlaneAuthority
+    file: golang/ai_memory/domains/cluster_operator/observation/ingest_test.go
+    symbol: TestFromInfraProbePreservesTruthPlaneAuthority
+    package: observation
+    language: go
+  - id: golang/ai_memory/domains/cluster_operator/observation/ingest_test.go:TestFromWatcherIncidentPreservesEventStreamAuthority
+    file: golang/ai_memory/domains/cluster_operator/observation/ingest_test.go
+    symbol: TestFromWatcherIncidentPreservesEventStreamAuthority
+    package: observation
+    language: go
+  - id: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go:TestCompileDeterministic
+    file: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go
+    symbol: TestCompileDeterministic
+    package: opsknowledge
+    language: go
+    doc: "Compilation is deterministic: same corpus → identical rendered bytes."
+  - id: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go:TestCompileExtractsEachInputClass
+    file: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go
+    symbol: TestCompileExtractsEachInputClass
+    package: opsknowledge
+    language: go
+    doc: "Each input class produces its expected ontology objects."
+  - id: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go:TestGeneratedForbiddenMovesArePaired
+    file: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go
+    symbol: TestGeneratedForbiddenMovesArePaired
+    package: opsknowledge
+    language: go
+    doc: "Every generated forbidden move has a paired positive behavior (mandatory)."
+  - id: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go:TestGeneratedPrinciplesHaveLineage
+    file: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go
+    symbol: TestGeneratedPrinciplesHaveLineage
+    package: opsknowledge
+    language: go
+    doc: "Every generated principle carries source_refs and generated_from lineage."
+  - id: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go:TestRealCorpusGoldenMatch
+    file: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go
+    symbol: TestRealCorpusGoldenMatch
+    package: opsknowledge
+    language: go
+    doc: "Golden test: the committed generated/ files must byte-match a fresh compile of\nthe real corpus (deterministic, never hand-edited). Also proves real-corpus\nextraction produces the 3 generative principles."
+  - id: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go:TestSourcesHaveRefAndHash
+    file: golang/ai_memory/domains/cluster_operator/opsknowledge/compiler_test.go
+    symbol: TestSourcesHaveRefAndHash
+    package: opsknowledge
+    language: go
+    doc: "Sources carry stable refs + hashes (provenance preserved)."
+  - id: golang/ai_memory/domains/cluster_operator/pack_test.go:TestEveryForbiddenMoveHasGenerativeBehavior
+    file: golang/ai_memory/domains/cluster_operator/pack_test.go
+    symbol: TestEveryForbiddenMoveHasGenerativeBehavior
+    package: cluster_operator
+    language: go
+    doc: "Every forbidden move has a paired generative behavior (mandatory)."
+  - id: golang/ai_memory/domains/cluster_operator/pack_test.go:TestExpectedCatalogIDsPresent
+    file: golang/ai_memory/domains/cluster_operator/pack_test.go
+    symbol: TestExpectedCatalogIDsPresent
+    package: cluster_operator
+    language: go
+    doc: "All §3 catalog ids are present."
+  - id: golang/ai_memory/domains/cluster_operator/pack_test.go:TestPackNewValidates
+    file: golang/ai_memory/domains/cluster_operator/pack_test.go
+    symbol: TestPackNewValidates
+    package: cluster_operator
+    language: go
+    doc: "New() parses + validates the embedded seed (refs resolve, ids unique,\ngenerative pairing present) — a passing New is itself a validation test."
+  - id: golang/ai_memory/domains/cluster_operator/pack_test.go:TestPackRegistersWithRegistry
+    file: golang/ai_memory/domains/cluster_operator/pack_test.go
+    symbol: TestPackRegistersWithRegistry
+    package: cluster_operator
+    language: go
+    doc: "The pack registers with the generic domain registry."
+  - id: golang/ai_memory/domains/cluster_operator/pack_test.go:TestSeedPrinciplesHaveLineageAndGenerativeBehavior
+    file: golang/ai_memory/domains/cluster_operator/pack_test.go
+    symbol: TestSeedPrinciplesHaveLineageAndGenerativeBehavior
+    package: cluster_operator
+    language: go
+    doc: "Seed principles carry lineage (source_refs / generated_from) and a generative\nrecommended_action."
+  - id: golang/ai_memory/domains/cluster_operator/pack_test.go:TestValidateRejectsDanglingRef
+    file: golang/ai_memory/domains/cluster_operator/pack_test.go
+    symbol: TestValidateRejectsDanglingRef
+    package: cluster_operator
+    language: go
+    doc: "A malformed seed (dangling ref) is rejected by validate()."
+  - id: golang/ai_memory/domains/cluster_operator/recall_test.go:TestRecallSeedEntries
+    file: golang/ai_memory/domains/cluster_operator/recall_test.go
+    symbol: TestRecallSeedEntries
+    package: cluster_operator
+    language: go
+    doc: "TestRecallSeedEntries asserts the embedded operational-knowledge recall\nartifact is present, parses, and every entry is well-formed — so ai-memory's\nstartup self-seed has real, valid content to load."
