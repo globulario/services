@@ -1,0 +1,122 @@
+schema_version: 1
+file_kind: stage
+metadata:
+  title: "Learned lessons — promoted from runtime ai-memory (2026-06)"
+  description: |
+    Durable lessons that graduated from runtime ai-memory into the Day-0 seed so they
+    survive a clean install and reseed on every node. Runtime ai-memory is node-local
+    (ai_memory keyspace, RF=1 on single-node) and is LOST on clean-node; the git-tracked
+    seed is the durability boundary. Promote a lesson here when it must outlive a wipe.
+  source_documents:
+    - docs/awareness/coherence_pipeline.yaml
+    - docs/awareness/package_identity_invariants.yaml
+    - golang/cluster_doctor/cluster_doctor_server/rules/infra_probe_required.go
+
+entries:
+
+  - id: ops.always.package.identity-single-source
+    type: DECISION
+    title: "Package identity (binary + kind) is single-source via registry.yaml, build-gated"
+    tags: [always, package, identity, build]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      A package's binary name and kind are declared in up to six places: registry.yaml,
+      metadata/<name>/package.json, the spec's metadata.entrypoint, the spec's inline
+      systemd ExecStart, the spec's start_services.binaries map, and the standalone
+      metadata/<name>/systemd unit. Nothing enforced agreement, so they drifted.
+
+      Canonical example: mcp ships as `mcp_server` (the Go build for ./mcp collides with
+      the package dir name), but the spec repeatedly drifted back to `mcp`, breaking fresh
+      Day-0 with `ExecStart=/usr/lib/globular/bin/mcp: no such file`. Fixed by hand 5+
+      times; re-broken by the 2026-06 spec consolidation that resolved a duplicate toward
+      the stale copy.
+
+      RULE: registry.yaml is the authority. Every other declaration of a package's binary
+      name and kind MUST agree with it; registry.yaml itself is cross-checked against the
+      canonical component_catalog.go classification. The build runs
+      scripts/validate-package-identity.py (wired into packages/build.sh) and FAILS LOUD
+      on any drift.
+
+      KIND is determined by bootstrap role, not language: `infrastructure` = day0_required
+      / control_plane_critical bootstrap floor (etcd, scylla, minio, envoy, prometheus,
+      keepalived, gateway, xds). `service` = a post-bootstrap workload (bootstrap_tier:
+      workload), e.g. mcp. `command` = CLI tool.
+
+      FORBIDDEN: relaxing the identity check to make a build pass, or editing registry.yaml
+      to match a drifting file. Fix the drifting file to match the authority.
+
+  - id: ops.always.doctor.reduced-harvest-honesty
+    type: DEBUG
+    title: "Doctor reduced-harvest findings are UNKNOWN/WARN, not FAIL/ERROR"
+    tags: [always, cluster-doctor, diagnostic-honesty]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      "Could not observe" must never be reported as "observed failure"
+      (meta.harvest_and_yield_are_distinct_availability_dimensions).
+
+      Incident (2026-06-22, globule-ryzen): a single context-canceled doctor harvest
+      produced 5 CRITICAL/ERROR `*.probe_required_when_installed` findings
+      (scylla/etcd/minio/envoy + repository.unreachable) against a FULLY HEALTHY node.
+      Verified false-positive: infra_probe_all showed all components member_ready; node
+      health ready; reconcile CONVERGED. A fresh harvest cleared them.
+
+      Root cause: the four probe_required rules emitted ERROR + INVARIANT_FAIL when an
+      installed component had no probe — even when the cause was the collector's own
+      GetInfraProbe sub-fetch erroring (snap.HadError). That asserts failure on evidence
+      never collected.
+
+      RULE (shared builder rules/infra_probe_required.go):
+      - collector error (HadError) OR capability gap -> WARN + INVARIANT_UNKNOWN +
+        CheckError set (aggregators never count it as FAIL). Verdict INDETERMINATE.
+      - complete harvest but still no probe for an installed component -> ERROR +
+        INVARIANT_FAIL (a genuine source failure).
+      - NEVER go silent (degraded_is_explicit_not_hidden): absence is always surfaced,
+        just at the correct epistemic level.
+
+      Operator note: a wall of reduced-harvest probe errors against otherwise-healthy
+      infra usually means a transient harvest hiccup (e.g. MCP/controller reconnect).
+      Re-scan fresh before acting. FORBIDDEN: suppressing probe_required entirely (re-opens
+      the FALSE_NEGATIVE class where "could not see" looks like "healthy") — downgrade the
+      verdict, don't delete it.
+
+  - id: ops.always.awareness.coherence-loop
+    type: ARCHITECTURE
+    title: "The coherence loop — ai-memory + awareness-graph + behavioral-memory + CI"
+    tags: [always, awareness-graph, ai-memory, coherence]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      How the platform stays coherent as it grows. Canonical detail:
+      docs/awareness/coherence_pipeline.yaml.
+
+      THREE memory systems, distinct authorities — do not conflate:
+      1. ai-memory (ScyllaDB, mcp__globular__memory_*) — mutable runtime recall log
+         (what happened / what we learned). At session start run
+         memory_query(tags="always"). It does NOT gate edits. Runtime entries are
+         node-local (RF=1 single-node) and LOST on clean-node — promote durable lessons
+         into docs/operational-knowledge so they survive and reseed.
+      2. awareness-graph (AWG, mcp__awg__awareness_*) — compiled context graph (intent,
+         invariants, failure_modes, forbidden_fixes). Call briefing(file=) BEFORE editing
+         (hook-enforced in high-risk dirs). It is context, NOT runtime authority — verify
+         live state with MCP tools, never infer it from the graph.
+      3. behavioral-memory — enforced meta-principles (meta.*) + principle-check scanners
+         + behavioral ratchet tests. CI hard-gates these.
+
+      READ path (every session): recall ai-memory (tags=always) -> briefing before edits
+      -> follow the invariants/forbidden_fixes named -> patch -> run required tests.
+      WRITE-BACK path (teach the system): scar -> record in ai-memory -> promote to
+      docs/awareness (graph) or docs/operational-knowledge (Day-0 seed) -> rebuild ->
+      CI validates. Closing this loop is the goal; the weak rung is the manual rebuild.
+
+      CI enforcement plane (services/.github/workflows/ci.yml): HARD GATES =
+      make principle-check-all, behavioral ratchets, awg validate. ADVISORY =
+      awg audit -check (embeddata freshness) — re-arm as a hard gate once rebuild
+      determinism lands (it now passes).
+
+      DEGRADED mode: if ai-memory/AWG are unreachable, CLAUDE.md is the always-available
+      safety floor; verify live, do not fabricate state from memory.
