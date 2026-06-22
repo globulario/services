@@ -5329,6 +5329,18 @@ test_symbols:
     package: main
     language: go
     doc: "TestReconcileBreakerBurstOpensExactlyOnce is the sibling regression: the\nreconcile circuit breaker had the identical level-triggered shape, so a\nburst of reconcile timeouts must likewise open it exactly once."
+  - id: golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go:TestReconcileCircuitGaugeClearsOnSuccess
+    file: golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go
+    symbol: TestReconcileCircuitGaugeClearsOnSuccess
+    package: main
+    language: go
+    doc: "TestReconcileCircuitGaugeClearsOnSuccess verifies the active recovery path:\na successful reconcile after an open breaker drives the gauge back to 0 so the\ndoctor finding auto-clears."
+  - id: golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go:TestReconcileCircuitGaugeExpiresCooldownEvenWithoutProbe
+    file: golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go
+    symbol: TestReconcileCircuitGaugeExpiresCooldownEvenWithoutProbe
+    package: main
+    language: go
+    doc: "TestReconcileCircuitGaugeExpiresCooldownEvenWithoutProbe is the sibling of\nTestWorkflowGateExpiresCooldownEvenWithoutProbe. The cluster-doctor finding\ncluster.reconcile_circuit_open is driven by the reconcile_circuit_open GAUGE\n(current state), not the monotonic _total counter. This is the regression for\nthe 2026-06-21 false CRITICAL: the doctor rule consumed the raw counter, so a\nsingle transient open left total_opens=3 and the finding fired \"periodic\nreconcile suspended\" forever while reconcile was actually succeeding. The\ngauge must read 1 while open and drop to 0 once the breaker closes — including\nthe idle path where the cooldown elapses without RecordSuccess being driven.\n\nClassifies against meta.failure_response_must_contract_not_amplify and\ndiagnostics.must_measure_reality."
   - id: golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go:TestWorkflowBackendHealthGate
     file: golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go
     symbol: TestWorkflowBackendHealthGate
@@ -5371,6 +5383,12 @@ test_symbols:
     package: main
     language: go
     doc: "TestWorkflowGateReclosesAfterHealthyProbe opens the circuit breaker, lets the\nhalf-open probe through, then records success and verifies the circuit closes."
+  - id: golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go:TestWorkflowGateTripsOnlyOnTransportFailure
+    file: golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go
+    symbol: TestWorkflowGateTripsOnlyOnTransportFailure
+    package: main
+    language: go
+    doc: "TestWorkflowGateTripsOnlyOnTransportFailure is the regression for the\n2026-06-21 workflow.backend_pressure WARN that fired with no real backend\npressure. The single RecordFailure call site (workflow_execute.go) tripped\nthe breaker on ANY non-nil ExecuteWorkflow error, conflating business-level\ngRPC rejections (a missing workflow definition, invalid inputs, a failed\nprecondition) with genuine backend unreachability. Five config errors in 5m\nopened a cluster-wide dispatch freeze, and every half-open probe that hit the\nsame business error re-armed it — sustained pressure that never cleared.\n\nThe breaker must trip ONLY on transport/infra signals. Business codes must\nleave it closed; transport codes (including DeadlineExceeded, per operator\ndecision) must open it. Classifies against\nmeta.failure_response_must_contract_not_amplify and\ndegraded_is_explicit_not_hidden."
   - id: golang/cluster_controller/cluster_controller_server/workflow_platform_upgrade_test.go:TestEvaluate_MissingInRepo_RefusesToDispatch
     file: golang/cluster_controller/cluster_controller_server/workflow_platform_upgrade_test.go
     symbol: TestEvaluate_MissingInRepo_RefusesToDispatch

@@ -26,3 +26,8 @@
   reason: collapsing decide/execute authority puts execution into a decision service
   recommended_behavior: Keep decide/coordinate/execute separate — controller decides, workflow coordinates, node-agent executes.
   safe_next_step: dispatch a workflow rather than executing locally from the controller
+- id: forbidden.cluster.rbac_sa_recognition_bypass
+  title: Recognize the built-in sa superadmin outside the canonical predicate
+  reason: ad-hoc sa recognition (inline string check, no @domain strip, admin-only-via-stored-binding, or weakened deny-overrides-allow) reintroduces authority-predicate drift
+  recommended_behavior: Route all built-in-sa recognition through isBuiltinSuperadmin (domain-stripped, case-insensitive); keep deny-overrides-allow first.
+  safe_next_step: gather evidence.cluster.rbac.canonical_predicate_tests before editing the RBAC authority surface

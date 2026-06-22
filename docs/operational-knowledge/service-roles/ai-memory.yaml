@@ -98,6 +98,45 @@ entries:
         - ops_knowledge.unauthorized_seed_mutation
         - ops_knowledge.seeder_workflow_skipped
 
+  - id: ops.always.ai-memory.query-discipline
+    type: SKILL
+    title: "ai-memory is an INPUT — query the ops.* corpus, don't just write to it"
+    tags: [always, ai-memory, query-discipline, operational-awareness]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      ai-memory is an operational-awareness INPUT, not a write-sink. Day-0 seeds a
+      rich ops.* corpus into ai-memory and the AI tier (ai-watcher → ai-executor)
+      auto-writes live incident-signatures. Consult both BEFORE diagnosing from raw
+      logs or re-deriving facts.
+
+      **Query discipline:**
+      - Session start: query `tags=always` and read the always-load set before acting.
+      - Before touching a subsystem: query by tag/prefix — `ops.day-1.join`,
+        `ops.role.rbac`, `ops.day-1.minio`, etc. — and `tags=incident` for what the
+        AI tier already recorded.
+      - Treat `provenance.source == seed` entries as immutable operational truth;
+        still verify time-sensitive facts (membership, health, installed state)
+        against live tools — seeds reflect authoring time.
+
+      **Recall trap — multi-word text_search:** historically `memory_query`'s
+      `text_search` matched the ENTIRE query as one contiguous substring, so any
+      multi-word query (e.g. "rbac sa superadmin") returned ZERO results even when
+      every term was present — silently making a richly-seeded corpus look empty.
+      The fix tokenizes the query (AND over terms); until every node runs the fixed
+      ai-memory binary, prefer `tags=` / `type=` / `memory_get` by id and reserve
+      `text_search` for single tokens. A multi-word zero-result is a tooling
+      artifact, not an empty corpus.
+
+      **Durability rule:** anything that must survive a cluster Day-0 (ScyllaDB is
+      wiped on reinstall) belongs HERE in docs/operational-knowledge/ as a seed
+      entry — NOT as a one-off runtime memory_store, which lives only in ScyllaDB
+      and is lost on wipe.
+    links:
+      awareness_invariants:
+        - ops_knowledge.seed_integrity
+
   - id: ops.role.ai-memory.failure-modes
     type: DEBUG
     title: "ai-memory — common failure modes"

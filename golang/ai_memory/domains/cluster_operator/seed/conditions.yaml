@@ -23,3 +23,7 @@
   title: Node removal requested
   severity: warning
   detect_spec: an operator/workflow requested removal of a node
+- id: condition.cluster.rbac.authority_recognition_change
+  title: RBAC built-in-superadmin recognition / role-binding authority is being changed
+  severity: high
+  detect_spec: an edit targets the RBAC sa-recognition surface (rbac_access.go, rbac_role_bindings.go, rbac_ownership.go, server.go, security/path.go)

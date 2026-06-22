@@ -98,11 +98,29 @@ test_symbols:
     package: main
     language: go
     doc: "TestSALegacyDomainFormat verifies deny works for \"sa@domain\" format."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestCallerIsAdmin_BuiltinSA
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestCallerIsAdmin_BuiltinSA
+    package: main
+    language: go
+    doc: "TestCallerIsAdmin_BuiltinSA is the regression for the continuous permissive\nRBAC fallback (2026-06-21). callerIsAdmin only consulted a subject's STORED\nrole binding, so the built-in superadmin \"sa\" — which has no stored binding —\nwas reported non-admin, even though validateAccess, accountExist, and\nownership all treat it as superadmin. That gap made service-to-service\ninterceptor authorization lookups (which authenticate as \"sa\") fail with\nPermissionDenied and fall back to the noisy permissive local-roles path every\nreconcile tick. callerIsAdmin must recognize the built-in sa, normalized."
   - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestGetRoleBinding_NotFound_ReturnsEmpty
     file: golang/rbac/rbac_server/rbac_role_bindings_test.go
     symbol: TestGetRoleBinding_NotFound_ReturnsEmpty
     package: main
     language: go
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestGetRoleBinding_SAReadsOtherSubject_NoFallback
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestGetRoleBinding_SAReadsOtherSubject_NoFallback
+    package: main
+    language: go
+    doc: "TestGetRoleBinding_SAReadsOtherSubject_NoFallback pins the end-to-end fix:\nthe built-in sa (service identity used by interceptor authz lookups) can read\nANY subject's binding without PermissionDenied — eliminating the permissive\nfallback — while a non-admin user reading another subject is STILL denied, so\ndeny is not weakened."
+  - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestIsBuiltinSuperadmin
+    file: golang/rbac/rbac_server/rbac_role_bindings_test.go
+    symbol: TestIsBuiltinSuperadmin
+    package: main
+    language: go
+    doc: "TestIsBuiltinSuperadmin pins the single canonical superadmin predicate that\nall RBAC sa-recognition sites converged onto (validateAccess, callerIsAdmin,\naccountExist, ownership). Before convergence these drifted: some were\ncase-sensitive, and ownership used EqualFold WITHOUT stripping @domain, so it\nsilently failed to recognize \"sa@domain\". The canonical form is @-stripped\nAND case-insensitive. This guards against re-drift and the @domain miss."
   - id: golang/rbac/rbac_server/rbac_role_bindings_test.go:TestListRoleBindings_ReturnsAll
     file: golang/rbac/rbac_server/rbac_role_bindings_test.go
     symbol: TestListRoleBindings_ReturnsAll

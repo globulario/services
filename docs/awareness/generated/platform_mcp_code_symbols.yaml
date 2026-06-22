@@ -487,6 +487,42 @@ test_symbols:
     package: main
     language: go
     doc: "TestWaitActiveSucceedsWithNewBinary proves the node-agent WaitActive behavioral\ncontract: polling stops and returns nil as soon as the service reports active,\nwhich happens only after the fixed MCP binary sends READY=1.\n\nThe real supervisor.WaitActive (node_agent/.../supervisor/supervisor.go) calls\n\"systemctl is-active --quiet <unit>\" which requires a live systemd unit.\nThis test validates the identical polling logic with an injectable isActive\nfunction, using the actual sd_notify send path to drive the state transition.\n\nIntegration note: end-to-end validation (node-agent installs fixed MCP binary →\nsystemd starts it → MCP sends READY=1 → systemd marks active → node-agent\nWaitActive returns nil → installed-state updated in etcd) requires a real cluster\nnode with systemd. This was validated manually in INC-2026-0002 post-mortem."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralOperatorLoop
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralOperatorLoop
+    package: main
+    language: go
+    doc: "The governed operator loop works end-to-end through the tools."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralPromoteRequiresActorAndSurfacesBlocked
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralPromoteRequiresActorAndSurfacesBlocked
+    package: main
+    language: go
+    doc: "promote requires actor+reason and surfaces a BLOCKED decision (gate not bypassed/hidden)."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralProposeReturnsProposed
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralProposeReturnsProposed
+    package: main
+    language: go
+    doc: "propose returns PROPOSED_PRINCIPLE (never promoted)."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralProposeSchemaIsFirstClass
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralProposeSchemaIsFirstClass
+    package: main
+    language: go
+    doc: "Schemas expose governance relations as first-class inputs (not hidden in metadata)."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralToolsRegister
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralToolsRegister
+    package: main
+    language: go
+    doc: "All behavioral tools register under the behavioral group; default is on."
+  - id: golang/mcp/tools_behavioral_test.go:TestMemoryToolsUnchangedAlongsideBehavioral
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestMemoryToolsUnchangedAlongsideBehavioral
+    package: main
+    language: go
+    doc: "Existing ai-memory MCP tools still register unchanged alongside behavioral tools."
   - id: golang/mcp/tools_infra_test.go:TestInfraDiff_DesiredVsRendered
     file: golang/mcp/tools_infra_test.go
     symbol: TestInfraDiff_DesiredVsRendered

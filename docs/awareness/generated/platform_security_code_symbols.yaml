@@ -181,6 +181,12 @@ test_symbols:
     package: security
     language: go
     doc: "TestNewAuthContext_Loopback verifies loopback detection"
+  - id: golang/security/auth_context_test.go:TestPerMethodLogLimiter
+    file: golang/security/auth_context_test.go
+    symbol: TestPerMethodLogLimiter
+    package: security
+    language: go
+    doc: "TestPerMethodLogLimiter is the regression for the repository journal flood\n(2026-06-21): the \"ClusterID sourced from unverified gRPC metadata\" WARN fired\non every proxy-fronted call (~300/min on the reconcile loop), drowning real\nWARNs and desensitizing a genuine security signal. The fix throttles it to\nonce per key per window. This pins that behavior: first emission per key\npasses, repeats within the window are suppressed, and keys are independent."
   - id: golang/security/bootstrap_test.go:TestBootstrapGate_AllowedMethods
     file: golang/security/bootstrap_test.go
     symbol: TestBootstrapGate_AllowedMethods
@@ -408,6 +414,12 @@ test_symbols:
     symbol: TestNodeExecutorCannotPublish
     package: security
     language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorGrantsWorkflowAdmin
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorGrantsWorkflowAdmin
+    package: security
+    language: go
+    doc: "TestNodeExecutorGrantsWorkflowAdmin pins the policy contract behind the\nbootstrap-symmetry fix (2026-06-21): the founding/controller node binds its\nown mTLS identity to globular-node-executor at startup so its workflow trace\nrecorder can persist RecordOutcome / RecordPhaseTransition (both require\naction \"workflow.admin\", per proto/workflow.proto). That binding is only\nmeaningful if globular-node-executor actually grants workflow.admin — if a\nfuture policy edit drops it, the founding node would silently stop recording\nworkflow audit trails again. This test fails loudly if that grant regresses."
   - id: golang/security/node_identity_test.go:TestNodeExecutorPermissions
     file: golang/security/node_identity_test.go
     symbol: TestNodeExecutorPermissions

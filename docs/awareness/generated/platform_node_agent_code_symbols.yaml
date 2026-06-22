@@ -617,6 +617,11 @@ test_symbols:
     symbol: TestVerifyInstalledBinaryHash_UnverifiedWithBinaryReturnsHashNoError
     package: main
     language: go
+  - id: golang/node_agent/node_agent_server/behavioral_observation_test.go:TestRefreshScyllaInfraProbeEmitsBehavioralObservation
+    file: golang/node_agent/node_agent_server/behavioral_observation_test.go
+    symbol: TestRefreshScyllaInfraProbeEmitsBehavioralObservation
+    package: main
+    language: go
   - id: golang/node_agent/node_agent_server/cert_watcher_test.go:TestCertWatcher_DedupAndDebounce
     file: golang/node_agent/node_agent_server/cert_watcher_test.go
     symbol: TestCertWatcher_DedupAndDebounce
@@ -2627,7 +2632,7 @@ test_symbols:
     symbol: TestNormalizeSHA256Digest
     package: actions
     language: go
-    doc: "TestNormalizeSHA256Digest strips the \"sha256:\" prefix and lowercases."
+    doc: "TestNormalizeSHA256Digest confirms node-agent integrity checks use the\nshared canonical digest form (strips \"sha256:\" prefix and lowercases)."
   - id: golang/node_agent/node_agent_server/internal/actions/verify_integrity_test.go:TestSha256OfFile
     file: golang/node_agent/node_agent_server/internal/actions/verify_integrity_test.go
     symbol: TestSha256OfFile
