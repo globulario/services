@@ -38,3 +38,7 @@
   title: Human approval for an irreversible operation
   lane: static_only
   probe_ref: human.irreversible_approval
+- id: evidence.cluster.rbac.canonical_predicate_tests
+  title: RBAC canonical sa-predicate regression tests pass
+  lane: static_only
+  probe_ref: go_test.rbac.canonical_predicate  # TestIsBuiltinSuperadmin, TestCallerIsAdmin_BuiltinSA, TestGetRoleBinding_SAReadsOtherSubject_NoFallback

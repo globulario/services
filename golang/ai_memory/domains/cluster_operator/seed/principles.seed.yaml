@@ -86,3 +86,31 @@
   generated_from:
     - opsknowledge:runbooks
     - opsknowledge:incidents
+# AWG-derived projection (A-prime): authored here as a PROPOSED seed, but the
+# authority is the AWG failure_mode, not this pack. source_refs carries the AWG
+# node id AND a content hash (ref@sha256:...) so a future drift-check (and the
+# longer-term AWG→behavioral generator, design: behavioral_memory_awg_seed_bridge.md)
+# can detect when the AWG source changed and re-derive / mark stale. Never
+# auto-promoted; promotion gated on the enforce/record hook pair (warn→strict).
+- id: principle.cluster.rbac_superadmin_recognition_canonical_predicate
+  title: Recognize built-in sa via the one canonical predicate
+  applies_when:
+    - condition.cluster.rbac.authority_recognition_change
+  authorities:
+    - authority.cluster.rbac.identity_recognition
+  required_evidence:
+    - evidence.cluster.rbac.canonical_predicate_tests
+  forbidden_moves:
+    - forbidden.cluster.rbac_sa_recognition_bypass
+  recommended_action: >-
+    Recognize the built-in "sa" superadmin only through the canonical
+    isBuiltinSuperadmin predicate (domain-suffix stripped, case-insensitive) at every
+    RBAC authority site, and keep deny-overrides-allow first. Cite the canonical-predicate
+    regression tests before changing the recognition surface.
+  risk_level: high
+  revocation_rule: narrow if "sa" is removed as a built-in superadmin, or the RBAC recognition surface is extracted to a service where isBuiltinSuperadmin no longer applies
+  promotion_reason: authority-predicate drift across five sa-recognition sites broke service-to-service authz and silently dropped workflow audit; promote only after the enforce/record hook pair is verified in warn mode
+  source_refs:
+    - awg:failure_mode.rbac.authority_recognition_predicate_drift_across_sites@sha256:52f32013f320a1513ce93313f2e2708c5cc4f1e7e07b567747acc04a5fd3f1a5
+  generated_from:
+    - awg:failure_modes

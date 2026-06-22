@@ -30,3 +30,8 @@
   owner_kind: human
   governs: product intent and risky/irreversible operations
   read_path: explicit operator approval
+- id: authority.cluster.rbac.identity_recognition
+  title: RBAC built-in-superadmin identity-recognition authority
+  owner_kind: code_invariant
+  governs: how the built-in "sa" superadmin is recognized and authorized across the RBAC server
+  read_path: AWG failure_mode rbac.authority_recognition_predicate_drift_across_sites + the canonical isBuiltinSuperadmin predicate
