@@ -1,7 +1,1 @@
 code_symbols:
-test_symbols:
-  - id: golang/audittrail/desired_writes_test.go:TestValidateDesiredWriteRecord_RequiredFields
-    file: golang/audittrail/desired_writes_test.go
-    symbol: TestValidateDesiredWriteRecord_RequiredFields
-    package: audittrail
-    language: go
