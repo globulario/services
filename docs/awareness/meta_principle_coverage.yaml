@@ -1,3 +1,15 @@
+# ============================================================================
+# GENERATED MIRROR — DO NOT EDIT HERE.
+# Canonical source (AWG-owned authority):
+#   awareness-graph/docs/awareness-control/meta_principle_coverage.yaml
+#
+# This services-repo copy is a human-facing mirror of the awareness-graph
+# coverage registry. Edit the CANONICAL copy; this mirror must stay coherent.
+# Coherence is gated by TestMetaPrincipleCoverageMirrorCoherence
+# (awareness-graph/cmd/principle-check): a conflicting tier or invented
+# classification HARD-fails CI; lag behind canonical is reported, not silent.
+# Last synced against canonical: 2026-06-22.
+# ============================================================================
 # Meta-principle coverage map
 # ===========================
 # declare-then-conform, applied one level UP — to the meta-principles themselves.
@@ -10,21 +22,23 @@
 #
 # TIERS:
 #   code_scanner  — ruleguard/regex gate in principle-check-all (AUTO-derived
-#                   from the Makefile + invariants; NOT listed here).
-#   declaration   — declare-then-conform via architectural_declarations.yaml
-#                   (AUTO-derived; NOT listed here).
-#   behavioral    — enforced by a runtime/integration test, not a static scanner.
-#                   Must cite the test(s).
+#                   from the Makefile + related_invariants; NOT listed here).
+#   declaration   — enforced by a declaration-completeness gate. The validating
+#                   artifact may live in another repo, but the coverage entry
+#                   lives HERE because the principle is AWG-owned.
+#   behavioral    — enforced by a runtime/integration/script gate. Must cite
+#                   the gate(s).
 #   planned       — a mechanizable tier is identified but not yet built. Must
 #                   name `intended_tier`. This is a TRACKED gap, not a silent one.
 #   review_only   — irreducibly human design philosophy; no artifact can prove
 #                   it. Surfaces via awareness.briefing at design time. This is a
 #                   legitimate terminal tier, not a failure to mechanize.
 #
-# This file lists ONLY the residual principles — those NOT auto-derived as
-# code_scanner or declaration. TestMetaPrincipleCoverageComplete fails if any
-# meta.* is neither auto-derived NOR listed here: a new principle cannot land
-# unclassified.
+# This file lists every meta.* principle that is NOT auto-derived as
+# code_scanner. Cross-repo declaration and artifact checks still validate their
+# external inputs, but ownership of the coverage map itself stays in
+# awareness-graph so a new AWG principle cannot require an out-of-repo repair
+# just to classify its tier.
 
 schema_version: 1
 
@@ -53,33 +67,25 @@ enforcement_ratchet:
   # review_only — a cross-language (etcd/Go + vite/TS) identity/aliasing
   # principle that is design judgement, not yet a scannable property. Conscious
   # bump; revisit if a copylock-style scanner is later wired (→ behavioral).
-  # 43 → 45 (2026-06-17): the two contract-first resolution principles
-  # (meta.contract_must_be_explicit_before_resolution and
-  # meta.no_resolution_without_a_respected_contract) added as review_only.
-  # Whether a governing contract was identified before a change is called
-  # "resolved" — and whether the patch respects it — is an epistemic design
-  # judgement made at review time; no static artifact can prove it in general.
-  # Conscious bump; revisit if the contract-first repair protocol's `awg gate`
-  # step is wired into CI against a frozen contract set (→ behavioral).
-  max_review_only: 45
+  max_review_only: 43
 
 meta_principle_coverage:
 
-  # ── behavioral: gated by a runtime/integration test ──────────────────────
+  # ── behavioral: gated by a runtime/integration/script check ──────────────
   - principle: meta.harvest_and_yield_are_distinct_availability_dimensions
     tier: behavioral
     reason: >
       The doctor snap-error contract is gated by services-CI behavioral ratchets,
       not the (too-broad) static doctor_rule scanner.
     tests:
-      - golang/cluster_doctor/cluster_doctor_server/rules/registry_source_error_enforcement_test.go::TestNoRuleEmitsConfidentFailureOnErroredSnapshot
+      - TestNoRuleEmitsConfidentFailureOnErroredSnapshot
       - TestClusterScopedRulesRefuseOnSourceError
       - TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable
   - principle: meta.fail_safe_defaults_when_authority_is_uncertain
     tier: behavioral
     reason: RBAC fails closed and the remediator refuses unknown tiers under uncertainty.
     tests:
-      - golang/interceptors/role_binding_failsafe_test.go::TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
+      - TestRBACFallback_FailsClosedForUserMutationOutsideBootstrap
       - TestRemediator_UnknownTierFailsSafeNoAutoExecute
   - principle: meta.authorization_check_is_a_snapshot_not_a_promise
     tier: behavioral
@@ -91,7 +97,7 @@ meta_principle_coverage:
     tier: behavioral
     reason: Node last-seen uses the server clock, not the reporting node's clock, so cross-node comparisons are skew-free.
     tests:
-      - golang/cluster_controller/cluster_controller_server/clock_skew_lastseen_test.go::TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
+      - TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
   - principle: meta.negative_result_requires_coverage_attestation
     tier: behavioral
     reason: >
@@ -102,6 +108,35 @@ meta_principle_coverage:
     tests:
       - TestRuleguardRulesHavePositiveControl
       - TestArchitecturalDeclarationsComplete
+  - principle: meta.contract_must_be_explicit_before_resolution
+    tier: behavioral
+    reason: >
+      Contract assessment and audit reporting now require explicit contract
+      state instead of letting a green-looking outcome masquerade as a resolved
+      change.
+    tests:
+      - TestRunContractAssess_Text
+      - TestRunContractAssess_JSON
+      - TestCheckContractAssessment_Summary
+  - principle: meta.no_resolution_without_a_respected_contract
+    tier: behavioral
+    reason: >
+      The contract gate and audit summary distinguish violated, respected, and
+      not-applicable contract outcomes, so "resolved" is not reducible to a
+      benchmark-looking pass without contract respect.
+    tests:
+      - TestCheckContractAssessment_Summary
+      - TestEvaluateContracts_GovernedMatch_Violated
+      - TestEvaluateContracts_GovernedNoMatch_Respected
+  - principle: meta.contract_must_define_repair_scope
+    tier: behavioral
+    reason: >
+      The contract gate verifies that a repair contract names required scope,
+      warns on underconstrained scope, and flags neighboring out-of-scope edits
+      instead of treating any semantically related change as acceptable.
+    tests:
+      - TestEvaluateContracts_UnderconstrainedContractScopeWarning
+      - TestEvaluateContracts_ScopedContractDetectsNeighboringEdit
   - principle: meta.alert_must_name_a_violated_invariant_not_a_crossed_threshold
     tier: behavioral
     reason: >
@@ -130,6 +165,157 @@ meta_principle_coverage:
       allowed with a documented carve-out.
     tests:
       - TestTopologyChangeEmitsEvent
+  - principle: meta.high_risk_change_requires_test_evidence
+    tier: behavioral
+    reason: >
+      High-risk files without nearby evidence anchors degrade preflight status
+      instead of looking safe, forcing explicit test proof or escalation.
+    tests:
+      - TestPreflight_HighRiskNoAnchorsReturnsDegraded
+      - TestPreflightWeighted_HighRiskFileNoAnchorsDegrades
+  - principle: meta.generated_artifacts_must_be_fresh_before_merge
+    tier: behavioral
+    reason: >
+      Freshness is mechanically enforced by the seed/build drift gates before
+      merge; stale generated artifacts fail CI instead of riding along as
+      "follow-up" cleanup.
+    tests:
+      - scripts/build-awareness-graph.sh --check
+      - make proto-contracts-check
+      - make import-graph-check
+  - principle: meta.cross_repo_reference_must_be_validated
+    tier: behavioral
+    reason: >
+      Dedicated unit tests pin the reference validator: dangling forbidden-fix,
+      required-test, and contract references are flagged, and repo-owned dangling
+      component / missing-source refs stay HARD errors (external refs hard-fail in
+      full scope). The integration gate runs the same validator on every build.
+    tests:
+      - TestValidateReferences_DanglingForbiddenFix
+      - TestValidateReferences_DanglingRequiredTest
+      - TestValidateReferences_DanglingContractMention
+      - TestDoValidate_LocalRepoOwnedRefsStayErrors
+      - TestDoValidate_GenericExternalRefsFailInFullScope
+      - scripts/build-awareness-graph.sh --check
+  - principle: meta.main_branch_must_remain_releasable
+    tier: behavioral
+    reason: >
+      Releasability is enforced as a composite CI invariant: generated
+      artifacts must be fresh, commit-scope drift is blocked, and the test
+      suite must stay green on every merge candidate.
+    tests:
+      - scripts/build-awareness-graph.sh --check
+      - scripts/check-commit-scope.sh HEAD
+      - go test ./... -count=1 -timeout 120s
+  - principle: meta.graph_truth_must_come_from_approved_corpus
+    tier: behavioral
+    reason: >
+      The served gRPC surface is the authority boundary for "truth enters only
+      via the approved corpus + deterministic rebuild": the guard parses the
+      proto contract and fails if any rpc carries a mutation verb, so no
+      fact-writing/store-mutating RPC can be added without an explicit
+      architecture review. The complementary corpus+rebuild half is held by the
+      seed-freshness and cross-repo reference-validation gates.
+    tests:
+      - TestGraphTruth_ServedSurfaceHasNoFactWritingRPC
+
+  # ── declaration: enforced by declaration completeness in another repo ─────
+  - principle: meta.graceful_degradation_is_the_normal_mode_not_an_exception
+    tier: declaration
+    reason: >
+      Protected by the services architectural declaration registry. The
+      coverage entry lives in awareness-graph because the principle corpus is
+      AWG-owned; the external declaration matrix remains the validating artifact.
+    tests:
+      - TestArchitecturalDeclarationsComplete
+  - principle: meta.partition_response_must_be_predeclared
+    tier: declaration
+    reason: >
+      Protected by the services architectural declaration registry for
+      partition posture; ownership of the principle stays in awareness-graph.
+    tests:
+      - TestArchitecturalDeclarationsComplete
+  - principle: meta.bounded_staleness_must_be_named_not_assumed
+    tier: declaration
+    reason: >
+      Protected by the services architectural declaration registry for
+      staleness posture; coverage ownership stays local to awareness-graph.
+    tests:
+      - TestArchitecturalDeclarationsComplete
+  - principle: meta.load_redirection_must_be_explicit_capacity_planning
+    tier: declaration
+    reason: >
+      Protected by the services architectural declaration registry for load
+      redirection / failover capacity stance.
+    tests:
+      - TestArchitecturalDeclarationsComplete
+  - principle: meta.replication_vs_partitioning_chooses_availability_dimension
+    tier: declaration
+    reason: >
+      Protected by the services architectural declaration registry for
+      availability stance across replication vs partitioning tradeoffs.
+    tests:
+      - TestArchitecturalDeclarationsComplete
+  - principle: meta.observability_must_match_decision_horizon
+    tier: declaration
+    reason: >
+      Protected by the services architectural declaration registry for signal
+      cadence posture; the principle remains owned by awareness-graph.
+    tests:
+      - TestArchitecturalDeclarationsComplete
+  - principle: meta.checkpoint_alone_is_inadequate_for_growing_state
+    tier: declaration
+    reason: >
+      Protected by the services architectural declaration registry for
+      durability strategy posture.
+    tests:
+      - TestArchitecturalDeclarationsComplete
+
+  # ── planned: mechanizable, but the named gate is not built yet ───────────
+  - principle: meta.ui.interactive_element_must_have_stable_identity
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a styled-element-identity lint against globular-admin
+      (data-carrying spans/badges/counts must have id|data-bind|data-*), the
+      sibling gate to check-theme-tokens.sh. Classified planned (not
+      review_only) because the mechanism is concrete and named — the gate is
+      simply not built yet. Discovered by the admin incidents-page audit.
+  - principle: meta.change_must_be_split_into_reviewable_slices
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a review-slice gate over diff scope, unrelated-path
+      mixing, and generated-artifact bundling, but the generalized slice check
+      is not built yet. The narrow commit-scope guard only covers one drift class.
+  - principle: meta.discovery_produces_candidates_not_facts
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as promotion-path tests proving extractors can emit
+      candidates but cannot mutate canonical corpus or graph truth directly.
+      The mechanism is concrete, but the dedicated gate is not built yet.
+  - principle: meta.runtime_change_requires_observability_path
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a gate that links runtime-affecting changes to declared
+      logs/metrics/status evidence or required tests. Several concrete tests
+      exist, but the generalized change-to-observability check is not built yet.
+  - principle: meta.exception_must_have_reason_owner_and_expiry
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a schema lint over allowlists, baselines, suppressions,
+      and temporary exceptions requiring reason/owner/expiry fields. The
+      unified exception ledger gate is not built yet.
+  - principle: meta.architectural_intent_must_change_before_structural_drift
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a structural-diff gate requiring companion intent or
+      decision updates when authority, ownership, boundary, lifecycle, or
+      contract shape changes. The mechanism is named, but not yet implemented.
 
   # ── review_only: irreducible design philosophy (terminal tier) ───────────
   - principle: meta.MTTR_focus_outperforms_MTBF_for_evolving_systems
@@ -165,30 +351,6 @@ meta_principle_coverage:
   - principle: meta.uniform_naming_reduces_conceptual_load
     tier: review_only
     reason: Naming uniformity is a judgment a linter would approximate worse than review; a design lens.
-
-  # ── Perception (resolution epistemics) principles — review_only ──────────
-  # The contract-first resolution principles govern what "resolved" is allowed
-  # to mean. They are foundational design philosophy: a reviewer (or the agent
-  # itself, honestly) must judge whether a governing contract was identified
-  # before claiming resolution, and whether the patch respects it. No general
-  # static artifact can prove this. Candidate for behavioral mechanization when
-  # the contract-first repair protocol's `awg gate` step runs in CI against a
-  # frozen contract set (see awareness-graph docs/design/contract-first-resolution.md).
-  - principle: meta.contract_must_be_explicit_before_resolution
-    tier: review_only
-    reason: >
-      Whether the governing contract was identified, inferred, or proposed
-      before a change is called "resolved" is an epistemic judgment about the
-      task, not a code pattern. A green test cannot prove a contract was
-      respected — only that an oracle was matched. Surfaces via awareness.briefing
-      at repair time.
-  - principle: meta.no_resolution_without_a_respected_contract
-    tier: review_only
-    reason: >
-      The operational form: "resolved" requires contract explicit ∧ respected ∧
-      evidence-backed. Whether a patch respects an identified contract is design
-      judgment until a contract carries a mechanizable detect rule; until then,
-      review plus briefing-time surfacing is the honest tier, not a silent gap.
 
   # ── Perception (GUI) principles — review_only ───────────────────────────
   # The perception category protects operator truth on screens. No admin
@@ -278,17 +440,6 @@ meta_principle_coverage:
     tests:
       - globular-admin:scripts/check-theme-tokens.sh
 
-  # ── Perception (newer GUI principle) — planned ──────────────────────────
-  - principle: meta.ui.interactive_element_must_have_stable_identity
-    tier: planned
-    intended_tier: behavioral
-    reason: >
-      Mechanizable as a styled-element-identity lint against globular-admin
-      (data-carrying spans/badges/counts must have id|data-bind|data-*), the
-      sibling gate to check-theme-tokens.sh. Classified planned (not
-      review_only) because the mechanism is concrete and named — the gate is
-      simply not built yet. Discovered by the admin incidents-page audit.
-
   # ── Structure (code reusability) principles — review_only ───────────────
   # meta.code.* governs Go and TypeScript alike. Several are mechanizable
   # once a frontend codebase exists (named below); until then design review
@@ -332,95 +483,3 @@ meta_principle_coverage:
       invalid or a legitimate defensive copy. Corroborated independently in
       Go/etcd and TypeScript/Vite. Candidate pending review and future
       mechanization strategy.
-
-  # ── Evolution (safe project change) principles ──────────────────────────
-  # The eighth category, defined in awareness-graph docs/awareness/generic.
-  # These govern HOW the project may change, not what is true about it. Two are
-  # already gated by behavioral tests; the rest are mechanizable and named
-  # `planned` (concrete gate identified, not yet built) — none consume a
-  # review_only slot, so the ratchet ceiling is unchanged.
-  - principle: meta.generated_artifacts_must_be_fresh_before_merge
-    tier: behavioral
-    reason: >
-      The ownership-aware seed-freshness gate proves every artifact derived from
-      the corpus matches its source: owned drift fails, paired cross-repo lag is
-      tolerated. Wired into build-awareness-graph.sh --check and the principle
-      pack --check.
-    tests:
-      - TestClassifySeedDiff_RealOwnedDriftStillFails
-      - TestClassifySeedDiff_MissingOwnedTripleStillFails
-      - TestClassifySeedDiff_MixedDriftFailsOnOwned
-      - TestClassifySeedDiff_IdenticalIsClean
-  - principle: meta.discovery_produces_candidates_not_facts
-    tier: behavioral
-    reason: >
-      Extraction/mining emit status:candidate proposals, never corpus facts; the
-      tests assert the discovery paths produce candidate entries that require a
-      separate human promotion step.
-    tests:
-      - TestExtractMisuseCandidates
-      - TestExtractPatternCandidates
-  - principle: meta.main_branch_must_remain_releasable
-    tier: planned
-    intended_tier: behavioral
-    reason: >
-      Mechanizable as a meta-test pinning that the merge gate runs build + go
-      test + awg validate + seed-freshness on the merge result (the CI pipeline
-      already does this; a guard test that asserts the gate composition is the
-      concrete mechanism). Planned, not review_only — the gate is named, just not
-      yet pinned by a test.
-  - principle: meta.change_must_be_split_into_reviewable_slices
-    tier: planned
-    intended_tier: code_scanner
-    reason: >
-      Mechanizable as a diff-shape scanner that raises a reviewable candidate when
-      a change exceeds a size threshold or crosses N boundaries / M high-critical
-      invariants. Advisory (candidate), never a hard block. Mechanism named; gate
-      not yet built.
-  - principle: meta.high_risk_change_requires_test_evidence
-    tier: planned
-    intended_tier: code_scanner
-    reason: >
-      Mechanizable as a scanner mapping changed files → protected high/critical
-      invariants → linked/required tests, raising a missing-test candidate when a
-      high-risk diff carries no test evidence. Mechanism named; gate not yet built.
-  - principle: meta.graph_truth_must_come_from_approved_corpus
-    tier: planned
-    intended_tier: behavioral
-    reason: >
-      Mechanizable as a test asserting the served graph is read-only (no
-      fact-writing RPC) and that promotion appends to a corpus YAML + rebuilds
-      rather than mutating the store. The promotion path already enforces this; a
-      guard test pinning the read-only boundary is the named gate.
-  - principle: meta.runtime_change_requires_observability_path
-    tier: planned
-    intended_tier: code_scanner
-    reason: >
-      Mechanizable as a scanner flagging changes to runtime/lifecycle paths that
-      add no log / metric / state-transition / status and no asserting test.
-      Mechanism named; gate not yet built.
-  - principle: meta.cross_repo_reference_must_be_validated
-    tier: planned
-    intended_tier: behavioral
-    reason: >
-      Already implemented by awg validate and yaml2nt -validate-refs (dangling
-      cross-references and missing source files fail), run by
-      build-awareness-graph.sh --check against an allowed-dangling baseline.
-      Planned pending a dedicated go test pinning the dangling-ref gate (the
-      integration gate runs today).
-  - principle: meta.exception_must_have_reason_owner_and_expiry
-    tier: planned
-    intended_tier: code_scanner
-    reason: >
-      Mechanizable as a checker that every allowlist / baseline / suppression
-      entry carries reason, owner, and expiry/review metadata, reporting expired
-      or unowned entries so the list can shrink. Mechanism named; gate not yet
-      built.
-  - principle: meta.architectural_intent_must_change_before_structural_drift
-    tier: planned
-    intended_tier: code_scanner
-    reason: >
-      Mechanizable as a scanner detecting structural diffs to spine entities
-      (component / boundary / contract) or high/critical invariants that lack a
-      corresponding intent / decision / invariant update, raising a
-      drift-without-decision candidate. Mechanism named; gate not yet built.
