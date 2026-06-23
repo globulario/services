@@ -1,12 +1,22 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// defaultResticPasswordFile is where a generated restic repository password is
+// persisted when neither explicit config nor an existing file supplies one. It
+// lives OUTSIDE the cluster state dir (which clean-node.sh wipes) and beside
+// the default repo, so the password survives a node wipe and stays available
+// to unlock the repo it protects.
+const defaultResticPasswordFile = "/var/backups/globular/.restic-password"
 
 // defaultResticExcludes is the list of paths restic must never read during a
 // cluster backup. Three classes:
@@ -97,6 +107,80 @@ func minioResticExcludes(offNodeReplicated bool, entries []os.DirEntry) []string
 		ex = append(ex, filepath.Join(minioDataDir, name))
 	}
 	return ex
+}
+
+// resolveResticPassword returns the restic repository password WITHOUT any
+// secret literal in source. Resolution order:
+//
+//  1. explicit srv.ResticPassword — operator override from etcd config.
+//  2. the password file (srv.ResticPasswordFile, default
+//     defaultResticPasswordFile) — a previously generated/placed password.
+//  3. a freshly generated cryptographically-random password, persisted to that
+//     file (0600) for reuse and for restore after a wipe.
+//
+// Safety: if the local repo already exists but no password is known (no config,
+// no file), we do NOT invent one — a new password would not match the repo and
+// would silently break every backup. Return "" and log; restic then fails
+// loudly with guidance. (Repos created by pre-password-file installs used a
+// fixed built-in password; the operator must write that into the file or set
+// ResticPassword once.) Pure w.r.t. srv (reads fields, never mutates them).
+func (srv *server) resolveResticPassword() string {
+	if srv.ResticPassword != "" {
+		return srv.ResticPassword
+	}
+	pwFile := srv.ResticPasswordFile
+	if pwFile == "" {
+		pwFile = defaultResticPasswordFile
+	}
+	if b, err := os.ReadFile(pwFile); err == nil {
+		if pw := strings.TrimSpace(string(b)); pw != "" {
+			return pw
+		}
+	}
+	if repoLooksInitialized(srv.ResticRepo) {
+		slog.Error("restic repository already exists but no password is configured; "+
+			"refusing to generate a new (mismatching) one. Set ResticPassword in config "+
+			"or write the repo's password to the password file.",
+			"repo", srv.ResticRepo, "password_file", pwFile)
+		return ""
+	}
+	pw, err := generateRandomSecret(32)
+	if err != nil {
+		slog.Error("failed to generate restic repository password", "error", err)
+		return ""
+	}
+	if mkErr := os.MkdirAll(filepath.Dir(pwFile), 0o750); mkErr != nil {
+		slog.Warn("could not create restic password directory", "dir", filepath.Dir(pwFile), "error", mkErr)
+	}
+	if wErr := os.WriteFile(pwFile, []byte(pw+"\n"), 0o600); wErr != nil {
+		slog.Error("failed to persist generated restic password — backups would be unrecoverable without it",
+			"file", pwFile, "error", wErr)
+		return ""
+	}
+	_ = os.Chmod(pwFile, 0o600)
+	slog.Info("generated and persisted a random restic repository password (no hardcoded default)", "file", pwFile)
+	return pw
+}
+
+// repoLooksInitialized reports whether a local restic repo already exists at
+// path. restic local repos hold a top-level "config" file. Remote repos
+// (scheme:... such as s3:, rest:, sftp:) cannot be stat'd here — return false
+// and rely on explicit config for those.
+func repoLooksInitialized(repo string) bool {
+	if repo == "" || strings.Contains(repo, ":") {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(repo, "config"))
+	return err == nil
+}
+
+// generateRandomSecret returns a URL-safe base64 string of n random bytes.
+func generateRandomSecret(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // buildResticBackupArgs constructs the restic backup argv slice. Pure

@@ -79,9 +79,10 @@ type Config struct {
 	ProviderTimeoutSeconds int `json:"ProviderTimeoutSeconds"`
 
 	// restic provider
-	ResticRepo     string `json:"ResticRepo"`     // e.g. "/var/backups/globular/restic" or "s3:..."
-	ResticPassword string `json:"ResticPassword"` // repository password
-	ResticPaths    string `json:"ResticPaths"`     // comma-separated paths to back up
+	ResticRepo         string `json:"ResticRepo"`     // e.g. "/var/backups/globular/restic" or "s3:..."
+	ResticPassword     string `json:"ResticPassword"` // repository password (operator override; resolved from file/generated when empty — never a source default)
+	ResticPasswordFile string `json:"ResticPasswordFile"` // path to the repo password file (generated 0600 if absent)
+	ResticPaths        string `json:"ResticPaths"`    // comma-separated paths to back up
 
 	// minio/rclone provider
 	RcloneRemote string `json:"RcloneRemote"` // rclone remote:path for destination
@@ -175,9 +176,11 @@ func DefaultConfig() *Config {
 		EtcdCert:      "/var/lib/globular/pki/issued/services/service.crt",
 		EtcdKey:       "/var/lib/globular/pki/issued/services/service.key",
 
-		ResticRepo:     "/var/backups/globular/restic",
-		ResticPassword: "globular-backup",
-		ResticPaths:    "/var/lib/globular",
+		ResticRepo: "/var/backups/globular/restic",
+		// No hardcoded password default — resolved at startup from config →
+		// password file → generated random (see resolveResticPassword).
+		ResticPasswordFile: defaultResticPasswordFile,
+		ResticPaths:        "/var/lib/globular",
 
 		RcloneRemote: "",
 		RcloneSource: "/var/lib/globular/minio/data",

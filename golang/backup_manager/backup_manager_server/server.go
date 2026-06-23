@@ -130,6 +130,7 @@ type server struct {
 	EtcdKey          string `json:"EtcdKey"`
 	ResticRepo       string `json:"ResticRepo"`
 	ResticPassword   string `json:"ResticPassword"`
+	ResticPasswordFile string `json:"ResticPasswordFile"` // path to the repo password (generated if absent); no secret in source
 	ResticPaths      string `json:"ResticPaths"`
 	RcloneRemote     string `json:"RcloneRemote"`
 	RcloneSource     string `json:"RcloneSource"`
@@ -300,8 +301,12 @@ func (srv *server) Init() error {
 	if srv.ResticRepo == "" {
 		srv.ResticRepo = "/var/backups/globular/restic"
 	}
+	// Resolve the restic repository password with NO hardcoded secret in source:
+	// explicit config → password file → freshly generated random (persisted
+	// 0600). Runs after ResticRepo is set above so an existing repo is detected
+	// and we never invent a mismatching password. See resolveResticPassword.
 	if srv.ResticPassword == "" {
-		srv.ResticPassword = "globular-backup"
+		srv.ResticPassword = srv.resolveResticPassword()
 	}
 	if srv.ResticPaths == "" {
 		srv.ResticPaths = "/var/lib/globular"
@@ -696,7 +701,10 @@ func initializeServerDefaults() *server {
 	srv.EtcdKey = "/var/lib/globular/pki/issued/services/service.key"
 
 	srv.ResticRepo = "/var/backups/globular/restic"
-	srv.ResticPassword = "globular-backup"
+	// No hardcoded password: resolved at startup from config → password file →
+	// generated random (see resolveResticPassword). Left empty here on purpose.
+	srv.ResticPassword = ""
+	srv.ResticPasswordFile = defaultResticPasswordFile
 	srv.ResticPaths = "/var/lib/globular"
 
 	srv.RcloneRemote = ""
