@@ -162,6 +162,8 @@ func registerBehavioralTools(s *server) {
 	registerProposePrincipleTool(s)
 	registerPromotePrincipleTool(s)
 	registerRevokePrincipleTool(s)
+	registerRunContradictionCheckTool(s)
+	registerRegisterConditionTool(s)
 }
 
 // ── behavioral_resolve_context ────────────────────────────────────────────────
@@ -884,6 +886,101 @@ func registerRevokePrincipleTool(s *server) {
 		}
 		return map[string]interface{}{
 			"principle_id": strArg(args, "principle_id"),
+			"status":       rsp.GetStatus().String(),
+		}, nil
+	})
+}
+
+// ── behavioral_run_contradiction_check ────────────────────────────────────────
+
+func registerRunContradictionCheckTool(s *server) {
+	s.register(toolDef{
+		Name: "behavioral_run_contradiction_check",
+		Description: "Run the contradiction check for a candidate principle: scans promoted principles " +
+			"for conflicting forbidden-moves and records the result. This is the governed completion step " +
+			"the promotion gate REQUIRES — behavioral_promote_principle stays BLOCKED with verdict " +
+			"'contradiction check not performed' until this has run for the principle. Returns " +
+			"contradiction_checked (true once a real check completed) and any open_contradiction_ids the " +
+			"gate will then surface as blocking. Run this AFTER recording the principle's evidence and " +
+			"BEFORE behavioral_promote_principle.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"project":      {Type: "string", Description: "Project, e.g. 'globular-services'"},
+				"domain":       {Type: "string", Description: "Domain, e.g. 'cluster_operator'"},
+				"principle_id": {Type: "string", Description: "Candidate principle id to check before promotion"},
+				"actor":        {Type: "string", Description: "Who ran the check (recorded, audited)"},
+			},
+			Required: []string{"project", "domain", "principle_id", "actor"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		if strArg(args, "actor") == "" {
+			return nil, fmt.Errorf("behavioral_run_contradiction_check: actor is required")
+		}
+		client, err := behavioralClient(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+		rsp, err := client.RunContradictionCheck(callCtx, &behavioralpb.RunContradictionCheckRequest{
+			PrincipleId: strArg(args, "principle_id"), Project: strArg(args, "project"),
+			Domain: strArg(args, "domain"), Actor: strArg(args, "actor"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("behavioral_run_contradiction_check: %w", err)
+		}
+		return map[string]interface{}{
+			"contradiction_checked":  rsp.GetContradictionChecked(),
+			"open_contradiction_ids": rsp.GetOpenContradictionIds(),
+		}, nil
+	})
+}
+
+// ── behavioral_register_condition ─────────────────────────────────────────────
+
+func registerRegisterConditionTool(s *server) {
+	s.register(toolDef{
+		Name: "behavioral_register_condition",
+		Description: "Register (or update) a condition in the governed store so principles can scope to " +
+			"it and the contradiction check can reason over it. Domain packs seed their conditions at " +
+			"startup; use this to register an ad-hoc condition that a proposed principle's applies_when " +
+			"references but the pack does not yet ship. Registered at CONDITION_SCOPED. Returns the " +
+			"condition_id and its governance status.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"project":     {Type: "string", Description: "Project, e.g. 'globular-services'"},
+				"domain":      {Type: "string", Description: "Domain, e.g. 'cluster_operator'"},
+				"id":          {Type: "string", Description: "Condition id, e.g. 'condition.cluster.service.binary_update_intended'"},
+				"title":       {Type: "string", Description: "Human-readable title"},
+				"detect_spec": {Type: "string", Description: "How the condition is evaluated (probe ref + predicate)"},
+				"severity":    {Type: "string", Description: "Optional severity class (e.g. info|warning|high)"},
+			},
+			Required: []string{"project", "domain", "id"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		if strArg(args, "id") == "" {
+			return nil, fmt.Errorf("behavioral_register_condition: id is required")
+		}
+		client, err := behavioralClient(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+		rsp, err := client.RegisterCondition(callCtx, &behavioralpb.RegisterConditionRequest{
+			Condition: &behavioralpb.Condition{
+				Id: strArg(args, "id"), Project: strArg(args, "project"), Domain: strArg(args, "domain"),
+				Title: strArg(args, "title"), DetectSpec: strArg(args, "detect_spec"), Severity: strArg(args, "severity"),
+				Status: behavioralpb.GovernanceStatus_CONDITION_SCOPED,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("behavioral_register_condition: %w", err)
+		}
+		return map[string]interface{}{
+			"condition_id": rsp.GetConditionId(),
 			"status":       rsp.GetStatus().String(),
 		}, nil
 	})
