@@ -226,6 +226,11 @@
   path: docs/operational-knowledge/stages/installed-artifact-system.yaml
   hash: 32b40149da97b910c10f65dcfe89f6bddfb0c115aeb0cd788d59616046b2f5c9
   title: Installed artifact system — filesystem layout, authority, and permissions
+- ref: opsknowledge:stage.learned_2026_06
+  kind: stage
+  path: docs/operational-knowledge/stages/learned-2026-06.yaml
+  hash: 313675fed8360d4ba3f2906879711f4784379a8de537c5a60de3c1275d4bf329
+  title: Learned lessons — promoted from runtime ai-memory (2026-06)
 - ref: opsknowledge:stage.package_system
   kind: stage
   path: docs/operational-knowledge/stages/package-system.yaml
