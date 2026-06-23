@@ -265,6 +265,25 @@ type Target struct {
 	// "release.last_transition_fallback" | "unknown"
 	// The fallback values must be treated as low-confidence.
 	ApplyTimeSource string
+	// OldPidBoundary is the STABLE apply/restart boundary used ONLY by the
+	// old_pid_after_upgrade timing check — distinct from ApplyTime.
+	//
+	// ApplyTime is max(installedUnix, updatedUnix): deliberately RECENT so the
+	// Day-0/post-upgrade grace window (isDay0UnprovenGrace) suppresses false
+	// runtime_identity_unproven while the restarted process's proof is still
+	// pending. But a no-op reconcile bumps updatedUnix WITHOUT a restart, which
+	// would make a healthy, un-restarted PID look "older than the apply" and
+	// raise a false-positive old_pid_after_upgrade.
+	//
+	// OldPidBoundary therefore tracks the per-node InstalledUnix (the stable
+	// first-install/apply anchor that does NOT move on metadata-only updates),
+	// falling back to UpdatedUnix only when InstalledUnix is zero. The timing
+	// check compares process start against THIS, not ApplyTime, so a metadata
+	// bump can no longer fabricate a stale-process finding. Zero falls back to
+	// ApplyTime (preserves callers that only populate ApplyTime). The
+	// authoritative drift signal remains the binary-hash check (check 2) —
+	// invariant:verifier.timing_tell_must_not_override_authoritative_hash.
+	OldPidBoundary time.Time
 	// IsFirstInstall is true when this target has never converged
 	// before (the apply that wrote ApplyTime is the first one for this
 	// service on this node). On a fresh install, install.sh starts
@@ -563,9 +582,18 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	//    systemd's second-precision ExecMainStartTimestamp routinely
 	//    rounds *below* ApplyTime by a few hundred milliseconds and
 	//    raises a false-positive old_pid_after_upgrade.
-	if !target.ApplyTime.IsZero() && proof.GetProcessStartTime() != nil {
+	// oldPidBoundary is the STABLE apply/restart boundary for THIS timing check —
+	// the per-node InstalledUnix, which (unlike ApplyTime=max(installed,updated))
+	// does not move on a no-op metadata reconcile. Falls back to ApplyTime when
+	// unset so callers that only populate ApplyTime keep their prior behaviour.
+	// The grace/restart-pending recency below still uses ApplyTime by design.
+	oldPidBoundary := target.OldPidBoundary
+	if oldPidBoundary.IsZero() {
+		oldPidBoundary = target.ApplyTime
+	}
+	if !oldPidBoundary.IsZero() && proof.GetProcessStartTime() != nil {
 		started := proof.GetProcessStartTime().AsTime()
-		if !started.IsZero() && started.Before(target.ApplyTime.Add(-applyGraceWindow)) {
+		if !started.IsZero() && started.Before(oldPidBoundary.Add(-applyGraceWindow)) {
 			// runningMatchesInstalled is the authoritative proof that the live
 			// PID is serving the CURRENT on-disk binary: check 2 above raises
 			// running_binary_hash_mismatch (critical) exactly when these differ.
@@ -607,6 +635,7 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 				Evidence: map[string]string{
 					"running_pid":               fmt.Sprintf("%d", proof.GetRunningPid()),
 					"process_start_time":        started.Format(time.RFC3339),
+					"old_pid_boundary":          oldPidBoundary.Format(time.RFC3339),
 					"last_apply_time":           target.ApplyTime.Format(time.RFC3339),
 					"is_first_install":          fmt.Sprintf("%v", target.IsFirstInstall),
 					"apply_time_source":         target.ApplyTimeSource,
