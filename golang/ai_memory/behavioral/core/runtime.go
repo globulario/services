@@ -35,22 +35,33 @@ import (
 const AlwaysConditionRef api.ConditionRef = "condition.always"
 
 // applicablePromotedPrinciples resolves the distinct promoted principles indexed
-// under any of the given conditions PLUS the always-applicable sentinel. The index
-// holds only promoted mappings; the status guard is defensive against a stale index
-// entry.
-func (s *Service) applicablePromotedPrinciples(ctx context.Context, project string, domain api.DomainRef, conditions []api.ConditionRef) ([]api.Principle, error) {
+// under any of the given conditions PLUS the always-applicable sentinel. It also
+// returns `declared`: the set of principle ids reached via a CALLER-DECLARED
+// condition (not the condition.always sentinel). That distinction is the gate's:
+// the sentinel makes a universal rule's forbidden-move check reach every action,
+// but a principle reached ONLY via the sentinel must NOT impose its situational
+// gates (evidence/authority/risk-approval) on an action it does not concern — see
+// CheckAction's "engaged" set. The index holds only promoted mappings; the status
+// guard is defensive against a stale index entry.
+func (s *Service) applicablePromotedPrinciples(ctx context.Context, project string, domain api.DomainRef, conditions []api.ConditionRef) ([]api.Principle, map[string]bool, error) {
 	seen := map[string]bool{}
+	declared := map[string]bool{}
 	var out []api.Principle
-	// Always include the unconditional sentinel so universal hard-rules fire without
-	// the caller declaring a condition. Principle-id dedup (seen) keeps a principle
-	// indexed under both the sentinel and a specific condition from double-counting.
+	// Sentinel first, then the caller's declared conditions. Principle-id dedup (seen)
+	// keeps a principle indexed under both the sentinel and a specific condition from
+	// double-counting, but `declared` is recorded BEFORE the dedup skip so a principle
+	// seen first via the sentinel is still marked declared when a caller condition
+	// also matches it.
 	condSet := append([]api.ConditionRef{AlwaysConditionRef}, conditions...)
 	for _, c := range condSet {
 		ids, err := s.store.ListPrincipleIDsByCondition(ctx, project, string(domain), string(c))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, id := range ids {
+			if c != AlwaysConditionRef {
+				declared[id] = true
+			}
 			if seen[id] {
 				continue
 			}
@@ -60,7 +71,7 @@ func (s *Service) applicablePromotedPrinciples(ctx context.Context, project stri
 				if errors.Is(err, store.ErrNotFound) {
 					continue
 				}
-				return nil, err
+				return nil, nil, err
 			}
 			if p.Status != api.StatusPromotedPrinciple {
 				continue // defensive: only promoted principles influence runtime behavior
@@ -68,7 +79,7 @@ func (s *Service) applicablePromotedPrinciples(ctx context.Context, project stri
 			out = append(out, *p)
 		}
 	}
-	return out, nil
+	return out, declared, nil
 }
 
 // forbiddenAliasIndex returns, for a domain, a map from forbidden-move id to the
@@ -141,7 +152,7 @@ func (s *Service) ResolveGovernedContext(ctx context.Context, req *api.ResolveGo
 	}
 	proj, dom := req.Project, string(req.Domain)
 
-	principles, err := s.applicablePromotedPrinciples(ctx, proj, req.Domain, req.Conditions)
+	principles, _, err := s.applicablePromotedPrinciples(ctx, proj, req.Domain, req.Conditions)
 	if err != nil {
 		return nil, fmt.Errorf("resolve governed context: %w", err)
 	}
@@ -240,7 +251,7 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 	}
 	proj, dom := req.Project, string(req.Domain)
 
-	principles, err := s.applicablePromotedPrinciples(ctx, proj, req.Domain, req.CurrentConditions)
+	principles, declared, err := s.applicablePromotedPrinciples(ctx, proj, req.Domain, req.CurrentConditions)
 	if err != nil {
 		return nil, fmt.Errorf("check action: %w", err)
 	}
@@ -262,12 +273,30 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 	//    are resolved from the domain pack via the registry; if the pack is absent we
 	//    fall back to exact id/target match (back-compatible).
 	aliasIdx := s.forbiddenAliasIndex(req.Domain)
+	forbiddenHit := map[string]bool{}
 	for _, p := range principles {
 		for _, fmRef := range p.ForbiddenMoves {
 			if forbiddenRefMatches(fmRef, req.ActionType, req.Target, aliasIdx) {
 				ac.ForbiddenMatched = append(ac.ForbiddenMatched, fmRef)
 				ac.ViolatedPrinciples = appendUnique(ac.ViolatedPrinciples, p.ID)
+				forbiddenHit[p.ID] = true
 			}
+		}
+	}
+
+	// Engaged principles drive the situational gates (evidence, authority, risk/
+	// approval). A principle is engaged when the caller DECLARED one of its
+	// conditions, OR its forbidden move matched this action. A principle reached
+	// ONLY via the condition.always sentinel whose forbidden move did NOT match is
+	// in scope for the forbidden check above but is NOT engaged here — otherwise a
+	// single always-applicable high-risk rule (e.g. never-hot-swap) would force
+	// needs_human_approval / missing-evidence on EVERY action in the domain, which
+	// is exactly the over-blocking the sentinel must avoid. Forbidden matching stays
+	// over ALL applicable principles so the universal rule still blocks its action.
+	var engaged []api.Principle
+	for _, p := range principles {
+		if declared[p.ID] || forbiddenHit[p.ID] {
+			engaged = append(engaged, p)
 		}
 	}
 
@@ -280,7 +309,7 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 	//    would let an "allowed" verdict rest on an unverified claim with the trust
 	//    provenance erased from the audit trail.
 	recorded := map[string]bool{} // satisfied by an authoritative recorded evidence row
-	for _, p := range principles {
+	for _, p := range engaged {
 		evs, err := s.store.ListEvidenceForTarget(ctx, proj, dom, p.ID)
 		if err != nil {
 			return nil, fmt.Errorf("check action: evidence: %w", err)
@@ -298,7 +327,7 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 		}
 	}
 	var selfAsserted []string
-	for _, p := range principles {
+	for _, p := range engaged {
 		for _, r := range p.RequiredEvidence {
 			switch {
 			case recorded[string(r)]:
@@ -323,7 +352,7 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 
 	// 4. Authority resolvability.
 	authSet := map[string]bool{}
-	for _, p := range principles {
+	for _, p := range engaged {
 		for _, a := range p.Authorities {
 			authSet[string(a)] = true
 		}
@@ -338,9 +367,11 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 		}
 	}
 
-	// 5. Risk / approval.
+	// 5. Risk / approval. Only ENGAGED principles can demand human approval — an
+	// always-applicable high-risk rule that the action does not implicate must not
+	// force approval on every action.
 	highRisk := false
-	for _, p := range principles {
+	for _, p := range engaged {
 		if isHighRisk(p.RiskLevel) {
 			highRisk = true
 		}
@@ -369,15 +400,17 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 		}
 	}
 
-	// Coverage provenance: was this verdict actually governed (did any applicable
-	// promoted principle apply), or default-allowed for lack of one? Without this,
-	// "allowed" hides whether the gate had any reach over the action.
-	ac.Governed = len(principles) > 0
+	// Coverage provenance: was this verdict actually governed by a principle with
+	// REACH over THIS action (engaged: condition-declared or forbidden-matched), or
+	// default-allowed for lack of one? Counting only engaged principles (not merely
+	// sentinel-applicable ones) keeps `governed` honest: an unrelated always-applicable
+	// rule being in scope is not governance of this action.
+	ac.Governed = len(engaged) > 0
 	if ac.Status == "allowed" && !ac.Governed {
 		ac.Explanation = fmt.Sprintf("allowed: no applicable promoted principle for %q (ungoverned default-allow)", req.ActionType)
 	} else {
-		ac.Explanation = fmt.Sprintf("checked %q against %d promoted principle(s): %s",
-			req.ActionType, len(principles), ac.Status)
+		ac.Explanation = fmt.Sprintf("checked %q against %d engaged promoted principle(s): %s",
+			req.ActionType, len(engaged), ac.Status)
 	}
 
 	// Persist every verdict — the audit row is part of the contract.
