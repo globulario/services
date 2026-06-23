@@ -1,0 +1,56 @@
+id: repository.is_single_version_authority
+level: intent
+title: The repository service is the single authority for package version and identity
+intent: >
+  The repository service is the one runtime source of truth for package identity
+  and version allocation. The release version, build_number, and build_id are all
+  allocated and recorded by the repository. GitHub/CI is a gated CLIENT of the
+  repository, not a parallel authority: a tagged release supplies the release
+  INTENT (the version it wants), and the repository validates monotonicity and
+  allocates/records the identity. No build — CI, local, or agent — may become the
+  version authority by self-stamping.
+agent_guidance: >
+  When changing publish, deploy, or release flows, route version allocation
+  through the repository's AllocateUpload with an explicit channel and capability.
+  Do not add a second place that decides the release version. The git tag is an
+  input to the repository, never a substitute for it.
+bad_smells:
+- CI self-stamps version from the git tag and uploads without repository allocation
+- local deploy --bump advances the release version
+- two code paths can both advance the release version
+- release metadata and artifact authority travel on separate call paths
+activation_triggers:
+- version allocation
+- release version
+- AllocateUpload
+- deploy
+- publish
+- git tag release
+- release channel
+related_invariants:
+- release.version_single_authority
+- package.release_vs_dev_channel_boundary
+zooms_out_to:
+- state.repository_desired_installed_runtime
+zooms_in_to:
+- release.version_single_authority
+related_to:
+- repository.metadata_first
+change_risk:
+- package_identity_sensitive
+- repository_sensitive
+- release_pipeline_sensitive
+runtime_evidence:
+  repository_queries:
+  - list published versions per package and confirm monotonic order
+  checks:
+  - every release version was allocated through the repository (has a build_id)
+  - no two callers advanced the release version for one package
+violation_patterns:
+- "self.?stamp.*version"
+- "version.*from.*tag.*upload"
+- "second.*version.*author"
+required_tests:
+- repository:TestReleaseVersionAllocatedOnlyWithReleaseCapability
+- repository:TestDevChannelCannotAllocateReleaseVersion
+status: proposed

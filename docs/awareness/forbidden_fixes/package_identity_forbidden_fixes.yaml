@@ -30,3 +30,155 @@ forbidden_fixes:
       - repository.collision_repair_requires_desired_safety
     reason: Desired-pinned artifacts are part of the active cluster contract.
     safer_alternative: Use doctor safety check to prove the artifact is unpinned or create an explicit desired-state migration first.
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Package-lifecycle authority forbidden fixes (docs/design/package-lifecycle.md §7.3)
+  # ───────────────────────────────────────────────────────────────────────
+  - id: local_deploy_allocates_release_version
+    title: Do not let a local or agent build allocate or advance a release version
+    applies_to:
+      - release.version_single_authority
+      - package.release_vs_dev_channel_boundary
+    reason: >
+      The release version has one authority — the repository on the release channel,
+      gated by a release capability. A local `deploy --bump` or agent build that
+      allocates a release version creates a second author, lands below the CI
+      release high-water mark, and becomes unconvergeable desired-state. This is the
+      observed root cause (local 1.2.234 below CI 1.2.235).
+    safer_alternative: >
+      Local/agent builds use the dev channel and bump build_number only. Release
+      versions are allocated by CI through the repository with the release-authority
+      capability; the git tag is the intent input, the repository is the truth.
+  - id: ci_self_stamps_version_bypassing_repository
+    title: Do not let CI self-stamp the version and bypass repository allocation
+    applies_to:
+      - release.version_single_authority
+    reason: >
+      If CI stamps the version from the git tag and uploads without the repository
+      allocating/validating it, the repository is no longer the single source of
+      truth and monotonicity is not centrally enforced.
+    safer_alternative: >
+      CI calls the repository to allocate the release version (release capability);
+      the repository validates monotonicity and records identity + build_id.
+  - id: agent_build_writes_cluster_desired_state
+    title: Do not let an agent/MCP build write cluster desired-state
+    applies_to:
+      - package.release_vs_dev_channel_boundary
+    reason: >
+      Agent/MCP builds are dev-channel artifacts. Writing them into cluster
+      desired-state makes a developer-grade artifact the convergence target for the
+      whole cluster.
+    safer_alternative: >
+      Agents publish to the dev channel for local testing only; cluster desired-state
+      is set exclusively from release-channel artifacts via the release/BOM path.
+  - id: cli_writes_cross_kind_desired_record
+    title: Do not write a desired record of the wrong kind (no --force kind bypass)
+    applies_to:
+      - desired.keyed_by_kind_and_name
+      - package.identity_tuple_must_be_unique
+    reason: >
+      kind is identity. `globular services desired set --force` writing a SERVICE
+      ServiceDesiredVersion for an INFRASTRUCTURE package produces a permanent
+      kind-mismatch dispatch block. Bypassing the kind check to make the write
+      succeed is the "relax the identity check" anti-pattern.
+    safer_alternative: >
+      The service CLI hard-refuses non-SERVICE kinds; infrastructure uses its
+      first-class typed desired path. The desired store rejects cross-kind writes.
+  - id: compare_version_string_for_convergence
+    title: Do not decide convergence by comparing the version string
+    applies_to:
+      - convergence.identity_is_build_id
+      - desired.build_id_immutable
+    reason: >
+      The version string is display identity. Comparing it for convergence cannot
+      distinguish a desired-version regression from a legitimate pending upgrade,
+      and turns a regressed desired into permanent unconvergeable drift.
+    safer_alternative: >
+      Compare build_id. Surface "node ahead of desired (desired regressed)" as a
+      distinct finding from "node behind desired (needs upgrade)".
+  - id: compare_cached_blob_against_installed_manifest
+    title: Do not verify a staged blob against the installed manifest
+    applies_to:
+      - staging.content_addressed
+    reason: >
+      The node-agent's cache-digest check compares the staged blob (the DESIRED
+      artifact) against the INSTALLED artifact's manifest, producing a permanent
+      false cache_digest_mismatch when desired != installed. Compounded by the
+      identity-erasing latest.artifact filename.
+    safer_alternative: >
+      Content-address staging by digest/build_id and verify the staged blob against
+      the DESIRED artifact's manifest.
+  - id: materialize_desired_from_unverified_local_install
+    title: Do not materialize desired-state from an arbitrary observed local install
+    applies_to:
+      - desired.no_regression_all_paths
+      - package.release_vs_dev_channel_boundary
+    reason: >
+      Materializing desired from whatever is observed installed can pin the cluster
+      to a dev-channel/local-debug artifact and has no regression guard.
+    safer_alternative: >
+      Materialize only from release-channel artifacts; apply the regression guard on
+      the materialize path; fail closed on downgrade.
+
+  # ───────────────────────────────────────────────────────────────────────
+  # RBAC-native authority forbidden fixes (docs/design/package-lifecycle.md §3.4)
+  # ───────────────────────────────────────────────────────────────────────
+  - id: forbidden_fix.package.add_parallel_publisher_type_enum
+    title: Do not add a parallel publisher identity/type enum
+    applies_to:
+      - package.publisher_kind_derived_from_rbac_subject
+      - package.publisher_namespace_is_rbac_resource
+      - package.release_authority_is_rbac_native
+    reason: >
+      A standalone publisher.type {service,org,user} duplicates RBAC subject identity.
+      Publisher kind must be derived from the owning RBAC subject (Organization /
+      Account / service account), not modeled twice.
+    safer_alternative: >
+      Resolve the publisher namespace's owning RBAC subject and derive kind from the
+      subject's type.
+  - id: forbidden_fix.package.authorize_release_from_forge_identity_directly
+    title: Do not authorize a release from a forge identity directly
+    applies_to:
+      - package.forge_binding_is_not_authorization
+      - package.release_authority_is_rbac_native
+    reason: >
+      A GitHub org/user/repo, forge token, or CI environment proves identity, not
+      authority. Authorizing "GitHub org == globulario therefore allow STABLE" makes
+      the forge the authority and bypasses RBAC.
+    safer_alternative: >
+      Resolve the forge identity to an RBAC subject via trusted_publisher, then perform
+      a separate RBAC permission check on that subject.
+  - id: forbidden_fix.package.hardcode_ci_release_privilege
+    title: Do not hardcode CI as a privileged release actor
+    applies_to:
+      - package.ci_is_not_release_authority
+    reason: >
+      CI is a forge adapter with no implicit privilege. Hardcoding a CI release
+      privilege re-couples release authority to a build environment.
+    safer_alternative: >
+      CI authenticates, resolves to an RBAC subject, and passes normal RBAC
+      authorization for repository.release.allocate.
+  - id: forbidden_fix.package.allow_git_tag_to_allocate_release_without_repository
+    title: Do not let a git tag allocate a release version without the repository
+    applies_to:
+      - package.ci_is_not_release_authority
+      - release.version_single_authority
+    reason: >
+      A git tag is release intent, not authority. Allocating a release version directly
+      from a tag bypasses the repository (the single version authority) and its RBAC
+      permission check.
+    safer_alternative: >
+      The tag is intent; the resolved subject must pass the RBAC permission check and
+      the repository allocates the release identity.
+  - id: forbidden_fix.package.allow_stable_without_rbac_permission
+    title: Do not allow a STABLE-channel write without an RBAC permission check
+    applies_to:
+      - package.stable_channel_requires_release_permission
+      - package.release_allocation_requires_rbac_permission
+    reason: >
+      STABLE is the cluster's convergence stream. Writing to it without proving the
+      subject holds repository.release.allocate lets a DEV-only or unauthenticated
+      caller pollute releases.
+    safer_alternative: >
+      Require repository.release.allocate on the namespace for any STABLE target; force
+      everything else to DEV.

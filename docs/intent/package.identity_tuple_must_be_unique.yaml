@@ -52,4 +52,7 @@ required_tests:
 - golang/repository/repository_server/package_identity_required_tests_test.go::TestBuildIDMapsToSingleArtifactIdentity
 - repository:TestArtifactTupleDoesNotMapToMultipleBuildIDs
 - repository:TestChecksumStableForBuildID
-status: proposed
+# Promoted proposed -> active 2026-06-23 (docs/design/package-lifecycle.md §7.1):
+# backing tests exist (package_identity_required_tests_test.go) and kind is now
+# part of the identity tuple, enforced by desired.keyed_by_kind_and_name.
+status: active

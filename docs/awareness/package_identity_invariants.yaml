@@ -137,3 +137,376 @@ invariants:
       - TestCollisionRepairArchivesOnlyUnpinnedDuplicate
     related_invariants:
       - meta.binding_outlives_evidence_until_invalidated
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Package-lifecycle authority contracts (docs/design/package-lifecycle.md §7.2)
+  # Decision 2026-06-23: repository is the single version authority; local/agent
+  # builds use the dev channel; kind is identity; convergence is by build_id.
+  # status: proposed until the P1/P2 enforcement code + required tests land.
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: release.version_single_authority
+    title: The release version has exactly one authority — the repository service
+    severity: critical
+    status: proposed
+    summary: >
+      The human release version (e.g. 1.2.235) is allocated by exactly one
+      authority: the repository service, on the release channel, gated by a
+      release-authority capability. CI's git tag is the release INTENT input;
+      the repository validates monotonicity and records the allocation. No other
+      caller — local deploy, agent/MCP, or CI self-stamping — may allocate or
+      advance a release version. Two version authors is the root cause of chronic
+      unconvergeable services drift (local 1.2.234 below CI 1.2.235).
+    protects:
+      state:
+        - /globular/repository/artifacts/*
+        - /globular/resources/ServiceDesiredVersion/*
+      files:
+        - golang/repository/repository_server/allocate_upload.go
+        - golang/deploy/deploy.go
+        - .github/workflows/release.yml
+      symbols:
+        - AllocateUpload
+        - resolveVersionIntent
+    forbidden_fixes:
+      - local_deploy_allocates_release_version
+      - ci_self_stamps_version_bypassing_repository
+    required_tests:
+      - repository:TestReleaseVersionAllocatedOnlyWithReleaseCapability
+      - repository:TestDevChannelCannotAllocateReleaseVersion
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
+  - id: package.release_vs_dev_channel_boundary
+    title: Local and agent builds are dev-channel only and never become cluster truth
+    severity: critical
+    status: proposed
+    summary: >
+      A build on the dev channel (local developer or agent/MCP) may only increment
+      build_number against the current release version. It must not allocate a
+      release version and must not write cluster desired-state. Dev artifacts are
+      invisible to cluster convergence. This is the structural boundary that stops
+      a developer or agent build from polluting the release stream the cluster
+      converges on.
+    protects:
+      state:
+        - /globular/repository/artifacts/*
+        - /globular/resources/ServiceDesiredVersion/*
+      files:
+        - golang/deploy/deploy.go
+        - golang/repository/repository_server/allocate_upload.go
+      symbols:
+        - AllocateUpload
+    forbidden_fixes:
+      - local_deploy_allocates_release_version
+      - agent_build_writes_cluster_desired_state
+    required_tests:
+      - repository:TestDevChannelCannotAllocateReleaseVersion
+      - controller:TestDevChannelArtifactNotResolvableAsDesired
+    related_invariants:
+      - release.version_single_authority
+  - id: convergence.identity_is_build_id
+    title: Convergence and drift must compare build_id, never the version string
+    severity: critical
+    status: proposed
+    summary: >
+      Any equality that decides "is this node converged?" must compare build_id,
+      the sole convergence identity. The services-drift hash today compares the
+      version string only (hashDesiredServiceVersions), so a desired-version
+      regression is indistinguishable from a node that legitimately needs an
+      upgrade, and produces permanent unconvergeable drift. The drift detector must
+      carry build_id and must distinguish "node ahead of desired (desired regressed)"
+      from "node behind desired (needs upgrade)".
+    protects:
+      state:
+        - /globular/resources/ServiceDesiredVersion/*
+      files:
+        - golang/cluster_controller/cluster_controller_server/service_identity.go
+        - golang/node_agent/node_agent_server/installed_services.go
+        - golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
+      symbols:
+        - hashDesiredServiceVersions
+        - computeAppliedServicesHash
+    forbidden_fixes:
+      - compare_version_string_for_convergence
+    required_tests:
+      - controller:TestServicesDriftHashCarriesBuildID
+      - doctor:TestDesiredRegressionRaisesDistinctFinding
+    related_invariants:
+      - desired.build_id_immutable
+      - meta.identity_computation_must_be_invariant
+  - id: desired.no_regression_all_paths
+    title: Desired version must not regress on any write path
+    severity: critical
+    status: proposed
+    summary: >
+      No write path may set a desired version below the currently-installed or
+      currently-published-highest version. The regression guard exists today only
+      on the operator UpsertDesiredService path (and only with fresh heartbeats);
+      the materialize path (reconcile_nodes.go) and the repository build-advance
+      path (reconcile_runtime.go) are unguarded, and build_id can be silently
+      overwritten at write time. The guard must cover all paths and fail closed on
+      downgrade (explicit force + audit only, per operator.override_intent).
+    protects:
+      state:
+        - /globular/resources/ServiceDesiredVersion/*
+      files:
+        - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+        - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+        - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+      symbols:
+        - upsertOne
+        - highestHealthyInstalledVersion
+        - reconcileDesiredFromRepository
+    forbidden_fixes:
+      - materialize_desired_from_unverified_local_install
+      - overwrite_desired_build_id_silently
+    required_tests:
+      - controller:TestDesiredRegressionBlockedOnAllWritePaths
+      - controller:TestMaterializeDesiredRejectsDevChannelArtifact
+    related_invariants:
+      - desired.build_id_immutable
+      - convergence.identity_is_build_id
+  - id: desired.keyed_by_kind_and_name
+    title: Desired-state records are keyed by (kind, name); cross-kind writes are rejected
+    severity: critical
+    status: proposed
+    summary: >
+      kind is part of package identity. Every desired/installed record is keyed by
+      (kind, name); the service lane (ServiceDesiredVersion) and the infrastructure
+      desired lane never share a key. A kind-blind tool must not write a record of
+      the wrong kind. `globular services desired set` must hard-refuse non-SERVICE
+      kinds; the --force kind-bypass is removed. Infrastructure requires a
+      first-class typed desired path, and every lane requires a safe typed removal.
+    protects:
+      state:
+        - /globular/resources/ServiceDesiredVersion/*
+      files:
+        - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+        - golang/cluster_controller/cluster_controller_server/reconciler.go
+        - golang/globularcli/services_cmds.go
+      symbols:
+        - upsertOne
+        - collectDesiredVersions
+        - RemoveDesiredService
+        - DeleteServiceDesiredVersion
+    forbidden_fixes:
+      - cli_writes_cross_kind_desired_record
+    required_tests:
+      - controller:TestDesiredSetRefusesNonServiceKind
+      - controller:TestDesiredStoreRejectsCrossKindWrite
+      - controller:TestInfrastructureDesiredHasTypedSetterAndSafeRemoval
+    related_invariants:
+      - meta.identity_computation_must_be_invariant
+  - id: publish.release_artifact_must_be_stripped
+    title: Release-channel artifacts must be trimpath/stripped and within a sane size envelope
+    severity: high
+    status: proposed
+    summary: >
+      An artifact published to the release channel must be built with
+      -trimpath -ldflags "-s -w" and must fall within a sane size envelope versus
+      the prior build for that package. The ~2x debug builds (15-18MB build_number 1
+      local artifacts) must be rejected at publish on the release channel. There is
+      no artifact-shape gate today; the only size cap (500 MiB) applies to upstream
+      imports.
+    protects:
+      state:
+        - /globular/repository/artifacts/*
+      files:
+        - golang/repository/repository_server/artifact_handlers.go
+        - golang/build/build-services.sh
+        - golang/deploy/deploy.go
+      symbols:
+        - UploadArtifact
+        - computeBinaryChecksumFromArchive
+    forbidden_fixes:
+      - publish_unstripped_debug_build_to_release_channel
+    required_tests:
+      - repository:TestPublishRejectsUnstrippedReleaseArtifact
+      - repository:TestPublishRejectsAnomalousArtifactSize
+    related_invariants:
+      - release.version_single_authority
+  - id: staging.content_addressed
+    title: Node-agent staging cache must be content-addressed and verified against the desired manifest
+    severity: high
+    status: proposed
+    summary: >
+      The node-agent staging cache must key artifacts by content (digest/build_id),
+      not by a mutable generic filename. Today /var/lib/globular/staging/<pub>/<name>/
+      latest.artifact is identity-erasing, and the cache-digest integrity check
+      compares the cached blob against the INSTALLED artifact's manifest instead of
+      the DESIRED one, producing a permanent false cache_digest_mismatch when desired
+      != installed. Verification must use the desired artifact's manifest.
+    protects:
+      state:
+        - /var/lib/globular/staging/*
+      files:
+        - golang/node_agent/node_agent_server/installer_api.go
+        - golang/node_agent/node_agent_server/internal/actions/verify_integrity.go
+      symbols:
+        - DownloadArtifactToDir
+        - resolveArtifactDigest
+    forbidden_fixes:
+      - compare_cached_blob_against_installed_manifest
+    required_tests:
+      - node_agent:TestStagingCacheIsContentAddressed
+      - node_agent:TestCacheDigestCheckUsesDesiredManifest
+    related_invariants:
+      - convergence.identity_is_build_id
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # RBAC-native package authority (docs/design/package-lifecycle.md §3.4)
+  # Decision 2026-06-23: authority is the EXISTING RBAC model — no parallel
+  # publisher identity. Federation (trusted_publisher) proves WHO; RBAC decides
+  # WHAT; the repository allocates; the controller converges by build_id.
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: package.publisher_namespace_is_rbac_resource
+    title: A publisher namespace is an RBAC-owned resource, not a free string
+    severity: critical
+    status: proposed
+    summary: >
+      A package publisher is an RBAC namespace resource owned by RBAC subjects (owner
+      role). It is not a free-form string and not a parallel identity. Every authority
+      decision about a publisher resolves through the namespace's RBAC owners and
+      permissions.
+    protects:
+      state:
+        - /repository/namespaces/*
+      files:
+        - golang/repository/repository_server/namespace.go
+        - golang/repository/repository_server/trusted_publisher.go
+      symbols:
+        - GetNamespace
+    forbidden_fixes:
+      - forbidden_fix.package.add_parallel_publisher_type_enum
+    required_tests:
+      - repository:TestReleaseAllocationRequiresNamespacePermission
+    related_invariants:
+      - package.publisher_kind_derived_from_rbac_subject
+      - meta.identity_computation_must_be_invariant
+  - id: package.publisher_kind_derived_from_rbac_subject
+    title: Publisher kind is derived from the owning RBAC subject, never a parallel enum
+    severity: high
+    status: proposed
+    summary: >
+      The "type" of a publisher (organization vs user vs service) is derived from the
+      kind of its owning RBAC subject (Organization | Account | service account).
+      A standalone publisher.type enum duplicates RBAC subject identity and is forbidden.
+    protects:
+      state:
+        - /repository/namespaces/*
+      files:
+        - golang/repository/repository_server/namespace.go
+        - proto/resource.proto
+      symbols:
+        - GetNamespace
+    forbidden_fixes:
+      - forbidden_fix.package.add_parallel_publisher_type_enum
+    required_tests:
+      - repository:TestAccountWithoutReleasePermissionGetsDevOnly
+      - repository:TestOrganizationOwnerMayAllocateStableWhenPermissionExists
+    related_invariants:
+      - package.publisher_namespace_is_rbac_resource
+  - id: package.release_allocation_requires_rbac_permission
+    title: Release allocation requires an RBAC permission on the publisher namespace
+    severity: critical
+    status: proposed
+    summary: >
+      Allocating a release-channel (STABLE) version requires the resolved subject to
+      hold repository.release.allocate on the target publisher namespace. No caller —
+      CI, local, or agent — may allocate a release without passing this RBAC permission
+      check. Fail closed if the subject, namespace, or permission cannot be proven.
+    protects:
+      state:
+        - /repository/namespaces/*
+        - /globular/repository/artifacts/*
+      files:
+        - golang/repository/repository_server/allocate_upload.go
+        - golang/rbac/rbac_server/rbac_access.go
+      symbols:
+        - AllocateUpload
+    forbidden_fixes:
+      - forbidden_fix.package.allow_stable_without_rbac_permission
+      - forbidden_fix.package.allow_git_tag_to_allocate_release_without_repository
+    required_tests:
+      - repository:TestReleaseAllocationRequiresNamespacePermission
+    related_invariants:
+      - package.stable_channel_requires_release_permission
+      - release.version_single_authority
+  - id: package.forge_binding_is_not_authorization
+    title: Forge binding federates identity only; it never grants authorization
+    severity: critical
+    status: proposed
+    summary: >
+      A forge identity (GitHub org/user/repo, a forge token, a CI environment) may only
+      answer "which RBAC subject is this?" via trusted_publisher federation. It must
+      never directly authorize an action. The shortcut "GitHub org == globulario
+      therefore allow STABLE" is forbidden; authorization is always a separate RBAC
+      permission check on the resolved subject.
+    protects:
+      state:
+        - /repository/namespaces/*
+      files:
+        - golang/repository/repository_server/trusted_publisher.go
+        - golang/repository/repository_server/allocate_upload.go
+      symbols:
+        - ResolveForgeIdentity
+        - AuthorizeRelease
+    forbidden_fixes:
+      - forbidden_fix.package.authorize_release_from_forge_identity_directly
+    required_tests:
+      - repository:TestForgeIdentityMustResolveToSubjectBeforeAuthorization
+      - repository:TestGitHubOrgBindingDoesNotBypassRBAC
+      - repository:TestForgeTrustAndRBACAuthorizationAreSeparateSteps
+    related_invariants:
+      - package.release_allocation_requires_rbac_permission
+  - id: package.ci_is_not_release_authority
+    title: CI is a forge adapter, not a release authority
+    severity: high
+    status: proposed
+    summary: >
+      CI holds no implicit release privilege. It authenticates, resolves to an RBAC
+      subject via trusted_publisher, and then passes normal RBAC authorization. A git
+      tag is intent, not authority. Hardcoding a privileged CI release actor is forbidden.
+    protects:
+      state:
+        - /repository/namespaces/*
+      files:
+        - golang/security/roles.go
+        - golang/repository/repository_server/allocate_upload.go
+        - .github/workflows/release.yml
+      symbols:
+        - AllocateUpload
+    forbidden_fixes:
+      - forbidden_fix.package.hardcode_ci_release_privilege
+      - forbidden_fix.package.allow_git_tag_to_allocate_release_without_repository
+    required_tests:
+      - repository:TestCIWithoutResolvedSubjectCannotAllocateRelease
+    related_invariants:
+      - package.forge_binding_is_not_authorization
+      - release.version_single_authority
+  - id: package.stable_channel_requires_release_permission
+    title: A STABLE-channel write requires release permission; DEV-only subjects cannot
+    severity: critical
+    status: proposed
+    summary: >
+      Targeting the STABLE channel requires the resolved subject to hold
+      repository.release.allocate on the namespace. A subject without it (e.g. a user
+      Account that owns no release permission) may only target DEV. STABLE writes from
+      DEV-only subjects must fail closed.
+    protects:
+      state:
+        - /repository/namespaces/*
+        - /globular/repository/artifacts/*
+      files:
+        - golang/repository/repository_server/allocate_upload.go
+        - golang/repository/repository_server/artifact_handlers.go
+      symbols:
+        - AllocateUpload
+        - UploadArtifact
+    forbidden_fixes:
+      - forbidden_fix.package.allow_stable_without_rbac_permission
+    required_tests:
+      - repository:TestAccountWithoutReleasePermissionGetsDevOnly
+      - repository:TestOrganizationOwnerMayAllocateStableWhenPermissionExists
+    related_invariants:
+      - package.release_allocation_requires_rbac_permission
+      - package.release_vs_dev_channel_boundary
