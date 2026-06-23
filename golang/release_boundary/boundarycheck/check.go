@@ -150,15 +150,37 @@ func Collect(ctx context.Context, f Fetchers, serviceID, nodeID string, opts Opt
 		}
 	}
 
-	// 4. Installed package (node-agent).
+	// 4. Installed package (node-agent). The installed-state record is keyed by
+	//    package KIND, so a single "SERVICE" lookup misses INFRASTRUCTURE
+	//    subjects (xds, envoy, ...) and falsely reports A2/A4 INDETERMINATE on a
+	//    healthy install. Try the kinds a release-boundary subject can take —
+	//    SERVICE first (the common case), then INFRASTRUCTURE — mirroring the
+	//    cluster_doctor collector's resolvePerNodeInstallInfo. A not-found under
+	//    one kind is not an error; only exhausting every kind without a record
+	//    yields the honest INDETERMINATE (absence, never a fabricated green).
 	if f.Installed == nil {
 		ev.addErr("installed", "installed-package fetcher unavailable")
-	} else if pkg, err := f.Installed(ctx, nodeID, "SERVICE", pkgName); err != nil {
-		ev.addErr("installed", "GetInstalledPackage: "+err.Error())
-	} else if pkg == nil {
-		ev.addErr("installed", "package "+pkgName+" not installed on "+nodeID)
 	} else {
-		ev.Installed = pkg
+		var lastErr error
+		for _, kind := range []string{"SERVICE", "INFRASTRUCTURE"} {
+			pkg, err := f.Installed(ctx, nodeID, kind, pkgName)
+			if err != nil {
+				lastErr = err // typically NotFound under this kind — try the next
+				continue
+			}
+			if pkg == nil {
+				continue
+			}
+			ev.Installed = pkg
+			break
+		}
+		if ev.Installed == nil {
+			if lastErr != nil {
+				ev.addErr("installed", "GetInstalledPackage: "+lastErr.Error())
+			} else {
+				ev.addErr("installed", "package "+pkgName+" not installed on "+nodeID)
+			}
+		}
 	}
 
 	// 5. Runtime proof (node-agent).
