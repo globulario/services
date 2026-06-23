@@ -16,19 +16,40 @@ failure_modes:
         - re-running until green as a policy instead of reading per-check state
         - treating a green summary as proof when per-check states are available and unread
       no_test_yet_reason: |
-        The contract is mechanizable — a merge-authority guard that exits non-zero unless
-        every required status-check context reports `pass` — but that guard is NOT yet
-        built. Enforcement tier is `planned`, so this is an UNENFORCED (advisory) rule
-        until the guard exists. Until then it is held only by agent discipline: read
-        `gh pr checks <n>` and confirm 0 non-pass / 0 pending before merging. Reported
-        honestly as advisory by awg lifecycle (candidate != authority without enforcement).
+        No SERVICES-LOCAL regression test: the guard and its fixtures are an
+        awareness-graph tool — `awg merge-check` (cmd/awg/cmd_merge_check.go) with
+        classifier tests TestClassifyMergeAuthority{,_RequiredSetUnknown,
+        _NonRequiredFailureDoesNotBlock} in cmd/awg/cmd_merge_check_test.go, run and
+        gated by awareness-graph CI. They are cited in the resolution by name rather
+        than in required_tests because a cross-repo test is not a resolvable
+        services-local test anchor (strict ref validation rejects it). The contract is
+        MECHANIZED, not advisory — the test exists and passes; it simply lives in the
+        repo that owns the guard. The AG guard source carries
+        `@awareness enforces=ci.merge_authority_requires_explicit_check_success`.
+      resolution: |
+        MECHANIZED 2026-06-23. The merge-authority guard exists: `awg merge-check`
+        (awareness-graph cmd/awg/cmd_merge_check.go). It classifies a PR from GitHub's
+        ACTUAL mergeable + mergeStateStatus + per-check conclusions bound to the
+        current head SHA — never a watcher/summary exit — and exits 0 ONLY for
+        MERGE_AUTHORIZED; every blocked/unknown verdict (BLOCKED_BY_CHECK_FAILURE,
+        _PENDING_CHECK, _MISSING_REQUIRED_CHECK, _STALE_CHECK, _CONFLICT, _WRONG_BASE,
+        MERGE_STATE_UNKNOWN) is non-zero. The pure classifier is fixture-tested by the
+        required_tests above (in awareness-graph cmd/awg/cmd_merge_check_test.go —
+        cross-repo, so listed by bare name); the guard source carries
+        `@awareness enforces=ci.merge_authority_requires_explicit_check_success`.
+        INVARIANT now mechanized (not just agent discipline): merge authority requires
+        BOTH every required check explicitly successful on the current head AND GitHub
+        reporting the PR cleanly mergeable. A green `gh pr checks`, a watcher exit code,
+        or a summarized status is insufficient on its own — a green-but-CONFLICTING PR
+        (the #103 class) is blocked.
       remediation_plan: |
-        Build the merge-authority guard (CI step or merge wrapper) that verifies every
-        required check context is `pass` for the target ref; then promote this failure_mode
-        to an enforced invariant ci.merge_authority_requires_explicit_check_success and
-        wire branch protection to require it. Where branch protection is unavailable
-        (private repo on GitHub free tier — e.g. awareness-graph), the gate is enforced-
-        in-CI but bypassable; treat that as blocked_by_missing_branch_protection.
+        DONE: guard built. Run before every merge:
+        `awg merge-check --pr <n> --repo <owner/repo> [--expect-base <branch>]`.
+        Residual gap: branch protection is per-repo and external — private repos on
+        GitHub free tier (e.g. awareness-graph) cannot REQUIRE the check, so the gate
+        is run-before-merge / enforced-in-CI but bypassable until `protected`
+        (blocked_by_missing_branch_protection). Where settable (services/master), wire
+        branch protection to require the check.
 
     - architecture_fix: |
         Introduced a single canonical predicate isBuiltinSuperadmin(subject) in
