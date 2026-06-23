@@ -1,0 +1,58 @@
+id: package.release_vs_dev_channel_boundary
+level: intent
+title: Local and agent builds live on the dev channel and never become cluster truth
+intent: >
+  The boundary between a local/developer/agent build and a release build is a
+  channel. A dev-channel build may only increment build_number against the current
+  release version; it must not allocate a release version and must not write
+  cluster desired-state. Dev artifacts are invisible to cluster convergence. Only
+  release-channel artifacts, allocated by CI through the repository with the
+  release-authority capability, may enter a BOM and become desired-state. This
+  boundary is what stops a developer or agent build from polluting the release
+  stream the cluster converges on.
+agent_guidance: >
+  When building or publishing as an agent or from a developer machine, use the dev
+  channel and a repository reservation; never hand-type a version and never set
+  cluster desired-state. Use the release channel only from CI with the release
+  capability.
+bad_smells:
+- a build_number 1 artifact at a release version not produced by CI
+- an agent or local build sets cluster desired-state
+- a dev-channel artifact resolves as a desired build target
+- a ~2x-size debug binary published into the release stream
+activation_triggers:
+- dev channel
+- local deploy
+- agent build
+- package_build
+- package_publish
+- reservation
+- desired-state write
+related_invariants:
+- package.release_vs_dev_channel_boundary
+- release.version_single_authority
+- publish.release_artifact_must_be_stripped
+zooms_out_to:
+- repository.is_single_version_authority
+zooms_in_to:
+- package.release_vs_dev_channel_boundary
+related_to:
+- package.identity_tuple_must_be_unique
+change_risk:
+- package_identity_sensitive
+- repository_sensitive
+- release_pipeline_sensitive
+runtime_evidence:
+  repository_queries:
+  - list artifacts by channel and confirm dev artifacts are never desired
+  checks:
+  - dev-channel allocation cannot advance the release version
+  - desired-state resolves only release-channel artifacts
+violation_patterns:
+- "dev.*artifact.*desired"
+- "agent.*write.*desired"
+- "local.*allocate.*release version"
+required_tests:
+- repository:TestDevChannelCannotAllocateReleaseVersion
+- controller:TestDevChannelArtifactNotResolvableAsDesired
+status: proposed

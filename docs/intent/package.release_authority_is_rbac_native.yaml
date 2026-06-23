@@ -1,0 +1,63 @@
+id: package.release_authority_is_rbac_native
+level: intent
+title: Package release authority is RBAC-native, not a parallel identity system
+intent: >
+  Package publisher namespaces are RBAC-owned resources. Release authority is not a
+  standalone publisher identity model; it is the RBAC permission
+  repository.release.allocate on the publisher namespace. Forge identities only
+  federate to RBAC subjects (via trusted_publisher) and never grant authorization
+  directly. Federation proves who is speaking; RBAC decides what they may do; the
+  repository allocates release identity; desired-state consumes build_id; the
+  controller converges by build_id. These layers must not be blurred.
+agent_guidance: >
+  Never model publisher identity twice. Derive publisher kind from the owning RBAC
+  subject. Gate release allocation on an RBAC permission check, never on a forge
+  identity, git tag, CI environment, publisher string, package name, or service name.
+  Keep federation (who) and authorization (what) as two separate steps.
+bad_smells:
+- a publisher.type enum separate from RBAC subject kind
+- authorization decided from a GitHub org/user/repo or a git tag
+- CI granted implicit release privilege
+- STABLE channel write without an RBAC permission check
+- forge trust treated as authorization
+activation_triggers:
+- publisher namespace
+- release authority
+- repository.release.allocate
+- trusted_publisher
+- forge binding
+- RBAC subject
+- STABLE channel
+related_invariants:
+- package.publisher_namespace_is_rbac_resource
+- package.publisher_kind_derived_from_rbac_subject
+- package.release_allocation_requires_rbac_permission
+- package.forge_binding_is_not_authorization
+- package.ci_is_not_release_authority
+- package.stable_channel_requires_release_permission
+zooms_out_to:
+- repository.is_single_version_authority
+zooms_in_to:
+- package.release_allocation_requires_rbac_permission
+related_to:
+- package.release_vs_dev_channel_boundary
+- package.identity_tuple_must_be_unique
+change_risk:
+- package_identity_sensitive
+- repository_sensitive
+- rbac_sensitive
+runtime_evidence:
+  repository_queries:
+  - resolve a publisher namespace's owning RBAC subject and its permissions
+  checks:
+  - release allocation only succeeds with repository.release.allocate on the namespace
+  - a forge identity resolves to an RBAC subject before any authorization
+violation_patterns:
+- "github.*org.*allow.*stable"
+- "git tag.*allocate.*release"
+- "publisher.?type.*enum"
+required_tests:
+- repository:TestForgeIdentityMustResolveToSubjectBeforeAuthorization
+- repository:TestReleaseAllocationRequiresNamespacePermission
+- repository:TestForgeTrustAndRBACAuthorizationAreSeparateSteps
+status: proposed
