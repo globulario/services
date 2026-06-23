@@ -168,6 +168,27 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 		ch = repopb.ArtifactChannel_STABLE
 	}
 
+	// RBAC-native release gate (docs/design/package-lifecycle.md §3.4).
+	// Targeting STABLE requires the federated subject to hold release.allocate on
+	// the publisher namespace. Federation happened in the auth interceptor
+	// (step 1, resolveForgeIdentity); here we AUTHORIZE only (step 2). A subject
+	// without the permission is forced to DEV (never granted STABLE); an
+	// authenticated caller with no subject is denied entirely (fail closed).
+	// CI holds no implicit privilege — it must resolve to a subject and pass this
+	// check like any other caller (invariant package.ci_is_not_release_authority).
+	if ch == repopb.ArtifactChannel_STABLE {
+		id := srv.resolveForgeIdentity(ctx)
+		allow, aerr := srv.authorizeRelease(ctx, id, publisher)
+		if aerr != nil {
+			return nil, aerr
+		}
+		if !allow {
+			slog.Warn("release-authority: subject lacks release.allocate, forcing channel DEV",
+				"publisher", publisher, "name", name, "subject", id.Subject)
+			ch = repopb.ArtifactChannel_DEV
+		}
+	}
+
 	// Create reservation.
 	res, err := reservations.allocate(publisher, name, version, platform, buildID, buildNumber, ch)
 	if err != nil {
