@@ -21,6 +21,8 @@ type fakeBehavioralServer struct {
 	lastOutcome   *behavioralpb.Outcome
 	lastCandidate *behavioralpb.GeneratePromotionCandidateRequest
 	lastRecon     *behavioralpb.GenerateReconciliationReportRequest
+	lastCondition *behavioralpb.Condition
+	lastContra    *behavioralpb.RunContradictionCheckRequest
 }
 
 func (f *fakeBehavioralServer) RecordSignal(_ context.Context, r *behavioralpb.RecordSignalRequest) (*behavioralpb.RecordSignalResponse, error) {
@@ -40,11 +42,15 @@ func (f *fakeBehavioralServer) MapAuthority(context.Context, *behavioralpb.MapAu
 func (f *fakeBehavioralServer) RecordContradiction(context.Context, *behavioralpb.RecordContradictionRequest) (*behavioralpb.RecordContradictionResponse, error) {
 	return &behavioralpb.RecordContradictionResponse{}, nil
 }
-func (f *fakeBehavioralServer) RegisterCondition(context.Context, *behavioralpb.RegisterConditionRequest) (*behavioralpb.RegisterConditionResponse, error) {
-	return &behavioralpb.RegisterConditionResponse{}, nil
+func (f *fakeBehavioralServer) RegisterCondition(_ context.Context, r *behavioralpb.RegisterConditionRequest) (*behavioralpb.RegisterConditionResponse, error) {
+	f.lastCondition = r.GetCondition()
+	return &behavioralpb.RegisterConditionResponse{
+		ConditionId: r.GetCondition().GetId(), Status: r.GetCondition().GetStatus(),
+	}, nil
 }
-func (f *fakeBehavioralServer) RunContradictionCheck(context.Context, *behavioralpb.RunContradictionCheckRequest) (*behavioralpb.RunContradictionCheckResponse, error) {
-	return &behavioralpb.RunContradictionCheckResponse{}, nil
+func (f *fakeBehavioralServer) RunContradictionCheck(_ context.Context, r *behavioralpb.RunContradictionCheckRequest) (*behavioralpb.RunContradictionCheckResponse, error) {
+	f.lastContra = r
+	return &behavioralpb.RunContradictionCheckResponse{ContradictionChecked: true}, nil
 }
 func (f *fakeBehavioralServer) ProposePrinciple(_ context.Context, r *behavioralpb.ProposePrincipleRequest) (*behavioralpb.ProposePrincipleResponse, error) {
 	return &behavioralpb.ProposePrincipleResponse{PrincipleId: "princ-1", Status: behavioralpb.GovernanceStatus_PROPOSED_PRINCIPLE}, nil
@@ -173,6 +179,7 @@ func TestBehavioralToolsRegister(t *testing.T) {
 		"behavioral_resolve_context", "behavioral_check_action", "behavioral_record_signal",
 		"behavioral_record_evidence", "behavioral_record_outcome", "behavioral_explain_principle", "behavioral_propose_principle",
 		"behavioral_promote_principle", "behavioral_revoke_principle",
+		"behavioral_run_contradiction_check", "behavioral_register_condition",
 		"behavioral_generate_promotion_candidate", "behavioral_list_promotion_candidates",
 		"behavioral_generate_reconciliation_report", "behavioral_list_reconciliation_reports",
 	} {
@@ -350,6 +357,49 @@ func TestBehavioralPromoteRequiresActorAndSurfacesBlocked(t *testing.T) {
 	}
 	if m := res.(map[string]interface{}); m["decision"] != "PROMOTION_BLOCKED" {
 		t.Errorf("promote decision = %v, want PROMOTION_BLOCKED (never hidden)", m["decision"])
+	}
+}
+
+// The governed completion steps the promotion gate requires — register_condition
+// and run_contradiction_check — are reachable from the MCP surface (previously they
+// were only callable via raw grpc_call, leaving promotion un-completable from MCP).
+func TestBehavioralContradictionAndConditionTools(t *testing.T) {
+	s, fake := startFakeBehavioral(t)
+	ctx := context.Background()
+	base := map[string]interface{}{"project": "globular-services", "domain": "cluster_operator"}
+
+	// register a condition — id + relations passed through, not hidden in metadata.
+	rc, err := s.callTool(ctx, "behavioral_register_condition", mergeArgs(base, map[string]interface{}{
+		"id": "condition.cluster.service.binary_update_intended", "title": "binary update intended",
+		"detect_spec": "agent intends to change a service binary", "severity": "high",
+	}))
+	if err != nil {
+		t.Fatalf("register_condition: %v", err)
+	}
+	if m := rc.(map[string]interface{}); m["condition_id"] != "condition.cluster.service.binary_update_intended" {
+		t.Errorf("register_condition result = %+v", m)
+	}
+	if fake.lastCondition.GetDetectSpec() == "" || fake.lastCondition.GetStatus() != behavioralpb.GovernanceStatus_CONDITION_SCOPED {
+		t.Errorf("condition not passed through with CONDITION_SCOPED status: %+v", fake.lastCondition)
+	}
+
+	// run_contradiction_check requires actor and reports contradiction_checked.
+	if _, err := s.callTool(ctx, "behavioral_run_contradiction_check", mergeArgs(base, map[string]interface{}{
+		"principle_id": "principle.x",
+	})); err == nil {
+		t.Fatal("run_contradiction_check without actor should error")
+	}
+	cc, err := s.callTool(ctx, "behavioral_run_contradiction_check", mergeArgs(base, map[string]interface{}{
+		"principle_id": "principle.x", "actor": "operator-dave",
+	}))
+	if err != nil {
+		t.Fatalf("run_contradiction_check: %v", err)
+	}
+	if m := cc.(map[string]interface{}); m["contradiction_checked"] != true {
+		t.Errorf("run_contradiction_check result = %+v, want contradiction_checked=true", m)
+	}
+	if fake.lastContra.GetPrincipleId() != "principle.x" || fake.lastContra.GetActor() != "operator-dave" {
+		t.Errorf("contradiction request not passed through: %+v", fake.lastContra)
 	}
 }
 
