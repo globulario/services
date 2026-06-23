@@ -13,7 +13,23 @@ import (
 
 	"github.com/globulario/services/golang/backup_manager/backup_managerpb"
 	"github.com/globulario/services/golang/config"
+	globular "github.com/globulario/services/golang/globular_service"
 )
+
+// persistScyllaConfig writes auto-detected ScyllaDB config back to etcd. The
+// startup detection/registration sets srv fields in memory only; without this
+// the registered cluster is invisible to the configured backup path on the
+// next process start (and TestScyllaConnection / preflight report it as
+// "not configured" even though scylla-manager knows about it). Best-effort —
+// a persistence failure is logged, not fatal.
+func (srv *server) persistScyllaConfig() {
+	if err := globular.SaveService(srv); err != nil {
+		slog.Warn("failed to persist auto-detected scylla config to etcd", "error", err)
+		return
+	}
+	slog.Info("persisted auto-detected scylla config to etcd",
+		"cluster", srv.ScyllaCluster, "api_url", srv.ScyllaManagerAPI, "location", srv.ScyllaLocation)
+}
 
 // scyllaManagerAPIHost extracts the bare host from a Scylla Manager API URL
 // (e.g. "http://10.0.0.63:5080/api/v1" → "10.0.0.63"). Returns the original
@@ -202,6 +218,10 @@ func (srv *server) ensureScyllaRegistered() {
 		if srv.ScyllaCluster == "" && clusterName != "" {
 			srv.ScyllaCluster = clusterName
 			slog.Info("auto-detected scylla-manager cluster", "cluster", clusterName)
+			// Persist so the registered cluster is visible to the configured
+			// backup path (and preflight/TestScyllaConnection) on next start,
+			// instead of being re-derived in memory every time.
+			srv.persistScyllaConfig()
 		}
 
 		// Health check: verify the registered cluster is reachable.
@@ -289,6 +309,9 @@ func (srv *server) ensureScyllaRegistered() {
 	if srv.ScyllaCluster == "" {
 		srv.ScyllaCluster = clusterName
 	}
+	// Persist the freshly-registered cluster to etcd so it survives restarts
+	// and is visible to the configured backup path.
+	srv.persistScyllaConfig()
 }
 
 // PreflightCheck verifies that required CLI tools are available.

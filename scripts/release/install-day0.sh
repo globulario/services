@@ -2327,6 +2327,56 @@ done
 # Remove stale config.json backup files left from format migrations.
 find "${STATE_DIR}" -maxdepth 1 -name 'config.json.bak.*' -delete 2>/dev/null || true
 
+# ── Restore preserved AI memory (from a prior clean-node) ────────────────────
+# clean-node.sh exports the ai_memory / behavioral_memory ScyllaDB keyspaces to
+# /var/backups/globular/ai-memory-snapshot before wiping a node. If that
+# snapshot is present, re-import it now: ScyllaDB and the ai-memory schema are
+# up (the ops-knowledge seed above already exercised them), so COPY FROM
+# layers the preserved operator/agent memories on top of the seeded baseline
+# (COPY = upsert by primary key). This closes the clean → day-0 round-trip.
+#
+# Best-effort: never fails the install. Idempotent — the snapshot is archived
+# aside on success so re-running day-0 does not double-import. Counter tables
+# (governance stats) are not COPY-restorable and degrade with a warning.
+# Opt out with: GLOBULAR_SKIP_AI_RESTORE=1
+AI_RESTORE_DIR="/var/backups/globular/ai-memory-snapshot"
+if [[ "${GLOBULAR_SKIP_AI_RESTORE:-0}" != "1" ]] && [[ -f "${AI_RESTORE_DIR}/.saved_at" ]]; then
+  log_step "Restoring preserved AI Memory"
+  _R_HOST="${SCYLLA_CQL_HOST:-$(scylla_cql_host)}"
+  [[ -z "$_R_HOST" ]] && _R_HOST="127.0.0.1"
+  if command -v cqlsh >/dev/null 2>&1 && cqlsh "$_R_HOST" 9042 -e "SELECT now() FROM system.local" >/dev/null 2>&1; then
+    log_substep "Restoring from ${AI_RESTORE_DIR} (saved $(cat "${AI_RESTORE_DIR}/.saved_at" 2>/dev/null) on $(cat "${AI_RESTORE_DIR}/.source_host" 2>/dev/null || echo unknown))"
+    _restored=0
+    for _ks in ai_memory behavioral_memory; do
+      [[ -d "${AI_RESTORE_DIR}/${_ks}" ]] || continue
+      # Ensure schema exists. The service normally creates it on first start;
+      # apply the captured schema as a safety net (errors on already-existing
+      # objects are ignored — the live RF/definition wins).
+      if [[ -f "${AI_RESTORE_DIR}/${_ks}/schema.cql" ]]; then
+        cqlsh "$_R_HOST" 9042 -f "${AI_RESTORE_DIR}/${_ks}/schema.cql" >/dev/null 2>&1 || true
+      fi
+      for _csv in "${AI_RESTORE_DIR}/${_ks}"/*.csv; do
+        [[ -f "$_csv" ]] || continue
+        _tbl="$(basename "$_csv" .csv)"
+        if cqlsh "$_R_HOST" 9042 -e "COPY ${_ks}.${_tbl} FROM '${_csv}' WITH HEADER=true;" >/dev/null 2>&1; then
+          log_success "Restored ${_ks}.${_tbl}"
+          _restored=$((_restored + 1))
+        else
+          log_warn "Could not restore ${_ks}.${_tbl} (table absent or counter type — skipped)"
+        fi
+      done
+    done
+    if [[ "$_restored" -gt 0 ]]; then
+      mv "$AI_RESTORE_DIR" "${AI_RESTORE_DIR}.restored-$(date -u +%Y%m%d%H%M%S)" 2>/dev/null || true
+      log_success "AI memory restore complete (${_restored} table(s)); snapshot archived alongside"
+    else
+      log_warn "AI memory snapshot present but no tables restored — left in place at ${AI_RESTORE_DIR}"
+    fi
+  else
+    log_warn "ScyllaDB CQL not reachable — skipping AI memory restore (snapshot kept at ${AI_RESTORE_DIR})"
+  fi
+fi
+
 # ── Final permission hardening ───────────────────────────────────────────────
 # Package installation can chown/chmod state dirs. Re-enforce the permissions
 # that matter for non-root tooling (Claude Code MCP, CLI as regular user):

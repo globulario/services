@@ -55,6 +55,11 @@
   severity: info
   source: opsknowledge:stage.installed_artifact_system
   title: Installed artifact system — filesystem layout, authority, and permissions
+- detect_spec: cluster is operating in lifecycle stage learned_2026_06
+  id: condition.cluster.lifecycle.learned_2026_06
+  severity: info
+  source: opsknowledge:stage.learned_2026_06
+  title: Learned lessons — promoted from runtime ai-memory (2026-06)
 - detect_spec: cluster is operating in lifecycle stage package_system
   id: condition.cluster.lifecycle.package_system
   severity: info
