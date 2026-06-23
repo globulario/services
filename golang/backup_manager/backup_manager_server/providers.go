@@ -283,10 +283,22 @@ func (srv *server) runResticBackup(ctx context.Context, spec *backup_managerpb.B
 	// also injects the default exclude list (circular, double-coverage,
 	// cache, runtime, local-side-effects) so exit-code 3 noise from
 	// regenerable paths doesn't masquerade as a backup failure.
-	args := buildResticBackupArgs(repo, srv.DataDir, validPaths, nil)
+	// Decide how restic treats the MinIO object store. The ScyllaDB backup
+	// bucket (sctool uploads snapshots there) must land in the restic repo so
+	// ai-memory / behavioral data survives an objectstore wipe; bulk user
+	// buckets are skipped unless the minio provider already ships them
+	// off-node. See minioResticExcludes for the contract.
+	var minioEntries []os.DirEntry
+	if entries, err := os.ReadDir(minioDataDir); err == nil {
+		minioEntries = entries
+	}
+	extraExcludes := minioResticExcludes(srv.RcloneRemote != "", minioEntries)
+
+	args := buildResticBackupArgs(repo, srv.DataDir, validPaths, extraExcludes)
 	// Capture the exact exclude list passed to restic so classifyResticWarnings
 	// can faithfully decide which permission-denied items are noise vs real.
 	configuredExcludes := append([]string{srv.DataDir, repo}, defaultResticExcludes...)
+	configuredExcludes = append(configuredExcludes, extraExcludes...)
 	cmd := exec.CommandContext(ctx, "restic", args...)
 	cmd.Env = append(os.Environ(), env...)
 	var outBuf, errBuf bytes.Buffer
@@ -769,6 +781,16 @@ func (srv *server) scyllaLocations() []string {
 			locs = append(locs, "azure:"+d.Path)
 		// local/nfs: sctool does not support filesystem paths, skip
 		}
+	}
+	// Fallback: no object-store destination configured but MinIO is available
+	// (the common single-cluster case). ScyllaDB snapshots go to the cluster
+	// backup bucket in MinIO; sctool resolves the s3: scheme via the
+	// scylla-manager-agent's configured S3 endpoint (the MinIO endpoint). This
+	// is what restic then captures (minioResticExcludes) so ai-memory survives
+	// an objectstore wipe — without it the scylla provider would be skipped and
+	// ScyllaDB would silently never be backed up.
+	if len(locs) == 0 && srv.MinioEndpoint != "" {
+		locs = append(locs, "s3:"+scyllaBackupBucket)
 	}
 	return locs
 }

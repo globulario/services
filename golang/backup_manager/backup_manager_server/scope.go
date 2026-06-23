@@ -77,6 +77,16 @@ func ResolveProviders(
 		}
 	}
 
+	// A provider listed in ClusterDefaultProviders is expected to be part of a
+	// "full" backup. Skipping one means the resulting backup has REDUCED
+	// coverage — e.g. a ScyllaDB-less backup that still succeeds clean would
+	// silently omit ai-memory / behavioral / repository-index data. Surface
+	// that at WARN, not INFO (intent:degraded_is_explicit_not_hidden).
+	defaultSet := make(map[string]bool, len(srv.ClusterDefaultProviders))
+	for _, d := range srv.ClusterDefaultProviders {
+		defaultSet[strings.TrimSpace(strings.ToLower(d))] = true
+	}
+
 	// Check availability for each provider
 	var activeNames []string
 	var skipped []*backup_managerpb.SkippedProvider
@@ -93,7 +103,13 @@ func ResolveProviders(
 				Name:   name,
 				Reason: avail.Reason,
 			})
-			slog.Info("provider skipped", "provider", name, "reason", avail.Reason)
+			if defaultSet[name] {
+				slog.Warn("REDUCED COVERAGE: default backup provider skipped — this backup will NOT contain its data",
+					"provider", name, "reason", avail.Reason,
+					"impact", coverageImpact(name))
+			} else {
+				slog.Info("provider skipped", "provider", name, "reason", avail.Reason)
+			}
 		}
 	}
 
@@ -140,6 +156,23 @@ func ResolveProviders(
 		Names:   activeNames,
 		Skipped: skipped,
 	}, nil
+}
+
+// coverageImpact describes, for an operator reading logs, what data is missing
+// from a backup when the named provider is skipped. Keeps the WARN actionable.
+func coverageImpact(name string) string {
+	switch name {
+	case "etcd":
+		return "cluster config, service registry, desired state"
+	case "scylla":
+		return "ScyllaDB: ai-memory, behavioral memory, repository index, workflow history"
+	case "restic":
+		return "filesystem state under /var/lib/globular (incl. the captured ScyllaDB backup bucket)"
+	case "minio":
+		return "off-node replication of MinIO object data"
+	default:
+		return "provider data"
+	}
 }
 
 // checkProviderAvailability checks whether a provider is configured and its tools are reachable.

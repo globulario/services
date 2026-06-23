@@ -1,9 +1,68 @@
 package main
 
 import (
+	"io/fs"
+	"os"
 	"strings"
 	"testing"
 )
+
+// fakeDirEntry is a minimal os.DirEntry for exercising minioResticExcludes
+// without touching the filesystem.
+type fakeDirEntry struct {
+	name string
+	dir  bool
+}
+
+func (f fakeDirEntry) Name() string               { return f.name }
+func (f fakeDirEntry) IsDir() bool                { return f.dir }
+func (f fakeDirEntry) Type() fs.FileMode          { return 0 }
+func (f fakeDirEntry) Info() (fs.FileInfo, error) { return nil, nil }
+
+func dirEntries(names ...string) []os.DirEntry {
+	out := make([]os.DirEntry, 0, len(names))
+	for _, n := range names {
+		out = append(out, fakeDirEntry{name: n, dir: true})
+	}
+	return out
+}
+
+func TestMinioResticExcludes_OffNodeReplicated_ExcludesWholeDir(t *testing.T) {
+	got := minioResticExcludes(true, dirEntries("globular-backups", "user-photos", ".minio.sys"))
+	if len(got) != 1 || got[0] != minioDataDir {
+		t.Fatalf("off-node replication should exclude the whole minio data dir, got %v", got)
+	}
+}
+
+func TestMinioResticExcludes_KeepsScyllaBucketAndSystemDir(t *testing.T) {
+	got := minioResticExcludes(false, dirEntries(scyllaBackupBucket, ".minio.sys", "user-photos", "user-docs"))
+	// The scylla backup bucket and .minio.sys must NOT be excluded — they are
+	// required for a wipe-survivable, restorable backup.
+	for _, mustKeep := range []string{
+		minioDataDir + "/" + scyllaBackupBucket,
+		minioDataDir + "/.minio.sys",
+	} {
+		for _, ex := range got {
+			if ex == mustKeep {
+				t.Errorf("excluded a path that must be captured: %q (excludes=%v)", mustKeep, got)
+			}
+		}
+	}
+	// User buckets must be excluded to keep the snapshot lean.
+	sliceContainsAll(t, got, []string{
+		minioDataDir + "/user-photos",
+		minioDataDir + "/user-docs",
+	}, "user buckets excluded")
+	if len(got) != 2 {
+		t.Errorf("expected exactly the 2 user buckets excluded, got %v", got)
+	}
+}
+
+func TestMinioResticExcludes_NilEntries(t *testing.T) {
+	if got := minioResticExcludes(false, nil); len(got) != 0 {
+		t.Errorf("no entries (minio data dir absent) should yield no excludes, got %v", got)
+	}
+}
 
 // helper: assert a slice contains every element of want, in any position.
 func sliceContainsAll(t *testing.T, got, want []string, label string) {
