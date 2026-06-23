@@ -22,6 +22,7 @@ func registerAllTools(s *server) {
 		registerClusterTools(s)
 		registerConvergenceTools(s)
 		registerReleaseTools(s)
+		registerRuntimeEvidenceTools(s)
 	}
 	if g.Doctor {
 		registerDoctorTools(s)
