@@ -235,7 +235,9 @@ func registerCheckActionTool(s *server) {
 			"needs_human_approval, with the violated principles, missing evidence, matched forbidden " +
 			"moves, recommended next steps, and an action_check_id (every call is audited). It does " +
 			"NOT run probes — it evaluates already-recorded evidence and the declared " +
-			"provided_evidence_refs. It does NOT execute the action.",
+			"provided_evidence_refs. It does NOT execute the action. IMPORTANT: also read " +
+			"'governed' — when allowed=true but governed=false, NO promoted principle covered " +
+			"this action (default-allow); that is the absence of a rule, not a safety endorsement.",
 		InputSchema: inputSchema{
 			Type: "object",
 			Properties: map[string]propSchema{
@@ -271,6 +273,13 @@ func registerCheckActionTool(s *server) {
 		return map[string]interface{}{
 			"allowed":              r.GetAllowed(),
 			"status":               r.GetStatus(),
+			// governed distinguishes "allowed: a promoted principle was evaluated and
+			// satisfied" from "allowed: NO applicable principle, default-allow". An
+			// ungoverned allow (governed=false) is the absence of a rule, NOT an
+			// endorsement — surfacing it stops a default-allow from reading as a
+			// green safety verdict. Always present (a Go map serializes false
+			// explicitly), so the gate's reach over this action is never hidden.
+			"governed":             r.GetGoverned(),
 			"violated_principles":  r.GetViolatedPrinciples(),
 			"missing_evidence":     r.GetMissingEvidence(),
 			"unresolved_authority": r.GetUnresolvedAuthority(),

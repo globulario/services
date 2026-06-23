@@ -23,13 +23,29 @@ import (
 	"github.com/globulario/services/golang/ai_memory/behavioral/store"
 )
 
+// AlwaysConditionRef is the sentinel condition under which a principle is promoted
+// when it must apply UNCONDITIONALLY — i.e. on every CheckAction / resolve, without
+// the caller having to self-declare a matching runtime condition. A universal
+// hard-rule (e.g. "never hot-swap a binary") is promoted under this so the gate has
+// reach even when the caller passes no conditions. Being applicable is NOT being
+// blocked: an always-applicable principle still only blocks when its forbidden move
+// matches the proposed action. The owning domain pack must list condition.always in
+// its condition catalog so principles may reference it. Kept in sync with the
+// literal used in the seed YAML.
+const AlwaysConditionRef api.ConditionRef = "condition.always"
+
 // applicablePromotedPrinciples resolves the distinct promoted principles indexed
-// under any of the given conditions. The index holds only promoted mappings; the
-// status guard is defensive against a stale index entry.
+// under any of the given conditions PLUS the always-applicable sentinel. The index
+// holds only promoted mappings; the status guard is defensive against a stale index
+// entry.
 func (s *Service) applicablePromotedPrinciples(ctx context.Context, project string, domain api.DomainRef, conditions []api.ConditionRef) ([]api.Principle, error) {
 	seen := map[string]bool{}
 	var out []api.Principle
-	for _, c := range conditions {
+	// Always include the unconditional sentinel so universal hard-rules fire without
+	// the caller declaring a condition. Principle-id dedup (seen) keeps a principle
+	// indexed under both the sentinel and a specific condition from double-counting.
+	condSet := append([]api.ConditionRef{AlwaysConditionRef}, conditions...)
+	for _, c := range condSet {
 		ids, err := s.store.ListPrincipleIDsByCondition(ctx, project, string(domain), string(c))
 		if err != nil {
 			return nil, err
@@ -53,6 +69,56 @@ func (s *Service) applicablePromotedPrinciples(ctx context.Context, project stri
 		}
 	}
 	return out, nil
+}
+
+// forbiddenAliasIndex returns, for a domain, a map from forbidden-move id to the
+// action_type aliases that should also match it. Aliases are declared as a
+// comma-separated `action_aliases` field on the forbidden-move catalog entry in the
+// domain pack (forbidden moves have no store table — they live only in the pack, so
+// the kernel resolves them through the registry). Returns nil when the registry or
+// the domain pack is absent; callers then fall back to exact id/target matching.
+func (s *Service) forbiddenAliasIndex(domain api.DomainRef) map[string][]string {
+	if s.registry == nil {
+		return nil
+	}
+	d, ok := s.registry.Lookup(string(domain))
+	if !ok {
+		return nil
+	}
+	out := map[string][]string{}
+	for _, fm := range d.Catalogs().ForbiddenMoves {
+		raw := fm.Fields["action_aliases"]
+		if raw == "" {
+			continue
+		}
+		var aliases []string
+		for _, a := range strings.Split(raw, ",") {
+			if a = strings.TrimSpace(a); a != "" {
+				aliases = append(aliases, a)
+			}
+		}
+		if len(aliases) > 0 {
+			out[fm.ID] = aliases
+		}
+	}
+	return out
+}
+
+// forbiddenRefMatches reports whether a proposed action_type/target matches a
+// forbidden-move ref — either by exact id/target equality (the original contract)
+// or via one of the ref's declared aliases. A pure function so matching is unit-
+// testable without a store or registry.
+func forbiddenRefMatches(ref api.ForbiddenMoveRef, actionType, target string, aliasIdx map[string][]string) bool {
+	id := string(ref)
+	if id == actionType || (target != "" && id == target) {
+		return true
+	}
+	for _, a := range aliasIdx[id] {
+		if a == actionType || (target != "" && a == target) {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedKeys(m map[string]bool) []string {
@@ -189,10 +255,16 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 	}
 
 	// 2. Forbidden moves: a ref matches when it equals the proposed action_type or
-	//    target (generic name match; richer matching arrives with the PR-5 pack).
+	//    target, OR when the action_type/target matches one of the forbidden move's
+	//    declared action_aliases. Aliases let a naturally-named action (e.g.
+	//    "replace_binary_in_place") match a forbidden-move id (forbidden.cluster.*)
+	//    so the gate has reach without the caller guessing the canonical id. Aliases
+	//    are resolved from the domain pack via the registry; if the pack is absent we
+	//    fall back to exact id/target match (back-compatible).
+	aliasIdx := s.forbiddenAliasIndex(req.Domain)
 	for _, p := range principles {
 		for _, fmRef := range p.ForbiddenMoves {
-			if string(fmRef) == req.ActionType || (req.Target != "" && string(fmRef) == req.Target) {
+			if forbiddenRefMatches(fmRef, req.ActionType, req.Target, aliasIdx) {
 				ac.ForbiddenMatched = append(ac.ForbiddenMatched, fmRef)
 				ac.ViolatedPrinciples = appendUnique(ac.ViolatedPrinciples, p.ID)
 			}

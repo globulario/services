@@ -481,6 +481,39 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.reconciliation_reports (
     PRIMARY KEY ((project, domain, id))
 )`
 
+// ── v10 list-by-scope indexes ─────────────────────────────────────────────────
+//
+// promotion_candidates and reconciliation_reports are keyed by ((project,domain,id))
+// for single-entity get/upsert, but their List RPCs enumerate every row in a
+// (project,domain) scope. A query filtering by the (project,domain) PREFIX of a
+// COMPOSITE partition key is rejected by ScyllaDB without ALLOW FILTERING — which
+// is exactly why ListPromotionCandidates / ListReconciliationReports failed at
+// runtime ("Cannot execute this query as it might involve data filtering").
+//
+// These index tables make the list a single-partition read: partition by
+// ((project,domain)), cluster by id. They follow the same relation-table idiom as
+// evidence_by_target / contradictions_by_target / outcomes_by_theme — additive
+// CREATE IF NOT EXISTS so they are forward-safe to re-run (no destructive DDL, no
+// PRIMARY KEY change on the live entity tables). The writer upserts the id into the
+// index; theme/status/created_at are read from (and sorted on) the entity row, so
+// the index carries only the keys. There is no delete path for either entity, so
+// the index needs no maintenance beyond upsert.
+const createPromotionCandidatesByScopeTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.promotion_candidates_by_scope (
+    project text,
+    domain  text,
+    id      text,
+    PRIMARY KEY ((project, domain), id)
+) WITH CLUSTERING ORDER BY (id ASC)`
+
+const createReconciliationReportsByScopeTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.reconciliation_reports_by_scope (
+    project text,
+    domain  text,
+    id      text,
+    PRIMARY KEY ((project, domain), id)
+) WITH CLUSTERING ORDER BY (id ASC)`
+
 // behavioralSchemaStatements is the ordered list of table DDL (keyspace created
 // separately). All use IF NOT EXISTS and are safe to re-run.
 var behavioralSchemaStatements = []string{
@@ -505,6 +538,10 @@ var behavioralSchemaStatements = []string{
 	createOutcomesByThemeTableCQL,
 	createPromotionCandidatesTableCQL,
 	createReconciliationReportsTableCQL,
+	// v10 list-by-scope indexes: make the List RPCs single-partition reads instead
+	// of (project,domain)-prefix scans on a composite partition key (ALLOW FILTERING).
+	createPromotionCandidatesByScopeTableCQL,
+	createReconciliationReportsByScopeTableCQL,
 	// PR-13 governance-coverage counters.
 	createGovernanceCoverageTableCQL,
 	// v8 backfill: PR-9 columns that shipped only in CREATE TABLE, so pre-PR-9

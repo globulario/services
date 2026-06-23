@@ -43,6 +43,7 @@ func TestExpectedCatalogIDsPresent(t *testing.T) {
 		"authority.cluster.etcd.member_health", "authority.cluster.scylla.schema_agreement",
 		"authority.cluster.minio.pool_health", "authority.cluster.envoy.route_config",
 		"authority.cluster.owner_service.runtime_state", "authority.cluster.human.irreversible_ops",
+		"authority.cluster.release_pipeline.deployed_identity",
 	}
 	for _, id := range wantAuth {
 		if !contains(p.AuthorityIDs(), id) {
@@ -53,6 +54,7 @@ func TestExpectedCatalogIDsPresent(t *testing.T) {
 		"condition.cluster.etcd.nospace_alarm", "condition.cluster.scylla.schema_disagreement",
 		"condition.cluster.minio.pool_degraded", "condition.cluster.envoy.route_missing",
 		"condition.cluster.service.desired_observed_mismatch", "condition.cluster.node_removal_requested",
+		"condition.cluster.service.binary_update_intended", "condition.always",
 	}
 	for _, id := range wantCond {
 		if !contains(p.ConditionIDs(), id) {
@@ -65,6 +67,7 @@ func TestExpectedCatalogIDsPresent(t *testing.T) {
 		"forbidden.cluster.direct_runtime_mutation_without_owner_authority",
 		"forbidden.cluster.minio_topology_change_without_pool_authority",
 		"forbidden.cluster.controller_executes_local_mutation",
+		"forbidden.cluster.hot_swap_binary_outside_release_pipeline",
 	}
 	for _, id := range wantForbidden {
 		if !contains(p.ForbiddenMoveIDs(), id) {
@@ -89,6 +92,7 @@ func TestExpectedCatalogIDsPresent(t *testing.T) {
 		"principle.cluster.preserve_quorum_before_restart_under_etcd_pressure",
 		"principle.cluster.preserve_owner_executor_boundary",
 		"principle.cluster.treat_minio_topology_as_stateful_authority",
+		"principle.cluster.deploy_through_release_pipeline_never_hot_swap",
 	}
 	for _, id := range wantPrinc {
 		if !contains(p.PrincipleIDs(), id) {
