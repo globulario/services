@@ -104,6 +104,100 @@ if [[ $FORCE -eq 0 ]] && [[ -t 0 ]]; then
   read -r
 fi
 
+# ── Phase 0a: Preserve AI memory before wipe ─────────────────────────────────
+#
+# ai-memory and behavioral-memory live in ScyllaDB keyspaces (ai_memory,
+# behavioral_memory) that this script is about to destroy. Export them as a
+# logical CQL dump to /var/backups/globular/ai-memory-snapshot — a path the
+# wipe below does NOT touch — so install-day0.sh can restore them after a fresh
+# bootstrap (clean → day-0 round-trip).
+#
+# Self-contained on purpose: uses cqlsh directly, independent of the
+# backup-manager service (which may be old/unhealthy during a teardown) and of
+# scylla-manager. Must run BEFORE Phase 0 below, because ScyllaDB decommission
+# streams this node's data away. Best-effort: NEVER blocks the teardown, but
+# warns loudly so the operator knows whether ai-memory was preserved.
+# Opt out with: GLOBULAR_SKIP_AI_BACKUP=1
+
+AI_BACKUP_DIR="/var/backups/globular/ai-memory-snapshot"
+
+resolve_scylla_cql_host() {
+  local h=""
+  if [[ -f /etc/scylla/scylla.yaml ]]; then
+    h=$(grep -E '^rpc_address:' /etc/scylla/scylla.yaml 2>/dev/null | awk '{print $2}' | tr -d "'\"" || true)
+    [[ -z "$h" ]] && h=$(grep -E '^listen_address:' /etc/scylla/scylla.yaml 2>/dev/null | awk '{print $2}' | tr -d "'\"" || true)
+  fi
+  case "$h" in ""|"localhost"|"0.0.0.0"|127.*|"::1") h="" ;; esac
+  [[ -z "$h" ]] && h=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -vE '^$|^127\.|^::' | head -1 || true)
+  echo "${h:-127.0.0.1}"
+}
+
+backup_ai_memory() {
+  if [[ "${GLOBULAR_SKIP_AI_BACKUP:-0}" == "1" ]]; then
+    log_info "GLOBULAR_SKIP_AI_BACKUP=1 — skipping ai-memory preservation"
+    return 0
+  fi
+  if ! command -v cqlsh >/dev/null 2>&1; then
+    log_warn "cqlsh not found — CANNOT preserve ai-memory before wipe"
+    return 1
+  fi
+  if ! systemctl is-active --quiet scylla-server.service 2>/dev/null; then
+    log_warn "ScyllaDB not running — CANNOT preserve ai-memory before wipe"
+    return 1
+  fi
+  local host; host="$(resolve_scylla_cql_host)"
+  if ! cqlsh "$host" 9042 -e "SELECT now() FROM system.local" >/dev/null 2>&1; then
+    log_warn "ScyllaDB CQL not reachable at ${host}:9042 — CANNOT preserve ai-memory"
+    return 1
+  fi
+
+  rm -rf "$AI_BACKUP_DIR"
+  mkdir -p "$AI_BACKUP_DIR"
+  local ks tables tbl exported=0
+  for ks in ai_memory behavioral_memory; do
+    if ! cqlsh "$host" 9042 -e "DESCRIBE KEYSPACE ${ks}" >/dev/null 2>&1; then
+      log_info "keyspace ${ks} not present — nothing to preserve"
+      continue
+    fi
+    mkdir -p "${AI_BACKUP_DIR}/${ks}"
+    # Capture schema as a restore safety net (service normally recreates it).
+    cqlsh "$host" 9042 -e "DESCRIBE KEYSPACE ${ks}" > "${AI_BACKUP_DIR}/${ks}/schema.cql" 2>/dev/null || true
+    # Derive base-table names from the captured schema (robust vs cqlsh SELECT
+    # output decoration). Indexes / materialized views are rebuilt on restore.
+    tables=$(grep -oiE "CREATE TABLE ${ks}\.[A-Za-z0-9_]+" "${AI_BACKUP_DIR}/${ks}/schema.cql" 2>/dev/null \
+             | awk '{print $3}' | sed "s/^${ks}\.//" | sort -u || true)
+    for tbl in $tables; do
+      [[ -z "$tbl" ]] && continue
+      if cqlsh "$host" 9042 -e "COPY ${ks}.${tbl} TO '${AI_BACKUP_DIR}/${ks}/${tbl}.csv' WITH HEADER=true;" >/dev/null 2>&1; then
+        log_success "Exported ${ks}.${tbl}"
+        exported=$((exported + 1))
+      else
+        log_warn "Could not export ${ks}.${tbl} (continuing)"
+      fi
+    done
+  done
+
+  if [[ "$exported" -gt 0 ]]; then
+    date -u +%Y-%m-%dT%H:%M:%SZ > "${AI_BACKUP_DIR}/.saved_at"
+    hostname > "${AI_BACKUP_DIR}/.source_host" 2>/dev/null || true
+    log_success "AI memory preserved (${exported} table(s)) at ${AI_BACKUP_DIR} — survives the wipe"
+    return 0
+  fi
+  log_warn "No ai-memory tables were exported"
+  return 1
+}
+
+log_step "Preserving AI Memory (pre-wipe)"
+if backup_ai_memory; then
+  :
+else
+  log_warn "ai-memory was NOT preserved — a fresh day-0 will start with seeded knowledge only."
+  if [[ $FORCE -eq 0 ]] && [[ -t 0 ]]; then
+    echo "  Continue with the wipe anyway? Press Enter to proceed, or Ctrl+C to abort..."
+    read -r
+  fi
+fi
+
 # ── Phase 0: Cluster-level detachment ────────────────────────────────────────
 #
 # Must run BEFORE stopping services: ScyllaDB decommission and etcd member
