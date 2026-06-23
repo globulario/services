@@ -3848,3 +3848,32 @@ forbidden_fixes:
     marked healthy; if the backend cannot be cross-checked, report indeterminate
     (CHECK_ERROR), not down. Fix the Envoy route/filter-chain; never make a
     direct-port bypass the permanent path.
+- id: sentinel_principle_imposes_situational_gates_on_unrelated_actions
+  summary: >
+    Let an always-applicable behavioral principle (one promoted under the
+    condition.always sentinel) drive the situational gates — required-evidence,
+    authority-resolvability, and risk/human-approval — for EVERY action in the
+    domain, because it is "applicable". A single high-risk universal rule then
+    forces needs_human_approval (or needs_evidence) on unrelated actions: e.g. a
+    never-hot-swap rule blocking a read-only inspect_service_logs, locking up the
+    AI tier's automated remediation. Observed live after the first principle was
+    promoted (ai-memory 1.2.235): every cluster_operator check_action returned
+    needs_human_approval.
+  related_invariants:
+    - meta.assertions_must_carry_their_scope
+    - meta.absence_scope_must_be_explicit
+    - meta.failure_response_must_contract_not_amplify
+  safe_alternative: >
+    The condition.always sentinel grants reach to the FORBIDDEN-MOVE check only.
+    A principle drives the situational gates only when ENGAGED: the caller
+    declared one of its applies_when conditions, OR its forbidden move matched the
+    proposed action. A principle reached only via the sentinel whose forbidden
+    move did not match stays in scope for forbidden-matching (so the universal
+    rule still blocks its own action) but contributes nothing to evidence /
+    authority / risk gates. Compute `governed` from the engaged set, not mere
+    applicability, so an unrelated always-applicable rule being in scope is not
+    reported as governance of this action. See
+    golang/ai_memory/behavioral/core/runtime.go CheckAction (the "engaged" set
+    and applicablePromotedPrinciples' declared-vs-sentinel distinction) and
+    tests TestCheckActionSentinelOnlyDoesNotOverBlock /
+    TestCheckActionDeclaredConditionEngagesGates.
