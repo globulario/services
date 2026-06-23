@@ -385,6 +385,14 @@ func (s *ScyllaStore) UpdatePrincipleStatus(ctx context.Context, project, domain
 	return nil
 }
 
+func (s *ScyllaStore) SetPrincipleContradictionChecked(ctx context.Context, project, domain, id string, checked bool, updatedAt int64) error {
+	const q = `UPDATE behavioral_memory.principles SET contradiction_checked = ?, updated_at = ? WHERE project = ? AND domain = ? AND id = ?`
+	if err := s.session.Query(q, checked, updatedAt, project, domain, id).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("set principle contradiction_checked: %w", err)
+	}
+	return nil
+}
+
 func (s *ScyllaStore) RecordPromotionDecision(ctx context.Context, d *api.PromotionDecisionRecord) error {
 	const q = `INSERT INTO behavioral_memory.promotion_decisions
 (project, domain, id, principle_id, decision, verdict, missing_evidence, unresolved_authority, unresolved_conditions,

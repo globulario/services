@@ -79,6 +79,11 @@ type Store interface {
 	CreatePrinciple(ctx context.Context, p *api.Principle) error
 	GetPrinciple(ctx context.Context, project, domain, id string) (*api.Principle, error)
 	UpdatePrincipleStatus(ctx context.Context, project, domain, id string, status api.GovernanceStatus, updatedAt int64) error
+	// SetPrincipleContradictionChecked records that a contradiction check
+	// completed for a principle. This is the governed write-path behind the
+	// RunContradictionCheck RPC — the promotion gate's ContradictionChecked
+	// requirement must be satisfiable through the kernel surface, not test-only.
+	SetPrincipleContradictionChecked(ctx context.Context, project, domain, id string, checked bool, updatedAt int64) error
 
 	// Promotion decisions (every attempt, including blocked/review-required).
 	RecordPromotionDecision(ctx context.Context, d *api.PromotionDecisionRecord) error
@@ -178,6 +183,9 @@ func (Unconfigured) GetPrinciple(context.Context, string, string, string) (*api.
 	return nil, ErrUnconfigured
 }
 func (Unconfigured) UpdatePrincipleStatus(context.Context, string, string, string, api.GovernanceStatus, int64) error {
+	return ErrUnconfigured
+}
+func (Unconfigured) SetPrincipleContradictionChecked(context.Context, string, string, string, bool, int64) error {
 	return ErrUnconfigured
 }
 func (Unconfigured) RecordPromotionDecision(context.Context, *api.PromotionDecisionRecord) error {

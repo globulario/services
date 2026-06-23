@@ -28,6 +28,19 @@ type RecordContradictionResponse struct {
 	ContradictionID string
 }
 
+// RegisterConditionResponse returns the registered condition id and status.
+type RegisterConditionResponse struct {
+	ConditionID string
+	Status      GovernanceStatus
+}
+
+// RunContradictionCheckResponse reports that the check completed and lists any
+// open contradictions it surfaced (the promotion gate blocks on those).
+type RunContradictionCheckResponse struct {
+	ContradictionChecked bool
+	OpenContradictionIDs []string
+}
+
 // ProposePrincipleResponse returns the candidate principle id and status.
 type ProposePrincipleResponse struct {
 	PrincipleID string

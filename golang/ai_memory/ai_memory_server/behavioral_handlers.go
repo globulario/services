@@ -131,6 +131,30 @@ func (h *behavioralHandler) RecordContradiction(ctx context.Context, req *bpb.Re
 	return &bpb.RecordContradictionResponse{ContradictionId: resp.ContradictionID}, nil
 }
 
+func (h *behavioralHandler) RegisterCondition(ctx context.Context, req *bpb.RegisterConditionRequest) (*bpb.RegisterConditionResponse, error) {
+	resp, err := h.core.RegisterCondition(ctx, &api.RegisterConditionRequest{Condition: pbToCondition(req.GetCondition())})
+	if err != nil {
+		return nil, behavioralErr("RegisterCondition", err)
+	}
+	return &bpb.RegisterConditionResponse{ConditionId: resp.ConditionID, Status: apiGovStatusToPB(resp.Status)}, nil
+}
+
+func (h *behavioralHandler) RunContradictionCheck(ctx context.Context, req *bpb.RunContradictionCheckRequest) (*bpb.RunContradictionCheckResponse, error) {
+	resp, err := h.core.RunContradictionCheck(ctx, &api.RunContradictionCheckRequest{
+		PrincipleID: req.GetPrincipleId(),
+		Project:     req.GetProject(),
+		Domain:      api.DomainRef(req.GetDomain()),
+		Actor:       req.GetActor(),
+	})
+	if err != nil {
+		return nil, behavioralErr("RunContradictionCheck", err)
+	}
+	return &bpb.RunContradictionCheckResponse{
+		ContradictionChecked: resp.ContradictionChecked,
+		OpenContradictionIds: resp.OpenContradictionIDs,
+	}, nil
+}
+
 // ── Implemented (PR-3): governance half ───────────────────────────────────────
 
 func (h *behavioralHandler) ProposePrinciple(ctx context.Context, req *bpb.ProposePrincipleRequest) (*bpb.ProposePrincipleResponse, error) {
@@ -708,6 +732,24 @@ func conditionToPB(c *api.Condition) *bpb.Condition {
 		Severity:   c.Severity,
 		Status:     apiGovStatusToPB(c.Status),
 		Metadata:   c.Metadata,
+	}
+}
+
+// pbToCondition converts an inbound proto Condition to the api type. Status is
+// left to the core (RegisterCondition defaults it) so the catalog entry's
+// lifecycle is owned by the kernel, not the caller.
+func pbToCondition(c *bpb.Condition) api.Condition {
+	if c == nil {
+		return api.Condition{}
+	}
+	return api.Condition{
+		ID:         c.GetId(),
+		Project:    c.GetProject(),
+		Domain:     api.DomainRef(c.GetDomain()),
+		Title:      c.GetTitle(),
+		DetectSpec: c.GetDetectSpec(),
+		Severity:   c.GetSeverity(),
+		Metadata:   c.GetMetadata(),
 	}
 }
 
