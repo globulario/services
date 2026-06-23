@@ -3,8 +3,8 @@
 // @awareness file_role=runtime_evidence_collector_globular_adapter_for_awg_runtime_proof_lane
 // @awareness implements=globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
 // @awareness implements=globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
-// @awareness enforces=meta.discovery_produces_candidates_not_facts
-// @awareness enforces=meta.storage_is_not_semantic_authority
+// @awareness enforces=globular.platform:invariant.meta.discovery_produces_candidates_not_facts
+// @awareness enforces=globular.platform:invariant.meta.storage_is_not_semantic_authority
 // @awareness risk=high
 package main
 
