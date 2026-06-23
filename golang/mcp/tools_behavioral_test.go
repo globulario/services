@@ -40,6 +40,12 @@ func (f *fakeBehavioralServer) MapAuthority(context.Context, *behavioralpb.MapAu
 func (f *fakeBehavioralServer) RecordContradiction(context.Context, *behavioralpb.RecordContradictionRequest) (*behavioralpb.RecordContradictionResponse, error) {
 	return &behavioralpb.RecordContradictionResponse{}, nil
 }
+func (f *fakeBehavioralServer) RegisterCondition(context.Context, *behavioralpb.RegisterConditionRequest) (*behavioralpb.RegisterConditionResponse, error) {
+	return &behavioralpb.RegisterConditionResponse{}, nil
+}
+func (f *fakeBehavioralServer) RunContradictionCheck(context.Context, *behavioralpb.RunContradictionCheckRequest) (*behavioralpb.RunContradictionCheckResponse, error) {
+	return &behavioralpb.RunContradictionCheckResponse{}, nil
+}
 func (f *fakeBehavioralServer) ProposePrinciple(_ context.Context, r *behavioralpb.ProposePrincipleRequest) (*behavioralpb.ProposePrincipleResponse, error) {
 	return &behavioralpb.ProposePrincipleResponse{PrincipleId: "princ-1", Status: behavioralpb.GovernanceStatus_PROPOSED_PRINCIPLE}, nil
 }
