@@ -31,10 +31,17 @@ type Core interface {
 	RecordEvidence(ctx context.Context, req *RecordEvidenceRequest) (*RecordEvidenceResponse, error)
 	MapAuthority(ctx context.Context, req *MapAuthorityRequest) (*MapAuthorityResponse, error)
 	RecordContradiction(ctx context.Context, req *RecordContradictionRequest) (*RecordContradictionResponse, error)
+	// RegisterCondition adds a runtime condition to the domain catalog through a
+	// governed public path so a principle's applies_when refs resolve at the gate.
+	RegisterCondition(ctx context.Context, req *RegisterConditionRequest) (*RegisterConditionResponse, error)
 
 	// Governance.
 	ProposePrinciple(ctx context.Context, req *ProposePrincipleRequest) (*ProposePrincipleResponse, error)
 	PromotePrinciple(ctx context.Context, req *PromotePrincipleRequest) (*PromotePrincipleResponse, error)
+	// RunContradictionCheck performs the contradiction check for a principle and
+	// records the result (sets ContradictionChecked only after a real check) — the
+	// governed completion path for the promotion gate's contradiction requirement.
+	RunContradictionCheck(ctx context.Context, req *RunContradictionCheckRequest) (*RunContradictionCheckResponse, error)
 	RevokePrinciple(ctx context.Context, req *RevokePrincipleRequest) (*RevokePrincipleResponse, error)
 	ExplainPrinciple(ctx context.Context, req *ExplainPrincipleRequest) (*ExplainPrincipleResponse, error)
 

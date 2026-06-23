@@ -36,6 +36,20 @@ type RecordContradictionRequest struct {
 	Contradiction Contradiction
 }
 
+// RegisterConditionRequest registers a runtime condition into the domain catalog
+// (governed path so principles' applies_when refs resolve at the promotion gate).
+type RegisterConditionRequest struct {
+	Condition Condition
+}
+
+// RunContradictionCheckRequest runs the contradiction check for a principle.
+type RunContradictionCheckRequest struct {
+	PrincipleID string
+	Project     string
+	Domain      DomainRef
+	Actor       string
+}
+
 // ProposePrincipleRequest creates a candidate principle.
 type ProposePrincipleRequest struct {
 	Principle Principle

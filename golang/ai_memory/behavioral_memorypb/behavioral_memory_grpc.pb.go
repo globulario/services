@@ -24,6 +24,8 @@ const (
 	BehavioralMemoryService_RecordEvidence_FullMethodName               = "/behavioral_memory.BehavioralMemoryService/RecordEvidence"
 	BehavioralMemoryService_MapAuthority_FullMethodName                 = "/behavioral_memory.BehavioralMemoryService/MapAuthority"
 	BehavioralMemoryService_RecordContradiction_FullMethodName          = "/behavioral_memory.BehavioralMemoryService/RecordContradiction"
+	BehavioralMemoryService_RegisterCondition_FullMethodName            = "/behavioral_memory.BehavioralMemoryService/RegisterCondition"
+	BehavioralMemoryService_RunContradictionCheck_FullMethodName        = "/behavioral_memory.BehavioralMemoryService/RunContradictionCheck"
 	BehavioralMemoryService_ProposePrinciple_FullMethodName             = "/behavioral_memory.BehavioralMemoryService/ProposePrinciple"
 	BehavioralMemoryService_PromotePrinciple_FullMethodName             = "/behavioral_memory.BehavioralMemoryService/PromotePrinciple"
 	BehavioralMemoryService_RevokePrinciple_FullMethodName              = "/behavioral_memory.BehavioralMemoryService/RevokePrinciple"
@@ -71,6 +73,18 @@ type BehavioralMemoryServiceClient interface {
 	// RecordContradiction records conflicts between claims, evidence, conditions
 	// or rules — contradictions are surfaced, never hidden.
 	RecordContradiction(ctx context.Context, in *RecordContradictionRequest, opts ...grpc.CallOption) (*RecordContradictionResponse, error)
+	// RegisterCondition adds a runtime condition to the domain catalog through a
+	// governed public path, so a principle's applies_when refs resolve at the
+	// promotion gate. Replaces the test-only store.PutCondition seam: promotion
+	// must be reachable through the kernel's own surface, never direct store writes.
+	RegisterCondition(ctx context.Context, in *RegisterConditionRequest, opts ...grpc.CallOption) (*RegisterConditionResponse, error)
+	// RunContradictionCheck performs the contradiction check for a principle
+	// (scanning promoted principles for conflicting forbidden-moves) and records
+	// the result. It sets ContradictionChecked only after a real check; any
+	// conflict found is recorded as an open contradiction the gate then surfaces.
+	// This is the governed completion path for the gate's contradiction-check
+	// requirement — replacing test-only ContradictionChecked fixture state.
+	RunContradictionCheck(ctx context.Context, in *RunContradictionCheckRequest, opts ...grpc.CallOption) (*RunContradictionCheckResponse, error)
 	// ProposePrinciple creates a candidate behavioral rule (not yet enforced).
 	ProposePrinciple(ctx context.Context, in *ProposePrincipleRequest, opts ...grpc.CallOption) (*ProposePrincipleResponse, error)
 	// PromotePrinciple promotes a candidate only after the governance gate passes
@@ -165,6 +179,26 @@ func (c *behavioralMemoryServiceClient) RecordContradiction(ctx context.Context,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RecordContradictionResponse)
 	err := c.cc.Invoke(ctx, BehavioralMemoryService_RecordContradiction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *behavioralMemoryServiceClient) RegisterCondition(ctx context.Context, in *RegisterConditionRequest, opts ...grpc.CallOption) (*RegisterConditionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterConditionResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_RegisterCondition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *behavioralMemoryServiceClient) RunContradictionCheck(ctx context.Context, in *RunContradictionCheckRequest, opts ...grpc.CallOption) (*RunContradictionCheckResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunContradictionCheckResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_RunContradictionCheck_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -324,6 +358,18 @@ type BehavioralMemoryServiceServer interface {
 	// RecordContradiction records conflicts between claims, evidence, conditions
 	// or rules — contradictions are surfaced, never hidden.
 	RecordContradiction(context.Context, *RecordContradictionRequest) (*RecordContradictionResponse, error)
+	// RegisterCondition adds a runtime condition to the domain catalog through a
+	// governed public path, so a principle's applies_when refs resolve at the
+	// promotion gate. Replaces the test-only store.PutCondition seam: promotion
+	// must be reachable through the kernel's own surface, never direct store writes.
+	RegisterCondition(context.Context, *RegisterConditionRequest) (*RegisterConditionResponse, error)
+	// RunContradictionCheck performs the contradiction check for a principle
+	// (scanning promoted principles for conflicting forbidden-moves) and records
+	// the result. It sets ContradictionChecked only after a real check; any
+	// conflict found is recorded as an open contradiction the gate then surfaces.
+	// This is the governed completion path for the gate's contradiction-check
+	// requirement — replacing test-only ContradictionChecked fixture state.
+	RunContradictionCheck(context.Context, *RunContradictionCheckRequest) (*RunContradictionCheckResponse, error)
 	// ProposePrinciple creates a candidate behavioral rule (not yet enforced).
 	ProposePrinciple(context.Context, *ProposePrincipleRequest) (*ProposePrincipleResponse, error)
 	// PromotePrinciple promotes a candidate only after the governance gate passes
@@ -387,6 +433,12 @@ func (UnimplementedBehavioralMemoryServiceServer) MapAuthority(context.Context, 
 }
 func (UnimplementedBehavioralMemoryServiceServer) RecordContradiction(context.Context, *RecordContradictionRequest) (*RecordContradictionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecordContradiction not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) RegisterCondition(context.Context, *RegisterConditionRequest) (*RegisterConditionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterCondition not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) RunContradictionCheck(context.Context, *RunContradictionCheckRequest) (*RunContradictionCheckResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunContradictionCheck not implemented")
 }
 func (UnimplementedBehavioralMemoryServiceServer) ProposePrinciple(context.Context, *ProposePrincipleRequest) (*ProposePrincipleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ProposePrinciple not implemented")
@@ -530,6 +582,42 @@ func _BehavioralMemoryService_RecordContradiction_Handler(srv interface{}, ctx c
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BehavioralMemoryServiceServer).RecordContradiction(ctx, req.(*RecordContradictionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BehavioralMemoryService_RegisterCondition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterConditionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).RegisterCondition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_RegisterCondition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).RegisterCondition(ctx, req.(*RegisterConditionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BehavioralMemoryService_RunContradictionCheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunContradictionCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).RunContradictionCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_RunContradictionCheck_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).RunContradictionCheck(ctx, req.(*RunContradictionCheckRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -776,6 +864,14 @@ var BehavioralMemoryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecordContradiction",
 			Handler:    _BehavioralMemoryService_RecordContradiction_Handler,
+		},
+		{
+			MethodName: "RegisterCondition",
+			Handler:    _BehavioralMemoryService_RegisterCondition_Handler,
+		},
+		{
+			MethodName: "RunContradictionCheck",
+			Handler:    _BehavioralMemoryService_RunContradictionCheck_Handler,
 		},
 		{
 			MethodName: "ProposePrinciple",

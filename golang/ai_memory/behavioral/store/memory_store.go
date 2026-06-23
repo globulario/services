@@ -293,6 +293,18 @@ func (m *MemoryStore) UpdatePrincipleStatus(_ context.Context, project, domain, 
 	return nil
 }
 
+func (m *MemoryStore) SetPrincipleContradictionChecked(_ context.Context, project, domain, id string, checked bool, updatedAt int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.principles[key(project, domain, id)]
+	if !ok {
+		return ErrNotFound
+	}
+	p.ContradictionChecked = checked
+	p.Provenance.UpdatedAt = updatedAt
+	return nil
+}
+
 func (m *MemoryStore) RecordPromotionDecision(_ context.Context, d *api.PromotionDecisionRecord) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

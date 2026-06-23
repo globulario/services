@@ -78,6 +78,34 @@ service BehavioralMemoryService {
         };
     };
 
+    // RegisterCondition adds a runtime condition to the domain catalog through a
+    // governed public path, so a principle's applies_when refs resolve at the
+    // promotion gate. Replaces the test-only store.PutCondition seam: promotion
+    // must be reachable through the kernel's own surface, never direct store writes.
+    rpc RegisterCondition(RegisterConditionRequest) returns (RegisterConditionResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/conditions"
+            default_role_hint: "operator"
+        };
+    };
+
+    // RunContradictionCheck performs the contradiction check for a principle
+    // (scanning promoted principles for conflicting forbidden-moves) and records
+    // the result. It sets ContradictionChecked only after a real check; any
+    // conflict found is recorded as an open contradiction the gate then surfaces.
+    // This is the governed completion path for the gate's contradiction-check
+    // requirement — replacing test-only ContradictionChecked fixture state.
+    rpc RunContradictionCheck(RunContradictionCheckRequest) returns (RunContradictionCheckResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/contradictions"
+            default_role_hint: "operator"
+        };
+    };
+
     // ── Governance ────────────────────────────────────────────────────────────
 
     // ProposePrinciple creates a candidate behavioral rule (not yet enforced).
@@ -667,6 +695,20 @@ message MapAuthorityResponse { GovernanceStatus status = 1; }
 
 message RecordContradictionRequest  { Contradiction contradiction = 1; }
 message RecordContradictionResponse { string contradiction_id = 1; }
+
+message RegisterConditionRequest  { Condition condition = 1; }
+message RegisterConditionResponse { string condition_id = 1; GovernanceStatus status = 2; }
+
+message RunContradictionCheckRequest {
+    string principle_id = 1;
+    string project      = 2;
+    string domain       = 3;
+    string actor        = 4; // who ran the check (recorded)
+}
+message RunContradictionCheckResponse {
+    bool            contradiction_checked  = 1; // true once a real check completed
+    repeated string open_contradiction_ids = 2; // conflicts found (gate surfaces these)
+}
 
 message ProposePrincipleRequest  { Principle principle = 1; }
 message ProposePrincipleResponse { string principle_id = 1; GovernanceStatus status = 2; }
