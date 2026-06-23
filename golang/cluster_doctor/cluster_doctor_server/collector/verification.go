@@ -459,6 +459,7 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 				ApplyTime:                 installInfo.applyTime,
 				ApplyTimeSource:           installInfo.applyTimeSource,
 				IsFirstInstall:            installInfo.isFirstInstall,
+				OldPidBoundary:            installInfo.oldPidBoundary,
 				WrapsUpstreamBinary:       dst.WrapsUpstreamBinary,
 			}
 			ev := verifier.Evidence{
@@ -505,6 +506,7 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 			ApplyTime:                 installInfo.applyTime,
 			ApplyTimeSource:           installInfo.applyTimeSource,
 			IsFirstInstall:            installInfo.isFirstInstall,
+			OldPidBoundary:            installInfo.oldPidBoundary,
 			WrapsUpstreamBinary:       dst.WrapsUpstreamBinary,
 		}
 		ev := verifier.Evidence{
@@ -550,6 +552,7 @@ func (c *Collector) runVerification(ctx context.Context, snap *Snapshot) {
 				ApplyTime:                 installInfo.applyTime,
 				ApplyTimeSource:           installInfo.applyTimeSource,
 				IsFirstInstall:            installInfo.isFirstInstall,
+				OldPidBoundary:            installInfo.oldPidBoundary,
 				WrapsUpstreamBinary:       dst.WrapsUpstreamBinary,
 			}
 			ev := verifier.Evidence{
@@ -572,6 +575,66 @@ type perNodeInstallInfo struct {
 	applyTime       time.Time
 	applyTimeSource string
 	isFirstInstall  bool
+	// oldPidBoundary is the STABLE apply/restart boundary for the verifier's
+	// old_pid_after_upgrade timing check — InstalledUnix (which does not move on
+	// a no-op metadata reconcile), falling back to UpdatedUnix only when
+	// InstalledUnix is zero. Distinct from applyTime (=max), which stays recent
+	// for the Day-0/post-upgrade grace window.
+	oldPidBoundary time.Time
+}
+
+// resolveInstallTimings computes the verifier timing facts from a package's raw
+// (installedUnix, updatedUnix) — the pure core of resolvePerNodeInstallInfo,
+// separated so the timing semantics are unit-testable without etcd. Returns
+// ok=false when neither timestamp is set (caller falls through to the next kind
+// or the release-level fallback).
+//
+// Two DISTINCT timestamps, by design, because two consumers need opposite things:
+//   - applyTime = max(installedUnix, updatedUnix): deliberately RECENT so the
+//     Day-0/post-upgrade grace window (isDay0UnprovenGrace) suppresses false
+//     runtime_identity_unproven while a restarted process's proof is pending.
+//   - oldPidBoundary = InstalledUnix (the stable first-install/apply anchor),
+//     falling back to UpdatedUnix only when InstalledUnix is zero. This is what
+//     the old_pid_after_upgrade timing check compares against. Because a no-op
+//     metadata reconcile bumps ONLY UpdatedUnix, using InstalledUnix here means
+//     such a bump can no longer fabricate a stale-process finding on a healthy,
+//     un-restarted PID.
+func resolveInstallTimings(installedUnix, updatedUnix int64) (perNodeInstallInfo, bool) {
+	// applyTime (grace window) = most-recent of the two.
+	latestUnix := installedUnix
+	source := "installed_package.installed_unix"
+	if updatedUnix > latestUnix {
+		latestUnix = updatedUnix
+		source = "installed_package.updated_unix"
+	}
+	if latestUnix == 0 {
+		return perNodeInstallInfo{}, false
+	}
+
+	// oldPidBoundary (old_pid timing check) = stable InstalledUnix; UpdatedUnix
+	// only as a fallback when InstalledUnix is absent.
+	boundaryUnix := installedUnix
+	if boundaryUnix == 0 {
+		boundaryUnix = updatedUnix
+	}
+	var oldPidBoundary time.Time
+	if boundaryUnix > 0 {
+		oldPidBoundary = time.Unix(boundaryUnix, 0)
+	}
+
+	// IsFirstInstall: installed and updated within 60s = same operation (Day-0 install).
+	// A fresh install records installedUnix ≈ updatedUnix; any subsequent re-apply
+	// bumps updatedUnix while leaving installedUnix alone.
+	delta := updatedUnix - installedUnix
+	if delta < 0 {
+		delta = -delta
+	}
+	return perNodeInstallInfo{
+		applyTime:       time.Unix(latestUnix, 0),
+		applyTimeSource: source,
+		isFirstInstall:  installedUnix > 0 && delta <= 60,
+		oldPidBoundary:  oldPidBoundary,
+	}, true
 }
 
 // resolvePerNodeInstallInfo resolves install facts for one (nodeID, service)
@@ -601,43 +664,20 @@ func resolvePerNodeInstallInfo(ctx context.Context, nodeID string, dst *DesiredS
 		if err != nil || pkg == nil {
 			continue
 		}
-		installedUnix := pkg.GetInstalledUnix()
-		updatedUnix := pkg.GetUpdatedUnix()
-
-		// ApplyTime = most-recent of installedUnix and updatedUnix.
-		// On fresh install both are the same. On upgrade updatedUnix is newer.
-		// Using the latest gives the verifier an accurate "when was this last
-		// applied" so the grace window fires correctly for both installs and upgrades.
-		latestUnix := installedUnix
-		source := "installed_package.installed_unix"
-		if updatedUnix > latestUnix {
-			latestUnix = updatedUnix
-			source = "installed_package.updated_unix"
-		}
-		if latestUnix == 0 {
-			continue
-		}
-		applyTime := time.Unix(latestUnix, 0)
-
-		// IsFirstInstall: installed and updated within 60s = same operation (Day-0 install).
-		// A fresh install records installedUnix ≈ updatedUnix; any subsequent re-apply
-		// bumps updatedUnix while leaving installedUnix alone.
-		delta := updatedUnix - installedUnix
-		if delta < 0 {
-			delta = -delta
-		}
-		return perNodeInstallInfo{
-			applyTime:       applyTime,
-			applyTimeSource: source,
-			isFirstInstall:  installedUnix > 0 && delta <= 60,
+		if info, ok := resolveInstallTimings(pkg.GetInstalledUnix(), pkg.GetUpdatedUnix()); ok {
+			return info
 		}
 	}
 	// Last resort: release-level transition time. Must be explicit fallback.
+	// No per-node installed-state exists, so the old_pid boundary can only be
+	// the same release-level time — the verifier falls back to ApplyTime anyway
+	// when oldPidBoundary is zero, so leaving it equal is explicit, not lossy.
 	if !dst.ApplyTime.IsZero() {
 		return perNodeInstallInfo{
 			applyTime:       dst.ApplyTime,
 			applyTimeSource: "release.last_transition_fallback",
 			isFirstInstall:  false, // conservative default — missing installed-state doesn't make old PIDs benign
+			oldPidBoundary:  dst.ApplyTime,
 		}
 	}
 	return perNodeInstallInfo{applyTimeSource: "unknown"}
