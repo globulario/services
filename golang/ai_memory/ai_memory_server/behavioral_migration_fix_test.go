@@ -66,3 +66,52 @@ func TestBehavioralSchemaPR9ColumnsHaveBackfillAlter(t *testing.T) {
 		}
 	}
 }
+
+// v10 regression: ListPromotionCandidates / ListReconciliationReports failed at
+// runtime with ScyllaDB's ALLOW FILTERING error because they enumerated the entity
+// table by the (project,domain) PREFIX of a composite ((project,domain,id))
+// partition key. The fix lists from dedicated single-partition by-scope indexes
+// keyed ((project,domain), id). This guards that (a) those index tables are part of
+// the schema and (b) the schema version was bumped so already-"complete" clusters
+// re-run the migration and create them.
+func TestBehavioralListByScopeIndexesPresent(t *testing.T) {
+	has := func(substr string) bool {
+		for _, s := range behavioralSchemaStatements {
+			if strings.Contains(s, substr) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, tbl := range []string{
+		"CREATE TABLE IF NOT EXISTS behavioral_memory.promotion_candidates_by_scope (",
+		"CREATE TABLE IF NOT EXISTS behavioral_memory.reconciliation_reports_by_scope (",
+	} {
+		if !has(tbl) {
+			t.Errorf("missing list-by-scope index in behavioralSchemaStatements: %q — List RPCs will hit ALLOW FILTERING", tbl)
+		}
+	}
+	// Both index tables must partition by ((project, domain)) so a (project,domain)
+	// list is a single-partition read, not a partition-key-prefix scan.
+	for _, key := range []string{
+		"behavioral_memory.promotion_candidates_by_scope",
+		"behavioral_memory.reconciliation_reports_by_scope",
+	} {
+		found := false
+		for _, s := range behavioralSchemaStatements {
+			if strings.Contains(s, key) && strings.Contains(s, "PRIMARY KEY ((project, domain), id)") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s must declare PRIMARY KEY ((project, domain), id) for single-partition listing", key)
+		}
+	}
+	// Adding tables without bumping the version leaves already-"complete" clusters
+	// on the old schema (the migration fast-path-skips them), so the indexes never
+	// get created and the live List RPCs stay broken.
+	if behavioralSchemaVersion < 10 {
+		t.Errorf("behavioralSchemaVersion=%d but the by-scope indexes require >=10 to force re-migration", behavioralSchemaVersion)
+	}
+}

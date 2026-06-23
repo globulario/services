@@ -86,3 +86,25 @@
   generated_from:
     - opsknowledge:runbooks
     - opsknowledge:incidents
+- id: principle.cluster.deploy_through_release_pipeline_never_hot_swap
+  title: Deploy through the release pipeline, never hot-swap a binary
+  applies_when:
+    - condition.always
+    - condition.cluster.service.binary_update_intended
+  authorities:
+    - authority.cluster.release_pipeline.deployed_identity
+  required_evidence: []
+  forbidden_moves:
+    - forbidden.cluster.hot_swap_binary_outside_release_pipeline
+  recommended_action: >-
+    To change what a service runs, go through the release pipeline (globular deploy /
+    package_build + package_publish + reconcile) so version and checksum stay coherent
+    across the 4-layer model; never cp-swap or hot-deploy a locally-built binary.
+  risk_level: high
+  revocation_rule: narrow if the deploy pipeline gains a sanctioned in-place replacement path that preserves version+checksum identity
+  promotion_reason: hot-swapping locally-built binaries caused version/checksum drift, broken leader election, and permanent /proc drift; this is the most repeated deploy-time scar
+  source_refs:
+    - seed:operational-knowledge/incidents
+  generated_from:
+    - opsknowledge:incidents
+    - opsknowledge:package-anti-patterns

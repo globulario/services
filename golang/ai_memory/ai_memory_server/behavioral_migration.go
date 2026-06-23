@@ -73,8 +73,12 @@ const (
 	// clusters already marked complete-but-missing-columns; v9 completes the
 	// evidence backfill (source_kind/source_ref/entity_ref — added to evidence in
 	// PR-9 but missed by the v8 backfill; surfaced live as RecordEvidence
-	// "Unknown identifier source_kind" when the infra_probe feed went active).
-	behavioralSchemaVersion = 9
+	// "Unknown identifier source_kind" when the infra_probe feed went active);
+	// v10 adds promotion_candidates_by_scope / reconciliation_reports_by_scope —
+	// single-partition list indexes that fix the ListPromotionCandidates /
+	// ListReconciliationReports ALLOW FILTERING failure (a (project,domain) prefix
+	// query against a composite ((project,domain,id)) partition key).
+	behavioralSchemaVersion = 10
 )
 
 // runBehavioralSchemaWithCoordination applies the behavioral_memory schema under

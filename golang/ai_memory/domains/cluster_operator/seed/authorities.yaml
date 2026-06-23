@@ -30,3 +30,8 @@
   owner_kind: human
   governs: product intent and risky/irreversible operations
   read_path: explicit operator approval
+- id: authority.cluster.release_pipeline.deployed_identity
+  title: Release-pipeline deployed-identity authority
+  owner_kind: service_rpc
+  governs: the version + checksum identity of a deployed service binary across the 4-layer model
+  read_path: repository active release / release-index.json + node-agent installed-package state

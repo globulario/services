@@ -624,6 +624,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("upsert promotion candidate: %w", err)
 	}
+	// Maintain the by-scope list index (single-partition enumeration; see
+	// promotion_candidates_by_scope). Upsert is idempotent on (project,domain,id).
+	const idx = `INSERT INTO behavioral_memory.promotion_candidates_by_scope (project, domain, id) VALUES (?, ?, ?)`
+	if err := s.session.Query(idx, c.Project, string(c.Domain), c.ID).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("index promotion candidate by scope: %w", err)
+	}
 	return nil
 }
 
@@ -658,7 +664,11 @@ FROM behavioral_memory.promotion_candidates WHERE project = ? AND domain = ? AND
 }
 
 func (s *ScyllaStore) ListPromotionCandidates(ctx context.Context, project, domain, theme string, status api.PromotionCandidateStatus, limit int32) ([]api.PromotionCandidate, error) {
-	const q = `SELECT id FROM behavioral_memory.promotion_candidates WHERE project = ? AND domain = ?`
+	// Enumerate ids from the single-partition by-scope index. Listing directly
+	// from promotion_candidates would be a (project,domain) prefix query against a
+	// composite ((project,domain,id)) partition key — rejected without ALLOW
+	// FILTERING. theme/status are filtered in memory below against the entity row.
+	const q = `SELECT id FROM behavioral_memory.promotion_candidates_by_scope WHERE project = ? AND domain = ?`
 	iter := s.session.Query(q, project, domain).WithContext(ctx).Iter()
 	var id string
 	var out []api.PromotionCandidate
@@ -703,6 +713,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("put reconciliation report: %w", err)
 	}
+	// Maintain the by-scope list index (single-partition enumeration; see
+	// reconciliation_reports_by_scope). Idempotent on (project,domain,id).
+	const idx = `INSERT INTO behavioral_memory.reconciliation_reports_by_scope (project, domain, id) VALUES (?, ?, ?)`
+	if err := s.session.Query(idx, r.Project, string(r.Domain), r.ID).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("index reconciliation report by scope: %w", err)
+	}
 	return nil
 }
 
@@ -723,7 +739,9 @@ FROM behavioral_memory.reconciliation_reports WHERE project = ? AND domain = ? A
 }
 
 func (s *ScyllaStore) ListReconciliationReports(ctx context.Context, project, domain, theme, promotionCandidateID string, limit int32) ([]api.ReconciliationReport, error) {
-	const q = `SELECT id FROM behavioral_memory.reconciliation_reports WHERE project = ? AND domain = ?`
+	// Enumerate ids from the single-partition by-scope index (see
+	// ListPromotionCandidates for why the entity table cannot be listed directly).
+	const q = `SELECT id FROM behavioral_memory.reconciliation_reports_by_scope WHERE project = ? AND domain = ?`
 	iter := s.session.Query(q, project, domain).WithContext(ctx).Iter()
 	var id string
 	var out []api.ReconciliationReport

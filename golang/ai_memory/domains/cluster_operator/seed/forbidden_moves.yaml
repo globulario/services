@@ -26,3 +26,9 @@
   reason: collapsing decide/execute authority puts execution into a decision service
   recommended_behavior: Keep decide/coordinate/execute separate — controller decides, workflow coordinates, node-agent executes.
   safe_next_step: dispatch a workflow rather than executing locally from the controller
+- id: forbidden.cluster.hot_swap_binary_outside_release_pipeline
+  title: Hot-swap a service binary outside the release pipeline (cp-swap / local build)
+  reason: a locally-built or cp-swapped binary has no ldflags version and a different checksum, so the 4-layer truth model (repository → desired → installed → runtime) diverges — runtime drift, broken leader election, and a deleted-inode binary that reports drift forever
+  recommended_behavior: Deploy every binary change through the release pipeline (globular deploy / package_build + package_publish + reconcile) so version and checksum stay coherent across all four layers; walk the lane.
+  safe_next_step: resolve authority.cluster.release_pipeline.deployed_identity (repository active release + node-agent installed state) before changing what a service runs
+  action_aliases: replace_binary_in_place, direct_binary_replacement, cp_swap_binary, hot_deploy_binary, hot_swap_binary, scp_binary_to_node, deploy_local_build

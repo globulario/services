@@ -1,4 +1,12 @@
 # cluster_operator condition catalog — runtime conditions that scope rules.
+# condition.always is the unconditional sentinel: a principle promoted under it is
+# evaluated on EVERY check/resolve regardless of declared conditions (the kernel
+# always adds it — see core.AlwaysConditionRef). Applicability is not a block; an
+# always-applicable principle still only blocks when its forbidden move matches.
+- id: condition.always
+  title: Always applicable (unconditional sentinel)
+  severity: info
+  detect_spec: always true — used to promote universal hard-rules that must always be evaluated
 - id: condition.cluster.etcd.nospace_alarm
   title: etcd NOSPACE alarm raised
   severity: high
@@ -23,3 +31,7 @@
   title: Node removal requested
   severity: warning
   detect_spec: an operator/workflow requested removal of a node
+- id: condition.cluster.service.binary_update_intended
+  title: A service binary update/replacement is intended
+  severity: high
+  detect_spec: an agent intends to change the binary a running service executes (deploy, upgrade, hot-fix, or cp-swap)
