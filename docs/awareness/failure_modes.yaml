@@ -1,4 +1,52 @@
 failure_modes:
+    - id: deploy.binary_copy_bypasses_package_pipeline_and_splits_cluster
+      title: Deploying a service binary by direct copy into /usr/lib/globular/bin (+ manual systemctl restart) bypasses the 4-layer package pipeline
+      severity: high
+      root_cause: |
+        2026-06-23 scar: to expose a new MCP tool, an agent proposed
+        `sudo cp /tmp/mcp_server-new /usr/lib/globular/bin/mcp_server && systemctl
+        restart globular-mcp` — the EXPLICITLY forbidden pattern in
+        docs/operational-knowledge/deploy-package-via-mcp.md. Binaries under
+        /usr/lib/globular/bin are package-pipeline outputs ONLY (ai-memory
+        ops.artifacts.root-layout). A hand-built binary has a different sha256 than the
+        published artifact: the verifier fires package.installed_binary_hash_mismatch;
+        etcd installed-state still points at the old build_id (Layer 3 lies); only one
+        node changes (cluster splits); the reconciler overwrites it anyway. Root
+        GOVERNANCE cause: code edits are push-gated (enforce-briefing) but RUNTIME
+        operations were discipline-only, so generic sysadmin instinct leaked through
+        with no gate.
+      symptoms:
+        - package.installed_binary_hash_mismatch finding for the service
+        - release boundary INDETERMINATE/FAILED for the service (installed != published)
+        - one node on a different binary than the rest; reconciler reverts the change
+      forbidden_fixes:
+        - cp/mv/install/rsync/ln/tee/dd/redirect of a binary into /usr/lib/globular/bin
+        - manual `systemctl restart|stop|start globular-<svc>` to pick up a swapped binary
+        - any direct binary replacement that bypasses Repository->Desired->Installed->Runtime
+      resolution: |
+        MECHANIZED 2026-06-23. Correct path is the 4-layer pipeline
+        (docs/operational-knowledge/deploy-package-via-mcp.md): build -ldflags+trimpath
+        -> package_build -> package_publish (repository assigns build_id) ->
+        `globular services desired set <svc> <v>` -> `globular services repair`
+        (node-agent verifies sha256+build_id, installs, restarts); wrapper
+        `globular deploy <svc> --bump patch`. A runtime-op push-gate was added —
+        .claude/hooks/enforce-deploy-contract.sh (PreToolUse Bash) hard-denies writes
+        INTO /usr/lib/globular/bin and manual systemctl lifecycle of globular-* units —
+        making the runtime-op gate SYMMETRIC with the code-edit gate (enforce-briefing).
+        A governed behavioral principle (forbidden_moves: direct_binary_replacement,
+        manual_systemctl_restart_globular_unit) is drafted for behavioral_check_action;
+        its propose call is currently blocked by a behavioral-service routing outage
+        (HTML/200 through the gateway) — to promote when reachable.
+      no_test_yet_reason: |
+        The guard is a Claude Code PreToolUse hook
+        (.claude/hooks/enforce-deploy-contract.sh), not a Go regression test — a hook is
+        the correct enforcement surface for a runtime OPERATION (it gates the agent's
+        Bash, where a Go unit test cannot reach). It was verified at authoring time by a
+        deterministic command matrix: 9 forbidden patterns DENY (cp/mv/install/ln/tee/dd/
+        redirect into the bin dir, systemctl restart/stop globular-*) and 8 legitimate
+        ops ALLOW (reads, backups OUT of the bin dir, read-only systemctl, and the real
+        pipeline / `globular deploy` / `globular services repair`). The forbidden pattern
+        is also recalled from ai-memory (feedback tag `always`).
     - id: ci.merge_authority_requires_explicit_check_success
       title: Merge trusted a summarized CI status (gh --watch exit code) instead of explicit per-check pass state
       severity: high
