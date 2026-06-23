@@ -33,10 +33,16 @@ failure_modes:
         .claude/hooks/enforce-deploy-contract.sh (PreToolUse Bash) hard-denies writes
         INTO /usr/lib/globular/bin and manual systemctl lifecycle of globular-* units —
         making the runtime-op gate SYMMETRIC with the code-edit gate (enforce-briefing).
-        A governed behavioral principle (forbidden_moves: direct_binary_replacement,
-        manual_systemctl_restart_globular_unit) is drafted for behavioral_check_action;
-        its propose call is currently blocked by a behavioral-service routing outage
-        (HTML/200 through the gateway) — to promote when reachable.
+        A governed behavioral principle is now the SECOND enforcement surface: principle
+        8a1cdef8-67e9-40ba-9208-78f45edd854e ("Service binaries change only through the
+        package deploy pipeline, never direct replacement") was PROMOTED 2026-06-23
+        through behavioral-memory's own governed surface (RegisterCondition x3 +
+        RunContradictionCheck + PromotePrinciple with approved_by=dave; ai-memory 1.2.234,
+        PR #64) — no back-channel writes, no fixture bits. behavioral_check_action now
+        hard-blocks its 6 forbidden_moves (cp/mv/install_binary_into_usr_lib_globular_bin,
+        deploy_service_via_binary_copy, direct_binary_replacement_bypassing_pipeline,
+        manual_systemctl_restart_globular_unit) under the applies_when conditions, making
+        the policy kernel SYMMETRIC with both the runtime-op hook and the code-edit gate.
       no_test_yet_reason: |
         The guard is a Claude Code PreToolUse hook
         (.claude/hooks/enforce-deploy-contract.sh), not a Go regression test — a hook is
@@ -47,6 +53,19 @@ failure_modes:
         ops ALLOW (reads, backups OUT of the bin dir, read-only systemctl, and the real
         pipeline / `globular deploy` / `globular services repair`). The forbidden pattern
         is also recalled from ai-memory (feedback tag `always`).
+
+        WALKED END-TO-END 2026-06-23 ("walk the lane" — the agent deliberately attempted
+        the forbidden hotfix on ITSELF, to confirm the controls bind their own builder):
+        (1) behavioral_check_action(action_type=cp_binary_into_usr_lib_globular_bin,
+        conditions=[hotfixing_a_running_globular_service,
+        changing_a_service_or_infrastructure_binary_on_a_node]) returned allowed=false,
+        status=blocked, violated_principles=[8a1cdef8] (audit 12396bc6); (2) the actual
+        `sudo cp /tmp/ai_memory_server /usr/lib/globular/bin/ai_memory_server` was then
+        DENIED by the PreToolUse hook before it executed. Two independent surfaces blocked
+        the same class. RE-RUN as a regression guard: with principle 8a1cdef8 PROMOTED, a
+        CheckAction for any of the 6 forbidden_moves under the applies_when conditions must
+        return status=blocked; and a raw write into /usr/lib/globular/bin must be
+        hook-denied. The only sanctioned override is a human running it via the `!` prefix.
     - id: ci.merge_authority_requires_explicit_check_success
       title: Merge trusted a summarized CI status (gh --watch exit code) instead of explicit per-check pass state
       severity: high
