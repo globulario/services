@@ -78,9 +78,11 @@ identity = (publisher, name, kind, version, build_id, platform)
 `kind` is declared **once** in `registry.yaml` and must agree everywhere
 (`package.json`, spec `metadata.kind`, systemd unit, `component_catalog.go`). It is
 carried on **every** desired/installed record keyed by `(kind, name)`. **No
-kind-blind tool may write it.** (Today `globular services desired set --force` can
-write a SERVICE record for an INFRASTRUCTURE package → permanent dispatch block.
-That is bug class #2; see §4 and §7.)
+kind-blind tool may write it.** (This was bug class #2: `globular services desired
+set xds --force` wrote a SERVICE record for an INFRASTRUCTURE package → permanent
+dispatch block. Closed at both surfaces — the controller routes by kind without a
+ghost (D1), and the CLI is kind-aware and fails closed with no `--force` escape
+hatch (D2). See §4 and §7.)
 
 ---
 
@@ -471,8 +473,9 @@ uphold, the **enforcement point**, and the **current gap**.
   (today only the operator path is guarded, and only with fresh heartbeats);
   kind-aware desired store; drift hash carries `build_id` and distinguishes
   "node ahead (desired regressed)" from "node behind (needs upgrade)".
-- **Gap:** regression guard partial; drift compares the version string only;
-  `services desired set --force` can write a cross-kind record.
+- **Gap:** regression guard partial; drift compares the version string only.
+  (Cross-kind `services desired set` writes are now closed: D1 — controller routes
+  by kind, no ghost; D2 — CLI is kind-aware, fail-closed, `--force` removed.)
 
 ### Stage 7 — Install
 - **Owner / SoT:** node-agent — installed-state (etcd + local receipts).

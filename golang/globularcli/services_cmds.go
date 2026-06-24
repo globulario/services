@@ -46,7 +46,6 @@ var (
 	svcDangerousImperative bool
 
 	// 'desired set' flags.
-	svcDesiredSetForce       bool
 	svcDesiredSetPublisher   string
 	svcDesiredSetBuildNumber int64
 )
@@ -195,7 +194,6 @@ func init() {
 	servicesApplyDesiredCmd.Flags().StringVar(&svcApplyRepoAddr, "repository", "", "Repository gRPC endpoint (auto-discovered if empty)")
 	servicesApplyDesiredCmd.Flags().BoolVar(&svcApplyRepoInsec, "repository-insecure", false, "Use plaintext for repository connection")
 
-	servicesDesiredSetCmd.Flags().BoolVar(&svcDesiredSetForce, "force", false, "Bypass kind validation (allow COMMAND/INFRASTRUCTURE packages)")
 	servicesDesiredSetCmd.Flags().StringVar(&svcDesiredSetPublisher, "publisher", "core@globular.io", "Publisher ID for kind lookup")
 	servicesDesiredSetCmd.Flags().Int64Var(&svcDesiredSetBuildNumber, "build-number", 0, "Pin to a specific build (0 = latest)")
 
@@ -513,29 +511,16 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 		version = cv
 	}
 
-	// Prevent polluting SERVICE desired-state with non-service packages
-	// (COMMAND, INFRASTRUCTURE). This is best-effort — if the repository
-	// can't be reached or the package isn't published yet, we skip the
-	// check rather than blocking the command. Use --force to bypass.
-	if !svcDesiredSetForce {
-		if kind, err := lookupArtifactKind(cmd, serviceID); err == nil && kind != 0 {
-			switch kind {
-			case repositorypb.ArtifactKind_COMMAND:
-				return fmt.Errorf(
-					"%s is a COMMAND package (e.g. CLI tool like claude/mc/yt-dlp), not a service.\n"+
-						"Services desired-state is only for SERVICE packages.\n"+
-						"Commands are installed directly via 'globular services apply-desired' when the\n"+
-						"spec is part of the package set, or you can scp/cp the binary manually.\n"+
-						"Use --force to override (not recommended).",
-					serviceID)
-			case repositorypb.ArtifactKind_INFRASTRUCTURE:
-				return fmt.Errorf(
-					"%s is an INFRASTRUCTURE package. Infrastructure releases use the\n"+
-						"InfrastructureRelease etcd key, not ServiceDesiredVersion.\n"+
-						"Use --force to override (not recommended).",
-					serviceID)
-			}
-		}
+	// Enforce desired.keyed_by_kind_and_name at the CLI edge: `services desired
+	// set` manages SERVICE desired state only. Resolve the package kind and refuse
+	// any non-SERVICE write — INFRASTRUCTURE/COMMAND have their own paths, and an
+	// unverifiable kind fails closed (the controller validates the artifact in the
+	// repository anyway, so an unpublished/unreachable package is rejected
+	// downstream regardless). No --force escape hatch: a cross-kind desired write
+	// must be hard to ask for — the xds incident was `... set xds --force`.
+	kind, lookupErr := lookupArtifactKind(cmd, serviceID)
+	if err := serviceDesiredKindGate(serviceID, kind, lookupErr); err != nil {
+		return err
 	}
 
 	autoDiscoverController(cmd)
@@ -570,6 +555,44 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 		}
 	}
 	return nil
+}
+
+// serviceDesiredKindGate enforces invariant desired.keyed_by_kind_and_name at
+// the `services desired set` edge (D2 — the CLI half of the D1 controller gate).
+// It is SERVICE-only and fails closed: it returns nil only for a verified SERVICE
+// package; INFRASTRUCTURE and COMMAND are refused to their own paths, and an
+// unverifiable kind (repository unreachable, or no published version) is refused
+// rather than silently passed through. There is deliberately no --force bypass —
+// the xds incident was `globular services desired set xds --force`.
+func serviceDesiredKindGate(name string, kind repositorypb.ArtifactKind, lookupErr error) error {
+	switch {
+	case kind == repositorypb.ArtifactKind_SERVICE:
+		return nil // verified SERVICE — proceed
+	case kind == repositorypb.ArtifactKind_INFRASTRUCTURE:
+		return fmt.Errorf(
+			"%s is an INFRASTRUCTURE package — `services desired set` manages SERVICE desired state only.\n"+
+				"Infrastructure releases use the InfrastructureRelease path (not ServiceDesiredVersion); set its\n"+
+				"desired version through the infrastructure release path instead.",
+			name)
+	case kind == repositorypb.ArtifactKind_COMMAND:
+		return fmt.Errorf(
+			"%s is a COMMAND package (CLI tool, e.g. claude/mc/yt-dlp), not a service —\n"+
+				"`services desired set` manages SERVICE desired state only. Commands ship via the package\n"+
+				"set / 'globular services apply-desired', not service desired state.",
+			name)
+	case lookupErr != nil:
+		return fmt.Errorf(
+			"cannot verify the kind of %s — repository unreachable: %v.\n"+
+				"`services desired set` fails closed on an unverifiable kind (desired.keyed_by_kind_and_name);\n"+
+				"retry when the repository is reachable.",
+			name, lookupErr)
+	default: // ArtifactKind_UNSPECIFIED — reachable, but no published version with a resolvable kind
+		return fmt.Errorf(
+			"cannot verify %s is a SERVICE package — no published version with a resolvable kind.\n"+
+				"`services desired set` fails closed on an unknown kind (desired.keyed_by_kind_and_name);\n"+
+				"publish the package first so its kind is resolvable, then retry.",
+			name)
+	}
 }
 
 // lookupArtifactKind asks the repository for any published version of the
