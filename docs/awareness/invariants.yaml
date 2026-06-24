@@ -2375,6 +2375,115 @@ invariants:
   - TestDesiredBuildIDImmutableAfterWrite
   - TestBuildIDNotResolvedAtNodeAgent
 - forbidden_fixes:
+  - use_binary_hash_as_convergence_identity
+  id: convergence.identity_is_build_id
+  implemented_by:
+  - file: golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+    trust: declared
+  - file: golang/cluster_controller/cluster_controller_server/handlers_health.go
+    trust: declared
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+    - golang/cluster_controller/cluster_controller_server/handlers_health.go
+    symbols:
+    - classifyPackageConvergence
+    - decideVersionVerdict
+  related_invariants:
+  - desired.build_id_immutable
+  - meta.identity_computation_must_be_invariant
+  required_tests:
+  - TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
+  - TestDriftReconciler_BuildIdMatchesAndBinaryMatches_NoDrift
+  severity: critical
+  status: active
+  summary: 'build_id (the server-generated UUID artifact identity) is the convergence
+    identity: desired-vs-installed convergence is decided by comparing build_id, never
+    the version string and never the binary verify hash. Version strings are display-only
+    and may collide or be reused across rebuilds; the binary verify hash answers a
+    different question (does the on-disk artifact match its manifest) and conflating it
+    with the convergence identity reintroduced the v1.2.119 regression in which the
+    convergence identity silently became the binary verify hash. Every convergence
+    verdict — classifyPackageConvergence, decideVersionVerdict, and drift
+    reconciliation — must key on build_id.
+
+    '
+  title: build_id is the convergence identity (not version string, not binary hash)
+  verified_by:
+  - TestDecideVersionVerdict_BuildIdsDiffer_VersionsDiffer_Mismatch
+  - TestDriftReconciler_BuildIdMatchesAndBinaryMatches_NoDrift
+- forbidden_fixes:
+  - cli_writes_cross_kind_desired_record
+  id: desired.keyed_by_kind_and_name
+  implemented_by:
+  - file: golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+    trust: declared
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+    - golang/globularcli/services_cmds.go
+    state:
+    - /globular/resources/ServiceDesiredVersion/
+    - /globular/resources/InfrastructureRelease/
+    symbols:
+    - upsertOne
+    - collectDesiredVersions
+    - RemoveDesiredService
+    - DeleteServiceDesiredVersion
+  related_failure_modes:
+  - service.desired_state.pipeline_gap
+  related_invariants:
+  - desired.build_id_immutable
+  - meta.identity_computation_must_be_invariant
+  required_tests:
+  - TestUpsertRejectsCrossKindDesiredRecord
+  severity: critical
+  status: active
+  summary: 'Desired-state records are identified by the pair (kind, name), not name alone. A write whose kind disagrees
+    with the package''s real kind (per the package registry) must be rejected — there is no --force bypass of the kind
+    check. Writing a SERVICE-kind ServiceDesiredVersion onto an INFRASTRUCTURE package (the xds cross-kind scar)
+    produces a desired record the reconciler can never converge: it sees desired SERVICE vs repo INFRASTRUCTURE and
+    permanently blocks dispatch with a kind mismatch, and there is no safe typed remediation for it. Infrastructure
+    desired state has its own first-class owner path (ApplyInfrastructureRelease).
+
+    '
+  title: Desired-state records are keyed by (kind, name); cross-kind writes are rejected
+- forbidden_fixes:
+  - materialize_desired_from_unverified_local_install
+  - overwrite_desired_build_id_silently
+  id: desired.no_regression_all_paths
+  implemented_by:
+  - file: golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+    trust: declared
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+    - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+    - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+    state:
+    - /globular/resources/ServiceDesiredVersion/
+    symbols:
+    - upsertOne
+    - reconcileDesiredFromRepository
+    - highestHealthyInstalledVersion
+  related_failure_modes:
+  - service.desired_state.pipeline_gap
+  related_invariants:
+  - desired.build_id_immutable
+  - convergence.identity_is_build_id
+  required_tests:
+  - TestDesiredVersionNoRegressionOnAllWritePaths
+  severity: critical
+  status: active
+  summary: 'The desired version must never regress on ANY write path — operator command, node-materialization
+    reconcile, or build-advance reconcile. A desired version that drops below the current desired creates permanent,
+    unconvergeable drift, because node-agent''s downgrade guard correctly refuses to install backward. Every write
+    path (UpsertDesiredService, reconcileDesiredFromRepository, materialize from observed install) must fail-closed
+    on downgrade rather than silently regress the pin; build_id is carried immutably.
+
+    '
+  title: Desired version must not regress on any write path
+- forbidden_fixes:
   - declare_installed_state_status_installed_when_runtime_identity_was_not_proved
   - mutate_desired_pin_to_whatever_installed_to_force_alignment
   - infer_desired_from_runtime_observation

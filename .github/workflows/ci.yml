@@ -154,10 +154,16 @@ jobs:
       # `awg audit -check` → embeddata-freshness PASS, 0 fail. continue-on-error
       # removed so freshness is now authoritative — a stale/non-deterministic seed
       # fails the build.
-      - name: Awareness audit (awg audit -check, hard gate)
+      # -warn-stale (GC-2): a services-side awareness addition changes the seed
+      # digest, so the committed awareness-graph seed lags until seed-rebuild.yml
+      # auto-commits it on merge to AG master. That lag must not block a services
+      # PR — embeddata-freshness is downgraded to an advisory WARN. Corpus
+      # CORRECTNESS (seed-orphans, yaml/ntriples validity, coverage, contract
+      # wiring) stays a hard FAIL.
+      - name: Awareness audit (awg audit -check -warn-stale, hard gate on correctness)
         if: steps.checkout_awareness_graph.outcome == 'success'
         working-directory: ${{ github.workspace }}/awareness-graph
-        run: go run ./cmd/awg audit -check -services-repo ${{ github.workspace }}/services -ag-repo .
+        run: go run ./cmd/awg audit -check -warn-stale -services-repo ${{ github.workspace }}/services -ag-repo .
 
   proto-check:
     runs-on: ubuntu-latest
