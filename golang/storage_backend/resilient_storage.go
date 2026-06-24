@@ -138,6 +138,22 @@ func (r *ResilientStorage) WriteFile(ctx context.Context, path string, data []by
 	return nil
 }
 
+// AtomicWriteFile writes atomically to local (mandatory) then mirror (best-effort),
+// mirroring WriteFile's durability contract. A local failure is fatal; a mirror
+// failure is logged but never returned.
+func (r *ResilientStorage) AtomicWriteFile(ctx context.Context, path string, data []byte, perm fs.FileMode) error {
+	if err := r.local.AtomicWriteFile(ctx, path, data, perm); err != nil {
+		return err // local write failure is fatal
+	}
+	if r.mirror != nil {
+		if err := r.mirror.AtomicWriteFile(ctx, path, data, perm); err != nil {
+			slog.Warn("resilient_storage: mirror atomic write failed (best-effort, local write succeeded)",
+				"path", path, "err", err)
+		}
+	}
+	return nil
+}
+
 // Create opens a file for writing. Writes to local; mirror is updated lazily
 // via WriteFile calls (not via Create, as we cannot tee streams portably).
 func (r *ResilientStorage) Create(ctx context.Context, path string) (io.WriteCloser, error) {

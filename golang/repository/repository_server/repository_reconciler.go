@@ -191,6 +191,7 @@ func (srv *server) startReconcilerLoop(ctx context.Context) {
 		}
 		srv.reconcileScyllaFromLocalCAS(ctx)
 		srv.reconcileLocalCASVsScylla(ctx)
+		srv.sweepOrphanTempBlobs(ctx, time.Now())
 
 		// Periodic reconciliation every hour.
 		ticker := time.NewTicker(time.Hour)
@@ -201,6 +202,7 @@ func (srv *server) startReconcilerLoop(ctx context.Context) {
 				return
 			case <-ticker.C:
 				srv.reconcileLocalCASVsScylla(ctx)
+				srv.sweepOrphanTempBlobs(ctx, time.Now())
 			}
 		}
 	}()

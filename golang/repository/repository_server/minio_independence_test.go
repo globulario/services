@@ -259,6 +259,9 @@ func (*alwaysFailStorage) ReadDir(_ context.Context, _ string) ([]fs.DirEntry, e
 func (*alwaysFailStorage) WriteFile(_ context.Context, _ string, _ []byte, _ fs.FileMode) error {
 	return errAlwaysFail
 }
+func (*alwaysFailStorage) AtomicWriteFile(_ context.Context, _ string, _ []byte, _ fs.FileMode) error {
+	return errAlwaysFail
+}
 func (*alwaysFailStorage) Create(_ context.Context, _ string) (io.WriteCloser, error) {
 	return nil, errAlwaysFail
 }

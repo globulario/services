@@ -36,6 +36,10 @@ type Storage interface {
 	Open(ctx context.Context, path string) (io.ReadSeekCloser, error) // for streaming + range support
 	Create(ctx context.Context, path string) (io.WriteCloser, error)
 	WriteFile(ctx context.Context, path string, data []byte, perm fs.FileMode) error
+	// AtomicWriteFile commits data so a concurrent reader sees either the prior
+	// committed file or the new one, never a partial. On POSIX this is
+	// temp-write + fsync + rename; object stores are atomic per-object.
+	AtomicWriteFile(ctx context.Context, path string, data []byte, perm fs.FileMode) error
 
 	// Mutations
 	RemoveAll(ctx context.Context, path string) error

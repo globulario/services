@@ -359,7 +359,7 @@ func (srv *server) promoteToPublished(ctx context.Context, key string, manifest 
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
 	sKey := manifestStorageKey(key)
-	if err := srv.Storage().WriteFile(ctx, sKey, mjson, 0o644); err != nil {
+	if err := srv.Storage().AtomicWriteFile(ctx, sKey, mjson, 0o644); err != nil {
 		slog.Warn("promoteToPublished: minio manifest write failed (scylla is authoritative, artifact is PUBLISHED)",
 			"key", key, "err", err)
 	}
