@@ -314,6 +314,21 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 				return
 			}
 
+			// Orphaned-install guard (E2): if this package can never be placed on
+			// this node under the catalog placement authority (the same predicate
+			// E1 gave platform-upgrade evaluate and the release reconciler), it is
+			// an orphaned install, not convergeable drift. Emitting drift_detected
+			// here re-fires every cycle forever — the torrent-orphan hamster wheel
+			// (INC 2026-06-24). Suppress the dispatch. The operator-facing verdict
+			// is cluster-doctor's placement.installed_package_orphaned finding; the
+			// controller decides not to dispatch but does NOT compute the health
+			// verdict (cluster_doctor.is_the_authority_for_health_state_queries).
+			if isOrphanedInstall(name, node.Profiles) {
+				log.Printf("drift-reconciler: node=%s pkg=%s — orphaned install; node profiles %v do not satisfy catalog placement; non-dispatchable (see cluster-doctor placement.installed_package_orphaned)",
+					node.Identity.Hostname, name, node.Profiles)
+				return
+			}
+
 			// Resolve the desired artifact. If the desired state is fully
 			// pinned (version + build_number both set), use the persisted
 			// values directly — do not re-resolve from the repository.
