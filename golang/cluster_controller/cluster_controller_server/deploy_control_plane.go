@@ -109,11 +109,15 @@ func (srv *server) DeployControlPlanePackage(ctx context.Context, req *cluster_c
 		pkgKind, pkgName, version, requestedBuild, resolvedBuild, resolved.Digest, acceptedByNodeID)
 
 	// ── Set desired version in etcd so the controller tracks this as the intended state ──
+	// allowRegression=false: a control-plane deploy sets the version it just
+	// resolved — not an operator downgrade. If it would regress below the floor it
+	// is rejected (non-fatal, logged below), the same net end-state as the old
+	// auto-correct-up which would have ignored the lower version anyway.
 	if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
 		ServiceId:   pkgName,
 		Version:     version,
 		BuildNumber: resolvedBuild,
-	}); err != nil {
+	}, false); err != nil {
 		log.Printf("deploy-control-plane: WARNING failed to set desired version: %v", err)
 		// Non-fatal — the deploy still proceeds, operator can fix desired state later.
 	}

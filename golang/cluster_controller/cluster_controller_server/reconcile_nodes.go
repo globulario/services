@@ -583,10 +583,12 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 				log.Printf("materialize-infra: skipping workload %s — version unresolved on ready nodes", compName)
 				continue
 			}
+			// allowRegression=false: materializing desired from the active cluster's
+			// resolved version must not pull an existing desired record backward.
 			if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
 				ServiceId: compName,
 				Version:   workloadVersion,
-			}); err != nil {
+			}, false); err != nil {
 				log.Printf("materialize-infra: failed to create desired workload %s@%s: %v", compName, workloadVersion, err)
 				continue
 			}
@@ -646,10 +648,12 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 						unresolvable[depCanon] = true
 						continue
 					}
+					// allowRegression=false: seeding a runtime-dep's desired must not
+					// regress an existing desired record.
 					if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
 						ServiceId: depCanon,
 						Version:   ver,
-					}); err != nil {
+					}, false); err != nil {
 						log.Printf("materialize-deps: failed to seed desired workload %s@%s: %v", depCanon, ver, err)
 						unresolvable[depCanon] = true
 						continue

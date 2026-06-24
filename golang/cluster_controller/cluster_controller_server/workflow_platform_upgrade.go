@@ -362,7 +362,9 @@ func (srv *server) platformUpgradeDispatch(ctx context.Context, releaseTag strin
 			BuildNumber: manifest.GetBuildNumber(),
 			BuildId:     k.buildID,
 		}
-		if err := srv.upsertOne(ctx, desired); err != nil {
+		// allowRegression=false: a platform upgrade must not silently regress a
+		// version — automatic rollback is forbidden (deployment.automatic_rollback_is_forbidden).
+		if err := srv.upsertOne(ctx, desired, false); err != nil {
 			log.Printf("platform_upgrade.dispatch: upsertOne FAILED for %s@%s: %v",
 				k.name, k.version, err)
 			if firstErr == nil {

@@ -46,8 +46,9 @@ var (
 	svcDangerousImperative bool
 
 	// 'desired set' flags.
-	svcDesiredSetPublisher   string
-	svcDesiredSetBuildNumber int64
+	svcDesiredSetPublisher       string
+	svcDesiredSetBuildNumber     int64
+	svcDesiredSetAllowRegression bool
 )
 
 // ─── Parent command ──────────────────────────────────────────────────────────
@@ -196,6 +197,10 @@ func init() {
 
 	servicesDesiredSetCmd.Flags().StringVar(&svcDesiredSetPublisher, "publisher", "core@globular.io", "Publisher ID for kind lookup")
 	servicesDesiredSetCmd.Flags().Int64Var(&svcDesiredSetBuildNumber, "build-number", 0, "Pin to a specific build (0 = latest)")
+	servicesDesiredSetCmd.Flags().BoolVar(&svcDesiredSetAllowRegression, "allow-regression", false,
+		"DANGER: permit moving desired version BELOW the current desired/installed floor. "+
+			"Without this, a regressing write is rejected. The override is audited as a distinct action. "+
+			"This is the only way to deliberately roll desired state backward — not a generic --force.")
 
 	servicesDesiredCmd.AddCommand(servicesDesiredSetCmd)
 	servicesDesiredCmd.AddCommand(servicesDesiredRemoveCmd)
@@ -541,6 +546,7 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 			Version:     version,
 			BuildNumber: svcDesiredSetBuildNumber,
 		},
+		AllowRegression: svcDesiredSetAllowRegression,
 	})
 	if err != nil {
 		return fmt.Errorf("UpsertDesiredService: %w", err)

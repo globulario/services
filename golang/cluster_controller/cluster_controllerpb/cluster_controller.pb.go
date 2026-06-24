@@ -7391,10 +7391,16 @@ func (x *ListDesiredBuildIDsResponse) GetRevision() string {
 }
 
 type UpsertDesiredServiceRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Service       *DesiredService        `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Service *DesiredService        `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	// When true, permits a desired-version write that would otherwise be rejected
+	// for regressing below max(current desired version, installed high). The write
+	// is recorded with a distinct, audited action (D4 — desired.no_regression_all_paths).
+	// This is the ONLY path that may move desired state backward; it is deliberate,
+	// named operator intent, not a generic --force.
+	AllowRegression bool `protobuf:"varint,2,opt,name=allow_regression,json=allowRegression,proto3" json:"allow_regression,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpsertDesiredServiceRequest) Reset() {
@@ -7432,6 +7438,13 @@ func (x *UpsertDesiredServiceRequest) GetService() *DesiredService {
 		return x.Service
 	}
 	return nil
+}
+
+func (x *UpsertDesiredServiceRequest) GetAllowRegression() bool {
+	if x != nil {
+		return x.AllowRegression
+	}
+	return false
 }
 
 type RemoveDesiredServiceRequest struct {
@@ -9055,9 +9068,10 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"V\n" +
 	"\x1bListDesiredBuildIDsResponse\x12\x1b\n" +
 	"\tbuild_ids\x18\x01 \x03(\tR\bbuildIds\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"[\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\"\x86\x01\n" +
 	"\x1bUpsertDesiredServiceRequest\x12<\n" +
-	"\aservice\x18\x01 \x01(\v2\".cluster_controller.DesiredServiceR\aservice\"S\n" +
+	"\aservice\x18\x01 \x01(\v2\".cluster_controller.DesiredServiceR\aservice\x12)\n" +
+	"\x10allow_regression\x18\x02 \x01(\bR\x0fallowRegression\"S\n" +
 	"\x1bRemoveDesiredServiceRequest\x124\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tB\x15\x8a\xb5\x18\x11\n" +

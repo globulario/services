@@ -37,7 +37,7 @@ func TestDesiredKeyedByKindAndName_InfraNameRoutedNoServiceGhost(t *testing.T) {
 	ctx := context.Background()
 	seedInfraRelease(t, store, "xds", "1.0.0")
 
-	handled, err := routeInfrastructureDesired(ctx, store, "xds", "1.0.1", 5)
+	handled, err := routeInfrastructureDesired(ctx, store, "xds", "1.0.1", 5, false, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestDesiredKeyedByKindAndName_InfraNameRoutedNoServiceGhost(t *testing.T) {
 // ServiceDesiredVersion. Preserves valid same-kind writes.
 func TestDesiredKeyedByKindAndName_ServiceNamePassesThrough(t *testing.T) {
 	store := resourcestore.NewMemStore()
-	handled, err := routeInfrastructureDesired(context.Background(), store, "echo", "1.2.0", 3)
+	handled, err := routeInfrastructureDesired(context.Background(), store, "echo", "1.2.0", 3, false, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestDesiredKeyedByKindAndName_UnreadableInfraRefused(t *testing.T) {
 	if _, err := store.Apply(ctx, "InfrastructureRelease", bad); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	handled, err := routeInfrastructureDesired(ctx, store, "broken", "1.0.0", 1)
+	handled, err := routeInfrastructureDesired(ctx, store, "broken", "1.0.0", 1, false, "")
 	if !handled {
 		t.Fatal("unreadable INFRASTRUCTURE record must be handled (refused), not fall through")
 	}
