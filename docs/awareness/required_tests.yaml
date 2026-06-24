@@ -5708,6 +5708,22 @@ required_tests:
   title: Check Import Policy Channel Defaults To Stable
 - id: repository:TestChecksumStableForBuildID
   title: Checksum Stable For Build ID
+# RBAC-native release authority tests (package-lifecycle.md §3.4; defined here so
+# the invariants that cite them resolve under yaml2nt -validate-refs).
+- id: repository:TestForgeIdentityMustResolveToSubjectBeforeAuthorization
+  title: Forge Identity Must Resolve To Subject Before Authorization
+- id: repository:TestReleaseAllocationRequiresNamespacePermission
+  title: Release Allocation Requires Namespace Permission
+- id: repository:TestGitHubOrgBindingDoesNotBypassRBAC
+  title: GitHub Org Binding Does Not Bypass RBAC
+- id: repository:TestAccountWithoutReleasePermissionGetsDevOnly
+  title: Account Without Release Permission Gets Dev Only
+- id: repository:TestOrganizationOwnerMayAllocateStableWhenPermissionExists
+  title: Organization Owner May Allocate Stable When Permission Exists
+- id: repository:TestCIWithoutResolvedSubjectCannotAllocateRelease
+  title: CI Without Resolved Subject Cannot Allocate Release
+- id: repository:TestForgeTrustAndRBACAuthorizationAreSeparateSteps
+  title: Forge Trust And RBAC Authorization Are Separate Steps
 - id: repository:TestConfigReceipts_ConflictFilterReturnsOnlyConflicts
   title: Config Receipts Conflict Filter Returns Only Conflicts
 - id: repository:TestConfigReceipts_RedactsSecretPath

@@ -363,6 +363,14 @@ The canonical rules live as awareness contracts (CI hard-gated) plus this doc.
 - `forbidden_fix:materialize_desired_from_unverified_local_install`
 
 ### 7.4 Required tests (add)
+
+> **Graph-required vs backlog.** Only tests that **exist** are cited as graph-required
+> refs — the RBAC-native release-authority suite (`release_authority_test.go`) is
+> defined in `required_tests.yaml`. The P1/P2/P3 scenarios below are an
+> **implementation backlog**, tracked here as prose **not** as `required_tests` graph
+> refs, so they don't dangle the seed under `yaml2nt -validate-refs`. Promote each to
+> a graph-required ref in `required_tests.yaml` when its test lands.
+
 - release-version monotonic & single-authority; dev channel cannot allocate release.
 - `services desired set` refuses non-SERVICE kind; desired store rejects cross-kind.
 - drift/convergence keyed on `build_id`; regressed-desired raises a distinct finding.

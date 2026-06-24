@@ -170,9 +170,6 @@ invariants:
     forbidden_fixes:
       - local_deploy_allocates_release_version
       - ci_self_stamps_version_bypassing_repository
-    required_tests:
-      - repository:TestReleaseVersionAllocatedOnlyWithReleaseCapability
-      - repository:TestDevChannelCannotAllocateReleaseVersion
     related_invariants:
       - meta.identity_computation_must_be_invariant
   - id: package.release_vs_dev_channel_boundary
@@ -198,9 +195,6 @@ invariants:
     forbidden_fixes:
       - local_deploy_allocates_release_version
       - agent_build_writes_cluster_desired_state
-    required_tests:
-      - repository:TestDevChannelCannotAllocateReleaseVersion
-      - controller:TestDevChannelArtifactNotResolvableAsDesired
     related_invariants:
       - release.version_single_authority
   - id: convergence.identity_is_build_id
@@ -227,9 +221,6 @@ invariants:
         - computeAppliedServicesHash
     forbidden_fixes:
       - compare_version_string_for_convergence
-    required_tests:
-      - controller:TestServicesDriftHashCarriesBuildID
-      - doctor:TestDesiredRegressionRaisesDistinctFinding
     related_invariants:
       - desired.build_id_immutable
       - meta.identity_computation_must_be_invariant
@@ -259,9 +250,6 @@ invariants:
     forbidden_fixes:
       - materialize_desired_from_unverified_local_install
       - overwrite_desired_build_id_silently
-    required_tests:
-      - controller:TestDesiredRegressionBlockedOnAllWritePaths
-      - controller:TestMaterializeDesiredRejectsDevChannelArtifact
     related_invariants:
       - desired.build_id_immutable
       - convergence.identity_is_build_id
@@ -290,10 +278,6 @@ invariants:
         - DeleteServiceDesiredVersion
     forbidden_fixes:
       - cli_writes_cross_kind_desired_record
-    required_tests:
-      - controller:TestDesiredSetRefusesNonServiceKind
-      - controller:TestDesiredStoreRejectsCrossKindWrite
-      - controller:TestInfrastructureDesiredHasTypedSetterAndSafeRemoval
     related_invariants:
       - meta.identity_computation_must_be_invariant
   - id: publish.release_artifact_must_be_stripped
@@ -319,9 +303,6 @@ invariants:
         - computeBinaryChecksumFromArchive
     forbidden_fixes:
       - publish_unstripped_debug_build_to_release_channel
-    required_tests:
-      - repository:TestPublishRejectsUnstrippedReleaseArtifact
-      - repository:TestPublishRejectsAnomalousArtifactSize
     related_invariants:
       - release.version_single_authority
   - id: staging.content_addressed
@@ -346,9 +327,6 @@ invariants:
         - resolveArtifactDigest
     forbidden_fixes:
       - compare_cached_blob_against_installed_manifest
-    required_tests:
-      - node_agent:TestStagingCacheIsContentAddressed
-      - node_agent:TestCacheDigestCheckUsesDesiredManifest
     related_invariants:
       - convergence.identity_is_build_id
 

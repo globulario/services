@@ -52,7 +52,4 @@ violation_patterns:
 - "dev.*artifact.*desired"
 - "agent.*write.*desired"
 - "local.*allocate.*release version"
-required_tests:
-- repository:TestDevChannelCannotAllocateReleaseVersion
-- controller:TestDevChannelArtifactNotResolvableAsDesired
 status: proposed

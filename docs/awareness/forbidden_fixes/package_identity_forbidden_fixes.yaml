@@ -182,3 +182,16 @@ forbidden_fixes:
     safer_alternative: >
       Require repository.release.allocate on the namespace for any STABLE target; force
       everything else to DEV.
+  - id: publish_unstripped_debug_build_to_release_channel
+    title: Do not publish an unstripped/non-trimpath (debug) build to the release channel
+    applies_to:
+      - publish.release_artifact_must_be_stripped
+      - release.version_single_authority
+    reason: >
+      A non-trimpath / non-stripped build is ~2x size and carries debug symbols and
+      build paths. Publishing it to the release channel ships a debug artifact as a
+      release (the 15-18MB build_number 1 local artifacts) and defeats the
+      artifact-shape gate.
+    safer_alternative: >
+      Build release artifacts with -trimpath -ldflags "-s -w"; reject oversized or
+      unstripped artifacts at publish on the release channel.
