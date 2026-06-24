@@ -569,29 +569,13 @@ func serviceDesiredKindGate(name string, kind repositorypb.ArtifactKind, lookupE
 	case kind == repositorypb.ArtifactKind_SERVICE:
 		return nil // verified SERVICE — proceed
 	case kind == repositorypb.ArtifactKind_INFRASTRUCTURE:
-		return fmt.Errorf(
-			"%s is an INFRASTRUCTURE package — `services desired set` manages SERVICE desired state only.\n"+
-				"Infrastructure releases use the InfrastructureRelease path (not ServiceDesiredVersion); set its\n"+
-				"desired version through the infrastructure release path instead.",
-			name)
+		return fmt.Errorf("%s is an INFRASTRUCTURE package; `services desired set` manages SERVICE desired state only — set its desired version through the infrastructure release path, not ServiceDesiredVersion", name)
 	case kind == repositorypb.ArtifactKind_COMMAND:
-		return fmt.Errorf(
-			"%s is a COMMAND package (CLI tool, e.g. claude/mc/yt-dlp), not a service —\n"+
-				"`services desired set` manages SERVICE desired state only. Commands ship via the package\n"+
-				"set / 'globular services apply-desired', not service desired state.",
-			name)
+		return fmt.Errorf("%s is a COMMAND package (CLI tool), not a service; `services desired set` manages SERVICE desired state only — commands use the package set, not service desired state", name)
 	case lookupErr != nil:
-		return fmt.Errorf(
-			"cannot verify the kind of %s — repository unreachable: %v.\n"+
-				"`services desired set` fails closed on an unverifiable kind (desired.keyed_by_kind_and_name);\n"+
-				"retry when the repository is reachable.",
-			name, lookupErr)
+		return fmt.Errorf("cannot verify the kind of %s (repository unreachable: %v); `services desired set` fails closed on an unverifiable kind per desired.keyed_by_kind_and_name — retry when the repository is reachable", name, lookupErr)
 	default: // ArtifactKind_UNSPECIFIED — reachable, but no published version with a resolvable kind
-		return fmt.Errorf(
-			"cannot verify %s is a SERVICE package — no published version with a resolvable kind.\n"+
-				"`services desired set` fails closed on an unknown kind (desired.keyed_by_kind_and_name);\n"+
-				"publish the package first so its kind is resolvable, then retry.",
-			name)
+		return fmt.Errorf("cannot verify %s is a SERVICE package (no published version with a resolvable kind); `services desired set` fails closed on an unknown kind per desired.keyed_by_kind_and_name — publish the package first, then retry", name)
 	}
 }
 
