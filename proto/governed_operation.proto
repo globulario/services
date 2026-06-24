@@ -1,0 +1,148 @@
+syntax = "proto3";
+
+package governed_operation;
+
+option go_package = "github.com/globulario/services/golang/govops/governed_operationpb";
+
+// Governed Operation Gateway — canonical schema (Slice 2).
+//
+// This is the single front-door contract for live-cluster mutations. Every
+// dangerous operation is expressed as an OperationRequest, validated against the
+// owner-path / generation / reconcile / authority / postcondition rules, executed
+// only through the approved owner path, and recorded as an OperationLedgerEntry.
+//
+// It is designed to SUBSUME, not parallel, the existing MCP governor
+// (plan -> validate -> approve -> execute) and the audittrail.DesiredWriteRecord:
+//   - the governor's ApprovalPolicy.Scope/Reason/RequiresConfirmation are derivable
+//     from OperationRequest.authority + execution (see govops.ApprovalScope);
+//   - audittrail.DesiredWriteRecord is a projection of a completed
+//     OperationLedgerEntry (see govops.ProjectDesiredWrite).
+// The governor becomes the CLI projection of this model rather than a second gate.
+
+// ActorKind identifies who is requesting the mutation.
+enum ActorKind {
+  ACTOR_KIND_UNSPECIFIED = 0;
+  ACTOR_HUMAN = 1;
+  ACTOR_AGENT = 2;
+  ACTOR_SERVICE = 3;
+  ACTOR_SCRIPT = 4;
+  ACTOR_CI = 5;
+  ACTOR_MCP = 6;
+}
+
+// ExecutionMode is how the request is to be carried out.
+enum ExecutionMode {
+  EXECUTION_MODE_UNSPECIFIED = 0;
+  DRY_RUN = 1;     // validate + plan only; never mutates.
+  APPLY = 2;       // normal governed mutation through the owner path.
+  BREAK_GLASS = 3; // raw repair when the owner is unavailable/corrupt — gated, rare.
+}
+
+// ApprovedPath is the canonical execution path the request is allowed to take.
+enum ApprovedPath {
+  APPROVED_PATH_UNSPECIFIED = 0;
+  OWNER_RPC = 1;            // the owning service's typed RPC (preferred).
+  CONTROLLER_COMMAND = 2;   // a controller-mediated command that reaches the owner path.
+  DIAGNOSTIC_READONLY = 3;  // read-only; must not mutate owner-owned state.
+  FORBIDDEN = 4;            // the graph/behavioral-memory rules this path out.
+}
+
+// OperationResult is the terminal outcome recorded in the ledger.
+enum OperationResult {
+  OPERATION_RESULT_UNSPECIFIED = 0;
+  ALLOWED = 1;
+  REFUSED = 2;
+  FAILED = 3;
+  COMPLETED = 4;
+  BREAK_GLASS_COMPLETED = 5;
+}
+
+// OperationTarget identifies what is being mutated and who owns it.
+message OperationTarget {
+  string subsystem = 1;      // e.g. "xds", "desired_state", "placement".
+  string resource_type = 2;  // e.g. "InfrastructureRelease", "ServiceDesiredVersion".
+  string resource_id = 3;    // e.g. the package/service name.
+  string owner = 4;          // the declared owner of this state (empty = unowned).
+}
+
+// OperationAuthority explains why the caller is allowed to request the mutation.
+message OperationAuthority {
+  string required_owner_path = 1; // the canonical owner path that must perform the write.
+  string caller_identity = 2;     // the authenticated caller (SA / user / workflow).
+  string permission = 3;          // the capability/permission the caller holds.
+}
+
+// ExpectedEffect declares what the operation is expected to change. The Gateway
+// uses these to require a generation bump, a reconcile trigger, and a projection
+// refresh for owner-owned desired/spec changes.
+message ExpectedEffect {
+  bool mutates_desired = 1;
+  bool mutates_spec = 2;
+  bool mutates_status = 3;
+  bool bumps_generation = 4;
+  bool triggers_reconcile = 5;
+  bool refreshes_projection = 6;
+}
+
+// OperationEvidence carries the before-snapshot and the graph/memory grounding.
+message OperationEvidence {
+  string before_snapshot = 1;            // required: hash/handle of pre-mutation state.
+  repeated string awg_invariants = 2;    // governing invariant ids.
+  repeated string behavioral_rules = 3;  // behavioral-memory forbidden-move / principle ids.
+  repeated string related_incidents = 4; // ai-memory incident ids.
+}
+
+// OperationExecution selects the mode and the approved path.
+message OperationExecution {
+  ExecutionMode mode = 1;
+  ApprovedPath approved_path = 2;
+}
+
+// OperationPostconditions describe how respect for the contract is proven.
+message OperationPostconditions {
+  repeated string required_checks = 1; // checks that must pass after apply.
+  string rollback_plan = 2;            // how to undo if a postcondition fails.
+  bool ledger_required = 3;            // a ledger entry must be written.
+}
+
+// OperationRequest is the structured front-door for one live mutation.
+message OperationRequest {
+  string id = 1;
+  ActorKind actor = 2;
+  string action = 3;          // the action verb (matched against behavioral forbidden-move aliases).
+  OperationTarget target = 4;
+  string intent = 5;          // human-readable reason.
+  OperationAuthority authority = 6;
+  ExpectedEffect expected_effect = 7;
+  OperationEvidence evidence = 8;
+  OperationExecution execution = 9;
+  OperationPostconditions postconditions = 10;
+  // parameters carries the typed mutation arguments the owner RPC needs
+  // (e.g. version, build_number for a desired-state write). The governance fields
+  // above describe WHAT/WHO/WHY; parameters describe the concrete call.
+  map<string, string> parameters = 11;
+}
+
+// OperationLedgerEntry is the durable, queryable record of one governed operation.
+// audittrail.DesiredWriteRecord is a projection of this entry.
+message OperationLedgerEntry {
+  string operation_id = 1;
+  string timestamp = 2;        // RFC3339Nano, stamped by the writer (not by the schema).
+  string actor = 3;
+  string tool = 4;
+  string command = 5;
+  string target_owner = 6;
+  string target_resource = 7;
+  repeated string awg_invariants = 8;
+  repeated string behavioral_rules = 9;
+  repeated string related_ai_memory_events = 10;
+  string before_state_hash = 11;
+  string after_state_hash = 12;
+  string generation_before = 13;
+  string generation_after = 14;
+  bool reconcile_observed = 15;
+  repeated string postconditions_passed = 16;
+  repeated string postconditions_failed = 17;
+  OperationResult result = 18;
+  repeated string hardening_candidates = 19;
+}

@@ -822,15 +822,28 @@ func (srv *server) ListDesiredBuildIDs(ctx context.Context, _ *cluster_controlle
 
 // UpsertDesiredService creates or updates a single desired-service entry.
 func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_controllerpb.UpsertDesiredServiceRequest) (*cluster_controllerpb.DesiredState, error) {
+	if req.GetService() == nil {
+		return nil, status.Error(codes.InvalidArgument, "service is required")
+	}
+	// Cross-kind guard (invariant desired.keyed_by_kind_and_name): a
+	// ServiceDesiredVersion is a SERVICE-kind record, so the operator-facing RPC
+	// refuses to write one for a package whose canonical kind is infrastructure or
+	// command. This closes the `services desired set <infra> --force` cross-kind
+	// bypass that wrote a SERVICE record onto xds and produced unconvergeable drift
+	// (forbidden_fix:cli_writes_cross_kind_desired_record). Internal orchestration
+	// (deploy_control_plane, platform_upgrade, reconciler) calls upsertOne directly
+	// and is intentionally unaffected; infrastructure desired state has its own
+	// first-class owner path (ApplyInfrastructureRelease). The check runs before the
+	// leader-forward because a cross-kind request is invalid on every node.
+	if err := rejectCrossKindDesiredWrite(req.Service.GetServiceId()); err != nil {
+		return nil, err
+	}
 	if !srv.isLeader() {
 		resp := &cluster_controllerpb.DesiredState{}
 		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/UpsertDesiredService", req, resp); err != nil {
 			return nil, err
 		}
 		return resp, nil
-	}
-	if req.GetService() == nil {
-		return nil, status.Error(codes.InvalidArgument, "service is required")
 	}
 	if err := srv.upsertOne(ctx, req.Service, req.GetAllowRegression()); err != nil {
 		// Preserve a typed status (e.g. FailedPrecondition from the regression
@@ -844,10 +857,47 @@ func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_contro
 	return srv.listAllDesiredServices(ctx)
 }
 
+// rejectCrossKindDesiredWrite enforces invariant desired.keyed_by_kind_and_name at
+// the operator boundary. A ServiceDesiredVersion is a SERVICE-kind record; the
+// component catalog (component_catalog.go) is the canonical kind authority. A name
+// that is not in the catalog is treated as a service (fail-open) so third-party
+// services are unaffected; only a known infrastructure or command package is
+// refused.
+func rejectCrossKindDesiredWrite(serviceID string) error {
+	canon := canonicalServiceName(serviceID)
+	if canon == "" {
+		return nil // empty/invalid name — upsertOne reports it with a clearer message.
+	}
+	comp := CatalogByName(canon)
+	if comp == nil {
+		return nil // not in the catalog → treated as a service.
+	}
+	switch comp.Kind {
+	case KindInfrastructure:
+		return status.Errorf(codes.InvalidArgument,
+			"desired-state: %q is INFRASTRUCTURE, not a service — writing a ServiceDesiredVersion for it is a cross-kind write (desired.keyed_by_kind_and_name). Use ApplyInfrastructureRelease for infrastructure desired state.",
+			canon)
+	case KindCommand:
+		return status.Errorf(codes.InvalidArgument,
+			"desired-state: %q is a COMMAND package, not a service — it has no ServiceDesiredVersion (desired.keyed_by_kind_and_name).",
+			canon)
+	}
+	return nil
+}
+
 // RemoveDesiredService deletes the ServiceDesiredVersion and sets the Removing
 // flag on the corresponding ServiceRelease, triggering a lifecycle-tracked
 // removal workflow (REMOVING → REMOVED).
 func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_controllerpb.RemoveDesiredServiceRequest) (*cluster_controllerpb.DesiredState, error) {
+	// Cross-kind guard (invariant desired.keyed_by_kind_and_name): RemoveDesiredService
+	// is a SERVICE-kind operation — it deletes a ServiceDesiredVersion and drives the
+	// service removal workflow. Refuse it for infrastructure/command packages;
+	// infrastructure removal has its own owner path (InfrastructureRelease with
+	// spec.removing), not the service desired path. Runs before the leader-forward
+	// because a cross-kind remove is invalid on every node.
+	if err := rejectCrossKindDesiredWrite(req.GetServiceId()); err != nil {
+		return nil, err
+	}
 	if !srv.isLeader() {
 		resp := &cluster_controllerpb.DesiredState{}
 		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/RemoveDesiredService", req, resp); err != nil {
