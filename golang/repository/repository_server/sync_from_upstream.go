@@ -436,6 +436,34 @@ func (srv *server) processSyncEntry(
 	n := normalizeReleaseEntry(entry, src)
 	n.PlatformRelease = releaseTag // platform release = the release being synced
 
+	// ── Step 1b: Release-authority gate (P2) ──────────────────────────────
+	// Do not trust the channel CI stamped in release-index.json. For a namespace
+	// with a declared release authority (registered trusted publishers), a STABLE
+	// import survives only when the upstream publisher is BOTH federated AND holds
+	// release.allocate (RBAC). Federation alone never grants STABLE
+	// (package.forge_binding_is_not_authorization). Unauthorized STABLE is
+	// downgraded to DEV here, before the channel is reported or persisted —
+	// imported and inspectable, but not convergeable. Unmanaged namespaces are
+	// untouched (safe rollout).
+	managed, federated, authorized := srv.evaluateUpstreamRelease(ctx, n, src)
+	if final, downgraded := upstreamReleaseDecision(n.Channel, managed, federated, authorized); downgraded {
+		srv.publishAuditEvent(ctx, "upstream.release_authority_downgrade", map[string]any{
+			"source":          src.GetName(),
+			"package":         n.Name,
+			"version":         n.Version,
+			"publisher":       n.Publisher,
+			"forge_subject":   upstreamForgeSubject(src),
+			"claimed_channel": n.Channel,
+			"forced_channel":  final,
+			"federated":       federated,
+			"authorized":      authorized,
+		})
+		slog.Warn("upstream: release authority not proven for STABLE import — downgrading to DEV",
+			"source", src.GetName(), "publisher", n.Publisher, "name", n.Name,
+			"version", n.Version, "federated", federated, "authorized", authorized)
+		n.Channel = final
+	}
+
 	result := &repopb.UpstreamSyncResult{
 		Name:            n.Name,
 		Version:         n.Version,
