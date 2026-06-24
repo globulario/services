@@ -1450,6 +1450,12 @@ message ListDesiredBuildIDsResponse {
 
 message UpsertDesiredServiceRequest {
   DesiredService service = 1;
+  // When true, permits a desired-version write that would otherwise be rejected
+  // for regressing below max(current desired version, installed high). The write
+  // is recorded with a distinct, audited action (D4 — desired.no_regression_all_paths).
+  // This is the ONLY path that may move desired state backward; it is deliberate,
+  // named operator intent, not a generic --force.
+  bool allow_regression = 2;
 }
 
 message RemoveDesiredServiceRequest {

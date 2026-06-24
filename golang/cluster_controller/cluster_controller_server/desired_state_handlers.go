@@ -237,10 +237,16 @@ func (srv *server) cleanupStaleDesiredKeys(ctx context.Context) int {
 	for _, s := range stale {
 		// If canonical key doesn't exist yet, re-create it before deleting stale.
 		if !canonExists[s.canon] {
+			// allowRegression=true: this is a key-relocation (re-create the
+			// canonical key from the stale record's own version before the stale
+			// key is deleted), not an operator downgrade. A floor-reject here
+			// would let the stale Delete below drop desired state on an
+			// installed-state observation — exactly what
+			// cluster.desired_state_authority_over_installed_state forbids.
 			_ = srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
 				ServiceId: s.canon,
 				Version:   s.version,
-			})
+			}, true)
 			canonExists[s.canon] = true
 		}
 		if err := srv.resources.Delete(ctx, "ServiceDesiredVersion", s.storedKey); err == nil {
@@ -251,7 +257,85 @@ func (srv *server) cleanupStaleDesiredKeys(ctx context.Context) int {
 }
 
 // upsertOne applies a single DesiredService to the resource store.
-func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.DesiredService) error {
+// writeDesiredAudit is the seam for desired-state provenance writes. Production
+// points it at audittrail.WriteDesiredWriteRecord (etcd-backed); tests swap it to
+// observe the dedicated regression-override action without an etcd backend.
+var writeDesiredAudit = audittrail.WriteDesiredWriteRecord
+
+// desiredVersionFloor returns the version a desired write must not go below:
+// the greater of the current desired version and the highest healthy installed
+// version. Either argument may be "" (no floor contributed from that source).
+func desiredVersionFloor(currentDesired, installedHigh string) string {
+	floor := strings.TrimSpace(currentDesired)
+	high := strings.TrimSpace(installedHigh)
+	if high == "" {
+		return floor
+	}
+	if floor == "" {
+		return high
+	}
+	if cmp, err := versionutil.Compare(high, floor); err == nil && cmp > 0 {
+		return high
+	}
+	return floor
+}
+
+// regressesBelowFloor reports whether requested is strictly below floor. An empty
+// floor (nothing to regress against) never regresses; an unparseable comparison
+// is treated as non-regressing — the repository artifact check is the backstop.
+func regressesBelowFloor(requested, floor string) bool {
+	if strings.TrimSpace(floor) == "" {
+		return false
+	}
+	cmp, err := versionutil.Compare(requested, floor)
+	return err == nil && cmp < 0
+}
+
+// currentDesiredServiceVersion returns the version pinned in the current
+// ServiceDesiredVersion for canon, or "" if none exists / is unreadable.
+func (srv *server) currentDesiredServiceVersion(ctx context.Context, canon string) string {
+	if srv.resources == nil {
+		return ""
+	}
+	obj, _, err := srv.resources.Get(ctx, "ServiceDesiredVersion", canon)
+	if err != nil || obj == nil {
+		return ""
+	}
+	sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
+	if !ok || sdv.Spec == nil {
+		return ""
+	}
+	return strings.TrimSpace(sdv.Spec.Version)
+}
+
+// enforceServiceDesiredFloor applies the D4 no-regression policy to a SERVICE
+// desired write. floor = max(current ServiceDesiredVersion, installedHigh). A
+// requested version below the floor is rejected with a typed FailedPrecondition
+// unless allowRegression is set, in which case the write proceeds and a distinct,
+// audited action records the deliberate regression.
+// invariant:desired.no_regression_all_paths
+func (srv *server) enforceServiceDesiredFloor(ctx context.Context, canon, requested, installedHigh string, allowRegression bool) error {
+	floor := desiredVersionFloor(srv.currentDesiredServiceVersion(ctx, canon), installedHigh)
+	if !regressesBelowFloor(requested, floor) {
+		return nil
+	}
+	if !allowRegression {
+		return status.Errorf(codes.FailedPrecondition,
+			"desired-state: refusing to regress %s — desired floor is %s, attempted %s; pass --allow-regression to override (audited)",
+			canon, floor, requested)
+	}
+	_ = writeDesiredAudit(ctx, audittrail.DesiredWriteRecord{
+		Service:   canon,
+		Actor:     "cluster-controller",
+		Source:    "upsertOne",
+		Action:    "desired_regression_override",
+		Reason:    fmt.Sprintf("explicit allow_regression: %s desired moved backward %s -> %s (floor %s)", canon, floor, requested, floor),
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	return nil
+}
+
+func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.DesiredService, allowRegression bool) error {
 	if svc == nil {
 		return fmt.Errorf("nil service")
 	}
@@ -268,50 +352,30 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	} else {
 		version = cv
 	}
-	// Version regression guard: if healthy nodes are running a newer version,
-	// auto-correct the desired version upward instead of allowing a downgrade.
-	// This prevents the 4-layer model from drifting backward when a deploy
-	// script or operator accidentally sets an older version.
-	//
-	// If no node has a fresh heartbeat (observable=false), refuse the
-	// downgrade-versus-not decision entirely: we have zero observability
-	// of what's actually running and "no signal" must not be read as
-	// "nothing is running this service" (meta.absence_scope_must_be_explicit).
-	// Caller surfaces the FailedPrecondition so the operator can retry once
-	// heartbeats come back.
-	requestedVersion := version
+	// Observability blackout is a hard precondition, independent of the
+	// regression policy: with no fresh heartbeat we cannot compute the
+	// installed-high floor and must not read "no signal" as "nothing is running"
+	// (meta.absence_scope_must_be_explicit). Caller surfaces the FailedPrecondition
+	// so the operator can retry once heartbeats recover.
 	highVer, observable := srv.highestHealthyInstalledVersion(canon)
 	if !observable {
 		return status.Errorf(codes.FailedPrecondition,
 			"desired-state: cannot validate version %s for %s — no node has a fresh heartbeat (cluster observability blackout); retry when heartbeats recover",
 			version, canon)
 	}
-	if highVer != "" {
-		cmp, err := versionutil.Compare(version, highVer)
-		if err == nil && cmp < 0 {
-			log.Printf("desired-state: version regression blocked for %s: requested %s but healthy nodes run %s — auto-correcting to %s",
-				canon, version, highVer, highVer)
-			version = highVer
-		}
-	}
 
 	// Phase 1: verify the artifact exists in the repository before writing
 	// desired state. Fail closed: if repository is unreachable, reject.
 	// Phase 2: also resolve build_id from the artifact manifest.
+	//
+	// D4: the previous behaviour silently auto-corrected a too-low version upward,
+	// hiding operator mistakes. Regression is now rejected (unless an explicit
+	// audited allow_regression override) — enforced per write path: the SERVICE
+	// floor below, and the infrastructure floor inside routeInfrastructureDesired.
+	// No more version mutation here, so no auto-correct fallback is needed.
 	buildID, err := srv.validateArtifactInRepo(ctx, canon, version, svc.BuildNumber)
 	if err != nil {
-		// If regression guard auto-corrected to a version that doesn't exist
-		// in the repository (e.g. stale heartbeat data), fall back to the
-		// originally requested version.
-		if version != requestedVersion {
-			log.Printf("desired-state: auto-corrected version %s for %s not in repository, falling back to requested %s",
-				version, canon, requestedVersion)
-			version = requestedVersion
-			buildID, err = srv.validateArtifactInRepo(ctx, canon, version, svc.BuildNumber)
-		}
-		if err != nil {
-			return err
-		}
+		return err
 	}
 
 	// ── Kind routing (invariant desired.keyed_by_kind_and_name) ───────────
@@ -328,7 +392,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	// funnel through UpsertDesiredService keep working; the caller-side hard
 	// reject is D2. A name whose INFRASTRUCTURE record cannot be read is refused,
 	// not ghosted.
-	if handled, rerr := routeInfrastructureDesired(ctx, srv.resources, canon, version, svc.BuildNumber); handled {
+	if handled, rerr := routeInfrastructureDesired(ctx, srv.resources, canon, version, svc.BuildNumber, allowRegression, highVer); handled {
 		if rerr != nil {
 			return rerr
 		}
@@ -344,6 +408,12 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	}
 
 	// ── Same-kind SERVICE write (no InfrastructureRelease for this name) ──
+	// D4: enforce the no-regression floor for the SERVICE path here — only after
+	// kind routing has confirmed this is a genuine SERVICE write, so the SERVICE
+	// floor never interferes with an infrastructure-routed write.
+	if err := srv.enforceServiceDesiredFloor(ctx, canon, version, highVer, allowRegression); err != nil {
+		return err
+	}
 	obj := &cluster_controllerpb.ServiceDesiredVersion{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: canon},
 		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
@@ -387,7 +457,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 //	handled=true,  err!=nil → the INFRASTRUCTURE record is unreadable; refuse the
 //	                          cross-kind write (typed FailedPrecondition) rather
 //	                          than ghost it.
-func routeInfrastructureDesired(ctx context.Context, resources resourcestore.Store, canon, version string, buildNumber int64) (handled bool, err error) {
+func routeInfrastructureDesired(ctx context.Context, resources resourcestore.Store, canon, version string, buildNumber int64, allowRegression bool, installedHigh string) (handled bool, err error) {
 	infraObj, _, infraErr := resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/"+canon)
 	if infraErr != nil || infraObj == nil {
 		return false, nil // no INFRASTRUCTURE record — same-kind SERVICE write
@@ -396,6 +466,26 @@ func routeInfrastructureDesired(ctx context.Context, resources resourcestore.Sto
 	if !ok || infraRel.Spec == nil {
 		return true, status.Errorf(codes.FailedPrecondition,
 			"desired-state: %q is managed as INFRASTRUCTURE but its release record is unreadable — refusing cross-kind SERVICE desired write (desired.keyed_by_kind_and_name)", canon)
+	}
+	// D4: infrastructure desired version must not regress below the floor =
+	// max(current infra desired, installed high) without an explicit audited
+	// override (invariant desired.no_regression_all_paths). Same policy and helper
+	// as the SERVICE path — governance with a keyhole, not a brick wall.
+	floor := desiredVersionFloor(infraRel.Spec.Version, installedHigh)
+	if regressesBelowFloor(version, floor) {
+		if !allowRegression {
+			return true, status.Errorf(codes.FailedPrecondition,
+				"desired-state: refusing to regress infrastructure %s — desired floor is %s, attempted %s; pass --allow-regression to override (audited)",
+				canon, floor, version)
+		}
+		_ = writeDesiredAudit(ctx, audittrail.DesiredWriteRecord{
+			Service:   canon,
+			Actor:     "cluster-controller",
+			Source:    "upsertOne",
+			Action:    "desired_regression_override",
+			Reason:    fmt.Sprintf("explicit allow_regression: infrastructure %s desired moved backward %s -> %s (floor %s)", canon, floor, version, floor),
+			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		})
 	}
 	if infraRel.Spec.Version != version {
 		infraCopy := *infraRel
@@ -742,7 +832,13 @@ func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_contro
 	if req.GetService() == nil {
 		return nil, status.Error(codes.InvalidArgument, "service is required")
 	}
-	if err := srv.upsertOne(ctx, req.Service); err != nil {
+	if err := srv.upsertOne(ctx, req.Service, req.GetAllowRegression()); err != nil {
+		// Preserve a typed status (e.g. FailedPrecondition from the regression
+		// floor or the observability blackout) so the operator sees the real
+		// reason instead of an opaque Internal.
+		if st, ok := status.FromError(err); ok && st.Code() != codes.Unknown {
+			return nil, err
+		}
 		return nil, status.Errorf(codes.Internal, "upsert desired service: %v", err)
 	}
 	return srv.listAllDesiredServices(ctx)
@@ -960,11 +1056,14 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 			continue
 		}
 
+		// allowRegression=false: seeding desired from observed install must never
+		// pull an existing desired record backward
+		// (forbidden_fix:materialize_desired_from_unverified_local_install).
 		if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
 			ServiceId:   name,
 			Version:     inst.version,
 			BuildNumber: inst.buildNumber,
-		}); err != nil {
+		}, false); err != nil {
 			if status.Code(err) == codes.NotFound {
 				stats.Skipped++
 				stats.SkippedNames = append(stats.SkippedNames, name)
