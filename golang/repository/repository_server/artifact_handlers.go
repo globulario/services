@@ -1447,6 +1447,14 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		enrichManifestFromPackageJSON(manifest, pkg)
 	}
 
+	// E3: publish-time profile hygiene (WARN-first / detection mode). The
+	// component catalog is the placement authority (E1/E2); manifest profiles
+	// are informational. Warn — never block — when a known component's manifest
+	// profiles disagree with the catalog. Does NOT mutate the manifest (no
+	// derive-from-catalog yet) and never makes manifest profiles a placement
+	// input. invariant candidate: publish.manifest_profiles_must_not_contradict_catalog.
+	warnIfManifestProfilesDriftFromCatalog(manifest)
+
 	// If a reservation was provided, consume it and apply its channel.
 	// The reservation channel overrides whatever was in package.json —
 	// publish-time channel wins over build-time default.

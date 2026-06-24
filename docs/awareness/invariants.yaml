@@ -11001,3 +11001,33 @@ invariants:
   - TestGatewayBackendDivergence_RouteBrokenBackendHealthy
   forbidden_fixes:
   - doctor_reports_service_down_from_gateway_path_alone
+- id: publish.manifest_profiles_must_not_contradict_catalog
+  protects:
+    files:
+    - golang/repository/repository_server/profile_hygiene.go
+    - golang/repository/repository_server/artifact_handlers.go
+    - golang/component_catalog/profilemap.go
+    symbols:
+    - classifyProfileHygiene
+    - warnIfManifestProfilesDriftFromCatalog
+    - ProfilesForPackage
+  required_tests:
+  - TestClassifyProfileHygiene
+  - TestClassifyProfileHygiene_ReadOnly
+  forbidden_fixes:
+  - restore_manifest_profiles_as_runtime_placement_authority
+  severity: medium
+  status: candidate
+  rollout: warn_first_detection_mode
+  summary: >-
+    The component catalog is the single placement authority (E1/E2); an artifact
+    manifest's `profiles` field is INFORMATIONAL ONLY and is never read for
+    runtime placement. At publish time (repository UploadArtifact), a KNOWN
+    catalog component's manifest profiles must not CONTRADICT
+    component_catalog.ProfilesForPackage(name). Rollout: WARN-first / detection
+    mode — warnIfManifestProfilesDriftFromCatalog emits an operator warning and
+    NEVER blocks publish or mutates the manifest (no derive-from-catalog yet). It
+    is NOT hard-enforced until contradiction→FAIL is explicitly enabled, after a
+    full spec↔catalog drift cleanup (the Step-0 survey found widespread drift:
+    torrent/mcp over-broad, mcp/gateway/xds null, dns under-broad). Unknown
+    components are excluded — a distinct condition, never a profile drift.
