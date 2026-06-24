@@ -1444,6 +1444,38 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		}
 	}
 
+	// ── Release-authority gate (P3 parity for the direct publish path) ────
+	// AllocateUpload gates the reservation/bump flow; UploadArtifact is the
+	// direct path used by `globular pkg publish` and the MCP package tools. It
+	// must enforce the SAME rule, or STABLE can be claimed without release
+	// authority — and agent/MCP builds would not be DEV by construction. The
+	// AuthContext is present here (RPC through interceptors), so we reuse the
+	// AllocateUpload gate verbatim: targeting STABLE requires release.allocate
+	// on the publisher namespace. Unauthorized callers are forced to DEV (the
+	// agent/dev lane); the sealed official namespace cannot be DEV, so an
+	// unauthorized official STABLE is rejected. Internal/sa/CI-authority callers
+	// pass (resolveForgeIdentity → Internal/Superuser, or authorizeRelease ok).
+	if effectiveChannel(manifest) == repopb.ArtifactChannel_STABLE {
+		id := srv.resolveForgeIdentity(ctx)
+		allow, aerr := srv.authorizeRelease(ctx, id, publisherID)
+		if aerr != nil {
+			return aerr
+		}
+		final, rejectOfficial := directPublishChannelGate(effectiveChannel(manifest), publisherID, allow)
+		if rejectOfficial {
+			return status.Errorf(codes.PermissionDenied,
+				"publishing %q to STABLE requires release.allocate on the namespace; "+
+					"local/agent builds must use a non-official publisher (DEV lane)", publisherID)
+		}
+		// Only mutate on an actual downgrade (final == DEV); leave an authorized
+		// STABLE / CHANNEL_UNSET manifest exactly as it was.
+		if final == repopb.ArtifactChannel_DEV {
+			slog.Warn("release-authority: direct publish lacks release.allocate, forcing channel DEV",
+				"publisher", publisherID, "name", ref.GetName(), "subject", id.Subject)
+			manifest.Channel = final
+		}
+	}
+
 	// ── Identity lane enforcement (post-enrichment) ───────────────────────
 	// Channel is now final (package.json + reservation applied). Validate that
 	// the publisher/channel/version combination obeys identity lane rules.
