@@ -140,6 +140,7 @@ func classifyPackageConvergence(
 	node *nodeState,
 	pkgName, pkgKind string,
 	desiredVersion, desiredHash, desiredBuildID, desiredEntrypointChecksum string,
+	requireBuildID bool,
 	installed *node_agentpb.InstalledPackage,
 	now time.Time,
 ) PackageConvergence {
@@ -177,14 +178,30 @@ func classifyPackageConvergence(
 		return pc
 	}
 
+	// build_id is the package artifact identity (UUIDv7) and an INDEPENDENT
+	// convergence dimension (D3). When the desired build_id is present it is
+	// enforced — same version + same hash but a different build_id must NOT
+	// converge. When it is absent and the desired artifact is build-backed
+	// (requireBuildID), that is "missing desired build identity" and fails closed
+	// rather than silently skipping identity; a legitimately build-less record
+	// (runtime-only probe, command, etc.) may skip the dimension.
 	gotBuild := strings.TrimSpace(installed.GetBuildId())
 	wantBuild := strings.TrimSpace(desiredBuildID)
-	if wantBuild == "" || gotBuild == wantBuild {
-		pc.BuildIDOK = true
-	} else {
+	switch {
+	case wantBuild != "":
+		if gotBuild == wantBuild {
+			pc.BuildIDOK = true
+		} else {
+			pc.RepairRequired = true
+			pc.Reason = fmt.Sprintf("installed build_id %s != desired %s", gotBuild, wantBuild)
+			return pc
+		}
+	case requireBuildID:
 		pc.RepairRequired = true
-		pc.Reason = fmt.Sprintf("installed build_id %s != desired %s", gotBuild, wantBuild)
+		pc.Reason = "missing desired build identity — build-backed artifact has no resolved build_id"
 		return pc
+	default:
+		pc.BuildIDOK = true
 	}
 
 	// Phase 38 — entrypoint_checksum hard binary proof.
@@ -266,7 +283,8 @@ func packageRuntimeHealthyOnNode(node *nodeState, pkgName, pkgKind string) (bool
 		"",
 		"",
 		"",
-		"", // Phase 38: no entrypoint check for runtime-only health probe
+		"",    // Phase 38: no entrypoint check for runtime-only health probe
+		false, // runtime-only probe — build_id dimension not applicable
 		&node_agentpb.InstalledPackage{Version: "runtime-check"},
 		time.Now(),
 	)
