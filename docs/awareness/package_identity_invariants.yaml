@@ -268,14 +268,27 @@ invariants:
   - id: desired.keyed_by_kind_and_name
     title: Desired-state records are keyed by (kind, name); cross-kind writes are rejected
     severity: critical
-    status: proposed
+    status: active
     summary: >
       kind is part of package identity. Every desired/installed record is keyed by
       (kind, name); the service lane (ServiceDesiredVersion) and the infrastructure
-      desired lane never share a key. A kind-blind tool must not write a record of
-      the wrong kind. `globular services desired set` must hard-refuse non-SERVICE
-      kinds; the --force kind-bypass is removed. Infrastructure requires a
-      first-class typed desired path, and every lane requires a safe typed removal.
+      desired lane never share a key. Cross-kind writes are refused on every operator
+      surface: the controller rejects a SERVICE desired write for an infrastructure or
+      command package on both UpsertDesiredService and RemoveDesiredService
+      (rejectCrossKindDesiredWrite), and `globular services desired set` hard-refuses
+      non-SERVICE kinds (serviceDesiredKindGate, fail-closed on unverifiable kind) with
+      no --force bypass. Infrastructure has its own first-class typed path
+      (ApplyInfrastructureRelease); upsertOne routes an infrastructure-managed name to
+      its InfrastructureRelease rather than writing a cross-kind ServiceDesiredVersion ghost.
+    required_tests:
+      - TestUpsertRejectsCrossKindDesiredRecord
+      - TestRemoveDesiredServiceRejectsCrossKind
+      - TestRejectCrossKindDesiredWrite_ByCatalogKind
+      - TestServiceDesiredKindGate_ServiceProceeds
+      - TestServiceDesiredKindGate_InfrastructureRefused
+      - TestServiceDesiredKindGate_CommandRefused
+      - TestServiceDesiredKindGate_UnknownKindFailsClosed
+      - TestServiceDesiredKindGate_RepoUnreachableFailsClosed
     protects:
       state:
         - /globular/resources/ServiceDesiredVersion/*
@@ -285,6 +298,9 @@ invariants:
         - golang/globularcli/services_cmds.go
       symbols:
         - upsertOne
+        - rejectCrossKindDesiredWrite
+        - routeInfrastructureDesired
+        - serviceDesiredKindGate
         - collectDesiredVersions
         - RemoveDesiredService
         - DeleteServiceDesiredVersion
