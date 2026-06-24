@@ -291,6 +291,26 @@ func (srv *server) getPublishedDigest(ctx context.Context, publisher, name, vers
 	return ""
 }
 
+// devLaneVersion returns a lane-safe DEV version that never advances the release
+// stream (P5). An already-suffixed version is kept as-is; otherwise the base is
+// pinned to the latest published release (or the resolved version when there is
+// no release yet) and a `-dev` pre-release suffix is applied — so the DEV build
+// semver-orders BELOW the release and cannot squat a clean release version.
+// build_number then iterates within that DEV version.
+//
+// Pure given (latestRelease, resolvedVersion); the caller supplies the latest
+// release, so the policy is unit-tested without a ledger.
+func devLaneVersion(latestRelease, resolvedVersion string) string {
+	if hasLocalVersionSuffix(resolvedVersion) {
+		return resolvedVersion // already lane-safe (dev/local/hotfix)
+	}
+	base := strings.TrimSpace(latestRelease)
+	if base == "" {
+		base = resolvedVersion // no release to pin to; suffix the resolved version
+	}
+	return FormatLocalVersion(base, "dev", "", 0) // base + "-dev.1"
+}
+
 // FormatLocalVersion formats a local version string from an upstream version
 // and a local qualifier. Used by the CLI and tests.
 //

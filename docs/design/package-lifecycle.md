@@ -335,6 +335,38 @@ sync, gated by §3.4.2, not `UploadArtifact`).
 Three entry points, one authority model: **allocate** (§3.4.1), **ingest** (§3.4.2), and
 **direct publish** (§3.4.3) all gate `STABLE` on `release.allocate` for the namespace.
 
+### 3.4.4 DEV version semantics — build-number-only, off the release stream (P5)
+
+The channel gates decide *whether* a build is `STABLE`; this rule governs the *version*
+a `DEV` build may carry. **A DEV build must never advance the release stream.** The
+release version (`major.minor.patch`) is cluster/CI-allocated; a local/agent build only
+adds a `build_number`.
+
+In `AllocateUpload` (the reservation / `globular deploy` flow), once the channel is final
+— including when the release gate has just forced `STABLE → DEV` — a `DEV` build's version
+is **coerced** (`devLaneVersion`) to a lane-safe form:
+
+```text
+intent bump 1.2.43 → 1.2.44, then forced to DEV
+  ⇒ version pinned to  1.2.43-dev.1   (latest release + -dev pre-release suffix)
+  ⇒ build_number iterates within it; the DEV build semver-orders BELOW 1.2.43
+  ⇒ it can neither squat the published 1.2.43 identity nor claim a new 1.2.44 release
+```
+
+An already lane-safe version (`-dev.` / `+local.` / `-hotfix.`) is kept. With no published
+release yet, the resolved version is suffixed (`0.0.1 → 0.0.1-dev.1`) so it still claims
+no release. The coercion is repository-owned and non-destructive — the deploy never fails,
+mirroring how the channel gates force `DEV` rather than reject.
+
+> **Direct-publish path (follow-up).** `globular pkg publish` (and the MCP `package_publish`
+> tool) use the direct `UploadArtifact` path, where the binary blob is written under a
+> version-derived storage key **before** the channel is read from `package.json` — so a
+> post-hoc version coercion there would desync the manifest from the blob. Binding that
+> path to the DEV lane is best done **at build time** (`pkg build` for the dev/local lane
+> emits a `-dev`/`+local` version), with a `validateLocalIdentityRules` "DEV requires a
+> lane suffix" backstop. That is deferred to the build-ergonomics work (with #6), not done
+> by mutating the critical upload handler.
+
 ---
 
 ## 4. The infrastructure-vs-service rule

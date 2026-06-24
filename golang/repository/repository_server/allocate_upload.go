@@ -156,11 +156,9 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 		return nil, err
 	}
 
-	// Generate build_id and build_number.
+	// Generate build_id. build_number is computed after the channel and version
+	// are final (a DEV coercion below changes the version it is counted against).
 	buildID := uuid.Must(uuid.NewV7()).String()
-	buildNumber := srv.resolveLatestBuildNumber(ctx, &repopb.ArtifactRef{
-		PublisherId: publisher, Name: name, Version: version, Platform: platform,
-	}) + 1
 
 	// Resolve channel — default to STABLE.
 	ch := req.GetChannel()
@@ -188,6 +186,29 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 			ch = repopb.ArtifactChannel_DEV
 		}
 	}
+
+	// ── DEV version semantics (P5) ────────────────────────────────────────
+	// A DEV build must never advance the release stream. Once the channel is
+	// final, pin a DEV build's version off the release stream: a clean release
+	// semver (whether requested or bumped by intent above, or the result of the
+	// gate forcing STABLE → DEV) is rewritten to a lane-safe `-dev` version
+	// anchored to the latest published release. build_number (computed next)
+	// then iterates within that DEV version. This is the repository-owned,
+	// non-destructive coercion — the reservation/`deploy` flow never lets DEV
+	// occupy a release version.
+	if ch == repopb.ArtifactChannel_DEV {
+		latest, _ := srv.getLatestRelease(ctx, publisher, name, platform)
+		if coerced := devLaneVersion(latest, version); coerced != version {
+			slog.Warn("dev-version: pinning DEV build off the release stream",
+				"publisher", publisher, "name", name, "from", version, "to", coerced)
+			version = coerced
+		}
+	}
+
+	// build_number is counted against the FINAL (possibly coerced) version.
+	buildNumber := srv.resolveLatestBuildNumber(ctx, &repopb.ArtifactRef{
+		PublisherId: publisher, Name: name, Version: version, Platform: platform,
+	}) + 1
 
 	// Create reservation.
 	res, err := reservations.allocate(publisher, name, version, platform, buildID, buildNumber, ch)
