@@ -39,6 +39,33 @@ func isOfficialPublisher(publisherID string) bool {
 	return strings.EqualFold(strings.TrimSpace(publisherID), officialPublisher)
 }
 
+// directPublishChannelGate is the pure release-authority decision for the
+// direct publish path (UploadArtifact), the P3 parity for AllocateUpload. Given
+// the artifact's resolved channel, its publisher, and whether the caller holds
+// release authority on the namespace, it returns the final channel and whether
+// the caller must be rejected.
+//
+// Rules (only STABLE — the convergeable channel — is gated):
+//   - authorized, or channel ≠ STABLE → unchanged (pass through).
+//   - unauthorized STABLE, non-official publisher → forced to DEV. This is what
+//     makes agent / `globular pkg publish` / MCP builds DEV by construction: a
+//     caller with write access but no release.allocate cannot land STABLE.
+//   - unauthorized STABLE, official publisher → reject. The official namespace is
+//     sealed and cannot be DEV (identity-lane Rule 2), so there is no safe
+//     downgrade — release authority is mandatory, not optional.
+//
+// Pure (no RBAC, no state) so the policy is unit-tested directly; the caller
+// supplies `authorized` from authorizeRelease.
+func directPublishChannelGate(effective repopb.ArtifactChannel, publisherID string, authorized bool) (final repopb.ArtifactChannel, rejectOfficial bool) {
+	if authorized || effective != repopb.ArtifactChannel_STABLE {
+		return effective, false
+	}
+	if isOfficialPublisher(publisherID) {
+		return effective, true // sealed official namespace: no downgrade, reject
+	}
+	return repopb.ArtifactChannel_DEV, false
+}
+
 // isLocalChannel returns true for channels that mark non-stable local/dev/hotfix builds.
 func isLocalChannel(ch repopb.ArtifactChannel) bool {
 	switch ch {

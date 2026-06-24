@@ -307,6 +307,34 @@ identity*; ingestion gates *whether an imported release may keep its `STABLE` ch
 Both answer "does this subject hold `release.allocate` on the namespace?" via the same
 `subjectHoldsReleaseAuthority` primitive.
 
+### 3.4.3 The direct-publish gate — agent/MCP builds are DEV by construction (P4)
+
+`AllocateUpload` is the reservation/bump flow, but `globular pkg publish` (and the MCP
+`package_publish` tool, and any caller) uses the **direct `UploadArtifact`** path, whose
+channel comes from `package.json` / a reservation. Without a gate there, STABLE could be
+claimed with no release authority — and an agent could route around any tool-layer
+binding via `globular_cli_execute`. So the gate lives at the **authority boundary**, not
+the periphery: `UploadArtifact` runs the **same** `resolveForgeIdentity` + `authorizeRelease`
+as `AllocateUpload` (the RPC carries an `AuthContext`).
+
+When the resolved channel is `STABLE` and the caller lacks `release.allocate`:
+
+```text
+non-official publisher  → forced to DEV   (the agent/dev lane; lane-legal — Rule 2 only
+                                            forbids OFFICIAL + DEV)
+official publisher      → rejected         (the sealed namespace cannot be DEV; release
+                                            authority is mandatory, not downgradable)
+```
+
+`sa`, in-process/direct (no `AuthContext`), and properly-granted CI authorities pass
+unchanged. This makes **agent builds DEV by construction at the authority boundary** —
+not bypassable by choosing a different tool — which subsumes a tool-layer channel flag.
+The GitHub CI release path is unaffected (it publishes to GitHub Releases → upstream
+sync, gated by §3.4.2, not `UploadArtifact`).
+
+Three entry points, one authority model: **allocate** (§3.4.1), **ingest** (§3.4.2), and
+**direct publish** (§3.4.3) all gate `STABLE` on `release.allocate` for the namespace.
+
 ---
 
 ## 4. The infrastructure-vs-service rule

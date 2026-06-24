@@ -110,6 +110,14 @@ Common spec locations:
 
 Wraps 'globular pkg publish'. Validates the package, uploads the bundle, and registers the descriptor.
 
+CHANNEL / RELEASE AUTHORITY: agent publishes land on the DEV channel by
+construction. The repository forces STABLE → DEV for any publisher that does not
+hold release.allocate on its namespace (the release-authority gate), so an agent
+build is never convergeable-STABLE. Cutting a STABLE release is a separate,
+RBAC-authorized action — not something this tool can do. Publishing to the
+official namespace (core@globular.io) as STABLE without release authority is
+rejected outright; use your own / a local publisher for test builds.
+
 If you get AlreadyExists error, rebuild with a higher build_number using package_build first.`,
 		InputSchema: inputSchema{
 			Type: "object",
