@@ -195,6 +195,17 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 			spec.PublisherID, spec.ServiceName, version, buildNumber)
 	}
 
+	// Slice 3 hard gate (Invariant E): reject any resolved artifact that is not on a
+	// convergence-eligible channel (STABLE / legacy UNSET). This also covers PINNED
+	// resolution, where getLatestPublished is bypassed — a desired pin pointing at a
+	// DEV artifact must never resolve as a convergence target.
+	if !isConvergeableChannel(manifest.GetChannel()) {
+		return nil, fmt.Errorf("artifact %s/%s@%s build %d is on channel %s, not a "+
+			"convergence-eligible release channel (STABLE); DEV artifacts are never valid "+
+			"desired-state targets", spec.PublisherID, spec.ServiceName, version, buildNumber,
+			manifest.GetChannel())
+	}
+
 	// Amendment 4: assert checksum is SHA256 hex (64 hex chars).
 	checksum := normalizeSHA256(manifest.GetChecksum())
 	if err := assertSHA256Hex(checksum, spec.PublisherID, spec.ServiceName, version); err != nil {
@@ -215,6 +226,42 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 type artifactCandidate struct {
 	version     string
 	buildNumber int64
+}
+
+// isConvergeableChannel reports whether an artifact on this channel may be a
+// cluster convergence (desired-state) target. Per repository.proto Invariant E,
+// "the reconciler resolves from STABLE only"; CHANNEL_UNSET is legacy and treated
+// as STABLE. DEV (and every other non-STABLE channel) is NEVER a valid desired-
+// state target — this is the controller-side half of the dev/release boundary
+// (docs/design/package-lifecycle.md §3.4; invariant
+// package.release_vs_dev_channel_boundary).
+func isConvergeableChannel(ch repositorypb.ArtifactChannel) bool {
+	return ch == repositorypb.ArtifactChannel_CHANNEL_UNSET ||
+		ch == repositorypb.ArtifactChannel_STABLE
+}
+
+// pickBestConvergeableBuild returns the highest build_number (and its build_id)
+// among CONVERGENCE-ELIGIBLE artifacts (STABLE / legacy UNSET) matching canon and
+// desiredVer. DEV-channel artifacts are skipped so they can never advance desired
+// state (Slice 3 / Invariant E). Pure function — unit-tested directly.
+func pickBestConvergeableBuild(allArts []*repositorypb.ArtifactManifest, canon, desiredVer string) (int64, string) {
+	var bestBuild int64
+	var bestBuildID string
+	for _, art := range allArts {
+		ref := art.GetRef()
+		if ref == nil {
+			continue
+		}
+		if !isConvergeableChannel(art.GetChannel()) {
+			continue
+		}
+		if canonicalServiceName(ref.GetName()) == canon &&
+			ref.GetVersion() == desiredVer && art.GetBuildNumber() > bestBuild {
+			bestBuild = art.GetBuildNumber()
+			bestBuildID = art.GetBuildId()
+		}
+	}
+	return bestBuild, bestBuildID
 }
 
 // getLatestPublished resolves the latest PUBLISHED artifact for a service.
@@ -250,6 +297,13 @@ func (r *ReleaseResolver) getLatestPublished(ctx context.Context, client reposit
 
 		// Always reject YANKED/QUARANTINED/REVOKED regardless of policy.
 		if repositorypb.IsDownloadBlocked(ps) {
+			continue
+		}
+
+		// Slice 3 (Invariant E): only STABLE-channel (or legacy UNSET) artifacts are
+		// convergence-eligible. Skip DEV and other channels so latest-resolution picks
+		// the latest STABLE release, never a DEV artifact.
+		if !isConvergeableChannel(a.GetChannel()) {
 			continue
 		}
 
