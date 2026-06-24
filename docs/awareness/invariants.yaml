@@ -214,7 +214,7 @@ invariants:
   - meta.assertions_must_carry_their_scope
   required_tests:
   - TestValidateAnnotationsSkipsTestFiles
-  severity: ERROR
+  severity: high
   status: active
   summary: 'The awareness annotation validator must not treat //globular: strings inside test fixtures as production annotations.
     Production annotations are validated from non-test Go source files only.
@@ -3006,7 +3006,7 @@ invariants:
   - TestLayoutDrift_TransientBackupFile_IsCleanupCandidate
   - TestLayoutDrift_HiddenDir_IsSilent
   - TestLayoutDrift_KnownServicesIncluded
-  severity: warn
+  severity: medium
   status: active
   summary: "The artifact.layout_drift_local rule must classify each unexpected\ntop-level entry under /var/lib/globular/ by\
     \ EVIDENCE, not by absence\nfrom a hard-coded list. The classification matrix:\n\n  - canonical active runtime dir w/\
@@ -5549,7 +5549,7 @@ invariants:
   required_tests:
   - TestKeepalivedConfigContainsHealthScript
   - TestUnhealthyMasterLosesPriorityBelowBackup
-  severity: warning
+  severity: high
   status: active
   summary: 'Each keepalived-bearing node runs vrrp_script health checks (gateway responsive,
 
@@ -6372,7 +6372,7 @@ invariants:
   - TestSeederWorkflowAbortsOnHashMismatch
   - TestDoctorEmitsDriftFindingButDoesNotGate
   - TestSeedSha256IsCanonicalAndStable
-  severity: warning
+  severity: high
   status: active
   summary: 'Operational knowledge ships as YAML in `docs/operational-knowledge/`, gets bundled into
 
@@ -9163,7 +9163,7 @@ invariants:
   - meta.identity_computation_must_be_invariant
   required_tests:
   - TestServiceVersion_DescribeReportsBuildTimeVersion
-  severity: degraded
+  severity: high
   status: active
   summary: 'Every Globular service entrypoint must populate its `Version` field
 
@@ -9238,7 +9238,7 @@ invariants:
   - TestLayoutDrift_NodeAgentAliasesAreDeterministic
   - TestLayoutDrift_NonEmptyDuplicateAliasProducesDuplicateWarn
   - TestCanonicalRuntimeDir_NoMutationForUnknownNames
-  severity: warn
+  severity: medium
   status: active
   summary: 'Service runtime state under /var/lib/globular/ must use one canonical
 
