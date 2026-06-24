@@ -32,7 +32,7 @@ maturity, not the target.
 ## Per-point feature lists (stable IDs)
 
 ### P1 — Code governance (Mostly → close the coverage tail)
-- [ ] **CG-1** Audit every proposed invariant for real guard+tests (evidence map)
+- [x] **CG-1** Audit every proposed invariant for real guard+tests (evidence map) — *[invariant-evidence-map.md](invariant-evidence-map.md): 260 invariants, 93% active, complete critical/high test coverage. Fixed 6 malformed severities. Residual: 7 metadata-only anchor gaps (have tests) + 17 legitimately-planned. Corrected the "mostly proposed" premise.*
 - [ ] **CG-2** Promote evidence-backed invariants to active + wire `required_tests` (the #95/#96 pattern, at scale)
 - [ ] **CG-3** For invariants lacking evidence: build the guard+test, or mark explicitly aspirational with a tracking ref
 - [ ] **CG-4** Verify impact-ci actually fails when a protected file changes without its required tests
@@ -82,7 +82,7 @@ maturity, not the target.
 
 ### Tier B — Close the write-back loop (needs GC-2)
 - [x] 4. **WB-1** promotion→rebuild→checks automatic (S, after GC-2) ✅ GC-2 = merge-time rebuild; `awg promote` now fires validate+audit (the local half)
-- [ ] 5. **CG-1** invariant evidence audit — now cheap; feeds the grind (S)
+- [x] 5. **CG-1** invariant evidence audit — now cheap; feeds the grind (S) ✅ [invariant-evidence-map.md](invariant-evidence-map.md); fixed 6 malformed severities
 - [ ] 6. **WB-2** incident→candidate generator (L)
 - [ ] 7. **WB-3** end-to-end loop CI test (M)
 
