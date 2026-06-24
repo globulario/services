@@ -409,6 +409,25 @@ func profilesOverlap(componentProfiles, nodeProfiles []string) bool {
 	return false
 }
 
+// placementAllows reports whether a node may host a component, given the
+// component's CATALOG placement profiles and the node's raw profiles. This is
+// the single placement predicate shared by platform-upgrade evaluate
+// (workflow_platform_upgrade.go), the platform-upgrade dispatch guard, and the
+// release reconciler (release_pipeline.go) — "one law book" for placement, so
+// the evaluate decision and the reconcile placement can never disagree.
+//
+// Semantics (must match every call site):
+//   - empty catalogProfiles → no restriction declared → allowed
+//   - otherwise             → allowed iff the catalog profiles overlap the
+//     node's profiles, after the node profiles are normalized/expanded
+//     (e.g. "control-plane" expands to include "core").
+func placementAllows(catalogProfiles, nodeProfiles []string) bool {
+	if len(catalogProfiles) == 0 {
+		return true
+	}
+	return profilesOverlap(catalogProfiles, normalizeProfiles(nodeProfiles))
+}
+
 func capSatisfiedBy(cap Capability, selected map[string]*resolvedEntry) bool {
 	for _, entry := range selected {
 		for _, provided := range entry.component.ProvidesCapabilities {

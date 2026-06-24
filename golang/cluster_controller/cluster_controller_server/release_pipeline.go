@@ -139,12 +139,11 @@ func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredV
 		}
 
 		// 3. Catalog profile placement rules — skip nodes whose profiles
-		//    don't overlap with the service's required profiles.
-		if catalogEntry != nil && len(catalogEntry.Profiles) > 0 {
-			expandedProfiles := normalizeProfiles(node.Profiles)
-			if !profilesOverlap(catalogEntry.Profiles, expandedProfiles) {
-				continue
-			}
+		//    don't overlap with the service's required profiles. Uses the
+		//    shared placementAllows predicate (component_resolve.go) so this
+		//    matches platform-upgrade evaluate exactly — one placement law book.
+		if catalogEntry != nil && !placementAllows(catalogEntry.Profiles, node.Profiles) {
+			continue
 		}
 
 		// This node is eligible — it must have the package installed.
@@ -486,13 +485,13 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 				continue
 			}
 		}
-		if catalogEntry != nil && len(catalogEntry.Profiles) > 0 {
-			expandedProfiles := normalizeProfiles(node.Profiles)
-			if !profilesOverlap(catalogEntry.Profiles, expandedProfiles) {
-				log.Printf("%s %s: skip node %s, profiles %v don't match catalog %v",
-					h.ResourceType, h.Name, id, expandedProfiles, catalogEntry.Profiles)
-				continue
-			}
+		// Shared placement predicate (placementAllows) — identical to
+		// platform-upgrade evaluate, so an upgrade dispatch and this reconcile
+		// placement can never disagree (the torrent-orphan class).
+		if catalogEntry != nil && !placementAllows(catalogEntry.Profiles, node.Profiles) {
+			log.Printf("%s %s: skip node %s, profiles %v don't match catalog %v",
+				h.ResourceType, h.Name, id, normalizeProfiles(node.Profiles), catalogEntry.Profiles)
+			continue
 		}
 		// Skip nodes with stale heartbeats — they are definitively offline.
 		// Including an offline node in the release wave causes the workflow to
