@@ -145,6 +145,24 @@ func validateLocalIdentityRules(publisherID string, ch repopb.ArtifactChannel, v
 				"bump the version and use the official release pipeline", version)
 	}
 
+	// Rule 4 (#6c): a DEV artifact must carry a local/dev version suffix — it may
+	// never occupy a clean release version. This closes the dev/release boundary
+	// on the direct publish path: AllocateUpload coerces a DEV build's version
+	// (P5/devLaneVersion), but UploadArtifact writes the blob under a
+	// version-derived key before the channel is known, so it cannot coerce — it
+	// enforces here instead. The CLI already emits a suffix for --channel dev/local
+	// (pkg_cmds.go), so well-formed dev-lane publishes pass by construction; a
+	// clean-semver DEV (including one the release gate force-downgraded from an
+	// unauthorized STABLE) is rejected so it cannot squat a release version.
+	// (Official + DEV is already rejected by Rule 2 above; this covers the rest.)
+	if effective == repopb.ArtifactChannel_DEV && !localSuffix {
+		return status.Errorf(codes.InvalidArgument,
+			"identity lane violation: channel DEV requires a local/dev version suffix (e.g. %s-dev.1), "+
+				"got clean release version %q — publish with --channel dev/local (auto-suffixes) or build a "+
+				"-dev/+local version; a DEV build must never claim a release version",
+			version, version)
+	}
+
 	return nil
 }
 
