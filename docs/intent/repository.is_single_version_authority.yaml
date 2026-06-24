@@ -50,7 +50,4 @@ violation_patterns:
 - "self.?stamp.*version"
 - "version.*from.*tag.*upload"
 - "second.*version.*author"
-required_tests:
-- repository:TestReleaseVersionAllocatedOnlyWithReleaseCapability
-- repository:TestDevChannelCannotAllocateReleaseVersion
 status: proposed
