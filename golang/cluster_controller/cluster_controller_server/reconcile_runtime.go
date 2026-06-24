@@ -1049,21 +1049,10 @@ func (srv *server) reconcileDesiredFromRepository(ctx context.Context) {
 		desiredVer := sdv.Spec.Version
 		desiredBuild := sdv.Spec.BuildNumber
 
-		// Find the highest build number for the desired version among all artifacts.
-		// Also capture the build_id for stable convergence identity.
-		var bestBuild int64
-		var bestBuildID string
-		for _, art := range allArts {
-			ref := art.GetRef()
-			if ref == nil {
-				continue
-			}
-			artCanon := canonicalServiceName(ref.GetName())
-			if artCanon == canon && ref.GetVersion() == desiredVer && art.GetBuildNumber() > bestBuild {
-				bestBuild = art.GetBuildNumber()
-				bestBuildID = art.GetBuildId()
-			}
-		}
+		// Find the highest build number for the desired version among
+		// CONVERGENCE-ELIGIBLE (STABLE / legacy UNSET) artifacts only — DEV artifacts
+		// must never advance desired-state (Slice 3 / Invariant E).
+		bestBuild, bestBuildID := pickBestConvergeableBuild(allArts, canon, desiredVer)
 
 		if bestBuild > desiredBuild {
 			sdv.Spec.BuildNumber = bestBuild
