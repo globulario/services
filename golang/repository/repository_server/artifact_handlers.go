@@ -1505,7 +1505,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	if err != nil {
 		return status.Errorf(codes.Internal, "marshal manifest: %v", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+	if err := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		return status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
@@ -2070,7 +2070,7 @@ func (srv *server) promoteArtifactInternal(ctx context.Context, ref *repopb.Arti
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "marshal manifest: %v", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+	if err := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
@@ -2207,7 +2207,7 @@ func (srv *server) SetArtifactState(ctx context.Context, req *repopb.SetArtifact
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "marshal manifest: %v", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+	if err := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		return nil, status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
@@ -2689,7 +2689,7 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	if err != nil {
 		return status.Errorf(codes.Internal, "marshal manifest: %v", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(newKey), mjson, 0o644); err != nil {
+	if err := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(newKey), mjson, 0o644); err != nil {
 		return status.Errorf(codes.Internal, "write manifest: %v", err)
 	}
 
@@ -2987,7 +2987,7 @@ func (srv *server) markCorrupted(ctx context.Context, key string, m *repopb.Arti
 		slog.Warn("failed to marshal corrupted manifest", "key", key, "err", err)
 		return
 	}
-	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+	if err := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		slog.Warn("failed to write corrupted manifest", "key", key, "err", err)
 		return
 	}

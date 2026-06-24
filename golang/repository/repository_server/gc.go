@@ -278,7 +278,7 @@ func (srv *server) archiveOne(ctx context.Context, key string, m *repopb.Artifac
 	if err != nil {
 		return fmt.Errorf("marshal archived manifest: %w", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+	if err := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		return fmt.Errorf("write archived manifest: %w", err)
 	}
 	srv.syncStateToScylla(ctx, key, repopb.PublishState_ARCHIVED)

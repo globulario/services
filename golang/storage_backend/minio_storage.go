@@ -282,6 +282,13 @@ func (s *MinioStorage) WriteFile(ctx context.Context, path string, data []byte, 
 	return err
 }
 
+// AtomicWriteFile writes atomically. An object-store PUT is atomic at the object
+// level — a reader sees the old object or the new one, never a partial — so this
+// delegates to WriteFile.
+func (s *MinioStorage) AtomicWriteFile(ctx context.Context, path string, data []byte, perm fs.FileMode) error {
+	return s.WriteFile(ctx, path, data, perm)
+}
+
 // RemoveAll deletes the specified object and any keys beneath its prefix.
 func (s *MinioStorage) RemoveAll(ctx context.Context, path string) error {
 	key := s.pathToKey(path)

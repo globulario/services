@@ -26,6 +26,9 @@ func (f *failStorage) Open(_ context.Context, _ string) (io.ReadSeekCloser, erro
 func (f *failStorage) Stat(_ context.Context, _ string) (fs.FileInfo, error)          { return nil, errFail }
 func (f *failStorage) Exists(_ context.Context, _ string) bool                         { return false }
 func (f *failStorage) ReadDir(_ context.Context, _ string) ([]fs.DirEntry, error)      { return nil, errFail }
+func (f *failStorage) AtomicWriteFile(_ context.Context, _ string, _ []byte, _ fs.FileMode) error {
+	return errFail
+}
 func (f *failStorage) WriteFile(_ context.Context, _ string, _ []byte, _ fs.FileMode) error {
 	return errFail
 }

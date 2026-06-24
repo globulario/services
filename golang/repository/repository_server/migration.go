@@ -99,7 +99,7 @@ func (srv *server) MigrateToTrustModel(ctx context.Context) {
 		if state == repopb.PublishState_PUBLISH_STATE_UNSPECIFIED {
 			mjson, err := marshalManifestWithState(m, repopb.PublishState_PUBLISHED)
 			if err == nil {
-				if werr := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); werr == nil {
+				if werr := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(key), mjson, 0o644); werr == nil {
 					changed = true
 				}
 			}
@@ -216,7 +216,7 @@ func (srv *server) MigrateBuildIDs(ctx context.Context) {
 			skipped++
 			continue
 		}
-		if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+		if err := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 			slog.Warn("build_id migration: write failed", "key", key, "err", err)
 			skipped++
 			continue

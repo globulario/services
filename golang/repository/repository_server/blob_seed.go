@@ -152,7 +152,7 @@ func (srv *server) materializeStagedArchive(ctx context.Context, row *manifestRo
 		return err
 	}
 	if len(row.ManifestJSON) > 0 {
-		if err := srv.localStorage.WriteFile(ctx, manifestStorageKey(row.ArtifactKey), row.ManifestJSON, 0o644); err != nil {
+		if err := srv.localStorage.AtomicWriteFile(ctx, manifestStorageKey(row.ArtifactKey), row.ManifestJSON, 0o644); err != nil {
 			// Blob landed and is digest-verified; a sidecar write failure only
 			// degrades local-listing paths. Log loudly, do not undo the blob.
 			logger.Warn("blob-seed: blob seeded but manifest sidecar write failed",

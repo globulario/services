@@ -1141,7 +1141,7 @@ func (srv *server) importUpstreamArtifact(
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
-	if err := srv.Storage().WriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
+	if err := srv.Storage().AtomicWriteFile(ctx, manifestStorageKey(key), mjson, 0o644); err != nil {
 		return fmt.Errorf("write manifest: %w", err)
 	}
 	srv.syncManifestToScylla(ctx, key, manifest, targetState, mjson)
