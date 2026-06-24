@@ -367,6 +367,30 @@ mirroring how the channel gates force `DEV` rather than reject.
 > lane suffix" backstop. That is deferred to the build-ergonomics work (with #6), not done
 > by mutating the critical upload handler.
 
+### 3.4.5 Channel eligibility — discoverability ≠ convergeability (BOOTSTRAP)
+
+Two predicates classify channels, and they answer **different questions** — a distinction
+that must stay explicit so they are never "reconciled" into one:
+
+| Predicate | Service | Question | Set |
+|-----------|---------|----------|-----|
+| `isConvergeableChannel` | controller | may this become **desired state**? | `STABLE`, `UNSET` |
+| `isDefaultListChannel` | repository | shown by default in **searches/listings**? | `STABLE`, `UNSET`, `BOOTSTRAP` |
+
+`isConvergeableChannel` is the **single authority** on convergence eligibility (repository.proto
+Invariant E — "the reconciler resolves from STABLE only"). The repository never re-defines
+convergence: `ResolveArtifact` serves whatever channel the caller **explicitly** requests, so a
+`BOOTSTRAP` artifact is only ever returned to a caller asking for `channel=BOOTSTRAP`.
+
+**BOOTSTRAP is intentionally discoverable-and-servable but not auto-convergeable.** Bootstrap-phase
+artifacts (publishable via `pkg publish --channel bootstrap`) must be visible in listings and
+fetchable on explicit request during cluster bring-up, yet must **never** advance desired state
+through normal release convergence. The set difference between the two predicates *is* that
+contract — it is not a bug, and the convergence set must **not** be widened to match the listing
+set. (`isDefaultListChannel` was previously named `isReconcilerSafeChannel`, which wrongly implied
+it was a convergence predicate; renamed to remove the false second definition.) Each predicate is
+locked by a `channel_eligibility_test.go` in its service.
+
 ---
 
 ## 4. The infrastructure-vs-service rule
