@@ -24,6 +24,7 @@ import (
 
 	"github.com/globulario/services/golang/audittrail"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/repository/repository_client"
@@ -313,6 +314,36 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 		}
 	}
 
+	// ── Kind routing (invariant desired.keyed_by_kind_and_name) ───────────
+	// Kind is the resource type: ServiceDesiredVersion (SERVICE) vs
+	// InfrastructureRelease (INFRASTRUCTURE), each keyed by name. If this name is
+	// already managed as INFRASTRUCTURE, route the write to its
+	// InfrastructureRelease and NEVER create a SERVICE ServiceDesiredVersion for
+	// the same name — that cross-kind ghost is the collision that fired the xds
+	// incident. The detection moved ABOVE the ServiceDesiredVersion write so the
+	// ghost is never created in the first place (previously it was written, then
+	// the infra release was bumped, leaving both records for one name).
+	//
+	// We keep routing (rather than hard-rejecting) so infra updates that still
+	// funnel through UpsertDesiredService keep working; the caller-side hard
+	// reject is D2. A name whose INFRASTRUCTURE record cannot be read is refused,
+	// not ghosted.
+	if handled, rerr := routeInfrastructureDesired(ctx, srv.resources, canon, version, svc.BuildNumber); handled {
+		if rerr != nil {
+			return rerr
+		}
+		_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
+			Service:   canon,
+			Actor:     "cluster-controller",
+			Source:    "upsertOne",
+			Action:    "route_desired_to_infrastructure",
+			Reason:    "name managed as INFRASTRUCTURE; cross-kind SERVICE write routed, no ServiceDesiredVersion ghost",
+			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		})
+		return nil // INFRASTRUCTURE owns this name — never write a SERVICE ServiceDesiredVersion
+	}
+
+	// ── Same-kind SERVICE write (no InfrastructureRelease for this name) ──
 	obj := &cluster_controllerpb.ServiceDesiredVersion{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: canon},
 		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
@@ -322,8 +353,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 			BuildID:     buildID,
 		},
 	}
-	_, err = srv.resources.Apply(ctx, "ServiceDesiredVersion", obj)
-	if err != nil {
+	if _, err = srv.resources.Apply(ctx, "ServiceDesiredVersion", obj); err != nil {
 		return err
 	}
 	_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
@@ -335,35 +365,51 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 	})
 
-	// Bridge: ensure a corresponding ServiceRelease exists so the release
-	// reconciler can track per-service lifecycle phases.
-	// Exception: if the service is managed by InfrastructureRelease, bump its
-	// spec.version instead of creating a ghost ServiceRelease. Without this,
-	// deploy would update ServiceDesiredVersion but leave InfrastructureRelease
-	// at the old version, causing the infra reconciler to never re-deploy.
-	infraManagedKey := defaultPublisherID() + "/" + canon
-	if infraObj, _, infraErr := srv.resources.Get(ctx, "InfrastructureRelease", infraManagedKey); infraErr == nil && infraObj != nil {
-		if infraRel, ok := infraObj.(*cluster_controllerpb.InfrastructureRelease); ok && infraRel.Spec != nil && infraRel.Spec.Version != version {
-			infraCopy := *infraRel
-			specCopy := *infraRel.Spec
-			specCopy.Version = version
-			specCopy.BuildNumber = svc.BuildNumber
-			infraCopy.Spec = &specCopy
-			if _, applyErr := srv.resources.Apply(ctx, "InfrastructureRelease", &infraCopy); applyErr != nil {
-				log.Printf("upsertOne: failed to bump InfrastructureRelease %s to %s: %v", canon, version, applyErr)
-			} else {
-				log.Printf("upsertOne: bumped InfrastructureRelease %s spec.version %s → %s", canon, infraRel.Spec.Version, version)
-			}
-			return nil // infra release owns this, no ServiceRelease needed
-		}
-		// Already at the right version — no-op.
-		if infraRel, ok := infraObj.(*cluster_controllerpb.InfrastructureRelease); ok && infraRel.Spec != nil && infraRel.Spec.Version == version {
-			return nil
-		}
-	}
+	// Ensure a corresponding ServiceRelease exists so the release reconciler can
+	// track per-service lifecycle phases.
 	srv.ensureServiceRelease(ctx, canon, "", version, svc.BuildNumber)
 
 	return nil
+}
+
+// routeInfrastructureDesired enforces the kind half of invariant
+// desired.keyed_by_kind_and_name on the SERVICE desired-write path. Kind is the
+// resource type: ServiceDesiredVersion (SERVICE) vs InfrastructureRelease
+// (INFRASTRUCTURE), each keyed by name. If `canon` is already managed as
+// INFRASTRUCTURE the write is routed to its InfrastructureRelease (bumped to
+// `version` when it differs) and NO cross-kind SERVICE ServiceDesiredVersion is
+// created for the same name — that ghost is the collision that fired the xds
+// incident.
+//
+//	handled=false           → no InfrastructureRelease for this name; the caller
+//	                          writes the same-kind ServiceDesiredVersion.
+//	handled=true,  err=nil  → routed to INFRASTRUCTURE (bump or already current).
+//	handled=true,  err!=nil → the INFRASTRUCTURE record is unreadable; refuse the
+//	                          cross-kind write (typed FailedPrecondition) rather
+//	                          than ghost it.
+func routeInfrastructureDesired(ctx context.Context, resources resourcestore.Store, canon, version string, buildNumber int64) (handled bool, err error) {
+	infraObj, _, infraErr := resources.Get(ctx, "InfrastructureRelease", defaultPublisherID()+"/"+canon)
+	if infraErr != nil || infraObj == nil {
+		return false, nil // no INFRASTRUCTURE record — same-kind SERVICE write
+	}
+	infraRel, ok := infraObj.(*cluster_controllerpb.InfrastructureRelease)
+	if !ok || infraRel.Spec == nil {
+		return true, status.Errorf(codes.FailedPrecondition,
+			"desired-state: %q is managed as INFRASTRUCTURE but its release record is unreadable — refusing cross-kind SERVICE desired write (desired.keyed_by_kind_and_name)", canon)
+	}
+	if infraRel.Spec.Version != version {
+		infraCopy := *infraRel
+		specCopy := *infraRel.Spec
+		specCopy.Version = version
+		specCopy.BuildNumber = buildNumber
+		infraCopy.Spec = &specCopy
+		if _, applyErr := resources.Apply(ctx, "InfrastructureRelease", &infraCopy); applyErr != nil {
+			log.Printf("upsertOne: failed to bump InfrastructureRelease %s to %s: %v", canon, version, applyErr)
+		} else {
+			log.Printf("upsertOne: routed SERVICE desired write for %s to InfrastructureRelease (spec.version %s → %s) — no cross-kind ServiceDesiredVersion ghost", canon, infraRel.Spec.Version, version)
+		}
+	}
+	return true, nil
 }
 
 // highestHealthyInstalledVersion returns the highest version of a service
