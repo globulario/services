@@ -34,4 +34,6 @@ related_to:
 required_tests:
   - repository:TestBlobIntegrityLocalOnly
   - repository:TestInstallabilityRequiresBothMetadataAndBlob
-status: extracted_candidate
+  - golang/storage_backend/os_storage_atomic_d5_test.go::TestAtomicWriteFile_CommitsFullyAndLeavesNoTemp
+  - golang/repository/repository_server/staging_sweeper_test.go::TestSweepOrphanTempBlobs_NeverTouchesCommittedContent
+status: active
