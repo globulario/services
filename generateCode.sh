@@ -44,6 +44,7 @@ GO_TARGETS=(
   "workflow:golang/workflow/workflowpb"
   "compute:golang/compute/computepb"
   "compute_runner:golang/compute/compute_runnerpb"
+  "governed_operation:golang/govops/governed_operationpb"
 )
 
 TS_TARGETS=(

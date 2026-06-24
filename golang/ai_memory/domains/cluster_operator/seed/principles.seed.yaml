@@ -86,6 +86,30 @@
   generated_from:
     - opsknowledge:runbooks
     - opsknowledge:incidents
+- id: principle.cluster.no_raw_owner_owned_state_write
+  title: Never raw-write owner-owned state; route through the owner path
+  applies_when:
+    - condition.always
+    - condition.cluster.owner_owned_state_write_intended
+  authorities:
+    - authority.cluster.owner_service.runtime_state
+  required_evidence: []
+  forbidden_moves:
+    - forbidden.cluster.raw_owner_owned_state_write
+  recommended_action: >-
+    To change owner-owned desired/spec/status state, call the owning controller's typed RPC so
+    the generation bumps, reconcile is triggered, and the resolved projection refreshes; never
+    etcdctl-put, mcp-raw-write, or --force a cross-kind desired record. Raw etcd is read-only
+    diagnostics or an explicit, human-confirmed, post-reconciled break-glass — never a normal
+    repair path.
+  risk_level: irreversible
+  revocation_rule: narrow only if a sanctioned owner-mediated raw path is added that still bumps generation and reconciles
+  promotion_reason: a raw infra-version / cross-kind desired write bypassed the owner path and produced a stale resolved projection and permanently unconvergeable drift; this is the gap the Governed Operation Gateway exists to close
+  source_refs:
+    - seed:operational-knowledge/incidents
+  generated_from:
+    - opsknowledge:incidents
+    - opsknowledge:service-roles
 - id: principle.cluster.deploy_through_release_pipeline_never_hot_swap
   title: Deploy through the release pipeline, never hot-swap a binary
   applies_when:

@@ -26,6 +26,23 @@
   reason: collapsing decide/execute authority puts execution into a decision service
   recommended_behavior: Keep decide/coordinate/execute separate — controller decides, workflow coordinates, node-agent executes.
   safe_next_step: dispatch a workflow rather than executing locally from the controller
+- id: forbidden.cluster.raw_owner_owned_state_write
+  title: Raw-write owner-owned desired/spec/status state (bypassing the owner path)
+  reason: >-
+    A raw storage write (etcdctl put/del, mcp raw write, repair script, or a CLI --force that
+    bypasses kind validation) to owner-owned control-plane state skips the owner/controller RPC
+    path. That path is what bumps the generation, triggers reconcile, and refreshes derived
+    projections. Bypassing it leaves a stale resolved_version / cache_digest, a generation that
+    never moved, false-green dashboards, and — when the kind is wrong — a permanently
+    unconvergeable desired record (the xds-as-SERVICE cross-kind scar). The owner is the only
+    writer of its desired/spec/status.
+  recommended_behavior: >-
+    Route every owner-owned state change through the owning controller's typed RPC
+    (UpsertDesiredService, ApplyInfrastructureRelease, RemoveDesiredService, ...) so generation
+    bumps, reconcile triggers, and the resolved projection refreshes; verify those postconditions
+    before claiming success.
+  safe_next_step: resolve authority.cluster.owner_service.runtime_state and use the owner RPC; raw etcd is read-only / break-glass only
+  action_aliases: etcdctl_put, etcdctl_del, etcd_put, etcd_delete, raw_etcd_write, mcp_raw_write, write_desired_state_directly, patch_resolved_version, patch_cache_digest, patch_generation, manual_placement_patch, manual_release_state_patch, manual_package_lifecycle_patch, set_infra_version_raw, services_desired_set_force_cross_kind, nodeagent_installed_set_raw, cluster_config_put_owner_owned
 - id: forbidden.cluster.hot_swap_binary_outside_release_pipeline
   title: Hot-swap a service binary outside the release pipeline (cp-swap / local build)
   reason: a locally-built or cp-swapped binary has no ldflags version and a different checksum, so the 4-layer truth model (repository → desired → installed → runtime) diverges — runtime drift, broken leader election, and a deleted-inode binary that reports drift forever

@@ -35,3 +35,7 @@
   title: A service binary update/replacement is intended
   severity: high
   detect_spec: an agent intends to change the binary a running service executes (deploy, upgrade, hot-fix, or cp-swap)
+- id: condition.cluster.owner_owned_state_write_intended
+  title: A write to owner-owned desired/spec/status state is intended
+  severity: high
+  detect_spec: an agent intends to mutate owner-owned control-plane state (desired version, infra/xDS version, resolved_version, cache_digest, generation, placement, release/channel state) rather than read it
