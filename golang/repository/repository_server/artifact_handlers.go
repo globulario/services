@@ -178,9 +178,23 @@ func effectiveChannel(m *repopb.ArtifactManifest) repopb.ArtifactChannel {
 	return repopb.ArtifactChannel_STABLE
 }
 
-// isReconcilerSafeChannel returns true if the channel may be returned to the
-// cluster reconciler without explicit override. DEV and CANDIDATE are not safe.
-func isReconcilerSafeChannel(ch repopb.ArtifactChannel) bool {
+// isDefaultListChannel reports whether an artifact on this channel is shown by
+// default in SearchArtifacts/list results when the caller gives no explicit
+// channel filter and does not set include_all_channels. It is a QUERY-VISIBILITY
+// filter, NOT a convergence/reconciler gate.
+//
+// BOOTSTRAP is included here so bootstrap-phase artifacts are DISCOVERABLE — but
+// that is deliberately NOT the same set as convergence eligibility. The single
+// authority on "may this become desired state" is the controller's
+// isConvergeableChannel (STABLE / UNSET only — BOOTSTRAP excluded). The
+// repository never defines convergence: ResolveArtifact serves whatever channel
+// the caller explicitly asks for, so a BOOTSTRAP artifact is only ever returned
+// to a caller that requests channel=BOOTSTRAP. The asymmetry is the contract,
+// not a discrepancy — see docs/design/package-lifecycle.md §3.4.5.
+//
+// (Was isReconcilerSafeChannel — renamed because "reconciler-safe" wrongly
+// implied a convergence predicate; this only governs default list visibility.)
+func isDefaultListChannel(ch repopb.ArtifactChannel) bool {
 	switch ch {
 	case repopb.ArtifactChannel_STABLE,
 		repopb.ArtifactChannel_BOOTSTRAP,
@@ -1636,7 +1650,7 @@ func (srv *server) SearchArtifacts(ctx context.Context, req *repopb.SearchArtifa
 				if ch != filterChannel {
 					return false
 				}
-			} else if !isReconcilerSafeChannel(ch) {
+			} else if !isDefaultListChannel(ch) {
 				return false
 			}
 		}

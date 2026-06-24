@@ -235,6 +235,14 @@ type artifactCandidate struct {
 // state target — this is the controller-side half of the dev/release boundary
 // (docs/design/package-lifecycle.md §3.4; invariant
 // package.release_vs_dev_channel_boundary).
+//
+// This predicate is the SINGLE authority on convergence eligibility. In
+// particular BOOTSTRAP is NOT convergeable here, even though the repository lists
+// it by default in searches (isDefaultListChannel) and will serve it on explicit
+// request: bootstrap-phase artifacts must be discoverable and fetchable, but must
+// never auto-advance desired state. That asymmetry is the contract, not a
+// discrepancy — see docs/design/package-lifecycle.md §3.4.5. Do NOT widen this
+// set to match the repository's default-list set.
 func isConvergeableChannel(ch repositorypb.ArtifactChannel) bool {
 	return ch == repositorypb.ArtifactChannel_CHANNEL_UNSET ||
 		ch == repositorypb.ArtifactChannel_STABLE
