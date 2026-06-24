@@ -894,6 +894,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			desiredHash,
 			wantBuildID,
 			wantEntrypoint,
+			true, // build-backed release verdict — require build_id identity (no silent skip)
 			pkg,
 			time.Now(),
 		)

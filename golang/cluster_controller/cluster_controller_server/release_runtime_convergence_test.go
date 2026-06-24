@@ -66,6 +66,7 @@ func TestRuntimeStaleIsNotConverged(t *testing.T) {
 		"",
 		"",
 		"", // Phase 38: no entrypoint binding for this stale-runtime test
+		false,
 		&node_agentpb.InstalledPackage{Version: "1.0.0"},
 		time.Now(),
 	)
@@ -89,6 +90,7 @@ func TestCommandPackageDoesNotRequireRuntime(t *testing.T) {
 		"",
 		"",
 		"", // Phase 38: no entrypoint binding for COMMAND-kind test
+		false,
 		&node_agentpb.InstalledPackage{Version: "1.2.3"},
 		time.Now(),
 	)
@@ -175,12 +177,50 @@ func TestHasUnservedNodes_VersionMatchAndRuntimeActive(t *testing.T) {
 		InstalledStateKind: "SERVICE",
 		InstalledStateName: "rbac",
 		ResolvedVersion:    "1.2.3",
+		ResolvedBuildID:    "0191-rbac-build", // D3: a build-backed release must carry a resolved build_id
 		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
 			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseApplying},
 		},
 	}
 
 	if srv.hasUnservedNodes(h, map[string]struct{}{}) {
-		t.Fatal("expected unserved=false when version and runtime both converge")
+		t.Fatal("expected unserved=false when version, build_id, and runtime all converge")
+	}
+}
+
+// D3: a build-backed release with NO resolved build_id is "missing desired build
+// identity" — it must report unserved nodes, not silently converge on
+// version+runtime alone.
+func TestHasUnservedNodes_MissingBuildIDIsUnserved(t *testing.T) {
+	srv := &server{
+		state: &controllerState{
+			Nodes: map[string]*nodeState{
+				"n1": {
+					NodeID:            "n1",
+					BootstrapPhase:    BootstrapWorkloadReady,
+					InstalledVersions: map[string]string{"rbac": "1.2.3"},
+					Units: []unitStatusRecord{
+						{Name: "globular-rbac.service", State: "active"},
+					},
+					LastSeen: time.Now(),
+				},
+			},
+		},
+	}
+
+	h := &releaseHandle{
+		Name:               "rbac",
+		ResourceType:       "ServiceRelease",
+		InstalledStateKind: "SERVICE",
+		InstalledStateName: "rbac",
+		ResolvedVersion:    "1.2.3",
+		// ResolvedBuildID deliberately empty — missing build identity.
+		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseApplying},
+		},
+	}
+
+	if !srv.hasUnservedNodes(h, map[string]struct{}{}) {
+		t.Fatal("expected unserved=true when the build-backed release has no resolved build_id (missing build identity)")
 	}
 }

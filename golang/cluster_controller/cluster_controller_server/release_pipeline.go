@@ -72,17 +72,15 @@ func transientRetryDelay(retryCount int64) time.Duration {
 // Without profile filtering, a service targeting only "core" nodes would
 // require all nodes (including "gateway-only") to have it installed — causing
 // false drift and unnecessary work.
-func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredVersion string, desiredBuildNumber int64, desiredBuildID ...string) bool {
+func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredVersion string, desiredBuildNumber int64, desiredBuildID string) bool {
 	if serviceName == "" || desiredVersion == "" {
 		return false
 	}
 	canon := canonicalServiceName(serviceName)
 
-	// Phase 2: extract optional build_id.
-	buildID := ""
-	if len(desiredBuildID) > 0 {
-		buildID = desiredBuildID[0]
-	}
+	// Phase 2 / D3: build_id is the sole convergence identity, threaded
+	// explicitly (not variadic) so every caller is compile-time visible.
+	buildID := desiredBuildID
 
 	// Check installed-state registry across all nodes.
 	pkgs, err := installed_state.ListAllNodes(ctx, "SERVICE", canon)
@@ -154,7 +152,9 @@ func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredV
 		if !installedNodes[id] {
 			return false
 		}
-		if conv := classifyPackageConvergence(node, canon, "SERVICE", desiredVersion, "", buildID, "", &node_agentpb.InstalledPackage{
+		// build_id was already enforced above (installedNodes only includes nodes
+		// at the exact buildID); this call is a runtime-only check, so requireBuildID=false.
+		if conv := classifyPackageConvergence(node, canon, "SERVICE", desiredVersion, "", buildID, "", false, &node_agentpb.InstalledPackage{
 			Version: desiredVersion,
 			BuildId: buildID,
 		}, time.Now()); !conv.RuntimeOK {
@@ -850,7 +850,9 @@ func (srv *server) hasUnservedNodes(h *releaseHandle, blockedNodes map[string]st
 				// to the prior behaviour for this synthetic check; the
 				// real entrypoint comparison happens at the workflow-
 				// release skip-node site that reads the live etcd record.
-				conv := classifyPackageConvergence(node, h.InstalledStateName, h.InstalledStateKind, h.ResolvedVersion, h.DesiredHash, h.ResolvedBuildID, "", &node_agentpb.InstalledPackage{
+				// build-backed release artifact: require build_id — an unresolved
+				// (empty) ResolvedBuildID is "missing build identity", not converged.
+				conv := classifyPackageConvergence(node, h.InstalledStateName, h.InstalledStateKind, h.ResolvedVersion, h.DesiredHash, h.ResolvedBuildID, "", true, &node_agentpb.InstalledPackage{
 					Version:  h.ResolvedVersion,
 					Checksum: h.DesiredHash,
 					BuildId:  h.ResolvedBuildID,

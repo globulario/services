@@ -42,6 +42,7 @@ func TestClassifyPackageConvergence_EntrypointChecksumMismatch_RequiresRepair(t 
 		"sha256:cafebabe",
 		"019e8da6-42a7-7201-b858-4bf26d76e67c",
 		"e9434387f92fd3a19fc399fa8d2a9b2f7097f151d0027b4a7d20cccfe22556c8", // NEW desired
+		false,
 		installed,
 		time.Now(),
 	)
@@ -77,6 +78,7 @@ func TestClassifyPackageConvergence_EntrypointChecksumMatches_Converged(t *testi
 		"sha256:cafebabe",
 		"019e8da6-42a7-7201-b858-4bf26d76e67c",
 		"e9434387f92fd3a19fc399fa8d2a9b2f7097f151d0027b4a7d20cccfe22556c8",
+		false,
 		installed,
 		time.Now(),
 	)
@@ -111,6 +113,7 @@ func TestClassifyPackageConvergence_DesiredEntrypointEmpty_NoOpinion(t *testing.
 		"",
 		"any",
 		"", // desired entrypoint empty — no opinion
+		false,
 		installed,
 		time.Now(),
 	)
@@ -141,6 +144,7 @@ func TestClassifyPackageConvergence_InstalledEntrypointEmpty_NoOpinion(t *testin
 		"",
 		"any",
 		"e9434387f92fd3a19fc399fa8d2a9b2f7097f151d0027b4a7d20cccfe22556c8",
+		false,
 		installed,
 		time.Now(),
 	)

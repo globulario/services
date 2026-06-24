@@ -149,11 +149,18 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 				if idx := strings.LastIndex(shortName, "/"); idx >= 0 {
 					shortName = shortName[idx+1:]
 				}
-				if resolvedBuildID == "" || srv.isServiceConverged(ctx, shortName, rel.Status.ResolvedVersion, rel.Status.ResolvedBuildNumber, resolvedBuildID) {
+				// D3: build_id is an independent convergence dimension. An empty
+				// resolvedBuildID no longer short-circuits to "converged" — a
+				// build-backed AVAILABLE release with no resolved build_id is
+				// "missing desired build identity" and must be re-queued, not skipped.
+				if srv.isServiceConverged(ctx, shortName, rel.Status.ResolvedVersion, rel.Status.ResolvedBuildNumber, resolvedBuildID) {
 					continue // truly converged — no drift
 				}
-				// build_id drift detected: fall through to enqueue
-				log.Printf("release %s: AVAILABLE but build_id drift detected (resolved=%s) — re-queuing", rel.Meta.Name, resolvedBuildID[:min(8, len(resolvedBuildID))])
+				if resolvedBuildID == "" {
+					log.Printf("release %s: AVAILABLE but missing resolved build identity — re-queuing", rel.Meta.Name)
+				} else {
+					log.Printf("release %s: AVAILABLE but build_id drift detected (resolved=%s) — re-queuing", rel.Meta.Name, resolvedBuildID[:min(8, len(resolvedBuildID))])
+				}
 			}
 			key := releaseKeyPrefix + rel.Meta.Name
 			name := rel.Meta.Name
