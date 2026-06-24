@@ -44,7 +44,7 @@ maturity, not the target.
 - [ ] **RT-4** principle-check CI scanner forbidding new raw owner-owned write patterns (fail-closed)
 
 ### P3 — Memory write-back (Half → automate both ends)
-- [ ] **WB-1** Promotion → rebuild → checks fires automatically (needs GC-2)
+- [x] **WB-1** Promotion → rebuild → checks fires automatically (needs GC-2) — *merge-time half: GC-2's `seed-rebuild.yml` auto-triggers the rebuild on merge. Local half: `awg promote` now fires the coherence gate (validate + audit -check, incl. seed-orphans) after its rebuild — same chain as `awg learn`, with a `-no-check` escape. Verified it fail-closes (caught a real committed dangling ref `desired.no_regression_all_paths` → missing `convergence.identity_is_build_id`).*
 - [ ] **WB-2** Incident→candidate generator: scar / doctor finding → draft invariant/forbidden_fix/test → review queue
 - [ ] **WB-3** End-to-end loop CI: scar → candidate → approve → promote → rebuild → validate, demonstrated
 
@@ -81,7 +81,7 @@ maturity, not the target.
 **Tier A complete.** Awareness changes are now cheap-and-safe: coherence is hard-gated pre-merge (GC-1), the seed auto-rebuilds on merge (GC-2), and live-store drift is detectable (GC-3). Next: Tier B (close the write-back loop — WB-1 is now unblocked by GC-2).
 
 ### Tier B — Close the write-back loop (needs GC-2)
-- [ ] 4. **WB-1** promotion→rebuild→checks automatic (S, after GC-2)
+- [x] 4. **WB-1** promotion→rebuild→checks automatic (S, after GC-2) ✅ GC-2 = merge-time rebuild; `awg promote` now fires validate+audit (the local half)
 - [ ] 5. **CG-1** invariant evidence audit — now cheap; feeds the grind (S)
 - [ ] 6. **WB-2** incident→candidate generator (L)
 - [ ] 7. **WB-3** end-to-end loop CI test (M)
