@@ -39,11 +39,18 @@ func isOfficialPublisher(publisherID string) bool {
 	return strings.EqualFold(strings.TrimSpace(publisherID), officialPublisher)
 }
 
-// directPublishChannelGate is the pure release-authority decision for the
-// direct publish path (UploadArtifact), the P3 parity for AllocateUpload. Given
-// the artifact's resolved channel, its publisher, and whether the caller holds
-// release authority on the namespace, it returns the final channel and whether
-// the caller must be rejected.
+// releaseChannelDecision is THE single release-channel decision shared by every
+// publish gate — AllocateUpload (the reservation/bump flow) and UploadArtifact
+// (the direct `globular pkg publish` / MCP path) both call it, so the
+// "STABLE requires release authority" rule is defined in exactly one place and
+// cannot drift between gates. Given the artifact's resolved channel, its
+// publisher, and whether the caller holds release authority on the namespace, it
+// returns the final channel and whether the caller must be rejected.
+//
+// (The ingestion gate, upstreamReleaseDecision, applies the same principle in the
+// upstream-import context — see upstream_release_gate.go — but resolves authority
+// from trusted-publisher federation rather than an AuthContext, so it keeps its
+// own shape.)
 //
 // Rules (only STABLE — the convergeable channel — is gated):
 //   - authorized, or channel ≠ STABLE → unchanged (pass through).
@@ -56,7 +63,7 @@ func isOfficialPublisher(publisherID string) bool {
 //
 // Pure (no RBAC, no state) so the policy is unit-tested directly; the caller
 // supplies `authorized` from authorizeRelease.
-func directPublishChannelGate(effective repopb.ArtifactChannel, publisherID string, authorized bool) (final repopb.ArtifactChannel, rejectOfficial bool) {
+func releaseChannelDecision(effective repopb.ArtifactChannel, publisherID string, authorized bool) (final repopb.ArtifactChannel, rejectOfficial bool) {
 	if authorized || effective != repopb.ArtifactChannel_STABLE {
 		return effective, false
 	}

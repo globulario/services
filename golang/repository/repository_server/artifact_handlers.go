@@ -1475,7 +1475,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		if aerr != nil {
 			return aerr
 		}
-		final, rejectOfficial := directPublishChannelGate(effectiveChannel(manifest), publisherID, allow)
+		final, rejectOfficial := releaseChannelDecision(effectiveChannel(manifest), publisherID, allow)
 		if rejectOfficial {
 			return status.Errorf(codes.PermissionDenied,
 				"publishing %q to STABLE requires release.allocate on the namespace; "+
