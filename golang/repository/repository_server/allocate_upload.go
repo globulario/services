@@ -180,10 +180,21 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 		if aerr != nil {
 			return nil, aerr
 		}
-		if !allow {
+		// Shared decision with the direct-publish gate (releaseChannelDecision):
+		// unauthorized STABLE → DEV for a normal namespace; the sealed official
+		// namespace cannot be DEV (identity-lane Rule 2), so it is rejected here
+		// rather than handed a doomed official-DEV reservation that UploadArtifact
+		// would reject at upload. One rule, both gates.
+		final, rejectOfficial := releaseChannelDecision(ch, publisher, allow)
+		if rejectOfficial {
+			return nil, status.Errorf(codes.PermissionDenied,
+				"publishing %q to STABLE requires release.allocate on the namespace; "+
+					"local/agent builds must use a non-official publisher (DEV lane)", publisher)
+		}
+		if final != ch {
 			slog.Warn("release-authority: subject lacks release.allocate, forcing channel DEV",
 				"publisher", publisher, "name", name, "subject", id.Subject)
-			ch = repopb.ArtifactChannel_DEV
+			ch = final
 		}
 	}
 

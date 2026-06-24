@@ -15,7 +15,7 @@ import (
 )
 
 func TestDirectPublishGate_UnauthorizedNonOfficialStableForcedToDev(t *testing.T) {
-	final, reject := directPublishChannelGate(repopb.ArtifactChannel_STABLE, "local@ryzen", false)
+	final, reject := releaseChannelDecision(repopb.ArtifactChannel_STABLE, "local@ryzen", false)
 	if reject {
 		t.Fatal("non-official publisher must not be rejected — it is downgraded")
 	}
@@ -25,7 +25,7 @@ func TestDirectPublishGate_UnauthorizedNonOfficialStableForcedToDev(t *testing.T
 }
 
 func TestDirectPublishGate_UnauthorizedOfficialStableRejected(t *testing.T) {
-	final, reject := directPublishChannelGate(repopb.ArtifactChannel_STABLE, officialPublisher, false)
+	final, reject := releaseChannelDecision(repopb.ArtifactChannel_STABLE, officialPublisher, false)
 	if !reject {
 		t.Fatalf("unauthorized official STABLE must be rejected (cannot be DEV per lane Rule 2); got final=%v", final)
 	}
@@ -33,7 +33,7 @@ func TestDirectPublishGate_UnauthorizedOfficialStableRejected(t *testing.T) {
 
 func TestDirectPublishGate_AuthorizedStableUntouched(t *testing.T) {
 	for _, pub := range []string{officialPublisher, "acme", "org@example.io"} {
-		final, reject := directPublishChannelGate(repopb.ArtifactChannel_STABLE, pub, true)
+		final, reject := releaseChannelDecision(repopb.ArtifactChannel_STABLE, pub, true)
 		if reject || final != repopb.ArtifactChannel_STABLE {
 			t.Fatalf("authorized STABLE for %q must pass unchanged; got (final=%v, reject=%v)", pub, final, reject)
 		}
@@ -48,7 +48,7 @@ func TestDirectPublishGate_NonStableChannelsPassThrough(t *testing.T) {
 		repopb.ArtifactChannel_CANARY,
 		repopb.ArtifactChannel_BOOTSTRAP,
 	} {
-		final, reject := directPublishChannelGate(ch, "local@ryzen", false)
+		final, reject := releaseChannelDecision(ch, "local@ryzen", false)
 		if reject || final != ch {
 			t.Fatalf("channel %v must pass through unchanged; got (final=%v, reject=%v)", ch, final, reject)
 		}
@@ -59,7 +59,7 @@ func TestDirectPublishGate_NonStableChannelsPassThrough(t *testing.T) {
 // validateLocalIdentityRules (Rule 2 only forbids official + DEV). This ties the
 // gate's output to the lane invariant it must not violate.
 func TestDirectPublishGate_DowngradedResultIsLaneLegal(t *testing.T) {
-	final, reject := directPublishChannelGate(repopb.ArtifactChannel_STABLE, "local@ryzen", false)
+	final, reject := releaseChannelDecision(repopb.ArtifactChannel_STABLE, "local@ryzen", false)
 	if reject {
 		t.Fatal("non-official must downgrade, not reject")
 	}
