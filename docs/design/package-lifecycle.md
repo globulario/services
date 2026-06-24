@@ -262,6 +262,51 @@ After this, the SA allocates `STABLE` **only** for namespace `Z`; every other na
 in-process/direct calls remain trusted system paths. `CHANNEL_UNSET` defaults to
 `STABLE` and is therefore subject to the same check.
 
+### 3.4.2 The ingestion gate — re-deriving channel authority on upstream sync (P2)
+
+The allocate-side gate (§3.4.1) governs callers of `AllocateUpload`. But the cluster
+also imports artifacts by **pulling `release-index.json` from a forge** (GitHub) via
+`SyncFromUpstream`. Each entry carries a CI-stamped `channel`; trusting it makes CI the
+release authority again — a build is `STABLE` because CI *said so* in a JSON file.
+
+The **ingestion gate** (`upstream_release_gate.go`, in `processSyncEntry` before the
+channel is reported or persisted) treats that field as untrusted input and re-derives
+channel authority from RBAC, using the **same two-step trust** as §3.4 — applied to the
+*upstream publisher* instead of an interceptor subject (the sync path has no
+`AuthContext`):
+
+```text
+FEDERATION    upstream forge identity (source owner/repo) matches a registered
+              trusted publisher for the namespace        → who is speaking
+AUTHORIZATION the federated subject holds release.allocate on the namespace (RBAC,
+              via subjectHoldsReleaseAuthority — shared with §3.4.1)  → what they may do
+result        STABLE survives iff BOTH hold; otherwise STABLE → DEV (downgrade)
+```
+
+Federation alone never grants `STABLE` (`package.forge_binding_is_not_authorization`) —
+a trusted-publisher binding that lacks the `release.allocate` grant is downgraded.
+
+**Rollout safety.** The gate is **inert for a namespace with no registered trusted
+publishers** (unmanaged → channel unchanged), so it never retroactively downgrades a
+pre-existing sync. It activates per-namespace only once a release authority is declared
+— effectively opt-in. The action is a **non-destructive `STABLE → DEV` downgrade**: the
+artifact is still imported and inspectable, it simply isn't convergeable (the controller
+resolves desired state from `STABLE` only — Slice 3), and it is reversible by granting
+the authority and re-syncing. Error handling balances the two failure directions: a
+trusted-publisher **store** error fails toward *unmanaged* (a hiccup must not downgrade
+every namespace), while the **RBAC** step fails closed (an unprovable permission is no
+permission).
+
+> To make a managed namespace's upstream releases land `STABLE`, the operator must do
+> **both** steps for it: register the trusted publisher (federation) **and** grant
+> `release.allocate` to that publisher (authorization, per §3.4.1). Registering only the
+> trusted publisher downgrades its `STABLE` imports to `DEV` — by design.
+
+Two gates, one authority model: `AllocateUpload` gates *who may allocate a release
+identity*; ingestion gates *whether an imported release may keep its `STABLE` channel*.
+Both answer "does this subject hold `release.allocate` on the namespace?" via the same
+`subjectHoldsReleaseAuthority` primitive.
+
 ---
 
 ## 4. The infrastructure-vs-service rule

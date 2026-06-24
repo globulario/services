@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"strings"
 
+	rbacpb "github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -86,22 +87,36 @@ func (srv *server) resolveForgeIdentity(ctx context.Context) forgeIdentity {
 //
 // Either path is sufficient; neither the forge identity nor CI ever decides.
 var releaseAccessCheck = func(srv *server, authCtx *security.AuthContext, publisherID string) (bool, error) {
+	return srv.subjectHoldsReleaseAuthority(authCtx.Subject, principalToSubjectType(authCtx.PrincipalType), publisherID)
+}
+
+// subjectHoldsReleaseAuthority answers, by RBAC only, the core question behind
+// releaseAccessCheck: does (subject, subjectType) hold release authority on the
+// publisher namespace? It is deliberately AuthContext-free so two callers can
+// share one decision:
+//   - the interceptor path (releaseAccessCheck) passes the federated AuthContext
+//     subject, and
+//   - the upstream-ingestion gate (which has no AuthContext) passes the forge
+//     subject it federated from a trusted-publisher binding.
+//
+// The two paths (resource grant; role capability + association) are documented on
+// releaseAccessCheck above. Fail-closed: an unprovable permission returns false.
+func (srv *server) subjectHoldsReleaseAuthority(subject string, subjectType rbacpb.SubjectType, publisherID string) (bool, error) {
 	rbacClient, err := srv.getRbacClient()
 	if err != nil {
 		return false, err
 	}
-	subjectType := principalToSubjectType(authCtx.PrincipalType)
 	path := namespacePath(publisherID)
 
 	// Check 1 — explicit resource grant on the namespace (path-scoped).
 	resourceGrant := false
-	if hasAccess, denied, verr := rbacClient.ValidateAccess(authCtx.Subject, subjectType, releaseAllocateAction, path); verr == nil {
+	if hasAccess, denied, verr := rbacClient.ValidateAccess(subject, subjectType, releaseAllocateAction, path); verr == nil {
 		resourceGrant = hasAccess && !denied
 	} else {
 		// Non-fatal: fall through to the role-binding path. A hard RBAC failure
 		// simply means no resource grant was proven (fail-closed).
 		slog.Warn("release-authority: resource permission check failed, falling back to role binding",
-			"publisher", publisherID, "subject", authCtx.Subject, "err", verr)
+			"publisher", publisherID, "subject", subject, "err", verr)
 	}
 
 	// Check 2 — role-binding capability, scoped to THIS namespace. The role
@@ -109,11 +124,11 @@ var releaseAccessCheck = func(srv *server, authCtx *security.AuthContext, publis
 	// cluster-roles.json; HasRolePermission tests for release.allocate.
 	var roles []string
 	associated := false
-	if binding, bErr := rbacClient.GetRoleBinding(authCtx.Subject); bErr == nil && binding != nil {
+	if binding, bErr := rbacClient.GetRoleBinding(subject); bErr == nil && binding != nil {
 		roles = binding.GetRoles()
 		if security.HasRolePermission(roles, releaseAllocateAction) {
 			if perms, pErr := rbacClient.GetResourcePermissions(path); pErr == nil && perms != nil {
-				associated = srv.subjectInNamespacePermissions(authCtx.Subject, perms)
+				associated = srv.subjectInNamespacePermissions(subject, perms)
 			}
 		}
 	}
