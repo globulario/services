@@ -133,6 +133,34 @@ func PackagesForProfiles(profiles []string) []string {
 	return out
 }
 
+// ProfilesForPackage returns the sorted set of profiles that include the given
+// package name — the inverse of ProfilePackages. An empty result means the
+// package is not in the placement map at all (unknown / not catalog-tracked);
+// callers MUST treat that as a DISTINCT condition from "installed on a node
+// whose profiles don't authorize it" — do not conflate an unknown package with
+// a profile orphan.
+//
+// This is the package→required-profiles view that the cluster-doctor
+// orphaned-install finding reports, kept consistent with the controller's
+// catalog by the same consistency test that guards ProfilePackages.
+func ProfilesForPackage(name string) []string {
+	key := strings.ToLower(strings.TrimSpace(name))
+	if key == "" {
+		return nil
+	}
+	var out []string
+	for profile, pkgs := range ProfilePackages {
+		for _, p := range pkgs {
+			if p == key {
+				out = append(out, profile)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // HasProfile reports whether the given profile exists in the map. Useful
 // for caller-side validation before a Day-0 install.
 func HasProfile(profile string) bool {

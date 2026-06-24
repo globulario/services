@@ -428,6 +428,27 @@ func placementAllows(catalogProfiles, nodeProfiles []string) bool {
 	return profilesOverlap(catalogProfiles, normalizeProfiles(nodeProfiles))
 }
 
+// isOrphanedInstall reports whether a package can NEVER be placed on a node
+// with the given profiles under the catalog placement authority — i.e. it is
+// desired/installed on a node whose profiles do not authorize it. The
+// drift-reconciler uses this to suppress the perpetual re-dispatch of an
+// unconvergeable orphan (the torrent-orphan hamster wheel): such a package is
+// not convergeable drift, so emitting drift_detected for it every cycle is
+// noise that can never resolve.
+//
+// A package with NO catalog entry returns false here — "unknown to the catalog"
+// is a DISTINCT condition from "installed on the wrong profile" and must not be
+// silently swallowed as a profile orphan.
+//
+// This decides only whether to DISPATCH. The operator-facing cross-layer
+// verdict ("orphaned install, action required") is cluster-doctor's
+// placement.installed_package_orphaned finding — the controller does not
+// compute health verdicts (cluster_doctor.is_the_authority_for_health_state_queries).
+func isOrphanedInstall(name string, nodeProfiles []string) bool {
+	cat := CatalogByName(name)
+	return cat != nil && !placementAllows(cat.Profiles, nodeProfiles)
+}
+
 func capSatisfiedBy(cap Capability, selected map[string]*resolvedEntry) bool {
 	for _, entry := range selected {
 		for _, provided := range entry.component.ProvidesCapabilities {

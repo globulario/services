@@ -44,6 +44,10 @@ func NewRegistry(cfg Config) *Registry {
 		releaseBoundaryUnproven{},
 		nativeDependencyMissing{},
 		clusterServicesDrift{},
+		// E2: installed package whose node profiles do not authorize it under
+		// the catalog placement map — a terminal, non-dispatchable orphan that
+		// can never converge (the torrent-orphan class). Operator action required.
+		placementInstalledPackageOrphaned{},
 		clusterNetworkDrift{},
 		promRuntime{},
 		// Local filesystem checks
