@@ -227,15 +227,25 @@ invariants:
   - id: desired.no_regression_all_paths
     title: Desired version must not regress on any write path
     severity: critical
-    status: proposed
+    status: active
     summary: >
       No write path may set a desired version below the currently-installed or
-      currently-published-highest version. The regression guard exists today only
-      on the operator UpsertDesiredService path (and only with fresh heartbeats);
-      the materialize path (reconcile_nodes.go) and the repository build-advance
-      path (reconcile_runtime.go) are unguarded, and build_id can be silently
-      overwritten at write time. The guard must cover all paths and fail closed on
-      downgrade (explicit force + audit only, per operator.override_intent).
+      currently-published-highest version. Enforced per path: the operator
+      UpsertDesiredService path and the node-materialize path (reconcile_nodes.go,
+      which routes through upsertOne) pass through enforceServiceDesiredFloor for
+      SERVICE writes and routeInfrastructureDesired's infrastructure floor for
+      INFRASTRUCTURE writes, failing closed on downgrade unless an explicit audited
+      allow_regression override (operator.override_intent). The repository
+      build-advance path (reconcileDesiredFromRepository) is forward-only by
+      construction: it advances build_number only when strictly greater and never
+      changes the pinned version. build_id is carried immutably
+      (desired.build_id_immutable).
+    required_tests:
+      - TestDesiredRegression_ServiceBelowFloorRejected
+      - TestDesiredRegression_InfraBelowFloorRejected
+      - TestDesiredRegression_ServiceOverridePermitsAndAudits
+      - TestDesiredRegression_InfraOverridePermitsAndAudits
+      - TestDesiredRegression_AtOrAboveFloorSucceeds
     protects:
       state:
         - /globular/resources/ServiceDesiredVersion/*
@@ -245,6 +255,8 @@ invariants:
         - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
       symbols:
         - upsertOne
+        - enforceServiceDesiredFloor
+        - routeInfrastructureDesired
         - highestHealthyInstalledVersion
         - reconcileDesiredFromRepository
     forbidden_fixes:
