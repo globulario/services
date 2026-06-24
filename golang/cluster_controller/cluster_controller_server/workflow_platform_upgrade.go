@@ -52,9 +52,17 @@ import (
 // the local cache, the upstream source, or GitHub — that's not part of
 // the decision contract.
 type BOMPackage struct {
-	Name     string
-	Kind     string
-	Version  string
+	Name    string
+	Kind    string
+	Version string
+	// Profiles is the artifact manifest's declared profiles. INFORMATIONAL
+	// ONLY — it MUST NOT drive placement. Placement authority is the
+	// component catalog (CatalogByName), resolved via a PlacementProfileResolver
+	// and applied with placementAllows — the SAME authority the release
+	// reconciler uses (release_pipeline.go). Manifest profiles drift from the
+	// catalog (infrastructure manifests carry none; some service manifests are
+	// broader), so gating placement on them creates desired records the
+	// reconciler then refuses to place — the torrent-orphan class.
 	Profiles []string
 }
 
@@ -75,6 +83,14 @@ type NodeView struct {
 // case was the source of the v1.2.155-v1.2.159 orphan storms.
 type LocalBuildIDResolver func(name, version string) string
 
+// PlacementProfileResolver returns the component catalog's declared placement
+// profiles for a package name — the SINGLE placement authority, shared with
+// the release reconciler (release_pipeline.go). An empty result (no catalog
+// entry, or an entry with no profiles) means "no profile restriction declared".
+// The artifact manifest's profiles are NOT consulted here: placement is a
+// controller-owned decision (the catalog), not artifact metadata.
+type PlacementProfileResolver func(name string) []string
+
 // evaluateUpgradeDecisions is the pure per-(node, package) decision
 // function. It returns the full audit (every (node, package) pair,
 // classified) plus the subset that should be dispatched as upgrades.
@@ -87,6 +103,7 @@ func evaluateUpgradeDecisions(
 	nodes []NodeView,
 	bom []BOMPackage,
 	resolve LocalBuildIDResolver,
+	placement PlacementProfileResolver,
 ) (audit []engine.UpgradeDecision, upgrades []engine.UpgradeDecision) {
 	// Sort by id/name for stable output.
 	sortedNodes := append([]NodeView(nil), nodes...)
@@ -95,7 +112,6 @@ func evaluateUpgradeDecisions(
 	sort.Slice(sortedBOM, func(i, j int) bool { return sortedBOM[i].Name < sortedBOM[j].Name })
 
 	for _, node := range sortedNodes {
-		nodeProfiles := profileSet(node.Profiles)
 		for _, pkg := range sortedBOM {
 			d := engine.UpgradeDecision{
 				NodeID:      node.NodeID,
@@ -107,10 +123,16 @@ func evaluateUpgradeDecisions(
 				d.InstalledVersion = installed
 			}
 
-			// (1) Profile match.
-			if !profilesIntersect(nodeProfiles, pkg.Profiles) {
+			// (1) Profile match — the COMPONENT CATALOG is the single
+			// placement authority, shared with the release reconciler
+			// (release_pipeline.go) via placementAllows. The artifact
+			// manifest's profiles (pkg.Profiles) are metadata only and MUST
+			// NOT gate placement: they drift from the catalog and produce
+			// desired records the reconciler refuses to place (the
+			// torrent-orphan class — INC 2026-06-24).
+			if !placementAllows(placement(pkg.Name), node.Profiles) {
 				d.Action = "profile_skip"
-				d.Reason = "node profiles do not overlap with package profiles"
+				d.Reason = "node profiles do not overlap with catalog placement profiles"
 				audit = append(audit, d)
 				continue
 			}
@@ -184,37 +206,18 @@ func evaluateUpgradeDecisions(
 	return audit, upgrades
 }
 
-// profileSet returns a normalized set of profile strings.
-func profileSet(profiles []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(profiles))
-	for _, p := range profiles {
-		p = strings.TrimSpace(strings.ToLower(p))
-		if p != "" {
-			out[p] = struct{}{}
-		}
+// anyNodePlaceable reports whether at least one node in the snapshot may host
+// the package under the catalog placement profiles. It is the predicate behind
+// the unplaceable-desired guard in platformUpgradeDispatch. Empty
+// catalogProfiles means "no restriction declared" → any existing node counts.
+// Placement overlap itself is delegated to placementAllows so evaluate, the
+// dispatch guard, and the release reconciler all share one definition.
+func anyNodePlaceable(catalogProfiles []string, nodes []NodeView) bool {
+	if len(catalogProfiles) == 0 {
+		return len(nodes) > 0
 	}
-	return out
-}
-
-// profilesIntersect reports whether the package's profile list overlaps
-// with the node's profile set. Used as the "should this package ever run
-// on this node" gate.
-func profilesIntersect(nodeProfiles map[string]struct{}, packageProfiles []string) bool {
-	if len(nodeProfiles) == 0 || len(packageProfiles) == 0 {
-		// Defensive: if either side is empty, treat as no-intersection
-		// rather than wildcard-match. An empty package.profiles list in
-		// practice means "no profile gate declared" — which we treat
-		// here as "skip rather than auto-install everywhere." Day-0
-		// onboarding handles the explicit initial-install case via a
-		// separate workflow.
-		return false
-	}
-	for _, p := range packageProfiles {
-		k := strings.TrimSpace(strings.ToLower(p))
-		if k == "" {
-			continue
-		}
-		if _, ok := nodeProfiles[k]; ok {
+	for _, n := range nodes {
+		if placementAllows(catalogProfiles, n.Profiles) {
 			return true
 		}
 	}
@@ -289,7 +292,16 @@ func (srv *server) platformUpgradeEvaluate(ctx context.Context, releaseTag strin
 	}
 
 	nodes := srv.snapshotNodesForUpgrade()
-	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver)
+	// Placement profiles come from the component catalog — the single,
+	// controller-owned placement authority shared with the release reconciler.
+	// NOT from the artifact manifest (which drifts; see PlacementProfileResolver).
+	placement := func(name string) []string {
+		if c := CatalogByName(name); c != nil {
+			return c.Profiles
+		}
+		return nil
+	}
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver, placement)
 
 	log.Printf("platform_upgrade.evaluate: tag=%s bom_packages=%d nodes=%d decisions=%d upgrades=%d",
 		releaseTag, len(bom), len(nodes), len(audit), len(upgrades))
@@ -340,9 +352,31 @@ func (srv *server) platformUpgradeDispatch(ctx context.Context, releaseTag strin
 		groups[k] = append(groups[k], u.NodeID)
 	}
 
+	// Snapshot node profiles once for the unplaceable-desired guard below.
+	nodeSnapshot := srv.snapshotNodesForUpgrade()
+
 	var firstErr error
 	dispatched := 0
 	for k, nodes := range groups {
+		// Defense-in-depth: never write a desired record that no node can
+		// satisfy under the catalog placement authority. evaluate already
+		// gates on this (gate 1); this guard guarantees a future evaluate
+		// regression cannot recreate the torrent-orphan class — an
+		// unplaceable desired the release reconciler refuses to place and the
+		// drift reconciler then loops on forever (INC 2026-06-24).
+		var catProfiles []string
+		if c := CatalogByName(k.name); c != nil {
+			catProfiles = c.Profiles
+		}
+		if !anyNodePlaceable(catProfiles, nodeSnapshot) {
+			log.Printf("platform_upgrade.dispatch: REFUSE %s@%s — no node satisfies catalog placement profiles %v (unplaceable-desired guard)",
+				k.name, k.version, catProfiles)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("unplaceable desired refused for %s@%s: no node matches catalog placement profiles %v", k.name, k.version, catProfiles)
+			}
+			continue
+		}
+
 		// Resolve the artifact manifest from the repository to obtain
 		// the build_number. upsertOne stores it on ServiceDesiredVersion so
 		// the reconciler dispatches with the right build identity (Phase 2).

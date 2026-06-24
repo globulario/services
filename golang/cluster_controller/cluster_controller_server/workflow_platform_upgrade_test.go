@@ -33,6 +33,20 @@ func fixedResolver(table map[string]string) LocalBuildIDResolver {
 	}
 }
 
+// placementFromBOM builds a PlacementProfileResolver from the BOM entries'
+// Profiles fields. Tests that treat the per-package Profiles as the authoritative
+// placement profiles use this so their existing assertions are preserved.
+// Production wiring instead resolves placement from the component catalog
+// (CatalogByName) — see platformUpgradeEvaluate. Tests that specifically pin
+// the catalog-vs-manifest distinction pass their own resolver instead.
+func placementFromBOM(bom []BOMPackage) PlacementProfileResolver {
+	m := map[string][]string{}
+	for _, p := range bom {
+		m[p.Name] = p.Profiles
+	}
+	return func(name string) []string { return m[name] }
+}
+
 // ── Test 1: profile_skip ─────────────────────────────────────────────
 func TestEvaluate_ProfileMismatch_SkipsWithProfileSkip(t *testing.T) {
 	nodes := []NodeView{{
@@ -44,7 +58,7 @@ func TestEvaluate_ProfileMismatch_SkipsWithProfileSkip(t *testing.T) {
 		Name: "some-svc", Kind: "service", Version: "1.0.0",
 		Profiles: []string{"compute"}, // no overlap with node profiles
 	}}
-	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil))
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil), placementFromBOM(bom))
 	if len(audit) != 1 {
 		t.Fatalf("expected 1 audit entry, got %d", len(audit))
 	}
@@ -69,7 +83,7 @@ func TestEvaluate_NotInstalled_RespectsRemoval(t *testing.T) {
 		Name: "echo", Kind: "service", Version: "1.2.151",
 		Profiles: []string{"core"},
 	}}
-	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil))
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil), placementFromBOM(bom))
 	if len(audit) != 1 {
 		t.Fatalf("expected 1 audit entry, got %d", len(audit))
 	}
@@ -94,7 +108,7 @@ func TestEvaluate_UpToDate_Skips(t *testing.T) {
 		Profiles: []string{"core"},
 	}}
 	audit, upgrades := evaluateUpgradeDecisions(nodes, bom,
-		fixedResolver(map[string]string{"mcp@1.2.151": "abc-build-id"}))
+		fixedResolver(map[string]string{"mcp@1.2.151": "abc-build-id"}), placementFromBOM(bom))
 	if audit[0].Action != "up_to_date" {
 		t.Errorf("Action = %q, want up_to_date", audit[0].Action)
 	}
@@ -116,7 +130,7 @@ func TestEvaluate_SkipDowngrade_NeverGoesBackwards(t *testing.T) {
 		Profiles: []string{"core"},
 	}}
 	audit, upgrades := evaluateUpgradeDecisions(nodes, bom,
-		fixedResolver(map[string]string{"cluster-controller@1.2.151": "old-bid"}))
+		fixedResolver(map[string]string{"cluster-controller@1.2.151": "old-bid"}), placementFromBOM(bom))
 	if audit[0].Action != "skip_downgrade" {
 		t.Errorf("Action = %q, want skip_downgrade", audit[0].Action)
 	}
@@ -137,7 +151,7 @@ func TestEvaluate_UpgradeDispatched(t *testing.T) {
 		Profiles: []string{"control-plane"},
 	}}
 	audit, upgrades := evaluateUpgradeDecisions(nodes, bom,
-		fixedResolver(map[string]string{"cluster-controller@1.2.153": "a2180517-1da1-4cf4-af47-3f5f155c7007"}))
+		fixedResolver(map[string]string{"cluster-controller@1.2.153": "a2180517-1da1-4cf4-af47-3f5f155c7007"}), placementFromBOM(bom))
 	if audit[0].Action != "upgrade" {
 		t.Errorf("Action = %q, want upgrade", audit[0].Action)
 	}
@@ -168,7 +182,7 @@ func TestEvaluate_MissingInRepo_RefusesToDispatch(t *testing.T) {
 	}}
 	// Resolver returns "" — local repo has no installable artifact
 	// for some-svc@2.0.0.
-	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil))
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil), placementFromBOM(bom))
 	if audit[0].Action != "missing_in_repo" {
 		t.Errorf("Action = %q, want missing_in_repo (refuses orphan)", audit[0].Action)
 	}
@@ -192,7 +206,7 @@ func TestEvaluate_NativeVersionEqual_IsUpToDate(t *testing.T) {
 		Version:  "RELEASE.2025-09-07T16-13-09Z",
 		Profiles: []string{"storage"},
 	}}
-	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil))
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil), placementFromBOM(bom))
 	if audit[0].Action != "up_to_date" {
 		t.Errorf("Action = %q, want up_to_date for matching native version", audit[0].Action)
 	}
@@ -218,7 +232,7 @@ func TestEvaluate_NativeVersionDifferent_DispatchesIfResolvable(t *testing.T) {
 	resolver := fixedResolver(map[string]string{
 		"minio@RELEASE.2025-09-07T16-13-09Z": "minio-bid-aaaa",
 	})
-	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver)
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver, placementFromBOM(bom))
 	if audit[0].Action != "upgrade" {
 		t.Errorf("Action = %q, want upgrade for forward native-version change", audit[0].Action)
 	}
@@ -244,7 +258,7 @@ func TestEvaluate_MultiNodeMultiPackage_DeterministicOrder(t *testing.T) {
 		{Name: "svc-b", Kind: "service", Version: "1.0.0", Profiles: []string{"core"}},
 		{Name: "svc-a", Kind: "service", Version: "1.0.0", Profiles: []string{"core"}},
 	}
-	audit, _ := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil))
+	audit, _ := evaluateUpgradeDecisions(nodes, bom, fixedResolver(nil), placementFromBOM(bom))
 	if len(audit) != 4 {
 		t.Fatalf("expected 4 audit entries (2 nodes × 2 packages), got %d", len(audit))
 	}
@@ -279,7 +293,7 @@ func TestEvaluate_PerNodeDecision_RespectsRemovalOnSpecificNode(t *testing.T) {
 		Profiles: []string{"core"},
 	}}
 	resolver := fixedResolver(map[string]string{"my-svc@1.1.0": "new-bid"})
-	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver)
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver, placementFromBOM(bom))
 	if len(audit) != 2 {
 		t.Fatalf("expected 2 audit entries, got %d", len(audit))
 	}
@@ -294,26 +308,34 @@ func TestEvaluate_PerNodeDecision_RespectsRemovalOnSpecificNode(t *testing.T) {
 	}
 }
 
-// ── Test 11: profilesIntersect helper edge cases ────────────────────
-func TestProfilesIntersect(t *testing.T) {
+// ── Test 11: placementAllows — the shared placement law book ─────────
+// placementAllows is the single predicate used by BOTH platform-upgrade
+// evaluate and the release reconciler (release_pipeline.go). Its semantics
+// must hold for both, so an upgrade decision and a reconcile placement can
+// never disagree.
+func TestPlacementAllows(t *testing.T) {
 	cases := []struct {
-		node, pkg []string
-		want      bool
-		name      string
+		catalog, node []string
+		want          bool
+		name          string
 	}{
 		{[]string{"core"}, []string{"core"}, true, "exact match"},
-		{[]string{"control-plane", "core"}, []string{"core", "compute"}, true, "one overlap"},
-		{[]string{"control-plane"}, []string{"compute"}, false, "no overlap"},
-		{[]string{}, []string{"core"}, false, "empty node"},
-		{[]string{"core"}, []string{}, false, "empty package"},
-		{[]string{"Core"}, []string{"core"}, true, "case insensitive"},
-		{[]string{" core "}, []string{"core"}, true, "whitespace trimmed"},
+		{[]string{"core", "compute"}, []string{"control-plane", "core"}, true, "one overlap"},
+		{[]string{"compute"}, []string{"control-plane"}, false, "no overlap"},
+		{nil, []string{"core"}, true, "no catalog restriction declared → allowed"},
+		{[]string{}, []string{"core"}, true, "empty catalog restriction → allowed"},
+		{[]string{"core"}, nil, false, "restriction declared but node has no profiles → denied"},
+		// torrent orphan: catalog [compute]; node is control-plane/core/storage,
+		// has no compute → must be denied (this is the bug we are fixing).
+		{[]string{"compute"}, []string{"control-plane", "core", "storage"}, false, "torrent: node lacks compute"},
+		// gateway/xds: catalog [control-plane,gateway]; node has control-plane → allowed.
+		{[]string{"control-plane", "gateway"}, []string{"control-plane", "core", "storage"}, true, "gateway/xds: node has control-plane"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := profilesIntersect(profileSet(tc.node), tc.pkg)
+			got := placementAllows(tc.catalog, tc.node)
 			if got != tc.want {
-				t.Errorf("node=%v pkg=%v got=%v want=%v", tc.node, tc.pkg, got, tc.want)
+				t.Errorf("catalog=%v node=%v got=%v want=%v", tc.catalog, tc.node, got, tc.want)
 			}
 		})
 	}
@@ -348,7 +370,7 @@ func TestEvaluate_v1_2_159_OperatorRemovalRegression(t *testing.T) {
 	resolver := fixedResolver(map[string]string{
 		"cluster-controller@1.2.153": "a2180517-1da1-4cf4-af47-3f5f155c7007",
 	})
-	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver)
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver, placementFromBOM(bom))
 
 	byPkg := map[string]string{}
 	for _, d := range audit {
@@ -381,5 +403,85 @@ func TestEvaluate_v1_2_159_OperatorRemovalRegression(t *testing.T) {
 		if strings.Contains("echo,catalog,blog,mail,sql,conversation,ldap", u.PackageName) {
 			t.Errorf("operator-removed package re-added in upgrades: %s", u.PackageName)
 		}
+	}
+}
+
+// ── Test 13: CATALOG is the placement authority, manifest is ignored ─
+// Regression for the 2026-06-24 torrent orphan: the artifact manifest declared
+// profiles [core,compute] (which would intersect the node on "core"), but the
+// component catalog says torrent is [compute]-only. The node has core, not
+// compute. The gate MUST use the catalog → profile_skip, proving the manifest's
+// [core,compute] does NOT leak into placement. Before the fix this produced an
+// "upgrade", upserting a desired record the reconciler then refused to place.
+func TestEvaluate_CatalogIsPlacementAuthority_ManifestIgnored(t *testing.T) {
+	nodes := []NodeView{{
+		NodeID:            "ryzen",
+		Profiles:          []string{"control-plane", "core", "storage"},
+		InstalledVersions: map[string]string{"torrent": "1.2.233"},
+	}}
+	bom := []BOMPackage{{
+		Name: "torrent", Kind: "service", Version: "1.2.235",
+		Profiles: []string{"core", "compute"}, // manifest — MUST be ignored
+	}}
+	// Catalog authority: torrent is compute-only.
+	catalog := func(name string) []string { return []string{"compute"} }
+	resolver := fixedResolver(map[string]string{"torrent@1.2.235": "a7e9bedc"})
+
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver, catalog)
+	if audit[0].Action != "profile_skip" {
+		t.Errorf("Action = %q, want profile_skip (catalog [compute] wins over manifest [core,compute])", audit[0].Action)
+	}
+	if len(upgrades) != 0 {
+		t.Fatalf("must not dispatch an unplaceable upgrade; got %d", len(upgrades))
+	}
+}
+
+// ── Test 14: null manifest profiles, catalog places it → upgrade ─────
+// Regression for the gateway/xds non-upgrade: their artifact manifests carry
+// NO profiles (null), but the catalog says [control-plane, gateway]. The node
+// has control-plane. Placement comes from the catalog → upgrade. The old
+// manifest-based gate skipped these because null ∩ anything = ∅.
+func TestEvaluate_NullManifestProfiles_CatalogPlacesAndUpgrades(t *testing.T) {
+	nodes := []NodeView{{
+		NodeID:            "ryzen",
+		Profiles:          []string{"control-plane", "core", "storage"},
+		InstalledVersions: map[string]string{"gateway": "1.2.233"},
+	}}
+	bom := []BOMPackage{{
+		Name: "gateway", Kind: "infrastructure", Version: "1.2.237",
+		Profiles: nil, // manifest carries no profiles
+	}}
+	catalog := func(name string) []string { return []string{"control-plane", "gateway"} }
+	resolver := fixedResolver(map[string]string{"gateway@1.2.237": "6bc8b06f"})
+
+	audit, upgrades := evaluateUpgradeDecisions(nodes, bom, resolver, catalog)
+	if audit[0].Action != "upgrade" {
+		t.Errorf("Action = %q, want upgrade (catalog places gateway on control-plane despite null manifest profiles)", audit[0].Action)
+	}
+	if len(upgrades) != 1 {
+		t.Fatalf("expected 1 upgrade; got %d", len(upgrades))
+	}
+}
+
+// ── Test 15: unplaceable-desired guard (dispatch defense-in-depth) ───
+// anyNodePlaceable is the predicate behind platformUpgradeDispatch's guard:
+// it must refuse to write a desired record that no node can satisfy under the
+// catalog placement profiles — the torrent-orphan class.
+func TestAnyNodePlaceable_UnplaceableDesiredGuard(t *testing.T) {
+	nodes := []NodeView{{
+		NodeID:   "ryzen",
+		Profiles: []string{"control-plane", "core", "storage"},
+	}}
+	if anyNodePlaceable([]string{"compute"}, nodes) {
+		t.Error("compute-only package must be unplaceable on a cluster with no compute node (guard must refuse)")
+	}
+	if !anyNodePlaceable([]string{"control-plane", "gateway"}, nodes) {
+		t.Error("control-plane package must be placeable on a control-plane node")
+	}
+	if !anyNodePlaceable(nil, nodes) {
+		t.Error("no catalog restriction → any existing node is eligible")
+	}
+	if anyNodePlaceable(nil, nil) {
+		t.Error("no nodes at all → nothing is placeable")
 	}
 }
