@@ -70,9 +70,21 @@ func (srv *server) resolveForgeIdentity(ctx context.Context) forgeIdentity {
 }
 
 // releaseAccessCheck is the injectable RBAC permission check for release
-// allocation (overridden in tests). Default: ValidateAccess(release.allocate)
-// on the publisher namespace. This is the ONLY thing that decides STABLE; the
-// forge identity never does.
+// allocation (overridden in tests). It grants STABLE release authority by RBAC
+// only, via two paths — both scoped to the publisher namespace:
+//
+//	Check 1 — explicit resource grant: release.allocate granted directly on the
+//	          namespace path (namespace owners also pass here; isOwner ⇒ full
+//	          access). This is path-scoped ValidateAccess.
+//	Check 2 — capability via a bound role, scoped to THIS namespace: a role the
+//	          subject is bound to grants release.allocate AND the subject is
+//	          associated with the namespace (owner/collaborator/group/org). This
+//	          mirrors validatePublisherAccess — a role grant is authority only on
+//	          namespaces the subject is actually attached to, never blanket
+//	          authority. It is how a CI/publisher service account becomes a
+//	          release authority without being made a namespace owner.
+//
+// Either path is sufficient; neither the forge identity nor CI ever decides.
 var releaseAccessCheck = func(srv *server, authCtx *security.AuthContext, publisherID string) (bool, error) {
 	rbacClient, err := srv.getRbacClient()
 	if err != nil {
@@ -80,11 +92,51 @@ var releaseAccessCheck = func(srv *server, authCtx *security.AuthContext, publis
 	}
 	subjectType := principalToSubjectType(authCtx.PrincipalType)
 	path := namespacePath(publisherID)
-	hasAccess, denied, verr := rbacClient.ValidateAccess(authCtx.Subject, subjectType, releaseAllocateAction, path)
-	if verr != nil {
-		return false, verr
+
+	// Check 1 — explicit resource grant on the namespace (path-scoped).
+	resourceGrant := false
+	if hasAccess, denied, verr := rbacClient.ValidateAccess(authCtx.Subject, subjectType, releaseAllocateAction, path); verr == nil {
+		resourceGrant = hasAccess && !denied
+	} else {
+		// Non-fatal: fall through to the role-binding path. A hard RBAC failure
+		// simply means no resource grant was proven (fail-closed).
+		slog.Warn("release-authority: resource permission check failed, falling back to role binding",
+			"publisher", publisherID, "subject", authCtx.Subject, "err", verr)
 	}
-	return hasAccess && !denied, nil
+
+	// Check 2 — role-binding capability, scoped to THIS namespace. The role
+	// binding (keyed by subject string, type-agnostic) resolves to actions via
+	// cluster-roles.json; HasRolePermission tests for release.allocate.
+	var roles []string
+	associated := false
+	if binding, bErr := rbacClient.GetRoleBinding(authCtx.Subject); bErr == nil && binding != nil {
+		roles = binding.GetRoles()
+		if security.HasRolePermission(roles, releaseAllocateAction) {
+			if perms, pErr := rbacClient.GetResourcePermissions(path); pErr == nil && perms != nil {
+				associated = srv.subjectInNamespacePermissions(authCtx.Subject, perms)
+			}
+		}
+	}
+
+	return releaseAuthorityDecision(resourceGrant, roles, associated), nil
+}
+
+// releaseAuthorityDecision is the pure RBAC decision for STABLE release
+// authority from already-gathered facts. Kept pure so the policy is unit-tested
+// without an RBAC backend:
+//
+//   - resourceGrant: release.allocate granted (or owned) directly on the
+//     namespace → authority, OR
+//   - a bound role grants release.allocate AND the subject is associated with
+//     the namespace → authority.
+//
+// Anything else ⇒ no authority (caller forced to DEV). Fail-closed by
+// construction: every "unproven" input collapses to false.
+func releaseAuthorityDecision(resourceGrant bool, roles []string, associatedWithNamespace bool) bool {
+	if resourceGrant {
+		return true
+	}
+	return security.HasRolePermission(roles, releaseAllocateAction) && associatedWithNamespace
 }
 
 // authorizeRelease performs STEP 2 (authorization) ONLY: may the resolved

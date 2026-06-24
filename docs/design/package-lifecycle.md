@@ -221,6 +221,47 @@ invariant, not a permission**. RBAC gates *who may publish a release*; the contr
 gates *what may converge*. Two locks, different doors — collapsing them turns a
 permission bug into a cluster-rollout bug.
 
+### 3.4.1 How release authority is granted (implemented, P1 Slice 1 + P3)
+
+`AuthorizeRelease` (`releaseAccessCheck` in `repository_server/release_authority.go`)
+accepts a subject as a release authority on namespace `Z` via **either** RBAC path —
+both scoped to `Z`, never blanket:
+
+1. **Explicit resource grant** — `release.allocate` granted directly on the namespace
+   resource `/namespaces/Z` (path-scoped `ValidateAccess`). Namespace **owners** pass
+   here automatically (`isOwner ⇒ full access`), so a subject that claimed `Z` can
+   release into it with no extra grant.
+2. **Role capability + namespace association** — the subject is bound (`SetRoleBinding`)
+   to a role whose cluster-roles.json actions include `release.allocate`, **and** the
+   subject is associated with `Z` (owner / collaborator / owning group / owning org, via
+   `subjectInNamespacePermissions`). A role grant is authority **only** on namespaces the
+   subject is actually attached to — mirroring `validatePublisherAccess`. This is the
+   path a **CI / publisher service account** uses.
+
+> Naming: the contract action key is `repository.release.allocate`; the namespace-scoped
+> resource-permission verb checked at the gate is `release.allocate` (the form that
+> `ValidateAccess` and `HasRolePermission` match). They are the same authority in two
+> encodings.
+
+**Granting a non-superuser CI publisher** (`globular-repository-publisher-sa`) release
+authority on namespace `Z` — least privilege, no `sa`:
+
+```text
+# 1. capability: the SA role already carries release.allocate (cluster-roles.json)
+#    → seeded by SeedClusterRoles; HasRolePermission resolves it. (no command)
+# 2. binding:    bind the SA subject to its capability role
+globular rbac bind --subject globular-repository-publisher-sa --role globular-repository-publisher-sa
+# 3. association: attach the SA to the namespace it may release into
+#    (also binds namespace:publisher and adds the SA to the namespace's allowed
+#     permissions, which is the association subjectInNamespacePermissions checks)
+globular namespace grant Z globular-repository-publisher-sa --role namespace:publisher
+```
+
+After this, the SA allocates `STABLE` **only** for namespace `Z`; every other namespace
+(and every other subject) is forced to `DEV` by the same gate. Superuser (`sa`) and
+in-process/direct calls remain trusted system paths. `CHANNEL_UNSET` defaults to
+`STABLE` and is therefore subject to the same check.
+
 ---
 
 ## 4. The infrastructure-vs-service rule
