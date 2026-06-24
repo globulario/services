@@ -358,14 +358,19 @@ release yet, the resolved version is suffixed (`0.0.1 → 0.0.1-dev.1`) so it st
 no release. The coercion is repository-owned and non-destructive — the deploy never fails,
 mirroring how the channel gates force `DEV` rather than reject.
 
-> **Direct-publish path (follow-up).** `globular pkg publish` (and the MCP `package_publish`
-> tool) use the direct `UploadArtifact` path, where the binary blob is written under a
-> version-derived storage key **before** the channel is read from `package.json` — so a
-> post-hoc version coercion there would desync the manifest from the blob. Binding that
-> path to the DEV lane is best done **at build time** (`pkg build` for the dev/local lane
-> emits a `-dev`/`+local` version), with a `validateLocalIdentityRules` "DEV requires a
-> lane suffix" backstop. That is deferred to the build-ergonomics work (with #6), not done
-> by mutating the critical upload handler.
+> **Direct-publish path (resolved in #6c).** `globular pkg publish` (and the MCP
+> `package_publish` tool) use the direct `UploadArtifact` path, where the binary blob is
+> written under a version-derived storage key **before** the channel is read from
+> `package.json` — so a post-hoc version coercion there would desync the manifest from the
+> blob. So the direct path is bound to the DEV lane from **both ends** instead:
+> - **By construction (CLI):** `pkg publish --channel dev/local` auto-appends a `-dev`/`+local`
+>   version suffix client-side before upload (`pkg_cmds.go`), so a well-formed dev-lane
+>   publish is lane-safe by the time it reaches the server.
+> - **Backstop (server):** `validateLocalIdentityRules` **Rule 4** rejects a `DEV` artifact
+>   that carries a clean release version (no lane suffix). A clean-semver `DEV` — including
+>   one the release gate force-downgraded from an unauthorized `STABLE` — is rejected rather
+>   than allowed to squat a release version. The lane is now an equivalence: **`DEV ⟺ suffixed
+>   version`**, enforced without mutating the critical upload handler.
 
 ### 3.4.5 Channel eligibility — discoverability ≠ convergeability (BOOTSTRAP)
 

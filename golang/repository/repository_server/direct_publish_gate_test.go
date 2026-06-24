@@ -55,15 +55,22 @@ func TestDirectPublishGate_NonStableChannelsPassThrough(t *testing.T) {
 	}
 }
 
-// The downgraded result must be a legal identity lane: non-official + DEV passes
-// validateLocalIdentityRules (Rule 2 only forbids official + DEV). This ties the
-// gate's output to the lane invariant it must not violate.
-func TestDirectPublishGate_DowngradedResultIsLaneLegal(t *testing.T) {
+// The downgraded channel is DEV; per #6c a DEV artifact is lane-legal only with a
+// suffixed version. A CLEAN-semver downgrade is therefore NOT lane-legal (it
+// would squat a release version) — the caller must use the dev lane. A suffixed
+// version on the same downgraded channel passes. This ties the gate's output to
+// the (now stricter) lane invariant.
+func TestDirectPublishGate_DowngradedResultLaneRules(t *testing.T) {
 	final, reject := releaseChannelDecision(repopb.ArtifactChannel_STABLE, "local@ryzen", false)
 	if reject {
 		t.Fatal("non-official must downgrade, not reject")
 	}
-	if err := validateLocalIdentityRules("local@ryzen", final, "1.2.43"); err != nil {
-		t.Fatalf("downgraded (non-official, DEV) must satisfy identity-lane rules; got %v", err)
+	// Clean semver on the downgraded DEV channel is now a lane violation (#6c).
+	if err := validateLocalIdentityRules("local@ryzen", final, "1.2.43"); err == nil {
+		t.Fatal("clean-semver DEV must be rejected (Rule 4): a DEV build may not claim a release version")
+	}
+	// A dev-lane version on the same channel is legal.
+	if err := validateLocalIdentityRules("local@ryzen", final, "1.2.43-dev.1"); err != nil {
+		t.Fatalf("suffixed DEV must satisfy identity-lane rules; got %v", err)
 	}
 }
