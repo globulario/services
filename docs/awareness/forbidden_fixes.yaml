@@ -3848,3 +3848,21 @@ forbidden_fixes:
     marked healthy; if the backend cannot be cross-checked, report indeterminate
     (CHECK_ERROR), not down. Fix the Envoy route/filter-chain; never make a
     direct-port bypass the permanent path.
+- id: restore_manifest_profiles_as_runtime_placement_authority
+  summary: >
+    Make the artifact manifest's `profiles` field a runtime placement input
+    again — e.g. having platform-upgrade evaluate, the drift-reconciler, the
+    release reconciler, or cluster-doctor read manifest.profiles to decide where
+    a package may run. The component catalog (CatalogByName /
+    component_catalog.ProfilesForPackage) is the SINGLE placement authority
+    (E1/E2); manifest profiles are informational metadata only. Reintroducing
+    manifest profiles as a placement input recreates the two-law-books split that
+    caused the torrent orphan (manifest said [core,compute] / null while the
+    catalog said [compute] / [control-plane]).
+  related_invariants:
+  - publish.manifest_profiles_must_not_contradict_catalog
+  safe_alternative: >
+    Resolve placement exclusively from the catalog (placementAllows /
+    ProfilesForPackage). Treat manifest profiles as informational; if they must
+    be made trustworthy, DERIVE them from the catalog at build time (a future,
+    explicit policy) — never consume manifest profiles for placement decisions.
