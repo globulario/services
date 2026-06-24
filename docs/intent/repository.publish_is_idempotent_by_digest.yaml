@@ -35,4 +35,4 @@ required_tests:
 - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadIdempotentSameDigestReturnsExistingBuildID
 - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadDifferentDigestSamePublishedVersionRejected
 - repository:TestVersionImmutabilityRunsAfterDigestIdempotency
-status: proposed
+status: active
