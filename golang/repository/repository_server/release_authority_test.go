@@ -13,6 +13,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/globulario/services/golang/policy"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -156,5 +157,82 @@ func TestForgeTrustAndRBACAuthorizationAreSeparateSteps(t *testing.T) {
 	withReleaseAccess(t, true, nil)
 	if allow, _ := srv.authorizeRelease(context.Background(), id, "globulario"); !allow {
 		t.Fatal("granted permission must allow the release for the same identity")
+	}
+}
+
+// withRolePermissions swaps the package-level role→actions map (loaded from
+// cluster-roles.json at init) for a controlled one, so the decision policy is
+// tested hermetically regardless of any cluster-roles.json present on disk.
+func withRolePermissions(t *testing.T, m map[string][]string) {
+	t.Helper()
+	prev := security.RolePermissions
+	security.RolePermissions = m
+	t.Cleanup(func() { security.RolePermissions = prev })
+}
+
+// 8. P3: explicit resource grant (or namespace ownership) on the namespace is
+//    sufficient release authority on its own.
+func TestReleaseAuthority_ExplicitResourceGrantIsSufficient(t *testing.T) {
+	if !releaseAuthorityDecision(true, nil, false) {
+		t.Fatal("an explicit release.allocate resource grant must authorize STABLE")
+	}
+}
+
+// 9. P3: a bound role granting release.allocate is authority ONLY when the
+//    subject is associated with the namespace — capability without association
+//    is not blanket authority and must be forced to DEV. This is the core
+//    namespace-scoping property of the RBAC-native grant.
+func TestReleaseAuthority_RoleCapabilityRequiresNamespaceAssociation(t *testing.T) {
+	withRolePermissions(t, map[string][]string{"releaser": {"release.allocate"}})
+
+	if !releaseAuthorityDecision(false, []string{"releaser"}, true) {
+		t.Fatal("role granting release.allocate + namespace association must authorize STABLE")
+	}
+	if releaseAuthorityDecision(false, []string{"releaser"}, false) {
+		t.Fatal("release.allocate capability WITHOUT namespace association must be DEV-only")
+	}
+}
+
+// 10. P3: a bound role that does NOT grant release.allocate confers no release
+//     authority, even with namespace association (association alone ≠ release).
+func TestReleaseAuthority_RoleWithoutCapabilityIsDevOnly(t *testing.T) {
+	withRolePermissions(t, map[string][]string{"publisher-only": {"repository.artifact.write"}})
+
+	if releaseAuthorityDecision(false, []string{"publisher-only"}, true) {
+		t.Fatal("a role without release.allocate must not grant release authority")
+	}
+	if releaseAuthorityDecision(false, nil, true) {
+		t.Fatal("no roles must not grant release authority")
+	}
+}
+
+// 11. P3: the cluster-roles.json grant is actually wired — the publisher service
+//     account role carries release.allocate in the embedded policy, so a subject
+//     bound to it resolves the capability via HasRolePermission. This is what
+//     makes Slice 1's gate operable for a real, non-superuser CI release authority.
+func TestPublisherSARoleGrantsReleaseAllocate(t *testing.T) {
+	roles, err := policy.LoadEmbeddedClusterRoles()
+	if err != nil {
+		t.Fatalf("load embedded cluster roles: %v", err)
+	}
+	actions := roles[security.RoleRepositoryPublisherSA]
+	found := false
+	for _, a := range actions {
+		if a == releaseAllocateAction {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("role %q must grant %q in cluster-roles.json; actions=%v",
+			security.RoleRepositoryPublisherSA, releaseAllocateAction, actions)
+	}
+
+	// And the resolver agrees: a subject bound to that role holds the capability.
+	// Pin RolePermissions to the embedded map so this is independent of any
+	// cluster-roles.json present on the test host.
+	withRolePermissions(t, roles)
+	if !security.HasRolePermission([]string{security.RoleRepositoryPublisherSA}, releaseAllocateAction) {
+		t.Fatalf("HasRolePermission must resolve %q for the publisher SA role", releaseAllocateAction)
 	}
 }

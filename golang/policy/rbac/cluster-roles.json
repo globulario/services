@@ -337,6 +337,7 @@
       "repository.bundle.read",
       "repository.bundle.list",
       "repository.namespace.read",
+      "release.allocate",
       "discovery.publish.service",
       "discovery.publish.app",
       "discovery.package_descriptor.read"
