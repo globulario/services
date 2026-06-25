@@ -862,9 +862,12 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 		fmt.Println("  (use --include-critical to repair them)")
 	}
 
-	// Resolve node-agent endpoint (not needed for --metadata-only).
+	// Resolve node-agent endpoint. Both modes write owner-owned installed state
+	// THROUGH the node-agent (the owner of /globular/nodes), never raw etcd (RT-2):
+	// --metadata-only via SetInstalledPackage (stamp build_id without reinstalling),
+	// the normal path via ApplyPackageRelease. Requires the node-agent reachable.
 	var agentClient node_agentpb.NodeAgentServiceClient
-	if !fixMetadataOnly {
+	{
 		agentEndpoint := fixAgentEndpoint
 		if agentEndpoint == "" {
 			agentEndpoint = resolveAgentEndpoint(ctx, cli, nodeID)
@@ -880,7 +883,7 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 			fmt.Printf("  cannot connect to node-agent at %s: %v\n", agentEndpoint, err)
 			return 0, 0
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		agentClient = node_agentpb.NewNodeAgentServiceClient(conn)
 	}
 
@@ -889,34 +892,16 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 	// already installed but can't be re-applied through the standard path.
 	metadataUpdate := func(svc string) bool {
 		d := desired[svc]
-		// Find ALL etcd records for this service (may be under multiple kind prefixes).
-		// Update each one that is missing buildId.
+		// Stamp build_id on every kind-prefixed installed record missing it, through
+		// the node-agent's typed RPC (the owner of /globular/nodes) instead of a raw
+		// etcd write — see setInstalledBuildID.
 		updated := false
 		for _, inst := range installed {
 			if inst.Name != svc || inst.BuildID != "" || inst.Status != "installed" {
 				continue
 			}
-			key := fmt.Sprintf("/globular/nodes/%s/packages/%s/%s", nodeID, inst.Kind, svc)
-			getResp, gerr := cli.Get(ctx, key)
-			if gerr != nil || len(getResp.Kvs) == 0 {
-				fmt.Printf("    FAIL  %-25s  etcd read %s: %v\n", svc, inst.Kind, gerr)
-				continue
-			}
-			var raw map[string]interface{}
-			if err := json.Unmarshal(getResp.Kvs[0].Value, &raw); err != nil {
-				fmt.Printf("    FAIL  %-25s  json parse: %v\n", svc, err)
-				continue
-			}
-			raw["buildId"] = d.BuildID
-			data, err := json.Marshal(raw)
-			if err != nil {
-				continue
-			}
-			putCtx, putCancel := context.WithTimeout(ctx, 5*time.Second)
-			_, perr := cli.Put(putCtx, key, string(data))
-			putCancel()
-			if perr != nil {
-				fmt.Printf("    FAIL  %-25s  etcd write %s: %v\n", svc, inst.Kind, perr)
+			if err := setInstalledBuildID(ctx, agentClient, nodeID, inst.Kind, svc, d.BuildID); err != nil {
+				fmt.Printf("    FAIL  %-25s  %s: %v\n", svc, inst.Kind, err)
 				continue
 			}
 			fmt.Printf("    OK    %-25s  buildId=%s (%s, metadata-only)\n", svc, d.BuildID, inst.Kind)
@@ -1140,6 +1125,36 @@ func short8(s string) string {
 // from etcd. That prefix is owned by node_agent and the controller's
 // node registry, so a CLI consumer reading raw etcd violated
 // invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
+// setInstalledBuildID stamps build_id onto an existing installed-package record
+// through the node-agent — the registered owner of /globular/nodes — instead of a
+// raw etcd write (RT-2). SetInstalledPackage has replace semantics
+// (installed_state.WriteInstalledPackage writes the whole record), so we GET the
+// full current package first, set only build_id, and SET it back, preserving every
+// other field. The node-agent's typed path passes the owner-write governance the
+// CLI could not.
+func setInstalledBuildID(ctx context.Context, agent node_agentpb.NodeAgentServiceClient, nodeID, kind, name, buildID string) error {
+	getCtx, getCancel := context.WithTimeout(ctx, 5*time.Second)
+	getResp, err := agent.GetInstalledPackage(getCtx, &node_agentpb.GetInstalledPackageRequest{
+		NodeId: nodeID, Kind: kind, Name: name,
+	})
+	getCancel()
+	if err != nil {
+		return fmt.Errorf("get installed %s/%s: %w", kind, name, err)
+	}
+	pkg := getResp.GetPackage()
+	if pkg == nil {
+		return fmt.Errorf("installed package %s/%s not found", kind, name)
+	}
+	pkg.BuildId = buildID
+	setCtx, setCancel := context.WithTimeout(ctx, 5*time.Second)
+	_, err = agent.SetInstalledPackage(setCtx, &node_agentpb.SetInstalledPackageRequest{Package: pkg})
+	setCancel()
+	if err != nil {
+		return fmt.Errorf("set installed %s/%s: %w", kind, name, err)
+	}
+	return nil
+}
+
 // NodeRecord.AgentEndpoint carries the same value the prior code
 // extracted from the JSON status blob.
 //
