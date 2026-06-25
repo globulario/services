@@ -11105,3 +11105,38 @@ invariants:
   - golang/govops/behavioral_test.go::TestEvaluateApply_BehavioralForbiddenMove_RefusesRawOwnerWrite
   - golang/govops/behavioral_test.go::TestExecute_OwnerPathNotInvokedOnBehavioralRefusal
   - golang/govops/behavioral_test.go::TestLedgerEntryFor_RecordsBehavioralRuleOnRefusal
+- id: critical_state.owner_enforced_at_resource_write
+  severity: high
+  status: active
+  title: owner-owned desired/release writes are validated against the ownership table at the write chokepoint
+  summary: >-
+    The cluster-controller's desired/release write chokepoint
+    (resourcestore.etcdStore.Apply / Delete) validates the target etcd key against
+    config.CriticalKeyPolicies via config.ValidateCriticalKeyOwner BEFORE the write,
+    attributing every write to the registered owner (cluster-controller for the
+    /globular/resources/ prefix). A write whose key is owned by a different component
+    fails closed. This is the RT-2 runtime activation of the critical-key ownership
+    table: previously the table was consulted only by the cluster doctor for
+    registry-completeness (critical_state.registry_ownership_required) and by the
+    ingress guard, while config.ValidateCriticalKeyOwner itself had zero non-test
+    runtime callers (the RT-1 audit's "inert guard"). Enforcing it at the chokepoint
+    makes ownership a runtime property at the highest-value owner-owned-state surface
+    and is the seam RT-3 routes the govops gateway through. It does not change
+    behavior for legitimate controller writes; it fails closed only for a non-owner.
+  implemented_by:
+  - file: golang/cluster_controller/resourcestore/etcd_store.go
+    trust: declared
+  protects:
+    files:
+    - golang/cluster_controller/resourcestore/etcd_store.go
+    - golang/config/critical_keys.go
+    symbols:
+    - guardOwner
+    - Apply
+    - Delete
+    - ValidateCriticalKeyOwner
+  related_invariants:
+  - critical_state.registry_ownership_required
+  - desired.keyed_by_kind_and_name
+  required_tests:
+  - golang/cluster_controller/resourcestore/owner_guard_test.go::TestGuardOwner_EnforcesCriticalKeyOwnerAtResourceWrite
