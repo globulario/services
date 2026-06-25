@@ -6017,3 +6017,128 @@ required_tests:
   run:
     commands:
     - go test ./golang/cluster_doctor/cluster_doctor_server/rules/ -run TestGatewayBackendDivergence
+# ── D/E-series test definitions (cross-repo coherence) ──────────────────────
+# These are real Go tests the D/E-series authored and cited from awareness
+# entries (package_identity_invariants.yaml, invariants.yaml, the local-CAS
+# intent) but never declared as required_test nodes. The undeclared anchors
+# tripped the yaml2nt dangling-ref gate in the awareness-graph combined build.
+# Declared here so every cited test resolves to a definition.
+- id: TestClassifyProfileHygiene
+  title: classifyProfileHygiene flags manifest profiles that contradict the catalog (E3)
+  protects:
+    invariants:
+    - publish.manifest_profiles_must_not_contradict_catalog
+    files:
+    - golang/repository/repository_server/profile_hygiene.go
+    - golang/repository/repository_server/profile_hygiene_test.go
+- id: TestClassifyProfileHygiene_ReadOnly
+  title: profile-hygiene classification is read-only — never mutates the manifest (E3)
+  protects:
+    invariants:
+    - publish.manifest_profiles_must_not_contradict_catalog
+    files:
+    - golang/repository/repository_server/profile_hygiene.go
+    - golang/repository/repository_server/profile_hygiene_test.go
+- id: TestDesiredRegression_AtOrAboveFloorSucceeds
+  title: a desired write at or above the current floor succeeds (no false regression block)
+  protects:
+    invariants:
+    - desired.no_regression_all_paths
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_regression_guard_test.go
+- id: TestDesiredRegression_InfraBelowFloorRejected
+  title: an infrastructure desired write below the floor is rejected as a regression
+  protects:
+    invariants:
+    - desired.no_regression_all_paths
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_regression_guard_test.go
+- id: TestDesiredRegression_InfraOverridePermitsAndAudits
+  title: an explicit infra regression override permits the write and audits it
+  protects:
+    invariants:
+    - desired.no_regression_all_paths
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_regression_guard_test.go
+- id: TestDesiredRegression_ServiceBelowFloorRejected
+  title: a service desired write below the floor is rejected as a regression
+  protects:
+    invariants:
+    - desired.no_regression_all_paths
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_regression_guard_test.go
+- id: TestDesiredRegression_ServiceOverridePermitsAndAudits
+  title: an explicit service regression override permits the write and audits it
+  protects:
+    invariants:
+    - desired.no_regression_all_paths
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_regression_guard_test.go
+- id: TestRejectCrossKindDesiredWrite_ByCatalogKind
+  title: a desired write whose kind disagrees with the catalog kind is rejected
+  protects:
+    invariants:
+    - desired.keyed_by_kind_and_name
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_state_crosskind_test.go
+- id: TestRemoveDesiredServiceRejectsCrossKind
+  title: removing a desired service rejects a cross-kind target
+  protects:
+    invariants:
+    - desired.keyed_by_kind_and_name
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_state_crosskind_test.go
+- id: TestUpsertRejectsCrossKindDesiredRecord
+  title: upsert rejects a desired record whose kind contradicts the package registry
+  protects:
+    invariants:
+    - desired.keyed_by_kind_and_name
+    files:
+    - golang/cluster_controller/cluster_controller_server/desired_state_crosskind_test.go
+- id: TestServiceDesiredKindGate_CommandRefused
+  title: the CLI desired-set kind gate refuses a cross-kind command
+  protects:
+    invariants:
+    - desired.keyed_by_kind_and_name
+    files:
+    - golang/globularcli/services_desired_kind_gate_test.go
+- id: TestServiceDesiredKindGate_InfrastructureRefused
+  title: the CLI desired-set kind gate refuses an infrastructure package on the service path
+  protects:
+    invariants:
+    - desired.keyed_by_kind_and_name
+    files:
+    - golang/globularcli/services_desired_kind_gate_test.go
+- id: TestServiceDesiredKindGate_RepoUnreachableFailsClosed
+  title: the CLI desired-set kind gate fails closed when the repository is unreachable
+  protects:
+    invariants:
+    - desired.keyed_by_kind_and_name
+    files:
+    - golang/globularcli/services_desired_kind_gate_test.go
+- id: TestServiceDesiredKindGate_ServiceProceeds
+  title: the CLI desired-set kind gate lets a correctly-kinded service write proceed
+  protects:
+    invariants:
+    - desired.keyed_by_kind_and_name
+    files:
+    - golang/globularcli/services_desired_kind_gate_test.go
+- id: TestServiceDesiredKindGate_UnknownKindFailsClosed
+  title: the CLI desired-set kind gate fails closed on an unknown package kind
+  protects:
+    invariants:
+    - desired.keyed_by_kind_and_name
+    files:
+    - golang/globularcli/services_desired_kind_gate_test.go
+- id: golang/storage_backend/os_storage_atomic_d5_test.go::TestAtomicWriteFile_CommitsFullyAndLeavesNoTemp
+  title: atomic write commits fully and leaves no temp file behind (D5a local-CAS)
+  protects:
+    files:
+    - golang/storage_backend/os_storage.go
+    - golang/storage_backend/os_storage_atomic_d5_test.go
+- id: golang/repository/repository_server/staging_sweeper_test.go::TestSweepOrphanTempBlobs_NeverTouchesCommittedContent
+  title: the orphan-temp sweeper never touches committed content (D5a local-CAS)
+  protects:
+    files:
+    - golang/repository/repository_server/staging_sweeper.go
+    - golang/repository/repository_server/staging_sweeper_test.go
