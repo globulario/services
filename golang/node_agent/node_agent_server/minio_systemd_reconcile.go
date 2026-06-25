@@ -53,7 +53,6 @@ const (
 //   - Node-agent owns local enforcement: hold non-members, wipe on transition,
 //     render files, reload daemon, report rendered state.
 //   - Node-agent NEVER restarts MinIO independently.
-//
 func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	// 1. Load desired state — bail on transient etcd errors or pre-pool state.
 	state, ok := srv.loadMinioDesiredState(ctx)
@@ -186,7 +185,6 @@ func (srv *NodeAgentServer) enforceMinioRuntimeMembership(ctx context.Context, s
 // TopologyTransition authorizes destructive local cleanup (.minio.sys wipe).
 // No wipe happens without an explicit controller-written transition record.
 // The wipe is idempotent — a no-op when .minio.sys is already absent.
-//
 func (srv *NodeAgentServer) applyApprovedMinioTransition(ctx context.Context, state *config.ObjectStoreDesiredState, nodeIP string) {
 	srv.clearMinioSysIfTransitionApproved(ctx, state, nodeIP)
 }
@@ -285,20 +283,18 @@ func (srv *NodeAgentServer) readRenderedFingerprint() (string, error) {
 // reads both to gate the coordinated restart: all pool nodes must have rendered
 // the same generation AND the same topology fingerprint before MinIO is restarted.
 func (srv *NodeAgentServer) writeRenderedGeneration(ctx context.Context, state *config.ObjectStoreDesiredState) error {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("etcd unavailable: %w", err)
-	}
-
+	// Route the node-self rendered-generation report through the governed write
+	// primitive (RT-2 Surface A): write-class policy + owner-ownership guard,
+	// instead of bare cli.Put. These keys are node-agent-owned (/globular/nodes/).
 	genKey := config.EtcdKeyNodeRenderedGeneration(srv.nodeID)
 	genVal := strconv.FormatInt(state.Generation, 10)
-	if _, err := cli.Put(ctx, genKey, genVal); err != nil {
+	if err := config.PutRuntimeWithClass(ctx, genKey, []byte(genVal), config.NormalRuntimeWrite); err != nil {
 		return fmt.Errorf("put %s: %w", genKey, err)
 	}
 
 	fpKey := config.EtcdKeyNodeRenderedStateFingerprint(srv.nodeID)
 	fpVal := config.RenderStateFingerprint(state)
-	if _, err := cli.Put(ctx, fpKey, fpVal); err != nil {
+	if err := config.PutRuntimeWithClass(ctx, fpKey, []byte(fpVal), config.NormalRuntimeWrite); err != nil {
 		return fmt.Errorf("put %s: %w", fpKey, err)
 	}
 	return nil
