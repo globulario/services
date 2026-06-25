@@ -45,6 +45,40 @@ var objectStoreTopologyClientFactory = func(conn grpc.ClientConnInterface) objec
 // so tests can supply a proposal without a live etcd.
 var applyLoadProposal = config.LoadTopologyProposal
 
+// objectStorePlacementClient is the controller RPC seam the disk approve/reject
+// and topology plan commands use to write objectstore placement state through the
+// owner path (RT-2): the cluster-controller owns admitted disks and topology
+// proposals, so those writes route through its leader-gated RPCs instead of direct
+// config.SaveAdmittedDisk / DeleteAdmittedDisk / SaveTopologyProposal calls from
+// the CLI. Overridable in tests.
+type objectStorePlacementClient interface {
+	ApproveObjectStoreDisk(ctx context.Context, req *cluster_controllerpb.ApproveObjectStoreDiskRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ApproveObjectStoreDiskResponse, error)
+	RejectObjectStoreDisk(ctx context.Context, req *cluster_controllerpb.RejectObjectStoreDiskRequest, opts ...grpc.CallOption) (*cluster_controllerpb.RejectObjectStoreDiskResponse, error)
+	PlanObjectStoreTopology(ctx context.Context, req *cluster_controllerpb.PlanObjectStoreTopologyRequest, opts ...grpc.CallOption) (*cluster_controllerpb.PlanObjectStoreTopologyResponse, error)
+}
+
+var objectStorePlacementClientFactory = func(conn grpc.ClientConnInterface) objectStorePlacementClient {
+	return cluster_controllerpb.NewClusterControllerServiceClient(conn)
+}
+
+// planLoadAdmittedDisks reads admitted disks for `topology plan`. A read (RT-2
+// governs writes); the seam lets tests supply admitted disks without a live etcd.
+var planLoadAdmittedDisks = config.LoadAdmittedDisks
+
+// objectStorePlacementConn dials the controller and returns the placement client
+// plus a close func. Shared by the approve/reject/plan commands.
+func objectStorePlacementConn() (objectStorePlacementClient, func(), error) {
+	conn, err := controllerConnFactory()
+	if err != nil {
+		return nil, func() {}, fmt.Errorf("connect to controller: %w", err)
+	}
+	closeFn := func() {}
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		closeFn = func() { _ = c.Close() }
+	}
+	return objectStorePlacementClientFactory(conn), closeFn, nil
+}
+
 // ── top-level disk subcommand ─────────────────────────────────────────────────
 
 var objectstoreDiskCmd = &cobra.Command{
@@ -246,20 +280,23 @@ func runObjectstoreDiskApprove(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	ph := config.PathHash(approvePath)
-	ad := &config.AdmittedDisk{
-		NodeID:            approveNodeID,
-		NodeIP:            approveNodeIP,
+	// Admit through the controller's owner RPC (RT-2), not a direct
+	// config.SaveAdmittedDisk write. The controller computes the path hash and
+	// approval timestamp authoritatively.
+	client, closeConn, err := objectStorePlacementConn()
+	if err != nil {
+		return err
+	}
+	defer closeConn()
+	if _, err := client.ApproveObjectStoreDisk(ctx, &cluster_controllerpb.ApproveObjectStoreDiskRequest{
+		NodeId:            approveNodeID,
+		NodeIp:            approveNodeIP,
 		Path:              approvePath,
-		PathHash:          ph,
-		DrivesPerNode:     approveDrives,
+		DrivesPerNode:     int64(approveDrives),
 		ForceRoot:         approveForceRoot,
 		ForceExistingData: approveForceData,
-		ApprovedAt:        time.Now().UTC(),
-	}
-
-	if err := config.SaveAdmittedDisk(ctx, ad); err != nil {
-		return fmt.Errorf("save admitted disk: %w", err)
+	}, jsonCallOption()); err != nil {
+		return fmt.Errorf("approve disk: %w", err)
 	}
 
 	fmt.Printf("✓ Admitted disk path %q on node %s (ip=%s drives=%d)\n",
@@ -297,9 +334,18 @@ func runObjectstoreDiskReject(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	ph := config.PathHash(rejectPath)
-	if err := config.DeleteAdmittedDisk(ctx, rejectNodeID, ph); err != nil {
-		return fmt.Errorf("delete admission: %w", err)
+	// Reject through the controller's owner RPC (RT-2), not a direct
+	// config.DeleteAdmittedDisk write.
+	client, closeConn, err := objectStorePlacementConn()
+	if err != nil {
+		return err
+	}
+	defer closeConn()
+	if _, err := client.RejectObjectStoreDisk(ctx, &cluster_controllerpb.RejectObjectStoreDiskRequest{
+		NodeId: rejectNodeID,
+		Path:   rejectPath,
+	}, jsonCallOption()); err != nil {
+		return fmt.Errorf("reject disk: %w", err)
 	}
 
 	fmt.Printf("✓ Removed admission for %q on node %s\n", rejectPath, rejectNodeID)
@@ -398,8 +444,8 @@ func runObjectstoreTopologyPlan(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// Load admitted disks.
-	admitted, err := config.LoadAdmittedDisks(ctx)
+	// Load admitted disks (a read; the seam lets tests supply them without etcd).
+	admitted, err := planLoadAdmittedDisks(ctx)
 	if err != nil {
 		return fmt.Errorf("load admitted disks: %w", err)
 	}
@@ -410,12 +456,25 @@ func runObjectstoreTopologyPlan(cmd *cobra.Command, args []string) error {
 	// Load current desired state (for destructiveness analysis).
 	current, _ := config.LoadObjectStoreDesiredState(ctx)
 
-	// Build proposal from admitted disks.
+	// Build proposal from admitted disks (pure computation over reads).
 	proposal := buildTopologyProposal(admitted, current)
 
-	// Save proposal to etcd.
-	if err := config.SaveTopologyProposal(ctx, proposal); err != nil {
-		return fmt.Errorf("save proposal: %w", err)
+	// Persist through the controller's owner RPC (RT-2), not a direct
+	// config.SaveTopologyProposal write. The controller validates and stores it;
+	// apply re-validates authoritatively.
+	proposalJSON, err := json.Marshal(proposal)
+	if err != nil {
+		return fmt.Errorf("marshal proposal: %w", err)
+	}
+	client, closeConn, err := objectStorePlacementConn()
+	if err != nil {
+		return err
+	}
+	defer closeConn()
+	if _, err := client.PlanObjectStoreTopology(ctx, &cluster_controllerpb.PlanObjectStoreTopologyRequest{
+		ProposalJson: proposalJSON,
+	}, jsonCallOption()); err != nil {
+		return fmt.Errorf("plan topology: %w", err)
 	}
 
 	if planJSON {

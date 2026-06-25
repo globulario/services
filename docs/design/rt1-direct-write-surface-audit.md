@@ -167,18 +167,20 @@ Residual sharp edge: `grpc_call` is a generic any-RPC tool (owner-RPC-routed whe
 | 3 | `pkg override apply` | `pkg_override_cmds.go:199,203` | ServiceDesiredVersion + LocalOverride prefix | controller | ✅ #107 |
 | 4 | `pkg override remove` | `pkg_override_cmds.go:242,246` | desired + override prefix | controller | ✅ #107 |
 | 5 | `objectstore topology sanitize-pool` | `objectstore_cmds.go:152,184` | controller state blob + objectstore placement | controller | ✅ #110 |
-| 6 | `objectstore disk approve`/`reject` | `objectstore_disk_cmds.go:243` (`config.SaveAdmittedDisk`) | placement (admitted disks) | objectstore/controller | ⬜ remaining |
-| 7 | `objectstore topology plan` | `objectstore_disk_cmds.go:399` (`config.SaveTopologyProposal`) | placement proposal | objectstore/controller | ⬜ remaining |
+| 6 | `objectstore disk approve`/`reject` | `objectstore_disk_cmds.go` (`config.SaveAdmittedDisk`/`DeleteAdmittedDisk`) | placement (admitted disks) | objectstore/controller | ✅ #113 |
+| 7 | `objectstore topology plan` | `objectstore_disk_cmds.go` (`config.SaveTopologyProposal`) | placement proposal | objectstore/controller | ✅ #113 |
 | 8 | `objectstore topology apply` | `objectstore_disk_cmds.go:712` | placement apply-request handshake | controller | ✅ #109 |
 | 9 | `cluster acc set`/`reset` | `acc_cmds.go:307,346` | config-put `/globular/system/acc/config` | controller | ✅ #108 |
 
-> **RT-2 CLI progress: 7 / 9 migrated** (#105, #106, #107, #108, #109, #110). The
-> scanner-flagged raw-`cli.Put`/`cli.Delete` baseline (`exception_pending_owner_routing_migration`)
-> is now **empty**. Items 6 and 7 remain: they write placement state via the
-> `config.SaveAdmittedDisk` / `config.SaveTopologyProposal` helpers (config-package
-> writes the scanner does not sweep), so they are architectural owner-write
-> migrations, not scanner-flagged debt. They need owner RPCs on the
-> objectstore/controller for admitted-disks and topology-proposal placement.
+> **RT-2 CLI progress: 9 / 9 migrated** (#105, #106, #107, #108, #109, #110, #113).
+> The scanner-flagged raw-`cli.Put`/`cli.Delete` baseline
+> (`exception_pending_owner_routing_migration`) is empty, and items 6 & 7 — the
+> architectural owner-write migrations the scanner does not sweep
+> (`config.SaveAdmittedDisk` / `DeleteAdmittedDisk` / `SaveTopologyProposal`) —
+> are now routed through controller owner RPCs (`ApproveObjectStoreDisk`,
+> `RejectObjectStoreDisk`, `PlanObjectStoreTopology`). The whole Surface-D CLI
+> work-list is migrated. Remaining RT-2: the 4 node_agent objectstore bare-`cli.Put`
+> sites (Surface A) and the 6+2 shell scripts.
 
 Correctly routed already (for reference): `services desired set/remove` (no `--force`
 by design — only audited `--allow-regression`), `release apply/scale/rollback`,

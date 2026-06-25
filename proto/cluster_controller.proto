@@ -1119,6 +1119,35 @@ service ClusterControllerService {
       default_role_hint: "admin"
     };
   };
+
+  // ── ObjectStore disk admission + topology planning (owner writes) ──
+  // The cluster-controller owns objectstore placement state (admitted disks +
+  // topology proposals). These replace the CLI's direct config.SaveAdmittedDisk /
+  // DeleteAdmittedDisk / SaveTopologyProposal writes (RT-2). Leader-gated.
+  rpc ApproveObjectStoreDisk(ApproveObjectStoreDiskRequest) returns (ApproveObjectStoreDiskResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.objectstore_disk.approve"
+      permission: "admin"
+      resource_template: "/cluster_controller/objectstore/disks"
+      default_role_hint: "admin"
+    };
+  };
+  rpc RejectObjectStoreDisk(RejectObjectStoreDiskRequest) returns (RejectObjectStoreDiskResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.objectstore_disk.reject"
+      permission: "admin"
+      resource_template: "/cluster_controller/objectstore/disks"
+      default_role_hint: "admin"
+    };
+  };
+  rpc PlanObjectStoreTopology(PlanObjectStoreTopologyRequest) returns (PlanObjectStoreTopologyResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.objectstore_topology.plan"
+      permission: "admin"
+      resource_template: "/cluster_controller/objectstore/topology"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // SetAccConfigRequest carries the opaque ACC config JSON to persist at
@@ -1161,6 +1190,37 @@ message SanitizeObjectStorePoolResponse {
   repeated string removed = 3;  // peers removed (before - after)
   int64 generation = 4;        // objectstore generation (bumped when applied)
   bool applied = 5;            // true when state was written (false on dry_run / no-op)
+}
+
+// ApproveObjectStoreDiskRequest admits a mount path on a node for MinIO use. The
+// controller computes the path hash and approval timestamp authoritatively.
+message ApproveObjectStoreDiskRequest {
+  string node_id = 1;
+  string node_ip = 2;
+  string path = 3;
+  int64 drives_per_node = 4;
+  bool force_root = 5;
+  bool force_existing_data = 6;
+}
+message ApproveObjectStoreDiskResponse {
+  string path_hash = 1;  // the admitted disk's path hash (admission identity)
+}
+message RejectObjectStoreDiskRequest {
+  string node_id = 1;
+  string path = 2;
+}
+message RejectObjectStoreDiskResponse {
+  bool ok = 1;
+}
+
+// PlanObjectStoreTopologyRequest carries the CLI-computed proposal as opaque JSON
+// (a config.TopologyProposal). The controller validates and persists it; apply
+// re-validates authoritatively.
+message PlanObjectStoreTopologyRequest {
+  bytes proposal_json = 1;
+}
+message PlanObjectStoreTopologyResponse {
+  string proposal_id = 1;
 }
 
 message DesiredNetwork {

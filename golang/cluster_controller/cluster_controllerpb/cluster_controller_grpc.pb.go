@@ -72,6 +72,9 @@ const (
 	ClusterControllerService_ResetAccConfig_FullMethodName                 = "/cluster_controller.ClusterControllerService/ResetAccConfig"
 	ClusterControllerService_ApplyObjectStoreTopology_FullMethodName       = "/cluster_controller.ClusterControllerService/ApplyObjectStoreTopology"
 	ClusterControllerService_SanitizeObjectStorePool_FullMethodName        = "/cluster_controller.ClusterControllerService/SanitizeObjectStorePool"
+	ClusterControllerService_ApproveObjectStoreDisk_FullMethodName         = "/cluster_controller.ClusterControllerService/ApproveObjectStoreDisk"
+	ClusterControllerService_RejectObjectStoreDisk_FullMethodName          = "/cluster_controller.ClusterControllerService/RejectObjectStoreDisk"
+	ClusterControllerService_PlanObjectStoreTopology_FullMethodName        = "/cluster_controller.ClusterControllerService/PlanObjectStoreTopology"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -289,6 +292,13 @@ type ClusterControllerServiceClient interface {
 	// republishes objectstore desired state canonically. dry_run computes the
 	// change without applying. Leader-gated.
 	SanitizeObjectStorePool(ctx context.Context, in *SanitizeObjectStorePoolRequest, opts ...grpc.CallOption) (*SanitizeObjectStorePoolResponse, error)
+	// ── ObjectStore disk admission + topology planning (owner writes) ──
+	// The cluster-controller owns objectstore placement state (admitted disks +
+	// topology proposals). These replace the CLI's direct config.SaveAdmittedDisk /
+	// DeleteAdmittedDisk / SaveTopologyProposal writes (RT-2). Leader-gated.
+	ApproveObjectStoreDisk(ctx context.Context, in *ApproveObjectStoreDiskRequest, opts ...grpc.CallOption) (*ApproveObjectStoreDiskResponse, error)
+	RejectObjectStoreDisk(ctx context.Context, in *RejectObjectStoreDiskRequest, opts ...grpc.CallOption) (*RejectObjectStoreDiskResponse, error)
+	PlanObjectStoreTopology(ctx context.Context, in *PlanObjectStoreTopologyRequest, opts ...grpc.CallOption) (*PlanObjectStoreTopologyResponse, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -818,6 +828,36 @@ func (c *clusterControllerServiceClient) SanitizeObjectStorePool(ctx context.Con
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ApproveObjectStoreDisk(ctx context.Context, in *ApproveObjectStoreDiskRequest, opts ...grpc.CallOption) (*ApproveObjectStoreDiskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApproveObjectStoreDiskResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ApproveObjectStoreDisk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) RejectObjectStoreDisk(ctx context.Context, in *RejectObjectStoreDiskRequest, opts ...grpc.CallOption) (*RejectObjectStoreDiskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RejectObjectStoreDiskResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_RejectObjectStoreDisk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) PlanObjectStoreTopology(ctx context.Context, in *PlanObjectStoreTopologyRequest, opts ...grpc.CallOption) (*PlanObjectStoreTopologyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PlanObjectStoreTopologyResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_PlanObjectStoreTopology_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -1033,6 +1073,13 @@ type ClusterControllerServiceServer interface {
 	// republishes objectstore desired state canonically. dry_run computes the
 	// change without applying. Leader-gated.
 	SanitizeObjectStorePool(context.Context, *SanitizeObjectStorePoolRequest) (*SanitizeObjectStorePoolResponse, error)
+	// ── ObjectStore disk admission + topology planning (owner writes) ──
+	// The cluster-controller owns objectstore placement state (admitted disks +
+	// topology proposals). These replace the CLI's direct config.SaveAdmittedDisk /
+	// DeleteAdmittedDisk / SaveTopologyProposal writes (RT-2). Leader-gated.
+	ApproveObjectStoreDisk(context.Context, *ApproveObjectStoreDiskRequest) (*ApproveObjectStoreDiskResponse, error)
+	RejectObjectStoreDisk(context.Context, *RejectObjectStoreDiskRequest) (*RejectObjectStoreDiskResponse, error)
+	PlanObjectStoreTopology(context.Context, *PlanObjectStoreTopologyRequest) (*PlanObjectStoreTopologyResponse, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -1194,6 +1241,15 @@ func (UnimplementedClusterControllerServiceServer) ApplyObjectStoreTopology(cont
 }
 func (UnimplementedClusterControllerServiceServer) SanitizeObjectStorePool(context.Context, *SanitizeObjectStorePoolRequest) (*SanitizeObjectStorePoolResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SanitizeObjectStorePool not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ApproveObjectStoreDisk(context.Context, *ApproveObjectStoreDiskRequest) (*ApproveObjectStoreDiskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApproveObjectStoreDisk not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) RejectObjectStoreDisk(context.Context, *RejectObjectStoreDiskRequest) (*RejectObjectStoreDiskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RejectObjectStoreDisk not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) PlanObjectStoreTopology(context.Context, *PlanObjectStoreTopologyRequest) (*PlanObjectStoreTopologyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PlanObjectStoreTopology not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -2126,6 +2182,60 @@ func _ClusterControllerService_SanitizeObjectStorePool_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ApproveObjectStoreDisk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveObjectStoreDiskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ApproveObjectStoreDisk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ApproveObjectStoreDisk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ApproveObjectStoreDisk(ctx, req.(*ApproveObjectStoreDiskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_RejectObjectStoreDisk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RejectObjectStoreDiskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).RejectObjectStoreDisk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_RejectObjectStoreDisk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).RejectObjectStoreDisk(ctx, req.(*RejectObjectStoreDiskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_PlanObjectStoreTopology_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PlanObjectStoreTopologyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).PlanObjectStoreTopology(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_PlanObjectStoreTopology_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).PlanObjectStoreTopology(ctx, req.(*PlanObjectStoreTopologyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2332,6 +2442,18 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SanitizeObjectStorePool",
 			Handler:    _ClusterControllerService_SanitizeObjectStorePool_Handler,
+		},
+		{
+			MethodName: "ApproveObjectStoreDisk",
+			Handler:    _ClusterControllerService_ApproveObjectStoreDisk_Handler,
+		},
+		{
+			MethodName: "RejectObjectStoreDisk",
+			Handler:    _ClusterControllerService_RejectObjectStoreDisk_Handler,
+		},
+		{
+			MethodName: "PlanObjectStoreTopology",
+			Handler:    _ClusterControllerService_PlanObjectStoreTopology_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
