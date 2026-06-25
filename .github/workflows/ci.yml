@@ -129,16 +129,29 @@ jobs:
       #    was removed when AWG became a standalone sidecar (1c8a4888);
       #    validation now lives in the awareness-graph repo as
       #    `awg validate`, so this gate requires the AG checkout.
-      #    Catches dangling related refs, missing source files, dup IDs.
+      #    Catches dangling related refs, missing source files, dup IDs,
+      #    and off-vocabulary `severity` values (CG-6: the closed set
+      #    {critical,high,warning,info,degraded}). `awg validate` exits 1 on
+      #    any error finding, so every check it carries — including the
+      #    severity vocabulary — is a hard fail here by construction; no
+      #    separate step or continue-on-error toggle. The severity leg
+      #    enforces once awareness-graph#130 (the `invalid_severity` check)
+      #    is on AG master, which this `go run ./cmd/awg` resolves against.
       #    (The old validate-deps step is gone with golang/awareness/.)
-      - name: Enforce awareness YAML validity (awg validate, hard gate)
+      - name: Enforce awareness YAML validity + severity vocab (awg validate, hard gate)
         if: steps.checkout_awareness_graph.outcome == 'success'
         working-directory: ${{ github.workspace }}/awareness-graph
         run: go run ./cmd/awg validate -repo-root ${{ github.workspace }}/services
 
       # 4. Full awareness audit — HARD GATE (embeddata freshness via the canonical
       #    deduped generation, YAML validity, N-Triples validity, coverage gaps,
-      #    stale file refs, test coverage). Exits 1 on any FAIL; WARNs don't block.
+      #    stale file refs, test coverage, seed-orphans). Exits 1 on any FAIL;
+      #    WARNs don't block.
+      #    seed-orphans (GC-1) is the third leg of the coherence gate alongside
+      #    awg-validate's duplicate_id + dangling_*_ref (step 3): it fails closed
+      #    on a committed-seed node whose authoring YAML no longer exists — the
+      #    store-vs-YAML drift the ownership-aware freshness check tolerates for
+      #    the external/services partition.
       # RE-ARMED 2026-06-22: the embeddata-freshness check was held advisory while
       # the awareness-graph seed generator was non-deterministic (per-run /tmp
       # authoredIn in both the shell build and cmd_rebuild.go). Both leaks are fixed
@@ -148,10 +161,31 @@ jobs:
       # `awg audit -check` → embeddata-freshness PASS, 0 fail. continue-on-error
       # removed so freshness is now authoritative — a stale/non-deterministic seed
       # fails the build.
-      - name: Awareness audit (awg audit -check, hard gate)
+      # -warn-stale (GC-2): a services-side awareness addition changes the seed
+      # digest, so the committed awareness-graph seed lags until seed-rebuild.yml
+      # auto-commits it on merge to AG master. That lag must not block a services
+      # PR — embeddata-freshness is downgraded to an advisory WARN. Corpus
+      # CORRECTNESS (seed-orphans, yaml/ntriples validity, coverage, contract
+      # wiring) stays a hard FAIL.
+      - name: Awareness audit (awg audit -check -warn-stale, hard gate on correctness)
         if: steps.checkout_awareness_graph.outcome == 'success'
         working-directory: ${{ github.workspace }}/awareness-graph
-        run: go run ./cmd/awg audit -check -services-repo ${{ github.workspace }}/services -ag-repo .
+        run: go run ./cmd/awg audit -check -warn-stale -services-repo ${{ github.workspace }}/services -ag-repo .
+
+      # 5. Impact-gate (CG-5): a changed Go file protected by an invariant must
+      #    run that invariant's required_tests, and they must pass. This turns
+      #    required_tests from advisory metadata into a fail-closed per-change
+      #    gate (the enforcement CG-4 verified was absent).
+      # ADVISORY until armed: continue-on-error while required_tests are confirmed
+      #    runnable in CI. Remove continue-on-error to make it a hard gate — the
+      #    same arm-later pattern used for awg validate/audit above.
+      - name: Impact-gate — required tests for changed protected files (advisory)
+        if: steps.checkout_awareness_graph.outcome == 'success'
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}/services
+        run: bash scripts/impact-gate-ci.sh
+        env:
+          AWG_DIR: ${{ github.workspace }}/awareness-graph
 
   proto-check:
     runs-on: ubuntu-latest
