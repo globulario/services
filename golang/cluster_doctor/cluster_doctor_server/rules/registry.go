@@ -23,6 +23,7 @@ import (
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Registry holds all registered invariants and evaluates them against a Snapshot.
@@ -339,7 +340,40 @@ func (r *Registry) EvaluateAll(snap *collector.Snapshot) []Finding {
 	// outage stays invisible. Surface each unavailable source as its own
 	// INVARIANT_UNKNOWN finding so "could not see" is never indistinguishable
 	// from "healthy".
-	return append(annotated, snapshotSourceUnavailableFindings(snap)...)
+	return stampEvidenceCollectionTime(append(annotated, snapshotSourceUnavailableFindings(snap)...), snap)
+}
+
+// stampEvidenceCollectionTime corrects each finding's evidence Timestamp from the
+// rule-evaluation instant (kvEvidence stamps timestamppb.Now()) to the snapshot's
+// actual data-collection time, so findingEvidenceTrust can detect staleness. The
+// key case is a CACHED snapshot re-evaluated long after collection: every rule
+// would otherwise re-stamp "now" and present stale data to the trust gate as
+// authoritative (meta.binding_outlives_evidence_until_invalidated; OT-2). This
+// re-arms the gate without changing any of the 150+ rule call sites.
+//
+// Prometheus evidence is dated by the scrape timestamp (snap.PromTS), which
+// precedes snapshot generation. The correction is FAIL-SAFE: it only ever moves a
+// timestamp BACKWARD (older / more conservative), never forward — so evidence that
+// already carries an older real timestamp is left untouched.
+func stampEvidenceCollectionTime(findings []Finding, snap *collector.Snapshot) []Finding {
+	if snap == nil || snap.GeneratedAt.IsZero() {
+		return findings
+	}
+	for i := range findings {
+		for _, ev := range findings[i].Evidence {
+			if ev == nil {
+				continue
+			}
+			collected := snap.GeneratedAt
+			if ev.GetSourceService() == "prometheus" && !snap.PromTS.IsZero() && snap.PromTS.Before(collected) {
+				collected = snap.PromTS
+			}
+			if ev.Timestamp == nil || ev.Timestamp.AsTime().After(collected) {
+				ev.Timestamp = timestamppb.New(collected)
+			}
+		}
+	}
+	return findings
 }
 
 // snapshotSourceUnavailableFindings emits one INVARIANT_UNKNOWN finding per
@@ -523,7 +557,7 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 		}
 	}
 	annotated := annotateForReducedHarvest(all, nodesnap)
-	return append(annotated, snapshotSourceUnavailableFindings(nodesnap)...)
+	return stampEvidenceCollectionTime(append(annotated, snapshotSourceUnavailableFindings(nodesnap)...), nodesnap)
 }
 
 // FindByID looks up a cached finding by its finding_id across all findings.
