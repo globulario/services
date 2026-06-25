@@ -122,10 +122,14 @@ evidence.
 
 ### OT-2 — make the doctor's evidence tell the truth about its own freshness (S/M)
 The highest-leverage move — it re-arms the gate that already exists:
-1. **`kvEvidence` carries real collection time.** Add an evidence-timestamp source
-   (snapshot `GeneratedAt`, or `snap.PromTS` for metrics) so `Timestamp` reflects
-   when the data was *observed*, not when the finding was *emitted*. This single
-   change makes `findingEvidenceTrust` actually able to classify staleness.
+1. ✅ **Evidence carries real collection time (#125).** Rather than thread a
+   timestamp through 150+ `kvEvidence` call sites, a single post-pass
+   `stampEvidenceCollectionTime` (in `rules/registry.go`, alongside
+   `annotateForReducedHarvest`) corrects every finding's evidence `Timestamp` from
+   the rule's `Now()` to the snapshot's `GeneratedAt` (and `PromTS` for prometheus
+   evidence, which is older). Fail-safe: only ever moves a timestamp *backward*.
+   This makes `findingEvidenceTrust` able to classify staleness — especially for a
+   cached snapshot re-evaluated long after collection.
 2. **Rules consult reduced-harvest before concluding.** When `snap.DataIncomplete`
    /a depended-on source is in `snap.DataErrors`, the finding must be **UNKNOWN**,
    not FAIL/green — i.e. `annotateForReducedHarvest` (or the registry evaluator)
