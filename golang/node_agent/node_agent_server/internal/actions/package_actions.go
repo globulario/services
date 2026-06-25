@@ -31,11 +31,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -154,9 +154,11 @@ func (packageUninstallAction) Apply(ctx context.Context, args *structpb.Struct) 
 		// Stop and disable the systemd unit before removing files.
 		if !skipSystemd {
 			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			// Best-effort stop and disable — unit may not exist.
-			_ = exec.CommandContext(cctx, "systemctl", "stop", unit).Run()
-			_ = exec.CommandContext(cctx, "systemctl", "disable", unit).Run()
+			// Best-effort stop and disable — unit may not exist. Routed through the
+			// supervisor (the single allowlisted systemd-control path), not raw exec
+			// (EX-2 unit-control boundary).
+			_ = supervisor.Stop(cctx, unit)
+			_ = supervisor.Disable(cctx, unit)
 			cancel()
 		}
 
@@ -169,7 +171,7 @@ func (packageUninstallAction) Apply(ctx context.Context, args *structpb.Struct) 
 			unitPath := filepath.Join(systemdDir, unit)
 			if err := os.Remove(unitPath); err == nil {
 				cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-				_ = exec.CommandContext(cctx, "systemctl", "daemon-reload").Run()
+				_ = supervisor.DaemonReload(cctx)
 				cancel()
 			}
 		}

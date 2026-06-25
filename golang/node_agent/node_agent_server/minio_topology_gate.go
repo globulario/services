@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 )
 
 // nodeIPInPool reports whether nodeIP is an admitted member of the MinIO pool
@@ -137,7 +138,7 @@ func (srv *NodeAgentServer) enforceMinioHeld(ctx context.Context, nodeIP string,
 
 	stopCtx, stopCancel := context.WithTimeout(ctx, 15*time.Second)
 	defer stopCancel()
-	if err := exec.CommandContext(stopCtx, "systemctl", "stop", "globular-minio.service").Run(); err != nil {
+	if err := supervisor.Stop(stopCtx, "globular-minio.service"); err != nil {
 		log.Printf("minio-topology-gate: WARNING: failed to stop globular-minio.service on non-member node %s (ip=%s): %v",
 			srv.nodeID, nodeIP, err)
 		return

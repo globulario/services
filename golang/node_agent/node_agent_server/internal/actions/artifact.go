@@ -25,6 +25,7 @@ import (
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/systemdutil"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
@@ -765,9 +766,10 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	if wroteUnit && !skipSystemd && !ActionSkipDaemonReload {
 		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(cctx, "systemctl", "daemon-reload")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("systemctl daemon-reload: %v (output: %s)", err, string(out))
+		// daemon-reload via the supervisor (the single allowlisted systemd-control
+		// path), not raw exec (EX-2 unit-control boundary).
+		if err := supervisor.DaemonReload(cctx); err != nil {
+			return "", fmt.Errorf("systemctl daemon-reload: %w", err)
 		}
 	}
 

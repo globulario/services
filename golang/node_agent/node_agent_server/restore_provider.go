@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/google/uuid"
@@ -482,9 +483,10 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 	stopBeforeRestore := []string{"globular-prometheus.service"}
 	for _, svc := range stopBeforeRestore {
 		log.Printf("restic restore: stopping %s before restore", svc)
-		stopCmd := exec.CommandContext(ctx, "systemctl", "stop", svc)
-		if out, err := stopCmd.CombinedOutput(); err != nil {
-			log.Printf("restic restore: warning: failed to stop %s: %v (%s)", svc, err, strings.TrimSpace(string(out)))
+		// Route unit stop/start through the supervisor (the single allowlisted
+		// systemd-control path), not raw exec (EX-2 unit-control boundary).
+		if out, err := supervisor.ApplyUnitAction(ctx, svc, "stop"); err != nil {
+			log.Printf("restic restore: warning: failed to stop %s: %v (%s)", svc, err, out)
 		}
 	}
 
@@ -514,9 +516,8 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 	restartStopped := func() {
 		for _, svc := range stopBeforeRestore {
 			log.Printf("restic restore: starting %s after restore", svc)
-			startCmd := exec.CommandContext(ctx, "systemctl", "start", svc)
-			if out, startErr := startCmd.CombinedOutput(); startErr != nil {
-				log.Printf("restic restore: %s failed to start: %v (%s)", svc, startErr, strings.TrimSpace(string(out)))
+			if out, startErr := supervisor.ApplyUnitAction(ctx, svc, "start"); startErr != nil {
+				log.Printf("restic restore: %s failed to start: %v (%s)", svc, startErr, out)
 
 				if svc == "globular-prometheus.service" {
 					dataDir := "/var/lib/globular/prometheus/data"
@@ -535,9 +536,8 @@ func (s *NodeAgentServer) restoreResticProvider(ctx context.Context, req *node_a
 					_ = os.Remove(filepath.Join(dataDir, "lock"))
 					outputs[svc+"_wal_cleared"] = dataDir
 
-					retryCmd := exec.CommandContext(ctx, "systemctl", "start", svc)
-					if retryOut, retryErr := retryCmd.CombinedOutput(); retryErr != nil {
-						log.Printf("restic restore: warning: %s still failed after WAL cleanup: %v (%s)", svc, retryErr, strings.TrimSpace(string(retryOut)))
+					if retryOut, retryErr := supervisor.ApplyUnitAction(ctx, svc, "start"); retryErr != nil {
+						log.Printf("restic restore: warning: %s still failed after WAL cleanup: %v (%s)", svc, retryErr, retryOut)
 					} else {
 						log.Printf("restic restore: %s started with historical blocks preserved", svc)
 					}
@@ -917,8 +917,11 @@ func stopScyllaWorkloadServices(ctx context.Context, outputs map[string]string) 
 			continue // not running
 		}
 		log.Printf("scylla restore: stopping %s before schema restore", unit)
-		if out, err := exec.CommandContext(ctx, "sudo", "systemctl", "stop", unit).CombinedOutput(); err != nil {
-			log.Printf("scylla restore: failed to stop %s: %s", unit, string(out))
+		// Route through the supervisor (the single allowlisted systemd-control
+		// path), not raw exec. node_agent has systemctl privileges, so no sudo is
+		// needed — consistent with all other unit control (EX-2 unit-control boundary).
+		if out, err := supervisor.ApplyUnitAction(ctx, unit, "stop"); err != nil {
+			log.Printf("scylla restore: failed to stop %s: %v (%s)", unit, err, out)
 		} else {
 			stopped = append(stopped, unit)
 		}
@@ -942,8 +945,8 @@ func startScyllaWorkloadServices(ctx context.Context, units []string, outputs ma
 	}
 	log.Printf("scylla restore: restarting %d workload services", len(units))
 	for _, unit := range units {
-		if out, err := exec.CommandContext(ctx, "sudo", "systemctl", "start", unit).CombinedOutput(); err != nil {
-			log.Printf("scylla restore: failed to restart %s: %s", unit, string(out))
+		if out, err := supervisor.ApplyUnitAction(ctx, unit, "start"); err != nil {
+			log.Printf("scylla restore: failed to restart %s: %v (%s)", unit, err, out)
 		} else {
 			log.Printf("scylla restore: restarted %s", unit)
 		}
