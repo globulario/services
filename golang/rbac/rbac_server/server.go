@@ -1094,6 +1094,14 @@ func main() {
 	go srv.depHealth.Start(ctx)
 	logger.Info("dependency health watchdog started", "deps", len(srv.dependencyHealthDeps()))
 
+	// Cross-instance permission-cache invalidation. srv.cache is per-instance and
+	// short-TTL; this watcher flushes it on every RBAC mutation (from any instance)
+	// via the etcd generation key, so peer instances stop serving stale permissions
+	// in ~one etcd round-trip instead of waiting out the 30s TTL (the TTL remains
+	// the backstop if the watch is down).
+	go srv.runPermCacheInvalidationWatcher(ctx)
+	logger.Info("rbac permission-cache invalidation watcher started")
+
 	// Clear precomputed USED_SPACE keys on startup (ensures fresh computation)
 	logger.Debug("clearing precomputed USED_SPACE cache keys")
 	if idsRaw, err := srv.getItem("USED_SPACE"); err == nil {

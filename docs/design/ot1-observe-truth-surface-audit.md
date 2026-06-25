@@ -114,7 +114,7 @@ evidence.
 |---|---|---|---|
 | `SaveServiceConfiguration` (desired + runtime) | `config/etcd_service_config.go:271-285` | **UNVALIDATED** — two non-transactional `Put`s | **CRITICAL (RT-adjacent)** — self-documented `// KNOWN GAP`: second Put fails → desired updated, runtime stale; readers + doctor see diverged state |
 | `GetServicesConfigurations` | `config/service_config_cache.go` | **MIRROR** — 5s TTL, **60s stale-if-error** | **HIGH** — on an etcd hiccup, service discovery, xDS, file-service routing, **and the doctor** read stale address/port/state for up to 60s with no freshness signal |
-| RBAC `GetResourcePermissions` | `rbac/.../rbac_permissions.go:744` | **MIRROR** — 30s cache, invalidate-on-write only | **MEDIUM** — access decisions on ≤30s-stale permissions; cross-instance writes never invalidate |
+| RBAC `GetResourcePermissions` | `rbac/.../rbac_permissions.go:744` | **MIRROR** — 30s cache, ~~invalidate-on-write only~~ now generation-key flushed ✅ | ~~MEDIUM~~ **CLOSED** — each instance watches the rbac generation key and flushes `srv.cache` on any mutation; peers no longer serve ≤30s-stale permissions (TTL = backstop) |
 | `GetRuntime` (service status) | `config/etcd_runtime.go:42` | AUTHORITATIVE but `WithSerializable()` | **MEDIUM** — non-quorum read; a lagging follower returns stale status during leader election → doctor sees conflicting per-node truth |
 | Cert / PKI reads | `config/config.go:816` | AUTHORITATIVE (filesystem) | **LOW** — disk is the source, but rotation may not sync to `/globular/pki/ca.crt` atomically |
 | Public-dirs registry, file `ReadFile`/`GetFileInfo` | `public_dirs.go`, `file_ops.go` | AUTHORITATIVE (live etcd+watch / live FS) | LOW |
@@ -125,8 +125,10 @@ evidence.
 2. **HIGH — config-cache 60s stale-if-error window served without a freshness signal**,
    and **the doctor reads from this mirror** — compounding §1: a stale config mirror
    feeds a snapshot whose evidence then claims `Now()`.
-3. **MEDIUM — RBAC cache has no cross-instance invalidation.**
-4. **MEDIUM — `WithSerializable()` runtime reads can serve a stale follower view.**
+3. ✅ **MEDIUM — RBAC `srv.cache` cross-instance invalidation (closed, OT-3 #4).** The
+   interceptor cache was already covered; the rbac server's own per-instance cache now
+   flushes on the shared generation key. See OT-3 #4 below.
+4. **MEDIUM — `WithSerializable()` runtime reads can serve a stale follower view** (parked).
 
 ---
 
@@ -194,7 +196,21 @@ The highest-leverage move — it re-arms the gate that already exists:
    calls are proto accessors on `InfraProbeResult` (a different function). So its
    consistency level is not a doctor-truth issue and this item does not hold — the
    audit's original Surface-B line for it overstated the risk.
-4. **RBAC cross-instance cache invalidation** (event/watch-based).
+4. ✅ **RBAC cross-instance cache invalidation.** *Verify-first reframing:* the
+   audit's "RBAC cache has no cross-instance invalidation" was **mislocated**. The
+   INTERCEPTOR permission-decision cache is *already* invalidated mesh-wide — the
+   rbac service bumps `/globular/system/rbac/generation` on every mutation and every
+   service's interceptor watches it (`interceptors/perm_cache_invalidation.go`). The
+   genuine gap is the rbac server's **own** `srv.cache` (per-instance in-memory
+   BigCache, 30s TTL) behind `GetResourcePermissions`/`ValidateAccess`: on a write
+   only the *handling* instance does a local `RemoveItem`, so a peer instance serves
+   ≤30s-stale permissions. **Fix:** each rbac instance now also watches the SAME
+   generation key and flushes its `srv.cache` on change
+   (`rbac_server/perm_cache_invalidation.go`, mirroring the interceptor watcher) — no
+   new write path; a mutation on any instance invalidates all instances in ~one etcd
+   round-trip, with the 30s TTL as the degrade-don't-fail backstop. Flush-only (drops
+   entries) is the conservative direction: over-invalidation forces a re-read from
+   Scylla, never a stale allow (`meta.authorization_check_is_a_snapshot_not_a_promise`).
 
 ### OT-4 — promote the principles + ratchet (S)
 1. ✅ **Ratchet (#126).** `TestEvaluateAll_StampsEvidenceWithCollectionTime`: a
