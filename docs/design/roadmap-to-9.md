@@ -47,7 +47,7 @@ maturity, not the target.
 ### P3 — Memory write-back (Half → automate both ends)
 - [x] **WB-1** Promotion → rebuild → checks fires automatically (needs GC-2) — *merge-time half: GC-2's `seed-rebuild.yml` auto-triggers the rebuild on merge. Local half: `awg promote` now fires the coherence gate (validate + audit -check, incl. seed-orphans) after its rebuild — same chain as `awg learn`, with a `-no-check` escape. Verified it fail-closes (caught a real committed dangling ref `desired.no_regression_all_paths` → missing `convergence.identity_is_build_id`).*
 - [~] **WB-2** Incident→candidate generator: scar / doctor finding → draft invariant/forbidden_fix/test → review queue — *primitive built: `awg draft-candidate` (AG repo) renders a typed incident (doctor finding/scar) into a `status: candidate` entry in `docs/awareness/candidates/` with `discovered_from` provenance + per-class review_todo; never promotes/rebuilds (excluded from build until `awg promote`). Pure core + 5 tests. **Open**: auto-invoke from cluster_doctor finding emission (services-side wiring + which-findings-qualify policy).*
-- [ ] **WB-3** End-to-end loop CI: scar → candidate → approve → promote → rebuild → validate, demonstrated
+- [x] **WB-3** End-to-end loop CI: scar → candidate → approve → promote → rebuild → validate, demonstrated — *`TestWriteBackLoop_EndToEnd` (AG `cmd/awg`) drives the real drafter + real importer: scar→`draft-candidate`→QUARANTINED (absent from graph)→promote→canonical→IN THE GRAPH. Asserts the fail-safe (no candidate enters the graph pre-promotion) and loop closure. CI-enforced via AG `go test ./...`.*
 
 ### P4 — Behavioral rules live (Gap → enforce at runtime)
 - [ ] **BH-1** Wire `behavioral_check_action` as a synchronous hard refusal into mutation entry points (ops apply, MCP mutation tools)
@@ -85,7 +85,9 @@ maturity, not the target.
 - [x] 4. **WB-1** promotion→rebuild→checks automatic (S, after GC-2) ✅ GC-2 = merge-time rebuild; `awg promote` now fires validate+audit (the local half)
 - [x] 5. **CG-1** invariant evidence audit — now cheap; feeds the grind (S) ✅ [invariant-evidence-map.md](invariant-evidence-map.md); fixed 6 malformed severities
 - [~] 6. **WB-2** incident→candidate generator (L) — primitive `awg draft-candidate` done (+tests); open: cluster_doctor auto-wiring
-- [ ] 7. **WB-3** end-to-end loop CI test (M)
+- [x] 7. **WB-3** end-to-end loop CI test (M) ✅ `TestWriteBackLoop_EndToEnd` — real drafter+importer, quarantine→promote→inclusion, CI-enforced
+
+**Tier B core complete.** The write-back loop is closed and demonstrated: incident→candidate (WB-2 `draft-candidate`), promotion fires the coherence gate (WB-1), seed auto-rebuilds (GC-2), and the end-to-end quarantine→promote→inclusion is CI-proven (WB-3). Remaining: WB-2 doctor auto-wiring, CG-5 impact-gate, CG-3 long tail.
 
 ### Tier C — Coverage grind (cheap after GC-2; parallelizable, ongoing)
 - [ ] 8. **CG-2** promote evidence-backed invariants at scale (M, ongoing) — what #95/#96 do by hand; Tier A makes it boring
