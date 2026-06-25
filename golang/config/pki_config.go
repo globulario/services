@@ -93,11 +93,10 @@ func SaveCAMetadata(ctx context.Context, meta CAMetadata) error {
 		return fmt.Errorf("pki ca metadata: marshal: %w", err)
 	}
 
-	cli, err := GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("pki ca metadata: etcd unavailable: %w", err)
-	}
-	if _, err := cli.Put(ctx, EtcdKeyCAMetadata, string(data)); err != nil {
+	// Route through the governed critical-write seam (RT-3 funnel): /globular/pki/ca
+	// is cluster-controller-owned, so this is owner-guarded plus the critical-write
+	// retry/timeout policy, instead of a bare cli.Put.
+	if err := PutRuntimeWithClass(ctx, EtcdKeyCAMetadata, data, CriticalWrite); err != nil {
 		return fmt.Errorf("pki ca metadata: etcd put: %w", err)
 	}
 	return nil
@@ -135,7 +134,7 @@ func SaveCACertificateIfEmpty(ctx context.Context, pemBytes []byte) error {
 	if err != nil {
 		return fmt.Errorf("pki ca cert: etcd unavailable: %w", err)
 	}
-	// Only write if absent.
+	// Only write if absent (the GET is a read; RT-3 governs the write).
 	resp, err := cli.Get(ctx, EtcdKeyCACertificate)
 	if err != nil {
 		return fmt.Errorf("pki ca cert: etcd get: %w", err)
@@ -143,7 +142,9 @@ func SaveCACertificateIfEmpty(ctx context.Context, pemBytes []byte) error {
 	if len(resp.Kvs) > 0 {
 		return nil // already present — leave it alone
 	}
-	if _, err := cli.Put(ctx, EtcdKeyCACertificate, string(pemBytes)); err != nil {
+	// Route the conditional write through the governed critical-write seam (RT-3
+	// funnel) for write-class policy and owner-guard consistency.
+	if err := PutRuntimeWithClass(ctx, EtcdKeyCACertificate, pemBytes, CriticalWrite); err != nil {
 		return fmt.Errorf("pki ca cert: etcd put: %w", err)
 	}
 	return nil
