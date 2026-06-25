@@ -20,18 +20,18 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/internal/recovery"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
-	Utility "github.com/globulario/utility"
-	"github.com/globulario/services/golang/domain"
-	globular_service "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/policy"
-	"github.com/globulario/services/golang/security"
-	"github.com/globulario/services/golang/workflow/v1alpha1"
-	"github.com/globulario/services/golang/workflow/workflowpb"
 	_ "github.com/globulario/services/golang/dnsprovider/cloudflare" // Register cloudflare provider
 	_ "github.com/globulario/services/golang/dnsprovider/godaddy"    // Register godaddy provider
 	_ "github.com/globulario/services/golang/dnsprovider/local"      // Register local (globular-dns) provider
 	_ "github.com/globulario/services/golang/dnsprovider/manual"     // Register manual provider
+	"github.com/globulario/services/golang/domain"
+	globular_service "github.com/globulario/services/golang/globular_service"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/policy"
+	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/workflow/v1alpha1"
+	"github.com/globulario/services/golang/workflow/workflowpb"
+	Utility "github.com/globulario/utility"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
@@ -85,6 +85,13 @@ var logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 func main() {
 	// All workflow definitions live in etcd — always available on every node.
 	v1alpha1.EnableEtcdFetcher()
+
+	// Register this process as the cluster-controller writer so the critical-write
+	// primitives enforce owner-ownership at the lowest layer (RT-3): a critical-key
+	// write this component is not an authorized writer of is rejected. The
+	// controller is an authorized writer of its own keys and of installed-state
+	// under /globular/nodes/ (release/convergence commits — see CriticalKeyPolicies).
+	config.SetLocalWriterIdentity("cluster-controller")
 
 	// Define CLI flags
 	cfgPath := flag.String("config", "/var/lib/globular/cluster-controller/config.json", "cluster controller configuration file")
@@ -174,7 +181,7 @@ func main() {
 			state.JoinTokens[tok] = &joinTokenRecord{
 				Token:     tok,
 				ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7-day bootstrap window
-				MaxUses:   100,                                 // allow many join attempts (multi-node cluster)
+				MaxUses:   100,                                // allow many join attempts (multi-node cluster)
 			}
 			if err := state.save(*statePath); err != nil {
 				logger.Warn("failed to persist seeded join token", "err", err)

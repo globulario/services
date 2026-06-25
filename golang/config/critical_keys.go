@@ -41,8 +41,17 @@ type CriticalKeyPolicy struct {
 	// Key is the full etcd key path, or a prefix ending in "/" if IsPrefix=true.
 	Key      string
 	IsPrefix bool
-	// Owner is the component that is the sole authoritative writer for this key.
+	// Owner is the component that is the PRIMARY authoritative writer for this
+	// key. The doctor's ownership-governance checks use Owner.
 	Owner string
+	// AuthorizedWriters are additional components permitted to write this key
+	// besides Owner. Most keys have none (Owner is the sole writer). The
+	// exception is installed state under /globular/nodes/: node-agent owns it,
+	// but the cluster-controller also commits it during release/convergence
+	// workflows (SyncInstalledPackage, CommitConvergenceWithInstall with
+	// SourceComponent="cluster-controller"). ValidateCriticalKeyOwner admits a
+	// writer that is Owner OR a member of AuthorizedWriters.
+	AuthorizedWriters []string
 	// SchemaVersion identifies the JSON schema version for the key's value.
 	SchemaVersion string
 	// DeletePolicyName is a human-readable delete governance name.
@@ -107,12 +116,16 @@ var CriticalKeyPolicies = []CriticalKeyPolicy{
 		DoctorInvariant:  "desired_state.key_missing",
 	},
 	{
-		Key:              "/globular/nodes/",
-		IsPrefix:         true,
-		Owner:            "node-agent",
-		SchemaVersion:    "v1",
-		DeletePolicyName: "allowed_on_node_remove",
-		DoctorInvariant:  "node.heartbeat_missing",
+		Key:      "/globular/nodes/",
+		IsPrefix: true,
+		Owner:    "node-agent",
+		// The controller commits installed-state (/globular/nodes/{id}/packages/…)
+		// during release/convergence workflows, so it is an authorized writer
+		// alongside the node-agent owner. See CommitInstalledPackage callers.
+		AuthorizedWriters: []string{"cluster-controller"},
+		SchemaVersion:     "v1",
+		DeletePolicyName:  "allowed_on_node_remove",
+		DoctorInvariant:   "node.heartbeat_missing",
 	},
 	{
 		Key:              "/globular/scylla/schema_guard/",
@@ -154,10 +167,18 @@ func ValidateCriticalKeyOwner(key, writerID string) error {
 		if !matched {
 			continue
 		}
-		if p.Owner != writerID {
-			return fmt.Errorf("critical key %q owned by %q: writer %q is not authorized", key, p.Owner, writerID)
+		if p.Owner == writerID {
+			return nil
 		}
-		return nil
+		for _, w := range p.AuthorizedWriters {
+			if w == writerID {
+				return nil
+			}
+		}
+		if len(p.AuthorizedWriters) > 0 {
+			return fmt.Errorf("critical key %q owned by %q (also authorized: %v): writer %q is not authorized", key, p.Owner, p.AuthorizedWriters, writerID)
+		}
+		return fmt.Errorf("critical key %q owned by %q: writer %q is not authorized", key, p.Owner, writerID)
 	}
 	return nil // not a registered critical key — no restriction
 }

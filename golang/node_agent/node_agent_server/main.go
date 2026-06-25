@@ -39,6 +39,12 @@ func main() {
 	// All workflow definitions live in etcd — always available on every node.
 	v1alpha1.EnableEtcdFetcher()
 
+	// Register this process as the node-agent writer so the critical-write
+	// primitives enforce owner-ownership at the lowest layer (RT-3): the node-agent
+	// owns /globular/nodes/ and a write to a critical key it does not own is
+	// rejected.
+	config.SetLocalWriterIdentity("node-agent")
+
 	// All configuration comes from CLI flags (bootstrap-time) or the state file.
 	// No os.Getenv calls — etcd is the runtime source of truth.
 	portFlag := flag.String("port", defaultPort, "gRPC listen port")
