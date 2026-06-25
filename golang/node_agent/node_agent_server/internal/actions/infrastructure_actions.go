@@ -29,13 +29,13 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/globulario/globular-installer/pkg/installer"
 	_ "github.com/globulario/globular-installer/pkg/platform/linux"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -204,8 +204,11 @@ func (infrastructureUninstallAction) Apply(ctx context.Context, args *structpb.S
 	if !skipSystemd {
 		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		_ = exec.CommandContext(cctx, "systemctl", "stop", unit).Run()
-		_ = exec.CommandContext(cctx, "systemctl", "disable", unit).Run()
+		// Best-effort stop+disable via the supervisor (the single allowlisted
+		// systemd-control path), not raw exec (EX-2). Errors are ignored as before
+		// — the unit may not exist.
+		_ = supervisor.Stop(cctx, unit)
+		_ = supervisor.Disable(cctx, unit)
 	}
 
 	binPath := filepath.Join(binDir, component)
@@ -216,7 +219,7 @@ func (infrastructureUninstallAction) Apply(ctx context.Context, args *structpb.S
 		if err := os.Remove(unitPath); err == nil {
 			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
-			_ = exec.CommandContext(cctx, "systemctl", "daemon-reload").Run()
+			_ = supervisor.DaemonReload(cctx)
 		}
 	}
 

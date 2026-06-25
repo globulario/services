@@ -75,6 +75,15 @@ jobs:
       - name: Build
         run: go build ./...
 
+      # Service security boundaries (hard gate, infra-free). Enforces the
+      # os/exec contracts that HARD RULE #6 documents but nothing CI-ran until
+      # now: the controller launches no processes, mutating systemd unit actions
+      # in the node agent go through internal/supervisor (EX-2 unit-control
+      # boundary), and every RPC carries a (globular.auth.authz) annotation.
+      - name: Enforce service security boundaries (check-services)
+        working-directory: services
+        run: make check-services
+
       - name: Invariant Tests
         run: go test ./repository/repository_server/... -run "TestINV|TestReservation|TestMigrate" -v -count=1 -race
 

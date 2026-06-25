@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 )
 
 const (
@@ -572,9 +572,11 @@ func refreshMinioUnitSidecar() {
 	}
 }
 
-// runDaemonReload runs systemctl daemon-reload to pick up the new override.
+// runDaemonReload runs systemctl daemon-reload to pick up the new override,
+// routed through the supervisor (the single allowlisted systemd-control path)
+// rather than raw exec (EX-2 unit-control boundary).
 func runDaemonReload() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
+	return supervisor.DaemonReload(ctx)
 }

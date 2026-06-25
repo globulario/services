@@ -139,7 +139,7 @@ Layer 4: Runtime Health (systemd)  — "Is it running and healthy?"
 ### 6. Security boundaries
 
 - `cluster_controller_server` MUST NOT use `os/exec`, `syscall`, or `systemctl`
-- `node_agent_server` can only use `os/exec` within `internal/supervisor/`
+- `node_agent_server` is a system executor: `os/exec` is allowed for read-only probes (`systemctl is-active/status/show`, `journalctl`, `nodetool status`, …) and domain tools (`restic`, `sctool`, `cqlsh`, `mc`, `openssl`). But **mutating systemd unit actions** (`start`/`stop`/`restart`/`enable`/`disable`/`daemon-reload`/`kill`/`mask`/`unmask`) MUST go through `internal/supervisor/` — the single allowlisted, auditable systemd-control path (`supervisor.Stop/Start/Restart/Enable/Disable/DaemonReload`). The one sanctioned exception is `workflow_day0.go` (Day-0 bootstrap runs before the supervisor/etcd exist). Enforced by `make check-nodeagent-exec-boundary` (EX-2)
 - Run `make check-services` to verify
 - No token/credential storage in etcd values — use file references
 - **No tokens stored in the codebase** — never commit JWTs, API keys, or credentials to source. Tokens are ephemeral (generated at runtime or cached in `~/.config/globular/token` per user)

@@ -17,6 +17,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/security"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
@@ -508,11 +509,13 @@ func (ep *eventPublisher) trackCrashAndSuppress(ctx context.Context, unitName, s
 	// Disable the unit so systemd stops auto-restarting it.
 	stopCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	if out, err := exec.CommandContext(stopCtx, "systemctl", "stop", unitName).CombinedOutput(); err != nil {
-		log.Printf("crash-loop-suppressor: stop %s failed: %v (%s)", unitName, err, string(out))
+	// Route mutating unit actions through the supervisor (the single allowlisted
+	// systemd-control path), not raw exec (EX-2 unit-control boundary).
+	if err := supervisor.Stop(stopCtx, unitName); err != nil {
+		log.Printf("crash-loop-suppressor: stop %s failed: %v", unitName, err)
 	}
-	if out, err := exec.CommandContext(stopCtx, "systemctl", "disable", unitName).CombinedOutput(); err != nil {
-		log.Printf("crash-loop-suppressor: disable %s failed: %v (%s)", unitName, err, string(out))
+	if err := supervisor.Disable(stopCtx, unitName); err != nil {
+		log.Printf("crash-loop-suppressor: disable %s failed: %v", unitName, err)
 	}
 
 	// Write suspended marker to etcd so the controller knows not to

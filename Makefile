@@ -32,17 +32,16 @@ check-controller-no-exec: check-target-paths-exist
 
 check-nodeagent-exec-boundary: check-target-paths-exist
 	@echo "Checking node_agent_server exec usage is confined to operational code..."
-	@# The node agent is a system executor by design; exec is legitimate in:
-	@#   internal/         — all internal packages (supervisor, actions, ingress, etc.)
-	@#   *_provider.go     — backup/restore providers that shell out to restic/systemctl
-	@#   *_handler.go      — RPC handlers that query systemd/journald
-	@#   repair_actions.go — openssl + systemctl certificate repair
-	@#   workflow_day0.go  — Day-0 bootstrap that orchestrates system setup
-	@#   apply_package_release.go / process_fingerprint.go — binary install + fingerprinting
-	@#   server.go / heartbeat.go / installed_services.go / hardware.go / certificate.go
-	@#     — core operational files with systemctl/etcdctl/openssl calls
-	@#
-	@# What must NOT use exec: generated protobuf files, pure config/state types.
+	@# The node agent is a system executor by design, so exec is legitimate for
+	@# read-only probes (systemctl is-active/status/show, journalctl, nodetool
+	@# status, …) and domain tools (restic, sctool, cqlsh, mc, openssl) across its
+	@# operational files. Two boundaries are enforced below:
+	@#   1. exec must not appear in generated/type files (*_pb.go, types*.go).
+	@#   2. MUTATING systemd UNIT actions (start/stop/restart/enable/disable/
+	@#      daemon-reload/kill/mask/unmask) must go through internal/supervisor —
+	@#      the single allowlisted, auditable systemd-control path (EX-2). The one
+	@#      sanctioned exception is workflow_day0.go (Day-0 bootstrap runs before the
+	@#      supervisor/etcd exist).
 	@# If exec appears in a file matching *_pb.go, *_grpc.pb.go, or types*.go, flag it.
 	@VIOLATIONS=$$(grep -R --include='*.pb.go' --include='*_grpc.pb.go' --include='types*.go' \
 	                   -lE '"os/exec"|exec\.Command(Context)?\(' "$(NODEAGENT_DIR)" 2>/dev/null); \
@@ -50,7 +49,22 @@ check-nodeagent-exec-boundary: check-target-paths-exist
 		echo "FAIL: exec found in generated/type files: $$VIOLATIONS"; \
 		exit 1; \
 	 fi
-	@echo "OK: exec boundary respected in node_agent_server"
+	@# Mutating systemd UNIT actions must go through internal/supervisor — the single
+	@# allowlisted, auditable systemd-control path (EX-2 unit-control boundary). A
+	@# direct exec.Command(... "systemctl", "<mutating-verb>" ...) anywhere else is
+	@# forbidden. Read-only probes (is-active, status, show, list-units, …) are fine.
+	@# workflow_day0.go is the one sanctioned exception: Day-0 bootstrap orchestrates
+	@# system setup before the supervisor/etcd exist (bootstrap-boundary).
+	@MUT=$$(grep -RnE 'exec\.Command(Context)?\([^)]*"systemctl"' --include='*.go' "$(NODEAGENT_DIR)" 2>/dev/null \
+	          | grep -vE '/internal/supervisor/|/workflow_day0\.go:' \
+	          | grep -iE '"(start|stop|restart|enable|disable|daemon-reload|kill|mask|unmask)"'); \
+	 if [ -n "$$MUT" ]; then \
+		echo "FAIL: mutating systemctl via raw exec outside internal/supervisor —"; \
+		echo "      route these through the supervisor package (supervisor.Stop/Start/Restart/Enable/Disable/DaemonReload):"; \
+		echo "$$MUT"; \
+		exit 1; \
+	 fi
+	@echo "OK: exec boundary respected in node_agent_server (no mutating systemctl outside internal/supervisor)"
 
 # ── Proto RBAC annotation coverage ──────────────────────────────────────────
 #
