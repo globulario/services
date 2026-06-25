@@ -1,6 +1,6 @@
 // @awareness namespace=globular.platform
 // @awareness component=platform_cluster_controller.critical_state_registry
-// @awareness file_role=single_source_of_truth_for_critical_etcd_key_owner_schema_restore_policy
+// @awareness file_role=critical_etcd_key_schema_restore_doctor_metadata_with_ownership_delegated_to_config
 // @awareness enforces=globular.platform:invariant.critical_state.deletion_requires_audited_intent
 // @awareness risk=high
 package main
@@ -20,13 +20,17 @@ package main
 // critical_state.deletion_requires_audited_intent invariant for
 // that key.
 
-import "fmt"
+import "github.com/globulario/services/golang/config"
 
 //
 // Every critical etcd key must have exactly one authoritative owner, a known
 // schema version, a restore strategy, LKG consumer behavior, and a delete
-// approval policy. This registry is the single source of truth for key
-// governance. The cluster doctor uses it for key-missing checks.
+// approval policy. OWNERSHIP is delegated to config.CriticalKeyPolicies (the
+// single ownership authority the runtime write primitive guards against);
+// ValidateCriticalKeyWrite forwards there, and TestCriticalStateRegistryAgrees-
+// WithConfigOwnership ratchets the Owner column here to match. This registry
+// remains the source of truth for the rich schema / restore / LKG / delete /
+// doctor metadata. The cluster doctor uses it for key-missing checks.
 //
 // Invariant: every critical key must have exactly one authoritative writer
 // and one guardian loop. If a key is missing without a delete-approval
@@ -102,11 +106,11 @@ var criticalStateRegistry = []CriticalKeyRecord{
 		GuardedBy:           "ingress-spec-guard",
 	},
 	{
-		Key:           "/globular/scylla/schema_guard/",
-		IsPrefix:      true,
-		Owner:         "cluster-controller",
-		SchemaVersion: "v1",
-		Restore:       RestoreFromState,
+		Key:                 "/globular/scylla/schema_guard/",
+		IsPrefix:            true,
+		Owner:               "cluster-controller",
+		SchemaVersion:       "v1",
+		Restore:             RestoreFromState,
 		LKGConsumerBehavior: "re-run schema guard on next tick",
 		Delete:              DeleteAllowedOnNodeRemove,
 		DoctorInvariant:     "scylla.keyspace.rf_policy_violation",
@@ -123,22 +127,22 @@ var criticalStateRegistry = []CriticalKeyRecord{
 		GuardedBy:           "controller-reconcile",
 	},
 	{
-		Key:           "/globular/nodes/",
-		IsPrefix:      true,
-		Owner:         "node-agent",
-		SchemaVersion: "v1",
-		Restore:       RestoreFromState,
+		Key:                 "/globular/nodes/",
+		IsPrefix:            true,
+		Owner:               "node-agent",
+		SchemaVersion:       "v1",
+		Restore:             RestoreFromState,
 		LKGConsumerBehavior: "mark node stale/unreachable if heartbeat absent >5min",
 		Delete:              DeleteAllowedOnNodeRemove,
 		DoctorInvariant:     "node.heartbeat_missing",
 		GuardedBy:           "controller-health-monitor",
 	},
 	{
-		Key:           "/globular/resources/",
-		IsPrefix:      true,
-		Owner:         "cluster-controller",
-		SchemaVersion: "v1",
-		Restore:       RestoreFromState,
+		Key:                 "/globular/resources/",
+		IsPrefix:            true,
+		Owner:               "cluster-controller",
+		SchemaVersion:       "v1",
+		Restore:             RestoreFromState,
 		LKGConsumerBehavior: "node-agent waits for desired state",
 		Delete:              DeleteAllowedByOperator,
 		DoctorInvariant:     "desired_state.key_missing",
@@ -182,17 +186,16 @@ func LookupCriticalKey(key string) *CriticalKeyRecord {
 	return nil
 }
 
-// ValidateCriticalKeyWrite checks that writerID matches the registered owner for
-// the given etcd key. Returns an error if the key is registered and the writer
-// is not the authoritative owner. Unknown keys (not in the registry) are allowed
-// through without error — the registry only governs known critical keys.
+// ValidateCriticalKeyWrite checks that writerID is permitted to write the given
+// critical key. Ownership is delegated to config.ValidateCriticalKeyOwner — the
+// single ownership authority. config.CriticalKeyPolicies is the table the runtime
+// write primitive (config.PutRuntimeWithClass) guards every critical write against
+// (RT-3), and config cannot import this package, so config is necessarily the
+// source of ownership truth; it also honors AuthorizedWriters, which this local
+// registry does not model. The criticalStateRegistry below remains the rich
+// restore / doctor / LKG metadata table for these keys; its Owner column is
+// ratcheted against config by TestCriticalStateRegistryAgreesWithConfigOwnership
+// so the two can never diverge into conflicting sources of ownership truth.
 func ValidateCriticalKeyWrite(key, writerID string) error {
-	rec := LookupCriticalKey(key)
-	if rec == nil {
-		return nil
-	}
-	if rec.Owner != writerID {
-		return fmt.Errorf("critical key %q owned by %q, write rejected from %q", key, rec.Owner, writerID)
-	}
-	return nil
+	return config.ValidateCriticalKeyOwner(key, writerID)
 }
