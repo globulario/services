@@ -129,9 +129,16 @@ jobs:
       #    was removed when AWG became a standalone sidecar (1c8a4888);
       #    validation now lives in the awareness-graph repo as
       #    `awg validate`, so this gate requires the AG checkout.
-      #    Catches dangling related refs, missing source files, dup IDs.
+      #    Catches dangling related refs, missing source files, dup IDs,
+      #    and off-vocabulary `severity` values (CG-6: the closed set
+      #    {critical,high,warning,info,degraded}). `awg validate` exits 1 on
+      #    any error finding, so every check it carries — including the
+      #    severity vocabulary — is a hard fail here by construction; no
+      #    separate step or continue-on-error toggle. The severity leg
+      #    enforces once awareness-graph#130 (the `invalid_severity` check)
+      #    is on AG master, which this `go run ./cmd/awg` resolves against.
       #    (The old validate-deps step is gone with golang/awareness/.)
-      - name: Enforce awareness YAML validity (awg validate, hard gate)
+      - name: Enforce awareness YAML validity + severity vocab (awg validate, hard gate)
         if: steps.checkout_awareness_graph.outcome == 'success'
         working-directory: ${{ github.workspace }}/awareness-graph
         run: go run ./cmd/awg validate -repo-root ${{ github.workspace }}/services
