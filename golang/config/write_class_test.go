@@ -15,9 +15,9 @@ import (
 
 // fakePut records a single Put call for inspection.
 type fakePut struct {
-	key      string
-	val      string
-	deadline time.Time
+	key         string
+	val         string
+	deadline    time.Time
 	hadDeadline bool
 }
 
@@ -46,6 +46,21 @@ func (f *fakeKV) Put(ctx context.Context, key, val string, _ ...clientv3.OpOptio
 		return nil, err
 	}
 	return &clientv3.PutResponse{}, nil
+}
+
+func (f *fakeKV) Delete(ctx context.Context, key string, _ ...clientv3.OpOption) (*clientv3.DeleteResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.failN > 0 {
+		f.failN--
+		err := f.failErr
+		if err == nil {
+			err = context.DeadlineExceeded
+		}
+		return nil, err
+	}
+	return &clientv3.DeleteResponse{Deleted: 1}, nil
 }
 
 func (f *fakeKV) callCount() int {

@@ -109,6 +109,7 @@ func GetWritePolicy(class WriteClass) WritePolicy {
 // clientv3.Client and clientv3.KV both satisfy it.
 type kvWriter interface {
 	Put(ctx context.Context, key, val string, opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
+	Delete(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.DeleteResponse, error)
 }
 
 var (
@@ -204,5 +205,59 @@ func PutRuntimeWithClass(ctx context.Context, key string, value []byte, class Wr
 	}
 
 	return fmt.Errorf("PutRuntimeWithClass(%s): etcd put %s after %d attempt(s): %w",
+		class, key, policy.MaxRetries+1, lastErr)
+}
+
+// DeleteRuntimeWithClass removes a single etcd key using the retry/timeout policy
+// of the given WriteClass — the delete-side counterpart of PutRuntimeWithClass.
+// It reports whether a key was actually removed (deleted count > 0). Owners use
+// this to retract critical keys (e.g. a controller resetting its acc-config) through
+// the same governed write seam rather than a raw clientv3 Delete.
+func DeleteRuntimeWithClass(ctx context.Context, key string, class WriteClass) (bool, error) {
+	kv, err := resolveWriteKV()
+	if err != nil {
+		return false, fmt.Errorf("DeleteRuntimeWithClass(%s): etcd connect: %w", class, err)
+	}
+
+	policy := GetWritePolicy(class)
+	var lastErr error
+
+	for attempt := 0; attempt <= policy.MaxRetries; attempt++ {
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return false, fmt.Errorf("DeleteRuntimeWithClass(%s): context done after %d attempt(s): %w (last: %v)",
+					class, attempt, ctx.Err(), lastErr)
+			}
+			return false, fmt.Errorf("DeleteRuntimeWithClass(%s): context done before first attempt: %w", class, ctx.Err())
+		default:
+		}
+
+		tctx, cancel := context.WithTimeout(ctx, policy.Timeout)
+		resp, err := kv.Delete(tctx, key)
+		cancel()
+
+		if err == nil {
+			return resp != nil && resp.Deleted > 0, nil
+		}
+		lastErr = err
+
+		if attempt < policy.MaxRetries {
+			sleep := policy.BaseBackoff
+			if policy.Jitter > 0 && sleep > 0 {
+				sleep += time.Duration(float64(sleep) * policy.Jitter * writeJitter())
+			}
+			if sleep > 0 {
+				select {
+				case <-ctx.Done():
+					return false, fmt.Errorf("DeleteRuntimeWithClass(%s): context cancelled during backoff: %w (last: %v)",
+						class, ctx.Err(), lastErr)
+				case <-time.After(sleep):
+				}
+			}
+		}
+	}
+
+	return false, fmt.Errorf("DeleteRuntimeWithClass(%s): etcd delete %s after %d attempt(s): %w",
 		class, key, policy.MaxRetries+1, lastErr)
 }
