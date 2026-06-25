@@ -59,6 +59,25 @@ func fullyErroredSnapshot() *collector.Snapshot {
 	for _, p := range config.CriticalEtcdPrefixes {
 		snap.CriticalKeyQueryError[p] = errSourceDown
 	}
+	// Per-node node_agent fan-out errors. The collector records these
+	// INSTANCE-QUALIFIED ("node_agent@<node>") so MissingSources can name the
+	// failing node, but rules guard on the BASE name (snap.HadError("node_agent",
+	// rpc)). Until the source-name consolidation (HadError now matches a base name
+	// against its instance-qualified errors), those guards were silently dead and
+	// this ratchet never exercised the node_agent path at all — it only carried
+	// base-named cluster_controller/etcd/repository errors. Including the fan-out
+	// here makes the ratchet actually verify that node-agent-consuming rules refuse
+	// to emit a confident FAIL when the node_agent harvest errored.
+	for _, node := range []string{"globule-nuc", "globule-dell"} {
+		for _, rpc := range []string{
+			"GetInventory", "ListInstalledPackages", "GetSubsystemHealth",
+			"GetCertificateStatus", "VerifyPackageIntegrity", "GetServiceRuntimeProof", "GetInfraProbe",
+		} {
+			snap.DataErrors = append(snap.DataErrors, collector.DataError{
+				Service: "node_agent@" + node, RPC: rpc, Err: errSourceDown,
+			})
+		}
+	}
 	return snap
 }
 

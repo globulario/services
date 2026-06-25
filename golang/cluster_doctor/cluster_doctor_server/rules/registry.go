@@ -18,6 +18,7 @@ package rules
 // never dispatches — the rule appears to work but is silently a no-op.
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -338,9 +339,9 @@ func (r *Registry) EvaluateAll(snap *collector.Snapshot) []Finding {
 	for _, inv := range r.invariants {
 		all = append(all, inv.Evaluate(snap, r.cfg)...)
 	}
-	annotated := annotateForReducedHarvest(all, snap)
+	annotated := applyReducedHarvestPolicy(all, snap)
 	// A rule whose only source errored produces NO finding, so the
-	// [reduced-harvest] annotation above has nothing to tag and the masked
+	// reduced-harvest policy above has nothing to tag and the masked
 	// outage stays invisible. Surface each unavailable source as its own
 	// INVARIANT_UNKNOWN finding so "could not see" is never indistinguishable
 	// from "healthy".
@@ -449,23 +450,40 @@ func snapshotSourceUnavailableFindings(snap *collector.Snapshot) []Finding {
 	return out
 }
 
-// annotateForReducedHarvest prepends [reduced-harvest] to each
-// finding's Summary and appends an Evidence row naming the missing
-// sources, IF the snapshot was incomplete. Returns findings unchanged
-// when the snapshot was complete. Safe to call with nil/empty
-// findings.
+// applyReducedHarvestPolicy enforces reduced-harvest honesty on the findings
+// produced this sweep when the snapshot is incomplete. Returns findings unchanged
+// when the snapshot was complete. Safe to call with nil/empty findings. For each
+// finding it does one of two things:
 //
-// The annotation is structurally visible to every consumer — CLI,
-// dashboard, healer-gate, alert pipeline — so operators see "this
-// finding was produced under reduced harvest" before treating its
-// verdict as authoritative. The Evidence row carries the specific
-// "service.rpc" pairs that failed so the operator can investigate
-// the missing data alongside the finding.
+//   - DOWNGRADE: if the finding is a CONCLUSIVE verdict (INVARIANT_PASS or
+//     INVARIANT_FAIL) and its OWN evidence rests on a source that errored this
+//     sweep (snap.HadError on the evidence SourceService/SourceRpc), the verdict
+//     is demoted to INVARIANT_UNKNOWN with a non-empty CheckError and a
+//     [harvest-degraded] Summary prefix. A confident PASS or FAIL must never
+//     survive on data its own evidence says was unavailable — that is the
+//     false-positive (FAIL read off absence) and false-green (PASS read off
+//     absence) masking bug class. This is the registry-level safety net that
+//     complements the per-rule `if snap.HadError(...) { return nil }` guards and
+//     the TestNoRuleEmitsConfidentFailureOnErroredSnapshot ratchet (which checks
+//     raw Evaluate output, below this pass): even a rule that forgot to self-guard
+//     — or whose guard was silently broken — cannot publish a confident verdict
+//     resting on errored evidence once it passes through here.
+//     (degraded_is_explicit_not_hidden; evidence.provenance_trust_levels)
 //
-// The function is package-private and operates only on the slice
-// returned by Evaluate; rules cannot bypass it because the only
-// public dispatch entry is EvaluateAll / EvaluateForNode.
-func annotateForReducedHarvest(findings []Finding, snap *collector.Snapshot) []Finding {
+//   - ANNOTATE: otherwise (the finding's own sources were available this sweep, or
+//     it is already non-conclusive) the verdict is kept and the Summary is
+//     prefixed with [reduced-harvest]. Either way an Evidence row naming the
+//     missing sources is appended, so operators see "this finding was produced
+//     under reduced harvest" before treating its verdict as authoritative.
+//
+// The downgrade relies on findings carrying accurate provenance via kvEvidence
+// (SourceService/SourceRpc) and on Snapshot.HadError matching base service names
+// against per-node instance-qualified errors (node_agent vs node_agent@<node>).
+//
+// The function is package-private and operates only on the slice returned by
+// Evaluate; rules cannot bypass it because the only public dispatch entry is
+// EvaluateAll / EvaluateForNode.
+func applyReducedHarvestPolicy(findings []Finding, snap *collector.Snapshot) []Finding {
 	if snap == nil || !snap.DataIncomplete || len(findings) == 0 {
 		return findings
 	}
@@ -477,10 +495,65 @@ func annotateForReducedHarvest(findings []Finding, snap *collector.Snapshot) []F
 		"explanation":           "snapshot data is incomplete because at least one collector sub-fetch errored; this finding's verdict is bounded by the data that was available",
 	})
 	for i := range findings {
-		findings[i].Summary = "[reduced-harvest] " + findings[i].Summary
-		findings[i].Evidence = append(findings[i].Evidence, harvestEv)
+		f := &findings[i]
+		if compromised := findingEvidenceSourcesInError(f, snap); len(compromised) > 0 && isConclusiveVerdict(f.InvariantStatus) {
+			downgradeFindingToUnknown(f, compromised)
+		} else {
+			f.Summary = "[reduced-harvest] " + f.Summary
+		}
+		f.Evidence = append(f.Evidence, harvestEv)
 	}
 	return findings
+}
+
+// isConclusiveVerdict reports whether a finding carries a confident verdict —
+// PASS (confirmed healthy) or FAIL (confirmed broken). UNKNOWN and PENDING are
+// already non-conclusive and are never downgraded.
+func isConclusiveVerdict(s cluster_doctorpb.InvariantStatus) bool {
+	return s == cluster_doctorpb.InvariantStatus_INVARIANT_PASS ||
+		s == cluster_doctorpb.InvariantStatus_INVARIANT_FAIL
+}
+
+// findingEvidenceSourcesInError returns the sorted, deduplicated "service.rpc"
+// sources among the finding's OWN evidence whose collector sub-fetch errored this
+// sweep. Evidence with no SourceService (synthesized or local) is ignored — only
+// a source the collector actually tried to fetch can be "unavailable".
+func findingEvidenceSourcesInError(f *Finding, snap *collector.Snapshot) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, ev := range f.Evidence {
+		if ev == nil {
+			continue
+		}
+		svc := ev.GetSourceService()
+		if svc == "" {
+			continue
+		}
+		if snap.HadError(svc, ev.GetSourceRpc()) {
+			key := svc + "." + ev.GetSourceRpc()
+			if !seen[key] {
+				seen[key] = true
+				out = append(out, key)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// downgradeFindingToUnknown demotes a conclusive finding whose evidence rested on
+// an errored source to an explicit INVARIANT_UNKNOWN with a non-empty CheckError,
+// so a verdict the data cannot support is reported as indeterminate (and never
+// counted as a confident FAIL/PASS by aggregators), not confident.
+func downgradeFindingToUnknown(f *Finding, compromised []string) {
+	srcList := strings.Join(compromised, ", ")
+	f.InvariantStatus = cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN
+	f.Severity = cluster_doctorpb.Severity_SEVERITY_WARN
+	if f.CheckError == "" {
+		f.CheckError = "verdict downgraded to UNKNOWN: evidence source(s) unavailable this sweep: " + srcList
+	}
+	f.Summary = "[harvest-degraded] " + f.Summary +
+		" — verdict is UNKNOWN, not confirmed: it rests on " + srcList + " which failed to fetch this sweep"
 }
 
 // EvaluateForNode runs all node-scoped invariants for the given node id.
@@ -560,7 +633,7 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 			all = append(all, inv.Evaluate(nodesnap, r.cfg)...)
 		}
 	}
-	annotated := annotateForReducedHarvest(all, nodesnap)
+	annotated := applyReducedHarvestPolicy(all, nodesnap)
 	return stampEvidenceCollectionTime(append(annotated, snapshotSourceUnavailableFindings(nodesnap)...), nodesnap)
 }
 
