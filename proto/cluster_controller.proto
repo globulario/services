@@ -1088,6 +1088,21 @@ service ClusterControllerService {
       default_role_hint: "admin"
     };
   };
+
+  // ── ObjectStore topology apply ──
+  // ApplyObjectStoreTopology applies a previously-planned topology proposal. It
+  // replaces the etcd-mediated apply_request/apply_result handshake the CLI used
+  // to drive directly: the controller (owner of objectstore desired topology)
+  // loads the proposal by id, runs the full admission/validation/transition
+  // contract, and returns the outcome synchronously. Leader-gated.
+  rpc ApplyObjectStoreTopology(ApplyObjectStoreTopologyRequest) returns (ApplyObjectStoreTopologyResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.objectstore_topology.apply"
+      permission: "admin"
+      resource_template: "/cluster_controller/objectstore/topology"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // SetAccConfigRequest carries the opaque ACC config JSON to persist at
@@ -1102,6 +1117,21 @@ message SetAccConfigResponse {
 message ResetAccConfigRequest {}
 message ResetAccConfigResponse {
   bool deleted = 1;
+}
+
+// ApplyObjectStoreTopologyRequest identifies a planned proposal to apply. The
+// controller re-loads the proposal by id and re-validates authoritatively; the
+// CLI's local pre-flight is advisory. force_destructive must be set explicitly
+// to apply a proposal the planner flagged as destructive.
+message ApplyObjectStoreTopologyRequest {
+  string proposal_id = 1;
+  bool force_destructive = 2;
+}
+message ApplyObjectStoreTopologyResponse {
+  string status = 1;      // "accepted" | "failed"
+  int64 generation = 2;   // new objectstore desired generation (on accepted)
+  string error = 3;       // populated when status == "failed"
+  string proposal_id = 4;
 }
 
 message DesiredNetwork {

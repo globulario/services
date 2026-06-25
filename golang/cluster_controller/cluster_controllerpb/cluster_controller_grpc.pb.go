@@ -70,6 +70,7 @@ const (
 	ClusterControllerService_RequestJoinAuthorization_FullMethodName       = "/cluster_controller.ClusterControllerService/RequestJoinAuthorization"
 	ClusterControllerService_SetAccConfig_FullMethodName                   = "/cluster_controller.ClusterControllerService/SetAccConfig"
 	ClusterControllerService_ResetAccConfig_FullMethodName                 = "/cluster_controller.ClusterControllerService/ResetAccConfig"
+	ClusterControllerService_ApplyObjectStoreTopology_FullMethodName       = "/cluster_controller.ClusterControllerService/ApplyObjectStoreTopology"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -272,6 +273,13 @@ type ClusterControllerServiceClient interface {
 	// through the owner instead of a raw etcd write (RT-2).
 	SetAccConfig(ctx context.Context, in *SetAccConfigRequest, opts ...grpc.CallOption) (*SetAccConfigResponse, error)
 	ResetAccConfig(ctx context.Context, in *ResetAccConfigRequest, opts ...grpc.CallOption) (*ResetAccConfigResponse, error)
+	// ── ObjectStore topology apply ──
+	// ApplyObjectStoreTopology applies a previously-planned topology proposal. It
+	// replaces the etcd-mediated apply_request/apply_result handshake the CLI used
+	// to drive directly: the controller (owner of objectstore desired topology)
+	// loads the proposal by id, runs the full admission/validation/transition
+	// contract, and returns the outcome synchronously. Leader-gated.
+	ApplyObjectStoreTopology(ctx context.Context, in *ApplyObjectStoreTopologyRequest, opts ...grpc.CallOption) (*ApplyObjectStoreTopologyResponse, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -781,6 +789,16 @@ func (c *clusterControllerServiceClient) ResetAccConfig(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ApplyObjectStoreTopology(ctx context.Context, in *ApplyObjectStoreTopologyRequest, opts ...grpc.CallOption) (*ApplyObjectStoreTopologyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApplyObjectStoreTopologyResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ApplyObjectStoreTopology_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -981,6 +999,13 @@ type ClusterControllerServiceServer interface {
 	// through the owner instead of a raw etcd write (RT-2).
 	SetAccConfig(context.Context, *SetAccConfigRequest) (*SetAccConfigResponse, error)
 	ResetAccConfig(context.Context, *ResetAccConfigRequest) (*ResetAccConfigResponse, error)
+	// ── ObjectStore topology apply ──
+	// ApplyObjectStoreTopology applies a previously-planned topology proposal. It
+	// replaces the etcd-mediated apply_request/apply_result handshake the CLI used
+	// to drive directly: the controller (owner of objectstore desired topology)
+	// loads the proposal by id, runs the full admission/validation/transition
+	// contract, and returns the outcome synchronously. Leader-gated.
+	ApplyObjectStoreTopology(context.Context, *ApplyObjectStoreTopologyRequest) (*ApplyObjectStoreTopologyResponse, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -1136,6 +1161,9 @@ func (UnimplementedClusterControllerServiceServer) SetAccConfig(context.Context,
 }
 func (UnimplementedClusterControllerServiceServer) ResetAccConfig(context.Context, *ResetAccConfigRequest) (*ResetAccConfigResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResetAccConfig not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ApplyObjectStoreTopology(context.Context, *ApplyObjectStoreTopologyRequest) (*ApplyObjectStoreTopologyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApplyObjectStoreTopology not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -2032,6 +2060,24 @@ func _ClusterControllerService_ResetAccConfig_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ApplyObjectStoreTopology_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApplyObjectStoreTopologyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ApplyObjectStoreTopology(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ApplyObjectStoreTopology_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ApplyObjectStoreTopology(ctx, req.(*ApplyObjectStoreTopologyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2230,6 +2276,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResetAccConfig",
 			Handler:    _ClusterControllerService_ResetAccConfig_Handler,
+		},
+		{
+			MethodName: "ApplyObjectStoreTopology",
+			Handler:    _ClusterControllerService_ApplyObjectStoreTopology_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
