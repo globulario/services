@@ -46,7 +46,7 @@ maturity, not the target.
 
 ### P3 — Memory write-back (Half → automate both ends)
 - [x] **WB-1** Promotion → rebuild → checks fires automatically (needs GC-2) — *merge-time half: GC-2's `seed-rebuild.yml` auto-triggers the rebuild on merge. Local half: `awg promote` now fires the coherence gate (validate + audit -check, incl. seed-orphans) after its rebuild — same chain as `awg learn`, with a `-no-check` escape. Verified it fail-closes (caught a real committed dangling ref `desired.no_regression_all_paths` → missing `convergence.identity_is_build_id`).*
-- [ ] **WB-2** Incident→candidate generator: scar / doctor finding → draft invariant/forbidden_fix/test → review queue
+- [~] **WB-2** Incident→candidate generator: scar / doctor finding → draft invariant/forbidden_fix/test → review queue — *primitive built: `awg draft-candidate` (AG repo) renders a typed incident (doctor finding/scar) into a `status: candidate` entry in `docs/awareness/candidates/` with `discovered_from` provenance + per-class review_todo; never promotes/rebuilds (excluded from build until `awg promote`). Pure core + 5 tests. **Open**: auto-invoke from cluster_doctor finding emission (services-side wiring + which-findings-qualify policy).*
 - [ ] **WB-3** End-to-end loop CI: scar → candidate → approve → promote → rebuild → validate, demonstrated
 
 ### P4 — Behavioral rules live (Gap → enforce at runtime)
@@ -84,7 +84,7 @@ maturity, not the target.
 ### Tier B — Close the write-back loop (needs GC-2)
 - [x] 4. **WB-1** promotion→rebuild→checks automatic (S, after GC-2) ✅ GC-2 = merge-time rebuild; `awg promote` now fires validate+audit (the local half)
 - [x] 5. **CG-1** invariant evidence audit — now cheap; feeds the grind (S) ✅ [invariant-evidence-map.md](invariant-evidence-map.md); fixed 6 malformed severities
-- [ ] 6. **WB-2** incident→candidate generator (L)
+- [~] 6. **WB-2** incident→candidate generator (L) — primitive `awg draft-candidate` done (+tests); open: cluster_doctor auto-wiring
 - [ ] 7. **WB-3** end-to-end loop CI test (M)
 
 ### Tier C — Coverage grind (cheap after GC-2; parallelizable, ongoing)
