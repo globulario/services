@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/lib/break-glass.sh"
+break_glass_guard "fix-ghost-nuc" "removes a hardcoded ghost node from the controller state.json and etcd, then restarts the controller"
+
 STATE=/var/lib/globular/clustercontroller/state.json
 GHOST="814fbbb9-607f-5144-be1a-a863a0bea1e1"
 

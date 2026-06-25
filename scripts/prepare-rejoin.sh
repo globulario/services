@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/lib/break-glass.sh"
+break_glass_guard "prepare-rejoin" "deletes node, plan, and release keys and edits state.json to prepare a rejoin, then restarts the controller"
+
 CACERT=/var/lib/globular/pki/ca.crt
 CERT=/var/lib/globular/pki/issued/services/service.crt
 KEY=/var/lib/globular/pki/issued/services/service.key

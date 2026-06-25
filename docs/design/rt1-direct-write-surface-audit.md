@@ -181,8 +181,9 @@ Residual sharp edge: `grpc_call` is a generic any-RPC tool (owner-RPC-routed whe
 > (`config.SaveAdmittedDisk` / `DeleteAdmittedDisk` / `SaveTopologyProposal`) —
 > are now routed through controller owner RPCs (`ApproveObjectStoreDisk`,
 > `RejectObjectStoreDisk`, `PlanObjectStoreTopology`). The whole Surface-D CLI
-> work-list is migrated. Remaining RT-2: the 4 node_agent objectstore bare-`cli.Put`
-> sites (Surface A) and the 6+2 shell scripts.
+> work-list is migrated. Surface A (4 node_agent objectstore bare-`cli.Put`) is
+> routed through the governed primitive (#114), and the 7 break-glass scripts are
+> reclassified + gated (#115) — **RT-2 is complete**.
 
 Correctly routed already (for reference): `services desired set/remove` (no `--force`
 by design — only audited `--allow-regression`), `release apply/scale/rollback`,
@@ -190,32 +191,37 @@ by design — only audited `--allow-regression`), `release apply/scale/rollback`
 is the one path already `GOVOPS_ROUTED` (Validate gate → typed dispatch). `ops apply`
 is the migration template for the 9 above.
 
-**Scripts — 6 steady-state + 2 state.json** writers that mutate owner-owned state
-behind the live controller (the `stop controller → etcdctl del → restart`
-anti-pattern, hardcoded node UUIDs): `reset-all-plans.sh`, `fix-ghost-nuc.sh`,
-`nuke-and-restart.sh`, `prepare-rejoin.sh`, `reset-releases.sh`, `fix-stale-plans.sh`
-(+ `fix-ghost-nodes.sh`, `fix-remote-agents.sh` rewriting controller `state.json`).
-Legitimate/bootstrap (out of scope): `release/install-day0.sh` (Tier-0 seed before
-the controller exists), etcd membership scripts, and all read-only `etcdctl get`.
+**Scripts — 7 owner-state writers, ✅ RECLASSIFIED as gated break-glass (#115).**
+These mutate owner-owned state behind the live controller (the `stop controller →
+etcdctl del → restart` anti-pattern, hardcoded node UUIDs): `reset-all-plans.sh`,
+`reset-releases.sh`, `fix-stale-plans.sh`, `fix-ghost-nuc.sh`, `fix-ghost-nodes.sh`,
+`prepare-rejoin.sh`, `nuke-and-restart.sh`. They CANNOT become typed RPCs by
+construction — they run with the controller stopped (no RPC), do bulk resets, and
+carry incident-specific hardcoded UUIDs. Per the audit's sanctioned option they are
+reclassified as explicit, gated break-glass: each now sources `scripts/lib/break-glass.sh`
+and calls `break_glass_guard` before any mutation — a loud banner, a required
+confirmation (`BREAK_GLASS_CONFIRM=1` for automation, else interactive `yes`;
+refuses on a non-TTY without the env var), and an audit-logged invocation. The
+controller re-derives state from etcd on restart (post-reconciled).
+Out of scope: `fix-remote-agents.sh` (rewrites remote node systemd units, no
+owner-state etcd write); `release/install-day0.sh` (Tier-0 seed before the
+controller exists), etcd membership scripts, and all read-only `etcdctl get`.
 
 ---
 
 ## Scoping → RT-2 / RT-3 / RT-4
 
-### RT-2 — route/guard all owner-owned writes (L)
-Work-list, in priority order:
-1. **CLI (9 paths above)** → migrate onto typed owner RPCs / the govops `ops apply`
-   pattern. Start with #1 (`state canonicalize --fix-installed`, cross-owner L3) and
-   #2 (`release set-infra-version` — the typed dispatcher already exists, so it is a
-   delete-and-redirect, not new code).
-2. **Scripts (6 + 2)** → replace `etcdctl del`-behind-controller with the typed CLI /
-   RPC path, or reclassify as explicit, gated break-glass (post-reconciled).
-3. **Activate the inert runtime guard (Surface C)** → wire `ValidateCriticalKeyOwner`
-   into the config write primitives and/or the two chokepoints, so owner-ownership is
-   enforced at runtime, not just CI-scanned. This is the highest-leverage single move
-   — the table already exists.
-4. **The 4 node_agent objectstore bare-Puts (Surface A)** → route through an owner
-   helper / class, or add them explicitly to the runtime-guard's owner-internal set.
+### RT-2 — route/guard all owner-owned writes (L) — ✅ COMPLETE
+Work-list (all done):
+1. ✅ **CLI (9 paths)** → migrated onto typed owner RPCs (#105–110, #113).
+2. ✅ **Scripts (7 owner-state writers)** → reclassified as explicit, gated
+   break-glass via `scripts/lib/break-glass.sh` (#115). Typed-RPC replacement is
+   impossible by construction (controller stopped, bulk resets, hardcoded UUIDs).
+3. ✅ **Runtime guard (Surface C)** → `ValidateCriticalKeyOwner` wired into the
+   resourcestore chokepoint (#104) and the config write primitives via registered
+   process identity (#112, RT-3).
+4. ✅ **The 4 node_agent objectstore bare-Puts (Surface A)** → routed through the
+   governed `PutRuntimeWithClass` / `DeleteRuntimeWithClass` primitive (#114).
 
 ### RT-3 — govops as the enforced front door (M)
 - Wire govops `Validate` into the **chokepoints**, not scattered sites:
