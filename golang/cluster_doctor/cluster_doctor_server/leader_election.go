@@ -35,6 +35,7 @@ func startDoctorLeaderElection(ctx context.Context, srv *ClusterDoctorServer) {
 	if err != nil {
 		logger.Warn("doctor leader election: etcd unavailable, running as sole authority", "err", err)
 		srv.isAuthoritative.Store(true)
+		go warmLoadRemediationAudits(ctx)
 		return
 	}
 
@@ -107,6 +108,11 @@ func startDoctorLeaderElection(ctx context.Context, srv *ClusterDoctorServer) {
 			// Won leadership.
 			backoff = 250 * time.Millisecond
 			srv.isAuthoritative.Store(true)
+			// Restore the failure-rate gate's recent history on becoming leader so
+			// failover/restart does not briefly forget recent failed attempts (EX-3b).
+			// Read-only warm-load; never a remediation. Async so it cannot stall the
+			// election loop.
+			go warmLoadRemediationAudits(ctx)
 			logger.Info("doctor leader election: became leader", "candidate", candidateID)
 
 			// Hold leadership until session expires or context is cancelled.
