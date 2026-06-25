@@ -148,14 +148,24 @@ The highest-leverage move — it re-arms the gate that already exists:
 4. **RBAC cross-instance cache invalidation** (event/watch-based).
 
 ### OT-4 — promote the principles + ratchet (S)
-1. **Promote `meta.binding_outlives_evidence_until_invalidated`** (candidate→active)
-   and **`health.requires_fresh_evidence`** (extracted_candidate→active). The
-   evidence is now in this audit.
-2. **Ratchet**, mirroring the RT-3 capstone: a test asserting **every doctor
-   `Evidence` used in a remediation-authorizing finding carries a non-`Now()`,
-   provenanced timestamp** — so a future rule cannot regress to `kvEvidence(Now())`.
-   The required test `test.doctor_evidence_stale_blocks_execution` (evidence age >
-   `MaxEvidenceAge` blocks execution) is the behavioral half; this is the static half.
+1. ✅ **Ratchet (#126).** `TestEvaluateAll_StampsEvidenceWithCollectionTime`: a
+   synthetic invariant emits `kvEvidence(Now())` evidence, run through the real
+   `EvaluateAll` against an old-`GeneratedAt` snapshot; the test asserts the evidence
+   comes back stamped with the collection time, not `Now()`. Removing or bypassing
+   `stampEvidenceCollectionTime` makes it fail (proven non-vacuous). This locks in the
+   OT-2 fix end-to-end, mirroring the RT-3 capstone ratchet.
+2. ⬜ **Promote the two candidate principles** — RECOMMENDED, belongs in the
+   awareness-graph repo (not done here):
+   - `meta.binding_outlives_evidence_until_invalidated` (candidate→active) — in
+     `awareness-graph/docs/awareness/generic/state_authority_invariants.yaml`.
+   - `health.requires_fresh_evidence` (extracted_candidate→active) — graph intent.
+   The evidence for promotion now exists (this audit + the OT-2 implementation + the
+   OT-4 ratchet). Promotion is deferred to its own awareness-graph PR because it is
+   cross-repo, requires the embeddata rebuild, and turns the principle into an
+   enforced/coverage-gated rule — it should not ride on a services change. The
+   behavioral half, required test `test.doctor_evidence_stale_blocks_execution`
+   (evidence age > `MaxEvidenceAge` blocks execution), pairs with the static ratchet
+   above on promotion.
 
 ### Priority
 **OT-2 first** (re-arms the freshness gate — highest leverage, contained to the
