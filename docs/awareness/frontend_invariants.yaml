@@ -453,7 +453,7 @@ invariants:
 
   - id: ui.navigation_state_must_be_shareable_when_operationally_relevant
     title: Operationally relevant screen state must survive reload and navigation when appropriate
-    severity: medium
+    severity: warning
     status: active
     summary: |
       For diagnostic UIs, the selected node, service, workflow run, resource, tab, filter,
@@ -477,7 +477,7 @@ invariants:
 
   - id: ui.accessibility_must_preserve_operational_meaning
     title: Critical UI meaning must not depend only on color, hover, animation, or visual layout
-    severity: medium
+    severity: warning
     status: active
     summary: |
       Accessibility in an operator UI is not cosmetic — it preserves operational meaning.
