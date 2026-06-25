@@ -255,8 +255,14 @@ Work-list (all done):
     consistency) now use `PutRuntimeWithClass(CriticalWrite)`. The identity is
     registered at the top of `main()` before any persist, so there is no bootstrap
     ordering risk on this commit-path write.
-  - ⬜ remaining funnel paths: the scylla schema-guard write — plus a ratchet so new
-    controller critical-writes can't bypass the seam.
+  - ✅ **scylla schema-guard** (#120): `markSchemaGuardStatus` (the per-keyspace status
+    write `/globular/scylla/schema_guard/<keyspace>`, under the controller-owned critical
+    prefix) routes through `PutRuntimeWithClass(CriticalWrite)` instead of a raw
+    `srv.etcdClient.Put`. The `enforce_request` trigger is left as ephemera (request →
+    consume → delete, like the ingress republish-request).
+  - ⬜ remaining: a **ratchet** so new controller critical-key writes can't bypass the
+    governed seam (the funnel's capstone). All four bypassing critical-state paths
+    (ingress, objectstore/config, pki/ca, scylla) are now funneled.
 - `ops apply` already demonstrates the operation-layer pattern end-to-end (Validate →
   typed dispatch). Generalize it so the CLI paths from RT-2 land on it.
 - Once a write flows through `Validate`, **BH-1's forbidden-move refusal and the

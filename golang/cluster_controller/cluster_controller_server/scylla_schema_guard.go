@@ -96,15 +96,15 @@ func (srv *server) requestScyllaSchemaGuardEnforce(ctx context.Context, reason s
 }
 
 type schemaGuardStatus struct {
-	Keyspace               string `json:"keyspace"`
-	Strategy               string `json:"strategy"`
-	CurrentRF              int    `json:"current_rf"`
-	RequiredRF             int    `json:"required_rf"`
-	Violation              bool   `json:"violation"`
-	LastError              string `json:"last_error,omitempty"`
-	UpdatedAtUnix          int64  `json:"updated_at_unix"`
-	RepairRequired         bool   `json:"repair_required,omitempty"`
-	RepairRequiredSinceUnix int64 `json:"repair_required_since_unix,omitempty"`
+	Keyspace                string `json:"keyspace"`
+	Strategy                string `json:"strategy"`
+	CurrentRF               int    `json:"current_rf"`
+	RequiredRF              int    `json:"required_rf"`
+	Violation               bool   `json:"violation"`
+	LastError               string `json:"last_error,omitempty"`
+	UpdatedAtUnix           int64  `json:"updated_at_unix"`
+	RepairRequired          bool   `json:"repair_required,omitempty"`
+	RepairRequiredSinceUnix int64  `json:"repair_required_since_unix,omitempty"`
 }
 
 func (srv *server) startScyllaSchemaGuard(ctx context.Context) {
@@ -386,8 +386,12 @@ func (srv *server) markSchemaGuardStatus(ctx context.Context, keyspace string, s
 	k := "/globular/scylla/schema_guard/" + keyspace
 	wctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	_, err = srv.etcdClient.Put(wctx, k, string(b))
-	return err
+	// Route through the governed critical-write seam (RT-3 funnel): the
+	// /globular/scylla/schema_guard/ prefix is cluster-controller-owned, so this is
+	// owner-guarded plus the critical-write retry/timeout policy, instead of a raw
+	// srv.etcdClient.Put. (The srv.etcdClient nil-check above is retained as the
+	// early-bootstrap readiness gate.)
+	return config.PutRuntimeWithClass(wctx, k, b, config.CriticalWrite)
 }
 
 // tryRemoveScyllaGhostVoters removes Raft Group 0 members that are completely
