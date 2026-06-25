@@ -194,7 +194,7 @@ decision_rules:
 
   - id: annotation_scanner_must_skip_test_files
     title: ValidateAnnotations must skip _test.go files to avoid false positives from test fixtures
-    severity: medium
+    severity: warning
     source_incidents:
       - INC-2026-0001
     trigger:

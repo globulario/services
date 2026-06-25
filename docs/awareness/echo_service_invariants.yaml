@@ -1,7 +1,7 @@
 invariants:
   - id: echo_rpc_is_stateless
     title: Echo RPC handler must carry no state between calls
-    severity: low
+    severity: info
     status: active
     protects:
       files:
@@ -10,7 +10,7 @@ invariants:
 
   - id: echo_rpc_preserves_message_bytes
     title: Echo RPC must return the input message field byte-for-byte unchanged
-    severity: low
+    severity: info
     status: active
     protects:
       files:
