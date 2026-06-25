@@ -20,94 +20,55 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"google.golang.org/grpc"
 
-	"github.com/globulario/services/golang/audittrail"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/config"
 )
 
-// upsertServiceDesiredVersion writes a ServiceDesiredVersion record
-// directly to etcd. publisherID may be empty (defaults to
-// core@globular.io for official builds) or set to a local publisher
-// (e.g. local@ryzen) when activating a local override.
-//
-// NOTE: this is NOT used by platform-upgrade anymore (see header). It
-// remains for single-package overrides where the operator has
-// explicitly chosen a (name, version, build_id) tuple.
-func upsertServiceDesiredVersion(serviceName, publisherID, version string, buildNumber int64, buildID string) error {
-	cli, err := config.GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("etcd client: %w", err)
-	}
+// desiredServiceClient is the controller RPC seam upsertServiceDesiredVersion uses
+// to set desired state through the owner path; overridable in tests.
+type desiredServiceClient interface {
+	UpsertDesiredService(ctx context.Context, req *cluster_controllerpb.UpsertDesiredServiceRequest, opts ...grpc.CallOption) (*cluster_controllerpb.DesiredState, error)
+}
 
-	key := "/globular/resources/ServiceDesiredVersion/" + serviceName
+var desiredServiceClientFactory = func(conn grpc.ClientConnInterface) desiredServiceClient {
+	return cluster_controllerpb.NewClusterControllerServiceClient(conn)
+}
+
+// upsertServiceDesiredVersion sets a ServiceDesiredVersion through the controller's
+// typed UpsertDesiredService RPC (the owner of /globular/resources), not a raw etcd
+// write (RT-2). Used for single-package overrides where the operator has explicitly
+// chosen a (name, version, build_id) tuple — build_id is the precise,
+// repository-allocated identity. Publisher is tracked in the LocalOverride record;
+// the governed DesiredService spec carries no publisher_id field. The controller
+// bumps generation, validates the artifact against the repository, triggers
+// reconcile, and audits the write server-side.
+func upsertServiceDesiredVersion(serviceName, version string, buildNumber int64, buildID string) error {
+	conn, err := controllerConnFactory()
+	if err != nil {
+		return fmt.Errorf("connect to controller: %w", err)
+	}
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer func() { _ = c.Close() }()
+	}
+	client := desiredServiceClientFactory(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	resp, err := cli.Get(ctx, key)
+	_, err = client.UpsertDesiredService(ctx, &cluster_controllerpb.UpsertDesiredServiceRequest{
+		Service: &cluster_controllerpb.DesiredService{
+			ServiceId:   serviceName,
+			Version:     version,
+			BuildNumber: buildNumber,
+			BuildId:     buildID,
+		},
+	}, jsonCallOption())
 	if err != nil {
-		return fmt.Errorf("etcd get %s: %w", key, err)
+		return fmt.Errorf("upsert desired service %s: %w", serviceName, err)
 	}
-
-	var rec map[string]interface{}
-	generation := float64(1)
-	if len(resp.Kvs) > 0 {
-		if err := json.Unmarshal(resp.Kvs[0].Value, &rec); err != nil {
-			return fmt.Errorf("unmarshal: %w", err)
-		}
-		if m, ok := rec["meta"].(map[string]interface{}); ok {
-			if g, ok := m["generation"].(float64); ok {
-				generation = g + 1
-			}
-		}
-	} else {
-		rec = map[string]interface{}{
-			"meta":   map[string]interface{}{},
-			"spec":   map[string]interface{}{},
-			"status": map[string]interface{}{},
-		}
-	}
-
-	rec["meta"] = map[string]interface{}{
-		"name":       serviceName,
-		"generation": generation,
-	}
-	spec := map[string]interface{}{
-		"service_name": serviceName,
-		"version":      version,
-	}
-	if buildNumber > 0 {
-		spec["build_number"] = buildNumber
-	}
-	if buildID != "" {
-		spec["build_id"] = buildID
-	}
-	if publisherID != "" {
-		spec["publisher_id"] = publisherID
-	}
-	rec["spec"] = spec
-
-	data, err := json.Marshal(rec)
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
-	}
-	_, err = cli.Put(ctx, key, string(data))
-	if err != nil {
-		return fmt.Errorf("etcd put %s: %w", key, err)
-	}
-	_ = audittrail.WriteDesiredWriteRecord(ctx, audittrail.DesiredWriteRecord{
-		Service:   serviceName,
-		Actor:     "operator-cli",
-		Source:    "upsertServiceDesiredVersion",
-		Action:    "upsert_desired",
-		Reason:    "authoritative desired-state update via CLI",
-		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-	})
 	return nil
 }
 

@@ -184,15 +184,15 @@ func runPkgOverride(cmd *cobra.Command, args []string) error {
 	}
 
 	ov := &cluster_controllerpb.LocalOverride{
-		ServiceName:    serviceName,
-		PublisherID:    publisher,
-		Version:        version,
-		BuildID:        pkgOverrideBuildID,
-		BuildNumber:    buildNumber,
-		BasedOnVersion: basedOnVersion,
-		PatchReason:    pkgOverrideReason,
-		CreatedBy:      hostname,
-		CreatedAtUnixS: time.Now().Unix(),
+		ServiceName:      serviceName,
+		PublisherID:      publisher,
+		Version:          version,
+		BuildID:          pkgOverrideBuildID,
+		BuildNumber:      buildNumber,
+		BasedOnVersion:   basedOnVersion,
+		PatchReason:      pkgOverrideReason,
+		CreatedBy:        hostname,
+		CreatedAtUnixS:   time.Now().Unix(),
 		OfficialSnapshot: snap,
 	}
 
@@ -200,7 +200,7 @@ func runPkgOverride(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write override record: %w", err)
 	}
 
-	if err := upsertServiceDesiredVersion(serviceName, publisher, version, buildNumber, pkgOverrideBuildID); err != nil {
+	if err := upsertServiceDesiredVersion(serviceName, version, buildNumber, pkgOverrideBuildID); err != nil {
 		// Undo the override record if the desired state write fails.
 		_ = deleteLocalOverride(serviceName)
 		return fmt.Errorf("update desired state: %w", err)
@@ -239,7 +239,7 @@ func runPkgOverrideRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("override record for %s has no official snapshot — cannot safely restore; delete the override key manually if needed", serviceName)
 	}
 
-	if err := upsertServiceDesiredVersion(snap.ServiceName, snap.PublisherID, snap.Version, snap.BuildNumber, snap.BuildID); err != nil {
+	if err := upsertServiceDesiredVersion(snap.ServiceName, snap.Version, snap.BuildNumber, snap.BuildID); err != nil {
 		return fmt.Errorf("restore desired state: %w", err)
 	}
 
@@ -252,7 +252,9 @@ func runPkgOverrideRemove(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  service:  %s\n", serviceName)
 	fmt.Printf("  restored: publisher=%s  version=%s\n",
 		func() string {
-			if snap.PublisherID == "" { return "core@globular.io" }
+			if snap.PublisherID == "" {
+				return "core@globular.io"
+			}
 			return snap.PublisherID
 		}(),
 		snap.Version,
