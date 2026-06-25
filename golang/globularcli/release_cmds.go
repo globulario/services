@@ -85,6 +85,8 @@ type releaseResourcesClient interface {
 	ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error)
 	GetServiceRelease(ctx context.Context, req *cluster_controllerpb.GetServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error)
 	ListServiceReleases(ctx context.Context, req *cluster_controllerpb.ListServiceReleasesRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ListServiceReleasesResponse, error)
+	GetInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.GetInfrastructureReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error)
+	ApplyInfrastructureRelease(ctx context.Context, req *cluster_controllerpb.ApplyInfrastructureReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error)
 }
 
 var resourcesClientFactory = func(conn grpc.ClientConnInterface) releaseResourcesClient {

@@ -18,6 +18,25 @@ type fakeResourcesClient struct {
 	applied int
 	lastReq *cluster_controllerpb.ApplyServiceReleaseRequest
 	err     error
+	// infra-release seams (RT-2 set-infra-version migration)
+	infraGet       *cluster_controllerpb.InfrastructureRelease
+	infraGetErr    error
+	lastInfraApply *cluster_controllerpb.ApplyInfrastructureReleaseRequest
+}
+
+func (f *fakeResourcesClient) GetInfrastructureRelease(_ context.Context, _ *cluster_controllerpb.GetInfrastructureReleaseRequest, _ ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error) {
+	if f.infraGetErr != nil {
+		return nil, f.infraGetErr
+	}
+	return f.infraGet, nil
+}
+
+func (f *fakeResourcesClient) ApplyInfrastructureRelease(_ context.Context, req *cluster_controllerpb.ApplyInfrastructureReleaseRequest, _ ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error) {
+	f.lastInfraApply = req
+	if f.err != nil {
+		return nil, f.err
+	}
+	return req.GetObject(), nil
 }
 
 func (f *fakeResourcesClient) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ServiceRelease, error) {
@@ -487,4 +506,19 @@ func TestRunReleaseRollbackRequiresTarget(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "rollback target required") {
 		t.Fatalf("expected target error, got %v", err)
 	}
+}
+
+// RT-2: releaseResourcesClient gained Get/ApplyInfrastructureRelease — these
+// sibling mocks don't exercise infra-release, so they stub them.
+func (*applyCountingClient) GetInfrastructureRelease(context.Context, *cluster_controllerpb.GetInfrastructureReleaseRequest, ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error) {
+	return nil, nil
+}
+func (*applyCountingClient) ApplyInfrastructureRelease(context.Context, *cluster_controllerpb.ApplyInfrastructureReleaseRequest, ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error) {
+	return nil, nil
+}
+func (*memoryReleaseClient) GetInfrastructureRelease(context.Context, *cluster_controllerpb.GetInfrastructureReleaseRequest, ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error) {
+	return nil, nil
+}
+func (*memoryReleaseClient) ApplyInfrastructureRelease(context.Context, *cluster_controllerpb.ApplyInfrastructureReleaseRequest, ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error) {
+	return nil, nil
 }

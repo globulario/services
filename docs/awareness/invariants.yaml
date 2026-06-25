@@ -9646,7 +9646,7 @@ invariants:
     reason: 'RT-2 debt: state canonicalize --fix-installed raw-writes node_agent-owned L3 installed buildId; migrate to node_agent SetInstalledPackage RPC (highest severity — cross-owner L3)'
   - category: exception_pending_owner_routing_migration
     file: golang/globularcli/desired_state_helpers.go
-    reason: 'RT-2 debt: release set-infra-version / desired helpers raw-write controller-owned desired/InfrastructureRelease; ApplyInfrastructureRelease RPC already exists'
+    reason: 'RT-2 debt (partially migrated): release set-infra-version now routes through the ApplyInfrastructureRelease owner RPC (no longer raw). Remaining raw write is upsertServiceDesiredVersion, used by pkg override apply/restore — migrate that next, then drop this entry.'
   - category: exception_pending_owner_routing_migration
     file: golang/globularcli/pkg_override_cmds.go
     reason: 'RT-2 debt: pkg override apply/remove raw-write controller-owned ServiceDesiredVersion + override prefix; migrate to controller RPC'

@@ -101,3 +101,10 @@ func TestApplyReleaseUnblockSignals_AnnotationsSet(t *testing.T) {
 	}
 }
 
+
+func (*retryMemoryReleaseClient) GetInfrastructureRelease(context.Context, *cluster_controllerpb.GetInfrastructureReleaseRequest, ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error) {
+	return nil, nil
+}
+func (*retryMemoryReleaseClient) ApplyInfrastructureRelease(context.Context, *cluster_controllerpb.ApplyInfrastructureReleaseRequest, ...grpc.CallOption) (*cluster_controllerpb.InfrastructureRelease, error) {
+	return nil, nil
+}
