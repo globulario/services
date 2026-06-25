@@ -257,30 +257,24 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	if id == "" {
 		return errors.New("SaveServiceConfiguration: missing Id")
 	}
-	c, err := etcdClient()
-	if err != nil {
-		return err
-	}
-
 	desired, runtime := splitDesiredRuntime(s)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
 	desBytes, _ := json.MarshalIndent(desired, "", "  ")
-	if _, err = c.Put(ctx, etcdKey(id, configKey), string(desBytes)); err != nil {
-		return fmt.Errorf("save desired: %w", err)
-	}
-
 	rtBytes, _ := json.Marshal(runtime)
-	if _, err = c.Put(ctx, etcdKey(id, runtimeKey), string(rtBytes)); err != nil {
-		// KNOWN GAP: desired and runtime are written in two separate etcd Puts
-		// (not a transaction). If this second Put fails, etcd holds the new
-		// desired state but the runtime key is stale — runtime state has
-		// diverged from desired until the next successful write.
-		// A future hardening pass should wrap both Puts in a single etcd Txn.
-		slog.Warn("SaveServiceConfiguration: desired key written but runtime key failed — runtime state in etcd may be stale", "id", id, "err", err)
-		return fmt.Errorf("save runtime: %w", err)
+
+	// Atomic write of desired + runtime in a single etcd transaction (OT-3, via the
+	// RT-3 RunTxnWithClass primitive): both keys commit together or neither does.
+	// This closes the prior KNOWN GAP where a failed second Put left etcd with new
+	// desired but stale runtime — a divergence the cluster-doctor would misdiagnose
+	// as a real desired-vs-runtime mismatch.
+	if err := RunTxnWithClass(ctx, NormalRuntimeWrite,
+		PutOp(etcdKey(id, configKey), desBytes),
+		PutOp(etcdKey(id, runtimeKey), rtBytes),
+	); err != nil {
+		return fmt.Errorf("save service configuration %s: %w", id, err)
 	}
 
 	// Invalidate the service config cache so the next read reflects the write.
