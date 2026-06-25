@@ -883,7 +883,7 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 			fmt.Printf("  cannot connect to node-agent at %s: %v\n", agentEndpoint, err)
 			return 0, 0
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		agentClient = node_agentpb.NewNodeAgentServiceClient(conn)
 	}
 
