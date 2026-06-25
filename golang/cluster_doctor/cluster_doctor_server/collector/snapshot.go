@@ -16,6 +16,7 @@ package collector
 import (
 	"log"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -560,6 +561,17 @@ func (s *Snapshot) addError(service, rpc string, err error) {
 // Empty rpc matches any RPC under the given service. Empty service
 // matches any service that had an error. Both empty = "any error".
 //
+// Instance-qualified errors: per-node fan-out sources record errors under
+// an instance-qualified name (e.g. "node_agent@globule-nuc") so MissingSources
+// can name WHICH node failed. A query for the BASE service name ("node_agent")
+// matches any of its instance-qualified errors — that is what a cluster-scoped
+// rule means by "did the node_agent harvest fail anywhere". A query for an
+// already instance-qualified name ("node_agent@globule-nuc") still matches only
+// that instance (exact). This consolidates the two naming shapes so a rule that
+// stamps evidence kvEvidence("node_agent", ...) and later gates on
+// HadError("node_agent", rpc) actually matches — without it the gate is silently
+// dead. (OT-3 source-name consolidation; evidence.provenance_trust_levels)
+//
 // This is the consume-side counterpart to addError. The principle it
 // serves is meta.harvest_and_yield_are_distinct_availability_dimensions
 // — separating "did the query complete" (yield) from "was the answer
@@ -569,7 +581,8 @@ func (s *Snapshot) HadError(service, rpc string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, e := range s.DataErrors {
-		if service != "" && e.Service != service {
+		if service != "" && e.Service != service &&
+			!strings.HasPrefix(e.Service, service+"@") {
 			continue
 		}
 		if rpc != "" && e.RPC != rpc {
