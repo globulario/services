@@ -262,6 +262,10 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 			// shared client; nil-safe — if ai-memory is unreachable the gate
 			// degrades to in-memory only.
 			setRemediationGateAiMemoryClient(aiMemClient)
+			// Persist the failure-rate audit ring (operational memory) across
+			// restart/failover via ai-memory — never etcd (EX-3b). Same shared
+			// client; nil-safe degradation.
+			setRemediationAuditAiMemoryClient(aiMemClient)
 		} else {
 			logger.Warn("ai-memory client init failed — seed drift detection disabled", "err", memErr)
 		}

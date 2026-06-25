@@ -330,6 +330,11 @@ func auditRemediation(ctx context.Context, audit RemediationAudit) string {
 	// never trips. (meta.write_creates_completion_obligation — the gate's
 	// read obligation needs a writer that actually fills its source.)
 	remediationAudits.push(audit)
+	// Persist the (redacted) audit to ai-memory so the failure-rate gate's recent
+	// history survives restart/failover (EX-3b). Observer memory, never etcd;
+	// no-op when ai-memory is unavailable. auditEtcdPersistFn remains the no-op
+	// etcd seam (observer-only) — it is intentionally NOT the persistence path.
+	persistRemediationAudit(ctx, audit)
 	auditEtcdPersistFn(ctx, audit)
 	return audit.AuditID
 }
