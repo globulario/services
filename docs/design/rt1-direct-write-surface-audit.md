@@ -230,7 +230,7 @@ Work-list (all done):
 4. ✅ **The 4 node_agent objectstore bare-Puts (Surface A)** → routed through the
    governed `PutRuntimeWithClass` / `DeleteRuntimeWithClass` primitive (#114).
 
-### RT-3 — govops as the enforced front door (M) — owner-guard done; funnel in progress
+### RT-3 — govops as the enforced front door (M) — ✅ COMPLETE
 - ✅ **Named chokepoints guarded:** `resourcestore.etcdStore.Apply/Delete` (#104) and
   `installed_state.WriteInstalledPackage` (via the config-primitive guard, #112).
 - **Note on `govops.Validate`:** it needs a rich `OperationRequest` the raw storage
@@ -260,9 +260,18 @@ Work-list (all done):
     prefix) routes through `PutRuntimeWithClass(CriticalWrite)` instead of a raw
     `srv.etcdClient.Put`. The `enforce_request` trigger is left as ephemera (request →
     consume → delete, like the ingress republish-request).
-  - ⬜ remaining: a **ratchet** so new controller critical-key writes can't bypass the
-    governed seam (the funnel's capstone). All four bypassing critical-state paths
-    (ingress, objectstore/config, pki/ca, scylla) are now funneled.
+  - ✅ **bypass ratchet** (#121): `TestEveryCriticalKeyOwnerGuardedAtThePrimitive`
+    iterates `CriticalKeyPolicies` and asserts every critical key rejects a non-owner
+    write on `PutRuntimeWithClass` / `DeleteRuntimeWithClass` / `RunTxnWithClass`. It
+    auto-extends (a new critical key is covered with no edit; removing the guard from a
+    primitive fails every case) and is proven non-vacuous. Its complement is the
+    principle-check scanner, which flags any NEW raw `cli.Put`/`Txn` in the swept dirs
+    as DRIFT.
+
+**RT-3 is COMPLETE.** All four controller critical-state write paths (ingress,
+objectstore/config, pki/ca, scylla schema-guard) are funneled through the
+owner-guarded write primitives, and the ratchet locks in that every critical key is
+guarded at the seam.
 - `ops apply` already demonstrates the operation-layer pattern end-to-end (Validate →
   typed dispatch). Generalize it so the CLI paths from RT-2 land on it.
 - Once a write flows through `Validate`, **BH-1's forbidden-move refusal and the
