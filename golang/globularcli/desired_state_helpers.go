@@ -24,7 +24,10 @@ import (
 	"fmt"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/globulario/services/golang/audittrail"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 )
 
@@ -112,55 +115,46 @@ func upsertServiceDesiredVersion(serviceName, publisherID, version string, build
 // InfrastructureRelease record in etcd. Used by `globular release
 // set-version` for single-infra-package version pinning.
 func updateInfraReleaseVersion(publisher, component, version string) error {
-	cli, err := config.GetEtcdClient()
+	conn, err := controllerConnFactory()
 	if err != nil {
-		return fmt.Errorf("etcd client: %w", err)
+		return fmt.Errorf("connect to controller: %w", err)
 	}
-
-	key := "/globular/resources/InfrastructureRelease/" + publisher + "/" + component
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer c.Close()
+	}
+	client := resourcesClientFactory(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	resp, err := cli.Get(ctx, key)
-	if err != nil {
-		return fmt.Errorf("etcd get %s: %w", key, err)
-	}
+	name := publisher + "/" + component
 
-	var rel map[string]interface{}
-	if len(resp.Kvs) > 0 {
-		if err := json.Unmarshal(resp.Kvs[0].Value, &rel); err != nil {
-			return fmt.Errorf("unmarshal: %w", err)
-		}
-	} else {
-		rel = map[string]interface{}{
-			"meta": map[string]interface{}{
-				"name":       publisher + "/" + component,
-				"generation": float64(1),
-			},
-			"spec": map[string]interface{}{
-				"publisher_id": publisher,
-				"component":    component,
-				"version":      version,
-			},
-			"status": map[string]interface{}{},
-		}
+	// GET-modify-Apply through the owner's typed RPC. The previous implementation
+	// raw-wrote /globular/resources/InfrastructureRelease/... directly to etcd,
+	// bypassing the cluster-controller (the registered owner) and its desired-state
+	// ownership guard. Route through ApplyInfrastructureRelease so the write is
+	// governed (generation bump, ownership check, reconcile) instead of a raw put.
+	// Read the current release first to preserve sibling spec fields (build_number,
+	// channel, …) and change only the version — matching the prior read-modify-write.
+	obj, err := client.GetInfrastructureRelease(ctx,
+		&cluster_controllerpb.GetInfrastructureReleaseRequest{Name: name}, jsonCallOption())
+	if err != nil || obj == nil {
+		// Not present yet (or unreadable): create a fresh release.
+		obj = &cluster_controllerpb.InfrastructureRelease{}
 	}
-
-	spec, ok := rel["spec"].(map[string]interface{})
-	if !ok {
-		spec = map[string]interface{}{}
-		rel["spec"] = spec
+	if obj.Meta == nil {
+		obj.Meta = &cluster_controllerpb.ObjectMeta{}
 	}
-	spec["version"] = version
-
-	data, err := json.Marshal(rel)
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+	obj.Meta.Name = name
+	if obj.Spec == nil {
+		obj.Spec = &cluster_controllerpb.InfrastructureReleaseSpec{}
 	}
+	obj.Spec.PublisherID = publisher
+	obj.Spec.Component = component
+	obj.Spec.Version = version
 
-	_, err = cli.Put(ctx, key, string(data))
-	if err != nil {
-		return fmt.Errorf("etcd put %s: %w", key, err)
+	if _, err := client.ApplyInfrastructureRelease(ctx,
+		&cluster_controllerpb.ApplyInfrastructureReleaseRequest{Object: obj}, jsonCallOption()); err != nil {
+		return fmt.Errorf("apply infrastructure release %s: %w", name, err)
 	}
 	return nil
 }
