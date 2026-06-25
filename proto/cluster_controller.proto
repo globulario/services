@@ -1103,6 +1103,22 @@ service ClusterControllerService {
       default_role_hint: "admin"
     };
   };
+
+  // SanitizeObjectStorePool removes stale MinIO pool peers (IPs that no longer
+  // belong to an eligible cluster node) from the controller's authoritative
+  // state. The controller is the sole owner of /globular/clustercontroller/state;
+  // it read-modify-writes its FULL state struct (no field loss — unlike the old
+  // CLI path, which clobbered the blob down to a 4-field projection) and
+  // republishes objectstore desired state canonically. dry_run computes the
+  // change without applying. Leader-gated.
+  rpc SanitizeObjectStorePool(SanitizeObjectStorePoolRequest) returns (SanitizeObjectStorePoolResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.objectstore_pool.sanitize"
+      permission: "admin"
+      resource_template: "/cluster_controller/objectstore/pool"
+      default_role_hint: "admin"
+    };
+  };
 }
 
 // SetAccConfigRequest carries the opaque ACC config JSON to persist at
@@ -1132,6 +1148,19 @@ message ApplyObjectStoreTopologyResponse {
   int64 generation = 2;   // new objectstore desired generation (on accepted)
   string error = 3;       // populated when status == "failed"
   string proposal_id = 4;
+}
+
+// SanitizeObjectStorePoolRequest requests removal of stale MinIO pool peers.
+// dry_run computes before/after/removed without mutating state.
+message SanitizeObjectStorePoolRequest {
+  bool dry_run = 1;
+}
+message SanitizeObjectStorePoolResponse {
+  repeated string before = 1;  // pool IPs before sanitize
+  repeated string after = 2;   // pool IPs after sanitize
+  repeated string removed = 3;  // peers removed (before - after)
+  int64 generation = 4;        // objectstore generation (bumped when applied)
+  bool applied = 5;            // true when state was written (false on dry_run / no-op)
 }
 
 message DesiredNetwork {

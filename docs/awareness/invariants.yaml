@@ -9644,9 +9644,6 @@ invariants:
   - category: exception_5_service_self_config
     file: golang/globularcli/pkg_override_cmds.go
     reason: 'pkg override ServiceDesiredVersion write migrated to the UpsertDesiredService owner RPC (RT-2). The remaining raw writes are the LocalOverride registry (/globular/releases/local_overrides/) — CLI-local override tracking, NOT owner-owned critical state (no entry in config.CriticalKeyPolicies). If the controller should own this, that is a separate RT-2 follow-up.'
-  - category: exception_pending_owner_routing_migration
-    file: golang/globularcli/objectstore_cmds.go
-    reason: 'RT-2 debt: objectstore topology sanitize-pool raw-writes controller state blob + objectstore placement; migrate to controller RPC'
   - category: exception_1_observer_only_self_state
     file: golang/globularcli/audit_log.go
     reason: CLI append-only audit record to /globular/audit/{ts}_{action}_{service} (observer self-state, not a cluster-state mutation)

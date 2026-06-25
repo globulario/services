@@ -11,7 +11,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"sort"
@@ -22,10 +21,24 @@ import (
 
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 )
+
+// objectStorePoolClient is the controller RPC seam `objectstore topology
+// sanitize-pool` uses to drive the sanitize through the owner path (RT-2): the
+// cluster-controller owns /globular/clustercontroller/state, so the read-modify-
+// write runs through its leader-gated SanitizeObjectStorePool RPC instead of a
+// raw etcd Put from the CLI. Overridable in tests.
+type objectStorePoolClient interface {
+	SanitizeObjectStorePool(ctx context.Context, req *cluster_controllerpb.SanitizeObjectStorePoolRequest, opts ...grpc.CallOption) (*cluster_controllerpb.SanitizeObjectStorePoolResponse, error)
+}
+
+var objectStorePoolClientFactory = func(conn grpc.ClientConnInterface) objectStorePoolClient {
+	return cluster_controllerpb.NewClusterControllerServiceClient(conn)
+}
 
 var objectstoreCmd = &cobra.Command{
 	Use:   "objectstore",
@@ -107,153 +120,43 @@ func runObjectstoreTopologySanitizePool(cmd *cobra.Command, args []string) error
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	cli, err := config.GetEtcdClient()
+	// Drive the sanitize through the controller's owner RPC (RT-2). The
+	// cluster-controller is the sole owner of /globular/clustercontroller/state;
+	// it read-modify-writes its FULL state struct (no field loss — the former CLI
+	// path unmarshalled the blob into a 4-field projection and raw-Put it back,
+	// silently clobbering every other field) and republishes objectstore desired
+	// state canonically. The sanitize/diff logic now lives controller-side.
+	conn, err := controllerConnFactory()
 	if err != nil {
-		return fmt.Errorf("etcd unavailable: %w", err)
+		return fmt.Errorf("connect to controller: %w", err)
 	}
-	resp, err := cli.Get(ctx, etcdClusterControllerStateKey)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", etcdClusterControllerStateKey, err)
-	}
-	if len(resp.Kvs) == 0 {
-		return fmt.Errorf("%s not found", etcdClusterControllerStateKey)
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer func() { _ = c.Close() }()
 	}
 
-	var cc ccStateLite
-	if err := json.Unmarshal(resp.Kvs[0].Value, &cc); err != nil {
-		return fmt.Errorf("parse %s: %w", etcdClusterControllerStateKey, err)
+	resp, err := objectStorePoolClientFactory(conn).SanitizeObjectStorePool(ctx,
+		&cluster_controllerpb.SanitizeObjectStorePoolRequest{DryRun: topoSanitizeDryRun}, jsonCallOption())
+	if err != nil {
+		return fmt.Errorf("sanitize pool: %w", err)
 	}
-	before := append([]string(nil), cc.MinioPoolNodes...)
-	after := sanitizePoolNodes(before, cc.Nodes)
-	removed := diffRemoved(before, after)
 
-	if len(removed) == 0 {
-		fmt.Printf("No stale MinIO pool peers found. Pool unchanged: %v\n", after)
+	if len(resp.GetRemoved()) == 0 {
+		fmt.Printf("No stale MinIO pool peers found. Pool unchanged: %v\n", resp.GetAfter())
 		return nil
 	}
 
 	fmt.Printf("Sanitize MinIO pool peers:\n")
-	fmt.Printf("  before:  %v\n", before)
-	fmt.Printf("  after:   %v\n", after)
-	fmt.Printf("  removed: %v\n", removed)
+	fmt.Printf("  before:  %v\n", resp.GetBefore())
+	fmt.Printf("  after:   %v\n", resp.GetAfter())
+	fmt.Printf("  removed: %v\n", resp.GetRemoved())
 
-	if topoSanitizeDryRun {
+	if !resp.GetApplied() {
 		fmt.Println("Dry-run only. Re-run with --dry-run=false to apply.")
 		return nil
 	}
 
-	cc.MinioPoolNodes = after
-	cc.ObjectStoreGeneration++
-
-	raw, err := json.Marshal(cc)
-	if err != nil {
-		return fmt.Errorf("marshal sanitized controller state: %w", err)
-	}
-	if _, err := cli.Put(ctx, etcdClusterControllerStateKey, string(raw)); err != nil {
-		return fmt.Errorf("write %s: %w", etcdClusterControllerStateKey, err)
-	}
-
-	desired, err := config.LoadObjectStoreDesiredState(ctx)
-	if err != nil {
-		return fmt.Errorf("read objectstore desired state: %w", err)
-	}
-	if desired != nil {
-		desired.Generation = cc.ObjectStoreGeneration
-		desired.Nodes = append([]string(nil), after...)
-		desired.Endpoint = ""
-		desired.EndpointReady = false
-		if len(after) > 0 {
-			desired.Endpoint = net.JoinHostPort(after[0], "9000")
-			desired.EndpointReady = true
-		}
-		nodeVolumes := make(map[string]string, len(after))
-		for _, ip := range after {
-			path := "/var/lib/globular/minio"
-			if p, ok := cc.MinioNodePaths[ip]; ok && p != "" {
-				path = p
-			}
-			nodeVolumes[ip] = path
-		}
-		desired.NodePaths = nodeVolumes
-		desired.VolumesHash = config.ComputeVolumesHash(nodeVolumes)
-		if len(after) >= 2 {
-			desired.Mode = config.ObjectStoreModeDistributed
-		} else {
-			desired.Mode = config.ObjectStoreModeStandalone
-		}
-		if err := config.SaveObjectStoreDesiredState(ctx, desired); err != nil {
-			return fmt.Errorf("write /globular/objectstore/config: %w", err)
-		}
-	}
-
-	fmt.Printf("Applied. New objectstore generation: %d\n", cc.ObjectStoreGeneration)
+	fmt.Printf("Applied. New objectstore generation: %d\n", resp.GetGeneration())
 	return nil
-}
-
-func sanitizePoolNodes(pool []string, nodes map[string]ccNodeLite) []string {
-	if len(pool) == 0 {
-		return nil
-	}
-	if len(nodes) == 0 {
-		seen := make(map[string]struct{}, len(pool))
-		out := make([]string, 0, len(pool))
-		for _, ip := range pool {
-			if net.ParseIP(ip) == nil {
-				continue
-			}
-			if _, dup := seen[ip]; dup {
-				continue
-			}
-			seen[ip] = struct{}{}
-			out = append(out, ip)
-		}
-		return out
-	}
-	allowed := make(map[string]struct{}, len(nodes))
-	for _, n := range nodes {
-		switch n.Status {
-		case "removed", "unreachable", "blocked":
-			continue
-		}
-		for _, ip := range n.Identity.Ips {
-			if ip == "" || ip == "127.0.0.1" || ip == "::1" {
-				continue
-			}
-			allowed[ip] = struct{}{}
-		}
-	}
-	seen := make(map[string]struct{}, len(pool))
-	out := make([]string, 0, len(pool))
-	for _, ip := range pool {
-		if _, ok := allowed[ip]; !ok {
-			continue
-		}
-		if _, dup := seen[ip]; dup {
-			continue
-		}
-		seen[ip] = struct{}{}
-		out = append(out, ip)
-	}
-	return out
-}
-
-func diffRemoved(before, after []string) []string {
-	afterSet := make(map[string]struct{}, len(after))
-	for _, ip := range after {
-		afterSet[ip] = struct{}{}
-	}
-	removed := make([]string, 0)
-	seen := make(map[string]struct{}, len(before))
-	for _, ip := range before {
-		if _, dup := seen[ip]; dup {
-			continue
-		}
-		seen[ip] = struct{}{}
-		if _, ok := afterSet[ip]; !ok {
-			removed = append(removed, ip)
-		}
-	}
-	return removed
 }
 
 // ── status command ────────────────────────────────────────────────────────────
