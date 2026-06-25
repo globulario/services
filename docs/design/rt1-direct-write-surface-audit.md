@@ -160,15 +160,25 @@ Residual sharp edge: `grpc_call` is a generic any-RPC tool (owner-RPC-routed whe
 
 | # | Command | file:line | Owner-owned state written | Owner bypassed |
 |---|---|---|---|---|
-| 1 | `state canonicalize --fix-installed --metadata-only` | `state_cmds.go:916` | L3 installed buildId `nodes/{n}/packages/{kind}/{svc}` | node_agent — **highest severity** (cross-owner L3 write) |
-| 2 | `release set-infra-version` | `release_cmds.go:157` → `desired_state_helpers.go:161` | InfrastructureRelease spec.version | controller — **a typed `ApplyInfrastructureRelease` already exists** (redundant raw bypass) |
-| 3 | `pkg override apply` | `pkg_override_cmds.go:199,203` | ServiceDesiredVersion + LocalOverride prefix | controller |
-| 4 | `pkg override remove` | `pkg_override_cmds.go:242,246` | desired + override prefix | controller |
-| 5 | `objectstore topology sanitize-pool` | `objectstore_cmds.go:152,184` | controller state blob + objectstore placement | controller |
-| 6 | `objectstore disk approve`/`reject` | `objectstore_disk_cmds.go:243` (`config.SaveAdmittedDisk`) | placement (admitted disks) | objectstore/controller |
-| 7 | `objectstore topology plan` | `objectstore_disk_cmds.go:399` (`config.SaveTopologyProposal`) | placement proposal | objectstore/controller |
-| 8 | `objectstore topology apply` | `objectstore_disk_cmds.go:712` | placement apply-request handshake | controller |
-| 9 | `cluster acc set`/`reset` | `acc_cmds.go:307,346` | config-put `/globular/system/acc/config` | controller |
+| # | Command | file:line | Owner-owned state written | Owner bypassed | Status |
+|---|---|---|---|---|---|
+| 1 | `state canonicalize --fix-installed --metadata-only` | `state_cmds.go:916` | L3 installed buildId `nodes/{n}/packages/{kind}/{svc}` | node_agent — **highest severity** (cross-owner L3 write) | ✅ #106 |
+| 2 | `release set-infra-version` | `release_cmds.go:157` → `desired_state_helpers.go:161` | InfrastructureRelease spec.version | controller — typed `ApplyInfrastructureRelease` | ✅ #105 |
+| 3 | `pkg override apply` | `pkg_override_cmds.go:199,203` | ServiceDesiredVersion + LocalOverride prefix | controller | ✅ #107 |
+| 4 | `pkg override remove` | `pkg_override_cmds.go:242,246` | desired + override prefix | controller | ✅ #107 |
+| 5 | `objectstore topology sanitize-pool` | `objectstore_cmds.go:152,184` | controller state blob + objectstore placement | controller | ✅ #110 |
+| 6 | `objectstore disk approve`/`reject` | `objectstore_disk_cmds.go:243` (`config.SaveAdmittedDisk`) | placement (admitted disks) | objectstore/controller | ⬜ remaining |
+| 7 | `objectstore topology plan` | `objectstore_disk_cmds.go:399` (`config.SaveTopologyProposal`) | placement proposal | objectstore/controller | ⬜ remaining |
+| 8 | `objectstore topology apply` | `objectstore_disk_cmds.go:712` | placement apply-request handshake | controller | ✅ #109 |
+| 9 | `cluster acc set`/`reset` | `acc_cmds.go:307,346` | config-put `/globular/system/acc/config` | controller | ✅ #108 |
+
+> **RT-2 CLI progress: 7 / 9 migrated** (#105, #106, #107, #108, #109, #110). The
+> scanner-flagged raw-`cli.Put`/`cli.Delete` baseline (`exception_pending_owner_routing_migration`)
+> is now **empty**. Items 6 and 7 remain: they write placement state via the
+> `config.SaveAdmittedDisk` / `config.SaveTopologyProposal` helpers (config-package
+> writes the scanner does not sweep), so they are architectural owner-write
+> migrations, not scanner-flagged debt. They need owner RPCs on the
+> objectstore/controller for admitted-disks and topology-proposal placement.
 
 Correctly routed already (for reference): `services desired set/remove` (no `--force`
 by design — only audited `--allow-regression`), `release apply/scale/rollback`,
