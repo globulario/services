@@ -45,6 +45,10 @@ func NewRegistry(cfg Config) *Registry {
 		releaseBoundaryUnproven{},
 		nativeDependencyMissing{},
 		clusterServicesDrift{},
+		// OT-3: flag when the doctor's own service-config mirror is stale (etcd
+		// config fetches failing → GetServicesConfigurations silently serving
+		// stale-if-error data), so diagnoses are not made against stale config.
+		serviceConfigCacheFresh{},
 		// E2: installed package whose node profiles do not authorize it under
 		// the catalog placement map — a terminal, non-dispatchable orphan that
 		// can never converge (the torrent-orphan class). Operator action required.

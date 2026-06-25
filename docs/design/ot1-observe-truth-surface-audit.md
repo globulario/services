@@ -148,13 +148,17 @@ The highest-leverage move — it re-arms the gate that already exists:
      `config.ServiceConfigCacheLastFresh()` surfaces it for the service-config cache —
      so a consumer can tell that `GetServicesConfigurations` returned stale-if-error
      data even though its error is nil.
-   - ⬜ **Consumer.** A doctor collector/rule that reads `ServiceConfigCacheLastFresh`
-     and emits a DEGRADED finding when the served config is older than the TTL (and
-     ideally xDS treating a stale mirror as degraded). Deferred so the rule
-     registration doesn't churn the doctor registry alongside other in-flight doctor
-     work.
-3. **Strongly-consistent reads for doctor-critical paths** (drop `WithSerializable`
-   where the doctor forms findings).
+   - ✅ **Consumer (#129).** `serviceConfigCacheFresh` doctor rule reads
+     `ServiceConfigCacheLastFresh` and emits a `SEVERITY_WARN` finding when the
+     doctor's own config mirror hasn't refreshed within the staleness threshold —
+     so the doctor reports when its config view is stale instead of diagnosing
+     against it. (xDS treating a stale mirror as degraded remains a follow-up.)
+3. ⚠️ **~~Strongly-consistent reads for doctor-critical paths~~ — RETRACTED.** On
+   verification, `config.GetRuntime` (the `WithSerializable` read) is called by
+   `process.go` and `PutRuntime`, **not** the doctor; the doctor's `GetRuntime()`
+   calls are proto accessors on `InfraProbeResult` (a different function). So its
+   consistency level is not a doctor-truth issue and this item does not hold — the
+   audit's original Surface-B line for it overstated the risk.
 4. **RBAC cross-instance cache invalidation** (event/watch-based).
 
 ### OT-4 — promote the principles + ratchet (S)
