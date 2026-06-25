@@ -6142,3 +6142,36 @@ required_tests:
     files:
     - golang/repository/repository_server/staging_sweeper.go
     - golang/repository/repository_server/staging_sweeper_test.go
+# ── BH-1: govops behavioral forbidden-move enforcement ──────────────────────
+- id: golang/govops/behavioral_test.go::TestGovopsBehavioralRefusalUsesCompiledSeedNotLiveRPC
+  title: govops's forbidden-move alias set IS the compiled cluster_operator seed pack (no live RPC, no copy drift)
+  protects:
+    invariants:
+    - govops_behavioral_refusal_uses_compiled_seed_not_live_rpc
+    files:
+    - golang/govops/behavioral.go
+    - golang/govops/behavioral_test.go
+- id: golang/govops/behavioral_test.go::TestEvaluateApply_BehavioralForbiddenMove_RefusesRawOwnerWrite
+  title: govops refuses a raw owner-owned-state write named by any authored alias, carrying the forbidden-move rule id
+  protects:
+    invariants:
+    - govops_behavioral_refusal_uses_compiled_seed_not_live_rpc
+    files:
+    - golang/govops/govops.go
+    - golang/govops/behavioral_test.go
+- id: golang/govops/behavioral_test.go::TestExecute_OwnerPathNotInvokedOnBehavioralRefusal
+  title: a behavioral refusal is a hard stop — the owner path is never invoked
+  protects:
+    invariants:
+    - govops_behavioral_refusal_uses_compiled_seed_not_live_rpc
+    files:
+    - golang/govops/behavioral.go
+    - golang/govops/behavioral_test.go
+- id: golang/govops/behavioral_test.go::TestLedgerEntryFor_RecordsBehavioralRuleOnRefusal
+  title: a behavioral refusal records the forbidden-move id in OperationLedgerEntry.behavioral_rules
+  protects:
+    invariants:
+    - govops_behavioral_refusal_uses_compiled_seed_not_live_rpc
+    files:
+    - golang/govops/behavioral.go
+    - golang/govops/behavioral_test.go
