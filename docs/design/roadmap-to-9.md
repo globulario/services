@@ -35,7 +35,8 @@ maturity, not the target.
 - [x] **CG-1** Audit every proposed invariant for real guard+tests (evidence map) — *[invariant-evidence-map.md](invariant-evidence-map.md): 260 invariants, 93% active, complete critical/high test coverage. Fixed 6 malformed severities. Residual: 7 metadata-only anchor gaps (have tests) + 17 legitimately-planned. Corrected the "mostly proposed" premise.*
 - [ ] **CG-2** Promote evidence-backed invariants to active + wire `required_tests` (the #95/#96 pattern, at scale)
 - [ ] **CG-3** For invariants lacking evidence: build the guard+test, or mark explicitly aspirational with a tracking ref
-- [ ] **CG-4** Verify impact-ci actually fails when a protected file changes without its required tests
+- [x] **CG-4** Verify impact-ci actually fails when a protected file changes without its required tests — *VERIFIED: it does NOT — the enforcement does not exist. `awg impact` is advisory-only (no gate mode); CI runs a FIXED invariant-test subset (`TestINV|TestReservation|TestMigrate`) + principle-check + ratchets + validate/audit, but nothing maps a changed protected file → its `required_tests` and fails if they didn't run. "impact-ci enforces required_tests" was an overclaim. See **CG-5** to build it.*
+- [ ] **CG-5** (new, from CG-4) Implement the impact-gate: `awg impact-gate --changed-files <git-diff>` resolves protecting invariants → their `required_tests` → fails the PR if those tests weren't run/didn't pass. Turns `required_tests` from advisory metadata into a fail-closed per-change gate.
 
 ### P2 — Runtime governance (Half → universal & unbypassable)
 - [ ] **RT-1** Audit the full owner-owned-state write surface (code, MCP, CLI, scripts, etcd)
@@ -88,7 +89,7 @@ maturity, not the target.
 
 ### Tier C — Coverage grind (cheap after GC-2; parallelizable, ongoing)
 - [ ] 8. **CG-2** promote evidence-backed invariants at scale (M, ongoing) — what #95/#96 do by hand; Tier A makes it boring
-- [ ] 9. **CG-4** confirm impact-ci enforcement fires (S)
+- [x] 9. **CG-4** confirm impact-ci enforcement fires (S) — ⚠️ VERIFIED ABSENT: no changed-file→required_tests gate exists; spawned **CG-5** to build it
 - [ ] 10. **CG-3** build missing guard+test or mark aspirational (L, long tail)
 
 ### Tier D — Universalize runtime governance (gateway done; runs parallel to B/C — different subsystem)
