@@ -26,6 +26,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -197,4 +198,86 @@ func sanitizeMinioPoolNodes(pool []string, nodes map[string]*nodeState) (after, 
 		return ok
 	})
 	return after, removed
+}
+
+// ApproveObjectStoreDisk admits a mount path on a node for MinIO use. The
+// cluster-controller owns objectstore placement (admitted disks); this replaces
+// the CLI's direct config.SaveAdmittedDisk write (RT-2). Leader-gated; the
+// controller computes the path hash and approval time authoritatively.
+func (srv *server) ApproveObjectStoreDisk(ctx context.Context, req *cluster_controllerpb.ApproveObjectStoreDiskRequest) (*cluster_controllerpb.ApproveObjectStoreDiskResponse, error) {
+	if req.GetNodeId() == "" || req.GetPath() == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id and path are required")
+	}
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.ApproveObjectStoreDiskResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/ApproveObjectStoreDisk", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
+	}
+	ph := configpkg.PathHash(req.GetPath())
+	ad := &configpkg.AdmittedDisk{
+		NodeID:            req.GetNodeId(),
+		NodeIP:            req.GetNodeIp(),
+		Path:              req.GetPath(),
+		PathHash:          ph,
+		DrivesPerNode:     int(req.GetDrivesPerNode()),
+		ForceRoot:         req.GetForceRoot(),
+		ForceExistingData: req.GetForceExistingData(),
+		ApprovedAt:        applyObjectStoreClock().AsTime(),
+	}
+	if err := configpkg.SaveAdmittedDisk(ctx, ad); err != nil {
+		return nil, status.Errorf(codes.Internal, "save admitted disk: %v", err)
+	}
+	return &cluster_controllerpb.ApproveObjectStoreDiskResponse{PathHash: ph}, nil
+}
+
+// RejectObjectStoreDisk removes a previously admitted disk path. Leader-gated;
+// replaces the CLI's direct config.DeleteAdmittedDisk write (RT-2).
+func (srv *server) RejectObjectStoreDisk(ctx context.Context, req *cluster_controllerpb.RejectObjectStoreDiskRequest) (*cluster_controllerpb.RejectObjectStoreDiskResponse, error) {
+	if req.GetNodeId() == "" || req.GetPath() == "" {
+		return nil, status.Error(codes.InvalidArgument, "node_id and path are required")
+	}
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.RejectObjectStoreDiskResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/RejectObjectStoreDisk", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
+	}
+	if err := configpkg.DeleteAdmittedDisk(ctx, req.GetNodeId(), configpkg.PathHash(req.GetPath())); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete admission: %v", err)
+	}
+	return &cluster_controllerpb.RejectObjectStoreDiskResponse{Ok: true}, nil
+}
+
+// PlanObjectStoreTopology persists a CLI-computed topology proposal. The proposal
+// is opaque JSON (a config.TopologyProposal): the CLI builds it from admitted
+// disks (reads), and the controller — the owner of objectstore placement —
+// persists it, replacing the CLI's direct config.SaveTopologyProposal write
+// (RT-2). ApplyObjectStoreTopology re-loads and re-validates it authoritatively.
+// Validation (well-formed JSON, non-empty proposal_id) runs before the leader
+// forward because an invalid request is invalid on every node.
+func (srv *server) PlanObjectStoreTopology(ctx context.Context, req *cluster_controllerpb.PlanObjectStoreTopologyRequest) (*cluster_controllerpb.PlanObjectStoreTopologyResponse, error) {
+	if len(req.GetProposalJson()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "proposal_json is required")
+	}
+	var proposal configpkg.TopologyProposal
+	if err := json.Unmarshal(req.GetProposalJson(), &proposal); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "parse proposal: %v", err)
+	}
+	if proposal.ProposalID == "" {
+		return nil, status.Error(codes.InvalidArgument, "proposal has no proposal_id")
+	}
+	if !srv.isLeader() {
+		resp := &cluster_controllerpb.PlanObjectStoreTopologyResponse{}
+		if err := srv.leaderForward(ctx, "/cluster_controller.ClusterControllerService/PlanObjectStoreTopology", req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
+	}
+	if err := configpkg.SaveTopologyProposal(ctx, &proposal); err != nil {
+		return nil, status.Errorf(codes.Internal, "save proposal: %v", err)
+	}
+	return &cluster_controllerpb.PlanObjectStoreTopologyResponse{ProposalId: proposal.ProposalID}, nil
 }
