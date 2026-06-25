@@ -90,9 +90,21 @@ evidence.
    that read absence as health stays green. Verified.
 3. **HIGH — absence read as data.** Empty collector maps (failed sub-fetch) are
    read by rules as authoritative "nothing there" — `meta.absence_scope_must_be_explicit`.
-4. **HIGH — evidence source inferred from name strings.** `inferEvidenceSource`
-   maps `(service, rpc)` strings to a source; a typo in a rule's `kvEvidence` call
-   silently downgrades (or misattributes) trust on otherwise-fresh data.
+4. ✅ **HIGH — source-name divergence (consolidated).** Per-node fan-out errors were
+   stored instance-qualified (`node_agent@<node>`) while rules stamp evidence and gate
+   on the base name (`node_agent`), and `Snapshot.HadError` did exact string equality —
+   so `HadError("node_agent", rpc)` could **never** match a `node_agent@…` error.
+   Verify-first found this was not merely a latent OT-2 #2 blocker: it was a **live dead
+   gate** — `objectstore_physical_overlap.go:585` gates its reduced-harvest suppression
+   on `HadError("node_agent", "GetInventory")`, which silently always returned false, so
+   it could emit confident disk-overlap findings on an incomplete inventory harvest.
+   `HadError` now treats a base service name as matching its instance-qualified errors
+   (`e.Service == service || HasPrefix(e.Service, service+"@")`); an instance-qualified
+   query stays exact. Fixes the live gate in place (no rule change), keeps
+   `MissingSources` instance-qualified for operator display, and unblocks OT-2 #2's
+   `HadError(ev.SourceService, …)` match. (`collector/snapshot.go`,
+   `snapshot_haderror_match_test.go`.) The residual `inferEvidenceSource` typo-fragility
+   is a separate, narrower concern tracked under OT-2 #2.
 
 ---
 
@@ -134,6 +146,9 @@ The highest-leverage move — it re-arms the gate that already exists:
    /a depended-on source is in `snap.DataErrors`, the finding must be **UNKNOWN**,
    not FAIL/green — i.e. `annotateForReducedHarvest` (or the registry evaluator)
    must *downgrade*, not merely label. Mirrors the reduced-harvest-honesty norm.
+   *Prerequisite landed:* Surface-A gap #4 (source-name consolidation) is closed, so
+   `snap.HadError(ev.SourceService, ev.SourceRpc)` now matches the per-node fan-out
+   errors a downgrade pass needs to consult — the match is reliable to build on.
 3. **Absence ≠ negative.** A rule reading an empty collector map for a source that
    `addError`'d must emit UNKNOWN for that scope (`meta.absence_scope_must_be_explicit`).
 
