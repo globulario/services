@@ -35,6 +35,7 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_service"
 )
 
@@ -293,22 +294,22 @@ func (srv *server) publishIngressSpec(ctx context.Context, spec ingressDesiredSp
 	if err := ValidateCriticalKeyWrite(ingressSpecBackupKey, writerID); err != nil {
 		return err
 	}
-	kv := srv.kv
-	if kv == nil {
-		kv = srv.etcdClient
-	}
-	if kv == nil {
-		return fmt.Errorf("kv unavailable")
-	}
 	b, err := json.Marshal(spec)
 	if err != nil {
 		return err
 	}
-	if _, err := kv.Put(ctx, ingressSpecKey, string(b)); err != nil {
-		return fmt.Errorf("put ingress spec: %w", err)
-	}
-	if _, err := kv.Put(ctx, ingressSpecBackupKey, string(b)); err != nil {
-		return fmt.Errorf("put ingress backup: %w", err)
+	// Atomic, owner-guarded write of the ingress spec + its backup (RT-3): both
+	// keys commit together or neither does, through the transaction primitive,
+	// which also checks the controller's registered writer identity against the
+	// owner table. The two keys were previously written as separate non-atomic
+	// Puts — making the write atomic keeps the backup consistent with the spec for
+	// restoreIngressSpecFromBackup (the explicit ValidateCriticalKeyWrite checks
+	// above are retained as the always-on guard).
+	if err := config.RunTxnWithClass(ctx, config.CriticalWrite,
+		config.PutOp(ingressSpecKey, b),
+		config.PutOp(ingressSpecBackupKey, b),
+	); err != nil {
+		return fmt.Errorf("publish ingress spec: %w", err)
 	}
 	return nil
 }

@@ -230,12 +230,28 @@ Work-list (all done):
 4. ✅ **The 4 node_agent objectstore bare-Puts (Surface A)** → routed through the
    governed `PutRuntimeWithClass` / `DeleteRuntimeWithClass` primitive (#114).
 
-### RT-3 — govops as the enforced front door (M)
-- Wire govops `Validate` into the **chokepoints**, not scattered sites:
-  `resourcestore.etcdStore.Apply/Delete` (controller) and
-  `installed_state.WriteInstalledPackage` (node_agent). One intercept per owner.
-- `ops apply` already demonstrates the pattern end-to-end (Validate → typed dispatch).
-  Generalize it so the CLI paths from RT-2 land on it.
+### RT-3 — govops as the enforced front door (M) — owner-guard done; funnel in progress
+- ✅ **Named chokepoints guarded:** `resourcestore.etcdStore.Apply/Delete` (#104) and
+  `installed_state.WriteInstalledPackage` (via the config-primitive guard, #112).
+- **Note on `govops.Validate`:** it needs a rich `OperationRequest` the raw storage
+  layer cannot synthesize, so it stays the *operation-layer* gate (`ops apply`). Its
+  storage-layer realization is the owner-ownership guard (`ValidateCriticalKeyOwner`),
+  which IS the `raw_owner_owned_state_write` refusal at the write seam.
+- **The funnel (in progress):** the controller's OTHER critical keys are written by
+  helpers that bypass the guarded primitive (raw `kv.Put`/`Txn`). To make the guard a
+  true front door, route them through the governed seam:
+  - ✅ **guarded-`Txn` primitive** `config.RunTxnWithClass` (#117) — atomic multi-key
+    write that owner-guards every key (all-or-nothing); the Txn-shaped counterpart of
+    `PutRuntimeWithClass`.
+  - ✅ **ingress spec + backup** → first consumer (#117): now an atomic guarded Txn
+    (was two non-atomic raw Puts), which also keeps the backup consistent with the
+    spec for `restoreIngressSpecFromBackup`.
+  - ⬜ remaining funnel paths: `publishCAMetadataLocked` (`/globular/pki/ca`),
+    `publishObjectStoreDesiredStateLocked` (`/globular/objectstore/config`), the scylla
+    schema-guard write — plus a ratchet so new controller critical-writes can't bypass
+    the seam.
+- `ops apply` already demonstrates the operation-layer pattern end-to-end (Validate →
+  typed dispatch). Generalize it so the CLI paths from RT-2 land on it.
 - Once a write flows through `Validate`, **BH-1's forbidden-move refusal and the
   structural gates apply automatically** — this is where the carved gate starts to
   bite real mutation paths.
