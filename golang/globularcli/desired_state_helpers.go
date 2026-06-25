@@ -120,7 +120,7 @@ func updateInfraReleaseVersion(publisher, component, version string) error {
 		return fmt.Errorf("connect to controller: %w", err)
 	}
 	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 	}
 	client := resourcesClientFactory(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
