@@ -68,6 +68,8 @@ const (
 	ClusterControllerService_ResignLeadership_FullMethodName               = "/cluster_controller.ClusterControllerService/ResignLeadership"
 	ClusterControllerService_DeployControlPlanePackage_FullMethodName      = "/cluster_controller.ClusterControllerService/DeployControlPlanePackage"
 	ClusterControllerService_RequestJoinAuthorization_FullMethodName       = "/cluster_controller.ClusterControllerService/RequestJoinAuthorization"
+	ClusterControllerService_SetAccConfig_FullMethodName                   = "/cluster_controller.ClusterControllerService/SetAccConfig"
+	ClusterControllerService_ResetAccConfig_FullMethodName                 = "/cluster_controller.ClusterControllerService/ResetAccConfig"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -264,6 +266,12 @@ type ClusterControllerServiceClient interface {
 	// token and its stable identity; the controller returns a signed JoinPlan.
 	// The gateway is a courier — it MUST NOT modify the plan or assign profiles.
 	RequestJoinAuthorization(ctx context.Context, in *JoinAuthorizationRequest, opts ...grpc.CallOption) (*JoinAuthorizationResponse, error)
+	// ── ACC (adaptive concurrency control) config ──
+	// The interceptor ACC config lives at /globular/system/acc/config, owned by the
+	// cluster-controller. These RPCs let the CLI (and other clients) set/reset it
+	// through the owner instead of a raw etcd write (RT-2).
+	SetAccConfig(ctx context.Context, in *SetAccConfigRequest, opts ...grpc.CallOption) (*SetAccConfigResponse, error)
+	ResetAccConfig(ctx context.Context, in *ResetAccConfigRequest, opts ...grpc.CallOption) (*ResetAccConfigResponse, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -753,6 +761,26 @@ func (c *clusterControllerServiceClient) RequestJoinAuthorization(ctx context.Co
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) SetAccConfig(ctx context.Context, in *SetAccConfigRequest, opts ...grpc.CallOption) (*SetAccConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetAccConfigResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_SetAccConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) ResetAccConfig(ctx context.Context, in *ResetAccConfigRequest, opts ...grpc.CallOption) (*ResetAccConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetAccConfigResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ResetAccConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -947,6 +975,12 @@ type ClusterControllerServiceServer interface {
 	// token and its stable identity; the controller returns a signed JoinPlan.
 	// The gateway is a courier — it MUST NOT modify the plan or assign profiles.
 	RequestJoinAuthorization(context.Context, *JoinAuthorizationRequest) (*JoinAuthorizationResponse, error)
+	// ── ACC (adaptive concurrency control) config ──
+	// The interceptor ACC config lives at /globular/system/acc/config, owned by the
+	// cluster-controller. These RPCs let the CLI (and other clients) set/reset it
+	// through the owner instead of a raw etcd write (RT-2).
+	SetAccConfig(context.Context, *SetAccConfigRequest) (*SetAccConfigResponse, error)
+	ResetAccConfig(context.Context, *ResetAccConfigRequest) (*ResetAccConfigResponse, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -1096,6 +1130,12 @@ func (UnimplementedClusterControllerServiceServer) DeployControlPlanePackage(con
 }
 func (UnimplementedClusterControllerServiceServer) RequestJoinAuthorization(context.Context, *JoinAuthorizationRequest) (*JoinAuthorizationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequestJoinAuthorization not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) SetAccConfig(context.Context, *SetAccConfigRequest) (*SetAccConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetAccConfig not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ResetAccConfig(context.Context, *ResetAccConfigRequest) (*ResetAccConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResetAccConfig not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -1956,6 +1996,42 @@ func _ClusterControllerService_RequestJoinAuthorization_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_SetAccConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetAccConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).SetAccConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_SetAccConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).SetAccConfig(ctx, req.(*SetAccConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_ResetAccConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetAccConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ResetAccConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ResetAccConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ResetAccConfig(ctx, req.(*ResetAccConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2146,6 +2222,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequestJoinAuthorization",
 			Handler:    _ClusterControllerService_RequestJoinAuthorization_Handler,
+		},
+		{
+			MethodName: "SetAccConfig",
+			Handler:    _ClusterControllerService_SetAccConfig_Handler,
+		},
+		{
+			MethodName: "ResetAccConfig",
+			Handler:    _ClusterControllerService_ResetAccConfig_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

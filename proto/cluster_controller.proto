@@ -1067,6 +1067,41 @@ service ClusterControllerService {
       default_role_hint: "editor"
     };
   };
+
+  // ── ACC (adaptive concurrency control) config ──
+  // The interceptor ACC config lives at /globular/system/acc/config, owned by the
+  // cluster-controller. These RPCs let the CLI (and other clients) set/reset it
+  // through the owner instead of a raw etcd write (RT-2).
+  rpc SetAccConfig(SetAccConfigRequest) returns (SetAccConfigResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.acc_config.set"
+      permission: "admin"
+      resource_template: "/cluster_controller/system/acc-config"
+      default_role_hint: "admin"
+    };
+  };
+  rpc ResetAccConfig(ResetAccConfigRequest) returns (ResetAccConfigResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.acc_config.reset"
+      permission: "admin"
+      resource_template: "/cluster_controller/system/acc-config"
+      default_role_hint: "admin"
+    };
+  };
+}
+
+// SetAccConfigRequest carries the opaque ACC config JSON to persist at
+// /globular/system/acc/config. The CLI owns the config schema; the controller
+// validates it is well-formed JSON and writes it through the owner path.
+message SetAccConfigRequest {
+  bytes config_json = 1;
+}
+message SetAccConfigResponse {
+  bool ok = 1;
+}
+message ResetAccConfigRequest {}
+message ResetAccConfigResponse {
+  bool deleted = 1;
 }
 
 message DesiredNetwork {

@@ -15,15 +15,55 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"text/tabwriter"
 	"os"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 )
 
 const accConfigEtcdKey = "/globular/system/acc/config"
+
+// accConfigClient is the controller RPC seam the `acc set|reset` commands use to
+// commit ACC config changes through the owner path (RT-2): the cluster-controller
+// owns /globular/system/acc/config, so the write goes through its leader-gated,
+// audited SetAccConfig/ResetAccConfig RPCs instead of a raw etcd Put/Delete from
+// the CLI. Overridable in tests. Reads (acc get, and the merge-read in acc set)
+// stay on the direct etcd client — RT-2 governs writes, not reads.
+type accConfigClient interface {
+	SetAccConfig(ctx context.Context, req *cluster_controllerpb.SetAccConfigRequest, opts ...grpc.CallOption) (*cluster_controllerpb.SetAccConfigResponse, error)
+	ResetAccConfig(ctx context.Context, req *cluster_controllerpb.ResetAccConfigRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ResetAccConfigResponse, error)
+}
+
+var accConfigClientFactory = func(conn grpc.ClientConnInterface) accConfigClient {
+	return cluster_controllerpb.NewClusterControllerServiceClient(conn)
+}
+
+// accReadCurrentConfig reads the current ACC blob from etcd for the `acc set`
+// merge (only operator-set flags override). It is a read, not a write, so it
+// stays on the direct etcd client; the seam exists so tests can supply a current
+// config without a live etcd. A missing key yields a zero-value config.
+var accReadCurrentConfig = func(ctx context.Context) (accConfig, error) {
+	var cfg accConfig
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return cfg, fmt.Errorf("etcd client: %w", err)
+	}
+	defer func() { _ = cli.Close() }()
+	resp, err := cli.Get(ctx, accConfigEtcdKey)
+	if err != nil {
+		return cfg, fmt.Errorf("etcd get: %w", err)
+	}
+	if len(resp.Kvs) > 0 {
+		if err := json.Unmarshal(resp.Kvs[0].Value, &cfg); err != nil {
+			return cfg, fmt.Errorf("parse existing config: %w", err)
+		}
+	}
+	return cfg, nil
+}
 
 // accConfig mirrors interceptors.ACCConfig — same JSON tags, same zero-means-ignore semantics.
 // Defined locally to avoid importing the server-side interceptors package.
@@ -226,22 +266,13 @@ func runAccSet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--recalib-max-increase must be > 1, got %.4f", accSetRecalibMaxIncrease)
 	}
 
-	cli, err := config.GetEtcdClient()
+	// Read existing config so we can merge (only non-zero flags override). This is
+	// a read, not a write — RT-2 governs owner-owned writes, so the merge-read stays
+	// on the direct etcd client (via the accReadCurrentConfig seam, overridable in
+	// tests). Only the resulting write is routed through the owner RPC below.
+	cfg, err := accReadCurrentConfig(ctx)
 	if err != nil {
-		return fmt.Errorf("etcd client: %w", err)
-	}
-	defer cli.Close()
-
-	// Read existing config so we can merge (only non-zero flags override).
-	var cfg accConfig
-	resp, err := cli.Get(ctx, accConfigEtcdKey)
-	if err != nil {
-		return fmt.Errorf("etcd get: %w", err)
-	}
-	if len(resp.Kvs) > 0 {
-		if err := json.Unmarshal(resp.Kvs[0].Value, &cfg); err != nil {
-			return fmt.Errorf("parse existing config: %w", err)
-		}
+		return err
 	}
 
 	// Merge: only apply flags explicitly set by the operator.
@@ -304,8 +335,19 @@ func runAccSet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if _, err := cli.Put(ctx, accConfigEtcdKey, string(data)); err != nil {
-		return fmt.Errorf("etcd put: %w", err)
+	// Commit through the controller's owner RPC (RT-2), not a raw etcd Put: the
+	// cluster-controller owns /globular/system/acc/config and writes it leader-gated,
+	// through the critical-write seam, audited by the interceptor chain.
+	conn, err := controllerConnFactory()
+	if err != nil {
+		return fmt.Errorf("connect to controller: %w", err)
+	}
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer func() { _ = c.Close() }()
+	}
+	if _, err := accConfigClientFactory(conn).SetAccConfig(ctx,
+		&cluster_controllerpb.SetAccConfigRequest{ConfigJson: data}, jsonCallOption()); err != nil {
+		return fmt.Errorf("set acc config: %w", err)
 	}
 
 	if rootCfg.output == "json" {
@@ -337,18 +379,21 @@ func runAccReset(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
 
-	cli, err := config.GetEtcdClient()
+	// Retract through the controller's owner RPC (RT-2), not a raw etcd Delete.
+	conn, err := controllerConnFactory()
 	if err != nil {
-		return fmt.Errorf("etcd client: %w", err)
+		return fmt.Errorf("connect to controller: %w", err)
 	}
-	defer cli.Close()
-
-	dresp, err := cli.Delete(ctx, accConfigEtcdKey)
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer func() { _ = c.Close() }()
+	}
+	resp, err := accConfigClientFactory(conn).ResetAccConfig(ctx,
+		&cluster_controllerpb.ResetAccConfigRequest{}, jsonCallOption())
 	if err != nil {
-		return fmt.Errorf("etcd delete: %w", err)
+		return fmt.Errorf("reset acc config: %w", err)
 	}
 
-	if dresp.Deleted == 0 {
+	if !resp.GetDeleted() {
 		fmt.Println("No ACC config was stored in etcd — compile-time defaults were already active.")
 		return nil
 	}
