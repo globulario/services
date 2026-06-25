@@ -9647,9 +9647,6 @@ invariants:
   - category: exception_pending_owner_routing_migration
     file: golang/globularcli/objectstore_cmds.go
     reason: 'RT-2 debt: objectstore topology sanitize-pool raw-writes controller state blob + objectstore placement; migrate to controller RPC'
-  - category: exception_pending_owner_routing_migration
-    file: golang/globularcli/objectstore_disk_cmds.go
-    reason: 'RT-2 debt: objectstore topology apply raw-writes the objectstore apply-request handshake; migrate to controller RPC'
   - category: exception_1_observer_only_self_state
     file: golang/globularcli/audit_log.go
     reason: CLI append-only audit record to /globular/audit/{ts}_{action}_{service} (observer self-state, not a cluster-state mutation)

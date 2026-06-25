@@ -12,7 +12,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,10 +21,29 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 )
+
+// objectStoreTopologyClient is the controller RPC seam `objectstore topology apply`
+// uses to drive the apply through the owner path (RT-2): the cluster-controller
+// owns objectstore desired topology, so the apply runs through its leader-gated
+// ApplyObjectStoreTopology RPC instead of a raw etcd apply_request/apply_result
+// handshake from the CLI. Overridable in tests.
+type objectStoreTopologyClient interface {
+	ApplyObjectStoreTopology(ctx context.Context, req *cluster_controllerpb.ApplyObjectStoreTopologyRequest, opts ...grpc.CallOption) (*cluster_controllerpb.ApplyObjectStoreTopologyResponse, error)
+}
+
+var objectStoreTopologyClientFactory = func(conn grpc.ClientConnInterface) objectStoreTopologyClient {
+	return cluster_controllerpb.NewClusterControllerServiceClient(conn)
+}
+
+// applyLoadProposal reads a planned proposal for the apply pre-flight. It is a
+// read (RT-2 governs writes), kept on the direct config loader; the seam exists
+// so tests can supply a proposal without a live etcd.
+var applyLoadProposal = config.LoadTopologyProposal
 
 // ── top-level disk subcommand ─────────────────────────────────────────────────
 
@@ -37,8 +55,8 @@ var objectstoreDiskCmd = &cobra.Command{
 // ── disk scan ─────────────────────────────────────────────────────────────────
 
 var (
-	diskScanJSON    bool
-	diskScanNodeID  string
+	diskScanJSON   bool
+	diskScanNodeID string
 )
 
 var objectstoreDiskScanCmd = &cobra.Command{
@@ -154,12 +172,12 @@ func runObjectstoreDiskScan(cmd *cobra.Command, args []string) error {
 // ── disk approve ──────────────────────────────────────────────────────────────
 
 var (
-	approveNodeID      string
-	approvePath        string
-	approveDrives      int
-	approveForceRoot   bool
-	approveForceData   bool
-	approveNodeIP      string
+	approveNodeID    string
+	approvePath      string
+	approveDrives    int
+	approveForceRoot bool
+	approveForceData bool
+	approveNodeIP    string
 )
 
 var objectstoreDiskApproveCmd = &cobra.Command{
@@ -607,9 +625,9 @@ func printTopologyProposal(p *config.TopologyProposal) {
 // ── topology apply ────────────────────────────────────────────────────────────
 
 var (
-	applyProposalID         string
-	applyForceDestructive   bool
-	applyWaitTimeout        time.Duration
+	applyProposalID       string
+	applyForceDestructive bool
+	applyWaitTimeout      time.Duration
 )
 
 var objectstoreTopologyApplyCmd = &cobra.Command{
@@ -647,7 +665,7 @@ func runObjectstoreTopologyApply(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Load the proposal from etcd.
-	proposal, err := config.LoadTopologyProposal(ctx, applyProposalID)
+	proposal, err := applyLoadProposal(ctx, applyProposalID)
 	if err != nil {
 		return fmt.Errorf("load proposal: %w", err)
 	}
@@ -682,72 +700,37 @@ func runObjectstoreTopologyApply(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("destructive apply requires --i-understand-data-reset")
 	}
 
-	// Generate a nonce to match request → result.
-	var rndBytes [8]byte
-	rand.Read(rndBytes[:]) //nolint:errcheck
-	requestID := hex.EncodeToString(rndBytes[:])
-
-	// Write the apply request to etcd.
-	req := &config.ObjectStoreApplyRequest{
-		ProposalID:       applyProposalID,
-		Proposal:         proposal,
-		ForceDestructive: applyForceDestructive,
-		RequestedAt:      time.Now().UTC(),
-		RequestID:        requestID,
-	}
-	reqData, err := json.Marshal(req)
+	// Drive the apply through the controller's owner RPC (RT-2), not a raw etcd
+	// apply_request/apply_result handshake. The controller re-loads and re-validates
+	// the proposal authoritatively, runs the full admission/transition contract
+	// leader-gated, and returns the outcome synchronously — the local pre-flight
+	// above is advisory.
+	conn, err := controllerConnFactory()
 	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
+		return fmt.Errorf("connect to controller: %w", err)
+	}
+	if c, ok := conn.(*grpc.ClientConn); ok && c != nil {
+		defer func() { _ = c.Close() }()
 	}
 
-	cli, err := config.GetEtcdClient()
+	fmt.Printf("Submitting apply for proposal %s — waiting for controller...\n", applyProposalID)
+
+	resp, err := objectStoreTopologyClientFactory(conn).ApplyObjectStoreTopology(ctx,
+		&cluster_controllerpb.ApplyObjectStoreTopologyRequest{
+			ProposalId:       applyProposalID,
+			ForceDestructive: applyForceDestructive,
+		}, jsonCallOption())
 	if err != nil {
-		return fmt.Errorf("etcd unavailable: %w", err)
+		return fmt.Errorf("apply topology: %w", err)
 	}
 
-	// Clear any stale result before writing the request.
-	cli.Delete(ctx, config.EtcdKeyObjectStoreApplyResult) //nolint:errcheck
-
-	writeCtx, writeCancel := context.WithTimeout(ctx, 10*time.Second)
-	if _, err := cli.Put(writeCtx, config.EtcdKeyObjectStoreApplyRequest, string(reqData)); err != nil {
-		writeCancel()
-		return fmt.Errorf("write apply request: %w", err)
+	if resp.GetStatus() == "accepted" {
+		fmt.Printf("✓ Topology applied: generation=%d\n", resp.GetGeneration())
+		fmt.Println("The topology workflow is running. Check progress with:")
+		fmt.Println("  globular objectstore topology status")
+		return nil
 	}
-	writeCancel()
-
-	fmt.Printf("Apply request %s submitted — waiting for controller...\n", requestID)
-
-	// Poll the result key.
-	deadline := time.Now().Add(applyWaitTimeout)
-	for time.Now().Before(deadline) {
-		time.Sleep(2 * time.Second)
-
-		pollCtx, pollCancel := context.WithTimeout(ctx, 5*time.Second)
-		resp, err := cli.Get(pollCtx, config.EtcdKeyObjectStoreApplyResult)
-		pollCancel()
-		if err != nil || len(resp.Kvs) == 0 {
-			continue
-		}
-
-		var result config.ObjectStoreApplyResult
-		if err := json.Unmarshal(resp.Kvs[0].Value, &result); err != nil {
-			continue
-		}
-		// Match our request.
-		if result.RequestID != requestID {
-			continue
-		}
-
-		if result.Status == "accepted" {
-			fmt.Printf("✓ Topology applied: generation=%d\n", result.Generation)
-			fmt.Println("The topology workflow is running. Check progress with:")
-			fmt.Println("  globular objectstore topology status")
-			return nil
-		}
-		return fmt.Errorf("apply failed: %s", result.Error)
-	}
-
-	return fmt.Errorf("timeout waiting for controller to process apply request (try 'globular objectstore topology status')")
+	return fmt.Errorf("apply failed: %s", resp.GetError())
 }
 
 // ── wire commands ─────────────────────────────────────────────────────────────
@@ -777,6 +760,3 @@ func sortedKeys[K string, V any](m map[K]V) []K {
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 	return keys
 }
-
-// clientv3 import kept alive.
-var _ = (*clientv3.Client)(nil)
