@@ -142,15 +142,35 @@ The highest-leverage move — it re-arms the gate that already exists:
    evidence, which is older). Fail-safe: only ever moves a timestamp *backward*.
    This makes `findingEvidenceTrust` able to classify staleness — especially for a
    cached snapshot re-evaluated long after collection.
-2. **Rules consult reduced-harvest before concluding.** When `snap.DataIncomplete`
-   /a depended-on source is in `snap.DataErrors`, the finding must be **UNKNOWN**,
-   not FAIL/green — i.e. `annotateForReducedHarvest` (or the registry evaluator)
-   must *downgrade*, not merely label. Mirrors the reduced-harvest-honesty norm.
-   *Prerequisite landed:* Surface-A gap #4 (source-name consolidation) is closed, so
-   `snap.HadError(ev.SourceService, ev.SourceRpc)` now matches the per-node fan-out
-   errors a downgrade pass needs to consult — the match is reliable to build on.
+2. ✅ **Rules consult reduced-harvest before concluding — registry downgrade net.**
+   *Verify-first correction:* the original "rules ignore `snap.DataErrors`" framing was
+   overstated. A first line of defense already existed — per-rule
+   `if snap.HadError(service, rpc) { return nil }` guards plus the
+   `TestNoRuleEmitsConfidentFailureOnErroredSnapshot` ratchet (checks raw `Evaluate`
+   output). The real residual was (a) no *registry-level* net for a rule that forgets
+   to self-guard, and (b) the ratchet's `fullyErroredSnapshot` carried only base-named
+   `cluster_controller`/`etcd`/`repository` errors — it **never exercised the
+   `node_agent@<node>` fan-out**, and those guards were silently dead until gap #4.
+   - **Downgrade net (registry.go).** `applyReducedHarvestPolicy` (the renamed
+     `annotateForReducedHarvest`) now *downgrades*, not merely labels: a **conclusive**
+     finding (`INVARIANT_PASS`/`INVARIANT_FAIL`) whose **own evidence** rests on a
+     source in `snap.DataErrors` (matched via the gap-#4 `HadError`) is demoted to
+     `INVARIANT_UNKNOWN` + non-empty `CheckError` + `[harvest-degraded]` summary.
+     Precise: a finding whose own sources were healthy keeps its verdict and the
+     generic `[reduced-harvest]` label. Catches **both** the false-positive (FAIL read
+     off absence) and false-green (PASS read off absence) halves.
+   - **Ratchet hole closed.** `fullyErroredSnapshot` now includes `node_agent@<node>`
+     fan-out errors, so the no-confident-FAIL ratchet actually verifies the node-agent
+     guards. Measured blast radius: **zero new violations** (only the pre-allowlisted
+     local-FS rule), proving the node-agent guards are sound post-gap-#4.
+   (`evidence.provenance_trust_levels`; `degraded_is_explicit_not_hidden`.)
 3. **Absence ≠ negative.** A rule reading an empty collector map for a source that
    `addError`'d must emit UNKNOWN for that scope (`meta.absence_scope_must_be_explicit`).
+   *Partially covered by #2's net* (a conclusive finding citing the absent source is
+   now downgraded); the residual is a rule that emits **no finding at all** on an empty
+   map, handled by `snapshotSourceUnavailableFindings`. Remaining gap: a rule that
+   reads an empty map and emits a confident PASS *without* citing the source in its
+   evidence — not reachable by the net; would need the per-rule guard. Tracked.
 
 ### OT-3 — read-endpoint freshness contracts (M)
 1. ✅ **Atomic desired+runtime (#127)** — `SaveServiceConfiguration` now writes the
