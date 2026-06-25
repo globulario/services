@@ -129,10 +129,13 @@ never reach it. **govops has zero callers in any service** (`GOVOPS_ROUTED` coun
   cannot scan bash; instead a dedicated bash gate
   (`scripts/ci/check-break-glass-gating.sh`, #116) fails CI if any script mutating
   owner-owned state behind the controller is not gated by `break-glass.sh` (#115).
-- **3 HIDDEN_WORKFLOW** known-but-disallowed multi-step writes awaiting a workflow
-  lift (not allowlisted; they fail the scan): `handlers_node.go::RemoveNode`,
-  `node_removal_requests.go::processNodeRemovalRequests`,
-  `ingress_spec_guard.go::restoreIngressSpecFromBackup`.
+- **3 HIDDEN_WORKFLOW** sites from the 2026-06-05 audit — ✅ **all LIFTED since.**
+  `RemoveNode` now dispatches the `node.remove` workflow (`workflow_node_remove.go`
+  + `definitions/node.remove.yaml`); `processNodeRemovalRequests` is a thin queue
+  trigger that runs `RemoveNode` (same workflow); `restoreIngressSpecFromBackup` was
+  replaced by `dispatchIngressSpecRestore` → the `cluster.ingress_spec_restore`
+  workflow. The scanner reports **0 HIDDEN_WORKFLOW** and the residual allowlist
+  entries are labeled *post-lift* (thin triggers / non-orchestrating remainders).
 
 ---
 
@@ -290,8 +293,10 @@ guarded at the seam.
     (etcd del/put of `/globular/{resources,plans,nodes}`, or a
     `/var/lib/globular/clustercontroller/state.json` rewrite) is not gated by `break-glass.sh`. The
     Go-source scanner can't see bash; this is its bash complement.
-  - ⬜ **Lift the 3 HIDDEN_WORKFLOW** sites onto workflows (separate, bigger — not
-    a coverage item; tracked but out of RT-4's coverage scope).
+  - ✅ **The 3 HIDDEN_WORKFLOW sites are lifted** onto workflows (`node.remove`,
+    `cluster.ingress_spec_restore`); the scanner reports 0 HIDDEN_WORKFLOW. (This was
+    completed independently after the 2026-06-05 audit; the Surface-B line above is
+    corrected to match.)
 - The "RT-4 and BH-1 are one scanner" note from the roadmap resolves cleanly: the
   existing `principle-check` *is* the raw-owner-write static scanner; RT-4 extends its
   *reach* (CLI + scripts), it does not build a second one.
