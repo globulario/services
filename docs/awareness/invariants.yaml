@@ -9642,9 +9642,6 @@ invariants:
   # onto the owner's typed RPC / the govops ops-apply path, then removes its entry.
   # See docs/design/rt1-direct-write-surface-audit.md (Surface D, CLI work-list).
   - category: exception_pending_owner_routing_migration
-    file: golang/globularcli/state_cmds.go
-    reason: 'RT-2 debt: state canonicalize --fix-installed raw-writes node_agent-owned L3 installed buildId; migrate to node_agent SetInstalledPackage RPC (highest severity — cross-owner L3)'
-  - category: exception_pending_owner_routing_migration
     file: golang/globularcli/desired_state_helpers.go
     reason: 'RT-2 debt (partially migrated): release set-infra-version now routes through the ApplyInfrastructureRelease owner RPC (no longer raw). Remaining raw write is upsertServiceDesiredVersion, used by pkg override apply/restore — migrate that next, then drop this entry.'
   - category: exception_pending_owner_routing_migration
