@@ -71,6 +71,7 @@ const (
 	ClusterControllerService_SetAccConfig_FullMethodName                   = "/cluster_controller.ClusterControllerService/SetAccConfig"
 	ClusterControllerService_ResetAccConfig_FullMethodName                 = "/cluster_controller.ClusterControllerService/ResetAccConfig"
 	ClusterControllerService_ApplyObjectStoreTopology_FullMethodName       = "/cluster_controller.ClusterControllerService/ApplyObjectStoreTopology"
+	ClusterControllerService_SanitizeObjectStorePool_FullMethodName        = "/cluster_controller.ClusterControllerService/SanitizeObjectStorePool"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -280,6 +281,14 @@ type ClusterControllerServiceClient interface {
 	// loads the proposal by id, runs the full admission/validation/transition
 	// contract, and returns the outcome synchronously. Leader-gated.
 	ApplyObjectStoreTopology(ctx context.Context, in *ApplyObjectStoreTopologyRequest, opts ...grpc.CallOption) (*ApplyObjectStoreTopologyResponse, error)
+	// SanitizeObjectStorePool removes stale MinIO pool peers (IPs that no longer
+	// belong to an eligible cluster node) from the controller's authoritative
+	// state. The controller is the sole owner of /globular/clustercontroller/state;
+	// it read-modify-writes its FULL state struct (no field loss — unlike the old
+	// CLI path, which clobbered the blob down to a 4-field projection) and
+	// republishes objectstore desired state canonically. dry_run computes the
+	// change without applying. Leader-gated.
+	SanitizeObjectStorePool(ctx context.Context, in *SanitizeObjectStorePoolRequest, opts ...grpc.CallOption) (*SanitizeObjectStorePoolResponse, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -799,6 +808,16 @@ func (c *clusterControllerServiceClient) ApplyObjectStoreTopology(ctx context.Co
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) SanitizeObjectStorePool(ctx context.Context, in *SanitizeObjectStorePoolRequest, opts ...grpc.CallOption) (*SanitizeObjectStorePoolResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SanitizeObjectStorePoolResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_SanitizeObjectStorePool_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -1006,6 +1025,14 @@ type ClusterControllerServiceServer interface {
 	// loads the proposal by id, runs the full admission/validation/transition
 	// contract, and returns the outcome synchronously. Leader-gated.
 	ApplyObjectStoreTopology(context.Context, *ApplyObjectStoreTopologyRequest) (*ApplyObjectStoreTopologyResponse, error)
+	// SanitizeObjectStorePool removes stale MinIO pool peers (IPs that no longer
+	// belong to an eligible cluster node) from the controller's authoritative
+	// state. The controller is the sole owner of /globular/clustercontroller/state;
+	// it read-modify-writes its FULL state struct (no field loss — unlike the old
+	// CLI path, which clobbered the blob down to a 4-field projection) and
+	// republishes objectstore desired state canonically. dry_run computes the
+	// change without applying. Leader-gated.
+	SanitizeObjectStorePool(context.Context, *SanitizeObjectStorePoolRequest) (*SanitizeObjectStorePoolResponse, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -1164,6 +1191,9 @@ func (UnimplementedClusterControllerServiceServer) ResetAccConfig(context.Contex
 }
 func (UnimplementedClusterControllerServiceServer) ApplyObjectStoreTopology(context.Context, *ApplyObjectStoreTopologyRequest) (*ApplyObjectStoreTopologyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ApplyObjectStoreTopology not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) SanitizeObjectStorePool(context.Context, *SanitizeObjectStorePoolRequest) (*SanitizeObjectStorePoolResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SanitizeObjectStorePool not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -2078,6 +2108,24 @@ func _ClusterControllerService_ApplyObjectStoreTopology_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_SanitizeObjectStorePool_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SanitizeObjectStorePoolRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).SanitizeObjectStorePool(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_SanitizeObjectStorePool_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).SanitizeObjectStorePool(ctx, req.(*SanitizeObjectStorePoolRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2280,6 +2328,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ApplyObjectStoreTopology",
 			Handler:    _ClusterControllerService_ApplyObjectStoreTopology_Handler,
+		},
+		{
+			MethodName: "SanitizeObjectStorePool",
+			Handler:    _ClusterControllerService_SanitizeObjectStorePool_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
