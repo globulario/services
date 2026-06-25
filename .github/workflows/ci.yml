@@ -165,6 +165,21 @@ jobs:
         working-directory: ${{ github.workspace }}/awareness-graph
         run: go run ./cmd/awg audit -check -warn-stale -services-repo ${{ github.workspace }}/services -ag-repo .
 
+      # 5. Impact-gate (CG-5): a changed Go file protected by an invariant must
+      #    run that invariant's required_tests, and they must pass. This turns
+      #    required_tests from advisory metadata into a fail-closed per-change
+      #    gate (the enforcement CG-4 verified was absent).
+      # ADVISORY until armed: continue-on-error while required_tests are confirmed
+      #    runnable in CI. Remove continue-on-error to make it a hard gate — the
+      #    same arm-later pattern used for awg validate/audit above.
+      - name: Impact-gate — required tests for changed protected files (advisory)
+        if: steps.checkout_awareness_graph.outcome == 'success'
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}/services
+        run: bash scripts/impact-gate-ci.sh
+        env:
+          AWG_DIR: ${{ github.workspace }}/awareness-graph
+
   proto-check:
     runs-on: ubuntu-latest
     steps:
