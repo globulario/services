@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/globulario/services/golang/config"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 func TestHasIngressDeleteApproval_ValidAndInvalid(t *testing.T) {
@@ -199,9 +202,19 @@ func TestIngressControllerConfig_ComposeRestoreSpec_SeedsWhenBackupUnparseable(t
 }
 
 func TestIngressControllerConfig_PublishRestoreSpec_WritesBothKeys(t *testing.T) {
-	kv := newFakeKV()
+	// publishIngressSpec now writes the spec + backup atomically through the
+	// guarded transaction primitive (RT-3), so capture the committed txn ops
+	// instead of probing srv.kv.
+	var committed []string
+	restore := config.SetTxnRunnerForTest(func(_ context.Context, ops []clientv3.Op) error {
+		for _, op := range ops {
+			committed = append(committed, string(op.KeyBytes()))
+		}
+		return nil
+	})
+	defer restore()
+
 	srv := newServer(defaultClusterControllerConfig(), "", "", newControllerState(), nil)
-	srv.kv = kv
 
 	spec := srv.normalizeIngressSpec(ingressDesiredSpec{
 		Mode:             ingressModeDisabled,
@@ -215,10 +228,19 @@ func TestIngressControllerConfig_PublishRestoreSpec_WritesBothKeys(t *testing.T)
 		t.Fatalf("PublishRestoreSpec: %v", err)
 	}
 
-	if resp, _ := kv.Get(context.Background(), ingressSpecKey); len(resp.Kvs) == 0 {
-		t.Fatal("expected live spec key to be written")
+	var live, backup bool
+	for _, k := range committed {
+		switch k {
+		case ingressSpecKey:
+			live = true
+		case ingressSpecBackupKey:
+			backup = true
+		}
 	}
-	if resp, _ := kv.Get(context.Background(), ingressSpecBackupKey); len(resp.Kvs) == 0 {
-		t.Fatal("expected backup spec key to be written")
+	if !live {
+		t.Fatal("expected live spec key to be written in the guarded txn")
+	}
+	if !backup {
+		t.Fatal("expected backup spec key to be written in the guarded txn")
 	}
 }
