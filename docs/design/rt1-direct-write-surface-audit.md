@@ -249,9 +249,14 @@ Work-list (all done):
   - ✅ **objectstore/config** (#118): `config.SaveObjectStoreDesiredState` (the sole
     writer of `/globular/objectstore/config`, controller-only) routes through
     `PutRuntimeWithClass(CriticalWrite)` — owner-guarded + critical-write policy.
-  - ⬜ remaining funnel paths: `publishCAMetadataLocked` (`/globular/pki/ca` +
-    `/globular/pki/ca.crt`, two keys, bootstrap path), the scylla schema-guard write —
-    plus a ratchet so new controller critical-writes can't bypass the seam.
+  - ✅ **pki/ca** (#119): `config.SaveCAMetadata` (`/globular/pki/ca`, the critical
+    key — owner-guard bites) and `config.SaveCACertificateIfEmpty` (`/globular/pki/ca.crt`,
+    not in the critical table → guard fail-opens, but routed for write-class policy +
+    consistency) now use `PutRuntimeWithClass(CriticalWrite)`. The identity is
+    registered at the top of `main()` before any persist, so there is no bootstrap
+    ordering risk on this commit-path write.
+  - ⬜ remaining funnel paths: the scylla schema-guard write — plus a ratchet so new
+    controller critical-writes can't bypass the seam.
 - `ops apply` already demonstrates the operation-layer pattern end-to-end (Validate →
   typed dispatch). Generalize it so the CLI paths from RT-2 land on it.
 - Once a write flows through `Validate`, **BH-1's forbidden-move refusal and the
