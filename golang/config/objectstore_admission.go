@@ -148,7 +148,6 @@ func PathHash(path string) string {
 //
 // +globular:schema:key="/globular/objectstore/disk/admitted/{node_id}/{path_hash}"
 // +globular:schema:writer="globular-cli (operator)"
-//
 type AdmittedDisk struct {
 	NodeID            string    `json:"node_id"`
 	NodeIP            string    `json:"node_ip"`
@@ -163,9 +162,9 @@ type AdmittedDisk struct {
 	// Physical identity captured from DiskCandidate at approval time.
 	// Used to detect disk replacement behind the same mount path.
 	StableID                string `json:"stable_id,omitempty"`                  // blkid PARTUUID / UUID
-	Device                  string `json:"device,omitempty"`                      // e.g. /dev/sdb1
-	FSType                  string `json:"fs_type,omitempty"`                     // ext4, xfs, btrfs …
-	SizeBytesAtAdmission    int64  `json:"size_bytes_at_admission,omitempty"`     // capacity when admitted
+	Device                  string `json:"device,omitempty"`                     // e.g. /dev/sdb1
+	FSType                  string `json:"fs_type,omitempty"`                    // ext4, xfs, btrfs …
+	SizeBytesAtAdmission    int64  `json:"size_bytes_at_admission,omitempty"`    // capacity when admitted
 	AdmittedCandidateDiskID string `json:"admitted_candidate_disk_id,omitempty"` // DiskCandidate.DiskID
 }
 
@@ -183,9 +182,9 @@ type AdmittedDisk struct {
 type TopologyProposal struct {
 	ProposalID         string            `json:"proposal_id"`
 	GeneratedAt        time.Time         `json:"generated_at"`
-	NodePaths          map[string]string `json:"node_paths"`        // nodeIP → basePath
+	NodePaths          map[string]string `json:"node_paths"` // nodeIP → basePath
 	DrivesPerNode      int               `json:"drives_per_node"`
-	Nodes              []string          `json:"nodes"`             // ordered pool IPs
+	Nodes              []string          `json:"nodes"` // ordered pool IPs
 	IsDestructive      bool              `json:"is_destructive"`
 	DestructiveReasons []string          `json:"destructive_reasons,omitempty"`
 	ValidationErrors   []string          `json:"validation_errors,omitempty"`
@@ -216,7 +215,7 @@ type ObjectStoreApplyRequest struct {
 type ObjectStoreApplyResult struct {
 	RequestID   string    `json:"request_id"`
 	ProposalID  string    `json:"proposal_id"`
-	Status      string    `json:"status"`              // "accepted" | "failed"
+	Status      string    `json:"status"`               // "accepted" | "failed"
 	Generation  int64     `json:"generation,omitempty"` // new generation (on accepted)
 	Error       string    `json:"error,omitempty"`
 	ProcessedAt time.Time `json:"processed_at"`
@@ -287,16 +286,15 @@ func LoadAllDiskCandidates(ctx context.Context) (map[string][]*DiskCandidate, er
 
 // SaveDiskCandidate writes a single disk candidate to etcd.
 func SaveDiskCandidate(ctx context.Context, dc *DiskCandidate) error {
-	cli, err := GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("disk candidate: etcd unavailable: %w", err)
-	}
 	data, err := json.Marshal(dc)
 	if err != nil {
 		return fmt.Errorf("disk candidate: marshal: %w", err)
 	}
 	key := EtcdKeyDiskCandidate(dc.NodeID, dc.DiskID)
-	if _, err := cli.Put(ctx, key, string(data)); err != nil {
+	// Route through the governed write primitive (RT-2 Surface A) so this
+	// node-self objectstore write gets the write-class policy and the
+	// owner-ownership guard, instead of a bare cli.Put.
+	if err := PutRuntimeWithClass(ctx, key, data, NormalRuntimeWrite); err != nil {
 		return fmt.Errorf("disk candidate: etcd put %s: %w", key, err)
 	}
 	return nil
@@ -317,8 +315,9 @@ func DeleteStaleNodeCandidates(ctx context.Context, nodeID string, activeDiskIDs
 	for _, kv := range resp.Kvs {
 		diskID := strings.TrimPrefix(string(kv.Key), prefix)
 		if !activeDiskIDs[diskID] {
-			if _, err := cli.Delete(ctx, string(kv.Key)); err != nil {
-				return fmt.Errorf("disk candidates: delete stale %s: %w", kv.Key, err)
+			// Route the per-key delete through the governed primitive (RT-2 Surface A).
+			if _, derr := DeleteRuntimeWithClass(ctx, string(kv.Key), NormalRuntimeWrite); derr != nil {
+				return fmt.Errorf("disk candidates: delete stale %s: %w", kv.Key, derr)
 			}
 		}
 	}

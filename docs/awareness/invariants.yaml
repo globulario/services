@@ -9654,9 +9654,6 @@ invariants:
     file: golang/node_agent/node_agent_server/self_hosted_runtime_proof_writer.go
     reason: self-hosted runtime proof writer (observer-only)
   - category: exception_1_observer_only_self_state
-    file: golang/node_agent/node_agent_server/minio_systemd_reconcile.go
-    reason: node-agent minio self-state (observer-only)
-  - category: exception_1_observer_only_self_state
     file: golang/cluster_controller/cluster_controller_server/leader_pending_update_etcd.go
     reason: controller self-observability (leader-stuck record)
   - category: exception_1_observer_only_self_state

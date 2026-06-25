@@ -83,13 +83,15 @@ never reach it. **govops has zero callers in any service** (`GOVOPS_ROUTED` coun
   / `CommitInstalledPackage`. RAW_DIRECT = 0.
 - Node status via `ReportNodeStatus` RPC (correct). DNS/domain/providers/ingress-status
   are `OWNER_RPC_INTERNAL` or CAS-guarded (`domain/store.go:198 PutStatusCAS`).
-- **4 RAW_DIRECT bare-`cli.Put` sites** — all node-writing-its-own objectstore keys,
-  already *allowlisted* by the static scanner as observer-self-state, but unrouted
-  and runtime-unguarded:
-  1. `config/objectstore_admission.go:299` `SaveDiskCandidate`
-  2. `config/objectstore_admission.go:320` `DeleteStaleNodeCandidates`
-  3. `node_agent/.../minio_systemd_reconcile.go:295` `writeRenderedGeneration` (rendered_generation)
-  4. `node_agent/.../minio_systemd_reconcile.go:301` `writeRenderedGeneration` (rendered_state_fingerprint)
+- **4 RAW_DIRECT bare-`cli.Put` sites** — all node-writing-its-own objectstore keys.
+  ✅ **MIGRATED (#114):** all four now route through the governed
+  `config.PutRuntimeWithClass` / `DeleteRuntimeWithClass` primitive, so they get
+  write-class policy AND the RT-3 owner-ownership guard. `minio_systemd_reconcile.go`
+  is write-clean and its observer-self-state scanner allowlist entry was removed.
+  1. `config/objectstore_admission.go` `SaveDiskCandidate` → `PutRuntimeWithClass`
+  2. `config/objectstore_admission.go` `DeleteStaleNodeCandidates` → `DeleteRuntimeWithClass`
+  3. `node_agent/.../minio_systemd_reconcile.go` `writeRenderedGeneration` (rendered_generation) → `PutRuntimeWithClass`
+  4. `node_agent/.../minio_systemd_reconcile.go` `writeRenderedGeneration` (rendered_state_fingerprint) → `PutRuntimeWithClass`
   - Ambiguous: `node_agent/.../installed_services.go:680` `StampInfraConvergenceHash`
     (the `set_infra_version_raw` shape; routes through the funnel but mutates the
     controller-comparison hash from the node side — confirm it stays owner-internal
