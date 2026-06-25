@@ -155,3 +155,15 @@ jobs:
           else
             echo "All path checks passed"
           fi
+
+  break-glass-gating:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # RT-4 scripts coverage: the Go-source principle-check scanner can't see
+      # bash, so this gate ensures every script that mutates owner-owned cluster
+      # state behind the controller is gated by scripts/lib/break-glass.sh. A new
+      # ungated owner-mutating recovery script fails CI.
+      - name: Enforce break-glass gating on owner-state-mutating scripts
+        run: bash scripts/ci/check-break-glass-gating.sh

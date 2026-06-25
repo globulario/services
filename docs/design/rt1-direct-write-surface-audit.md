@@ -118,10 +118,17 @@ never reach it. **govops has zero callers in any service** (`GOVOPS_ROUTED` coun
   event-bus-ephemera. Everything else in the swept dirs is DRIFT → fail.
 - **`actor_writer_dirs` (the swept set):** cluster_controller_server,
   node_agent_server, repository_server, cluster_doctor, mcp, ai_executor, ai_memory,
-  dns, domain, backup_manager, audittrail.
-- **THE COVERAGE GAP:** `globularcli` and `scripts/` are **not** in
-  `actor_writer_dirs`. The CLI and scripts are unscanned — the structural reason the
-  raw-write exposure (Surface D) concentrated there.
+  dns, domain, backup_manager, audittrail, **globularcli**.
+- **COVERAGE GAP — ✅ CLOSED for the CLI (RT-4).** `golang/globularcli` is in
+  `actor_writer_dirs`: the scanner sweeps it (the only matched writes are
+  `audit_log.go` (observer self-state) and `pkg_override_cmds.go` (LocalOverride
+  registry), both allowlisted), so any NEW raw owner-write in the CLI is DRIFT and
+  fails CI. (A ratchet test asserting globularcli stays in `actor_writer_dirs`
+  lives best in the awareness-graph scanner repo — noted follow-up.) `scripts/` is
+  intentionally NOT swept by principle-check — the scanner is Go-source-based and
+  cannot scan bash; instead a dedicated bash gate
+  (`scripts/ci/check-break-glass-gating.sh`, #116) fails CI if any script mutating
+  owner-owned state behind the controller is not gated by `break-glass.sh` (#115).
 - **3 HIDDEN_WORKFLOW** known-but-disallowed multi-step writes awaiting a workflow
   lift (not allowlisted; they fail the scan): `handlers_node.go::RemoveNode`,
   `node_removal_requests.go::processNodeRemovalRequests`,
@@ -233,16 +240,20 @@ Work-list (all done):
   structural gates apply automatically** — this is where the carved gate starts to
   bite real mutation paths.
 
-### RT-4 — principle-check scanner: no new raw writes (M)
-- **Largely already exists** (DRIFT-by-default, fail-closed). The residual is
-  **coverage**, not capability:
-  - **Add `golang/globularcli` to `actor_writer_dirs`** — this is the single change
-    that would have caught the 9 CLI paths. (Expect to allowlist the legitimate
-    bootstrap/day-0 CLI writes as the existing categories already do for services.)
-  - **Add a scripts check** (the scanner is Go-AST; scripts need a lightweight
-    `etcdctl (put|del)` grep gate over `scripts/` with a day-0/membership allowlist).
-  - **Lift the 3 HIDDEN_WORKFLOW** sites onto workflows (then drop them from the
-    disallowed set).
+### RT-4 — principle-check scanner: no new raw writes (M) — coverage ✅ CLOSED
+- **Largely already existed** (DRIFT-by-default, fail-closed). The residual was
+  **coverage**, now closed:
+  - ✅ **`golang/globularcli` is in `actor_writer_dirs`** — the scanner sweeps the
+    CLI; the only matched writes (`audit_log.go` observer self-state,
+    `pkg_override_cmds.go` LocalOverride registry) are allowlisted, so any NEW raw
+    owner-write in the CLI is DRIFT and fails CI.
+  - ✅ **Scripts check (#116)** — `scripts/ci/check-break-glass-gating.sh`, wired as
+    a CI job, fails if any script mutating owner-owned state behind the controller
+    (etcd del/put of `/globular/{resources,plans,nodes}`, or a
+    `/var/lib/globular/clustercontroller/state.json` rewrite) is not gated by `break-glass.sh`. The
+    Go-source scanner can't see bash; this is its bash complement.
+  - ⬜ **Lift the 3 HIDDEN_WORKFLOW** sites onto workflows (separate, bigger — not
+    a coverage item; tracked but out of RT-4's coverage scope).
 - The "RT-4 and BH-1 are one scanner" note from the roadmap resolves cleanly: the
   existing `principle-check` *is* the raw-owner-write static scanner; RT-4 extends its
   *reach* (CLI + scripts), it does not build a second one.
