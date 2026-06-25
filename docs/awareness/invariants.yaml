@@ -11031,3 +11031,48 @@ invariants:
     full spec↔catalog drift cleanup (the Step-0 survey found widespread drift:
     torrent/mcp over-broad, mcp/gateway/xds null, dns under-broad). Unknown
     components are excluded — a distinct condition, never a profile drift.
+- id: govops_behavioral_refusal_uses_compiled_seed_not_live_rpc
+  severity: critical
+  status: active
+  title: govops behavioral refusal is deterministic and locally-sourced from the compiled seed, never a live ai-memory RPC
+  summary: >-
+    The Governed Operation Gateway refuses a raw owner-owned-state write by matching
+    OperationRequest.action against the forbidden-move action_aliases of
+    forbidden.cluster.raw_owner_owned_state_write. That alias set MUST be loaded from
+    the COMPILED cluster_operator behavioral seed pack (cluster_operator.MustNew()) —
+    the same authored artifact behavioral-memory promotes — and never from a live
+    ai-memory CheckAction RPC or the behavioral store/DB. Enforcement is therefore
+    deterministic and locally available: behavioral-memory supplies the rule, govops
+    enforces it, the reconciler stays deterministic. The gate cannot fail open when
+    ai-memory is down, nor can a supplementary-service outage block deterministic
+    convergence, because refusal has no runtime dependency on that service. A matched
+    move yields DecisionRefused with a Violation carrying the forbidden-move id; the
+    owner path is never invoked (govops.Execute); the refusal is recorded in
+    OperationLedgerEntry.behavioral_rules. A live RPC may only ENRICH this gate later
+    as advisory signal — never become the authority required to refuse a known
+    forbidden move. BREAK_GLASS remains the sanctioned, gated raw path and is not
+    subject to this name-based refusal.
+  implemented_by:
+  - file: golang/govops/behavioral.go
+    trust: declared
+  - file: golang/govops/govops.go
+    trust: declared
+  protects:
+    files:
+    - golang/govops/behavioral.go
+    - golang/govops/govops.go
+    symbols:
+    - loadForbiddenAliases
+    - matchRawOwnerWrite
+    - evaluateApply
+    - Execute
+  related_invariants:
+  - desired.keyed_by_kind_and_name
+  - meta.fail_safe_defaults_when_authority_is_uncertain
+  forbidden_fixes:
+  - replace_compiled_seed_match_with_live_behavioral_rpc
+  required_tests:
+  - golang/govops/behavioral_test.go::TestGovopsBehavioralRefusalUsesCompiledSeedNotLiveRPC
+  - golang/govops/behavioral_test.go::TestEvaluateApply_BehavioralForbiddenMove_RefusesRawOwnerWrite
+  - golang/govops/behavioral_test.go::TestExecute_OwnerPathNotInvokedOnBehavioralRefusal
+  - golang/govops/behavioral_test.go::TestLedgerEntryFor_RecordsBehavioralRuleOnRefusal

@@ -3895,3 +3895,21 @@ forbidden_fixes:
     and applicablePromotedPrinciples' declared-vs-sentinel distinction) and
     tests TestCheckActionSentinelOnlyDoesNotOverBlock /
     TestCheckActionDeclaredConditionEngagesGates.
+- id: replace_compiled_seed_match_with_live_behavioral_rpc
+  summary: >-
+    Replace govops's deterministic, in-process forbidden-move match (the alias set
+    loaded from the COMPILED cluster_operator behavioral seed pack) with a live
+    ai-memory behavioral CheckAction RPC — making refusal of a known forbidden move
+    depend on behavioral-memory being reachable. This reopens the exact tension the
+    Governed Operation Gateway closes: ai-memory down => the gate either fails open
+    (loses governance) or fails closed (a supplementary service blocks deterministic
+    control-plane operations). The forbidden spell must be carved into the gate, not
+    a phone call to the oracle.
+  related_invariants:
+  - govops_behavioral_refusal_uses_compiled_seed_not_live_rpc
+  - meta.fail_safe_defaults_when_authority_is_uncertain
+  safe_alternative: >-
+    Keep the compiled-seed alias match as the authority that refuses a known
+    forbidden move — deterministic, locally available, no runtime dependency on
+    ai-memory. A live behavioral RPC may be added later only as ADVISORY enrichment
+    layered on top of, never replacing, the local deterministic gate.
