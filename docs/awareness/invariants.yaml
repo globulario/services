@@ -32,7 +32,7 @@ invariants:
   required_tests: []
   ruleguard_rules_file: cmd/principle-check/rules/duration_vs_deadline_field_naming.go
   scan_pattern: placeholder_unused_when_analysis_mode_is_ruleguard
-  severity: medium
+  severity: warning
   status: active
   summary: "Per-instance enforcement of meta.duration_versus_deadline_is_not_interchangeable.\nA field named Timeout int gives\
     \ the reader no way to know\nwhether the value is seconds, milliseconds, microseconds, or\na Unix deadline timestamp.\
@@ -242,7 +242,7 @@ invariants:
   - meta.diagnostic_output_must_be_bounded
   required_tests:
   - TestSelfCheckReportsNoisySections
-  severity: medium
+  severity: warning
   status: active
   summary: 'Audit warnings that accumulate beyond the configured threshold (>3 in self-check)
 
@@ -553,7 +553,7 @@ invariants:
   - meta.binding_outlives_evidence_until_invalidated
   required_tests:
   - TestGraphDriftNoStaleRefs
-  severity: medium
+  severity: warning
   status: active
   summary: 'Graph edges between awareness nodes (invariant, failure_mode, forbidden_fix,
 
@@ -883,7 +883,7 @@ invariants:
   - meta.diagnostic_output_must_be_bounded
   required_tests:
   - TestNodeContextSmokePasses
-  severity: medium
+  severity: warning
   status: active
   summary: 'GenerateAgentContext must return targeted results for a given task — not
 
@@ -978,7 +978,7 @@ invariants:
   - meta.silence_is_not_valid_for_unexpected
   required_tests:
   - TestSemanticPathIncludesExplanation
-  severity: medium
+  severity: warning
   status: active
   summary: 'ShortestPath results must include a non-empty Explanation field — a
 
@@ -1302,7 +1302,7 @@ invariants:
   ruleguard_rules_file: cmd/principle-check/rules/assertions_must_carry_scope_finding_emit.go
   scan_pattern: placeholder_unused_when_analysis_mode_is_ruleguard
   severity: high
-  status: candidate
+  status: active
   summary: 'Per-instance enforcement of meta.assertions_must_carry_their_scope
 
     for the emitClusterEvent path. The bug shape (INC-2026-0004):
@@ -2181,7 +2181,7 @@ invariants:
   required_tests: []
   ruleguard_rules_file: cmd/principle-check/rules/lifecycle_defer_in_for_loop.go
   scan_pattern: placeholder_unused_when_analysis_mode_is_ruleguard
-  severity: medium
+  severity: warning
   status: active
   summary: "Per-instance enforcement of meta.write_creates_completion_obligation\nfor the defer-in-loop bug class. Go defers\
     \ run at FUNCTION\nexit, not loop-iteration exit. A defer inside a `for` body\nadds to the function's defer stack each\
@@ -2268,7 +2268,7 @@ invariants:
   - meta.circular_dependency_must_have_break_glass
   ruleguard_rules_file: cmd/principle-check/rules/circular_dependency_break_glass_declarative.go
   scan_pattern: placeholder_unused_when_analysis_mode_is_ruleguard
-  severity: medium
+  severity: warning
   status: active
   summary: 'Per-instance enforcement of meta.circular_dependency_must_have_break_glass.
 
@@ -3006,7 +3006,7 @@ invariants:
   - TestLayoutDrift_TransientBackupFile_IsCleanupCandidate
   - TestLayoutDrift_HiddenDir_IsSilent
   - TestLayoutDrift_KnownServicesIncluded
-  severity: medium
+  severity: warning
   status: active
   summary: "The artifact.layout_drift_local rule must classify each unexpected\ntop-level entry under /var/lib/globular/ by\
     \ EVIDENCE, not by absence\nfrom a hard-coded list. The classification matrix:\n\n  - canonical active runtime dir w/\
@@ -5411,7 +5411,7 @@ invariants:
 - id: k8s.crashlooping_pods.explained
   related_invariants:
   - meta.absence_scope_must_be_explicit
-  severity: medium
+  severity: warning
   status: planned
   summary: 'CrashLoopBackOff may be workload_owned (app crash) or substrate_owned
 
@@ -5450,7 +5450,7 @@ invariants:
 - id: k8s.namespace_not_stuck_terminating
   related_invariants:
   - meta.half_done_must_not_look_done
-  severity: medium
+  severity: warning
   status: planned
   summary: 'A stuck namespace indicates either a finalizer issue (workload_owned) or
 
@@ -5477,7 +5477,7 @@ invariants:
 - id: k8s.pending_pods.explained
   related_invariants:
   - meta.absence_scope_must_be_explicit
-  severity: medium
+  severity: warning
   status: planned
   summary: 'Unclassified Pending pods are unknown_insufficient_evidence. Classification
 
@@ -7346,7 +7346,7 @@ invariants:
     confidence_at_promotion: high
     discovered_from: Patch C audit-leak fix; commit a80f7a83 on services/master @ 2026-06-02 17:35 EDT.
     promoted_from: candidate
-  severity: medium
+  severity: warning
   status: active
   summary: 'The fix relied on a swappable function value (auditEtcdPersistFn) in
 
@@ -7660,7 +7660,7 @@ invariants:
 
       explain_artifact + code walk; fixed same-day in v1.2.210.'
     promoted_from: candidate
-  severity: medium
+  severity: warning
   status: active
   title: 'A repository instance starting on a freshly joined node must seed its
 
@@ -9238,7 +9238,7 @@ invariants:
   - TestLayoutDrift_NodeAgentAliasesAreDeterministic
   - TestLayoutDrift_NonEmptyDuplicateAliasProducesDuplicateWarn
   - TestCanonicalRuntimeDir_NoMutationForUnknownNames
-  severity: medium
+  severity: warning
   status: active
   summary: 'Service runtime state under /var/lib/globular/ must use one canonical
 
@@ -9459,7 +9459,7 @@ invariants:
   required_tests: []
   ruleguard_rules_file: cmd/principle-check/rules/timestamp_field_must_be_qualified.go
   scan_pattern: placeholder_unused_when_analysis_mode_is_ruleguard
-  severity: medium
+  severity: warning
   status: active
   summary: 'Per-instance enforcement of meta.timestamp_is_an_observation_not_an_event_time.
 
@@ -9568,7 +9568,7 @@ invariants:
   - workflow.source_of_operational_truth
   required_tests:
   - test.workflow.day0_trace_import_idempotent_and_best_effort
-  severity: medium
+  severity: warning
   status: active
   summary: "importDay0Trace replays /var/lib/globular/day0-install.jsonl\ninto workflow_runs + workflow_steps so that Day-0\
     \ history is\nqueryable after cluster join. The function is observability-\nside, not authority-side — it reconstructs\
@@ -10594,7 +10594,7 @@ invariants:
     infra_explain_stall returns a causal explanation (expected vs actual state,
     blocking violations, last successful stage, owner to repair, safe next
     commands). Raw logs are evidence of last resort, not the diagnostic surface.
-  severity: medium
+  severity: warning
   status: active
   protects:
     files:
@@ -11125,7 +11125,7 @@ invariants:
   - TestClassifyProfileHygiene_ReadOnly
   forbidden_fixes:
   - restore_manifest_profiles_as_runtime_placement_authority
-  severity: medium
+  severity: warning
   status: candidate
   rollout: warn_first_detection_mode
   summary: >-

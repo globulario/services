@@ -368,7 +368,7 @@ failure_modes:
         - TestValidateAnnotationsSkipsTestFiles
       root_cause: |
         ValidateAnnotations uses line-level text scanning (strings.Split + TrimSpace prefix check). Any line matching the //globular: prefix — even inside multi-line raw string literals — is treated as a real annotation. Test fixture files intentionally embed malformed annotation strings to exercise the validator, causing false-positive ERRORs from the package's own tests.
-      severity: MEDIUM
+      severity: warning
       symptoms:
         - awareness audit reports ERRORs from _test.go files, not production code
         - 'Flagged lines are inside backtick string literals that embed intentionally-malformed //globular: patterns'
@@ -1003,7 +1003,7 @@ failure_modes:
         resetting the half-open probe, re-incrementing the open counter, and re-logging — so one
         logical open event was amplified into N (26 observed on 2026-06-09). Re-arming the cooldown
         on each concurrent failure also extends the open window and can starve the half-open probe.
-      severity: medium
+      severity: warning
       symptoms:
         - workflow_circuit_breaker_open_total jumps by tens in under a second (observed 26 in ~1s)
         - controller log shows "circuit OPEN — N failures" repeated with N climbing 5,6,7,... within the same second
@@ -1898,7 +1898,7 @@ failure_modes:
         node-agent's supervisor.WaitActive(30s) timed out waiting for 'active' state after
         install, so installed-state in etcd was never updated — producing persistent version drift
         even though the binary on disk was already replaced.
-      severity: HIGH
+      severity: high
       symptoms:
         - globular-mcp.service stays in 'activating (start)' indefinitely, never reaching 'active (running)'
         - systemd kills mcp_server after TimeoutStartSec (90s) with 'start operation timed out'
@@ -1966,7 +1966,7 @@ failure_modes:
         Compounding: there was no centralized helper to resolve "what is the canonical runtime dir for service X". The duplicates also produced ownership drift because the path that created the dir set the ownership; later writes to the alternate name happened as a different user.
 
         First surfaced 2026-05-28 on globule-ryzen: 4 AI services + node-agent + cluster-doctor + cluster-controller + backup-manager + scylla-manager each had hyphen+underscore pair dirs.
-      severity: warn
+      severity: warning
       symptoms:
         - cluster doctor reports artifact.layout_drift_local with hyphenated and underscored variants of the same service name listed as unexpected
         - directories like cluster-doctor cluster_doctor clusterdoctor coexist under /var/lib/globular for the same logical service
@@ -2434,7 +2434,7 @@ failure_modes:
       related_invariants:
         - workflow.every_state_mutation_belongs_to_a_workflow_instance
         - meta.state_mutations_must_be_durably_committed_before_side_effects
-      severity: medium
+      severity: warning
       status: lifted
       symptoms:
         - ingress spec restored from backup but status not updated, or status updated but spec write failed
@@ -2844,7 +2844,7 @@ failure_modes:
             Live dell join repair driven by awareness_diagnose + node-agent log
             walk; awareness-graph 0.0.23; 2026-06-12 ~00:40-01:00 UTC.
         promoted_from: candidate
-      severity: medium
+      severity: warning
       status: active
       title: |-
         During Day-1 join, envoy/xds mesh reload makes :443 transiently refuse
@@ -2875,7 +2875,7 @@ failure_modes:
         The mcp_service.yaml spec had no start_services or health_checks steps.
         The spec comment said "Day-0 script starts all services together at the end."
         For Day-1 joining nodes, there is no such script — the workflow must start the service.
-      severity: medium
+      severity: warning
       symptoms:
         - mcp binary installed on joining node but globular-mcp.service is inactive
         - no globular-mcp.service journal entries after install
@@ -4048,7 +4048,7 @@ failure_modes:
         WAVE_BLOCKED message even though the packages are installed and correct. The reconciler
         self-heals via signal #2 (node heartbeat reports correct installed version) but only
         after the retry backoff expires and a no-op workflow verifies convergence.
-      severity: medium
+      severity: warning
       symptoms:
         - ServiceRelease phase is FAILED or DEGRADED
         - message contains WAVE_BLOCKED ... note=RUN_STATUS_SUCCEEDED
@@ -4624,7 +4624,7 @@ failure_modes:
         - TestCommandPackageWithNoUnitProducesNoFinding
       root_cause: |
         commandPackage() in the rule is a hardcoded list. New command packages added to catalog not in the list are incorrectly flagged.
-      severity: medium
+      severity: warning
       symptoms:
         - installed_state_runtime_mismatch fires for yt-dlp, rclone, sha256sum, globular-cli
         - doctor reports false-positive ERROR for packages with no daemon
@@ -5186,7 +5186,7 @@ failure_modes:
         - TestDriftOver5MinIsError
       root_cause: |
         Doctor rule had static SEVERITY_WARN for any desired/applied hash mismatch regardless of age. No driftSince tracking, no escalation.
-      severity: medium
+      severity: warning
       symptoms:
         - cluster.services.drift stuck at WARN for hours
         - operator does not notice critical drift on ingress node
@@ -5340,7 +5340,7 @@ failure_modes:
         bootstrap value. The port allocator resolves from etcd at runtime, but
         the constant serves as a silent fallback when etcd is unavailable.
         HARD RULE says: if etcd can't provide a value, error out.
-      severity: medium
+      severity: warning
       status: active
       symptoms:
         - Service starts on a hardcoded port when etcd config is absent
@@ -5388,7 +5388,7 @@ failure_modes:
         globular_service/services.go sets PublisherID="localhost" as the default
         in InitService. Every service inherits it. The fix must be in the shared
         code (derive from srv.Domain or cluster identity), not per-service.
-      severity: medium
+      severity: warning
       status: active
       symptoms:
         - etcd service config shows PublisherID="localhost" for all services
@@ -6011,7 +6011,7 @@ failure_modes:
 
     - id: fm.ui.untyped_dom_event_causes_wrong_refresh
       title: An untyped or generic DOM event triggers the wrong component refresh
-      severity: medium
+      severity: warning
       root_cause: |
         A CustomEvent named "refresh"/"update" with an untyped payload became
         an undocumented global event bus; a malformed or unrelated dispatch
@@ -6024,7 +6024,7 @@ failure_modes:
 
     - id: fm.ui.full_page_reload_masks_state_bug
       title: A full-page reload hides a state-management bug and destroys operator context
-      severity: medium
+      severity: warning
       root_cause: |
         A local state bug was "fixed" with location.reload(), erasing expanded
         panels, selection, filters, and warning visibility — the bug remained,
@@ -6049,7 +6049,7 @@ failure_modes:
 
     - id: fm.ui.listener_leak_duplicates_refresh
       title: Leaked listeners or polling loops cause duplicate refreshes and post-unmount mutations
-      severity: medium
+      severity: warning
       root_cause: |
         A component registered listeners/timers/subscriptions without owning
         cleanup; after unmount or navigation the orphans kept firing —
@@ -6099,7 +6099,7 @@ failure_modes:
 
     - id: fm.ui.operational_context_lost_on_navigation
       title: Operationally relevant screen context is lost on reload or cannot be shared
-      severity: medium
+      severity: warning
       root_cause: |
         Selected node/run/filter context lived only in ephemeral component
         state; reload, back-navigation, or sharing a URL with a colleague

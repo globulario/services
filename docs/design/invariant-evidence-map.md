@@ -28,6 +28,10 @@ awg audit -check -warn-stale -services-repo <services> -ag-repo . # coverage + f
 | **critical/high WITHOUT test-or-NA-reason** | **0** | coverage is complete for the gating tiers |
 
 Severity (post-CG-1 canonicalization): 142 critical, 101 high, 17 medium.
+**Update (CG-6):** the 17 `medium` invariants were remapped to `warning` under the
+AG-native vocabulary `{critical,high,warning,info,degraded}` (the engine's own set;
+`medium` was never valid to `awg propose`). `warning` is non-gating, same as `medium`
+was — the critical/high gating tier is unchanged.
 
 ## Findings & actions
 
@@ -51,12 +55,19 @@ Severity (post-CG-1 canonicalization): 142 critical, 101 high, 17 medium.
 4. **17 non-active** (16 planned `k8s.*` + 1 candidate) — pending by design; no
    evidence expected yet. Tracked, not gaps.
 
-## Open follow-ups (not done; deferred by choice)
+## Open follow-ups
 
-- **Mechanize the severity vocabulary** (CG-4-adjacent): make `awg validate`
-  reject any `severity` outside `{critical,high,medium,low}` as a hard finding so
-  finding #1's class cannot recur silently. Deferred — fixed the instances first.
-- **Impl-anchor backfill** for the 7 in finding #3 (metadata only).
+- **Mechanize the severity vocabulary** — ✅ **DONE (CG-6).** `awg validate` now
+  emits a hard `invalid_severity` finding for any off-vocab value, so finding #1's
+  class cannot recur silently. **Correction:** the canonical set is **NOT**
+  `{critical,high,medium,low}` as this audit assumed — that was a services-side
+  premise. The governing contract is the AG engine's own vocabulary
+  (`cmd_propose.go` + `api-reference.md`): **`{critical,high,warning,info,degraded}`**.
+  CG-1's `medium`/`low` were themselves off-vocab to the engine; they were remapped
+  (`medium`/`warn`→`warning`, `low`→`info`) along with case-variants
+  (`HIGH`/`ERROR`→`high`) across both repos. Mapping preserves the gating boundary
+  (audit gates critical/high only; nothing crossed it). See **CG-6** in the roadmap.
+- **Impl-anchor backfill** for the 7 in finding #3 (metadata only) — still open (CG-3 long tail).
 
 ## Conclusion
 
