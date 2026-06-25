@@ -9641,12 +9641,9 @@ invariants:
   # golang/globularcli classifies as DRIFT and fails pre-merge. RT-2 migrates each
   # onto the owner's typed RPC / the govops ops-apply path, then removes its entry.
   # See docs/design/rt1-direct-write-surface-audit.md (Surface D, CLI work-list).
-  - category: exception_pending_owner_routing_migration
-    file: golang/globularcli/desired_state_helpers.go
-    reason: 'RT-2 debt (partially migrated): release set-infra-version now routes through the ApplyInfrastructureRelease owner RPC (no longer raw). Remaining raw write is upsertServiceDesiredVersion, used by pkg override apply/restore — migrate that next, then drop this entry.'
-  - category: exception_pending_owner_routing_migration
+  - category: exception_5_service_self_config
     file: golang/globularcli/pkg_override_cmds.go
-    reason: 'RT-2 debt: pkg override apply/remove raw-write controller-owned ServiceDesiredVersion + override prefix; migrate to controller RPC'
+    reason: 'pkg override ServiceDesiredVersion write migrated to the UpsertDesiredService owner RPC (RT-2). The remaining raw writes are the LocalOverride registry (/globular/releases/local_overrides/) — CLI-local override tracking, NOT owner-owned critical state (no entry in config.CriticalKeyPolicies). If the controller should own this, that is a separate RT-2 follow-up.'
   - category: exception_pending_owner_routing_migration
     file: golang/globularcli/objectstore_cmds.go
     reason: 'RT-2 debt: objectstore topology sanitize-pool raw-writes controller state blob + objectstore placement; migrate to controller RPC'
