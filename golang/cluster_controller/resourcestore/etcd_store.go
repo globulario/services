@@ -12,6 +12,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 )
 
 //go:schemalint:ignore — implementation type, not schema owner
@@ -20,6 +21,21 @@ type etcdStore struct {
 }
 
 const resourceKeyPrefix = "/globular/resources"
+
+// controllerWriterID is the registered owner of the /globular/resources/ prefix
+// in config.CriticalKeyPolicies. The resourcestore is the cluster-controller's
+// authoritative writer for desired/release state, so every write it performs is
+// attributed to this owner.
+const controllerWriterID = "cluster-controller"
+
+// guardOwner enforces config.ValidateCriticalKeyOwner before a resources write —
+// the runtime activation (RT-2) of the critical-key ownership table at the
+// desired-state write chokepoint. The cluster-controller owns /globular/resources/*,
+// so legitimate writes pass; this fails closed if a non-owner writer ever reaches
+// this store. It is also the seam RT-3 routes the govops gateway through.
+func guardOwner(key string) error {
+	return config.ValidateCriticalKeyOwner(key, controllerWriterID)
+}
 
 func NewEtcdStore(cli *clientv3.Client) Store {
 	return &etcdStore{cli: cli}
@@ -88,7 +104,11 @@ func (s *etcdStore) Apply(ctx context.Context, typ string, obj interface{}) (int
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.cli.Put(ctx, keyFor(typ, meta.Name), string(b))
+	key := keyFor(typ, meta.Name)
+	if err := guardOwner(key); err != nil {
+		return nil, err
+	}
+	resp, err := s.cli.Put(ctx, key, string(b))
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +121,11 @@ func (s *etcdStore) Apply(ctx context.Context, typ string, obj interface{}) (int
 }
 
 func (s *etcdStore) Delete(ctx context.Context, typ, name string) error {
-	_, err := s.cli.Delete(ctx, keyFor(typ, name))
+	key := keyFor(typ, name)
+	if err := guardOwner(key); err != nil {
+		return err
+	}
+	_, err := s.cli.Delete(ctx, key)
 	return err
 }
 

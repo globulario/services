@@ -6175,3 +6175,12 @@ required_tests:
     files:
     - golang/govops/behavioral.go
     - golang/govops/behavioral_test.go
+# ── RT-2: ownership enforced at the desired-state write chokepoint ───────────
+- id: golang/cluster_controller/resourcestore/owner_guard_test.go::TestGuardOwner_EnforcesCriticalKeyOwnerAtResourceWrite
+  title: the resourcestore desired-state chokepoint enforces config.ValidateCriticalKeyOwner (owner passes, non-owner refused)
+  protects:
+    invariants:
+    - critical_state.owner_enforced_at_resource_write
+    files:
+    - golang/cluster_controller/resourcestore/etcd_store.go
+    - golang/cluster_controller/resourcestore/owner_guard_test.go
