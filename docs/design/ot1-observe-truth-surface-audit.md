@@ -138,8 +138,10 @@ The highest-leverage move — it re-arms the gate that already exists:
    `addError`'d must emit UNKNOWN for that scope (`meta.absence_scope_must_be_explicit`).
 
 ### OT-3 — read-endpoint freshness contracts (M)
-1. **Atomic desired+runtime** via `config.RunTxnWithClass` (the RT-3 Txn primitive)
-   — closes the self-documented KNOWN GAP and the diverged-state false-diagnosis.
+1. ✅ **Atomic desired+runtime (#127)** — `SaveServiceConfiguration` now writes the
+   desired + runtime keys in one `config.RunTxnWithClass` transaction (the RT-3 Txn
+   primitive), both or neither. Closes the self-documented KNOWN GAP and the
+   diverged-state false-diagnosis. A direct dividend of the write-governance work.
 2. **Freshness signal on the config mirror.**
    - ✅ **Exposure primitive (#128).** `depcache.Cache.LastFetchedAt(key)` exposes the
      last *successful* fetch time (which does not advance on a stale-serve), and
