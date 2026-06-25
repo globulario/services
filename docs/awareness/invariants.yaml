@@ -9615,6 +9615,7 @@ invariants:
   - golang/domain
   - golang/backup_manager
   - golang/audittrail
+  - golang/globularcli
   architectural_decision: "Resolved 2026-06-05. The deferred test\nTestReconcileLoop_DispatchesOneInstancePerArtifactNodePair\n\
     carried an ambiguity between two readings of \"one workflow\ninstance per (artifact, node) pair\":\n\n  (a) one step-receipt\
     \ instance (run_id + step_id) per pair,\n      with one workflow_run per release iterating nodes via\n      foreach; OR\n\
@@ -9633,6 +9634,34 @@ invariants:
     \ by\nconstruction, and the YAML-static test pins that construction.\nA future test seam on executeWorkflowCentralized\
     \ would be\nuseful for testing failure-injection scenarios but is not\nload-bearing for this invariant.\n"
   exception_files:
+  # ── RT-4 baseline: pre-existing golang/globularcli raw owner-owned writes ──
+  # These CLI command paths write owner-owned etcd state directly, bypassing the
+  # owner RPC. They are BASELINED here as known debt at the RT-4 coverage point
+  # (tracked, NOT blessed) so the scanner is green now while any NEW raw write in
+  # golang/globularcli classifies as DRIFT and fails pre-merge. RT-2 migrates each
+  # onto the owner's typed RPC / the govops ops-apply path, then removes its entry.
+  # See docs/design/rt1-direct-write-surface-audit.md (Surface D, CLI work-list).
+  - category: exception_pending_owner_routing_migration
+    file: golang/globularcli/state_cmds.go
+    reason: 'RT-2 debt: state canonicalize --fix-installed raw-writes node_agent-owned L3 installed buildId; migrate to node_agent SetInstalledPackage RPC (highest severity — cross-owner L3)'
+  - category: exception_pending_owner_routing_migration
+    file: golang/globularcli/desired_state_helpers.go
+    reason: 'RT-2 debt: release set-infra-version / desired helpers raw-write controller-owned desired/InfrastructureRelease; ApplyInfrastructureRelease RPC already exists'
+  - category: exception_pending_owner_routing_migration
+    file: golang/globularcli/pkg_override_cmds.go
+    reason: 'RT-2 debt: pkg override apply/remove raw-write controller-owned ServiceDesiredVersion + override prefix; migrate to controller RPC'
+  - category: exception_pending_owner_routing_migration
+    file: golang/globularcli/objectstore_cmds.go
+    reason: 'RT-2 debt: objectstore topology sanitize-pool raw-writes controller state blob + objectstore placement; migrate to controller RPC'
+  - category: exception_pending_owner_routing_migration
+    file: golang/globularcli/objectstore_disk_cmds.go
+    reason: 'RT-2 debt: objectstore topology apply raw-writes the objectstore apply-request handshake; migrate to controller RPC'
+  - category: exception_pending_owner_routing_migration
+    file: golang/globularcli/acc_cmds.go
+    reason: 'RT-2 debt: cluster acc set/reset raw-writes controller-owned /globular/system/acc/config; migrate to controller RPC'
+  - category: exception_1_observer_only_self_state
+    file: golang/globularcli/audit_log.go
+    reason: CLI append-only audit record to /globular/audit/{ts}_{action}_{service} (observer self-state, not a cluster-state mutation)
   - category: exception_1_observer_only_self_state
     file: golang/node_agent/node_agent_server/heartbeat.go
     reason: heartbeat observer-only
