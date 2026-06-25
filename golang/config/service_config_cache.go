@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/globulario/services/golang/internal/depcache"
 )
@@ -56,6 +57,18 @@ func StartServiceConfigWatcher(ctx context.Context) error {
 //
 // Top-level map values are copied shallowly. This is sufficient because service
 // config values are strings, numbers, and booleans — no nested mutable types.
+// ServiceConfigCacheLastFresh reports when the cached service-configuration list
+// was last successfully fetched from etcd, and whether the cache is populated.
+// time.Since(lastFresh) is the age of what GetServicesConfigurations currently
+// serves: GetServicesConfigurations returns a nil error even when serving
+// stale-if-error data, so this is the only way a consumer can tell the difference.
+// When the age exceeds the cache TTL (PolicyHotConfig, 5s) etcd fetches are
+// failing and the served config is stale — the freshness signal the cluster-doctor
+// (and xDS) should treat as DEGRADED rather than authoritative (OT-3).
+func ServiceConfigCacheLastFresh() (time.Time, bool) {
+	return getServiceCache().LastFetchedAt("all")
+}
+
 func deepCopyServiceList(src []map[string]interface{}) []map[string]interface{} {
 	if src == nil {
 		return nil

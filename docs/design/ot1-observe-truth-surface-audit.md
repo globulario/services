@@ -140,9 +140,17 @@ The highest-leverage move — it re-arms the gate that already exists:
 ### OT-3 — read-endpoint freshness contracts (M)
 1. **Atomic desired+runtime** via `config.RunTxnWithClass` (the RT-3 Txn primitive)
    — closes the self-documented KNOWN GAP and the diverged-state false-diagnosis.
-2. **Freshness signal on the config mirror.** When `GetServicesConfigurations`
-   serves from the stale-if-error window, surface the age so the doctor (and xDS)
-   can treat it as DEGRADED rather than authoritative.
+2. **Freshness signal on the config mirror.**
+   - ✅ **Exposure primitive (#128).** `depcache.Cache.LastFetchedAt(key)` exposes the
+     last *successful* fetch time (which does not advance on a stale-serve), and
+     `config.ServiceConfigCacheLastFresh()` surfaces it for the service-config cache —
+     so a consumer can tell that `GetServicesConfigurations` returned stale-if-error
+     data even though its error is nil.
+   - ⬜ **Consumer.** A doctor collector/rule that reads `ServiceConfigCacheLastFresh`
+     and emits a DEGRADED finding when the served config is older than the TTL (and
+     ideally xDS treating a stale mirror as degraded). Deferred so the rule
+     registration doesn't churn the doctor registry alongside other in-flight doctor
+     work.
 3. **Strongly-consistent reads for doctor-critical paths** (drop `WithSerializable`
    where the doctor forms findings).
 4. **RBAC cross-instance cache invalidation** (event/watch-based).

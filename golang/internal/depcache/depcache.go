@@ -4,11 +4,11 @@
 //
 // Policy contract:
 //
-//   TTL > 0     — cache successful results; return without calling fetch until TTL elapses.
-//   TTL == 0    — no positive-result caching; fetch is called on every Get.
-//               Successful results are still stored so stale-if-error can serve them on failure.
-//   StaleIfError > 0 — on fetch failure, serve a prior result if it was stored within that window.
-//   StaleIfError == 0 — return fetch errors directly; no stale value served.
+//	TTL > 0     — cache successful results; return without calling fetch until TTL elapses.
+//	TTL == 0    — no positive-result caching; fetch is called on every Get.
+//	            Successful results are still stored so stale-if-error can serve them on failure.
+//	StaleIfError > 0 — on fetch failure, serve a prior result if it was stored within that window.
+//	StaleIfError == 0 — return fetch errors directly; no stale value served.
 //
 // Install and release resolver paths MUST use PolicyNoStale (TTL=0, StaleIfError=0).
 // Returning a stale lifecycle state (e.g. YANKED artifact as PUBLISHED) from those
@@ -171,6 +171,23 @@ func (c *Cache[K, V]) InvalidateAll() {
 	c.mu.Lock()
 	c.entries = make(map[K]*entry[V])
 	c.mu.Unlock()
+}
+
+// LastFetchedAt returns the time the entry for key was last SUCCESSFULLY fetched
+// from the source, and whether an entry exists. fetchedAt advances only on a
+// successful fetch — never when a stale value is served under StaleIfError — so
+// time.Since(LastFetchedAt) is the true age of the data Get currently serves. A
+// value older than the TTL means the source fetch is failing and the cache is
+// serving stale-if-error; callers (e.g. the cluster-doctor) use this to detect
+// stale-served reads that would otherwise come back with a nil error.
+func (c *Cache[K, V]) LastFetchedAt(key K) (time.Time, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	e, ok := c.entries[key]
+	if !ok {
+		return time.Time{}, false
+	}
+	return e.fetchedAt, true
 }
 
 // loadWithin returns the stored value if it exists and was fetched within maxAge.
