@@ -41,7 +41,6 @@ const (
 // +globular:schema:readers="globular-node-agent,globular-cluster-doctor"
 // +globular:schema:description="Authoritative MinIO topology: mode, pool, endpoint, credentials, generation."
 // +globular:schema:invariants="Single-writer (controller); node-agents render locally from this; never authored locally."
-//
 type ObjectStoreDesiredState struct {
 	// Mode is the deployment topology.
 	Mode ObjectStoreMode `json:"mode"`
@@ -166,7 +165,6 @@ func EtcdKeyNodeRenderedStateFingerprint(nodeID string) string {
 // The fingerprint covers: generation, mode, sorted node list, drives_per_node,
 // volumes_hash. Endpoint/credentials are intentionally excluded — they don't
 // affect the distributed topology geometry.
-//
 func RenderStateFingerprint(state *ObjectStoreDesiredState) string {
 	if state == nil {
 		return ""
@@ -278,11 +276,10 @@ func SaveObjectStoreDesiredState(ctx context.Context, state *ObjectStoreDesiredS
 		return fmt.Errorf("objectstore desired state: marshal: %w", err)
 	}
 
-	cli, err := GetEtcdClient()
-	if err != nil {
-		return fmt.Errorf("objectstore desired state: etcd unavailable: %w", err)
-	}
-	if _, err := cli.Put(ctx, EtcdKeyObjectStoreDesired, string(data)); err != nil {
+	// Route through the governed critical-write seam (RT-3 funnel): owner-guarded
+	// (/globular/objectstore/config is cluster-controller-owned) plus the
+	// critical-write retry/timeout policy, instead of a bare cli.Put.
+	if err := PutRuntimeWithClass(ctx, EtcdKeyObjectStoreDesired, data, CriticalWrite); err != nil {
 		return fmt.Errorf("objectstore desired state: etcd put: %w", err)
 	}
 	return nil

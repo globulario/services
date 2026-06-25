@@ -246,10 +246,12 @@ Work-list (all done):
   - ✅ **ingress spec + backup** → first consumer (#117): now an atomic guarded Txn
     (was two non-atomic raw Puts), which also keeps the backup consistent with the
     spec for `restoreIngressSpecFromBackup`.
-  - ⬜ remaining funnel paths: `publishCAMetadataLocked` (`/globular/pki/ca`),
-    `publishObjectStoreDesiredStateLocked` (`/globular/objectstore/config`), the scylla
-    schema-guard write — plus a ratchet so new controller critical-writes can't bypass
-    the seam.
+  - ✅ **objectstore/config** (#118): `config.SaveObjectStoreDesiredState` (the sole
+    writer of `/globular/objectstore/config`, controller-only) routes through
+    `PutRuntimeWithClass(CriticalWrite)` — owner-guarded + critical-write policy.
+  - ⬜ remaining funnel paths: `publishCAMetadataLocked` (`/globular/pki/ca` +
+    `/globular/pki/ca.crt`, two keys, bootstrap path), the scylla schema-guard write —
+    plus a ratchet so new controller critical-writes can't bypass the seam.
 - `ops apply` already demonstrates the operation-layer pattern end-to-end (Validate →
   typed dispatch). Generalize it so the CLI paths from RT-2 land on it.
 - Once a write flows through `Validate`, **BH-1's forbidden-move refusal and the
