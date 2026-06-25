@@ -141,6 +141,44 @@ func resolveWriteKV() (kvWriter, error) {
 	return etcdClient()
 }
 
+// localWriterIdentity is the component name this process writes etcd as (e.g.
+// "cluster-controller", "node-agent"). When non-empty, the critical-write
+// primitives reject writes to a critical key this identity is not an authorized
+// writer of (ValidateCriticalKeyOwner) — runtime owner-enforcement at the lowest
+// layer (RT-3). It is fail-OPEN: a process that never registers an identity is
+// unguarded (so tests, tools, and not-yet-registered binaries keep working), and
+// only registered owners are held to the ownership table.
+var (
+	localWriterIdentityMu sync.RWMutex
+	localWriterIdentity   string
+)
+
+// SetLocalWriterIdentity registers the component name this process writes as.
+// Call once at startup, before any critical write. Passing "" clears it
+// (returns to unguarded/fail-open).
+func SetLocalWriterIdentity(id string) {
+	localWriterIdentityMu.Lock()
+	localWriterIdentity = id
+	localWriterIdentityMu.Unlock()
+}
+
+// LocalWriterIdentity returns the registered writer identity ("" if unset).
+func LocalWriterIdentity() string {
+	localWriterIdentityMu.RLock()
+	defer localWriterIdentityMu.RUnlock()
+	return localWriterIdentity
+}
+
+// guardLocalWriterOwnership enforces ValidateCriticalKeyOwner for the registered
+// process identity. Fail-open when no identity is registered.
+func guardLocalWriterOwnership(key string) error {
+	id := LocalWriterIdentity()
+	if id == "" {
+		return nil
+	}
+	return ValidateCriticalKeyOwner(key, id)
+}
+
 // writeJitter returns a float64 in [0, 1) used for backoff randomisation.
 // Overridable in tests for deterministic behaviour.
 var writeJitter = rand.Float64
@@ -159,6 +197,9 @@ var writeJitter = rand.Float64
 // per-attempt sub-context respects whichever deadline is earlier. ctx
 // cancellation is also checked between retries so callers can abort promptly.
 func PutRuntimeWithClass(ctx context.Context, key string, value []byte, class WriteClass) error {
+	if err := guardLocalWriterOwnership(key); err != nil {
+		return fmt.Errorf("PutRuntimeWithClass(%s): %w", class, err)
+	}
 	kv, err := resolveWriteKV()
 	if err != nil {
 		return fmt.Errorf("PutRuntimeWithClass(%s): etcd connect: %w", class, err)
@@ -214,6 +255,9 @@ func PutRuntimeWithClass(ctx context.Context, key string, value []byte, class Wr
 // this to retract critical keys (e.g. a controller resetting its acc-config) through
 // the same governed write seam rather than a raw clientv3 Delete.
 func DeleteRuntimeWithClass(ctx context.Context, key string, class WriteClass) (bool, error) {
+	if err := guardLocalWriterOwnership(key); err != nil {
+		return false, fmt.Errorf("DeleteRuntimeWithClass(%s): %w", class, err)
+	}
 	kv, err := resolveWriteKV()
 	if err != nil {
 		return false, fmt.Errorf("DeleteRuntimeWithClass(%s): etcd connect: %w", class, err)

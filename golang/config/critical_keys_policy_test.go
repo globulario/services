@@ -63,8 +63,13 @@ func TestUnknownWriterRejected(t *testing.T) {
 		{"/globular/resources/DesiredService/my-svc", "cluster-controller", false},
 		{"/globular/scylla/schema_guard/globular", "cluster-controller", false},
 		// Prefix matches — wrong owner.
-		{"/globular/nodes/node-abc/status", "cluster-controller", true},
+		// cluster-controller IS an authorized writer of /globular/nodes/ (it commits
+		// installed-state there during release/convergence — AuthorizedWriters), so a
+		// /globular/nodes/ write by cluster-controller is permitted, not rejected.
+		{"/globular/nodes/node-abc/status", "cluster-controller", false},
 		{"/globular/resources/ServiceRelease/svc", "node-agent", true},
+		// A writer that is neither owner nor authorized is still rejected.
+		{"/globular/nodes/node-abc/packages/svc/echo", "rogue-process", true},
 		// Unregistered key — no restriction (returns nil regardless of writer).
 		{"/globular/unknown/key", "any-writer", false},
 		{"/custom/not/registered", "rogue-process", false},
@@ -104,8 +109,8 @@ func TestDeleteCriticalKeyTriggerOwnerRestore(t *testing.T) {
 	// Prefix-based lookups: a concrete key under the prefix must return the
 	// prefix owner so the restore guardian can be identified.
 	prefixCases := []struct {
-		key         string
-		wantOwner   string
+		key       string
+		wantOwner string
 	}{
 		{"/globular/resources/DesiredService/my-svc", "cluster-controller"},
 		{"/globular/nodes/node-abc/packages/globular-envoy", "node-agent"},
