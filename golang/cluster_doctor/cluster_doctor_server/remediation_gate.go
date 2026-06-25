@@ -27,22 +27,19 @@ type remediationGateState struct {
 	Escalated          bool  `json:"escalated"`
 }
 
-// The gate state was previously persisted to /globular/cluster_doctor/
-// remediation_gate/<key> in etcd so escalations survived a doctor restart.
-// invariant:cluster_doctor.observer_only_never_writes_etcd forbids that
-// write. As of v1.2.166 the gate state is in-memory only via the
-// autoRemediationGateByTarget sync.Map.
+// Escalation-state persistence (EX-3). The gate state is held in-memory in
+// autoRemediationGateByTarget for the process lifetime AND persisted across
+// restart/failover through ai-memory (NEVER etcd —
+// invariant:cluster_doctor.observer_only_never_writes_etcd). The persist/load/
+// delete bodies live in remediation_gate_persist.go; they are the sanctioned
+// replacement for the etcd persistence removed in v1.2.166, closing
+// failure_mode:doctor.escalation_state_lost_on_restart without reintroducing a
+// doctor etcd write. An escalation is observer memory — a safety refusal — not
+// desired state; it is cleared only by remediationGateClear (success) or an
+// operator, never on a timer
+// (forbidden_fix:auto_clear_escalation_without_operator_approval).
 //
-// Trade-off acknowledged: failure_mode:doctor.escalation_state_lost_on_restart
-// is now exposed at the doctor-restart boundary. Recovering it without an
-// etcd write requires persistence through ai-memory (the doctor's typed
-// history store) — tracked as the follow-up to this commit. Until that
-// lands the gate counters reset on doctor restart and operator approval
-// is required again for any action that was previously escalated.
-//
-// The hook functions remain in place so tests can inject a fake persistence
-// surface and so the eventual ai-memory wiring slots in here without
-// touching call sites.
+// The Fn seams let tests inject a fake persistence surface.
 var (
 	remediationGatePersistFn = remediationGatePersist
 	remediationGateLoadFn    = remediationGateLoad
@@ -86,41 +83,6 @@ func remediationGateClear(key string) {
 	autoRemediationGateByTarget.Delete(key)
 	remediationGateDeleteFn(context.Background(), key)
 }
-
-// remediationGatePersist is intentionally a no-op as of v1.2.166.
-//
-// invariant:cluster_doctor.observer_only_never_writes_etcd forbids the
-// previous /globular/cluster_doctor/remediation_gate/<key> write. The
-// gate state is held in autoRemediationGateByTarget (sync.Map) for the
-// doctor's process lifetime.
-//
-// See:
-//   invariant:cluster_doctor.observer_only_never_writes_etcd
-//   forbidden_fix:cluster_doctor_direct_write_to_etcd
-//   failure_mode:doctor.escalation_state_lost_on_restart (now exposed
-//                until ai-memory wiring lands)
-func remediationGatePersist(_ context.Context, _ string, _ remediationGateState) {
-	// Observer-only: no etcd write. In-memory state in
-	// autoRemediationGateByTarget is the only persistence until ai-memory
-	// wiring replaces this.
-}
-
-// remediationGateLoad is intentionally a no-op as of v1.2.166. See
-// remediationGatePersist. Returns zero-state so callers fall through to
-// "no prior state" semantics.
-func remediationGateLoad(_ context.Context, _ string) (remediationGateState, bool) {
-	return remediationGateState{}, false
-}
-
-// remediationGateDelete is intentionally a no-op as of v1.2.166. The
-// in-memory state is removed by the autoRemediationGateByTarget.Delete
-// call in remediationGateClear, which is the only thing callers need.
-func remediationGateDelete(_ context.Context, _ string) {
-	// Observer-only: no etcd delete.
-}
-
-// Keep the time import referenced (still used by LastRejectionAt).
-var _ = time.Now
 
 type remediationGateSummary struct {
 	Escalated int

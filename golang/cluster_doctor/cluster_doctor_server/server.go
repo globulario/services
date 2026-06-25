@@ -257,6 +257,11 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 			dialOptionsForInternalService(memTarget.ServerName)...); memErr == nil {
 			aiMemClient = ai_memorypb.NewAiMemoryServiceClient(memConn)
 			col.WithAiMemoryClient(aiMemClient)
+			// Persist the remediation escalation gate (a safety refusal) across
+			// restart/failover via ai-memory — never etcd (EX-3). Reuses this same
+			// shared client; nil-safe — if ai-memory is unreachable the gate
+			// degrades to in-memory only.
+			setRemediationGateAiMemoryClient(aiMemClient)
 		} else {
 			logger.Warn("ai-memory client init failed — seed drift detection disabled", "err", memErr)
 		}
