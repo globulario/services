@@ -1,274 +1,166 @@
-# Globular — Roadmap from 7.5 to 9+
+# Globular — Governance-Loop Roadmap (Tier A–G)
 
-This plan addresses every gap identified in the project assessment. Each item is concrete, scoped, and ordered by dependency and impact.
-
----
-
-## Phase A: CLI Allocation Protocol (score impact: +0.3)
-
-**Goal:** CLI and deploy pipeline use `AllocateUpload` — no more hardcoded versions.
-
-### A1. Wire `--bump` into `globular pkg publish`
-- Add `--bump patch|minor|major` flag to `pkg_cmds.go`
-- When `--bump` is set, call `AllocateUpload` RPC before uploading
-- Use the returned `version`, `build_id`, and `reservation_id`
-- Remove `--version` as required (keep as optional override with `EXACT` intent)
-
-### A2. Wire `--bump` into `globular deploy`
-- `deploy.go` calls `AllocateUpload` instead of `NextBuildNumber`
-- Remove hardcoded version logic entirely
-- Read `build_id` from allocation response, pass through the pipeline
-- `DeployResult` carries `BuildID` to desired-state update
-
-### A3. Update `globular services desired set` to accept build_id
-- When setting desired state with a specific build, pass `build_id` directly
-- Controller validates against repository (already implemented)
-
-### A4. Deprecation warnings
-- If `--version` is used without `--bump`, log: "deprecated: use --bump to let the repository allocate versions"
-- 90-day transition window before removing `--version` default behavior
+> **Map correction (2026-06-25, second pass — read this).** A first rewrite today
+> declared GC-2 the "unstarted keystone." **That was wrong.** It was derived from
+> the `services` repo git log alone. The Tier A/B/C governance loop
+> (`GC / WB / CG`) does **not** live in `services` — it lives in the separate
+> **`awareness-graph` repo**, where GC-1/2/3, WB-1/2/3, and CG-5/6 are all
+> **merged on master**. This file now matches reality across **both** repos.
+>
+> **THE CROSS-REPO RULE (the trap that bit us):** the Tier A–G work is split
+> across two repos. Never score a tier from one repo's log.
+> - **`services`** (this repo) → **RT, OT, EX, BH** (Go services, controller, node-agent, doctor, govops).
+> - **`awareness-graph`** (`~/Documents/github.com/globulario/awareness-graph`) → **GC, WB, CG** (the awg corpus, seed pipeline, coherence gates).
+>
+> The map had an old bridge drawn where the river had moved. It's fixed now.
 
 ---
 
-## Phase B: Deploy and Validate Phases 3-7 (score impact: +0.3)
+## The core correction (revised, verified 2026-06-25)
 
-**Goal:** All Phase 3-7 code deployed to the live cluster and validated.
+The **runtime (RT)**, **operator-truth (OT)**, **execution-surface (EX)** tiers
+in `services` AND the **awareness-loop tiers (GC/WB/CG)** in `awareness-graph`
+are **materially built and merged.** The conveyor belt the first rewrite said
+was missing — automated authored-YAML → seed → embeddata rebuild on merge —
+**exists, runs, and is healthy** (`awareness-graph` `seed-rebuild.yml`, bot
+commits `fafdda9`, `00b3769`).
 
-### B1. Deploy repository with Phase 3 (ledger + monotonicity)
-- Build and publish repository with `release_ledger.go`
-- Verify ledger migration runs on startup
-- Test: upload version 0.0.1 after 0.0.8 → rejected with `FailedPrecondition`
-- Test: `getLatestRelease()` returns correct build_id
+**GC-2 is GREEN — there is no GC-2 build work remaining.** An earlier recurring
+stamp-staleness wound (the auto-rebuild refreshed `awareness.nt` but left
+`awareness.transaction.tsv` stale, and `[skip ci]` hid the resulting test
+break — manual "restore master" commits #132, #135) was **systemically fixed by
+#136** (`3699ff3`): the bot now commits the stamp *with* the seed (gated on the
+seed changing so the non-reproducible binary SHA doesn't churn), runs an
+**in-workflow integrity gate** (`go build ./...` + embedded-seed integrity
+tests) before the push, and dropped `[skip ci]`. **Verified this session:** the
+two integrity tests (`TestMetadata_ExposesEmbeddedSeedMarkerState`,
+`TestGraphAuthorityCarriesEmbeddedTransactionCertification`) **pass on
+origin/master** — stamp certifies the current seed.
 
-### B2. Deploy repository with Phase 4 (allocation)
-- Verify `AllocateUpload` RPC responds
-- Test: call with `BUMP_PATCH` → returns next version
-- Test: two concurrent allocations for same version → second gets `ResourceExhausted`
-- Test: reservation expires after 5 minutes
+> ⚠️ **Stale branch:** `fix/regenerate-stale-transaction-stamp` (`31b4c2c`) is a
+> **pre-#136 manual restore** — its own commit body proposes, as "Follow-up (not
+> here)", exactly what #136 then implemented. It is **superseded; do not land
+> it.** (It carries unrelated uncommitted working-tree changes — leave those to
+> the owner.)
 
-### B3. Validate Phase 5 (repair tooling)
-- Run `globular repository scan` on live cluster
-- Verify classifications are correct (VALID, DUPLICATE_CONTENT, ORPHANED)
-- Run `--cleanup-ghosts` and confirm ghost nodes are removed
-- Query audit log at `/globular/audit/` and confirm entries
+**The remaining frontier is the coverage grind, not the loop.** With the
+conveyor belt healthy, CG-2 promotions and BH enforcement coverage are now
+genuinely *downhill*. That is where effort should go next.
 
-### B4. Validate Phase 6 (provisional import)
-- Call `ImportProvisionalArtifact` with a test package
-- Verify: same digest → idempotent
-- Verify: different digest → rejected
-- Verify: new version → added to ledger
+### "Same letter, different animal" — the EX label trap (still true)
 
-### B5. Verify Phase 7 (discovery consolidation)
-- Publish a new package, confirm descriptor appears in Resource service
-- Confirm `pkg register` CLI is not needed (repository handles it)
-
----
-
-## Phase C: Automated Invariant Tests (score impact: +0.5)
-
-**Goal:** Every invariant (INV-1 through INV-10) has an automated test that runs on every commit.
-
-### C1. Repository invariant tests
-```
-TestINV1_ReleasedArtifactImmutable
-  - Upload v1.0.0 → PUBLISHED
-  - Upload v1.0.0 with different digest → AlreadyExists
-  - Upload v1.0.0 with same digest → idempotent success
-
-TestINV2_MonotonicVersions
-  - Upload v1.0.0 → PUBLISHED
-  - Upload v0.9.0 → FailedPrecondition
-  - Upload v1.0.1 → success
-
-TestINV3_BuildIdServerGenerated
-  - Upload with client-supplied build_id → ignored
-  - Response contains server-generated UUIDv7
-  - Manifest in storage has server build_id
-
-TestINV4_BuildNumberDisplayOnly
-  - Convergence comparison uses build_id only
-  - No code path uses build_number for decisions
-```
-
-### C2. Convergence truth tests
-```
-TestConvergenceTruth_SuccessAfterActive
-  - Apply package → response OK=true
-  - Verify systemctl is-active returns true
-  - Verify installed-state has buildId
-  - Verify installed-state was NOT written before restart
-
-TestConvergenceTruth_FailureOnRestartFail
-  - Break service with systemd drop-in
-  - Apply → response OK=false, status=failed
-  - Verify installed-state has status=failed
-  - No premature installed write
-
-TestConvergenceTruth_SelfUpdate
-  - Apply node-agent → status=upgrading
-  - Upgrader runs in separate cgroup
-  - After restart, installed-state has buildId
-```
-
-### C3. Desired-state tests
-```
-TestINV6_DesiredStateRequiresRepo
-  - Set desired for non-existent version → NotFound
-  - Set desired when repo unreachable → Unavailable
-  - Set desired for existing version → success with build_id
-
-TestINV7_OnlyReleasedInstallable
-  - Upload artifact (VERIFIED, not PUBLISHED)
-  - Apply → publish guard rejects
-```
-
-### C4. CI integration
-- Add `make test-invariants` target
-- Run on every PR via GitHub Actions
-- Tests use in-process repository (no cluster required)
-- Separate `make test-integration` for cluster-level tests
+| Label | Correct framing | Status |
+|-------|-----------------|--------|
+| `EX-*` commits in `services` (#133–#136) | **Execution-surface** governance (supervisor routing, remediation audit ring) | **Done** |
+| Roadmap **Tier G** | **Extension** / onboarding / scaffold / template harvest | **Untouched — and correctly last** |
 
 ---
 
-## Phase D: Service Health Cleanup (score impact: +0.3)
+## Status at a glance
 
-**Goal:** All services healthy on all nodes. Zero anomalies.
-
-### D1. Fix backup-manager
-- Check `journalctl -u globular-backup-manager.service` for crash reason
-- Likely: ScyllaDB/MinIO connection config or missing dependency
-- Fix and redeploy
-
-### D2. Fix sql service
-- Check `journalctl -u globular-sql.service` for crash reason
-- Fix and redeploy
-
-### D3. Fix alertmanager kind classification
-- Installed-state has `kind=SERVICE` but should be `INFRASTRUCTURE`
-- Update etcd records on all nodes
-- Prevent future misclassification in the install path
-
-### D4. Clean remaining anomalies
-- Run `globular state canonicalize --dry-run`
-- Target: 0 anomalies on active nodes
-- Delete ghost node records
-- Ensure all `mc` and `docs` packages are classified as metadata-only
-
-### D5. Zero-anomaly validation
-- Run full scan: `globular state canonicalize --dry-run` → 0 anomalies
-- Run repo scan: `globular repository scan` → only VALID + expected ORPHANED
-- All 3 nodes: `version:*` checks pass in health detail
+| Tier | Repo | Theme | Status |
+|------|------|-------|--------|
+| **A — GC** | awareness-graph | Make awareness changes cheap & safe | ✅ **Built + merged + healthy (GC-2 green, verified); GC-3 leg not re-verified** |
+| **B — WB** | awareness-graph | Close the write-back loop | ✅ Merged (WB-1/2/3); both ends still have manual seams |
+| **C — CG** | awareness-graph | Coverage grind | 🟡 Gates merged (CG-5/6); CG-2 promotion grind ongoing (now cheap) |
+| **D — RT** | services | Universalize runtime governance | ✅ Complete |
+| **E — BH** | services | Behavioral liveness | 🟡 Mostly built; bounded enforcement remaining |
+| **F — OT** | services | Operator truth classified | ✅ Complete |
+| **G — EX** | (both) | Make extension boring | ⚪ Untouched — correctly last |
 
 ---
 
-## Phase E: Semantic Versioning (score impact: +0.2)
+## Tier A — Make awareness changes cheap & safe (GC) — `awareness-graph` repo
 
-**Goal:** Move from 0.0.x to proper semver. Declare 1.0.0 when ready.
+- **GC-1 — coherence pre-merge gate.** ✅ Merged (`aa3b8bb` "coherence gate
+  (GC-1/2/3)"). Catches duplicate-id / dangling-ref / orphan. *(Runtime behavior
+  of the orphan store-vs-YAML leg not independently re-verified this session.)*
+- **GC-2 — automated seed rebuild on merge.** ✅ **Built + merged + healthy.**
+  `seed-rebuild.yml` fires `on: push → master`, runs
+  `scripts/build-awareness-graph.sh`, auto-commits refreshed `awareness.nt`.
+  Bot commits exist (`fafdda9`, `00b3769`). `203c5f7` adds `awg audit
+  --warn-stale`. The earlier stamp-staleness recurrence was **systemically
+  fixed by #136** (`3699ff3`): stamp committed *with* the seed (gated on seed
+  change) + in-workflow integrity gate (`go build` + embedded-seed tests) before
+  push + no `[skip ci]`. **Verified this session: integrity tests pass on
+  origin/master.** No residual.
+- **GC-3 — live-store ↔ authored-YAML reconciliation.** ✅ Marked landed by
+  awareness-graph history (part of `aa3b8bb` "GC-1/2/3"). ⚠️ **Runtime
+  reconciliation behavior still deserves one direct verification pass before
+  relying on it for release claims** — named here so the uncertainty doesn't
+  block the CG-2 grind, but isn't forgotten.
 
-### E1. Define versioning policy
-- Document in `docs/developers/versioning.md`
-- Rules:
-  - PATCH: bug fix, no API change
-  - MINOR: new feature, backward compatible
-  - MAJOR: breaking change
-- All Globular services share a single version track (mono-version)
-- Infrastructure packages keep upstream versions (etcd 3.5.14, prometheus 3.5.1)
+## Tier B — Close the write-back loop (WB) — `awareness-graph` repo
 
-### E2. Version bump to 0.1.0
-- All Globular Go services: bump from 0.0.8 to 0.1.0
-- This signals "Phase 2 complete, identity model stable"
-- Use `AllocateUpload` with `BUMP_MINOR` to allocate
+- **WB-1 — promotion → rebuild → checks fires automatically.** ✅ `d561c92`
+  ("promote fires the coherence gate after rebuild").
+- **WB-2 — incident → candidate generator / review queue.** ✅ `2b6d983`
+  ("draft-candidate — incident → review-queue candidate bridge"). MCP tool
+  `behavioral_generate_promotion_candidate` is the runtime face.
+- **WB-3 — end-to-end loop CI.** ✅ `05d86f8` ("end-to-end write-back loop
+  demonstration"). Residual: both ends still have manual seams
+  (incident→candidate is agent labor; promotion→rebuild relies on GC-2's
+  reliability above).
 
-### E3. Define 1.0.0 criteria
-- All invariants tested automatically
-- Zero anomalies on a 3-node cluster for 7 consecutive days
-- All Phase 1-7 deployed and validated
-- Operator course updated to match
-- At least one external operator has followed the course successfully
+## Tier C — Coverage grind (CG) — `awareness-graph` repo
 
----
+- **CG-5 — impact-gate (changed-files → required_tests, fail-closed).** ✅
+  `e801e4b`.
+- **CG-6 — severity vocabulary enforced in `awg validate`.** ✅ `3a26913`
+  (+ `services` #99 corpus alignment).
+- **CG-2 — promote evidence-backed invariants at scale.** 🟡 Ongoing grind
+  (#95/#96 in services corpus + continuous). Now cheap because GC-2 exists —
+  *once its stamp reliability is fixed.*
+- **CG-1 / CG-3 / CG-4** — evidence audit, missing guard+test long tail, confirm
+  impact-ci fires end-to-end. 🟡 Folded into the ongoing grind.
 
-## Phase F: Test Cluster Simulation (score impact: +0.3)
+## Tier D — Universalize runtime governance (RT) — `services` repo — ✅ COMPLETE
 
-**Goal:** Containerized test cluster for CI and development.
+- RT-1 surface audit (#101); RT-2 route/guard writes onto owner RPCs (#104–#115);
+  RT-3 owner-guard chokepoint + funnel capstone + registry consolidation
+  (#112, #117–#122); RT-4 raw-write scanner, Go + shell-aware (#102, #103, #116).
 
-### F1. Docker Compose cluster
-- 3 containers simulating globule-ryzen, globule-nuc, globule-dell
-- Shared etcd, MinIO, ScyllaDB (in containers)
-- All services run as systemd units inside containers (systemd-in-docker)
+## Tier E — Behavioral liveness (BH) — `services` repo — 🟡 MOSTLY BUILT
 
-### F2. Integration test harness
-- Go test suite that:
-  - Boots the cluster
-  - Publishes a test package
-  - Sets desired state
-  - Waits for convergence
-  - Verifies installed-state has build_id
-  - Tears down
+- BH-1 deterministic hard-refusal of raw owner-state writes via govops (#100). ✅
+- Remaining: bounded enforcement coverage named by the #138 verify-first audit.
 
-### F3. CI pipeline
-- GitHub Actions workflow
-- On PR: run invariant tests (fast, no cluster)
-- On merge to main: run integration tests (containerized cluster)
-- On tag: run full deploy simulation
+## Tier F — Operator truth classified (OT) — `services` repo — ✅ COMPLETE
 
----
+- OT-1 observe-truth audit (#124); OT-2 evidence collection-time + downgrade on
+  errored evidence (#125, #130, #131); OT-3 atomic desired+runtime write,
+  cache-freshness signal, stale-mirror rule, RBAC cache flush (#127–#129, #132);
+  OT-4 evidence-time ratchet (#126).
 
-## Phase G: Day-0 Bootstrap Hardening (score impact: +0.1)
+## Tier G — Make extension boring — ⚪ UNTOUCHED, CORRECTLY LAST
 
-**Goal:** Clean day-0/day-1 boundary with provisional imports.
-
-### G1. Installer sets provisional flag
-- During day-0 install, node-agent writes `provisional=true` in installed-state
-- Locally-generated build_id is marked as provisional
-
-### G2. Bootstrap import trigger
-- After repository service starts for the first time:
-  - Node-agent detects repository is available
-  - For each `provisional=true` package: call `ImportProvisionalArtifact`
-  - On success: clear `provisional` flag, update `build_id` to confirmed value
-
-### G3. Conflict resolution UI
-- If import fails (same version, different digest): log clearly
-- Operator resolves via CLI: `globular pkg import --resolve <package>`
+Not the execution-surface `EX-*` commits (done). Harvests proven patterns into
+templates — promote-invariant scaffold, owner-path dispatcher template,
+new-service onboarding template, "Adding X is boring" runbooks. Do it last.
 
 ---
 
-## Execution Order
+## The ordered roadmap (corrected)
 
 ```
-Week 1-2:  Phase D (service health) — quick wins, zero anomalies
-Week 2-3:  Phase A (CLI allocation) — removes last manual identity step
-Week 3-4:  Phase B (deploy + validate P3-7) — proves everything works live
-Week 4-6:  Phase C (automated tests) — prevents regression forever
-Week 6-7:  Phase E (semantic versioning) — signals maturity
-Week 7-9:  Phase F (test cluster) — enables CI and external contributors
-Week 9-10: Phase G (day-0 hardening) — completes the truth model
-
-Total: ~10 weeks for a disciplined team of 1-2.
+NOW →  CG-2 promotion grind at scale (now genuinely DOWNHILL — the GC-2
+       conveyor belt is healthy). + BH bounded enforcement from the #138 audit.
+SOON:  Verify the GC-3 store↔YAML reconciliation leg actually runs (claimed in
+       aa3b8bb's "GC-1/2/3" but not re-verified); wire WB-2 incident→candidate
+       into a standing review queue (tooling exists, seam is manual).
+LAST:  Tier G template harvest (promote-invariant scaffold, dispatcher template,
+       onboarding template, runbooks) — patterns are now proven stable.
+DONE:  Tier A/B/C built+merged+healthy on awareness-graph master (GC-1/2/3 incl.
+       GC-2 verified, WB-1/2/3, CG-5/6); Tier D (RT-1..4), Tier F (OT-1..4),
+       BH-1, execution-surface EX. Stale branch fix/regenerate-stale-transaction-
+       stamp is superseded by #136 — do not land.
 ```
-
-## Score Projection
-
-| After Phase | Score | Why |
-|-------------|-------|-----|
-| Current | 7.5 | Architecture solid, implementation gaps |
-| + D (health) | 7.8 | All services running, zero anomalies |
-| + A (CLI) | 8.1 | Full repository authority, no manual identity |
-| + B (validate) | 8.4 | All phases proven on live cluster |
-| + C (tests) | 8.9 | Regression-proof, every invariant tested |
-| + E (semver) | 9.0 | Maturity signal, versioning discipline |
-| + F (CI) | 9.3 | External contributors can validate changes |
-| + G (day-0) | 9.5 | Complete truth model, clean bootstrap |
 
 ---
 
-## What 10 looks like
+## Appendix: superseded Phase A–G plan (historical)
 
-- Everything above, plus:
-- Multi-cluster federation (desired state replicated across sites)
-- Operator course validated by 3+ external operators
-- Public documentation at docs.globular.io with versioned releases
-- Performance benchmarks (convergence time, rollout latency)
-- Security audit by external party
-- The manifesto isn't just written — it's proven by the running system
+The original 7.5→9 plan (CLI `AllocateUpload`, deploy-validate P3–7, automated
+invariant tests, service-health cleanup, semver, test-cluster, day-0 hardening)
+is retained in git history. It is **not** the active roadmap.
+</content>
