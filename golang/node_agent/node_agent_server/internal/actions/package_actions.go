@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -185,9 +186,18 @@ func (packageUninstallAction) Apply(ctx context.Context, args *structpb.Struct) 
 		policyDir := filepath.Join(ActionPolicyDir, name)
 		_ = os.RemoveAll(policyDir)
 
-		// Remove version marker.
-		markerDir := filepath.Join(stateDir(), "versions", name)
-		_ = os.RemoveAll(markerDir)
+		// Remove version markers. The version is recorded in two places and BOTH
+		// must go or the uninstall is not idempotent
+		// (reconciliation.must_be_idempotent_and_bounded):
+		//   1. stateDir()/versions/<name>           — legacy state marker.
+		//   2. versionutil.BaseDir()/<name>/version — the marker the installed-state
+		//      sync (ComputeInstalledServices / loadMarkers via versionutil.MarkerPath)
+		//      actually reads. Removing only #1 left #2 behind, so
+		//      syncInstalledStateToEtcd re-discovered the package from the surviving
+		//      marker and re-minted a degraded installed-state stub — the torrent
+		//      orphan that survived uninstall.
+		_ = os.RemoveAll(filepath.Join(stateDir(), "versions", name))
+		removeSyncReadVersionMarker(name)
 
 		return fmt.Sprintf("service %s uninstalled (unit=%s)", name, unit), nil
 
@@ -207,6 +217,25 @@ func (packageUninstallAction) Apply(ctx context.Context, args *structpb.Struct) 
 
 	default:
 		return "", fmt.Errorf("package.uninstall: unsupported kind %q", kind)
+	}
+}
+
+// removeSyncReadVersionMarker removes the version marker that the installed-state
+// sync reads — versionutil.BaseDir()/<name>/version, canonical plus the legacy
+// underscore variant. EVERY uninstall path must call this: if the marker survives,
+// syncInstalledStateToEtcd (ComputeInstalledServices/loadMarkers via
+// versionutil.MarkerPath) re-discovers the package and re-mints a degraded
+// installed-state stub, so the uninstall is not idempotent
+// (reconciliation.must_be_idempotent_and_bounded) — the bug that left torrent an
+// orphan after it was uninstalled. Only the named package's marker dir is touched.
+func removeSyncReadVersionMarker(name string) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return
+	}
+	_ = os.RemoveAll(filepath.Join(versionutil.BaseDir(), name))
+	if legacy := strings.ReplaceAll(name, "-", "_"); legacy != name {
+		_ = os.RemoveAll(filepath.Join(versionutil.BaseDir(), legacy))
 	}
 }
 

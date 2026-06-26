@@ -226,6 +226,11 @@ func (infrastructureUninstallAction) Apply(ctx context.Context, args *structpb.S
 	cfgDir := filepath.Join(configDir, component)
 	_ = os.RemoveAll(cfgDir)
 
+	// Remove the version marker the installed-state sync reads — same fix as
+	// package.uninstall's SERVICE case. Without this the uninstall is
+	// non-idempotent and syncInstalledStateToEtcd re-mints a degraded stub.
+	removeSyncReadVersionMarker(component)
+
 	return fmt.Sprintf("infrastructure %s uninstalled (unit=%s)", component, unit), nil
 }
 
