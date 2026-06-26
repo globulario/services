@@ -64,7 +64,7 @@ genuinely *downhill*. That is where effort should go next.
 | **B — WB** | awareness-graph | Close the write-back loop | ✅ Merged (WB-1/2/3); both ends still have manual seams |
 | **C — CG** | awareness-graph + services | Coverage grind | ✅ **CG-2 exhausted (services corpus fully harvested); CG-3 in progress (2 done, 3 deferred as spine changes)** |
 | **D — RT** | services | Universalize runtime governance | ✅ Complete |
-| **E — BH** | services | Behavioral liveness | 🟡 Mostly built; bounded enforcement remaining |
+| **E — BH** | services + awareness-graph | Behavioral liveness | ✅ **Complete by honest disposition (3 behavioral, 3 intentionally planned)** |
 | **F — OT** | services | Operator truth classified | ✅ Complete |
 | **G — EX** | (both) | Make extension boring | ⚪ Untouched — correctly last |
 
@@ -139,10 +139,45 @@ genuinely *downhill*. That is where effort should go next.
   RT-3 owner-guard chokepoint + funnel capstone + registry consolidation
   (#112, #117–#122); RT-4 raw-write scanner, Go + shell-aware (#102, #103, #116).
 
-## Tier E — Behavioral liveness (BH) — `services` repo — 🟡 MOSTLY BUILT
+## Tier E — Behavioral liveness (BH) — `services` + `awareness-graph` — ✅ COMPLETE
+
+**Complete by honest disposition** (2026-06-26). The behavioral organ (BH-1 +
+PR-9..13) was already delivered; the #138 verify-first audit reframed the rest as
+a bounded meta-principle mechanization sweep, not a new structural tier. Worked
+the 6 `planned` meta-principles to a truthful end:
 
 - BH-1 deterministic hard-refusal of raw owner-state writes via govops (#100). ✅
-- Remaining: bounded enforcement coverage named by the #138 verify-first audit.
+- **3 principles behavioral:**
+  - `meta.discovery_produces_candidates_not_facts` — already behavioral on the
+    canonical (AG #133); the stale services mirror had hidden this.
+  - `meta.ui.interactive_element_must_have_stable_identity` — already behavioral
+    (element-identity ratchet, frozen count).
+  - `meta.exception_must_have_reason_owner_and_expiry` — **built this arc** (AG
+    #140): canonical exception **ledger** (`docs/awareness-control/exceptions.yaml`,
+    9 governed exceptions) + a non-polluting validator
+    (`cmd/principle-check/exception_ledger_test.go`, 10 tests) that lints ONLY the
+    ledger and fails on missing owner/expiry/removal_condition, expired entries,
+    or malformed dates; `planned → behavioral`.
+- **3 principles intentionally `planned`** — a hard gate for each would *pollute*
+  (cry wolf), the opposite of robustness, so deliberately NOT built:
+  - `meta.runtime_change_requires_observability_path` — general diff-scanner
+    false-positives; needs semantic detection (its own text frames the
+    un-observed case as a *candidate for review*, i.e. advisory).
+  - `meta.change_must_be_split_into_reviewable_slices` — diff-size/path-mixing
+    heuristic; inherently noisy.
+  - `meta.architectural_intent_must_change_before_structural_drift` — mechanizable
+    in theory but not safe as a cheap scanner; stays `planned` (NOT `review_only` —
+    the mechanism is named, ai-memory `ad5f1a67`).
+- **0 hidden remaining build candidates.** Re-derive Tier E status from the
+  awareness-graph CANONICAL coverage registry, never the services mirror — a stale
+  mirror bred phantom "planned" work that #138 partly inherited (ai-memory
+  `0545ad95`).
+- **Self-governance:** the coverage-mirror-lag that caused that phantom work is now
+  itself a ledgered, dated exception (`exception.coverage_mirror_lag_tolerance`),
+  and the mirror was resynced to clear it (#147/#148).
+
+Companion OT-4 carry-forward: `meta.binding_outlives_evidence_until_invalidated`
+`candidate → active` (AG #139, already enforced by a ruleguard).
 
 ## Tier F — Operator truth classified (OT) — `services` repo — ✅ COMPLETE
 
@@ -162,21 +197,24 @@ new-service onboarding template, "Adding X is boring" runbooks. Do it last.
 ## The ordered roadmap (corrected)
 
 ```
-NOW →  The easy coverage is exhausted. What remains is dedicated engineering, one
-       careful slice at a time:
-         • Tier E — BH bounded enforcement from the #138 verify-first audit (finite).
+NOW →  The easy coverage is exhausted AND Tier E is closed. What remains is
+       dedicated, optional engineering — one careful slice at a time, none urgent:
          • CG-3 spine changes (own design session each, highest-value first:
            convergence.identity_is_build_id). All deferred with recorded findings.
          • Tier G template harvest (promote-invariant scaffold, dispatcher
            template, onboarding template, runbooks) — patterns now proven stable.
        Optional small seam: wire WB-2 incident→candidate into a standing review
        queue (tooling exists).
+       Do NOT build the 3 intentionally-`planned` Tier E meta-principles — a hard
+       gate for each would pollute (cry wolf). Leaving them planned is the correct
+       finish, not a gap.
 DONE:  Tier A complete + VERIFIED at runtime (GC-1/2/3 — GC-2 seed-rebuild via
        #136 integrity gate, GC-3 via awg reconcile). Tier B (WB-1/2/3). Tier C:
        CG-5/6 gates + CG-2 fully harvested (11 promoted) + 2 CG-3 earned
-       (#143/#144). Tier D (RT-1..4). Tier F (OT-1..4). BH-1. execution-surface
-       EX. Stale branch fix/regenerate-stale-transaction-stamp superseded by
-       #136 — do not land.
+       (#143/#144). Tier D (RT-1..4). Tier E COMPLETE (3 behavioral incl. the
+       exception-ledger gate AG #140; 3 intentionally planned; OT-4 binding_outlives
+       AG #139). Tier F (OT-1..4). execution-surface EX. Stale branch
+       fix/regenerate-stale-transaction-stamp superseded by #136 — do not land.
 ```
 
 ---
