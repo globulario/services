@@ -8,7 +8,7 @@
 # Coherence is gated by TestMetaPrincipleCoverageMirrorCoherence
 # (awareness-graph/cmd/principle-check): a conflicting tier or invented
 # classification HARD-fails CI; lag behind canonical is reported, not silent.
-# Last synced against canonical: 2026-06-22.
+# Last synced against canonical: 2026-06-26.
 # ============================================================================
 # Meta-principle coverage map
 # ===========================
@@ -273,14 +273,18 @@ meta_principle_coverage:
 
   # ── planned: mechanizable, but the named gate is not built yet ───────────
   - principle: meta.ui.interactive_element_must_have_stable_identity
-    tier: planned
-    intended_tier: behavioral
+    tier: behavioral
     reason: >
-      Mechanizable as a styled-element-identity lint against globular-admin
-      (data-carrying spans/badges/counts must have id|data-bind|data-*), the
-      sibling gate to check-theme-tokens.sh. Classified planned (not
-      review_only) because the mechanism is concrete and named — the gate is
-      simply not built yet. Discovered by the admin incidents-page audit.
+      MECHANIZED 2026-06-26. The second GUI meta-principle moved from planned to an
+      enforced gate against the globular-admin frontend (sibling to the theme-token
+      ratchet). The gate is an element-identity ratchet: data-carrying elements
+      (count/badge/status/pill/metric/chip/tag) rendered without id/data-bind/data-*
+      are counted and the count is frozen (currently 129) — it can only decrease, so
+      a new anonymous data element fails CI. Verified to bite (adding a bare data
+      element fails the build; removing it passes). Discovered by the admin
+      incidents-page audit.
+    tests:
+      - globular-admin:scripts/check-element-identity.sh
   - principle: meta.change_must_be_split_into_reviewable_slices
     tier: planned
     intended_tier: behavioral
@@ -289,12 +293,27 @@ meta_principle_coverage:
       mixing, and generated-artifact bundling, but the generalized slice check
       is not built yet. The narrow commit-scope guard only covers one drift class.
   - principle: meta.discovery_produces_candidates_not_facts
-    tier: planned
-    intended_tier: behavioral
+    tier: behavioral
     reason: >
-      Mechanizable as promotion-path tests proving extractors can emit
-      candidates but cannot mutate canonical corpus or graph truth directly.
-      The mechanism is concrete, but the dedicated gate is not built yet.
+      Enforced across the discovery lanes by a constellation of existing gates
+      rather than one dedicated check — each fails if its lane regresses, so the
+      principle is mechanized, not advisory. The runtime lane proves every
+      emitted verdict is status=candidate + requires_review (never an enforced
+      fact). The served AwarenessGraph surface is proven to expose no
+      fact-writing/store-mutating RPC — the principle's own "Forbidden: an RPC
+      that inserts/updates/deletes graph facts" clause. The import path proves a
+      status=candidate record is skipped from the canonical corpus (even a typo'd
+      value cannot silently land). Candidate realizations and briefing spine are
+      proven review-only, never authority. Promotion (append-to-corpus + validate
+      + deterministic rebuild) remains the only way a candidate becomes fact.
+      Reclassified planned->behavioral after verify-first confirmed each cited
+      gate exists, passes, and bites on its lane's violation.
+    tests:
+      - TestBuildRuntimeCandidate_AlwaysCandidateNeverFact
+      - TestGraphTruth_ServedSurfaceHasNoFactWritingRPC
+      - TestImportDir_CandidatesDirIsSkipped
+      - TestCandidateRealizes_IsNotAuthoritative
+      - TestBriefingSpine_CandidateIsReviewOnlyNeverAuthority
   - principle: meta.runtime_change_requires_observability_path
     tier: planned
     intended_tier: behavioral
@@ -306,9 +325,16 @@ meta_principle_coverage:
     tier: planned
     intended_tier: behavioral
     reason: >
-      Mechanizable as a schema lint over allowlists, baselines, suppressions,
-      and temporary exceptions requiring reason/owner/expiry fields. The
-      unified exception ledger gate is not built yet.
+      BLOCKED ON THE LEDGER ARTIFACT. Verify-first (2026-06-26) found no structured
+      exception ledger currently exists: today's exceptions are ad-hoc allowlists /
+      carve-outs (allowlist maps in Go tests, CI carve-out lists) with no
+      reason/owner/expiry schema to lint against. So this is NOT a "lint the existing
+      ledgers" job — mechanization requires FIRST defining a structured
+      exception-ledger schema and migrating at least one exception surface onto it;
+      only then can a schema lint require reason/owner/expiry. Until that artifact
+      exists, a lint would be linting vapor. Stays planned (not review_only): the
+      mechanism is named and concrete, the blocker is the missing artifact, not
+      human-irreducibility.
   - principle: meta.architectural_intent_must_change_before_structural_drift
     tier: planned
     intended_tier: behavioral
