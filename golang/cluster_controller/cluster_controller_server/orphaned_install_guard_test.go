@@ -17,10 +17,12 @@ func TestIsOrphanedInstall(t *testing.T) {
 		node []string
 		want bool
 	}{
-		// torrent requires [compute]; this node has no compute → orphan.
-		{"torrent on non-compute node is orphan", "torrent", node, true},
-		// torrent IS placeable on a compute node → not an orphan.
-		{"torrent on compute node is not orphan", "torrent", []string{"compute"}, false},
+		// torrent requires [media-server]; this node has none → orphan.
+		{"torrent on non-media-server node is orphan", "torrent", node, true},
+		// torrent is NO LONGER authorized by compute (moved to media-server) → orphan.
+		{"torrent on compute node is now orphan", "torrent", []string{"compute"}, true},
+		// torrent IS placeable on a media-server node → not an orphan.
+		{"torrent on media-server node is not orphan", "torrent", []string{"media-server"}, false},
 		// dns is placeable on core/control-plane → not an orphan.
 		{"dns on this node is not orphan", "dns", node, false},
 		// mcp is a control-plane service → placeable here.

@@ -134,7 +134,7 @@ services:
     dependencies: [persistence]
 
   media:
-    profiles: [core, compute]
+    profiles: [media-server]
     priority: 1000
     dependencies: [authentication, event, rbac, resource, title]
 
@@ -175,12 +175,12 @@ services:
     dependencies: []
 
   title:
-    profiles: [core, compute]
+    profiles: [media-server]
     priority: 1000
     dependencies: [event, rbac, resource]
 
   torrent:
-    profiles: [core, compute]
+    profiles: [media-server]
     priority: 1000
     dependencies: [event, rbac]
 

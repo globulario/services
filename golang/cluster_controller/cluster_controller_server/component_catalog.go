@@ -19,15 +19,15 @@ import (
 type Capability string
 
 const (
-	CapConfigStore      Capability = "config-store"
-	CapDNS              Capability = "dns"
-	CapEventBus         Capability = "event-bus"
-	CapObjectStore      Capability = "object-store"
-	CapLocalDB          Capability = "local-db"
-	CapHTTPProxy        Capability = "http-proxy"
-	CapServiceMesh      Capability = "service-mesh"
-	CapGateway          Capability = "gateway"
-	CapMonitoring       Capability = "monitoring"
+	CapConfigStore Capability = "config-store"
+	CapDNS         Capability = "dns"
+	CapEventBus    Capability = "event-bus"
+	CapObjectStore Capability = "object-store"
+	CapLocalDB     Capability = "local-db"
+	CapHTTPProxy   Capability = "http-proxy"
+	CapServiceMesh Capability = "service-mesh"
+	CapGateway     Capability = "gateway"
+	CapMonitoring  Capability = "monitoring"
 )
 
 // ProfileCapabilities maps each profile to the capabilities it requires.
@@ -35,8 +35,8 @@ const (
 var ProfileCapabilities = map[string][]Capability{
 	// core provides foundational infra: etcd, dns, event, file, minio, monitoring.
 	// ScyllaDB (local-db) is NOT in "core" — it lives in control-plane/storage/scylla/database.
-	"core":          {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
-	"compute":       {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
+	"core":    {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
+	"compute": {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
 	// control-plane extends core and adds xds/envoy/gateway + local-db (ScyllaDB).
 	"control-plane": {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring, CapLocalDB, CapHTTPProxy, CapServiceMesh, CapGateway},
 	"gateway":       {CapHTTPProxy, CapServiceMesh, CapGateway},
@@ -44,6 +44,12 @@ var ProfileCapabilities = map[string][]Capability{
 	"dns":           {CapDNS},
 	"scylla":        {CapLocalDB},
 	"database":      {CapLocalDB},
+	// media-server is an opt-in content/media role (media, title, ffmpeg, yt-dlp,
+	// torrent). It inherits core (see component_catalog.ProfileInheritance) for the
+	// platform floor and needs the same base capabilities its workloads consume:
+	// config store, DNS, event bus, object store (file storage), monitoring.
+	// search stays in core — it is general indexing, not media-specific.
+	"media-server": {CapConfigStore, CapDNS, CapEventBus, CapObjectStore, CapMonitoring},
 }
 
 // ---------------------------------------------------------------------------
@@ -281,12 +287,12 @@ func buildCatalog() []*Component {
 			HealthCheck:          &HealthCheckHintC{Unit: "scylla-server.service", Port: 9042},
 		},
 		{
-			Name:        "file",
-			Unit:        "globular-file.service",
-			Kind:        KindWorkload,
-			Priority:    7,
-			Profiles:    []string{"core", "compute", "storage"},
-			ManagedUnit: true, // included in profileUnitMap for unit actions
+			Name:                     "file",
+			Unit:                     "globular-file.service",
+			Kind:                     KindWorkload,
+			Priority:                 7,
+			Profiles:                 []string{"core", "compute", "storage"},
+			ManagedUnit:              true, // included in profileUnitMap for unit actions
 			RuntimeLocalDependencies: []string{"event"},
 			PlatformDefault:          true,
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-file.service"},
@@ -312,22 +318,22 @@ func buildCatalog() []*Component {
 			HealthCheck:          &HealthCheckHintC{Unit: "globular-xds.service"},
 		},
 		{
-			Name:                 "gateway",
-			Unit:                 "globular-gateway.service",
-			Kind:                 KindInfrastructure,
-			Priority:             9,
-			Profiles:             []string{"control-plane", "gateway"},
-			ProvidesCapabilities: []Capability{CapGateway},
+			Name:                     "gateway",
+			Unit:                     "globular-gateway.service",
+			Kind:                     KindInfrastructure,
+			Priority:                 9,
+			Profiles:                 []string{"control-plane", "gateway"},
+			ProvidesCapabilities:     []Capability{CapGateway},
 			RuntimeLocalDependencies: []string{"xds", "envoy"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-gateway.service", Port: 8080},
 		},
 		{
-			Name:                 "envoy",
-			Unit:                 "globular-envoy.service",
-			Kind:                 KindInfrastructure,
-			Priority:             10,
-			Profiles:             []string{"control-plane", "gateway"},
-			ProvidesCapabilities: []Capability{CapHTTPProxy},
+			Name:                     "envoy",
+			Unit:                     "globular-envoy.service",
+			Kind:                     KindInfrastructure,
+			Priority:                 10,
+			Profiles:                 []string{"control-plane", "gateway"},
+			ProvidesCapabilities:     []Capability{CapHTTPProxy},
 			RuntimeLocalDependencies: []string{"xds"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-envoy.service", Port: 8443},
 		},
@@ -449,7 +455,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-title.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"media-server"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -457,7 +463,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-media.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute"},
+			Profiles:                 []string{"media-server"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -465,7 +471,7 @@ func buildCatalog() []*Component {
 			Unit:                     "globular-torrent.service",
 			Kind:                     KindWorkload,
 			Priority:                 1000,
-			Profiles:                 []string{"compute"},
+			Profiles:                 []string{"media-server"},
 			RuntimeLocalDependencies: []string{"event"},
 		},
 		{
@@ -607,7 +613,7 @@ func buildCatalog() []*Component {
 			Name:     "ffmpeg",
 			Kind:     KindCommand,
 			Priority: 900,
-			Profiles: []string{"core", "compute"},
+			Profiles: []string{"media-server"},
 		},
 		{
 			Name:     "etcdctl",
@@ -631,7 +637,7 @@ func buildCatalog() []*Component {
 			Name:     "yt-dlp",
 			Kind:     KindCommand,
 			Priority: 900,
-			Profiles: []string{"core", "compute"},
+			Profiles: []string{"media-server"},
 		},
 		{
 			Name:     "claude",
@@ -685,7 +691,7 @@ func buildCatalog() []*Component {
 			Priority:                 12,
 			Profiles:                 []string{"core", "compute", "control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
-			HealthCheck: &HealthCheckHintC{Unit: "globular-scylla-manager.service", Port: 5080},
+			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager.service", Port: 5080},
 		},
 		{
 			Name:                     "scylla-manager-agent",
@@ -772,8 +778,8 @@ func rebuildDerivedMaps() {
 // hardcoded defaults remain.
 func deriveProfileVarsFromCatalog() {
 	type profileBinding struct {
-		name     string
-		target   *[]string
+		name   string
+		target *[]string
 	}
 	bindings := []profileBinding{
 		{"etcd", &profilesForEtcd},
@@ -1132,6 +1138,15 @@ func rebuildProfileCapabilities() {
 	derived := make(map[string][]Capability)
 	for _, c := range catalog {
 		for _, p := range c.Profiles {
+			// Ensure the profile is a key even when its components provide no
+			// capabilities. A pure-consumer role (e.g. media-server: media,
+			// title, ffmpeg, yt-dlp, torrent) provisions no infra itself — it
+			// inherits core (ProfileInheritance) for the platform floor — but it
+			// must still survive the rebuild, or ValidateCatalog rejects every
+			// component that lists it as an "undefined profile".
+			if _, ok := derived[p]; !ok {
+				derived[p] = nil
+			}
 			for _, cap := range c.ProvidesCapabilities {
 				// Append unique.
 				found := false

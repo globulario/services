@@ -13,15 +13,15 @@ func TestProfilesForPackage(t *testing.T) {
 		name string
 		want []string
 	}{
-		// torrent is a compute-only workload — the orphan case on a
-		// control-plane/core/storage node.
-		{"torrent", []string{"compute"}},
+		// torrent is a media-server workload — the orphan case on a
+		// control-plane/core/storage node that lacks media-server.
+		{"torrent", []string{"media-server"}},
 		// mcp is a control-plane service.
 		{"mcp", []string{"control-plane"}},
 		// gateway participates in both control-plane and gateway profiles.
 		{"gateway", []string{"control-plane", "gateway"}},
 		// case/whitespace insensitive.
-		{"  Torrent  ", []string{"compute"}},
+		{"  Torrent  ", []string{"media-server"}},
 		// unknown package → empty (DISTINCT from a profile orphan).
 		{"does-not-exist", nil},
 		{"", nil},
