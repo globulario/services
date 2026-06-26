@@ -322,19 +322,27 @@ meta_principle_coverage:
       logs/metrics/status evidence or required tests. Several concrete tests
       exist, but the generalized change-to-observability check is not built yet.
   - principle: meta.exception_must_have_reason_owner_and_expiry
-    tier: planned
-    intended_tier: behavioral
+    tier: behavioral
     reason: >
-      BLOCKED ON THE LEDGER ARTIFACT. Verify-first (2026-06-26) found no structured
-      exception ledger currently exists: today's exceptions are ad-hoc allowlists /
-      carve-outs (allowlist maps in Go tests, CI carve-out lists) with no
-      reason/owner/expiry schema to lint against. So this is NOT a "lint the existing
-      ledgers" job — mechanization requires FIRST defining a structured
-      exception-ledger schema and migrating at least one exception surface onto it;
-      only then can a schema lint require reason/owner/expiry. Until that artifact
-      exists, a lint would be linting vapor. Stays planned (not review_only): the
-      mechanism is named and concrete, the blocker is the missing artifact, not
-      human-irreducibility.
+      MECHANIZED 2026-06-26. The blocking artifact now exists: a structured exception
+      ledger at docs/awareness-control/exceptions.yaml holds the 9 verify-first
+      governed exceptions (dangling-refs baseline, 4 CI continue-on-error bypasses,
+      coverage-mirror-lag tolerance, 3 intent accepted_exception carve-outs). The gate
+      (cmd/principle-check/exception_ledger_test.go) validates ONLY the ledger — it
+      never scans arbitrary code, so it cannot false-positive — and requires every
+      entry to carry id/kind/scope/reason/owner/created/expires/removal_condition,
+      requires review_after (earlier than expires) on provisional entries, and FAILS
+      on an expired entry or a malformed date. Improve-only frozen-count ratchets
+      (theme-tokens, interactive-element) are explicitly NOT ledgered (they tighten,
+      they do not bypass) and a test enforces their exclusion.
+    tests:
+      - TestExceptionLedger_AllEntriesValid
+      - TestExceptionLedger_MissingOwnerFails
+      - TestExceptionLedger_MissingExpiryFails
+      - TestExceptionLedger_ExpiredEntryFails
+      - TestExceptionLedger_ProvisionalRequiresReviewAfter
+      - TestExceptionLedger_ValidProvisionalPasses
+      - TestExceptionLedger_NoFrozenCountRatchets
   - principle: meta.architectural_intent_must_change_before_structural_drift
     tier: planned
     intended_tier: behavioral
