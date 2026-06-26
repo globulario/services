@@ -761,7 +761,9 @@ func (srv *server) reconcileAvailable(ctx context.Context, h *releaseHandle) {
 		if specV != "" && resolvedV != "" && specV != resolvedV {
 			log.Printf("%s %s: AVAILABLE but resolved %q != spec %q (generation %d fully observed) — re-entering PENDING to re-resolve (spec_resolved_drift)",
 				h.ResourceType, h.Name, resolvedV, specV, h.Generation)
-			h.PatchStatus(ctx, statusPatch{
+			// Discard the patch error like the sibling generation guard above —
+			// a failed status write is retried on the next reconcile tick.
+			_ = h.PatchStatus(ctx, statusPatch{
 				Phase:            cluster_controllerpb.ReleasePhasePending,
 				TransitionReason: "spec_resolved_drift",
 				SetFields:        "phase",
