@@ -131,6 +131,57 @@ func TestVersionForDriftCompare(t *testing.T) {
 	}
 }
 
+// TestIsStaleResolvedGhost is the enforcement ratchet for
+// invariant:reconciler.resolution_must_match_spec. It locks the decision the
+// status-write choke points (patchReleaseStatus / patchAppReleaseStatus /
+// patchInfraReleaseStatus) use to REFUSE persisting a converged release whose
+// resolved_version disagrees with spec.version. If this logic regresses, the
+// stale-resolved ghost — the system reporting a desired/resolved version it
+// never actually resolved (the xds 1.2.235-vs-1.2.237 incident) — can be
+// persisted again. That state must remain impossible to persist.
+func TestIsStaleResolvedGhost(t *testing.T) {
+	cases := []struct {
+		name     string
+		phase    string
+		spec     string
+		resolved string
+		want     bool
+	}{
+		// The xds incident: a CONVERGED phase whose resolved lags spec → ghost.
+		{"available_resolved_lags_spec", cluster_controllerpb.ReleasePhaseAvailable, "1.2.237", "1.2.235", true},
+		{"degraded_resolved_lags_spec", cluster_controllerpb.ReleasePhaseDegraded, "1.2.237", "1.2.235", true},
+		// Coherent converged release — never a ghost.
+		{"available_resolved_matches_spec", cluster_controllerpb.ReleasePhaseAvailable, "1.2.237", "1.2.237", false},
+		{"available_v_prefix_canonical_equal", cluster_controllerpb.ReleasePhaseAvailable, "1.2.237", "v1.2.237", false},
+		// Non-converged phases are mid-flight; a spec/resolved mismatch is expected
+		// there (the release is on its way to resolving) and must NOT be forced.
+		{"pending_mismatch_not_ghost", cluster_controllerpb.ReleasePhasePending, "1.2.237", "1.2.235", false},
+		{"resolved_mismatch_not_ghost", cluster_controllerpb.ReleasePhaseResolved, "1.2.237", "1.2.235", false},
+		{"applying_mismatch_not_ghost", cluster_controllerpb.ReleasePhaseApplying, "1.2.237", "1.2.235", false},
+		{"failed_mismatch_not_ghost", cluster_controllerpb.ReleasePhaseFailed, "1.2.237", "1.2.235", false},
+		// Channel/latest releases carry no pinned spec version — never a ghost.
+		{"empty_spec_skipped", cluster_controllerpb.ReleasePhaseAvailable, "", "1.35.3", false},
+		{"empty_resolved_skipped", cluster_controllerpb.ReleasePhaseAvailable, "1.2.237", "", false},
+		// Non-semver infra versions: equal raw → not a ghost; differing → ghost.
+		{"nonsemver_equal", cluster_controllerpb.ReleasePhaseAvailable, "RELEASE.2025-09-07T16-13-09Z", "RELEASE.2025-09-07T16-13-09Z", false},
+		{"nonsemver_lag", cluster_controllerpb.ReleasePhaseAvailable, "2025.3.8", "2025.3.7", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := isStaleResolvedGhost(c.phase, c.spec, c.resolved); got != c.want {
+				t.Errorf("isStaleResolvedGhost(%q, %q, %q) = %v, want %v",
+					c.phase, c.spec, c.resolved, got, c.want)
+			}
+		})
+	}
+
+	// The enforcement reason token is part of the contract (doctor/log scrapers
+	// and the ratchet key off it). Lock it so a rename is a deliberate decision.
+	if staleResolvedGhostReason != "stale_resolved_ghost_blocked" {
+		t.Errorf("staleResolvedGhostReason changed to %q — update scrapers/docs deliberately", staleResolvedGhostReason)
+	}
+}
+
 // ── C1: detectInfraDrift ─────────────────────────────────────────────────────
 
 // TestDetectInfraDrift_UnitInactive_DowngradesToDegraded verifies that a node

@@ -527,6 +527,19 @@ func (srv *server) patchReleaseStatus(ctx context.Context, releaseName string, f
 	prevNextRetry := rel.Status.NextRetryUnixMs
 	f(rel.Status)
 
+	// Coherence enforcement (invariant:reconciler.resolution_must_match_spec):
+	// this is the single-writer choke point for ServiceRelease status, so the
+	// stale-resolved ghost cannot be persisted by ANY upstream path. If the
+	// post-patch state is a converged phase whose resolved_version disagrees with
+	// spec.version, rewrite the phase to PENDING so the next reconcile re-resolves
+	// (an explicit requeue, per release.failed_state_requires_explicit_recovery_or_requeue).
+	if rel.Spec != nil && isStaleResolvedGhost(rel.Status.Phase, rel.Spec.Version, rel.Status.ResolvedVersion) {
+		log.Printf("release %s: COHERENCE ENFORCEMENT — refusing to persist %s with resolved %q != spec %q (stale-resolved ghost); forcing PENDING to re-resolve",
+			releaseName, rel.Status.Phase, rel.Status.ResolvedVersion, rel.Spec.Version)
+		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
+		rel.Status.TransitionReason = staleResolvedGhostReason
+	}
+
 	// Equality guard: skip Apply when nothing semantically changed.
 	// "retry" patches always increment RetryCount and advance NextRetryUnixMs,
 	// so they always pass this guard and persist the new backoff window.
@@ -748,6 +761,16 @@ func (srv *server) patchAppReleaseStatus(ctx context.Context, releaseName string
 	prevReason := rel.Status.TransitionReason
 	f(rel.Status)
 
+	// Coherence enforcement (invariant:reconciler.resolution_must_match_spec):
+	// single-writer choke point for ApplicationRelease status — the stale-resolved
+	// ghost cannot be persisted by any upstream path. Force PENDING to re-resolve.
+	if rel.Spec != nil && isStaleResolvedGhost(rel.Status.Phase, rel.Spec.Version, rel.Status.ResolvedVersion) {
+		log.Printf("app-release %s: COHERENCE ENFORCEMENT — refusing to persist %s with resolved %q != spec %q (stale-resolved ghost); forcing PENDING to re-resolve",
+			releaseName, rel.Status.Phase, rel.Status.ResolvedVersion, rel.Spec.Version)
+		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
+		rel.Status.TransitionReason = staleResolvedGhostReason
+	}
+
 	// Equality guard: skip Apply when nothing meaningful changed.
 	if rel.Status.Phase == previousPhase &&
 		rel.Status.Message == prevMsg &&
@@ -900,6 +923,19 @@ func (srv *server) patchInfraReleaseStatus(ctx context.Context, releaseName stri
 	prevMsg := rel.Status.Message
 	prevReason := rel.Status.TransitionReason
 	f(rel.Status)
+
+	// Coherence enforcement (invariant:reconciler.resolution_must_match_spec):
+	// single-writer choke point for InfrastructureRelease status — this is the
+	// exact path the xds stale-resolved ghost was minted through. The ghost
+	// cannot be persisted by any upstream path: if the post-patch state is a
+	// converged phase whose resolved_version disagrees with spec.version, rewrite
+	// the phase to PENDING so reconcilePending re-resolves spec against the repo.
+	if rel.Spec != nil && isStaleResolvedGhost(rel.Status.Phase, rel.Spec.Version, rel.Status.ResolvedVersion) {
+		log.Printf("infra-release %s: COHERENCE ENFORCEMENT — refusing to persist %s with resolved %q != spec %q (stale-resolved ghost); forcing PENDING to re-resolve",
+			releaseName, rel.Status.Phase, rel.Status.ResolvedVersion, rel.Spec.Version)
+		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
+		rel.Status.TransitionReason = staleResolvedGhostReason
+	}
 
 	// Equality guard: skip Apply when nothing meaningful changed.
 	if rel.Status.Phase == previousPhase &&

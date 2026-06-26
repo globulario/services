@@ -981,6 +981,44 @@ func versionForDriftCompare(v string) string {
 	return v
 }
 
+// isStaleResolvedGhost reports whether a release status is the "stale resolved
+// ghost" — a CONVERGED phase (AVAILABLE/DEGRADED) whose resolved_version
+// disagrees with the pinned spec.version. A converged release asserts it
+// resolved the version its spec asks for; when resolved_version says otherwise,
+// that assertion is a lie (the system reporting a desired/resolved version it
+// never actually resolved). This is the observable form of
+// invariant:reconciler.resolution_must_match_spec being violated.
+//
+// Root cause of how the ghost is minted: the resolve FAILURE/WAITING patches in
+// reconcilePending advance observed_generation to the current generation even
+// though the resolve did not produce a matching resolved_version — so
+// observed_generation (which the success path writes to mean "resolved up to
+// generation N") drifts to mean "acknowledged generation N", and a downstream
+// reader that trusts observed_generation==generation as "converged at spec" is
+// lied to. See failure_mode:identity.field_semantic_drift_across_writers.
+//
+// This predicate is the single shared authority for that violation; it is wired
+// into EVERY release status-write choke point (patchReleaseStatus /
+// patchAppReleaseStatus / patchInfraReleaseStatus) so the ghost cannot be
+// persisted by any code path — the writer rewrites the phase to PENDING and the
+// next reconcile re-resolves spec against the repository. No-op for
+// channel/empty specs and for matching versions, so coherent releases never
+// churn.
+func isStaleResolvedGhost(phase, specVersion, resolvedVersion string) bool {
+	if phase != cluster_controllerpb.ReleasePhaseAvailable &&
+		phase != cluster_controllerpb.ReleasePhaseDegraded {
+		return false
+	}
+	specV := versionForDriftCompare(specVersion)
+	resolvedV := versionForDriftCompare(resolvedVersion)
+	return specV != "" && resolvedV != "" && specV != resolvedV
+}
+
+// staleResolvedGhostReason is the TransitionReason stamped when the coherence
+// enforcement rewrites a ghost write back to PENDING. Kept as a const so tests
+// and log-scrapers reference one canonical token.
+const staleResolvedGhostReason = "stale_resolved_ghost_blocked"
+
 // ── Adapters: build releaseHandle from typed releases ────────────────────────
 
 func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease) *releaseHandle {
