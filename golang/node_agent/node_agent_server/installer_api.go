@@ -48,8 +48,9 @@ const defaultPublisherID = "core@globular.io"
 // pinnedArtifactDir holds a copy of the last successfully installed artifact
 // for each package. This is the local resilience cache: if MinIO / the
 // repository become unreachable, the node can still reinstall or self-heal
-// from this directory without any external dependency.
-const pinnedArtifactDir = "/var/lib/globular/packages/pinned"
+// from this directory without any external dependency. var (not const) so the
+// pin-hygiene test can redirect it to a temp dir.
+var pinnedArtifactDir = "/var/lib/globular/packages/pinned"
 
 // InstallPackage fetches a package artifact from the repository and installs
 // it locally. This is the public entry point for the workflow engine bridge.
@@ -401,6 +402,83 @@ func pinArtifact(name, version, platform, artifactPath string) {
 	}
 
 	log.Printf("pin-artifact: saved %s (%d bytes)", filepath.Base(target), len(src))
+}
+
+// pruneStalePinnedArtifacts enforces the resilience-pin invariant: a pinned
+// fallback artifact MUST NOT preserve an older version of a package after a
+// successful upgrade to a newer installed version. pinArtifact already prunes
+// old pins, but it runs only on the InstallPackage (service/local) path — an
+// infrastructure upgrade (apply_package_release) never refreshes the pin, so a
+// stale pin survives. That is a latent downgrade / re-contamination path:
+// findLocalPackage searches pinnedArtifactDir FIRST, so a leftover pin re-stages
+// (and on a repo-unreachable resilience reinstall, re-installs) the wrong/older
+// artifact. This was the recurring xds cache_digest_mismatch — the xds 1.2.237
+// upgrade left the xds_1.2.235 pin in place.
+//
+// For every pinned <name>_<version>_<platform>.tgz it compares <version> against
+// the package's currently-installed version (the canonical version marker — NOT a
+// recomputed identity) and removes any pin whose version disagrees. A package
+// with no installed marker is left untouched (its pin may be the only local copy;
+// orphan-pin cleanup is a separate concern). Best-effort; called from the
+// installed-state sync so it runs at startup (clears existing stale pins) and
+// periodically.
+func pruneStalePinnedArtifacts() {
+	entries, err := os.ReadDir(pinnedArtifactDir)
+	if err != nil {
+		return
+	}
+	removed := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".tgz") {
+			continue
+		}
+		name, version := parsePinnedArtifactName(e.Name())
+		if name == "" || version == "" {
+			continue // unparseable — never guess
+		}
+		installed := strings.TrimSpace(readVersionMarker(name))
+		if installed == "" {
+			continue // not installed / no marker — leave it (out of scope)
+		}
+		if version == installed {
+			continue // current installed version — the proper safety net, keep it
+		}
+		if err := os.Remove(filepath.Join(pinnedArtifactDir, e.Name())); err == nil {
+			log.Printf("pin-hygiene: removed stale pin %s (installed=%s)", e.Name(), installed)
+			removed++
+		}
+	}
+	if removed > 0 {
+		log.Printf("pin-hygiene: removed %d stale pinned artifact(s)", removed)
+	}
+}
+
+// parsePinnedArtifactName extracts (name, version) from a pinned artifact filename
+// of the form <name>_<version>_<os>_<arch>.tgz (e.g. xds_1.2.235_linux_amd64.tgz).
+// Package names are kebab-case (no underscore) and the platform is the trailing
+// os_arch pair, so the version is the segment before the platform. Returns empty
+// strings when the name does not parse, so callers leave it untouched.
+func parsePinnedArtifactName(filename string) (name, version string) {
+	base := strings.TrimSuffix(filename, ".tgz")
+	parts := strings.Split(base, "_")
+	if len(parts) < 4 {
+		return "", "" // need at least name_version_os_arch
+	}
+	version = parts[len(parts)-3]
+	name = strings.Join(parts[:len(parts)-3], "_")
+	return name, version
+}
+
+// readVersionMarker returns the installed version recorded in the canonical
+// version marker for name, or "" if absent. The marker is the single canonical
+// source of the installed version; this reads it, it does NOT recompute identity
+// from a secondary source.
+func readVersionMarker(name string) string {
+	b, err := os.ReadFile(versionutil.MarkerPath(name))
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // findLocalPackage searches localPackageDirs for a .tgz matching the package.
