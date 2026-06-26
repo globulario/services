@@ -116,7 +116,7 @@ invariants:
   - id: repository.collision_repair_requires_desired_safety
     title: Collision repair must check desired pins before archiving or demoting artifacts
     severity: critical
-    status: proposed
+    status: active
     summary: >
       A duplicate/corrupt repository row may not be archived, deleted, demoted, or
       overwritten until the repair path proves that no desired state pins that
@@ -126,11 +126,13 @@ invariants:
         - /globular/repository/artifacts/*
         - /globular/resources/ServiceDesiredVersion/*
       files:
+        - golang/repository/repository_server/reachability_guard.go
         - golang/repository/repository_server/gc.go
       symbols:
         - checkDeletionSafety
         - checkRevokeSafety
         - collectDesiredBuildIDs
+        - ArchiveUnreachableArtifacts
     forbidden_fixes:
       - archive_without_desired_check
       - delete_collision_row_without_desired_check
