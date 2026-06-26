@@ -33,7 +33,7 @@ func extractEntrypointBinary(data []byte) (binary []byte, ok bool) {
 	if err != nil {
 		return nil, false
 	}
-	defer gzr.Close()
+	defer func() { _ = gzr.Close() }()
 
 	tr := tar.NewReader(gzr)
 	for {
@@ -94,7 +94,7 @@ func validateReleaseArtifactStripped(data []byte) error {
 		// Not an ELF (darwin/windows or not a binary) — out of scope here.
 		return nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	names := make([]string, 0, len(f.Sections))
 	for _, s := range f.Sections {
