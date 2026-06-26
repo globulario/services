@@ -2,7 +2,7 @@ invariants:
   - id: repository.package_build_lane_unique
     title: Repository build-number lane must map to at most one build_id
     severity: critical
-    status: proposed
+    status: active
     summary: >
       For a given publisher, package name, version, platform, and build_number,
       the repository must expose at most one canonical build_id. Multiple build_id
@@ -12,11 +12,13 @@ invariants:
       state:
         - /globular/repository/artifacts/*
       files:
-        - golang/repository/repository_server/server.go
+        - golang/repository/repository_server/release_ledger.go
+        - golang/repository/repository_server/repository_findings.go
+        - golang/repository/repository_server/artifact_verify_rpc.go
       symbols:
-        - chooseBuildNumberForPublish
         - appendToLedger
-        - resolveByVersionFromRows
+        - ListRepositoryFindings
+        - RepairArtifact
     forbidden_fixes:
       - delete_desired_build_id
       - select_latest_to_hide_collision
@@ -86,7 +88,7 @@ invariants:
   - id: repository.repair_selects_existing_build
     title: Repair must select broken existing builds, not only installable builds
     severity: high
-    status: proposed
+    status: active
     summary: >
       Repair exists to heal broken rows. If repair resolves only installable
       artifacts, it will fail on BROKEN_MISSING_BLOB and other broken states with
@@ -96,10 +98,11 @@ invariants:
       state:
         - /globular/repository/artifacts/*
       files:
-        - golang/repository/repository_server/server.go
+        - golang/repository/repository_server/artifact_verify_rpc.go
+        - golang/repository/repository_server/artifact_state.go
       symbols:
-        - repairArtifact
-        - listArtifactsByState
+        - RepairArtifact
+        - transitionArtifactState
     forbidden_fixes:
       - use_installable_latest_resolver_for_repair
       - say_no_builds_when_broken_rows_exist
