@@ -28,14 +28,11 @@ func (srv *server) initResourceStore(etcd *clientv3.Client) {
 	migCancel()
 
 	// Backward compat: create ServiceRelease objects for any existing
-	// ServiceDesiredVersion entries that predate the bridge.
+	// ServiceDesiredVersion entries that predate the bridge. This also prunes
+	// legacy pre-guard cross-kind ServiceDesiredVersion pollution (infrastructure
+	// names with a service-desired record) via cleanupLegacyCrossKindDesiredState,
+	// so the startup path no longer needs a separate infra-cleanup call.
 	relCtx, relCancel := withBounded(boundedLong)
 	srv.ensureServiceReleasesFromDesired(relCtx)
 	relCancel()
-
-	// One-time cleanup: remove stale ServiceRelease/ServiceDesiredVersion
-	// objects for infrastructure packages (managed by InfrastructureRelease).
-	infraCtx, infraCancel := withBounded(boundedLong)
-	srv.cleanupStaleInfraServiceReleases(infraCtx)
-	infraCancel()
 }
