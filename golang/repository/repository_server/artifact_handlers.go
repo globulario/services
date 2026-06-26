@@ -1509,6 +1509,17 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		return laneErr
 	}
 
+	// ── Artifact-shape law (release channel) ──────────────────────────────
+	// A release-channel binary must be stripped (built with -trimpath
+	// -ldflags "-s -w"). Reject an unstripped debug build before it is
+	// persisted or promoted to PUBLISHED. DEV-lane builds are exempt.
+	// Invariant: publish.release_artifact_must_be_stripped.
+	if effectiveChannel(manifest) == repopb.ArtifactChannel_STABLE {
+		if shapeErr := validateReleaseArtifactStripped(data); shapeErr != nil {
+			return status.Errorf(codes.FailedPrecondition, "%v", shapeErr)
+		}
+	}
+
 	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_VERIFIED)
 	if err != nil {
 		return status.Errorf(codes.Internal, "marshal manifest: %v", err)
