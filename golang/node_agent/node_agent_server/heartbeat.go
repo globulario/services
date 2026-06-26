@@ -493,6 +493,14 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	if synced > 0 {
 		log.Printf("nodeagent: synced %d installed-state records to etcd", synced)
 	}
+
+	// Pin hygiene: drop any local resilience pin whose version no longer matches
+	// the installed version (e.g. an infra upgrade that never refreshed the pin).
+	// A stale pin is searched first by findLocalPackage and would re-stage /
+	// resilience-reinstall an older artifact — a latent downgrade path. Runs here
+	// so it executes at startup and on every periodic sync. Node-agent-local files
+	// only (its own pinnedArtifactDir); no desired-state or cross-layer write.
+	pruneStalePinnedArtifacts()
 }
 
 // globularBinDir is the canonical directory where Globular service binaries
