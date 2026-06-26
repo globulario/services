@@ -184,26 +184,43 @@ invariants:
   - id: package.release_vs_dev_channel_boundary
     title: Local and agent builds are dev-channel only and never become cluster truth
     severity: critical
-    status: proposed
+    status: active
     summary: >
-      A build on the dev channel (local developer or agent/MCP) may only increment
-      build_number against the current release version. It must not allocate a
-      release version and must not write cluster desired-state. Dev artifacts are
-      invisible to cluster convergence. This is the structural boundary that stops
-      a developer or agent build from polluting the release stream the cluster
-      converges on.
+      A build on the dev channel (local developer or agent/MCP) is dev-lane only and
+      never a convergence target. Enforced at three points: (a) VERSION ALLOCATION —
+      devLaneVersion (local_publish_guard.go) coerces a DEV build to a `-dev.N` lane
+      strictly below the latest release, so it cannot allocate/advance a release
+      version; (b) DESIRED-STATE AUTHORITY — channelEligibleForDesiredState gates
+      validateArtifactInRepo (the single desired-state write chokepoint, called only
+      by upsertOne), rejecting a DEV-channel artifact from ServiceDesiredVersion so
+      NO caller (operator CLI, agent/MCP, or deploy) can make a dev build cluster
+      truth (forbidden_fix:agent_build_writes_cluster_desired_state); (c) DEPLOY
+      CLIENT — deployUpdatesDesiredState makes `globular deploy --channel dev`
+      publish the dev artifact but SKIP the desired-state write (clear log, not an
+      error — dev is a legitimate build/test flow). The manifest's canonical channel
+      field is the authority; channel is never inferred from the version string.
     protects:
       state:
         - /globular/repository/artifacts/*
         - /globular/resources/ServiceDesiredVersion/*
       files:
+        - golang/repository/repository_server/local_publish_guard.go
+        - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
         - golang/deploy/deploy.go
-        - golang/repository/repository_server/allocate_upload.go
       symbols:
-        - AllocateUpload
+        - devLaneVersion
+        - channelEligibleForDesiredState
+        - deployUpdatesDesiredState
     forbidden_fixes:
       - local_deploy_allocates_release_version
       - agent_build_writes_cluster_desired_state
+    required_tests:
+      - golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go::TestChannelEligibleForDesiredState_DevRejected
+      - golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go::TestChannelEligibleForDesiredState_ReleaseTiersAccepted
+      - golang/deploy/deploy_channel_test.go::TestDeployUpdatesDesiredState_DevSkips
+      - golang/deploy/deploy_channel_test.go::TestDeployUpdatesDesiredState_ReleaseChannelsWrite
+      - golang/repository/repository_server/dev_version_semantics_test.go::TestDevLaneVersion_CoercedResultIsLaneLegalAndBelowRelease
+      - golang/repository/repository_server/dev_version_semantics_test.go::TestDevLaneVersion_CleanSemverEqualToReleaseIsSuffixed
     related_invariants:
       - release.version_single_authority
   - id: convergence.identity_is_build_id

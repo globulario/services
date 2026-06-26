@@ -6244,3 +6244,33 @@ required_tests:
   protects:
     invariants:
     - convergence.identity_is_build_id
+- id: golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go::TestChannelEligibleForDesiredState_DevRejected
+  title: Desired-state authority rejects a DEV-channel artifact
+  protects:
+    invariants:
+    - package.release_vs_dev_channel_boundary
+- id: golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go::TestChannelEligibleForDesiredState_ReleaseTiersAccepted
+  title: Desired-state authority accepts release-tier channels (no overblock)
+  protects:
+    invariants:
+    - package.release_vs_dev_channel_boundary
+- id: golang/deploy/deploy_channel_test.go::TestDeployUpdatesDesiredState_DevSkips
+  title: DEV deploy skips the cluster desired-state write
+  protects:
+    invariants:
+    - package.release_vs_dev_channel_boundary
+- id: golang/deploy/deploy_channel_test.go::TestDeployUpdatesDesiredState_ReleaseChannelsWrite
+  title: Release-channel deploy writes cluster desired-state
+  protects:
+    invariants:
+    - package.release_vs_dev_channel_boundary
+- id: golang/repository/repository_server/dev_version_semantics_test.go::TestDevLaneVersion_CoercedResultIsLaneLegalAndBelowRelease
+  title: DEV build coerces to a lane strictly below the release (no release allocation)
+  protects:
+    invariants:
+    - package.release_vs_dev_channel_boundary
+- id: golang/repository/repository_server/dev_version_semantics_test.go::TestDevLaneVersion_CleanSemverEqualToReleaseIsSuffixed
+  title: DEV build version is dev-lane suffixed, never a clean release version
+  protects:
+    invariants:
+    - package.release_vs_dev_channel_boundary
