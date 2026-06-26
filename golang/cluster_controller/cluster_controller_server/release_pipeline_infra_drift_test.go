@@ -51,6 +51,86 @@ func handleWithCapture(rel *cluster_controllerpb.InfrastructureRelease, cap *pat
 	return h
 }
 
+// ── reconcileAvailable: spec↔resolved coherence guard ────────────────────────
+
+// TestReconcileAvailable_SpecResolvedDrift_ReentersPending reproduces the stuck
+// xds infra-release: phase AVAILABLE, generation fully observed
+// (Generation == ObservedGeneration), but ResolvedVersion (1.2.235) lags
+// spec.Version (1.2.237). The coherence guard
+// (intent:reconciler.resolution_must_match_spec) must re-enter PENDING with
+// reason spec_resolved_drift so reconcilePending re-resolves the spec version.
+// The guard returns before any etcd-backed call, so this exercises the real
+// reconcileAvailable path hermetically.
+func TestReconcileAvailable_SpecResolvedDrift_ReentersPending(t *testing.T) {
+	srv := newTestServer(t, &controllerState{Nodes: map[string]*nodeState{}})
+	cap := &patchCapture{}
+	h := &releaseHandle{
+		Name:               "infra/core@globular.io/xds",
+		ResourceType:       "InfrastructureRelease",
+		Phase:              cluster_controllerpb.ReleasePhaseAvailable,
+		Generation:         3,
+		ObservedGeneration: 3, // fully observed — generation guard must NOT fire
+		ResolvedVersion:    "1.2.235",
+		InstalledStateName: "xds",
+		InstalledStateKind: "INFRASTRUCTURE",
+		Nodes:              []*cluster_controllerpb.NodeReleaseStatus{},
+		ResolverSpec: &cluster_controllerpb.ServiceReleaseSpec{
+			PublisherID: "core@globular.io",
+			ServiceName: "xds",
+			Version:     "1.2.237", // spec ahead of resolved
+		},
+		PatchStatus: func(_ context.Context, p statusPatch) error {
+			cap.called = true
+			cap.patch = p
+			return nil
+		},
+	}
+
+	srv.reconcileAvailable(context.Background(), h)
+
+	if !cap.called {
+		t.Fatal("expected PatchStatus for AVAILABLE release with resolved != spec")
+	}
+	if cap.patch.Phase != cluster_controllerpb.ReleasePhasePending {
+		t.Errorf("expected PENDING, got %q", cap.patch.Phase)
+	}
+	if cap.patch.TransitionReason != "spec_resolved_drift" {
+		t.Errorf("expected reason spec_resolved_drift, got %q", cap.patch.TransitionReason)
+	}
+}
+
+// TestVersionForDriftCompare covers the decision logic of the coherence guard
+// without driving the etcd-backed tail of reconcileAvailable: semver versions
+// canonicalize (so "v1.2.237" == "1.2.237" → no false-positive churn), blank
+// specs are skipped (channel/latest releases), non-semver infra versions fall
+// back to raw equality, and a genuine version lag is detected as unequal.
+func TestVersionForDriftCompare(t *testing.T) {
+	cases := []struct {
+		name      string
+		spec      string
+		resolved  string
+		wantDrift bool // true => guard would fire (both non-empty and unequal)
+	}{
+		{"semver_lag_is_drift", "1.2.237", "1.2.235", true},
+		{"semver_v_prefix_equal", "1.2.237", "v1.2.237", false},
+		{"empty_spec_skipped", "", "1.35.3", false},
+		{"empty_resolved_skipped", "1.2.237", "", false},
+		{"nonsemver_equal", "RELEASE.2025-09-07T16-13-09Z", "RELEASE.2025-09-07T16-13-09Z", false},
+		{"nonsemver_lag_is_drift", "2025.3.8", "2025.3.7", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			specV := versionForDriftCompare(c.spec)
+			resolvedV := versionForDriftCompare(c.resolved)
+			gotDrift := specV != "" && resolvedV != "" && specV != resolvedV
+			if gotDrift != c.wantDrift {
+				t.Errorf("spec=%q resolved=%q: gotDrift=%v want=%v (canon spec=%q resolved=%q)",
+					c.spec, c.resolved, gotDrift, c.wantDrift, specV, resolvedV)
+			}
+		})
+	}
+}
+
 // ── C1: detectInfraDrift ─────────────────────────────────────────────────────
 
 // TestDetectInfraDrift_UnitInactive_DowngradesToDegraded verifies that a node
