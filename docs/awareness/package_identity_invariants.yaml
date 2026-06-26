@@ -318,28 +318,39 @@ invariants:
     related_invariants:
       - meta.identity_computation_must_be_invariant
   - id: publish.release_artifact_must_be_stripped
-    title: Release-channel artifacts must be trimpath/stripped and within a sane size envelope
+    title: Release-channel artifacts must be trimpath/stripped
     severity: high
-    status: proposed
+    status: active
     summary: >
-      An artifact published to the release channel must be built with
-      -trimpath -ldflags "-s -w" and must fall within a sane size envelope versus
-      the prior build for that package. The ~2x debug builds (15-18MB build_number 1
-      local artifacts) must be rejected at publish on the release channel. There is
-      no artifact-shape gate today; the only size cap (500 MiB) applies to upstream
-      imports.
+      An artifact published to the release (STABLE) channel must be built stripped
+      (-trimpath -ldflags "-s -w"). An unstripped debug build (the ~2x 15-18MB
+      build_number 1 local artifacts) is rejected at publish, before promotion to
+      PUBLISHED, by the artifact-shape law in UploadArtifact: for the release
+      channel, validateReleaseArtifactStripped extracts the entrypoint ELF and
+      rejects it (FailedPrecondition) if it carries a symbol table (.symtab) or
+      DWARF (.debug_*/.zdebug_*). Scope: ELF only (the cluster platform); non-ELF
+      artifacts (darwin/windows) and archives with no detectable entrypoint pass
+      through this gate (out of scope, not implicitly trusted). DEV-lane builds are
+      exempt. NOTE: the size-envelope-vs-prior-build half of the original
+      contract is deferred to its own slice (it needs a prior-build size lookup +
+      threshold); this invariant now covers the strip requirement only.
     protects:
       state:
         - /globular/repository/artifacts/*
       files:
+        - golang/repository/repository_server/release_artifact_shape.go
         - golang/repository/repository_server/artifact_handlers.go
-        - golang/build/build-services.sh
-        - golang/deploy/deploy.go
       symbols:
         - UploadArtifact
-        - computeBinaryChecksumFromArchive
+        - validateReleaseArtifactStripped
+        - elfDebugSectionName
     forbidden_fixes:
       - publish_unstripped_debug_build_to_release_channel
+    required_tests:
+      - golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactStripped_RejectsUnstrippedELF
+      - golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactStripped_AcceptsStrippedELF
+      - golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactStripped_NonELFPasses
+      - golang/repository/repository_server/release_artifact_shape_test.go::TestElfDebugSectionName_Policy
     related_invariants:
       - release.version_single_authority
   - id: staging.content_addressed
