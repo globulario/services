@@ -732,6 +732,46 @@ func (srv *server) reconcileAvailable(ctx context.Context, h *releaseHandle) {
 		return
 	}
 
+	// Coherence guard (intent:reconciler.resolution_must_match_spec): a release
+	// that has reached AVAILABLE with its generation fully observed
+	// (Generation == ObservedGeneration — the > case returned above) MUST have
+	// resolved the version its spec asks for. When spec.Version != ResolvedVersion
+	// here, the release is stuck: observed_generation advanced without
+	// resolved_version catching up. This happens when a version bump's resolve
+	// failed transiently (publish race) and the release later reached AVAILABLE
+	// through a node that was already AHEAD of the stale resolved version —
+	// hasUnservedNodes treats an ahead-of-resolved node as served (see
+	// TestHasUnservedNodes_InstalledAheadOfDesired_SkipsNode), so neither the
+	// generation guard nor the unserved-node path below ever re-resolves. The
+	// result is a permanent resolved_version != spec.version drift that surfaces
+	// as a phantom cluster-doctor desired_version_mismatch WARN
+	// (installed/spec ahead of the stale resolved desired).
+	//
+	// Re-enter PENDING so reconcilePending re-resolves spec.Version against the
+	// now-published artifact. Bounded and idempotent
+	// (intent:reconciliation.must_be_idempotent_and_bounded): once resolved
+	// matches spec this guard is silent; if the version is still unresolvable,
+	// reconcilePending routes to WAITING, not a tight PENDING loop. Only fires
+	// for pinned-version specs — channel/empty-version releases resolve to
+	// "latest" and legitimately carry a resolved_version that differs from the
+	// (empty) spec version, so an empty spec.Version is skipped.
+	if h.ResolverSpec != nil {
+		specV := versionForDriftCompare(h.ResolverSpec.Version)
+		resolvedV := versionForDriftCompare(h.ResolvedVersion)
+		if specV != "" && resolvedV != "" && specV != resolvedV {
+			log.Printf("%s %s: AVAILABLE but resolved %q != spec %q (generation %d fully observed) — re-entering PENDING to re-resolve (spec_resolved_drift)",
+				h.ResourceType, h.Name, resolvedV, specV, h.Generation)
+			// Discard the patch error like the sibling generation guard above —
+			// a failed status write is retried on the next reconcile tick.
+			_ = h.PatchStatus(ctx, statusPatch{
+				Phase:            cluster_controllerpb.ReleasePhasePending,
+				TransitionReason: "spec_resolved_drift",
+				SetFields:        "phase",
+			})
+			return
+		}
+	}
+
 	// Check for new nodes that need this release but weren't in the original
 	// dispatch. This handles Day 1 join: a node joins after the release
 	// reached AVAILABLE on existing nodes.
@@ -925,6 +965,61 @@ func pickBuildNumber(resolved, spec int64) int64 {
 	}
 	return spec
 }
+
+// versionForDriftCompare normalizes a version string for equality comparison in
+// the spec-vs-resolved coherence guard. Semver versions are canonicalized so
+// "v1.2.3" and "1.2.3" compare equal; non-semver infrastructure versions
+// (e.g. "RELEASE.2025-09-07T16-13-09Z", "2025.3.8") fall back to the trimmed
+// raw string, which compares equal to itself. Returns "" for blank input so the
+// guard can skip channel/latest specs that carry no pinned version.
+func versionForDriftCompare(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	if cv, err := versionutil.Canonical(v); err == nil {
+		return cv
+	}
+	return v
+}
+
+// isStaleResolvedGhost reports whether a release status is the "stale resolved
+// ghost" — a CONVERGED phase (AVAILABLE/DEGRADED) whose resolved_version
+// disagrees with the pinned spec.version. A converged release asserts it
+// resolved the version its spec asks for; when resolved_version says otherwise,
+// that assertion is a lie (the system reporting a desired/resolved version it
+// never actually resolved). This is the observable form of
+// invariant:reconciler.resolution_must_match_spec being violated.
+//
+// Root cause of how the ghost is minted: the resolve FAILURE/WAITING patches in
+// reconcilePending advance observed_generation to the current generation even
+// though the resolve did not produce a matching resolved_version — so
+// observed_generation (which the success path writes to mean "resolved up to
+// generation N") drifts to mean "acknowledged generation N", and a downstream
+// reader that trusts observed_generation==generation as "converged at spec" is
+// lied to. See failure_mode:identity.field_semantic_drift_across_writers.
+//
+// This predicate is the single shared authority for that violation; it is wired
+// into EVERY release status-write choke point (patchReleaseStatus /
+// patchAppReleaseStatus / patchInfraReleaseStatus) so the ghost cannot be
+// persisted by any code path — the writer rewrites the phase to PENDING and the
+// next reconcile re-resolves spec against the repository. No-op for
+// channel/empty specs and for matching versions, so coherent releases never
+// churn.
+func isStaleResolvedGhost(phase, specVersion, resolvedVersion string) bool {
+	if phase != cluster_controllerpb.ReleasePhaseAvailable &&
+		phase != cluster_controllerpb.ReleasePhaseDegraded {
+		return false
+	}
+	specV := versionForDriftCompare(specVersion)
+	resolvedV := versionForDriftCompare(resolvedVersion)
+	return specV != "" && resolvedV != "" && specV != resolvedV
+}
+
+// staleResolvedGhostReason is the TransitionReason stamped when the coherence
+// enforcement rewrites a ghost write back to PENDING. Kept as a const so tests
+// and log-scrapers reference one canonical token.
+const staleResolvedGhostReason = "stale_resolved_ghost_blocked"
 
 // ── Adapters: build releaseHandle from typed releases ────────────────────────
 
