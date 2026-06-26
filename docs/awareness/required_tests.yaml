@@ -1205,6 +1205,41 @@ required_tests:
   protects:
     invariants:
     - repository.build_id_global_unique
+- id: golang/repository/repository_server/release_version_single_authority_test.go::TestVersionSingleAuthority_RegressionRejected
+  title: Version Single Authority — regressive version rejected
+  protects:
+    invariants:
+    - release.version_single_authority
+- id: golang/repository/repository_server/release_version_single_authority_test.go::TestVersionSingleAuthority_PublishedVersionImmutable
+  title: Version Single Authority — published version immutable
+  protects:
+    invariants:
+    - release.version_single_authority
+- id: golang/repository/repository_server/release_version_single_authority_test.go::TestVersionSingleAuthority_BumpAdvancesFromPublished
+  title: Version Single Authority — bump advances from published
+  protects:
+    invariants:
+    - release.version_single_authority
+- id: golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactStripped_RejectsUnstrippedELF
+  title: Release Artifact Stripped — unstripped ELF rejected
+  protects:
+    invariants:
+    - publish.release_artifact_must_be_stripped
+- id: golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactStripped_AcceptsStrippedELF
+  title: Release Artifact Stripped — stripped ELF accepted
+  protects:
+    invariants:
+    - publish.release_artifact_must_be_stripped
+- id: golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactStripped_NonELFPasses
+  title: Release Artifact Stripped — non-ELF passes (scope boundary)
+  protects:
+    invariants:
+    - publish.release_artifact_must_be_stripped
+- id: golang/repository/repository_server/release_artifact_shape_test.go::TestElfDebugSectionName_Policy
+  title: Release Artifact Stripped — ELF debug-section policy
+  protects:
+    invariants:
+    - publish.release_artifact_must_be_stripped
 - id: TestBuildIDNotResolvedAtNodeAgent
   title: Build IDNot Resolved At Node Agent
   protects:
