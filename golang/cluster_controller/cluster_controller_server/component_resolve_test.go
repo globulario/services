@@ -399,7 +399,9 @@ func TestDay1Phase_MinioNonMember_DoesNotReportInfraNotInstalled(t *testing.T) {
 }
 
 func TestFilterIntentByDesiredRemovesUndesiredCatalogWorkloads(t *testing.T) {
-	intent, err := ResolveNodeIntent("n1", []string{"core"}, nil, nil)
+	// media-server (inherits core) so title — a media service moved out of core —
+	// is legitimately part of this node's intent.
+	intent, err := ResolveNodeIntent("n1", []string{"core", "media-server"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
