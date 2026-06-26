@@ -17,7 +17,8 @@ func TestClassifyProfileHygiene(t *testing.T) {
 		want     profileHygieneStatus
 	}{
 		// over-broad: manifest declares more profiles than the catalog claims.
-		{"torrent over-broad", "torrent", []string{"core", "compute"}, profileHygieneOverBroad},
+		// torrent catalog is [media-server]; [media-server compute] is a strict superset.
+		{"torrent over-broad", "torrent", []string{"media-server", "compute"}, profileHygieneOverBroad},
 		{"mcp old over-broad", "mcp", []string{"core", "compute", "control-plane"}, profileHygieneOverBroad},
 		// missing: manifest empty/null but catalog has profiles.
 		{"mcp null manifest", "mcp", nil, profileHygieneMissing},
@@ -27,7 +28,7 @@ func TestClassifyProfileHygiene(t *testing.T) {
 		{"repository matches", "repository", []string{"core", "compute"}, profileHygieneOK},
 		// under-broad: manifest omits a profile the catalog claims (dns profile).
 		{"dns under-broad", "dns", []string{"core", "compute", "control-plane"}, profileHygieneUnderBroad},
-		// mismatch: disjoint — neither subset (torrent catalog is [compute]).
+		// mismatch: disjoint — neither subset (torrent catalog is [media-server]).
 		{"disjoint mismatch", "torrent", []string{"gateway", "control-plane"}, profileHygieneMismatch},
 		// skip: unknown to the catalog — distinct condition, never a profile drift.
 		{"unknown package skipped", "totally-unknown-pkg", []string{"core"}, profileHygieneSkipUnknown},

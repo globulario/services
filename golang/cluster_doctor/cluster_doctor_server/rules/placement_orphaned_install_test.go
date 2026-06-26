@@ -65,14 +65,14 @@ func TestDoctorRule_OrphanedInstall_TorrentOnNonComputeNode(t *testing.T) {
 	}
 }
 
-// torrent installed on a compute node → legitimately placed, no finding.
-func TestDoctorRule_OrphanedInstall_TorrentOnComputeNode_NoFinding(t *testing.T) {
+// torrent installed on a media-server node → legitimately placed, no finding.
+func TestDoctorRule_OrphanedInstall_TorrentOnMediaServerNode_NoFinding(t *testing.T) {
 	snap := &collector.Snapshot{
 		Nodes: []*cluster_controllerpb.NodeRecord{
 			{
 				NodeId:   "node-a",
 				Status:   "ready",
-				Profiles: []string{"compute"},
+				Profiles: []string{"media-server"},
 				LastSeen: timestamppb.New(time.Now()),
 			},
 		},
@@ -84,7 +84,7 @@ func TestDoctorRule_OrphanedInstall_TorrentOnComputeNode_NoFinding(t *testing.T)
 		},
 	}
 	if f := orphanFindingsFor(snap); len(f) != 0 {
-		t.Errorf("torrent on a compute node is placeable — expected no findings, got %+v", f)
+		t.Errorf("torrent on a media-server node is placeable — expected no findings, got %+v", f)
 	}
 }
 
