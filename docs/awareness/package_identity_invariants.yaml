@@ -32,7 +32,7 @@ invariants:
   - id: repository.build_id_global_unique
     title: build_id must identify exactly one artifact tuple
     severity: critical
-    status: proposed
+    status: active
     summary: >
       A build_id is the canonical artifact identity. It must not be reused across
       package names, versions, platforms, kinds, or checksums. If a build_id maps
@@ -42,10 +42,11 @@ invariants:
       state:
         - /globular/repository/artifacts/*
       files:
-        - golang/repository/repository_server/server.go
+        - golang/repository/repository_server/release_ledger.go
+        - golang/repository/repository_server/repository_findings.go
       symbols:
         - appendToLedger
-        - listRepositoryFindings
+        - ListRepositoryFindings
     forbidden_fixes:
       - reuse_build_id_for_new_artifact
       - rewrite_manifest_to_match_desired
@@ -59,7 +60,7 @@ invariants:
   - id: repository.publish_idempotent_same_digest
     title: Re-publishing identical artifact bytes must return existing build_id
     severity: high
-    status: proposed
+    status: active
     summary: >
       CI retries and upstream sync retries are allowed only when the artifact
       bytes/digest are identical. The repository must return the existing build_id
@@ -69,10 +70,9 @@ invariants:
       state:
         - /globular/repository/artifacts/*
       files:
-        - golang/repository/repository_server/server.go
+        - golang/repository/repository_server/import_provisional.go
       symbols:
-        - uploadProvisional
-        - publishProvisional
+        - ImportProvisionalArtifact
     forbidden_fixes:
       - allocate_new_build_id_for_same_digest_retry
       - accept_different_digest_same_published_version
@@ -367,7 +367,7 @@ invariants:
   - id: package.publisher_namespace_is_rbac_resource
     title: A publisher namespace is an RBAC-owned resource, not a free string
     severity: critical
-    status: proposed
+    status: active
     summary: >
       A package publisher is an RBAC namespace resource owned by RBAC subjects (owner
       role). It is not a free-form string and not a parallel identity. Every authority
@@ -391,7 +391,7 @@ invariants:
   - id: package.publisher_kind_derived_from_rbac_subject
     title: Publisher kind is derived from the owning RBAC subject, never a parallel enum
     severity: high
-    status: proposed
+    status: active
     summary: >
       The "type" of a publisher (organization vs user vs service) is derived from the
       kind of its owning RBAC subject (Organization | Account | service account).
@@ -414,7 +414,7 @@ invariants:
   - id: package.release_allocation_requires_rbac_permission
     title: Release allocation requires an RBAC permission on the publisher namespace
     severity: critical
-    status: proposed
+    status: active
     summary: >
       Allocating a release-channel (STABLE) version requires the resolved subject to
       hold repository.release.allocate on the target publisher namespace. No caller —
@@ -440,7 +440,7 @@ invariants:
   - id: package.forge_binding_is_not_authorization
     title: Forge binding federates identity only; it never grants authorization
     severity: critical
-    status: proposed
+    status: active
     summary: >
       A forge identity (GitHub org/user/repo, a forge token, a CI environment) may only
       answer "which RBAC subject is this?" via trusted_publisher federation. It must
@@ -454,8 +454,8 @@ invariants:
         - golang/repository/repository_server/trusted_publisher.go
         - golang/repository/repository_server/allocate_upload.go
       symbols:
-        - ResolveForgeIdentity
-        - AuthorizeRelease
+        - resolveForgeIdentity
+        - authorizeRelease
     forbidden_fixes:
       - forbidden_fix.package.authorize_release_from_forge_identity_directly
     required_tests:
@@ -467,7 +467,7 @@ invariants:
   - id: package.ci_is_not_release_authority
     title: CI is a forge adapter, not a release authority
     severity: high
-    status: proposed
+    status: active
     summary: >
       CI holds no implicit release privilege. It authenticates, resolves to an RBAC
       subject via trusted_publisher, and then passes normal RBAC authorization. A git
@@ -492,7 +492,7 @@ invariants:
   - id: package.stable_channel_requires_release_permission
     title: A STABLE-channel write requires release permission; DEV-only subjects cannot
     severity: critical
-    status: proposed
+    status: active
     summary: >
       Targeting the STABLE channel requires the resolved subject to hold
       repository.release.allocate on the namespace. A subject without it (e.g. a user
