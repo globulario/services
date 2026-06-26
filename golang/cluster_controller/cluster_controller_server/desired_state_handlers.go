@@ -611,12 +611,34 @@ func (srv *server) validateArtifactInRepo(ctx context.Context, serviceName, vers
 		}
 	}
 
+	// Boundary (package.release_vs_dev_channel_boundary): a DEV-channel artifact must
+	// never become cluster desired-state. The manifest carries the canonical channel
+	// (field 45), so reject DEV here — the single desired-state write chokepoint
+	// (upsertOne is the only caller) — so no path (operator CLI, agent/MCP, or
+	// deploy) can make a dev build a convergence target. CHANNEL_UNSET is STABLE;
+	// CANDIDATE/CANARY/BOOTSTRAP are release tiers and stay eligible.
+	if manifest != nil && !channelEligibleForDesiredState(manifest.GetChannel()) {
+		return "", status.Errorf(codes.FailedPrecondition,
+			"artifact %s@%s (build %d) is DEV-channel — a dev build must not become cluster desired-state "+
+				"(package.release_vs_dev_channel_boundary); publish to a release channel first",
+			serviceName, version, buildNumber)
+	}
+
 	// Phase 2: extract build_id from the manifest.
 	buildID := ""
 	if manifest != nil {
 		buildID = manifest.GetBuildId()
 	}
 	return buildID, nil
+}
+
+// channelEligibleForDesiredState reports whether an artifact on the given channel
+// may become cluster desired-state. DEV builds (local developer / agent / MCP) are
+// dev-lane only and never convergence targets
+// (package.release_vs_dev_channel_boundary). All release tiers — STABLE, CANDIDATE,
+// CANARY, BOOTSTRAP, and CHANNEL_UNSET (treated as STABLE) — are eligible.
+func channelEligibleForDesiredState(ch repositorypb.ArtifactChannel) bool {
+	return ch != repositorypb.ArtifactChannel_DEV
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────

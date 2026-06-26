@@ -394,6 +394,33 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	}
 
 	// ── Step 4: Update desired state ────────────────────────────────────
+	// Boundary (package.release_vs_dev_channel_boundary): a DEV-channel deploy
+	// publishes a dev-lane artifact but must NOT become cluster truth. Skip the
+	// desired-state write — a clear log, not an error: `--channel dev` is a
+	// legitimate build/test flow. (The controller's validateArtifactInRepo also
+	// rejects a DEV artifact from desired-state; this skips the write at the source.)
+	if !deployUpdatesDesiredState(opts.Channel) {
+		result := &DeployResult{
+			Service:     pkgName,
+			Version:     opts.Version,
+			BuildNumber: nextBuild,
+			BuildID:     allocatedBuildID,
+			Action:      action,
+			Checksum:    binaryChecksum,
+			Duration:    time.Since(start),
+		}
+		fmt.Printf("\n→ Step 4: skipped — %s-channel deploy published a dev artifact only; "+
+			"cluster desired-state was NOT updated. Use a release channel to update desired-state.\n",
+			strings.ToLower(strings.TrimSpace(opts.Channel)))
+		fmt.Printf("\n━━━ Deployed (DEV — not a convergence target) ━━━\n\n")
+		fmt.Printf("  Service:      %s\n", result.Service)
+		fmt.Printf("  Version:      %s\n", result.Version)
+		fmt.Printf("  Build:        %d\n", result.BuildNumber)
+		fmt.Printf("  Channel:      %s\n", strings.ToLower(strings.TrimSpace(opts.Channel)))
+		fmt.Printf("  Duration:     %s\n", result.Duration.Round(time.Millisecond))
+		fmt.Println()
+		return result, nil
+	}
 	fmt.Printf("\n→ Step 4: Updating desired state...\n")
 
 	// Resolve controller leader address. The VIP (10.0.0.100) floats to the
@@ -482,6 +509,15 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	fmt.Println()
 
 	return result, nil
+}
+
+// deployUpdatesDesiredState reports whether a deploy on the given channel should
+// write cluster desired-state. DEV builds are dev-lane only and never convergence
+// targets (package.release_vs_dev_channel_boundary), so a DEV deploy publishes the
+// artifact but skips the desired-state update. Release channels (stable, candidate,
+// canary, bootstrap, and the unset default) update desired-state.
+func deployUpdatesDesiredState(channel string) bool {
+	return strings.ToLower(strings.TrimSpace(channel)) != "dev"
 }
 
 // DeployAll deploys all services in the catalog sequentially.
