@@ -207,29 +207,45 @@ invariants:
     related_invariants:
       - release.version_single_authority
   - id: convergence.identity_is_build_id
-    title: Convergence and drift must compare build_id, never the version string
+    title: Convergence AUTHORITY decisions must compare build_id, not the version-only summary hash
     severity: critical
-    status: proposed
+    status: active
     summary: >
-      Any equality that decides "is this node converged?" must compare build_id,
-      the sole convergence identity. The services-drift hash today compares the
-      version string only (hashDesiredServiceVersions), so a desired-version
-      regression is indistinguishable from a node that legitimately needs an
-      upgrade, and produces permanent unconvergeable drift. The drift detector must
-      carry build_id and must distinguish "node ahead of desired (desired regressed)"
-      from "node behind desired (needs upgrade)".
+      Any decision with AUTHORITY over "is this node converged?" must compare
+      build_id, the sole convergence identity — same version + different build_id is
+      NOT converged. Enforced at the two authority seams: (1) per-package
+      convergence — classifyPackageConvergence treats build_id as an independent
+      dimension (D3), failing closed on a same-version/different-build_id artifact;
+      (2) reference-node acceptance for repair — repair_node_workflow's
+      referenceNodeBuildIDMismatch refuses a reference node whose installed build_id
+      differs from the resolved desired build_id for any desired service. The
+      cluster SUMMARY hash (hashDesiredServiceVersions / computeAppliedServicesHash)
+      is a COARSE version-only signal — fine for reconcile stamping and health
+      display, but it is NOT convergence-identity authority and the repair gate no
+      longer rests acceptance on it alone. Services with no resolved desired
+      build_id (upstream-native / dev) are skipped — identity cannot be enforced
+      where none exists. DEFERRED (Path A, see docs/design/cg3-convergence-identity-scope.md):
+      making the cluster summary hash itself build_id-exact on both sides, and the
+      drift detector's ahead-vs-behind (desired-regressed vs needs-upgrade)
+      distinction — both are a higher-blast-radius spine change, not required to
+      close the authority bite this invariant governs.
     protects:
       state:
         - /globular/resources/ServiceDesiredVersion/*
       files:
-        - golang/cluster_controller/cluster_controller_server/service_identity.go
-        - golang/node_agent/node_agent_server/installed_services.go
-        - golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
+        - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
+        - golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
       symbols:
-        - hashDesiredServiceVersions
-        - computeAppliedServicesHash
+        - referenceNodeBuildIDMismatch
+        - classifyPackageConvergence
     forbidden_fixes:
       - compare_version_string_for_convergence
+    required_tests:
+      - golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go::TestReferenceNodeBuildID_SameVersionDifferentBuildRefused
+      - golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go::TestReferenceNodeBuildID_MissingInstalledBuildRefused
+      - golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go::TestReferenceNodeBuildID_NoDesiredBuildIDSkipped
+      - golang/cluster_controller/cluster_controller_server/build_id_convergence_dimension_test.go::TestBuildIDDimension_DifferentBuildIDNotConverged
+      - golang/cluster_controller/cluster_controller_server/build_id_convergence_dimension_test.go::TestBuildIDDimension_MatchingBuildIDConverges
     related_invariants:
       - desired.build_id_immutable
       - meta.identity_computation_must_be_invariant
