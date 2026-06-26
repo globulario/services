@@ -152,7 +152,7 @@ invariants:
   - id: release.version_single_authority
     title: The release version has exactly one authority — the repository service
     severity: critical
-    status: proposed
+    status: active
     summary: >
       The human release version (e.g. 1.2.235) is allocated by exactly one
       authority: the repository service, on the release channel, gated by a
@@ -175,6 +175,10 @@ invariants:
     forbidden_fixes:
       - local_deploy_allocates_release_version
       - ci_self_stamps_version_bypassing_repository
+    required_tests:
+      - golang/repository/repository_server/release_version_single_authority_test.go::TestVersionSingleAuthority_RegressionRejected
+      - golang/repository/repository_server/release_version_single_authority_test.go::TestVersionSingleAuthority_PublishedVersionImmutable
+      - golang/repository/repository_server/release_version_single_authority_test.go::TestVersionSingleAuthority_BumpAdvancesFromPublished
     related_invariants:
       - meta.identity_computation_must_be_invariant
   - id: package.release_vs_dev_channel_boundary
