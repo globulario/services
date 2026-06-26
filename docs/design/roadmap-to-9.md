@@ -60,9 +60,9 @@ genuinely *downhill*. That is where effort should go next.
 
 | Tier | Repo | Theme | Status |
 |------|------|-------|--------|
-| **A — GC** | awareness-graph | Make awareness changes cheap & safe | ✅ **Built + merged + healthy (GC-2 green, verified); GC-3 leg not re-verified** |
+| **A — GC** | awareness-graph | Make awareness changes cheap & safe | ✅ **Complete + verified — GC-1/2/3 all confirmed at runtime this session** |
 | **B — WB** | awareness-graph | Close the write-back loop | ✅ Merged (WB-1/2/3); both ends still have manual seams |
-| **C — CG** | awareness-graph | Coverage grind | 🟡 Gates merged (CG-5/6); CG-2 promotion grind ongoing (now cheap) |
+| **C — CG** | awareness-graph + services | Coverage grind | ✅ **CG-2 exhausted (services corpus fully harvested); CG-3 in progress (2 done, 3 deferred as spine changes)** |
 | **D — RT** | services | Universalize runtime governance | ✅ Complete |
 | **E — BH** | services | Behavioral liveness | 🟡 Mostly built; bounded enforcement remaining |
 | **F — OT** | services | Operator truth classified | ✅ Complete |
@@ -73,8 +73,7 @@ genuinely *downhill*. That is where effort should go next.
 ## Tier A — Make awareness changes cheap & safe (GC) — `awareness-graph` repo
 
 - **GC-1 — coherence pre-merge gate.** ✅ Merged (`aa3b8bb` "coherence gate
-  (GC-1/2/3)"). Catches duplicate-id / dangling-ref / orphan. *(Runtime behavior
-  of the orphan store-vs-YAML leg not independently re-verified this session.)*
+  (GC-1/2/3)"). Catches duplicate-id / dangling-ref / seed-orphan.
 - **GC-2 — automated seed rebuild on merge.** ✅ **Built + merged + healthy.**
   `seed-rebuild.yml` fires `on: push → master`, runs
   `scripts/build-awareness-graph.sh`, auto-commits refreshed `awareness.nt`.
@@ -84,11 +83,17 @@ genuinely *downhill*. That is where effort should go next.
   change) + in-workflow integrity gate (`go build` + embedded-seed tests) before
   push + no `[skip ci]`. **Verified this session: integrity tests pass on
   origin/master.** No residual.
-- **GC-3 — live-store ↔ authored-YAML reconciliation.** ✅ Marked landed by
-  awareness-graph history (part of `aa3b8bb` "GC-1/2/3"). ⚠️ **Runtime
-  reconciliation behavior still deserves one direct verification pass before
-  relying on it for release claims** — named here so the uncertainty doesn't
-  block the CG-2 grind, but isn't forgotten.
+- **GC-3 — live-store ↔ authored-YAML reconciliation.** ✅ **Verified at runtime
+  this session.** `awg reconcile` (cmd/awg/cmd_reconcile.go) diffs the live
+  Oxigraph store against an authored baseline (`-baseline yaml` = true-orphan
+  detector, `-baseline seed` = deployed-runtime detector); `-require-clean`
+  gates. Unit tests pass; live runs against Oxigraph (localhost:7878) produced
+  correct store-only-orphan + lagging reports with the documented exit codes.
+  Strongest signal: it correctly flagged this session's own CG-2/CG-3 authored
+  edits (renamed/removed symbols like `AuthorizeRelease`, `build-services.sh`) as
+  store-only orphans, because the live store hasn't been reloaded from the
+  post-merge seed — exactly the store↔YAML drift the job exists to surface.
+  (ai-memory `3dc511ee`.)
 
 ## Tier B — Close the write-back loop (WB) — `awareness-graph` repo
 
@@ -108,11 +113,25 @@ genuinely *downhill*. That is where effort should go next.
   `e801e4b`.
 - **CG-6 — severity vocabulary enforced in `awg validate`.** ✅ `3a26913`
   (+ `services` #99 corpus alignment).
-- **CG-2 — promote evidence-backed invariants at scale.** 🟡 Ongoing grind
-  (#95/#96 in services corpus + continuous). Now cheap because GC-2 exists —
-  *once its stamp reliability is fixed.*
-- **CG-1 / CG-3 / CG-4** — evidence audit, missing guard+test long tail, confirm
-  impact-ci fires end-to-end. 🟡 Folded into the ongoing grind.
+- **CG-2 — promote evidence-backed invariants at scale.** ✅ **Exhausted for the
+  services corpus.** `package_identity_invariants.yaml` was the only awareness
+  YAML with proposed invariants; **11 promoted across 3 batches** (#140 ×8,
+  #141 ×2, #142 ×1), every one evidence + test + gate-backed. The verify-against-
+  real-code discipline caught 8+ wrong/non-existent symbols the triage agent
+  listed — none shipped.
+- **CG-3 — earn new truth (guard/test first, promote second).** 🟡 In progress.
+  Done: `release.version_single_authority` (#143, proof test), `publish.release_
+  artifact_must_be_stripped` strip-half (#144, new ELF strip gate). Deferred as
+  spine changes, each with a recorded finding: `convergence.identity_is_build_id`
+  (ai-memory `783c4d76` — cluster summary hash needs build_id at hash time),
+  `package.release_vs_dev_channel_boundary` (`25cb9f59` — deploy.go DEV
+  desired-state gap), `publish...stripped` size-envelope half (`7b326026`),
+  `staging.content_addressed` (largest, unscoped).
+- **CG-1 / CG-4** — evidence audit, confirm impact-ci fires end-to-end. 🟡 Folded
+  into the grind.
+
+**Tally:** 15 invariants active in `package_identity_invariants.yaml`, 3 proposed
+(the deferred spine changes above).
 
 ## Tier D — Universalize runtime governance (RT) — `services` repo — ✅ COMPLETE
 
@@ -143,17 +162,21 @@ new-service onboarding template, "Adding X is boring" runbooks. Do it last.
 ## The ordered roadmap (corrected)
 
 ```
-NOW →  CG-2 promotion grind at scale (now genuinely DOWNHILL — the GC-2
-       conveyor belt is healthy). + BH bounded enforcement from the #138 audit.
-SOON:  Verify the GC-3 store↔YAML reconciliation leg actually runs (claimed in
-       aa3b8bb's "GC-1/2/3" but not re-verified); wire WB-2 incident→candidate
-       into a standing review queue (tooling exists, seam is manual).
-LAST:  Tier G template harvest (promote-invariant scaffold, dispatcher template,
-       onboarding template, runbooks) — patterns are now proven stable.
-DONE:  Tier A/B/C built+merged+healthy on awareness-graph master (GC-1/2/3 incl.
-       GC-2 verified, WB-1/2/3, CG-5/6); Tier D (RT-1..4), Tier F (OT-1..4),
-       BH-1, execution-surface EX. Stale branch fix/regenerate-stale-transaction-
-       stamp is superseded by #136 — do not land.
+NOW →  The easy coverage is exhausted. What remains is dedicated engineering, one
+       careful slice at a time:
+         • Tier E — BH bounded enforcement from the #138 verify-first audit (finite).
+         • CG-3 spine changes (own design session each, highest-value first:
+           convergence.identity_is_build_id). All deferred with recorded findings.
+         • Tier G template harvest (promote-invariant scaffold, dispatcher
+           template, onboarding template, runbooks) — patterns now proven stable.
+       Optional small seam: wire WB-2 incident→candidate into a standing review
+       queue (tooling exists).
+DONE:  Tier A complete + VERIFIED at runtime (GC-1/2/3 — GC-2 seed-rebuild via
+       #136 integrity gate, GC-3 via awg reconcile). Tier B (WB-1/2/3). Tier C:
+       CG-5/6 gates + CG-2 fully harvested (11 promoted) + 2 CG-3 earned
+       (#143/#144). Tier D (RT-1..4). Tier F (OT-1..4). BH-1. execution-surface
+       EX. Stale branch fix/regenerate-stale-transaction-stamp superseded by
+       #136 — do not land.
 ```
 
 ---
