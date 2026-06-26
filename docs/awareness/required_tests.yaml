@@ -6219,3 +6219,28 @@ required_tests:
     files:
     - golang/cluster_controller/resourcestore/etcd_store.go
     - golang/cluster_controller/resourcestore/owner_guard_test.go
+- id: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go::TestReferenceNodeBuildID_SameVersionDifferentBuildRefused
+  title: Reference node — same version, different build_id is refused
+  protects:
+    invariants:
+    - convergence.identity_is_build_id
+- id: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go::TestReferenceNodeBuildID_MissingInstalledBuildRefused
+  title: Reference node — missing installed build_id for build-backed service is refused
+  protects:
+    invariants:
+    - convergence.identity_is_build_id
+- id: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go::TestReferenceNodeBuildID_NoDesiredBuildIDSkipped
+  title: Reference node — no desired build_id (upstream/dev) is skipped
+  protects:
+    invariants:
+    - convergence.identity_is_build_id
+- id: golang/cluster_controller/cluster_controller_server/build_id_convergence_dimension_test.go::TestBuildIDDimension_DifferentBuildIDNotConverged
+  title: Per-package convergence — different build_id is not converged
+  protects:
+    invariants:
+    - convergence.identity_is_build_id
+- id: golang/cluster_controller/cluster_controller_server/build_id_convergence_dimension_test.go::TestBuildIDDimension_MatchingBuildIDConverges
+  title: Per-package convergence — matching build_id converges
+  protects:
+    invariants:
+    - convergence.identity_is_build_id

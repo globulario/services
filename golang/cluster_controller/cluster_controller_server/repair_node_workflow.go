@@ -675,6 +675,17 @@ func (srv *server) validateReferenceNode(ctx context.Context, referenceNodeID st
 		}
 	}
 
+	// Resolve desired build_id per service while UNLOCKED — lookupServiceReleaseBuildID
+	// does etcd reads and must not run under the controller lock. The cluster summary
+	// hash compared below is a COARSE version summary, not build identity; the
+	// build_id check after it is the convergence authority (convergence.identity_is_build_id).
+	desiredBuildIDs := make(map[string]string, len(desiredCanon))
+	for canon := range desiredCanon {
+		if bid, _ := srv.lookupServiceReleaseBuildID(ctx, canon); strings.TrimSpace(bid) != "" {
+			desiredBuildIDs[canon] = strings.TrimSpace(bid)
+		}
+	}
+
 	srv.lock("validateReferenceNode:hash")
 	node = srv.state.Nodes[referenceNodeID] // re-read under lock
 	if node == nil {
@@ -682,10 +693,20 @@ func (srv *server) validateReferenceNode(ctx context.Context, referenceNodeID st
 		return fmt.Errorf("reference node %s disappeared during validation", referenceNodeID)
 	}
 	filtered := filterVersionsForNode(desiredCanon, node)
+	// Coarse pre-check: version-level convergence via the summary hash. This is a
+	// fast version-drift filter, NOT build-identity authority.
 	desiredHash := stableServiceDesiredHash(filtered)
 	if node.AppliedServicesHash != desiredHash {
 		return fmt.Errorf("reference node %s is not converged: applied_hash=%s desired_hash=%s",
 			referenceNodeID, node.AppliedServicesHash[:16], desiredHash[:16])
+	}
+	// Build-identity authority (convergence.identity_is_build_id): refuse a
+	// reference node on a different build_id for any desired service — same
+	// version, different build is NOT converged, and the version-blind summary
+	// hash above cannot tell them apart.
+	if svc, want, got, bad := referenceNodeBuildIDMismatch(filtered, desiredBuildIDs, node.InstalledBuildIDs); bad {
+		return fmt.Errorf("reference node %s is not converged by build identity: service %s installed build_id=%q != desired build_id=%q (same version, different build)",
+			referenceNodeID, svc, got, want)
 	}
 
 	// Check controller version.
@@ -697,4 +718,26 @@ func (srv *server) validateReferenceNode(ctx context.Context, referenceNodeID st
 	}
 
 	return nil
+}
+
+// referenceNodeBuildIDMismatch is the build-identity authority check for reference-
+// node acceptance (convergence.identity_is_build_id). It reports the first desired
+// service whose installed build_id differs from its resolved desired build_id —
+// same version but a different build is NOT converged, which the version-blind
+// cluster summary hash cannot detect. Services with no resolved desired build_id
+// (upstream-native / dev artifacts) are skipped: build identity cannot be enforced
+// where none exists, mirroring the per-package requireBuildID gating. bad==false
+// means converged by build identity.
+func referenceNodeBuildIDMismatch(filtered, desiredBuildIDs, installedBuildIDs map[string]string) (svc, want, got string, bad bool) {
+	for canon := range filtered {
+		w := strings.TrimSpace(desiredBuildIDs[canon])
+		if w == "" {
+			continue
+		}
+		g := strings.TrimSpace(lookupInstalledVersionFromMap(installedBuildIDs, canon))
+		if g != w {
+			return canon, w, g, true
+		}
+	}
+	return "", "", "", false
 }
