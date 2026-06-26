@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 )
 
 // ensureServiceRelease creates or updates a ServiceRelease object for the given
@@ -87,11 +89,11 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publis
 	rel := &cluster_controllerpb.ServiceRelease{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: releaseName},
 		Spec: &cluster_controllerpb.ServiceReleaseSpec{
-			PublisherID:  effectivePublisher,
-			ServiceName:  canon,
-			Version:      version,
-			BuildNumber:  buildNumber,
-			Platform:     "", // resolved per-node by the reconciler
+			PublisherID: effectivePublisher,
+			ServiceName: canon,
+			Version:     version,
+			BuildNumber: buildNumber,
+			Platform:    "", // resolved per-node by the reconciler
 		},
 		Status: &cluster_controllerpb.ServiceReleaseStatus{
 			Phase: cluster_controllerpb.ReleasePhasePending,
@@ -154,6 +156,12 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		log.Printf("ensureServiceReleasesFromDesired: processed %d desired entries", created)
 	}
 
+	// Prune any legacy pre-guard cross-kind ServiceDesiredVersion pollution
+	// (an infrastructure-owned name carrying a service-desired record). Running
+	// it here gives both startup and periodic coverage, so a backup-restore that
+	// reintroduces a stale cross-kind record is cleaned on the next pass.
+	srv.cleanupLegacyCrossKindDesiredState(ctx)
+
 	// Re-enqueue releases stuck in RESOLVED: no watch event fires when a
 	// release's status doesn't change, so periodic re-reconcile is the only
 	// retry path. APPLYING releases are owned by an executing workflow and
@@ -207,10 +215,93 @@ func (srv *server) retryStuckReleases(ctx context.Context) {
 	}
 }
 
-// cleanupStaleInfraServiceReleases was intended to remove ServiceRelease and
-// ServiceDesiredVersion objects for infra packages managed by InfrastructureRelease.
-// DISABLED: this global deletion breaks Day-1 convergence by removing desired state
-// that joining nodes still need. Safe to re-enable once node-aware checks are added.
-func (srv *server) cleanupStaleInfraServiceReleases(_ context.Context) {
-	log.Printf("cleanupStaleInfraServiceReleases: SKIPPED (disabled for Day-1 stability)")
+// pruneCrossKindServiceDesired removes ServiceDesiredVersion entries whose name
+// is owned by an InfrastructureRelease — legacy PRE-GUARD cross-kind writes.
+// Returns the canonical names removed. Store-pure so it is unit-testable with a
+// MemStore.
+//
+// SAFETY (intent:delete_requires_explicit_intent_marker): the deletion criterion
+// is explicit and narrow — a ServiceDesiredVersion is removed ONLY when its
+// canonical name matches a component that currently has an InfrastructureRelease
+// (the authoritative owner). Valid service-desired state is NEVER touched. It
+// removes only the invalid desired record; it does NOT drive a removal workflow
+// or uninstall (the InfrastructureRelease stays the sole authority). If no
+// InfrastructureRelease exists at all it deletes nothing (fail-safe: ownership
+// cannot be classified). This replaces the old global cleanupStaleInfraServiceReleases,
+// which was disabled for deleting desired state joining nodes still needed.
+func pruneCrossKindServiceDesired(ctx context.Context, store resourcestore.Store) ([]string, error) {
+	infraItems, _, err := store.List(ctx, "InfrastructureRelease", "")
+	if err != nil {
+		return nil, fmt.Errorf("list InfrastructureRelease: %w", err)
+	}
+	infraOwned := make(map[string]bool)
+	for _, obj := range infraItems {
+		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
+		if !ok || rel.Spec == nil {
+			continue
+		}
+		name := canonicalServiceName(rel.Spec.Component)
+		if name == "" && rel.Meta != nil {
+			name = canonicalServiceName(infraReleaseNameFromKey(rel.Meta.Name))
+		}
+		if name != "" {
+			infraOwned[name] = true
+		}
+	}
+	if len(infraOwned) == 0 {
+		return nil, nil // cannot classify ownership — delete nothing (fail-safe)
+	}
+
+	sdvItems, _, err := store.List(ctx, "ServiceDesiredVersion", "")
+	if err != nil {
+		return nil, fmt.Errorf("list ServiceDesiredVersion: %w", err)
+	}
+	var removed []string
+	for _, obj := range sdvItems {
+		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
+		if !ok || sdv.Spec == nil {
+			continue
+		}
+		canon := canonicalServiceName(sdv.Spec.ServiceName)
+		if canon == "" && sdv.Meta != nil {
+			canon = canonicalServiceName(sdv.Meta.Name)
+		}
+		if canon == "" || !infraOwned[canon] {
+			continue // valid service-desired state — never touch
+		}
+		if err := store.Delete(ctx, "ServiceDesiredVersion", canon); err != nil {
+			log.Printf("cleanup-cross-kind: delete ServiceDesiredVersion %q: %v", canon, err)
+			continue
+		}
+		removed = append(removed, canon)
+	}
+	return removed, nil
+}
+
+// cleanupLegacyCrossKindDesiredState removes legacy pre-guard cross-kind
+// ServiceDesiredVersion entries for infrastructure-owned packages (e.g. a stale
+// xds@1.2.235 service-desired record left over from before the cross-kind guard
+// existed). Such records are invalid authority: infrastructure is not a service,
+// so a ServiceDesiredVersion for it poisons the node-agent's desired-version
+// drift check (I2) and re-stages stale tarballs. The cross-kind guard
+// (rejectCrossKindDesiredWrite) prevents CREATING new ones; this is the audited
+// CLEANUP path for pre-guard pollution. Runs wherever ensureServiceReleasesFromDesired
+// runs (startup + periodic), so a backup-restore that reintroduces a stale
+// cross-kind record is cleaned on the next pass.
+func (srv *server) cleanupLegacyCrossKindDesiredState(ctx context.Context) int {
+	if !srv.mustBeLeader() || srv.resources == nil {
+		return 0
+	}
+	removed, err := pruneCrossKindServiceDesired(ctx, srv.resources)
+	if err != nil {
+		log.Printf("cleanup-cross-kind: %v", err)
+		return 0
+	}
+	for _, name := range removed {
+		log.Printf("cleanup-cross-kind: removed legacy cross-kind ServiceDesiredVersion %q (owned by InfrastructureRelease)", name)
+	}
+	if len(removed) > 0 {
+		log.Printf("cleanup-cross-kind: removed %d legacy cross-kind ServiceDesiredVersion entry(ies)", len(removed))
+	}
+	return len(removed)
 }

@@ -268,8 +268,18 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 
 	// ── Evaluate invariants ──
 	for key, inst := range installedMap {
-		// I2: desired vs installed build mismatch
-		if d, ok := desiredMap[strings.ToLower(inst.ref.GetName())]; ok {
+		// I2: desired vs installed version/build mismatch.
+		//
+		// ServiceDesiredVersion is SERVICE-kind authority ONLY. Infrastructure
+		// and command packages converge against their own controller-owned
+		// records (InfrastructureRelease.resolved_version), NEVER service-desired.
+		// Comparing an INFRASTRUCTURE-installed package against the service-desired
+		// map re-introduces the cross-kind stale-resolved ghost: a legacy
+		// ServiceDesiredVersion for xds reads 1.2.235 while the InfrastructureRelease
+		// is correctly 1.2.237 — a phantom drift that no service-desired write can
+		// clear (the cross-kind guard rejects it). Infra/command desired authority
+		// is the controller's domain (invariant desired.keyed_by_kind_and_name).
+		if d, ok := desiredMap[strings.ToLower(inst.ref.GetName())]; ok && desiredVersionCheckAppliesToKind(inst.kind) {
 			if d.Version != "" && d.Version != inst.ref.GetVersion() {
 				report.Findings = append(report.Findings, integrityFinding{
 					Invariant: "artifact.desired_version_mismatch",
@@ -392,6 +402,18 @@ type installedRef struct {
 	build       int64
 	checksum    string
 	installedAt int64
+}
+
+// desiredVersionCheckAppliesToKind reports whether the I2 desired-version drift
+// check (installed vs ServiceDesiredVersion) applies to a package of this kind.
+// Only SERVICE packages are governed by ServiceDesiredVersion. INFRASTRUCTURE,
+// COMMAND, and APPLICATION packages have their own controller-owned desired
+// authority (InfrastructureRelease / ApplicationRelease), so consulting
+// service-desired for them is a cross-kind authority error that surfaces as a
+// phantom desired_version_mismatch finding. Enforces the read-side half of
+// invariant desired.keyed_by_kind_and_name.
+func desiredVersionCheckAppliesToKind(kind string) bool {
+	return strings.EqualFold(strings.TrimSpace(kind), "SERVICE")
 }
 
 // DesiredRef is the per-service desired-state tuple consumed by the I2
