@@ -49,6 +49,6 @@ change_risk:
 status: accepted
 required_tests:
   - golang/dependency/modes_test.go::TestCriticalDependencyDeclaresDegradationMode
-  - golang/dependency/modes_test.go::TestRepositoryMinioIsDegradedNotReadOnly
+  - golang/dependency/modes_test.go::TestRepositoryHasNoMinioDependency
   - golang/dependency/modes_test.go::TestWorkflowDispatchBlocksWhenRequiredDependencyModeIsStop
   - golang/repository/repository_server/dependency_contract_test.go::TestDependencyDeclarationMatchesLiveEnforcement

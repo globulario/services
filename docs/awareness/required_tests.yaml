@@ -3614,8 +3614,8 @@ required_tests:
   protects:
     invariants:
     - repository.package_build_lane_unique
-- id: golang/dependency/modes_test.go::TestRepositoryMinioIsDegradedNotReadOnly
-  title: Repository Minio Is Degraded Not Read Only
+- id: golang/dependency/modes_test.go::TestRepositoryHasNoMinioDependency
+  title: Repository Has No Minio Dependency
   protects:
     invariants:
     - service.dependencies_must_define_degradation_mode
