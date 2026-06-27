@@ -3913,3 +3913,29 @@ forbidden_fixes:
     forbidden move — deterministic, locally available, no runtime dependency on
     ai-memory. A live behavioral RPC may be added later only as ADVISORY enrichment
     layered on top of, never replacing, the local deterministic gate.
+- id: commit_generated_protobuf_outside_canonical_pb_dir
+  summary: >-
+    Generate or copy *.pb.go anywhere other than golang/<service>/<name>pb/ — e.g.
+    running protoc / generateCode.sh from the repo root and leaving a root-level
+    cluster_controller.pb.go. The strays declare the pb package but sit where no Go
+    package exists, cannot compile, and shadow the authoritative copies.
+  related_invariants:
+  - build.generated_protobuf_only_in_canonical_pb_dir
+  - meta.generated_artifacts_must_be_fresh_before_merge
+  safe_alternative: >-
+    Run generateCode.sh from its intended directory so protoc output lands in the
+    canonical golang/<service>/<name>pb/ package. Diff any stray against the
+    canonical copy (canonical is usually the superset) and delete strays.
+    `make check-no-misplaced-pb` fails the build if any *.pb.go is outside a *pb/ dir.
+- id: commit_compiled_binary_as_source
+  summary: >-
+    git add a compiled binary (ELF / Mach-O / Windows PE / object / archive) into
+    the repo — e.g. a `go build` output like golang/node_agent_server_new. Binaries
+    are platform-specific, bloat history, and are never source.
+  related_invariants:
+  - build.no_compiled_binaries_tracked_in_git
+  safe_alternative: >-
+    Build into an ignored output path; never git add a binary. git rm --cached any
+    that slipped in and add a .gitignore rule. `make check-no-tracked-binaries`
+    (libmagic content detection) fails the build if any tracked file is a compiled
+    binary.
