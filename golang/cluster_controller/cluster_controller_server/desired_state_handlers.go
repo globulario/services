@@ -335,6 +335,25 @@ func (srv *server) enforceServiceDesiredFloor(ctx context.Context, canon, reques
 	return nil
 }
 
+// normalizeDesiredVersion validates and normalizes a desired-state version.
+// It canonicalizes real SemVer AND preserves upstream-native (non-SemVer)
+// package tags — ffmpeg n8.x, minio RELEASE.x, mc RELEASE.x — so a
+// platform-upgrade that touches a native-version package does not fail the
+// whole dispatch step.
+//
+// Do NOT revert this to versionutil.Canonical: Canonical rejects native tags,
+// which is exactly failure_mode
+// release.platform_upgrade_dispatch_rejects_non_semver_versions —
+// platform_upgrade.dispatch upserted a native-version package (ffmpeg), upsertOne
+// rejected the version as invalid semver, and the whole platform-upgrade reported
+// FAILED even though every SemVer package converged. Native versions cannot be
+// ordered, so the no-regression floor below skips them gracefully
+// (regressesBelowFloor returns false when versionutil.Compare errors); the
+// repository artifact resolver remains the final gate on installability.
+func normalizeDesiredVersion(raw string) (string, error) {
+	return versionutil.NormalizeExact(strings.TrimSpace(raw))
+}
+
 func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.DesiredService, allowRegression bool) error {
 	if svc == nil {
 		return fmt.Errorf("nil service")
@@ -347,10 +366,10 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	if version == "" {
 		return fmt.Errorf("version is required for %q", svc.ServiceId)
 	}
-	if cv, err := versionutil.Canonical(version); err != nil {
+	if nv, err := normalizeDesiredVersion(version); err != nil {
 		return fmt.Errorf("invalid version %q for %q: %w", svc.Version, svc.ServiceId, err)
 	} else {
-		version = cv
+		version = nv
 	}
 	// Observability blackout is a hard precondition, independent of the
 	// regression policy: with no fresh heartbeat we cannot compute the
