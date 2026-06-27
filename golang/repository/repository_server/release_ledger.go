@@ -35,8 +35,9 @@ package main
 //   - Deterministic version → build_id resolution
 //
 // Storage: ScyllaDB table `repository.release_ledger` (distributed, consistent).
-// Fallback: MinIO JSON file at `ledger/{publisher}%{name}.json` when ScyllaDB
-// is unavailable.
+// Fallback: local POSIX JSON file at `ledger/{publisher}%{name}.json` when
+// ScyllaDB is unavailable. (Packages never live in MinIO — the secondary copy
+// is the local POSIX CAS, not a shared object store.)
 //
 // The ledger is written on every successful promote-to-PUBLISHED transition
 // and read by the release resolver for latest-version queries.
@@ -97,7 +98,7 @@ func (srv *server) readLedger(ctx context.Context, publisher, name string) *rele
 		}
 	}
 
-	// Fallback: MinIO.
+	// Fallback: local POSIX store.
 	key := ledgerStorageKey(publisher, name)
 	data, err := srv.Storage().ReadFile(ctx, key)
 	if err != nil {
@@ -128,11 +129,13 @@ func (srv *server) writeLedger(ctx context.Context, ledger *releaseLedger) error
 		}
 	}
 
-	// Write to MinIO — best-effort mirror for degraded/single-node reads.
-	// Failure is non-fatal: Scylla already has the authoritative ledger.
+	// Write to the local POSIX store — best-effort secondary for degraded /
+	// single-node reads. Failure is non-fatal: Scylla already has the
+	// authoritative ledger. (Never MinIO — packages and their ledgers live only
+	// in the local POSIX CAS.)
 	key := ledgerStorageKey(ledger.Publisher, ledger.Name)
 	if err := srv.Storage().WriteFile(ctx, key, data, 0o644); err != nil {
-		slog.Warn("ledger: minio mirror write failed (scylla is authoritative, ledger is committed)",
+		slog.Warn("ledger: local POSIX secondary write failed (scylla is authoritative, ledger is committed)",
 			"publisher", ledger.Publisher, "name", ledger.Name, "err", err)
 	}
 

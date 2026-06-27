@@ -9,46 +9,14 @@ package main
 //   B. Publish cannot create PUBLISHED metadata with missing local blob.
 
 import (
-	"bytes"
 	"context"
-	"errors"
-	"io"
-	"io/fs"
-	"log/slog"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
-	"github.com/globulario/services/golang/storage_backend"
-	"github.com/globulario/services/golang/subsystem"
 )
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-// newTestServerWithMirror returns a server backed by a ResilientStorage
-// (local temp dir + the provided mirror).
-func newTestServerWithMirror(t *testing.T, mirror storage_backend.Storage) *server {
-	t.Helper()
-	localDir := t.TempDir()
-	local := storage_backend.NewOSStorage(localDir)
-	rs := storage_backend.NewResilientStorage(local, mirror)
-	srv := &server{Root: localDir}
-	srv.storage = rs
-	srv.localStorage = local
-	srv.mirrorStorage = mirror
-	return srv
-}
-
-func nopLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
-
-func nopSubsystem(name string) *subsystem.SubsystemHandle {
-	return subsystem.RegisterSubsystem(name, time.Minute)
-}
-
-// ── Test A: RequireHealthy() never blocks on MinIO failure ───────────────────
+// ── Test A: RequireHealthy() gates only on ScyllaDB ──────────────────────────
 
 // TestDepHealth_ScyllaOKAllowsRPCs: ScyllaDB OK → RequireHealthy must return nil.
 func TestDepHealth_ScyllaOKAllowsRPCs(t *testing.T) {
@@ -92,30 +60,6 @@ func containsSubstring(s, sub string) bool {
 	return false
 }
 
-// ── Test A: ResilientStorage — MinIO down, write/read still works ─────────────
-
-func TestResilientStorage_MinIODownWriteReadWorks(t *testing.T) {
-	mirror := &alwaysFailStorage{}
-	srv := newTestServerWithMirror(t, mirror)
-	ctx := context.Background()
-
-	// Write through ResilientStorage — should succeed (local write).
-	const path = "artifacts/test.bin"
-	payload := []byte("content written with minio down")
-	if err := srv.storage.WriteFile(ctx, path, payload, 0o644); err != nil {
-		t.Fatalf("WriteFile with mirror down: %v", err)
-	}
-
-	// Read back — should succeed from local.
-	got, err := srv.storage.ReadFile(ctx, path)
-	if err != nil {
-		t.Fatalf("ReadFile with mirror down: %v", err)
-	}
-	if !bytes.Equal(got, payload) {
-		t.Errorf("data mismatch: got %q want %q", got, payload)
-	}
-}
-
 // ── Test B: publish cannot create PUBLISHED metadata with missing local blob ──
 
 // TestPublish_MissingLocalBlobBlocksPromote verifies that promoteToPublished
@@ -153,43 +97,3 @@ func TestPublish_MissingLocalBlobBlocksPromote(t *testing.T) {
 		t.Errorf("artifact must not be PUBLISHED when local blob is missing, got PUBLISHED")
 	}
 }
-
-// ── test infrastructure ───────────────────────────────────────────────────────
-
-// alwaysFailStorage is a Storage where every operation returns an error.
-// Unlike failStorage in storage_backend_test, this is in package main.
-type alwaysFailStorage struct{}
-
-var errAlwaysFail = errors.New("storage: always fails (test)")
-
-func (*alwaysFailStorage) ReadFile(_ context.Context, _ string) ([]byte, error) {
-	return nil, errAlwaysFail
-}
-func (*alwaysFailStorage) Open(_ context.Context, _ string) (io.ReadSeekCloser, error) {
-	return nil, errAlwaysFail
-}
-func (*alwaysFailStorage) Stat(_ context.Context, _ string) (fs.FileInfo, error) {
-	return nil, errAlwaysFail
-}
-func (*alwaysFailStorage) Exists(_ context.Context, _ string) bool { return false }
-func (*alwaysFailStorage) ReadDir(_ context.Context, _ string) ([]fs.DirEntry, error) {
-	return nil, errAlwaysFail
-}
-func (*alwaysFailStorage) WriteFile(_ context.Context, _ string, _ []byte, _ fs.FileMode) error {
-	return errAlwaysFail
-}
-func (*alwaysFailStorage) AtomicWriteFile(_ context.Context, _ string, _ []byte, _ fs.FileMode) error {
-	return errAlwaysFail
-}
-func (*alwaysFailStorage) Create(_ context.Context, _ string) (io.WriteCloser, error) {
-	return nil, errAlwaysFail
-}
-func (*alwaysFailStorage) MkdirAll(_ context.Context, _ string, _ fs.FileMode) error {
-	return errAlwaysFail
-}
-func (*alwaysFailStorage) RemoveAll(_ context.Context, _ string) error { return errAlwaysFail }
-func (*alwaysFailStorage) Remove(_ context.Context, _ string) error    { return errAlwaysFail }
-func (*alwaysFailStorage) Rename(_ context.Context, _, _ string) error { return errAlwaysFail }
-func (*alwaysFailStorage) Ping(_ context.Context) error                { return errAlwaysFail }
-func (*alwaysFailStorage) TempDir() string                             { return "/tmp" }
-func (*alwaysFailStorage) Getwd() (string, error)                      { return "", errAlwaysFail }

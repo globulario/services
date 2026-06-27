@@ -415,24 +415,11 @@ func (srv *server) buildBlobFinding(row *manifestRow, ref *repopb.ArtifactRef, k
 	}
 
 	// Replication-lag disambiguation. A PUBLISHED manifest is cluster-wide
-	// (shared ScyllaDB index), but blobs are per-instance local CAS replicated
-	// asynchronously via the MinIO mirror. A blob absent from THIS instance's
-	// local CAS but PRESENT in the shared mirror is replication lag on this
-	// instance — NOT data loss — and must not read as CRITICAL. This is the
-	// false-positive storm seen during multi-node joins, when a freshly
-	// converged repository instance has the full manifest index but an
-	// incomplete local CAS. Reserve CRITICAL/WARN for blobs missing locally
-	// AND from the mirror (true loss). Mirror presence is consulted for
-	// REPORTING ONLY; installability authority stays local (artifactBlobStatus).
-	if kind == repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_MISSING_BLOB &&
-		reason == "missing_blob" &&
-		srv.artifactBlobInMirror(context.Background(), ref, row.BuildNumber) {
-		severity = repopb.RepositoryFindingSeverity_REPO_FIND_INFO
-		reasonCode = "repository.identity.blob_absent_local_present_mirror"
-		evidence["blob_status"] = "missing_local_present_mirror"
-		evidence["remediation_hint"] = "blob present in shared mirror; awaiting local CAS replication on this instance — not data loss"
-		recommended = "" // no operator action — local replication is automatic
-	}
+	// Packages never live in MinIO — the local POSIX CAS is the sole blob
+	// authority. A blob missing from the local CAS is real loss and keeps its
+	// default severity; there is no mirror tier to consult for replication lag.
+	// Cross-node blob availability is provided by the day-1 CAS seeder
+	// (blob_seed.go), digest-verified against the Scylla manifest authority.
 
 	return &repopb.RepositoryFinding{
 		Kind:               kind,

@@ -14,7 +14,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,8 +33,6 @@ import (
 	"github.com/globulario/services/golang/storage_backend"
 	"github.com/globulario/services/golang/workflow"
 	Utility "github.com/globulario/utility"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -120,8 +117,7 @@ type server struct {
 	// --- Repository-Specific Fields ---
 	Root              string                   // Base data directory (artifacts/ lives under this)
 	GCRetentionWindow int                      // Number of PUBLISHED builds per series kept from GC (default 3)
-	MinioConfig       *config.MinioProxyConfig // MinIO config from etcd (optional mirror)
-	minioClient       *minio.Client
+	MinioConfig       *config.MinioProxyConfig // MinIO endpoint config from etcd (used only by the legacy storage-topology check; see TODO in storage_topology.go)
 	storage           storage_backend.Storage
 	localStorage      *storage_backend.OSStorage             // local POSIX CAS — never nil after initStorage
 	mirrorStorage     storage_backend.Storage                // optional MinIO mirror — nil when unavailable
@@ -474,61 +470,6 @@ func (srv *server) setPackageBundle(checksum, platform string, size int32, modif
 // Storage backend (MinIO or local filesystem)
 // -----------------------------------------------------------------------------
 
-const minioContractPath = "/var/lib/globular/objectstore/minio.json"
-const minioCredentialsPath = "/var/lib/globular/minio/credentials"
-
-func (srv *server) minioEnabled() bool {
-	return srv.MinioConfig != nil && srv.MinioConfig.Endpoint != "" && srv.MinioConfig.Bucket != ""
-}
-
-func (srv *server) ensureMinioClient() error {
-	if srv.minioClient != nil {
-		return nil
-	}
-	cfg := srv.MinioConfig
-	auth := cfg.Auth
-	if auth == nil {
-		auth = &config.MinioProxyAuth{Mode: config.MinioProxyAuthModeNone}
-	}
-	var creds *credentials.Credentials
-	switch auth.Mode {
-	case config.MinioProxyAuthModeAccessKey:
-		creds = credentials.NewStaticV4(auth.AccessKey, auth.SecretKey, "")
-	case config.MinioProxyAuthModeFile:
-		data, err := os.ReadFile(auth.CredFile)
-		if err != nil {
-			return fmt.Errorf("read minio credentials file: %w", err)
-		}
-		parts := strings.Split(strings.TrimSpace(string(data)), ":")
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid minio credentials file format")
-		}
-		creds = credentials.NewStaticV4(parts[0], parts[1], "")
-	default:
-		creds = credentials.NewStaticV4("", "", "")
-	}
-	opts := &minio.Options{Creds: creds, Secure: cfg.Secure}
-	// Always install the cluster DNS dialer so *.globular.internal names
-	// resolve via Globular DNS (system resolver has no knowledge of them).
-	transport := &http.Transport{DialContext: config.ClusterDialContext}
-	if cfg.Secure {
-		tlsCfg, err := config.MinIOTLSConfig(cfg.Endpoint)
-		if err != nil {
-			return fmt.Errorf("build minio TLS config: %w", err)
-		}
-		if tlsCfg != nil {
-			transport.TLSClientConfig = tlsCfg
-		}
-	}
-	opts.Transport = transport
-	client, err := minio.New(cfg.Endpoint, opts)
-	if err != nil {
-		return err
-	}
-	srv.minioClient = client
-	return nil
-}
-
 func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 	// etcd is the only source of truth. No env vars, no disk contracts, no
 	// localhost fallbacks. Endpoint is a DNS name resolved via cluster DNS.
@@ -553,41 +494,6 @@ func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
 		cfg.Endpoint = auth.MinioEndpoint
 	}
 
-	return cfg
-}
-
-func parseMinioConfigFromMap(m map[string]interface{}) *config.MinioProxyConfig {
-	cfg := &config.MinioProxyConfig{}
-	if v, ok := m["endpoint"].(string); ok {
-		cfg.Endpoint = v
-	}
-	if v, ok := m["bucket"].(string); ok {
-		cfg.Bucket = v
-	}
-	if v, ok := m["prefix"].(string); ok {
-		cfg.Prefix = v
-	}
-	if v, ok := m["secure"].(bool); ok {
-		cfg.Secure = v
-	}
-	if v, ok := m["caBundlePath"].(string); ok {
-		cfg.CABundlePath = v
-	}
-	if authRaw, ok := m["auth"].(map[string]interface{}); ok {
-		cfg.Auth = &config.MinioProxyAuth{}
-		if mode, ok := authRaw["mode"].(string); ok {
-			cfg.Auth.Mode = mode
-		}
-		if ak, ok := authRaw["accessKey"].(string); ok {
-			cfg.Auth.AccessKey = ak
-		}
-		if sk, ok := authRaw["secretKey"].(string); ok {
-			cfg.Auth.SecretKey = sk
-		}
-		if cf, ok := authRaw["credFile"].(string); ok {
-			cfg.Auth.CredFile = cf
-		}
-	}
 	return cfg
 }
 

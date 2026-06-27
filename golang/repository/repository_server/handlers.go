@@ -234,10 +234,6 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		_ = stream.SendAndClose(&repopb.UploadBundleResponse{}) // best-effort close
 		return fmt.Errorf("write artifact %q to local CAS: %w", aKey, err)
 	}
-	// Best-effort mirror write — local success is sufficient.
-	if srv.mirrorStorage != nil {
-		_ = srv.mirrorStorage.WriteFile(stream.Context(), binKey, bundle.Binairies, 0o644)
-	}
 
 	if err := srv.setPackageBundle(
 		bundle.Checksum,

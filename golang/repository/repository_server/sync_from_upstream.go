@@ -1090,16 +1090,6 @@ func (srv *server) importUpstreamArtifact(
 		return fmt.Errorf("write binary: %w", matErr)
 	}
 
-	// Best-effort mirror write: populate MinIO so other nodes can read from the
-	// mirror tier. Local POSIX CAS is already authoritative; mirror failure is
-	// non-fatal and does not affect pipeline state.
-	if srv.mirrorStorage != nil {
-		if mirrorErr := srv.mirrorStorage.WriteFile(ctx, binaryStorageKey(key), data, 0o644); mirrorErr != nil {
-			slog.Warn("upstream sync: mirror write failed — local CAS intact",
-				"key", key, "err", mirrorErr)
-		}
-	}
-
 	manifest := &repopb.ArtifactManifest{
 		Ref:                ref,
 		BuildNumber:        n.BuildNumber,

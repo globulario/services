@@ -1394,12 +1394,6 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		bytes.NewReader(data), newChecksum, int64(len(data))); writeErr != nil {
 		return status.Errorf(codes.Internal, "write artifact binary: %v", writeErr)
 	}
-	// Best-effort mirror write — never blocks the upload.
-	if srv.mirrorStorage != nil {
-		if mirrorErr := srv.mirrorStorage.WriteFile(ctx, binaryStorageKey(key), data, 0o644); mirrorErr != nil {
-			slog.Warn("upload: mirror write failed (local CAS intact)", "key", key, "err", mirrorErr)
-		}
-	}
 
 	// Build and persist manifest with VERIFIED state.
 	// The artifact is uploaded and checksum-verified but not yet discoverable
@@ -2632,12 +2626,6 @@ func (srv *server) UpdateArtifactBinary(stream repopb.PackageRepository_UpdateAr
 	if _, writeErr := srv.localStorage.WriteFileAtomic(ctx, binaryStorageKey(newKey),
 		bytes.NewReader(data), actualChecksum, int64(len(data))); writeErr != nil {
 		return status.Errorf(codes.Internal, "write binary: %v", writeErr)
-	}
-	// Best-effort mirror write.
-	if srv.mirrorStorage != nil {
-		if mirrorErr := srv.mirrorStorage.WriteFile(ctx, binaryStorageKey(newKey), data, 0o644); mirrorErr != nil {
-			slog.Warn("delta-deploy: mirror write failed (local CAS intact)", "key", newKey, "err", mirrorErr)
-		}
 	}
 
 	// ── Create new manifest (clone from latest, update binary fields) ──

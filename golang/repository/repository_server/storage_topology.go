@@ -53,6 +53,15 @@ func (e ErrStorageTopologyInvalid) Error() string {
 // validateStorageTopology checks that the repository's MinIO endpoint is safe
 // for the configured storage mode. Called at startup before serving RPCs.
 //
+// TODO(no-minio): packages no longer live in MinIO (the blob mirror was removed
+// and the active storage is pure local POSIX), so this MinIO-endpoint topology
+// check now guards nothing — it only reads MinioConfig + RepositoryStorageConfig
+// and logs/returns a non-fatal error. It (plus the MinioConfig/loadMinioConfig
+// load path and the resolver's MINIO_MIRROR source / SourcePolicy.AllowMinioMirror)
+// are the last vestigial MinIO references in the repository. They are deferred
+// from the MinIO-removal change because excising them means rewriting the
+// storage-hardening and resolver test suites; do that as a focused follow-up.
+//
 // Rules enforced:
 //   - Loopback addresses forbidden for remote storage endpoints.
 //   - In standalone_authority mode: endpoint must NOT be a round-robin DNS name
