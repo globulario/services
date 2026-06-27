@@ -1148,6 +1148,36 @@ service ClusterControllerService {
       default_role_hint: "admin"
     };
   };
+
+  // ActivatePlatformRelease advances the cluster's ACTIVE platform release
+  // pointer (etcd /globular/platform/active_release) to release_tag, after a
+  // synchronous convergence gate: every package in the local repository BOM that
+  // is installed on a node must already run the BOM version on that node (native-
+  // version safe). Refuses on lagging nodes unless force=true, and on a
+  // platform_release older than the current anchor unless allow_regression=true.
+  // Idempotent: re-activating the current tag is a no-op. The controller writes
+  // ONLY the etcd anchor here — node-local release-index.json materialization is a
+  // later slice. See docs/design/platform-release-pointer-advance.md.
+  rpc ActivatePlatformRelease(ActivatePlatformReleaseRequest) returns (ActivatePlatformReleaseResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.platform.activate_release"
+      permission: "admin"
+      resource_template: "/cluster_controller/platform/active-release"
+      default_role_hint: "admin"
+    };
+  };
+}
+
+message ActivatePlatformReleaseRequest {
+  string release_tag = 1;       // tag to activate, e.g. "v1.2.250"
+  bool allow_regression = 2;    // permit activating an older platform_release (audited)
+  bool force = 3;               // bypass the convergence gate (activate despite lagging nodes)
+}
+message ActivatePlatformReleaseResponse {
+  bool ok = 1;                       // true if the anchor was written (or already current)
+  string message = 2;                // human-readable summary
+  repeated string verified_nodes = 3; // nodes whose installed packages matched the BOM
+  string previous_tag = 4;           // the active tag before this call ("" if none)
 }
 
 // SetAccConfigRequest carries the opaque ACC config JSON to persist at

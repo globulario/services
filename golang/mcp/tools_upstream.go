@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
@@ -348,12 +349,17 @@ func registerUpstreamTools(s *server) {
 	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 		const bomPath = "/var/lib/globular/release-index.json"
 
+		// etcd is the authority for the active release; the file is a projection.
+		anchorTag, anchorPlatform, anchorStatus := readActiveReleaseAnchorForTool(ctx)
+
 		data, err := os.ReadFile(bomPath)
 		if err != nil {
-			return map[string]interface{}{
+			out := map[string]interface{}{
 				"bom_present": false,
-				"warning":     "No active release BOM found at " + bomPath + ". Join binaries will resolve to latest published (non-deterministic).",
-			}, nil
+				"warning":     "No active release BOM projection at " + bomPath + ".",
+			}
+			applyActiveReleaseAuthority(out, anchorTag, anchorPlatform, anchorStatus)
+			return out, nil
 		}
 
 		var idx map[string]interface{}
@@ -407,9 +413,34 @@ func registerUpstreamTools(s *server) {
 		if refs, ok := idx["referenced_releases"].([]interface{}); ok && len(refs) > 0 {
 			result["referenced_releases"] = refs
 		}
+		applyActiveReleaseAuthority(result, anchorTag, anchorPlatform, anchorStatus)
 
 		return result, nil
 	})
+}
+
+// applyActiveReleaseAuthority overlays the etcd active-release authority onto a
+// repository_active_release result. etcd is authoritative; the on-disk
+// release-index.json is a projection. When etcd is unreachable the result is
+// marked degraded rather than presented as authoritative truth.
+func applyActiveReleaseAuthority(out map[string]interface{}, tag, platform, status string) {
+	switch status {
+	case "ok":
+		if existing, ok := out["release_tag"].(string); ok && existing != "" && existing != tag {
+			out["release_tag_file_projection"] = existing
+		}
+		out["active_release_authority"] = "etcd"
+		out["release_tag"] = tag
+		out["platform_release"] = platform
+		out["release_index_file_role"] = "projection (etcd anchor is authoritative)"
+	case "unset":
+		out["active_release_authority"] = "none"
+		out["note"] = "No etcd active_release anchor yet; the release-index.json value is the install-time projection, not an anchored active release."
+	case "unavailable":
+		out["active_release_authority"] = "unavailable"
+		out["degraded"] = true
+		out["warning"] = "active release authority unavailable (etcd unreachable); release-index.json shown as last-known local projection, NOT authoritative."
+	}
 }
 
 func orStr(s, def string) string {
@@ -417,4 +448,37 @@ func orStr(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// readActiveReleaseAnchorForTool reads the AUTHORITATIVE active-release pointer
+// from etcd (/globular/platform/active_release). Per
+// docs/design/platform-release-pointer-advance.md, etcd owns the active release
+// pointer; /var/lib/globular/release-index.json is a node-local projection.
+// Returns status "ok" with the tag/platform when the anchor is present, "unset"
+// when the key is absent, or "unavailable" when etcd cannot be reached — in
+// which case the on-disk file is the only signal and MUST be reported as
+// degraded, never as authoritative.
+func readActiveReleaseAnchorForTool(ctx context.Context) (tag, platform, status string) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return "", "", "unavailable"
+	}
+	defer cli.Close()
+	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	resp, err := cli.Get(cctx, "/globular/platform/active_release")
+	if err != nil {
+		return "", "", "unavailable"
+	}
+	if len(resp.Kvs) == 0 {
+		return "", "", "unset"
+	}
+	var a struct {
+		ReleaseTag      string `json:"release_tag"`
+		PlatformRelease string `json:"platform_release"`
+	}
+	if json.Unmarshal(resp.Kvs[0].Value, &a) != nil {
+		return "", "", "unavailable"
+	}
+	return a.ReleaseTag, a.PlatformRelease, "ok"
 }

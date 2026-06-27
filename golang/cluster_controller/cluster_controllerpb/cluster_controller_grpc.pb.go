@@ -75,6 +75,7 @@ const (
 	ClusterControllerService_ApproveObjectStoreDisk_FullMethodName         = "/cluster_controller.ClusterControllerService/ApproveObjectStoreDisk"
 	ClusterControllerService_RejectObjectStoreDisk_FullMethodName          = "/cluster_controller.ClusterControllerService/RejectObjectStoreDisk"
 	ClusterControllerService_PlanObjectStoreTopology_FullMethodName        = "/cluster_controller.ClusterControllerService/PlanObjectStoreTopology"
+	ClusterControllerService_ActivatePlatformRelease_FullMethodName        = "/cluster_controller.ClusterControllerService/ActivatePlatformRelease"
 )
 
 // ClusterControllerServiceClient is the client API for ClusterControllerService service.
@@ -299,6 +300,16 @@ type ClusterControllerServiceClient interface {
 	ApproveObjectStoreDisk(ctx context.Context, in *ApproveObjectStoreDiskRequest, opts ...grpc.CallOption) (*ApproveObjectStoreDiskResponse, error)
 	RejectObjectStoreDisk(ctx context.Context, in *RejectObjectStoreDiskRequest, opts ...grpc.CallOption) (*RejectObjectStoreDiskResponse, error)
 	PlanObjectStoreTopology(ctx context.Context, in *PlanObjectStoreTopologyRequest, opts ...grpc.CallOption) (*PlanObjectStoreTopologyResponse, error)
+	// ActivatePlatformRelease advances the cluster's ACTIVE platform release
+	// pointer (etcd /globular/platform/active_release) to release_tag, after a
+	// synchronous convergence gate: every package in the local repository BOM that
+	// is installed on a node must already run the BOM version on that node (native-
+	// version safe). Refuses on lagging nodes unless force=true, and on a
+	// platform_release older than the current anchor unless allow_regression=true.
+	// Idempotent: re-activating the current tag is a no-op. The controller writes
+	// ONLY the etcd anchor here — node-local release-index.json materialization is a
+	// later slice. See docs/design/platform-release-pointer-advance.md.
+	ActivatePlatformRelease(ctx context.Context, in *ActivatePlatformReleaseRequest, opts ...grpc.CallOption) (*ActivatePlatformReleaseResponse, error)
 }
 
 type clusterControllerServiceClient struct {
@@ -858,6 +869,16 @@ func (c *clusterControllerServiceClient) PlanObjectStoreTopology(ctx context.Con
 	return out, nil
 }
 
+func (c *clusterControllerServiceClient) ActivatePlatformRelease(ctx context.Context, in *ActivatePlatformReleaseRequest, opts ...grpc.CallOption) (*ActivatePlatformReleaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActivatePlatformReleaseResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_ActivatePlatformRelease_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterControllerServiceServer is the server API for ClusterControllerService service.
 // All implementations should embed UnimplementedClusterControllerServiceServer
 // for forward compatibility.
@@ -1080,6 +1101,16 @@ type ClusterControllerServiceServer interface {
 	ApproveObjectStoreDisk(context.Context, *ApproveObjectStoreDiskRequest) (*ApproveObjectStoreDiskResponse, error)
 	RejectObjectStoreDisk(context.Context, *RejectObjectStoreDiskRequest) (*RejectObjectStoreDiskResponse, error)
 	PlanObjectStoreTopology(context.Context, *PlanObjectStoreTopologyRequest) (*PlanObjectStoreTopologyResponse, error)
+	// ActivatePlatformRelease advances the cluster's ACTIVE platform release
+	// pointer (etcd /globular/platform/active_release) to release_tag, after a
+	// synchronous convergence gate: every package in the local repository BOM that
+	// is installed on a node must already run the BOM version on that node (native-
+	// version safe). Refuses on lagging nodes unless force=true, and on a
+	// platform_release older than the current anchor unless allow_regression=true.
+	// Idempotent: re-activating the current tag is a no-op. The controller writes
+	// ONLY the etcd anchor here — node-local release-index.json materialization is a
+	// later slice. See docs/design/platform-release-pointer-advance.md.
+	ActivatePlatformRelease(context.Context, *ActivatePlatformReleaseRequest) (*ActivatePlatformReleaseResponse, error)
 }
 
 // UnimplementedClusterControllerServiceServer should be embedded to have
@@ -1250,6 +1281,9 @@ func (UnimplementedClusterControllerServiceServer) RejectObjectStoreDisk(context
 }
 func (UnimplementedClusterControllerServiceServer) PlanObjectStoreTopology(context.Context, *PlanObjectStoreTopologyRequest) (*PlanObjectStoreTopologyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PlanObjectStoreTopology not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) ActivatePlatformRelease(context.Context, *ActivatePlatformReleaseRequest) (*ActivatePlatformReleaseResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ActivatePlatformRelease not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) testEmbeddedByValue() {}
 
@@ -2236,6 +2270,24 @@ func _ClusterControllerService_PlanObjectStoreTopology_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterControllerService_ActivatePlatformRelease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ActivatePlatformReleaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).ActivatePlatformRelease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_ActivatePlatformRelease_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).ActivatePlatformRelease(ctx, req.(*ActivatePlatformReleaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterControllerService_ServiceDesc is the grpc.ServiceDesc for ClusterControllerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2454,6 +2506,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PlanObjectStoreTopology",
 			Handler:    _ClusterControllerService_PlanObjectStoreTopology_Handler,
+		},
+		{
+			MethodName: "ActivatePlatformRelease",
+			Handler:    _ClusterControllerService_ActivatePlatformRelease_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
