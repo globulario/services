@@ -123,17 +123,6 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		log.Printf("ensureServiceReleasesFromDesired: list: %v", err)
 		return
 	}
-	// Build a set of names managed by InfrastructureRelease so we don't
-	// create duplicate ServiceRelease objects for infrastructure packages.
-	infraManaged := make(map[string]bool)
-	if infraItems, _, err := srv.resources.List(ctx, "InfrastructureRelease", ""); err == nil {
-		for _, obj := range infraItems {
-			if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok && rel.Spec != nil {
-				infraManaged[canonicalServiceName(rel.Spec.Component)] = true
-			}
-		}
-	}
-
 	created := 0
 	for _, obj := range items {
 		sdv, ok := obj.(*cluster_controllerpb.ServiceDesiredVersion)
@@ -144,18 +133,26 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 		if canon == "" || sdv.Spec.Version == "" {
 			continue
 		}
-		// Skip infrastructure packages — they are managed by InfrastructureRelease,
-		// not ServiceRelease. Creating a ServiceRelease for them causes resolution
+		// Skip non-service packages — INFRASTRUCTURE/COMMAND are not managed by
+		// ServiceRelease. Creating a ServiceRelease for them causes resolution
 		// failures (wrong artifact kind) and stale "Planned" entries in the UI.
-		if infraManaged[canon] {
+		//
+		// Kind comes from the component catalog — the SAME single oracle the write
+		// guard (rejectCrossKindDesiredWrite) uses — NOT a second "does an
+		// InfrastructureRelease object exist" proxy. The proxy diverged from the
+		// write guard and went inert before/without an InfrastructureRelease (the
+		// bootstrap/join/restore window), which is where the legacy cross-kind
+		// xds ServiceRelease survived. The catalog is build-gated and always
+		// present, so classification is deterministic and ordering-independent.
+		if nameIsNonServiceCatalogKind(canon) {
 			// Seam 2: skipping CREATE is not enough. A pre-existing cross-kind
-			// ServiceRelease for an infra-owned name (e.g. a legacy xds@1.2.235
-			// left from before the cross-kind write guard) persists and keeps
-			// driving SERVICE-kind install dispatches from a stale pinned tarball.
+			// ServiceRelease for this name (e.g. a legacy xds@1.2.235 left from
+			// before the cross-kind write guard) persists and keeps driving
+			// SERVICE-kind install dispatches from a stale pinned tarball.
 			// Actively reconcile-delete it. pruneCrossKindServiceReleases (below)
-			// is the periodic backstop for infra-owned names that no longer have
-			// any ServiceDesiredVersion at all (the xds incident — its SDV was
-			// already cleaned, but the ServiceRelease faucet stayed open).
+			// is the periodic backstop for names that no longer have any
+			// ServiceDesiredVersion at all (the xds incident — its SDV was already
+			// cleaned, but the ServiceRelease faucet stayed open).
 			srv.deleteCrossKindServiceRelease(ctx, canon)
 			continue
 		}
@@ -225,43 +222,39 @@ func (srv *server) retryStuckReleases(ctx context.Context) {
 	}
 }
 
-// pruneCrossKindServiceDesired removes ServiceDesiredVersion entries whose name
-// is owned by an InfrastructureRelease — legacy PRE-GUARD cross-kind writes.
-// Returns the canonical names removed. Store-pure so it is unit-testable with a
-// MemStore.
+// nameIsNonServiceCatalogKind reports whether the canonical name is a known
+// INFRASTRUCTURE or COMMAND package per the component catalog — the single,
+// build-gated, canonical kind authority. This is the SAME oracle the write guard
+// (rejectCrossKindDesiredWrite) uses, so the cleanup classifies kind identically
+// to the path that prevents the write. A name absent from the catalog is treated
+// as a service (fail-open), so third-party services are never pruned.
+//
+// This replaces the prior ownership proxy ("does an InfrastructureRelease object
+// exist for this name"). That proxy was a SECOND, divergent kind oracle: it went
+// inert when no InfrastructureRelease existed yet (bootstrap / join / backup-
+// restore ordering) — precisely the window in which the legacy cross-kind xds
+// ServiceRelease survived every cleanup. The catalog is deterministic and
+// ordering-independent: if it says xds is INFRASTRUCTURE, a SERVICE record for
+// xds is invalid whether or not an InfrastructureRelease has been created yet
+// (Prime Rule 4 — never duplicate package-kind classification).
+func nameIsNonServiceCatalogKind(canon string) bool {
+	comp := CatalogByName(canon)
+	return comp != nil && (comp.Kind == KindInfrastructure || comp.Kind == KindCommand)
+}
+
+// pruneCrossKindServiceDesired removes ServiceDesiredVersion entries for a name
+// the component catalog classifies as INFRASTRUCTURE or COMMAND — legacy
+// PRE-GUARD cross-kind writes. Returns the canonical names removed. Store-pure so
+// it is unit-testable with a MemStore.
 //
 // SAFETY (intent:delete_requires_explicit_intent_marker): the deletion criterion
-// is explicit and narrow — a ServiceDesiredVersion is removed ONLY when its
-// canonical name matches a component that currently has an InfrastructureRelease
-// (the authoritative owner). Valid service-desired state is NEVER touched. It
-// removes only the invalid desired record; it does NOT drive a removal workflow
-// or uninstall (the InfrastructureRelease stays the sole authority). If no
-// InfrastructureRelease exists at all it deletes nothing (fail-safe: ownership
-// cannot be classified). This replaces the old global cleanupStaleInfraServiceReleases,
-// which was disabled for deleting desired state joining nodes still needed.
+// is explicit and narrow — a ServiceDesiredVersion is removed ONLY when the
+// catalog says the name is non-service (a SERVICE record for it is definitionally
+// invalid). Valid service-desired state — and any name not in the catalog
+// (third-party) — is NEVER touched. It removes only the invalid desired record;
+// it does NOT drive a removal workflow or uninstall (the InfrastructureRelease
+// remains the sole authority and reconverges the package).
 func pruneCrossKindServiceDesired(ctx context.Context, store resourcestore.Store) ([]string, error) {
-	infraItems, _, err := store.List(ctx, "InfrastructureRelease", "")
-	if err != nil {
-		return nil, fmt.Errorf("list InfrastructureRelease: %w", err)
-	}
-	infraOwned := make(map[string]bool)
-	for _, obj := range infraItems {
-		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
-		if !ok || rel.Spec == nil {
-			continue
-		}
-		name := canonicalServiceName(rel.Spec.Component)
-		if name == "" && rel.Meta != nil {
-			name = canonicalServiceName(infraReleaseNameFromKey(rel.Meta.Name))
-		}
-		if name != "" {
-			infraOwned[name] = true
-		}
-	}
-	if len(infraOwned) == 0 {
-		return nil, nil // cannot classify ownership — delete nothing (fail-safe)
-	}
-
 	sdvItems, _, err := store.List(ctx, "ServiceDesiredVersion", "")
 	if err != nil {
 		return nil, fmt.Errorf("list ServiceDesiredVersion: %w", err)
@@ -276,8 +269,8 @@ func pruneCrossKindServiceDesired(ctx context.Context, store resourcestore.Store
 		if canon == "" && sdv.Meta != nil {
 			canon = canonicalServiceName(sdv.Meta.Name)
 		}
-		if canon == "" || !infraOwned[canon] {
-			continue // valid service-desired state — never touch
+		if canon == "" || !nameIsNonServiceCatalogKind(canon) {
+			continue // service-kind (or third-party not in catalog) — never touch
 		}
 		if err := store.Delete(ctx, "ServiceDesiredVersion", canon); err != nil {
 			log.Printf("cleanup-cross-kind: delete ServiceDesiredVersion %q: %v", canon, err)
@@ -288,9 +281,9 @@ func pruneCrossKindServiceDesired(ctx context.Context, store resourcestore.Store
 	return removed, nil
 }
 
-// pruneCrossKindServiceReleases removes ServiceRelease objects whose name is
-// owned by an InfrastructureRelease — the cross-kind faucet that survives the
-// ServiceDesiredVersion cleanup.
+// pruneCrossKindServiceReleases removes ServiceRelease objects for a name the
+// component catalog classifies as INFRASTRUCTURE or COMMAND — the cross-kind
+// faucet that survives the ServiceDesiredVersion cleanup.
 //
 // pruneCrossKindServiceDesired closes the *desired* faucet, but
 // ensureServiceReleasesFromDesired "only creates releases, does not clean up",
@@ -304,36 +297,13 @@ func pruneCrossKindServiceDesired(ctx context.Context, store resourcestore.Store
 // pipe still pours".
 //
 // SAFETY mirrors pruneCrossKindServiceDesired (intent:delete_requires_explicit_intent_marker):
-// a ServiceRelease is removed ONLY when its canonical name matches a component
-// that currently has an InfrastructureRelease (the authoritative owner). Valid
-// service releases are NEVER touched. If no InfrastructureRelease exists at all
-// it deletes nothing (fail-safe: ownership cannot be classified). It removes only
-// the invalid release record; it does NOT drive an uninstall — the
+// a ServiceRelease is removed ONLY when the catalog says the name is non-service
+// (a SERVICE record for it is definitionally invalid). Valid service releases —
+// and any name not in the catalog (third-party) — are NEVER touched. It removes
+// only the invalid release record; it does NOT drive an uninstall — the
 // InfrastructureRelease remains the sole authority and reconverges the package.
 // Store-pure so it is unit-testable with a MemStore.
 func pruneCrossKindServiceReleases(ctx context.Context, store resourcestore.Store) ([]string, error) {
-	infraItems, _, err := store.List(ctx, "InfrastructureRelease", "")
-	if err != nil {
-		return nil, fmt.Errorf("list InfrastructureRelease: %w", err)
-	}
-	infraOwned := make(map[string]bool)
-	for _, obj := range infraItems {
-		rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease)
-		if !ok || rel.Spec == nil {
-			continue
-		}
-		name := canonicalServiceName(rel.Spec.Component)
-		if name == "" && rel.Meta != nil {
-			name = canonicalServiceName(infraReleaseNameFromKey(rel.Meta.Name))
-		}
-		if name != "" {
-			infraOwned[name] = true
-		}
-	}
-	if len(infraOwned) == 0 {
-		return nil, nil // cannot classify ownership — delete nothing (fail-safe)
-	}
-
 	relItems, _, err := store.List(ctx, "ServiceRelease", "")
 	if err != nil {
 		return nil, fmt.Errorf("list ServiceRelease: %w", err)
@@ -351,8 +321,8 @@ func pruneCrossKindServiceReleases(ctx context.Context, store resourcestore.Stor
 		if canon == "" && rel.Meta != nil {
 			canon = canonicalServiceName(serviceReleaseNameFromKey(rel.Meta.Name))
 		}
-		if canon == "" || !infraOwned[canon] {
-			continue // valid service release — never touch
+		if canon == "" || !nameIsNonServiceCatalogKind(canon) {
+			continue // service-kind (or third-party not in catalog) — never touch
 		}
 		// Delete by the actual stored key (Meta.Name, e.g. "core@globular.io/xds")
 		// so a key-shape mismatch can never silently no-op the delete.
