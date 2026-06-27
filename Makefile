@@ -107,18 +107,19 @@ gen-package-kinds:
 # covers catalog drift without the packages repo, and this gate enforces registry
 # parity wherever both repos are present.
 check-package-kinds:
-	@cd golang && tmp=$$(mktemp) && \
-	if go run ./packagekind/cmd/genkinds -out "$$tmp" >/dev/null 2>&1; then \
-		if diff -u packagekind/kinds_generated.go "$$tmp" >/dev/null; then \
-			echo "OK: packagekind/kinds_generated.go matches registry.yaml"; \
-		else \
-			echo "FAIL: package-kind drift — kinds_generated.go is stale; run 'make gen-package-kinds':"; \
-			diff -u packagekind/kinds_generated.go "$$tmp" || true; rm -f "$$tmp"; exit 1; \
-		fi; \
-		rm -f "$$tmp"; \
-	else \
+	@cd golang && tmp=$$(mktemp); go run ./packagekind/cmd/genkinds -out "$$tmp" 2>"$$tmp.err"; rc=$$?; \
+	if [ $$rc -eq 2 ]; then \
 		echo "SKIP: packages/registry.yaml not available (set GLOBULAR_PACKAGES_REGISTRY) — committed table used as-is"; \
-		rm -f "$$tmp"; \
+		rm -f "$$tmp" "$$tmp.err"; \
+	elif [ $$rc -ne 0 ]; then \
+		echo "FAIL: genkinds gate (registry kind inconsistency — e.g. kind != form⊕role):"; \
+		cat "$$tmp.err"; rm -f "$$tmp" "$$tmp.err"; exit 1; \
+	elif diff -u packagekind/kinds_generated.go "$$tmp" >/dev/null; then \
+		echo "OK: packagekind/kinds_generated.go matches registry.yaml (kind=form⊕role gate passed)"; \
+		rm -f "$$tmp" "$$tmp.err"; \
+	else \
+		echo "FAIL: package-kind drift — kinds_generated.go is stale; run 'make gen-package-kinds':"; \
+		diff -u packagekind/kinds_generated.go "$$tmp" || true; rm -f "$$tmp" "$$tmp.err"; exit 1; \
 	fi
 
 # ── Aggregate check target ───────────────────────────────────────────────────

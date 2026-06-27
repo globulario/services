@@ -23,9 +23,29 @@ import (
 
 type registry struct {
 	Packages []struct {
-		Name string `yaml:"name"`
-		Kind string `yaml:"kind"`
+		Name             string `yaml:"name"`
+		Kind             string `yaml:"kind"`
+		SkipRuntimeCheck bool   `yaml:"skip_runtime_check"`
+		SystemdUnit      string `yaml:"systemd_unit"`
 	} `yaml:"packages"`
+}
+
+// deriveKind reproduces kind = form ⊕ role from the registry's axis fields
+// (Slice 5, docs/design/package-classification-single-source.md §1.4):
+//   - form=command  iff skip_runtime_check
+//   - role=infrastructure iff an explicit systemd_unit is set; else service
+//
+// command(form) wins over role. This must reproduce the authored kind for every
+// package — the gate below fails generation on any divergence, so kind can never
+// drift from its form/role signals.
+func deriveKind(skipRuntimeCheck bool, systemdUnit string) string {
+	if skipRuntimeCheck {
+		return "command"
+	}
+	if systemdUnit != "" {
+		return "infrastructure"
+	}
+	return "service"
 }
 
 func main() {
@@ -36,7 +56,10 @@ func main() {
 
 	data, err := os.ReadFile(regPath)
 	if err != nil {
-		fatal("read registry %s: %v (set -registry or GLOBULAR_PACKAGES_REGISTRY)", regPath, err)
+		// Exit 2 = registry not available (e.g. the packages repo isn't checked out)
+		// so the build gate can SKIP rather than FAIL. Real errors below use exit 1.
+		fmt.Fprintf(os.Stderr, "genkinds: registry not available at %s: %v\n", regPath, err)
+		os.Exit(2)
 	}
 	var reg registry
 	if err := yaml.Unmarshal(data, &reg); err != nil {
@@ -52,6 +75,11 @@ func main() {
 		case "service", "infrastructure", "command":
 		default:
 			fatal("package %q has unsupported kind %q — registry.yaml is authority; allowed: service|infrastructure|command", p.Name, p.Kind)
+		}
+		// Slice 5 gate: kind must equal its form⊕role derivation, so the authored
+		// kind can never drift from the axis signals (§1.4). 0 mismatches today.
+		if d := deriveKind(p.SkipRuntimeCheck, p.SystemdUnit); d != p.Kind {
+			fatal("package %q: authored kind %q disagrees with form⊕role derivation %q (skip_runtime_check=%v systemd_unit=%q) — kind must equal command(if skip_runtime_check) else infrastructure(if systemd_unit set) else service; see docs/design/package-classification-single-source.md §1.4", p.Name, p.Kind, d, p.SkipRuntimeCheck, p.SystemdUnit)
 		}
 		if prev, ok := m[p.Name]; ok && prev != p.Kind {
 			fatal("package %q declared with conflicting kinds %q and %q in registry.yaml", p.Name, prev, p.Kind)
