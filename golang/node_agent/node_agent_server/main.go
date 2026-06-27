@@ -90,6 +90,11 @@ func main() {
 	// Idempotent — safe to call on every startup. Canonical wins when both
 	// exist; legacy is preserved for operator review.
 	MigrateLegacyStatePathOnce(statePath, "/var/lib/globular/nodeagent/state.json")
+	// Permanently retire legacy underscore runtime-dir aliases under the state
+	// root: node-agent is the self-healer for the drift cluster-doctor detects.
+	// Idempotent and safe on every startup. Uses the shared runtimedirs alias
+	// map — no second handwritten list.
+	CanonicalizeRuntimeDirsOnce(defaultStateRoot)
 	state, err := loadNodeAgentState(statePath)
 	if err != nil {
 		log.Printf("unable to load node agent state %s: %v", statePath, err)
