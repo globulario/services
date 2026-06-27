@@ -82,6 +82,62 @@ func (srv *server) WriteActiveReleaseAnchor(ctx context.Context, a *activeReleas
 	return nil
 }
 
+// ── desired_release anchor (Slice 2) ────────────────────────────────────────
+//
+// desired_release records the operator's TARGET platform release (set by
+// platform-upgrade), independent of whether the cluster has converged to it yet.
+// It is the input to the reconcile-driven auto-advance: when the cluster
+// converges to this target's BOM, the active_release anchor is advanced to it.
+// Three-state model: desired_release (target) → converged → active_release.
+
+// desiredReleaseAnchorKey is the etcd key holding the operator's target platform
+// release for the cluster.
+const desiredReleaseAnchorKey = "/globular/platform/desired_release"
+
+// desiredReleaseAnchor is the JSON document stored at desiredReleaseAnchorKey.
+type desiredReleaseAnchor struct {
+	ReleaseTag      string `json:"release_tag"`
+	PlatformRelease string `json:"platform_release"`
+	SetAtUnix       int64  `json:"set_at_unix"`
+	SetBy           string `json:"set_by"`
+}
+
+// ReadDesiredReleaseAnchor returns the current desired-release anchor, or
+// (nil, nil) when no target has been recorded yet.
+func (srv *server) ReadDesiredReleaseAnchor(ctx context.Context) (*desiredReleaseAnchor, error) {
+	if srv.etcdClient == nil {
+		return nil, fmt.Errorf("etcd client unavailable")
+	}
+	resp, err := srv.etcdClient.Get(ctx, desiredReleaseAnchorKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Kvs) == 0 {
+		return nil, nil
+	}
+	var d desiredReleaseAnchor
+	if err := json.Unmarshal(resp.Kvs[0].Value, &d); err != nil {
+		return nil, fmt.Errorf("corrupt desired_release anchor: %w", err)
+	}
+	return &d, nil
+}
+
+// WriteDesiredReleaseAnchor persists the desired-release anchor to etcd via the
+// governed critical-write seam (never a raw etcd Put).
+func (srv *server) WriteDesiredReleaseAnchor(ctx context.Context, d *desiredReleaseAnchor) error {
+	if srv.etcdClient == nil {
+		return fmt.Errorf("etcd client unavailable")
+	}
+	body, err := json.Marshal(d)
+	if err != nil {
+		return err
+	}
+	if err := config.PutRuntimeWithClass(ctx, desiredReleaseAnchorKey, body, config.CriticalWrite); err != nil {
+		return err
+	}
+	return nil
+}
+
 // platformReleaseFromTag derives the platform_release value ("1.2.250") from a
 // release tag ("v1.2.250"). The leading v/V is the only normalization — the
 // rest of the tag is preserved verbatim so native tags survive.
@@ -290,4 +346,105 @@ func (srv *server) ActivatePlatformRelease(ctx context.Context, req *cluster_con
 		VerifiedNodes: verified,
 		PreviousTag:   prev,
 	}, nil
+}
+
+// tryAdvanceActiveReleaseAnchor is the reconcile-driven AUTO-advance of the
+// active_release anchor (Slice 2). Called from the reconcile-success path: when
+// the cluster has converged to the operator's desired_release BOM, advance the
+// active pointer to it — no manual `platform activate` needed. This is the
+// event-driven completion of the three-state model
+// (desired_release → converged → active_release).
+//
+// It is BEST-EFFORT and BOUNDED by construction, because it runs inside the
+// reconcile loop and must never block or fail it
+// (derived_state.must_not_block_authority,
+// reconcile.global_work_must_not_starve_completion,
+// critical_queries.must_be_bounded): leader-only, ~10s bounded context, and
+// EVERY error is logged and swallowed — nothing propagates. It writes only the
+// etcd anchor (controller.decides_but_does_not_execute_leaf_work) and is
+// leader-fenced (meta.competing_writers_must_converge_or_be_fenced). Idempotency
+// and no-regression are enforced by decideActivation; force is never used here —
+// the auto-advance only ever moves the pointer to a release the cluster has
+// genuinely converged to.
+// autoAdvanceDecision is the pure decision for the reconcile-driven auto-advance:
+// advance the active pointer to desiredTag ONLY when the cluster has converged
+// (laggardCount == 0). It never forces and never regresses — converged is the
+// only way the pointer moves automatically. Returns:
+//   - activationNoop     → nothing to do (not converged yet, or already active)
+//   - activationRefuse   → no-regression block (desired older than current)
+//   - activationActivate → write the anchor
+func autoAdvanceDecision(cur *activeReleaseAnchor, desiredTag, desiredPlatform string, laggardCount int) (action, reason string) {
+	if laggardCount > 0 {
+		return activationNoop, "cluster not converged to desired_release"
+	}
+	// converged=true, force=false, allowRegression=false.
+	return decideActivation(cur, desiredTag, desiredPlatform, true, false, false)
+}
+
+func (srv *server) tryAdvanceActiveReleaseAnchor(parent context.Context) {
+	if !srv.isLeader() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
+	defer cancel()
+
+	desired, err := srv.ReadDesiredReleaseAnchor(ctx)
+	if err != nil {
+		log.Printf("active_release auto-advance: read desired_release: %v (skipped)", err)
+		return
+	}
+	if desired == nil || strings.TrimSpace(desired.ReleaseTag) == "" {
+		return // no operator target recorded yet — nothing to advance to
+	}
+
+	cur, err := srv.ReadActiveReleaseAnchor(ctx)
+	if err != nil {
+		log.Printf("active_release auto-advance: read active_release: %v (skipped)", err)
+		return
+	}
+	// Steady-state fast path: already active → skip the (heavier) BOM fetch and
+	// convergence scan entirely. Keeps this bounded per reconcile pass.
+	if cur != nil && cur.ReleaseTag == desired.ReleaseTag {
+		return
+	}
+
+	bom, _, err := srv.fetchLocalRepositoryBOM(ctx)
+	if err != nil {
+		log.Printf("active_release auto-advance: fetch local BOM: %v (skipped)", err)
+		return
+	}
+	nodes := srv.snapshotNodesForUpgrade()
+	laggards := evaluateActivationReadiness(nodes, bom)
+
+	switch action, reason := autoAdvanceDecision(cur, desired.ReleaseTag, desired.PlatformRelease, len(laggards)); action {
+	case activationNoop:
+		return // not converged yet (a later reconcile retries) or already active
+	case activationRefuse:
+		log.Printf("active_release auto-advance: not advancing to %s: %s", desired.ReleaseTag, reason)
+		return
+	}
+
+	verified := make([]string, 0, len(nodes))
+	for _, n := range nodes {
+		verified = append(verified, n.NodeID)
+	}
+	sort.Strings(verified)
+	prev := ""
+	if cur != nil {
+		prev = cur.ReleaseTag
+	}
+
+	anchor := &activeReleaseAnchor{
+		ReleaseTag:      desired.ReleaseTag,
+		PlatformRelease: desired.PlatformRelease,
+		UpdatedAtUnix:   time.Now().UTC().Unix(),
+		UpdatedBy:       "cluster-controller/reconcile-auto-advance",
+		VerifiedNodes:   verified,
+	}
+	if err := srv.WriteActiveReleaseAnchor(ctx, anchor); err != nil {
+		log.Printf("active_release auto-advance: write active_release: %v (skipped)", err)
+		return
+	}
+	log.Printf("active_release auto-advance: active platform release advanced %q -> %q (converged, %d node(s) verified)",
+		prev, desired.ReleaseTag, len(verified))
 }

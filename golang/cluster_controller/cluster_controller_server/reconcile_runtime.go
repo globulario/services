@@ -383,6 +383,14 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 					if srv.reconcileBreaker != nil {
 						srv.reconcileBreaker.RecordSuccess()
 					}
+					// Slice 2: the cluster just reconciled successfully — its most
+					// converged moment. Auto-advance the active_release anchor to the
+					// operator's desired_release if the cluster has genuinely
+					// converged to it. Best-effort, bounded, leader-fenced, and
+					// fully swallowed — it must never block or fail the reconcile
+					// loop (it runs after the lane-status publish so a slow anchor
+					// check cannot delay status).
+					srv.tryAdvanceActiveReleaseAnchor(parentCtx)
 				}
 
 				// If work arrived while we were running, do one more pass.
