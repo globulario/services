@@ -63,3 +63,597 @@ code_symbols:
       implements:
         - globular.platform:intent.backup.retention_preserves_restore_tested_floor
         - globular.platform:intent.backup.capsule_quality_is_monotonic
+test_symbols:
+  - id: golang/backup_manager/backup_manager_server/jobstore_test.go:TestArtifact_EvidenceAbsentSafe
+    file: golang/backup_manager/backup_manager_server/jobstore_test.go
+    symbol: TestArtifact_EvidenceAbsentSafe
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/jobstore_test.go:TestArtifact_NodeCoverageRoundTrip
+    file: golang/backup_manager/backup_manager_server/jobstore_test.go
+    symbol: TestArtifact_NodeCoverageRoundTrip
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/jobstore_test.go:TestArtifact_RestoreTestReportRoundTrip
+    file: golang/backup_manager/backup_manager_server/jobstore_test.go
+    symbol: TestArtifact_RestoreTestReportRoundTrip
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/jobstore_test.go:TestArtifact_ValidationReportRoundTrip
+    file: golang/backup_manager/backup_manager_server/jobstore_test.go
+    symbol: TestArtifact_ValidationReportRoundTrip
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/jobstore_test.go:TestListArtifacts_CombinedFilters
+    file: golang/backup_manager/backup_manager_server/jobstore_test.go
+    symbol: TestListArtifacts_CombinedFilters
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/jobstore_test.go:TestListArtifacts_FilterByMode
+    file: golang/backup_manager/backup_manager_server/jobstore_test.go
+    symbol: TestListArtifacts_FilterByMode
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/jobstore_test.go:TestListArtifacts_FilterByQualityState
+    file: golang/backup_manager/backup_manager_server/jobstore_test.go
+    symbol: TestListArtifacts_FilterByQualityState
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/jobstore_test.go:TestListArtifacts_Pagination
+    file: golang/backup_manager/backup_manager_server/jobstore_test.go
+    symbol: TestListArtifacts_Pagination
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_test.go:TestIsLegacyScyllaManagerDefault
+    file: golang/backup_manager/backup_manager_server/preflight_test.go
+    symbol: TestIsLegacyScyllaManagerDefault
+    package: main
+    language: go
+    doc: "TestIsLegacyScyllaManagerDefault covers the four sentinel forms recognized\nas the bad UI default. Trailing slashes are normalized."
+  - id: golang/backup_manager/backup_manager_server/preflight_test.go:TestScyllaManagerAPIHost
+    file: golang/backup_manager/backup_manager_server/preflight_test.go
+    symbol: TestScyllaManagerAPIHost
+    package: main
+    language: go
+    doc: "TestScyllaManagerAPIHost verifies the URL → host extraction used by the\nLAN-address rollout gate. The extraction must be robust to URL shapes that\nolder configs and admin UIs may have persisted: full URL with scheme,\nhost:port without scheme, bare host, ipv6 with brackets, and the legacy\n127.0.0.1:5080 sentinel."
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestExtractEndpointHost
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestExtractEndpointHost
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestReorderLocalFirst
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestReorderLocalFirst
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestSelectEtcdSnapshotEndpoint_ArgsNeverMulti
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestSelectEtcdSnapshotEndpoint_ArgsNeverMulti
+    package: main
+    language: go
+    doc: "TestSelectEtcdSnapshotEndpoint_ArgsNeverMulti pins the load-bearing\ninvariant: the returned endpoint must never contain a comma, because\netcdctl snapshot save rejects multi-endpoint arguments. Whatever the\nconfigured list looks like, the picked value is one endpoint only."
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestSelectEtcdSnapshotEndpoint_EmptyConfig
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestSelectEtcdSnapshotEndpoint_EmptyConfig
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestSelectEtcdSnapshotEndpoint_FallbackWhenLocalUnhealthy
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestSelectEtcdSnapshotEndpoint_FallbackWhenLocalUnhealthy
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestSelectEtcdSnapshotEndpoint_IPv6Roundtrip
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestSelectEtcdSnapshotEndpoint_IPv6Roundtrip
+    package: main
+    language: go
+    doc: "TestSelectEtcdSnapshotEndpoint_IPv6Roundtrip pins the behavior that the\nchosen endpoint is returned EXACTLY as configured (preserving brackets,\nscheme, port), even though host matching uses the unbracketed form. This\nmatters because etcdctl expects the canonical bracketed form for IPv6."
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestSelectEtcdSnapshotEndpoint_NoneHealthy
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestSelectEtcdSnapshotEndpoint_NoneHealthy
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestSelectEtcdSnapshotEndpoint_PrefersLocal
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestSelectEtcdSnapshotEndpoint_PrefersLocal
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestSelectEtcdSnapshotEndpoint_SingleEndpoint
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestSelectEtcdSnapshotEndpoint_SingleEndpoint
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestSplitEndpoints
+    file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
+    symbol: TestSplitEndpoints
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestBuildResticBackupArgs_AcceptsExtraExcludes
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestBuildResticBackupArgs_AcceptsExtraExcludes
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestBuildResticBackupArgs_IncludesDefaultExcludes
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestBuildResticBackupArgs_IncludesDefaultExcludes
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestBuildResticBackupArgs_NoExtraExcludesWhenEmpty
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestBuildResticBackupArgs_NoExtraExcludesWhenEmpty
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestBuildResticBackupArgs_PathsAppendedAfterFlags
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestBuildResticBackupArgs_PathsAppendedAfterFlags
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestClassifyResticWarnings_IgnoresUnrelatedErrors
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestClassifyResticWarnings_IgnoresUnrelatedErrors
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestClassifyResticWarnings_OnlyOptional
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestClassifyResticWarnings_OnlyOptional
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestClassifyResticWarnings_RequiredMissing
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestClassifyResticWarnings_RequiredMissing
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestEvaluateResticResult_Exit0Success
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestEvaluateResticResult_Exit0Success
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestEvaluateResticResult_Exit3AllOptional
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestEvaluateResticResult_Exit3AllOptional
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestEvaluateResticResult_OtherExitDefersToCaller
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestEvaluateResticResult_OtherExitDefersToCaller
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestMatchesExcludePattern_Glob
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestMatchesExcludePattern_Glob
+    package: main
+    language: go
+    doc: "TestMatchesExcludePattern_Glob covers the glob semantics specifically.\nAnchors the load-bearing classifier behaviour: the stale yaml backup\nfiles restic complained about in production must classify as optional."
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestMinioResticExcludes_KeepsScyllaBucketAndSystemDir
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestMinioResticExcludes_KeepsScyllaBucketAndSystemDir
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestMinioResticExcludes_NilEntries
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestMinioResticExcludes_NilEntries
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestMinioResticExcludes_OffNodeReplicated_ExcludesWholeDir
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestMinioResticExcludes_OffNodeReplicated_ExcludesWholeDir
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestResticSnapshotsToValidate_CoversEveryNode
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestResticSnapshotsToValidate_CoversEveryNode
+    package: main
+    language: go
+    doc: "TestResticSnapshotsToValidate_CoversEveryNode locks in the AWG re-audit fix\n(meta.assertions_must_carry_their_scope): deep validation of a cluster restic\nbackup must verify EVERY node's snapshot, not just the top-level (first\nnode's) snapshot_id, before the artifact is promoted to VALIDATED."
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestResticSnapshotsToValidate_None
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestResticSnapshotsToValidate_None
+    package: main
+    language: go
+    doc: "TestResticSnapshotsToValidate_None — no snapshot recorded → nothing to\nvalidate (caller emits the missing-id warning)."
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestResticSnapshotsToValidate_SingleNodeBackwardCompat
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestResticSnapshotsToValidate_SingleNodeBackwardCompat
+    package: main
+    language: go
+    doc: "TestResticSnapshotsToValidate_SingleNodeBackwardCompat — a pre-fan-out backup\nrecords only the top-level snapshot_id; it must still be validated."
+  - id: golang/backup_manager/backup_manager_server/providers_restic_test.go:TestRunResticBackup_RequiredMissingFailsClean
+    file: golang/backup_manager/backup_manager_server/providers_restic_test.go
+    symbol: TestRunResticBackup_RequiredMissingFailsClean
+    package: main
+    language: go
+    doc: "TestRunResticBackup_RequiredMissingFailsClean exercises the exact decision\nrunResticBackup makes on restic exit-3 — without spawning real restic.\nWe test evaluateResticResult because that's the load-bearing helper called\nfrom runResticBackup; refactoring runResticBackup to be fully unit-testable\nwould require stubbing exec.Command, the capsule write, and several layers\nof glue. The classifier + evaluator together cover the new logic; the\nouter function just translates their verdict into failResult(...)."
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWriteMainRestoreScript_InsertsPhase1b_BetweenPhase1AndPhase2
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWriteMainRestoreScript_InsertsPhase1b_BetweenPhase1AndPhase2
+    package: main
+    language: go
+    doc: "TestWriteMainRestoreScript_InsertsPhase1b_BetweenPhase1AndPhase2 — pins\nthe orchestration order. phase1b must run AFTER phase1 (restic restored\nthe filesystem baseline) and BEFORE phase2 (MinIO needs the contract)."
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_AppliesModeOwnerGroup
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_AppliesModeOwnerGroup
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_AvailableNodesJQTolerant
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_AvailableNodesJQTolerant
+    package: main
+    language: go
+    doc: "TestWritePhase1bScript_AvailableNodesJQTolerant pins that the jq\nexpression used to list available node IDs from the top-level manifest\naccepts both the current schema (.nodes[]) and a hypothetical alias\n(.cluster_node_set[]). This is forward-compat hardening: today the\ncluster manifest written by Phase 2 uses `.nodes` (see\nsecret_collector_cluster.go: ClusterSecretManifest.Nodes), but the\ngenerated diagnostic should not break if that key is ever renamed."
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_DetectsLocalNodeID
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_DetectsLocalNodeID
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_HandlesMissingSecretsDirGracefully
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_HandlesMissingSecretsDirGracefully
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_HasStrictBashHeader
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_HasStrictBashHeader
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_IdempotentMatchingSha
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_IdempotentMatchingSha
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_NoFileContentsEmbedded
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_NoFileContentsEmbedded
+    package: main
+    language: go
+    doc: "TestWritePhase1bScript_NoFileContentsEmbedded — the generator must\nnever embed payload bytes into the script. The script is purely a\nruntime reader of the capsule."
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_RefusesOutsideGlobular
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_RefusesOutsideGlobular
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_RefusesOverwriteWithoutForce
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_RefusesOverwriteWithoutForce
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_RefusesSymlinkAncestor
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_RefusesSymlinkAncestor
+    package: main
+    language: go
+    doc: "TestWritePhase1bScript_RefusesSymlinkAncestor pins the user-requested\ndefense-in-depth: walking each ancestor and refusing if any of them is\na symlink, not just the leaf."
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_RefusesSymlinkDest
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_RefusesSymlinkDest
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_RequiresRoot
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_RequiresRoot
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWritePhase1bScript_VerifiesSha256BeforeWrite
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWritePhase1bScript_VerifiesSha256BeforeWrite
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go:TestWriteReadme_DocumentsPhase1b
+    file: golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+    symbol: TestWriteReadme_DocumentsPhase1b
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestCredentialsLoading
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestCredentialsLoading
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestLocalOnlyDisasterRecoveryNotReady
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestLocalOnlyDisasterRecoveryNotReady
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestMultipleAuthoritativeDestinationsRejected
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestMultipleAuthoritativeDestinationsRejected
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestRecoverySeedValidation
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestRecoverySeedValidation
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestResolveRecoveryDestination
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestResolveRecoveryDestination
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestResolveRecoveryDestination_IgnoresLocalAuthoritative
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestResolveRecoveryDestination_IgnoresLocalAuthoritative
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestSaveRejectsLocalAuthoritativeDestination
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestSaveRejectsLocalAuthoritativeDestination
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestUpdateRecoverySeedAfterBackup
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestUpdateRecoverySeedAfterBackup
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestWriteAndLoadRecoverySeed
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestWriteAndLoadRecoverySeed
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/recovery_seed_test.go:TestWriteRecoverySeed_SkipsLocalDestination
+    file: golang/backup_manager/backup_manager_server/recovery_seed_test.go
+    symbol: TestWriteRecoverySeed_SkipsLocalDestination
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/restic_password_test.go:TestRepoLooksInitialized
+    file: golang/backup_manager/backup_manager_server/restic_password_test.go
+    symbol: TestRepoLooksInitialized
+    package: main
+    language: go
+    doc: "repoLooksInitialized: true only for a local dir holding a restic \"config\"."
+  - id: golang/backup_manager/backup_manager_server/restic_password_test.go:TestResolveResticPassword_ExplicitConfigWins
+    file: golang/backup_manager/backup_manager_server/restic_password_test.go
+    symbol: TestResolveResticPassword_ExplicitConfigWins
+    package: main
+    language: go
+    doc: "Explicit config password wins and is returned verbatim."
+  - id: golang/backup_manager/backup_manager_server/restic_password_test.go:TestResolveResticPassword_GeneratesAndPersists
+    file: golang/backup_manager/backup_manager_server/restic_password_test.go
+    symbol: TestResolveResticPassword_GeneratesAndPersists
+    package: main
+    language: go
+    doc: "No file and no repo → generate, persist 0600, return non-empty & stable."
+  - id: golang/backup_manager/backup_manager_server/restic_password_test.go:TestResolveResticPassword_ReadsExistingFile
+    file: golang/backup_manager/backup_manager_server/restic_password_test.go
+    symbol: TestResolveResticPassword_ReadsExistingFile
+    package: main
+    language: go
+    doc: "An existing password file is read (no regeneration)."
+  - id: golang/backup_manager/backup_manager_server/restic_password_test.go:TestResolveResticPassword_RefusesForExistingRepoWithoutPassword
+    file: golang/backup_manager/backup_manager_server/restic_password_test.go
+    symbol: TestResolveResticPassword_RefusesForExistingRepoWithoutPassword
+    package: main
+    language: go
+    doc: "Existing repo but no known password → refuse (return \"\"), never invent a\nmismatching one that would silently break the repo."
+  - id: golang/backup_manager/backup_manager_server/retention_test.go:TestRetention_DryRunOutput
+    file: golang/backup_manager/backup_manager_server/retention_test.go
+    symbol: TestRetention_DryRunOutput
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/retention_test.go:TestRetention_KeepDays
+    file: golang/backup_manager/backup_manager_server/retention_test.go
+    symbol: TestRetention_KeepDays
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/retention_test.go:TestRetention_MaxTotalBytes
+    file: golang/backup_manager/backup_manager_server/retention_test.go
+    symbol: TestRetention_MaxTotalBytes
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/retention_test.go:TestRetention_MaxTotalBytesWithPromoted
+    file: golang/backup_manager/backup_manager_server/retention_test.go
+    symbol: TestRetention_MaxTotalBytesWithPromoted
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/retention_test.go:TestRetention_MinRestoreTestedToKeep
+    file: golang/backup_manager/backup_manager_server/retention_test.go
+    symbol: TestRetention_MinRestoreTestedToKeep
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/retention_test.go:TestRetention_NoPolicyKeepsAll
+    file: golang/backup_manager/backup_manager_server/retention_test.go
+    symbol: TestRetention_NoPolicyKeepsAll
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/retention_test.go:TestRetention_PromotedDoesNotInflateKeepN
+    file: golang/backup_manager/backup_manager_server/retention_test.go
+    symbol: TestRetention_PromotedDoesNotInflateKeepN
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/retention_test.go:TestRetention_PromotedNeverDeleted
+    file: golang/backup_manager/backup_manager_server/retention_test.go
+    symbol: TestRetention_PromotedNeverDeleted
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/scylla_coverage_test.go:TestCoverageImpact_ScyllaMentionsAiMemory
+    file: golang/backup_manager/backup_manager_server/scylla_coverage_test.go
+    symbol: TestCoverageImpact_ScyllaMentionsAiMemory
+    package: main
+    language: go
+    doc: "coverageImpact must name ai-memory for the scylla provider so a skipped\nScyllaDB backup is unmistakable in the logs."
+  - id: golang/backup_manager/backup_manager_server/scylla_coverage_test.go:TestScyllaLocations_EmptyWhenNoMinioAndNoObjectStore
+    file: golang/backup_manager/backup_manager_server/scylla_coverage_test.go
+    symbol: TestScyllaLocations_EmptyWhenNoMinioAndNoObjectStore
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/scylla_coverage_test.go:TestScyllaLocations_PrefersExplicitObjectStoreDestination
+    file: golang/backup_manager/backup_manager_server/scylla_coverage_test.go
+    symbol: TestScyllaLocations_PrefersExplicitObjectStoreDestination
+    package: main
+    language: go
+    doc: "An explicitly-configured object-store destination must win over the\nsynthesized MinIO fallback."
+  - id: golang/backup_manager/backup_manager_server/scylla_coverage_test.go:TestScyllaLocations_SynthesizesFromMinioWhenOnlyLocalDestination
+    file: golang/backup_manager/backup_manager_server/scylla_coverage_test.go
+    symbol: TestScyllaLocations_SynthesizesFromMinioWhenOnlyLocalDestination
+    package: main
+    language: go
+    doc: "scyllaLocations must yield an object-store location whenever MinIO is\navailable, even with only a local destination configured — otherwise the\nscylla provider is judged \"unavailable\" and ScyllaDB (ai-memory, behavioral\nmemory) is silently never backed up."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestBuildClusterManifest_SummaryCounts
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestBuildClusterManifest_SummaryCounts
+    package: main
+    language: go
+    doc: "TestBuildClusterManifest_SummaryCounts — summary tallies match per-node\nresults across success / failure / missing variants."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestCollectClusterSecrets_AllSucceed_WritesAggregateManifest
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestCollectClusterSecrets_AllSucceed_WritesAggregateManifest
+    package: main
+    language: go
+    doc: "TestCollectClusterSecrets_AllSucceed_WritesAggregateManifest — covers\nthe \"all nodes succeed\" spec case end-to-end: calls every node, writes a\nwell-formed manifest with summary, no error, no secret bytes in logs."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestCollectClusterSecrets_BootstrapSecretConflict_Fails
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestCollectClusterSecrets_BootstrapSecretConflict_Fails
+    package: main
+    language: go
+    doc: "TestCollectClusterSecrets_BootstrapSecretConflict_Fails — two nodes\nclaim the same singleton secret with different fingerprints. Backup\nfails with a structured conflict."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestCollectClusterSecrets_BootstrapSecretSameFingerprint_NoConflict
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestCollectClusterSecrets_BootstrapSecretSameFingerprint_NoConflict
+    package: main
+    language: go
+    doc: "TestCollectClusterSecrets_BootstrapSecretSameFingerprint_NoConflict —\ntwo nodes claim the secret with identical SHA-256 → not a conflict."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestCollectClusterSecrets_LogsDoNotContainSecretContents
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestCollectClusterSecrets_LogsDoNotContainSecretContents
+    package: main
+    language: go
+    doc: "TestCollectClusterSecrets_LogsDoNotContainSecretContents — slog output\nfrom a full orchestration run never includes the secret-payload bytes."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestCollectClusterSecrets_OptionalMissing_Continues
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestCollectClusterSecrets_OptionalMissing_Continues
+    package: main
+    language: go
+    doc: "TestCollectClusterSecrets_OptionalMissing_Continues — only missing_optional\nis populated; backup preparation succeeds, manifest records the warning."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestCollectClusterSecrets_PartialFanOut_FailsButPreservesDetails
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestCollectClusterSecrets_PartialFanOut_FailsButPreservesDetails
+    package: main
+    language: go
+    doc: "TestCollectClusterSecrets_PartialFanOut_FailsButPreservesDetails — same\nshape as the unreachable case but tested explicitly per the spec to pin\nthe diagnostic-preservation behaviour separately."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestCollectClusterSecrets_RequiredNodeUnreachable_Fails
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestCollectClusterSecrets_RequiredNodeUnreachable_Fails
+    package: main
+    language: go
+    doc: "TestCollectClusterSecrets_RequiredNodeUnreachable_Fails — RPC error from\none required node; backup fails; successful node results are still\npreserved in the manifest for diagnostics."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestCollectClusterSecrets_RequiredSecretMissing_FailsClean
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestCollectClusterSecrets_RequiredSecretMissing_FailsClean
+    package: main
+    language: go
+    doc: "TestCollectClusterSecrets_RequiredSecretMissing_FailsClean — one node\nreports missing_required; orchestrator fails the backup with an error\nnaming the node_id and the logical path. No secret contents in the\nerror message."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestDiscoverBackupSecretTargets_FromTopology
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestDiscoverBackupSecretTargets_FromTopology
+    package: main
+    language: go
+    doc: "TestDiscoverBackupSecretTargets_FromTopology — every topology node is\nturned into a Required target. Silently skipping nodes is forbidden."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestFanOut_AllNodesSucceed
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestFanOut_AllNodesSucceed
+    package: main
+    language: go
+    doc: "TestFanOut_AllNodesSucceed — calls every target node, aggregates clean\nper-node OK responses, no missing_required."
+  - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestSecretCollector_NoDirectFilesystemScraping
+    file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
+    symbol: TestSecretCollector_NoDirectFilesystemScraping
+    package: main
+    language: go
+    doc: "TestSecretCollector_NoDirectFilesystemScraping is a static, code-pattern\ncheck: the only entry point for collecting remote-node secret material\nis the BackupSecretCollector interface; production wiring uses the\nnode-agent gRPC client. This test asserts the interface boundary exists\nand the cluster orchestrator depends on it (not on os.ReadFile of remote\npaths). The check is structural: if a future change adds a direct\nremote-filesystem read here, the orchestrator would no longer compile\nagainst the interface alone and this test signals the loss of safety."
+  - id: golang/backup_manager/backup_manager_server/security_options_test.go:TestAllowMinioInsecureSkipVerify_DefaultFalse
+    file: golang/backup_manager/backup_manager_server/security_options_test.go
+    symbol: TestAllowMinioInsecureSkipVerify_DefaultFalse
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/security_options_test.go:TestAllowMinioInsecureSkipVerify_TrueValues
+    file: golang/backup_manager/backup_manager_server/security_options_test.go
+    symbol: TestAllowMinioInsecureSkipVerify_TrueValues
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestCollectServiceDataEntries
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestCollectServiceDataEntries
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestCollectServiceDataEntries_Nil
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestCollectServiceDataEntries_Nil
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestFilterServiceData_AuthoritativeOnly
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestFilterServiceData_AuthoritativeOnly
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestFilterServiceData_CacheNeverIncluded
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestFilterServiceData_CacheNeverIncluded
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestFilterServiceData_DeduplicatesPaths
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestFilterServiceData_DeduplicatesPaths
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestFilterServiceData_Disabled
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestFilterServiceData_Disabled
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestFilterServiceData_IncludeRebuildable
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestFilterServiceData_IncludeRebuildable
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestFilterServiceData_RejectsInvalidPath
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestFilterServiceData_RejectsInvalidPath
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestFilterServiceData_RejectsNonExistentPath
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestFilterServiceData_RejectsNonExistentPath
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestFilterServiceData_TraversalAttack
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestFilterServiceData_TraversalAttack
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestServiceDataForRestore_CacheNeverRestored
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestServiceDataForRestore_CacheNeverRestored
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestServiceDataForRestore_FilterByService
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestServiceDataForRestore_FilterByService
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestServiceDataForRestore_IncludeRebuildable
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestServiceDataForRestore_IncludeRebuildable
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestServiceDataForRestore_SkipRebuildable
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestServiceDataForRestore_SkipRebuildable
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestValidateServiceDataPath_Empty
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestValidateServiceDataPath_Empty
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestValidateServiceDataPath_OutsideAllowed
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestValidateServiceDataPath_OutsideAllowed
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestValidateServiceDataPath_Relative
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestValidateServiceDataPath_Relative
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/service_data_test.go:TestValidateServiceDataPath_Valid
+    file: golang/backup_manager/backup_manager_server/service_data_test.go
+    symbol: TestValidateServiceDataPath_Valid
+    package: main
+    language: go

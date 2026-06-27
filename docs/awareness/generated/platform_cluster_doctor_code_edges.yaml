@@ -80,6 +80,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry
     relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry_harvest_downgrade_test
+    relation: enforces
+    to: globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
   - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry_harvest_test
     relation: enforces
     to: globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
@@ -104,6 +107,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_gate
     relation: implements
     to: globular.platform:intent.circuit_breakers_protect_convergence
+  - from: globular.platform:code.go.platform_cluster_doctor.remediation_gate_persist
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_handler
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
@@ -119,6 +125,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_history
     relation: implements
     to: globular.platform:intent.remediation.failure_rate_policy
+  - from: globular.platform:code.go.platform_cluster_doctor.remediation_history_persist
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
   - from: globular.platform:code.go.platform_cluster_doctor.rules.certificate_health
     relation: implements
     to: globular.platform:intent.runtime_health.requires_live_observation

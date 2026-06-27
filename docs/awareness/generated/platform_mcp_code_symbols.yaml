@@ -219,6 +219,19 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - id: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    namespace: globular.platform
+    language: go
+    file: golang/mcp/tools_runtime_evidence.go
+    component: platform_mcp.tools_runtime_evidence
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.meta.discovery_produces_candidates_not_facts
+        - globular.platform:invariant.meta.storage_is_not_semantic_authority
+      implements:
+        - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+        - globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
   - id: globular.platform:code.go.platform_mcp.transport_http
     namespace: globular.platform
     language: go
@@ -228,3 +241,419 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+test_symbols:
+  - id: golang/mcp/aggregator_client_security_test.go:TestAllowUnverifiedFallback_DefaultFalse
+    file: golang/mcp/aggregator_client_security_test.go
+    symbol: TestAllowUnverifiedFallback_DefaultFalse
+    package: main
+    language: go
+  - id: golang/mcp/aggregator_client_security_test.go:TestAllowUnverifiedFallback_TrueValues
+    file: golang/mcp/aggregator_client_security_test.go
+    symbol: TestAllowUnverifiedFallback_TrueValues
+    package: main
+    language: go
+  - id: golang/mcp/config_test.go:TestMaybeEnableTLSFromServiceCert
+    file: golang/mcp/config_test.go
+    symbol: TestMaybeEnableTLSFromServiceCert
+    package: main
+    language: go
+    doc: "Test that TLS auto-detection enables HTTPS when service cert/key exist."
+  - id: golang/mcp/config_test.go:TestMaybeEnableTLSFromServiceCertMissing
+    file: golang/mcp/config_test.go
+    symbol: TestMaybeEnableTLSFromServiceCertMissing
+    package: main
+    language: go
+    doc: "Test no change when cert/key missing."
+  - id: golang/mcp/impact_test.go:TestBuildRemovalPlan_CycleDetection
+    file: golang/mcp/impact_test.go
+    symbol: TestBuildRemovalPlan_CycleDetection
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestBuildRemovalPlan_LeafService
+    file: golang/mcp/impact_test.go
+    symbol: TestBuildRemovalPlan_LeafService
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestBuildRemovalPlan_MultiLevelChain
+    file: golang/mcp/impact_test.go
+    symbol: TestBuildRemovalPlan_MultiLevelChain
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestBuildRemovalPlan_MultipleLeaves
+    file: golang/mcp/impact_test.go
+    symbol: TestBuildRemovalPlan_MultipleLeaves
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestBuildRemovalPlan_SingleDependent
+    file: golang/mcp/impact_test.go
+    symbol: TestBuildRemovalPlan_SingleDependent
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestBuildStepCommand
+    file: golang/mcp/impact_test.go
+    symbol: TestBuildStepCommand
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestComputeDecision_MissingDependency
+    file: golang/mcp/impact_test.go
+    symbol: TestComputeDecision_MissingDependency
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestComputeDecision_PackageNotFound
+    file: golang/mcp/impact_test.go
+    symbol: TestComputeDecision_PackageNotFound
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestComputeDecision_PolicyGated
+    file: golang/mcp/impact_test.go
+    symbol: TestComputeDecision_PolicyGated
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestComputeDecision_PortConflict
+    file: golang/mcp/impact_test.go
+    symbol: TestComputeDecision_PortConflict
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestComputeDecision_ReverseDependents
+    file: golang/mcp/impact_test.go
+    symbol: TestComputeDecision_ReverseDependents
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestComputeDecision_SafeInstall
+    file: golang/mcp/impact_test.go
+    symbol: TestComputeDecision_SafeInstall
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestExecuteWorkflow_BlockedPlan
+    file: golang/mcp/impact_test.go
+    symbol: TestExecuteWorkflow_BlockedPlan
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestExecuteWorkflow_DryRun
+    file: golang/mcp/impact_test.go
+    symbol: TestExecuteWorkflow_DryRun
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestExecuteWorkflow_EmptyPlan
+    file: golang/mcp/impact_test.go
+    symbol: TestExecuteWorkflow_EmptyPlan
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestExecuteWorkflow_ReadOnlyBlocks
+    file: golang/mcp/impact_test.go
+    symbol: TestExecuteWorkflow_ReadOnlyBlocks
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestNormalizePlan_DesiredRemove
+    file: golang/mcp/impact_test.go
+    symbol: TestNormalizePlan_DesiredRemove
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestNormalizePlan_DesiredSet
+    file: golang/mcp/impact_test.go
+    symbol: TestNormalizePlan_DesiredSet
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestNormalizePlan_OperationType
+    file: golang/mcp/impact_test.go
+    symbol: TestNormalizePlan_OperationType
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestNormalizePlan_PkgPublish
+    file: golang/mcp/impact_test.go
+    symbol: TestNormalizePlan_PkgPublish
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestNormalizePlan_WithArgs
+    file: golang/mcp/impact_test.go
+    symbol: TestNormalizePlan_WithArgs
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestPlannerEvaluate_MissingDep_NoClients
+    file: golang/mcp/impact_test.go
+    symbol: TestPlannerEvaluate_MissingDep_NoClients
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestPlannerEvaluate_NoDeps_NoClients
+    file: golang/mcp/impact_test.go
+    symbol: TestPlannerEvaluate_NoDeps_NoClients
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestPlannerRemove_WithDependents
+    file: golang/mcp/impact_test.go
+    symbol: TestPlannerRemove_WithDependents
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestPlannerWithDescriptor_FallsBackToStatic
+    file: golang/mcp/impact_test.go
+    symbol: TestPlannerWithDescriptor_FallsBackToStatic
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestPlannerWithDescriptor_UsesDescriptor
+    file: golang/mcp/impact_test.go
+    symbol: TestPlannerWithDescriptor_UsesDescriptor
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestResolveTransitiveDeps_CycleDetection
+    file: golang/mcp/impact_test.go
+    symbol: TestResolveTransitiveDeps_CycleDetection
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestResolveTransitiveDeps_Diamond
+    file: golang/mcp/impact_test.go
+    symbol: TestResolveTransitiveDeps_Diamond
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestResolveTransitiveDeps_LinearChain
+    file: golang/mcp/impact_test.go
+    symbol: TestResolveTransitiveDeps_LinearChain
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestReverseDeps_LeafService
+    file: golang/mcp/impact_test.go
+    symbol: TestReverseDeps_LeafService
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestReverseDeps_StaticSource
+    file: golang/mcp/impact_test.go
+    symbol: TestReverseDeps_StaticSource
+    package: main
+    language: go
+  - id: golang/mcp/impact_test.go:TestStaticDependencySource
+    file: golang/mcp/impact_test.go
+    symbol: TestStaticDependencySource
+    package: main
+    language: go
+  - id: golang/mcp/mcp_etcd_authority_pin_test.go:TestMCP_AggregatorAllowlistDoesNotIncludeEtcdTools
+    file: golang/mcp/mcp_etcd_authority_pin_test.go
+    symbol: TestMCP_AggregatorAllowlistDoesNotIncludeEtcdTools
+    package: main
+    language: go
+    doc: "TestMCP_AggregatorAllowlistDoesNotIncludeEtcdTools is the\nremote-call pin. invariant:mcp.etcd.tools_must_not_join_remote_allowlist\nnames the rule; this test asserts it concretely against the\nallowedRemoteTools map."
+  - id: golang/mcp/mcp_etcd_authority_pin_test.go:TestMCP_EtcdToolsNotInSourceTree
+    file: golang/mcp/mcp_etcd_authority_pin_test.go
+    symbol: TestMCP_EtcdToolsNotInSourceTree
+    package: main
+    language: go
+    doc: "TestMCP_EtcdToolsNotInSourceTree is the source-level pin. It walks the\nmcp package and asserts that no file (except this test, the test\nscaffolding, and the historical aggregator_policy entry that names\nforbidden tools) contains a string literal `\"etcd_get\"`, `\"etcd_put\"`,\nor `\"etcd_delete\"`.\n\nThe aggregator_policy.go entries for etcd_put / etcd_delete in\nforbiddenRemoteTools are explicit \"if anyone re-creates this, it's\nforbidden remotely\" markers; they remain after v1.2.167 as\ndocumentation. This test allowlists that one file."
+  - id: golang/mcp/mcp_etcd_authority_pin_test.go:TestMCP_EtcdToolsNotRegistered
+    file: golang/mcp/mcp_etcd_authority_pin_test.go
+    symbol: TestMCP_EtcdToolsNotRegistered
+    package: main
+    language: go
+    doc: "TestMCP_EtcdToolsNotRegistered is the runtime pin. It boots a server\nwith the test-friendly registerAllTools path and asserts that no MCP\ntool named etcd_get / etcd_put / etcd_delete (or any near-equivalent)\nis in the registered map after init."
+  - id: golang/mcp/safety_test.go:TestDefaultConfigSafe
+    file: golang/mcp/safety_test.go
+    symbol: TestDefaultConfigSafe
+    package: main
+    language: go
+  - id: golang/mcp/safety_test.go:TestFilePathValidation
+    file: golang/mcp/safety_test.go
+    symbol: TestFilePathValidation
+    package: main
+    language: go
+  - id: golang/mcp/safety_test.go:TestFilePathValidationEmptyRoots
+    file: golang/mcp/safety_test.go
+    symbol: TestFilePathValidationEmptyRoots
+    package: main
+    language: go
+  - id: golang/mcp/safety_test.go:TestPersistenceAllowlist
+    file: golang/mcp/safety_test.go
+    symbol: TestPersistenceAllowlist
+    package: main
+    language: go
+  - id: golang/mcp/safety_test.go:TestRedactSensitive
+    file: golang/mcp/safety_test.go
+    symbol: TestRedactSensitive
+    package: main
+    language: go
+  - id: golang/mcp/safety_test.go:TestStorageAllowlist
+    file: golang/mcp/safety_test.go
+    symbol: TestStorageAllowlist
+    package: main
+    language: go
+  - id: golang/mcp/safety_test.go:TestToolGroupGating
+    file: golang/mcp/safety_test.go
+    symbol: TestToolGroupGating
+    package: main
+    language: go
+  - id: golang/mcp/safety_test.go:TestToolGroupGatingAllDisabled
+    file: golang/mcp/safety_test.go
+    symbol: TestToolGroupGatingAllDisabled
+    package: main
+    language: go
+  - id: golang/mcp/sdnotify_test.go:TestMCPSdNotifySentAfterBind
+    file: golang/mcp/sdnotify_test.go
+    symbol: TestMCPSdNotifySentAfterBind
+    package: main
+    language: go
+    doc: "TestMCPSdNotifySentAfterBind verifies that sdNotifyReady sends READY=1 to\nNOTIFY_SOCKET after the port listener is successfully bound.\n\nThis directly tests the INC-2026-0002 fix: sdNotifyReady(ctx) is called at\ntransport_http.go:360 immediately after net.Listen succeeds. If NOTIFY_SOCKET is\nnot set (Type=simple or non-systemd environment), the function is a no-op.\n\nProves: READY=1 is delivered when a listener exists → systemd marks active.\nProves: no message is sent when NOTIFY_SOCKET is unset → no panic, no block."
+  - id: golang/mcp/sdnotify_test.go:TestMCPServiceReachesActiveAfterRestart
+    file: golang/mcp/sdnotify_test.go
+    symbol: TestMCPServiceReachesActiveAfterRestart
+    package: main
+    language: go
+    doc: "TestMCPServiceReachesActiveAfterRestart verifies the sd_notify protocol that\nallows systemd to transition globular-mcp.service from activating → active after\na restart.\n\nSystemd lifecycle for Type=notify:\n  1. systemd forks the process                (state: activating)\n  2. Process binds port, calls sd_notify(READY=1)\n  3. systemd receives READY=1 on NOTIFY_SOCKET (state: active)\n  4. If no READY=1 within TimeoutStartSec:     killed, restart loop begins\n\nUnfixed binary: never sends READY=1 → systemd kills after 90s → orphan accumulates.\nFixed binary:   sends READY=1 after net.Listen → systemd sees active immediately.\n\nIntegration note: the full restart sequence (systemd kills old process → port\nreleased → new process starts → binds → sends READY=1 → systemd marks active)\nrequires a live systemd unit and is not exercised here."
+  - id: golang/mcp/sdnotify_test.go:TestWaitActiveSucceedsWithNewBinary
+    file: golang/mcp/sdnotify_test.go
+    symbol: TestWaitActiveSucceedsWithNewBinary
+    package: main
+    language: go
+    doc: "TestWaitActiveSucceedsWithNewBinary proves the node-agent WaitActive behavioral\ncontract: polling stops and returns nil as soon as the service reports active,\nwhich happens only after the fixed MCP binary sends READY=1.\n\nThe real supervisor.WaitActive (node_agent/.../supervisor/supervisor.go) calls\n\"systemctl is-active --quiet <unit>\" which requires a live systemd unit.\nThis test validates the identical polling logic with an injectable isActive\nfunction, using the actual sd_notify send path to drive the state transition.\n\nIntegration note: end-to-end validation (node-agent installs fixed MCP binary →\nsystemd starts it → MCP sends READY=1 → systemd marks active → node-agent\nWaitActive returns nil → installed-state updated in etcd) requires a real cluster\nnode with systemd. This was validated manually in INC-2026-0002 post-mortem."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralContradictionAndConditionTools
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralContradictionAndConditionTools
+    package: main
+    language: go
+    doc: "The governed completion steps the promotion gate requires — register_condition\nand run_contradiction_check — are reachable from the MCP surface (previously they\nwere only callable via raw grpc_call, leaving promotion un-completable from MCP)."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralOperatorLoop
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralOperatorLoop
+    package: main
+    language: go
+    doc: "The governed operator loop works end-to-end through the tools."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralPromoteRequiresActorAndSurfacesBlocked
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralPromoteRequiresActorAndSurfacesBlocked
+    package: main
+    language: go
+    doc: "promote requires actor+reason and surfaces a BLOCKED decision (gate not bypassed/hidden)."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralProposeReturnsProposed
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralProposeReturnsProposed
+    package: main
+    language: go
+    doc: "propose returns PROPOSED_PRINCIPLE (never promoted)."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralProposeSchemaIsFirstClass
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralProposeSchemaIsFirstClass
+    package: main
+    language: go
+    doc: "Schemas expose governance relations as first-class inputs (not hidden in metadata)."
+  - id: golang/mcp/tools_behavioral_test.go:TestBehavioralToolsRegister
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestBehavioralToolsRegister
+    package: main
+    language: go
+    doc: "All behavioral tools register under the behavioral group; default is on."
+  - id: golang/mcp/tools_behavioral_test.go:TestMemoryToolsUnchangedAlongsideBehavioral
+    file: golang/mcp/tools_behavioral_test.go
+    symbol: TestMemoryToolsUnchangedAlongsideBehavioral
+    package: main
+    language: go
+    doc: "Existing ai-memory MCP tools still register unchanged alongside behavioral tools."
+  - id: golang/mcp/tools_infra_test.go:TestInfraDiff_DesiredVsRendered
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraDiff_DesiredVsRendered
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraDiff_EnvoyNodeIDMismatch
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraDiff_EnvoyNodeIDMismatch
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraDiff_EtcdTokenAndListenMismatch
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraDiff_EtcdTokenAndListenMismatch
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraDiff_ListenAddressMismatch
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraDiff_ListenAddressMismatch
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraDiff_MinioModeAndVolumeMismatch
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraDiff_MinioModeAndVolumeMismatch
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraExplainStall_ConfigViolation
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraExplainStall_ConfigViolation
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraExplainStall_EnvoyWedgeUsesEnvoyLogUnit
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraExplainStall_EnvoyWedgeUsesEnvoyLogUnit
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraExplainStall_EtcdUsesEtcdLogUnit
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraExplainStall_EtcdUsesEtcdLogUnit
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraExplainStall_MinioUsesMinioLogUnit
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraExplainStall_MinioUsesMinioLogUnit
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraLogUnit_PerComponent
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraLogUnit_PerComponent
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraProbeToMap_Projection
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraProbeToMap_Projection
+    package: main
+    language: go
+  - id: golang/mcp/tools_infra_test.go:TestInfraTools_GatedUnderDoctor
+    file: golang/mcp/tools_infra_test.go
+    symbol: TestInfraTools_GatedUnderDoctor
+    package: main
+    language: go
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestBuildRuntimeSnapshot_IndeterminateNeverFresh
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestBuildRuntimeSnapshot_IndeterminateNeverFresh
+    package: main
+    language: go
+    doc: "THE honesty invariant: an INDETERMINATE release boundary must NEVER produce a\nfresh runtime_identity lane, and runtime_identity must be a required lane — so\nAWG's diagnoser refuses to green a subject whose identity cannot be proven."
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestBuildRuntimeSnapshot_ProvenIsWellFormedAndFresh
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestBuildRuntimeSnapshot_ProvenIsWellFormedAndFresh
+    package: main
+    language: go
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestBuildRuntimeSnapshot_UnreachableSourceIsUnavailableNotFresh
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestBuildRuntimeSnapshot_UnreachableSourceIsUnavailableNotFresh
+    package: main
+    language: go
+    doc: "An unreachable owner source must become an unavailable lane — never silently\ndropped and never fresh. (meta: a tool failure is evidence, not silence.)"
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestBuildRuntimeSnapshot_YAMLRoundTrips
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestBuildRuntimeSnapshot_YAMLRoundTrips
+    package: main
+    language: go
+    doc: "The snapshot must marshal to YAML and round-trip (it is written to a file the\nAWG CLI consumes)."
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestDoctorFindingsCarryIntoDiagnosisLane
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestDoctorFindingsCarryIntoDiagnosisLane
+    package: main
+    language: go
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestDoctorSeverityToLane_ErrorBecomesBlocking
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestDoctorSeverityToLane_ErrorBecomesBlocking
+    package: main
+    language: go
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestFindingMentionsSubject
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestFindingMentionsSubject
+    package: main
+    language: go
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestIdentityFreshness_VerdictMapping
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestIdentityFreshness_VerdictMapping
+    package: main
+    language: go
+  - id: golang/mcp/tools_runtime_evidence_test.go:TestLiveProof_RuntimeSnapshotCollect
+    file: golang/mcp/tools_runtime_evidence_test.go
+    symbol: TestLiveProof_RuntimeSnapshotCollect
+    package: main
+    language: go
+    doc: "TestLiveProof_RuntimeSnapshotCollect runs the REAL collector handler against a\nLIVE Globular cluster and writes the resulting runtime-evidence/v1 snapshots to\ndisk for the AWG spine to diagnose. Double-gated: requires AWG_LIVE_PROOF=1 AND\na reachable cluster + node PKI (mTLS via the gateway client pool). Never runs in\nCI — a comment is not a gate; the env var is."
+  - id: golang/mcp/transport_http_session_reaper_test.go:TestReapIdleSessions
+    file: golang/mcp/transport_http_session_reaper_test.go
+    symbol: TestReapIdleSessions
+    package: main
+    language: go
+    doc: "TestReapIdleSessions locks in the AWG re-audit fix\n(meta.write_creates_completion_obligation): createSession writes a session\nentry whose only client-driven removal is an explicit DELETE, so without a\nreaper a dropped client leaks its entry forever. reapIdleSessions must evict\nentries idle longer than sessionIdleTTL and keep recently-seen ones."

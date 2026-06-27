@@ -114,3 +114,498 @@ code_symbols:
     annotations:
       implements:
         - globular.platform:intent.security.path_canonicalization_prevents_traversal
+test_symbols:
+  - id: golang/security/approval_token_test.go:TestApprovalTokenBindsActionTargetAndGeneration
+    file: golang/security/approval_token_test.go
+    symbol: TestApprovalTokenBindsActionTargetAndGeneration
+    package: security
+    language: go
+    doc: "TestApprovalTokenBindsActionTargetAndGeneration — contract: the token\nauthorizes exactly one (action_class, target, generation, finding_id)\ntuple. A token for a different action class or a different desired\ngeneration must not be honored, even though signature and audience pass."
+  - id: golang/security/approval_token_test.go:TestApprovalTokenRejectsEmptyOrUnsignedToken
+    file: golang/security/approval_token_test.go
+    symbol: TestApprovalTokenRejectsEmptyOrUnsignedToken
+    package: security
+    language: go
+    doc: "TestApprovalTokenRejectsEmptyOrUnsignedToken — contract: non-empty != approved.\nValidator must reject empty strings, whitespace-only, and tokens not signed\nby the cluster issuer key."
+  - id: golang/security/approval_token_test.go:TestApprovalTokenRejectsExpiredToken
+    file: golang/security/approval_token_test.go
+    symbol: TestApprovalTokenRejectsExpiredToken
+    package: security
+    language: go
+    doc: "TestApprovalTokenRejectsExpiredToken — contract: expiry is hard. A token\npast its exp must be rejected even though everything else is correct."
+  - id: golang/security/approval_token_test.go:TestApprovalTokenRejectsReplay
+    file: golang/security/approval_token_test.go
+    symbol: TestApprovalTokenRejectsReplay
+    package: security
+    language: go
+    doc: "TestApprovalTokenRejectsReplay — contract: jti is single-use. Even a\nperfectly valid token must be rejected on the second presentation."
+  - id: golang/security/approval_token_test.go:TestApprovalTokenRejectsWrongAudience
+    file: golang/security/approval_token_test.go
+    symbol: TestApprovalTokenRejectsWrongAudience
+    package: security
+    language: go
+    doc: "TestApprovalTokenRejectsWrongAudience — contract: audience binds the token\nto the cluster's remediation surface. A token minted for a different\ncluster (or with the user-session audience) must not be accepted."
+  - id: golang/security/auth_context_test.go:TestAuthContext_ContextStorage
+    file: golang/security/auth_context_test.go
+    symbol: TestAuthContext_ContextStorage
+    package: security
+    language: go
+    doc: "TestAuthContext_ContextStorage verifies ToContext/FromContext roundtrip"
+  - id: golang/security/auth_context_test.go:TestAuthContext_String
+    file: golang/security/auth_context_test.go
+    symbol: TestAuthContext_String
+    package: security
+    language: go
+    doc: "TestAuthContext_String verifies string representation"
+  - id: golang/security/auth_context_test.go:TestNewAuthContext_Anonymous
+    file: golang/security/auth_context_test.go
+    symbol: TestNewAuthContext_Anonymous
+    package: security
+    language: go
+    doc: "TestNewAuthContext_Anonymous verifies anonymous context creation"
+  - id: golang/security/auth_context_test.go:TestNewAuthContext_Bootstrap
+    file: golang/security/auth_context_test.go
+    symbol: TestNewAuthContext_Bootstrap
+    package: security
+    language: go
+    doc: "TestNewAuthContext_Bootstrap verifies bootstrap mode detection.\nBootstrap mode is flag-file driven (not env var) — write a temp flag file."
+  - id: golang/security/auth_context_test.go:TestNewAuthContext_InvalidToken
+    file: golang/security/auth_context_test.go
+    symbol: TestNewAuthContext_InvalidToken
+    package: security
+    language: go
+    doc: "TestNewAuthContext_InvalidToken verifies graceful handling of invalid tokens"
+  - id: golang/security/auth_context_test.go:TestNewAuthContext_Loopback
+    file: golang/security/auth_context_test.go
+    symbol: TestNewAuthContext_Loopback
+    package: security
+    language: go
+    doc: "TestNewAuthContext_Loopback verifies loopback detection"
+  - id: golang/security/auth_context_test.go:TestPerMethodLogLimiter
+    file: golang/security/auth_context_test.go
+    symbol: TestPerMethodLogLimiter
+    package: security
+    language: go
+    doc: "TestPerMethodLogLimiter is the regression for the repository journal flood\n(2026-06-21): the \"ClusterID sourced from unverified gRPC metadata\" WARN fired\non every proxy-fronted call (~300/min on the reconcile loop), drowning real\nWARNs and desensitizing a genuine security signal. The fix throttles it to\nonce per key per window. This pins that behavior: first emission per key\npasses, repeats within the window are suppressed, and keys are independent."
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_AllowedMethods
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_AllowedMethods
+    package: security
+    language: go
+    doc: "TestBootstrapGate_AllowedMethods verifies that all allowlisted methods work"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_CorruptGateFile
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_CorruptGateFile
+    package: security
+    language: go
+    doc: "TestBootstrapGate_CorruptGateFile verifies that malformed, partial, or\nstructurally invalid gate files are rejected — the gate fails closed."
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_Disabled
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_Disabled
+    package: security
+    language: go
+    doc: "TestBootstrapGate_Disabled verifies that bootstrap is denied when not enabled"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_EnvVar_NoLongerWorks
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_EnvVar_NoLongerWorks
+    package: security
+    language: go
+    doc: "TestBootstrapGate_EnvVar_NoLongerWorks verifies env var no longer enables bootstrap"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_Expired
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_Expired
+    package: security
+    language: go
+    doc: "TestBootstrapGate_Expired verifies time window enforcement"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_FlagFile
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_FlagFile
+    package: security
+    language: go
+    doc: "TestBootstrapGate_FlagFile verifies bootstrap works with flag file"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_FourGatesOrdered
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_FourGatesOrdered
+    package: security
+    language: go
+    doc: "TestBootstrapGate_FourGatesOrdered verifies gates are checked in order"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_GetBootstrapStatus
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_GetBootstrapStatus
+    package: security
+    language: go
+    doc: "TestBootstrapGate_GetBootstrapStatus verifies status reporting"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_IntegrationWithAuthContext
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_IntegrationWithAuthContext
+    package: security
+    language: go
+    doc: "TestBootstrapGate_IntegrationWithAuthContext verifies end-to-end flow"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_MethodNotAllowed
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_MethodNotAllowed
+    package: security
+    language: go
+    doc: "TestBootstrapGate_MethodNotAllowed verifies method allowlist enforcement"
+  - id: golang/security/bootstrap_test.go:TestBootstrapGate_NonLoopback
+    file: golang/security/bootstrap_test.go
+    symbol: TestBootstrapGate_NonLoopback
+    package: security
+    language: go
+    doc: "TestBootstrapGate_NonLoopback verifies loopback-only enforcement"
+  - id: golang/security/bootstrap_test.go:TestEnableBootstrapGate_RoundTrip
+    file: golang/security/bootstrap_test.go
+    symbol: TestEnableBootstrapGate_RoundTrip
+    package: security
+    language: go
+    doc: "TestEnableBootstrapGate_RoundTrip verifies that EnableBootstrapGate writes a file\nthat readBootstrapState can parse and isWithinTimeWindow accepts."
+  - id: golang/security/bootstrap_test.go:TestIsBootstrapSubject
+    file: golang/security/bootstrap_test.go
+    symbol: TestIsBootstrapSubject
+    package: security
+    language: go
+    doc: "TestIsBootstrapSubject verifies the subject allowlist for path-2 bootstrap access."
+  - id: golang/security/cluster_init_test.go:TestBootstrapGate_IsActive
+    file: golang/security/cluster_init_test.go
+    symbol: TestBootstrapGate_IsActive
+    package: security
+    language: go
+    doc: "TestBootstrapGate_IsActive verifies the IsActive() helper."
+  - id: golang/security/cluster_init_test.go:TestIsClusterInitialized_BootstrapActive
+    file: golang/security/cluster_init_test.go
+    symbol: TestIsClusterInitialized_BootstrapActive
+    package: security
+    language: go
+    doc: "TestIsClusterInitialized_BootstrapActive verifies that while bootstrap mode\nis active the cluster is considered not yet initialized (Day-0 in progress)."
+  - id: golang/security/cluster_init_test.go:TestIsClusterInitialized_Cache
+    file: golang/security/cluster_init_test.go
+    symbol: TestIsClusterInitialized_Cache
+    package: security
+    language: go
+    doc: "TestIsClusterInitialized_Cache verifies that repeated calls use the cache."
+  - id: golang/security/cluster_init_test.go:TestIsClusterInitialized_NoClusterID
+    file: golang/security/cluster_init_test.go
+    symbol: TestIsClusterInitialized_NoClusterID
+    package: security
+    language: go
+    doc: "TestIsClusterInitialized_NoClusterID verifies that when GetLocalClusterID\nreturns an empty string the cluster is reported as not initialized."
+  - id: golang/security/cluster_init_test.go:TestIsMutatingRPC
+    file: golang/security/cluster_init_test.go
+    symbol: TestIsMutatingRPC
+    package: security
+    language: go
+    doc: "TestIsMutatingRPC verifies the read/write classifier."
+  - id: golang/security/jwt_bootstrap_test.go:TestGetClientIdRejectsExternalBootstrapToken
+    file: golang/security/jwt_bootstrap_test.go
+    symbol: TestGetClientIdRejectsExternalBootstrapToken
+    package: security
+    language: go
+    doc: "TestGetClientIdRejectsExternalBootstrapToken verifies that external clients\ncannot use the internal bootstrap token."
+  - id: golang/security/jwt_bootstrap_test.go:TestGetClientIdWithBootstrapContext
+    file: golang/security/jwt_bootstrap_test.go
+    symbol: TestGetClientIdWithBootstrapContext
+    package: security
+    language: go
+    doc: "TestGetClientIdWithBootstrapContext verifies that GetClientId accepts internal bootstrap context."
+  - id: golang/security/jwt_bootstrap_test.go:TestGetClientIdWithEmptyContext
+    file: golang/security/jwt_bootstrap_test.go
+    symbol: TestGetClientIdWithEmptyContext
+    package: security
+    language: go
+    doc: "TestGetClientIdWithEmptyContext verifies the original error message for empty context."
+  - id: golang/security/jwt_bootstrap_test.go:TestGetClientIdWithIncompleteBootstrapContext
+    file: golang/security/jwt_bootstrap_test.go
+    symbol: TestGetClientIdWithIncompleteBootstrapContext
+    package: security
+    language: go
+    doc: "TestGetClientIdWithIncompleteBootstrapContext verifies that incomplete bootstrap\ncontexts are rejected."
+  - id: golang/security/keystore_sync_test.go:TestFileKeystoreGetIssuerSigningKey_DoesNotFailWhenPublishFails
+    file: golang/security/keystore_sync_test.go
+    symbol: TestFileKeystoreGetIssuerSigningKey_DoesNotFailWhenPublishFails
+    package: security
+    language: go
+  - id: golang/security/keystore_sync_test.go:TestFileKeystoreGetPeerPublicKey_FetchesFromClusterOnMiss
+    file: golang/security/keystore_sync_test.go
+    symbol: TestFileKeystoreGetPeerPublicKey_FetchesFromClusterOnMiss
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestActionButton_Disabled_WhenPermissionDenied
+    file: golang/security/node_identity_test.go
+    symbol: TestActionButton_Disabled_WhenPermissionDenied
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestAdminPrincipalCannotMutateSeed
+    file: golang/security/node_identity_test.go
+    symbol: TestAdminPrincipalCannotMutateSeed
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestApproveJoinBindsNodeExecutorRole
+    file: golang/security/node_identity_test.go
+    symbol: TestApproveJoinBindsNodeExecutorRole
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestEnsureBuiltinRolesExist
+    file: golang/security/node_identity_test.go
+    symbol: TestEnsureBuiltinRolesExist
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestExtractNodeID
+    file: golang/security/node_identity_test.go
+    symbol: TestExtractNodeID
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestIsNodePrincipal
+    file: golang/security/node_identity_test.go
+    symbol: TestIsNodePrincipal
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCanAccessOwnNodePlan
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCanAccessOwnNodePlan
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCanCallDNSDuringPlanExecution
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCanCallDNSDuringPlanExecution
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCanCompleteOperation
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCanCompleteOperation
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCanDownloadArtifacts
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCanDownloadArtifacts
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCanReadClusterInfo
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCanReadClusterInfo
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCanReportStatus
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCanReportStatus
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCannotAccessControllerAdminPaths
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCannotAccessControllerAdminPaths
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCannotAccessOtherNodesPlans
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCannotAccessOtherNodesPlans
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCannotMutateDesiredState
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCannotMutateDesiredState
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCannotPerformRBACAdmin
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCannotPerformRBACAdmin
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorCannotPublish
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorCannotPublish
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestNodeExecutorGrantsWorkflowAdmin
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorGrantsWorkflowAdmin
+    package: security
+    language: go
+    doc: "TestNodeExecutorGrantsWorkflowAdmin pins the policy contract behind the\nbootstrap-symmetry fix (2026-06-21): the founding/controller node binds its\nown mTLS identity to globular-node-executor at startup so its workflow trace\nrecorder can persist RecordOutcome / RecordPhaseTransition (both require\naction \"workflow.admin\", per proto/workflow.proto). That binding is only\nmeaningful if globular-node-executor actually grants workflow.admin — if a\nfuture policy edit drops it, the founding node would silently stop recording\nworkflow audit trails again. This test fails loudly if that grant regresses."
+  - id: golang/security/node_identity_test.go:TestNodeExecutorPermissions
+    file: golang/security/node_identity_test.go
+    symbol: TestNodeExecutorPermissions
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestSecurityFlagsDoNotFallbackToEnvInProduction
+    file: golang/security/node_identity_test.go
+    symbol: TestSecurityFlagsDoNotFallbackToEnvInProduction
+    package: security
+    language: go
+    doc: "TestSecurityFlagsDoNotFallbackToEnvInProduction verifies that\nsecurity-critical config flags are NOT read from environment variables.\nIntent: etcd.is_source_of_truth — env var fallback was removed because\nit created a shadow truth path for security configuration."
+  - id: golang/security/node_identity_test.go:TestTokenRotationPreservesNodePrincipalFormat
+    file: golang/security/node_identity_test.go
+    symbol: TestTokenRotationPreservesNodePrincipalFormat
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestValidateNodeOwnershipForMethod_CrossNodeIncludesMethod
+    file: golang/security/node_identity_test.go
+    symbol: TestValidateNodeOwnershipForMethod_CrossNodeIncludesMethod
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestValidateNodeOwnership_Admin
+    file: golang/security/node_identity_test.go
+    symbol: TestValidateNodeOwnership_Admin
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestValidateNodeOwnership_Anonymous
+    file: golang/security/node_identity_test.go
+    symbol: TestValidateNodeOwnership_Anonymous
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestValidateNodeOwnership_MalformedNodePrincipal
+    file: golang/security/node_identity_test.go
+    symbol: TestValidateNodeOwnership_MalformedNodePrincipal
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestValidateNodeOwnership_OtherNode
+    file: golang/security/node_identity_test.go
+    symbol: TestValidateNodeOwnership_OtherNode
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestValidateNodeOwnership_OwnNode
+    file: golang/security/node_identity_test.go
+    symbol: TestValidateNodeOwnership_OwnNode
+    package: security
+    language: go
+  - id: golang/security/node_identity_test.go:TestValidateNodeOwnership_SA_Default
+    file: golang/security/node_identity_test.go
+    symbol: TestValidateNodeOwnership_SA_Default
+    package: security
+    language: go
+  - id: golang/security/path_test.go:TestCanonicalizePath
+    file: golang/security/path_test.go
+    symbol: TestCanonicalizePath
+    package: security
+    language: go
+  - id: golang/security/path_test.go:TestExtractOwnerFromPath
+    file: golang/security/path_test.go
+    symbol: TestExtractOwnerFromPath
+    package: security
+    language: go
+  - id: golang/security/path_test.go:TestPathSecurityError
+    file: golang/security/path_test.go
+    symbol: TestPathSecurityError
+    package: security
+    language: go
+  - id: golang/security/path_test.go:TestValidateResourcePath
+    file: golang/security/path_test.go
+    symbol: TestValidateResourcePath
+    package: security
+    language: go
+  - id: golang/security/tls_pki_test.go:TestCAFingerprintDriftDetected
+    file: golang/security/tls_pki_test.go
+    symbol: TestCAFingerprintDriftDetected
+    package: security
+    language: go
+    doc: "TestCAFingerprintDriftDetected verifies that two independently generated CAs\nproduce different SPKI fingerprints. A fingerprint match means same key pair;\na mismatch means CA rotation — so this test guards the drift-detection path."
+  - id: golang/security/tls_pki_test.go:TestCAMetadataRoundTrip
+    file: golang/security/tls_pki_test.go
+    symbol: TestCAMetadataRoundTrip
+    package: security
+    language: go
+    doc: "TestCAMetadataRoundTrip verifies that CAMetadata marshals to/from JSON without\nloss and that NotAfterTime() correctly parses the RFC3339 string field."
+  - id: golang/security/tls_pki_test.go:TestGenerateServicesCertificates_RegeneratesWhenCAChanged
+    file: golang/security/tls_pki_test.go
+    symbol: TestGenerateServicesCertificates_RegeneratesWhenCAChanged
+    package: security
+    language: go
+    doc: "TestGenerateServicesCertificates_RegeneratesWhenCAChanged verifies that the\nregenerated cert chains to the new CA — not to the old one."
+  - id: golang/security/tls_pki_test.go:TestGenerateServicesCertificates_RemovesStaleCertArtifacts
+    file: golang/security/tls_pki_test.go
+    symbol: TestGenerateServicesCertificates_RemovesStaleCertArtifacts
+    package: security
+    language: go
+    doc: "TestGenerateServicesCertificates_RemovesStaleCertArtifacts verifies that\nwhen the existing cert does not chain to the local CA, stale cert/CSR/PEM\nartifacts are removed before regeneration. Without removal the lower-level\nfunctions (GenerateSignedServerCertificate etc.) skip existing files and\nthe stale cert is preserved — silently breaking mTLS."
+  - id: golang/security/tls_pki_test.go:TestGetCertificateStatus_ChainInvalidWhenSignedByOldCA
+    file: golang/security/tls_pki_test.go
+    symbol: TestGetCertificateStatus_ChainInvalidWhenSignedByOldCA
+    package: security
+    language: go
+    doc: "TestGetCertificateStatus_ChainInvalidWhenSignedByOldCA verifies that a cert\nsigned by a rotated-out CA is detected as chain-invalid against the new CA.\nThis is the core PKI convergence invariant: stale certs must be flagged\nso node agents regenerate them after CA rotation."
+  - id: golang/security/tls_pki_test.go:TestGetCertificateStatus_ChainValidWithCurrentCA
+    file: golang/security/tls_pki_test.go
+    symbol: TestGetCertificateStatus_ChainValidWithCurrentCA
+    package: security
+    language: go
+    doc: "TestGetCertificateStatus_ChainValidWithCurrentCA verifies that a cert signed\nby the current CA passes chain validation — no regen should be triggered."
+  - id: golang/security/tls_pki_test.go:TestNeedsCertRegeneration_Expired
+    file: golang/security/tls_pki_test.go
+    symbol: TestNeedsCertRegeneration_Expired
+    package: security
+    language: go
+  - id: golang/security/tls_pki_test.go:TestNeedsCertRegeneration_HealthyCert_NoRegen
+    file: golang/security/tls_pki_test.go
+    symbol: TestNeedsCertRegeneration_HealthyCert_NoRegen
+    package: security
+    language: go
+  - id: golang/security/tls_pki_test.go:TestNeedsCertRegeneration_MissingDNS_SAN
+    file: golang/security/tls_pki_test.go
+    symbol: TestNeedsCertRegeneration_MissingDNS_SAN
+    package: security
+    language: go
+  - id: golang/security/tls_pki_test.go:TestNeedsCertRegeneration_MissingIP_SAN
+    file: golang/security/tls_pki_test.go
+    symbol: TestNeedsCertRegeneration_MissingIP_SAN
+    package: security
+    language: go
+  - id: golang/security/tls_pki_test.go:TestNeedsCertRegeneration_NearExpiry
+    file: golang/security/tls_pki_test.go
+    symbol: TestNeedsCertRegeneration_NearExpiry
+    package: security
+    language: go
+  - id: golang/security/tls_pki_test.go:TestNodeRejoin_DoesNotReuseOldCA
+    file: golang/security/tls_pki_test.go
+    symbol: TestNodeRejoin_DoesNotReuseOldCA
+    package: security
+    language: go
+    doc: "TestNodeRejoin_DoesNotReuseOldCA simulates the CA rotation + node rejoin\nscenario: a node has service certs issued by CA1. After CA rotation to CA2,\nthe node must detect its certs are stale and regenerate — never reuse them."
+  - id: golang/security/tls_pki_test.go:TestPurgeNodeTrust_RemovesSystemCA
+    file: golang/security/tls_pki_test.go
+    symbol: TestPurgeNodeTrust_RemovesSystemCA
+    package: security
+    language: go
+    doc: "TestPurgeNodeTrust_RemovesSystemCA verifies the PKI trust purge invariant:\nafter a node trust purge, all Globular CA artifacts are absent and\nNeedsCertRegeneration correctly reports missing cert (not a silent no-op).\nThis mirrors the behavior of purge-node-trust.sh but in pure Go so it can\nrun in CI without root access or system directories."
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestPermissionDenied_RenderedDistinctlyFromNetworkError
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestPermissionDenied_RenderedDistinctlyFromNetworkError
+    package: security
+    language: go
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestPermissionDenied_RenderedDistinctly_NotAsNetworkError
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestPermissionDenied_RenderedDistinctly_NotAsNetworkError
+    package: security
+    language: go
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestRetryButton_NotShown_ForPermissionDenied
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestRetryButton_NotShown_ForPermissionDenied
+    package: security
+    language: go
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestStatusBadge_BoundToRuntimeProbe_NotDesiredState
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestStatusBadge_BoundToRuntimeProbe_NotDesiredState
+    package: security
+    language: go
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestStatusIndicator_MarkedStale_WhenCollectorLags
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestStatusIndicator_MarkedStale_WhenCollectorLags
+    package: security
+    language: go
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestStatusIndicator_ShowsFreshnessTimestamp
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestStatusIndicator_ShowsFreshnessTimestamp
+    package: security
+    language: go
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestStatusRollup_DegradedSubsystem_PropagatesToSummary
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestStatusRollup_DegradedSubsystem_PropagatesToSummary
+    package: security
+    language: go
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestSuccessToast_NotShown_OnDispatchOnly
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestSuccessToast_NotShown_OnDispatchOnly
+    package: security
+    language: go
+  - id: golang/security/zz_awareness_required_test_aliases_test.go:TestSuccessToast_ShownOnly_OnWorkflowTerminal
+    file: golang/security/zz_awareness_required_test_aliases_test.go
+    symbol: TestSuccessToast_ShownOnly_OnWorkflowTerminal
+    package: security
+    language: go

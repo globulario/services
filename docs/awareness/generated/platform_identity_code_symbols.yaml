@@ -1,1 +1,47 @@
 code_symbols:
+test_symbols:
+  - id: golang/identity/identity_test.go:TestIdentityByKey
+    file: golang/identity/identity_test.go
+    symbol: TestIdentityByKey
+    package: identity_test
+    language: go
+  - id: golang/identity/identity_test.go:TestMustIdentityByKey_Unknown
+    file: golang/identity/identity_test.go
+    symbol: TestMustIdentityByKey_Unknown
+    package: identity_test
+    language: go
+  - id: golang/identity/identity_test.go:TestNormalizeServiceKey_ClusterController
+    file: golang/identity/identity_test.go
+    symbol: TestNormalizeServiceKey_ClusterController
+    package: identity_test
+    language: go
+  - id: golang/identity/identity_test.go:TestNormalizeServiceKey_DomainPrefix
+    file: golang/identity/identity_test.go
+    symbol: TestNormalizeServiceKey_DomainPrefix
+    package: identity_test
+    language: go
+  - id: golang/identity/identity_test.go:TestNormalizeServiceKey_KnownServices
+    file: golang/identity/identity_test.go
+    symbol: TestNormalizeServiceKey_KnownServices
+    package: identity_test
+    language: go
+  - id: golang/identity/identity_test.go:TestNormalizeServiceKey_NodeAgent
+    file: golang/identity/identity_test.go
+    symbol: TestNormalizeServiceKey_NodeAgent
+    package: identity_test
+    language: go
+  - id: golang/identity/identity_test.go:TestNormalizeServiceKey_UnderscoreToHyphen
+    file: golang/identity/identity_test.go
+    symbol: TestNormalizeServiceKey_UnderscoreToHyphen
+    package: identity_test
+    language: go
+  - id: golang/identity/identity_test.go:TestUnitForService
+    file: golang/identity/identity_test.go
+    symbol: TestUnitForService
+    package: identity_test
+    language: go
+  - id: golang/identity/identity_test.go:TestUnitToServiceID
+    file: golang/identity/identity_test.go
+    symbol: TestUnitToServiceID
+    package: identity_test
+    language: go

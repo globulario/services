@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz gen-package-kinds check-package-kinds check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb check-no-tracked-binaries gen-package-kinds check-package-kinds check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
 
 # ── Security boundary checks ────────────────────────────────────────────────
 #
@@ -122,9 +122,49 @@ check-package-kinds:
 		diff -u packagekind/kinds_generated.go "$$tmp" || true; rm -f "$$tmp" "$$tmp.err"; exit 1; \
 	fi
 
+# ── Generated protobuf placement ─────────────────────────────────────────────
+#
+# check-no-misplaced-pb: protobuf-generated Go files must live ONLY under their
+#   canonical package directory golang/<service>/<name>pb/. Root-level or
+#   otherwise-misplaced *.pb.go files are invalid build artifacts — typically
+#   debris from a protoc / generateCode.sh run launched from the wrong working
+#   directory (they even compile under the wrong package path). This gate is
+#   stronger than the .gitignore net: it catches already-tracked or force-added
+#   debris, not just untracked files.
+#
+#   Born from a real scar: stale root-level cluster_controller{,_grpc}.pb.go
+#   (older proto + older toolchain) sat next to the authoritative copies under
+#   golang/cluster_controller/cluster_controllerpb/. See docs/awareness.
+
+check-no-misplaced-pb:
+	@echo "Checking for misplaced generated protobuf Go files..."
+	@BAD=$$(find . -name '*.pb.go' \
+	            | grep -vE '^\./golang/.*pb/[^/]*\.pb\.go$$' \
+	            | grep -v '^\./vendor/' || true); \
+	 if [ -n "$$BAD" ]; then \
+		echo "FAIL: misplaced generated protobuf files (must live under golang/<service>/<name>pb/):"; \
+		echo "$$BAD"; \
+		echo "Delete these strays, or regenerate into the canonical package dir."; \
+		exit 1; \
+	 fi
+	@echo "OK: all *.pb.go live under their canonical golang/<service>/<name>pb/ directory"
+
+# ── No tracked binaries (general build-artifact gate) ────────────────────────
+#
+# check-no-tracked-binaries: the general form of check-no-misplaced-pb and the
+#   /golang/*_server .gitignore rule. Fails if ANY git-tracked file is a compiled
+#   binary (ELF / Mach-O / Windows PE / object / archive), detected by content
+#   (libmagic), not by extension. Compiled binaries are build artifacts and never
+#   belong in source control. Legit binary source (PNGs, fonts, fixtures) has
+#   non-executable mime types and is not flagged.
+
+check-no-tracked-binaries:
+	@echo "Checking for tracked compiled binaries..."
+	@bash scripts/check_no_tracked_binaries.sh
+
 # ── Aggregate check target ───────────────────────────────────────────────────
 
-check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-package-kinds
+check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds
 
 # ── Test targets ─────────────────────────────────────────────────────────────
 

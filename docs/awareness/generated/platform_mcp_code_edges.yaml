@@ -116,6 +116,18 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.tools_rbac_explain
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    relation: enforces
+    to: globular.platform:invariant.meta.discovery_produces_candidates_not_facts
+  - from: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    relation: enforces
+    to: globular.platform:invariant.meta.storage_is_not_semantic_authority
+  - from: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
   - from: globular.platform:code.go.platform_mcp.transport_http
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
