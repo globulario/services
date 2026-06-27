@@ -2000,6 +2000,29 @@ func inferCorrectKind(name string, current repopb.ArtifactKind) repopb.ArtifactK
 	return current
 }
 
+// registryArtifactKind returns the registry-authoritative ArtifactKind for a
+// package name, sourced from the packagekind projection of registry.yaml (the
+// single author). It is applied at WRITE time (publish, sync) so the STORED
+// manifest kind is correct at the source — Slice 4a of the package-classification
+// single-source migration (docs/design/package-classification-single-source.md;
+// scar ai-memory architecture/83b8f143). This fixes the root cause behind the
+// read-time inferCorrectKind correction: publish previously hardcoded SERVICE for
+// every package. The read-time correction is RETAINED in 4a as a net for legacy
+// manifests and removed in 4b once stored manifests are proven correct.
+// A name absent from the registry returns the caller's fallback (fail-open).
+func registryArtifactKind(name string, fallback repopb.ArtifactKind) repopb.ArtifactKind {
+	switch {
+	case packagekind.IsInfrastructure(name):
+		return repopb.ArtifactKind_INFRASTRUCTURE
+	case packagekind.IsCommand(name):
+		return repopb.ArtifactKind_COMMAND
+	case packagekind.IsService(name):
+		return repopb.ArtifactKind_SERVICE
+	default:
+		return fallback
+	}
+}
+
 // ── search helpers ───────────────────────────────────────────────────────────
 
 // matchesQuery returns true if the manifest matches a free-text query.

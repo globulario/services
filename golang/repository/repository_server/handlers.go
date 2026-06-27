@@ -214,7 +214,10 @@ func (srv *server) UploadBundle(stream repopb.PackageRepository_UploadBundleServ
 		Version:     d.Version,
 		Platform:    bundle.Plaform,
 		PublisherId: d.PublisherID,
-		Kind:        repopb.ArtifactKind_SERVICE,
+		// Slice 4a: stamp the registry-authoritative kind at publish time instead of
+		// hardcoding SERVICE for every package (the root cause that made the read-time
+		// inferCorrectKind correction necessary). Unknown names fall open to SERVICE.
+		Kind: registryArtifactKind(d.Name, repopb.ArtifactKind_SERVICE),
 	}
 	buildNumber := srv.resolveLatestBuildNumber(stream.Context(), aRef) + 1
 	buildID := uuid.Must(uuid.NewV7()).String()
