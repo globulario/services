@@ -384,7 +384,6 @@ type ArtifactReceipt struct {
 	SizeBytes          int64  `json:"size_bytes"`
 	SourceUsed         string `json:"source_used"`
 	SourceType         string `json:"source_type"`
-	MirrorStatus       string `json:"mirror_status,omitempty"`
 	VerificationResult string `json:"verification_result"`
 	VerifiedAt         string `json:"verified_at"`
 }
@@ -406,7 +405,6 @@ func (srv *server) writeLocalReceipt(req ArtifactRequest, result *ResolutionResu
 	if sourceUsed == "" {
 		sourceUsed = result.SourceName
 	}
-	// Packages live only in the local POSIX CAS — there is no mirror to sync to.
 	receipt := ArtifactReceipt{
 		PublisherID:        req.PublisherID,
 		Name:               req.Name,
@@ -420,7 +418,6 @@ func (srv *server) writeLocalReceipt(req ArtifactRequest, result *ResolutionResu
 		SizeBytes:          result.SizeBytes,
 		SourceUsed:         sourceUsed,
 		SourceType:         result.SourceType,
-		MirrorStatus:       "not_synced",
 		VerificationResult: "ok",
 		VerifiedAt:         time.Now().UTC().Format(time.RFC3339),
 	}

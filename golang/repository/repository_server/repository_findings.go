@@ -568,10 +568,7 @@ func (srv *server) GetRepositoryStatus(_ context.Context, _ *repopb.GetRepositor
 // it detects bugs in the watchdog itself, not in artifact state.
 //
 //   - REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT: Scylla is down but service
-//     reports mode=FULL (should be READ_ONLY or LOCAL_ONLY).
-//   - REPO_FIND_MINIO_BLOCKS_REPOSITORY: MinIO is unavailable and the service
-//     is reporting a non-mirror capability as blocked by the mirror (optional
-//     deps must never block required capabilities).
+//     reports mode=FULL (should be READ_ONLY).
 func (srv *server) evalDependencyModeCoherence(now int64) []*repopb.RepositoryFinding {
 	if srv.depHealth == nil {
 		return nil
