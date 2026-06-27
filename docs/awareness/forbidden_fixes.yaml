@@ -3960,11 +3960,11 @@ forbidden_fixes:
     work exists to end.
   related_invariants:
   - package.kind_is_registry_authored_downstream_is_projection
-  - hardcode_package_kind_classification_outside_canonical_registry
   safe_alternative: >-
     Fix the kind at the source (registry.yaml) and let the projection/gate flow it
     everywhere. If a name-based branch seems necessary, the real bug is a missing
-    registry-derived lookup at that site.
+    registry-derived lookup at that site. (Closely related forbidden_fix:
+    hardcode_package_kind_classification_outside_canonical_registry.)
 - id: let_component_catalog_or_config_override_registry_kind
   summary: >-
     Let component_catalog.go, config.json, an artifact manifest, or node-agent inference
