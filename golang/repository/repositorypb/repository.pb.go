@@ -826,7 +826,6 @@ const (
 	RepositoryFindingKind_REPO_FIND_ROLLBACK_FAILED             RepositoryFindingKind = 7
 	// Phase 1 operational-mode invariants:
 	RepositoryFindingKind_REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT RepositoryFindingKind = 10 // service reports FULL mode but ScyllaDB is unavailable
-	RepositoryFindingKind_REPO_FIND_MINIO_BLOCKS_REPOSITORY       RepositoryFindingKind = 11 // optional MinIO dep is blocking a non-mirror capability
 	RepositoryFindingKind_REPO_FIND_SOURCE_CHAIN_UNAVAILABLE      RepositoryFindingKind = 12 // no source can provide any artifact
 	RepositoryFindingKind_REPO_FIND_LOCAL_CACHE_CORRUPTION        RepositoryFindingKind = 13 // receipt exists but local blob is missing or corrupt
 )
@@ -843,7 +842,6 @@ var (
 		6:  "REPO_FIND_CONFIG_CONFLICT",
 		7:  "REPO_FIND_ROLLBACK_FAILED",
 		10: "REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT",
-		11: "REPO_FIND_MINIO_BLOCKS_REPOSITORY",
 		12: "REPO_FIND_SOURCE_CHAIN_UNAVAILABLE",
 		13: "REPO_FIND_LOCAL_CACHE_CORRUPTION",
 	}
@@ -857,7 +855,6 @@ var (
 		"REPO_FIND_CONFIG_CONFLICT":               6,
 		"REPO_FIND_ROLLBACK_FAILED":               7,
 		"REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT": 10,
-		"REPO_FIND_MINIO_BLOCKS_REPOSITORY":       11,
 		"REPO_FIND_SOURCE_CHAIN_UNAVAILABLE":      12,
 		"REPO_FIND_LOCAL_CACHE_CORRUPTION":        13,
 	}
@@ -8913,8 +8910,8 @@ func (x *ListRepositoryFindingsResponse) GetGeneratedAtUnix() int64 {
 // collision with the Go operational.DependencyHealth type.
 type DependencyHealthProto struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
-	Name                string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`     // e.g. "scylladb", "minio_mirror"
-	Kind                string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`     // REQUIRED, OPTIONAL, MIRROR, INDEX, CACHE, …
+	Name                string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`     // e.g. "scylladb"
+	Kind                string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`     // REQUIRED, OPTIONAL, INDEX, CACHE, …
 	Status              string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // HEALTHY, DEGRADED, UNAVAILABLE, UNSAFE
 	Reason              string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
 	AffectsCapabilities []string               `protobuf:"bytes,5,rep,name=affects_capabilities,json=affectsCapabilities,proto3" json:"affects_capabilities,omitempty"`
@@ -10027,7 +10024,7 @@ const file_repository_proto_rawDesc = "" +
 	"\x17CONFIG_RECEIPT_CONFLICT\x10\x05\x12\x1b\n" +
 	"\x17CONFIG_RECEIPT_RESTORED\x10\x06\x12!\n" +
 	"\x1dCONFIG_RECEIPT_SKIPPED_SECRET\x10\a\x12\x19\n" +
-	"\x15CONFIG_RECEIPT_FAILED\x10\b*\xe1\x03\n" +
+	"\x15CONFIG_RECEIPT_FAILED\x10\b*\xe3\x03\n" +
 	"\x15RepositoryFindingKind\x12\"\n" +
 	"\x1eREPOSITORY_FINDING_UNSPECIFIED\x10\x00\x12$\n" +
 	" REPO_FIND_PUBLISHED_MISSING_BLOB\x10\x01\x12)\n" +
@@ -10038,10 +10035,9 @@ const file_repository_proto_rawDesc = "" +
 	"\x19REPO_FIND_CONFIG_CONFLICT\x10\x06\x12\x1d\n" +
 	"\x19REPO_FIND_ROLLBACK_FAILED\x10\a\x12+\n" +
 	"'REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT\x10\n" +
-	"\x12%\n" +
-	"!REPO_FIND_MINIO_BLOCKS_REPOSITORY\x10\v\x12&\n" +
+	"\x12&\n" +
 	"\"REPO_FIND_SOURCE_CHAIN_UNAVAILABLE\x10\f\x12$\n" +
-	" REPO_FIND_LOCAL_CACHE_CORRUPTION\x10\r*\x94\x01\n" +
+	" REPO_FIND_LOCAL_CACHE_CORRUPTION\x10\r\"\x04\b\v\x10\v*!REPO_FIND_MINIO_BLOCKS_REPOSITORY*\x94\x01\n" +
 	"\x19RepositoryFindingSeverity\x12\"\n" +
 	"\x1eREPO_FIND_SEVERITY_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eREPO_FIND_INFO\x10\x01\x12\x12\n" +

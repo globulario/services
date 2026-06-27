@@ -1653,7 +1653,11 @@ enum RepositoryFindingKind {
   REPO_FIND_ROLLBACK_FAILED               = 7;
   // Phase 1 operational-mode invariants:
   REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT = 10; // service reports FULL mode but ScyllaDB is unavailable
-  REPO_FIND_MINIO_BLOCKS_REPOSITORY       = 11; // optional MinIO dep is blocking a non-mirror capability
+  // 11 retired: MinIO removed from the repository — packages live only in the
+  // local POSIX CAS, so there is no mirror dependency to block a capability.
+  // Never reuse this number.
+  reserved 11;
+  reserved "REPO_FIND_MINIO_BLOCKS_REPOSITORY";
   REPO_FIND_SOURCE_CHAIN_UNAVAILABLE      = 12; // no source can provide any artifact
   REPO_FIND_LOCAL_CACHE_CORRUPTION        = 13; // receipt exists but local blob is missing or corrupt
 }
@@ -1700,8 +1704,8 @@ message ListRepositoryFindingsResponse {
 // capabilities are affected when it is unhealthy. "Proto" suffix avoids
 // collision with the Go operational.DependencyHealth type.
 message DependencyHealthProto {
-  string name   = 1;  // e.g. "scylladb", "minio_mirror"
-  string kind   = 2;  // REQUIRED, OPTIONAL, MIRROR, INDEX, CACHE, …
+  string name   = 1;  // e.g. "scylladb"
+  string kind   = 2;  // REQUIRED, OPTIONAL, INDEX, CACHE, …
   string status = 3;  // HEALTHY, DEGRADED, UNAVAILABLE, UNSAFE
   string reason = 4;
   repeated string affects_capabilities = 5;
