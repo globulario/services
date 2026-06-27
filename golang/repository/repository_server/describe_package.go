@@ -231,18 +231,12 @@ func (srv *server) walkCatalogFor(ctx context.Context, candidates []string, publ
 			}
 		}
 		if r.kind == repopb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
-			// Apply kind inference to correct artifacts published before the kind
-			// classification was standardised (e.g. xds/gateway had "type":"service"
-			// before v1.2.7). inferCorrectKind is authoritative for all known infra
-			// and command packages; it returns the current value unchanged for
-			// packages whose kind is unambiguous from the manifest alone.
-			//
-			// readManifestAndStateByKey already applies inferCorrectKind in-place on the
-			// proto (so ref.GetKind() is already the corrected value). To capture
-			// the pre-normalization stored kind we re-read the raw bytes here —
-			// this is a diagnostic-only path, not a hot path.
+			// Fill a missing aggregated kind from the stored manifest kind, which is
+			// registry-authoritative since Slice 4a stamps it at publish/sync. Slice 4b
+			// trusts the stored kind — no read-time inferCorrectKind correction (a live
+			// audit proved every stored manifest already carries the correct kind).
 			r.storedKind = rawManifestKind(ctx, srv.Storage(), manifestStorageKey(key))
-			r.kind = inferCorrectKind(ref.GetName(), r.storedKind)
+			r.kind = r.storedKind
 		}
 		if r.publisher == "" {
 			r.publisher = ref.GetPublisherId()
