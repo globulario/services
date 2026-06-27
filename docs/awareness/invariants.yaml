@@ -11122,3 +11122,74 @@ invariants:
   - desired.keyed_by_kind_and_name
   required_tests:
   - golang/cluster_controller/resourcestore/owner_guard_test.go::TestGuardOwner_EnforcesCriticalKeyOwnerAtResourceWrite
+- id: build.generated_protobuf_only_in_canonical_pb_dir
+  title: Protobuf-generated Go files must live only under their canonical golang/<service>/<name>pb/ package directory — root-level
+    or misplaced *.pb.go are invalid build artifacts
+  severity: high
+  status: active
+  protects:
+    files:
+    - Makefile
+    - .gitignore
+    - golang/cluster_controller/cluster_controllerpb/cluster_controller.pb.go
+  related_invariants:
+  - meta.generated_artifacts_must_be_fresh_before_merge
+  forbidden_fixes:
+  - commit_generated_protobuf_outside_canonical_pb_dir
+  enforcement: |
+    Mechanically enforced by `make check-no-misplaced-pb` (wired into
+    `make check-services`): fails if any *.pb.go exists outside a
+    golang/<service>/<name>pb/ directory (regex ^\./golang/.*pb/[^/]*\.pb\.go$).
+    Backed by a .gitignore net (/*.pb.go, anchored to root so canonical
+    golang/** files are unaffected).
+  required_tests: []
+  summary: |
+    Generated protobuf Go (*.pb.go, *_grpc.pb.go) is valid only inside its
+    canonical package directory golang/<service>/<name>pb/. Root-level or
+    misplaced copies are build trash: they declare the pb package but sit where
+    no Go package exists (cannot compile) and shadow the authoritative copies.
+
+    Scar (2026-06-27): stale root-level cluster_controller.pb.go and
+    cluster_controller_grpc.pb.go (older proto + older toolchain) sat beside the
+    authoritative copies under golang/cluster_controller/cluster_controllerpb/,
+    which were a strict superset (7 newer RPCs the strays lacked). They leaked
+    from a stale linked git worktree (/tmp/services-head) used as a scratch build
+    tree. Always diff a stray against the canonical copy before deleting
+    (canonical is usually the superset); run generateCode.sh from its intended
+    directory so protoc output lands in the canonical package. Landed in PR #169
+    (squash 4af3d973). See ai-memory debug/5c3dda3d.
+- id: build.no_compiled_binaries_tracked_in_git
+  title: Compiled binaries (ELF / Mach-O / Windows PE / object / archive) must never be tracked in git — they are build artifacts,
+    never source
+  severity: high
+  status: active
+  protects:
+    files:
+    - Makefile
+    - scripts/check_no_tracked_binaries.sh
+    - .gitignore
+  related_invariants:
+  - meta.generated_artifacts_must_be_fresh_before_merge
+  - build.generated_protobuf_only_in_canonical_pb_dir
+  forbidden_fixes:
+  - commit_compiled_binary_as_source
+  enforcement: |
+    Mechanically enforced by `make check-no-tracked-binaries`
+    (scripts/check_no_tracked_binaries.sh, wired into `make check-services`):
+    fails if any git-tracked file is a compiled binary, detected by libmagic
+    content (`file --mime-type`) — not extension or mode bit — so legit binary
+    source (PNGs, fonts, fixtures) is not flagged. Backed by .gitignore rules
+    (/golang/*_server, /golang/*_server_new).
+  required_tests: []
+  summary: |
+    Compiled binaries are platform-specific, bloat history, and are never
+    source; they must never be tracked in git. Detection is by content
+    (ELF / Mach-O / PE / object / archive mime types), not name.
+
+    Scar (2026-06-27): golang/node_agent_server_new — a 755 ELF committed by
+    accident (0de69fb6) — leaked from a stale linked worktree (/tmp/services-head)
+    used as a scratch build tree. Resolution: git rm --cached + .gitignore rule +
+    a general libmagic-based gate. Detection gotcha: `file` pads filenames with
+    alignment spaces when handed many paths, so the mime match must tolerate
+    ":<spaces>" not just ": " or it silently matches nothing (false green).
+    Landed in PR #169 (squash 4af3d973). See ai-memory debug/5c3dda3d.
