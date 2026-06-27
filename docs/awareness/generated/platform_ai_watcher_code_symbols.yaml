@@ -9,3 +9,33 @@ code_symbols:
       implements:
         - globular.platform:intent.ai.watcher_to_executor_causal_chain
         - globular.platform:intent.event.pub_sub_connects_observability_to_action
+test_symbols:
+  - id: golang/ai_watcher/ai_watcher_server/behavioral_observation_test.go:TestFireBatchEmitsBehavioralWatcherIncident
+    file: golang/ai_watcher/ai_watcher_server/behavioral_observation_test.go
+    symbol: TestFireBatchEmitsBehavioralWatcherIncident
+    package: main
+    language: go
+  - id: golang/ai_watcher/ai_watcher_server/probes_test.go:TestScyllaGroup0Probe_AcquireFailureIsIndeterminate
+    file: golang/ai_watcher/ai_watcher_server/probes_test.go
+    symbol: TestScyllaGroup0Probe_AcquireFailureIsIndeterminate
+    package: main
+    language: go
+    doc: "A probe that cannot reach its data source must surface the blind spot as an\nindeterminate warning — tool failure is evidence, not silence."
+  - id: golang/ai_watcher/ai_watcher_server/probes_test.go:TestScyllaGroup0Probe_BelowFoundingQuorumNoMembershipFalsePositive
+    file: golang/ai_watcher/ai_watcher_server/probes_test.go
+    symbol: TestScyllaGroup0Probe_BelowFoundingQuorumNoMembershipFalsePositive
+    package: main
+    language: go
+    doc: "Below founding quorum (dev / single-node), membership math must not fire — only\nan explicit violation should. Guards against false positives."
+  - id: golang/ai_watcher/ai_watcher_server/probes_test.go:TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
+    file: golang/ai_watcher/ai_watcher_server/probes_test.go
+    symbol: TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
+    package: main
+    language: go
+    doc: "Acceptance test for PR-14: given a simulated Scylla group0/quorum failure,\nthe probe emits a structured runtime finding that preserves\nsource/authority/severity/evidence, and behavioral-memory ingests it as a raw\nsignal + evidence only — never as a promoted principle."
+  - id: golang/ai_watcher/ai_watcher_server/probes_test.go:TestScyllaGroup0Probe_HealthyClusterIsNotEmitted
+    file: golang/ai_watcher/ai_watcher_server/probes_test.go
+    symbol: TestScyllaGroup0Probe_HealthyClusterIsNotEmitted
+    package: main
+    language: go
+    doc: "A healthy cluster must not produce a finding (no false alarms / no flooding)."

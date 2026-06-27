@@ -50,6 +50,9 @@ code_edges:
   - from: globular.platform:code.go.cluster_controller.release_pipeline
     relation: implements
     to: globular.platform:intent.workflow.source_of_operational_truth
+  - from: globular.platform:code.go.platform_cluster_controller.acc_config_handlers
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
   - from: globular.platform:code.go.platform_cluster_controller.artifact_kind_exhaustive_test
     relation: enforces
     to: globular.platform:invariant.release_type_switch_must_have_default
@@ -77,6 +80,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.desired_from_resources
     relation: implements
     to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.desired_state_crosskind_test
+    relation: enforces
+    to: globular.platform:invariant.desired.keyed_by_kind_and_name
   - from: globular.platform:code.go.platform_cluster_controller.desired_state_handlers
     relation: implements
     to: globular.platform:intent.controller.leader_election_gates_all_writes
@@ -239,6 +245,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.objectstore_reconciler
     relation: implements
     to: globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_topology_handlers
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
   - from: globular.platform:code.go.platform_cluster_controller.objectstore_topology_status
     relation: enforces
     to: globular.platform:invariant.objectstore.topology_contract

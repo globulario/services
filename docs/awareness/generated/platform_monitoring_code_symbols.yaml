@@ -1,1 +1,20 @@
 code_symbols:
+test_symbols:
+  - id: golang/monitoring/monitoring_client/monitoring_test.go:TestCreateConnection
+    file: golang/monitoring/monitoring_client/monitoring_test.go
+    symbol: TestCreateConnection
+    package: monitoring_client
+    language: go
+    doc: "First test create a fresh new connection..."
+  - id: golang/monitoring/monitoring_client/monitoring_test.go:TestGetConfig
+    file: golang/monitoring/monitoring_client/monitoring_test.go
+    symbol: TestGetConfig
+    package: monitoring_client
+    language: go
+    doc: "Test getting the configurations infromations."
+  - id: golang/monitoring/monitoring_client/monitoring_test.go:TestMonitoring
+    file: golang/monitoring/monitoring_client/monitoring_test.go
+    symbol: TestMonitoring
+    package: monitoring_client
+    language: go
+    doc: "First test create a fresh new connection..."

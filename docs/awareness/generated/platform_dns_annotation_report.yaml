@@ -1,6 +1,7 @@
 scanned_files: 11
 annotated_symbols: 0
 imported_annotations: 3
+discovered_tests: 20
 missing_namespace:
   []
 unknown_namespace:

@@ -30,3 +30,865 @@ code_symbols:
       enforces:
         - globular.platform:invariant.four_layer.truth_read_via_owner_rpc_not_direct_storage
         - globular.platform:invariant.etcd.path_has_single_owner
+test_symbols:
+  - id: golang/globularcli/acc_config_rpc_test.go:TestRunAccReset_RoutesThroughOwnerRPC
+    file: golang/globularcli/acc_config_rpc_test.go
+    symbol: TestRunAccReset_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestRunAccReset_RoutesThroughOwnerRPC proves `cluster acc reset` retracts the key\nthrough the owner's typed ResetAccConfig RPC, not a raw etcd Delete."
+  - id: golang/globularcli/acc_config_rpc_test.go:TestRunAccSet_RoutesThroughOwnerRPC
+    file: golang/globularcli/acc_config_rpc_test.go
+    symbol: TestRunAccSet_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestRunAccSet_RoutesThroughOwnerRPC proves the RT-2 migration of `cluster acc set`:\nthe ACC config write goes through the controller's typed SetAccConfig RPC (the\nowner of /globular/system/acc/config) carrying well-formed JSON — not a raw etcd\nPut. The merge of operator flags happens CLI-side; the controller receives the\nfinal opaque blob."
+  - id: golang/globularcli/auth_cmds_test.go:TestAuthLoginDoesNotPersistTokenByDefault
+    file: golang/globularcli/auth_cmds_test.go
+    symbol: TestAuthLoginDoesNotPersistTokenByDefault
+    package: main
+    language: go
+  - id: golang/globularcli/auth_cmds_test.go:TestAuthLoginPersistsTokenWhenExplicitlyRequested
+    file: golang/globularcli/auth_cmds_test.go
+    symbol: TestAuthLoginPersistsTokenWhenExplicitlyRequested
+    package: main
+    language: go
+  - id: golang/globularcli/auth_cmds_test.go:TestLoginWarnsDefaultRoot
+    file: golang/globularcli/auth_cmds_test.go
+    symbol: TestLoginWarnsDefaultRoot
+    package: main
+    language: go
+  - id: golang/globularcli/auth_cmds_test.go:TestRootPassConfirmMismatch
+    file: golang/globularcli/auth_cmds_test.go
+    symbol: TestRootPassConfirmMismatch
+    package: main
+    language: go
+  - id: golang/globularcli/auth_cmds_test.go:TestRootPassPolicyFailure
+    file: golang/globularcli/auth_cmds_test.go
+    symbol: TestRootPassPolicyFailure
+    package: main
+    language: go
+  - id: golang/globularcli/auth_cmds_test.go:TestRootPassSuccess
+    file: golang/globularcli/auth_cmds_test.go
+    symbol: TestRootPassSuccess
+    package: main
+    language: go
+  - id: golang/globularcli/auth_cmds_test.go:TestValidatePasswordPolicyCLI
+    file: golang/globularcli/auth_cmds_test.go
+    symbol: TestValidatePasswordPolicyCLI
+    package: main
+    language: go
+  - id: golang/globularcli/cluster_dial_invariant_test.go:TestRewriteDialInvariantError_Passthrough
+    file: golang/globularcli/cluster_dial_invariant_test.go
+    symbol: TestRewriteDialInvariantError_Passthrough
+    package: main
+    language: go
+  - id: golang/globularcli/cluster_dial_invariant_test.go:TestRewriteDialInvariantError_TLSHandshake
+    file: golang/globularcli/cluster_dial_invariant_test.go
+    symbol: TestRewriteDialInvariantError_TLSHandshake
+    package: main
+    language: go
+  - id: golang/globularcli/doctor_endpoint_test.go:TestResolveDoctorEndpoint_Override
+    file: golang/globularcli/doctor_endpoint_test.go
+    symbol: TestResolveDoctorEndpoint_Override
+    package: main
+    language: go
+  - id: golang/globularcli/domain_cmds_test.go:TestDomainAddVerification
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestDomainAddVerification
+    package: main
+    language: go
+    doc: "TestDomainAddVerification verifies that 'domain add' reads back the spec\nafter writing to etcd to verify persistence (Fix #2)"
+  - id: golang/globularcli/domain_cmds_test.go:TestDomainAddWithoutProviderFails
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestDomainAddWithoutProviderFails
+    package: main
+    language: go
+    doc: "TestDomainAddWithoutProviderFails verifies that domain add fails if provider doesn't exist"
+  - id: golang/globularcli/domain_cmds_test.go:TestDomainSpecJSONRoundtrip
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestDomainSpecJSONRoundtrip
+    package: main
+    language: go
+    doc: "TestDomainSpecJSONRoundtrip tests that domain specs can be serialized and deserialized"
+  - id: golang/globularcli/domain_cmds_test.go:TestDomainSpecValidation
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestDomainSpecValidation
+    package: main
+    language: go
+    doc: "TestDomainSpecValidation tests that domain.ExternalDomainSpec.Validate() works correctly"
+  - id: golang/globularcli/domain_cmds_test.go:TestDomainStatusJSONArrayConsistency
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestDomainStatusJSONArrayConsistency
+    package: main
+    language: go
+    doc: "TestDomainStatusJSONArrayConsistency verifies that JSON output is always an array\nfor consistent parsing by scripts"
+  - id: golang/globularcli/domain_cmds_test.go:TestDomainStatusJSONFieldStability
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestDomainStatusJSONFieldStability
+    package: main
+    language: go
+    doc: "TestDomainStatusJSONFieldStability ensures the JSON schema is stable"
+  - id: golang/globularcli/domain_cmds_test.go:TestDomainStatusNoDomainsJSONOutput
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestDomainStatusNoDomainsJSONOutput
+    package: main
+    language: go
+    doc: "TestDomainStatusNoDomainsJSONOutput verifies that 'domain status --output json'\nreturns empty JSON array when no domains exist (Fix #3)"
+  - id: golang/globularcli/domain_cmds_test.go:TestDomainStatusNotFoundExitCode
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestDomainStatusNotFoundExitCode
+    package: main
+    language: go
+    doc: "TestDomainStatusNotFoundExitCode verifies that 'domain status' returns non-zero exit code\nwhen a specific domain is not found (Fix #1)"
+  - id: golang/globularcli/domain_cmds_test.go:TestFormatCondition
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestFormatCondition
+    package: main
+    language: go
+    doc: "TestFormatCondition tests the condition formatting helper"
+  - id: golang/globularcli/domain_cmds_test.go:TestFormatDuration
+    file: golang/globularcli/domain_cmds_test.go
+    symbol: TestFormatDuration
+    package: main
+    language: go
+    doc: "TestFormatDuration tests the duration formatting helper"
+  - id: golang/globularcli/health_cmds_test.go:TestCheckHealthWithMockedProbes
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestCheckHealthWithMockedProbes
+    package: main
+    language: go
+    doc: "TestCheckHealthWithMockedProbes tests that health checks use resolved endpoints"
+  - id: golang/globularcli/health_cmds_test.go:TestHealthCheckResultAllFieldsPresent
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestHealthCheckResultAllFieldsPresent
+    package: main
+    language: go
+  - id: golang/globularcli/health_cmds_test.go:TestHealthCheckResultJSONSchema
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestHealthCheckResultJSONSchema
+    package: main
+    language: go
+  - id: golang/globularcli/health_cmds_test.go:TestHealthJSONSchemaStability
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestHealthJSONSchemaStability
+    package: main
+    language: go
+  - id: golang/globularcli/health_cmds_test.go:TestLocalHealthStatusEmpty
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestLocalHealthStatusEmpty
+    package: main
+    language: go
+  - id: golang/globularcli/health_cmds_test.go:TestLocalHealthStatusJSONSchema
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestLocalHealthStatusJSONSchema
+    package: main
+    language: go
+  - id: golang/globularcli/health_cmds_test.go:TestProbeInjection
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestProbeInjection
+    package: main
+    language: go
+    doc: "TestProbeInjection verifies that probe functions can be injected for testing"
+  - id: golang/globularcli/health_cmds_test.go:TestResolveEndpointFallback
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestResolveEndpointFallback
+    package: main
+    language: go
+  - id: golang/globularcli/health_cmds_test.go:TestResolveEndpointUnknown
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestResolveEndpointUnknown
+    package: main
+    language: go
+  - id: golang/globularcli/health_cmds_test.go:TestResolveEndpointWithDescribe
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestResolveEndpointWithDescribe
+    package: main
+    language: go
+    doc: "TestResolveEndpointWithDescribe tests that --describe output is used when available"
+  - id: golang/globularcli/health_cmds_test.go:TestResolveEndpointWithFakeBinary
+    file: golang/globularcli/health_cmds_test.go
+    symbol: TestResolveEndpointWithFakeBinary
+    package: main
+    language: go
+    doc: "TestResolveEndpointWithFakeBinary creates a fake executable that outputs --describe JSON"
+  - id: golang/globularcli/imperative_removed_test.go:TestServicesApply_AlwaysReturnsError
+    file: golang/globularcli/imperative_removed_test.go
+    symbol: TestServicesApply_AlwaysReturnsError
+    package: main
+    language: go
+  - id: golang/globularcli/imperative_removed_test.go:TestServicesApply_ContainsMigrationInstructions
+    file: golang/globularcli/imperative_removed_test.go
+    symbol: TestServicesApply_ContainsMigrationInstructions
+    package: main
+    language: go
+  - id: golang/globularcli/imperative_removed_test.go:TestServicesApply_DangerousImperativeFlagIgnored
+    file: golang/globularcli/imperative_removed_test.go
+    symbol: TestServicesApply_DangerousImperativeFlagIgnored
+    package: main
+    language: go
+  - id: golang/globularcli/mcp_cmds_test.go:TestMCPCmdRegistered
+    file: golang/globularcli/mcp_cmds_test.go
+    symbol: TestMCPCmdRegistered
+    package: main
+    language: go
+  - id: golang/globularcli/mcp_cmds_test.go:TestMCPToolsCmdGroupFlag
+    file: golang/globularcli/mcp_cmds_test.go
+    symbol: TestMCPToolsCmdGroupFlag
+    package: main
+    language: go
+  - id: golang/globularcli/mcp_cmds_test.go:TestMCPToolsCmdRegistered
+    file: golang/globularcli/mcp_cmds_test.go
+    symbol: TestMCPToolsCmdRegistered
+    package: main
+    language: go
+  - id: golang/globularcli/mcp_cmds_test.go:TestResolveMCPURL_FallsBackToDefault
+    file: golang/globularcli/mcp_cmds_test.go
+    symbol: TestResolveMCPURL_FallsBackToDefault
+    package: main
+    language: go
+  - id: golang/globularcli/objectstore_placement_rpc_test.go:TestRunObjectstoreDiskApprove_RoutesThroughOwnerRPC
+    file: golang/globularcli/objectstore_placement_rpc_test.go
+    symbol: TestRunObjectstoreDiskApprove_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestRunObjectstoreDiskApprove_RoutesThroughOwnerRPC proves `disk approve` admits\nthrough the controller's ApproveObjectStoreDisk RPC (the owner of placement),\nnot a direct config.SaveAdmittedDisk write."
+  - id: golang/globularcli/objectstore_placement_rpc_test.go:TestRunObjectstoreDiskReject_RoutesThroughOwnerRPC
+    file: golang/globularcli/objectstore_placement_rpc_test.go
+    symbol: TestRunObjectstoreDiskReject_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestRunObjectstoreDiskReject_RoutesThroughOwnerRPC proves `disk reject` routes\nthrough RejectObjectStoreDisk, not a direct config.DeleteAdmittedDisk write."
+  - id: golang/globularcli/objectstore_placement_rpc_test.go:TestRunObjectstoreTopologyPlan_RoutesThroughOwnerRPC
+    file: golang/globularcli/objectstore_placement_rpc_test.go
+    symbol: TestRunObjectstoreTopologyPlan_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestRunObjectstoreTopologyPlan_RoutesThroughOwnerRPC proves `topology plan`\nbuilds the proposal CLI-side (reads) but persists it through\nPlanObjectStoreTopology, not a direct config.SaveTopologyProposal write."
+  - id: golang/globularcli/objectstore_sanitize_rpc_test.go:TestRunObjectstoreTopologySanitizePool_RoutesThroughOwnerRPC
+    file: golang/globularcli/objectstore_sanitize_rpc_test.go
+    symbol: TestRunObjectstoreTopologySanitizePool_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestRunObjectstoreTopologySanitizePool_RoutesThroughOwnerRPC proves the RT-2\nmigration of `objectstore topology sanitize-pool`: the sanitize is driven\nthrough the controller's typed SanitizeObjectStorePool RPC (the owner of\n/globular/clustercontroller/state), carrying the dry_run flag — not a raw etcd\nread-modify-write that would clobber the controller state blob."
+  - id: golang/globularcli/objectstore_topology_apply_rpc_test.go:TestRunObjectstoreTopologyApply_DestructiveNeedsFlag
+    file: golang/globularcli/objectstore_topology_apply_rpc_test.go
+    symbol: TestRunObjectstoreTopologyApply_DestructiveNeedsFlag
+    package: main
+    language: go
+    doc: "TestRunObjectstoreTopologyApply_DestructiveNeedsFlag proves the local pre-flight\nstill refuses a destructive proposal without --i-understand-data-reset, before\nany RPC is issued."
+  - id: golang/globularcli/objectstore_topology_apply_rpc_test.go:TestRunObjectstoreTopologyApply_RoutesThroughOwnerRPC
+    file: golang/globularcli/objectstore_topology_apply_rpc_test.go
+    symbol: TestRunObjectstoreTopologyApply_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestRunObjectstoreTopologyApply_RoutesThroughOwnerRPC proves the RT-2 migration\nof `objectstore topology apply`: the apply is driven through the controller's\ntyped ApplyObjectStoreTopology RPC (the owner of objectstore desired topology),\ncarrying the proposal id and the destructive flag — not a raw etcd\napply_request/apply_result handshake."
+  - id: golang/globularcli/ops_cmds_test.go:TestLedgerEntryFromRequest
+    file: golang/globularcli/ops_cmds_test.go
+    symbol: TestLedgerEntryFromRequest
+    package: main
+    language: go
+  - id: golang/globularcli/ops_cmds_test.go:TestLoadOperationRequest
+    file: golang/globularcli/ops_cmds_test.go
+    symbol: TestLoadOperationRequest
+    package: main
+    language: go
+  - id: golang/globularcli/ops_cmds_test.go:TestLoadOperationRequest_BadJSON
+    file: golang/globularcli/ops_cmds_test.go
+    symbol: TestLoadOperationRequest_BadJSON
+    package: main
+    language: go
+  - id: golang/globularcli/ops_cmds_test.go:TestResultByName
+    file: golang/globularcli/ops_cmds_test.go
+    symbol: TestResultByName
+    package: main
+    language: go
+  - id: golang/globularcli/ops_dispatch_test.go:TestDispatchApplyInfra_RequiresEachTypedParam
+    file: golang/globularcli/ops_dispatch_test.go
+    symbol: TestDispatchApplyInfra_RequiresEachTypedParam
+    package: main
+    language: go
+    doc: "ApplyInfrastructureRelease requires every typed parameter — omitting any one\nfails closed before dispatch (the stricter infra-release contract)."
+  - id: golang/globularcli/ops_dispatch_test.go:TestDispatchRoutesKnownPathsAndFailsClosed
+    file: golang/globularcli/ops_dispatch_test.go
+    symbol: TestDispatchRoutesKnownPathsAndFailsClosed
+    package: main
+    language: go
+    doc: "Each known owner path routes to its handler, and each handler fails closed on\nmissing typed parameters BEFORE any dispatch (no generic key/path/value hatch)."
+  - id: golang/globularcli/ops_dispatch_test.go:TestDispatchThroughOwnerPath_UnknownPath
+    file: golang/globularcli/ops_dispatch_test.go
+    symbol: TestDispatchThroughOwnerPath_UnknownPath
+    package: main
+    language: go
+  - id: golang/globularcli/ops_dispatch_test.go:TestOpsApply_DispatchOnAllowed
+    file: golang/globularcli/ops_dispatch_test.go
+    symbol: TestOpsApply_DispatchOnAllowed
+    package: main
+    language: go
+  - id: golang/globularcli/ops_dispatch_test.go:TestOpsApply_DryRunDoesNotDispatch
+    file: golang/globularcli/ops_dispatch_test.go
+    symbol: TestOpsApply_DryRunDoesNotDispatch
+    package: main
+    language: go
+    doc: "--dry-run validates + ledgers ALLOWED without dispatching, even at production scope."
+  - id: golang/globularcli/ops_dispatch_test.go:TestOpsApply_ProductionScopeRequiresYes
+    file: golang/globularcli/ops_dispatch_test.go
+    symbol: TestOpsApply_ProductionScopeRequiresYes
+    package: main
+    language: go
+  - id: golang/globularcli/ops_dispatch_test.go:TestOpsApply_RefusedNotDispatched
+    file: golang/globularcli/ops_dispatch_test.go
+    symbol: TestOpsApply_RefusedNotDispatched
+    package: main
+    language: go
+  - id: golang/globularcli/override_flags_test.go:TestBuildOverride_AcceptsCompleteFlags
+    file: golang/globularcli/override_flags_test.go
+    symbol: TestBuildOverride_AcceptsCompleteFlags
+    package: main
+    language: go
+    doc: "TestBuildOverride_AcceptsCompleteFlags — happy path. Complete flag set\nbuilds a validated Override with a derived correlation id."
+  - id: golang/globularcli/override_flags_test.go:TestBuildOverride_RejectsIncompleteFlags
+    file: golang/globularcli/override_flags_test.go
+    symbol: TestBuildOverride_RejectsIncompleteFlags
+    package: main
+    language: go
+    doc: "TestBuildOverride_RejectsIncompleteFlags — wiring contract test for\noperator.override_intent. A bare --force without the structured\noverride flags must be refused at the CLI before any gate-bypassing\nRPC is sent. The error must name the missing fields so the operator\nknows exactly what to supply."
+  - id: golang/globularcli/override_flags_test.go:TestBuildOverride_RejectsLifetimeOverMax
+    file: golang/globularcli/override_flags_test.go
+    symbol: TestBuildOverride_RejectsLifetimeOverMax
+    package: main
+    language: go
+    doc: "TestBuildOverride_RejectsLifetimeOverMax — Override.Validate enforces\na 1-hour ceiling. Confirm the CLI helper surfaces that rejection\nrather than silently allowing a long-lived bypass."
+  - id: golang/globularcli/pkg_override_test.go:TestExplainPackageJSON_NoOverride_ActiveFalse
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestExplainPackageJSON_NoOverride_ActiveFalse
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestExplainPackageJSON_WithOverride_HasLocalOverrideBlock
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestExplainPackageJSON_WithOverride_HasLocalOverrideBlock
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestExplainPackagePrint_NoOverride_ShowsOfficial
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestExplainPackagePrint_NoOverride_ShowsOfficial
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestExplainPackagePrint_WithOverride_ShowsBanner
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestExplainPackagePrint_WithOverride_ShowsBanner
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestHasLocalVersionSuffix_LocalVersions
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestHasLocalVersionSuffix_LocalVersions
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestLocalOverrideJSONRoundTrip
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestLocalOverrideJSONRoundTrip
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestLocalOverrideSnapshotRoundTrip
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestLocalOverrideSnapshotRoundTrip
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestOfficialPublisherGuard
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestOfficialPublisherGuard
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestVersionSuffixGuard_LocalVersionAllowed
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestVersionSuffixGuard_LocalVersionAllowed
+    package: main
+    language: go
+  - id: golang/globularcli/pkg_override_test.go:TestVersionSuffixGuard_OfficialVersionBlocked
+    file: golang/globularcli/pkg_override_test.go
+    symbol: TestVersionSuffixGuard_OfficialVersionBlocked
+    package: main
+    language: go
+  - id: golang/globularcli/pkgpack/builder_package_test.go:TestBuildPackage_IncludesScripts
+    file: golang/globularcli/pkgpack/builder_package_test.go
+    symbol: TestBuildPackage_IncludesScripts
+    package: pkgpack
+    language: go
+    doc: "TestBuildPackage_IncludesScripts verifies that scripts from ScriptsRoot are\nembedded in the package with 0755 permissions and listed in the manifest."
+  - id: golang/globularcli/pkgpack/builder_package_test.go:TestBuildPackage_NoScriptsDir
+    file: golang/globularcli/pkgpack/builder_package_test.go
+    symbol: TestBuildPackage_NoScriptsDir
+    package: pkgpack
+    language: go
+    doc: "TestBuildPackage_NoScriptsDir verifies that packages without scripts have no\nscripts/ directory and no scriptsDir in the manifest."
+  - id: golang/globularcli/pkgpack/builder_package_test.go:TestBuildPackage_OmitsEmptyConfigDir
+    file: golang/globularcli/pkgpack/builder_package_test.go
+    symbol: TestBuildPackage_OmitsEmptyConfigDir
+    package: pkgpack
+    language: go
+    doc: "Ensures packages omit empty config payloads and manifest config_dir is empty."
+  - id: golang/globularcli/pkgpack/builder_package_test.go:TestBuildPackage_ScriptsAutoDiscoverFromRoot
+    file: golang/globularcli/pkgpack/builder_package_test.go
+    symbol: TestBuildPackage_ScriptsAutoDiscoverFromRoot
+    package: pkgpack
+    language: go
+    doc: "TestBuildPackage_ScriptsAutoDiscoverFromRoot verifies scripts are discovered\nfrom root/scripts/<service>/ when --scripts-dir is not set."
+  - id: golang/globularcli/pkgpack/builder_test.go:TestBuildPackagesWithRoot
+    file: golang/globularcli/pkgpack/builder_test.go
+    symbol: TestBuildPackagesWithRoot
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/builder_test.go:TestCopyConfigDirsCollision
+    file: golang/globularcli/pkgpack/builder_test.go
+    symbol: TestCopyConfigDirsCollision
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/builder_test.go:TestVerifyConfigDirPresent
+    file: golang/globularcli/pkgpack/builder_test.go
+    symbol: TestVerifyConfigDirPresent
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_real_test.go:TestParseRealSpecs
+    file: golang/globularcli/pkgpack/packagespec_real_test.go
+    symbol: TestParseRealSpecs
+    package: pkgpack
+    language: go
+    doc: "TestParseRealSpecs validates that all generated specs in the repo parse\nand pass validation without errors."
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestPackageKindFlow
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestPackageKindFlow
+    package: pkgpack
+    language: go
+    doc: "TestPackageKindFlow verifies that spec.metadata.kind becomes the Manifest.Type\nfield during BuildPackage. The spec is the source of truth; package.json derives\nfrom it. Regression guard for the xds/gateway mismatch (bug pre-v1.2.7)."
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestParseSpecBytes_MinimalCommand
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestParseSpecBytes_MinimalCommand
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestParseSpecBytes_ValidService
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestParseSpecBytes_ValidService
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_BadKindDaemon
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_BadKindDaemon
+    package: pkgpack
+    language: go
+    doc: "TestValidateSpec_BadKindDaemon ensures \"daemon\" is rejected as a kind value."
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_DuplicateStepID
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_DuplicateStepID
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_EmptySteps
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_EmptySteps
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_InfraKindIsValid
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_InfraKindIsValid
+    package: pkgpack
+    language: go
+    doc: "TestValidateSpec_InfraKindIsValid ensures infrastructure is accepted as a kind value."
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_InfraNoopEntrypoint
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_InfraNoopEntrypoint
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_InvalidInstallMode
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_InvalidInstallMode
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_InvalidKind
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_InvalidKind
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_MissingName
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_MissingName
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_NameFallbackToService
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_NameFallbackToService
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/packagespec_test.go:TestValidateSpec_ServiceMissingPayloadStep
+    file: golang/globularcli/pkgpack/packagespec_test.go
+    symbol: TestValidateSpec_ServiceMissingPayloadStep
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/spec_seed_guard_test.go:TestSeedConfigsHaveSkipIfExists
+    file: golang/globularcli/pkgpack/spec_seed_guard_test.go
+    symbol: TestSeedConfigsHaveSkipIfExists
+    package: pkgpack
+    language: go
+    doc: "TestSeedConfigsHaveSkipIfExists ensures that every cluster-owned config file\ndeclared in a package spec carries skip_if_exists: true. This is the\nregression guard for Guardrail 1 (config ownership / seed file protection):\na package reinstall must never overwrite live cluster configuration."
+  - id: golang/globularcli/pkgpack/specscan_test.go:TestExecDerivationFromBinPath
+    file: golang/globularcli/pkgpack/specscan_test.go
+    symbol: TestExecDerivationFromBinPath
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/specscan_test.go:TestServiceNameFromFilename
+    file: golang/globularcli/pkgpack/specscan_test.go
+    symbol: TestServiceNameFromFilename
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/tgz_test.go:TestWriteTgzDeterministic
+    file: golang/globularcli/pkgpack/tgz_test.go
+    symbol: TestWriteTgzDeterministic
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_AcceptsEntrypointChecksumMatch
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_AcceptsEntrypointChecksumMatch
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_ApplicationEmptyContent
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_ApplicationEmptyContent
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_ApplicationNoBinOK
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_ApplicationNoBinOK
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_ApplicationPackage
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_ApplicationPackage
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_AwarenessBundleShapeRejected
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_AwarenessBundleShapeRejected
+    package: pkgpack
+    language: go
+    doc: "TestVerifyTGZ_AwarenessBundleShapeRejected pins the boundary between the\nservice-package publish path and the awareness-bundle publish path. An\nawareness bundle ships manifest.json (not package.json) and has no\nbin/specs layout, so VerifyTGZ MUST reject it — the bundle has its own\nvalidator in golang/globularcli/awareness_bundle_publish.go. Without\nthis rejection, someone could run `globular pkg publish` on an\nawareness bundle and the service path would attempt to register it as\na SERVICE artifact with no entrypoint, corrupting the catalog."
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_InfrastructureNoBin
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_InfrastructureNoBin
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_InfrastructurePackage
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_InfrastructurePackage
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_RejectsDuplicateSystemdSingletonDirective
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_RejectsDuplicateSystemdSingletonDirective
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_RejectsEmbeddedBuildTokenInVersion
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_RejectsEmbeddedBuildTokenInVersion
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_RejectsEntrypointChecksumMismatch
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_RejectsEntrypointChecksumMismatch
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_ScriptsExecutable_Accepted
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_ScriptsExecutable_Accepted
+    package: pkgpack
+    language: go
+    doc: "Pinned counterpart: a script entry at any executable mode (e.g. 0o755)\nmust pass the validator. The pkgpack builder normalizes to 0o755 via\nentryMode; this test confirms the validator side accepts that mode.\nUses an infrastructure-typed package to keep the test scoped to the\nscripts/-mode rule (spec/ presence has its own test surface)."
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_ScriptsNonExecutable_Rejected
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_ScriptsNonExecutable_Rejected
+    package: pkgpack
+    language: go
+    doc: "Regression guard for the mcp Day-0 publish failure observed 2026-06-04:\npackages/metadata/mcp/scripts/post-install.sh shipped at mode 0o664, CI's\nshutil.copytree preserved the source mode, and the tarball reached the\npublish-time validator which rejected it with \"script ... is not executable\".\nVerifyTGZ must reject any file under scripts/ that lacks an execute bit."
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_ServiceStillRequiresBin
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_ServiceStillRequiresBin
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/verify_test.go:TestVerifyTGZ_TypeDefault
+    file: golang/globularcli/pkgpack/verify_test.go
+    symbol: TestVerifyTGZ_TypeDefault
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/publish_transaction_test.go:TestPublishOrder_UploadBeforeDescriptor
+    file: golang/globularcli/publish_transaction_test.go
+    symbol: TestPublishOrder_UploadBeforeDescriptor
+    package: main
+    language: go
+    doc: "TestPublishOrder_UploadBeforeDescriptor validates the publish flow ordering invariant:\nthe artifact must be uploaded and verified BEFORE the descriptor is registered.\nThis is a design-level test — the actual integration is validated in PR6's conformance suite."
+  - id: golang/globularcli/publish_transaction_test.go:TestPublishStateTransitions
+    file: golang/globularcli/publish_transaction_test.go
+    symbol: TestPublishStateTransitions
+    package: main
+    language: go
+    doc: "TestPublishStateTransitions validates the state machine for artifact promotion."
+  - id: golang/globularcli/reconcile_retry_cmds_test.go:TestApplyReleaseUnblockSignals_AnnotationsSet
+    file: golang/globularcli/reconcile_retry_cmds_test.go
+    symbol: TestApplyReleaseUnblockSignals_AnnotationsSet
+    package: main
+    language: go
+  - id: golang/globularcli/reconcile_retry_cmds_test.go:TestFetchReleaseByPackageOrName_Ambiguous
+    file: golang/globularcli/reconcile_retry_cmds_test.go
+    symbol: TestFetchReleaseByPackageOrName_Ambiguous
+    package: main
+    language: go
+  - id: golang/globularcli/reconcile_retry_cmds_test.go:TestFetchReleaseByPackageOrName_MatchByServiceName
+    file: golang/globularcli/reconcile_retry_cmds_test.go
+    symbol: TestFetchReleaseByPackageOrName_MatchByServiceName
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestApplyIdempotent
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestApplyIdempotent
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestApplyStopsOnClientError
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestApplyStopsOnClientError
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestParseServiceReleaseMissingPublisher
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestParseServiceReleaseMissingPublisher
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestParseServiceReleaseMissingReplicas
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestParseServiceReleaseMissingReplicas
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestParseServiceReleaseYAML
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestParseServiceReleaseYAML
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestReleaseListFormatting
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestReleaseListFormatting
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestReleaseStatusFormatting
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestReleaseStatusFormatting
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestRunReleaseApplyCallsApplyOnce
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestRunReleaseApplyCallsApplyOnce
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestRunReleaseApplyDryRun
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestRunReleaseApplyDryRun
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestRunReleaseRollback
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestRunReleaseRollback
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestRunReleaseRollbackRequiresTarget
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestRunReleaseRollbackRequiresTarget
+    package: main
+    language: go
+  - id: golang/globularcli/release_cmds_test.go:TestRunReleaseScale
+    file: golang/globularcli/release_cmds_test.go
+    symbol: TestRunReleaseScale
+    package: main
+    language: go
+  - id: golang/globularcli/release_promote_local_cmd_test.go:TestPromoteLocal_OfficialVersionRejectsLocalSuffix
+    file: golang/globularcli/release_promote_local_cmd_test.go
+    symbol: TestPromoteLocal_OfficialVersionRejectsLocalSuffix
+    package: main
+    language: go
+  - id: golang/globularcli/release_promote_local_cmd_test.go:TestSuggestNextPatch
+    file: golang/globularcli/release_promote_local_cmd_test.go
+    symbol: TestSuggestNextPatch
+    package: main
+    language: go
+  - id: golang/globularcli/release_promote_local_cmd_test.go:TestSuggestNextPatch_BadInput
+    file: golang/globularcli/release_promote_local_cmd_test.go
+    symbol: TestSuggestNextPatch_BadInput
+    package: main
+    language: go
+  - id: golang/globularcli/release_watch_test.go:TestWatchReleasePrintsEvents
+    file: golang/globularcli/release_watch_test.go
+    symbol: TestWatchReleasePrintsEvents
+    package: main
+    language: go
+  - id: golang/globularcli/resilience_cmds_authority_pin_test.go:TestResilienceCmds_Ingress_NoDirectEtcd
+    file: golang/globularcli/resilience_cmds_authority_pin_test.go
+    symbol: TestResilienceCmds_Ingress_NoDirectEtcd
+    package: main
+    language: go
+    doc: "TestResilienceCmds_Ingress_NoDirectEtcd pins the v1.2.184 refactor\nof runIngressStatus + runIngressRepublish. Before v1.2.184 both\nfunctions scanned /globular/ingress/v1/* in etcd directly. That\nprefix is owned by the cluster_controller's ingress spec guard, so\nCLI consumers reading raw etcd violated\ninvariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.\n\nRoutes through cluster_controller.GetIngressStatus +\nRequestIngressRepublish.\n\nScope: both function bodies. Other functions in this file (scylla\nschema guard helpers) still use clientv3 against different\nprefixes; those are separate tracked ratchets."
+  - id: golang/globularcli/root_test.go:TestPersistentPreRunSetsCACertEnv
+    file: golang/globularcli/root_test.go
+    symbol: TestPersistentPreRunSetsCACertEnv
+    package: main
+    language: go
+  - id: golang/globularcli/root_test.go:TestPersistentPreRunTokenFileIsExplicitOptIn
+    file: golang/globularcli/root_test.go
+    symbol: TestPersistentPreRunTokenFileIsExplicitOptIn
+    package: main
+    language: go
+  - id: golang/globularcli/security_policy_test.go:TestDoctorCLIHasNoHardcodedInsecureTLS
+    file: golang/globularcli/security_policy_test.go
+    symbol: TestDoctorCLIHasNoHardcodedInsecureTLS
+    package: main
+    language: go
+    doc: "TestDoctorCLIHasNoHardcodedInsecureTLS ensures doctor CLI dials through the\nshared secure dial path instead of hardcoding InsecureSkipVerify=true."
+  - id: golang/globularcli/services_cmds_test.go:TestExtractUnitWorkingDirectories
+    file: golang/globularcli/services_cmds_test.go
+    symbol: TestExtractUnitWorkingDirectories
+    package: main
+    language: go
+  - id: golang/globularcli/services_desired_kind_gate_test.go:TestServiceDesiredKindGate_CommandRefused
+    file: golang/globularcli/services_desired_kind_gate_test.go
+    symbol: TestServiceDesiredKindGate_CommandRefused
+    package: main
+    language: go
+  - id: golang/globularcli/services_desired_kind_gate_test.go:TestServiceDesiredKindGate_InfrastructureRefused
+    file: golang/globularcli/services_desired_kind_gate_test.go
+    symbol: TestServiceDesiredKindGate_InfrastructureRefused
+    package: main
+    language: go
+    doc: "The xds incident: an INFRASTRUCTURE name through `services desired set` must be\nrefused — no --force escape hatch exists anymore."
+  - id: golang/globularcli/services_desired_kind_gate_test.go:TestServiceDesiredKindGate_RepoUnreachableFailsClosed
+    file: golang/globularcli/services_desired_kind_gate_test.go
+    symbol: TestServiceDesiredKindGate_RepoUnreachableFailsClosed
+    package: main
+    language: go
+    doc: "Fail-closed: repository unreachable (lookup error) is refused, with a message\nthat names the repo-unreachable cause."
+  - id: golang/globularcli/services_desired_kind_gate_test.go:TestServiceDesiredKindGate_ServiceProceeds
+    file: golang/globularcli/services_desired_kind_gate_test.go
+    symbol: TestServiceDesiredKindGate_ServiceProceeds
+    package: main
+    language: go
+  - id: golang/globularcli/services_desired_kind_gate_test.go:TestServiceDesiredKindGate_UnknownKindFailsClosed
+    file: golang/globularcli/services_desired_kind_gate_test.go
+    symbol: TestServiceDesiredKindGate_UnknownKindFailsClosed
+    package: main
+    language: go
+    doc: "Fail-closed: a reachable-but-unknown kind (no published version) is refused,\nnot silently passed through."
+  - id: golang/globularcli/services_desired_regression_flag_test.go:TestDesiredSet_AllowRegressionFlagThreads
+    file: golang/globularcli/services_desired_regression_flag_test.go
+    symbol: TestDesiredSet_AllowRegressionFlagThreads
+    package: main
+    language: go
+  - id: golang/globularcli/set_infra_version_test.go:TestUpdateInfraReleaseVersion_RoutesThroughOwnerRPC
+    file: golang/globularcli/set_infra_version_test.go
+    symbol: TestUpdateInfraReleaseVersion_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestUpdateInfraReleaseVersion_RoutesThroughOwnerRPC proves the RT-2 migration:\n`release set-infra-version` no longer raw-writes etcd — it reads and applies the\nInfrastructureRelease through the cluster-controller's typed RPC (which passes\nthrough the desired-state ownership guard), preserving sibling spec fields and\nchanging only the version."
+  - id: golang/globularcli/set_installed_buildid_test.go:TestSetInstalledBuildID_GetError
+    file: golang/globularcli/set_installed_buildid_test.go
+    symbol: TestSetInstalledBuildID_GetError
+    package: main
+    language: go
+    doc: "TestSetInstalledBuildID_GetError: a GET failure surfaces and skips the SET."
+  - id: golang/globularcli/set_installed_buildid_test.go:TestSetInstalledBuildID_NotFound
+    file: golang/globularcli/set_installed_buildid_test.go
+    symbol: TestSetInstalledBuildID_NotFound
+    package: main
+    language: go
+    doc: "TestSetInstalledBuildID_NotFound: when the record is absent, fail without writing."
+  - id: golang/globularcli/set_installed_buildid_test.go:TestSetInstalledBuildID_StampsViaOwnerRPC
+    file: golang/globularcli/set_installed_buildid_test.go
+    symbol: TestSetInstalledBuildID_StampsViaOwnerRPC
+    package: main
+    language: go
+    doc: "TestSetInstalledBuildID_StampsViaOwnerRPC proves the RT-2 migration of\n`state canonicalize --fix-installed --metadata-only`: build_id is stamped through\nthe node-agent's GetInstalledPackage + SetInstalledPackage (the owner of\n/globular/nodes) — not a raw etcd write — preserving every other field."
+  - id: golang/globularcli/state_canonicalize_provenance_wiring_test.go:TestCanonicalizeA2_EmitsDesiredWriteProvenance
+    file: golang/globularcli/state_canonicalize_provenance_wiring_test.go
+    symbol: TestCanonicalizeA2_EmitsDesiredWriteProvenance
+    package: main
+    language: go
+  - id: golang/globularcli/state_canonicalize_provenance_wiring_test.go:TestCanonicalizeLegacyBackfill_EmitsDesiredWriteProvenance
+    file: golang/globularcli/state_canonicalize_provenance_wiring_test.go
+    symbol: TestCanonicalizeLegacyBackfill_EmitsDesiredWriteProvenance
+    package: main
+    language: go
+  - id: golang/globularcli/state_cmds_authority_pin_test.go:TestStateCmds_ResolveAgentEndpoint_NoDirectEtcd
+    file: golang/globularcli/state_cmds_authority_pin_test.go
+    symbol: TestStateCmds_ResolveAgentEndpoint_NoDirectEtcd
+    package: main
+    language: go
+    doc: "TestStateCmds_ResolveAgentEndpoint_NoDirectEtcd pins the refactor\nthat moved resolveAgentEndpoint off the direct\n/globular/nodes/{nodeID}/status etcd read onto\ncluster_controller.ListNodes (NodeRecord.AgentEndpoint).\n\nFails if the function body reintroduces a direct etcd primitive\nagainst /globular/nodes/*. The clientv3.Client argument is\npreserved on the signature for caller-site stability; this pin\nonly catches it being USED inside the body."
+  - id: golang/globularcli/state_cmds_authority_pin_test.go:TestStateCmds_ScanInstalledState_NoDirectEtcdAgainstNodes
+    file: golang/globularcli/state_cmds_authority_pin_test.go
+    symbol: TestStateCmds_ScanInstalledState_NoDirectEtcdAgainstNodes
+    package: main
+    language: go
+    doc: "Architectural pin for the v1.2.176 refactor of\nstate_cmds.go::scanInstalledState.\n\nBefore v1.2.176 scanInstalledState scanned /globular/nodes/ (owned\nby node_agent) directly via clientv3. The refactor routes through\ntwo typed RPCs:\n\n\tcluster_controller.ListNodes  → enumerate nodes + agent endpoints\n\tnode_agent.ListInstalledPackages — owner's view of L3 installed state\n\nThis test fails if a future contributor reintroduces a direct etcd\nGet / Put / Delete against /globular/nodes/* in this file.\n\nAnchored by:\n\n\tinvariant:four_layer.truth_read_via_owner_rpc_not_direct_storage\n\tinvariant:etcd.path_has_single_owner\n\tforbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc\n\nOther functions in state_cmds.go still use clientv3 (the\naudittrail-owned /globular/audit/desired_writes/ read in\nrepairDesiredWriteProvenanceLegacy is a tracked follow-up — different\nownership domain). This pin is scoped to the /globular/nodes/* prefix\nso it lights up only on the regression class scanInstalledState used\nto be."
+  - id: golang/globularcli/tls_helper_test.go:TestResolveCAPath_EnvOverride
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveCAPath_EnvOverride
+    package: main
+    language: go
+  - id: golang/globularcli/tls_helper_test.go:TestResolveCAPath_LegacyTLS
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveCAPath_LegacyTLS
+    package: main
+    language: go
+    doc: "TestResolveCAPath_LegacyTLS verifies that a CA cert placed in the legacy\nDay-0-installer location (~/.config/globular/tls/<domain>/ca.crt) is found\neven when the new PKI dir does not exist.  This ensures 'auth login' works\nout-of-the-box without requiring 'auth install-certs' first."
+  - id: golang/globularcli/tls_helper_test.go:TestResolveCAPath_UserPKI
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveCAPath_UserPKI
+    package: main
+    language: go
+  - id: golang/globularcli/tls_helper_test.go:TestResolveClientKeypair_EnvBothRequired
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveClientKeypair_EnvBothRequired
+    package: main
+    language: go
+  - id: golang/globularcli/tls_helper_test.go:TestResolveClientKeypair_EnvOverride
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveClientKeypair_EnvOverride
+    package: main
+    language: go
+  - id: golang/globularcli/tls_helper_test.go:TestResolveClientKeypair_LegacyTLS
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveClientKeypair_LegacyTLS
+    package: main
+    language: go
+    doc: "TestResolveClientKeypair_LegacyTLS verifies that a keypair placed in the\nlegacy Day-0-installer location (~/.config/globular/tls/<domain>/) is found\neven when the new pki/ dir does not exist.  This ensures 'pkg publish' works\nout-of-the-box without requiring 'auth install-certs' first."
+  - id: golang/globularcli/tls_helper_test.go:TestResolveClientKeypair_MissingOptional
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveClientKeypair_MissingOptional
+    package: main
+    language: go
+  - id: golang/globularcli/tls_helper_test.go:TestResolveClientKeypair_MissingRequired
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveClientKeypair_MissingRequired
+    package: main
+    language: go
+  - id: golang/globularcli/tls_helper_test.go:TestResolveClientKeypair_NoServiceKeys
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveClientKeypair_NoServiceKeys
+    package: main
+    language: go
+  - id: golang/globularcli/tls_helper_test.go:TestResolveClientKeypair_UserPKI
+    file: golang/globularcli/tls_helper_test.go
+    symbol: TestResolveClientKeypair_UserPKI
+    package: main
+    language: go
+  - id: golang/globularcli/upsert_desired_version_test.go:TestUpsertServiceDesiredVersion_RoutesThroughOwnerRPC
+    file: golang/globularcli/upsert_desired_version_test.go
+    symbol: TestUpsertServiceDesiredVersion_RoutesThroughOwnerRPC
+    package: main
+    language: go
+    doc: "TestUpsertServiceDesiredVersion_RoutesThroughOwnerRPC proves the RT-2 migration of\n`pkg override apply/remove`: the ServiceDesiredVersion write goes through the\ncontroller's typed UpsertDesiredService RPC (the owner of /globular/resources) —\nnot a raw etcd write — carrying the exact (service, version, build) identity."
+  - id: golang/globularcli/workflow_cmds_test.go:TestWorkflowEndpoint_UsesExplicitFlag
+    file: golang/globularcli/workflow_cmds_test.go
+    symbol: TestWorkflowEndpoint_UsesExplicitFlag
+    package: main
+    language: go
