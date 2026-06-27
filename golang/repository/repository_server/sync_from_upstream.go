@@ -1130,6 +1130,10 @@ func (srv *server) importUpstreamArtifact(
 	if kind, ok := kindFromArtifactKindString(n.Kind); ok {
 		manifest.Ref.Kind = kind
 	}
+	// Slice 4a: registry.yaml is the kind authority — normalize the imported kind
+	// against the packagekind projection so a wrong/stale upstream kind cannot be
+	// stored. Unknown (third-party) names keep the upstream value (fail-open).
+	manifest.Ref.Kind = registryArtifactKind(manifest.GetRef().GetName(), manifest.Ref.Kind)
 
 	// Enrich manifest from package.json inside the archive.
 	if pkg := extractPackageManifest(data); pkg != nil {
