@@ -6961,3 +6961,70 @@ failure_modes:
         - ai-memory
       required_tests:
         - TestGatewayBackendDivergence_RouteBrokenBackendHealthy
+    - id: release.platform_upgrade_dispatch_rejects_non_semver_versions
+      title: platform_upgrade.dispatch parses every package version as strict semver and fails the whole step on a non-semver version (ffmpeg)
+      severity: high
+      root_cause: |
+        2026-06-27 (deploying v1.2.249): `globular platform-upgrade` step dispatch_upgrades
+        (controller.platform_upgrade.dispatch_upgrades) parses EVERY package version as
+        semver. ffmpeg — a COMMAND package with upstream, non-semver versioning — was bumped
+        to "n8.1.2-20260627"; strconv.ParseInt("n8") failed and the whole step returned
+        FAILED. release_pipeline_infra_drift already compares non-semver versions raw
+        (TestVersionForDriftCompare), but the platform_upgrade dispatch path does not.
+      symptoms:
+        - "platform-upgrade reports RUN_STATUS_FAILED: dispatch_upgrades failed ... invalid semver"
+        - any release that bumps a non-semver package (ffmpeg/yt-dlp/mc/...) cannot platform-upgrade cleanly
+        - desired-state writes for the valid (semver) packages still land, so normal convergence completes anyway — the FAILED status under-reports the partial success
+      forbidden_fixes:
+        - parse all package versions as strict semver in the platform-upgrade dispatch path
+        - drop or exclude non-semver packages from a release just to make dispatch pass
+      resolution: |
+        PENDING (open bug in the 1.2.249 controller). Fix: platform_upgrade dispatch must
+        compare command/infra (non-semver) versions raw — reuse the
+        release_pipeline_infra_drift versionForDriftCompare logic — instead of strict semver
+        parsing. No regression test exists yet (newly found); recorded as ai-memory
+        debug/81f0a329. Regression test to add: a release whose BOM bumps a non-semver
+        package must dispatch without error.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/workflow_platform_upgrade.go
+      related_invariants:
+        - desired.keyed_by_kind_and_name
+        - meta.failure_response_must_contract_not_amplify
+      related_services:
+        - cluster-controller
+        - workflow
+      required_tests: []
+    - id: release.failed_dispatch_leaves_active_bom_pointer_stale
+      title: A failed platform_upgrade.dispatch leaves the active release-index.json (platform_release) stale while services converge to the new version
+      severity: medium
+      root_cause: |
+        2026-06-27 (after v1.2.249): all Go services converged to 1.2.249 (desired-state
+        driven) but repository_active_release / /var/lib/globular/release-index.json still
+        reported platform_release v1.2.233. The platform.upgrade dispatch failed on ffmpeg's
+        non-semver version (see release.platform_upgrade_dispatch_rejects_non_semver_versions)
+        BEFORE the post-dispatch step that advances the active-BOM pointer. Also chronic:
+        per-service `services desired set` / DEV-lane deploys never advance the BOM pointer,
+        so the platform marker has long trailed running state on this cluster.
+      symptoms:
+        - repository_active_release platform_release is older than the versions actually installed/running
+        - a joining node would provision the stale BOM (Day-1 joins from active BOM, not latest)
+      forbidden_fixes:
+        - treat the GitHub release publish as if it advances the node's active BOM
+        - hand-edit release-index.json to match running instead of fixing the pointer-advance step
+      resolution: |
+        PENDING. platform-upgrade should advance the active-BOM pointer atomically/idempotently
+        even when some packages fail (or as a separate idempotent post-step). After any deploy,
+        verify repository_active_release matches running desired. No regression test yet;
+        recorded as ai-memory debug/880db878.
+      protects:
+        files:
+            - golang/cluster_controller/cluster_controller_server/workflow_platform_upgrade.go
+            - golang/repository/repository_server/release_index.go
+      related_invariants:
+        - desired.keyed_by_kind_and_name
+        - meta.storage_is_not_semantic_authority
+      related_services:
+        - cluster-controller
+        - repository
+      required_tests: []
