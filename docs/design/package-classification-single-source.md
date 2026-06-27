@@ -126,11 +126,20 @@ reference is deleted in favor of reading registry-derived data.
    (#5) with registry-derived data; generate `package.json type` (#2), `awareness.yaml package_kind`
    (#3), and spec `metadata.kind` (#4) from `registry.yaml` in `build.sh` (or build-check them).
    The gate becomes **source-vs-generated**, not copy-vs-copy.
-3. **Slice 3 — generate `component_catalog.go` (#6).** The hard one. Requires either extending
-   `registry.yaml` to a superset (Priority, Capabilities, ManagedUnit, PlatformDefault,
-   HealthCheck, Optional — see §3.1) OR generating only the `Kind` field while the rest stays
-   hand-authored (a partial-gen that must be clearly delimited). Decide which in this slice;
-   do not start it before that decision is reviewed.
+3. **Slice 3 — source `component_catalog.go`'s `Kind` from the registry projection (#6). ✅ DONE (reduced).**
+   Recon (the field-mapping pass before any edit) settled the §3.1 decision: registry **cleanly
+   owns only `Kind`** (100% synced) and mostly `Unit`; `Profiles` (53/55) and `ControlPlaneCritical`
+   (6) **diverge semantically** from the catalog, and Priority/Capabilities/deps/etc. are pure
+   overlay. Full generation would be a large, load-bearing rewrite driven by a big hand-authored
+   overlay for **modest marginal benefit — Slice 1 already gates `Kind` drift.** So the reviewed
+   decision was the **reduced** path: `buildCatalog()` now derives each `Component.Kind` from the
+   `packagekind` projection (`kindFromRegistry`) instead of a hardcoded `KindInfrastructure/…`
+   literal — **eliminating copy #6** (not just gating it) with zero behaviour change (Kind was
+   fully synced). `Profiles`/`ControlPlaneCritical`/deps stay catalog-authoritative (overlay), per
+   the registry-as-author + non-authoritative-overlay model. Full catalog generation is deferred
+   (low value vs. risk). **New follow-up surfaced:** registry's `profiles` / `control_plane_critical`
+   (and keepalived `systemd_unit`) are divergent/likely-vestigial — see ai-memory
+   `architecture/b3ae1cce`; decide vestigial-remove vs reconcile separately.
 4. **Slice 4 — emit manifest kind** from registry-derived source, and *trust it* (delete the
    inferCorrectKind override, already removed in Slice 1).
 5. **Slice 5 — orthogonal axes.** Promote `form` / `provenance` / `criticality` / `mesh` to
@@ -140,14 +149,19 @@ reference is deleted in favor of reading registry-derived data.
    record becomes *structurally impossible* (the xds bug class cannot exist). Largest;
    touches proto + resource store + both reconciler paths + live-record migration.
 
-### 3.1 Feasibility note — `component_catalog.go` is NOT a pure-kind consumer
+### 3.1 Feasibility note — `component_catalog.go` is NOT a pure-kind consumer — RESOLVED
 
-`Component` carries ~16 fields. Confirmed **absent from `registry.yaml`** today (grep = 0):
+`Component` carries ~16 fields. Confirmed **absent from `registry.yaml`** (grep = 0):
 `Priority`, `ProvidesCapabilities`/`Capability`, `ManagedUnit`, `PlatformDefault`,
-`HealthCheck`, `Optional`. Some of these are arguably controller-runtime concerns rather
-than package-authoring concerns. So "generate component_catalog.go from registry.yaml" is
-not free — it forces a decision about how much of the controller's runtime model belongs in
-the package registry. That is why it is Slice 3, behind the pure name→kind collapses.
+`HealthCheck`, `Optional`; and `Profiles`/`ControlPlaneCritical` are *present but divergent*
+in registry (different semantics — see ai-memory `architecture/b3ae1cce`). So full generation
+forces a decision about how much controller-runtime model belongs in the registry, for little
+gain over Slice 1's existing kind gate.
+
+**Resolution (reviewed):** do the **reduced** Slice 3 — source only `Kind` from the projection
+(eliminating copy #6), leave the rest catalog-authoritative. Full generation / registry-superset
+is deferred and folded into the orthogonal-axes work (Slice 5) if pursued at all. The keepalived
+unit and registry profiles/CPC divergence are tracked as a separate cleanup.
 
 ---
 
