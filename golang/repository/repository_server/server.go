@@ -624,12 +624,10 @@ func (srv *server) initStorage() error {
 	// (blob_seed.go): a joined node materializes PUBLISHED blobs into its own
 	// local CAS from the staged join packages, digest-verified against the
 	// Scylla manifest authority.
-	var mirror storage_backend.Storage // intentionally nil — packages never in MinIO
-
-	srv.storage = storage_backend.NewResilientStorage(localStore, mirror)
+	srv.storage = localStore
 	srv.localStorage = localStore
-	srv.mirrorStorage = mirror
-	logger.Info("repository storage initialized — local POSIX CAS only (MinIO blob mirror disabled by policy)",
+	srv.mirrorStorage = nil
+	logger.Info("repository storage initialized — local POSIX CAS only (MinIO is never used for packages)",
 		"local", localRoot)
 	return nil
 }
@@ -901,8 +899,10 @@ func main() {
 	}
 
 	// 7c. Start dependency health watchdog.
-	// Continuously monitors MinIO + ScyllaDB. Gates RPCs with UNAVAILABLE when
-	// either dependency is down. Recovery is automatic.
+	// Continuously monitors ScyllaDB (the package index — the only distributed
+	// dependency that gates capabilities). Gates RPCs with UNAVAILABLE when
+	// Scylla is down. Recovery is automatic. Packages never live in MinIO, so
+	// there is no mirror dependency to watch.
 	//
 	// The watchdog holds a *scyllaStore directly (for Ping/Reconnect); the server
 	// holds a manifestLedger interface (for business-logic operations + testability).
@@ -911,7 +911,7 @@ func main() {
 	if s.scylla != nil {
 		concreteScylla = s.scylla.(*scyllaStore)
 	}
-	s.depHealth = newDepHealthWatchdog(s.storage, concreteScylla, logger)
+	s.depHealth = newDepHealthWatchdog(concreteScylla, logger)
 	s.depHealth.onScyllaReady = func(scylla *scyllaStore) {
 		s.scylla = scylla
 	}

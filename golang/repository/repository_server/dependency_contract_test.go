@@ -25,12 +25,10 @@ func TestDependencyDeclarationMatchesLiveEnforcement(t *testing.T) {
 	// Build an in-process watchdog (no goroutine, no Start) so we can
 	// flip the atomic health flags and inspect RequireCapability.
 	healthy := &atomic.Bool{}
-	mirrorOK := &atomic.Bool{}
 	initialized := &atomic.Bool{}
 	initialized.Store(true)
 	w := &depHealthWatchdog{
 		healthy:     healthy,
-		mirrorOK:    mirrorOK,
 		initialized: initialized,
 	}
 
@@ -42,8 +40,7 @@ func TestDependencyDeclarationMatchesLiveEnforcement(t *testing.T) {
 	if scylla.Mode != dependency.ModeReadOnly {
 		t.Fatalf("scylladb declared mode: got %s, want read_only — see dep_health.go", scylla.Mode)
 	}
-	healthy.Store(false)  // ScyllaDB unhealthy
-	mirrorOK.Store(true)  // MinIO healthy
+	healthy.Store(false) // ScyllaDB unhealthy
 	if err := w.RequireCapability(CapRepoWrite); err == nil {
 		t.Fatal("declared scylladb=read_only but RequireCapability(CapRepoWrite) allowed when scylla unhealthy — contract drift")
 	}
@@ -54,25 +51,11 @@ func TestDependencyDeclarationMatchesLiveEnforcement(t *testing.T) {
 		t.Fatalf("declared scylladb=read_only but RequireCapability(CapRepoRead) refused when scylla unhealthy: %v — contract drift (read must remain allowed)", err)
 	}
 
-	// Case 2: MinIO dependency is declared ModeDegraded.
-	// Live behavior: MinIO down → ONLY CapRepoMirror blocked; broader
-	// writes proceed because the local POSIX CAS is the installability
-	// authority. That's exactly ModeDegraded semantics: specific
-	// capabilities off, other operations continue.
-	minio := contract.For("minio")
-	if minio.Mode != dependency.ModeDegraded {
-		t.Fatalf("minio declared mode: got %s, want degraded — see dep_health.go", minio.Mode)
-	}
-	healthy.Store(true)   // ScyllaDB healthy
-	mirrorOK.Store(false) // MinIO unhealthy
-	if err := w.RequireCapability(CapRepoMirror); err == nil {
-		t.Fatal("declared minio=degraded but RequireCapability(CapRepoMirror) allowed when MinIO unhealthy — contract drift")
-	}
-	if err := w.RequireCapability(CapRepoWrite); err != nil {
-		t.Fatalf("declared minio=degraded but RequireCapability(CapRepoWrite) refused when MinIO unhealthy: %v — contract drift (broad writes must continue against local POSIX CAS)", err)
-	}
-	if err := w.RequireCapability(CapRepoRead); err != nil {
-		t.Fatalf("declared minio=degraded but RequireCapability(CapRepoRead) refused when MinIO unhealthy: %v", err)
+	// Case 2: MinIO is NOT a repository dependency. Packages never live in
+	// MinIO — the local POSIX CAS is the sole blob authority. The contract
+	// must not declare a minio/mirror dependency.
+	if minio := contract.For("minio"); minio.Name != "" {
+		t.Fatalf("repository must NOT declare a minio dependency — packages never live in MinIO (got mode %s)", minio.Mode)
 	}
 
 	// Case 3: etcd dependency is declared ModeStop.
@@ -97,17 +80,14 @@ func TestDependencyDeclarationMatchesLiveEnforcement(t *testing.T) {
 func TestOperationalStatusMatchesContractCapabilities(t *testing.T) {
 	healthy := &atomic.Bool{}
 	healthy.Store(true)
-	mirrorOK := &atomic.Bool{}
-	mirrorOK.Store(true)
 	initialized := &atomic.Bool{}
 	initialized.Store(true)
 	w := &depHealthWatchdog{
 		healthy:     healthy,
-		mirrorOK:    mirrorOK,
 		initialized: initialized,
 	}
 	status := w.OperationalStatus()
-	want := []string{CapRepoWrite, CapRepoQuery, CapRepoRead, CapRepoMirror}
+	want := []string{CapRepoWrite, CapRepoQuery, CapRepoRead}
 	got := map[string]bool{}
 	gotNames := make([]string, 0, len(status.Capabilities))
 	for _, c := range status.Capabilities {

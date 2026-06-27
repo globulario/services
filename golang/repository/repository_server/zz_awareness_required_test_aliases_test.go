@@ -16,10 +16,10 @@ func TestInstallerRefusesLocalFallbackOnNotFound(t *testing.T) {
 	TestResolveByBuildID_AbsentManifest_IsNotFound(t)
 }
 func TestRepository_FallbackToLocalEmitsFinding(t *testing.T) {
-	TestDepHealth_MinIODownDoesNotBlockRPCs(t)
+	TestDepHealth_ScyllaOKAllowsRPCs(t)
 }
 func TestListArtifactsWhenMinIODown(t *testing.T) {
-	TestDepHealth_MinIODownDoesNotBlockRPCs(t)
+	TestDepHealth_ScyllaOKAllowsRPCs(t)
 }
 func TestMetadataReadsDegradedMode(t *testing.T) { TestGetRepositoryStatus_NilWatchdog_ReturnsDegraded(t) }
 func TestPackageReportState_PreservesExistingMetadata(t *testing.T) {

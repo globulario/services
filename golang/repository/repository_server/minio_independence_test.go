@@ -1,13 +1,12 @@
 package main
 
 // minio_independence_test.go — acceptance tests proving the repository does not
-// depend on MinIO for correctness.
+// depend on MinIO for correctness. Packages live ONLY in the local POSIX CAS;
+// the repository has no MinIO dependency at all.
 //
-// These tests validate the MinIO-independence acceptance criteria:
-//   A. Repository works with MinIO stopped (RequireHealthy passes, RPCs succeed).
+// These tests validate:
+//   A. RequireHealthy() only blocks on ScyllaDB — never on storage.
 //   B. Publish cannot create PUBLISHED metadata with missing local blob.
-//   C. dep_health.RequireHealthy() only blocks on ScyllaDB — never on MinIO.
-//   F. MinIO canary failure disables mirror but not repository.
 
 import (
 	"bytes"
@@ -51,20 +50,12 @@ func nopSubsystem(name string) *subsystem.SubsystemHandle {
 
 // ── Test A: RequireHealthy() never blocks on MinIO failure ───────────────────
 
-// TestDepHealth_MinIODownDoesNotBlockRPCs simulates: scyllaOK=true, mirrorOK=false
-// → RequireHealthy must return nil.
-func TestDepHealth_MinIODownDoesNotBlockRPCs(t *testing.T) {
+// TestDepHealth_ScyllaOKAllowsRPCs: ScyllaDB OK → RequireHealthy must return nil.
+func TestDepHealth_ScyllaOKAllowsRPCs(t *testing.T) {
 	healthy := &atomic.Bool{}
 	healthy.Store(true) // ScyllaDB is OK
 
-	mirrorOK := &atomic.Bool{}
-	mirrorOK.Store(false) // MinIO is down
-
-	w := &depHealthWatchdog{
-		healthy:  healthy,
-		mirrorOK: mirrorOK,
-		// scyllaSub and minioSub are nil — RequireHealthy only checks healthy.
-	}
+	w := &depHealthWatchdog{healthy: healthy}
 
 	if err := w.RequireHealthy(); err != nil {
 		t.Fatalf("RequireHealthy() must return nil when ScyllaDB is OK, got: %v", err)
@@ -76,38 +67,13 @@ func TestDepHealth_ScyllaDownBlocksRPCs(t *testing.T) {
 	healthy := &atomic.Bool{}
 	healthy.Store(false) // ScyllaDB is DOWN
 
-	mirrorOK := &atomic.Bool{}
-	mirrorOK.Store(true) // MinIO is up (irrelevant)
-
-	w := &depHealthWatchdog{
-		healthy:  healthy,
-		mirrorOK: mirrorOK,
-	}
-
-	if err := w.RequireHealthy(); err == nil {
-		t.Fatal("RequireHealthy() must return an error when ScyllaDB is down")
-	}
-}
-
-// TestDepHealth_BothDownBlocksOnlyOnScylla: Both ScyllaDB AND MinIO down →
-// RequireHealthy must ONLY report ScyllaDB.
-func TestDepHealth_BothDownBlocksOnlyOnScylla(t *testing.T) {
-	healthy := &atomic.Bool{}
-	healthy.Store(false)
-
-	mirrorOK := &atomic.Bool{}
-	mirrorOK.Store(false)
-
-	w := &depHealthWatchdog{
-		healthy:  healthy,
-		mirrorOK: mirrorOK,
-	}
+	w := &depHealthWatchdog{healthy: healthy}
 
 	err := w.RequireHealthy()
 	if err == nil {
-		t.Fatal("RequireHealthy() must return error when ScyllaDB is down")
+		t.Fatal("RequireHealthy() must return an error when ScyllaDB is down")
 	}
-	// Error must mention ScyllaDB metadata, not MinIO.
+	// Error must mention ScyllaDB metadata, never storage.
 	msg := err.Error()
 	if !containsSubstring(msg, "ScyllaDB") && !containsSubstring(msg, "scylladb") && !containsSubstring(msg, "metadata") {
 		t.Errorf("error should mention ScyllaDB, got: %s", msg)
@@ -185,53 +151,6 @@ func TestPublish_MissingLocalBlobBlocksPromote(t *testing.T) {
 	state := srv.readArtifactState(ctx, key)
 	if state == PipelinePublished {
 		t.Errorf("artifact must not be PUBLISHED when local blob is missing, got PUBLISHED")
-	}
-}
-
-// ── Test F: canary failure disables mirror, repository continues ──────────────
-
-// TestCanary_FailureDisablesMirrorNotRepository verifies that a canary failure
-// causes mirrorOK=false but leaves the service serving RPCs.
-//
-// pingMinio returns false on canary failure; check() applies the return value
-// to mirrorOK. The test simulates check()'s assignment to confirm the model
-// holds end-to-end: canary fails → mirrorOK=false → RequireHealthy still OK.
-func TestCanary_FailureDisablesMirrorNotRepository(t *testing.T) {
-	// ResilientStorage with a mirror that fails canary writes.
-	localDir := t.TempDir()
-	local := storage_backend.NewOSStorage(localDir)
-	mirror := &alwaysFailStorage{} // canary writes will fail
-	rs := storage_backend.NewResilientStorage(local, mirror)
-
-	healthy := &atomic.Bool{}
-	healthy.Store(true)
-	mirrorOK := &atomic.Bool{}
-	mirrorOK.Store(true) // starts true
-
-	w := &depHealthWatchdog{
-		storage:  rs,
-		healthy:  healthy,
-		mirrorOK: mirrorOK,
-		logger:   nopLogger(),
-		minioSub: nopSubsystem("test:minio-canary"),
-	}
-
-	ctx := context.Background()
-	// Run the canary — it should fail because mirror rejects all writes.
-	ok := w.pingMinio(ctx)
-	if ok {
-		t.Fatal("pingMinio should return false when canary fails")
-	}
-
-	// check() applies the pingMinio result to mirrorOK — simulate that here.
-	mirrorOK.Store(ok) // false
-	if mirrorOK.Load() {
-		t.Fatal("mirrorOK should be false after canary failure")
-	}
-
-	// The service remains healthy — mirror failure never gates RPCs.
-	if err := w.RequireHealthy(); err != nil {
-		t.Fatalf("RequireHealthy must pass even when mirror is down: %v", err)
 	}
 }
 

@@ -544,7 +544,6 @@ func (srv *server) GetRepositoryStatus(_ context.Context, _ *repopb.GetRepositor
 				{Name: CapRepoWrite, Status: string(operational.CapUnknown)},
 				{Name: CapRepoQuery, Status: string(operational.CapUnknown)},
 				{Name: CapRepoRead, Status: string(operational.CapUnknown)},
-				{Name: CapRepoMirror, Status: string(operational.CapUnknown)},
 			},
 			ObservedAtUnix: time.Now().Unix(),
 		}, nil
@@ -606,39 +605,11 @@ func (srv *server) evalDependencyModeCoherence(now int64) []*repopb.RepositoryFi
 			Kind:           repopb.RepositoryFindingKind_REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT,
 			Severity:       repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
 			Reason:         "scylladb dependency is UNAVAILABLE but service mode is FULL — watchdog inconsistency",
-			ExpectedState:  "mode=READ_ONLY or mode=LOCAL_ONLY when scylladb is unavailable",
+			ExpectedState:  "mode=READ_ONLY when scylladb is unavailable",
 			CurrentState:   fmt.Sprintf("mode=%s, scylladb=UNAVAILABLE", s.Mode),
 			ObservedAtUnix: now,
 		})
 	}
 
-	// Invariant 2: MinIO mirror unavailability must only block CapRepoMirror,
-	// never CapRepoWrite, CapRepoQuery, or CapRepoRead.
-	minioDown := false
-	for _, d := range s.Dependencies {
-		if d.Name == "minio_mirror" && d.Status == operational.DepUnavailable {
-			minioDown = true
-			break
-		}
-	}
-	if minioDown {
-		for _, c := range s.Capabilities {
-			if c.Name == CapRepoMirror {
-				continue // mirror being blocked by mirror-down is correct
-			}
-			if c.Status == operational.CapBlocked {
-				findings = append(findings, &repopb.RepositoryFinding{
-					Kind:     repopb.RepositoryFindingKind_REPO_FIND_MINIO_BLOCKS_REPOSITORY,
-					Severity: repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
-					Reason: fmt.Sprintf(
-						"optional MinIO mirror is blocking capability %q — mirror must never block non-mirror capabilities",
-						c.Name),
-					ExpectedState:  fmt.Sprintf("capability %s=AVAILABLE when only mirror is down", c.Name),
-					CurrentState:   fmt.Sprintf("capability %s=BLOCKED, minio_mirror=UNAVAILABLE", c.Name),
-					ObservedAtUnix: now,
-				})
-			}
-		}
-	}
 	return findings
 }

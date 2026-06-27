@@ -1,6 +1,6 @@
 // @awareness namespace=globular.platform
 // @awareness component=platform_cluster_doctor.rules.repository_status
-// @awareness file_role=doctor_rule_classifying_repository_service_mode_degraded_readonly_localonly
+// @awareness file_role=doctor_rule_classifying_repository_service_mode_full_readonly
 // @awareness implements=globular.platform:intent.runtime_observation_must_not_mutate_desired
 // @awareness implements=globular.platform:intent.repository.identity_doctor_reports_collisions
 // @awareness risk=critical
@@ -8,15 +8,15 @@ package rules
 
 // repository_status.go — DIAGNOSTIC ONLY. Replaces the
 // "cluster.repo.reachable" pending stub now that
-// GetRepositoryStatus is live. Five-tier severity ladder
-// (REACHABLE → DEGRADED → READ_ONLY → LOCAL_ONLY → unreachable)
+// GetRepositoryStatus is live. Severity ladder
+// (REACHABLE → DEGRADED → READ_ONLY → unreachable)
 // matches the actual mode the repository service reports.
 //
 // The dependency-mode coherence check catches a watchdog bug
 // where the mode flag drifts from the underlying backend
 // state — operators need to see this as a separate finding so
-// they don't dismiss a degraded mode as "just MinIO blip" when
-// the watchdog is actually wrong.
+// they don't dismiss a degraded mode when the watchdog is
+// actually wrong.
 //
 // MUST NOT toggle the repository service's mode. The repository
 // owns its own mode FSM; this rule reports what was reported.
@@ -27,16 +27,15 @@ package rules
 // GetRepositoryStatus is live on the repository service. It fires when:
 //
 //   - The repository service is unreachable (ReachError set)
-//   - The service reports mode DEGRADED (optional MinIO mirror down)
+//   - The service reports mode DEGRADED (transient — dependency health not yet
+//     proven during startup; the repository has no MinIO mirror to degrade)
 //   - The service reports mode READ_ONLY (Scylla down — writes blocked)
-//   - The service reports mode LOCAL_ONLY (both Scylla and MinIO down)
 //   - A dependency-mode coherence violation is detected (watchdog bug)
 //
 // Severity ladder:
 //
-//	DEGRADED   → INFO  — mirror down, reads/writes work against local CAS
+//	DEGRADED   → INFO  — transient startup state; local POSIX CAS authoritative
 //	READ_ONLY  → WARN  — metadata writes blocked, reads still serve
-//	LOCAL_ONLY → ERROR — only locally-verified blobs can be served
 //	UNREACHABLE → ERROR — cannot prove any guarantee
 //	Coherence violations → ERROR (watchdog reporting inconsistent state)
 
@@ -117,7 +116,10 @@ func (repositoryOperationalMode) Evaluate(snap *collector.Snapshot, _ Config) []
 	// ── Operational mode findings ────────────────────────────────────────────
 	switch s.Mode {
 	case "DEGRADED":
-		// MinIO mirror down — reads/writes work against local CAS; mirror writes skipped.
+		// The repository reports DEGRADED only transiently during the startup
+		// window (dependency health not yet proven). It has no MinIO mirror to
+		// degrade — packages live only in the local POSIX CAS. Report the
+		// service-supplied reason generically.
 		findings = append(findings, Finding{
 			FindingID:   FindingID("repository.degraded_mode", "cluster", s.Reason),
 			InvariantID: "repository.degraded_mode",
@@ -129,8 +131,7 @@ func (repositoryOperationalMode) Evaluate(snap *collector.Snapshot, _ Config) []
 				kvEvidence("repository", "GetRepositoryStatus", repoStatusEvidence(s)),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, "Check MinIO mirror connectivity", "globular repository status"),
-				step(2, "Verify MinIO service is running on storage nodes", "globular cluster health"),
+				step(1, "Re-check repository status (transient during startup)", "globular repository status"),
 			},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
@@ -155,28 +156,10 @@ func (repositoryOperationalMode) Evaluate(snap *collector.Snapshot, _ Config) []
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})
 
-	case "LOCAL_ONLY":
-		// Both Scylla and MinIO down — only locally-verified blobs can be served.
-		findings = append(findings, Finding{
-			FindingID:   FindingID("repository.local_only_mode", "cluster", s.Reason),
-			InvariantID: "repository.local_only_mode",
-			Severity:    cluster_doctorpb.Severity_SEVERITY_ERROR,
-			Category:    "repository",
-			EntityRef:   "cluster",
-			Summary:     "Repository LOCAL_ONLY: both ScyllaDB and MinIO mirror are unavailable",
-			Evidence: []*cluster_doctorpb.Evidence{
-				kvEvidence("repository", "GetRepositoryStatus", repoStatusEvidence(s)),
-			},
-			Remediation: []*cluster_doctorpb.RemediationStep{
-				step(1, "Restore ScyllaDB — required for write/query capabilities", "systemctl restart scylla-server"),
-				step(2, "Restore MinIO mirror", "systemctl restart globular-minio.service"),
-				step(3, "Verify full recovery", "globular repository status"),
-			},
-			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
-		})
-
 	case "FULL", "":
-		// Healthy — no finding.
+		// Healthy — no finding. (The repository no longer reports LOCAL_ONLY:
+		// packages never live in MinIO, so READ_ONLY — Scylla down — is the only
+		// degraded steady state.)
 	}
 
 	// ── Dependency-mode coherence violations ─────────────────────────────────
@@ -200,32 +183,6 @@ func (repositoryOperationalMode) Evaluate(snap *collector.Snapshot, _ Config) []
 						"dep_status": dep.Status,
 						"mode":       s.Mode,
 						"invariant":  "scylla_unavailable_but_mode_full",
-					}),
-				},
-				Remediation: []*cluster_doctorpb.RemediationStep{
-					step(1, "Restart repository service to re-run dep_health watchdog first check", "systemctl restart globular-repository.service"),
-				},
-				InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
-			})
-		}
-		if dep.Name == "minio_mirror" && s.Mode == "FULL" {
-			// MinIO UNAVAILABLE + mode=FULL is the correct non-degraded case
-			// only if minio is present but this contradicts it. Actually if
-			// MinIO is UNAVAILABLE, mode must be DEGRADED or worse.
-			// If mode=FULL with minio UNAVAILABLE that's a coherence bug.
-			findings = append(findings, Finding{
-				FindingID:   FindingID("repository.watchdog_inconsistency", "cluster", dep.Name),
-				InvariantID: "repository.watchdog_inconsistency",
-				Severity:    cluster_doctorpb.Severity_SEVERITY_ERROR,
-				Category:    "repository",
-				EntityRef:   "cluster",
-				Summary:     "Repository watchdog inconsistency: minio_mirror UNAVAILABLE but mode=FULL",
-				Evidence: []*cluster_doctorpb.Evidence{
-					kvEvidence("repository", "GetRepositoryStatus", map[string]string{
-						"dependency": dep.Name,
-						"dep_status": dep.Status,
-						"mode":       s.Mode,
-						"invariant":  "minio_unavailable_but_mode_full",
 					}),
 				},
 				Remediation: []*cluster_doctorpb.RemediationStep{
