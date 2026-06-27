@@ -19,7 +19,10 @@ func TestArtifactLayoutDriftLocal_UnexpectedEntry_Warns(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(td, "etcd"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(td, "authentication"), 0o755); err != nil {
+	// A genuinely-unknown name (NOT a catalog service) — this is the
+	// truly-unknown drift path. (Using a real service name here would now be
+	// reclassified as an uninstalled-service cleanup candidate, not unknown.)
+	if err := os.MkdirAll(filepath.Join(td, "totally-unknown-svc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -176,6 +179,106 @@ func TestLayoutDrift_EmptyLegacyAliasOfInstalledService_IsCleanupCandidate(t *te
 		t.Fatalf("expected INFO cleanup-candidate finding; got %+v", findings)
 	}
 	summaryContains(t, info, "cleanup-candidate", "cluster_doctor", "clusterdoctor")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Catalog-aware reclassification (the torrent-orphan class).
+// A dir whose name matches a component-catalog service that is NOT installed on
+// this node is an uninstalled-service runtime dir, recognized via the catalog —
+// NOT "unknown" drift, and NOT silenced by expanding a static allowlist
+// (forbidden.fix.layout_drift_by_expanding_allowlist_only). It is downgraded in
+// severity (empty → INFO cleanup; data-bearing → accurate WARN), never hidden.
+// See invariant doctor.layout_drift_must_reflect_real_risk.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Empty catalog-known dir for an uninstalled service → INFO cleanup, not unknown WARN.
+func TestLayoutDrift_CatalogKnownUninstalledEmptyDir_IsCleanupNotUnknown(t *testing.T) {
+	root := t.TempDir()
+	withArtifactStateRoot(t, root)
+	mkDir(t, root, "packages")
+	mkDir(t, root, "torrent") // catalog-known (media-server), not installed, empty
+
+	findings := artifactLayoutDriftLocal{}.Evaluate(snapshotWithInstalled(), testConfig())
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "unknown") && strings.Contains(f.Summary, "torrent") {
+			t.Fatalf("catalog-known uninstalled empty dir must not be 'unknown'; got: %s", f.Summary)
+		}
+		if f.Severity == cluster_doctorpb.Severity_SEVERITY_WARN && strings.Contains(f.Summary, "torrent") {
+			t.Fatalf("empty uninstalled-service dir must not WARN; got: %s", f.Summary)
+		}
+	}
+	var info *Finding
+	for i := range findings {
+		if findings[i].Severity == cluster_doctorpb.Severity_SEVERITY_INFO {
+			info = &findings[i]
+			break
+		}
+	}
+	if info == nil {
+		t.Fatalf("expected INFO cleanup-candidate; got %+v", findings)
+	}
+	summaryContains(t, info, "cleanup-candidate", "torrent")
+}
+
+// Non-empty catalog-known dir for an uninstalled service → WARN orphan-data with
+// an accurate message (not "unknown"). Data-bearing orphans must not be
+// auto-classified as safe cleanup.
+func TestLayoutDrift_CatalogKnownUninstalledNonEmptyDir_IsOrphanDataWarn(t *testing.T) {
+	root := t.TempDir()
+	withArtifactStateRoot(t, root)
+	mkDir(t, root, "packages")
+	mkFileInDir(t, root, "torrent", "downloads.db") // catalog-known, not installed, data present
+
+	findings := artifactLayoutDriftLocal{}.Evaluate(snapshotWithInstalled(), testConfig())
+	f := findingByInvariant(findings, "artifact.layout_drift_local")
+	if f == nil {
+		t.Fatalf("expected artifact.layout_drift_local finding; got %+v", findings)
+	}
+	if f.Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+		t.Errorf("severity = %v, want WARN", f.Severity)
+	}
+	if strings.Contains(f.Summary, "unknown") {
+		t.Errorf("data-bearing catalog-known orphan must not be 'unknown'; got: %s", f.Summary)
+	}
+	summaryContains(t, f, "not installed", "torrent")
+}
+
+// Installed catalog service runtime dir → silent (caught by installed-state, not 5b).
+func TestLayoutDrift_CatalogKnownInstalledDir_Silent(t *testing.T) {
+	root := t.TempDir()
+	withArtifactStateRoot(t, root)
+	mkDir(t, root, "packages")
+	mkFileInDir(t, root, "torrent", "state.db")
+
+	snap := snapshotWithInstalled("torrent")
+	findings := artifactLayoutDriftLocal{}.Evaluate(snap, testConfig())
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "torrent") {
+			t.Fatalf("installed torrent runtime dir must be silent; got: %s", f.Summary)
+		}
+	}
+}
+
+// Reference-safety: a catalog-known uninstalled dir actively pinned by a systemd
+// unit must NOT be flagged (deletion would be undone; fix the unit instead).
+func TestLayoutDrift_CatalogKnownUninstalledDir_NotFlaggedWhenPinned(t *testing.T) {
+	td := t.TempDir()
+	for _, d := range []string{"pki", "etcd"} {
+		mkDir(t, td, d)
+	}
+	mkFileInDir(t, td, "torrent", "data.bin") // non-empty → would be orphan-data WARN if unpinned
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	stubUnitDir(t, "[Service]\nWorkingDirectory=-"+filepath.Join(td, "torrent")+"\nExecStart=/bin/true\n")
+
+	findings := (artifactLayoutDriftLocal{}).Evaluate(snapshotWithInstalled(), testConfig())
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "torrent") {
+			t.Fatalf("systemd-pinned catalog dir must NOT be flagged; got: %s", f.Summary)
+		}
+	}
 }
 
 // Required Test 4 — cluster-doctor aliases all map to the same canonical.
