@@ -182,7 +182,7 @@ This is the only axis likely to require *new* authored data rather than derivati
   CLASSIFICATION authority.
 - `desired.keyed_by_kind_and_name` — kind must be unambiguous and single-sourced.
 - Prime Rule 4 (CLAUDE.md): *"Never duplicate package kind classification. Use the
-  canonical package registry."* — currently violated six ways; this doc is the path to
+  canonical package registry."* — currently violated eight ways; this doc is the path to
   satisfying it mechanically.
 
 Once `registry.yaml` is mechanically the single source (generation + source-vs-generated
