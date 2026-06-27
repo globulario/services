@@ -7789,14 +7789,12 @@ invariants:
     \ reads from. Filled by Day-0 bundle, by\n     `globular repository sync` (materializeLocalPackageArchive), or by\n  \
     \   on-demand DownloadArtifactToDir.\n  2. /var/lib/globular/repository/artifacts/ — the repository service's\n     own\
     \ backend storage, where UploadArtifact persists incoming\n     publishes; served via gRPC to clients that need to fetch.\n\
-    Neither path is MinIO. The repository service writes a \"mirror\" copy to\nMinIO today (via ResilientStorage), but that\
-    \ is legacy architectural\ndrift, not a contract. Bytes appearing in MinIO are a symptom of the\nlegacy mirror write —\
-    \ they are never a valid recovery source for any\ninstall or repair path. The correct recovery for a missing POSIX blob\n\
+    Neither path is MinIO. As of PR #175 the legacy MinIO blob mirror is fully removed (see\ninvariant minio.is_commodity_not_a_pillar): the repository writes package bytes only to the\nlocal POSIX CAS and declares no MinIO dependency. Bytes in MinIO are never a valid recovery\nsource for any install or repair path. The correct recovery for a missing POSIX blob\n\
     is `globular repository sync --tag vX.Y.Z` from the upstream release.\n"
   title: MinIO must never be used as a recovery source for package binaries — packages live in the local POSIX CAS at /var/lib/globular/packages/
     and that is the only authority for installable content
   required_tests:
-  - golang/dependency/modes_test.go::TestRepositoryMinioIsDegradedNotReadOnly
+  - golang/dependency/modes_test.go::TestRepositoryHasNoMinioDependency
 - description: 'The official stable publisher (core@globular.io + STABLE channel) must not publish to the DEV channel, and
     cannot use local version suffixes. DEV channel is reserved for local/dev publishers to prevent official artifacts from
     being shadowed by local builds.
@@ -8810,7 +8808,7 @@ invariants:
   - meta.fallback_must_degrade_semantics
   required_tests:
   - golang/dependency/modes_test.go::TestCriticalDependencyDeclaresDegradationMode
-  - golang/dependency/modes_test.go::TestRepositoryMinioIsDegradedNotReadOnly
+  - golang/dependency/modes_test.go::TestRepositoryHasNoMinioDependency
   - TestUnknownModeIsRejected
   - golang/repository/repository_server/dependency_contract_test.go::TestDependencyDeclarationMatchesLiveEnforcement
   severity: high
