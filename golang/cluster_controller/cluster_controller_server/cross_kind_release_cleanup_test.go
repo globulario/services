@@ -63,24 +63,54 @@ func TestPruneCrossKindServiceReleases(t *testing.T) {
 	}
 }
 
-// TestPruneCrossKindServiceReleases_NoInfraOwnerDeletesNothing is the fail-safe:
-// with no InfrastructureRelease, ownership cannot be classified, so the cleanup
-// must delete nothing rather than guess.
-func TestPruneCrossKindServiceReleases_NoInfraOwnerDeletesNothing(t *testing.T) {
+// TestPruneCrossKindServiceReleases_CatalogIsOracleWithoutInfraRelease is the
+// model regression for #160: kind is classified by the component catalog (the
+// SAME oracle as the write guard), NOT by "does an InfrastructureRelease object
+// exist". The catalog knows xds is INFRASTRUCTURE whether or not an
+// InfrastructureRelease has been created yet, so the cross-kind faucet is closed
+// even in the bootstrap / join / backup-restore window where the old
+// InfrastructureRelease-existence proxy went inert and let the ghost survive.
+func TestPruneCrossKindServiceReleases_CatalogIsOracleWithoutInfraRelease(t *testing.T) {
 	store := resourcestore.NewMemStore()
 	ctx := context.Background()
 
-	seedServiceReleaseSpec(t, store, "sql", "1.2.235")
+	// NO InfrastructureRelease seeded — the old proxy would have deleted nothing.
+	seedServiceReleaseSpec(t, store, "xds", "1.2.235")
+
+	removed, err := pruneCrossKindServiceReleases(ctx, store)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if len(removed) != 1 || removed[0] != "xds" {
+		t.Fatalf("expected [xds] pruned by catalog oracle without an InfrastructureRelease, got %v", removed)
+	}
+	if obj, _, _ := store.Get(ctx, "ServiceRelease", defaultPublisherID()+"/xds"); obj != nil {
+		t.Error("xds ServiceRelease must be pruned — catalog says INFRASTRUCTURE regardless of InfrastructureRelease existence")
+	}
+}
+
+// TestPruneCrossKindServiceReleases_ThirdPartyNotInCatalogKept is the fail-open:
+// a name absent from the component catalog is treated as a service and must never
+// be pruned, so third-party services are unaffected.
+func TestPruneCrossKindServiceReleases_ThirdPartyNotInCatalogKept(t *testing.T) {
+	store := resourcestore.NewMemStore()
+	ctx := context.Background()
+
+	const thirdParty = "acme-thirdparty-service"
+	if CatalogByName(thirdParty) != nil {
+		t.Fatalf("test premise broken: %q unexpectedly present in catalog", thirdParty)
+	}
+	seedServiceReleaseSpec(t, store, thirdParty, "1.0.0")
 
 	removed, err := pruneCrossKindServiceReleases(ctx, store)
 	if err != nil {
 		t.Fatalf("prune: %v", err)
 	}
 	if len(removed) != 0 {
-		t.Fatalf("expected nothing removed when no InfrastructureRelease owner exists, got %v", removed)
+		t.Fatalf("expected nothing pruned for a non-catalog third-party name, got %v", removed)
 	}
-	if obj, _, _ := store.Get(ctx, "ServiceRelease", defaultPublisherID()+"/sql"); obj == nil {
-		t.Error("sql must be preserved (fail-safe: ownership cannot be classified)")
+	if obj, _, _ := store.Get(ctx, "ServiceRelease", defaultPublisherID()+"/"+thirdParty); obj == nil {
+		t.Error("third-party ServiceRelease (not in catalog) must be preserved (fail-open)")
 	}
 }
 
