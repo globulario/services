@@ -71,3 +71,9 @@ scripts/__pycache__/
 # repo root). Anchored to root so canonical golang/** files are NOT ignored.
 # Enforced harder by `make check-no-misplaced-pb` (catches already-tracked debris too).
 /*.pb.go
+
+# Compiled server binaries accidentally dropped at the golang/ root. Server CODE
+# lives in nested package dirs (golang/<svc>/<svc>_server/); a bare
+# golang/*_server[...] file is a `go build`/`go build -o` output, never source.
+/golang/*_server
+/golang/*_server_new
