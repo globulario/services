@@ -93,6 +93,26 @@ jobs:
           git checkout "$ref"
           echo "Pinned globular-installer to $(git rev-parse HEAD)"
 
+      # ── Single-source gate: the installer's embedded Day-0 specs must carry the
+      # registry-authoritative kind. registry.yaml (../packages) is the single author;
+      # a wrong kind here would break fresh Day-0 installs. Runs here because this is
+      # the one pipeline that co-locates services + packages + globular-installer.
+      # See docs/design/package-classification-single-source.md. (We run check-spec-kinds,
+      # NOT check-specs: the latter's byte-identity check has pre-existing spec staleness
+      # tracked separately; kind correctness is the release-blocking invariant.)
+      - name: Gate — installer spec kinds match registry.yaml (single-source)
+        working-directory: globular-installer
+        run: |
+          set -euo pipefail
+          # Forward-compatible: the pinned installer ref (from services go.mod) may predate
+          # the check-spec-kinds target. Skip gracefully if absent rather than fail the release.
+          if ! make -n check-spec-kinds >/dev/null 2>&1; then
+            echo "SKIP: check-spec-kinds not in pinned globular-installer ref — bump the go.mod pin to enforce."
+            exit 0
+          fi
+          python3 -c 'import yaml' 2>/dev/null || pip3 install --quiet pyyaml || pip3 install --quiet --break-system-packages pyyaml
+          make check-spec-kinds   # REGISTRY defaults to ../packages/registry.yaml (checked out above)
+
       # ── Free disk space (runner has ~14GB, large binaries fill it fast) ──
       - name: Free disk space
         run: |
