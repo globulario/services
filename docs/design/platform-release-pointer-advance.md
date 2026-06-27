@@ -1,6 +1,6 @@
 # Design: advance the active platform release pointer on upgrade
 
-Status: **proposed** (design-first; no code in this PR)
+Status: **decided** — direction approved 2026-06-27 (see Decision below). Implementation is a separate feature PR; this PR carries the design + decision only, no code.
 Author: 2026-06-27
 Related scars: ai-memory `880db878` (stale active-BOM pointer), `81f0a329` (ffmpeg
 dispatch — fixed separately in services#178)
@@ -62,12 +62,19 @@ advance the pointer.
 
 ## Proposed design
 
-Add an **`activate_release` step** to the `platform.upgrade` workflow, after a
-successful-enough `dispatch_upgrades`, that asks **node-agent** to rewrite its local
-`release-index.json` to the upgraded tag's BOM.
+> Refined by the **Decision** section below: `activate_release` is **convergence-gated**
+> and lives in the per-node convergence path (after `verify_runtime`), not as a
+> post-dispatch step in `platform.upgrade`. `platform.upgrade` (evaluate →
+> dispatch_upgrades → audit) only sets *desired* state; the pointer advances per node
+> after that node actually converges, and the controller computes the cluster-level
+> active tag from per-node reports.
+
+Add a convergence-gated **`activate_release` step** that asks **node-agent** to
+materialize its local `release-index.json` projection from the upgraded tag's
+verified BOM — only after the node has converged to that tag.
 
 ```
-evaluate → dispatch_upgrades → activate_release → audit
+sync_bom → download_artifacts → install_or_update → verify_runtime → activate_release → publish_status
 ```
 
 ### Source of the new BOM
@@ -102,37 +109,70 @@ No new copy of the BOM is invented; the repository's synced document is the sour
 - No-regression: refuse to point at a tag older than the current active tag unless
   `--allow-regression` (audited), mirroring `enforceServiceDesiredFloor`.
 
-## Open questions (resolve before implementation)
+## Decision (approved 2026-06-27)
 
-1. **Activation predicate.** Advance the pointer when *all* dispatched SemVer
-   packages converged? Or unconditionally to the synced tag once dispatch is
-   "successful enough"? The safe default: advance only after the per-node reconciler
-   reports the node converged to the tag's BOM (installed == desired for that tag's
-   changed set). This avoids pointing at a platform the node hasn't actually reached.
-2. **Per-node vs cluster-scoped.** `release-index.json` is per-node. In a multi-node
-   cluster, nodes may converge at different times. The pointer is read per-node by
-   that node's node-agent + Day-1 join uses the controller's view — decide whether
-   each node advances its own file independently (preferred: matches per-node
-   convergence) and whether the controller also keeps a cluster-level active-tag
-   record in etcd for Day-1 join to read instead of any single node's file.
-3. **etcd anchor.** Should the authoritative active-tag live in etcd
-   (`/globular/platform/active_release`) with the node-local file as a materialization
-   (so Day-1 join reads etcd, not a node file)? This better honors "etcd is the
-   source of truth" and sidesteps per-node file skew. Strong candidate.
-4. **Repository RPC.** Does a typed `GetReleaseIndex(tag)` already exist, or must it
-   be added? (Sync parses it internally; confirm the surface.)
-5. **Day-0 vs Day-1 writer unification.** The installer writes the file at day-0;
-   this step writes it on upgrade. Ensure one validated format/owner so the two
-   writers can't drift.
+**etcd-anchored, convergence-gated, explicit activate step.** This gives the
+pointer a spine: no more frozen install-era fossil pretending to be today's release.
 
-## Recommendation
+1. **Authority — etcd owns the active release pointer.** The cluster/source-of-truth
+   pointer lives in etcd (e.g. `/globular/platform/active_release`).
+   `/var/lib/globular/release-index.json` becomes a **node-local materialized
+   projection/cache**, never the authority. Rationale: a per-node-file authority
+   recreates the split-brain shape (node A says v1.2.244, node B says v1.2.233, and
+   every doctor/verifier reads tea leaves). etcd gives one declared active-release
+   truth; node-agent writes the local file for fast local readers and boot
+   continuity. So:
+   - **etcd `active_release` pointer = authority**
+   - **`release-index.json` = node-local projection/cache**
+   - **repository synced BOM = source payload** used to materialize the projection
 
-Lead with **option 3 (etcd-anchored active tag)**: the controller writes the active
-release tag to etcd on successful convergence; node-agent materializes
-`/var/lib/globular/release-index.json` from the repository's synced BOM for that tag;
-Day-1 join reads the etcd anchor. This keeps etcd as the single source of truth,
-makes the node-local file a derived cache, and avoids per-node file skew. The
-node-agent write stays within the system-executor boundary.
+2. **Activation predicate — advance only after convergence, not dispatch.** The
+   active pointer means "this node is now operating against this release," not "we
+   hope it gets there." Three-state model per node:
+   - `desired_release` = target tag selected by the controller
+   - `prepared_release` = BOM/artifacts available + hash-verified locally
+   - `active_release` = node converged and activated
+
+   `activate_release` may write the local `release-index.json` only after **all** of:
+   the BOM for the tag is present and hash-verified; the required artifacts/specs for
+   this node are present; node-agent (system executor) completed activation; and
+   controller-visible state reports converged/accepted-ready for that tag. The
+   controller computes cluster-level active status from per-node reports.
+
+3. **Workflow — `activate_release` is a first-class, explicit step**, never hidden
+   in download/install/join/system-executor side effects:
+
+   ```
+   sync_bom → download_artifacts → install_or_update → verify_runtime → activate_release → publish_status
+   ```
+
+   `activate_release` is the **only** step permitted to materialize/update
+   `/var/lib/globular/release-index.json`. This yields a clean AWG invariant:
+   **release-index.json is written only by `activate_release`, from the etcd active
+   release and a verified BOM.**
+
+4. **Day-1 join — derive the target tag from etcd, not local disk.** Join reads the
+   cluster desired/active release from etcd → node-agent syncs the matching BOM →
+   node converges → `activate_release` writes the local projection → node reports its
+   active tag. Local disk may be stale, empty, or inherited from an old install — it
+   is luggage, not law.
+
+5. **Compatibility / fallback — degraded, read-only, non-advancing.** When etcd is
+   unavailable (bootstrap/outage): the local `release-index.json` may be read as a
+   **last-known-local projection** only; it must NOT be treated as authoritative
+   cluster truth, must NOT advance itself, and doctor must report
+   *"active release authority unavailable"* rather than pretending the file is
+   current.
+
+### Resolved secondary points
+
+- **Repository RPC.** Confirm during implementation whether a typed
+  `GetReleaseIndex(tag)` exists or must be added; the synced BOM is the materialization
+  source regardless.
+- **Day-0/Day-1 writer unification.** The installer's day-0 write and the
+  `activate_release` write must share one validated format/owner; long-term the day-0
+  seed should also flow through (or be reconciled against) the etcd anchor so the two
+  writers cannot drift.
 
 ## Scope of the eventual implementation PR(s)
 
