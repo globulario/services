@@ -67,6 +67,39 @@ axes** into one word, so it cannot express facts the platform needs — e.g. **s
 Most of the orthogonal truth **already lives in `registry.yaml` as separate fields** —
 `kind` is a lossy projection of them.
 
+### 1.4 The resolved axis model (proven by Slice-5 recon)
+
+A recon over all 56 packages established the *actual* decomposition (it corrects an
+earlier guess that mesh/provenance determine the service-vs-infra split — they do not):
+
+- **`kind` = `form` ⊕ `role`.** Derivation `command` (if `skip_runtime_check`) else
+  `infrastructure` (if `systemd_unit` explicitly set) else `service` reproduces the
+  authored kind for **all 56 packages, 0 mismatches**. So `kind` is genuinely a
+  projection of two axes: **form** (command/daemon) and **role** (infrastructure/service).
+- **`role` is an INDEPENDENT axis — not derivable from provenance or mesh.** Proof: among
+  globular daemons with no gRPC mesh, **xds/gateway are `infrastructure` but mcp is
+  `service`** — identical provenance and mesh, different role. (mcp is a service that
+  exposes no gRPC mesh service; it speaks MCP/HTTP.) So "has mesh" ≠ "is a service".
+- **The overlap dissolves on independent axes.** xds = `form=daemon, role=infrastructure,
+  provenance=globular, mesh=no`; mcp = `…, role=service, …`; dns = `…, role=service,
+  mesh=yes`; etcd = `…, role=infrastructure, provenance=vendored`. "Infra can also be a
+  daemon built like a service" is just `role=infrastructure ∧ provenance=globular` — no
+  contradiction, because role, provenance, and form are different fields.
+
+| Axis | Values | registry source | independent? |
+|------|--------|-----------------|--------------|
+| form | command / daemon | `skip_runtime_check` | yes |
+| role | infrastructure / service | `systemd_unit`-presence (**proxy**, see below) | yes |
+| provenance | globular / vendored | `version_source` | yes |
+| mesh | yes / no | `provides` (gRPC ids) | yes |
+| criticality | required / degradable / optional | `control_plane_critical`, `bootstrap_tier` | yes |
+
+**Known fragility:** `role` is currently *proxied* by "is `systemd_unit` explicitly set"
+(infra packages store an explicit unit — incl. non-`globular-*` ones like
+`scylla-server.service`; services use the `globular-<name>` default and store none). This
+holds today (0 mismatches) but is a storage convention, not a clean field. Making `role` an
+explicit first-class field is the full decomposition (deferred — see §2 / Slice 5 options).
+
 ---
 
 ## 2. Target model
@@ -148,8 +181,18 @@ reference is deleted in favor of reading registry-derived data.
      the correct kind (`inferCorrectKind` was a proven no-op), so the read-time correction was
      deleted at all 4 sites + `describe_package` simplified — reads now trust the stored kind.
      `registryArtifactKind` is the single write-time stamp.
-5. **Slice 5 — orthogonal axes.** Promote `form` / `provenance` / `criticality` / `mesh` to
-   first-class authored fields in `registry.yaml`, with `kind` demoted to a derived view.
+5. **Slice 5 — axis model + kind=form⊕role gate. ✅ DONE (reduced).** Recon proved the
+   decomposition (§1.4): `kind` = `form` ⊕ `role`, derivable from registry with 0 mismatches,
+   and `role` is independent (xds vs mcp). The reviewed reduced decision: **document the axis
+   model (§1.4) and mechanize the derivation as a gate** — `genkinds` now fails generation if
+   any package's authored `kind` disagrees with `command(skip_runtime_check) else
+   infrastructure(systemd_unit set) else service`, so `kind` can never drift from its form/role
+   signals. No unconsumed projection was added (no services-repo consumer exists for
+   provenance/mesh/criticality yet). **Deferred — full decomposition:** promote `role` (and
+   `form`/`provenance`/`criticality`/`mesh`) to explicit first-class registry fields and demote
+   `kind` to a purely derived view, removing the `systemd_unit`-presence role proxy. That is the
+   larger schema+consumer migration (its own multi-PR effort) and also subsumes the registry
+   `profiles`/`control_plane_critical` divergence cleanup (ai-memory `architecture/b3ae1cce`).
 6. **Slice 6 (stretch) — structural:** collapse `ServiceRelease` + `InfrastructureRelease`
    into one `PackageRelease` keyed by package, kind-as-attribute, so a cross-kind release
    record becomes *structurally impossible* (the xds bug class cannot exist). Largest;
