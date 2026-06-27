@@ -10,26 +10,37 @@
 ## 1. Problem
 
 A Globular package's **classification** — its `kind` and the orthogonal facts that
-word smears together — is currently maintained as **six hand-synchronized copies
-across two repositories**. They agree only by manual discipline. There is no single
-author; there is a committee.
+word smears together — is currently maintained as **eight hand-synchronized sites
+across two repositories** (four hardcoded code-side classifiers + four authored data
+copies). They agree only by manual discipline. There is no single author; there is a
+committee.
 
 This is the root cause behind a multi-PR arc that kept chasing the same symptom (the
 recurring xds `INFRASTRUCTURE/xds cache_digest_mismatch`): a legacy cross-kind
 `ServiceRelease/xds@1.2.235` kept reinstalling a stale tarball. Each fix patched a
 downstream copy; the classification kept being re-asserted from a different copy.
 
-### 1.1 The six copies of "kind"
+### 1.1 The eight copies of "kind"
+
+(Originally undercounted as six; the design review found two more — #4 spec
+`metadata.kind` and #8 the repository's `inferCorrectKind`.)
 
 | # | Location | Repo | Authored? |
 |---|----------|------|-----------|
 | 1 | `registry.yaml` `kind` | packages | **declared canonical author** |
 | 2 | `metadata/*/package.json` `type` | packages | hand-authored |
 | 3 | `metadata/*/awareness.yaml` `package_kind` | packages | hand-authored |
-| 4 | `scripts/validate-package-identity.py` `CATALOG_KIND` | packages | hand-authored map of 56 pkgs, comment: *"MUST mirror component_catalog.go"* |
-| 5 | `cluster_controller_server/component_catalog.go` `Component.Kind` | services | hand-maintained |
-| 6 | `node_agent_server/.../inferPackageKind` | services | hardcoded name map (Day-0) |
-| (+) | artifact **manifest** kind | (build output) | derived/stamped — a generated copy |
+| 4 | `metadata/*/specs/*.yaml` `metadata.kind` | packages | hand-authored (e.g. `xds_service.yaml: kind: infrastructure`) |
+| 5 | `scripts/validate-package-identity.py` `CATALOG_KIND` | packages | hand-authored map of 56 pkgs, comment: *"MUST mirror component_catalog.go"* |
+| 6 | `cluster_controller_server/component_catalog.go` `Component.Kind` | services | hand-maintained |
+| 7 | `node_agent_server/.../inferPackageKind` | services | hardcoded name map (Day-0) |
+| 8 | `repository_server/artifact_handlers.go` `inferCorrectKind` (`infraNames`) | services | hardcoded infra-name map; comment: *"Must match CATALOG_KIND … and component_catalog.go"* |
+| (+) | artifact **manifest** kind | (build output) | **not even trusted** — `inferCorrectKind` (#8) *overrides* it from the hardcoded list at publish/sync |
+
+**Four code-side hardcoded classifiers** (#5 CATALOG_KIND, #6 component_catalog.go,
+#7 inferPackageKind, #8 inferCorrectKind) + four authored data copies (#1–#4). The
+manifest kind looks consistent only because #8 force-corrects it — the published
+artifact's own declaration is discarded in favor of a goblin mirror.
 
 ### 1.2 The decisive finding: the guardian holds a photocopy
 
@@ -70,12 +81,14 @@ axes, which remain authored as discrete fields.
 | Current copy | Future state |
 |--------------|--------------|
 | `registry.yaml` | **sole authored source** (kind + orthogonal axes) |
-| `component_catalog.go` | **generated** from registry-derived data |
-| `validate-package-identity.py::CATALOG_KIND` | **removed** (or a generated input); the gate becomes source-vs-generated |
-| node-agent `inferPackageKind` | **generated table or registry-backed lookup** |
 | `metadata/*/package.json` `type` | **generated** (or build-checked) from registry |
 | `metadata/*/awareness.yaml` `package_kind` | **generated** (or build-checked) from registry |
-| artifact **manifest** kind | **emitted** from registry-derived source |
+| `metadata/*/specs/*.yaml` `metadata.kind` | **generated** (or build-checked) from registry |
+| `validate-package-identity.py::CATALOG_KIND` | **removed** (or a generated input); the gate becomes source-vs-generated |
+| `component_catalog.go` `Component.Kind` | **generated** — but see §3 feasibility note (Component carries ~6 fields with no registry source today) |
+| node-agent `inferPackageKind` | **generated table** (build-time; Day-0 reads it before etcd — must NOT become a runtime fetch) |
+| `repository artifact_handlers.go::inferCorrectKind` | **removed** — stop overriding manifest kind from a hardcoded list; trust the registry-emitted manifest |
+| artifact **manifest** kind | **emitted** from registry-derived source (and then *trusted*, not re-corrected) |
 
 ### 2.2 The new drift gate
 
@@ -94,25 +107,47 @@ reference is deleted in favor of reading registry-derived data.
 > hand-mirrors keep smiling back fixes nothing and risks build/Day-0 breakage. The first
 > artifact is this map + plan, not a generated file.
 
-1. **Slice 1 — generate `component_catalog.go` from registry-derived data (services repo).**
-   Lowest blast radius: self-contained, removes one major services-side hand map, touches
-   no live release stores, no Day-0 path. Proof-of-approach. Wire generation into
-   `generateCode.sh`; add a `go generate`/CI check that the committed file equals the
-   generated output.
-2. **Slice 2 — replace `validate-package-identity.py::CATALOG_KIND`** with registry-derived
-   data so the gate stops carrying a photocopy.
-3. **Slice 3 — generate `package.json type` + `awareness.yaml package_kind`** from
-   `registry.yaml` in the packages build (`build.sh`), or build-check them.
-4. **Slice 4 — node-agent `inferPackageKind`** becomes a generated table / registry-backed
-   lookup (carefully — Day-0 bootstrap reads it before etcd exists; keep it a build-time
-   generated table, not a runtime fetch).
-5. **Slice 5 — emit manifest kind** from registry-derived source; converge the orthogonal
-   axes (form/provenance/criticality/mesh) as first-class authored fields, with `kind`
-   demoted to a derived view.
+> **Slice ordering principle (corrected by review):** start with consumers that are
+> **pure `name → kind`** (no extra fields) — those are trivially generatable from
+> registry data with *zero* new registry fields. `component_catalog.go` is NOT such a
+> consumer (its `Component` struct carries ~6 fields with no registry source — see
+> feasibility note), so it is deferred, not first.
+
+1. **Slice 1 — collapse the services-side pure-kind goblin maps (services repo, self-contained).**
+   Build one generated `name → kind` table from registry-derived data and route both
+   `repository_server/artifact_handlers.go::inferCorrectKind` (#8) and
+   `node_agent_server::inferPackageKind` (#7) through it. Both are pure name→kind, so this
+   needs no new registry fields and touches no live release stores. It also **kills the
+   manifest-override** in #8 (stop discarding the published artifact's kind). Day-0 caution:
+   `inferPackageKind` runs before etcd exists — keep it a **build-time generated table**, not
+   a runtime lookup. CI check: committed table == regenerated table. *This is the
+   proof-of-approach* — pure name→kind, removes two goblin maps including the harmful one.
+2. **Slice 2 — packages-side data copies + gate.** Replace `validate-package-identity.py::CATALOG_KIND`
+   (#5) with registry-derived data; generate `package.json type` (#2), `awareness.yaml package_kind`
+   (#3), and spec `metadata.kind` (#4) from `registry.yaml` in `build.sh` (or build-check them).
+   The gate becomes **source-vs-generated**, not copy-vs-copy.
+3. **Slice 3 — generate `component_catalog.go` (#6).** The hard one. Requires either extending
+   `registry.yaml` to a superset (Priority, Capabilities, ManagedUnit, PlatformDefault,
+   HealthCheck, Optional — see §3.1) OR generating only the `Kind` field while the rest stays
+   hand-authored (a partial-gen that must be clearly delimited). Decide which in this slice;
+   do not start it before that decision is reviewed.
+4. **Slice 4 — emit manifest kind** from registry-derived source, and *trust it* (delete the
+   inferCorrectKind override, already removed in Slice 1).
+5. **Slice 5 — orthogonal axes.** Promote `form` / `provenance` / `criticality` / `mesh` to
+   first-class authored fields in `registry.yaml`, with `kind` demoted to a derived view.
 6. **Slice 6 (stretch) — structural:** collapse `ServiceRelease` + `InfrastructureRelease`
    into one `PackageRelease` keyed by package, kind-as-attribute, so a cross-kind release
    record becomes *structurally impossible* (the xds bug class cannot exist). Largest;
    touches proto + resource store + both reconciler paths + live-record migration.
+
+### 3.1 Feasibility note — `component_catalog.go` is NOT a pure-kind consumer
+
+`Component` carries ~16 fields. Confirmed **absent from `registry.yaml`** today (grep = 0):
+`Priority`, `ProvidesCapabilities`/`Capability`, `ManagedUnit`, `PlatformDefault`,
+`HealthCheck`, `Optional`. Some of these are arguably controller-runtime concerns rather
+than package-authoring concerns. So "generate component_catalog.go from registry.yaml" is
+not free — it forces a decision about how much of the controller's runtime model belongs in
+the package registry. That is why it is Slice 3, behind the pure name→kind collapses.
 
 ---
 
