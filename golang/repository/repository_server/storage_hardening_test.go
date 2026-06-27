@@ -1,35 +1,36 @@
 package main
 
-// storage_hardening_test.go — Phase 11 tests for MinIO storage hardening.
+// storage_hardening_test.go — tests for repository storage hardening.
 //
-// Tests the 7 specific scenarios from the architectural spec:
+// Packages live ONLY in the local POSIX CAS (MinIO is never used for packages).
+// These tests exercise the manifest/blob read paths and publish gating against
+// that local store:
 //
 //  1. TestLedgerKnownArtifactMissingBlobReturnsNotFound
-//     When Scylla has the manifest but the binary blob is absent from MinIO,
-//     readManifestAndStateByKey returns the manifest from Scylla (no MinIO read
+//     When Scylla has the manifest but the binary blob is absent from the CAS,
+//     readManifestAndStateByKey returns the manifest from Scylla (no blob read
 //     needed for manifest). The manifest is returned correctly — it is the
 //     binary download layer that returns Unavailable when the blob is missing.
 //
 //  2. TestLedgerMissReturnsNotFound
 //     When Scylla does not have the manifest, readManifestAndStateByKey
-//     returns codes.NotFound regardless of what is in MinIO.
+//     returns codes.NotFound regardless of what is on disk.
 //
 //  3. TestScyllaFallbackToMinioWhenNil
 //     When srv.scylla is nil, readManifestAndStateByKey falls back to
-//     reading the manifest JSON directly from MinIO.
+//     reading the manifest JSON directly from the local CAS.
 //
-//  4. TestStandaloneIndependentMinioBehindRoundRobinRejected
-//     validateStorageTopology rejects round-robin DNS endpoints in
-//     standalone_authority mode.
+//  4. TestPublishedRequiresVerifiedAuthorityBlob_BlobMissing
+//     promoteToPublished fails when the binary blob is absent from the CAS.
 //
-//  5. TestPublishedRequiresVerifiedAuthorityBlob_BlobMissing
-//     promoteToPublished fails when the binary blob is absent from MinIO.
-//
-//  6. TestPublishedRequiresVerifiedAuthorityBlob_SizeMismatch
+//  5. TestPublishedRequiresVerifiedAuthorityBlob_SizeMismatch
 //     promoteToPublished fails when the blob size differs from manifest.
 //
-//  7. TestPublishedRequiresVerifiedAuthorityBlob_Success
+//  6. TestPublishedRequiresVerifiedAuthorityBlob_Success
 //     promoteToPublished succeeds when blob is present with matching size.
+//
+//  7. TestConsistencyScan_* — ledger-vs-CAS consistency scan detects missing
+//     blobs and passes clean when all PUBLISHED blobs are present.
 
 import (
 	"context"
@@ -37,9 +38,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gocql/gocql"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/storage_backend"
+	"github.com/gocql/gocql"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -121,10 +122,10 @@ type errLedger struct{ err error }
 func (e errLedger) GetManifest(_ context.Context, _ string) (*manifestRow, error) {
 	return nil, e.err
 }
-func (e errLedger) ListManifests(_ context.Context) ([]manifestRow, error)    { return nil, e.err }
-func (e errLedger) PutManifest(_ context.Context, _ manifestRow) error        { return e.err }
-func (e errLedger) UpdatePublishState(_ context.Context, _, _ string) error   { return e.err }
-func (e errLedger) DeleteManifest(_ context.Context, _ string) error          { return e.err }
+func (e errLedger) ListManifests(_ context.Context) ([]manifestRow, error)  { return nil, e.err }
+func (e errLedger) PutManifest(_ context.Context, _ manifestRow) error      { return e.err }
+func (e errLedger) UpdatePublishState(_ context.Context, _, _ string) error { return e.err }
+func (e errLedger) DeleteManifest(_ context.Context, _ string) error        { return e.err }
 func (e errLedger) FindByEntrypointChecksum(_ context.Context, _ string) ([]manifestRow, error) {
 	return nil, e.err
 }
@@ -324,38 +325,7 @@ func TestScylla_TemporaryFailure_FallsBackToMinio(t *testing.T) {
 
 // ─── Test 5: Topology — round-robin DNS rejected in standalone mode ────────
 
-// TestStandaloneRoundRobinEndpointRejected verifies that the topology
-// validation logic correctly identifies round-robin DNS names as forbidden
-// in standalone_authority mode. Since validateStorageTopology requires etcd,
-// we test the rule embedded in validateStorageTopology directly by calling
-// the ErrStorageTopologyInvalid detection logic inline.
-func TestStandaloneRoundRobinEndpointRejected(t *testing.T) {
-	roundRobinNames := []string{"minio.globular.internal"}
-	cases := []struct {
-		endpoint string
-		wantFail bool
-	}{
-		{"minio.globular.internal:9000", true},
-		{"globule-ryzen.globular.internal:9000", false},
-		{"globule-nuc.globular.internal:9000", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.endpoint, func(t *testing.T) {
-			rejected := false
-			for _, rr := range roundRobinNames {
-				if strings.Contains(tc.endpoint, rr) {
-					rejected = true
-					break
-				}
-			}
-			if rejected != tc.wantFail {
-				t.Errorf("endpoint %q: rejected=%v, want %v", tc.endpoint, rejected, tc.wantFail)
-			}
-		})
-	}
-}
-
-// ─── Test 6: Promote blocked when blob is missing from MinIO ──────────────
+// ─── Test 6: Promote blocked when blob is missing from the local CAS ──────────
 
 func TestPublishedRequiresVerifiedAuthorityBlob_BlobMissing(t *testing.T) {
 	dir := t.TempDir()
@@ -553,4 +523,3 @@ func TestConsistencyScan_CleanWhenAllPresent(t *testing.T) {
 		t.Error("Degraded should be false when all blobs are present")
 	}
 }
-

@@ -16,8 +16,6 @@ package main
 //   G  Materialize fast-path   — candidate has LocalPath; stat-only, no write
 //   H  Materialize with Reader — streaming write, sha256 verified, file appears on disk
 //   I  Materialize bad sha256  — Reader returns wrong bytes; errChecksumMismatch
-//   J  MinIO policy            — AllowMinioMirror=false drops MinIO from chain;
-//                                AllowMinioMirror=true includes it
 
 import (
 	"bytes"
@@ -94,9 +92,8 @@ func newResolverServer(t *testing.T) *server {
 
 func permissivePolicy() SourcePolicy {
 	return SourcePolicy{
-		Enabled:          true,
-		AllowMinioMirror: true,
-		RequireChecksum:  false,
+		Enabled:         true,
+		RequireChecksum: false,
 	}
 }
 
@@ -260,7 +257,6 @@ func TestResolver_D_AllSourcesMiss(t *testing.T) {
 	sources := []RepositorySource{
 		&stubSource{name: "local", typ: "LOCAL_POSIX", priority: 10, available: true},
 		&stubSource{name: "upstream", typ: "UPSTREAM", priority: 30, available: true},
-		&stubSource{name: "mirror", typ: "MINIO_MIRROR", priority: 50, available: true},
 	}
 
 	_, err := srv.resolveFromSources(ctx, req, sources, permissivePolicy())
@@ -444,50 +440,5 @@ func TestMaterialize_I_ChecksumMismatch(t *testing.T) {
 	_, statErr := srv.localStorage.Stat(ctx, binKey)
 	if !errors.Is(statErr, fs.ErrNotExist) {
 		t.Errorf("expected blob absent after mismatch, stat returned: %v", statErr)
-	}
-}
-
-// ── Scenario J: source policy controls chain composition ─────────────────────
-
-func TestResolver_J_MinIOPolicyControlsChain(t *testing.T) {
-	srv := newResolverServer(t)
-	ctx := context.Background()
-
-	data := []byte("mirror content")
-	req := testReq()
-	req.Sha256 = sha256Of(data)
-
-	mirrorSrc := &stubSource{
-		name: "minio-mirror", typ: "MINIO_MIRROR", priority: 50, available: true,
-		candidate: &ArtifactCandidate{
-			SourceName: "minio-mirror", SourceType: "MINIO_MIRROR",
-			Reader: io.NopCloser(bytes.NewReader(data)), Sha256: req.Sha256,
-			Mirror: true,
-		},
-	}
-	localSrc := &stubSource{name: "local", typ: "LOCAL_POSIX", priority: 10, available: true}
-
-	// Policy: MinIO disabled — mirror must not be consulted.
-	noMirrorPolicy := SourcePolicy{Enabled: true, AllowMinioMirror: false, RequireChecksum: false}
-	_, err := srv.resolveFromSources(ctx, req, []RepositorySource{localSrc, mirrorSrc}, noMirrorPolicy)
-	if err == nil {
-		t.Fatal("expected miss when MinIO disabled by policy, but got hit")
-	}
-
-	// Policy: MinIO enabled — mirror provides the artifact.
-	mirrorPolicy := SourcePolicy{Enabled: true, AllowMinioMirror: true, RequireChecksum: false}
-
-	// Re-supply fresh reader since the first resolve may have consumed it.
-	mirrorSrc.candidate = &ArtifactCandidate{
-		SourceName: "minio-mirror", SourceType: "MINIO_MIRROR",
-		Reader: io.NopCloser(bytes.NewReader(data)), Sha256: req.Sha256,
-		Mirror: true,
-	}
-	result, err := srv.resolveFromSources(ctx, req, []RepositorySource{localSrc, mirrorSrc}, mirrorPolicy)
-	if err != nil {
-		t.Fatalf("expected hit from mirror, got: %v", err)
-	}
-	if result.SourceName != "minio-mirror" {
-		t.Errorf("expected minio-mirror source, got %q", result.SourceName)
 	}
 }

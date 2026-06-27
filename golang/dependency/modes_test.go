@@ -35,40 +35,22 @@ func TestCriticalDependencyDeclaresDegradationMode(t *testing.T) {
 	}
 }
 
-// TestRepositoryMinioIsDegradedNotReadOnly — contract test. The
-// repository's MinIO dependency is a SECONDARY (mirror) authority, not a
-// primary one — the local POSIX CAS is the installability authority.
-// When MinIO is down, the repository degrades (mirror writes skipped)
-// but continues to accept writes against the local POSIX CAS. This is
-// distinct from the ScyllaDB dependency, where unavailability does
-// drop the service to read_only. See
-// docs/operators/remediation-contracts.md §6 and dep_health.go.
-func TestRepositoryMinioIsDegradedNotReadOnly(t *testing.T) {
+// TestRepositoryHasNoMinioDependency — contract test. Packages never live in
+// MinIO; the local POSIX CAS is the sole blob authority (operator decision
+// 2026-06-12). The repository must therefore declare NO minio/mirror
+// dependency. The ScyllaDB dependency (package index) is the one that drops the
+// repository to read_only. See dep_health.go.
+func TestRepositoryHasNoMinioDependency(t *testing.T) {
 	c := Lookup("repository")
 	if c == nil {
 		t.Fatal("repository contract missing")
 	}
-	dep := c.For("minio")
-	if dep.Name == "" {
-		t.Fatal("repository must declare minio dependency")
-	}
-	if dep.Mode != ModeDegraded {
-		t.Fatalf("repository minio mode: got %s, want degraded — MinIO is a mirror, not primary authority", dep.Mode)
+	if dep := c.For("minio"); dep.Name != "" {
+		t.Fatalf("repository must NOT declare a minio dependency — packages never live in MinIO (got mode %s)", dep.Mode)
 	}
 
-	// Under degraded, reads/writes/dispatch all proceed by default —
-	// only operations explicitly listed in BlockedOperations refuse.
-	// The minio dependency's BlockedOperations is empty (mirror-class
-	// gating happens inside the repository's CapRepoMirror check, not at
-	// the broad operation level).
-	for _, op := range []Operation{OperationReadOnly, OperationWrite, OperationDispatch} {
-		if ok, reason := AllowOperation(dep, op); !ok {
-			t.Fatalf("op %s under MinIO-degraded must be allowed (mirror gating is separate): %s", op, reason)
-		}
-	}
-
-	// And: the ScyllaDB dependency IS the one that drops the repository
-	// to read_only — primary metadata authority for the package index.
+	// The ScyllaDB dependency IS the one that drops the repository to
+	// read_only — primary metadata authority for the package index.
 	scylla := c.For("scylladb")
 	if scylla.Mode != ModeReadOnly {
 		t.Fatalf("scylladb mode: got %s, want read_only", scylla.Mode)

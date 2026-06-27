@@ -5,11 +5,10 @@ package main
 // Source chain (priority order):
 //   10  LocalPOSIXRepositorySource  — local verified CAS (always present, always first)
 //   30  UpstreamRepositorySource    — GitHub / HTTP / LOCAL_DIR provider
-//   50  MinIORepositorySource       — optional mirror (informational, never authority)
 //
 // Law: Install always happens from local verified POSIX storage.
 //      No source may write to the local CAS; only MaterializeArtifactToLocal() may.
-//      MinIO failure never blocks repository RPCs.
+//      Packages never live in MinIO.
 
 import (
 	"context"
@@ -18,7 +17,6 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"time"
 
 	"github.com/globulario/services/golang/storage_backend"
 )
@@ -44,7 +42,7 @@ type ArtifactRequest struct {
 	Platform    string
 	Kind        string
 	Sha256      string // expected sha256 — used for verification; may be empty
-	SizeBytes   int64 // expected size — used for verification; 0 = unknown
+	SizeBytes   int64  // expected size — used for verification; 0 = unknown
 
 	// Optional upstream context (from manifest.UpstreamImport).
 	SourceName string
@@ -114,9 +112,9 @@ func newLocalPOSIXSource(store *storage_backend.OSStorage, root string) *LocalPO
 	return &LocalPOSIXRepositorySource{store: store, root: root}
 }
 
-func (s *LocalPOSIXRepositorySource) Name() string     { return "local-posix" }
-func (s *LocalPOSIXRepositorySource) Type() string     { return "LOCAL_POSIX" }
-func (s *LocalPOSIXRepositorySource) Priority() int    { return 10 }
+func (s *LocalPOSIXRepositorySource) Name() string  { return "local-posix" }
+func (s *LocalPOSIXRepositorySource) Type() string  { return "LOCAL_POSIX" }
+func (s *LocalPOSIXRepositorySource) Priority() int { return 10 }
 
 func (s *LocalPOSIXRepositorySource) Health(ctx context.Context) SourceHealth {
 	fi, err := s.store.Stat(ctx, ".")
@@ -174,68 +172,5 @@ func (s *LocalPOSIXRepositorySource) Open(ctx context.Context, req ArtifactReque
 		SizeBytes:  fi.Size(),
 		Sha256:     req.Sha256, // carry through if known
 		Authority:  true,
-	}, nil
-}
-
-// ── MinIORepositorySource ─────────────────────────────────────────────────────
-
-// MinIORepositorySource reads from the optional MinIO mirror.
-// Never blocks repository RPCs — any failure is logged and returns ErrSourceUnavailable.
-// Never considered authority — Authority is always false.
-type MinIORepositorySource struct {
-	mirror storage_backend.Storage // the mirror component (may be nil)
-}
-
-func newMinIOSource(mirror storage_backend.Storage) *MinIORepositorySource {
-	return &MinIORepositorySource{mirror: mirror}
-}
-
-func (s *MinIORepositorySource) Name() string  { return "minio-mirror" }
-func (s *MinIORepositorySource) Type() string  { return "MINIO_MIRROR" }
-func (s *MinIORepositorySource) Priority() int { return 50 }
-
-func (s *MinIORepositorySource) Health(ctx context.Context) SourceHealth {
-	if s.mirror == nil {
-		return SourceHealth{Available: false, Reason: "no mirror configured"}
-	}
-	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	if err := s.mirror.Ping(pingCtx); err != nil {
-		return SourceHealth{Available: false, Degraded: true, Reason: fmt.Sprintf("ping failed: %v", err)}
-	}
-	return SourceHealth{Available: true}
-}
-
-func (s *MinIORepositorySource) Open(ctx context.Context, req ArtifactRequest) (*ArtifactCandidate, error) {
-	if s.mirror == nil {
-		return nil, ErrSourceUnavailable
-	}
-
-	ref := artifactRequestToRef(req)
-	key := artifactKeyWithBuild(ref, req.BuildNumber)
-	binKey := binaryStorageKey(key)
-
-	fi, statErr := s.mirror.Stat(ctx, binKey)
-	if statErr != nil {
-		if errors.Is(statErr, fs.ErrNotExist) {
-			return nil, ErrArtifactNotFound
-		}
-		slog.Warn("repository-source: minio stat failed", "key", binKey, "err", statErr)
-		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, statErr)
-	}
-
-	rc, openErr := s.mirror.Open(ctx, binKey)
-	if openErr != nil {
-		slog.Warn("repository-source: minio open failed", "key", binKey, "err", openErr)
-		return nil, fmt.Errorf("%w: %v", ErrSourceUnavailable, openErr)
-	}
-
-	return &ArtifactCandidate{
-		SourceName: s.Name(),
-		SourceType: s.Type(),
-		Reader:     rc,
-		SizeBytes:  fi.Size(),
-		Mirror:     true,
-		Authority:  false,
 	}, nil
 }

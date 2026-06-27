@@ -10,11 +10,10 @@ package main
 // T3:  Scylla down → RequireCapability(Read) returns nil
 // T4:  Scylla down → DownloadArtifact for local blob must not return codes.Unavailable
 // T5:  Scylla down → UploadArtifact returns codes.Unavailable
-// T6:  MinIO down  → ServiceMode() = DEGRADED
-// T7:  MinIO down  → RequireCapability(Read) returns nil
-// T8:  MinIO down  → RequireCapability(Write) returns nil (local CAS is authority)
-// T9:  MinIO down  → OperationalStatus dependency minio_mirror = UNAVAILABLE
 // T10: GetRepositoryStatus reflects actual watchdog mode
+//
+// (The repository has no MinIO dependency — packages never live in MinIO —
+// so the former MinIO-down tests T6-T9 no longer apply.)
 
 import (
 	"bytes"
@@ -36,38 +35,27 @@ import (
 // newTestWatchdog builds a watchdog for unit tests with initialized=true,
 // bypassing the startup window. Tests that explicitly want pre-init behavior
 // can set initialized to a new atomic.Bool{} (false).
-func newTestWatchdog(scyllaOK, minioOK bool) *depHealthWatchdog {
+func newTestWatchdog(scyllaOK bool) *depHealthWatchdog {
 	healthy := &atomic.Bool{}
 	healthy.Store(scyllaOK)
-	mirrorOK := &atomic.Bool{}
-	mirrorOK.Store(minioOK)
 	initialized := &atomic.Bool{}
 	initialized.Store(true) // tests inject post-check state directly
-	// minioSub/scyllaSub are only used in the background ping loop;
-	// they are never called by RequireCapability, ServiceMode, or OperationalStatus.
+	// scyllaSub is only used in the background ping loop; it is never called by
+	// RequireCapability, ServiceMode, or OperationalStatus.
 	return &depHealthWatchdog{
 		healthy:     healthy,
-		mirrorOK:    mirrorOK,
 		initialized: initialized,
 		logger:      slog.Default(),
 	}
 }
 
-func newWatchdogScyllaDown() *depHealthWatchdog { return newTestWatchdog(false, true) }
-func newWatchdogMinioDown() *depHealthWatchdog  { return newTestWatchdog(true, false) }
-func newWatchdogFull() *depHealthWatchdog       { return newTestWatchdog(true, true) }
+func newWatchdogScyllaDown() *depHealthWatchdog { return newTestWatchdog(false) }
+func newWatchdogFull() *depHealthWatchdog       { return newTestWatchdog(true) }
 
 func newTestServerScyllaDown(t *testing.T) *server {
 	t.Helper()
 	srv := newTestServer(t)
 	srv.depHealth = newWatchdogScyllaDown()
-	return srv
-}
-
-func newTestServerMinioDown(t *testing.T) *server {
-	t.Helper()
-	srv := newTestServer(t)
-	srv.depHealth = newWatchdogMinioDown()
 	return srv
 }
 
@@ -204,54 +192,6 @@ func (s *depTestUploadStream) SetHeader(_ metadata.MD) error                    
 func (s *depTestUploadStream) SendHeader(_ metadata.MD) error                      { return nil }
 func (s *depTestUploadStream) SetTrailer(_ metadata.MD)                            {}
 
-// ── T6 ────────────────────────────────────────────────────────────────────────
-
-func TestT6_MinioDown_ServiceModeDegraded(t *testing.T) {
-	w := newWatchdogMinioDown()
-	mode, _ := w.ServiceMode()
-	if mode != operational.ModeDegraded {
-		t.Errorf("ServiceMode with MinIO down: got %q, want %q", mode, operational.ModeDegraded)
-	}
-}
-
-// ── T7 ────────────────────────────────────────────────────────────────────────
-
-func TestT7_MinioDown_RequireReadAllowed(t *testing.T) {
-	w := newWatchdogMinioDown()
-	if err := w.RequireCapability(CapRepoRead); err != nil {
-		t.Errorf("RequireCapability(Read) with MinIO down: expected nil, got %v", err)
-	}
-}
-
-// ── T8 ────────────────────────────────────────────────────────────────────────
-
-func TestT8_MinioDown_RequireWriteAllowed(t *testing.T) {
-	w := newWatchdogMinioDown()
-	if err := w.RequireCapability(CapRepoWrite); err != nil {
-		t.Errorf("RequireCapability(Write) with MinIO down: expected nil, got %v", err)
-	}
-}
-
-// ── T9 ────────────────────────────────────────────────────────────────────────
-
-func TestT9_MinioDown_OperationalStatusMinioUnavailable(t *testing.T) {
-	w := newWatchdogMinioDown()
-	s := w.OperationalStatus()
-
-	var found bool
-	for _, d := range s.Dependencies {
-		if d.Name == "minio_mirror" {
-			found = true
-			if d.Status != operational.DepUnavailable {
-				t.Errorf("minio_mirror status: got %q, want %q", d.Status, operational.DepUnavailable)
-			}
-		}
-	}
-	if !found {
-		t.Error("OperationalStatus missing minio_mirror dependency entry")
-	}
-}
-
 // ── T4b ── stronger: DownloadArtifact returns actual bytes from local CAS ─────
 // T4 proves codes.Unavailable is not returned. T4b proves actual bytes flow
 // through and GetRepositoryStatus reports READ_ONLY throughout.
@@ -319,7 +259,6 @@ func TestT10_GetRepositoryStatus_ReflectsActualMode(t *testing.T) {
 	}{
 		{"full", newWatchdogFull(), string(operational.ModeFull)},
 		{"scylla-down", newWatchdogScyllaDown(), string(operational.ModeReadOnly)},
-		{"minio-down", newWatchdogMinioDown(), string(operational.ModeDegraded)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -387,15 +326,12 @@ func TestGetRepositoryStatus_NilWatchdog_ReturnsDegraded(t *testing.T) {
 
 func TestServiceMode_PreInit_ReturnsDegraded(t *testing.T) {
 	// A watchdog where initialized=false (startup window) must report DEGRADED
-	// regardless of the healthy/mirrorOK bits.
+	// regardless of the healthy bit.
 	healthy := &atomic.Bool{}
 	healthy.Store(true)
-	mirrorOK := &atomic.Bool{}
-	mirrorOK.Store(true)
 	initialized := &atomic.Bool{} // false — not yet set
 	w := &depHealthWatchdog{
 		healthy:     healthy,
-		mirrorOK:    mirrorOK,
 		initialized: initialized,
 		logger:      slog.Default(),
 	}

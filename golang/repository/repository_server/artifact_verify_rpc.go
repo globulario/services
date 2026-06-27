@@ -32,7 +32,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
@@ -542,24 +541,8 @@ func (srv *server) probeSourceAvailability(
 		entries = append(entries, "local-posix:LOCAL_POSIX:ABSENT:blob missing from local CAS")
 	}
 
-	// ── MinIO mirror ──────────────────────────────────────────────────────
-	if srv.mirrorStorage != nil {
-		key := artifactKeyWithBuild(ref, buildNumber)
-		binKey := binaryStorageKey(key)
-		statCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		_, statErr := srv.mirrorStorage.Stat(statCtx, binKey)
-		cancel()
-		if statErr == nil {
-			entries = append(entries, "minio-mirror:MINIO_MIRROR:PRESENT:")
-			if !localPresent {
-				repairable = true
-			}
-		} else {
-			entries = append(entries, fmt.Sprintf("minio-mirror:MINIO_MIRROR:ABSENT:%v", statErr))
-		}
-	} else {
-		entries = append(entries, "minio-mirror:MINIO_MIRROR:UNCONFIGURED:no mirror storage")
-	}
+	// Packages never live in MinIO — the local POSIX CAS is the sole blob
+	// authority. No mirror tier is reported.
 
 	// ── Upstream sources ──────────────────────────────────────────────────
 	upstreams := srv.loadUpstreamSources(ctx)

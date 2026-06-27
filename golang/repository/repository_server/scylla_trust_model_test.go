@@ -118,7 +118,7 @@ func TestTrustModel_S2_BlobMissing_UpstreamRepairs(t *testing.T) {
 			SizeBytes:  int64(len(data)),
 		},
 	}
-	policy := SourcePolicy{Enabled: true, AllowMinioMirror: false}
+	policy := SourcePolicy{Enabled: true}
 
 	result, err := srv.resolveFromSources(ctx, req, []RepositorySource{upstream}, policy)
 	if err != nil {
@@ -262,12 +262,12 @@ func TestTrustModel_S7_ArtifactBlobStatus_LocalOnly(t *testing.T) {
 	dir := t.TempDir()
 	mirrorDir := t.TempDir()
 	local := storage_backend.NewOSStorage(dir)
+	// `mirror` is a detached store standing in for "not the local CAS" — the
+	// server never reads it; the blob-status check must consult localStorage only.
 	mirror := storage_backend.NewOSStorage(mirrorDir)
-	resilient := storage_backend.NewResilientStorage(local, mirror)
 	srv := &server{Root: dir}
-	srv.storage = resilient
+	srv.storage = local
 	srv.localStorage = local
-	srv.mirrorStorage = mirror
 
 	ctx := context.Background()
 	ref := trustModelRef()

@@ -14,10 +14,10 @@ import (
 	"io"
 	"testing"
 
-	"google.golang.org/grpc/metadata"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage_backend"
+	"google.golang.org/grpc/metadata"
 )
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -27,12 +27,14 @@ func newLocalAuthorityServer(t *testing.T) (srv *server, local, mirror *storage_
 	localDir := t.TempDir()
 	mirrorDir := t.TempDir()
 	local = storage_backend.NewOSStorage(localDir)
+	// `mirror` is a detached store standing in for "somewhere that is NOT the
+	// local CAS" — the server never reads it (packages live only in the local
+	// POSIX CAS). Tests write a blob here to prove it does not make an artifact
+	// installable.
 	mirror = storage_backend.NewOSStorage(mirrorDir)
-	resilient := storage_backend.NewResilientStorage(local, mirror)
 	srv = &server{Root: localDir}
-	srv.storage = resilient
+	srv.storage = local
 	srv.localStorage = local
-	srv.mirrorStorage = mirror
 	srv.ensureSignaturePolicy().SetPolicyForTest(&repopb.SignaturePolicy{
 		AllowUnsignedLocalDevelopment: true,
 		TrustedCorePublishers:         []string{"core@globular.io"},

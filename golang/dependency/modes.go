@@ -257,9 +257,9 @@ func init() {
 	// CapRepoQuery are blocked when it's unhealthy, but CapRepoRead
 	// (local POSIX CAS) still answers — hence read_only.
 	//
-	// MinIO: ONLY the mirror capability is gated by it. Broader writes
-	// proceed (the local POSIX CAS is the installability authority).
-	// Hence degraded, not read_only.
+	// MinIO: NOT a repository dependency. Packages never live in MinIO —
+	// the local POSIX CAS is the sole blob authority (operator decision
+	// 2026-06-12). There is no mirror tier to degrade.
 	//
 	// etcd: hard startup prerequisite — the service can't bootstrap its
 	// config or register itself without etcd. Not enforced at the RPC
@@ -274,13 +274,6 @@ func init() {
 				Mode:            ModeStop,
 				AuthorityRole:   "config_truth",
 				OperatorMessage: "repository cannot bootstrap or register without etcd config authority",
-			},
-			{
-				Name:              "minio",
-				Mode:              ModeDegraded,
-				AuthorityRole:     "object_store_mirror",
-				BlockedOperations: []string{}, // mirror-class only; other writes proceed
-				OperatorMessage:   "MinIO mirror unavailable: mirror writes skipped; local POSIX CAS is authoritative",
 			},
 			{
 				Name:            "scylladb",

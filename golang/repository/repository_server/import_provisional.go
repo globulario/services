@@ -172,10 +172,6 @@ func (srv *server) ImportProvisionalArtifact(ctx context.Context, req *repopb.Im
 			bytes.NewReader(req.GetData()), digest, int64(len(req.GetData()))); err != nil {
 			return nil, status.Errorf(codes.Internal, "write binary to local CAS: %v", err)
 		}
-		// Best-effort mirror write — local success is sufficient.
-		if srv.mirrorStorage != nil {
-			_ = srv.mirrorStorage.WriteFile(ctx, binKey, req.GetData(), 0o644)
-		}
 
 		// Build manifest and promote to PUBLISHED (verifies local CAS + writes Scylla + manifest).
 		manifest := &repopb.ArtifactManifest{

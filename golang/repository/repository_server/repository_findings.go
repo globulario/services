@@ -415,24 +415,11 @@ func (srv *server) buildBlobFinding(row *manifestRow, ref *repopb.ArtifactRef, k
 	}
 
 	// Replication-lag disambiguation. A PUBLISHED manifest is cluster-wide
-	// (shared ScyllaDB index), but blobs are per-instance local CAS replicated
-	// asynchronously via the MinIO mirror. A blob absent from THIS instance's
-	// local CAS but PRESENT in the shared mirror is replication lag on this
-	// instance — NOT data loss — and must not read as CRITICAL. This is the
-	// false-positive storm seen during multi-node joins, when a freshly
-	// converged repository instance has the full manifest index but an
-	// incomplete local CAS. Reserve CRITICAL/WARN for blobs missing locally
-	// AND from the mirror (true loss). Mirror presence is consulted for
-	// REPORTING ONLY; installability authority stays local (artifactBlobStatus).
-	if kind == repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_MISSING_BLOB &&
-		reason == "missing_blob" &&
-		srv.artifactBlobInMirror(context.Background(), ref, row.BuildNumber) {
-		severity = repopb.RepositoryFindingSeverity_REPO_FIND_INFO
-		reasonCode = "repository.identity.blob_absent_local_present_mirror"
-		evidence["blob_status"] = "missing_local_present_mirror"
-		evidence["remediation_hint"] = "blob present in shared mirror; awaiting local CAS replication on this instance — not data loss"
-		recommended = "" // no operator action — local replication is automatic
-	}
+	// Packages never live in MinIO — the local POSIX CAS is the sole blob
+	// authority. A blob missing from the local CAS is real loss and keeps its
+	// default severity; there is no mirror tier to consult for replication lag.
+	// Cross-node blob availability is provided by the day-1 CAS seeder
+	// (blob_seed.go), digest-verified against the Scylla manifest authority.
 
 	return &repopb.RepositoryFinding{
 		Kind:               kind,
@@ -544,7 +531,6 @@ func (srv *server) GetRepositoryStatus(_ context.Context, _ *repopb.GetRepositor
 				{Name: CapRepoWrite, Status: string(operational.CapUnknown)},
 				{Name: CapRepoQuery, Status: string(operational.CapUnknown)},
 				{Name: CapRepoRead, Status: string(operational.CapUnknown)},
-				{Name: CapRepoMirror, Status: string(operational.CapUnknown)},
 			},
 			ObservedAtUnix: time.Now().Unix(),
 		}, nil
@@ -606,39 +592,11 @@ func (srv *server) evalDependencyModeCoherence(now int64) []*repopb.RepositoryFi
 			Kind:           repopb.RepositoryFindingKind_REPO_FIND_SCYLLA_DOWN_MODE_INCONSISTENT,
 			Severity:       repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
 			Reason:         "scylladb dependency is UNAVAILABLE but service mode is FULL — watchdog inconsistency",
-			ExpectedState:  "mode=READ_ONLY or mode=LOCAL_ONLY when scylladb is unavailable",
+			ExpectedState:  "mode=READ_ONLY when scylladb is unavailable",
 			CurrentState:   fmt.Sprintf("mode=%s, scylladb=UNAVAILABLE", s.Mode),
 			ObservedAtUnix: now,
 		})
 	}
 
-	// Invariant 2: MinIO mirror unavailability must only block CapRepoMirror,
-	// never CapRepoWrite, CapRepoQuery, or CapRepoRead.
-	minioDown := false
-	for _, d := range s.Dependencies {
-		if d.Name == "minio_mirror" && d.Status == operational.DepUnavailable {
-			minioDown = true
-			break
-		}
-	}
-	if minioDown {
-		for _, c := range s.Capabilities {
-			if c.Name == CapRepoMirror {
-				continue // mirror being blocked by mirror-down is correct
-			}
-			if c.Status == operational.CapBlocked {
-				findings = append(findings, &repopb.RepositoryFinding{
-					Kind:     repopb.RepositoryFindingKind_REPO_FIND_MINIO_BLOCKS_REPOSITORY,
-					Severity: repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
-					Reason: fmt.Sprintf(
-						"optional MinIO mirror is blocking capability %q — mirror must never block non-mirror capabilities",
-						c.Name),
-					ExpectedState:  fmt.Sprintf("capability %s=AVAILABLE when only mirror is down", c.Name),
-					CurrentState:   fmt.Sprintf("capability %s=BLOCKED, minio_mirror=UNAVAILABLE", c.Name),
-					ObservedAtUnix: now,
-				})
-			}
-		}
-	}
 	return findings
 }
