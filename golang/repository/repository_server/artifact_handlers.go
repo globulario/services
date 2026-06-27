@@ -60,6 +60,7 @@ import (
 
 	"github.com/globulario/services/golang/digest"
 	"github.com/globulario/services/golang/fallback"
+	"github.com/globulario/services/golang/packagekind"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/repository/upstream"
 	"github.com/globulario/services/golang/security"
@@ -1965,33 +1966,35 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 // ── kind inference ───────────────────────────────────────────────────────────
 
 // inferCorrectKind returns the correct ArtifactKind for a package name.
-// Manifests published before the COMMAND kind was added have kind=SERVICE
-// for everything. This function corrects the kind based on naming conventions:
-//   - Names ending in "-cmd" → COMMAND (CLI tools)
-//   - Known infrastructure daemons → INFRASTRUCTURE
-//   - Everything else → unchanged
+// Manifests published before the COMMAND kind was added have kind=SERVICE for
+// everything. This function corrects the kind from the SINGLE canonical authority —
+// packages/registry.yaml, via the build-time generated packagekind table — instead
+// of a hand-maintained infraNames map that had to "mirror" CATALOG_KIND and
+// component_catalog.go (one of the eight drifting copies of "kind"; see
+// docs/design/package-classification-single-source.md, ai-memory architecture/83b8f143,
+// and the briefing's identity.has_single_canonical_source_and_is_immutable /
+// forbidden_fix:recompute_identity_from_secondary_source).
+//
+//   - registry says infrastructure → INFRASTRUCTURE
+//   - registry says command → COMMAND
+//   - name ending in "-cmd" → COMMAND (legacy heuristic for names absent from registry)
+//   - everything else → unchanged (manifest value preserved)
+//
+// NOTE: this still corrects the manifest; fully trusting the manifest (and deleting
+// this correction) is Slice 4 of the migration, after correct kinds are emitted at
+// publish time. Slice 1 only removes the hardcoded mirror.
 func inferCorrectKind(name string, current repopb.ArtifactKind) repopb.ArtifactKind {
 	lower := strings.ToLower(name)
 
-	// CLI tools: names ending in -cmd
-	if strings.HasSuffix(lower, "-cmd") {
+	if packagekind.IsInfrastructure(lower) {
+		return repopb.ArtifactKind_INFRASTRUCTURE
+	}
+	if packagekind.IsCommand(lower) {
 		return repopb.ArtifactKind_COMMAND
 	}
-
-	// Infrastructure daemons (not Go gRPC services).
-	// Source of truth: packages/specs/*.yaml — metadata.kind=infrastructure.
-	// Must match CATALOG_KIND in scripts/validate-package-metadata.sh and
-	// KindInfrastructure entries in component_catalog.go.
-	infraNames := map[string]bool{
-		"etcd": true, "minio": true, "envoy": true,
-		"xds": true, "gateway": true,
-		"prometheus": true, "node-exporter": true,
-		"alertmanager": true,
-		"scylladb":     true, "scylla-manager": true, "scylla-manager-agent": true,
-		"keepalived": true, "sidekick": true,
-	}
-	if infraNames[lower] {
-		return repopb.ArtifactKind_INFRASTRUCTURE
+	// Legacy heuristic for names not in the registry: "-cmd" suffix = CLI tool.
+	if strings.HasSuffix(lower, "-cmd") {
+		return repopb.ArtifactKind_COMMAND
 	}
 
 	return current

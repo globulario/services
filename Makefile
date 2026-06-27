@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz gen-package-kinds check-package-kinds check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
 
 # ── Security boundary checks ────────────────────────────────────────────────
 #
@@ -90,9 +90,40 @@ check-proto-authz:
 # now-removed CLI command and could never pass; they were removed rather than
 # re-coupling this repo to the extracted sidecar.
 
+# ── Package-kind single-source (registry.yaml) ───────────────────────────────
+#
+# packages/registry.yaml (sibling globulario/packages repo) is the SINGLE author of
+# package kind. golang/packagekind/kinds_generated.go is a build-time projection that
+# the node-agent (#7) and repository (#8) classifiers consume. Do NOT hand-edit the
+# generated file or add another kind map — edit registry.yaml and run gen-package-kinds.
+# See docs/design/package-classification-single-source.md.
+
+gen-package-kinds:
+	@cd golang && go run ./packagekind/cmd/genkinds
+
+# Drift gate: committed kinds_generated.go must equal a fresh projection of
+# registry.yaml. Skips (does not fail) when the packages repo isn't checked out, so
+# the services-only CI still passes; the services-side TestComponentCatalogKindMatchesRegistry
+# covers catalog drift without the packages repo, and this gate enforces registry
+# parity wherever both repos are present.
+check-package-kinds:
+	@cd golang && tmp=$$(mktemp) && \
+	if go run ./packagekind/cmd/genkinds -out "$$tmp" >/dev/null 2>&1; then \
+		if diff -u packagekind/kinds_generated.go "$$tmp" >/dev/null; then \
+			echo "OK: packagekind/kinds_generated.go matches registry.yaml"; \
+		else \
+			echo "FAIL: package-kind drift — kinds_generated.go is stale; run 'make gen-package-kinds':"; \
+			diff -u packagekind/kinds_generated.go "$$tmp" || true; rm -f "$$tmp"; exit 1; \
+		fi; \
+		rm -f "$$tmp"; \
+	else \
+		echo "SKIP: packages/registry.yaml not available (set GLOBULAR_PACKAGES_REGISTRY) — committed table used as-is"; \
+		rm -f "$$tmp"; \
+	fi
+
 # ── Aggregate check target ───────────────────────────────────────────────────
 
-check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz
+check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-package-kinds
 
 # ── Test targets ─────────────────────────────────────────────────────────────
 

@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/infra_truth"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/packagekind"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -522,29 +523,27 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 }
 
 // inferPackageKind returns the package kind for Day-0 bootstrap installs.
-// This is the ONLY place where kind is inferred from a name — all post-Day-0
-// installs derive kind from the artifact manifest (package.json "type" field).
 //
-// Rules:
-//   - INFRASTRUCTURE: daemons that are cluster substrate, not gRPC microservices
-//     (databases, proxies, monitoring, VIP manager, mesh fabric).
-//   - SERVICE: Globular gRPC microservices (have authz, register in service mesh).
-//     cluster-controller, cluster-doctor, node-agent are SERVICE — they are gRPC
-//     services installed from the repository, NOT infrastructure daemons.
+// Kind is sourced from packages/registry.yaml (the single canonical author) via the
+// build-time generated packagekind table — NOT a hand-maintained name map here. This
+// was one of the eight drifting copies of "kind" (see
+// docs/design/package-classification-single-source.md, ai-memory architecture/83b8f143);
+// Slice 1 of the single-source migration collapses it onto the registry projection.
+//
+// packagekind is a build-time generated table, so this stays safe on the Day-0 path
+// (runs before etcd exists — no runtime fetch). Classification:
+//   - INFRASTRUCTURE: cluster-substrate daemons (databases, proxies, mesh fabric).
 //   - COMMAND: CLI tools with no systemd unit.
+//   - SERVICE: Globular gRPC microservices, AND the fail-open default for any name not
+//     in the registry (third-party services), matching the prior behaviour.
 func inferPackageKind(name string) string {
-	switch name {
-	case "scylladb", "etcd", "minio", "envoy", "xds", "gateway",
-		"keepalived",
-		"prometheus", "alertmanager", "node-exporter", "sidekick",
-		"scylla-manager", "scylla-manager-agent":
+	if packagekind.IsInfrastructure(name) {
 		return "INFRASTRUCTURE"
-	case "mc", "globular-cli", "cli", "etcdctl", "rclone", "restic", "sctool",
-		"sha256sum", "yt-dlp", "ffmpeg", "claude":
-		return "COMMAND"
-	default:
-		return "SERVICE"
 	}
+	if packagekind.IsCommand(name) {
+		return "COMMAND"
+	}
+	return "SERVICE"
 }
 
 // resolveDay0WorkflowPath finds the day0.bootstrap.yaml definition.
