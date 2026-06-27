@@ -334,9 +334,6 @@ func manifestFromRow(row manifestRow) (*repopb.ArtifactManifest, repopb.PublishS
 		if strings.TrimSpace(ref.GetPlatform()) == "" {
 			ref.Platform = row.Platform
 		}
-		if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
-			ref.Kind = corrected
-		}
 	}
 	if m.GetBuildNumber() <= 0 && row.BuildNumber > 0 {
 		m.BuildNumber = row.BuildNumber
@@ -492,11 +489,6 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 			// m.GetPublishState() (e.g. the controller release resolver) see the
 			// correct current state without re-querying.
 			m.PublishState = state
-			if ref := m.GetRef(); ref != nil {
-				if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
-					ref.Kind = corrected
-				}
-			}
 			if srv.cache != nil {
 				srv.cache.putManifest(sKey, key, state, m)
 			}
@@ -546,12 +538,8 @@ func (srv *server) readManifestAndStateByKey(ctx context.Context, key string) (s
 	// MinIO fallback path: state comes from manifest_json (no Scylla available).
 	// Stamp it onto the manifest proto so callers see the correct state via m.GetPublishState().
 	m.PublishState = state
-	// Correct kind for legacy manifests (published before COMMAND/INFRASTRUCTURE).
-	if ref := m.GetRef(); ref != nil {
-		if corrected := inferCorrectKind(ref.GetName(), ref.GetKind()); corrected != ref.GetKind() {
-			ref.Kind = corrected
-		}
-	}
+	// Slice 4b: kind is trusted from the stored manifest (registry-authoritative since
+	// Slice 4a stamps it at publish/sync) — no read-time correction.
 
 	// Populate cache.
 	if srv.cache != nil {
@@ -1965,40 +1953,11 @@ func (srv *server) DeleteArtifact(ctx context.Context, req *repopb.DeleteArtifac
 
 // ── kind inference ───────────────────────────────────────────────────────────
 
-// inferCorrectKind returns the correct ArtifactKind for a package name.
-// Manifests published before the COMMAND kind was added have kind=SERVICE for
-// everything. This function corrects the kind from the SINGLE canonical authority —
-// packages/registry.yaml, via the build-time generated packagekind table — instead
-// of a hand-maintained infraNames map that had to "mirror" CATALOG_KIND and
-// component_catalog.go (one of the eight drifting copies of "kind"; see
-// docs/design/package-classification-single-source.md, ai-memory architecture/83b8f143,
-// and the briefing's identity.has_single_canonical_source_and_is_immutable /
-// forbidden_fix:recompute_identity_from_secondary_source).
-//
-//   - registry says infrastructure → INFRASTRUCTURE
-//   - registry says command → COMMAND
-//   - name ending in "-cmd" → COMMAND (legacy heuristic for names absent from registry)
-//   - everything else → unchanged (manifest value preserved)
-//
-// NOTE: this still corrects the manifest; fully trusting the manifest (and deleting
-// this correction) is Slice 4 of the migration, after correct kinds are emitted at
-// publish time. Slice 1 only removes the hardcoded mirror.
-func inferCorrectKind(name string, current repopb.ArtifactKind) repopb.ArtifactKind {
-	lower := strings.ToLower(name)
-
-	if packagekind.IsInfrastructure(lower) {
-		return repopb.ArtifactKind_INFRASTRUCTURE
-	}
-	if packagekind.IsCommand(lower) {
-		return repopb.ArtifactKind_COMMAND
-	}
-	// Legacy heuristic for names not in the registry: "-cmd" suffix = CLI tool.
-	if strings.HasSuffix(lower, "-cmd") {
-		return repopb.ArtifactKind_COMMAND
-	}
-
-	return current
-}
+// Slice 4b removed the read-time inferCorrectKind correction. Kind is stamped at
+// WRITE time by registryArtifactKind (publish/sync, Slice 4a) and trusted on read —
+// a live audit (2026-06) confirmed every stored manifest already carried the correct
+// kind, so the read-time correction was a proven no-op. registry.yaml is the single
+// author; do not reintroduce a read-time kind override.
 
 // registryArtifactKind returns the registry-authoritative ArtifactKind for a
 // package name, sourced from the packagekind projection of registry.yaml (the

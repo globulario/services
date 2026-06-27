@@ -113,27 +113,29 @@ func slicesEqual(a, b []string) bool {
 // pre-v1.2.7 mismatch. Old artifacts had kind=SERVICE in the manifest; walkCatalogFor
 // must report storedKind=SERVICE and effectiveKind=INFRASTRUCTURE so DescribePackage
 // can surface the operator-visible warning.
-func TestWalkCatalogForKindNormalization(t *testing.T) {
+// TestWalkCatalogForTrustsStoredKind verifies Slice 4b: describe TRUSTS the stored
+// manifest kind and no longer re-derives it on read. The read-time inferCorrectKind
+// correction was removed; kind is stamped registry-correct at write time (publish/sync
+// via registryArtifactKind), and a live audit proved every stored manifest already
+// carries the correct kind. So describe returns exactly what the manifest stores.
+func TestWalkCatalogForTrustsStoredKind(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	// Seed xds with the old (wrong) SERVICE kind — simulates pre-v1.2.7 artifacts.
+	// Seed xds with the registry-correct INFRASTRUCTURE kind (as the write path now
+	// stamps it). describe must return it as-is — trusted, not re-derived.
 	seedArtifact(t, srv, &repopb.ArtifactManifest{
 		Ref: &repopb.ArtifactRef{
 			Name:        "xds",
 			Version:     "1.0.0",
 			PublisherId: "core@globular.io",
-			Kind:        repopb.ArtifactKind_SERVICE,
+			Kind:        repopb.ArtifactKind_INFRASTRUCTURE,
 		},
 	})
 
 	cat := srv.walkCatalogFor(ctx, []string{"xds"}, "")
-
-	if cat.storedKind != repopb.ArtifactKind_SERVICE {
-		t.Errorf("storedKind = %v, want SERVICE", cat.storedKind)
-	}
 	if cat.kind != repopb.ArtifactKind_INFRASTRUCTURE {
-		t.Errorf("effectiveKind = %v, want INFRASTRUCTURE", cat.kind)
+		t.Errorf("describe kind = %v, want INFRASTRUCTURE (trusted from stored manifest)", cat.kind)
 	}
 }
 

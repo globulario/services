@@ -140,8 +140,14 @@ reference is deleted in favor of reading registry-derived data.
    (low value vs. risk). **New follow-up surfaced:** registry's `profiles` / `control_plane_critical`
    (and keepalived `systemd_unit`) are divergent/likely-vestigial — see ai-memory
    `architecture/b3ae1cce`; decide vestigial-remove vs reconcile separately.
-4. **Slice 4 — emit manifest kind** from registry-derived source, and *trust it* (delete the
-   inferCorrectKind override, already removed in Slice 1).
+4. **Slice 4 — emit + trust manifest kind. ✅ DONE (staged 4a/4b).**
+   - *4a (emit)*: publish (`handlers.go`) previously hardcoded `Kind=SERVICE` for every
+     uploaded package — the root cause behind the read-time correction. Both write paths
+     (publish + sync) now stamp the registry-authoritative kind via `registryArtifactKind`.
+   - *4b (trust)*: a live audit confirmed all 36 infra/command stored manifests already carry
+     the correct kind (`inferCorrectKind` was a proven no-op), so the read-time correction was
+     deleted at all 4 sites + `describe_package` simplified — reads now trust the stored kind.
+     `registryArtifactKind` is the single write-time stamp.
 5. **Slice 5 — orthogonal axes.** Promote `form` / `provenance` / `criticality` / `mesh` to
    first-class authored fields in `registry.yaml`, with `kind` demoted to a derived view.
 6. **Slice 6 (stretch) — structural:** collapse `ServiceRelease` + `InfrastructureRelease`
