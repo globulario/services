@@ -6997,7 +6997,7 @@ failure_modes:
       required_tests: []
     - id: release.failed_dispatch_leaves_active_bom_pointer_stale
       title: A failed platform_upgrade.dispatch leaves the active release-index.json (platform_release) stale while services converge to the new version
-      severity: medium
+      severity: warning
       root_cause: |
         2026-06-27 (after v1.2.249): all Go services converged to 1.2.249 (desired-state
         driven) but repository_active_release / /var/lib/globular/release-index.json still
