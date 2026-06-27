@@ -64,3 +64,10 @@ site/
 !golang/build/**
 golang/build/__pycache__/
 scripts/__pycache__/
+
+# Misplaced generated protobuf Go files. Canonical generated protobuf output
+# lives ONLY under golang/<service>/<name>pb/. Root-level *.pb.go are
+# wrong-output-location build debris (e.g. a protoc/generateCode.sh run from the
+# repo root). Anchored to root so canonical golang/** files are NOT ignored.
+# Enforced harder by `make check-no-misplaced-pb` (catches already-tracked debris too).
+/*.pb.go
