@@ -42,7 +42,7 @@ Typical workflow:
 		if err != nil {
 			return err
 		}
-		defer cc.Close()
+		defer func() { _ = cc.Close() }()
 		client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
 		resp, err := client.ActivatePlatformRelease(ctxWithTimeout(), &cluster_controllerpb.ActivatePlatformReleaseRequest{
 			ReleaseTag:      args[0],

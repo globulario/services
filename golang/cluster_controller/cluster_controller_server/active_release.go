@@ -25,6 +25,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -72,7 +73,10 @@ func (srv *server) WriteActiveReleaseAnchor(ctx context.Context, a *activeReleas
 	if err != nil {
 		return err
 	}
-	if _, err := srv.etcdClient.Put(ctx, activeReleaseAnchorKey, string(body)); err != nil {
+	// Classified critical write — the active-release anchor is platform truth;
+	// it must go through the governed write seam (config.CriticalWrite), never a
+	// raw etcd Put. Honors meta.state_mutations_must_be_durably_committed_*.
+	if err := config.PutRuntimeWithClass(ctx, activeReleaseAnchorKey, body, config.CriticalWrite); err != nil {
 		return err
 	}
 	return nil

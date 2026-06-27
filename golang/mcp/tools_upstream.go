@@ -463,7 +463,7 @@ func readActiveReleaseAnchorForTool(ctx context.Context) (tag, platform, status 
 	if err != nil {
 		return "", "", "unavailable"
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 	cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	resp, err := cli.Get(cctx, "/globular/platform/active_release")
