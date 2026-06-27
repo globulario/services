@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb gen-package-kinds check-package-kinds check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb check-no-tracked-binaries gen-package-kinds check-package-kinds check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
 
 # ── Security boundary checks ────────────────────────────────────────────────
 #
@@ -149,9 +149,22 @@ check-no-misplaced-pb:
 	 fi
 	@echo "OK: all *.pb.go live under their canonical golang/<service>/<name>pb/ directory"
 
+# ── No tracked binaries (general build-artifact gate) ────────────────────────
+#
+# check-no-tracked-binaries: the general form of check-no-misplaced-pb and the
+#   /golang/*_server .gitignore rule. Fails if ANY git-tracked file is a compiled
+#   binary (ELF / Mach-O / Windows PE / object / archive), detected by content
+#   (libmagic), not by extension. Compiled binaries are build artifacts and never
+#   belong in source control. Legit binary source (PNGs, fonts, fixtures) has
+#   non-executable mime types and is not flagged.
+
+check-no-tracked-binaries:
+	@echo "Checking for tracked compiled binaries..."
+	@bash scripts/check_no_tracked_binaries.sh
+
 # ── Aggregate check target ───────────────────────────────────────────────────
 
-check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-package-kinds
+check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds
 
 # ── Test targets ─────────────────────────────────────────────────────────────
 
