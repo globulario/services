@@ -253,10 +253,10 @@ func (srv *server) RunPlatformUpgradeWorkflow(ctx context.Context, releaseTag st
 		return nil, fmt.Errorf("platform.upgrade workflow failed: %s", resp.Error)
 	}
 	return map[string]any{
-		"status":     resp.Status,
-		"run_id":     resp.RunId,
+		"status":      resp.Status,
+		"run_id":      resp.RunId,
 		"release_tag": releaseTag,
-		"dry_run":    dryRun,
+		"dry_run":     dryRun,
 	}, nil
 }
 
@@ -286,6 +286,25 @@ func (srv *server) platformUpgradeControllerConfig() engine.PlatformUpgradeContr
 // per-(node, package) decisions via the pure evaluateUpgradeDecisions
 // function.
 func (srv *server) platformUpgradeEvaluate(ctx context.Context, releaseTag string) ([]engine.UpgradeDecision, []engine.UpgradeDecision, error) {
+	// Slice 2: record the operator's desired platform release EARLY — in the
+	// first (evaluate) step, before dispatch — so the reconcile-driven
+	// auto-advance (tryAdvanceActiveReleaseAnchor) has a target even if the
+	// dispatch step later partially fails (e.g. a native-version package like
+	// ffmpeg). This is the universal entry for every platform-upgrade path (CLI
+	// and server both reach this actor handler). Best-effort + leader-fenced:
+	// the desired-state writes are the real convergence authority, so a failed
+	// desired_release record must never block the upgrade.
+	if tag := strings.TrimSpace(releaseTag); tag != "" && srv.isLeader() {
+		if err := srv.WriteDesiredReleaseAnchor(ctx, &desiredReleaseAnchor{
+			ReleaseTag:      tag,
+			PlatformRelease: platformReleaseFromTag(tag),
+			SetAtUnix:       time.Now().UTC().Unix(),
+			SetBy:           "platform-upgrade",
+		}); err != nil {
+			log.Printf("platform_upgrade.evaluate: WARN record desired_release %s: %v (non-fatal)", tag, err)
+		}
+	}
+
 	bom, resolver, err := srv.fetchLocalRepositoryBOM(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetch local BOM: %w", err)
@@ -428,9 +447,9 @@ func (srv *server) platformUpgradeAudit(ctx context.Context, releaseTag string, 
 	ts := time.Now().UTC().Format(time.RFC3339Nano)
 	key := fmt.Sprintf("/globular/platform_upgrade/runs/%s/%s", releaseTag, ts)
 	body, err := json.Marshal(map[string]any{
-		"release_tag":   releaseTag,
-		"recorded_at":   ts,
-		"decisions":     decisions,
+		"release_tag":    releaseTag,
+		"recorded_at":    ts,
+		"decisions":      decisions,
 		"decision_count": len(decisions),
 	})
 	if err != nil {
