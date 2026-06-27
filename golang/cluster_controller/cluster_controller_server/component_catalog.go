@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/packagekind"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
@@ -216,14 +217,13 @@ func RuntimeDependenciesFor(serviceName string) []string {
 }
 
 func buildCatalog() []*Component {
-	return []*Component{
+	components := []*Component{
 		// ---------------------------------------------------------------
 		// Infrastructure components
 		// ---------------------------------------------------------------
 		{
 			Name:                 "etcd",
 			Unit:                 "globular-etcd.service",
-			Kind:                 KindInfrastructure,
 			Priority:             1,
 			Profiles:             []string{"core", "compute", "control-plane"},
 			ProvidesCapabilities: []Capability{CapConfigStore},
@@ -233,7 +233,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                 "dns",
 			Unit:                 "globular-dns.service",
-			Kind:                 KindWorkload,
 			Priority:             2,
 			Profiles:             []string{"core", "compute", "control-plane", "dns"},
 			ProvidesCapabilities: []Capability{CapDNS},
@@ -244,7 +243,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                 "event",
 			Unit:                 "globular-event.service",
-			Kind:                 KindWorkload,
 			Priority:             4,
 			Profiles:             []string{"core", "compute"},
 			ProvidesCapabilities: []Capability{CapEventBus},
@@ -255,7 +253,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "rbac",
 			Unit:                     "globular-rbac.service",
-			Kind:                     KindWorkload,
 			Priority:                 5,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -266,7 +263,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                 "minio",
 			Unit:                 "globular-minio.service",
-			Kind:                 KindInfrastructure,
 			Priority:             6,
 			Profiles:             []string{"core", "compute", "storage", "control-plane"},
 			ProvidesCapabilities: []Capability{CapObjectStore},
@@ -280,7 +276,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                 "scylladb",
 			Unit:                 "scylla-server.service",
-			Kind:                 KindInfrastructure,
 			Priority:             6,
 			Profiles:             []string{"control-plane", "storage", "scylla", "database"},
 			ProvidesCapabilities: []Capability{CapLocalDB},
@@ -289,7 +284,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "file",
 			Unit:                     "globular-file.service",
-			Kind:                     KindWorkload,
 			Priority:                 7,
 			Profiles:                 []string{"core", "compute", "storage"},
 			ManagedUnit:              true, // included in profileUnitMap for unit actions
@@ -300,7 +294,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                 "monitoring",
 			Unit:                 "globular-monitoring.service",
-			Kind:                 KindWorkload,
 			Priority:             8,
 			Profiles:             []string{"core", "compute", "control-plane"},
 			ProvidesCapabilities: []Capability{CapMonitoring},
@@ -311,7 +304,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                 "xds",
 			Unit:                 "globular-xds.service",
-			Kind:                 KindInfrastructure,
 			Priority:             9,
 			Profiles:             []string{"control-plane", "gateway"},
 			ProvidesCapabilities: []Capability{CapServiceMesh},
@@ -320,7 +312,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "gateway",
 			Unit:                     "globular-gateway.service",
-			Kind:                     KindInfrastructure,
 			Priority:                 9,
 			Profiles:                 []string{"control-plane", "gateway"},
 			ProvidesCapabilities:     []Capability{CapGateway},
@@ -330,7 +321,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "envoy",
 			Unit:                     "globular-envoy.service",
-			Kind:                     KindInfrastructure,
 			Priority:                 10,
 			Profiles:                 []string{"control-plane", "gateway"},
 			ProvidesCapabilities:     []Capability{CapHTTPProxy},
@@ -344,7 +334,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "authentication",
 			Unit:                     "globular-authentication.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event", "rbac"},
@@ -353,7 +342,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "resource",
 			Unit:                     "globular-resource.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -362,7 +350,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "persistence",
 			Unit:                     "globular-persistence.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -371,7 +358,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "sql",
 			Unit:                     "globular-sql.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -379,7 +365,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "storage",
 			Unit:                     "globular-storage.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"storage"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -387,7 +372,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "repository",
 			Unit:                     "globular-repository.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -396,7 +380,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "catalog",
 			Unit:                     "globular-catalog.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event", "persistence"},
@@ -404,7 +387,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "search",
 			Unit:                     "globular-search.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -412,7 +394,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "log",
 			Unit:                     "globular-log.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -421,7 +402,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "ldap",
 			Unit:                     "globular-ldap.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -429,7 +409,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "mail",
 			Unit:                     "globular-mail.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -437,7 +416,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "blog",
 			Unit:                     "globular-blog.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -445,7 +423,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "conversation",
 			Unit:                     "globular-conversation.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -453,7 +430,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "title",
 			Unit:                     "globular-title.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"media-server"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -461,7 +437,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "media",
 			Unit:                     "globular-media.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"media-server"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -469,7 +444,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "torrent",
 			Unit:                     "globular-torrent.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"media-server"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -477,7 +451,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "echo",
 			Unit:                     "globular-echo.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -485,7 +458,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "backup-manager",
 			Unit:                     "globular-backup-manager.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event", "rclone", "restic", "sctool"},
@@ -494,7 +466,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "cluster-controller",
 			Unit:                     "globular-cluster-controller.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -504,7 +475,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "cluster-doctor",
 			Unit:                     "globular-cluster-doctor.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -514,7 +484,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "ai-memory",
 			Unit:                     "globular-ai-memory.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"scylladb", "event"},
@@ -524,7 +493,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "ai-executor",
 			Unit:                     "globular-ai-executor.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"ai-memory", "event"},
@@ -533,7 +501,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "ai-router",
 			Unit:                     "globular-ai-router.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -542,7 +509,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "ai-watcher",
 			Unit:                     "globular-ai-watcher.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"ai-executor", "event"},
@@ -551,7 +517,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "workflow",
 			Unit:                     "globular-workflow.service",
-			Kind:                     KindWorkload,
 			Priority:                 900, // before other AI services that may record to it
 			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"scylladb", "event"},
@@ -562,7 +527,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "mcp",
 			Unit:                     "globular-mcp.service",
-			Kind:                     KindWorkload,
 			Priority:                 1000,
 			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"event"},
@@ -575,7 +539,6 @@ func buildCatalog() []*Component {
 		{
 			Name:        "node-agent",
 			Unit:        "globular-node-agent.service",
-			Kind:        KindWorkload,
 			InstallMode: InstallModeDay0Join,
 			Priority:    1000,
 			Profiles:    []string{"core", "compute"},
@@ -586,62 +549,52 @@ func buildCatalog() []*Component {
 		// ---------------------------------------------------------------
 		{
 			Name:     "rclone",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"core", "compute", "storage"},
 		},
 		{
 			Name:     "restic",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"core", "compute", "storage"},
 		},
 		{
 			Name:                     "sctool",
-			Kind:                     KindCommand,
 			Priority:                 900,
 			Profiles:                 []string{"core", "compute", "control-plane"},
 			RuntimeLocalDependencies: []string{"scylla-manager"},
 		},
 		{
 			Name:     "mc",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"core", "compute", "storage"},
 		},
 		{
 			Name:     "ffmpeg",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"media-server"},
 		},
 		{
 			Name:     "etcdctl",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"core", "compute", "control-plane"},
 		},
 		{
 			Name:     "globular-cli",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"core", "compute"},
 		},
 		{
 			Name:     "sha256sum",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"core", "compute"},
 		},
 		{
 			Name:     "yt-dlp",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"media-server"},
 		},
 		{
 			Name:     "claude",
-			Kind:     KindCommand,
 			Priority: 900,
 			Profiles: []string{"core", "compute"},
 		},
@@ -655,7 +608,6 @@ func buildCatalog() []*Component {
 			// Unit is keepalived.service (OS package name, no globular- prefix).
 			Name:     "keepalived",
 			Unit:     "keepalived.service",
-			Kind:     KindInfrastructure,
 			Priority: 9,
 			Profiles: []string{"control-plane", "gateway"},
 			Optional: true,
@@ -663,7 +615,6 @@ func buildCatalog() []*Component {
 		{
 			Name:        "prometheus",
 			Unit:        "globular-prometheus.service",
-			Kind:        KindInfrastructure,
 			Priority:    11,
 			Profiles:    []string{"core", "compute", "control-plane"},
 			HealthCheck: &HealthCheckHintC{Unit: "globular-prometheus.service", Port: 9090},
@@ -671,7 +622,6 @@ func buildCatalog() []*Component {
 		{
 			Name:        "alertmanager",
 			Unit:        "globular-alertmanager.service",
-			Kind:        KindInfrastructure,
 			Priority:    11,
 			Profiles:    []string{"core", "compute", "control-plane"},
 			HealthCheck: &HealthCheckHintC{Unit: "globular-alertmanager.service", Port: 9093},
@@ -679,7 +629,6 @@ func buildCatalog() []*Component {
 		{
 			Name:        "node-exporter",
 			Unit:        "globular-node-exporter.service",
-			Kind:        KindInfrastructure,
 			Priority:    11,
 			Profiles:    []string{"core", "compute", "control-plane"},
 			HealthCheck: &HealthCheckHintC{Unit: "globular-node-exporter.service", Port: 9100},
@@ -687,7 +636,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "scylla-manager",
 			Unit:                     "globular-scylla-manager.service",
-			Kind:                     KindInfrastructure,
 			Priority:                 12,
 			Profiles:                 []string{"core", "compute", "control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
@@ -696,7 +644,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "scylla-manager-agent",
 			Unit:                     "globular-scylla-manager-agent.service",
-			Kind:                     KindInfrastructure,
 			Priority:                 12,
 			Profiles:                 []string{"core", "compute", "control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
@@ -705,7 +652,6 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "sidekick",
 			Unit:                     "globular-sidekick.service",
-			Kind:                     KindInfrastructure,
 			Priority:                 11,
 			Profiles:                 []string{"core", "compute", "storage"},
 			RuntimeLocalDependencies: []string{"minio"},
@@ -714,6 +660,30 @@ func buildCatalog() []*Component {
 			// mode since it cannot start until MinIO is running across 3 nodes.
 			InstallMode: InstallModeTopologyWorkflow,
 		},
+	}
+	// Kind is sourced from the registry projection (packagekind) — the single
+	// author (packages/registry.yaml) — and is never hand-authored in this catalog.
+	// Slice 3 of the package-classification single-source migration eliminates the
+	// catalog's hardcoded Kind (copy #6); see docs/design/package-classification-single-source.md
+	// and ai-memory architecture/83b8f143. A name absent from the registry falls
+	// open to KindWorkload (service), matching the prior inferred default.
+	for _, c := range components {
+		c.Kind = kindFromRegistry(c.Name)
+	}
+	return components
+}
+
+// kindFromRegistry maps the registry projection's kind string to the catalog's
+// ComponentKind enum. registry.yaml (via the build-time packagekind table) is the
+// single author of package kind; this replaces the per-Component hardcoded Kind.
+func kindFromRegistry(name string) ComponentKind {
+	switch {
+	case packagekind.IsInfrastructure(name):
+		return KindInfrastructure
+	case packagekind.IsCommand(name):
+		return KindCommand
+	default:
+		return KindWorkload
 	}
 }
 
