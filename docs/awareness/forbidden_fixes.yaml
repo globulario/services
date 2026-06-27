@@ -3939,3 +3939,63 @@ forbidden_fixes:
     that slipped in and add a .gitignore rule. `make check-no-tracked-binaries`
     (libmagic content detection) fails the build if any tracked file is a compiled
     binary.
+- id: add_second_package_authority_file
+  summary: >-
+    Introduce a new authoritative file for package identity/kind (e.g.
+    package_authority.yaml, a per-package kind override, or a fresh hardcoded map)
+    instead of using packages/registry.yaml. Creates a second author and reopens the
+    competing-copies drift class.
+  related_invariants:
+  - package.kind_is_registry_authored_downstream_is_projection
+  - meta.competing_writers_must_converge_or_be_fenced
+  safe_alternative: >-
+    registry.yaml is the sole author. If a fact cannot be represented, ADD a field to
+    registry.yaml and project / build-check it downstream — never a parallel authority
+    file. Create a new authority only if registry is structurally unable to hold the fact.
+- id: patch_xds_or_torrent_kind_by_name_only
+  summary: >-
+    Fix a kind/keyspace symptom by special-casing a package name (e.g. `if name == "xds"`
+    or `== "torrent"`) in a downstream consumer. Patches one copy while the classification
+    keeps being re-asserted from another — the exact multi-PR loop the registry-authority
+    work exists to end.
+  related_invariants:
+  - package.kind_is_registry_authored_downstream_is_projection
+  safe_alternative: >-
+    Fix the kind at the source (registry.yaml) and let the projection/gate flow it
+    everywhere. If a name-based branch seems necessary, the real bug is a missing
+    registry-derived lookup at that site. (Closely related forbidden_fix:
+    hardcode_package_kind_classification_outside_canonical_registry.)
+- id: let_component_catalog_or_config_override_registry_kind
+  summary: >-
+    Let component_catalog.go, config.json, an artifact manifest, or node-agent inference
+    DECLARE or OVERRIDE a package's kind independently of registry.yaml (e.g. re-introduce
+    inferCorrectKind overriding the published manifest, or hand-author Component.Kind).
+  related_invariants:
+  - package.kind_is_registry_authored_downstream_is_projection
+  - meta.identity_computation_must_be_invariant
+  safe_alternative: >-
+    These are projections: derive kind from packagekind/registry (kindFromRegistry,
+    registryArtifactKind, the inferPackageKind wrapper). Trust the registry-stamped
+    manifest; do not re-correct it from a local list.
+- id: silently_coerce_unknown_package_kind
+  summary: >-
+    When a package is absent from registry.yaml, silently coerce it to a default kind
+    (e.g. force SERVICE) and proceed, hiding that the package is unregistered.
+  related_invariants:
+  - package.kind_is_registry_authored_downstream_is_projection
+  safe_alternative: >-
+    A package with a metadata/ dir but no registry entry must FAIL the identity gate
+    (registry is the index — add the entry). Runtime fail-open to SERVICE for genuinely
+    third-party names is allowed ONLY where explicitly documented, and must be logged, never silent.
+- id: create_parallel_release_records_for_same_id_under_different_kinds
+  summary: >-
+    Allow the same canonical package id to hold release/desired records under two kinds
+    (e.g. a ServiceRelease and an InfrastructureRelease for xds), creating competing
+    keyspaces and ghost desired state.
+  related_invariants:
+  - package.kind_is_registry_authored_downstream_is_projection
+  - desired.keyed_by_kind_and_name
+  safe_alternative: >-
+    Route desired writes through routeInfrastructureDesired; prune cross-kind records
+    (pruneCrossKindServiceReleases / deleteCrossKindServiceRelease) with the component
+    catalog as oracle; block stale converged persistence (isStaleResolvedGhost). One id → one kind.

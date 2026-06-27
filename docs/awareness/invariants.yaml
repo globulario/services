@@ -11193,3 +11193,70 @@ invariants:
     alignment spaces when handed many paths, so the mime match must tolerate
     ":<spaces>" not just ": " or it silently matches nothing (false green).
     Landed in PR #169 (squash 4af3d973). See ai-memory debug/5c3dda3d.
+- id: package.kind_is_registry_authored_downstream_is_projection
+  title: packages/registry.yaml is the sole author of package identity + kind — every downstream kind surface is a projection
+    or a build-checked mirror, never an independent author
+  severity: high
+  status: active
+  protects:
+    files:
+    - packages/registry.yaml
+    - golang/packagekind/kinds_generated.go
+    - golang/packagekind/packagekind.go
+    - golang/cluster_controller/cluster_controller_server/component_catalog.go
+    - golang/repository/repository_server/artifact_handlers.go
+    - golang/node_agent/node_agent_server/workflow_day0.go
+  related_invariants:
+  - meta.competing_writers_must_converge_or_be_fenced
+  - meta.identity_computation_must_be_invariant
+  - desired.keyed_by_kind_and_name
+  - four_layer.layer_has_single_writing_actor
+  - package.entrypoint_binary_identity_single_source_of_truth
+  - runtime.installed_state_must_match_package_kind
+  forbidden_fixes:
+  - hardcode_package_kind_classification_outside_canonical_registry
+  - add_second_package_authority_file
+  - patch_xds_or_torrent_kind_by_name_only
+  - let_component_catalog_or_config_override_registry_kind
+  - silently_coerce_unknown_package_kind
+  - create_parallel_release_records_for_same_id_under_different_kinds
+  enforcement: |
+    packages/registry.yaml `kind` is the single authored classification. Downstream
+    surfaces are projections or build-checked mirrors, never independent authors:
+      - golang/packagekind/kinds_generated.go — GENERATED from registry (genkinds);
+        gated by `make check-package-kinds` (committed == regenerated).
+      - component_catalog.go Component.Kind — derived via kindFromRegistry(packagekind);
+        gated by package_kind_registry_consistency_test.go.
+      - repository artifact manifest kind — stamped at publish+sync by registryArtifactKind
+        (registry-authoritative) then trusted at read; gated by registry_artifact_kind_test.go.
+      - node-agent inferPackageKind — build-time wrapper over packagekind (Day-0; never a runtime fetch).
+      - packages-side mirrors (package.json `type`, awareness.yaml `package_kind`, spec
+        metadata.kind) — build-checked DIRECTLY against registry by
+        packages/scripts/validate-package-identity.py (source-vs-mirror; the former
+        CATALOG_KIND photocopy was removed). Test: packages/scripts/validate-package-identity_test.sh.
+    The kind→release-keyspace guards (routeInfrastructureDesired, pruneCrossKindServiceReleases,
+    isStaleResolvedGhost, desiredVersionCheckAppliesToKind) keep one canonical id from holding
+    records under two kinds (the xds ghost-state class).
+  required_tests: []
+  summary: |
+    A package's identity (name + binary + kind) is authored once, in
+    packages/registry.yaml. Every other representation of kind is a PROJECTION
+    (generated from registry) or a MIRROR (build-checked against registry) — never an
+    independent author. The drift gate is source-vs-mirror, never copy-vs-copy: a copy
+    that disagrees fails the build; there is nothing left to hand-mirror.
+
+    Mechanizes CLAUDE.md PRIME RULE 4 ("never duplicate package kind classification; use
+    the canonical registry"), historically violated across 8 hand-synchronized copies
+    (docs/design/package-classification-single-source.md). The recurring xds
+    cache_digest_mismatch / ghost-desired-state arc came from those copies disagreeing —
+    a package classified service in one place, infrastructure in another, producing
+    competing release keyspaces.
+
+    UNRESOLVED SEMANTIC DEBT (not yet registry-authoritative): registry.yaml `profiles`
+    and `control_plane_critical` are a NON-AUTHORITATIVE overlay — the services-repo
+    component_catalog is the placement authority
+    (publish.manifest_profiles_must_not_contradict_catalog); registry values are kept
+    aligned as a courtesy, not wired. Also deferred: collapsing
+    ServiceRelease+InfrastructureRelease into one PackageRelease (Slice 6) and the full
+    orthogonal-axis decomposition (form/role/provenance/criticality as first-class
+    fields). See ai-memory architecture/b3ae1cce and architecture/83b8f143.
