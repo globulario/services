@@ -2364,8 +2364,8 @@ func (srv *server) DownloadArtifact(req *repopb.DownloadArtifactRequest, stream 
 
 	// Resolve to local POSIX CAS.
 	// ResolveArtifactToLocal guarantees the blob is present and verified locally
-	// before returning. It handles the full source chain: LOCAL_POSIX → UPSTREAM →
-	// MINIO_MIRROR, materializing the blob if needed.
+	// before returning. It handles the full source chain: LOCAL_POSIX → UPSTREAM,
+	// materializing the blob if needed.
 	var resolveReq ArtifactRequest
 	if downloadManifest != nil {
 		resolveReq = artifactRequestFromManifest(downloadManifest, buildNumber)

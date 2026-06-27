@@ -7,7 +7,6 @@ package main
 //
 // Rules enforced regardless of policy:
 //   - LOCAL_POSIX is always present and cannot be disabled.
-//   - MinIO source is automatically disabled if mirrorStorage is nil.
 //   - Unknown source types are rejected at chain-build time.
 
 import (
@@ -27,12 +26,8 @@ type SourcePolicy struct {
 	Enabled bool `json:"enabled"`
 
 	// ResolutionOrder is advisory; actual chain is always LOCAL_POSIX first.
-	// Entries: "LOCAL_POSIX", "UPSTREAM:<name>" or "UPSTREAM" (all), "MINIO_MIRROR".
+	// Entries: "LOCAL_POSIX", "UPSTREAM:<name>" or "UPSTREAM" (all).
 	ResolutionOrder []string `json:"resolution_order,omitempty"`
-
-	// AllowMinioMirror controls whether MinIORepositorySource is added to the chain.
-	// Automatically false if mirrorStorage is nil regardless of this setting.
-	AllowMinioMirror bool `json:"allow_minio_mirror"`
 
 	// AllowNetworkMountSources blocks upstream sources whose configured paths are
 	// on network-mounted filesystems (NFS/CIFS). Only applies to LOCAL_DIR sources.
@@ -50,8 +45,7 @@ type SourcePolicy struct {
 func defaultSourcePolicy() SourcePolicy {
 	return SourcePolicy{
 		Enabled:                  true,
-		ResolutionOrder:          []string{"LOCAL_POSIX", "UPSTREAM", "MINIO_MIRROR"},
-		AllowMinioMirror:         true,
+		ResolutionOrder:          []string{"LOCAL_POSIX", "UPSTREAM"},
 		AllowNetworkMountSources: false,
 		RequireChecksum:          true,
 		MaterializeBeforeInstall: true,

@@ -115,12 +115,10 @@ type server struct {
 	CertAuthorityTrust string
 
 	// --- Repository-Specific Fields ---
-	Root              string                   // Base data directory (artifacts/ lives under this)
-	GCRetentionWindow int                      // Number of PUBLISHED builds per series kept from GC (default 3)
-	MinioConfig       *config.MinioProxyConfig // MinIO endpoint config from etcd (used only by the legacy storage-topology check; see TODO in storage_topology.go)
+	Root              string // Base data directory (artifacts/ lives under this)
+	GCRetentionWindow int    // Number of PUBLISHED builds per series kept from GC (default 3)
 	storage           storage_backend.Storage
 	localStorage      *storage_backend.OSStorage             // local POSIX CAS — never nil after initStorage
-	mirrorStorage     storage_backend.Storage                // optional MinIO mirror — nil when unavailable
 	localStorePath    string                                 // POSIX CAS root — /var/lib/globular/repository
 	cache             *manifestCache                         // in-memory TTL cache for manifest reads
 	scylla            manifestLedger                         // ScyllaDB manifest metadata store (nil until connected)
@@ -467,35 +465,8 @@ func (srv *server) setPackageBundle(checksum, platform string, size int32, modif
 }
 
 // -----------------------------------------------------------------------------
-// Storage backend (MinIO or local filesystem)
+// Storage backend (local POSIX CAS — packages never live in MinIO)
 // -----------------------------------------------------------------------------
-
-func (srv *server) loadMinioConfig() *config.MinioProxyConfig {
-	// etcd is the only source of truth. No env vars, no disk contracts, no
-	// localhost fallbacks. Endpoint is a DNS name resolved via cluster DNS.
-	//
-	// Authority routing: if /globular/repository/authority is set, use its
-	// minio_endpoint instead of the cluster-wide minio/config endpoint.
-	// This prevents split-brain when minio.globular.internal round-robins to a
-	// node whose MinIO buckets are empty (non-authority node).
-	cfg, err := config.BuildMinioProxyConfig()
-	if err != nil {
-		return nil
-	}
-
-	// Override endpoint with authority's if available.
-	if auth, authErr := config.LoadRepositoryAuthority(); authErr == nil && auth.MinioEndpoint != "" {
-		if auth.MinioEndpoint != cfg.Endpoint {
-			logger.Info("repository authority: overriding minio endpoint",
-				"cluster_endpoint", cfg.Endpoint,
-				"authority_endpoint", auth.MinioEndpoint,
-				"authority_node", auth.NodeID)
-		}
-		cfg.Endpoint = auth.MinioEndpoint
-	}
-
-	return cfg
-}
 
 // localStoreRoot returns the POSIX root for the local CAS.
 func (srv *server) localStoreRoot() string {
@@ -517,14 +488,13 @@ func (srv *server) initStorage() error {
 	// HARD RULE: packages NEVER live in MinIO — not even as a mirror tier.
 	//
 	// The repository's blob authority is the local POSIX CAS, full stop. MinIO
-	// is reserved for secondary user data (files, search indexes). The previous
-	// best-effort MinIO blob mirror blurred that boundary: package bytes ended
-	// up in the shared object store and the mirror tier silently became a
-	// cross-node distribution channel, so an objectstore topology reset could
-	// appear to threaten package availability. Operator decision 2026-06-12:
-	// the blob mirror tier is removed; mirror stays nil permanently (all
-	// mirrorStorage call-sites are nil-guarded by design — "MinIO optional
-	// mode" — and now permanently take that path).
+	// is reserved for secondary user data (files, search indexes) and is never
+	// used for packages. The previous best-effort MinIO blob mirror blurred that
+	// boundary: package bytes ended up in the shared object store and the mirror
+	// tier silently became a cross-node distribution channel, so an objectstore
+	// topology reset could appear to threaten package availability. Operator
+	// decision 2026-06-12: the blob mirror tier was removed; this change removes
+	// the last vestigial mirror plumbing entirely.
 	//
 	// Cross-node blob availability is provided instead by the day-1 CAS seeder
 	// (blob_seed.go): a joined node materializes PUBLISHED blobs into its own
@@ -532,7 +502,6 @@ func (srv *server) initStorage() error {
 	// Scylla manifest authority.
 	srv.storage = localStore
 	srv.localStorage = localStore
-	srv.mirrorStorage = nil
 	logger.Info("repository storage initialized — local POSIX CAS only (MinIO is never used for packages)",
 		"local", localRoot)
 	return nil
@@ -791,14 +760,8 @@ func main() {
 		},
 	)
 
-	// 7b. Load MinIO config (etcd only — no env vars, no disk fallbacks).
-	s.MinioConfig = s.loadMinioConfig()
-	if s.MinioConfig != nil {
-		logger.Info("minio storage configured",
-			"endpoint", s.MinioConfig.Endpoint,
-			"bucket", s.MinioConfig.Bucket,
-			"prefix", s.MinioConfig.Prefix)
-	}
+	// 7b. Initialize the local POSIX CAS — the sole blob authority. Packages
+	// never live in MinIO (operator decision 2026-06-12).
 	if err := s.initStorage(); err != nil {
 		logger.Error("storage init failed — service will start degraded", "err", err)
 		// The health watchdog will mark us NOT_SERVING if ScyllaDB is also down.
@@ -824,15 +787,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go s.depHealth.Start(ctx)
-
-	// Phase 2: Validate storage topology — reject unsafe round-robin endpoints
-	// in standalone_authority mode before serving any RPCs.
-	if topErr := s.validateStorageTopology(ctx); topErr != nil {
-		logger.Error("storage topology validation failed — service will start degraded",
-			"err", topErr)
-		// Non-fatal: log and continue. The dep_health watchdog gates RPCs.
-		// Operators must fix the topology config to restore full service.
-	}
 
 	// 7d. Run trust model migration (idempotent — only on first run).
 	if s.storage != nil {

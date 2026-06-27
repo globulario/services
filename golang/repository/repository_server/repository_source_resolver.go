@@ -88,14 +88,6 @@ func (srv *server) resolveFromSources(
 			continue
 		}
 
-		if src.Type() == "MINIO_MIRROR" && !policy.AllowMinioMirror {
-			attempt.Status = "UNAVAILABLE"
-			attempt.Reason = "minio_mirror disabled by source policy"
-			attempt.DurationMs = time.Since(t0).Milliseconds()
-			diag = append(diag, attempt)
-			continue
-		}
-
 		if policy.RequireChecksum && req.Sha256 == "" && src.Type() != "LOCAL_POSIX" {
 			attempt.Status = "UNAVAILABLE"
 			attempt.Reason = "require_checksum=true but request has no sha256"
@@ -298,11 +290,6 @@ func (srv *server) buildSourceChain(ctx context.Context, sourceName string) []Re
 		}
 	}
 
-	policy := srv.loadSourcePolicy(ctx)
-	if policy.AllowMinioMirror && srv.mirrorStorage != nil {
-		chain = append(chain, newMinIOSource(srv.mirrorStorage))
-	}
-
 	sort.Slice(chain, func(i, j int) bool {
 		return chain[i].Priority() < chain[j].Priority()
 	})
@@ -419,10 +406,7 @@ func (srv *server) writeLocalReceipt(req ArtifactRequest, result *ResolutionResu
 	if sourceUsed == "" {
 		sourceUsed = result.SourceName
 	}
-	mirrorStatus := "not_synced"
-	if srv.mirrorStorage != nil {
-		mirrorStatus = "pending"
-	}
+	// Packages live only in the local POSIX CAS — there is no mirror to sync to.
 	receipt := ArtifactReceipt{
 		PublisherID:        req.PublisherID,
 		Name:               req.Name,
@@ -436,7 +420,7 @@ func (srv *server) writeLocalReceipt(req ArtifactRequest, result *ResolutionResu
 		SizeBytes:          result.SizeBytes,
 		SourceUsed:         sourceUsed,
 		SourceType:         result.SourceType,
-		MirrorStatus:       mirrorStatus,
+		MirrorStatus:       "not_synced",
 		VerificationResult: "ok",
 		VerifiedAt:         time.Now().UTC().Format(time.RFC3339),
 	}
