@@ -11,6 +11,7 @@ import (
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/services/golang/component_catalog"
 )
 
 // artifactStateRootPath is the directory whose top-level entries this rule
@@ -97,6 +98,7 @@ const (
 	classCleanupTransient                         // backup/transient file (e.g. config.json.bak.*) → cleanup candidate
 	classWarnDuplicate                            // known legacy alias with content (data-bearing) → operator review
 	classWarnUnknown                              // truly unknown dir → WARN
+	classWarnOrphanData                           // catalog-known service, not installed, data present → WARN (review before removal)
 )
 
 // classifyEntry returns the verdict for a single top-level entry name + path.
@@ -162,8 +164,40 @@ func classifyEntry(name, path string, installedDirSet, pinnedPaths map[string]bo
 		}
 		return classWarnDuplicate
 	}
+	// 5b. Catalog-known service name with no install on this node. The entry is
+	//     explainable by the service catalog (component_catalog placement map),
+	//     so it is the uninstalled-service runtime dir / orphan class — NOT
+	//     truly-unknown drift. It is recognized via the catalog rather than a
+	//     hand-maintained allowlist, so this respects
+	//     forbidden_fix forbidden.fix.layout_drift_by_expanding_allowlist_only
+	//     and invariant doctor.layout_drift_must_reflect_real_risk (distinguish
+	//     cleanup candidates from real risk). Same reference-safety guard and
+	//     empty/non-empty split as the alias path: pinned → OK; empty → INFO
+	//     cleanup candidate; non-empty (data present) → WARN, review before
+	//     removal. The signal is downgraded in severity but never silenced.
+	if isCatalogKnownServiceName(canonical) {
+		if pinnedPaths[path] {
+			return classOK
+		}
+		if dirIsEmpty(path) {
+			return classCleanupEmpty
+		}
+		return classWarnOrphanData
+	}
 	// 6. Truly unknown — WARN.
 	return classWarnUnknown
+}
+
+// isCatalogKnownServiceName reports whether name is a service/package the
+// component catalog knows about — i.e. it appears in the placement map for at
+// least one profile. This is the principled, build-sourced way to recognize a
+// service runtime directory without maintaining a hand-edited allowlist (see
+// forbidden_fix forbidden.fix.layout_drift_by_expanding_allowlist_only). A
+// catalog-known name whose service is NOT installed on this node is an
+// uninstalled-service runtime dir (orphan), not "unknown" drift. Callers pass
+// the canonicalized name.
+func isCatalogKnownServiceName(name string) bool {
+	return len(component_catalog.ProfilesForPackage(name)) > 0
 }
 
 // systemdWorkingDirRE matches `WorkingDirectory=` settings in unit files.
@@ -306,6 +340,7 @@ func (r artifactLayoutDriftLocal) Evaluate(snap *collector.Snapshot, _ Config) [
 
 	var warnUnknown []string
 	var warnDuplicate []string
+	var warnOrphanData []string
 	var cleanupCandidates []string
 
 	for _, e := range ents {
@@ -321,6 +356,8 @@ func (r artifactLayoutDriftLocal) Evaluate(snap *collector.Snapshot, _ Config) [
 			cleanupCandidates = append(cleanupCandidates, name)
 		case classWarnDuplicate:
 			warnDuplicate = append(warnDuplicate, name)
+		case classWarnOrphanData:
+			warnOrphanData = append(warnOrphanData, name)
 		case classWarnUnknown:
 			warnUnknown = append(warnUnknown, name)
 		}
@@ -346,6 +383,28 @@ func (r artifactLayoutDriftLocal) Evaluate(snap *collector.Snapshot, _ Config) [
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
 				step(1, "Inspect each unknown entry — non-empty unknown dirs may indicate a service installed via a non-canonical path.", "sudo ls -la "+filepath.Clean(artifactStateRootPath)),
+			},
+		})
+	}
+
+	if len(warnOrphanData) > 0 {
+		sort.Strings(warnOrphanData)
+		findings = append(findings, Finding{
+			FindingID:       FindingID("artifact.layout_drift_local.orphan_data", artifactStateRootPath, strings.Join(warnOrphanData, ",")),
+			InvariantID:     "artifact.layout_drift_local",
+			Severity:        cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:        "convergence",
+			EntityRef:       artifactStateRootPath,
+			Summary:         fmt.Sprintf("runtime dirs for catalog services not installed on this node (data present — review before removal): %s", strings.Join(warnOrphanData, ", ")),
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+			Evidence: []*cluster_doctorpb.Evidence{
+				kvEvidence("local_fs", "uninstalled_service_dirs", map[string]string{
+					"path":                artifactStateRootPath,
+					"uninstalled_service": strings.Join(warnOrphanData, ","),
+				}),
+			},
+			Remediation: []*cluster_doctorpb.RemediationStep{
+				step(1, "Either install the service so the dir is backed by a running unit, or migrate/remove the leftover data after review. Do not auto-delete data-bearing dirs.", ""),
 			},
 		})
 	}
@@ -380,7 +439,7 @@ func (r artifactLayoutDriftLocal) Evaluate(snap *collector.Snapshot, _ Config) [
 			Severity:        cluster_doctorpb.Severity_SEVERITY_INFO,
 			Category:        "convergence",
 			EntityRef:       artifactStateRootPath,
-			Summary:         fmt.Sprintf("cleanup-candidate entries under %s (empty legacy aliases or backup files): %s", artifactStateRootPath, strings.Join(cleanupCandidates, ", ")),
+			Summary:         fmt.Sprintf("cleanup-candidate entries under %s (empty legacy aliases, empty uninstalled-service dirs, or backup files): %s", artifactStateRootPath, strings.Join(cleanupCandidates, ", ")),
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("local_fs", "cleanup_candidates", map[string]string{
