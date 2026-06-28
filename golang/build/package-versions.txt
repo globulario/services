@@ -5,7 +5,7 @@
 # Packages marked [changed] were rebuilt in this platform release.
 # Packages marked [unchanged] carry their original version from origin_release.
 
-ai-executor=1.2.43  # unchanged, origin=v1.2.43
+ai-executor=1.2.253  # changed
 ai-memory=1.2.43  # unchanged, origin=v1.2.43
 ai-router=1.2.46  # unchanged, origin=v1.2.46
 ai-watcher=1.2.43  # unchanged, origin=v1.2.43
