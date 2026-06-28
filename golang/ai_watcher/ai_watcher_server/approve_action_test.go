@@ -40,7 +40,14 @@ func withDispatch(t *testing.T, fn func(incidentID, approver string) (ai_executo
 		calls++
 		return fn(incidentID, approver)
 	}
-	t.Cleanup(func() { dispatchApprovedActionToExecutor = orig })
+	// Run the dispatch goroutine synchronously so the terminal state is
+	// observable deterministically right after ApproveAction returns.
+	origRun := runApprovalDispatch
+	runApprovalDispatch = func(f func()) { f() }
+	t.Cleanup(func() {
+		dispatchApprovedActionToExecutor = orig
+		runApprovalDispatch = origRun
+	})
 	return &calls
 }
 
@@ -116,6 +123,53 @@ func TestApproveAction_DispatchErrorIsNotResolved(t *testing.T) {
 	}
 	if inc.Metadata["execution_error"] == "" {
 		t.Fatalf("execution_error must record the dispatch failure")
+	}
+}
+
+// #4: an in-flight (non-terminal) executor job state must keep the incident
+// REMEDIATING — never collapse to FAILED, never claim RESOLVED.
+func TestApproveAction_InFlightJobStaysRemediating(t *testing.T) {
+	srv, inc := awaitingApprovalServer()
+	withDispatch(t, func(id, approver string) (ai_executorpb.JobState, string, error) {
+		return ai_executorpb.JobState_JOB_APPROVED, "", nil // approved but not yet executed
+	})
+
+	if _, err := srv.ApproveAction(context.Background(), &ai_watcherpb.ApproveActionRqst{IncidentId: "inc-1", Approver: "dave"}); err != nil {
+		t.Fatalf("ApproveAction: %v", err)
+	}
+	if inc.Status == ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED {
+		t.Fatal("FALSE CLOSURE: in-flight job marked RESOLVED")
+	}
+	if inc.Status == ai_watcherpb.IncidentStatus_INCIDENT_FAILED {
+		t.Fatal("in-flight job wrongly collapsed to FAILED")
+	}
+	if inc.Status != ai_watcherpb.IncidentStatus_INCIDENT_REMEDIATING {
+		t.Fatalf("status=%s, want REMEDIATING", inc.Status)
+	}
+	if inc.Metadata["last_job_status"] != "JOB_APPROVED" {
+		t.Fatalf("last_job_status=%q, want JOB_APPROVED", inc.Metadata["last_job_status"])
+	}
+}
+
+func TestClassifyApprovalOutcome(t *testing.T) {
+	cases := []struct {
+		s    ai_executorpb.JobState
+		want approvalOutcome
+	}{
+		{ai_executorpb.JobState_JOB_SUCCEEDED, approvalResolved},
+		{ai_executorpb.JobState_JOB_FAILED, approvalFailed},
+		{ai_executorpb.JobState_JOB_EXPIRED, approvalFailed},
+		{ai_executorpb.JobState_JOB_DENIED, approvalFailed},
+		{ai_executorpb.JobState_JOB_CLOSED, approvalFailed},
+		{ai_executorpb.JobState_JOB_APPROVED, approvalPending},
+		{ai_executorpb.JobState_JOB_EXECUTING, approvalPending},
+		{ai_executorpb.JobState_JOB_AWAITING_APPROVAL, approvalPending},
+		{ai_executorpb.JobState(9999), approvalPending}, // unknown → pending, never resolved
+	}
+	for _, c := range cases {
+		if got := classifyApprovalOutcome(c.s); got != c.want {
+			t.Errorf("classifyApprovalOutcome(%s)=%d, want %d", c.s, got, c.want)
+		}
 	}
 }
 

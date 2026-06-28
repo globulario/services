@@ -938,28 +938,94 @@ func (srv *server) ApproveAction(ctx context.Context, req *ai_watcherpb.ApproveA
 	}
 	srv.statsMu.Unlock()
 
-	logger.Info("action approved — dispatching to executor",
+	logger.Info("action approved — dispatching to executor (async)",
 		"incident", req.GetIncidentId(), "approver", req.GetApprover())
 
-	jobState, execErr, err := dispatchApprovedActionToExecutor(req.GetIncidentId(), req.GetApprover())
-	switch {
-	case err != nil:
-		srv.failApprovedAction(req.GetIncidentId(), err.Error())
-		logger.Error("approved action dispatch failed", "incident", req.GetIncidentId(), "err", err)
-	case jobState == ai_executorpb.JobState_JOB_SUCCEEDED:
-		srv.updateIncidentStatus(req.GetIncidentId(), ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
-		logger.Info("approved action executed", "incident", req.GetIncidentId())
-	default:
+	// Acknowledge the state transition immediately; the dispatch goroutine owns
+	// the execution outcome. The caller is NOT blocked on remediation, so a
+	// client timeout can no longer create "did it run?" fog — the incident is
+	// already REMEDIATING and converges to RESOLVED/FAILED in the background.
+	id, approver := req.GetIncidentId(), req.GetApprover()
+	runApprovalDispatch(func() { srv.dispatchAndResolveApproval(id, approver) })
+
+	return &ai_watcherpb.ApproveActionRsp{Success: true}, nil
+}
+
+// runApprovalDispatch launches the approval-dispatch goroutine. A package var so
+// tests can run it synchronously and assert the terminal state deterministically.
+var runApprovalDispatch = func(f func()) { go f() }
+
+// dispatchAndResolveApproval runs the approved action through the executor and
+// resolves the incident strictly on the outcome. Invariant: never RESOLVED
+// without JOB_SUCCEEDED; a still-progressing job keeps the incident REMEDIATING
+// rather than being mis-stamped FAILED.
+func (srv *server) dispatchAndResolveApproval(incidentID, approver string) {
+	jobState, execErr, err := dispatchApprovedActionToExecutor(incidentID, approver)
+	if err != nil {
+		srv.failApprovedAction(incidentID, err.Error())
+		logger.Error("approved action dispatch failed", "incident", incidentID, "err", err)
+		return
+	}
+	switch classifyApprovalOutcome(jobState) {
+	case approvalResolved:
+		srv.updateIncidentStatus(incidentID, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		logger.Info("approved action executed", "incident", incidentID)
+	case approvalFailed:
 		msg := execErr
 		if msg == "" {
 			msg = "approved action did not succeed (job state: " + jobState.String() + ")"
 		}
-		srv.failApprovedAction(req.GetIncidentId(), msg)
-		logger.Warn("approved action did not succeed",
-			"incident", req.GetIncidentId(), "job_state", jobState.String())
+		srv.failApprovedAction(incidentID, msg)
+		logger.Warn("approved action failed", "incident", incidentID, "job_state", jobState.String())
+	case approvalPending:
+		// Job is still in flight (approved/executing). Honest in-progress state:
+		// keep INCIDENT_REMEDIATING (set by ApproveAction) and record the last
+		// observed job status — do NOT claim RESOLVED, do NOT mis-stamp FAILED.
+		srv.setIncidentMeta(incidentID, "last_job_status", jobState.String())
+		logger.Info("approved action in progress — incident remains REMEDIATING",
+			"incident", incidentID, "job_state", jobState.String())
 	}
+}
 
-	return &ai_watcherpb.ApproveActionRsp{Success: true}, nil
+type approvalOutcome int
+
+const (
+	approvalPending approvalOutcome = iota
+	approvalResolved
+	approvalFailed
+)
+
+// classifyApprovalOutcome maps an executor job state to an incident transition.
+// Load-bearing invariant: only JOB_SUCCEEDED yields RESOLVED; terminal failure
+// states yield FAILED; anything still in flight (or an unknown state) stays
+// REMEDIATING — never a false RESOLVED, never a false FAILED.
+func classifyApprovalOutcome(s ai_executorpb.JobState) approvalOutcome {
+	switch s {
+	case ai_executorpb.JobState_JOB_SUCCEEDED:
+		return approvalResolved
+	case ai_executorpb.JobState_JOB_FAILED,
+		ai_executorpb.JobState_JOB_EXPIRED,
+		ai_executorpb.JobState_JOB_DENIED,
+		ai_executorpb.JobState_JOB_CLOSED:
+		return approvalFailed
+	default:
+		// JOB_APPROVED, JOB_EXECUTING, JOB_DETECTED/DIAGNOSING/DIAGNOSED,
+		// JOB_AWAITING_APPROVAL, or any unknown value → still in flight.
+		return approvalPending
+	}
+}
+
+// setIncidentMeta sets a single metadata key on an incident under the lock,
+// without changing its status.
+func (srv *server) setIncidentMeta(incidentID, key, value string) {
+	srv.incidentsMu.Lock()
+	defer srv.incidentsMu.Unlock()
+	if inc, ok := srv.incidents[incidentID]; ok {
+		if inc.Metadata == nil {
+			inc.Metadata = map[string]string{}
+		}
+		inc.Metadata[key] = value
+	}
 }
 
 // failApprovedAction stamps the execution error into incident metadata and
