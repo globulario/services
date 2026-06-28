@@ -189,7 +189,7 @@ func checkServiceHealth(ctx context.Context, serviceName string) (healthy bool, 
 	if err != nil {
 		return false, "cannot dial cluster controller: " + err.Error()
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	health, err := cluster_controllerpb.NewClusterControllerServiceClient(cc).
 		GetClusterHealth(ctx, &cluster_controllerpb.GetClusterHealthRequest{})

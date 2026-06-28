@@ -878,11 +878,12 @@ var dispatchApprovedActionToExecutor = func(incidentID, approver string) (ai_exe
 	if err != nil {
 		return 0, "", fmt.Errorf("internal TLS unavailable: %w", err)
 	}
+	//nolint:staticcheck // grpc.Dial is kept until the shared Globular dial path migrates to grpc.NewClient.
 	cc, err := grpc.Dial(addr, dialOpts...)
 	if err != nil {
 		return 0, "", fmt.Errorf("executor connection failed: %w", err)
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()

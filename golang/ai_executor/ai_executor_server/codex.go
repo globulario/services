@@ -274,7 +274,7 @@ func (c *codexClient) sendPrompt(ctx context.Context, prompt string) (string, er
 	}
 	tmpPath := tmp.Name()
 	_ = tmp.Close()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	args := []string{
 		"exec",

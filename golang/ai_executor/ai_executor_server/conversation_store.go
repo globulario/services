@@ -255,7 +255,6 @@ func (cs *conversationStore) listConversations(userID string, limit int) ([]conv
 	// Get unique conversation IDs (latest entry per conversation).
 	iter := cs.session.Query(`SELECT id, title, updated_at_ms, message_count, last_message
 		FROM conversations WHERE user_id = ? LIMIT ?`, userID, limit*2).Iter()
-	defer iter.Close()
 
 	seen := make(map[string]bool)
 	var summaries []convSummary
@@ -286,6 +285,9 @@ func (cs *conversationStore) listConversations(userID string, limit int) ([]conv
 		if len(summaries) >= limit {
 			break
 		}
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list conversations: %w", err)
 	}
 	return summaries, nil
 }
@@ -329,7 +331,6 @@ func (cs *conversationStore) deleteConversation(conversationID string) error {
 	iter := cs.session.Query(
 		`SELECT updated_at_ms FROM conversations WHERE user_id = ? AND id = ? ALLOW FILTERING`,
 		userID, conversationID).Iter()
-	defer iter.Close()
 	var updatedAt int64
 	for iter.Scan(&updatedAt) {
 		if err := cs.session.Query(
@@ -338,6 +339,9 @@ func (cs *conversationStore) deleteConversation(conversationID string) error {
 			logger.Warn("conversation_store: failed to delete conversation row",
 				"conversation_id", conversationID, "updated_at_ms", updatedAt, "err", err)
 		}
+	}
+	if err := iter.Close(); err != nil {
+		return fmt.Errorf("delete conversation rows: %w", err)
 	}
 
 	return nil
