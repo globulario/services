@@ -19,6 +19,8 @@ This script fails CI loud when the three declaration sites disagree.
 
 Documented exceptions (build-time rename, not drift):
   - globular-cli: built as `globularcli` (go target), distributed as `globular`.
+  - mcp: built from `./mcp`, distributed as `mcp_server` to avoid colliding with
+    the package directory name.
 
 Usage: python3 scripts/check-package-binary-consistency.py
        (run from the services repo root; expects ../packages alongside)
@@ -31,7 +33,10 @@ PKG = os.path.normpath(os.path.join(SVC, "..", "packages"))
 
 # pkg-map binary -> expected installed/entrypoint binary, when a documented
 # build-time rename applies. Anything not listed must match verbatim.
-RENAME_EXCEPTIONS = {"globularcli": "globular"}
+RENAME_EXCEPTIONS = {
+    "globularcli": "globular",
+    "mcp": "mcp_server",
+}
 
 
 def load_registry_binaries(path):

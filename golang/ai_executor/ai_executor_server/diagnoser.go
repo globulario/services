@@ -23,14 +23,15 @@ import (
 	"google.golang.org/grpc"
 )
 
-// diagnoser gathers evidence from cluster services, then uses Claude
-// for reasoning when available, with deterministic fallback.
-// Prefers direct Anthropic API when configured, falls back to CLI.
+// diagnoser gathers evidence from cluster services, then uses configured AI
+// backends for reasoning when available, with deterministic fallback.
+// Prefers direct Anthropic API when configured, then explicit Codex CLI auth.
 type diagnoser struct {
 	controllerAddr string
 	memoryAddr     string
 	claude         *claudeClient
 	anthropic      *anthropicClient
+	codex          *codexClient
 	ledger         *incidentLedger
 
 	// aiAnalysesOK counts successful real AI (LLM) analyses produced at runtime.
@@ -40,29 +41,32 @@ type diagnoser struct {
 	aiAnalysesOK int64
 }
 
-func newDiagnoser(cfg AnthropicConfig) *diagnoser {
+func newDiagnoser(anthropicCfg AnthropicConfig, codexCfg CodexConfig) *diagnoser {
 	return &diagnoser{
 		claude:    newClaudeClient(),
-		anthropic: newAnthropicClient(cfg),
+		anthropic: newAnthropicClient(anthropicCfg),
+		codex:     newCodexClient(codexCfg),
 		ledger:    &incidentLedger{},
 	}
 }
 
-// sendPrompt calls the configured Anthropic API backend, or errors so the
-// caller falls back to deterministic analysis.
+// sendPrompt calls the configured autonomous backend, or errors so the caller
+// falls back to deterministic analysis.
 //
 // The autonomous incident path deliberately does NOT fall back to the Claude
-// CLI: the CLI spends whatever interactive subscription happens to be logged in
-// on the host (a developer's personal Max account), and an incident storm turns
-// that into an unbounded, silent drain. AI diagnosis here is opt-in via an
-// explicit, separately-billed API key in service config (Anthropic.ApiKey).
-// With no key, isAvailable() is false and diagnose() uses the deterministic
-// analyzer — AI is supplementary, never required.
+// CLI: that CLI is interactive tooling and may be logged into a personal
+// subscription. AI diagnosis here is opt-in via explicit service-user or
+// cluster-shared credentials: Anthropic API/Max credentials or Codex auth.
+// With neither, diagnose() uses the deterministic analyzer — AI is
+// supplementary, never required.
 func (d *diagnoser) sendPrompt(ctx context.Context, prompt string) (string, error) {
 	if d.anthropic != nil && d.anthropic.isAvailable() {
 		return d.anthropic.sendPrompt(ctx, prompt)
 	}
-	return "", fmt.Errorf("no AI backend available (set Anthropic.ApiKey in service config)")
+	if d.codex != nil && d.codex.isAvailable() {
+		return d.codex.sendPrompt(ctx, prompt)
+	}
+	return "", fmt.Errorf("no AI backend available (configure Anthropic or Codex credentials)")
 }
 
 // diagnose gathers context and builds a diagnosis for an incident.
@@ -139,15 +143,15 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		}
 	}
 
-	// 4. Try the AI backend for a first-time analysis (falls back to
-	// deterministic). Only the dedicated Anthropic API key counts as available
-	// here — the CLI subscription path is intentionally excluded.
-	aiAvailable := d.anthropic != nil && d.anthropic.isAvailable()
+	// 4. Try the autonomous AI backend for a first-time analysis (falls back to
+	// deterministic). Claude CLI is intentionally excluded here; Anthropic API
+	// and explicitly-provisioned Codex auth are allowed.
+	aiAvailable := d.aiReady()
 	if !aiAvailable && rootCause == "" {
 		// Be explicit in the diagnosis record: this is the deterministic
 		// analyzer, not AI. Masquerading a rule-based result as an AI diagnosis
 		// is what made "ai_available: true" misleading on the live cluster.
-		evidence = append(evidence, "ai_backend: unavailable — deterministic fallback (no Anthropic.ApiKey or etcd credentials; AI is supplementary)")
+		evidence = append(evidence, "ai_backend: unavailable — deterministic fallback (no Anthropic or Codex credentials; AI is supplementary)")
 	}
 	if aiAvailable && rootCause == "" {
 		healthStr := ""
@@ -291,6 +295,9 @@ func (d *diagnoser) analyzeEventPattern(eventName string, payload map[string]int
 }
 
 // proposeAction suggests a remediation based on rule and root cause.
+// Each case returns exactly ONE canonical action string — classifyAction maps it to
+// an ActionType. Compound "a + b" strings are forbidden: classifyAction dispatches
+// a single action per incident; compound strings silently drop all but the first match.
 func (d *diagnoser) proposeAction(ruleID, rootCause string, payload map[string]interface{}) (action, reason string) {
 	switch ruleID {
 	case "service-crash":
@@ -300,57 +307,43 @@ func (d *diagnoser) proposeAction(ruleID, rootCause string, payload map[string]i
 
 	case "dos-detected":
 		addr, _ := payload["remote_addr"].(string)
-		return fmt.Sprintf("drain_endpoint:affected + block_ip:%s", addr),
-			"Active DoS attack — drain affected endpoint and block source"
+		return fmt.Sprintf("block_ip:%s", addr),
+			"Active DoS attack — blocking source IP; drain of affected endpoint recommended as follow-up"
 
 	case "slowloris-detected":
 		addr, _ := payload["remote_addr"].(string)
-		return fmt.Sprintf("reduce_max_connections + block_ip:%s", addr),
-			"Slowloris attack exhausting connections — reduce limits and block source"
+		return fmt.Sprintf("block_ip:%s", addr),
+			"Slowloris attack exhausting connections — blocking source IP; tighten connection limits as follow-up"
 
 	case "brute-force-detect":
-		return "lock_account:temporary + alert_admin",
-			"Repeated login failures suggest brute force — temporary lock"
+		return "notify_admin",
+			"Repeated login failures suggest brute force — account lock requires Tier-2 approval; notifying admin"
 
 	case "error-rate-spike":
-		return "tighten_circuit_breakers + investigate_logs",
-			"High error rate — tighten circuit breakers to contain cascade"
+		return "tighten_circuit_breaker",
+			"High error rate — tighten circuit breakers to contain cascade; investigate logs separately"
 
 	case "health-check-fail":
-		return "investigate_node + attempt_recovery",
-			"Node unhealthy — investigate root cause and attempt recovery"
+		return "notify_admin",
+			"Node unhealthy — investigation and recovery require human review"
 
 	case "convergence-stalled":
-		return "redispatch_plan + investigate_node",
-			"Plan stuck — redispatch and investigate blocking condition"
+		return "notify_admin",
+			"Plan stuck — redispatching requires human approval; notifying admin"
 
 	case "service-restart-exhausted":
 		unit, _ := payload["unit"].(string)
-		svc, _ := payload["service"].(string)
 		lastErr, _ := payload["last_error"].(string)
-		// Diagnostic chain: check logs, certs, config, deps
-		actions := []string{
-			fmt.Sprintf("check_service_logs:%s", unit),
-			"check_certificate_status",
-		}
-		if svc != "" {
-			actions = append(actions, fmt.Sprintf("check_service_config:%s", svc))
-		}
-		actions = append(actions, "check_cluster_health")
-		// Classify the error for targeted remediation
 		switch {
 		case strings.Contains(lastErr, "exit-code") || strings.Contains(lastErr, "203") || strings.Contains(lastErr, "126"):
-			actions = append(actions, "escalate:requires_approval")
-			return strings.Join(actions, " + "),
-				"Service restart exhausted with permission/exec error — needs manual investigation"
+			return "notify_admin",
+				fmt.Sprintf("restart exhausted for %s with permission/exec error — manual intervention required", unit)
 		case strings.Contains(lastErr, "timeout"):
-			actions = append(actions, "check_dependencies + retry_after_delay")
-			return strings.Join(actions, " + "),
-				"Service restart exhausted with timeout — likely dependency issue"
+			return "notify_admin",
+				fmt.Sprintf("restart exhausted for %s with timeout — likely dependency issue", unit)
 		default:
-			actions = append(actions, "investigate_and_escalate")
-			return strings.Join(actions, " + "),
-				"Service restart exhausted — diagnose root cause via logs and config"
+			return "notify_admin",
+				fmt.Sprintf("restart exhausted for %s — diagnose root cause via logs and config", unit)
 		}
 
 	default:
@@ -379,7 +372,9 @@ func (d *diagnoser) queryPastIncidents(ctx context.Context, ruleID, eventName st
 	if err != nil {
 		return nil
 	}
+	//nolint:staticcheck // grpc.Dial / grpc.WithTimeout not yet migrated to grpc.NewClient
 	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
+	//nolint:staticcheck
 	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return nil
@@ -424,7 +419,9 @@ func (d *diagnoser) getClusterHealth(ctx context.Context) (*cluster_controllerpb
 	if err != nil {
 		return nil, fmt.Errorf("internal TLS: %w", err)
 	}
+	//nolint:staticcheck // grpc.Dial / grpc.WithTimeout not yet migrated to grpc.NewClient
 	opts2 := append(baseOpts2, grpc.WithTimeout(2*time.Second))
+	//nolint:staticcheck
 	cc, err := grpc.Dial(addr, opts2...)
 	if err != nil {
 		return nil, err

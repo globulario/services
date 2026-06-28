@@ -1,5 +1,5 @@
 id: backup.recovery_capsule_is_independent
-level: mechanism
+level: contract
 title: Recovery capsule must survive objectstore loss
 intent: Disaster recovery needs a recovery capsule and remote/restic path that can restore the cluster even when MinIO or the cluster itself is unavailable.
 agent_guidance: Do not make the only recovery path depend on the same objectstore or cluster service that may be lost.
@@ -15,7 +15,12 @@ activation_triggers:
 - restic repo
 - remote backup
 expressed_by:
-- operators/backup-and-restore.md
+- docs/operators/backup-and-restore.md
+- golang/backup_manager/backup_manager_server/recovery_seed.go
+- golang/backup_manager/backup_manager_server/recovery_seed_test.go
+- golang/backup_manager/backup_manager_server/recovery_capsule_phase1b_test.go
+- golang/node_agent/node_agent_server/secret_collector.go
+- golang/node_agent/node_agent_server/secret_collector_test.go
 related_invariants: []
 zooms_out_to:
 - backup.must_be_restorable_not_just_taken

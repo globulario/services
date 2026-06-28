@@ -3,8 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"strings"
@@ -17,8 +18,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-	"crypto/tls"
-	"crypto/x509"
 )
 
 // peerManager discovers and communicates with ai-executor instances on other nodes.
@@ -413,5 +412,3 @@ func resolveHostnameFromHosts(ip string) string {
 	return ""
 }
 
-// Suppress unused import warning for slog.
-var _ = slog.Info

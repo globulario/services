@@ -1,5 +1,5 @@
 id: repository.local_cas_is_installability_authority
-level: mechanism
+level: contract
 title: Binary blob must be locally present on POSIX CAS — MinIO mirror presence is not sufficient for installability
 intent: |
   Installability requires two conditions to both be true: (1) metadata in Scylla with

@@ -1,5 +1,5 @@
 id: interceptors.call_depth_prevents_circular_cascade
-level: mechanism
+level: contract
 title: Call depth ≥10 is rejected immediately to prevent A→B→C→A infinite cascade
 intent: |
   Globular services call each other over gRPC. If service A calls B which calls C which

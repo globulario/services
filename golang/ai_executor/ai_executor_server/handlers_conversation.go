@@ -147,9 +147,21 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 		}
 	}
 
-	// Fallback to CLI.
+	// Fallback to Codex CLI.
+	if responseText == "" && srv.diagnoser.codex != nil && srv.diagnoser.codex.isAvailable() {
+		cliPrompt := buildCLIConversationPrompt(systemPrompt, history)
+		cliResp, cliErr := srv.diagnoser.codex.sendPrompt(ctx, cliPrompt)
+		if cliErr != nil {
+			logger.Warn("codex CLI failed for conversation, trying Claude CLI", "err", cliErr)
+		} else {
+			responseText = cliResp
+			inputTokens = -1
+			outputTokens = -1
+		}
+	}
+
+	// Fallback to Claude CLI.
 	if responseText == "" && srv.diagnoser.claude != nil && srv.diagnoser.claude.isAvailable() {
-		// CLI is single-shot, so include recent history in prompt.
 		cliPrompt := buildCLIConversationPrompt(systemPrompt, history)
 		cliResp, cliErr := srv.diagnoser.claude.sendPrompt(ctx, cliPrompt)
 		if cliErr != nil {
@@ -157,6 +169,10 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 			return status.Errorf(codes.Internal, "AI unavailable: %v", cliErr)
 		}
 		responseText = cliResp
+		// CLI subprocess does not report token counts; use -1 to distinguish
+		// "not counted" from "zero tokens used" in billing/audit records.
+		inputTokens = -1
+		outputTokens = -1
 	}
 
 	if responseText == "" {
@@ -186,16 +202,16 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 
 	// Send the final response.
 	return stream.Send(&ai_executorpb.SendPromptResponse{
-		ConversationId: convID,
-		MessageId:      assistantMsgID,
-		FullText:       responseText,
-		Status:         ai_executorpb.ConversationStatus_CONV_STATUS_COMPLETE,
-		Done:           true,
-		NeedsHumanReply:   needsReply,
-		QuestionForHuman:  extractQuestion(responseText, needsReply),
-		InputTokens:    int32(inputTokens),
-		OutputTokens:   int32(outputTokens),
-		RespondingNode: hostname,
+		ConversationId:   convID,
+		MessageId:        assistantMsgID,
+		FullText:         responseText,
+		Status:           ai_executorpb.ConversationStatus_CONV_STATUS_COMPLETE,
+		Done:             true,
+		NeedsHumanReply:  needsReply,
+		QuestionForHuman: extractQuestion(responseText, needsReply),
+		InputTokens:      int32(inputTokens),
+		OutputTokens:     int32(outputTokens),
+		RespondingNode:   hostname,
 	})
 }
 

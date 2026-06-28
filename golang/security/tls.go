@@ -64,23 +64,17 @@ func preferProtocolForPort(p int) (primary, alternate string) {
 
 // resolveCAAuthority normalizes the host and port.
 // If address already includes a port, we trust that instead of the given port.
-func resolveCAAuthority(address string, port int) (string, int) {
+func resolveCAAuthority(address string, port int) (string, int, error) {
 	a := strings.TrimSpace(address)
 	if a == "" {
-		// VIOLATION: meta.fallback_must_degrade_semantics — returning localhost silently
-		// masks a missing address. Log at ERROR so operators can diagnose misconfiguration
-		// rather than silently connecting to the wrong host.
-		slog.Error("resolveCAAuthority: address is empty, falling back to localhost — this is a misconfiguration",
-			"port", port,
-		)
-		return "localhost", port
+		return "", 0, fmt.Errorf("CA authority address is empty")
 	}
 	if h, p, err := net.SplitHostPort(a); err == nil {
 		if pn, e := net.LookupPort("tcp", p); e == nil {
-			return h, pn
+			return h, pn, nil
 		}
 	}
-	return a, port
+	return a, port, nil
 }
 
 func systemTrustClient(timeout time.Duration) *http.Client {
@@ -150,7 +144,10 @@ func isCertError(err error) bool {
 
 /* ---------- fixed versions of your functions ---------- */
 func getCaCertificate(address string, port int) (string, error) {
-	host, p := resolveCAAuthority(address, port)
+	host, p, err := resolveCAAuthority(address, port)
+	if err != nil {
+		return "", fmt.Errorf("get CA certificate: %w", err)
+	}
 	prim, alt := preferProtocolForPort(p)
 
 	// Build both URLs up front
@@ -181,7 +178,10 @@ func getCaCertificate(address string, port int) (string, error) {
 }
 
 func signCaCertificate(address string, csr string, port int) (string, error) {
-	host, p := resolveCAAuthority(address, port)
+	host, p, err := resolveCAAuthority(address, port)
+	if err != nil {
+		return "", fmt.Errorf("sign CA certificate: %w", err)
+	}
 	prim, alt := preferProtocolForPort(p)
 
 	csrStr := base64.StdEncoding.EncodeToString([]byte(csr))

@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
+	globular "github.com/globulario/services/golang/globular_service"
+	"google.golang.org/grpc"
 )
-
-var execCommand = exec.Command
 
 // Ping returns this executor's identity and capabilities.
 func (srv *server) Ping(ctx context.Context, req *ai_executorpb.PeerPingRequest) (*ai_executorpb.PeerPingResponse, error) {
@@ -53,16 +54,17 @@ func (srv *server) ShareObservation(ctx context.Context, req *ai_executorpb.Peer
 
 	switch req.Category {
 	case "service_crash", "service_failed":
-		// Check if the same service is unhealthy on this node.
+		// Check cluster health for the named service — os/exec is not allowed
+		// outside node_agent; routing through cluster controller is the correct path.
 		unit := req.Subject
 		if unit != "" {
-			healthy, reason := checkLocalUnit(unit)
+			healthy, reason := checkServiceHealth(ctx, unit)
 			if !healthy {
 				confirmed = true
 				localEvidence = reason
-				confidence = 0.9
+				confidence = 0.7 // lower than os/exec: cluster-level, not node-local
 			} else {
-				localEvidence = "service healthy on this node"
+				localEvidence = reason
 				confidence = 0.8
 			}
 		}
@@ -166,19 +168,42 @@ func (srv *server) NotifyActionTaken(ctx context.Context, req *ai_executorpb.Pee
 
 // --- Helpers ---
 
-func checkLocalUnit(unit string) (bool, string) {
-	// Quick systemd check — reuse the same pattern as event publisher.
-	// Returns (healthy, reason).
-	cmd := execCommand("systemctl", "is-active", unit)
-	out, err := cmd.Output()
+// checkServiceHealth queries the cluster controller to see if any node reports
+// the named service as degraded or missing. This replaces a direct os/exec
+// systemctl call (which violates the boundary: only node_agent may exec systemctl).
+// The check is coarser (cluster-wide, not local) but architecturally correct.
+func checkServiceHealth(ctx context.Context, serviceName string) (healthy bool, reason string) {
+	addr := config.ResolveServiceAddr("clustercontroller.ClusterControllerService", "")
+	if addr == "" {
+		return false, "cluster controller not found — cannot check service health"
+	}
+
+	baseOpts, err := globular.InternalDialOptions()
 	if err != nil {
-		return false, "unit " + unit + " is not active"
+		return false, "internal TLS unavailable: " + err.Error()
 	}
-	state := string(out)
-	if state == "active\n" || state == "active" {
-		return true, ""
+	//nolint:staticcheck // grpc.Dial / grpc.WithTimeout not yet migrated to grpc.NewClient
+	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
+	//nolint:staticcheck
+	cc, err := grpc.Dial(addr, opts...)
+	if err != nil {
+		return false, "cannot dial cluster controller: " + err.Error()
 	}
-	return false, "unit state: " + state
+	defer func() { _ = cc.Close() }()
+
+	health, err := cluster_controllerpb.NewClusterControllerServiceClient(cc).
+		GetClusterHealth(ctx, &cluster_controllerpb.GetClusterHealthRequest{})
+	if err != nil {
+		return false, "health check RPC failed: " + err.Error()
+	}
+
+	for _, nh := range health.GetNodeHealth() {
+		if nh.GetStatus() != "healthy" && nh.GetStatus() != "ready" {
+			// A degraded node may be running the service; treat as unconfirmed-unhealthy.
+			return false, fmt.Sprintf("node %s is %s (service %s may be affected)", nh.GetNodeId(), nh.GetStatus(), serviceName)
+		}
+	}
+	return true, fmt.Sprintf("all nodes healthy — service %s likely running", serviceName)
 }
 
 func formatFloat(f float32) string {

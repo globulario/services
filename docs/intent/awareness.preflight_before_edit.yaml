@@ -15,9 +15,13 @@ activation_triggers:
 - forbidden fix
 - intent_explain
 expressed_by:
-- awareness/agent_workflow.md
-- awareness/daily_workflow.md
-- awareness/preflight_audit.md
+- docs/awareness/agent_workflow.md
+- docs/awareness/daily_workflow.md
+- docs/awareness/preflight_audit.md
+- ../awareness-graph/golang/server/preflight.go
+- ../awareness-graph/golang/server/preflight_cli.go
+- ../awareness-graph/cmd/awareness-mcp/main.go
+- ../awareness-graph/cmd/awg/cmd_preflight.go
 related_invariants: []
 zooms_out_to:
 - awareness.graph_is_compiled_context_not_authority

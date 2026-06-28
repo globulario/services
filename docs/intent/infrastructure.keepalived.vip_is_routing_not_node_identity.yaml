@@ -27,9 +27,9 @@ activation_triggers:
   - vrrp
   - failover
 expressed_by:
-  - operational-knowledge/stages/day-1-keepalived.yaml
-  - intent/vip_management_requires_explicit_owner.yaml
-  - services/golang/cluster_controller/cluster_controller_server/dns_state.go
+  - docs/operational-knowledge/stages/day-1-keepalived.yaml
+  - docs/intent/vip_management_requires_explicit_owner.yaml
+  - golang/cluster_controller/cluster_controller_server/dns_state.go
 related_invariants: []
 zooms_out_to:
   - vip_management_requires_explicit_owner

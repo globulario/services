@@ -11,6 +11,11 @@ activation_triggers:
   - repository repair
   - index mismatch
   - checksum mismatch
+expressed_by:
+- golang/repository/repository_server/artifact_verify_rpc.go
+- golang/repository/repository_server/artifact_admin.go
+- golang/repository/repository_server/repair_authorization.go
+- golang/cluster_controller/cluster_controller_server/repair_handler.go
 related_to:
   - repository.lifecycle_state_machine
 required_tests:

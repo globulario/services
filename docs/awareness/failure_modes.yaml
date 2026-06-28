@@ -354,6 +354,37 @@ failure_modes:
         - Incidents appear resolved in dashboard during executor outage
         - No operator signal that incidents were not actually diagnosed
       title: Executor connection errors (addr empty, TLS, dial) mark incident as RESOLVED — false terminal success state
+    - fixed_in: 2c2e36fa
+      id: ai_watcher.tier2_approval_resolved_without_dispatch
+      protects:
+        files:
+            - golang/ai_watcher/ai_watcher_server/server.go
+      related_invariants:
+        - meta.fallback_must_degrade_semantics
+        - meta.connection_errors_must_not_be_absorbed
+        - meta.no_resolution_without_a_respected_contract
+      required_tests:
+        - TestApproveAction_SuccessResolvesOnlyAfterExecution
+        - TestApproveAction_ExecutionFailureIsNotResolved
+        - TestApproveAction_DispatchErrorIsNotResolved
+        - TestApproveAction_RejectsNonAwaitingIncidentWithoutDispatch
+      root_cause: |
+        ApproveAction marked Tier-2 (REQUIRE_APPROVAL) incidents
+        INCIDENT_RESOLVED the instant approval was recorded, without ever
+        executing the proposed action (TODO stub at server.go:887-889). False
+        closure: the state claimed success while the action never ran. Fix:
+        approval now sets INCIDENT_REMEDIATING and delegates to the executor
+        ApproveAction RPC; the incident reaches RESOLVED only on JOB_SUCCEEDED,
+        else INCIDENT_FAILED with approval + execution_error metadata. Sibling
+        of ai_watcher.connection_error_marked_resolved (same false-terminal
+        -success class on the Tier-1 path).
+      severity: high
+      status: fixed
+      symptoms:
+        - Tier-2 incidents show RESOLVED in the dashboard after a human approves, but no remediation ran
+        - approved_action recorded in metadata yet the target service is unchanged
+        - No operator signal that the approved action was never dispatched
+      title: Tier-2 approval marks incident RESOLVED without dispatching the approved action — false terminal success state
     - architecture_fix: |
         Skip _test.go files in ValidateAnnotations, consistent with the goast extractor convention (production //globular: annotations are never written in test files). Single-line WalkDir filter change: !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go").
       id: annotation_scanner_false_positive
@@ -5115,7 +5146,7 @@ failure_modes:
           - DNS in-memory cache fallback (dns_server/handlers.go:174)
           - Node-agent repository → local package fallback (installer_api.go:95)
           - Storage resilient mirror cache-fill (storage_backend/resilient_storage.go:54)
-          - Objectstore admission etcd-skip (repository_server/objectstore_admission.go:66)
+          - Objectstore admission etcd-skip (cluster_controller_server/objectstore_admission.go)
           - Workflow YAML local-disk fallback (workflow/v1alpha1/loader.go)
 
         Once Phase 9 (verifier) is live the doctor / cluster event bus

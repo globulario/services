@@ -28,6 +28,10 @@ activation_triggers:
 - package_publish
 - reservation
 - desired-state write
+expressed_by:
+- golang/repository/repository_server/allocate_upload.go
+- golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+- golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go
 related_invariants:
 - package.release_vs_dev_channel_boundary
 - release.version_single_authority
@@ -52,4 +56,7 @@ violation_patterns:
 - "dev.*artifact.*desired"
 - "agent.*write.*desired"
 - "local.*allocate.*release version"
+required_tests:
+- golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go::TestChannelEligibleForDesiredState_ReleaseTiersAccepted
+- golang/repository/repository_server/release_authority_test.go::TestReleaseAllocationRequiresNamespacePermission
 status: proposed

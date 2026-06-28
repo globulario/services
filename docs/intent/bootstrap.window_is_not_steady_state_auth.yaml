@@ -15,9 +15,9 @@ activation_triggers:
 - join token
 - security window
 expressed_by:
-- operators/bootstrap-security.md
-- operators/security.md
-- operators/day-0-1-2-operations.md
+- docs/operators/bootstrap-security.md
+- docs/operators/security.md
+- docs/operators/day-0-1-2-operations.md
 related_invariants: []
 zooms_out_to:
 - globular.security.ceremony_over_configuration

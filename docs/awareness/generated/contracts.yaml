@@ -1346,6 +1346,286 @@ contracts:
       stereotype: rpc
       view: interaction
       confidence: inferred
+  - id: contract.behavioral_memory_service
+    name: BehavioralMemoryService
+    description: 'BehavioralMemoryService is the protocol-shaped surface of the behavioral-memory kernel — a governed-learning layer that turns raw operational signals into evidence-backed, authority-mapped, condition-scoped behavioral principles, and then enforces them at action time.  It is deployed *inside* the ai-memory service today (one binary, two gRPC services) but is defined as a standalone service contract so the kernel can be promoted to its own deployment later without changing the domain model.  The vocabulary (EvidenceLaneMode, PromotionDecision, the governance status ladder) deliberately mirrors the awareness-graph (AWG) governance model so the two can share a kernel in the future. AWG governs *code/repair* contracts; this service governs *runtime/operation* contracts. Same meta-principle: no claim of resolution without authority, condition scope, evidence, and proof.  PR-1 scope: contract + skeleton only. All RPCs currently return UNIMPLEMENTED. — gRPC service BehavioralMemoryService with 19 RPC(s): RecordSignal, ExtractClaim, RecordEvidence, MapAuthority, RecordContradiction, RegisterCondition, RunContradictionCheck, ProposePrinciple, PromotePrinciple, RevokePrinciple, ExplainPrinciple, ResolveGovernedContext, CheckAction, RecordOutcome, GeneratePromotionCandidate, ListPromotionCandidates, GenerateReconciliationReport, ListReconciliationReports, GetGovernanceCoverage.'
+    kind: grpc
+    stability: stable
+    read_or_write: read_write
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Interface
+      stereotype: grpc_service
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.record_signal
+    name: BehavioralMemoryService.RecordSignal
+    description: RecordSignal captures raw operational input (logs, probes, health checks, agent decisions, operator corrections, test results, status snapshots). — rpc RecordSignal(RecordSignalRequest) returns (RecordSignalResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.extract_claim
+    name: BehavioralMemoryService.ExtractClaim
+    description: ExtractClaim turns one or more raw signals into structured claim(s). — rpc ExtractClaim(ExtractClaimRequest) returns (ExtractClaimResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.record_evidence
+    name: BehavioralMemoryService.RecordEvidence
+    description: RecordEvidence attaches supporting evidence to a claim or a principle. — rpc RecordEvidence(RecordEvidenceRequest) returns (RecordEvidenceResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.map_authority
+    name: BehavioralMemoryService.MapAuthority
+    description: MapAuthority identifies who or what governs a claim/principle. — rpc MapAuthority(MapAuthorityRequest) returns (MapAuthorityResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.record_contradiction
+    name: BehavioralMemoryService.RecordContradiction
+    description: RecordContradiction records conflicts between claims, evidence, conditions or rules — contradictions are surfaced, never hidden. — rpc RecordContradiction(RecordContradictionRequest) returns (RecordContradictionResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.register_condition
+    name: BehavioralMemoryService.RegisterCondition
+    description: 'RegisterCondition adds a runtime condition to the domain catalog through a governed public path, so a principle''s applies_when refs resolve at the promotion gate. Replaces the test-only store.PutCondition seam: promotion must be reachable through the kernel''s own surface, never direct store writes. — rpc RegisterCondition(RegisterConditionRequest) returns (RegisterConditionResponse)'
+    kind: grpc
+    stability: stable
+    read_or_write: write
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.run_contradiction_check
+    name: BehavioralMemoryService.RunContradictionCheck
+    description: RunContradictionCheck performs the contradiction check for a principle (scanning promoted principles for conflicting forbidden-moves) and records the result. It sets ContradictionChecked only after a real check; any conflict found is recorded as an open contradiction the gate then surfaces. This is the governed completion path for the gate's contradiction-check requirement — replacing test-only ContradictionChecked fixture state. — rpc RunContradictionCheck(RunContradictionCheckRequest) returns (RunContradictionCheckResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: write
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.propose_principle
+    name: BehavioralMemoryService.ProposePrinciple
+    description: ProposePrinciple creates a candidate behavioral rule (not yet enforced). — rpc ProposePrinciple(ProposePrincipleRequest) returns (ProposePrincipleResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.promote_principle
+    name: BehavioralMemoryService.PromotePrinciple
+    description: PromotePrinciple promotes a candidate only after the governance gate passes (evidence, authority, condition scope, contradiction checks). High-risk or irreversible principles return PROMOTION_REVIEW_REQUIRED for human approval. — rpc PromotePrinciple(PromotePrincipleRequest) returns (PromotePrincipleResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: write
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.revoke_principle
+    name: BehavioralMemoryService.RevokePrinciple
+    description: RevokePrinciple revokes, narrows, or supersedes a promoted rule. — rpc RevokePrinciple(RevokePrincipleRequest) returns (RevokePrincipleResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: write
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.explain_principle
+    name: BehavioralMemoryService.ExplainPrinciple
+    description: ExplainPrinciple explains why a principle exists, what promoted it, when it applies, and how it can be revoked. — rpc ExplainPrinciple(ExplainPrincipleRequest) returns (ExplainPrincipleResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: read
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.resolve_governed_context
+    name: BehavioralMemoryService.ResolveGovernedContext
+    description: 'ResolveGovernedContext is the operator-brain retrieval endpoint: given a runtime situation or goal, it returns applicable principles, required evidence, forbidden moves, unresolved authority, contradictions, prior outcomes, and recommended behavior. — rpc ResolveGovernedContext(ResolveGovernedContextRequest) returns (ResolveGovernedContextResponse)'
+    kind: grpc
+    stability: stable
+    read_or_write: read
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.check_action
+    name: BehavioralMemoryService.CheckAction
+    description: CheckAction decides whether a proposed action is allowed, blocked, needs evidence, needs authority, or needs human approval under current governed memory. This is the pre-action gate. — rpc CheckAction(CheckActionRequest) returns (CheckActionResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: read
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.record_outcome
+    name: BehavioralMemoryService.RecordOutcome
+    description: RecordOutcome records what happened after an action (success/failure/ blocked/reverted), feeding the learning loop. — rpc RecordOutcome(RecordOutcomeRequest) returns (RecordOutcomeResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.generate_promotion_candidate
+    name: BehavioralMemoryService.GeneratePromotionCandidate
+    description: GeneratePromotionCandidate turns a repeated outcome theme plus an explicit draft rule into a human-review queue item. It never creates or promotes a principle automatically. — rpc GeneratePromotionCandidate(GeneratePromotionCandidateRequest) returns (GeneratePromotionCandidateResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.list_promotion_candidates
+    name: BehavioralMemoryService.ListPromotionCandidates
+    description: ListPromotionCandidates returns queued human-review candidates. — rpc ListPromotionCandidates(ListPromotionCandidatesRequest) returns (ListPromotionCandidatesResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: read
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.generate_reconciliation_report
+    name: BehavioralMemoryService.GenerateReconciliationReport
+    description: GenerateReconciliationReport creates an advisory bridge artifact between behavioral-memory and AWG. It surfaces drift/reinforcement and proposed review links only; it never mutates either governance surface. — rpc GenerateReconciliationReport(GenerateReconciliationReportRequest) returns (GenerateReconciliationReportResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.list_reconciliation_reports
+    name: BehavioralMemoryService.ListReconciliationReports
+    description: ListReconciliationReports returns stored advisory bridge reports. — rpc ListReconciliationReports(ListReconciliationReportsRequest) returns (ListReconciliationReportsResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: read
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.behavioral_memory_service.get_governance_coverage
+    name: BehavioralMemoryService.GetGovernanceCoverage
+    description: GetGovernanceCoverage reports how many CheckAction verdicts were governed (an applicable promoted principle existed) vs ungoverned (default-allow with no applicable principle) for a project/domain — so the gate's actual reach is measurable, not assumed. Read-only; never mutates governance. — rpc GetGovernanceCoverage(GetGovernanceCoverageRequest) returns (GetGovernanceCoverageResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: read
+    assertion: inferred
+    source_files:
+      - proto/behavioral_memory.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
   - id: contract.blog_service
     name: BlogService
     description: '* Proto file for BlogService, offering a range of functionalities for blogging. * This includes creating, updating, managing blog posts, comments, emojis, and * searching through blog posts. — gRPC service BlogService with 10 RPC(s): CreateBlogPost, SaveBlogPost, GetBlogPostsByAuthors, GetBlogPosts, SearchBlogPosts, DeleteBlogPost, AddEmoji, RemoveEmoji, AddComment, RemoveComment.'
@@ -2160,7 +2440,7 @@ contracts:
       confidence: inferred
   - id: contract.cluster_controller_service
     name: ClusterControllerService
-    description: 'gRPC service ClusterControllerService with 47 RPC(s): GetClusterInfo, CreateJoinToken, RequestJoin, ListJoinRequests, ApproveJoin, RejectJoin, ListNodes, ResolveNode, SetNodeProfiles, SetNodeBootstrapPhase, EmitWorkflowEvent, RemoveNode, GetClusterHealth, UpdateClusterNetwork, ReportNodeStatus, GetJoinRequestStatus, UpgradeGlobular, CompleteOperation, WatchOperations, GetClusterHealthV1, GetSubsystemHealth, GetNodeHealthDetailV1, PreviewNodeProfiles, GetDesiredState, ListDesiredBuildIDs, GetRoutingRefresh, ListExternalDomains, ListServices, GetIngressStatus, RequestIngressRepublish, CreateExternalDomain, DeleteExternalDomain, CreateDNSProvider, ListDNSProviders, ListServiceReleasesJson, ListInfrastructureReleasesJson, CleanupGhostNodePackages, GetScyllaSchemaGuardStatus, RequestScyllaSchemaEnforce, UpsertDesiredService, RemoveDesiredService, SeedDesiredState, ValidateArtifact, PreviewDesiredServices, ResignLeadership, DeployControlPlanePackage, RequestJoinAuthorization.'
+    description: 'gRPC service ClusterControllerService with 55 RPC(s): GetClusterInfo, CreateJoinToken, RequestJoin, ListJoinRequests, ApproveJoin, RejectJoin, ListNodes, ResolveNode, SetNodeProfiles, SetNodeBootstrapPhase, EmitWorkflowEvent, RemoveNode, GetClusterHealth, UpdateClusterNetwork, ReportNodeStatus, GetJoinRequestStatus, UpgradeGlobular, CompleteOperation, WatchOperations, GetClusterHealthV1, GetSubsystemHealth, GetNodeHealthDetailV1, PreviewNodeProfiles, GetDesiredState, ListDesiredBuildIDs, GetRoutingRefresh, ListExternalDomains, ListServices, GetIngressStatus, RequestIngressRepublish, CreateExternalDomain, DeleteExternalDomain, CreateDNSProvider, ListDNSProviders, ListServiceReleasesJson, ListInfrastructureReleasesJson, CleanupGhostNodePackages, GetScyllaSchemaGuardStatus, RequestScyllaSchemaEnforce, UpsertDesiredService, RemoveDesiredService, SeedDesiredState, ValidateArtifact, PreviewDesiredServices, ResignLeadership, DeployControlPlanePackage, RequestJoinAuthorization, SetAccConfig, ResetAccConfig, ApplyObjectStoreTopology, SanitizeObjectStorePool, ApproveObjectStoreDisk, RejectObjectStoreDisk, PlanObjectStoreTopology, ActivatePlatformRelease.'
     kind: grpc
     stability: stable
     read_or_write: read_write
@@ -2819,6 +3099,118 @@ contracts:
   - id: contract.cluster_controller_service.request_join_authorization
     name: ClusterControllerService.RequestJoinAuthorization
     description: RequestJoinAuthorization is the v2 join path. The installer submits a join token and its stable identity; the controller returns a signed JoinPlan. The gateway is a courier — it MUST NOT modify the plan or assign profiles. — rpc RequestJoinAuthorization(JoinAuthorizationRequest) returns (JoinAuthorizationResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/cluster_controller.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.cluster_controller_service.set_acc_config
+    name: ClusterControllerService.SetAccConfig
+    description: ── ACC (adaptive concurrency control) config ── The interceptor ACC config lives at /globular/system/acc/config, owned by the cluster-controller. These RPCs let the CLI (and other clients) set/reset it through the owner instead of a raw etcd write (RT-2). — rpc SetAccConfig(SetAccConfigRequest) returns (SetAccConfigResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: write
+    assertion: inferred
+    source_files:
+      - proto/cluster_controller.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.cluster_controller_service.reset_acc_config
+    name: ClusterControllerService.ResetAccConfig
+    description: rpc ResetAccConfig(ResetAccConfigRequest) returns (ResetAccConfigResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/cluster_controller.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.cluster_controller_service.apply_object_store_topology
+    name: ClusterControllerService.ApplyObjectStoreTopology
+    description: '── ObjectStore topology apply ── ApplyObjectStoreTopology applies a previously-planned topology proposal. It replaces the etcd-mediated apply_request/apply_result handshake the CLI used to drive directly: the controller (owner of objectstore desired topology) loads the proposal by id, runs the full admission/validation/transition contract, and returns the outcome synchronously. Leader-gated. — rpc ApplyObjectStoreTopology(ApplyObjectStoreTopologyRequest) returns (ApplyObjectStoreTopologyResponse)'
+    kind: grpc
+    stability: stable
+    read_or_write: write
+    assertion: inferred
+    source_files:
+      - proto/cluster_controller.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.cluster_controller_service.sanitize_object_store_pool
+    name: ClusterControllerService.SanitizeObjectStorePool
+    description: SanitizeObjectStorePool removes stale MinIO pool peers (IPs that no longer belong to an eligible cluster node) from the controller's authoritative state. The controller is the sole owner of /globular/clustercontroller/state; it read-modify-writes its FULL state struct (no field loss — unlike the old CLI path, which clobbered the blob down to a 4-field projection) and republishes objectstore desired state canonically. dry_run computes the change without applying. Leader-gated. — rpc SanitizeObjectStorePool(SanitizeObjectStorePoolRequest) returns (SanitizeObjectStorePoolResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/cluster_controller.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.cluster_controller_service.approve_object_store_disk
+    name: ClusterControllerService.ApproveObjectStoreDisk
+    description: ── ObjectStore disk admission + topology planning (owner writes) ── The cluster-controller owns objectstore placement state (admitted disks + topology proposals). These replace the CLI's direct config.SaveAdmittedDisk / DeleteAdmittedDisk / SaveTopologyProposal writes (RT-2). Leader-gated. — rpc ApproveObjectStoreDisk(ApproveObjectStoreDiskRequest) returns (ApproveObjectStoreDiskResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: write
+    assertion: inferred
+    source_files:
+      - proto/cluster_controller.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.cluster_controller_service.reject_object_store_disk
+    name: ClusterControllerService.RejectObjectStoreDisk
+    description: rpc RejectObjectStoreDisk(RejectObjectStoreDiskRequest) returns (RejectObjectStoreDiskResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: write
+    assertion: inferred
+    source_files:
+      - proto/cluster_controller.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.cluster_controller_service.plan_object_store_topology
+    name: ClusterControllerService.PlanObjectStoreTopology
+    description: rpc PlanObjectStoreTopology(PlanObjectStoreTopologyRequest) returns (PlanObjectStoreTopologyResponse)
+    kind: grpc
+    stability: stable
+    read_or_write: unknown
+    assertion: inferred
+    source_files:
+      - proto/cluster_controller.proto
+    uml:
+      kind: Operation
+      stereotype: rpc
+      view: interaction
+      confidence: inferred
+  - id: contract.cluster_controller_service.activate_platform_release
+    name: ClusterControllerService.ActivatePlatformRelease
+    description: 'ActivatePlatformRelease advances the cluster''s ACTIVE platform release pointer (etcd /globular/platform/active_release) to release_tag, after a synchronous convergence gate: every package in the local repository BOM that is installed on a node must already run the BOM version on that node (native- version safe). Refuses on lagging nodes unless force=true, and on a platform_release older than the current anchor unless allow_regression=true. Idempotent: re-activating the current tag is a no-op. The controller writes ONLY the etcd anchor here — node-local release-index.json materialization is a later slice. See docs/design/platform-release-pointer-advance.md. — rpc ActivatePlatformRelease(ActivatePlatformReleaseRequest) returns (ActivatePlatformReleaseResponse)'
     kind: grpc
     stability: stable
     read_or_write: unknown

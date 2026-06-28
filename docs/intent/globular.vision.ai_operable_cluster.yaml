@@ -16,9 +16,9 @@ activation_triggers:
 - structured context
 - automation
 expressed_by:
-- ai/ai-operator-guide.md
-- awareness/mcp_tools.md
-- awareness/agent_workflow.md
+- docs/ai/ai-operator-guide.md
+- docs/awareness/mcp_tools.md
+- docs/awareness/agent_workflow.md
 related_invariants: []
 zooms_out_to: []
 zooms_in_to:

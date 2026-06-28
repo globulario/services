@@ -1,5 +1,5 @@
 id: event.delivery_is_not_guaranteed
-level: mechanism
+level: contract
 title: Event publish success is not delivery success — subscribers must be idempotent
 intent: |
   Publishing to the event service means the event is durable in ScyllaDB. It does NOT mean

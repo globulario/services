@@ -11,6 +11,12 @@ activation_triggers:
   - "extending the echo reference service beyond echo"
 bad_smells:
   - "echo service gaining business logic, storage, or dependencies beyond the reference scope"
+expressed_by:
+- golang/echo/echo_server/handlers.go
+- golang/echo/echo_server/server.go
+- golang/echo/echo_server/server_test.go
 related_invariants:
   - echo_rpc_is_stateless
   - echo_rpc_preserves_message_bytes
+required_tests:
+- golang/echo/echo_server/server_test.go::TestEchoHandler

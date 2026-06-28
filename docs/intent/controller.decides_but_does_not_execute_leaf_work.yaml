@@ -16,8 +16,8 @@ activation_triggers:
 - os/exec
 - dispatch
 expressed_by:
-- operators/architecture-overview.md
-- awareness/subsystem_boundaries.yaml
+- docs/operators/architecture-overview.md
+- docs/awareness/subsystem_boundaries.yaml
 related_invariants: []
 zooms_out_to:
 - globular.vision.explicit_convergence

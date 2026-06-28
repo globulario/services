@@ -15,9 +15,9 @@ activation_triggers:
 - state machine
 - operator visibility
 expressed_by:
-- operators/convergence-model.md
-- operators/architecture-overview.md
-- operators/deployment-philosophy.md
+- docs/operators/convergence-model.md
+- docs/operators/architecture-overview.md
+- docs/operators/deployment-philosophy.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster

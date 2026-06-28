@@ -1,5 +1,5 @@
 id: pki.san_must_include_all_service_identities
-level: mechanism
+level: contract
 title: SANs must include every IP and DNS name the service is reached by — missing SAN causes mTLS failure
 status: active
 
@@ -37,6 +37,10 @@ zooms_out_to:
   - dns_pki.explicit_identity_over_convenient_routing
 
 zooms_in_to: []
+
+expressed_by:
+- golang/pki/san.go
+- golang/pki/validate.go
 
 related_invariants: []
 

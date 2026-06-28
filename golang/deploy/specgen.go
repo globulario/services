@@ -126,8 +126,8 @@ func ValidateSpec(content string) error {
 		}
 		val := strings.TrimPrefix(trimmed, "WorkingDirectory=")
 		// Reject any path under the Globular state dir without the '-' prefix.
-		if (strings.HasPrefix(val, "/var/lib/globular/") ||
-			strings.HasPrefix(val, "{{.StateDir}}/")) {
+		if strings.HasPrefix(val, "/var/lib/globular/") ||
+			strings.HasPrefix(val, "{{.StateDir}}/") {
 			return fmt.Errorf("line %d: fragile WorkingDirectory=%q — must use '-' prefix (WorkingDirectory=-%s) to make the state dir optional; "+
 				"without it systemd aborts with status=200/CHDIR when the directory is missing", i+1, val, val)
 		}
@@ -186,7 +186,7 @@ steps:
         owner: globular
         group: globular
         mode: 0750
-      - path: "{{.StateDir}}/<<% .Name %>>"
+      - path: "{{.StateDir}}/<<% .RuntimeDir %>>"
         owner: globular
         group: globular
         mode: 0750
@@ -230,10 +230,10 @@ steps:
           Type=simple
           User=<<% .User %>>
           Group=<<% .Group %>>
-          WorkingDirectory=-{{.StateDir}}/<<% .Name %>>
+          WorkingDirectory=-{{.StateDir}}/<<% .RuntimeDir %>>
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
 
-          ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/<<% .Name %>> && chown <<% .User %>>:<<% .Group %>> {{.StateDir}}/<<% .Name %>>'
+          ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/<<% .RuntimeDir %>> && chown <<% .User %>>:<<% .Group %>> {{.StateDir}}/<<% .RuntimeDir %>>'
           ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -f /var/lib/globular/pki/issued/services/service.crt ] && exit 0; sleep 1; done; echo "TLS cert not ready after 60s"; ls -la /var/lib/globular/pki/issued/services/ 2>&1 || echo "cert dir missing"; exit 1'
 <<%- if .NeedsScylla %>>
           ExecStartPre=/bin/sh -c 'for i in $(seq 1 90); do ss -lnt | grep -q ":9042 " && exit 0; sleep 1; done; echo "scylla 9042 not ready after 90s"; ss -lnt 2>&1; systemctl status scylla-server.service --no-pager -l 2>&1 | tail -5; exit 1'
@@ -276,6 +276,7 @@ steps:
 // specData holds all values needed to render the spec template.
 type specData struct {
 	Name          string
+	RuntimeDir    string
 	Profiles      []string
 	Priority      int
 	ExecName      string
@@ -313,6 +314,7 @@ func GenerateSpec(entry *ServiceEntry) (string, error) {
 
 	data := specData{
 		Name:          entry.Name,
+		RuntimeDir:    entry.PackageName(),
 		Profiles:      entry.Profiles,
 		Priority:      entry.Priority,
 		ExecName:      entry.ExecName(),
@@ -351,6 +353,7 @@ func init() {
 	// to be syntactically valid but distinguishable from any real package.
 	probe := specData{
 		Name:          "specgen-init-probe",
+		RuntimeDir:    "specgen-init-probe",
 		Profiles:      []string{"core"},
 		Priority:      0,
 		ExecName:      "probe_server",

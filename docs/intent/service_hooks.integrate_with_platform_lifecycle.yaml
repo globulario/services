@@ -15,8 +15,11 @@ activation_triggers:
 - configuration watch
 - graceful shutdown
 expressed_by:
-- developers/workflow-integration.md
-- operators/services-and-packages.md
+- docs/developers/workflow-integration.md
+- docs/operators/services-and-packages.md
+- golang/workflow/engine/preflight.go
+- golang/workflow/engine/preflight_test.go
+- golang/workflow/engine/engine.go
 related_invariants: []
 zooms_out_to:
 - api.grpc_contracts_are_operational_surface

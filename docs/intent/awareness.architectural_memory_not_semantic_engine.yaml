@@ -48,7 +48,14 @@ bad_smells:
   - ruleguard invoked for a non-Go language
   - core graph schema gaining language-semantic node classes
   - product copy describing AWG as a code analysis engine
+expressed_by:
+- ../awareness-graph/golang/extractor/code_symbols_import.go
+- ../awareness-graph/golang/extractor/code_symbols_import_test.go
+- ../awareness-graph/golang/extractor/importgraph/golang_test.go
 related_to:
   - awareness.multi_language_extraction
   - awareness.graph_is_compiled_context_not_authority
+required_tests:
+- ../awareness-graph/golang/extractor/code_symbols_import_test.go::TestCodeSymbols_EdgeToIntent
+- ../awareness-graph/golang/extractor/importgraph/golang_test.go::TestScan_Go_InternalDependsOn
 status: seed

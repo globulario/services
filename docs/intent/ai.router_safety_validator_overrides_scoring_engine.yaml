@@ -1,5 +1,5 @@
 id: ai.router_safety_validator_overrides_scoring_engine
-level: mechanism
+level: contract
 title: The router safety validator has unconditional final authority over any policy the scoring engine proposes
 intent: |
   The ai_router scoring engine proposes a RoutingPolicy (weights per endpoint per service).

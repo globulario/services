@@ -1,5 +1,5 @@
 id: security.cluster_id_validates_request_origin
-level: mechanism
+level: contract
 title: ClusterID in JWT claims prevents cross-cluster impersonation — empty or mismatched IDs are unconditional denials
 intent: |
   ClusterValidator.ValidateClusterID() enforces that the cluster_id claimed

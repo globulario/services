@@ -15,9 +15,9 @@ activation_triggers:
 - coverage
 - confidence
 expressed_by:
-- awareness/no_match_and_confidence.md
-- awareness/proposal_queue.md
-- awareness/graph_coverage.md
+- docs/awareness/no_match_and_confidence.md
+- docs/awareness/proposal_queue.md
+- docs/awareness/graph_coverage.md
 related_invariants: []
 zooms_out_to:
 - awareness.preflight_before_edit

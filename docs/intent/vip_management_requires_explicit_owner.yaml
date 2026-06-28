@@ -15,8 +15,8 @@ activation_triggers:
 - ingress
 - VRRP
 expressed_by:
-- operators/keepalived-and-ingress.md
-- awareness/forbidden_assumptions.yaml
+- docs/operators/keepalived-and-ingress.md
+- docs/awareness/forbidden_assumptions.yaml
 related_invariants:
 zooms_out_to:
 - dns_pki.explicit_identity_over_convenient_routing

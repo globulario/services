@@ -22,8 +22,8 @@ bad_smells:
   - ghost member not cleaned before re-admission
 
 expressed_by:
-  - Globular/gateway_server/
-  - services/golang/cluster_controller/
+  - Globular/internal/gateway/handlers/cluster
+  - golang/cluster_controller/
 
 related_invariants:
 

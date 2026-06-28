@@ -17,8 +17,8 @@ activation_triggers:
   - ingress
   - endpoint set
 expressed_by:
-  - services/golang/cluster_controller/cluster_controller_server/service_config.go
-  - services/golang/node_agent/node_agent_server/xds_config_reconcile.go
+  - golang/cluster_controller/cluster_controller_server/service_config.go
+  - golang/node_agent/node_agent_server/xds_config_reconcile.go
 related_invariants: []
 zooms_out_to:
   - infrastructure.envoy.service_mesh_data_plane_with_xds_authority

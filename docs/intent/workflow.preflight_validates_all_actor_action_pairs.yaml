@@ -1,5 +1,5 @@
 id: workflow.preflight_validates_all_actor_action_pairs
-level: mechanism
+level: contract
 title: Preflight validates every actor/action pair before any step executes
 status: active
 
@@ -32,6 +32,10 @@ zooms_out_to:
   - workflow.source_of_operational_truth
 
 zooms_in_to: []
+
+expressed_by:
+- golang/workflow/engine/preflight.go
+- golang/workflow/engine/preflight_test.go
 
 related_invariants:
 

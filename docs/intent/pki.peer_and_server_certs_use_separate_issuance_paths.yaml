@@ -1,5 +1,5 @@
 id: pki.peer_and_server_certs_use_separate_issuance_paths
-level: mechanism
+level: contract
 title: Peer certs always use local CA; server certs may use ACME; public ACME never touches mTLS certs
 status: active
 
@@ -37,6 +37,10 @@ zooms_out_to:
   - security.tokens_certificates_keys.cluster_trust_contract
 
 zooms_in_to: []
+
+expressed_by:
+- golang/pki/leaf_issue.go
+- golang/pki/manager.go
 
 related_invariants:
 

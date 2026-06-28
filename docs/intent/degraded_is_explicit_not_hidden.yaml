@@ -25,9 +25,9 @@ bad_smells:
   - fallback that masks the real failure from the cluster doctor
 
 expressed_by:
-  - services/golang/cluster_doctor/
-  - services/golang/cluster_controller/
-  - services/golang/ai_executor/
+  - golang/cluster_doctor/
+  - golang/cluster_controller/
+  - golang/ai_executor/
 
 related_invariants:
 

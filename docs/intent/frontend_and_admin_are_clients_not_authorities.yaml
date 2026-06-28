@@ -15,8 +15,8 @@ activation_triggers:
 - browser
 - dashboard
 expressed_by:
-- awareness/frontend_invariants.yaml
-- operators/mcp-setup.md
+- docs/awareness/frontend_invariants.yaml
+- docs/operators/mcp-setup.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster

@@ -1,5 +1,5 @@
 id: ai.decision_tier.gates_execution
-level: mechanism
+level: contract
 title: Incident tier classifies the execution authority of AI-driven actions
 intent: |
   Every AI-triggered incident is classified into one of three tiers before any action is taken:
@@ -28,6 +28,10 @@ activation_triggers:
   - tier 2
   - AWAITING_APPROVAL
 expressed_by:
+- golang/ai_watcher/ai_watcher_server/server.go
+- golang/ai_watcher/ai_watcher_server/default_rules.go
+- golang/ai_executor/ai_executor_server/remediator.go
+- golang/ai_executor/ai_executor_server/remediator_tier_default_test.go
 related_invariants:
   - doctor.hard_blocked_actions_never_execute
   - doctor.escalation_threshold_gates_repeated_attempts

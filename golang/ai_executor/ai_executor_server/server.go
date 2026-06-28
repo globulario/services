@@ -96,6 +96,7 @@ type server struct {
 
 	// Anthropic API config — when set, calls API directly instead of CLI.
 	Anthropic AnthropicConfig `json:"Anthropic"`
+	Codex     CodexConfig     `json:"Codex"`
 
 	// Peer collaboration — multi-node AI consensus.
 	peers *peerManager
@@ -208,7 +209,7 @@ func (srv *server) Init() error {
 		return err
 	}
 	srv.grpcServer = gs
-	srv.diagnoser = newDiagnoser(srv.Anthropic)
+	srv.diagnoser = newDiagnoser(srv.Anthropic, srv.Codex)
 	srv.remediator = newRemediator()
 	srv.jobStore = newJobStore()
 	srv.notifier = newMultiNotifier()
@@ -244,9 +245,8 @@ func (srv *server) Init() error {
 }
 
 // credentialWatchLoop periodically checks for AI credentials.
-// When a token becomes available (user logs into Claude Code, or another
-// node syncs to etcd), it hot-swaps the diagnoser's anthropic client
-// so AI reasoning activates without a service restart.
+// When credentials become available (or rotate on another node), it hot-swaps
+// the diagnoser backends so AI reasoning activates without a service restart.
 func (srv *server) credentialWatchLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
@@ -257,19 +257,31 @@ func (srv *server) credentialWatchLoop() {
 	srv.diagnoser.logReadiness("startup")
 
 	for range ticker.C {
-		// Already have a working client? Nothing to do.
 		if srv.diagnoser.anthropic != nil && srv.diagnoser.anthropic.isAvailable() {
-			// Check if token needs refresh.
 			if srv.diagnoser.anthropic.refreshToken != "" {
 				_ = srv.diagnoser.anthropic.ensureValidToken()
 			}
-			continue
 		}
 
-		// Try to create a new client from available sources.
-		client := newAnthropicClient(srv.Anthropic)
-		if client != nil && client.isAvailable() {
-			srv.diagnoser.anthropic = client
+		activated := false
+
+		if srv.diagnoser.anthropic == nil || !srv.diagnoser.anthropic.isAvailable() {
+			client := newAnthropicClient(srv.Anthropic)
+			if client != nil && client.isAvailable() {
+				srv.diagnoser.anthropic = client
+				activated = true
+			}
+		}
+
+		if srv.diagnoser.codex == nil || !srv.diagnoser.codex.isAvailable() {
+			client := newCodexClient(srv.Codex)
+			if client != nil && client.isAvailable() {
+				srv.diagnoser.codex = client
+				activated = true
+			}
+		}
+
+		if activated {
 			logger.Info("credential-watch: AI backend activated (hot-reload)")
 			srv.diagnoser.logReadiness("hot-reload")
 		}
@@ -298,6 +310,9 @@ func (srv *server) StopService() error {
 	if srv.diagnoser != nil && srv.diagnoser.claude != nil {
 		srv.diagnoser.claude.shutdown()
 	}
+	if srv.diagnoser != nil && srv.diagnoser.codex != nil {
+		srv.diagnoser.codex.shutdown()
+	}
 	if srv.convStore != nil {
 		srv.convStore.close()
 	}
@@ -313,7 +328,7 @@ func initializeServerDefaults() *server {
 		Proxy:           defaultProxy,
 		Protocol:        "grpc",
 		Version:         Version,
-		PublisherID:     "localhost",
+		PublisherID:     func() string { h, _ := os.Hostname(); return h }(),
 		Description:     "AI Executor — incident diagnosis and remediation engine",
 		Keywords:        []string{"ai", "executor", "diagnosis", "remediation", "incidents"},
 		AllowAllOrigins: true,

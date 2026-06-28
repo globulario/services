@@ -21,6 +21,10 @@ bad_smells:
   - strict mode exits zero with skipped files
   - file produces 0 triples without KnownUnsupported entry
   - ImportReport.Skipped() not checked in CI
+expressed_by:
+- ../awareness-graph/golang/extractor/yaml_import_dir.go
+- ../awareness-graph/golang/extractor/yaml_import_dir_test.go
+- ../awareness-graph/golang/extractor/intent_yaml_import.go
 related_to:
   - awareness.yaml2nt_produces_deterministic_output
   - awareness.intent_schema_is_enforced

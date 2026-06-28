@@ -10,6 +10,9 @@ activation_triggers:
   - service dependency
   - readiness
   - startup ordering
+expressed_by:
+- golang/cluster_controller/cluster_controller_server/phantom_guard_test.go
+- golang/cluster_controller/cluster_controller_server/release_pipeline.go
 related_to:
   - api.grpc_contracts_are_operational_surface
 required_tests:

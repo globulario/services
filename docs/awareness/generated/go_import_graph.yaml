@@ -9,7 +9,11 @@ components:
     source_files:
       - golang/ai_executor/ai_executor_server/action_backend.go
       - golang/ai_executor/ai_executor_server/anthropic_client.go
+      - golang/ai_executor/ai_executor_server/backend_readiness.go
+      - golang/ai_executor/ai_executor_server/behavioral_feed.go
+      - golang/ai_executor/ai_executor_server/behavioral_self_operation.go
       - golang/ai_executor/ai_executor_server/claude.go
+      - golang/ai_executor/ai_executor_server/codex.go
       - golang/ai_executor/ai_executor_server/conversation_store.go
       - golang/ai_executor/ai_executor_server/dedup.go
       - golang/ai_executor/ai_executor_server/diagnoser.go
@@ -46,29 +50,87 @@ components:
       confidence: inferred
   - id: component.golang.ai_memory
     name: ai_memory
-    kind: module
+    kind: service
     assertion: inferred
     source_files:
+      - golang/ai_memory/ai_memory_server/behavioral_handlers.go
+      - golang/ai_memory/ai_memory_server/behavioral_migration.go
+      - golang/ai_memory/ai_memory_server/behavioral_schema.go
       - golang/ai_memory/ai_memory_server/immutability.go
       - golang/ai_memory/ai_memory_server/migration_coordinator.go
       - golang/ai_memory/ai_memory_server/schema.go
       - golang/ai_memory/ai_memory_server/server.go
+      - golang/ai_memory/behavioral/api/core.go
+      - golang/ai_memory/behavioral/api/requests.go
+      - golang/ai_memory/behavioral/api/responses.go
+      - golang/ai_memory/behavioral/api/status.go
+      - golang/ai_memory/behavioral/api/types.go
+      - golang/ai_memory/behavioral/api/uri.go
+      - golang/ai_memory/behavioral/core/candidates.go
+      - golang/ai_memory/behavioral/core/governance.go
+      - golang/ai_memory/behavioral/core/ingestion.go
+      - golang/ai_memory/behavioral/core/ladder.go
+      - golang/ai_memory/behavioral/core/promotion_completion.go
+      - golang/ai_memory/behavioral/core/reconciliation.go
+      - golang/ai_memory/behavioral/core/runtime.go
+      - golang/ai_memory/behavioral/core/service.go
+      - golang/ai_memory/behavioral/domain/catalog.go
+      - golang/ai_memory/behavioral/domain/domain.go
+      - golang/ai_memory/behavioral/domain/loader.go
+      - golang/ai_memory/behavioral/domain/registry.go
+      - golang/ai_memory/behavioral/rdf/ontology.go
+      - golang/ai_memory/behavioral/rdf/project.go
+      - golang/ai_memory/behavioral/rdf/reader.go
+      - golang/ai_memory/behavioral/rdf/triples.go
+      - golang/ai_memory/behavioral/store/memory_store.go
+      - golang/ai_memory/behavioral/store/scylla_store.go
+      - golang/ai_memory/behavioral/store/store.go
+      - golang/ai_memory/behavioral_backfill/backfill.go
+      - golang/ai_memory/behavioral_backfill/cmd/behavioral-backfill/main.go
+      - golang/ai_memory/behavioral_backfill/mappers.go
+      - golang/ai_memory/behavioral_backfill/rpc_source.go
+      - golang/ai_memory/behavioral_rdf/cmd/behavioral-export-rdf/main.go
+      - golang/ai_memory/behavioral_rdf/reader.go
+      - golang/ai_memory/domains/cluster_operator/authorities.go
+      - golang/ai_memory/domains/cluster_operator/conditions.go
+      - golang/ai_memory/domains/cluster_operator/evidence_probes.go
+      - golang/ai_memory/domains/cluster_operator/forbidden_moves.go
+      - golang/ai_memory/domains/cluster_operator/observation/client.go
+      - golang/ai_memory/domains/cluster_operator/observation/ingest.go
+      - golang/ai_memory/domains/cluster_operator/opsknowledge/cmd/opscompile/main.go
+      - golang/ai_memory/domains/cluster_operator/opsknowledge/compiler.go
+      - golang/ai_memory/domains/cluster_operator/opsknowledge/emit.go
+      - golang/ai_memory/domains/cluster_operator/opsknowledge/ids.go
+      - golang/ai_memory/domains/cluster_operator/opsknowledge/incidents.go
+      - golang/ai_memory/domains/cluster_operator/opsknowledge/recall.go
+      - golang/ai_memory/domains/cluster_operator/opsknowledge/types.go
+      - golang/ai_memory/domains/cluster_operator/pack.go
+      - golang/ai_memory/domains/cluster_operator/principles.go
+      - golang/ai_memory/domains/cluster_operator/recall.go
+      - golang/ai_memory/domains/cluster_operator/required_evidence.go
     depends_on:
+      - component.golang.ai_watcher
+      - component.golang.cluster_controller
+      - component.golang.cluster_doctor
       - component.golang.config
       - component.golang.globular_service
+      - component.golang.opsknowledge
       - component.golang.resource
       - component.golang.security
     external_imports:
       - github.com/gocql/gocql
+      - github.com/google/uuid
       - go.etcd.io/etcd/client/v3
       - go.etcd.io/etcd/client/v3/concurrency
       - google.golang.org/grpc
       - google.golang.org/grpc/codes
+      - google.golang.org/grpc/credentials
       - google.golang.org/grpc/reflection
       - google.golang.org/grpc/status
+      - gopkg.in/yaml.v3
     uml:
       kind: Component
-      stereotype: module
+      stereotype: service
       view: structural
       confidence: inferred
   - id: component.golang.ai_router
@@ -110,15 +172,22 @@ components:
     kind: module
     assertion: inferred
     source_files:
+      - golang/ai_watcher/ai_watcher_server/behavioral_observation.go
       - golang/ai_watcher/ai_watcher_server/default_rules.go
+      - golang/ai_watcher/ai_watcher_server/probe_scylla_group0.go
+      - golang/ai_watcher/ai_watcher_server/probes.go
       - golang/ai_watcher/ai_watcher_server/server.go
     depends_on:
       - component.golang.ai_executor
+      - component.golang.ai_memory
+      - component.golang.cluster_controller
       - component.golang.config
       - component.golang.event
       - component.golang.globular_client
       - component.golang.globular_service
+      - component.golang.node_agent
       - component.golang.resource
+      - component.golang.security
     external_imports:
       - github.com/globulario/utility
       - github.com/gocql/gocql
@@ -349,6 +418,8 @@ components:
     kind: service
     assertion: inferred
     source_files:
+      - golang/cluster_controller/cluster_controller_server/acc_config_handlers.go
+      - golang/cluster_controller/cluster_controller_server/active_release.go
       - golang/cluster_controller/cluster_controller_server/actor_service.go
       - golang/cluster_controller/cluster_controller_server/agentclient.go
       - golang/cluster_controller/cluster_controller_server/apply_loop_detector.go
@@ -417,6 +488,7 @@ components:
       - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
       - golang/cluster_controller/cluster_controller_server/objectstore_members.go
       - golang/cluster_controller/cluster_controller_server/objectstore_reconciler.go
+      - golang/cluster_controller/cluster_controller_server/objectstore_topology_handlers.go
       - golang/cluster_controller/cluster_controller_server/objectstore_topology_status.go
       - golang/cluster_controller/cluster_controller_server/objectstore_transition.go
       - golang/cluster_controller/cluster_controller_server/operations.go
@@ -512,6 +584,7 @@ components:
       - component.golang.installed_state
       - component.golang.netutil
       - component.golang.node_agent
+      - component.golang.packagekind
       - component.golang.policy
       - component.golang.rbac
       - component.golang.repository
@@ -563,8 +636,11 @@ components:
       - golang/cluster_doctor/cluster_doctor_server/actor_service.go
       - golang/cluster_doctor/cluster_doctor_server/approval_replay_etcd.go
       - golang/cluster_doctor/cluster_doctor_server/audit_correlation.go
+      - golang/cluster_doctor/cluster_doctor_server/behavioral_observation.go
       - golang/cluster_doctor/cluster_doctor_server/collector/collector.go
+      - golang/cluster_doctor/cluster_doctor_server/collector/gateway_backend_divergence.go
       - golang/cluster_doctor/cluster_doctor_server/collector/prometheus.go
+      - golang/cluster_doctor/cluster_doctor_server/collector/release_boundary.go
       - golang/cluster_doctor/cluster_doctor_server/collector/repository_finding.go
       - golang/cluster_doctor/cluster_doctor_server/collector/snapshot.go
       - golang/cluster_doctor/cluster_doctor_server/collector/sweep_requests.go
@@ -581,7 +657,9 @@ components:
       - golang/cluster_doctor/cluster_doctor_server/main.go
       - golang/cluster_doctor/cluster_doctor_server/node_agent_dialer.go
       - golang/cluster_doctor/cluster_doctor_server/remediation_gate.go
+      - golang/cluster_doctor/cluster_doctor_server/remediation_gate_persist.go
       - golang/cluster_doctor/cluster_doctor_server/remediation_history.go
+      - golang/cluster_doctor/cluster_doctor_server/remediation_history_persist.go
       - golang/cluster_doctor/cluster_doctor_server/render/cluster_report.go
       - golang/cluster_doctor/cluster_doctor_server/render/drift_report.go
       - golang/cluster_doctor/cluster_doctor_server/render/node_report.go
@@ -592,6 +670,7 @@ components:
       - golang/cluster_doctor/cluster_doctor_server/rules/certificate_health.go
       - golang/cluster_doctor/cluster_doctor_server/rules/cluster_network_drift.go
       - golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
+      - golang/cluster_doctor/cluster_doctor_server/rules/config_cache_freshness.go
       - golang/cluster_doctor/cluster_doctor_server/rules/controller_leader.go
       - golang/cluster_doctor/cluster_doctor_server/rules/critical_key_registry.go
       - golang/cluster_doctor/cluster_doctor_server/rules/critical_state_guardians.go
@@ -604,10 +683,12 @@ components:
       - golang/cluster_doctor/cluster_doctor_server/rules/etcd_helpers.go
       - golang/cluster_doctor/cluster_doctor_server/rules/etcd_infra.go
       - golang/cluster_doctor/cluster_doctor_server/rules/etcd_stale_member.go
+      - golang/cluster_doctor/cluster_doctor_server/rules/gateway_backend_divergence.go
       - golang/cluster_doctor/cluster_doctor_server/rules/grpc_backbone_contract.go
       - golang/cluster_doctor/cluster_doctor_server/rules/heal_audit.go
       - golang/cluster_doctor/cluster_doctor_server/rules/heal_policy.go
       - golang/cluster_doctor/cluster_doctor_server/rules/healer.go
+      - golang/cluster_doctor/cluster_doctor_server/rules/infra_probe_required.go
       - golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
       - golang/cluster_doctor/cluster_doctor_server/rules/invariant.go
       - golang/cluster_doctor/cluster_doctor_server/rules/kind_mismatch.go
@@ -629,10 +710,12 @@ components:
       - golang/cluster_doctor/cluster_doctor_server/rules/package_version_authority.go
       - golang/cluster_doctor/cluster_doctor_server/rules/pending.go
       - golang/cluster_doctor/cluster_doctor_server/rules/pki_health.go
+      - golang/cluster_doctor/cluster_doctor_server/rules/placement_orphaned_install.go
       - golang/cluster_doctor/cluster_doctor_server/rules/prometheus_bearer_token.go
       - golang/cluster_doctor/cluster_doctor_server/rules/prometheus_runtime.go
       - golang/cluster_doctor/cluster_doctor_server/rules/reconcile_lane_etcd.go
       - golang/cluster_doctor/cluster_doctor_server/rules/registry.go
+      - golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven.go
       - golang/cluster_doctor/cluster_doctor_server/rules/repository_dns_invariants.go
       - golang/cluster_doctor/cluster_doctor_server/rules/repository_findings.go
       - golang/cluster_doctor/cluster_doctor_server/rules/repository_status.go
@@ -656,6 +739,7 @@ components:
     depends_on:
       - component.golang.ai_memory
       - component.golang.cluster_controller
+      - component.golang.component_catalog
       - component.golang.config
       - component.golang.event
       - component.golang.evidence
@@ -664,8 +748,10 @@ components:
       - component.golang.installed_state
       - component.golang.netutil
       - component.golang.node_agent
+      - component.golang.release_boundary
       - component.golang.remediation
       - component.golang.repository
+      - component.golang.runtimedirs
       - component.golang.security
       - component.golang.systemdutil
       - component.golang.verifier
@@ -684,6 +770,7 @@ components:
       - google.golang.org/grpc/health/grpc_health_v1
       - google.golang.org/grpc/keepalive
       - google.golang.org/grpc/metadata
+      - google.golang.org/grpc/reflection/grpc_reflection_v1
       - google.golang.org/grpc/status
       - google.golang.org/protobuf/types/known/emptypb
       - google.golang.org/protobuf/types/known/timestamppb
@@ -794,6 +881,7 @@ components:
       - golang/config/service_discovery.go
       - golang/config/tls_probe.go
       - golang/config/write_class.go
+      - golang/config/write_txn.go
     depends_on:
       - component.golang.internal
       - component.golang.netutil
@@ -897,6 +985,17 @@ components:
       - component.golang.repository
     external_imports:
       - gopkg.in/yaml.v3
+    uml:
+      kind: Component
+      stereotype: module
+      view: structural
+      confidence: inferred
+  - id: component.golang.digest
+    name: digest
+    kind: module
+    assertion: inferred
+    source_files:
+      - golang/digest/digest.go
     uml:
       kind: Component
       stereotype: module
@@ -1248,7 +1347,9 @@ components:
       - golang/globularcli/node_recover_cmds.go
       - golang/globularcli/objectstore_cmds.go
       - golang/globularcli/objectstore_disk_cmds.go
+      - golang/globularcli/ops_cmds.go
       - golang/globularcli/ops_knowledge_cmds.go
+      - golang/globularcli/ops_knowledge_export.go
       - golang/globularcli/override_flags.go
       - golang/globularcli/pkg_cmds.go
       - golang/globularcli/pkg_config_cmds.go
@@ -1264,6 +1365,7 @@ components:
       - golang/globularcli/pkgpack/specscan.go
       - golang/globularcli/pkgpack/tgz.go
       - golang/globularcli/pkgpack/verify.go
+      - golang/globularcli/platform_cmds.go
       - golang/globularcli/policy_cmds.go
       - golang/globularcli/posture_cmds.go
       - golang/globularcli/rbac_cmds.go
@@ -1271,6 +1373,7 @@ components:
       - golang/globularcli/release_cmds.go
       - golang/globularcli/release_mutations.go
       - golang/globularcli/release_promote_local_cmd.go
+      - golang/globularcli/release_verify_boundary_cmd.go
       - golang/globularcli/repo_artifact_aliases.go
       - golang/globularcli/repo_explain_package_cmd.go
       - golang/globularcli/repo_inspect_upstream_cmd.go
@@ -1313,6 +1416,7 @@ components:
       - component.golang.dnsprovider
       - component.golang.domain
       - component.golang.globular_client
+      - component.golang.govops
       - component.golang.identity
       - component.golang.log
       - component.golang.monitoring
@@ -1320,6 +1424,7 @@ components:
       - component.golang.opsknowledge
       - component.golang.policy
       - component.golang.rbac
+      - component.golang.release_boundary
       - component.golang.remediation
       - component.golang.repository
       - component.golang.resource
@@ -1353,6 +1458,28 @@ components:
     uml:
       kind: Component
       stereotype: service
+      view: structural
+      confidence: inferred
+  - id: component.golang.govops
+    name: govops
+    kind: module
+    assertion: inferred
+    source_files:
+      - golang/govops/behavioral.go
+      - golang/govops/governor.go
+      - golang/govops/govops.go
+      - golang/govops/ledger.go
+      - golang/govops/ledger_etcd.go
+    depends_on:
+      - component.golang.ai_memory
+      - component.golang.audittrail
+      - component.golang.config
+    external_imports:
+      - go.etcd.io/etcd/client/v3
+      - google.golang.org/protobuf/encoding/protojson
+    uml:
+      kind: Component
+      stereotype: module
       view: structural
       confidence: inferred
   - id: component.golang.identity
@@ -1575,6 +1702,7 @@ components:
       - golang/mcp/tools_aggregator.go
       - golang/mcp/tools_ai_executor.go
       - golang/mcp/tools_backup.go
+      - golang/mcp/tools_behavioral.go
       - golang/mcp/tools_browser.go
       - golang/mcp/tools_cli.go
       - golang/mcp/tools_cluster.go
@@ -1599,8 +1727,10 @@ components:
       - golang/mcp/tools_proto.go
       - golang/mcp/tools_rbac.go
       - golang/mcp/tools_rbac_explain.go
+      - golang/mcp/tools_release.go
       - golang/mcp/tools_repository.go
       - golang/mcp/tools_resource.go
+      - golang/mcp/tools_runtime_evidence.go
       - golang/mcp/tools_schema.go
       - golang/mcp/tools_service_config.go
       - golang/mcp/tools_skills.go
@@ -1622,6 +1752,7 @@ components:
       - component.golang.node_agent
       - component.golang.persistence
       - component.golang.rbac
+      - component.golang.release_boundary
       - component.golang.repository
       - component.golang.resource
       - component.golang.schema_reference
@@ -1648,6 +1779,7 @@ components:
       - google.golang.org/protobuf/types/dynamicpb
       - google.golang.org/protobuf/types/known/emptypb
       - google.golang.org/protobuf/types/known/timestamppb
+      - gopkg.in/yaml.v3
     uml:
       kind: Component
       stereotype: service
@@ -1756,6 +1888,7 @@ components:
       - golang/node_agent/node_agent_server/apply_package_service_unit_recovery.go
       - golang/node_agent/node_agent_server/apply_package_verify.go
       - golang/node_agent/node_agent_server/backup_provider.go
+      - golang/node_agent/node_agent_server/behavioral_observation.go
       - golang/node_agent/node_agent_server/bootstrap_import.go
       - golang/node_agent/node_agent_server/certificate.go
       - golang/node_agent/node_agent_server/cleanup_disk_journal.go
@@ -1857,6 +1990,7 @@ components:
       - golang/node_agent/node_agent_server/process_fingerprint.go
       - golang/node_agent/node_agent_server/repair_actions.go
       - golang/node_agent/node_agent_server/restore_provider.go
+      - golang/node_agent/node_agent_server/runtime_dir_canonicalize.go
       - golang/node_agent/node_agent_server/runtime_proof.go
       - golang/node_agent/node_agent_server/scylla_manager_agent_config.go
       - golang/node_agent/node_agent_server/search_logs_handler.go
@@ -1872,10 +2006,12 @@ components:
       - golang/node_agent/node_agent_server/workflow_runner.go
       - golang/node_agent/node_agent_server/xds_config_reconcile.go
     depends_on:
+      - component.golang.ai_memory
       - component.golang.binhash
       - component.golang.cluster_controller
       - component.golang.component_catalog
       - component.golang.config
+      - component.golang.digest
       - component.golang.dns
       - component.golang.domain
       - component.golang.event
@@ -1884,8 +2020,10 @@ components:
       - component.golang.identity
       - component.golang.installed_state
       - component.golang.netutil
+      - component.golang.packagekind
       - component.golang.pki
       - component.golang.repository
+      - component.golang.runtimedirs
       - component.golang.security
       - component.golang.systemdutil
       - component.golang.versionutil
@@ -1951,6 +2089,20 @@ components:
     uml:
       kind: Component
       stereotype: module
+      view: structural
+      confidence: inferred
+  - id: component.golang.packagekind
+    name: packagekind
+    kind: service
+    assertion: inferred
+    source_files:
+      - golang/packagekind/cmd/genkinds/main.go
+      - golang/packagekind/packagekind.go
+    external_imports:
+      - gopkg.in/yaml.v3
+    uml:
+      kind: Component
+      stereotype: service
       view: structural
       confidence: inferred
   - id: component.golang.persistence
@@ -2068,6 +2220,7 @@ components:
       - golang/rbac/rbac_client/rbac_client.go
       - golang/rbac/rbac_server/logutil.go
       - golang/rbac/rbac_server/perm_cache_generation.go
+      - golang/rbac/rbac_server/perm_cache_invalidation.go
       - golang/rbac/rbac_server/rbac_access.go
       - golang/rbac/rbac_server/rbac_actions.go
       - golang/rbac/rbac_server/rbac_cleanup.go
@@ -2096,6 +2249,7 @@ components:
       - github.com/globulario/utility
       - github.com/minio/minio-go/v7
       - github.com/minio/minio-go/v7/pkg/credentials
+      - go.etcd.io/etcd/client/v3
       - google.golang.org/grpc
       - google.golang.org/grpc/codes
       - google.golang.org/grpc/metadata
@@ -2104,6 +2258,25 @@ components:
       - google.golang.org/protobuf/encoding/protojson
       - google.golang.org/protobuf/proto
       - google.golang.org/protobuf/types/known/structpb
+    uml:
+      kind: Component
+      stereotype: module
+      view: structural
+      confidence: inferred
+  - id: component.golang.release_boundary
+    name: release_boundary
+    kind: module
+    assertion: inferred
+    source_files:
+      - golang/release_boundary/boundarycheck/check.go
+      - golang/release_boundary/boundarycheck/format.go
+      - golang/release_boundary/doc.go
+      - golang/release_boundary/proof.go
+    depends_on:
+      - component.golang.cluster_controller
+      - component.golang.digest
+      - component.golang.node_agent
+      - component.golang.repository
     uml:
       kind: Component
       stereotype: module
@@ -2152,17 +2325,18 @@ components:
       - golang/repository/repository_server/handlers.go
       - golang/repository/repository_server/identity_normalize.go
       - golang/repository/repository_server/import_provisional.go
-      - golang/repository/repository_server/install_policy.go
       - golang/repository/repository_server/local_publish_guard.go
       - golang/repository/repository_server/manifest_cache.go
       - golang/repository/repository_server/migration.go
       - golang/repository/repository_server/namespace.go
-      - golang/repository/repository_server/objectstore_admission.go
+      - golang/repository/repository_server/profile_hygiene.go
       - golang/repository/repository_server/provenance.go
       - golang/repository/repository_server/publish_reconciler.go
       - golang/repository/repository_server/publish_workflow.go
       - golang/repository/repository_server/reachability.go
       - golang/repository/repository_server/reachability_guard.go
+      - golang/repository/repository_server/release_artifact_shape.go
+      - golang/repository/repository_server/release_authority.go
       - golang/repository/repository_server/release_index.go
       - golang/repository/repository_server/release_ledger.go
       - golang/repository/repository_server/repair_authorization.go
@@ -2180,9 +2354,11 @@ components:
       - golang/repository/repository_server/signature_policy.go
       - golang/repository/repository_server/signing.go
       - golang/repository/repository_server/signing_rpc.go
+      - golang/repository/repository_server/staging_sweeper.go
       - golang/repository/repository_server/storage_topology.go
       - golang/repository/repository_server/sync_from_upstream.go
       - golang/repository/repository_server/trusted_publisher.go
+      - golang/repository/repository_server/upstream_release_gate.go
       - golang/repository/repositorypb/publish_state.go
       - golang/repository/repositorypb/trust_labels.go
       - golang/repository/upstream/git_source.go
@@ -2193,7 +2369,9 @@ components:
       - golang/repository/upstream/source.go
     depends_on:
       - component.golang.cluster_controller
+      - component.golang.component_catalog
       - component.golang.config
+      - component.golang.digest
       - component.golang.event
       - component.golang.fallback
       - component.golang.globular_client
@@ -2203,6 +2381,7 @@ components:
       - component.golang.internal
       - component.golang.node_agent
       - component.golang.operational
+      - component.golang.packagekind
       - component.golang.policy
       - component.golang.rbac
       - component.golang.resource
@@ -2215,8 +2394,6 @@ components:
       - github.com/globulario/utility
       - github.com/gocql/gocql
       - github.com/google/uuid
-      - github.com/minio/minio-go/v7
-      - github.com/minio/minio-go/v7/pkg/credentials
       - github.com/schollz/progressbar/v3
       - go.etcd.io/etcd/client/v3
       - google.golang.org/grpc
@@ -2276,6 +2453,17 @@ components:
       - google.golang.org/grpc/reflection
       - google.golang.org/grpc/status
       - google.golang.org/protobuf/encoding/protojson
+    uml:
+      kind: Component
+      stereotype: module
+      view: structural
+      confidence: inferred
+  - id: component.golang.runtimedirs
+    name: runtimedirs
+    kind: module
+    assertion: inferred
+    source_files:
+      - golang/runtimedirs/runtimedirs.go
     uml:
       kind: Component
       stereotype: module
@@ -2517,6 +2705,8 @@ components:
     assertion: inferred
     source_files:
       - golang/systemdutil/working_directory.go
+    depends_on:
+      - component.golang.runtimedirs
     uml:
       kind: Component
       stereotype: module

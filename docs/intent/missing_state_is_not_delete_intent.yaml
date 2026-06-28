@@ -16,9 +16,9 @@ activation_triggers:
 - inventory missing
 - destructive absence
 expressed_by:
-- awareness/decisions/missing-state-is-not-delete-intent.md
-- awareness/forbidden_assumptions.yaml
-- operational-knowledge/node-removal.md
+- docs/awareness/decisions/missing-state-is-not-delete-intent.md
+- docs/awareness/forbidden_assumptions.yaml
+- docs/operational-knowledge/node-removal.md
 related_invariants:
 - critical_state.absence_is_not_destructive_intent
 zooms_out_to:

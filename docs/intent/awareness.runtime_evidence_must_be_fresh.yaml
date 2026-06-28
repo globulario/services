@@ -10,6 +10,10 @@ activation_triggers:
   - runtime evidence
   - stale evidence
   - ttl
+expressed_by:
+- ../awareness-graph/golang/server/runtime_evidence.go
+- ../awareness-graph/golang/server/runtime_evidence_golden_test.go
+- ../awareness-graph/golang/server/graph_freshness.go
 related_to:
   - runtime.identity.requires_proof
 required_tests:

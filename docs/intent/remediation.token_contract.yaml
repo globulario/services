@@ -25,10 +25,10 @@ activation_triggers:
   - replay
   - token validation
 expressed_by:
-  - services/golang/security/approval_token.go
-  - services/golang/security/approvaltest/keyring.go
-  - services/golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
-  - services/golang/workflow/engine/actors_doctor_remediation.go
+  - golang/security/approval_token.go
+  - golang/security/approvaltest/keyring.go
+  - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+  - golang/workflow/engine/actors_doctor_remediation.go
 related_invariants:
   - remediation.token_must_be_scoped_and_non_replayable
   - remediation.approval_must_bind_action_target_and_generation

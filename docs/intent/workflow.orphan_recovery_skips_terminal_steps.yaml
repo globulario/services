@@ -1,5 +1,5 @@
 id: workflow.orphan_recovery_skips_terminal_steps
-level: mechanism
+level: contract
 title: Orphan recovery skips already-terminal steps and re-executes only in-flight steps
 status: active
 
@@ -32,6 +32,10 @@ zooms_out_to:
   - workflow.terminal_runs_must_be_bounded
 
 zooms_in_to: []
+
+expressed_by:
+- golang/workflow/workflow_server/executor_resume.go
+- golang/workflow/workflow_server/executor_resume_test.go
 
 related_invariants:
 

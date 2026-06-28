@@ -10,6 +10,10 @@ activation_triggers:
   - install success
   - runtime failure
   - verification
+expressed_by:
+- golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+- golang/cluster_controller/cluster_controller_server/release_proof_status.go
+- golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
 related_to:
   - state.repository_desired_installed_runtime
 required_tests:

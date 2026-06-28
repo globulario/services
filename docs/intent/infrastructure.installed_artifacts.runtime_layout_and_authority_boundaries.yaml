@@ -27,10 +27,10 @@ activation_triggers:
   - permissions
   - pki
 expressed_by:
-  - operational-knowledge/stages/installed-artifact-system.yaml
-  - services/golang/config/config.go
-  - services/golang/node_agent/node_agent_server/internal/actions/artifact.go
-  - services/golang/process/process.go
+  - docs/operational-knowledge/stages/installed-artifact-system.yaml
+  - golang/config/config.go
+  - golang/node_agent/node_agent_server/internal/actions/artifact.go
+  - golang/process/process.go
 related_invariants: []
 zooms_out_to:
   - etcd.is_source_of_truth

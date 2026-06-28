@@ -32,11 +32,11 @@ activation_triggers:
 - auto-heal
 - ExecuteRemediation
 expressed_by:
-- operators/cluster-doctor.md
-- operators/cluster-self-healing.md
-- awareness/remediation_contracts.yaml
-- services/golang/cluster_doctor/cluster_doctor_server/rules/healer.go
-- services/golang/cluster_controller/cluster_controller_server/remediation_consumer.go
+- docs/operators/cluster-doctor.md
+- docs/operators/cluster-self-healing.md
+- docs/awareness/remediation_contracts.yaml
+- golang/cluster_doctor/cluster_doctor_server/rules/healer.go
+- golang/cluster_controller/cluster_controller_server/remediation_consumer.go
 - golang/cluster_doctor/cluster_doctor_server/workflow_runner.go
 - golang/mcp/remediation.go
 related_invariants: []

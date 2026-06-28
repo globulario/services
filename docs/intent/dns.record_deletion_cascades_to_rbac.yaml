@@ -1,5 +1,5 @@
 id: dns.record_deletion_cascades_to_rbac
-level: mechanism
+level: contract
 title: DNS record deletion cascades to RBAC permission cleanup — no ghost permissions for deleted records
 status: active
 
@@ -34,6 +34,10 @@ zooms_out_to:
   - dns_pki.explicit_identity_over_convenient_routing
 
 zooms_in_to: []
+
+expressed_by:
+- golang/dns/dns_server/handlers.go
+- golang/rbac/rbac_server/rbac_access.go
 
 related_invariants: []
 

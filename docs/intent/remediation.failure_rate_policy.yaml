@@ -25,10 +25,10 @@ activation_triggers:
   - action class
   - storm
 expressed_by:
-  - services/golang/remediation/policy.go
-  - services/golang/cluster_doctor/cluster_doctor_server/failure_policy.go
-  - services/golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
-  - services/golang/cluster_doctor/cluster_doctor_server/remediation_history.go
+  - golang/remediation/policy.go
+  - golang/cluster_doctor/cluster_doctor_server/failure_policy.go
+  - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+  - golang/cluster_doctor/cluster_doctor_server/remediation_history.go
 related_invariants:
   - remediation.failure_rate_policy_must_be_cluster_wide
   - remediation.must_not_retry_without_changed_evidence_or_policy_budget

@@ -92,12 +92,7 @@ func (js *jobStore) createJob(incidentID, ruleID string, tier int32, diagnosis *
 	}
 
 	js.jobs[incidentID] = job
-
-	// Persist synchronously — but persistJob takes mu.RLock, so we must
-	// drop the write lock first to avoid deadlock.
-	js.mu.Unlock()
-	js.persistJob(job)
-	js.mu.Lock() // re-acquire for deferred Unlock
+	go js.persistJob(job)
 
 	return job
 }

@@ -1,5 +1,5 @@
 id: interceptors.role_binding_fallback_uses_local_cluster_roles
-level: mechanism
+level: contract
 title: When RBAC service is unreachable, the interceptor falls back to locally-loaded cluster-roles.json
 intent: |
   The role binding check caches per-subject results for 30 seconds to avoid flooding the

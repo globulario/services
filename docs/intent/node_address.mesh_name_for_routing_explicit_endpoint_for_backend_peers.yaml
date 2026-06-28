@@ -32,10 +32,10 @@ activation_triggers:
   - service discovery
 
 expressed_by:
-  - services/golang/node_agent/node_agent_server/service_discovery.go
-  - services/golang/cluster_controller/cluster_controller_server/leader_proxy.go
-  - services/golang/cluster_controller/cluster_controller_server/agentclient.go
-  - services/golang/netutil/node_identity.go
+  - golang/node_agent/node_agent_server/service_discovery.go
+  - golang/cluster_controller/cluster_controller_server/leader_proxy.go
+  - golang/cluster_controller/cluster_controller_server/agentclient.go
+  - golang/netutil/node_identity.go
 
 related_invariants:
   - etcd.endpoint_reachability

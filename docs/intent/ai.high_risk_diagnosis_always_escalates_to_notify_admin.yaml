@@ -1,5 +1,5 @@
 id: ai.high_risk_diagnosis_always_escalates_to_notify_admin
-level: mechanism
+level: contract
 title: AI diagnoses with risk_level=high are unconditionally downgraded to notify_admin regardless of Claude's proposal
 intent: |
   When Claude's structured analysis output carries risk_level="high", the executor discards

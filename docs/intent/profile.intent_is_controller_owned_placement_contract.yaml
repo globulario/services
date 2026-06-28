@@ -19,10 +19,10 @@ activation_triggers:
 - placement intent
 - normalize profiles
 expressed_by:
-- operational-knowledge/stages/profile-system.yaml
-- operational-knowledge/stages/day-0-bootstrap.yaml
-- operational-knowledge/stages/day-1-join.yaml
-- operators/adding-nodes.md
+- docs/operational-knowledge/stages/profile-system.yaml
+- docs/operational-knowledge/stages/day-0-bootstrap.yaml
+- docs/operational-knowledge/stages/day-1-join.yaml
+- docs/operators/adding-nodes.md
 related_invariants:
 - founding.quorum.three_nodes_required
 zooms_out_to:

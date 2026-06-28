@@ -1,5 +1,5 @@
 id: domain.dns01_challenge_waits_for_public_resolver_propagation
-level: mechanism
+level: contract
 title: DNS-01 challenge solver waits for public resolver propagation before notifying ACME
 intent: |
   Let's Encrypt validates DNS-01 challenges by querying public resolvers (Cloudflare 1.1.1.1,
@@ -29,6 +29,10 @@ activation_triggers:
   - 8.8.8.8
   - PublicResolverPropagator
 expressed_by:
+- golang/domain/dns_propagation.go
+- golang/domain/acme_solver.go
+- golang/domain/dns_propagation_test.go
+- golang/domain/acme_solver_test.go
 related_invariants: []
 zooms_out_to:
   - domain.leader_only_acme_reconciliation

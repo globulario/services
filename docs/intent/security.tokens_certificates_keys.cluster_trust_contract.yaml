@@ -34,12 +34,12 @@ activation_triggers:
   - auth
 
 expressed_by:
-  - operational-knowledge/stages/security-system.yaml
-  - services/golang/security/jwt.go
-  - services/golang/security/tls.go
-  - services/golang/config/pki_config.go
-  - services/golang/globularcli/auth_cmds.go
-  - services/golang/globularcli/root.go
+  - docs/operational-knowledge/stages/security-system.yaml
+  - golang/security/jwt.go
+  - golang/security/tls.go
+  - golang/config/pki_config.go
+  - golang/globularcli/auth_cmds.go
+  - golang/globularcli/root.go
 
 related_invariants: []
 

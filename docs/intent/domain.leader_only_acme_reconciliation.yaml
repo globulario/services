@@ -1,5 +1,5 @@
 id: domain.leader_only_acme_reconciliation
-level: mechanism
+level: contract
 title: Only the cluster leader runs ACME reconciliation to prevent DNS and certificate races
 intent: |
   Let's Encrypt rate limits are per-domain and per-hour. Running ACME reconciliation on
@@ -25,6 +25,8 @@ activation_triggers:
   - domain reconciliation
   - leader election
 expressed_by:
+- golang/domain/reconciler.go
+- golang/domain/acme_account.go
 related_invariants: []
 zooms_out_to:
   - controller.decides_but_does_not_execute_leaf_work

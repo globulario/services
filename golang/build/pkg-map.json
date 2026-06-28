@@ -293,5 +293,11 @@
     "go_target": "",
     "kind": "command",
     "platform_version": false
+  },
+  "codex": {
+    "binary": "noop",
+    "go_target": "",
+    "kind": "command",
+    "platform_version": false
   }
 }

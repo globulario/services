@@ -16,9 +16,11 @@ activation_triggers:
 - cached status
 - stale proof
 expressed_by:
-- operators/cluster-doctor.md
-- awareness/live_overlay.md
-- awareness/graph_integrity.md
+- docs/operators/cluster-doctor.md
+- docs/awareness/live_overlay.md
+- golang/evidence/trust.go
+- golang/mcp/tools_runtime_evidence.go
+- golang/mcp/tools_doctor.go
 related_invariants: []
 zooms_out_to:
 - globular.vision.explicit_convergence

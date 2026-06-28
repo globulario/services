@@ -11,6 +11,11 @@ activation_triggers:
   - rbac change
   - permission mutation
   - role update
+expressed_by:
+- golang/rbac/rbac_server/rbac_access.go
+- golang/rbac/rbac_server/rbac_permissions.go
+- golang/rbac/rbac_server/rbac_ownership.go
+- golang/rbac/rbac_server/zz_intent_required_test_aliases_test.go
 related_to:
   - security.deny_overrides_allow
 required_tests:

@@ -63,6 +63,15 @@ bad_smells:
   - native parser added for a language tree-sitter already covers
   - file_role values that exist for only one language
   - Go scanner rewritten to tree-sitter before the pilot proves the path
+expressed_by:
+- ../awareness-graph/golang/extractor/importgraph/rust_test.go
+- ../awareness-graph/golang/extractor/importgraph/python_test.go
+- ../awareness-graph/golang/extractor/importgraph/typescript_test.go
+- ../awareness-graph/golang/extractor/importgraph/importgraph_test.go
 related_to:
   - awareness.graph_is_compiled_context_not_authority
+required_tests:
+- ../awareness-graph/golang/extractor/importgraph/rust_test.go::TestScan_RS_CrossCrateTopLevel
+- ../awareness-graph/golang/extractor/importgraph/python_test.go::TestScan_PY_AbsoluteAndRelative
+- ../awareness-graph/golang/extractor/importgraph/typescript_test.go::TestScan_TS_AliasAndExternals
 status: seed

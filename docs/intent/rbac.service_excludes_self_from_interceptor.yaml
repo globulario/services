@@ -1,5 +1,5 @@
 id: rbac.service_excludes_self_from_interceptor
-level: mechanism
+level: contract
 title: RBAC service methods are excluded from the RBAC interceptor to prevent circular calls
 intent: |
   The gRPC interceptor chain calls the RBAC service to check permissions before routing

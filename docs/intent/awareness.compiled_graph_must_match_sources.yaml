@@ -11,6 +11,10 @@ activation_triggers:
   - graph build
   - graph cache
   - awareness compile
+expressed_by:
+- ../awareness-graph/cmd/awg/cmd_rebuild.go
+- ../awareness-graph/cmd/awg/seedfreshness.go
+- ../awareness-graph/cmd/awg/seedfreshness_test.go
 related_to:
   - awareness.intent_schema_is_enforced
 required_tests:

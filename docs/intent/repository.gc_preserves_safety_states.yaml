@@ -1,5 +1,5 @@
 id: repository.gc_preserves_safety_states
-level: mechanism
+level: contract
 title: GC never touches security-demoted states — YANKED/QUARANTINED/REVOKED/CORRUPTED are GC-immune
 intent: |
   ArchiveUnreachableArtifacts only considers artifacts in PUBLISHED, DEPRECATED, VERIFIED,

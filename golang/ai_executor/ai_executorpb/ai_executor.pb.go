@@ -25,13 +25,15 @@ const (
 type ActionType int32
 
 const (
-	ActionType_ACTION_NONE            ActionType = 0
-	ActionType_ACTION_RESTART_SERVICE ActionType = 1
-	ActionType_ACTION_CLEAR_STORAGE   ActionType = 2
-	ActionType_ACTION_RENEW_CERT      ActionType = 3
-	ActionType_ACTION_DRAIN_ENDPOINT  ActionType = 4
-	ActionType_ACTION_BLOCK_IP        ActionType = 5
-	ActionType_ACTION_NOTIFY_ADMIN    ActionType = 6
+	ActionType_ACTION_NONE                    ActionType = 0
+	ActionType_ACTION_RESTART_SERVICE         ActionType = 1
+	ActionType_ACTION_CLEAR_STORAGE           ActionType = 2
+	ActionType_ACTION_RENEW_CERT              ActionType = 3
+	ActionType_ACTION_DRAIN_ENDPOINT          ActionType = 4
+	ActionType_ACTION_BLOCK_IP                ActionType = 5
+	ActionType_ACTION_NOTIFY_ADMIN            ActionType = 6
+	// ACTION_TIGHTEN_CIRCUIT_BREAKER is a hand-added constant (run generateCode.sh to update the raw binary descriptor).
+	ActionType_ACTION_TIGHTEN_CIRCUIT_BREAKER ActionType = 7
 )
 
 // Enum value maps for ActionType.
@@ -44,15 +46,17 @@ var (
 		4: "ACTION_DRAIN_ENDPOINT",
 		5: "ACTION_BLOCK_IP",
 		6: "ACTION_NOTIFY_ADMIN",
+		7: "ACTION_TIGHTEN_CIRCUIT_BREAKER",
 	}
 	ActionType_value = map[string]int32{
-		"ACTION_NONE":            0,
-		"ACTION_RESTART_SERVICE": 1,
-		"ACTION_CLEAR_STORAGE":   2,
-		"ACTION_RENEW_CERT":      3,
-		"ACTION_DRAIN_ENDPOINT":  4,
-		"ACTION_BLOCK_IP":        5,
-		"ACTION_NOTIFY_ADMIN":    6,
+		"ACTION_NONE":                    0,
+		"ACTION_RESTART_SERVICE":         1,
+		"ACTION_CLEAR_STORAGE":           2,
+		"ACTION_RENEW_CERT":              3,
+		"ACTION_DRAIN_ENDPOINT":          4,
+		"ACTION_BLOCK_IP":                5,
+		"ACTION_NOTIFY_ADMIN":            6,
+		"ACTION_TIGHTEN_CIRCUIT_BREAKER": 7,
 	}
 )
 

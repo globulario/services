@@ -199,6 +199,7 @@ for exe_path in "${BIN_DIR}"/*_server; do
   echo "==> ${exe} -> ${svc}"
 
   unit="globular-${svc//_/-}.service"
+  svc_dir="${svc//_/-}"
   spec="${SPECS_DIR}/${svc}_service.yaml"
 
   # Determine address_host based on service type
@@ -268,7 +269,7 @@ steps:
         owner: globular
         group: globular
         mode: 0750
-      - path: "{{.StateDir}}/${svc}"
+      - path: "{{.StateDir}}/${svc_dir}"
         owner: globular
         group: globular
         mode: 0750
@@ -315,7 +316,7 @@ EOF
 
   # Ensure working directory exists before starting (node agent doesn't run ensure_dirs).
   # The + prefix runs ExecStartPre as root (needed for chown when User= is set).
-  ensure_workdir="ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/${svc} && chown ${run_user}:${run_group} {{.StateDir}}/${svc}'"
+  ensure_workdir="ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/${svc_dir} && chown ${run_user}:${run_group} {{.StateDir}}/${svc_dir}'"
 
   # Build systemd dependency lists dynamically from the service dependency graph.
   svc_units="$(service_deps "${svc}")"
@@ -338,7 +339,7 @@ EOF
           Type=simple
           User=${run_user}
           Group=${run_group}
-          WorkingDirectory={{.StateDir}}/${svc}
+          WorkingDirectory=-{{.StateDir}}/${svc_dir}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
 
           ${ensure_workdir}
@@ -378,7 +379,7 @@ EOF
           Type=simple
           User=${run_user}
           Group=${run_group}
-          WorkingDirectory={{.StateDir}}/${svc}
+          WorkingDirectory=-{{.StateDir}}/${svc_dir}
           Environment=GLOBULAR_SERVICES_DIR={{.StateDir}}/services
 
           ${ensure_workdir}

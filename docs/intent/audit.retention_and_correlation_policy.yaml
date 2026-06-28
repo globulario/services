@@ -26,10 +26,10 @@ activation_triggers:
   - redaction
   - workflow run
 expressed_by:
-  - intent/meta/audit_history_schema.yaml
-  - services/golang/cluster_doctor/cluster_doctor_server/executor.go
-  - services/golang/cluster_doctor/cluster_doctor_server/audit_correlation.go
-  - services/golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+  - docs/intent/meta/audit_history_schema.yaml
+  - golang/cluster_doctor/cluster_doctor_server/executor.go
+  - golang/cluster_doctor/cluster_doctor_server/audit_correlation.go
+  - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
 related_invariants:
   - audit.records_must_be_correlated_and_retained
   - audit.must_redact_secret_material

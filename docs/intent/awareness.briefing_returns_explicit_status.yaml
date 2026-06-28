@@ -18,6 +18,9 @@ bad_smells:
   - briefing returns zero-value status
   - empty graph silently returns UNSPECIFIED
   - store failure swallowed as empty response
+expressed_by:
+- ../awareness-graph/golang/server/briefing.go
+- ../awareness-graph/golang/server/main_test.go
 related_to:
   - awareness.graph_is_compiled_context_not_authority
 required_tests:

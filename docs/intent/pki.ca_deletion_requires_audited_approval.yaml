@@ -1,5 +1,5 @@
 id: pki.ca_deletion_requires_audited_approval
-level: mechanism
+level: contract
 title: PKI CA deletion from etcd requires an explicit delete-approval tombstone — absence triggers restore
 status: active
 
@@ -36,6 +36,9 @@ zooms_out_to:
   - security.tokens_certificates_keys.cluster_trust_contract
 
 zooms_in_to: []
+
+expressed_by:
+- golang/cluster_controller/cluster_controller_server/pki_reconciler.go
 
 related_invariants:
   - critical_state.deletion_requires_audited_intent

@@ -15,8 +15,8 @@ activation_triggers:
 - trusted publisher
 - revoked key
 expressed_by:
-- operators/package-lifecycle.md
-- operators/repository-overview.md
+- docs/operators/package-lifecycle.md
+- docs/operators/repository-overview.md
 related_invariants: []
 zooms_out_to:
 - repository.metadata_is_authority

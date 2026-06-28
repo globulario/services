@@ -1,5 +1,5 @@
 id: workflow.compiler_rejects_cyclic_dependencies
-level: mechanism
+level: contract
 title: Workflow compiler rejects cyclic step dependencies and produces a deterministic digest
 status: active
 
@@ -32,6 +32,10 @@ zooms_out_to:
   - workflow.source_of_operational_truth
 
 zooms_in_to: []
+
+expressed_by:
+- golang/workflow/compiler/compiler.go
+- golang/workflow/compiler/compiler_test.go
 
 related_invariants:
 

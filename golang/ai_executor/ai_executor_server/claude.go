@@ -25,18 +25,16 @@ type claudeClient struct {
 }
 
 func newClaudeClient() *claudeClient {
-	binary := os.Getenv("CLAUDE_CLI_PATH")
-	if binary == "" {
-		for _, path := range []string{
-			"/usr/local/bin/claude",
-			"/usr/bin/claude",
-			"/home/dave/.local/bin/claude",
-			os.ExpandEnv("$HOME/.claude/bin/claude"),
-		} {
-			if _, err := os.Stat(path); err == nil {
-				binary = path
-				break
-			}
+	var binary string
+	for _, path := range []string{
+		"/usr/local/bin/claude",
+		"/usr/bin/claude",
+		os.ExpandEnv("$HOME/.local/bin/claude"),
+		os.ExpandEnv("$HOME/.claude/bin/claude"),
+	} {
+		if _, err := os.Stat(path); err == nil {
+			binary = path
+			break
 		}
 	}
 
@@ -62,6 +60,18 @@ func newClaudeClient() *claudeClient {
 func syncCLICredentialsFromEtcd() {
 	val, err := etcdGet(etcdCredentialsKey)
 	if err != nil || val == "" {
+		return
+	}
+
+	// Validate before writing — don't overwrite a good local file with a
+	// corrupt or expired blob from etcd.
+	var creds oauthCredentials
+	if jsonErr := json.Unmarshal([]byte(val), &creds); jsonErr != nil {
+		logger.Warn("claude: etcd credentials blob is invalid JSON, skipping sync", "err", jsonErr)
+		return
+	}
+	if creds.ClaudeAIOAuth.AccessToken == "" {
+		logger.Warn("claude: etcd credentials blob has empty access token, skipping sync")
 		return
 	}
 

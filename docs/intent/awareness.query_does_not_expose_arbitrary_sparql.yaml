@@ -19,6 +19,10 @@ bad_smells:
   - caller-supplied SPARQL string forwarded to Oxigraph
   - QueryMode has a "raw" or "passthrough" variant
   - unknown mode falls through instead of returning InvalidArgument
+expressed_by:
+- ../awareness-graph/golang/server/query.go
+- ../awareness-graph/golang/server/main_test.go
+- ../awareness-graph/cmd/awareness-mcp/main.go
 related_to:
   - awareness.mcp_bridge_exposes_safe_tools_only
 required_tests:

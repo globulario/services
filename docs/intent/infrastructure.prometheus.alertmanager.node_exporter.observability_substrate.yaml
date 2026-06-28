@@ -18,8 +18,8 @@ activation_triggers:
   - scrape
   - alert
 expressed_by:
-  - operational-knowledge/service-roles/cluster-doctor.yaml
-  - services/golang/cluster_doctor/cluster_doctor_server/rules/prometheus_runtime.go
+  - docs/operational-knowledge/service-roles/cluster-doctor.yaml
+  - golang/cluster_doctor/cluster_doctor_server/rules/prometheus_runtime.go
 related_invariants: []
 zooms_out_to:
   - observability.must_explain_cause_not_only_metric

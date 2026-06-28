@@ -1,5 +1,5 @@
 id: backup.retention_preserves_restore_tested_floor
-level: mechanism
+level: contract
 title: Retention must keep at least MinRestoreTestedToKeep restore-tested backups
 intent: |
   The retention policy deletes old backups based on count, age, and size. But it must

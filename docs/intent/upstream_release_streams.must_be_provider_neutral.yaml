@@ -16,8 +16,8 @@ activation_triggers:
 - git provider
 - release stream
 expressed_by:
-- operators/repository-upstreams.md
-- operators/upstream-release-streams.md
+- docs/operators/repository-upstreams.md
+- docs/operators/upstream-release-streams.md
 - golang/repository/upstream/source.go
 - golang/repository/upstream/github.go
 - golang/repository/upstream/git_source.go

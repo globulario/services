@@ -1,5 +1,5 @@
 id: controller.join_lifecycle_fsm_gates_cluster_decisions
-level: mechanism
+level: contract
 title: Only nodes in ACTIVE phase participate in RF, topology, workflow scheduling, and dependency calculations
 intent: |
   The join FSM has 8 non-terminal phases (JOIN_REQUESTED → JOIN_AUTHORIZED →

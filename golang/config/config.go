@@ -45,6 +45,17 @@ var (
 	config_ map[string]interface{}
 )
 
+// ResetLocalConfigForTesting clears the package-level local config cache and
+// returns a restore function. It is intended for cross-package tests that set
+// GLOBULAR_STATE_DIR before loading config.
+func ResetLocalConfigForTesting() func() {
+	prev := config_
+	config_ = nil
+	return func() {
+		config_ = prev
+	}
+}
+
 // ============================================================================
 // etcd keys (system config only)
 // ============================================================================
@@ -57,6 +68,7 @@ const (
 // ============================================================================
 // Addressing / Identity
 // ============================================================================
+//
 //go:schemalint:ignore — implementation type, not schema owner
 type PortAllocator struct {
 	from, to int

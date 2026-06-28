@@ -15,8 +15,8 @@ activation_triggers:
 - approval gate
 - cooldown
 expressed_by:
-- awareness/remediation_contracts.yaml
-- awareness/invariants.yaml
+- docs/awareness/remediation_contracts.yaml
+- docs/awareness/invariants.yaml
 related_invariants:
 - remediation.auto_execution_is_rate_limited
 zooms_out_to:

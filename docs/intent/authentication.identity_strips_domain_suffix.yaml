@@ -1,5 +1,5 @@
 id: authentication.identity_strips_domain_suffix
-level: mechanism
+level: contract
 title: principal_id and Subject are domain-independent — @domain is a routing label, not identity
 intent: |
   Globular supports multi-domain deployments. A user "alice@globular.io" and "alice@staging.io"

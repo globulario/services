@@ -17,9 +17,9 @@ activation_triggers:
 - trust
 - admission
 expressed_by:
-- operators/security.md
-- operators/bootstrap-security.md
-- operators/dns-and-pki.md
+- docs/operators/security.md
+- docs/operators/bootstrap-security.md
+- docs/operators/dns-and-pki.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster

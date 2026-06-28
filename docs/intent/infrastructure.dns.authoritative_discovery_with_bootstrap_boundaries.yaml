@@ -30,11 +30,11 @@ activation_triggers:
   - authoritative zone
 
 expressed_by:
-  - operational-knowledge/dns-records.md
-  - operational-knowledge/stages/day-0-bootstrap.yaml
-  - operational-knowledge/stages/day-1-join.yaml
-  - services/golang/cluster_controller/cluster_controller_server/server.go
-  - services/golang/node_agent/node_agent_server/dns_sync.go
+  - docs/operational-knowledge/dns-records.md
+  - docs/operational-knowledge/stages/day-0-bootstrap.yaml
+  - docs/operational-knowledge/stages/day-1-join.yaml
+  - golang/cluster_controller/cluster_controller_server/server.go
+  - golang/node_agent/node_agent_server/dns_sync.go
 
 related_invariants: []
 

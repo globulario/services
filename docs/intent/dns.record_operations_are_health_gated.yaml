@@ -1,5 +1,5 @@
 id: dns.record_operations_are_health_gated
-level: mechanism
+level: contract
 title: All DNS record operations are gated by requireHealthy — degraded storage rejects mutations
 status: active
 
@@ -31,6 +31,10 @@ zooms_out_to:
   - infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries
 
 zooms_in_to: []
+
+expressed_by:
+- golang/dns/dns_server/handlers.go
+- golang/dns/dns_server/startup_gate_test.go
 
 related_invariants:
 

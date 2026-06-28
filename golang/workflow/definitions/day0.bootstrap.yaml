@@ -164,12 +164,12 @@ spec:
 
     # ── Tier 5: Control plane ───────────────────────────────────────────
     - id: install_control_plane
-      title: Install resource, RBAC, authentication, discovery, DNS and repository
+      title: Install resource, RBAC, authentication, DNS and repository
       dependsOn: [install_infra_services]
       actor: installer
       action: installer.install_package_set
       with:
-        packages: [resource, rbac, authentication, discovery, dns, repository]
+        packages: [resource, rbac, authentication, dns, repository]
       timeout: $.install_timeout
       execution:
         idempotency: verify_then_continue

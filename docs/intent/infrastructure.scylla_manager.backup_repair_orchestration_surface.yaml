@@ -17,8 +17,8 @@ activation_triggers:
   - repair
   - backup orchestration
 expressed_by:
-  - operational-knowledge/runbooks/restore-from-backup.yaml
-  - services/golang/node_agent/node_agent_server/scylla_manager_agent_config.go
+  - docs/operational-knowledge/runbooks/restore-from-backup.yaml
+  - golang/node_agent/node_agent_server/scylla_manager_agent_config.go
 related_invariants: []
 zooms_out_to:
   - backup.must_be_restorable_not_just_taken

@@ -860,6 +860,58 @@ func (srv *server) GetIncident(ctx context.Context, req *ai_watcherpb.GetInciden
 	return &ai_watcherpb.GetIncidentRsp{Incident: inc}, nil
 }
 
+// dispatchApprovedActionToExecutor sends an approved Tier-2 incident to the
+// ai_executor for execution and returns the terminal job state plus any
+// execution-error message. It is a package var so tests can substitute the
+// executor without a live gRPC backend.
+//
+// A dispatch/connection failure returns a non-nil error — the caller MUST treat
+// that as INCIDENT_FAILED, never RESOLVED. Absorbing a connection error into a
+// success state is the exact false-terminal-success bug recorded in
+// failure_mode ai_watcher.connection_error_marked_resolved.
+var dispatchApprovedActionToExecutor = func(incidentID, approver string) (ai_executorpb.JobState, string, error) {
+	addr := config.ResolveServiceAddr("ai_executor.AiExecutorService", "")
+	if addr == "" {
+		return 0, "", fmt.Errorf("ai_executor unavailable: cannot execute approved action")
+	}
+	dialOpts, err := globular.InternalDialOptions()
+	if err != nil {
+		return 0, "", fmt.Errorf("internal TLS unavailable: %w", err)
+	}
+	//nolint:staticcheck // grpc.Dial is kept until the shared Globular dial path migrates to grpc.NewClient.
+	cc, err := grpc.Dial(addr, dialOpts...)
+	if err != nil {
+		return 0, "", fmt.Errorf("executor connection failed: %w", err)
+	}
+	defer func() { _ = cc.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	client := ai_executorpb.NewAiExecutorServiceClient(cc)
+	resp, err := client.ApproveAction(ctx, &ai_executorpb.ApproveActionRequest{
+		IncidentId: incidentID,
+		ApprovedBy: approver,
+	})
+	if err != nil {
+		return 0, "", fmt.Errorf("executor ApproveAction failed: %w", err)
+	}
+	job := resp.GetJob()
+	if job == nil {
+		return 0, "", fmt.Errorf("executor returned no job for incident %s", incidentID)
+	}
+	return job.GetState(), job.GetError(), nil
+}
+
+// ApproveAction records human approval for a Tier-2 (REQUIRE_APPROVAL) incident,
+// dispatches the approved action through the executor, and resolves the incident
+// strictly on the execution outcome.
+//
+// Invariant: approval alone transitions the incident to INCIDENT_REMEDIATING,
+// NEVER directly to RESOLVED. The incident reaches RESOLVED only if the executor
+// reports the job SUCCEEDED; any dispatch, execution, or verification failure
+// transitions to INCIDENT_FAILED with approval + execution-error metadata.
+// Approval is context (who/when), not, by itself, a successful outcome.
 func (srv *server) ApproveAction(ctx context.Context, req *ai_watcherpb.ApproveActionRqst) (*ai_watcherpb.ApproveActionRsp, error) {
 	srv.incidentsMu.Lock()
 	inc, ok := srv.incidents[req.GetIncidentId()]
@@ -871,22 +923,124 @@ func (srv *server) ApproveAction(ctx context.Context, req *ai_watcherpb.ApproveA
 		srv.incidentsMu.Unlock()
 		return nil, fmt.Errorf("incident %s is not awaiting approval (status: %s)", req.GetIncidentId(), inc.Status.String())
 	}
-	inc.Status = ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED
+	if inc.Metadata == nil {
+		inc.Metadata = map[string]string{}
+	}
 	inc.Metadata["approved_by"] = req.GetApprover()
 	inc.Metadata["approved_at"] = time.Now().Format(time.RFC3339)
-	inc.Diagnosis = inc.Diagnosis + " — approval recorded, remediation pending implementation"
-	inc.ResolvedAt = time.Now().Unix()
+	inc.Metadata["approved_action"] = inc.ProposedAction
+	inc.Metadata["tier"] = "REQUIRE_APPROVAL"
+	inc.Status = ai_watcherpb.IncidentStatus_INCIDENT_REMEDIATING
 	srv.incidentsMu.Unlock()
 
 	srv.statsMu.Lock()
-	srv.stats.ApprovalsPending--
+	if srv.stats.ApprovalsPending > 0 {
+		srv.stats.ApprovalsPending--
+	}
 	srv.statsMu.Unlock()
 
-	logger.Info("action approved", "incident", req.GetIncidentId(), "approver", req.GetApprover())
+	logger.Info("action approved — dispatching to executor (async)",
+		"incident", req.GetIncidentId(), "approver", req.GetApprover())
 
-	// TODO: Execute the proposed remediation. Once implemented, set
-	// INCIDENT_REMEDIATING before dispatch and RESOLVED/FAILED on completion.
+	// Acknowledge the state transition immediately; the dispatch goroutine owns
+	// the execution outcome. The caller is NOT blocked on remediation, so a
+	// client timeout can no longer create "did it run?" fog — the incident is
+	// already REMEDIATING and converges to RESOLVED/FAILED in the background.
+	id, approver := req.GetIncidentId(), req.GetApprover()
+	runApprovalDispatch(func() { srv.dispatchAndResolveApproval(id, approver) })
+
 	return &ai_watcherpb.ApproveActionRsp{Success: true}, nil
+}
+
+// runApprovalDispatch launches the approval-dispatch goroutine. A package var so
+// tests can run it synchronously and assert the terminal state deterministically.
+var runApprovalDispatch = func(f func()) { go f() }
+
+// dispatchAndResolveApproval runs the approved action through the executor and
+// resolves the incident strictly on the outcome. Invariant: never RESOLVED
+// without JOB_SUCCEEDED; a still-progressing job keeps the incident REMEDIATING
+// rather than being mis-stamped FAILED.
+func (srv *server) dispatchAndResolveApproval(incidentID, approver string) {
+	jobState, execErr, err := dispatchApprovedActionToExecutor(incidentID, approver)
+	if err != nil {
+		srv.failApprovedAction(incidentID, err.Error())
+		logger.Error("approved action dispatch failed", "incident", incidentID, "err", err)
+		return
+	}
+	switch classifyApprovalOutcome(jobState) {
+	case approvalResolved:
+		srv.updateIncidentStatus(incidentID, ai_watcherpb.IncidentStatus_INCIDENT_RESOLVED)
+		logger.Info("approved action executed", "incident", incidentID)
+	case approvalFailed:
+		msg := execErr
+		if msg == "" {
+			msg = "approved action did not succeed (job state: " + jobState.String() + ")"
+		}
+		srv.failApprovedAction(incidentID, msg)
+		logger.Warn("approved action failed", "incident", incidentID, "job_state", jobState.String())
+	case approvalPending:
+		// Job is still in flight (approved/executing). Honest in-progress state:
+		// keep INCIDENT_REMEDIATING (set by ApproveAction) and record the last
+		// observed job status — do NOT claim RESOLVED, do NOT mis-stamp FAILED.
+		srv.setIncidentMeta(incidentID, "last_job_status", jobState.String())
+		logger.Info("approved action in progress — incident remains REMEDIATING",
+			"incident", incidentID, "job_state", jobState.String())
+	}
+}
+
+type approvalOutcome int
+
+const (
+	approvalPending approvalOutcome = iota
+	approvalResolved
+	approvalFailed
+)
+
+// classifyApprovalOutcome maps an executor job state to an incident transition.
+// Load-bearing invariant: only JOB_SUCCEEDED yields RESOLVED; terminal failure
+// states yield FAILED; anything still in flight (or an unknown state) stays
+// REMEDIATING — never a false RESOLVED, never a false FAILED.
+func classifyApprovalOutcome(s ai_executorpb.JobState) approvalOutcome {
+	switch s {
+	case ai_executorpb.JobState_JOB_SUCCEEDED:
+		return approvalResolved
+	case ai_executorpb.JobState_JOB_FAILED,
+		ai_executorpb.JobState_JOB_EXPIRED,
+		ai_executorpb.JobState_JOB_DENIED,
+		ai_executorpb.JobState_JOB_CLOSED:
+		return approvalFailed
+	default:
+		// JOB_APPROVED, JOB_EXECUTING, JOB_DETECTED/DIAGNOSING/DIAGNOSED,
+		// JOB_AWAITING_APPROVAL, or any unknown value → still in flight.
+		return approvalPending
+	}
+}
+
+// setIncidentMeta sets a single metadata key on an incident under the lock,
+// without changing its status.
+func (srv *server) setIncidentMeta(incidentID, key, value string) {
+	srv.incidentsMu.Lock()
+	defer srv.incidentsMu.Unlock()
+	if inc, ok := srv.incidents[incidentID]; ok {
+		if inc.Metadata == nil {
+			inc.Metadata = map[string]string{}
+		}
+		inc.Metadata[key] = value
+	}
+}
+
+// failApprovedAction stamps the execution error into incident metadata and
+// transitions the incident to INCIDENT_FAILED — never RESOLVED.
+func (srv *server) failApprovedAction(incidentID, execErr string) {
+	srv.incidentsMu.Lock()
+	if inc, ok := srv.incidents[incidentID]; ok {
+		if inc.Metadata == nil {
+			inc.Metadata = map[string]string{}
+		}
+		inc.Metadata["execution_error"] = execErr
+	}
+	srv.incidentsMu.Unlock()
+	srv.updateIncidentStatus(incidentID, ai_watcherpb.IncidentStatus_INCIDENT_FAILED)
 }
 
 func (srv *server) DenyAction(ctx context.Context, req *ai_watcherpb.DenyActionRqst) (*ai_watcherpb.DenyActionRsp, error) {

@@ -110,15 +110,6 @@ code_symbols:
       implements:
         - globular.platform:intent.repository.gc_preserves_safety_states
         - globular.platform:intent.repository.lifecycle_state_machine
-  - id: globular.platform:code.go.platform_repository.install_policy
-    namespace: globular.platform
-    language: go
-    file: golang/repository/repository_server/install_policy.go
-    component: platform_repository.install_policy
-    risk: high
-    annotations:
-      implements:
-        - globular.platform:intent.repository.metadata_is_authority
   - id: globular.platform:code.go.platform_repository.manifest_cache
     namespace: globular.platform
     language: go
@@ -580,11 +571,6 @@ test_symbols:
     symbol: TestGetArtifactVersions_RequiresName
     package: main
     language: go
-  - id: golang/repository/repository_server/artifact_handlers_test.go:TestInferCorrectKind
-    file: golang/repository/repository_server/artifact_handlers_test.go
-    symbol: TestInferCorrectKind
-    package: main
-    language: go
   - id: golang/repository/repository_server/artifact_handlers_test.go:TestIsLedgerRowKey
     file: golang/repository/repository_server/artifact_handlers_test.go
     symbol: TestIsLedgerRowKey
@@ -602,12 +588,6 @@ test_symbols:
     symbol: TestLegacyKeyFallback
     package: main
     language: go
-  - id: golang/repository/repository_server/artifact_handlers_test.go:TestMCPNotReclassifiedAsInfrastructure
-    file: golang/repository/repository_server/artifact_handlers_test.go
-    symbol: TestMCPNotReclassifiedAsInfrastructure
-    package: main
-    language: go
-    doc: "TestMCPNotReclassifiedAsInfrastructure verifies mcp stays SERVICE —\nit is a KindWorkload managed by desired state, not an infra daemon."
   - id: golang/repository/repository_server/artifact_handlers_test.go:TestMatchesQuery
     file: golang/repository/repository_server/artifact_handlers_test.go
     symbol: TestMatchesQuery
@@ -638,12 +618,6 @@ test_symbols:
     symbol: TestSearchArtifacts_TextQuery
     package: main
     language: go
-  - id: golang/repository/repository_server/artifact_handlers_test.go:TestXDSGatewayClassifiedAsInfrastructure
-    file: golang/repository/repository_server/artifact_handlers_test.go
-    symbol: TestXDSGatewayClassifiedAsInfrastructure
-    package: main
-    language: go
-    doc: "TestXDSGatewayClassifiedAsInfrastructure verifies xds and gateway are\nNEVER returned as SERVICE from the repository layer, even when old\nartifacts carry the wrong kind in their manifest."
   - id: golang/repository/repository_server/artifact_law_validator_test.go:TestArtifactLaw_ApplicationMayHardDepOnService
     file: golang/repository/repository_server/artifact_law_validator_test.go
     symbol: TestArtifactLaw_ApplicationMayHardDepOnService
@@ -1018,26 +992,6 @@ test_symbols:
     symbol: TestT5_ScyllaDown_UploadArtifactBlocked
     package: main
     language: go
-  - id: golang/repository/repository_server/dep_health_test.go:TestT6_MinioDown_ServiceModeDegraded
-    file: golang/repository/repository_server/dep_health_test.go
-    symbol: TestT6_MinioDown_ServiceModeDegraded
-    package: main
-    language: go
-  - id: golang/repository/repository_server/dep_health_test.go:TestT7_MinioDown_RequireReadAllowed
-    file: golang/repository/repository_server/dep_health_test.go
-    symbol: TestT7_MinioDown_RequireReadAllowed
-    package: main
-    language: go
-  - id: golang/repository/repository_server/dep_health_test.go:TestT8_MinioDown_RequireWriteAllowed
-    file: golang/repository/repository_server/dep_health_test.go
-    symbol: TestT8_MinioDown_RequireWriteAllowed
-    package: main
-    language: go
-  - id: golang/repository/repository_server/dep_health_test.go:TestT9_MinioDown_OperationalStatusMinioUnavailable
-    file: golang/repository/repository_server/dep_health_test.go
-    symbol: TestT9_MinioDown_OperationalStatusMinioUnavailable
-    package: main
-    language: go
   - id: golang/repository/repository_server/dependency_contract_test.go:TestDependencyDeclarationMatchesLiveEnforcement
     file: golang/repository/repository_server/dependency_contract_test.go
     symbol: TestDependencyDeclarationMatchesLiveEnforcement
@@ -1124,18 +1078,18 @@ test_symbols:
     symbol: TestSortSemverDesc
     package: main
     language: go
-  - id: golang/repository/repository_server/describe_package_test.go:TestWalkCatalogForKindNormalization
-    file: golang/repository/repository_server/describe_package_test.go
-    symbol: TestWalkCatalogForKindNormalization
-    package: main
-    language: go
-    doc: "TestWalkCatalogForKindNormalization is a regression guard for the xds/gateway\npre-v1.2.7 mismatch. Old artifacts had kind=SERVICE in the manifest; walkCatalogFor\nmust report storedKind=SERVICE and effectiveKind=INFRASTRUCTURE so DescribePackage\ncan surface the operator-visible warning."
   - id: golang/repository/repository_server/describe_package_test.go:TestWalkCatalogForNoNormalizationForCorrectArtifact
     file: golang/repository/repository_server/describe_package_test.go
     symbol: TestWalkCatalogForNoNormalizationForCorrectArtifact
     package: main
     language: go
     doc: "TestWalkCatalogForNoNormalizationForCorrectArtifact verifies that a correctly\npublished artifact (kind already=INFRASTRUCTURE) does not trigger normalization."
+  - id: golang/repository/repository_server/describe_package_test.go:TestWalkCatalogForTrustsStoredKind
+    file: golang/repository/repository_server/describe_package_test.go
+    symbol: TestWalkCatalogForTrustsStoredKind
+    package: main
+    language: go
+    doc: "TestWalkCatalogForKindNormalization is a regression guard for the xds/gateway\npre-v1.2.7 mismatch. Old artifacts had kind=SERVICE in the manifest; walkCatalogFor\nmust report storedKind=SERVICE and effectiveKind=INFRASTRUCTURE so DescribePackage\ncan surface the operator-visible warning.\nTestWalkCatalogForTrustsStoredKind verifies Slice 4b: describe TRUSTS the stored\nmanifest kind and no longer re-derives it on read. The read-time inferCorrectKind\ncorrection was removed; kind is stamped registry-correct at write time (publish/sync\nvia registryArtifactKind), and a live audit proved every stored manifest already\ncarries the correct kind. So describe returns exactly what the manifest stores."
   - id: golang/repository/repository_server/desired_orphan_test.go:TestCollectDesiredBuildIDs_ScansAllFourPrefixes
     file: golang/repository/repository_server/desired_orphan_test.go
     symbol: TestCollectDesiredBuildIDs_ScansAllFourPrefixes
@@ -1590,41 +1544,24 @@ test_symbols:
     package: main
     language: go
     doc: "TestUploadBundleDualWrite_SetsPublishedState verifies that the dual-write\nfrom UploadBundle sets publish_state=PUBLISHED on the artifact manifest,\nsince UploadBundle is a complete publish operation (descriptor already exists)."
-  - id: golang/repository/repository_server/minio_independence_test.go:TestCanary_FailureDisablesMirrorNotRepository
-    file: golang/repository/repository_server/minio_independence_test.go
-    symbol: TestCanary_FailureDisablesMirrorNotRepository
-    package: main
-    language: go
-    doc: "TestCanary_FailureDisablesMirrorNotRepository verifies that a canary failure\ncauses mirrorOK=false but leaves the service serving RPCs.\n\npingMinio returns false on canary failure; check() applies the return value\nto mirrorOK. The test simulates check()'s assignment to confirm the model\nholds end-to-end: canary fails → mirrorOK=false → RequireHealthy still OK."
-  - id: golang/repository/repository_server/minio_independence_test.go:TestDepHealth_BothDownBlocksOnlyOnScylla
-    file: golang/repository/repository_server/minio_independence_test.go
-    symbol: TestDepHealth_BothDownBlocksOnlyOnScylla
-    package: main
-    language: go
-    doc: "TestDepHealth_BothDownBlocksOnlyOnScylla: Both ScyllaDB AND MinIO down →\nRequireHealthy must ONLY report ScyllaDB."
-  - id: golang/repository/repository_server/minio_independence_test.go:TestDepHealth_MinIODownDoesNotBlockRPCs
-    file: golang/repository/repository_server/minio_independence_test.go
-    symbol: TestDepHealth_MinIODownDoesNotBlockRPCs
-    package: main
-    language: go
-    doc: "TestDepHealth_MinIODownDoesNotBlockRPCs simulates: scyllaOK=true, mirrorOK=false\n→ RequireHealthy must return nil."
   - id: golang/repository/repository_server/minio_independence_test.go:TestDepHealth_ScyllaDownBlocksRPCs
     file: golang/repository/repository_server/minio_independence_test.go
     symbol: TestDepHealth_ScyllaDownBlocksRPCs
     package: main
     language: go
     doc: "TestDepHealth_ScyllaDownBlocksRPCs: ScyllaDB down → RequireHealthy() MUST return an error."
+  - id: golang/repository/repository_server/minio_independence_test.go:TestDepHealth_ScyllaOKAllowsRPCs
+    file: golang/repository/repository_server/minio_independence_test.go
+    symbol: TestDepHealth_ScyllaOKAllowsRPCs
+    package: main
+    language: go
+    doc: "TestDepHealth_ScyllaOKAllowsRPCs: ScyllaDB OK → RequireHealthy must return nil."
   - id: golang/repository/repository_server/minio_independence_test.go:TestPublish_MissingLocalBlobBlocksPromote
     file: golang/repository/repository_server/minio_independence_test.go
     symbol: TestPublish_MissingLocalBlobBlocksPromote
     package: main
     language: go
     doc: "TestPublish_MissingLocalBlobBlocksPromote verifies that promoteToPublished\nrefuses to advance when the local blob is missing."
-  - id: golang/repository/repository_server/minio_independence_test.go:TestResilientStorage_MinIODownWriteReadWorks
-    file: golang/repository/repository_server/minio_independence_test.go
-    symbol: TestResilientStorage_MinIODownWriteReadWorks
-    package: main
-    language: go
   - id: golang/repository/repository_server/package_identity_required_tests_test.go:TestArtifactTupleDoesNotMapToMultipleBuildIDs
     file: golang/repository/repository_server/package_identity_required_tests_test.go
     symbol: TestArtifactTupleDoesNotMapToMultipleBuildIDs
@@ -1790,21 +1727,6 @@ test_symbols:
   - id: golang/repository/repository_server/publish_conformance_test.go:TestConformance_UploadFailure_NoManifest
     file: golang/repository/repository_server/publish_conformance_test.go
     symbol: TestConformance_UploadFailure_NoManifest
-    package: main
-    language: go
-  - id: golang/repository/repository_server/publish_durability_test.go:TestEnsureMirrorDurability_AlreadyInMirrorIsIdempotent
-    file: golang/repository/repository_server/publish_durability_test.go
-    symbol: TestEnsureMirrorDurability_AlreadyInMirrorIsIdempotent
-    package: main
-    language: go
-  - id: golang/repository/repository_server/publish_durability_test.go:TestEnsureMirrorDurability_NoMirrorIsNoOp
-    file: golang/repository/repository_server/publish_durability_test.go
-    symbol: TestEnsureMirrorDurability_NoMirrorIsNoOp
-    package: main
-    language: go
-  - id: golang/repository/repository_server/publish_durability_test.go:TestEnsureMirrorDurability_PushesLocalOnlyBlobToMirror
-    file: golang/repository/repository_server/publish_durability_test.go
-    symbol: TestEnsureMirrorDurability_PushesLocalOnlyBlobToMirror
     package: main
     language: go
   - id: golang/repository/repository_server/publish_posix_authority_test.go:TestDoctorAndVerify_AgreeOn_PublishedMissingBlob
@@ -2065,6 +1987,41 @@ test_symbols:
     symbol: TestReachability_Size
     package: main
     language: go
+  - id: golang/repository/repository_server/registry_artifact_kind_test.go:TestPublishStampsRegistryKind
+    file: golang/repository/repository_server/registry_artifact_kind_test.go
+    symbol: TestPublishStampsRegistryKind
+    package: main
+    language: go
+    doc: "TestPublishStampsRegistryKind documents the publish before/after: the same\ninputs that previously yielded SERVICE (the handlers.go hardcode) now yield the\nregistry-authoritative kind for infra/command packages."
+  - id: golang/repository/repository_server/registry_artifact_kind_test.go:TestRegistryArtifactKind
+    file: golang/repository/repository_server/registry_artifact_kind_test.go
+    symbol: TestRegistryArtifactKind
+    package: main
+    language: go
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestElfDebugSectionName_Policy
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestElfDebugSectionName_Policy
+    package: main
+    language: go
+    doc: "(policy) The section-name policy flags a symbol table / DWARF and clears a\nstripped section set."
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactStripped_AcceptsStrippedELF
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactStripped_AcceptsStrippedELF
+    package: main
+    language: go
+    doc: "(counter-case) A properly stripped release binary passes."
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactStripped_NonELFPasses
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactStripped_NonELFPasses
+    package: main
+    language: go
+    doc: "(out of scope) A non-ELF entrypoint passes — the gate is ELF-only and does\nnot implicitly trust or reject formats it cannot inspect."
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactStripped_RejectsUnstrippedELF
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactStripped_RejectsUnstrippedELF
+    package: main
+    language: go
+    doc: "(positive guard) An unstripped release binary is rejected."
   - id: golang/repository/repository_server/release_authority_test.go:TestAccountWithoutReleasePermissionGetsDevOnly
     file: golang/repository/repository_server/release_authority_test.go
     symbol: TestAccountWithoutReleasePermissionGetsDevOnly
@@ -2414,6 +2371,24 @@ test_symbols:
     symbol: TestVersionStampingSequenceMatters
     package: main
     language: go
+  - id: golang/repository/repository_server/release_version_single_authority_test.go:TestVersionSingleAuthority_BumpAdvancesFromPublished
+    file: golang/repository/repository_server/release_version_single_authority_test.go
+    symbol: TestVersionSingleAuthority_BumpAdvancesFromPublished
+    package: main
+    language: go
+    doc: "(3) The authority advances the stream: a bump computes the next version from\nthe published latest. The caller expresses INTENT (bump patch); the repository\nproduces the version. This is the positive half of single-authority."
+  - id: golang/repository/repository_server/release_version_single_authority_test.go:TestVersionSingleAuthority_PublishedVersionImmutable
+    file: golang/repository/repository_server/release_version_single_authority_test.go
+    symbol: TestVersionSingleAuthority_PublishedVersionImmutable
+    package: main
+    language: go
+    doc: "(2) A published version is immutable: the authority refuses to re-allocate an\nalready-published release version (which would mint a new build_id for the\nsame human version and strand every node on the old one)."
+  - id: golang/repository/repository_server/release_version_single_authority_test.go:TestVersionSingleAuthority_RegressionRejected
+    file: golang/repository/repository_server/release_version_single_authority_test.go
+    symbol: TestVersionSingleAuthority_RegressionRejected
+    package: main
+    language: go
+    doc: "(1) Regression is rejected: a caller cannot allocate a release version below\nthe published high-water mark. This is the core of single-authority — the\nrepository, not the caller, decides what is a valid forward step."
   - id: golang/repository/repository_server/repair_authorization_test.go:TestGetRepairAuthorization_FullTriplet_Parsed
     file: golang/repository/repository_server/repair_authorization_test.go
     symbol: TestGetRepairAuthorization_FullTriplet_Parsed
@@ -2484,18 +2459,12 @@ test_symbols:
     symbol: TestListRepositoryFindings_DuplicateChecksumWithoutAlias
     package: main
     language: go
-  - id: golang/repository/repository_server/repository_findings_test.go:TestListRepositoryFindings_MissingLocalAndMirror_StaysCritical
+  - id: golang/repository/repository_server/repository_findings_test.go:TestListRepositoryFindings_MissingLocalBlob_StaysCritical
     file: golang/repository/repository_server/repository_findings_test.go
-    symbol: TestListRepositoryFindings_MissingLocalAndMirror_StaysCritical
+    symbol: TestListRepositoryFindings_MissingLocalBlob_StaysCritical
     package: main
     language: go
-    doc: "Mirror configured but the blob is gone from BOTH local CAS and the mirror =\ntrue cluster-wide data loss → the finding must stay CRITICAL. This proves the\ndowngrade gates specifically on mirror presence, not on \"a mirror exists\"."
-  - id: golang/repository/repository_server/repository_findings_test.go:TestListRepositoryFindings_MissingLocalButPresentInMirror_DowngradedToInfo
-    file: golang/repository/repository_server/repository_findings_test.go
-    symbol: TestListRepositoryFindings_MissingLocalButPresentInMirror_DowngradedToInfo
-    package: main
-    language: go
-    doc: "A PUBLISHED manifest is cluster-wide (shared ScyllaDB index), but blobs are\nper-instance local POSIX CAS replicated asynchronously via the MinIO mirror.\nA blob absent from THIS instance's local CAS but PRESENT in the shared mirror\nis replication lag on this instance — NOT data loss. ListRepositoryFindings\nmust downgrade it to INFO (replication lag), never emit the CRITICAL\ndata-loss finding that floods the doctor during multi-node joins. The local\nCAS remains the installability authority (artifactBlobStatus unchanged); the\nmirror is consulted for reporting-scope disambiguation only."
+    doc: "A blob missing from the local POSIX CAS for a PUBLISHED manifest is real data\nloss → the finding must be CRITICAL. Packages never live in MinIO, so there is\nno mirror tier to downgrade against: a missing local blob is always loss."
   - id: golang/repository/repository_server/repository_findings_test.go:TestListRepositoryFindings_PublishedChecksumMismatch
     file: golang/repository/repository_server/repository_findings_test.go
     symbol: TestListRepositoryFindings_PublishedChecksumMismatch
@@ -2569,11 +2538,6 @@ test_symbols:
   - id: golang/repository/repository_server/repository_source_resolver_test.go:TestResolver_F_SourceUnavailable
     file: golang/repository/repository_server/repository_source_resolver_test.go
     symbol: TestResolver_F_SourceUnavailable
-    package: main
-    language: go
-  - id: golang/repository/repository_server/repository_source_resolver_test.go:TestResolver_J_MinIOPolicyControlsChain
-    file: golang/repository/repository_server/repository_source_resolver_test.go
-    symbol: TestResolver_J_MinIOPolicyControlsChain
     package: main
     language: go
   - id: golang/repository/repository_server/repository_source_upstream_test.go:TestFindEntryAliasAwareBuildIDMatch
@@ -2945,12 +2909,6 @@ test_symbols:
     symbol: TestScylla_TemporaryFailure_FallsBackToMinio
     package: main
     language: go
-  - id: golang/repository/repository_server/storage_hardening_test.go:TestStandaloneRoundRobinEndpointRejected
-    file: golang/repository/repository_server/storage_hardening_test.go
-    symbol: TestStandaloneRoundRobinEndpointRejected
-    package: main
-    language: go
-    doc: "TestStandaloneRoundRobinEndpointRejected verifies that the topology\nvalidation logic correctly identifies round-robin DNS names as forbidden\nin standalone_authority mode. Since validateStorageTopology requires etcd,\nwe test the rule embedded in validateStorageTopology directly by calling\nthe ErrStorageTopologyInvalid detection logic inline."
   - id: golang/repository/repository_server/sync_classify_test.go:TestClassifyUpstreamFetchError_LocalDirNotFound
     file: golang/repository/repository_server/sync_classify_test.go
     symbol: TestClassifyUpstreamFetchError_LocalDirNotFound

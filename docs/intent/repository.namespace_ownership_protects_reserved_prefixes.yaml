@@ -1,5 +1,5 @@
 id: repository.namespace_ownership_protects_reserved_prefixes
-level: mechanism
+level: contract
 title: Reserved namespace prefixes are superuser-only — regular publishers cannot claim system namespaces
 intent: |
   namespace.go hard-blocks writes to namespace prefixes globular, system, core, internal, admin

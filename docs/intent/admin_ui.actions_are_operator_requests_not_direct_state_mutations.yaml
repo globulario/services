@@ -11,6 +11,10 @@ activation_triggers:
   - admin ui
   - frontend action
   - state mutation
+expressed_by:
+- golang/cluster_controller/cluster_controller_server/delete_critical_release_test.go
+- golang/cluster_controller/cluster_controller_server/repair_handler.go
+- golang/workflow/engine/actors_node_remove.go
 related_to:
   - frontend_and_admin_are_clients_not_authorities
 required_tests:

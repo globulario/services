@@ -17,9 +17,11 @@ activation_triggers:
 - timeout
 - idempotent
 expressed_by:
-- operators/convergence-model.md
-- awareness/design_patterns.yaml
-- awareness/convergence_rules.yaml
+- docs/operators/convergence-model.md
+- docs/awareness/convergence_rules.yaml
+- golang/workflow/workflow_server/executor.go
+- golang/workflow/workflow_server/step_receipts.go
+- golang/workflow/engine/engine.go
 related_invariants:
 - convergence.no_infinite_retry
 - critical_queries.must_be_bounded

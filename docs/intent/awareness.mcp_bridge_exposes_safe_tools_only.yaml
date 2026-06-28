@@ -22,6 +22,9 @@ bad_smells:
   - graph mutation available via MCP
   - callTool switch has a default passthrough case
   - new tool added without whitelist review
+expressed_by:
+- ../awareness-graph/cmd/awareness-mcp/main.go
+- ../awareness-graph/cmd/awareness-mcp/main_test.go
 related_to:
   - awareness.query_does_not_expose_arbitrary_sparql
 required_tests:

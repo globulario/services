@@ -15,8 +15,8 @@ activation_triggers:
 - upgrade
 - migration
 expressed_by:
-- operators/deployment-philosophy.md
-- operators/package-lifecycle.md
+- docs/operators/deployment-philosophy.md
+- docs/operators/package-lifecycle.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.explicit_convergence

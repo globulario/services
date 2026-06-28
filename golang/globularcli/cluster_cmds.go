@@ -124,7 +124,7 @@ func init() {
 	requestsRejectCmd.Flags().StringVar(&rejectReason, "reason", "", "Rejection reason")
 	requestsRejectCmd.Flags().StringVar(&requestsRejectRequestID, "request-id", "", "Join request ID (overrides positional argument)")
 
-	nodeProfilesCmd.Flags().StringSliceVar(&profileSet, "profile", nil, "Profiles to assign (required)")
+	nodeProfilesSetCmd.Flags().StringSliceVar(&profileSet, "profile", nil, "Profiles to assign (required)")
 	nodeProfilesPreviewCmd.Flags().StringSliceVar(&profilePreviewSet, "profile", nil, "Profiles to preview (required)")
 
 	nodeRemoveCmd.Flags().BoolVar(&removeNodeForce, "force", false, "Force removal even if node is unreachable")
@@ -466,8 +466,19 @@ var nodesGetCmd = &cobra.Command{
 	},
 }
 
+// nodeProfilesCmd is the "profiles" parent command. It groups the set/preview
+// subcommands and has no RunE of its own. (Previously the set and preview
+// commands each used a multi-word Use string — "profiles set" / "profiles
+// preview" — which made cobra register BOTH under the command name "profiles",
+// so `profiles preview` was unreachable and `profiles set <id>` parsed the
+// literal "set" as a positional arg. The real command tree below fixes that.)
 var nodeProfilesCmd = &cobra.Command{
-	Use:   "profiles set <node_id>",
+	Use:   "profiles",
+	Short: "Inspect or change a node's profiles",
+}
+
+var nodeProfilesSetCmd = &cobra.Command{
+	Use:   "set <node_id>",
 	Short: "Replace a node's profiles",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -494,7 +505,7 @@ var nodeProfilesCmd = &cobra.Command{
 
 // nodeProfilesPreviewCmd shows what WOULD happen if profiles were changed, without applying.
 var nodeProfilesPreviewCmd = &cobra.Command{
-	Use:   "profiles preview <node_id>",
+	Use:   "preview <node_id>",
 	Short: "Preview the unit and config changes that would result from a profile change",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -957,7 +968,8 @@ var watchCmd = &cobra.Command{
 func init() {
 	tokenCmd.AddCommand(tokenCreateCmd)
 	requestsCmd.AddCommand(requestsListCmd, requestsApproveCmd, requestsRejectCmd)
-	nodesCmd.AddCommand(nodesListCmd, nodesGetCmd, nodeProfilesCmd, nodeProfilesPreviewCmd, nodeRemoveCmd)
+	nodeProfilesCmd.AddCommand(nodeProfilesSetCmd, nodeProfilesPreviewCmd)
+	nodesCmd.AddCommand(nodesListCmd, nodesGetCmd, nodeProfilesCmd, nodeRemoveCmd)
 	debugCmd.AddCommand(debugAgentCmd)
 	debugAgentCmd.AddCommand(agentInventoryCmd)
 }

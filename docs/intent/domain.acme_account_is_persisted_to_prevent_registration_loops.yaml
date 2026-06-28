@@ -1,5 +1,5 @@
 id: domain.acme_account_is_persisted_to_prevent_registration_loops
-level: mechanism
+level: contract
 title: ACME account registration is persisted to disk to prevent re-registration on restart
 intent: |
   Let's Encrypt enforces rate limits on account registrations per email address. If the
@@ -27,6 +27,8 @@ activation_triggers:
   - Let's Encrypt rate limit
   - account.json
 expressed_by:
+- golang/domain/acme_account.go
+- golang/domain/reconciler.go
 related_invariants: []
 zooms_out_to:
   - domain.leader_only_acme_reconciliation

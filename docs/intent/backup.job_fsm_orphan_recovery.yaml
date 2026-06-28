@@ -1,5 +1,5 @@
 id: backup.job_fsm_orphan_recovery
-level: mechanism
+level: contract
 title: Orphaned backup jobs must be detected and marked FAILED on server restart
 intent: |
   Jobs in QUEUED or RUNNING state at server startup are orphaned — the server crashed

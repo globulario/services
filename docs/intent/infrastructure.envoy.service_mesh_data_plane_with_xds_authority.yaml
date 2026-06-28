@@ -20,9 +20,9 @@ activation_triggers:
   - listener
   - route config
 expressed_by:
-  - operational-knowledge/stages/day-1-keepalived.yaml
-  - services/golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
-  - services/golang/node_agent/node_agent_server/xds_config_reconcile.go
+  - docs/operational-knowledge/stages/day-1-keepalived.yaml
+  - golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
+  - golang/node_agent/node_agent_server/xds_config_reconcile.go
 related_invariants: []
 zooms_out_to:
   - node_address.mesh_name_for_routing_explicit_endpoint_for_backend_peers

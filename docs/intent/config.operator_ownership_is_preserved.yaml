@@ -15,8 +15,8 @@ activation_triggers:
 - pre-install gate
 - operator config
 expressed_by:
-- operators/package-lifecycle.md
-- developers/workflow-integration.md
+- docs/operators/package-lifecycle.md
+- docs/developers/workflow-integration.md
 - golang/repository/repository_server/config_ownership.go
 related_invariants: []
 zooms_out_to:

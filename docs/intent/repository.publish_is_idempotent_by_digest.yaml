@@ -1,5 +1,5 @@
 id: repository.publish_is_idempotent_by_digest
-level: mechanism
+level: contract
 title: Publishing same bytes is idempotent, publishing different bytes under same immutable lane is rejected
 intent: Repository publish/upload may accept a retry of the exact same artifact bytes and return the existing build_id, but it must reject a different digest for an already published immutable version/build lane.
 agent_guidance: Preserve retry safety without allowing duplicate package versions. Idempotent publish means same digest returns same build_id. Different digest under the same package/version/channel/platform/build lane is a collision, not a new valid publish.
@@ -15,6 +15,11 @@ activation_triggers:
 - digest
 - checksum
 - duplicate version
+expressed_by:
+- golang/repository/repository_server/allocate_upload.go
+- golang/repository/repository_server/publish_workflow.go
+- golang/repository/repository_server/package_identity_required_tests_test.go
+- golang/repository/repository_server/import_provisional.go
 related_invariants:
 - repository.publish_idempotent_same_digest
 zooms_out_to:

@@ -17,9 +17,9 @@ activation_triggers:
 - certificate
 - routing
 expressed_by:
-- operators/dns-and-pki.md
-- operators/network-and-routing.md
-- operators/security.md
+- docs/operators/dns-and-pki.md
+- docs/operators/network-and-routing.md
+- docs/operators/security.md
 related_invariants: []
 zooms_out_to:
 - globular.security.ceremony_over_configuration

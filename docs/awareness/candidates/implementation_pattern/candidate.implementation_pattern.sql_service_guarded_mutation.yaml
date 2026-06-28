@@ -1,0 +1,11 @@
+# GENERATED candidate by `awg bootstrap` — status: candidate.
+# A suggestion for human review; never auto-promoted. To accept,
+# move it under docs/awareness/architecture/ and set status accordingly.
+id: candidate.implementation_pattern.sql_service_guarded_mutation
+class: ImplementationPattern
+label: SqlService exposes a mutation surface (candidate)
+status: candidate
+confidence: candidate
+description: SqlService has write RPCs (read_or_write=read_write). A mutation surface should be validated/auditable — review whether it follows pattern.guarded_mutation_flow (a GuardedMutationFlow).
+source_files:
+  - proto/sql.proto

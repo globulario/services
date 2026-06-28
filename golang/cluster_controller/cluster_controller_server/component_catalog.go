@@ -598,6 +598,11 @@ func buildCatalog() []*Component {
 			Priority: 900,
 			Profiles: []string{"core", "compute"},
 		},
+		{
+			Name:     "codex",
+			Priority: 900,
+			Profiles: []string{"core", "compute"},
+		},
 
 		// ---------------------------------------------------------------
 		// Infrastructure components — monitoring, VIP, database management

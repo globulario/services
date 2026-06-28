@@ -1,5 +1,5 @@
 id: awareness.resolve_returns_precise_node_by_class_and_id
-level: mechanism
+level: contract
 title: Resolve returns exactly one node by class and bare ID, or Found=false
 intent: >
   The Resolve RPC takes a (class, id) pair, mints the canonical IRI for that
@@ -20,6 +20,10 @@ bad_smells:
   - fallback to related class on miss
   - fuzzy IRI matching
   - Resolve returns partial results when DESCRIBE finds no triples
+expressed_by:
+- ../awareness-graph/golang/server/resolve.go
+- ../awareness-graph/golang/server/main_test.go
+- ../awareness-graph/cmd/awg/cmd_resolve.go
 related_to:
   - awareness.query_does_not_expose_arbitrary_sparql
   - awareness.impact_distinguishes_direct_and_inferred

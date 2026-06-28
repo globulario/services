@@ -28,7 +28,7 @@ activation_triggers:
   - node rejoin after wipe
   - ScyllaJoinConfigured timeout
 expressed_by:
-  - services/golang/cluster_controller/cluster_controller_server/scylla_members.go
+  - golang/cluster_controller/cluster_controller_server/scylla_members.go
 related_invariants:
   - scylla.join_wipe_safe_only_if_never_verified
 zooms_out_to:

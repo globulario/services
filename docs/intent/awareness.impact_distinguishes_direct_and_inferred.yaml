@@ -1,5 +1,5 @@
 id: awareness.impact_distinguishes_direct_and_inferred
-level: mechanism
+level: contract
 title: Impact analysis must partition anchors into Direct and Inferred tiers
 intent: >
   ImpactForFile must categorize anchored knowledge nodes into Direct (file
@@ -19,6 +19,10 @@ bad_smells:
   - direct and inferred anchors merged without labeling
   - inferred results presented as confirmed facts
   - single-hop and multi-hop queries share the same output list
+expressed_by:
+- ../awareness-graph/golang/server/impact.go
+- ../awareness-graph/golang/server/change_impact.go
+- ../awareness-graph/golang/server/main_test.go
 related_to:
   - awareness.preflight_before_edit
   - awareness.unknown_impact_is_signal

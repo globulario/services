@@ -17,9 +17,9 @@ activation_triggers:
 - membership
 - contract
 expressed_by:
-- operators/minio-topology-validation.md
-- operators/minio-operational-runbook.md
-- awareness/subsystem_boundaries.yaml
+- docs/operators/minio-topology-validation.md
+- docs/operators/minio-operational-runbook.md
+- docs/awareness/subsystem_boundaries.yaml
 - golang/node_agent/node_agent_server/minio_topology_gate.go
 related_invariants:
 - objectstore.topology_contract

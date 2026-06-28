@@ -1,5 +1,5 @@
 id: authentication.token_refresh_is_bounded_to_seven_days
-level: mechanism
+level: contract
 title: Token refresh is allowed up to 7 days post-expiry — beyond that, re-authentication is required
 intent: |
   The RefreshToken RPC accepts expired tokens and issues a replacement, but only within a

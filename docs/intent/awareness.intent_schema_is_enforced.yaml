@@ -14,6 +14,10 @@ activation_triggers:
 bad_smells:
   - invalid yaml ignored
   - duplicate intent ids
+expressed_by:
+- ../awareness-graph/golang/extractor/intent_yaml_import.go
+- ../awareness-graph/golang/extractor/intent_yaml_import_test.go
+- ../awareness-graph/golang/extractor/yaml_import_dir.go
 related_to:
   - awareness.compiled_graph_must_match_sources
 required_tests:

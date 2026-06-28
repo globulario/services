@@ -18,9 +18,9 @@ activation_triggers:
 - Scylla
 - etcd
 expressed_by:
-- operators/node-recovery.md
-- operators/minio-topology-validation.md
-- operators/cluster-self-healing.md
+- docs/operators/node-recovery.md
+- docs/operators/minio-topology-validation.md
+- docs/operators/cluster-self-healing.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.explicit_convergence

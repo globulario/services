@@ -1,5 +1,5 @@
 id: backup.node_fanout_isolates_per_node_data
-level: mechanism
+level: contract
 title: Per-node backup providers run in parallel with per-node capsule isolation
 intent: |
   Node-scoped providers (e.g., restic for filesystem data) run simultaneously on all
