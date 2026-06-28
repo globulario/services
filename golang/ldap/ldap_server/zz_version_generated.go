@@ -4,7 +4,7 @@ package main
 
 // Version is the release version injected at build time.
 // var (not const) so -X main.Version=<ver> ldflags can override when needed.
-var Version = "1.2.228"
+var Version = "0.0.0-ci"
 
 func init() {
 	// Runtime sentinel: catches stale generated files in CI where the version
