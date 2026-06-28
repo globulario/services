@@ -1,5 +1,5 @@
 id: security.auth_context_is_canonical_identity
-level: mechanism
+level: contract
 title: AuthContext is the canonical identity extracted from JWT — Subject is domain-independent via PrincipalID precedence chain
 intent: |
   auth_context.go constructs the canonical AuthContext from the validated JWT.

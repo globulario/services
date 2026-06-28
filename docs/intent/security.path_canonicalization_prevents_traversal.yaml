@@ -1,5 +1,5 @@
 id: security.path_canonicalization_prevents_traversal
-level: mechanism
+level: contract
 title: Path canonicalization rejects null bytes, absolute paths, and directory traversal sequences before any file operation
 intent: |
   path.go provides the single entry point for validating user-supplied or

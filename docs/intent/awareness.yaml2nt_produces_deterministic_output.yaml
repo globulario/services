@@ -19,6 +19,10 @@ bad_smells:
   - Go map iterated without key sort in triple emission
   - two runs of yaml2nt produce different output for same input
   - CI graph diff shows spurious reorderings
+expressed_by:
+- ../awareness-graph/cmd/yaml2nt/main.go
+- ../awareness-graph/cmd/yaml2nt/main_test.go
+- ../awareness-graph/golang/extractor/yaml_import_dir.go
 related_to:
   - awareness.loadnt_validates_before_loading
   - awareness.yaml_importer_does_not_silently_skip_in_strict_mode

@@ -24,9 +24,9 @@ activation_triggers:
   - dependency contract
   - critical service
 expressed_by:
-  - services/golang/dependency/modes.go
-  - services/golang/repository/repository_server/dep_health.go
-  - services/golang/repository/repository_server/dependency_contract_test.go
+  - golang/dependency/modes.go
+  - golang/repository/repository_server/dep_health.go
+  - golang/repository/repository_server/dependency_contract_test.go
   - golang/rbac/rbac_server/server.go
   - golang/dns/dns_server/server.go
   - golang/event/event_server/server.go

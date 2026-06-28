@@ -1,5 +1,5 @@
 id: security.cluster_init_transition_is_fail_closed
-level: mechanism
+level: contract
 title: IsMutatingRPC defaults to mutating and IsClusterInitialized requires both domain and inactive bootstrap
 intent: |
   cluster_init.go provides two security gates:

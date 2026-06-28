@@ -26,9 +26,8 @@ activation_triggers:
 - critical query
 - release lane
 expressed_by:
-- awareness/design_patterns.yaml
-- operators/convergence-model.md
-- services/golang/fallback/fallback.go
+- docs/operators/convergence-model.md
+- golang/fallback/fallback.go
 related_invariants:
 - critical_queries.must_be_bounded
 - convergence.no_infinite_retry

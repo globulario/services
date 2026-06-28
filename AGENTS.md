@@ -8,6 +8,7 @@ to work safely in this codebase.
 
 Full architectural reference: `CLAUDE.md` and `docs/ai/ai-operating-rules.md`.
 Awareness usage rules: `docs/awareness/agent_decision_rules.md`.
+Runtime/deployment memory: AI Memory via `globular ops-knowledge`.
 
 ---
 
@@ -54,6 +55,7 @@ OBSERVE → DIAGNOSE → RECOMMEND → [APPROVE] → EXECUTE → VERIFY
 | Cross-layer change (desired state + reconciler + CLI) | Map the full propagation path before writing any code |
 | Unfamiliar subsystem — "is this safe to change?" | Run `awareness_impact_file` on the target |
 | Active incident / cluster not converging | Run `awareness_offline_diagnose` or `awareness_live_preflight` first |
+| Audit, runtime/deployment change, packaging change, or day-0/day-1 change | Query AI Memory with `globular ops-knowledge list` and, when relevant, `globular ops-knowledge verify` |
 
 ### Skip awareness when
 
@@ -205,6 +207,27 @@ If the Globular MCP server is available in your session, follow the same rules a
 
 `UNKNOWN_IMPACT` from preflight ≠ safe. If graph is unavailable, grep
 `docs/awareness/failure_modes.yaml` and `docs/awareness/invariants.yaml` directly.
+
+---
+
+## AI Memory — Runtime and Deployment Context
+
+Before audits, packaging changes, day-0/day-1 changes, runtime-dir changes, installer
+changes, or deployment pipeline changes, query behavioral memory for operational
+context:
+
+```bash
+globular --timeout 3s ops-knowledge list
+globular --timeout 3s ops-knowledge verify
+```
+
+Use AI Memory to recover learned runtime/deployment constraints, recurring failure
+modes, package authoring checklists, and cluster-specific operational notes. Treat
+those entries as operational context, not source-of-truth code: confirm any invariant
+against the repository, AWG, or live cluster state before editing.
+
+If AI Memory is unavailable, continue with AWG and repository-local docs, but state
+that memory context could not be queried.
 
 ---
 

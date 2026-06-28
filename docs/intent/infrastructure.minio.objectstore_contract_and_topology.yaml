@@ -20,9 +20,9 @@ activation_triggers:
   - pool admission
   - format.json
 expressed_by:
-  - operational-knowledge/stages/day-1-objectstore.yaml
-  - operational-knowledge/runbooks/safe-minio-topology-restart.yaml
-  - operational-knowledge/runbooks/add-node-to-minio-pool.yaml
+  - docs/operational-knowledge/stages/day-1-objectstore.yaml
+  - docs/operational-knowledge/runbooks/safe-minio-topology-restart.yaml
+  - docs/operational-knowledge/runbooks/add-node-to-minio-pool.yaml
 related_invariants: []
 zooms_out_to:
   - objectstore.topology_requires_contract

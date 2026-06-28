@@ -33,11 +33,11 @@ activation_triggers:
   - dns challenge
 
 expressed_by:
-  - operational-knowledge/runbooks/setup-public-domain-acme.yaml
-  - operational-knowledge/service-roles/ingress.yaml
-  - services/golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
-  - services/golang/node_agent/node_agent_server/ingress_reconcile.go
-  - services/golang/node_agent/node_agent_server/internal/actions/tls_acme.go
+  - docs/operational-knowledge/runbooks/setup-public-domain-acme.yaml
+  - docs/operational-knowledge/service-roles/ingress.yaml
+  - golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
+  - golang/node_agent/node_agent_server/ingress_reconcile.go
+  - golang/node_agent/node_agent_server/internal/actions/tls_acme.go
 
 related_invariants: []
 

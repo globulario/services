@@ -11,6 +11,13 @@ activation_triggers:
   - schema migration
   - data model change
   - destructive migration
+expressed_by:
+- golang/repository/repository_server/invariant_test.go
+- golang/cluster_controller/cluster_controller_server/state_migration_test.go
+- golang/node_agent/node_agent_server/state_migration_test.go
+related_to:
+- repository.metadata_is_authority
+- workflow.source_of_operational_truth
 required_tests:
   - migration:TestSchemaMigrationsIdempotent
 status: seed

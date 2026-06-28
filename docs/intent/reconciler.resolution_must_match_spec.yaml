@@ -24,7 +24,7 @@ bad_smells:
   - resolved_build_number points to an older build than the latest published
 
 expressed_by:
-  - services/golang/cluster_controller/cluster_controller_server/release_pipeline.go
+  - golang/cluster_controller/cluster_controller_server/release_pipeline.go
 
 related_invariants:
 

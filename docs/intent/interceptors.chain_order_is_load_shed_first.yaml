@@ -1,5 +1,5 @@
 id: interceptors.chain_order_is_load_shed_first
-level: mechanism
+level: contract
 title: The interceptor chain sheds load before auth, authenticates before RBAC, and authorizes before routing
 intent: |
   The gRPC interceptor chain executes in a strict order that is both a security contract

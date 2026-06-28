@@ -1,5 +1,5 @@
 id: controller.topology_safety_blocks_unsafe_drift_actions
-level: mechanism
+level: contract
 title: Topology preflight blocks INFRASTRUCTURE drift actions when safety constraints are violated — safe actions continue
 intent: |
   topology_safety.go runs preflight checks before any reconcile action that could

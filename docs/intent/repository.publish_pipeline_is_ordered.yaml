@@ -1,5 +1,5 @@
 id: repository.publish_pipeline_is_ordered
-level: mechanism
+level: contract
 title: Post-upload publish pipeline is ordered — artifact law validation gates promotion to PUBLISHED
 intent: |
   publish_workflow.go runs three ordered steps after a successful upload:

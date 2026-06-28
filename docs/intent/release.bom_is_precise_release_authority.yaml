@@ -15,9 +15,9 @@ activation_triggers:
 - version resolution
 - install-day0
 expressed_by:
-- design/version-control-phase1.md
-- design/version-control-redesign.md
-- developers/versioning.md
+- docs/design/version-control-phase1.md
+- docs/design/version-control-redesign.md
+- docs/developers/versioning.md
 related_invariants: []
 zooms_out_to:
 - package.identity_requires_build_id

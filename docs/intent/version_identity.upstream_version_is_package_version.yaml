@@ -27,9 +27,9 @@ bad_smells:
   - InfrastructureRelease transition count in the hundreds of thousands
 
 expressed_by:
-  - services/release-index.json
-  - packages/specs/etcd_service.yaml
-  - services/build-all-packages.sh
+  - release-index.json
+  - ../packages/metadata/etcd/specs/etcd_service.yaml
+  - build-all-packages.sh
 
 related_invariants:
 

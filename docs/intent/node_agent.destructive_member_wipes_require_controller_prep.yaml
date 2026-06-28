@@ -1,5 +1,5 @@
 id: node_agent.destructive_member_wipes_require_controller_prep
-level: mechanism
+level: contract
 title: Scylla data wipe and etcd member wipe require the controller to have written new config first
 intent: |
   Both grpc_scylla_wipe.go and grpc_etcd_rejoin.go follow the same pattern:

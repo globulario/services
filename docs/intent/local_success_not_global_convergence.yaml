@@ -15,8 +15,8 @@ activation_triggers:
 - release status
 - partial commit
 expressed_by:
-- awareness/decisions/local-success-is-not-global-convergence.md
-- operators/convergence-model.md
+- docs/awareness/decisions/local-success-is-not-global-convergence.md
+- docs/operators/convergence-model.md
 related_invariants:
 - install.result.atomic_commit
 zooms_out_to:

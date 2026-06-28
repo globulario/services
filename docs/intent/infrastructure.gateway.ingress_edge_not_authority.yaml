@@ -17,8 +17,8 @@ activation_triggers:
   - ingress api
   - courier path
 expressed_by:
-  - operational-knowledge/stages/day-1-join.yaml
-  - services/golang/cluster_controller/cluster_controller_server/handlers_join_authorization.go
+  - docs/operational-knowledge/stages/day-1-join.yaml
+  - golang/cluster_controller/cluster_controller_server/handlers_join_authorization.go
 related_invariants: []
 zooms_out_to:
   - controller.decides_but_does_not_execute_leaf_work

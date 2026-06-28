@@ -1,5 +1,5 @@
 id: pki.leaf_cert_rotation_is_proactive_not_reactive
-level: mechanism
+level: contract
 title: Leaf cert rotation is proactive — certs are renewed before expiry, never after
 status: active
 

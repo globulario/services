@@ -26,9 +26,9 @@ activation_triggers:
   - build_id
   - verifier
 expressed_by:
-  - services/golang/attestation/attestation.go
-  - services/golang/node_agent/node_agent_server/runtime_proof.go
-  - services/golang/verifier/verifier.go
+  - golang/attestation/attestation.go
+  - golang/node_agent/node_agent_server/runtime_proof.go
+  - golang/verifier/verifier.go
   - golang/node_agent/node_agent_server/process_fingerprint.go
 related_invariants:
   - runtime.identity_attestation_must_bind_pid_hash_service_and_build

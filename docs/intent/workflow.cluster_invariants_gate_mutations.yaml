@@ -1,5 +1,5 @@
 id: workflow.cluster_invariants_gate_mutations
-level: mechanism
+level: contract
 title: Cluster invariant enforcement gates mutations — quorum, PKI, disk reachability checked before EmitCompleted
 status: active
 
@@ -34,6 +34,11 @@ zooms_out_to:
   - workflow.source_of_operational_truth
 
 zooms_in_to: []
+
+expressed_by:
+- golang/workflow/engine/actors_invariant.go
+- golang/workflow/engine/actors_reconcile.go
+- golang/workflow/engine/actors_node_repair.go
 
 related_invariants:
 

@@ -1,5 +1,5 @@
 id: rbac.permission_resolution_walks_path_hierarchy
-level: mechanism
+level: contract
 title: RBAC permission resolution walks up the path hierarchy to find owner or allowed permission
 intent: |
   Resources in Globular are organized as paths (like a filesystem). When checking

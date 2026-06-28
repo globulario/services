@@ -17,9 +17,9 @@ activation_triggers:
 - recovery
 - backup
 expressed_by:
-- operators/day-0-1-2-operations.md
-- tasks/debug-failed-workflow.md
-- tasks/update-cluster.md
+- docs/operators/day-0-1-2-operations.md
+- docs/tasks/debug-failed-workflow.md
+- docs/tasks/update-cluster.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster

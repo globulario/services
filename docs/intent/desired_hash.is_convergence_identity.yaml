@@ -1,5 +1,5 @@
 id: desired_hash.is_convergence_identity
-level: mechanism
+level: contract
 title: Desired hash is the compact identity of convergence
 intent: The desired hash represents the resolved desired snapshot and allows drift detection without re-resolving external repository state.
 agent_guidance: When changing convergence logic, preserve desired hash as the comparison token for resolved desired state.
@@ -15,8 +15,13 @@ activation_triggers:
 - snapshot
 - build identity
 expressed_by:
-- awareness/decisions.yaml
-- developers/build-identity.md
+- docs/awareness/decisions.yaml
+- docs/developers/build-identity.md
+- golang/cluster_controller/cluster_controller_server/release_hash.go
+- golang/cluster_controller/cluster_controller_server/infrastructure_reconciler.go
+- golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go
+- golang/workflow/workflow_server/infra_release_handler.go
+- golang/workflow/workflow_server/infra_release_handler_test.go
 related_invariants:
 - desired.build_id_immutable
 zooms_out_to:

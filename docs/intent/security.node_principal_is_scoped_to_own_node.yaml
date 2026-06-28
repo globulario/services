@@ -1,5 +1,5 @@
 id: security.node_principal_is_scoped_to_own_node
-level: mechanism
+level: contract
 title: Node principals (node_<uuid>) may only operate on their own node — cross-node impersonation is denied
 intent: |
   node_identity.go enforces that a principal of the form node_<uuid> may only

@@ -1,5 +1,5 @@
 id: awareness.oxigraph_is_external_runtime_state
-level: operator_model
+level: contract
 title: Oxigraph is external runtime state, not a managed in-process store
 intent: >
   The awareness-graph server treats Oxigraph as external runtime state. It does
@@ -19,6 +19,10 @@ bad_smells:
   - server retries Oxigraph writes internally
   - Oxigraph assumed current after restart without explicit rebuild
   - local graph cache maintained alongside Oxigraph
+expressed_by:
+- ../awareness-graph/golang/server/graph_freshness.go
+- ../awareness-graph/golang/server/metadata.go
+- ../awareness-graph/golang/store/oxigraph/oxigraph_reload_test.go
 related_to:
   - awareness.compiled_graph_must_match_sources
   - awareness.loadnt_validates_before_loading

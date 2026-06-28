@@ -1,5 +1,5 @@
 id: backup.capsule_quality_is_monotonic
-level: mechanism
+level: contract
 title: Capsule quality state only advances — UNVERIFIED → VALIDATED → RESTORE_TESTED → PROMOTED
 intent: |
   A backup capsule moves through quality states in one direction only:

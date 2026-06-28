@@ -1,5 +1,5 @@
 id: ai.memory_seed_entries_immutable_except_sa_subject
-level: mechanism
+level: contract
 title: Operational-knowledge seed entries are immutable to all callers except the "sa" super-admin subject
 intent: |
   Memory entries stamped with metadata.source=seed + metadata.immutable=true (loaded by

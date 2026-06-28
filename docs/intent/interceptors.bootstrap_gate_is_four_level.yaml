@@ -1,5 +1,5 @@
 id: interceptors.bootstrap_gate_is_four_level
-level: mechanism
+level: contract
 title: The bootstrap gate requires all four conditions — flag file, time-bounded, loopback-only, method allowlist
 intent: |
   During Day-0 cluster initialization, the interceptor opens a narrow bootstrap window

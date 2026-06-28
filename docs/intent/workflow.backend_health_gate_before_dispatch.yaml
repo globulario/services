@@ -1,5 +1,5 @@
 id: workflow.backend_health_gate_before_dispatch
-level: mechanism
+level: contract
 title: Workflow dispatch requires backend health gate
 intent: Workflow runs depend on durable backend state. Dispatching when the backend is unhealthy creates orphaned or unobservable operations.
 agent_guidance: Before dispatch, check workflow backend health and report blocked/degraded if unavailable. Do not clear actions without durable run result.
@@ -15,9 +15,10 @@ activation_triggers:
 - orphan
 - blocked run
 expressed_by:
-- operators/workflows.md
-- awareness/convergence_rules.yaml
-- awareness/design_patterns.yaml
+- docs/operators/workflows.md
+- docs/awareness/convergence_rules.yaml
+- golang/cluster_controller/cluster_controller_server/workflow_execute.go
+- golang/cluster_controller/cluster_controller_server/workflow_health_gate_test.go
 related_invariants:
 - workflow.backend_health_gate
 zooms_out_to:

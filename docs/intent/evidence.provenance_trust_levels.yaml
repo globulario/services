@@ -26,10 +26,10 @@ activation_triggers:
   - source of truth
   - runtime evidence
 expressed_by:
-  - intent/meta/runtime_evidence_schema.yaml
-  - services/golang/evidence/trust.go
-  - services/golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
-  - services/golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+  - docs/intent/meta/runtime_evidence_schema.yaml
+  - golang/evidence/trust.go
+  - golang/cluster_doctor/cluster_doctor_server/evidence_provenance.go
+  - golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
 related_invariants:
   - evidence.must_carry_provenance_and_trust_level
   - stale_evidence_must_not_authorize_remediation

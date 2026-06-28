@@ -16,9 +16,9 @@ activation_triggers:
 - installed means running
 - freshness
 expressed_by:
-- awareness/authority_rules.yaml
-- operators/cluster-doctor.md
-- operators/services-and-packages.md
+- docs/awareness/authority_rules.yaml
+- docs/operators/cluster-doctor.md
+- docs/operators/services-and-packages.md
 related_invariants:
 - runtime.installed_state_not_liveness
 zooms_out_to:

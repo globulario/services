@@ -28,6 +28,11 @@ activation_triggers:
 - forge binding
 - RBAC subject
 - STABLE channel
+expressed_by:
+- golang/repository/repository_server/release_authority_test.go
+- golang/repository/repository_server/allocate_upload.go
+- golang/rbac/rbac_server/rbac_access.go
+- golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
 related_invariants:
 - package.publisher_namespace_is_rbac_resource
 - package.publisher_kind_derived_from_rbac_subject

@@ -32,12 +32,12 @@ activation_triggers:
   - x-call-depth
 
 expressed_by:
-  - operational-knowledge/stages/grpc-service-backbone.yaml
-  - services/golang/globular_service/services.go
-  - services/golang/globular_service/lifecycle.go
-  - services/golang/globular_client/clients.go
-  - services/golang/globular_client/ClientInterceptors.go
-  - services/golang/interceptors/ServerInterceptors.go
+  - docs/operational-knowledge/stages/grpc-service-backbone.yaml
+  - golang/globular_service/services.go
+  - golang/globular_service/lifecycle.go
+  - golang/globular_client/clients.go
+  - golang/globular_client/ClientInterceptors.go
+  - golang/interceptors/ServerInterceptors.go
 
 related_invariants: []
 

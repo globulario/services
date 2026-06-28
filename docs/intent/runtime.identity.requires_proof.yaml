@@ -10,6 +10,10 @@ activation_triggers:
   - runtime proof
   - service identity
   - verifier
+expressed_by:
+- golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
+- golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
+- golang/cluster_controller/cluster_controller_server/convergence_entrypoint_proof_test.go
 zooms_in_to:
   - node_agent.install_claim_requires_binary_proof
 related_to:

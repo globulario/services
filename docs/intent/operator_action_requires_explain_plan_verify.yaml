@@ -16,10 +16,14 @@ activation_triggers:
 - repair
 - MCP
 expressed_by:
-- operators/cluster-doctor.md
-- operators/repository-repair.md
-- operators/node-recovery.md
-- tasks/debug-failed-workflow.md
+- docs/operators/cluster-doctor.md
+- docs/operators/repository-repair.md
+- docs/operators/node-recovery.md
+- docs/tasks/debug-failed-workflow.md
+- golang/workflow/engine/actors_doctor_remediation.go
+- golang/workflow/engine/doctor_remediation_test.go
+- golang/cluster_doctor/cluster_doctor_server/handler_remediation.go
+- golang/cluster_doctor/cluster_doctor_server/workflow_runner.go
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster

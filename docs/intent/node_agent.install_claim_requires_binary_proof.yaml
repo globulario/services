@@ -1,5 +1,5 @@
 id: node_agent.install_claim_requires_binary_proof
-level: mechanism
+level: contract
 title: No component may report "installed" from a claim alone — binary hash must match entrypoint_checksum
 intent: |
   The Prime Directive of apply_package_verify.go: a successful payload extraction +

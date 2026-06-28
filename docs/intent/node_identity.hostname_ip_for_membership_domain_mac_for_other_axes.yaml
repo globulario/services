@@ -33,11 +33,11 @@ activation_triggers:
   - node admission
 
 expressed_by:
-  - services/golang/cluster_controller/cluster_controller_server/joinplan_types.go
-  - services/golang/cluster_controller/cluster_controller_server/joinplan_validate.go
-  - services/golang/node_agent/node_agent_server/join_plan_gate.go
-  - services/golang/node_agent/node_agent_server/identity/validation.go
-  - services/golang/netutil/node_identity.go
+  - golang/cluster_controller/cluster_controller_server/joinplan_types.go
+  - golang/cluster_controller/cluster_controller_server/joinplan_validate.go
+  - golang/node_agent/node_agent_server/join_plan_gate.go
+  - golang/node_agent/node_agent_server/identity/validation.go
+  - golang/netutil/node_identity.go
 
 related_invariants:
   - founding.quorum.three_nodes_required

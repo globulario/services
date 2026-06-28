@@ -1,5 +1,5 @@
 id: repository.repair_uses_existing_build_records
-level: mechanism
+level: contract
 title: Repository repair selects existing broken builds, not only installable builds
 intent: Repository repair must operate on existing build records even when their publish_state is BROKEN, MANIFEST_WRITTEN, BLOB_WRITTEN, or otherwise not installable. Repair must not require an installable artifact to repair a broken artifact.
 agent_guidance: In repair paths, resolve the exact build_id or build_number when supplied. When build_number is omitted, select the latest existing build record, not latest installable build. Do not report no builds merely because all rows are broken.
@@ -14,6 +14,11 @@ activation_triggers:
 - no builds for
 - repair-index
 - missing blob
+expressed_by:
+- golang/repository/repository_server/artifact_verify_rpc.go
+- golang/repository/repository_server/resolve_version_repair_test.go
+- golang/repository/repository_server/repair_authorization.go
+- golang/repository/repository_server/publish_workflow.go
 related_invariants:
 - repository.repair_selects_existing_build
 zooms_out_to:

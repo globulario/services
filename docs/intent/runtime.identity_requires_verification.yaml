@@ -16,8 +16,8 @@ activation_triggers:
 - unverified
 - corrupted
 expressed_by:
-- operators/cluster-doctor.md
-- developers/build-identity.md
+- docs/operators/cluster-doctor.md
+- docs/developers/build-identity.md
 related_invariants:
 zooms_out_to:
 - runtime_health.requires_live_observation

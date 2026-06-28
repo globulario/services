@@ -17,8 +17,8 @@ activation_triggers:
 - local
 - adapter
 expressed_by:
-- operators/platform-status.md
-- operators/observability.md
+- docs/operators/platform-status.md
+- docs/operators/observability.md
 related_invariants: []
 zooms_out_to:
 - degraded_is_explicit_not_hidden

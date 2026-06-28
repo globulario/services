@@ -15,9 +15,9 @@ activation_triggers:
 - changed_in_release
 - origin_release
 expressed_by:
-- design/version-control-redesign.md
-- design/version-control-phase1-v2.md
-- developers/versioning.md
+- docs/design/version-control-redesign.md
+- docs/design/version-control-phase1-v2.md
+- docs/developers/versioning.md
 related_invariants: []
 zooms_out_to:
 - package.identity_requires_build_id

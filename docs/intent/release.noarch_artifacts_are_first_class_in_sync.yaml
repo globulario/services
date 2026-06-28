@@ -55,9 +55,9 @@ activation_triggers:
   - repository_upstream_sync returns zero results for noarch entry
 
 expressed_by:
-  - services/golang/repository/repository_server/sync_from_upstream.go
-  - services/golang/repository/repository_server/release_index.go
-  - intent/meta/runtime_evidence_schema.yaml
+  - golang/repository/repository_server/sync_from_upstream.go
+  - golang/repository/repository_server/release_index.go
+  - docs/intent/meta/runtime_evidence_schema.yaml
 
 related_invariants:
   - repository.sync_must_not_silently_drop_noarch_artifacts

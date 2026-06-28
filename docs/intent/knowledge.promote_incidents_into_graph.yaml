@@ -26,9 +26,12 @@ activation_triggers:
 - failure mode
 - learning loop
 expressed_by:
-- awareness/proposal_queue.md
-- awareness/container_training_loop.md
-- awareness/daily_workflow.md
+- docs/awareness/proposal_queue.md
+- docs/awareness/container_training_loop.md
+- docs/awareness/daily_workflow.md
+- ../awareness-graph/cmd/awg/cmd_learn.go
+- ../awareness-graph/golang/extractor/learning_event_yaml_import.go
+- ../awareness-graph/golang/extractor/learning_event_yaml_import_test.go
 related_invariants: []
 zooms_out_to:
 - awareness.graph_is_compiled_context_not_authority

@@ -1,5 +1,5 @@
 id: infrastructure.sidekick.minio_auxiliary_must_not_be_identity_authority
-level: mechanism
+level: contract
 title: Sidekick is MinIO auxiliary runtime, never authority source
 intent: >
   Sidekick supports MinIO operational behavior but does not define objectstore topology,
@@ -16,8 +16,8 @@ activation_triggers:
   - minio auxiliary
   - objectstore admission
 expressed_by:
-  - operational-knowledge/stages/day-1-objectstore.yaml
-  - services/golang/node_agent/node_agent_server/minio_contract_reconcile.go
+  - docs/operational-knowledge/stages/day-1-objectstore.yaml
+  - golang/node_agent/node_agent_server/minio_contract_reconcile.go
 related_invariants: []
 zooms_out_to:
   - infrastructure.minio.objectstore_contract_and_topology

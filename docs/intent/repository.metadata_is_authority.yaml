@@ -17,9 +17,9 @@ activation_triggers:
 - MinIO
 - package
 expressed_by:
-- operators/repository-overview.md
-- operators/package-lifecycle.md
-- architecture/package-supply-chain.md
+- docs/operators/repository-overview.md
+- docs/operators/package-lifecycle.md
+- docs/architecture/package-supply-chain.md
 related_invariants:
 - repository.metadata_first
 zooms_out_to:

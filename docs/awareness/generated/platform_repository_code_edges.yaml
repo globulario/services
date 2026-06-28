@@ -71,9 +71,6 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.gc
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
-  - from: globular.platform:code.go.platform_repository.install_policy
-    relation: implements
-    to: globular.platform:intent.repository.metadata_is_authority
   - from: globular.platform:code.go.platform_repository.manifest_cache
     relation: enforces
     to: globular.platform:invariant.repository.artifact.content_immutable_after_publish

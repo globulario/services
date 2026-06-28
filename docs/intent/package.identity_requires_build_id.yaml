@@ -17,9 +17,8 @@ activation_triggers:
 - rollback
 - identity
 expressed_by:
-- developers/build-identity.md
-- architecture/package-supply-chain.md
-- awareness/patterns.yaml
+- docs/developers/build-identity.md
+- docs/architecture/package-supply-chain.md
 - golang/repository/repository_server/identity_normalize.go
 related_invariants:
 - desired.build_id_immutable

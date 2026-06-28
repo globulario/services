@@ -11,6 +11,10 @@ activation_triggers:
   - delete
   - remove
   - missing state
+expressed_by:
+- golang/cluster_controller/cluster_controller_server/delete_critical_release_test.go
+- golang/cluster_controller/cluster_controller_server/node_removal_requests.go
+- golang/workflow/engine/actors_node_remove.go
 related_to:
   - missing_state_is_not_delete_intent
 required_tests:

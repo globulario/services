@@ -1,5 +1,5 @@
 id: pki.ca_metadata_mirrored_to_etcd_for_node_discovery
-level: mechanism
+level: contract
 title: CA cert is mirrored to etcd with SHA-256 metadata so node agents detect CA rotation
 status: active
 
@@ -36,6 +36,11 @@ zooms_out_to:
   - security.tokens_certificates_keys.cluster_trust_contract
 
 zooms_in_to: []
+
+expressed_by:
+- golang/pki/ca.go
+- golang/cluster_controller/cluster_controller_server/ca_publish_test.go
+- golang/cluster_controller/cluster_controller_server/pki_reconciler.go
 
 related_invariants:
 

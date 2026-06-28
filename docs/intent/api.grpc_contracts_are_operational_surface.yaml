@@ -16,9 +16,9 @@ activation_triggers:
 - typed interface
 - reflection
 expressed_by:
-- operators/architecture-overview.md
-- developers/workflow-integration.md
-- awareness/mcp_tools.md
+- docs/operators/architecture-overview.md
+- docs/developers/workflow-integration.md
+- docs/awareness/mcp_tools.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster

@@ -1,5 +1,5 @@
 id: ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
-level: mechanism
+level: contract
 title: AI remediation actions are dispatched via the event bus so the cluster controller preserves workflow tracking
 intent: |
   When the AI executor decides to restart a service or drain an endpoint, it publishes

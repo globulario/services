@@ -1,5 +1,5 @@
 id: rollback.must_be_operator_chosen
-level: mechanism
+level: contract
 title: Rollback is an explicit operator decision
 intent: Rollback candidates can be listed and verified, but execution requires intentional choice and safety checks.
 agent_guidance: Expose eligible revisions with verify/signature status. Do not auto-select rollback target from panic logic.
@@ -14,7 +14,16 @@ activation_triggers:
 - operator rollback
 - signature status
 expressed_by:
-- operators/package-lifecycle.md
+- docs/operators/package-lifecycle.md
+- golang/repository/repository_server/rollback.go
+- golang/repository/repository_server/rollback_rpc.go
+- golang/repository/repository_server/rollback_rpc_test.go
+- golang/repository/repository_server/signature_policy.go
+- golang/repository/repository_server/signature_policy_test.go
+- golang/globularcli/pkg_rollback_cmds.go
+- golang/globularcli/release_cmds.go
+- golang/globularcli/release_cmds_test.go
+- golang/node_agent/node_agent_server/apply_package_release.go
 related_invariants: []
 zooms_out_to:
 - deployment.automatic_rollback_is_forbidden

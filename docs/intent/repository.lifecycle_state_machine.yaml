@@ -1,5 +1,5 @@
 id: repository.lifecycle_state_machine
-level: mechanism
+level: contract
 title: Artifact lifecycle states gate what operations are legal
 intent: Artifacts move through explicit lifecycle states such as discovered, verified, published, quarantined, revoked, or broken. Each state constrains installation and repair.
 agent_guidance: When touching repository logic, preserve explicit state transitions. Do not make broken/quarantined/revoked artifacts installable through fallback paths.
@@ -16,8 +16,13 @@ activation_triggers:
 - repair
 - verify
 expressed_by:
-- operators/package-lifecycle.md
-- operators/repository-overview.md
+- docs/operators/package-lifecycle.md
+- docs/operators/repository-overview.md
+- golang/repository/repository_server/artifact_state.go
+- golang/repository/repository_server/artifact_state_test.go
+- golang/repository/repository_server/artifact_handlers.go
+- golang/repository/repository_server/artifact_admin.go
+- golang/repository/repository_server/resolver.go
 related_invariants:
 - repository.metadata_first
 zooms_out_to:

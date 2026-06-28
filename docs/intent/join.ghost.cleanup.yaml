@@ -1,5 +1,5 @@
 id: join.ghost.cleanup
-level: mechanism
+level: contract
 title: Ghost membership must be cleared before re-admission
 intent: >
   Stale/ghost membership records from failed joins must be removed before a
@@ -14,6 +14,10 @@ activation_triggers:
 bad_smells:
   - member add with stale ghost present
   - duplicate node identity entries
+expressed_by:
+- golang/cluster_controller/cluster_controller_server/join_lifecycle.go
+- golang/cluster_controller/cluster_controller_server/scylla_schema_guard.go
+- golang/cluster_controller/cluster_controller_server/cross_kind_desired_cleanup_test.go
 related_to:
   - cluster.membership.earned_trust
 required_tests:

@@ -1,5 +1,5 @@
 id: repository.revoked_key_is_unconditional_veto
-level: mechanism
+level: contract
 title: REVOKED signing key is an unconditional veto — policy permissiveness cannot override it
 intent: |
   signature_policy.go distinguishes two absence-of-trust states:

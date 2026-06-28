@@ -31,8 +31,8 @@ bad_smells:
   - single partition key (cluster_id) holding all runs
 
 expressed_by:
-  - services/golang/workflow/workflow_server/retention.go
-  - services/golang/workflow/workflow_server/schema.go
+  - golang/workflow/workflow_server/retention.go
+  - golang/workflow/workflow_server/schema.go
 
 related_invariants:
 

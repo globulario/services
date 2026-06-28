@@ -15,8 +15,8 @@ activation_triggers:
 - revoked
 - checksum mismatch
 expressed_by:
-- operators/repository-repair.md
-- operators/package-lifecycle.md
+- docs/operators/repository-repair.md
+- docs/operators/package-lifecycle.md
 related_invariants: []
 zooms_out_to:
 - repository.lifecycle_state_machine

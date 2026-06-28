@@ -1,5 +1,5 @@
 id: join.token.validation
-level: mechanism
+level: contract
 title: Join token validation gates admission
 intent: >
   A node join request must present a valid, non-expired, intended token before

@@ -1,5 +1,5 @@
 id: repository.version_allocation_is_exclusive
-level: mechanism
+level: contract
 title: Version allocation is exclusive and version lanes are immutable once PUBLISHED
 intent: |
   AllocateUpload enforces two invariants before issuing a reservation:

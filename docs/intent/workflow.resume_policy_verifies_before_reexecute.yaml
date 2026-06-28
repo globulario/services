@@ -1,5 +1,5 @@
 id: workflow.resume_policy_verifies_before_reexecute
-level: mechanism
+level: contract
 title: Resume policy verifies step side-effects before re-executing after crash
 status: active
 
@@ -35,6 +35,11 @@ zooms_out_to:
   - workflow.terminal_runs_must_be_bounded
 
 zooms_in_to: []
+
+expressed_by:
+- golang/workflow/engine/resume.go
+- golang/workflow/engine/resume_policy_test.go
+- golang/workflow/workflow_server/executor_resume.go
 
 related_invariants:
 

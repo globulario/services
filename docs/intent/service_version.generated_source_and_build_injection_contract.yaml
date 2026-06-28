@@ -28,9 +28,8 @@ activation_triggers:
   - deploy
 
 expressed_by:
-  - operational-knowledge/stages/service-version-management.yaml
-  - services/golang/deploy/deploy.go
-  - services/golang/*/*_server/zz_version_generated.go
+  - docs/operational-knowledge/stages/service-version-management.yaml
+  - golang/deploy/deploy.go
 
 related_invariants: []
 

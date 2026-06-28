@@ -25,8 +25,8 @@ activation_triggers:
 - repository
 - objectstore
 expressed_by:
-- awareness/subsystem_boundaries.yaml
-- operators/architecture-overview.md
+- docs/awareness/subsystem_boundaries.yaml
+- docs/operators/architecture-overview.md
 related_invariants: []
 zooms_out_to:
 - state.repository_desired_installed_runtime

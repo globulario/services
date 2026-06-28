@@ -15,8 +15,8 @@ activation_triggers:
 - static context
 - live overlay
 expressed_by:
-- awareness/decisions/awareness-graph-is-compiled-context-not-authority.md
-- awareness/live_overlay.md
+- docs/awareness/decisions/awareness-graph-is-compiled-context-not-authority.md
+- docs/awareness/live_overlay.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster
@@ -28,3 +28,5 @@ related_to:
 status: extracted_candidate
 
 required_tests:
+- ../awareness-graph/golang/server/preflight_test.go::TestPreflight_StoreUnavailableReturnsDegradedUnknownImpact
+- ../awareness-graph/golang/server/graph_freshness_runtime_marker_test.go::TestMetadata_RuntimeMarkerFileMissingMarksUnknown

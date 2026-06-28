@@ -1,5 +1,5 @@
 id: controller.apply_package_release_must_carry_expected_sha256
-level: implementation
+level: contract
 status: accepted
 title: Controller ApplyPackageRelease dispatch must carry manifest entrypoint_checksum as ExpectedSha256
 
@@ -21,6 +21,11 @@ parent_intents:
   - state.repository_desired_installed_runtime
   - controller.decides_but_does_not_execute_leaf_work
   - desired_installed_runtime_identity_must_match
+
+related_to:
+  - runtime.success_requires_expected_binary_checksum
+  - repository.metadata_is_authority
+  - state.repository_desired_installed_runtime
 
 agent_guidance: |
   When adding or modifying any ApplyPackageRelease dispatch path:
@@ -50,8 +55,8 @@ activation_triggers:
   - manifest resolve
 
 expressed_by:
-  - awareness/failure_modes.yaml:controller.apply_package_missing_expected_sha256_blocks_verified_install
-  - awareness/invariants.yaml:controller.apply_package_release_requires_manifest_checksum
+  - docs/awareness/failure_modes.yaml
+  - docs/awareness/invariants.yaml
   - golang/cluster_controller/cluster_controller_server/workflow_controller_deploy.go
   - golang/cluster_controller/cluster_controller_server/workflow_release.go
   - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go

@@ -11,6 +11,11 @@ activation_triggers:
   - "changing how the echo service builds its response"
 bad_smells:
   - "echo response differs in any byte from the request message"
+expressed_by:
+- golang/echo/echo_server/handlers.go
+- golang/echo/echo_server/server_test.go
 related_invariants:
   - echo_rpc_preserves_message_bytes
   - echo_rpc_is_stateless
+required_tests:
+- golang/echo/echo_server/server_test.go::TestEchoHandler

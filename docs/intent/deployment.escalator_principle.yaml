@@ -15,7 +15,10 @@ activation_triggers:
 - failure phase
 - migration
 expressed_by:
-- operators/deployment-philosophy.md
+- docs/operators/deployment-philosophy.md
+- golang/globularcli/release_cmds.go
+- golang/globularcli/release_cmds_test.go
+- golang/node_agent/node_agent_server/apply_package_release.go
 related_invariants: []
 zooms_out_to:
 - deployment.automatic_rollback_is_forbidden

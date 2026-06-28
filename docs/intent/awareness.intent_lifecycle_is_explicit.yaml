@@ -1,5 +1,5 @@
 id: awareness.intent_lifecycle_is_explicit
-level: operator_model
+level: contract
 title: Intent lifecycle state is explicit
 intent: >
   Every intent carries explicit lifecycle status so agents can distinguish
@@ -11,6 +11,10 @@ activation_triggers:
   - intent status
   - intent promotion
   - intent deprecation
+expressed_by:
+- ../awareness-graph/golang/extractor/intent_yaml_import.go
+- ../awareness-graph/golang/extractor/promotion_gate.go
+- ../awareness-graph/golang/extractor/promotion_gate_test.go
 related_to:
   - awareness.intent_schema_is_enforced
 status: seed

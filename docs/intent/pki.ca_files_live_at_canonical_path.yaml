@@ -1,5 +1,5 @@
 id: pki.ca_files_live_at_canonical_path
-level: mechanism
+level: contract
 title: CA files must live at the canonical PKI path — legacy locations are migrated, never dual-written
 status: active
 
@@ -34,6 +34,10 @@ zooms_out_to:
   - dns_pki.explicit_identity_over_convenient_routing
 
 zooms_in_to: []
+
+expressed_by:
+- golang/pki/ca.go
+- golang/security/keys.go
 
 related_invariants:
 

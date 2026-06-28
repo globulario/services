@@ -1,5 +1,5 @@
 id: workflow.infra_desired_hash_must_carry_schema_prefix
-level: mechanism
+level: contract
 title: "Infrastructure desired_hash must carry the infra: schema prefix, never the raw artifact_digest"
 status: active
 
@@ -33,6 +33,10 @@ zooms_out_to:
   - workflow.step_receipts_are_evidence
 
 zooms_in_to: []
+
+expressed_by:
+- golang/workflow/workflow_server/infra_release_handler.go
+- golang/workflow/workflow_server/infra_release_handler_test.go
 
 related_invariants:
 

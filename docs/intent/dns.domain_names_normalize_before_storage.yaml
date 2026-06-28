@@ -1,5 +1,5 @@
 id: dns.domain_names_normalize_before_storage
-level: mechanism
+level: contract
 title: Domain names are lowercased and trailing-dotted before any storage operation
 status: active
 
@@ -31,6 +31,10 @@ zooms_out_to:
   - dns_pki.explicit_identity_over_convenient_routing
 
 zooms_in_to: []
+
+expressed_by:
+- golang/dns/dns_server/handlers.go
+- golang/dns/dns_server/handlers_txt_test.go
 
 related_invariants: []
 

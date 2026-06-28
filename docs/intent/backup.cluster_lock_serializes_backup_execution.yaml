@@ -1,5 +1,5 @@
 id: backup.cluster_lock_serializes_backup_execution
-level: mechanism
+level: contract
 title: An etcd distributed lock serializes cluster-scoped backup execution
 intent: |
   Cluster-scoped backup providers (etcd snapshot, ScyllaDB) require exclusive execution —

@@ -17,9 +17,9 @@ activation_triggers:
 - cause
 - telemetry
 expressed_by:
-- operators/observability.md
-- operators/cluster-doctor.md
-- awareness/semantic_navigation.md
+- docs/operators/observability.md
+- docs/operators/cluster-doctor.md
+- docs/awareness/semantic_navigation.md
 related_invariants: []
 zooms_out_to:
 - globular.vision.ai_operable_cluster

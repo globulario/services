@@ -23,8 +23,8 @@ activation_triggers:
   - verified repair
   - ExecuteRemediation
 expressed_by:
-  - services/golang/remediation/outcome.go
-  - services/golang/workflow/engine/actors_doctor_remediation.go
+  - golang/remediation/outcome.go
+  - golang/workflow/engine/actors_doctor_remediation.go
 related_invariants:
   - workflow.success_requires_verified_invariant_resolution
   - remediation.dispatch_is_not_repair_truth

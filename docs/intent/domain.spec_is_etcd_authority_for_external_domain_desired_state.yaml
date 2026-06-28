@@ -1,5 +1,5 @@
 id: domain.spec_is_etcd_authority_for_external_domain_desired_state
-level: mechanism
+level: contract
 title: ExternalDomainSpec in etcd is the sole desired-state authority for external domain management
 intent: |
   External domain reconciliation (ACME issuance, DNS record creation, cert distribution)
@@ -30,6 +30,10 @@ activation_triggers:
   - DomainSpecPrefix
   - ProviderConfigPrefix
 expressed_by:
+- golang/domain/spec.go
+- golang/domain/store.go
+- golang/domain/spec_test.go
+- golang/domain/store_test.go
 related_invariants: []
 zooms_out_to:
   - domain.certs_distributed_via_etcd_not_files

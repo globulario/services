@@ -25,8 +25,8 @@ activation_triggers:
   - break glass
   - post-action verification
 expressed_by:
-  - services/golang/remediation/override.go
-  - services/golang/remediation/outcome.go
+  - golang/remediation/override.go
+  - golang/remediation/outcome.go
 related_invariants:
   - operator.override_requires_scope_reason_expiry_and_verification
   - force_action_must_not_hide_policy_gate

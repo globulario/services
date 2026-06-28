@@ -1,5 +1,5 @@
 id: desired.build_id_immutable_after_resolution
-level: mechanism
+level: contract
 title: Resolved desired build id is immutable convergence target
 intent: Once desired.version is resolved to a build_id and persisted, convergence compares against that persisted build_id rather than re-resolving latest repository state.
 agent_guidance: Do not re-resolve desired state during drift checks. If desired must change, create an explicit desired-state update.
@@ -15,9 +15,12 @@ activation_triggers:
 - drift comparison
 - desired hash
 expressed_by:
-- awareness/authority_rules.yaml
-- developers/build-identity.md
-- awareness/decisions/desired-hash-is-convergence-identity.md
+- docs/awareness/authority_rules.yaml
+- docs/developers/build-identity.md
+- docs/awareness/decisions/desired-hash-is-convergence-identity.md
+- golang/cluster_controller/cluster_controller_server/reconciler_pinned_build_test.go
+- golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+- golang/cluster_controller/cluster_controller_server/release_runtime_convergence.go
 related_invariants:
 - desired.build_id_immutable
 zooms_out_to:

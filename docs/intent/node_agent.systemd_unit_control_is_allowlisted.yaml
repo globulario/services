@@ -1,5 +1,5 @@
 id: node_agent.systemd_unit_control_is_allowlisted
-level: mechanism
+level: contract
 title: Node agent can only control explicitly allowlisted systemd unit prefixes — all others are PermissionDenied
 intent: |
   control_service_handler.go enforces a strict allowlist: only unit names matching

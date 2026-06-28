@@ -1,5 +1,5 @@
 id: domain.certs_distributed_via_etcd_not_files
-level: mechanism
+level: contract
 title: ACME certificates are published to etcd and synced to all nodes — not pushed as files
 intent: |
   After the leader issues an ACME certificate, it publishes the cert+chain+key to etcd
@@ -26,6 +26,8 @@ activation_triggers:
   - symlink
   - WatchACMECerts
 expressed_by:
+- golang/domain/store.go
+- golang/domain/reconciler.go
 related_invariants: []
 zooms_out_to:
   - domain.leader_only_acme_reconciliation

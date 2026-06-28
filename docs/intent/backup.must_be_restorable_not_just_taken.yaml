@@ -16,8 +16,8 @@ activation_triggers:
 - snapshot
 - quality
 expressed_by:
-- operators/backup-and-restore.md
-- operational-knowledge/runbooks/restore-from-backup.yaml
+- docs/operators/backup-and-restore.md
+- docs/operational-knowledge/runbooks/restore-from-backup.yaml
 related_invariants: []
 zooms_out_to:
 - globular.vision.explicit_convergence

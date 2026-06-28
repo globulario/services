@@ -1,5 +1,5 @@
 id: mcp.aggregator_routes_via_etcd_discovery
-level: mechanism
+level: contract
 title: MCP aggregator discovers remote node endpoints from etcd and routes tools transparently
 intent: |
   The MCP server runs on every node but the Claude Code client connects to a single entry

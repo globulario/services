@@ -1,5 +1,5 @@
 id: workflow.definition_loading_is_etcd_first
-level: mechanism
+level: contract
 title: Workflow definition loading is etcd-first with disk-only bootstrap fallback
 status: active
 
@@ -33,6 +33,9 @@ zooms_out_to:
   - etcd.is_source_of_truth
 
 zooms_in_to: []
+
+expressed_by:
+- golang/workflow/v1alpha1/loader.go
 
 related_invariants:
 

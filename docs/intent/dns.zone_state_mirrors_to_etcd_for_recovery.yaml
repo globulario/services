@@ -1,5 +1,5 @@
 id: dns.zone_state_mirrors_to_etcd_for_recovery
-level: mechanism
+level: contract
 title: DNS zone list is mirrored to etcd so ScyllaDB restart cannot lose managed zones
 status: active
 
@@ -33,6 +33,10 @@ zooms_out_to:
   - infrastructure.dns.authoritative_discovery_with_bootstrap_boundaries
 
 zooms_in_to: []
+
+expressed_by:
+- golang/dns/dns_server/server.go
+- golang/dns/dns_server/backup_hooks.go
 
 related_invariants:
 

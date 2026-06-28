@@ -1,5 +1,5 @@
 id: controller.posture_suppresses_rollouts_during_recovery
-level: mechanism
+level: contract
 title: RECOVERY_ONLY cluster posture suppresses all ROLLOUT-class workflows to prevent cascading failures
 intent: |
   posture.go evaluates cluster health signals every 30 seconds and maintains

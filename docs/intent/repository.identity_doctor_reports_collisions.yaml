@@ -1,5 +1,5 @@
 id: repository.identity_doctor_reports_collisions
-level: mechanism
+level: contract
 title: Repository doctor reports package identity collisions before repair
 intent: Repository doctor identity must report build_id and build_number lane collisions as explicit findings with operator language before any automated repair is attempted.
 agent_guidance: Add doctor findings for duplicate build_id reuse, duplicate build_number lane, checksum divergence, kind mismatch, and desired build_id orphaning. Findings must include forbidden fixes and safe repair suggestions.
@@ -14,6 +14,10 @@ activation_triggers:
 - desired build orphan
 - package collision
 - duplicate build
+expressed_by:
+- golang/cluster_doctor/cluster_doctor_server/rules/repository_status.go
+- golang/repository/repository_server/package_identity_required_tests_test.go
+- golang/repository/repository_server/artifact_verify_rpc.go
 related_invariants:
 zooms_out_to:
 - repository.metadata_is_authority

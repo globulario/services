@@ -20,9 +20,9 @@ activation_triggers:
   - schema
   - storage quorum
 expressed_by:
-  - operational-knowledge/stages/day-1-join.yaml
-  - operational-knowledge/stages/day-1-objectstore.yaml
-  - services/golang/cluster_controller/cluster_controller_server/scylla_rf_eligibility.go
+  - docs/operational-knowledge/stages/day-1-join.yaml
+  - docs/operational-knowledge/stages/day-1-objectstore.yaml
+  - golang/cluster_controller/cluster_controller_server/scylla_rf_eligibility.go
 related_invariants: []
 zooms_out_to:
   - quorum_safety_before_storage_mutation

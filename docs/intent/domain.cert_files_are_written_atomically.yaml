@@ -1,5 +1,5 @@
 id: domain.cert_files_are_written_atomically
-level: mechanism
+level: contract
 title: Certificate files are written via atomic temp-rename to prevent partial reads by Envoy SDS
 intent: |
   Envoy SDS and cert-watcher goroutines read certificate files continuously. A non-atomic
@@ -27,6 +27,8 @@ activation_triggers:
   - fullchain.pem
   - certificate renewal write
 expressed_by:
+- golang/domain/file_atomic.go
+- golang/domain/reconciler.go
 related_invariants: []
 zooms_out_to:
   - domain.certs_distributed_via_etcd_not_files

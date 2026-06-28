@@ -1,5 +1,5 @@
 id: controller.leader_election_gates_all_writes
-level: mechanism
+level: contract
 title: Only the elected leader writes desired state, runs the reconciler, and seeds workflows
 intent: |
   The cluster controller uses an etcd-backed leader election with a 15-second lease

@@ -15,8 +15,8 @@ activation_triggers:
 - drift
 - node-agent writes desired
 expressed_by:
-- awareness/decisions/runtime-observation-is-not-desired-authority.md
-- awareness/authority_rules.yaml
+- docs/awareness/decisions/runtime-observation-is-not-desired-authority.md
+- docs/awareness/authority_rules.yaml
 - golang/node_agent/node_agent_server/disk_inventory.go
 related_invariants:
 - infra.heartbeat_not_desired_authority

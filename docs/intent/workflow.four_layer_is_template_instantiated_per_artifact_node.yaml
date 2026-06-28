@@ -97,3 +97,7 @@ violation_patterns:
   - "a state mutation with no workflow_run_id + step_id binding"
 
 status: active
+
+required_tests:
+  - golang/workflow/engine:TestParallelSteps
+  - golang/workflow/engine:TestReconcile_MixedDrift

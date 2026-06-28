@@ -52,13 +52,13 @@ components:
   - id: component.golang.ai_memory
     name: ai_memory
     description: 'Inferred from repository layout: golang/ai_memory'
-    kind: module
+    kind: service
     assertion: inferred
     source_files:
-      - golang/ai_memory/ai_memory_server/immutability.go
+      - golang/ai_memory/domains/cluster_operator/opsknowledge/cmd/opscompile/main.go
     uml:
       kind: Component
-      stereotype: module
+      stereotype: service
       view: structural
       confidence: inferred
   - id: component.golang.ai_router
@@ -79,7 +79,7 @@ components:
     kind: module
     assertion: inferred
     source_files:
-      - golang/ai_watcher/ai_watcher_server/default_rules.go
+      - golang/ai_watcher/ai_watcher_server/behavioral_observation.go
     uml:
       kind: Component
       stereotype: module
@@ -325,6 +325,18 @@ components:
       stereotype: module
       view: structural
       confidence: inferred
+  - id: component.golang.digest
+    name: digest
+    description: 'Inferred from repository layout: golang/digest'
+    kind: module
+    assertion: inferred
+    source_files:
+      - golang/digest/digest.go
+    uml:
+      kind: Component
+      stereotype: module
+      view: structural
+      confidence: inferred
   - id: component.golang.dns
     name: dns
     description: 'Inferred from repository layout: golang/dns'
@@ -467,6 +479,18 @@ components:
     uml:
       kind: Component
       stereotype: service
+      view: structural
+      confidence: inferred
+  - id: component.golang.govops
+    name: govops
+    description: 'Inferred from repository layout: golang/govops'
+    kind: module
+    assertion: inferred
+    source_files:
+      - golang/govops/behavioral.go
+    uml:
+      kind: Component
+      stereotype: module
       view: structural
       confidence: inferred
   - id: component.golang.identity
@@ -637,6 +661,18 @@ components:
       stereotype: module
       view: structural
       confidence: inferred
+  - id: component.golang.packagekind
+    name: packagekind
+    description: 'Inferred from repository layout: golang/packagekind'
+    kind: service
+    assertion: inferred
+    source_files:
+      - golang/packagekind/cmd/genkinds/main.go
+    uml:
+      kind: Component
+      stereotype: service
+      view: structural
+      confidence: inferred
   - id: component.golang.persistence
     name: persistence
     description: 'Inferred from repository layout: golang/persistence'
@@ -697,6 +733,18 @@ components:
       stereotype: module
       view: structural
       confidence: inferred
+  - id: component.golang.release_boundary
+    name: release_boundary
+    description: 'Inferred from repository layout: golang/release_boundary'
+    kind: module
+    assertion: inferred
+    source_files:
+      - golang/release_boundary/boundarycheck/check.go
+    uml:
+      kind: Component
+      stereotype: module
+      view: structural
+      confidence: inferred
   - id: component.golang.remediation
     name: remediation
     description: 'Inferred from repository layout: golang/remediation'
@@ -728,6 +776,18 @@ components:
     assertion: inferred
     source_files:
       - golang/resource/resource_client/resource_client.go
+    uml:
+      kind: Component
+      stereotype: module
+      view: structural
+      confidence: inferred
+  - id: component.golang.runtimedirs
+    name: runtimedirs
+    description: 'Inferred from repository layout: golang/runtimedirs'
+    kind: module
+    assertion: inferred
+    source_files:
+      - golang/runtimedirs/runtimedirs.go
     uml:
       kind: Component
       stereotype: module
@@ -944,18 +1004,6 @@ components:
     assertion: inferred
     source_files:
       - scripts/awareness-coverage-report.py
-    uml:
-      kind: Component
-      stereotype: module
-      view: structural
-      confidence: inferred
-  - id: component.site
-    name: site
-    description: 'Inferred from repository layout: site'
-    kind: module
-    assertion: inferred
-    source_files:
-      - site/assets/javascripts/bundle.79ae519e.min.js
     uml:
       kind: Component
       stereotype: module

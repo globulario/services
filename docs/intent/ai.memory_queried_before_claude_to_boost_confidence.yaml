@@ -1,5 +1,5 @@
 id: ai.memory_queried_before_claude_to_boost_confidence
-level: mechanism
+level: contract
 title: ai_memory is queried before calling Claude — a known root cause skips the API call entirely
 intent: |
   The diagnoser queries ai_memory for past incidents with the same rule_id and event_name

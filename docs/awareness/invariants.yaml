@@ -11140,7 +11140,8 @@ invariants:
     golang/<service>/<name>pb/ directory (regex ^\./golang/.*pb/[^/]*\.pb\.go$).
     Backed by a .gitignore net (/*.pb.go, anchored to root so canonical
     golang/** files are unaffected).
-  required_tests: []
+  required_tests:
+  - make check-no-misplaced-pb
   summary: |
     Generated protobuf Go (*.pb.go, *_grpc.pb.go) is valid only inside its
     canonical package directory golang/<service>/<name>pb/. Root-level or
@@ -11178,7 +11179,8 @@ invariants:
     content (`file --mime-type`) — not extension or mode bit — so legit binary
     source (PNGs, fonts, fixtures) is not flagged. Backed by .gitignore rules
     (/golang/*_server, /golang/*_server_new).
-  required_tests: []
+  required_tests:
+  - make check-no-tracked-binaries
   summary: |
     Compiled binaries are platform-specific, bloat history, and are never
     source; they must never be tracked in git. Detection is by content
@@ -11235,7 +11237,9 @@ invariants:
     The kind→release-keyspace guards (routeInfrastructureDesired, pruneCrossKindServiceReleases,
     isStaleResolvedGhost, desiredVersionCheckAppliesToKind) keep one canonical id from holding
     records under two kinds (the xds ghost-state class).
-  required_tests: []
+  required_tests:
+  - make check-package-kinds
+  - golang/cluster_controller/cluster_controller_server/package_kind_registry_consistency_test.go::TestComponentCatalogKindMatchesRegistry
   summary: |
     A package's identity (name + binary + kind) is authored once, in
     packages/registry.yaml. Every other representation of kind is a PROJECTION

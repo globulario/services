@@ -23,6 +23,11 @@ activation_triggers:
 - checksum
 - kind mismatch
 - repository index
+expressed_by:
+- golang/repository/repository_server/package_identity_required_tests_test.go
+- golang/repository/repository_server/allocate_upload.go
+- golang/repository/repository_server/artifact_handlers.go
+- golang/repository/repository_server/resolver.go
 related_invariants:
 - repository.metadata_first
 - repository.package_build_lane_unique

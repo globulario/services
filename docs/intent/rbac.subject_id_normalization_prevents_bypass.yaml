@@ -1,5 +1,5 @@
 id: rbac.subject_id_normalization_prevents_bypass
-level: mechanism
+level: contract
 title: Subject ID matching normalizes FQDN formats to prevent permission bypass
 intent: |
   Subjects can be expressed in multiple formats: bare ID ("alice"), domain-qualified

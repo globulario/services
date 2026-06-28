@@ -1,5 +1,5 @@
 id: repository.resolver_is_deterministic_or_errors
-level: mechanism
+level: contract
 title: ResolveArtifact returns exactly one build_id or a typed error — ambiguity and absence are both hard errors
 intent: |
   The resolver contract is: filters must narrow candidates to exactly one build_id, or fail loudly.

@@ -1,5 +1,5 @@
 id: inventory.missing_means_uncertain
-level: mechanism
+level: contract
 title: Missing inventory is uncertainty, not proof of failure
 intent: Inventory snapshots are point-in-time and may be partial. A missing node or service in inventory should be classified as uncertain unless direct health evidence proves failure.
 agent_guidance: Do not alert quorum loss or remove topology members solely from inventory absence. Cross-check desired membership and direct health endpoints.
@@ -15,9 +15,11 @@ activation_triggers:
 - quorum
 - node down
 expressed_by:
-- awareness/forbidden_assumptions.yaml
-- awareness/authority_rules.yaml
-- operators/minio-topology-validation.md
+- docs/awareness/forbidden_assumptions.yaml
+- docs/awareness/authority_rules.yaml
+- docs/operators/minio-topology-validation.md
+- golang/verifier/gap_classifier.go
+- golang/verifier/gap_classifier_test.go
 related_invariants:
 - objectstore.topology_contract
 zooms_out_to:

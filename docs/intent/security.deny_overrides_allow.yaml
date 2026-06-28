@@ -16,8 +16,8 @@ activation_triggers:
 - authorization
 - role binding
 expressed_by:
-- operators/security.md
-- operators/rbac-permissions.md
+- docs/operators/security.md
+- docs/operators/rbac-permissions.md
 related_invariants: []
 zooms_out_to:
 - globular.security.ceremony_over_configuration

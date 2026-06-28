@@ -1,0 +1,35 @@
+# GENERATED candidate by `awg bootstrap` — status: candidate.
+# A suggestion for human review; never auto-promoted. To accept,
+# move it under docs/awareness/architecture/ and set status accordingly.
+id: candidate.pattern_misuse.direct_storage_access
+class: PatternMisuse
+label: Direct storage-driver access — verify it goes through an owner port (candidate)
+status: candidate
+confidence: candidate
+description: These files import a storage driver directly. Verify each access goes through the owning service's port (the truth_read_via_owner_rpc_not_direct_storage principle), not a direct read that steals authority. Review per file — a storage component legitimately owns its driver.
+detected_in:
+  - golang/ai_executor/ai_executor_server/anthropic_client.go
+  - golang/ai_executor/ai_executor_server/job_store.go
+  - golang/ai_memory/ai_memory_server/behavioral_migration.go
+  - golang/ai_memory/ai_memory_server/migration_coordinator.go
+  - golang/backup_manager/backup_manager_server/jobstore.go
+  - golang/backup_manager/backup_manager_server/lock.go
+  - golang/backup_manager/backup_manager_server/restore.go
+  - golang/backup_manager/backup_manager_server/server.go
+  - golang/cluster_controller/cluster_controller_server/bootstrap.go
+  - golang/cluster_controller/cluster_controller_server/cleanup_ghost_node_packages.go
+  - golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
+  - golang/cluster_controller/cluster_controller_server/delete_approval.go
+  - golang/cluster_controller/cluster_controller_server/etcd_members.go
+  - golang/cluster_controller/cluster_controller_server/handlers_health.go
+  - golang/cluster_controller/cluster_controller_server/handlers_node.go
+  - golang/cluster_controller/cluster_controller_server/handlers_status.go
+  - golang/cluster_controller/cluster_controller_server/ingress_handlers.go
+  - golang/cluster_controller/cluster_controller_server/ingress_spec_guard.go
+  - golang/cluster_controller/cluster_controller_server/leader_election.go
+  - golang/cluster_controller/cluster_controller_server/main.go
+  - golang/cluster_controller/cluster_controller_server/node_removal_requests.go
+  - golang/cluster_controller/cluster_controller_server/objectstore_admission.go
+  - golang/cluster_controller/cluster_controller_server/posture.go
+  - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
+  - golang/cluster_controller/cluster_controller_server/reconciler.go

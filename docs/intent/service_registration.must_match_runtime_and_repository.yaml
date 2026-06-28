@@ -15,9 +15,9 @@ activation_triggers:
 - service list
 - package
 expressed_by:
-- operators/cluster-doctor.md
-- operators/services-and-packages.md
-- developers/workflow-integration.md
+- docs/operators/cluster-doctor.md
+- docs/operators/services-and-packages.md
+- docs/developers/workflow-integration.md
 related_invariants:
 zooms_out_to:
 - state.repository_desired_installed_runtime

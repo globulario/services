@@ -1,5 +1,5 @@
 id: ai.watcher_to_executor_causal_chain
-level: mechanism
+level: contract
 title: Incidents flow from watcher event matching through executor diagnosis to memory recording
 intent: |
   The AI observability pipeline has a strict causal order:
@@ -27,6 +27,11 @@ activation_triggers:
   - causal chain
   - event → incident → action
 expressed_by:
+- golang/ai_watcher/ai_watcher_server/server.go
+- golang/ai_watcher/ai_watcher_server/event_contract_test.go
+- golang/ai_executor/ai_executor_server/remediator.go
+- golang/ai_executor/ai_executor_server/behavioral_feed.go
+- golang/ai_memory/ai_memory_server/behavioral_handlers.go
 related_invariants: []
 zooms_out_to:
   - ai.supplementary_not_required

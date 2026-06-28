@@ -1,5 +1,5 @@
 id: backup.provider_results_are_explicit
-level: mechanism
+level: contract
 title: Backup provider results are explicit and composable
 intent: Cluster backup spans etcd, Scylla, filesystem/restic, objectstore, and service hooks. Each provider result must be visible rather than collapsed into one boolean.
 agent_guidance: Expose per-provider status, errors, durations, hashes/revisions, replication status, and quality labels.
@@ -15,8 +15,11 @@ activation_triggers:
 - replication
 - quality label
 expressed_by:
-- operators/backup-and-restore.md
-- developers/workflow-integration.md
+- docs/operators/backup-and-restore.md
+- docs/developers/workflow-integration.md
+- golang/backup_manager/backup_manager_server/providers_restic.go
+- golang/backup_manager/backup_manager_server/providers_restic_test.go
+- golang/backup_manager/backup_manager_server/handlers.go
 related_invariants: []
 zooms_out_to:
 - backup.must_be_restorable_not_just_taken

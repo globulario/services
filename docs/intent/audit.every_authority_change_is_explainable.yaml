@@ -16,9 +16,9 @@ activation_triggers:
 - package lifecycle
 - remediation
 expressed_by:
-- operators/security.md
-- operators/workflows.md
-- operators/repository-overview.md
+- docs/operators/security.md
+- docs/operators/workflows.md
+- docs/operators/repository-overview.md
 - golang/repository/repository_server/audit.go
 - golang/mcp/audit.go
 related_invariants: []

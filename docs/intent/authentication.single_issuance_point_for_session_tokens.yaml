@@ -1,5 +1,5 @@
 id: authentication.single_issuance_point_for_session_tokens
-level: mechanism
+level: contract
 title: All session JWTs must originate from the authenticate() function via security.GenerateToken
 intent: |
   There is exactly one legitimate path for issuing a cluster session JWT: the Authenticate

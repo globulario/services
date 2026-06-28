@@ -108,6 +108,15 @@ code_edges:
   - from: globular.platform:code.go.platform_ai_executor.action_backend
     relation: implements
     to: globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - from: globular.platform:code.go.platform_ai_executor.behavioral_feed
+    relation: implements
+    to: globular.platform:intent.ai.supplementary_not_required
+  - from: globular.platform:code.go.platform_ai_executor.behavioral_feed
+    relation: implements
+    to: globular.platform:intent.ai.watcher_to_executor_causal_chain
+  - from: globular.platform:code.go.platform_ai_executor.behavioral_feed
+    relation: implements
+    to: globular.platform:intent.knowledge.promote_incidents_into_graph
   - from: globular.platform:code.go.platform_ai_executor.dedup
     relation: implements
     to: globular.platform:intent.ai.memory_queried_before_claude_to_boost_confidence
@@ -195,6 +204,9 @@ code_edges:
   - from: globular.platform:code.go.platform_backup.retention
     relation: implements
     to: globular.platform:intent.backup.retention_preserves_restore_tested_floor
+  - from: globular.platform:code.go.platform_cluster_controller.acc_config_handlers
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
   - from: globular.platform:code.go.platform_cluster_controller.artifact_kind_exhaustive_test
     relation: enforces
     to: globular.platform:invariant.release_type_switch_must_have_default
@@ -222,6 +234,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.desired_from_resources
     relation: implements
     to: globular.platform:intent.desired_state.is_authority
+  - from: globular.platform:code.go.platform_cluster_controller.desired_state_crosskind_test
+    relation: enforces
+    to: globular.platform:invariant.desired.keyed_by_kind_and_name
   - from: globular.platform:code.go.platform_cluster_controller.desired_state_handlers
     relation: implements
     to: globular.platform:intent.controller.leader_election_gates_all_writes
@@ -384,6 +399,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.objectstore_reconciler
     relation: implements
     to: globular.platform:intent.infrastructure.minio.objectstore_contract_and_topology
+  - from: globular.platform:code.go.platform_cluster_controller.objectstore_topology_handlers
+    relation: implements
+    to: globular.platform:intent.controller.leader_election_gates_all_writes
   - from: globular.platform:code.go.platform_cluster_controller.objectstore_topology_status
     relation: enforces
     to: globular.platform:invariant.objectstore.topology_contract
@@ -584,7 +602,13 @@ code_edges:
     to: globular.platform:intent.doctor.findings_are_operator_language
   - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry
     relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
+  - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry
+    relation: implements
     to: globular.platform:intent.remediation.must_go_through_workflow
+  - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry_harvest_downgrade_test
+    relation: enforces
+    to: globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
   - from: globular.platform:code.go.platform_cluster_doctor.invariant_registry_harvest_test
     relation: enforces
     to: globular.platform:invariant.doctor_rule_evaluate_must_consult_snap_errors
@@ -609,6 +633,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_gate
     relation: implements
     to: globular.platform:intent.circuit_breakers_protect_convergence
+  - from: globular.platform:code.go.platform_cluster_doctor.remediation_gate_persist
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_handler
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
@@ -624,6 +651,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.remediation_history
     relation: implements
     to: globular.platform:intent.remediation.failure_rate_policy
+  - from: globular.platform:code.go.platform_cluster_doctor.remediation_history_persist
+    relation: implements
+    to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
   - from: globular.platform:code.go.platform_cluster_doctor.rules.certificate_health
     relation: implements
     to: globular.platform:intent.runtime_health.requires_live_observation
@@ -669,6 +699,12 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.rules.etcd_stale_member
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.infra_probe_required
+    relation: implements
+    to: globular.platform:intent.degraded_is_explicit_not_hidden
+  - from: globular.platform:code.go.platform_cluster_doctor.rules.infra_probe_required
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
   - from: globular.platform:code.go.platform_cluster_doctor.rules.installed_state_runtime_mismatch
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
@@ -750,6 +786,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_doctor.rules.unit_receipt_drift
     relation: implements
     to: globular.platform:intent.runtime_observation_must_not_mutate_desired
+  - from: globular.platform:code.go.platform_cluster_doctor.snapshot
+    relation: implements
+    to: globular.platform:intent.doctor.findings_are_operator_language
   - from: globular.platform:code.go.platform_cluster_doctor.snapshot
     relation: implements
     to: globular.platform:intent.doctor.findings_are_operator_language
@@ -1041,6 +1080,18 @@ code_edges:
   - from: globular.platform:code.go.platform_mcp.tools_rbac_explain
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    relation: enforces
+    to: globular.platform:invariant.meta.discovery_produces_candidates_not_facts
+  - from: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    relation: enforces
+    to: globular.platform:invariant.meta.storage_is_not_semantic_authority
+  - from: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
+  - from: globular.platform:code.go.platform_mcp.tools_runtime_evidence
+    relation: implements
+    to: globular.platform:intent.awareness.mcp_tools_use_gateway_client_pool
   - from: globular.platform:code.go.platform_mcp.transport_http
     relation: implements
     to: globular.platform:intent.awareness.mcp_bridge_exposes_safe_tools_only
@@ -1326,6 +1377,9 @@ code_edges:
   - from: globular.platform:code.go.platform_rbac
     relation: implements
     to: globular.platform:intent.security.deny_overrides_allow
+  - from: globular.platform:code.go.platform_rbac.perm_cache_invalidation
+    relation: implements
+    to: globular.platform:invariant.meta.authorization_check_is_a_snapshot_not_a_promise
   - from: globular.platform:code.go.platform_repository.allocate_upload
     relation: implements
     to: globular.platform:intent.repository.publish_is_idempotent_by_digest
@@ -1398,9 +1452,6 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.gc
     relation: implements
     to: globular.platform:intent.repository.lifecycle_state_machine
-  - from: globular.platform:code.go.platform_repository.install_policy
-    relation: implements
-    to: globular.platform:intent.repository.metadata_is_authority
   - from: globular.platform:code.go.platform_repository.manifest_cache
     relation: enforces
     to: globular.platform:invariant.repository.artifact.content_immutable_after_publish
@@ -1437,6 +1488,9 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.reachability_guard_authority_pin
     relation: enforces
     to: globular.platform:invariant.repository.purge_must_not_delete_active_desired_builds
+  - from: globular.platform:code.go.platform_repository.release_authority
+    relation: implements
+    to: globular.platform:intent.package.release_authority_is_rbac_native
   - from: globular.platform:code.go.platform_repository.release_index
     relation: implements
     to: globular.platform:intent.repository.metadata_is_authority
@@ -1545,6 +1599,9 @@ code_edges:
   - from: globular.platform:code.go.platform_repository.upstream.source_registry
     relation: implements
     to: globular.platform:intent.upstream_release_streams.must_be_provider_neutral
+  - from: globular.platform:code.go.platform_repository.upstream_release_gate
+    relation: implements
+    to: globular.platform:intent.package.release_authority_is_rbac_native
   - from: globular.platform:code.go.platform_security
     relation: implements
     to: globular.platform:intent.dns_pki.explicit_identity_over_convenient_routing

@@ -27,6 +27,11 @@ activation_triggers:
 - publish
 - git tag release
 - release channel
+expressed_by:
+- golang/repository/repository_server/allocate_upload.go
+- golang/repository/repository_server/resolver.go
+- golang/repository/repository_server/artifact_handlers.go
+- golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
 related_invariants:
 - release.version_single_authority
 - package.release_vs_dev_channel_boundary
@@ -50,4 +55,7 @@ violation_patterns:
 - "self.?stamp.*version"
 - "version.*from.*tag.*upload"
 - "second.*version.*author"
+required_tests:
+- golang/repository/repository_server/release_authority_test.go::TestReleaseAllocationRequiresNamespacePermission
+- golang/repository/repository_server/package_identity_required_tests_test.go::TestBuildIDMapsToSingleArtifactIdentity
 status: proposed

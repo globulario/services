@@ -24,8 +24,8 @@ bad_smells:
   - service that continues operating with stale local state when etcd is down
 
 expressed_by:
-  - services/golang/config/
-  - services/golang/globular_service/
+  - golang/config/
+  - golang/globular_service/
 
 related_invariants:
 
