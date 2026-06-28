@@ -48,8 +48,26 @@ type anthropicClient struct {
 	credentialsPath string
 }
 
+// Seams for testing credential precedence without a live etcd/filesystem.
+// They wrap the real functions so production behavior is unchanged.
+var (
+	probeEtcdMaxCreds = func(c *anthropicClient) error { return c.loadCredentialsFromEtcd() }
+	locateCredFile    = func(configured string) string { return findCredentialsFile(configured) }
+	persistCredsToEtcd = func(c *anthropicClient) { c.saveCredentials() }
+	syncCLICreds       = func() { syncCLICredentialsFromEtcd() }
+)
+
 // newAnthropicClient creates a client for direct API access.
-// Priority: config APIKey > etcd > Claude Code credentials file.
+//
+// Credential precedence is COST-AWARE: the flat-rate Max subscription (OAuth —
+// from etcd, then the local credentials file) is ALWAYS preferred over the
+// metered standalone API key. The API key is a FALLBACK, selected only when no
+// usable Max credential exists, so an accidentally-configured key can never
+// silently preempt the subscription and start per-token billing. When the key
+// is used, the client logs a loud warning.
+// (Operator decision 2026-06-28; see failure_mode
+// ai_executor.repeat_diagnosis_drains_personal_subscription.)
+//
 // Environment variables are NOT used for credentials (etcd is the sole config source).
 // Returns nil if no auth method is available.
 func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
@@ -81,33 +99,26 @@ func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 		},
 	}
 
-	// 1. Config API key (from etcd-backed service config)
-	if cfg.APIKey != "" {
-		c.accessToken = cfg.APIKey
-		logger.Info("anthropic: using API key from config")
-		return c
-	}
-
-	// 2. etcd shared credentials (synced from any node that has the token)
-	if err := c.loadCredentialsFromEtcd(); err == nil {
+	// 1. etcd shared Max credentials (synced from any node that has the token).
+	if err := probeEtcdMaxCreds(c); err == nil {
 		logger.Info("anthropic: using Max subscription from etcd (cluster-shared)",
 			"expires_in", time.Until(time.UnixMilli(c.expiresAt)).Round(time.Minute))
-		// Also try to find local credentials path for writes.
-		c.credentialsPath = findCredentialsFile(cfg.CredentialsFile)
+		// Also find the local credentials path for write-back on refresh.
+		c.credentialsPath = locateCredFile(cfg.CredentialsFile)
 		return c
 	}
 
-	// 3. Claude Code credentials file (Max subscription — $0 extra cost)
-	credPath := findCredentialsFile(cfg.CredentialsFile)
+	// 2. Local Claude Code credentials file (Max subscription — $0 extra cost).
+	credPath := locateCredFile(cfg.CredentialsFile)
 	if credPath != "" {
 		if err := c.loadCredentials(credPath); err == nil {
 			c.credentialsPath = credPath
 			// Sync to etcd so other nodes can use it.
-			c.saveCredentials()
+			persistCredsToEtcd(c)
 			// Also sync to the service user's CLI credentials path so the
 			// Claude CLI subprocess can authenticate (fixes startup timing:
 			// claudeClient inits before anthropicClient seeds etcd).
-			syncCLICredentialsFromEtcd()
+			syncCLICreds()
 			logger.Info("anthropic: using Max subscription from Claude Code credentials",
 				"path", credPath,
 				"subscription", "max",
@@ -116,7 +127,18 @@ func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 		}
 	}
 
-	logger.Info("anthropic: no credentials found (set APIKey in config or install Claude Code)")
+	// 3. Standalone API key (metered, separately billed) — FALLBACK ONLY.
+	// Reached only when no Max subscription credential is available, so the
+	// flat-rate subscription is never preempted by a configured key.
+	if cfg.APIKey != "" {
+		c.accessToken = cfg.APIKey
+		logger.Warn("anthropic: using standalone API key — METERED per-token billing. " +
+			"No Max subscription credential found (etcd or service-user credentials file); " +
+			"provision one to use the flat-rate subscription instead.")
+		return c
+	}
+
+	logger.Info("anthropic: no credentials found (provision a Max subscription credential, or set APIKey in config as a metered fallback)")
 	return nil
 }
 
