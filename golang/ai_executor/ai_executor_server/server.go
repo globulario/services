@@ -112,38 +112,46 @@ type executorStats struct {
 }
 
 // Globular service contract
-func (srv *server) GetConfigurationPath() string        { return srv.ConfigPath }
-func (srv *server) SetConfigurationPath(path string)    { srv.ConfigPath = path }
-func (srv *server) GetAddress() string                  { return srv.Address }
-func (srv *server) SetAddress(address string)           { srv.Address = address }
-func (srv *server) GetProcess() int                     { return srv.Process }
-func (srv *server) SetProcess(pid int)                  { srv.Process = pid }
-func (srv *server) GetProxyProcess() int                { return srv.ProxyProcess }
-func (srv *server) SetProxyProcess(pid int)             { srv.ProxyProcess = pid }
-func (srv *server) GetState() string                    { return srv.State }
-func (srv *server) SetState(state string)               { srv.State = state }
-func (srv *server) GetLastError() string                { return srv.LastError }
-func (srv *server) SetLastError(err string)             { srv.LastError = err }
-func (srv *server) SetModTime(modtime int64)            { srv.ModTime = modtime }
-func (srv *server) GetModTime() int64                   { return srv.ModTime }
-func (srv *server) GetId() string                       { return srv.Id }
-func (srv *server) SetId(id string)                     { srv.Id = id }
-func (srv *server) GetName() string                     { return srv.Name }
-func (srv *server) SetName(name string)                 { srv.Name = name }
-func (srv *server) GetMac() string                      { return srv.Mac }
-func (srv *server) SetMac(mac string)                   { srv.Mac = mac }
-func (srv *server) GetDescription() string              { return srv.Description }
-func (srv *server) SetDescription(description string)   { srv.Description = description }
-func (srv *server) GetKeywords() []string               { return srv.Keywords }
-func (srv *server) SetKeywords(keywords []string)       { srv.Keywords = keywords }
-func (srv *server) Dist(path string) (string, error)    { return globular.Dist(path, srv) }
+func (srv *server) GetConfigurationPath() string      { return srv.ConfigPath }
+func (srv *server) SetConfigurationPath(path string)  { srv.ConfigPath = path }
+func (srv *server) GetAddress() string                { return srv.Address }
+func (srv *server) SetAddress(address string)         { srv.Address = address }
+func (srv *server) GetProcess() int                   { return srv.Process }
+func (srv *server) SetProcess(pid int)                { srv.Process = pid }
+func (srv *server) GetProxyProcess() int              { return srv.ProxyProcess }
+func (srv *server) SetProxyProcess(pid int)           { srv.ProxyProcess = pid }
+func (srv *server) GetState() string                  { return srv.State }
+func (srv *server) SetState(state string)             { srv.State = state }
+func (srv *server) GetLastError() string              { return srv.LastError }
+func (srv *server) SetLastError(err string)           { srv.LastError = err }
+func (srv *server) SetModTime(modtime int64)          { srv.ModTime = modtime }
+func (srv *server) GetModTime() int64                 { return srv.ModTime }
+func (srv *server) GetId() string                     { return srv.Id }
+func (srv *server) SetId(id string)                   { srv.Id = id }
+func (srv *server) GetName() string                   { return srv.Name }
+func (srv *server) SetName(name string)               { srv.Name = name }
+func (srv *server) GetMac() string                    { return srv.Mac }
+func (srv *server) SetMac(mac string)                 { srv.Mac = mac }
+func (srv *server) GetDescription() string            { return srv.Description }
+func (srv *server) SetDescription(description string) { srv.Description = description }
+func (srv *server) GetKeywords() []string             { return srv.Keywords }
+func (srv *server) SetKeywords(keywords []string)     { srv.Keywords = keywords }
+func (srv *server) Dist(path string) (string, error)  { return globular.Dist(path, srv) }
 func (srv *server) GetDependencies() []string {
-	if srv.Dependencies == nil { srv.Dependencies = []string{} }
+	if srv.Dependencies == nil {
+		srv.Dependencies = []string{}
+	}
 	return srv.Dependencies
 }
 func (srv *server) SetDependency(dep string) {
-	if srv.Dependencies == nil { srv.Dependencies = []string{} }
-	for _, d := range srv.Dependencies { if d == dep { return } }
+	if srv.Dependencies == nil {
+		srv.Dependencies = []string{}
+	}
+	for _, d := range srv.Dependencies {
+		if d == dep {
+			return
+		}
+	}
 	srv.Dependencies = append(srv.Dependencies, dep)
 }
 func (srv *server) GetChecksum() string                      { return srv.Checksum }
@@ -243,6 +251,11 @@ func (srv *server) credentialWatchLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
+	// Log the honest backend readiness once at startup so operators see whether
+	// the executor is in "ai" or "deterministic_fallback" mode from the first
+	// line, instead of inferring it from a single (previously misleading) bool.
+	srv.diagnoser.logReadiness("startup")
+
 	for range ticker.C {
 		// Already have a working client? Nothing to do.
 		if srv.diagnoser.anthropic != nil && srv.diagnoser.anthropic.isAvailable() {
@@ -258,6 +271,7 @@ func (srv *server) credentialWatchLoop() {
 		if client != nil && client.isAvailable() {
 			srv.diagnoser.anthropic = client
 			logger.Info("credential-watch: AI backend activated (hot-reload)")
+			srv.diagnoser.logReadiness("hot-reload")
 		}
 	}
 }
@@ -338,20 +352,29 @@ func main() {
 	if *enableDebug {
 		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
-	if *showHelp { flag.Usage(); return }
+	if *showHelp {
+		flag.Usage()
+		return
+	}
 	if *showVersion {
 		data, _ := json.MarshalIndent(map[string]string{"version": Version, "build_time": BuildTime, "git_commit": GitCommit}, "", "  ")
-		fmt.Println(string(data)); return
+		fmt.Println(string(data))
+		return
 	}
-	if *showDescribe { globular.HandleDescribeFlag(srv, logger); return }
+	if *showDescribe {
+		globular.HandleDescribeFlag(srv, logger)
+		return
+	}
 	if *showHealth {
 		data, _ := json.MarshalIndent(map[string]interface{}{"service": srv.Name, "status": "healthy", "version": srv.Version}, "", "  ")
-		fmt.Println(string(data)); return
+		fmt.Println(string(data))
+		return
 	}
 
 	args := flag.Args()
 	if err := globular.AllocatePortIfNeeded(srv, args); err != nil {
-		logger.Error("port allocation failed", "error", err); os.Exit(1)
+		logger.Error("port allocation failed", "error", err)
+		os.Exit(1)
 	}
 	globular.ParsePositionalArgs(srv, args)
 	globular.LoadRuntimeConfig(srv)
@@ -359,13 +382,15 @@ func main() {
 	logger.Info("starting ai_executor service", "service", srv.Name, "version", srv.Version)
 	start := time.Now()
 	if err := srv.Init(); err != nil {
-		logger.Error("init failed", "err", err); os.Exit(1)
+		logger.Error("init failed", "err", err)
+		os.Exit(1)
 	}
 	setupGrpcService(srv)
 	logger.Info("service ready", "service", srv.Name, "port", srv.Port, "startup_ms", time.Since(start).Milliseconds())
 
 	lm := globular.NewLifecycleManager(srv, logger)
 	if err := lm.Start(); err != nil {
-		logger.Error("start failed", "err", err); os.Exit(1)
+		logger.Error("start failed", "err", err)
+		os.Exit(1)
 	}
 }

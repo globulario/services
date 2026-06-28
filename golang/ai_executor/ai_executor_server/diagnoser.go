@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
@@ -31,6 +32,12 @@ type diagnoser struct {
 	claude         *claudeClient
 	anthropic      *anthropicClient
 	ledger         *incidentLedger
+
+	// aiAnalysesOK counts successful real AI (LLM) analyses produced at runtime.
+	// It is the only honest proof of "analysis_available": a configured backend
+	// (backend_ready) is necessary but not sufficient — the call must actually
+	// return a usable analysis. Accessed atomically.
+	aiAnalysesOK int64
 }
 
 func newDiagnoser(cfg AnthropicConfig) *diagnoser {
@@ -60,7 +67,6 @@ func (d *diagnoser) sendPrompt(ctx context.Context, prompt string) (string, erro
 
 // diagnose gathers context and builds a diagnosis for an incident.
 // Uses Claude API when available, deterministic fallback otherwise.
-//
 func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessIncidentRequest) (*ai_executorpb.Diagnosis, error) {
 	callCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
@@ -137,6 +143,12 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 	// deterministic). Only the dedicated Anthropic API key counts as available
 	// here — the CLI subscription path is intentionally excluded.
 	aiAvailable := d.anthropic != nil && d.anthropic.isAvailable()
+	if !aiAvailable && rootCause == "" {
+		// Be explicit in the diagnosis record: this is the deterministic
+		// analyzer, not AI. Masquerading a rule-based result as an AI diagnosis
+		// is what made "ai_available: true" misleading on the live cluster.
+		evidence = append(evidence, "ai_backend: unavailable — deterministic fallback (no Anthropic.ApiKey or etcd credentials; AI is supplementary)")
+	}
 	if aiAvailable && rootCause == "" {
 		healthStr := ""
 		if health != nil {
@@ -149,6 +161,8 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		if err == nil {
 			analysis, parseErr := parseAnalysis(response)
 			if parseErr == nil && analysis != nil {
+				// Runtime proof the backend actually works (analysis_available).
+				atomic.AddInt64(&d.aiAnalysesOK, 1)
 				rootCause = analysis.RootCause
 				confidence = float32(analysis.Confidence)
 				proposedAction = analysis.ProposedAction
