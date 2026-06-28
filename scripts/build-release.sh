@@ -267,6 +267,15 @@ cat > "${RELEASE_DIR}/README.md" <<HEREDOC
 sudo bash install.sh
 \`\`\`
 
+The first node always comes up with the quorum profiles (\`control-plane\`,
+\`core\`, \`storage\`). To add a workload profile from day-0, pass
+\`FOUNDING_PROFILES\` (comma-separated) through \`sudo\` — e.g. to also run media
+services on this node:
+
+\`\`\`bash
+sudo FOUNDING_PROFILES=core,media-server bash install.sh
+\`\`\`
+
 ## Next Steps
 
 \`\`\`bash

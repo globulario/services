@@ -14,6 +14,11 @@
 #   cd "globular-${VERSION}-linux-amd64"
 #   sudo bash install.sh
 #
+# Optional — set the founding node's profiles (comma-separated). The quorum
+# profiles (control-plane,core,storage) are always enforced; this adds workload
+# profiles from day-0. Example, to also run media services on this node:
+#   sudo FOUNDING_PROFILES=core,media-server bash install.sh
+#
 # After installation, the installer prints the exact bootstrap command with the
 # node's routable IP and the actual node-agent port. Example:
 #   sudo systemctl start globular-node-agent
@@ -62,6 +67,12 @@ MINIO_DATA_DIR="/var/lib/globular/minio/data"
 STATE_DIR="/var/lib/globular"
 GLOBULAR_DOMAIN="globular.internal"
 
+# Founding-node profiles, forwarded to install-day0.sh (comma-separated). The
+# controller always enforces the quorum trio (control-plane,core,storage); this
+# adds workload profiles from day-0. Override via the environment, e.g.:
+#   sudo FOUNDING_PROFILES=core,media-server bash install.sh
+export FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"
+
 mkdir -p "${SCRIPT_DIR}/bin" "${SCRIPT_DIR}/internal/assets"
 ln -sf "${INSTALLER_BIN}" "${SCRIPT_DIR}/bin/globular-installer"
 ln -sfn "${PKG_DIR}" "${SCRIPT_DIR}/internal/assets/packages"
@@ -77,6 +88,7 @@ info "Release version: ${VERSION}"
 # ── Run Day-0 installation ────────────────────────────────────────────────────
 echo ""
 info "Starting Day-0 installation..."
+info "Founding profiles: ${FOUNDING_PROFILES} (quorum control-plane,core,storage always enforced)"
 echo ""
 
 "${SCRIPT_DIR}/scripts/install-day0.sh"
