@@ -154,7 +154,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 					node.BlockedDetails = fmt.Sprintf("missing: %s", strings.Join(missing, ", "))
 					stateDirty = true
 					log.Printf("reconcile: node %s blocked (hard): missing units: %v", node.NodeID, missing)
-					srv.emitClusterEvent("plan_blocked", map[string]interface{}{
+					// Namespaced under "cluster." so it is caught by the ai-watcher
+					// "cluster.*" subscription. A bare "plan_blocked" matches no
+					// subscribed topic and never reaches the timeline (see the
+					// event-topic contract gate in ai_watcher event_contract_test.go).
+					srv.emitClusterEvent("cluster.plan_blocked", map[string]interface{}{
 						"severity":       "WARN",
 						"node_id":        node.NodeID,
 						"hostname":       node.Identity.Hostname,
