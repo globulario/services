@@ -16,9 +16,11 @@ var execCommand = exec.Command
 // Ping returns this executor's identity and capabilities.
 func (srv *server) Ping(ctx context.Context, req *ai_executorpb.PeerPingRequest) (*ai_executorpb.PeerPingResponse, error) {
 	hostname, _ := os.Hostname()
-	aiAvailable := srv.diagnoser != nil &&
-		((srv.diagnoser.anthropic != nil && srv.diagnoser.anthropic.isAvailable()) ||
-			(srv.diagnoser.claude != nil && srv.diagnoser.claude.isAvailable()))
+	// ai_available means the autonomous diagnosis backend is actually usable —
+	// NOT "a claude binary exists on disk". The latter made this field report
+	// true on a cluster with no credentials, where every diagnosis was the
+	// deterministic fallback. See backendReadiness / aiReady.
+	aiAvailable := srv.diagnoser.aiReady()
 
 	srv.statsMu.Lock()
 	processed := srv.stats.IncidentsProcessed
@@ -100,8 +102,9 @@ func (srv *server) ProposeAction(ctx context.Context, req *ai_executorpb.PeerPro
 	reason := "no AI backend available for evaluation"
 
 	if srv.diagnoser != nil {
-		aiAvailable := (srv.diagnoser.anthropic != nil && srv.diagnoser.anthropic.isAvailable()) ||
-			(srv.diagnoser.claude != nil && srv.diagnoser.claude.isAvailable())
+		// Vote with AI only when the autonomous backend is truly usable; the
+		// claude CLI binary existing is not a usable autonomous backend.
+		aiAvailable := srv.diagnoser.aiReady()
 
 		if aiAvailable {
 			// Ask AI to evaluate the proposal.

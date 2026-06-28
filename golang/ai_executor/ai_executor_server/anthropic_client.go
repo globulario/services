@@ -389,27 +389,35 @@ func (c *anthropicClient) isAvailable() bool {
 	return c != nil && (c.cfg.APIKey != "" || c.accessToken != "")
 }
 
+// credentialsPresent reports whether any credential material is configured,
+// independent of whether it is currently usable (a token may be present but
+// expired). This is the weaker "credentials_present" signal in the readiness
+// model; "backend_ready" requires isAvailable().
+func (c *anthropicClient) credentialsPresent() bool {
+	return c != nil && (c.cfg.APIKey != "" || c.accessToken != "" || c.refreshToken != "")
+}
+
 // --- Anthropic Messages API types ---
 
 type messagesRequest struct {
-	Model     string        `json:"model"`
-	MaxTokens int           `json:"max_tokens"`
-	System    string        `json:"system,omitempty"`
-	Messages  []message     `json:"messages"`
-	Tools     []toolDef     `json:"tools,omitempty"`
+	Model     string    `json:"model"`
+	MaxTokens int       `json:"max_tokens"`
+	System    string    `json:"system,omitempty"`
+	Messages  []message `json:"messages"`
+	Tools     []toolDef `json:"tools,omitempty"`
 }
 
 type message struct {
-	Role    string        `json:"role"`
-	Content any           `json:"content"` // string or []contentBlock
+	Role    string `json:"role"`
+	Content any    `json:"content"` // string or []contentBlock
 }
 
 type contentBlock struct {
-	Type    string `json:"type"`
-	Text    string `json:"text,omitempty"`
-	ID      string `json:"id,omitempty"`
-	Name    string `json:"name,omitempty"`
-	Input   any    `json:"input,omitempty"`
+	Type      string `json:"type"`
+	Text      string `json:"text,omitempty"`
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Input     any    `json:"input,omitempty"`
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	Content   string `json:"content,omitempty"`
 }
@@ -421,13 +429,13 @@ type toolDef struct {
 }
 
 type messagesResponse struct {
-	ID           string         `json:"id"`
-	Type         string         `json:"type"`
-	Role         string         `json:"role"`
-	Content      []contentBlock `json:"content"`
-	Model        string         `json:"model"`
-	StopReason   string         `json:"stop_reason"`
-	Usage        usageInfo      `json:"usage"`
+	ID         string         `json:"id"`
+	Type       string         `json:"type"`
+	Role       string         `json:"role"`
+	Content    []contentBlock `json:"content"`
+	Model      string         `json:"model"`
+	StopReason string         `json:"stop_reason"`
+	Usage      usageInfo      `json:"usage"`
 }
 
 type usageInfo struct {
@@ -436,8 +444,8 @@ type usageInfo struct {
 }
 
 type apiError struct {
-	Type    string `json:"type"`
-	Error   struct {
+	Type  string `json:"type"`
+	Error struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
 	} `json:"error"`
