@@ -27,7 +27,13 @@ func TestBackendReadiness_FourStates(t *testing.T) {
 		{
 			name: "binary present only, no credentials — the live-cluster lie",
 			d:    &diagnoser{claude: &claudeClient{cliBinary: "/usr/local/bin/claude"}},
-			want: backendReadiness{BinaryPresent: true},
+			want: backendReadiness{ClaudeBinaryPresent: true},
+			mode: "deterministic_fallback",
+		},
+		{
+			name: "codex binary present only, no credentials",
+			d:    &diagnoser{codex: &codexClient{cliBinary: "/usr/local/bin/codex"}},
+			want: backendReadiness{CodexBinaryPresent: true},
 			mode: "deterministic_fallback",
 		},
 		{
@@ -39,7 +45,7 @@ func TestBackendReadiness_FourStates(t *testing.T) {
 		{
 			name: "backend ready (api key) but no analysis yet",
 			d:    &diagnoser{anthropic: &anthropicClient{cfg: AnthropicConfig{APIKey: "sk-ant-x"}}},
-			want: backendReadiness{CredentialsPresent: true, BackendReady: true},
+			want: backendReadiness{CredentialsPresent: true, BackendReady: true, Backend: "anthropic"},
 			mode: "ai",
 		},
 		{
@@ -52,7 +58,15 @@ func TestBackendReadiness_FourStates(t *testing.T) {
 				d.aiAnalysesOK = 1
 				return d
 			}(),
-			want: backendReadiness{BinaryPresent: true, CredentialsPresent: true, BackendReady: true, AnalysisAvailable: true},
+			want: backendReadiness{ClaudeBinaryPresent: true, CredentialsPresent: true, BackendReady: true, AnalysisAvailable: true, Backend: "anthropic"},
+			mode: "ai",
+		},
+		{
+			name: "codex autonomous backend ready",
+			d: &diagnoser{
+				codex: &codexClient{cliBinary: "/usr/local/bin/codex", hasAuth: true, accessToken: "tok"},
+			},
+			want: backendReadiness{CodexBinaryPresent: true, CredentialsPresent: true, BackendReady: true, Backend: "codex"},
 			mode: "ai",
 		},
 	}

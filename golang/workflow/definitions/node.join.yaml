@@ -335,6 +335,7 @@ spec:
           - { name: sha256sum, kind: COMMAND }
           - { name: yt-dlp, kind: COMMAND }
           - { name: claude, kind: COMMAND }
+          - { name: codex, kind: COMMAND }
       timeout: 2m
       execution:
         idempotency: verify_then_continue
@@ -356,6 +357,7 @@ spec:
             - { name: sha256sum, kind: COMMAND }
             - { name: yt-dlp, kind: COMMAND }
             - { name: claude, kind: COMMAND }
+            - { name: codex, kind: COMMAND }
         success:
           expr: all_installed == true
 

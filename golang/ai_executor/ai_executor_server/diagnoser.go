@@ -23,14 +23,15 @@ import (
 	"google.golang.org/grpc"
 )
 
-// diagnoser gathers evidence from cluster services, then uses Claude
-// for reasoning when available, with deterministic fallback.
-// Prefers direct Anthropic API when configured, falls back to CLI.
+// diagnoser gathers evidence from cluster services, then uses configured AI
+// backends for reasoning when available, with deterministic fallback.
+// Prefers direct Anthropic API when configured, then explicit Codex CLI auth.
 type diagnoser struct {
 	controllerAddr string
 	memoryAddr     string
 	claude         *claudeClient
 	anthropic      *anthropicClient
+	codex          *codexClient
 	ledger         *incidentLedger
 
 	// aiAnalysesOK counts successful real AI (LLM) analyses produced at runtime.
@@ -40,29 +41,32 @@ type diagnoser struct {
 	aiAnalysesOK int64
 }
 
-func newDiagnoser(cfg AnthropicConfig) *diagnoser {
+func newDiagnoser(anthropicCfg AnthropicConfig, codexCfg CodexConfig) *diagnoser {
 	return &diagnoser{
 		claude:    newClaudeClient(),
-		anthropic: newAnthropicClient(cfg),
+		anthropic: newAnthropicClient(anthropicCfg),
+		codex:     newCodexClient(codexCfg),
 		ledger:    &incidentLedger{},
 	}
 }
 
-// sendPrompt calls the configured Anthropic API backend, or errors so the
-// caller falls back to deterministic analysis.
+// sendPrompt calls the configured autonomous backend, or errors so the caller
+// falls back to deterministic analysis.
 //
 // The autonomous incident path deliberately does NOT fall back to the Claude
-// CLI: the CLI spends whatever interactive subscription happens to be logged in
-// on the host (a developer's personal Max account), and an incident storm turns
-// that into an unbounded, silent drain. AI diagnosis here is opt-in via an
-// explicit, separately-billed API key in service config (Anthropic.ApiKey).
-// With no key, isAvailable() is false and diagnose() uses the deterministic
-// analyzer — AI is supplementary, never required.
+// CLI: that CLI is interactive tooling and may be logged into a personal
+// subscription. AI diagnosis here is opt-in via explicit service-user or
+// cluster-shared credentials: Anthropic API/Max credentials or Codex auth.
+// With neither, diagnose() uses the deterministic analyzer — AI is
+// supplementary, never required.
 func (d *diagnoser) sendPrompt(ctx context.Context, prompt string) (string, error) {
 	if d.anthropic != nil && d.anthropic.isAvailable() {
 		return d.anthropic.sendPrompt(ctx, prompt)
 	}
-	return "", fmt.Errorf("no AI backend available (set Anthropic.ApiKey in service config)")
+	if d.codex != nil && d.codex.isAvailable() {
+		return d.codex.sendPrompt(ctx, prompt)
+	}
+	return "", fmt.Errorf("no AI backend available (configure Anthropic or Codex credentials)")
 }
 
 // diagnose gathers context and builds a diagnosis for an incident.
@@ -139,15 +143,15 @@ func (d *diagnoser) diagnose(ctx context.Context, req *ai_executorpb.ProcessInci
 		}
 	}
 
-	// 4. Try the AI backend for a first-time analysis (falls back to
-	// deterministic). Only the dedicated Anthropic API key counts as available
-	// here — the CLI subscription path is intentionally excluded.
-	aiAvailable := d.anthropic != nil && d.anthropic.isAvailable()
+	// 4. Try the autonomous AI backend for a first-time analysis (falls back to
+	// deterministic). Claude CLI is intentionally excluded here; Anthropic API
+	// and explicitly-provisioned Codex auth are allowed.
+	aiAvailable := d.aiReady()
 	if !aiAvailable && rootCause == "" {
 		// Be explicit in the diagnosis record: this is the deterministic
 		// analyzer, not AI. Masquerading a rule-based result as an AI diagnosis
 		// is what made "ai_available: true" misleading on the live cluster.
-		evidence = append(evidence, "ai_backend: unavailable — deterministic fallback (no Anthropic.ApiKey or etcd credentials; AI is supplementary)")
+		evidence = append(evidence, "ai_backend: unavailable — deterministic fallback (no Anthropic or Codex credentials; AI is supplementary)")
 	}
 	if aiAvailable && rootCause == "" {
 		healthStr := ""
