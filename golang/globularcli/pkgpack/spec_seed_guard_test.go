@@ -1,6 +1,7 @@
 package pkgpack
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -38,6 +39,8 @@ var seedGuardCases = []struct {
 	{"xds_service.yaml", "{{.StateDir}}/xds/config.json", "seed-only"},
 	// mcp/config.json — seed-only; operator enables/disables tool groups.
 	{"mcp_service.yaml", "{{.StateDir}}/mcp/config.json", "seed-only"},
+	// sidekick.env — seed-only; operator may retarget MinIO backends/listener.
+	{"sidekick_service.yaml", "{{.StateDir}}/sidekick/sidekick.env", "seed-only"},
 	// scylla-manager-agent.yaml — seed-only; auth_token written by post-install script.
 	{"scylla_manager_agent_service.yaml", "{{.StateDir}}/scylla-manager-agent/scylla-manager-agent.yaml", "seed-only"},
 }
@@ -47,16 +50,13 @@ var seedGuardCases = []struct {
 // regression guard for Guardrail 1 (config ownership / seed file protection):
 // a package reinstall must never overwrite live cluster configuration.
 func TestSeedConfigsHaveSkipIfExists(t *testing.T) {
-	// Spec files live in packages/specs/ — four levels up from this package.
-	specsDir := filepath.Join("..", "..", "..", "..", "packages", "specs")
-
 	for _, tc := range seedGuardCases {
 		tc := tc
 		t.Run(tc.spec+"/"+filepath.Base(tc.filePath), func(t *testing.T) {
-			specPath := filepath.Join(specsDir, tc.spec)
+			specPath := findPackageSpec(t, tc.spec)
 			spec, err := ParseSpec(specPath)
 			if err != nil {
-				t.Skipf("spec not found or unparseable (%s): %v", tc.spec, err)
+				t.Fatalf("spec found but unparseable (%s): %v", specPath, err)
 			}
 
 			found := false
@@ -97,4 +97,75 @@ func TestSeedConfigsHaveSkipIfExists(t *testing.T) {
 			}
 		})
 	}
+}
+
+func findPackageSpec(t *testing.T, specName string) string {
+	t.Helper()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+
+	var metadataMatches []string
+	var legacyMatches []string
+	for dir := wd; ; dir = filepath.Dir(dir) {
+		packagesRoot := filepath.Join(filepath.Dir(dir), "packages")
+		metadataMatches = append(metadataMatches, existingMetadataPackageSpecMatches(t, packagesRoot, specName)...)
+		legacyMatches = append(legacyMatches, existingLegacyPackageSpecMatches(t, packagesRoot, specName)...)
+
+		next := filepath.Dir(dir)
+		if next == dir {
+			break
+		}
+	}
+
+	switch len(metadataMatches) {
+	case 1:
+		return metadataMatches[0]
+	default:
+		if len(metadataMatches) > 1 {
+			t.Fatalf("spec %s is ambiguous; found multiple metadata matches: %v", specName, metadataMatches)
+		}
+	}
+
+	switch len(legacyMatches) {
+	case 0:
+		t.Fatalf("spec %s not found in adjacent packages repo (searched packages/metadata/*/specs with legacy packages/specs fallback)", specName)
+	case 1:
+		return legacyMatches[0]
+	default:
+		t.Fatalf("spec %s is ambiguous; found multiple legacy matches: %v", specName, legacyMatches)
+	}
+	return ""
+}
+
+func existingMetadataPackageSpecMatches(t *testing.T, packagesRoot, specName string) []string {
+	t.Helper()
+
+	matches, err := filepath.Glob(filepath.Join(packagesRoot, "metadata", "*", "specs", specName))
+	if err != nil {
+		t.Fatalf("glob package specs under %s: %v", packagesRoot, err)
+	}
+	return existingPaths(t, matches)
+}
+
+func existingLegacyPackageSpecMatches(t *testing.T, packagesRoot, specName string) []string {
+	t.Helper()
+
+	return existingPaths(t, []string{filepath.Join(packagesRoot, "specs", specName)})
+}
+
+func existingPaths(t *testing.T, candidates []string) []string {
+	t.Helper()
+
+	var paths []string
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			paths = append(paths, candidate)
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("stat package spec candidate %s: %v", candidate, err)
+		}
+	}
+	return paths
 }
