@@ -727,6 +727,11 @@ func (srv *NodeAgentServer) runDay0Bootstrap(ctx context.Context, req *node_agen
 	if _, ok := inputs["repository_address"]; !ok {
 		inputs["repository_address"] = ""
 	}
+	if _, ok := inputs["bootstrap_node_profiles"]; !ok {
+		// Mirror foundingNodeProfiles from cluster_controller/profiles_normalize.go.
+		// The workflow's verify_profile_install_set step requires this input.
+		inputs["bootstrap_node_profiles"] = []string{"core", "control-plane", "storage", "media-server"}
+	}
 
 	log.Printf("grpc-workflow: starting day0.bootstrap (def=%s)", defPath)
 	start := time.Now()

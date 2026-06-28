@@ -23,8 +23,9 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 
 	profiles := append([]string(nil), req.GetProfiles()...)
 	if len(profiles) == 0 {
-		// Day-0 invariant: founding node must start with quorum-safe profiles.
-		profiles = []string{"core", "control-plane", "storage"}
+		// Day-0 invariant: founding node must start with all founding profiles.
+		// Mirrors foundingNodeProfiles in cluster_controller/profiles_normalize.go.
+		profiles = []string{"core", "control-plane", "storage", "media-server"}
 	}
 	profiles = component_catalog.NormalizeProfiles(profiles)
 	if unknown := component_catalog.UnknownProfiles(profiles); len(unknown) > 0 {
