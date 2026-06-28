@@ -26,6 +26,7 @@ import (
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	"github.com/globulario/services/golang/runtimedirs"
 	"github.com/globulario/services/golang/systemdutil"
 	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
@@ -736,7 +737,12 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	// unit files to use WorkingDirectory=-<path> (optional), the directory
 	// should still exist before the service starts so logs and state files
 	// have a home.  Owner globular:globular, mode 0750.
-	svcWorkDir := filepath.Join(ActionStateDir, service)
+	// Use the CANONICAL (hyphenated) dir name regardless of the spec's service
+	// name form — the spec uses underscores (ai_executor) but the canonical
+	// runtime dir is hyphenated (ai-executor). Without this, every install
+	// creates a legacy-alias dir alongside the canonical, triggering
+	// cluster-doctor service.runtime_dir_name_must_be_canonical findings.
+	svcWorkDir := filepath.Join(ActionStateDir, runtimedirs.CanonicalRuntimeDir(service))
 	if err := ensureServiceStateDir(svcWorkDir); err != nil {
 		return "", fmt.Errorf("create service workdir %s: %w", svcWorkDir, err)
 	}
