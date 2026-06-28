@@ -43,6 +43,15 @@ cd "globular-${VERSION}-linux-amd64"
 sudo bash install.sh
 ```
 
+> **Optional — founding node profiles.** The first node always comes up with the
+> quorum profiles (`control-plane`, `core`, `storage`). To add a workload profile
+> from day-0, pass `FOUNDING_PROFILES` (comma-separated) through `sudo` — e.g. to
+> also run media services here:
+>
+> ```bash
+> sudo FOUNDING_PROFILES=core,media-server bash install.sh
+> ```
+
 > **Note**: individual service packages are versioned independently (the
 > release tag bundles a BOM of per-package versions). You will rarely see all
 > services at the same number — that is by design.

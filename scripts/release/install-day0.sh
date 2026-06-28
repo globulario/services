@@ -208,6 +208,14 @@ FORCE_REINSTALL="0"
 
 # Canonical cluster domain — single source of truth for all Day-0 scripts
 DOMAIN="globular.internal"
+
+# Founding-node profiles, seeded into the cluster controller's default_profiles.
+# Comma-separated; override to add workload profiles from day-0, e.g.:
+#   FOUNDING_PROFILES=core,media-server ./install-day0.sh
+# Note: this also becomes the join-default for nodes that join without their own
+# profiles. The controller's enforceFoundingProfiles() ALWAYS adds the founding
+# quorum (control-plane,core,storage) for the first 3 nodes regardless of this.
+FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"
 FORCE_FLAG=""
 if [[ "$FORCE_REINSTALL" == "1" ]]; then
   FORCE_FLAG="--force"
@@ -1373,17 +1381,28 @@ install_list "${CONTROL_PLANE_PKGS[@]}"
 CC_CONFIG_DIR="/var/lib/globular/cluster-controller"
 CC_CONFIG_FILE="${CC_CONFIG_DIR}/config.json"
 mkdir -p "${CC_CONFIG_DIR}"
+# Build default_profiles JSON array from the comma-separated FOUNDING_PROFILES
+# (e.g. "core,media-server" -> ["core","media-server"]). Empty entries dropped.
+DEFAULT_PROFILES_JSON=$(printf '%s' "$FOUNDING_PROFILES" \
+  | jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length>0))')
+if [[ -z "$DEFAULT_PROFILES_JSON" || "$DEFAULT_PROFILES_JSON" == "[]" ]]; then
+  DEFAULT_PROFILES_JSON='["core"]'
+fi
+log_substep "Founding profiles seed: default_profiles=${DEFAULT_PROFILES_JSON}"
 if [[ -f "${CC_CONFIG_FILE}" ]]; then
-  # Merge cluster_domain into existing config
-  jq --arg d "$DOMAIN" '.cluster_domain = $d' "${CC_CONFIG_FILE}" > "${CC_CONFIG_FILE}.tmp"
+  # Merge cluster_domain into existing config; seed default_profiles only if the
+  # key is absent (//=) so re-runs never clobber an operator's later change.
+  jq --arg d "$DOMAIN" --argjson p "$DEFAULT_PROFILES_JSON" \
+    '.cluster_domain = $d | (.default_profiles //= $p)' \
+    "${CC_CONFIG_FILE}" > "${CC_CONFIG_FILE}.tmp"
   mv "${CC_CONFIG_FILE}.tmp" "${CC_CONFIG_FILE}"
 else
-  # Seed only cluster_domain and default_profiles — omit port so the controller
-  # uses its own built-in default. The port is read from etcd after first start.
+  # Seed cluster_domain and default_profiles — omit port so the controller uses
+  # its own built-in default. The port is read from etcd after first start.
   cat > "${CC_CONFIG_FILE}" <<CCEOF
 {
   "cluster_domain": "${DOMAIN}",
-  "default_profiles": ["core"]
+  "default_profiles": ${DEFAULT_PROFILES_JSON}
 }
 CCEOF
 fi
@@ -2267,50 +2286,24 @@ else
   log_substep "scylla-manager config not yet created — configure script will add HTTPS on first start"
 fi
 
-# 2. Register local Scylla cluster with scylla-manager (idempotent)
-if [[ ! -x "$SCTOOL_BIN" ]]; then
-  log_substep "sctool not found at $SCTOOL_BIN — cluster registration skipped"
-elif ! systemctl is-active --quiet globular-scylla-manager.service 2>/dev/null; then
-  log_substep "scylla-manager not running — cluster registration skipped"
-else
-  # Probe via HTTP (always available; HTTPS may still be starting)
-  SM_HTTP_ADDR=$(grep -E '^http:' "$SM_CFG" 2>/dev/null | awk '{print $2}' | tr -d ' ')
-  SM_API_URL="http://${SM_HTTP_ADDR:-${SCYLLA_IP}:5080}"
-
-  # Count registered clusters via REST API
-  _REG_COUNT=$(curl -sf "${SM_API_URL}/api/v1/clusters" 2>/dev/null \
-    | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "-1")
-
-  if [[ "$_REG_COUNT" -gt "0" ]] 2>/dev/null; then
-    log_substep "Scylla cluster already registered (count=${_REG_COUNT})"
-  else
-    log_substep "Registering Scylla cluster with scylla-manager (host=${SCYLLA_IP})..."
-
-    # Read auth_token and agent HTTPS port from agent config if available
-    _TOKEN=""
-    _AGENT_PORT="5612"
-    if [[ -f "$AGENT_CONFIG" ]]; then
-      _TOKEN=$(grep "^auth_token:" "$AGENT_CONFIG" | awk '{print $2}' | tr -d ' ' || true)
-      _AP=$(grep "^https:" "$AGENT_CONFIG" | awk '{print $2}' | awk -F: '{print $NF}' | tr -d ' ' || true)
-      [[ -n "$_AP" ]] && _AGENT_PORT="$_AP"
-    fi
-
-    SCTOOL_ARGS=(cluster add
-      --host "${SCYLLA_IP}"
-      --port "${_AGENT_PORT}"
-      --name "globular-internal"
-      --api-url "${SM_API_URL}/api/v1"
-    )
-    [[ -n "$_TOKEN" ]] && SCTOOL_ARGS+=(--auth-token "$_TOKEN")
-
-    if "$SCTOOL_BIN" "${SCTOOL_ARGS[@]}" 2>&1 | while IFS= read -r line; do log_substep "  $line"; done; then
-      log_success "Scylla cluster registered with scylla-manager"
-    else
-      log_warn "sctool cluster add failed — backup_manager will retry on startup"
-      log_warn "Manual: sctool cluster add --host ${SCYLLA_IP} --port ${_AGENT_PORT} --name globular-internal --api-url ${SM_API_URL}/api/v1"
-    fi
-  fi
-fi
+# 2. Cluster registration is DEFERRED to backup_manager.ensureScyllaRegistered.
+#
+# Do NOT run `sctool cluster add` here. At day-0 the scylla-manager-agent on
+# every node still runs on its built-in defaults — the cluster-wide auth_token
+# (sha256(domain|ca_hash)) and the non-conflicting agent HTTPS port (5612) are
+# written by the node-agent reconciler on its first heartbeat AFTER this script
+# finishes (golang/node_agent/node_agent_server/scylla_manager_agent_config.go).
+# Registering now makes scylla-manager run a connectivity check against every
+# ring member; peers whose agent has not yet been reconciled still answer on
+# their default :10001 with a mismatched/empty token, so the add fails with
+# "<peer-ip>: agent [HTTP 401] unauthorized". This is a re-introduced regression
+# of the local-registration block that the agent-config note above documents as
+# removed on purpose.
+#
+# backup_manager.ensureScyllaRegistered performs the add idempotently once the
+# token + port are stable across all agents, reading the manager's real HTTPS
+# endpoint from scylla-manager.yaml.
+log_substep "Scylla cluster registration deferred to backup_manager (runs after agent token/port reconcile)"
 
 # ── Clean up legacy underscore-named dirs and transient install files ─────────
 # Package specs now use hyphenated canonical names (ai-executor, node-agent, …).

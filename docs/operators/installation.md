@@ -39,6 +39,19 @@ cd "globular-${VERSION}-linux-amd64"
 sudo bash install.sh
 ```
 
+> **Choosing the founding node's profiles** — by default the first node comes up
+> with the quorum profiles (`control-plane`, `core`, `storage`, always enforced).
+> To add a workload profile from day-0, pass `FOUNDING_PROFILES` (comma-separated)
+> through `sudo`. For example, to also run media services on this node:
+>
+> ```bash
+> sudo FOUNDING_PROFILES=core,media-server bash install.sh
+> ```
+>
+> This value also becomes the default for nodes that later join without their own
+> profiles. Available profiles include `core`, `control-plane`, `storage`,
+> `gateway`, and `media-server`.
+
 > **Platform vs. package versions** — the release tag (`v1.2.30`) is a BOM of
 > per-package versions. Individual services (controller, gateway, repository,
 > …) each have their own version; they are *not* all bumped together. See
