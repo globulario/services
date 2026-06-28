@@ -12,23 +12,57 @@ func TestNormalize_BareGlobularRewritten(t *testing.T) {
 		"ExecStart=/usr/lib/globular/bin/ai_memory_server",
 	}, "\n")
 	got := NormalizeUnitWorkingDirectoryString(in)
-	if !strings.Contains(got, "WorkingDirectory=-/var/lib/globular/ai_memory") {
-		t.Errorf("expected WD rewrite, got:\n%s", got)
+	// Bare + legacy underscore → optional `-` prefix AND canonical hyphen dir.
+	if !strings.Contains(got, "WorkingDirectory=-/var/lib/globular/ai-memory") {
+		t.Errorf("expected WD rewrite to optional+canonical, got:\n%s", got)
 	}
-	if strings.Contains(got, "WorkingDirectory=/var/lib/globular/ai_memory") {
-		t.Errorf("bare WD still present:\n%s", got)
+	if strings.Contains(got, "WorkingDirectory=/var/lib/globular/ai_memory") ||
+		strings.Contains(got, "WorkingDirectory=-/var/lib/globular/ai_memory") {
+		t.Errorf("legacy underscore WD still present:\n%s", got)
+	}
+	// ExecStart (binary name, not a WorkingDirectory) must NOT be touched.
+	if !strings.Contains(got, "ExecStart=/usr/lib/globular/bin/ai_memory_server") {
+		t.Errorf("ExecStart binary path must be untouched:\n%s", got)
 	}
 }
 
-func TestNormalize_AlreadyOptional_LeftAlone(t *testing.T) {
+func TestNormalize_AlreadyOptionalAndCanonical_LeftAlone(t *testing.T) {
 	in := strings.Join([]string{
 		"[Service]",
-		"WorkingDirectory=-/var/lib/globular/cluster_doctor",
+		"WorkingDirectory=-/var/lib/globular/cluster-doctor",
 		"ExecStart=/usr/lib/globular/bin/cluster_doctor_server",
 	}, "\n")
 	got := NormalizeUnitWorkingDirectoryString(in)
 	if got != in {
-		t.Errorf("idempotent normalize should preserve already-optional WD; got:\n%s", got)
+		t.Errorf("optional+canonical WD must be left unchanged; got:\n%s", got)
+	}
+}
+
+// Regression for the recurring `/var/lib/globular/cluster_doctor` layout drift:
+// a unit pinning a legacy alias (underscore, or no-separator) must be rewritten
+// to the canonical hyphenated dir so systemd stops re-creating the legacy dir.
+func TestNormalize_LegacyAliasSegmentCanonicalized(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"underscore-bare", "WorkingDirectory=/var/lib/globular/cluster_doctor",
+			"WorkingDirectory=-/var/lib/globular/cluster-doctor"},
+		{"underscore-optional", "WorkingDirectory=-/var/lib/globular/ai_router",
+			"WorkingDirectory=-/var/lib/globular/ai-router"},
+		{"no-separator-alias", "WorkingDirectory=/var/lib/globular/clusterdoctor",
+			"WorkingDirectory=-/var/lib/globular/cluster-doctor"},
+		{"deeper-path-preserved", "WorkingDirectory=/var/lib/globular/cluster_doctor/sub_dir",
+			"WorkingDirectory=-/var/lib/globular/cluster-doctor/sub_dir"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := NormalizeUnitWorkingDirectoryString(tc.in)
+			if got != tc.want {
+				t.Errorf("canonicalize\n  in=%q\n got=%q\nwant=%q", tc.in, got, tc.want)
+			}
+			// Must be idempotent on its own output.
+			if again := NormalizeUnitWorkingDirectoryString(got); again != got {
+				t.Errorf("not idempotent: got=%q again=%q", got, again)
+			}
+		})
 	}
 }
 
