@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // These tests pin the COST-AWARE credential precedence: the flat-rate Max
@@ -18,14 +19,15 @@ import (
 // the originals after the test. Default: no etcd creds, no file, no-op writes.
 func stubSeams(t *testing.T) {
 	t.Helper()
-	oEtcd, oFile, oPersist, oSync := probeEtcdMaxCreds, locateCredFile, persistCredsToEtcd, syncCLICreds
+	oEtcd, oFile, oPersist, oSync, oUsable := probeEtcdMaxCreds, locateCredFile, persistCredsToEtcd, syncCLICreds, maxCredUsable
 	t.Cleanup(func() {
-		probeEtcdMaxCreds, locateCredFile, persistCredsToEtcd, syncCLICreds = oEtcd, oFile, oPersist, oSync
+		probeEtcdMaxCreds, locateCredFile, persistCredsToEtcd, syncCLICreds, maxCredUsable = oEtcd, oFile, oPersist, oSync, oUsable
 	})
 	probeEtcdMaxCreds = func(c *anthropicClient) error { return errors.New("no etcd creds") }
 	locateCredFile = func(string) string { return "" }
 	persistCredsToEtcd = func(*anthropicClient) {}
 	syncCLICreds = func() {}
+	maxCredUsable = func(*anthropicClient) bool { return true } // loaded Max creds usable unless a test overrides
 }
 
 func writeMaxCredFile(t *testing.T, accessToken string) string {
@@ -105,5 +107,44 @@ func TestCredentialPrecedence_NoCredentialsReturnsNil(t *testing.T) {
 	c := newAnthropicClient(AnthropicConfig{SystemPrompt: "x"})
 	if c != nil {
 		t.Fatalf("expected nil client with no credentials, got accessToken=%q", c.accessToken)
+	}
+}
+
+// #1 regression: a stale/unusable Max credential (expired, unrefreshable) must
+// NOT shadow a valid configured API key. Presence is not usability — the gate
+// falls through to the fallback so AI stays available.
+func TestCredentialPrecedence_StaleMaxFallsBackToApiKey(t *testing.T) {
+	stubSeams(t)
+	// etcd returns a Max blob (a token loads) but it is NOT usable.
+	probeEtcdMaxCreds = func(c *anthropicClient) error {
+		c.accessToken = "oat-stale-etcd"
+		c.refreshToken = "revoked"
+		return nil
+	}
+	maxCredUsable = func(*anthropicClient) bool { return false }
+
+	c := newAnthropicClient(AnthropicConfig{APIKey: expensiveKey, SystemPrompt: "x"})
+	if c == nil {
+		t.Fatal("client is nil — must fall back to the API key when the Max cred is unusable")
+	}
+	if c.accessToken != expensiveKey {
+		t.Fatalf("accessToken=%q — a stale Max cred shadowed the valid API-key fallback (#1 regression)", c.accessToken)
+	}
+}
+
+// The usability gate itself, covering the branches reachable without a network
+// refresh. (The expired-but-refreshes-OK branch needs a live refresh and is
+// exercised at runtime, not here.)
+func TestMaxCredUsable_NoNetworkBranches(t *testing.T) {
+	if maxCredUsable(&anthropicClient{}) {
+		t.Fatal("empty access token must be unusable")
+	}
+	future := time.Now().Add(time.Hour).UnixMilli()
+	if !maxCredUsable(&anthropicClient{accessToken: "t", expiresAt: future}) {
+		t.Fatal("comfortably-unexpired token must be usable without a refresh")
+	}
+	past := time.Now().Add(-time.Hour).UnixMilli()
+	if maxCredUsable(&anthropicClient{accessToken: "t", expiresAt: past}) {
+		t.Fatal("expired token with no refresh token must be unusable")
 	}
 }

@@ -55,6 +55,28 @@ var (
 	locateCredFile    = func(configured string) string { return findCredentialsFile(configured) }
 	persistCredsToEtcd = func(c *anthropicClient) { c.saveCredentials() }
 	syncCLICreds       = func() { syncCLICredentialsFromEtcd() }
+
+	// maxCredUsable gates a loaded Max OAuth credential on USABILITY, not mere
+	// presence: a non-empty access token that is either comfortably unexpired or
+	// refreshes successfully right now. A stale/revoked Max blob must NOT be
+	// selected over a configured API-key fallback — doing so builds a client
+	// that fails every request with no recovery (a "configured but broken"
+	// state worse than AI-off). See evidence.provenance_trust_levels.
+	maxCredUsable = func(c *anthropicClient) bool {
+		if c.accessToken == "" {
+			return false
+		}
+		// Comfortably unexpired — same 5-min buffer as ensureValidToken.
+		if c.expiresAt != 0 && time.Now().UnixMilli() < c.expiresAt-300_000 {
+			return true
+		}
+		// Expired or unknown expiry: usable only if it can refresh now. A plain
+		// API key never reaches here (it is the fallback, not a Max cred).
+		if c.refreshToken == "" {
+			return false
+		}
+		return c.refreshAccessToken() == nil
+	}
 )
 
 // newAnthropicClient creates a client for direct API access.
@@ -100,30 +122,39 @@ func newAnthropicClient(cfg AnthropicConfig) *anthropicClient {
 	}
 
 	// 1. etcd shared Max credentials (synced from any node that has the token).
+	// Gated on USABILITY, not presence — a stale/revoked blob falls through to
+	// the API-key fallback rather than building a client that fails every call.
 	if err := probeEtcdMaxCreds(c); err == nil {
-		logger.Info("anthropic: using Max subscription from etcd (cluster-shared)",
-			"expires_in", time.Until(time.UnixMilli(c.expiresAt)).Round(time.Minute))
-		// Also find the local credentials path for write-back on refresh.
-		c.credentialsPath = locateCredFile(cfg.CredentialsFile)
-		return c
+		if maxCredUsable(c) {
+			logger.Info("anthropic: using Max subscription from etcd (cluster-shared)",
+				"expires_in", time.Until(time.UnixMilli(c.expiresAt)).Round(time.Minute))
+			// Also find the local credentials path for write-back on refresh.
+			c.credentialsPath = locateCredFile(cfg.CredentialsFile)
+			return c
+		}
+		logger.Warn("anthropic: etcd Max credential present but unusable (expired/unrefreshable) — falling through to next credential source")
 	}
 
 	// 2. Local Claude Code credentials file (Max subscription — $0 extra cost).
 	credPath := locateCredFile(cfg.CredentialsFile)
 	if credPath != "" {
 		if err := c.loadCredentials(credPath); err == nil {
-			c.credentialsPath = credPath
-			// Sync to etcd so other nodes can use it.
-			persistCredsToEtcd(c)
-			// Also sync to the service user's CLI credentials path so the
-			// Claude CLI subprocess can authenticate (fixes startup timing:
-			// claudeClient inits before anthropicClient seeds etcd).
-			syncCLICreds()
-			logger.Info("anthropic: using Max subscription from Claude Code credentials",
-				"path", credPath,
-				"subscription", "max",
-				"expires_in", time.Until(time.UnixMilli(c.expiresAt)).Round(time.Minute))
-			return c
+			if maxCredUsable(c) {
+				c.credentialsPath = credPath
+				// Sync to etcd so other nodes can use it.
+				persistCredsToEtcd(c)
+				// Also sync to the service user's CLI credentials path so the
+				// Claude CLI subprocess can authenticate (fixes startup timing:
+				// claudeClient inits before anthropicClient seeds etcd).
+				syncCLICreds()
+				logger.Info("anthropic: using Max subscription from Claude Code credentials",
+					"path", credPath,
+					"subscription", "max",
+					"expires_in", time.Until(time.UnixMilli(c.expiresAt)).Round(time.Minute))
+				return c
+			}
+			logger.Warn("anthropic: local Max credential present but unusable (expired/unrefreshable) — falling through to API key",
+				"path", credPath)
 		}
 	}
 
