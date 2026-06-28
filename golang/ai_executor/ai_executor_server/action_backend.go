@@ -11,10 +11,7 @@ import (
 	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
-	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
-	"google.golang.org/grpc"
 )
 
 // ActionBackend executes a real remediation action and verifies the outcome.
@@ -39,6 +36,7 @@ func newActionDispatcher() *actionDispatcher {
 		backends: []ActionBackend{
 			&restartServiceBackend{},
 			&drainEndpointBackend{},
+			&blockIPBackend{},
 			&circuitBreakerBackend{},
 			&notifyAdminBackend{},
 		},
@@ -103,25 +101,13 @@ func (b *restartServiceBackend) Execute(ctx context.Context, target string, diag
 }
 
 func (b *restartServiceBackend) Verify(ctx context.Context, target string) (bool, string, error) {
-	// Check cluster health to see if the service came back.
-	health, err := getClusterHealthForVerification(ctx)
-	if err != nil {
-		return false, "health check failed: " + err.Error(), nil
-	}
-
-	if len(health.GetNodeHealth()) == 0 {
-		return false, "inconclusive: health check returned no node data", nil
-	}
-
-	// Look for the target service's node health.
-	for _, nh := range health.GetNodeHealth() {
-		if nh.GetStatus() == "healthy" || nh.GetStatus() == "ready" {
-			return true, fmt.Sprintf("node %s is %s", nh.GetNodeId(), nh.GetStatus()), nil
-		}
-	}
-
-	// No node reported healthy — inconclusive.
-	return false, "inconclusive: no node reported healthy after restart", nil
+	// Restart is dispatched via event bus to the cluster controller, which runs a
+	// workflow-tracked restart through the node agent. We cannot confirm the outcome
+	// here without polling the specific node's service state via a node-agent RPC —
+	// a cluster-wide health check would pass even if the restarted service is still
+	// down on its specific node (H2 fix: removing a false-positive that returned
+	// verified whenever ANY node was healthy regardless of the target service).
+	return false, fmt.Sprintf("inconclusive: restart of %s dispatched via event bus; confirm via node-agent or cluster doctor", target), nil
 }
 
 // --- DrainEndpointBackend: tells ai_router to drain an endpoint ---
@@ -150,12 +136,41 @@ func (b *drainEndpointBackend) Verify(ctx context.Context, target string) (bool,
 	return false, "inconclusive: drain is async, cannot confirm completion", nil
 }
 
+// --- BlockIPBackend: requests IP blocking via the event bus ---
+
+type blockIPBackend struct{}
+
+func (b *blockIPBackend) Supports(t ai_executorpb.ActionType) bool {
+	return t == ai_executorpb.ActionType_ACTION_BLOCK_IP
+}
+
+func (b *blockIPBackend) Execute(ctx context.Context, target string, diag *ai_executorpb.Diagnosis) (string, error) {
+	payload := map[string]interface{}{
+		"severity": "ERROR",
+		"target":   target,
+		"source":   "ai_executor",
+	}
+	if diag != nil {
+		payload["incident_id"] = diag.GetIncidentId()
+		payload["root_cause"] = diag.GetRootCause()
+	}
+	globular.PublishEvent("operation.block_ip_requested", payload)
+	logger.Info("block_ip: request published", "target", target)
+	return fmt.Sprintf("block IP requested for %s", target), nil
+}
+
+func (b *blockIPBackend) Verify(_ context.Context, target string) (bool, string, error) {
+	// IP blocking is handled by the network layer (iptables/firewall) via event
+	// subscription; we cannot confirm it completed from here.
+	return false, fmt.Sprintf("inconclusive: block_ip for %s is fire-and-forget via event bus", target), nil
+}
+
 // --- CircuitBreakerBackend: tightens circuit breakers via ai_router ---
 
 type circuitBreakerBackend struct{}
 
 func (b *circuitBreakerBackend) Supports(t ai_executorpb.ActionType) bool {
-	return t == ai_executorpb.ActionType_ACTION_NONE // used for tighten_circuit_breakers
+	return t == ai_executorpb.ActionType_ACTION_TIGHTEN_CIRCUIT_BREAKER
 }
 
 func (b *circuitBreakerBackend) Execute(ctx context.Context, target string, _ *ai_executorpb.Diagnosis) (string, error) {
@@ -196,25 +211,3 @@ func (b *notifyAdminBackend) Verify(ctx context.Context, target string) (bool, s
 	return true, "notification delivered to event bus", nil
 }
 
-// --- Shared helpers ---
-
-func getClusterHealthForVerification(ctx context.Context) (*cluster_controllerpb.GetClusterHealthResponse, error) {
-	addr := config.ResolveServiceAddr("clustercontroller.ClusterControllerService", "")
-	if addr == "" {
-		return nil, fmt.Errorf("cluster controller not found")
-	}
-
-	baseOpts, err := globular.InternalDialOptions()
-	if err != nil {
-		return nil, fmt.Errorf("internal TLS: %w", err)
-	}
-	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
-	cc, err := grpc.Dial(addr, opts...)
-	if err != nil {
-		return nil, err
-	}
-	defer cc.Close()
-
-	client := cluster_controllerpb.NewClusterControllerServiceClient(cc)
-	return client.GetClusterHealth(ctx, &cluster_controllerpb.GetClusterHealthRequest{})
-}

@@ -291,6 +291,9 @@ func (d *diagnoser) analyzeEventPattern(eventName string, payload map[string]int
 }
 
 // proposeAction suggests a remediation based on rule and root cause.
+// Each case returns exactly ONE canonical action string — classifyAction maps it to
+// an ActionType. Compound "a + b" strings are forbidden: classifyAction dispatches
+// a single action per incident; compound strings silently drop all but the first match.
 func (d *diagnoser) proposeAction(ruleID, rootCause string, payload map[string]interface{}) (action, reason string) {
 	switch ruleID {
 	case "service-crash":
@@ -300,57 +303,43 @@ func (d *diagnoser) proposeAction(ruleID, rootCause string, payload map[string]i
 
 	case "dos-detected":
 		addr, _ := payload["remote_addr"].(string)
-		return fmt.Sprintf("drain_endpoint:affected + block_ip:%s", addr),
-			"Active DoS attack — drain affected endpoint and block source"
+		return fmt.Sprintf("block_ip:%s", addr),
+			"Active DoS attack — blocking source IP; drain of affected endpoint recommended as follow-up"
 
 	case "slowloris-detected":
 		addr, _ := payload["remote_addr"].(string)
-		return fmt.Sprintf("reduce_max_connections + block_ip:%s", addr),
-			"Slowloris attack exhausting connections — reduce limits and block source"
+		return fmt.Sprintf("block_ip:%s", addr),
+			"Slowloris attack exhausting connections — blocking source IP; tighten connection limits as follow-up"
 
 	case "brute-force-detect":
-		return "lock_account:temporary + alert_admin",
-			"Repeated login failures suggest brute force — temporary lock"
+		return "notify_admin",
+			"Repeated login failures suggest brute force — account lock requires Tier-2 approval; notifying admin"
 
 	case "error-rate-spike":
-		return "tighten_circuit_breakers + investigate_logs",
-			"High error rate — tighten circuit breakers to contain cascade"
+		return "tighten_circuit_breaker",
+			"High error rate — tighten circuit breakers to contain cascade; investigate logs separately"
 
 	case "health-check-fail":
-		return "investigate_node + attempt_recovery",
-			"Node unhealthy — investigate root cause and attempt recovery"
+		return "notify_admin",
+			"Node unhealthy — investigation and recovery require human review"
 
 	case "convergence-stalled":
-		return "redispatch_plan + investigate_node",
-			"Plan stuck — redispatch and investigate blocking condition"
+		return "notify_admin",
+			"Plan stuck — redispatching requires human approval; notifying admin"
 
 	case "service-restart-exhausted":
 		unit, _ := payload["unit"].(string)
-		svc, _ := payload["service"].(string)
 		lastErr, _ := payload["last_error"].(string)
-		// Diagnostic chain: check logs, certs, config, deps
-		actions := []string{
-			fmt.Sprintf("check_service_logs:%s", unit),
-			"check_certificate_status",
-		}
-		if svc != "" {
-			actions = append(actions, fmt.Sprintf("check_service_config:%s", svc))
-		}
-		actions = append(actions, "check_cluster_health")
-		// Classify the error for targeted remediation
 		switch {
 		case strings.Contains(lastErr, "exit-code") || strings.Contains(lastErr, "203") || strings.Contains(lastErr, "126"):
-			actions = append(actions, "escalate:requires_approval")
-			return strings.Join(actions, " + "),
-				"Service restart exhausted with permission/exec error — needs manual investigation"
+			return "notify_admin",
+				fmt.Sprintf("restart exhausted for %s with permission/exec error — manual intervention required", unit)
 		case strings.Contains(lastErr, "timeout"):
-			actions = append(actions, "check_dependencies + retry_after_delay")
-			return strings.Join(actions, " + "),
-				"Service restart exhausted with timeout — likely dependency issue"
+			return "notify_admin",
+				fmt.Sprintf("restart exhausted for %s with timeout — likely dependency issue", unit)
 		default:
-			actions = append(actions, "investigate_and_escalate")
-			return strings.Join(actions, " + "),
-				"Service restart exhausted — diagnose root cause via logs and config"
+			return "notify_admin",
+				fmt.Sprintf("restart exhausted for %s — diagnose root cause via logs and config", unit)
 		}
 
 	default:
@@ -379,7 +368,9 @@ func (d *diagnoser) queryPastIncidents(ctx context.Context, ruleID, eventName st
 	if err != nil {
 		return nil
 	}
+	//nolint:staticcheck // grpc.Dial / grpc.WithTimeout not yet migrated to grpc.NewClient
 	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
+	//nolint:staticcheck
 	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return nil
@@ -424,7 +415,9 @@ func (d *diagnoser) getClusterHealth(ctx context.Context) (*cluster_controllerpb
 	if err != nil {
 		return nil, fmt.Errorf("internal TLS: %w", err)
 	}
+	//nolint:staticcheck // grpc.Dial / grpc.WithTimeout not yet migrated to grpc.NewClient
 	opts2 := append(baseOpts2, grpc.WithTimeout(2*time.Second))
+	//nolint:staticcheck
 	cc, err := grpc.Dial(addr, opts2...)
 	if err != nil {
 		return nil, err

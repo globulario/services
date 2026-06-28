@@ -255,6 +255,7 @@ func (cs *conversationStore) listConversations(userID string, limit int) ([]conv
 	// Get unique conversation IDs (latest entry per conversation).
 	iter := cs.session.Query(`SELECT id, title, updated_at_ms, message_count, last_message
 		FROM conversations WHERE user_id = ? LIMIT ?`, userID, limit*2).Iter()
+	defer iter.Close()
 
 	seen := make(map[string]bool)
 	var summaries []convSummary
@@ -286,7 +287,6 @@ func (cs *conversationStore) listConversations(userID string, limit int) ([]conv
 			break
 		}
 	}
-	iter.Close()
 	return summaries, nil
 }
 
@@ -321,15 +321,24 @@ func (cs *conversationStore) deleteConversation(conversationID string) error {
 		return fmt.Errorf("delete conversation: %w", err)
 	}
 
-	// Delete conversation entries from the user's list.
-	// We need to find all rows for this conversation_id under this user.
-	iter := cs.session.Query(`SELECT updated_at_ms FROM conversations WHERE user_id = ?`, userID).Iter()
+	// Delete all rows for this conversation from the user's timeline.
+	// ALLOW FILTERING is required because id is the second clustering key (after
+	// updated_at_ms); filtering by id alone without specifying updated_at_ms needs it.
+	// This still scans the user partition on the ScyllaDB side but avoids returning
+	// every conversation over the wire — only rows matching this conversation_id come back.
+	iter := cs.session.Query(
+		`SELECT updated_at_ms FROM conversations WHERE user_id = ? AND id = ? ALLOW FILTERING`,
+		userID, conversationID).Iter()
+	defer iter.Close()
 	var updatedAt int64
 	for iter.Scan(&updatedAt) {
-		cs.session.Query(`DELETE FROM conversations WHERE user_id = ? AND updated_at_ms = ? AND id = ?`,
-			userID, updatedAt, conversationID).Exec()
+		if err := cs.session.Query(
+			`DELETE FROM conversations WHERE user_id = ? AND updated_at_ms = ? AND id = ?`,
+			userID, updatedAt, conversationID).Exec(); err != nil {
+			logger.Warn("conversation_store: failed to delete conversation row",
+				"conversation_id", conversationID, "updated_at_ms", updatedAt, "err", err)
+		}
 	}
-	iter.Close()
 
 	return nil
 }

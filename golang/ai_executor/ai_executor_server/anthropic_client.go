@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // AnthropicConfig holds the configuration for direct Anthropic API access.
@@ -46,15 +47,22 @@ type anthropicClient struct {
 	refreshToken    string
 	expiresAt       int64 // unix ms
 	credentialsPath string
+	etcdModRev      int64 // ModRevision of the etcd credential entry we last loaded; 0 if loaded from file
 }
 
 // Seams for testing credential precedence without a live etcd/filesystem.
 // They wrap the real functions so production behavior is unchanged.
 var (
-	probeEtcdMaxCreds = func(c *anthropicClient) error { return c.loadCredentialsFromEtcd() }
-	locateCredFile    = func(configured string) string { return findCredentialsFile(configured) }
+	probeEtcdMaxCreds  = func(c *anthropicClient) error { return c.loadCredentialsFromEtcd() }
+	locateCredFile     = func(configured string) string { return findCredentialsFile(configured) }
 	persistCredsToEtcd = func(c *anthropicClient) { c.saveCredentials() }
 	syncCLICreds       = func() { syncCLICredentialsFromEtcd() }
+	// etcdWriteCredsCAS is the CAS write gate for refresh-token safety. Stubbed in tests.
+	etcdWriteCredsCAS = func(data string, modRev int64) (bool, error) {
+		return etcdCASPut(etcdCredentialsKey, data, modRev)
+	}
+	// etcdReloadCreds reloads credentials from etcd after a CAS loss. Stubbed in tests.
+	etcdReloadCreds = func(c *anthropicClient) error { return c.loadCredentialsFromEtcd() }
 
 	// maxCredUsable gates a loaded Max OAuth credential on USABILITY, not mere
 	// presence: a non-empty access token that is either comfortably unexpired or
@@ -237,7 +245,7 @@ func (c *anthropicClient) ensureValidToken() error {
 		return nil
 	}
 
-	// Try re-reading the credentials file first — Claude Code may have
+	// Try re-reading the local credentials file first — Claude Code may have
 	// refreshed the token already (it runs in the background).
 	if c.credentialsPath != "" {
 		if err := c.loadCredentials(c.credentialsPath); err == nil {
@@ -245,6 +253,18 @@ func (c *anthropicClient) ensureValidToken() error {
 				logger.Info("anthropic: token refreshed from credentials file")
 				return nil
 			}
+		}
+	}
+
+	// Check etcd before calling the Anthropic API. A peer node may have already
+	// consumed the shared refresh_token and written a fresh access_token. Since
+	// OAuth refresh tokens are single-use, calling the API with an already-consumed
+	// token causes a permanent 401 — not a transient error, not self-healing.
+	// Reusing the peer's fresh token costs nothing and avoids destroying credentials.
+	if err := c.loadCredentialsFromEtcd(); err == nil {
+		if time.Now().UnixMilli() < c.expiresAt-300_000 {
+			logger.Info("anthropic: token reloaded from etcd (refreshed by peer node)")
+			return nil
 		}
 	}
 
@@ -306,12 +326,19 @@ func (c *anthropicClient) refreshAccessToken() error {
 
 // saveCredentials writes updated tokens back to the credentials file AND etcd.
 // etcd makes the token available to all nodes in the cluster.
-// When the credentials were loaded from a file, saves the raw file content
-// to preserve all fields (scopes, rateLimitTier, etc.) that the CLI needs.
+//
+// When etcdModRev > 0 (credentials were originally loaded from etcd) a CAS
+// write is used: only the node whose view of the etcd revision matches wins.
+// The losing node reloads the winner's credentials — this is the refresh_token
+// safety contract: a spent refresh_token must never overwrite a valid one.
+//
+// When etcdModRev == 0 (initial seed from a local credentials file) a plain
+// Put is used — no peer race is possible at seed time.
 func (c *anthropicClient) saveCredentials() {
 	var data []byte
 
-	// Prefer raw file content to preserve all fields the CLI needs.
+	// Prefer raw file content to preserve all fields (scopes, rateLimitTier, etc.)
+	// that the CLI needs, and which would be lost if we reconstructed from parsed fields.
 	if c.credentialsPath != "" {
 		if raw, err := os.ReadFile(c.credentialsPath); err == nil && len(raw) > 0 {
 			data = raw
@@ -338,17 +365,29 @@ func (c *anthropicClient) saveCredentials() {
 		_ = os.WriteFile(c.credentialsPath, data, 0600)
 	}
 
-	// Write to etcd (shares token with all nodes in the cluster).
-	// KNOWN GAP: this is an unfenced Put — if two nodes refresh tokens
-	// concurrently, the last writer wins and the other node's token may be
-	// overwritten. A full CAS (If(ModRevision==...).Then(Put)) is needed
-	// to close this race, but the blast radius is limited (token refresh
-	// will self-heal on next ensureValidToken call).
-	if err := etcdPut(etcdCredentialsKey, string(data)); err != nil {
-		logger.Warn("anthropic: failed to save credentials to etcd", "err", err)
+	if c.etcdModRev > 0 {
+		// CAS write: only succeeds if no other node has written since we loaded.
+		// If two nodes both called refreshAccessToken() with the same (single-use)
+		// refresh_token, only one CAS wins. The loser reloads the winner's valid
+		// credentials instead of holding a permanently broken token.
+		ok, err := etcdWriteCredsCAS(string(data), c.etcdModRev)
+		if err != nil {
+			logger.Warn("anthropic: failed to CAS credentials to etcd", "err", err)
+			return
+		}
+		if !ok {
+			logger.Info("anthropic: CAS write lost to peer node — reloading their credentials from etcd")
+			_ = etcdReloadCreds(c)
+			return
+		}
+		logger.Info("anthropic: credentials saved to etcd (CAS)", "key", etcdCredentialsKey)
 	} else {
-		logger.Warn("anthropic: credentials written to etcd without CAS — unfenced write",
-			"key", etcdCredentialsKey)
+		// Initial seed from local file — plain Put.
+		if err := etcdPut(etcdCredentialsKey, string(data)); err != nil {
+			logger.Warn("anthropic: failed to seed credentials to etcd", "err", err)
+		} else {
+			logger.Info("anthropic: credentials seeded to etcd", "key", etcdCredentialsKey)
+		}
 	}
 }
 
@@ -397,27 +436,53 @@ func etcdPut(key, value string) error {
 
 // etcdGet reads a value from etcd. Returns "" if not found.
 func etcdGet(key string) (string, error) {
+	val, _, err := etcdGetWithRevision(key)
+	return val, err
+}
+
+// etcdGetWithRevision reads a value and its ModRevision from etcd.
+// The revision is used for CAS writes to detect concurrent modifications.
+func etcdGetWithRevision(key string) (string, int64, error) {
 	cli, err := config.GetEtcdClient()
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	resp, err := cli.Get(ctx, key)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if len(resp.Kvs) == 0 {
-		return "", fmt.Errorf("key not found")
+		return "", 0, fmt.Errorf("key not found")
 	}
-	return string(resp.Kvs[0].Value), nil
+	return string(resp.Kvs[0].Value), resp.Kvs[0].ModRevision, nil
+}
+
+// etcdCASPut writes key=value only if the key's current ModRevision matches
+// expectedModRev. Returns (true, nil) on success, (false, nil) if another
+// writer won the race, or (false, err) on transport failure.
+func etcdCASPut(key, value string, expectedModRev int64) (bool, error) {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return false, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resp, err := cli.Txn(ctx).
+		If(clientv3.Compare(clientv3.ModRevision(key), "=", expectedModRev)).
+		Then(clientv3.OpPut(key, value)).
+		Commit()
+	if err != nil {
+		return false, err
+	}
+	return resp.Succeeded, nil
 }
 
 // loadCredentialsFromEtcd tries to load OAuth credentials from etcd.
-// This allows any node in the cluster to use the token without having
-// the local credentials file.
+// Captures the ModRevision so saveCredentials can use CAS on the next write.
 func (c *anthropicClient) loadCredentialsFromEtcd() error {
-	val, err := etcdGet(etcdCredentialsKey)
+	val, modRev, err := etcdGetWithRevision(etcdCredentialsKey)
 	if err != nil {
 		return err
 	}
@@ -434,6 +499,7 @@ func (c *anthropicClient) loadCredentialsFromEtcd() error {
 	c.accessToken = creds.ClaudeAIOAuth.AccessToken
 	c.refreshToken = creds.ClaudeAIOAuth.RefreshToken
 	c.expiresAt = creds.ClaudeAIOAuth.ExpiresAt
+	c.etcdModRev = modRev
 	return nil
 }
 

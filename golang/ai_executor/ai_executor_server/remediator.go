@@ -51,7 +51,7 @@ func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagn
 	// Tier 0 (observe): record only, don't execute.
 	if tier == 0 {
 		action.Status = ai_executorpb.ActionStatus_ACTION_SKIPPED
-		action.Detail = "Tier 1 (observe): diagnosed and recorded, no execution"
+		action.Detail = "Tier 0 (observe): diagnosed and recorded, no execution"
 		action.CompletedAtMs = time.Now().UnixMilli()
 		go r.recordOutcome(ctx, diagnosis, action)
 		go recordBehavioralExperience(ctx, diagnosis, action)
@@ -148,6 +148,8 @@ func classifyAction(proposed string) ai_executorpb.ActionType {
 		return ai_executorpb.ActionType_ACTION_BLOCK_IP
 	case strings.Contains(proposed, "drain_endpoint"):
 		return ai_executorpb.ActionType_ACTION_DRAIN_ENDPOINT
+	case strings.Contains(proposed, "tighten_circuit_breaker"), strings.Contains(proposed, "reduce_max_connections"):
+		return ai_executorpb.ActionType_ACTION_TIGHTEN_CIRCUIT_BREAKER
 	case strings.Contains(proposed, "clear"):
 		return ai_executorpb.ActionType_ACTION_CLEAR_STORAGE
 	case strings.Contains(proposed, "renew_cert"):
@@ -184,7 +186,9 @@ func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb
 		logger.Error("internal TLS unavailable for memory store", "err", err)
 		return
 	}
+	//nolint:staticcheck // grpc.Dial / grpc.WithTimeout not yet migrated to grpc.NewClient
 	opts := append(baseOpts, grpc.WithTimeout(2*time.Second))
+	//nolint:staticcheck
 	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return

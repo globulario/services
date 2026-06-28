@@ -19,15 +19,21 @@ import (
 // the originals after the test. Default: no etcd creds, no file, no-op writes.
 func stubSeams(t *testing.T) {
 	t.Helper()
-	oEtcd, oFile, oPersist, oSync, oUsable := probeEtcdMaxCreds, locateCredFile, persistCredsToEtcd, syncCLICreds, maxCredUsable
+	oEtcd, oFile, oPersist, oSync, oUsable, oCAS, oReload :=
+		probeEtcdMaxCreds, locateCredFile, persistCredsToEtcd, syncCLICreds, maxCredUsable,
+		etcdWriteCredsCAS, etcdReloadCreds
 	t.Cleanup(func() {
-		probeEtcdMaxCreds, locateCredFile, persistCredsToEtcd, syncCLICreds, maxCredUsable = oEtcd, oFile, oPersist, oSync, oUsable
+		probeEtcdMaxCreds, locateCredFile, persistCredsToEtcd, syncCLICreds, maxCredUsable,
+			etcdWriteCredsCAS, etcdReloadCreds =
+			oEtcd, oFile, oPersist, oSync, oUsable, oCAS, oReload
 	})
 	probeEtcdMaxCreds = func(c *anthropicClient) error { return errors.New("no etcd creds") }
 	locateCredFile = func(string) string { return "" }
 	persistCredsToEtcd = func(*anthropicClient) {}
 	syncCLICreds = func() {}
 	maxCredUsable = func(*anthropicClient) bool { return true } // loaded Max creds usable unless a test overrides
+	etcdWriteCredsCAS = func(string, int64) (bool, error) { return true, nil }
+	etcdReloadCreds = func(*anthropicClient) error { return nil }
 }
 
 func writeMaxCredFile(t *testing.T, accessToken string) string {
@@ -129,6 +135,76 @@ func TestCredentialPrecedence_StaleMaxFallsBackToApiKey(t *testing.T) {
 	}
 	if c.accessToken != expensiveKey {
 		t.Fatalf("accessToken=%q — a stale Max cred shadowed the valid API-key fallback (#1 regression)", c.accessToken)
+	}
+}
+
+// TestRefreshRace_CASSafety verifies that if the CAS write to etcd fails (a peer node
+// already refreshed and bumped the revision), saveCredentials reloads the peer's valid
+// credentials rather than holding a spent token.
+// This is the core of the C2 fix: a single-use refresh_token must never be overwritten
+// by a losing node's duplicate refresh result.
+func TestRefreshRace_CASSafety(t *testing.T) {
+	stubSeams(t)
+
+	peerToken := "peer-fresh-token"
+	reloadCalled := false
+
+	// CAS fails — peer already wrote at a higher revision.
+	etcdWriteCredsCAS = func(string, int64) (bool, error) { return false, nil }
+	// On reload, inject the peer's winning credentials.
+	etcdReloadCreds = func(c *anthropicClient) error {
+		reloadCalled = true
+		c.accessToken = peerToken
+		c.etcdModRev = 6
+		return nil
+	}
+
+	c := &anthropicClient{
+		accessToken:  "our-spent-token",
+		refreshToken: "our-spent-refresh",
+		expiresAt:    time.Now().Add(8 * time.Hour).UnixMilli(),
+		etcdModRev:   5,
+	}
+	c.saveCredentials()
+
+	if !reloadCalled {
+		t.Fatal("saveCredentials did not reload from etcd after CAS loss — spent token would persist")
+	}
+	if c.accessToken != peerToken {
+		t.Fatalf("after CAS loss: accessToken=%q, want peer token %q (c2 regression)", c.accessToken, peerToken)
+	}
+}
+
+// TestRefreshRace_PlainPutOnInitialSeed verifies that saveCredentials uses a plain
+// Put (not CAS) when etcdModRev==0, i.e. credentials are being seeded from a local
+// file for the first time. CAS with rev=0 would incorrectly fail if the key exists.
+func TestRefreshRace_PlainPutOnInitialSeed(t *testing.T) {
+	stubSeams(t)
+
+	casCallCount := 0
+	etcdWriteCredsCAS = func(string, int64) (bool, error) {
+		casCallCount++
+		return true, nil
+	}
+	putCalled := false
+	// We can't directly seam etcdPut here, but we CAN assert CAS was NOT called.
+	// etcdModRev==0 must take the plain-Put branch.
+
+	c := &anthropicClient{
+		accessToken:  "seed-token",
+		refreshToken: "seed-refresh",
+		expiresAt:    time.Now().Add(8 * time.Hour).UnixMilli(),
+		etcdModRev:   0, // loaded from local file, not etcd
+	}
+	_ = putCalled
+
+	// persistCredsToEtcd is already no-op in stubSeams, but we need to test
+	// saveCredentials directly. Replace persistCredsToEtcd to call saveCredentials.
+	// The observable: CAS seam must NOT be called (plain Put path taken instead).
+	c.saveCredentials() // calls etcdPut internally (will fail without etcd, but CAS seam must not fire)
+
+	if casCallCount > 0 {
+		t.Fatalf("saveCredentials used CAS for initial seed (etcdModRev==0) — should use plain Put")
 	}
 }
 

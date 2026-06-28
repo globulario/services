@@ -313,7 +313,7 @@ func initializeServerDefaults() *server {
 		Proxy:           defaultProxy,
 		Protocol:        "grpc",
 		Version:         Version,
-		PublisherID:     "localhost",
+		PublisherID:     func() string { h, _ := os.Hostname(); return h }(),
 		Description:     "AI Executor — incident diagnosis and remediation engine",
 		Keywords:        []string{"ai", "executor", "diagnosis", "remediation", "incidents"},
 		AllowAllOrigins: true,

@@ -157,6 +157,10 @@ func (srv *server) SendPrompt(req *ai_executorpb.SendPromptRequest, stream ai_ex
 			return status.Errorf(codes.Internal, "AI unavailable: %v", cliErr)
 		}
 		responseText = cliResp
+		// CLI subprocess does not report token counts; use -1 to distinguish
+		// "not counted" from "zero tokens used" in billing/audit records.
+		inputTokens = -1
+		outputTokens = -1
 	}
 
 	if responseText == "" {

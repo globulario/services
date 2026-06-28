@@ -122,10 +122,16 @@ func (srv *server) ApproveAction(ctx context.Context, req *ai_executorpb.Approve
 	logger.Info("action approved",
 		"incident_id", req.GetIncidentId(),
 		"approved_by", req.GetApprovedBy(),
+		"state", job.GetState().String(),
 	)
 
-	// Execute the approved action.
-	srv.executeJob(ctx, job)
+	// Only execute when this RPC performed the AWAITING_APPROVAL → APPROVED
+	// transition. If the job is already past JOB_APPROVED (executing, succeeded,
+	// failed) a prior ApproveAction call already dispatched it — re-dispatching
+	// a non-idempotent action (restart, drain) would apply the side-effect twice.
+	if job.GetState() == ai_executorpb.JobState_JOB_APPROVED {
+		srv.executeJob(ctx, job)
+	}
 
 	// Reload job with final state.
 	job = srv.jobStore.getJob(req.GetIncidentId())
