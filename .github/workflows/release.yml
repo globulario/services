@@ -601,13 +601,29 @@ jobs:
           mkdir -p dist/packages
 
           python3 <<'PYEOF'
-          import json, os, subprocess, sys, shutil, hashlib, tempfile
+          import json, os, subprocess, sys, shutil, hashlib, tempfile, re
 
           manifest = json.load(open("dist/change-manifest.json"))
           pkg_map  = json.load(open("services/golang/build/pkg-map.json"))
           version  = os.environ["VERSION"]
           build_number = os.environ["BUILD_NUMBER"]
           build_id = os.environ["BUILD_ID"]
+
+          def readelf_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except Exception:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          def strip_release_binary(path, label):
+              forbidden = readelf_sections(path)
+              if not forbidden:
+                  return
+              subprocess.run(["strip", "--strip-debug", "--strip-unneeded", path], check=True)
+              forbidden = readelf_sections(path)
+              if forbidden:
+                  raise RuntimeError(f"{label} still contains forbidden sections after strip: {forbidden}")
 
           def detect_infra_version(name, bin_path, meta_version):
               """Resolve real version for infrastructure/command packages."""
@@ -692,6 +708,7 @@ jobs:
               os.makedirs(f"{tmpdir}/bin", exist_ok=True)
               shutil.copy2(bin_path, f"{tmpdir}/bin/{entrypoint}")
               os.chmod(f"{tmpdir}/bin/{entrypoint}", 0o755)
+              strip_release_binary(f"{tmpdir}/bin/{entrypoint}", f"{name}:{entrypoint}")
 
               # Normalize lifecycle script modes to 0o755 — the pkgpack
               # validator rejects publish when any file under scripts/ lacks
@@ -1180,6 +1197,49 @@ jobs:
           # Checksums for all packages in the bundle
           (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
 
+          python3 <<'PYEOF'
+          import json, os, re, subprocess, sys, tarfile, tempfile
+
+          release_dir = os.path.join("dist", f"globular-{os.environ['VERSION']}-linux-amd64")
+          install_path = os.path.join(release_dir, "install.sh")
+          day0_path = os.path.join(release_dir, "scripts", "install-day0.sh")
+          expected = 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"'
+
+          for path in (install_path, day0_path):
+              data = open(path, "r", encoding="utf-8").read()
+              if expected not in data:
+                  raise SystemExit(f"{path} does not default FOUNDING_PROFILES to core,media-server")
+
+          def forbidden_sections(path):
+              out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          pkg_dir = os.path.join(release_dir, "packages")
+          for prefix in ("prometheus", "node-exporter", "scylla-manager", "scylla-manager-agent", "sctool"):
+              matches = sorted(
+                  name for name in os.listdir(pkg_dir)
+                  if re.fullmatch(rf"{re.escape(prefix)}_.*_linux_amd64\.tgz", name)
+              )
+              if not matches:
+                  continue
+              tgz_path = os.path.join(pkg_dir, matches[-1])
+              with tempfile.TemporaryDirectory() as td:
+                  with tarfile.open(tgz_path, "r:gz") as tf:
+                      tf.extractall(td)
+                  pkg_json = os.path.join(td, "package.json")
+                  with open(pkg_json, "r", encoding="utf-8") as fh:
+                      pkg = json.load(fh)
+                  entry = (pkg.get("entrypoint") or "").split("/")[-1]
+                  if not entry:
+                      continue
+                  bin_path = os.path.join(td, "bin", entry)
+                  if not os.path.isfile(bin_path):
+                      continue
+                  bad = forbidden_sections(bin_path)
+                  if bad:
+                      raise SystemExit(f"{tgz_path} contains forbidden sections: {bad}")
+          PYEOF
+
           # BOM summary
           CHANGED_N=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['changed_count'])")
           UNCHANGED_N=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['unchanged_count'])")
@@ -1197,10 +1257,10 @@ jobs:
           sudo bash install.sh
           \`\`\`
 
-          The first node always comes up with the quorum profiles
-          (\`control-plane\`, \`core\`, \`storage\`). To add a workload profile from
-          day-0, pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\` — e.g.
-          to also run media services on this node:
+          The first node always comes up with the quorum profiles plus the media
+          workload profile (\`control-plane\`, \`core\`, \`storage\`,
+          \`media-server\`). To override or extend the day-0 workload profiles,
+          pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\`:
 
           \`\`\`bash
           sudo FOUNDING_PROFILES=core,media-server bash install.sh

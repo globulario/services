@@ -45,6 +45,7 @@ copy_go_bin() {
     if [[ -f "${src}" ]]; then
         cp "${src}" "${PACKAGES_ROOT}/bin/${dst}"
         chmod +x "${PACKAGES_ROOT}/bin/${dst}"
+        strip_release_binary "${PACKAGES_ROOT}/bin/${dst}" "${label}"
         echo "  ✓ ${label} ($(ls -lh "${PACKAGES_ROOT}/bin/${dst}" | awk '{print $5}'))"
     else
         echo "  ✗ ${label} not found at ${src}"
@@ -68,14 +69,57 @@ spec_path() {
     echo "${PACKAGES_ROOT}/metadata/${name}/specs/${file}"
 }
 
+elf_needs_release_strip() {
+    local bin="$1"
+    [[ -f "${bin}" ]] || return 1
+    file -b "${bin}" 2>/dev/null | grep -q '^ELF' || return 1
+    readelf -S "${bin}" 2>/dev/null | grep -Eq '\.(debug_|zdebug_|symtab)\b'
+}
+
+strip_release_binary() {
+    local bin="$1" label="${2:-$(basename "$1")}"
+    [[ -f "${bin}" ]] || return 0
+    if ! elf_needs_release_strip "${bin}"; then
+        return 0
+    fi
+    if ! command -v strip >/dev/null 2>&1; then
+        echo "  ✗ ${label} contains release-forbidden debug sections and 'strip' is unavailable"
+        exit 1
+    fi
+    echo "  → Stripping ${label} for release-channel packaging..."
+    strip --strip-debug --strip-unneeded "${bin}"
+    chmod +x "${bin}"
+    if elf_needs_release_strip "${bin}"; then
+        echo "  ✗ ${label} still contains release-forbidden debug sections after strip"
+        exit 1
+    fi
+    echo "  ✓ ${label} stripped for release channel"
+}
+
+normalize_release_binaries() {
+    local label_prefix="$1"
+    shift
+    local bin
+    for bin in "$@"; do
+        [[ -n "${bin}" ]] || continue
+        strip_release_binary "${bin}" "${label_prefix}:$(basename "${bin}")"
+    done
+}
+
 # Helper: download a binary if version mismatches or missing.
 ensure_binary() {
     local bin="$1" version="$2" check_cmd="$3" download_fn="$4"
+    shift 4
+    local normalize_bins=("$@")
+    if [[ ${#normalize_bins[@]} -eq 0 ]]; then
+        normalize_bins=("${bin}")
+    fi
     local current=""
     if [[ -f "${bin}" ]]; then
         current=$(eval "${check_cmd}" 2>&1 || echo "unknown")
         if [[ "${current}" == "${version}" ]]; then
             echo "  ✓ $(basename "${bin}") ${version} already present"
+            normalize_release_binaries "$(basename "${bin}")" "${normalize_bins[@]}"
             return 0
         fi
         echo "  ⚠ $(basename "${bin}") version mismatch (${current}), downloading ${version}..."
@@ -83,6 +127,7 @@ ensure_binary() {
         echo "  → Downloading $(basename "${bin}") ${version}..."
     fi
     eval "${download_fn}"
+    normalize_release_binaries "$(basename "${bin}")" "${normalize_bins[@]}"
     echo "  ✓ $(basename "${bin}") ${version} ($(ls -lh "${bin}" | awk '{print $5}'))"
 }
 
@@ -119,42 +164,48 @@ echo "→ Envoy ${ENVOY_VERSION}..."
 ENVOY_BIN="${PACKAGES_ROOT}/bin/envoy"
 ensure_binary "${ENVOY_BIN}" "${ENVOY_VERSION}" \
     "${ENVOY_BIN} --version 2>&1 | grep -oP 'version: \K[0-9.]+'" \
-    "curl -sL 'https://github.com/envoyproxy/envoy/releases/download/v${ENVOY_VERSION}/envoy-${ENVOY_VERSION}-linux-x86_64' -o '${ENVOY_BIN}' && chmod +x '${ENVOY_BIN}'"
+    "curl -sL 'https://github.com/envoyproxy/envoy/releases/download/v${ENVOY_VERSION}/envoy-${ENVOY_VERSION}-linux-x86_64' -o '${ENVOY_BIN}' && chmod +x '${ENVOY_BIN}'" \
+    "${ENVOY_BIN}"
 
 # etcd + etcdctl
 echo "→ etcd ${ETCD_VERSION}..."
 ETCD_BIN="${PACKAGES_ROOT}/bin/etcd"
 ensure_binary "${ETCD_BIN}" "${ETCD_VERSION}" \
     "${ETCD_BIN} --version 2>&1 | grep -oP 'etcd Version: \K[0-9.]+'" \
-    "cd /tmp && curl -sL 'https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-amd64.tar.gz' -o etcd.tgz && tar xzf etcd.tgz && cp etcd-v${ETCD_VERSION}-linux-amd64/etcd '${PACKAGES_ROOT}/bin/etcd' && cp etcd-v${ETCD_VERSION}-linux-amd64/etcdctl '${PACKAGES_ROOT}/bin/etcdctl' && chmod +x '${PACKAGES_ROOT}/bin/etcd' '${PACKAGES_ROOT}/bin/etcdctl' && rm -rf etcd-v${ETCD_VERSION}-linux-amd64 etcd.tgz && cd ->/dev/null"
+    "cd /tmp && curl -sL 'https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-amd64.tar.gz' -o etcd.tgz && tar xzf etcd.tgz && cp etcd-v${ETCD_VERSION}-linux-amd64/etcd '${PACKAGES_ROOT}/bin/etcd' && cp etcd-v${ETCD_VERSION}-linux-amd64/etcdctl '${PACKAGES_ROOT}/bin/etcdctl' && chmod +x '${PACKAGES_ROOT}/bin/etcd' '${PACKAGES_ROOT}/bin/etcdctl' && rm -rf etcd-v${ETCD_VERSION}-linux-amd64 etcd.tgz && cd ->/dev/null" \
+    "${PACKAGES_ROOT}/bin/etcd" "${PACKAGES_ROOT}/bin/etcdctl"
 
 # Prometheus + promtool
 echo "→ Prometheus ${PROMETHEUS_VERSION}..."
 PROMETHEUS_BIN="${PACKAGES_ROOT}/bin/prometheus"
 ensure_binary "${PROMETHEUS_BIN}" "${PROMETHEUS_VERSION}" \
     "${PROMETHEUS_BIN} --version 2>&1 | grep -oP 'version \K[0-9.]+'" \
-    "cd /tmp && curl -sL 'https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz' -o prom.tgz && tar xzf prom.tgz && cp prometheus-${PROMETHEUS_VERSION}.linux-amd64/prometheus '${PACKAGES_ROOT}/bin/prometheus' && cp prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool '${PACKAGES_ROOT}/bin/promtool' && chmod +x '${PACKAGES_ROOT}/bin/prometheus' '${PACKAGES_ROOT}/bin/promtool' && rm -rf prometheus-${PROMETHEUS_VERSION}.linux-amd64 prom.tgz && cd ->/dev/null"
+    "cd /tmp && curl -sL 'https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz' -o prom.tgz && tar xzf prom.tgz && cp prometheus-${PROMETHEUS_VERSION}.linux-amd64/prometheus '${PACKAGES_ROOT}/bin/prometheus' && cp prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool '${PACKAGES_ROOT}/bin/promtool' && chmod +x '${PACKAGES_ROOT}/bin/prometheus' '${PACKAGES_ROOT}/bin/promtool' && rm -rf prometheus-${PROMETHEUS_VERSION}.linux-amd64 prom.tgz && cd ->/dev/null" \
+    "${PACKAGES_ROOT}/bin/prometheus" "${PACKAGES_ROOT}/bin/promtool"
 
 # Alertmanager + amtool
 echo "→ Alertmanager ${ALERTMANAGER_VERSION}..."
 ALERTMANAGER_BIN="${PACKAGES_ROOT}/bin/alertmanager"
 ensure_binary "${ALERTMANAGER_BIN}" "${ALERTMANAGER_VERSION}" \
     "${ALERTMANAGER_BIN} --version 2>&1 | grep -oP 'version \K[0-9.]+'" \
-    "cd /tmp && curl -sL 'https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz' -o am.tgz && tar xzf am.tgz && cp alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/alertmanager '${PACKAGES_ROOT}/bin/alertmanager' && cp alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/amtool '${PACKAGES_ROOT}/bin/amtool' && chmod +x '${PACKAGES_ROOT}/bin/alertmanager' '${PACKAGES_ROOT}/bin/amtool' && rm -rf alertmanager-${ALERTMANAGER_VERSION}.linux-amd64 am.tgz && cd ->/dev/null"
+    "cd /tmp && curl -sL 'https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz' -o am.tgz && tar xzf am.tgz && cp alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/alertmanager '${PACKAGES_ROOT}/bin/alertmanager' && cp alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/amtool '${PACKAGES_ROOT}/bin/amtool' && chmod +x '${PACKAGES_ROOT}/bin/alertmanager' '${PACKAGES_ROOT}/bin/amtool' && rm -rf alertmanager-${ALERTMANAGER_VERSION}.linux-amd64 am.tgz && cd ->/dev/null" \
+    "${PACKAGES_ROOT}/bin/alertmanager" "${PACKAGES_ROOT}/bin/amtool"
 
 # Node exporter
 echo "→ node_exporter ${NODE_EXPORTER_VERSION}..."
 NODE_EXPORTER_BIN="${PACKAGES_ROOT}/bin/node_exporter"
 ensure_binary "${NODE_EXPORTER_BIN}" "${NODE_EXPORTER_VERSION}" \
     "${NODE_EXPORTER_BIN} --version 2>&1 | grep -oP 'version \K[0-9.]+'" \
-    "cd /tmp && curl -sL 'https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz' -o ne.tgz && tar xzf ne.tgz && cp node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter '${PACKAGES_ROOT}/bin/node_exporter' && chmod +x '${PACKAGES_ROOT}/bin/node_exporter' && rm -rf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64 ne.tgz && cd ->/dev/null"
+    "cd /tmp && curl -sL 'https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz' -o ne.tgz && tar xzf ne.tgz && cp node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter '${PACKAGES_ROOT}/bin/node_exporter' && chmod +x '${PACKAGES_ROOT}/bin/node_exporter' && rm -rf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64 ne.tgz && cd ->/dev/null" \
+    "${PACKAGES_ROOT}/bin/node_exporter"
 
 # Sidekick
 echo "→ sidekick ${SIDEKICK_VERSION}..."
 SIDEKICK_BIN="${PACKAGES_ROOT}/bin/sidekick"
 ensure_binary "${SIDEKICK_BIN}" "${SIDEKICK_VERSION}" \
     "${SIDEKICK_BIN} --version 2>&1 | grep -oP 'version: \K[0-9.]+'" \
-    "curl -sL 'https://github.com/minio/sidekick/releases/latest/download/sidekick-linux-amd64' -o '${SIDEKICK_BIN}' && chmod +x '${SIDEKICK_BIN}'"
+    "curl -sL 'https://github.com/minio/sidekick/releases/latest/download/sidekick-linux-amd64' -o '${SIDEKICK_BIN}' && chmod +x '${SIDEKICK_BIN}'" \
+    "${SIDEKICK_BIN}"
 
 # MCP server — should already be in stage from generateCode.sh
 if [[ -f "${SERVICES_STAGE}/mcp" ]]; then
@@ -165,6 +216,7 @@ else
     echo "→ Building mcp server (fallback)..."
     (cd "${SERVICES_ROOT}/golang" && GOOS=linux GOARCH=amd64 go build -o "${PACKAGES_ROOT}/bin/mcp" ./mcp)
     chmod +x "${PACKAGES_ROOT}/bin/mcp"
+    strip_release_binary "${PACKAGES_ROOT}/bin/mcp" "mcp"
     echo "  ✓ mcp ($(ls -lh "${PACKAGES_ROOT}/bin/mcp" | awk '{print $5}'))"
 fi
 

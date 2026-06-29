@@ -210,12 +210,13 @@ FORCE_REINSTALL="0"
 DOMAIN="globular.internal"
 
 # Founding-node profiles, seeded into the cluster controller's default_profiles.
-# Comma-separated; override to add workload profiles from day-0, e.g.:
-#   FOUNDING_PROFILES=core,media-server ./install-day0.sh
+# Comma-separated; the default includes the media workload profile on the
+# bootstrap node. Override as needed, e.g.:
+#   FOUNDING_PROFILES=core,media-server,gateway ./install-day0.sh
 # Note: this also becomes the join-default for nodes that join without their own
 # profiles. The controller's enforceFoundingProfiles() ALWAYS adds the founding
 # quorum (control-plane,core,storage) for the first 3 nodes regardless of this.
-FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"
+FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
 FORCE_FLAG=""
 if [[ "$FORCE_REINSTALL" == "1" ]]; then
   FORCE_FLAG="--force"

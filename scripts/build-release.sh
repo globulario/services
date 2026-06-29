@@ -30,6 +30,78 @@ section() { echo ""; echo -e "${BOLD}━━━ $* ━━━${NC}"; echo ""; }
 
 [[ -d "${PACKAGES_ROOT}" ]] || die "packages repo not found at ${PACKAGES_ROOT} — clone it alongside services"
 
+elf_needs_release_strip() {
+  local bin="$1"
+  [[ -f "${bin}" ]] || return 1
+  file -b "${bin}" 2>/dev/null | grep -q '^ELF' || return 1
+  readelf -S "${bin}" 2>/dev/null | grep -Eq '\.(debug_|zdebug_|symtab)\b'
+}
+
+strip_release_binary() {
+  local bin="$1" label="${2:-$(basename "$1")}"
+  [[ -f "${bin}" ]] || return 0
+  if ! elf_needs_release_strip "${bin}"; then
+    return 0
+  fi
+  command -v strip >/dev/null 2>&1 || die "${label} contains release-forbidden debug sections and 'strip' is unavailable"
+  info "Stripping ${label} for release-channel packaging..."
+  strip --strip-debug --strip-unneeded "${bin}"
+  chmod +x "${bin}"
+  if elf_needs_release_strip "${bin}"; then
+    die "${label} still contains release-forbidden debug sections after strip"
+  fi
+}
+
+repack_package_if_needed() {
+  local src_pkg="$1" dest_pkg="$2"
+  local tmpdir entrypoint checksum
+  tmpdir=$(mktemp -d)
+  tar -xzf "${src_pkg}" -C "${tmpdir}"
+  entrypoint="$(sed -n 's/.*"entrypoint"[[:space:]]*:[[:space:]]*"bin\/\([^"]*\)".*/\1/p' "${tmpdir}/package.json" | head -1)"
+  if [[ -n "${entrypoint}" && -f "${tmpdir}/bin/${entrypoint}" ]] && elf_needs_release_strip "${tmpdir}/bin/${entrypoint}"; then
+    strip_release_binary "${tmpdir}/bin/${entrypoint}" "$(basename "${src_pkg}"):${entrypoint}"
+    checksum=$(sha256sum "${tmpdir}/bin/${entrypoint}" | awk '{print $1}')
+    python3 - "${tmpdir}/package.json" "sha256:${checksum}" <<'PYEOF'
+import json, sys, uuid
+path, checksum = sys.argv[1:]
+with open(path) as f:
+    data = json.load(f)
+data["build_id"] = str(uuid.uuid4())
+data["entrypoint_checksum"] = checksum
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+PYEOF
+    tar -C "${tmpdir}" -czf "${dest_pkg}" .
+    ok "Repacked stripped artifact: $(basename "${dest_pkg}")"
+  else
+    cp "${src_pkg}" "${dest_pkg}"
+  fi
+  rm -rf "${tmpdir}"
+}
+
+validate_release_bundle() {
+  local release_dir="$1"
+  local pkg_dir="${release_dir}/packages"
+  local prefix tgz tmpdir entrypoint
+
+  grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"' \
+    "${release_dir}/scripts/install-day0.sh" \
+    || die "release bundle install-day0.sh does not default FOUNDING_PROFILES to core,media-server"
+
+  for prefix in prometheus node-exporter scylla-manager scylla-manager-agent sctool; do
+    tgz=$(find "${pkg_dir}" -maxdepth 1 -name "${prefix}_*_linux_amd64.tgz" | sort -V | tail -1 || true)
+    [[ -n "${tgz}" ]] || continue
+    tmpdir=$(mktemp -d)
+    tar -xzf "${tgz}" -C "${tmpdir}"
+    entrypoint="$(sed -n 's/.*"entrypoint"[[:space:]]*:[[:space:]]*"bin\/\([^"]*\)".*/\1/p' "${tmpdir}/package.json" | head -1)"
+    if [[ -n "${entrypoint}" && -f "${tmpdir}/bin/${entrypoint}" ]] && elf_needs_release_strip "${tmpdir}/bin/${entrypoint}"; then
+      rm -rf "${tmpdir}"
+      die "release bundle package $(basename "${tgz}") still carries release-forbidden debug sections"
+    fi
+    rm -rf "${tmpdir}"
+  done
+}
+
 collect_source_package_dirs() {
   local -a dirs=()
   local candidate
@@ -84,7 +156,7 @@ while IFS='|' read -r target output; do
 
   bin_name=$(basename "${output}")
   info "Building ${bin_name}..."
-  go build -ldflags "${LDFLAGS}" -o "${DIST_DIR}/bin/${bin_name}" "${target}"
+  go build -trimpath -ldflags "${LDFLAGS}" -o "${DIST_DIR}/bin/${bin_name}" "${target}"
 done < build/services.list
 
 cp "${DIST_DIR}/bin/globularcli" "${DIST_DIR}/bin/globular" 2>/dev/null || true
@@ -153,7 +225,7 @@ for dir in "${SOURCE_PACKAGE_DIRS[@]}"; do
     if [[ -n "${seen_external[${base}]+x}" ]]; then
       continue
     fi
-    cp "${src_pkg}" "${DIST_DIR}/packages/${base}"
+    repack_package_if_needed "${src_pkg}" "${DIST_DIR}/packages/${base}"
     seen_external["${base}"]=1
     copied_external=$((copied_external + 1))
   done
@@ -169,7 +241,7 @@ for pkg_name in "${!BIN_MAP[@]}"; do
     src_pkg="$(find_source_package "${pkg_name}" "${SOURCE_PACKAGE_DIRS[@]}" || true)"
     if [[ -n "${src_pkg}" ]]; then
       warn "Carrying forward ${pkg_name} ($(basename "${src_pkg}"); ${bin_name} not built)"
-      cp "${src_pkg}" "${DIST_DIR}/packages/$(basename "${src_pkg}")"
+      repack_package_if_needed "${src_pkg}" "${DIST_DIR}/packages/$(basename "${src_pkg}")"
     else
       warn "Skipping ${pkg_name} (${bin_name} not built and no source package found)"
     fi
@@ -257,6 +329,7 @@ elif [[ -d "${SOURCE_RELEASE_DIR}/webroot" ]]; then
 fi
 
 (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
+validate_release_bundle "${RELEASE_DIR}"
 
 cat > "${RELEASE_DIR}/README.md" <<HEREDOC
 # Globular ${VERSION}
@@ -267,10 +340,10 @@ cat > "${RELEASE_DIR}/README.md" <<HEREDOC
 sudo bash install.sh
 \`\`\`
 
-The first node always comes up with the quorum profiles (\`control-plane\`,
-\`core\`, \`storage\`). To add a workload profile from day-0, pass
-\`FOUNDING_PROFILES\` (comma-separated) through \`sudo\` — e.g. to also run media
-services on this node:
+The first node always comes up with the quorum profiles plus the media workload
+profile (\`control-plane\`, \`core\`, \`storage\`, \`media-server\`). To
+override or extend the day-0 workload profiles, pass \`FOUNDING_PROFILES\`
+(comma-separated) through \`sudo\`:
 
 \`\`\`bash
 sudo FOUNDING_PROFILES=core,media-server bash install.sh
