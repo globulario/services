@@ -245,7 +245,7 @@ var skipSystemdUnits = map[string]bool{
 	"scylladb": true, "keepalived": true, "sidekick": true,
 	// CLI tools — not daemons (from /packages/specs/*_cmd.yaml)
 	"claude-cmd": true, "etcdctl-cmd": true, "ffmpeg-cmd": true,
-	"globular-cli-cmd": true, "mc-cmd": true, "rclone-cmd": true,
+	"codex-cmd": true, "globular-cli-cmd": true, "mc-cmd": true, "rclone-cmd": true,
 	"restic-cmd": true, "sctool-cmd": true, "sha256sum-cmd": true,
 	"yt-dlp-cmd": true,
 	// Documented carve-out: mcp is kind=service in its spec but is one of
