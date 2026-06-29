@@ -1214,15 +1214,15 @@ jobs:
               out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
               return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
 
-          pkg_dir = os.path.join(release_dir, "packages")
+          changed_pkg_dir = os.path.join("dist", "packages")
           for prefix in ("prometheus", "node-exporter", "scylla-manager", "scylla-manager-agent", "sctool"):
               matches = sorted(
-                  name for name in os.listdir(pkg_dir)
+                  name for name in os.listdir(changed_pkg_dir)
                   if re.fullmatch(rf"{re.escape(prefix)}_.*_linux_amd64\.tgz", name)
               )
               if not matches:
                   continue
-              tgz_path = os.path.join(pkg_dir, matches[-1])
+              tgz_path = os.path.join(changed_pkg_dir, matches[-1])
               with tempfile.TemporaryDirectory() as td:
                   with tarfile.open(tgz_path, "r:gz") as tf:
                       tf.extractall(td)
