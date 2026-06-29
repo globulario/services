@@ -1,5 +1,5 @@
 last_updated: "2026-06-28"
-overall: STABLE_WITH_TRACKED_GAPS
+overall: STABLE
 active_incidents: []
 completed_guardrails:
   - config_ownership
@@ -13,11 +13,12 @@ completed_guardrails:
   - bounded_queries_everywhere
   - destructive_action_guards
   - scylla_rf_policy
-partial_guardrails:
-  - critical_state_absence_guard (non-ingress rollout)
+  - critical_state_absence_guard
+partial_guardrails: []
 summary: >
   Current AWG audit is clean (coverage, references, tests, contracts, and seed
   orphans all pass). The old desired-hash restart-storm tracker is closed by
-  desired_hash_consistency. Remaining tracked gap is explicit: the non-ingress
-  rollout for absence as destructive intent. The package-config ownership audit
-  is closed by an enforcing current-layout seed guard and repair inventory.
+  desired_hash_consistency. The package-config ownership audit is closed by an
+  enforcing current-layout seed guard and repair inventory. The non-ingress
+  rollout for absence as destructive intent is closed by required-name tests for
+  objectstore, xDS/Envoy, and DNS LKG behavior.
