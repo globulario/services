@@ -2,13 +2,13 @@ guardrails:
   - id: config_ownership
     title: Package install may seed defaults only if missing. Live config is owned by controller/node-agent/workflow/identity.
     priority: P1
-    status: PARTIAL
+    status: DONE
     category: configuration
     target_invariants:
       - install.result.atomic_commit
     required_fixes:
       - config_seed_protection
-    summary: 1A done, 1B (full ownership audit) future.
+    summary: DONE 2026-06-28. Current package metadata layout is enforced by the seed guard; audited cluster-owned config seeds fail closed when specs are missing, ambiguous, or lack skip_if_exists.
 
   - id: join_script_safety
     title: Day-1 joins existing truth. It does not invent local truth.

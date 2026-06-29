@@ -2,7 +2,7 @@ last_updated: "2026-06-28"
 overall: STABLE_WITH_TRACKED_GAPS
 active_incidents: []
 completed_guardrails:
-  - config_ownership (1A)
+  - config_ownership
   - join_script_safety
   - infra_drift
   - desired_hash_identity
@@ -14,11 +14,10 @@ completed_guardrails:
   - destructive_action_guards
   - scylla_rf_policy
 partial_guardrails:
-  - config_ownership (1B ownership audit)
   - critical_state_absence_guard (non-ingress rollout)
 summary: >
   Current AWG audit is clean (coverage, references, tests, contracts, and seed
   orphans all pass). The old desired-hash restart-storm tracker is closed by
-  desired_hash_consistency. Remaining tracked gaps are explicit: the full
-  package-config ownership audit and the non-ingress rollout for absence as
-  destructive intent.
+  desired_hash_consistency. Remaining tracked gap is explicit: the non-ingress
+  rollout for absence as destructive intent. The package-config ownership audit
+  is closed by an enforcing current-layout seed guard and repair inventory.
