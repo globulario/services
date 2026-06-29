@@ -244,7 +244,7 @@ var skipSystemdUnits = map[string]bool{
 	"scylla-manager": true, "scylla-manager-agent": true,
 	"scylladb": true, "keepalived": true, "sidekick": true,
 	// CLI tools — not daemons (from /packages/specs/*_cmd.yaml)
-	"claude-cmd": true, "etcdctl-cmd": true, "ffmpeg-cmd": true,
+	"claude-cmd": true, "codex-cmd": true, "etcdctl-cmd": true, "ffmpeg-cmd": true,
 	"globular-cli-cmd": true, "mc-cmd": true, "rclone-cmd": true,
 	"restic-cmd": true, "sctool-cmd": true, "sha256sum-cmd": true,
 	"yt-dlp-cmd": true,

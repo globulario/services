@@ -86,6 +86,7 @@ var commandPackages = map[string]bool{
 	"sha256sum":    true,
 	"yt-dlp":       true,
 	"claude":       true,
+	"codex":        true,
 }
 
 var commandBinaryExistsFunc = commandBinaryExists
