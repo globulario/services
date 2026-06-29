@@ -1743,7 +1743,13 @@ invariants:
   - treat_invalid_spec_as_disable_intent
   id: critical_state.absence_is_not_destructive_intent
   implemented_by:
-  - file: golang/cluster_controller/cluster_controller_server/desired_state_publisher.go
+  - file: golang/node_agent/node_agent_server/ingress_reconcile.go
+    trust: declared
+  - file: golang/node_agent/node_agent_server/minio_contract_reconcile.go
+    trust: tested
+  - file: golang/node_agent/node_agent_server/xds_config_reconcile.go
+    trust: tested
+  - file: golang/node_agent/node_agent_server/dns_sync.go
     trust: declared
   protects:
     state:
@@ -1760,8 +1766,7 @@ invariants:
   severity: critical
   status: active
   summary: 'Missing, timed-out, or invalid control-plane state must not imply disable, stop, or delete. Missing key => HOLD_LAST_KNOWN_GOOD.
-    Only an explicit valid disable intent may stop a runtime. Applied to ingress; must be phased in for objectstore, envoy,
-    dns.
+    Only an explicit valid disable intent may stop a runtime. Applied to ingress, objectstore, xDS/Envoy, and DNS.
 
     '
   title: Missing control-plane key is not a stop or delete command

@@ -46,13 +46,13 @@ guardrails:
   - id: critical_state_absence_guard
     title: Missing control-plane key must never stop or delete runtime
     priority: P0
-    status: PARTIAL
+    status: DONE
     category: safety
     target_invariants:
       - critical_state.absence_is_not_destructive_intent
     required_fixes:
       - absence_as_destructive_intent
-    summary: Ingress guard is done; non-ingress absence-as-destructive-intent rollout remains tracked separately from delete-approval/tombstone guards.
+    summary: DONE 2026-06-28. Ingress, objectstore, xDS/Envoy, and DNS consumers hold or restore last-known-good state when control-plane state is absent; missing state is not delete/stop intent.
 
   - id: lkg_required_for_critical_consumers
     title: LKG must cover all critical runtime consumers
