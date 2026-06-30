@@ -87,7 +87,7 @@ bash build-all-packages.sh
 ```bash
 cd ../globular-installer
 
-# Sync specs from packages and services
+# Sync the embedded installer package catalog from the registry-backed package metadata
 make sync-specs
 
 # Build the installer binary
@@ -161,10 +161,18 @@ services/
 globular-installer/
 ├── globular-installer         # Installer binary (with embedded packages)
 ├── internal/assets/packages/  # Staged packages for Day-0
+├── internal/packagecatalog/
+│   ├── specs/                 # Embedded mirror only; do not edit directly
+│   └── manifest.json          # Registry digest binding for the embedded mirror
 └── scripts/
     ├── install-day0.sh        # Main installation script
     └── uninstall-day0.sh      # Complete removal script
 ```
+
+Authority note: package identity comes only from `packages/registry.yaml`. Package
+specs under `packages/metadata/<name>/specs/` are the canonical install recipes,
+and the installer path above is a generated mirror. See
+[Package Authority Layout](../design/package-authority-layout.md).
 
 ## Release Strategy
 

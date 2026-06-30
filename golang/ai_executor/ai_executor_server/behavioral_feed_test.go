@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	ai_executorpb "github.com/globulario/services/golang/ai_executor/ai_executorpb"
 )
@@ -69,4 +70,74 @@ func TestRecordBehavioralExperienceNonFatal(t *testing.T) {
 		recordBehavioralExperience(ctx, diagnosis, action) // must not panic
 	}()
 	<-done // if it panicked, the goroutine crash would fail the test process
+}
+
+func TestNewBehavioralTraceAction(t *testing.T) {
+	diag := &ai_executorpb.Diagnosis{
+		IncidentId:     "inc-trace",
+		ProposedAction: "restart_service",
+		ActionReason:   "diagnostic trace",
+	}
+
+	trace := newBehavioralTraceAction(diag, ai_executorpb.ActionStatus_ACTION_SKIPPED)
+	if trace.GetIncidentId() != "inc-trace" {
+		t.Fatalf("incident id = %q, want inc-trace", trace.GetIncidentId())
+	}
+	if trace.GetType() != ai_executorpb.ActionType_ACTION_RESTART_SERVICE {
+		t.Fatalf("type = %v, want ACTION_RESTART_SERVICE", trace.GetType())
+	}
+	if trace.GetStatus() != ai_executorpb.ActionStatus_ACTION_SKIPPED {
+		t.Fatalf("status = %v, want ACTION_SKIPPED", trace.GetStatus())
+	}
+	if trace.GetTarget() != "restart_service" {
+		t.Fatalf("target = %q, want restart_service", trace.GetTarget())
+	}
+}
+
+func TestObserveAndPendingEmitBehavioralExperience(t *testing.T) {
+	orig := emitBehavioralExperience
+	defer func() { emitBehavioralExperience = orig }()
+
+	type seen struct {
+		status ai_executorpb.ActionStatus
+	}
+	seenCh := make(chan seen, 2)
+	emitBehavioralExperience = func(_ context.Context, _ *ai_executorpb.Diagnosis, action *ai_executorpb.RemediationAction) {
+		seenCh <- seen{status: action.GetStatus()}
+	}
+
+	diag := &ai_executorpb.Diagnosis{
+		IncidentId:     "inc-emit",
+		ProposedAction: "observe_and_record",
+		ActionReason:   "test",
+	}
+
+	emitTierBehavioralExperience(context.Background(), diag, 0)
+	emitTierBehavioralExperience(context.Background(), diag, 1)
+	emitTierBehavioralExperience(context.Background(), diag, 2)
+
+	var got []ai_executorpb.ActionStatus
+	timeout := time.After(2 * time.Second)
+	for len(got) < 2 {
+		select {
+		case s := <-seenCh:
+			got = append(got, s.status)
+		case <-timeout:
+			t.Fatalf("timed out waiting for behavioral emits; got %v", got)
+		}
+	}
+
+	want := map[ai_executorpb.ActionStatus]bool{
+		ai_executorpb.ActionStatus_ACTION_SKIPPED: true,
+		ai_executorpb.ActionStatus_ACTION_PENDING: true,
+	}
+	for _, status := range got {
+		if !want[status] {
+			t.Fatalf("unexpected emitted status %v", status)
+		}
+		delete(want, status)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing emitted statuses: %v", want)
+	}
 }

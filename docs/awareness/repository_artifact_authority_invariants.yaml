@@ -1,0 +1,145 @@
+invariants:
+  - id: repo.package_identity_and_recipe_authority_split
+    title: packages/registry.yaml is sole package identity authority and packages/metadata/<name>/specs is sole package recipe authority
+    severity: critical
+    status: active
+    summary: |
+      The package system has exactly two authored authority surfaces:
+        - packages/registry.yaml defines which packages exist and their package identity.
+        - packages/metadata/<name>/specs/*.yaml defines the canonical install recipe.
+      packages/bin is binary staging only and may contain only binaries declared by
+      registry-backed canonical specs. Undeclared aliases and stale staged binaries are
+      forbidden. All other package/spec surfaces are generated mirrors, build inputs derived from
+      those authorities, or outputs validated against them. Neither services-generated
+      material, release bundles, installer mirrors, binaries, nor built tarballs may
+      author package identity or package recipe truth.
+    protects:
+      files:
+        - ../packages/registry.yaml
+        - ../packages/metadata/
+        - scripts/validate-package-authority.py
+        - Makefile
+      directories:
+        - ../packages/bin
+        - ../packages/dist
+        - generated
+        - dist
+    enforcement: |
+      Enforced by scripts/validate-package-authority.py and make check-services.
+      The validator rejects duplicate consumed spec roots, package recipes outside
+      packages/metadata, package specs inside packages/bin, packages/dist, or
+      services/dist, and any active authority use of services/generated/specs.
+    forbidden_fixes:
+      - add_second_package_identity_authority
+      - infer_package_identity_from_binary_or_tarball
+      - keep_undeclared_binary_aliases_in_packages_bin
+      - treat_generated_specs_as_canonical_recipe
+      - revive_legacy_spec_forest_in_consumed_paths
+    required_tests:
+      - python3 scripts/validate-package-authority.py
+      - make check-services
+    related_invariants:
+      - package.kind_is_registry_authored_downstream_is_projection
+      - meta.storage_is_not_semantic_authority
+
+  - id: repo.release_workspace_and_output_are_not_authority
+    title: services/generated, services/dist, and services/dist/.staging are generated workspace, release output, and staging only
+    severity: high
+    status: active
+    summary: |
+      services/generated is a disposable generated workspace. services/dist is disposable
+      release output. services/dist/.staging is temporary release-assembly staging.
+      These directories may be deleted and recreated at the correct flow boundary, but
+      they must never be treated as authored package truth, install-recipe truth, or
+      persistent platform source.
+    protects:
+      files:
+        - scripts/build-release.sh
+        - scripts/validate-package-authority.py
+        - .github/workflows/release.yml
+        - README.md
+      directories:
+        - generated
+        - dist
+        - dist/.staging
+    enforcement: |
+      scripts/build-release.sh stages binaries and package assembly under services/dist/.staging.
+      scripts/validate-package-authority.py rejects stale services/dist/bin consumers and any
+      use of services/generated/specs outside the sanctioned generator/build helper set.
+      make check-services includes that gate.
+    forbidden_fixes:
+      - treat_dist_as_persistent_source_tree
+      - restore_dist_bin_as_long_lived_authority_path
+      - delete_generated_mid_flow_without_regeneration
+      - consume_generated_workspace_as_release_authority
+    required_tests:
+      - python3 scripts/validate-package-authority.py
+      - make check-services
+    related_invariants:
+      - infra.config_file_is_artifact_not_authority
+      - meta.storage_is_not_semantic_authority
+
+  - id: repo.installer_embedded_assets_are_generated_mirrors_only
+    title: Installer packagecatalog and fallback webroot are generated mirrors; installer asset bin is helper-only
+    severity: critical
+    status: active
+    summary: |
+      globular-installer/internal/packagecatalog/* is a generated embedded package mirror
+      bound to packages/registry.yaml by manifest digest. globular-installer/internal/assets/webroot
+      is a generated fallback mirror of services/webroot, not authored platform content.
+      globular-installer/internal/assets/bin is for installer-private helper assets only and
+      must not contain platform release binaries.
+    protects:
+      files:
+        - scripts/validate-package-authority.py
+        - ../globular-installer/Makefile
+        - ../globular-installer/internal/packagecatalog/manifest.json
+        - ../globular-installer/internal/assets/webroot/manifest.json
+      directories:
+        - ../globular-installer/internal/packagecatalog
+        - ../globular-installer/internal/assets/webroot
+        - ../globular-installer/internal/assets/bin
+    enforcement: |
+      ../globular-installer/Makefile provides sync-specs, sync-webroot, check-specs,
+      check-webroot, and check-asset-bin. scripts/validate-package-authority.py cross-checks
+      the installer mirrors against packages/registry.yaml, packages metadata specs, and
+      services/webroot, and rejects missing or stale manifests.
+    forbidden_fixes:
+      - hand_edit_installer_packagecatalog_specs
+      - hand_edit_installer_webroot_as_source
+      - treat_installer_assets_bin_as_release_binary_store
+      - bypass_registry_digest_binding_for_embedded_catalog
+    required_tests:
+      - python3 scripts/validate-package-authority.py
+      - ../globular-installer:make check-specs
+    related_invariants:
+      - meta.storage_is_not_semantic_authority
+      - package.kind_is_registry_authored_downstream_is_projection
+
+  - id: repo.release_wrapper_is_not_install_execution_authority
+    title: services/scripts/install.sh is a release wrapper; install execution authority stays in globular-installer/scripts/install-day0.sh
+    severity: high
+    status: active
+    summary: |
+      services owns release publication and may ship a wrapper install.sh in the release
+      bundle. The actual day-0/day-1 install workflow authority remains
+      globular-installer/scripts/install-day0.sh. Releasing and installing are related
+      flows with different owners; collapsing them recreates cross-repo authority drift.
+    protects:
+      files:
+        - scripts/install.sh
+        - scripts/build-release.sh
+        - ../globular-installer/scripts/install-day0.sh
+        - .github/workflows/release.yml
+    enforcement: |
+      The authority split is documented in docs/design/artifact-authority-matrix.md and
+      docs/design/package-authority-layout.md, and reflected in build-release.sh, install.sh,
+      install-day0.sh, the release workflow, and the package-authority validator.
+    forbidden_fixes:
+      - move_real_install_workflow_into_release_wrapper
+      - make_services_repo_owner_of_installer_execution
+      - treat_installer_mirror_assets_as_release_source_of_truth
+    required_tests:
+      - python3 scripts/validate-package-authority.py
+      - make check-services
+      - ../globular-installer:make check-specs

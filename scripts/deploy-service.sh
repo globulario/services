@@ -125,7 +125,7 @@ fi
 
 echo "→ Step 1: Building binary..."
 GO_PKG_REL="./${GO_PKG_DIR#${GOLANG_DIR}/}"
-(cd "${GOLANG_DIR}" && go build -o "${STAGE_BIN}/${EXEC_NAME}" "${GO_PKG_REL}")
+(cd "${GOLANG_DIR}" && go build -trimpath -ldflags "-X main.Version=${VERSION} -s -w" -o "${STAGE_BIN}/${EXEC_NAME}" "${GO_PKG_REL}")
 echo "  ✓ Built ${EXEC_NAME}"
 
 # Copy to payload

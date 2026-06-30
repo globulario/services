@@ -388,6 +388,7 @@ var (
 	aiMemoryQueryType  string
 	aiMemoryQueryText  string
 	aiMemoryQueryLimit int32
+	aiMemoryProject    string
 )
 
 var aiMemoryQueryCmd = &cobra.Command{
@@ -399,6 +400,7 @@ Examples:
   globular ai memory query --text "ScyllaDB migration"
   globular ai memory query --type feedback
   globular ai memory query --type architecture --limit 5
+  globular ai memory query --project globular-services --text "workflow"
 `,
 	RunE: runAiMemoryQuery,
 }
@@ -413,6 +415,7 @@ func runAiMemoryQuery(cmd *cobra.Command, args []string) error {
 	client := ai_memorypb.NewAiMemoryServiceClient(cc)
 
 	req := &ai_memorypb.QueryRqst{
+		Project:    aiMemoryProject,
 		TextSearch: aiMemoryQueryText,
 		Limit:      aiMemoryQueryLimit,
 	}
@@ -536,6 +539,7 @@ func init() {
 
 	// memory subgroup
 	aiMemoryCmd.PersistentFlags().StringVar(&aiMemoryAddr, "memory-addr", "globular.internal", "AI memory service address")
+	aiMemoryQueryCmd.Flags().StringVar(&aiMemoryProject, "project", "globular-services", "AI memory project partition")
 	aiMemoryQueryCmd.Flags().StringVar(&aiMemoryQueryType, "type", "", "Filter by memory type (feedback, architecture, debug, session, ...)")
 	aiMemoryQueryCmd.Flags().StringVar(&aiMemoryQueryText, "text", "", "Free-text search")
 	aiMemoryQueryCmd.Flags().Int32Var(&aiMemoryQueryLimit, "limit", 20, "Max results")

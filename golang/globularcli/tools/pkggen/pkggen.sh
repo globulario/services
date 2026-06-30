@@ -11,6 +11,22 @@ VERSIONS_FILE=""
 PUBLISHER="core@globular.io"
 PLATFORM="$(go env GOOS)_$(go env GOARCH)"
 GLOBULAR_BIN="${GLOBULAR_BIN:-globular}"
+SERVICES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+PACKAGES_ROOT="${SERVICES_ROOT}/../packages"
+
+registry_has_package() {
+  local pkg="$1"
+  python3 - "${PACKAGES_ROOT}/registry.yaml" "${pkg}" <<'PYEOF'
+import sys, yaml
+path, name = sys.argv[1:]
+with open(path, "r", encoding="utf-8") as f:
+    doc = yaml.safe_load(f) or {}
+for pkg in doc.get("packages") or []:
+    if str(pkg.get("name") or "").strip() == name:
+        sys.exit(0)
+sys.exit(1)
+PYEOF
+}
 
 usage() {
   cat <<EOF
@@ -108,6 +124,12 @@ build_one() {
   exe="$(basename "${exe_path}")"
   local svc
   svc="$(svc_name_from_exe "${exe}")"
+  local svc_hyphen="${svc//_/-}"
+
+  if ! registry_has_package "${svc_hyphen}"; then
+    echo "WARN: skipping unregistered package binary ${exe} (${svc_hyphen})"
+    return 0
+  fi
 
   local spec_src="${SPECS_DIR}/${svc}_service.yaml"
   local cfg_src="${CONFIG_DIR}/${svc}/config.json"
@@ -152,7 +174,6 @@ build_one() {
   # Resolve per-package version: versions file wins over global --version default.
   # The versions file may use hyphens (cluster-controller) while the binary name
   # uses underscores (cluster_controller_server → cluster_controller). Try both.
-  local svc_hyphen="${svc//_/-}"
   local pkg_version="${VERSION}"
   if [[ ${#PKG_VERSIONS[@]} -gt 0 ]]; then
     if [[ -n "${PKG_VERSIONS[$svc]+x}" ]]; then

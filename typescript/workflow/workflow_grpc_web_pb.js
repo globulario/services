@@ -2266,6 +2266,189 @@ proto.workflow.WorkflowServicePromiseClient.prototype.executeWorkflow =
 
 
 /**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ListCorrelationDeferStateRequest,
+ *   !proto.workflow.ListCorrelationDeferStateResponse>}
+ */
+const methodDescriptor_WorkflowService_ListCorrelationDeferState = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ListCorrelationDeferState',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ListCorrelationDeferStateRequest,
+  proto.workflow.ListCorrelationDeferStateResponse,
+  /**
+   * @param {!proto.workflow.ListCorrelationDeferStateRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ListCorrelationDeferStateResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ListCorrelationDeferStateRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ListCorrelationDeferStateResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ListCorrelationDeferStateResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.listCorrelationDeferState =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ListCorrelationDeferState',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListCorrelationDeferState,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ListCorrelationDeferStateRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ListCorrelationDeferStateResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.listCorrelationDeferState =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ListCorrelationDeferState',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ListCorrelationDeferState);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.ClearCorrelationDeferStateRequest,
+ *   !proto.workflow.ClearCorrelationDeferStateResponse>}
+ */
+const methodDescriptor_WorkflowService_ClearCorrelationDeferState = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/ClearCorrelationDeferState',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.ClearCorrelationDeferStateRequest,
+  proto.workflow.ClearCorrelationDeferStateResponse,
+  /**
+   * @param {!proto.workflow.ClearCorrelationDeferStateRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.ClearCorrelationDeferStateResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.ClearCorrelationDeferStateRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.ClearCorrelationDeferStateResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.ClearCorrelationDeferStateResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.clearCorrelationDeferState =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/ClearCorrelationDeferState',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ClearCorrelationDeferState,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.ClearCorrelationDeferStateRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.ClearCorrelationDeferStateResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.clearCorrelationDeferState =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/ClearCorrelationDeferState',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_ClearCorrelationDeferState);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.workflow.WakeDeferredRunsByBlockerTagRequest,
+ *   !proto.workflow.WakeDeferredRunsByBlockerTagResponse>}
+ */
+const methodDescriptor_WorkflowService_WakeDeferredRunsByBlockerTag = new grpc.web.MethodDescriptor(
+  '/workflow.WorkflowService/WakeDeferredRunsByBlockerTag',
+  grpc.web.MethodType.UNARY,
+  proto.workflow.WakeDeferredRunsByBlockerTagRequest,
+  proto.workflow.WakeDeferredRunsByBlockerTagResponse,
+  /**
+   * @param {!proto.workflow.WakeDeferredRunsByBlockerTagRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.workflow.WakeDeferredRunsByBlockerTagResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.workflow.WakeDeferredRunsByBlockerTagRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.workflow.WakeDeferredRunsByBlockerTagResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.workflow.WakeDeferredRunsByBlockerTagResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.workflow.WorkflowServiceClient.prototype.wakeDeferredRunsByBlockerTag =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/workflow.WorkflowService/WakeDeferredRunsByBlockerTag',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_WakeDeferredRunsByBlockerTag,
+      callback);
+};
+
+
+/**
+ * @param {!proto.workflow.WakeDeferredRunsByBlockerTagRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.workflow.WakeDeferredRunsByBlockerTagResponse>}
+ *     Promise that resolves to the response
+ */
+proto.workflow.WorkflowServicePromiseClient.prototype.wakeDeferredRunsByBlockerTag =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/workflow.WorkflowService/WakeDeferredRunsByBlockerTag',
+      request,
+      metadata || {},
+      methodDescriptor_WorkflowService_WakeDeferredRunsByBlockerTag);
+};
+
+
+/**
  * @param {string} hostname
  * @param {?Object} credentials
  * @param {?grpc.web.ClientOptions} options

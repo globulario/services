@@ -36,6 +36,7 @@ type codexClient struct {
 	cfg         CodexConfig
 	cliBinary   string
 	authPath    string
+	authMode    string
 	hasAuth     bool
 	accessToken string
 	apiKey      string
@@ -44,9 +45,6 @@ type codexClient struct {
 }
 
 func newCodexClient(cfg CodexConfig) *codexClient {
-	if cfg.Model == "" {
-		cfg.Model = "gpt-5-codex"
-	}
 	if cfg.SystemPrompt == "" {
 		if rules := loadClusterRules(); rules != "" {
 			cfg.SystemPrompt = rules
@@ -142,28 +140,30 @@ func (c *codexClient) loadAuthFile(path string) error {
 	if err != nil {
 		return err
 	}
-	accessToken, apiKey, err := parseCodexAuth(data)
+	authMode, accessToken, apiKey, err := parseCodexAuth(data)
 	if err != nil {
 		return err
 	}
 	c.authPath = path
+	c.authMode = authMode
 	c.accessToken = accessToken
 	c.apiKey = apiKey
 	c.hasAuth = true
 	return nil
 }
 
-func parseCodexAuth(data []byte) (accessToken, apiKey string, err error) {
+func parseCodexAuth(data []byte) (authMode, accessToken, apiKey string, err error) {
 	var auth codexAuthFile
 	if err := json.Unmarshal(data, &auth); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
+	authMode = strings.TrimSpace(auth.AuthMode)
 	accessToken = strings.TrimSpace(auth.Tokens.AccessToken)
 	apiKey = strings.TrimSpace(auth.OpenAIAPIKey)
 	if accessToken == "" && apiKey == "" {
-		return "", "", fmt.Errorf("no Codex credentials in auth file")
+		return "", "", "", fmt.Errorf("no Codex credentials in auth file")
 	}
-	return accessToken, apiKey, nil
+	return authMode, accessToken, apiKey, nil
 }
 
 func (c *codexClient) loadAuthFromEtcd() error {
@@ -171,7 +171,7 @@ func (c *codexClient) loadAuthFromEtcd() error {
 	if err != nil || data == "" {
 		return fmt.Errorf("no Codex credentials in etcd")
 	}
-	accessToken, apiKey, err := parseCodexAuth([]byte(data))
+	authMode, accessToken, apiKey, err := parseCodexAuth([]byte(data))
 	if err != nil {
 		return err
 	}
@@ -181,6 +181,7 @@ func (c *codexClient) loadAuthFromEtcd() error {
 	if err := os.WriteFile(c.authPath, []byte(data), 0600); err != nil {
 		return err
 	}
+	c.authMode = authMode
 	c.accessToken = accessToken
 	c.apiKey = apiKey
 	c.hasAuth = true
@@ -198,7 +199,7 @@ func syncCodexCredentialsFromEtcd() {
 	if err != nil || data == "" {
 		return
 	}
-	if _, _, err := parseCodexAuth([]byte(data)); err != nil {
+	if _, _, _, err := parseCodexAuth([]byte(data)); err != nil {
 		logger.Warn("codex: ignoring invalid credentials from etcd", "err", err)
 		return
 	}
@@ -284,8 +285,8 @@ func (c *codexClient) sendPrompt(ctx context.Context, prompt string) (string, er
 		"--color", "never",
 		"-o", tmpPath,
 	}
-	if c.cfg.Model != "" {
-		args = append(args, "--model", c.cfg.Model)
+	if model := c.effectiveModel(); model != "" {
+		args = append(args, "--model", model)
 	}
 	if _, err := os.Stat("/var/lib/globular/services"); err == nil {
 		args = append(args, "--cd", "/var/lib/globular/services")
@@ -317,6 +318,21 @@ func (c *codexClient) sendPrompt(ctx context.Context, prompt string) (string, er
 }
 
 func (c *codexClient) shutdown() {}
+
+func (c *codexClient) effectiveModel() string {
+	if c == nil {
+		return ""
+	}
+	if strings.TrimSpace(c.cfg.Model) != "" {
+		return strings.TrimSpace(c.cfg.Model)
+	}
+	// ChatGPT-account auth rejects explicit gpt-5-codex selection in the CLI.
+	// Leave the model unset there so Codex picks an account-compatible default.
+	if c.apiKey != "" && c.accessToken == "" {
+		return "gpt-5-codex"
+	}
+	return ""
+}
 
 func ensureDir(path string, mode os.FileMode) error {
 	return os.MkdirAll(path, mode)

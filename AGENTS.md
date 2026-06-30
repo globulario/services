@@ -12,6 +12,53 @@ Runtime/deployment memory: AI Memory via `globular ops-knowledge`.
 
 ---
 
+## Session Prelude — Read Before Tool Calls
+
+AI agents do not have reliable continuous memory. Treat this file as the active
+safety contract for every session.
+
+1. **Memory is AI Memory, not flat files.** Use `globular ops-knowledge` or the
+   available Globular memory MCP tools for durable project knowledge. Do not create
+   ad hoc memory files in the repo or agent-private project directories.
+2. **Awareness first for high-risk work.** Before edits to high-risk directories
+   or authority surfaces, query AWG/awareness first. A "simple fix" is not an
+   exemption when the file is high-risk.
+3. **Ask the graph before grepping awareness sources.** When you need an invariant,
+   intent, failure mode, or forbidden fix, prefer AWG query/resolve/briefing tools.
+   `docs/awareness/` and `docs/intent/` are graph inputs, not the primary query
+   surface. If AWG is unavailable, then use repository-local files as fallback and
+   say the graph was unavailable.
+4. **End non-trivial code tasks with awareness context.** Use a compact line such
+   as `AWG: briefing(<target>) | invariants: X, Y | uncertainty: Z`. For degraded
+   graph access, say what fallback evidence was checked. Omit the line only for
+   low-risk/no-behavior edits.
+
+---
+
+## Contract-First Resolution — No Oracle Patching
+
+Before resolving any error, bug, failing test, warning, or reported problem,
+identify the governing contract that defines "correct". A passing test without a
+contract is only an oracle match; it is not a validated repair.
+
+Pre-edit checklist:
+
+1. **Contract status** — found / inferred / missing / unknown
+2. **Contract source** — AWG node IDs, docs, code, or tests that ground it
+3. **Relevant invariants** — what must remain true
+4. **Relevant failure modes** — how this path has broken before
+5. **Forbidden fixes** — known-bad repairs the graph or docs rule out
+6. **Verification plan** — tests/builds/probes that prove the contract is respected
+
+Act by status:
+
+- **found** — fix within the rule.
+- **inferred** — fix cautiously and flag the candidate contract for promotion.
+- **missing** — extract/record a candidate invariant before behavioral repair.
+- **unknown** — stop and ask; do not pretend the issue is fixed.
+
+---
+
 ## The Core Mental Model — Read This First
 
 Globular is a distributed bare-metal cluster control plane. It is **not** a normal
@@ -75,6 +122,8 @@ respect them.
 
 ### 1. etcd is the sole source of truth
 
+- All cluster configuration, service endpoints, desired state, and node state
+  live in etcd
 - **No environment variables** for service configuration — ever
 - **No hardcoded addresses** — all endpoints resolved from etcd or service discovery
 - **No hardcoded gRPC service ports** — all ports from etcd at runtime
@@ -104,13 +153,22 @@ respect them.
 ### 5. cluster_controller security boundary
 
 - `cluster_controller_server` MUST NOT use `os/exec`, `syscall`, or `systemctl`
-- `node_agent_server` can only use `os/exec` within `internal/supervisor/`
+- `node_agent_server` is the system executor. Read-only probes may use
+  `os/exec` for domain tools and inspection (`systemctl is-active/status/show`,
+  `journalctl`, `nodetool status`, `restic`, `sctool`, `cqlsh`, `mc`,
+  `openssl`). Mutating systemd actions (`start`, `stop`, `restart`, `enable`,
+  `disable`, `daemon-reload`, `kill`, `mask`, `unmask`) MUST go through
+  `internal/supervisor/`. The sanctioned exception is `workflow_day0.go`,
+  because Day-0 bootstrap runs before supervisor/etcd are available.
+- Run `make check-services` and `make check-nodeagent-exec-boundary` for these
+  constraints when touching executor or controller code.
 - All gRPC RPCs must have `(globular.auth.authz)` annotations
 
 ### 6. No tokens or credentials in source
 
 - No JWTs, API keys, or credentials committed to source
 - Tokens are ephemeral — generated at runtime, cached in `~/.config/globular/token`
+- No token/credential storage in etcd values — store file references, not secrets
 
 ### 7. No automatic rollback
 
@@ -124,6 +182,15 @@ respect them.
 - ScyllaDB minimum 3 nodes
 - MinIO minimum 3 nodes
 - First 3 nodes MUST have profiles: `core`, `control-plane`, `storage`
+- Without three MinIO/storage nodes, workflow publication and artifact
+  convergence can cascade-fail.
+
+### 9. Repository artifacts are POSIX CAS + Scylla, not MinIO
+
+- Packages live in `/var/lib/globular/packages/` as POSIX CAS.
+- ScyllaDB is the package index.
+- MinIO is for secondary user data only: files, search indexes, web objects.
+- Never look in MinIO for packages, certificates, or workflows.
 
 ---
 
@@ -171,6 +238,10 @@ Rules:
 - `release-index.json` is the BOM truth — GitHub asset list is not authoritative
 - Same (publisher, name, version, platform) + different digest = identity conflict → reject
 - build_id and build_number are never interchangeable
+- GitHub is a release provider, not the architecture. Repository, controller, and
+  node-agent code must stay provider-neutral.
+- Day-0 reads `release-index.json`; Day-1 joins from the active platform BOM, not
+  "latest" and not a guessed filename.
 
 ---
 
@@ -180,8 +251,9 @@ Package kind (SERVICE / INFRASTRUCTURE / APPLICATION / COMMAND) must come from t
 canonical registry. **Never hardcode a package kind list in application code.**
 
 Sources of truth:
-- `packages/metadata/<name>/package.json` → per-package spec
-- Canonical registry (generated from specs) → runtime kind lookup
+- `packages/registry.yaml` → authored package classification authority
+- Generated registry projections → runtime kind lookup
+- `packages/metadata/<name>/package.json` and specs → validated mirrors
 
 Anti-pattern (do not reproduce):
 ```
@@ -208,6 +280,10 @@ If the Globular MCP server is available in your session, follow the same rules a
 `UNKNOWN_IMPACT` from preflight ≠ safe. If graph is unavailable, grep
 `docs/awareness/failure_modes.yaml` and `docs/awareness/invariants.yaml` directly.
 
+Awareness explains why code exists, what it protects, and which fixes are
+forbidden. It cannot prove current etcd state, cluster membership, runtime
+health, or installed-package state; verify those with live tools.
+
 ---
 
 ## AI Memory — Runtime and Deployment Context
@@ -228,6 +304,44 @@ against the repository, AWG, or live cluster state before editing.
 
 If AI Memory is unavailable, continue with AWG and repository-local docs, but state
 that memory context could not be queried.
+
+---
+
+## Service and Application Framework Rules
+
+### Go services
+
+Every service should use the shared `globular_service` primitives for common
+lifecycle behavior: informational flags, positional config parsing, TLS,
+interceptors, health, registration, and graceful shutdown.
+
+Required pattern:
+
+```go
+globular_service.HandleInformationalFlags("name", "version")
+serviceID, configPath := globular_service.ParsePositionalArgs()
+lm := globular_service.NewLifecycleManager(srv, port)
+lm.RegisterService(func(gs *grpc.Server) { pb.RegisterMyServiceServer(gs, srv) })
+lm.Serve()
+```
+
+Do not bypass shared lifecycle/start/stop helpers unless the governing contract
+explicitly says the service is special.
+
+### Web applications and frontends
+
+Globular applications are web frontends served through the Envoy gateway using
+gRPC-Web protocol translation. Any frontend framework is acceptable (React, Vue,
+Angular, vanilla JS, etc.) only if it respects the platform boundary:
+
+- Use generated gRPC-Web clients for backend communication.
+- Do not invent local package, node, service, RBAC, or runtime authority in the UI.
+- UI state must name its authority: backend RPC, workflow state, RBAC result, or
+  local-only view state.
+- Success states must be based on backend/workflow/runtime confirmation, not a
+  local click or optimistic dispatch.
+- Critical operator meaning must not depend only on color, hover, animation, or
+  layout.
 
 ---
 

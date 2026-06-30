@@ -7,36 +7,47 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
+	"strings"
 	"time"
-
-	"github.com/globulario/services/golang/config"
 )
 
-// collector gathers endpoint metrics from Prometheus for scoring.
+const defaultPrometheusEndpoint = "http://127.0.0.1:9090"
+
+// collector gathers endpoint metrics from the local Prometheus HTTP API for scoring.
 type collector struct {
-	promURL string // resolved from etcd via monitoring.MonitoringService
+	promURL string
 	client  *http.Client
 }
 
-func newCollector() *collector {
-	// Resolve Prometheus address from etcd — never hardcode ports.
-	addr := config.ResolveServiceAddr("monitoring.MonitoringService", "")
-	if addr == "" {
-		// Fallback: use routable IP with service-config port (logged as degraded).
-		logger.Warn("collector: monitoring.MonitoringService not found in etcd, metrics collection will fail until registered")
-		addr = config.GetRoutableIPv4()
+// prometheusEndpoint returns the local Prometheus HTTP endpoint used by the
+// router scoring loop.
+//
+// Prometheus is a node-local runtime dependency, not a mesh-routed gRPC
+// service. Using ResolveServiceAddr("monitoring.MonitoringService") rewrites
+// the address to host:443 for the monitoring gRPC bridge, which is the wrong
+// protocol/surface for raw Prometheus HTTP queries and causes persistent EOF
+// failures. The router therefore talks to the local Prometheus instance
+// directly, with an explicit override for non-standard setups.
+func prometheusEndpoint() string {
+	if v := strings.TrimSpace(os.Getenv("PROMETHEUS_ENDPOINT")); v != "" {
+		return v
 	}
+	return defaultPrometheusEndpoint
+}
+
+func newCollector() *collector {
 	return &collector{
-		promURL: fmt.Sprintf("http://%s", addr),
+		promURL: prometheusEndpoint(),
 		client:  &http.Client{Timeout: 2 * time.Second},
 	}
 }
 
 // endpointMetrics holds all signals for one service instance.
 type endpointMetrics struct {
-	Service   string
-	Instance  string // Prometheus instance label (ip:port)
+	Service    string
+	Instance   string  // Prometheus instance label (ip:port)
 	LatencyP99 float64 // seconds
 	ErrorRate  float64 // 0.0-1.0
 	RPS        float64 // requests per second
@@ -176,7 +187,7 @@ func (c *collector) queryVector(ctx context.Context, query string) ([]promSample
 		Data   struct {
 			ResultType string `json:"resultType"`
 			Result     []struct {
-				Metric map[string]string `json:"metric"`
+				Metric map[string]string  `json:"metric"`
 				Value  [2]json.RawMessage `json:"value"`
 			} `json:"result"`
 		} `json:"data"`

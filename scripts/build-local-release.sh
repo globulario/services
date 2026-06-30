@@ -60,6 +60,100 @@ BUNDLE_PKG_DIR="$DIST_DIR/internal/assets/packages"
 log()  { echo "  $*"; }
 step() { echo ""; echo "=== $* ==="; }
 
+elf_needs_release_strip() {
+  local bin="$1"
+  [[ -f "$bin" ]] || return 1
+  file -b "$bin" 2>/dev/null | grep -q '^ELF' || return 1
+  readelf -S "$bin" 2>/dev/null | grep -Eq '\.(debug_|zdebug_|symtab)\b'
+}
+
+strip_release_binary() {
+  local bin="$1" label="${2:-$(basename "$1")}"
+  [[ -f "$bin" ]] || return 0
+  if ! elf_needs_release_strip "$bin"; then
+    return 0
+  fi
+  if ! command -v strip >/dev/null 2>&1; then
+    echo "ERROR: $label contains release-forbidden debug sections and 'strip' is unavailable." >&2
+    exit 1
+  fi
+  log "stripping $label for release-channel packaging"
+  strip --strip-debug --strip-unneeded "$bin"
+  chmod +x "$bin"
+  if elf_needs_release_strip "$bin"; then
+    echo "ERROR: $label still contains release-forbidden debug sections after strip." >&2
+    exit 1
+  fi
+}
+
+normalize_release_bin_dir() {
+  local bin
+  for bin in "$BIN_DIR"/*; do
+    [[ -f "$bin" ]] || continue
+    strip_release_binary "$bin" "bin/$(basename "$bin")"
+  done
+}
+
+validate_release_bundle() {
+  local release_dir="$1"
+  local pkg_dir="${release_dir}/packages"
+  local prefix tgz tmpdir entrypoint
+
+  grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"' \
+    "${release_dir}/scripts/install-day0.sh" \
+    || { echo "ERROR: bundled install-day0.sh does not default FOUNDING_PROFILES to core,media-server." >&2; exit 1; }
+  python3 "${SERVICES_ROOT}/scripts/validate-day0-package-contract.py" \
+    "${release_dir}/scripts/install-day0.sh" "${PACKAGES_ROOT}/registry.yaml" >/dev/null
+
+  for prefix in prometheus node-exporter scylla-manager scylla-manager-agent sctool; do
+    tgz=$(find "${pkg_dir}" -maxdepth 1 -name "${prefix}_*_linux_amd64.tgz" | sort -V | tail -1 || true)
+    [[ -n "${tgz}" ]] || continue
+    tmpdir=$(mktemp -d)
+    tar -xzf "${tgz}" -C "${tmpdir}"
+    entrypoint="$(sed -n 's/.*"entrypoint"[[:space:]]*:[[:space:]]*"bin\/\([^"]*\)".*/\1/p' "${tmpdir}/package.json" | head -1)"
+    if [[ -n "${entrypoint}" && -f "${tmpdir}/bin/${entrypoint}" ]] && elf_needs_release_strip "${tmpdir}/bin/${entrypoint}"; then
+      rm -rf "${tmpdir}"
+      echo "ERROR: bundled package $(basename "${tgz}") still contains release-forbidden debug sections." >&2
+      exit 1
+    fi
+    rm -rf "${tmpdir}"
+  done
+}
+
+repack_previous_package_if_needed() {
+  local tgz="$1" fname="$2"
+  local tmpdir="$WORK/repack-${fname%.tgz}"
+  local entrypoint checksum
+  mkdir -p "$tmpdir"
+  tar -xzf "$tgz" -C "$tmpdir"
+  entrypoint="$(sed -n 's/.*"entrypoint"[[:space:]]*:[[:space:]]*"bin\/\([^"]*\)".*/\1/p' "$tmpdir/package.json" | head -1)"
+  if [[ -z "$entrypoint" || ! -f "$tmpdir/bin/$entrypoint" ]]; then
+    cp "$tgz" "$PKG_OUT/$fname"
+    rm -rf "$tmpdir"
+    return 0
+  fi
+  if ! elf_needs_release_strip "$tmpdir/bin/$entrypoint"; then
+    cp "$tgz" "$PKG_OUT/$fname"
+    rm -rf "$tmpdir"
+    return 0
+  fi
+
+  strip_release_binary "$tmpdir/bin/$entrypoint" "${fname}:${entrypoint}"
+  checksum=$(sha256sum "$tmpdir/bin/$entrypoint" | awk '{print $1}')
+  python3 - "$tmpdir/package.json" "$BUILD_NUMBER" "sha256:$checksum" <<'PYEOF'
+import json, sys, uuid
+path, build_number, checksum = sys.argv[1:]
+data = json.load(open(path))
+data["build_id"] = str(uuid.uuid4())
+data["build_number"] = int(build_number)
+data["entrypoint_checksum"] = checksum
+json.dump(data, open(path, "w"), indent=2)
+PYEOF
+  tar -C "$tmpdir" -czf "$PKG_OUT/$fname" .
+  rm -rf "$tmpdir"
+  log "repacked inherited package with stripped entrypoint: $fname"
+}
+
 # ── Find previous bundle ──────────────────────────────────────────────────────
 step "Locate previous bundle"
 if [[ -z "$PREV_TGZ" ]]; then
@@ -104,10 +198,12 @@ done
 for f in globular globular-installer; do
   [[ -f "$PREV_DIR/$f" && ! -f "$BIN_DIR/$f" ]] && { cp "$PREV_DIR/$f" "$BIN_DIR/$f"; chmod +x "$BIN_DIR/$f"; }
 done
+normalize_release_bin_dir
 
 # ── Determine which packages to rebuild ───────────────────────────────────────
 step "Determine changed packages"
 PREV_TAG="v${PREV_VERSION}"
+FORCED_CHANGED_FILE="$WORK/forced-packages.txt"
 
 if [[ -n "$REBUILD_PKGS" ]]; then
   IFS=',' read -ra CHANGED_NAMES <<< "$REBUILD_PKGS"
@@ -149,6 +245,21 @@ for name,info in d.items():
 
   # Deduplicate
   mapfile -t CHANGED_NAMES < <(printf '%s\n' "${CHANGED_NAMES[@]}" | sort -u)
+
+  bash "$SERVICES_ROOT/scripts/release/cluster-controller-release-guard.sh" detect \
+    --services-root "$SERVICES_ROOT" \
+    --packages-root "$PACKAGES_ROOT" \
+    --prev-tag "$PREV_TAG" \
+    --output "$FORCED_CHANGED_FILE" || true
+
+  if [[ -f "$FORCED_CHANGED_FILE" ]]; then
+    while IFS='|' read -r forced_name _reason; do
+      [[ -n "${forced_name}" ]] || continue
+      CHANGED_NAMES+=("$forced_name")
+    done < "$FORCED_CHANGED_FILE"
+    mapfile -t CHANGED_NAMES < <(printf '%s\n' "${CHANGED_NAMES[@]}" | sort -u)
+  fi
+
   log "Auto-detected changed: ${CHANGED_NAMES[*]:-none}"
 fi
 
@@ -300,7 +411,7 @@ print(m.group(1) if m else fname)
     log "SKIP (new version built): $pkg_name"
     continue
   fi
-  cp "$tgz" "$PKG_OUT/$fname"
+  repack_previous_package_if_needed "$tgz" "$fname"
 done
 log "$(ls "$PKG_OUT"/*.tgz | wc -l) total packages"
 
@@ -425,6 +536,8 @@ done
 for d in webroot workflows docs; do
   [[ -d "$PREV_DIR/$d" ]] && cp -r "$PREV_DIR/$d" "$DIST_DIR/$d"
 done
+
+validate_release_bundle "$DIST_DIR"
 
 # ── Pack tarball ──────────────────────────────────────────────────────────────
 step "Pack tarball"

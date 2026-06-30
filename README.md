@@ -45,7 +45,8 @@ services/
 │   ├── security/              # TLS, PKI, JWT, Ed25519 keystore
 │   └── ...                    # 15+ additional services
 ├── typescript/                # TypeScript gRPC-Web client library
-├── generated/                 # Generated specs, packages, policies
+├── generated/                 # Disposable generated workspace (never source authority)
+├── dist/                      # Disposable release output assembled by scripts/build-release.sh
 ├── generateCode.sh            # Proto → Go/TypeScript code generation
 └── build-all-packages.sh      # Full package build pipeline
 ```

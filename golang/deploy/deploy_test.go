@@ -137,9 +137,9 @@ func TestGenerateSpec_DNS(t *testing.T) {
 		"name: dns",
 		"priority: 2",
 		"profiles: [core, compute, control-plane]",
-		"9042",                        // scylla wait
-		"CAP_NET_BIND_SERVICE",        // capability
-		"scylla-server.service",       // systemd dep
+		"9042",                  // scylla wait
+		"CAP_NET_BIND_SERVICE",  // capability
+		"scylla-server.service", // systemd dep
 	}
 	for _, check := range checks {
 		if !strings.Contains(spec, check) {
@@ -364,6 +364,7 @@ func findTestCatalog(t *testing.T) string {
 func TestBuildLdflags_InjectsAllFourSymbols(t *testing.T) {
 	got := buildLdflags("1.2.43", 171)
 	for _, want := range []string{
+		"-s -w",
 		"-X main.Version=1.2.43",
 		"-X main.BuildTime=",
 		"-X main.GitCommit=",

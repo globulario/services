@@ -13,15 +13,15 @@ import (
 )
 
 var (
-	deployComment    string
-	deployVersion    string
-	deployBump       string // "patch" | "minor" | "major" — calls AllocateUpload
-	deployChannel    string // "stable" | "candidate" | "canary" | "dev" | "bootstrap"
-	deployRepoAddr   string
-	deployFull       bool
-	deployDryRun     bool
-	deployAll        bool
-	deployParallel   int
+	deployComment  string
+	deployVersion  string
+	deployBump     string // "patch" | "minor" | "major" — calls AllocateUpload
+	deployChannel  string // "stable" | "candidate" | "canary" | "dev" | "bootstrap"
+	deployRepoAddr string
+	deployFull     bool
+	deployDryRun   bool
+	deployAll      bool
+	deployParallel int
 )
 
 var deployCmd = &cobra.Command{
@@ -41,16 +41,20 @@ All services:
   globular deploy --all
 
 Binary-only deploys are automatic when only the binary changed. Use --full
-to force a full package rebuild.`,
+to force a full package rebuild.
+
+Local deploys reuse an existing published release version and advance only the
+build identity. They do not allocate the next semver; release version bumps
+belong to the release workflow, not workstation deploys.`,
 	Args: cobra.ArbitraryArgs,
 	RunE: runDeploy,
 }
 
 func init() {
 	deployCmd.Flags().StringVarP(&deployComment, "comment", "c", "", "Deployment comment")
-	deployCmd.Flags().StringVar(&deployVersion, "version", "", "Package version (use --bump instead to let repository allocate)")
-	deployCmd.Flags().StringVar(&deployBump, "bump", "", "Version bump intent: patch|minor|major (calls AllocateUpload)")
-	deployCmd.Flags().StringVar(&deployChannel, "channel", "", "Release channel: stable|candidate|canary|dev|bootstrap (default: stable)")
+	deployCmd.Flags().StringVar(&deployVersion, "version", "", "Published STABLE base version to rebuild locally (default: latest published STABLE)")
+	deployCmd.Flags().StringVar(&deployBump, "bump", "", "Forbidden for local deploys; release semver allocation belongs to the release workflow")
+	deployCmd.Flags().StringVar(&deployChannel, "channel", "", "Publish channel for local deploys: candidate|canary|dev|bootstrap (default: candidate; stable forbidden)")
 	deployCmd.Flags().StringVar(&deployRepoAddr, "repository", "", "Repository gRPC endpoint (auto-discovered if empty)")
 	deployCmd.Flags().BoolVar(&deployFull, "full", false, "Force full package rebuild (skip delta detection)")
 	deployCmd.Flags().BoolVar(&deployDryRun, "dry-run", false, "Print actions without executing")

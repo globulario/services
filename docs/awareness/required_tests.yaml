@@ -6274,3 +6274,22 @@ required_tests:
   protects:
     invariants:
     - package.release_vs_dev_channel_boundary
+- id: test.repository_artifact_authority_matrix_gate
+  title: Repository artifact/source authority matrix must reject mirror, staging, and output drift
+  protects:
+    invariants:
+    - repo.package_identity_and_recipe_authority_split
+    - repo.release_workspace_and_output_are_not_authority
+    - repo.installer_embedded_assets_are_generated_mirrors_only
+    - repo.release_wrapper_is_not_install_execution_authority
+    files:
+    - scripts/validate-package-authority.py
+    - scripts/build-release.sh
+    - scripts/install.sh
+    - Makefile
+    - docs/design/artifact-authority-matrix.md
+  run:
+    commands:
+    - python3 scripts/validate-package-authority.py
+    - make check-services
+    - cd ../globular-installer && make check-specs

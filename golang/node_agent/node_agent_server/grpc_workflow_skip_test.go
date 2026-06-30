@@ -315,7 +315,7 @@ func TestBuildIDSkipChecksumOK(t *testing.T) {
 // Missing entries cause the skip check to try a unit lookup, which always
 // fails and triggers unnecessary reinstalls.
 func TestNewCommandPackagesAreRecognized(t *testing.T) {
-	newEntries := []string{"sha256sum", "yt-dlp", "claude", "globular-cli"}
+	newEntries := []string{"sha256sum", "yt-dlp", "claude", "codex", "globular-cli"}
 	for _, name := range newEntries {
 		if !isCommandPackage(name) {
 			t.Errorf("isCommandPackage(%q) = false, want true — missing from commandPackages map", name)

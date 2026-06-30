@@ -43,6 +43,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: services
+          # Release assembly consumes the checked-out tree at the triggering ref;
+          # it does not need the full services history on the runner.
+          fetch-depth: 1
           # Manual dispatch may target a new version that does not yet have a git tag.
           # Always checkout the triggering ref (branch for workflow_dispatch, tag for push tags).
           ref: ${{ github.ref }}
@@ -71,6 +74,9 @@ jobs:
         with:
           repository: globulario/packages
           path: packages
+          # Package metadata/registry are consumed as source authority only; no
+          # release step depends on packages git history.
+          fetch-depth: 1
 
       - name: Checkout Globular (xds + gateway)
         uses: actions/checkout@v4
@@ -112,6 +118,12 @@ jobs:
           fi
           python3 -c 'import yaml' 2>/dev/null || pip3 install --quiet pyyaml || pip3 install --quiet --break-system-packages pyyaml
           make check-spec-kinds   # REGISTRY defaults to ../packages/registry.yaml (checked out above)
+
+      - name: Gate — package authority layout is coherent
+        working-directory: services
+        run: |
+          set -euo pipefail
+          python3 scripts/validate-package-authority.py
 
       # ── Free disk space (runner has ~14GB, large binaries fill it fast) ──
       - name: Free disk space
@@ -236,7 +248,7 @@ jobs:
         working-directory: services/golang
         run: |
           set -euo pipefail
-          mkdir -p ../../dist/bin
+          mkdir -p ../../dist/.staging/bin
 
           bash build/gen-version.sh "${SENTINEL_VERSION}"
 
@@ -247,25 +259,25 @@ jobs:
             bin_name=$(basename "${output}")
             [[ "${bin_name}" == "compute_server" ]] && continue
             echo "  -> ${bin_name} (sentinel)"
-            go build -trimpath -ldflags "${LDFLAGS}" -o "../../dist/bin/${bin_name}" "${target}"
+            go build -trimpath -ldflags "${LDFLAGS}" -o "../../dist/.staging/bin/${bin_name}" "${target}"
           done < build/services.list
 
-          cp ../../dist/bin/globularcli ../../dist/bin/globular
-          echo "Sentinel build complete: $(ls ../../dist/bin/ | wc -l) binaries"
+          cp ../../dist/.staging/bin/globularcli ../../dist/.staging/bin/globular
+          echo "Sentinel build complete: $(ls ../../dist/.staging/bin/ | wc -l) binaries"
 
       - name: Build xds and gateway (sentinel version)
         working-directory: Globular
         run: |
           LDFLAGS="-X main.Version=${SENTINEL_VERSION} -X main.BuildVersion=${SENTINEL_VERSION} -s -w"
-          go build -trimpath -ldflags "${LDFLAGS}" -o ../dist/bin/xds ./cmd/xds
-          go build -trimpath -ldflags "${LDFLAGS}" -o ../dist/bin/gateway ./cmd/gateway
+          go build -trimpath -ldflags "${LDFLAGS}" -o ../dist/.staging/bin/xds ./cmd/xds
+          go build -trimpath -ldflags "${LDFLAGS}" -o ../dist/.staging/bin/gateway ./cmd/gateway
           echo "xds + gateway sentinel build complete"
 
       # ── Download third-party infra binaries ─────────────────────────────
       - name: Download infra binaries
         run: |
           set -euo pipefail
-          cd dist/bin
+          cd dist/.staging/bin
 
           ETCD_VERSION="3.5.14"
           ENVOY_VERSION="1.35.3"
@@ -351,7 +363,11 @@ jobs:
           chmod +x ffmpeg
 
           echo "-> scylla-manager + agent + sctool (latest stable from GitHub)..."
-          SCYLLA_MGR_VERSION=$(curl -fsSL "https://api.github.com/repos/scylladb/scylla-manager/releases?per_page=100" \
+          SCYLLA_MGR_VERSION=$(curl -fsSL \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            -H 'Authorization: Bearer ${{ github.token }}' \
+            "https://api.github.com/repos/scylladb/scylla-manager/releases?per_page=100" \
             | python3 -c "import json,sys; d=json.load(sys.stdin); r=[x for x in d if not x.get('prerelease') and not x.get('draft') and x.get('assets')] or [x for x in d if not x.get('draft')]; sys.exit('no stable scylla-manager release') if not r else print(r[0]['tag_name'].lstrip('v'))")
           echo "  version: ${SCYLLA_MGR_VERSION}"
           echo "SCYLLA_MGR_VERSION=${SCYLLA_MGR_VERSION}" >> "$GITHUB_ENV"
@@ -366,7 +382,7 @@ jobs:
           rm -rf "${tmpd}" /tmp/scylla-manager.tar.gz
 
           echo "-> claude (Anthropic Claude Code CLI via npm)..."
-          CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../packages/metadata/claude/package.json'))['version'])")
+          CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../../packages/metadata/claude/package.json'))['version'])")
           echo "  version: ${CLAUDE_VERSION}"
           echo "CLAUDE_VERSION=${CLAUDE_VERSION}" >> "$GITHUB_ENV"
           npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" --quiet
@@ -386,8 +402,8 @@ jobs:
       # ── Create noop binary for scylladb/keepalived ──────────────────────
       - name: Create noop binary
         run: |
-          printf '#!/bin/sh\n# Managed via OS packages, not a standalone binary.\nexit 0\n' > dist/bin/noop
-          chmod +x dist/bin/noop
+          printf '#!/bin/sh\n# Managed via OS packages, not a standalone binary.\nexit 0\n' > dist/.staging/bin/noop
+          chmod +x dist/.staging/bin/noop
 
       # ═══════════════════════════════════════════════════════════════════════
       # BOM: Change detection — compare binary checksums + package contracts
@@ -453,6 +469,12 @@ jobs:
         run: |
           set -euo pipefail
 
+          bash services/scripts/release/cluster-controller-release-guard.sh detect \
+            --services-root services \
+            --packages-root packages \
+            --prev-tag "${{ steps.prev_index.outputs.prev_tag }}" \
+            --output dist/forced-packages.txt
+
           EXTRA_ARGS=()
           if [[ "${FORCE}" == "true" ]]; then
             EXTRA_ARGS+=(--force-full-rebuild)
@@ -462,7 +484,7 @@ jobs:
           python3 services/golang/build/detect-changes.py \
             --prev-index dist/prev-release-index.json \
             --metadata-dir packages/metadata \
-            --bin-dir dist/bin \
+            --bin-dir dist/.staging/bin \
             --pkg-map-json services/golang/build/pkg-map.json \
             --go-src-dir services/golang \
             --version "${VERSION}" \
@@ -470,7 +492,12 @@ jobs:
             --output-overrides dist/version-overrides.txt \
             --output-manifest dist/change-manifest.json \
             --origin-indices-dir dist/origin-indices \
+            --force-changed-packages-file dist/forced-packages.txt \
             "${EXTRA_ARGS[@]}"
+
+          bash services/scripts/release/cluster-controller-release-guard.sh verify \
+            --manifest dist/change-manifest.json \
+            --forced dist/forced-packages.txt
 
           echo ""
           echo "=== Version Overrides ==="
@@ -504,7 +531,7 @@ jobs:
           " | while IFS='|' read -r target pkg_name; do
             bin_name=$(python3 -c "import json; print(json.load(open('build/pkg-map.json'))['${pkg_name}']['binary'])")
             echo "  -> Rebuilding ${bin_name} (v${VERSION})"
-            go build -trimpath -ldflags "${LDFLAGS}" -o "../../dist/bin/${bin_name}" "./${target}"
+            go build -trimpath -ldflags "${LDFLAGS}" -o "../../dist/.staging/bin/${bin_name}" "./${target}"
           done
 
           # Update globular CLI copy if it changed
@@ -514,7 +541,7 @@ jobs:
           changed = [p['name'] for p in m['packages'] if p['changed']]
           if 'globular-cli' in changed:
               print('yes')
-          " | grep -q yes && cp ../../dist/bin/globularcli ../../dist/bin/globular || true
+          " | grep -q yes && cp ../../dist/.staging/bin/globularcli ../../dist/.staging/bin/globular || true
 
       - name: Rebuild xds/gateway if changed
         working-directory: Globular
@@ -531,7 +558,7 @@ jobs:
                   print(p['name'])
           " | while read -r name; do
             echo "  -> Rebuilding ${name} (v${VERSION})"
-            go build -trimpath -ldflags "${LDFLAGS}" -o "../dist/bin/${name}" "./cmd/${name}"
+            go build -trimpath -ldflags "${LDFLAGS}" -o "../dist/.staging/bin/${name}" "./cmd/${name}"
           done
 
       # ── Run tests ────────────────────────────────────────────────────────
@@ -553,9 +580,9 @@ jobs:
           GOWORK: "off"
           CGO_ENABLED: "0"
         run: |
-          go build -trimpath -o ../dist/bin/globular-installer ./cmd/globular-installer
-          chmod +x ../dist/bin/globular-installer
-          echo "globular-installer: $(ls -lh ../dist/bin/globular-installer | awk '{print $5}')"
+          go build -trimpath -o ../dist/.staging/bin/globular-installer ./cmd/globular-installer
+          chmod +x ../dist/.staging/bin/globular-installer
+          echo "globular-installer: $(ls -lh ../dist/.staging/bin/globular-installer | awk '{print $5}')"
 
       # ═══════════════════════════════════════════════════════════════════════
       # BOM: Package only changed packages. Unchanged packages are NOT
@@ -601,13 +628,29 @@ jobs:
           mkdir -p dist/packages
 
           python3 <<'PYEOF'
-          import json, os, subprocess, sys, shutil, hashlib, tempfile
+          import json, os, subprocess, sys, shutil, hashlib, tempfile, re
 
           manifest = json.load(open("dist/change-manifest.json"))
           pkg_map  = json.load(open("services/golang/build/pkg-map.json"))
           version  = os.environ["VERSION"]
           build_number = os.environ["BUILD_NUMBER"]
           build_id = os.environ["BUILD_ID"]
+
+          def readelf_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except Exception:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          def strip_release_binary(path, label):
+              forbidden = readelf_sections(path)
+              if not forbidden:
+                  return
+              subprocess.run(["strip", "--strip-debug", "--strip-unneeded", path], check=True)
+              forbidden = readelf_sections(path)
+              if forbidden:
+                  raise RuntimeError(f"{label} still contains forbidden sections after strip: {forbidden}")
 
           def detect_infra_version(name, bin_path, meta_version):
               """Resolve real version for infrastructure/command packages."""
@@ -655,7 +698,7 @@ jobs:
 
               binary   = info["binary"]
               plat_ver = info.get("platform_version", True)
-              bin_path = f"dist/bin/{binary}"
+              bin_path = f"dist/.staging/bin/{binary}"
               meta_dir = f"packages/metadata/{name}"
 
               if not os.path.isfile(bin_path):
@@ -692,6 +735,7 @@ jobs:
               os.makedirs(f"{tmpdir}/bin", exist_ok=True)
               shutil.copy2(bin_path, f"{tmpdir}/bin/{entrypoint}")
               os.chmod(f"{tmpdir}/bin/{entrypoint}", 0o755)
+              strip_release_binary(f"{tmpdir}/bin/{entrypoint}", f"{name}:{entrypoint}")
 
               # Normalize lifecycle script modes to 0o755 — the pkgpack
               # validator rejects publish when any file under scripts/ lacks
@@ -747,9 +791,11 @@ jobs:
       - name: Download unchanged packages from origin releases
         env:
           GH_TOKEN: ${{ github.token }}
+          BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
         run: |
           set -euo pipefail
           mkdir -p dist/unchanged
+          mkdir -p dist/packages
 
           python3 -c "
           import json
@@ -811,6 +857,103 @@ jobs:
           if [ "$FIXED" -gt 0 ]; then echo "Normalized build_number in ${FIXED} unchanged package(s)"; fi
 
       # ═══════════════════════════════════════════════════════════════════════
+      # Carry-forward packages MUST also satisfy the release-artifact shape
+      # contract. An old origin release may contain a debug/unstripped tarball
+      # that was valid enough to publish historically but is now rejected by the
+      # repository's stricter release-channel gate at Day-0 import time.
+      #
+      # Repair those artifacts into dist/packages so the current release bundle
+      # ships a valid authoritative tarball instead of a stale carried-forward one.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Repair unstripped carry-forward packages for this release
+        env:
+          BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          python3 <<'PYEOF'
+          import json, os, re, subprocess, sys, tarfile, tempfile
+          import hashlib, uuid
+
+          manifest = json.load(open("dist/change-manifest.json"))
+          origins = {}
+          for pkg in manifest["packages"]:
+              if pkg.get("changed"):
+                  continue
+              filename = pkg.get("filename") or ""
+              if filename:
+                  origins[filename] = {
+                      "name": pkg["name"],
+                      "origin_release": pkg.get("origin_release", ""),
+                  }
+
+          build_number = int(os.environ["BUILD_NUMBER"])
+
+          def forbidden_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          repaired = []
+          for filename in sorted(os.listdir("dist/unchanged")):
+              if not filename.endswith(".tgz"):
+                  continue
+              tgz_path = os.path.join("dist/unchanged", filename)
+              with tempfile.TemporaryDirectory() as td:
+                  with tarfile.open(tgz_path, "r:gz") as tf:
+                      tf.extractall(td)
+                  pkg_json = os.path.join(td, "package.json")
+                  if not os.path.isfile(pkg_json):
+                      continue
+                  with open(pkg_json, "r", encoding="utf-8") as fh:
+                      pkg = json.load(fh)
+                  entry = (pkg.get("entrypoint") or "").split("/")[-1]
+                  if not entry:
+                      continue
+                  bin_path = os.path.join(td, "bin", entry)
+                  if not os.path.isfile(bin_path):
+                      continue
+                  bad = forbidden_sections(bin_path)
+                  if not bad:
+                      continue
+
+                  subprocess.run(["strip", "--strip-debug", "--strip-unneeded", bin_path], check=True)
+                  still_bad = forbidden_sections(bin_path)
+                  if still_bad:
+                      raise SystemExit(f"{filename} still contains forbidden sections after strip: {still_bad}")
+
+                  pkg["build_id"] = str(uuid.uuid4())
+                  pkg["build_number"] = build_number
+                  with open(bin_path, "rb") as fh:
+                      pkg["entrypoint_checksum"] = "sha256:" + hashlib.sha256(fh.read()).hexdigest()
+                  with open(pkg_json, "w", encoding="utf-8") as fh:
+                      json.dump(pkg, fh, indent=2)
+
+                  repaired_path = os.path.join("dist/packages", filename)
+                  with tarfile.open(repaired_path, "w:gz") as tf:
+                      tf.add(td, arcname=".")
+                  os.remove(tgz_path)
+
+                  meta = origins.get(filename, {})
+                  repaired.append({
+                      "filename": filename,
+                      "name": meta.get("name", filename),
+                      "origin_release": meta.get("origin_release", ""),
+                      "build_id": pkg["build_id"],
+                      "entrypoint_checksum": pkg["entrypoint_checksum"],
+                  })
+
+          if repaired:
+              print("repaired carry-forward packages:")
+              for item in repaired:
+                  where = f" from {item['origin_release']}" if item["origin_release"] else ""
+                  print(f"  - {item['name']}: {item['filename']}{where} -> build_id={item['build_id']}")
+          else:
+              print("no carry-forward package repairs needed")
+          PYEOF
+
+      # ═══════════════════════════════════════════════════════════════════════
       # Verify carry-forward entrypoint_checksum against actual tarball binary.
       #
       # detect-changes.py pulls entrypoint_checksum from each origin release's
@@ -856,12 +999,24 @@ jobs:
                   continue
 
               tarball = os.path.join("dist/unchanged", filename)
+              was_repaired = False
               if not os.path.isfile(tarball):
-                  mismatches.append((name, f"tarball not downloaded: {tarball}"))
-                  continue
+                  # Repair step strips debug symbols and moves packages from
+                  # dist/unchanged to dist/packages, updating entrypoint_checksum
+                  # in the tarball's package.json. Use the repaired tarball's own
+                  # checksum as the authority — the BOM's claimed value is stale
+                  # (it was for the pre-strip binary).
+                  repaired = os.path.join("dist/packages", filename)
+                  if os.path.isfile(repaired):
+                      tarball = repaired
+                      was_repaired = True
+                  else:
+                      mismatches.append((name, f"tarball not downloaded: {tarball}"))
+                      continue
 
               # Read the manifest entrypoint name from package.json inside the
-              # tarball. Defaults match the convention `bin/<binary>`.
+              # tarball. For repaired packages, also refresh `claimed` from the
+              # tarball's own package.json (repair updates the checksum after strip).
               entrypoint_name = None
               with tarfile.open(tarball, "r:gz") as tf:
                   for member in tf.getmembers():
@@ -873,6 +1028,8 @@ jobs:
                           try:
                               pj = json.loads(f.read().decode())
                               entrypoint_name = pj.get("entrypoint", "")
+                              if was_repaired:
+                                  claimed = pj.get("entrypoint_checksum", claimed)
                           except Exception:
                               pass
                           break
@@ -931,9 +1088,9 @@ jobs:
       - name: Clean build artifacts
         run: |
           mkdir -p dist/release-bin
-          [[ -f dist/bin/globular ]] && mv dist/bin/globular dist/release-bin/globular
-          [[ -f dist/bin/globular-installer ]] && mv dist/bin/globular-installer dist/release-bin/globular-installer
-          rm -rf dist/bin
+          [[ -f dist/.staging/bin/globular ]] && mv dist/.staging/bin/globular dist/release-bin/globular
+          [[ -f dist/.staging/bin/globular-installer ]] && mv dist/.staging/bin/globular-installer dist/release-bin/globular-installer
+          rm -rf dist/.staging/bin
           df -h /
 
       # ═══════════════════════════════════════════════════════════════════════
@@ -983,15 +1140,11 @@ jobs:
 
           for pkg in manifest["packages"]:
               name = pkg["name"]
+              matches = sorted(glob.glob(f"dist/packages/{name}_*_{platform}.tgz"))
 
-              if pkg["changed"]:
-                  # ── Changed: read from packaged .tgz ──
-                  matches = glob.glob(f"dist/packages/{name}_*_{platform}.tgz")
-                  if not matches:
-                      errors.append(f"{name}: changed but no .tgz found in dist/packages/")
-                      continue
-
-                  tgz_path = matches[0]
+              if matches:
+                  # ── Current-release artifact: changed package OR repaired carry-forward ──
+                  tgz_path = matches[-1]
                   filename = os.path.basename(tgz_path)
 
                   with tarfile.open(tgz_path) as tf:
@@ -1011,6 +1164,7 @@ jobs:
                       "channel":                  "stable",
                       "package_contract_digest":  pkg["package_contract_digest"],
                       "package_digest":           pkg_digest,
+                      "artifact_sha256":          pkg_digest,
                       "entrypoint_checksum":      pj.get("entrypoint_checksum", ""),
                       "asset_url":                f"{base_url}/{filename}",
                       "filename":                 filename,
@@ -1023,6 +1177,9 @@ jobs:
                       "defaults":                 pj.get("defaults", {}),
                   })
               else:
+                  if pkg["changed"]:
+                      errors.append(f"{name}: changed but no .tgz found in dist/packages/")
+                      continue
                   # ── Unchanged: reference from origin release ──
                   entries.append({
                       "name":                     name,
@@ -1035,6 +1192,7 @@ jobs:
                       "channel":                  "stable",
                       "package_contract_digest":  pkg["package_contract_digest"],
                       "package_digest":           pkg.get("package_digest", ""),
+                      "artifact_sha256":          pkg.get("artifact_sha256", pkg.get("package_digest", "")),
                       "entrypoint_checksum":      pkg.get("entrypoint_checksum", ""),
                       "asset_url":                pkg["asset_url"],
                       "filename":                 pkg.get("filename", ""),
@@ -1160,15 +1318,18 @@ jobs:
             cp -r services/docs/operational-knowledge "${RELEASE_DIR}/docs/operational-knowledge"
           fi
 
-          # Welcome page assets
-          if [[ -d globular-installer/internal/assets/webroot ]]; then
+          # Welcome page assets: services/webroot is the authored release source.
+          # The installer mirror exists only as a generated source-tree fallback.
+          if [[ -d services/webroot ]]; then
+            cp -r services/webroot "${RELEASE_DIR}/webroot"
+          elif [[ -d globular-installer/internal/assets/webroot ]]; then
             cp -r globular-installer/internal/assets/webroot "${RELEASE_DIR}/webroot"
           fi
 
           # ALL packages: changed + unchanged (full BOM materialization)
           # Filenames keep their original package versions — no renaming.
-          cp dist/packages/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
           cp dist/unchanged/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
+          cp dist/packages/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
 
           # Release index (the BOM itself)
           cp dist/release-index.json "${RELEASE_DIR}/release-index.json"
@@ -1179,6 +1340,89 @@ jobs:
 
           # Checksums for all packages in the bundle
           (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
+
+          python3 <<'PYEOF'
+          import hashlib, json, os, re, subprocess, sys, tarfile, tempfile
+
+          release_dir = os.path.join("dist", f"globular-{os.environ['VERSION']}-linux-amd64")
+          install_path = os.path.join(release_dir, "install.sh")
+          day0_path = os.path.join(release_dir, "scripts", "install-day0.sh")
+          index_path = os.path.join(release_dir, "release-index.json")
+          expected = 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"'
+
+          for path in (install_path, day0_path):
+              data = open(path, "r", encoding="utf-8").read()
+              if expected not in data:
+                  raise SystemExit(f"{path} does not default FOUNDING_PROFILES to core,media-server")
+
+          def forbidden_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          pkg_dir = os.path.join(release_dir, "packages")
+          idx = json.load(open(index_path, "r", encoding="utf-8"))
+          entries = {entry.get("filename", ""): entry for entry in idx.get("packages", []) if entry.get("filename")}
+
+          bundle_files = sorted(name for name in os.listdir(pkg_dir) if name.endswith(".tgz"))
+          if not bundle_files:
+              raise SystemExit(f"{pkg_dir} contains no package tarballs")
+
+          missing_entries = [name for name in bundle_files if name not in entries]
+          if missing_entries:
+              raise SystemExit(f"release-index.json missing entries for bundle tarballs: {missing_entries}")
+
+          missing_tarballs = []
+          for filename, entry in entries.items():
+              if entry.get("name") == "globular-awareness-bundle":
+                  continue
+              if filename.endswith(".tgz") and not os.path.exists(os.path.join(pkg_dir, filename)):
+                  missing_tarballs.append(filename)
+          if missing_tarballs:
+              raise SystemExit(f"bundle missing tarballs referenced by release-index.json: {missing_tarballs}")
+
+          for filename in bundle_files:
+              tgz_path = os.path.join(pkg_dir, filename)
+              entry = entries[filename]
+              actual_pkg_digest = "sha256:" + hashlib.sha256(open(tgz_path, "rb").read()).hexdigest()
+              expected_pkg_digest = entry.get("artifact_sha256") or entry.get("package_digest") or entry.get("checksum") or ""
+              if expected_pkg_digest and actual_pkg_digest != expected_pkg_digest:
+                  raise SystemExit(
+                      f"{filename} package digest mismatch: index={expected_pkg_digest} actual={actual_pkg_digest}"
+                  )
+              with tempfile.TemporaryDirectory() as td:
+                  with tarfile.open(tgz_path, "r:gz") as tf:
+                      tf.extractall(td)
+                  pkg_json = os.path.join(td, "package.json")
+                  with open(pkg_json, "r", encoding="utf-8") as fh:
+                      pkg = json.load(fh)
+                  if str(pkg.get("build_id", "")) != str(entry.get("build_id", "")):
+                      raise SystemExit(
+                          f"{filename} build_id mismatch: package.json={pkg.get('build_id')} index={entry.get('build_id')}"
+                      )
+                  entrypoint = (pkg.get("entrypoint") or "").split("/")[-1]
+                  if not entrypoint:
+                      continue
+                  bin_path = os.path.join(td, "bin", entrypoint)
+                  if not os.path.isfile(bin_path):
+                      raise SystemExit(f"{filename} missing entrypoint binary {entrypoint}")
+                  actual_entry_checksum = "sha256:" + hashlib.sha256(open(bin_path, "rb").read()).hexdigest()
+                  expected_entry_checksum = entry.get("entrypoint_checksum", "")
+                  declared_entry_checksum = pkg.get("entrypoint_checksum", "")
+                  if expected_entry_checksum and actual_entry_checksum != expected_entry_checksum:
+                      raise SystemExit(
+                          f"{filename} release-index entrypoint_checksum mismatch: index={expected_entry_checksum} actual={actual_entry_checksum}"
+                      )
+                  if declared_entry_checksum and actual_entry_checksum != declared_entry_checksum:
+                      raise SystemExit(
+                          f"{filename} package.json entrypoint_checksum mismatch: package.json={declared_entry_checksum} actual={actual_entry_checksum}"
+                      )
+                  bad = forbidden_sections(bin_path)
+                  if bad:
+                      raise SystemExit(f"{tgz_path} contains forbidden sections: {bad}")
+          PYEOF
 
           # BOM summary
           CHANGED_N=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['changed_count'])")
@@ -1197,10 +1441,10 @@ jobs:
           sudo bash install.sh
           \`\`\`
 
-          The first node always comes up with the quorum profiles
-          (\`control-plane\`, \`core\`, \`storage\`). To add a workload profile from
-          day-0, pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\` — e.g.
-          to also run media services on this node:
+          The first node always comes up with the quorum profiles plus the media
+          workload profile (\`control-plane\`, \`core\`, \`storage\`,
+          \`media-server\`). To override or extend the day-0 workload profiles,
+          pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\`:
 
           \`\`\`bash
           sudo FOUNDING_PROFILES=core,media-server bash install.sh
@@ -1235,6 +1479,64 @@ jobs:
 
           echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
 
+      - name: Validate extracted release tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          TMPDIR="$(mktemp -d)"
+          trap 'rm -rf "$TMPDIR"' EXIT
+          TAR_PATH="dist/globular-${VERSION}-linux-amd64.tar.gz"
+          tar -xzf "$TAR_PATH" -C "$TMPDIR"
+          RELEASE_ROOT="$TMPDIR/globular-${VERSION}-linux-amd64"
+          PKG_DIR="$RELEASE_ROOT/packages"
+          INDEX_PATH="$RELEASE_ROOT/release-index.json"
+          RELEASE_ROOT="$RELEASE_ROOT" PKG_DIR="$PKG_DIR" INDEX_PATH="$INDEX_PATH" python3 <<'PYEOF'
+          import hashlib, json, os, re, subprocess, tarfile, tempfile
+
+          release_root = os.environ["RELEASE_ROOT"]
+          pkg_dir = os.environ["PKG_DIR"]
+          index_path = os.environ["INDEX_PATH"]
+          idx = json.load(open(index_path, "r", encoding="utf-8"))
+          entries = {entry.get("filename", ""): entry for entry in idx.get("packages", []) if entry.get("filename")}
+
+          def forbidden_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          checked = 0
+          for filename in sorted(name for name in os.listdir(pkg_dir) if name.endswith(".tgz")):
+              if filename not in entries:
+                  raise SystemExit(f"missing release-index entry for extracted tarball package {filename}")
+              tgz_path = os.path.join(pkg_dir, filename)
+              entry = entries[filename]
+              actual_pkg_digest = "sha256:" + hashlib.sha256(open(tgz_path, "rb").read()).hexdigest()
+              expected_pkg_digest = entry.get("artifact_sha256") or entry.get("package_digest") or entry.get("checksum") or ""
+              if expected_pkg_digest and actual_pkg_digest != expected_pkg_digest:
+                  raise SystemExit(
+                      f"extracted tarball digest mismatch for {filename}: index={expected_pkg_digest} actual={actual_pkg_digest}"
+                  )
+              with tempfile.TemporaryDirectory() as td:
+                  with tarfile.open(tgz_path, "r:gz") as tf:
+                      tf.extractall(td)
+                  pkg = json.load(open(os.path.join(td, "package.json"), "r", encoding="utf-8"))
+                  entrypoint = (pkg.get("entrypoint") or "").split("/")[-1]
+                  if not entrypoint:
+                      continue
+                  bin_path = os.path.join(td, "bin", entrypoint)
+                  actual_entry = "sha256:" + hashlib.sha256(open(bin_path, "rb").read()).hexdigest()
+                  if actual_entry != entry.get("entrypoint_checksum", ""):
+                      raise SystemExit(f"extracted tarball entrypoint checksum mismatch for {filename}")
+                  bad = forbidden_sections(bin_path)
+                  if bad:
+                      raise SystemExit(f"extracted tarball still contains forbidden sections for {filename}: {bad}")
+              checked += 1
+          print(f"validated extracted release tarball {release_root} ({checked} packages checked)")
+          PYEOF
+
       # ═══════════════════════════════════════════════════════════════════════
       # BOM Verification: ensure asset count matches changed_in_release count.
       # Fail the release if unchanged packages are being uploaded.
@@ -1244,6 +1546,7 @@ jobs:
           set -euo pipefail
 
           CHANGED_COUNT=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['changed_count'])")
+          BUNDLE_CHANGED_COUNT=$(python3 -c "import json; print(sum(1 for p in json.load(open('dist/release-index.json'))['packages'] if p.get('changed_in_release')))")
           # `find` not `ls *.tgz` — ls returns non-zero when the glob has no
           # match, which combined with `set -e -o pipefail` aborts before the
           # comparison fires. find returns 0 even on zero matches, so the
@@ -1252,16 +1555,17 @@ jobs:
           UNCHANGED_COUNT=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['unchanged_count'])")
 
           echo "BOM Delta Verification"
-          echo "  Changed packages (release-index):  ${CHANGED_COUNT}"
+          echo "  Source changed packages:            ${CHANGED_COUNT}"
+          echo "  Bundled current-release assets:     ${BUNDLE_CHANGED_COUNT}"
           echo "  Package assets to upload:           ${ASSET_COUNT}"
           echo "  Unchanged packages (from origin):   ${UNCHANGED_COUNT}"
 
-          if [[ "${ASSET_COUNT}" -ne "${CHANGED_COUNT}" ]]; then
+          if [[ "${ASSET_COUNT}" -ne "${BUNDLE_CHANGED_COUNT}" ]]; then
             echo ""
-            echo "ERROR: Asset count (${ASSET_COUNT}) != changed count (${CHANGED_COUNT})"
-            echo "Unchanged packages must NOT be uploaded as current-version assets."
+            echo "ERROR: Asset count (${ASSET_COUNT}) != release-index changed_in_release count (${BUNDLE_CHANGED_COUNT})"
+            echo "Every uploaded package asset must have a current-release BOM entry, and vice versa."
             echo ""
-            echo "Changed packages:"
+            echo "Source-changed packages:"
             python3 -c "
           import json
           m = json.load(open('dist/change-manifest.json'))
@@ -1270,17 +1574,25 @@ jobs:
                   print(f'  + {p[\"name\"]}')
           "
             echo ""
+            echo "BOM changed_in_release packages:"
+            python3 -c "
+          import json
+          for p in json.load(open('dist/release-index.json'))['packages']:
+              if p.get('changed_in_release'):
+                  print(f'  + {p[\"name\"]} ({p.get(\"filename\",\"\")})')
+          "
+            echo ""
             echo "Uploaded assets:"
             ls dist/packages/*.tgz | sed 's|dist/packages/|  |'
             exit 1
           fi
 
-          echo "✓ BOM delta integrity verified: ${CHANGED_COUNT} changed = ${ASSET_COUNT} assets"
+          echo "✓ BOM delta integrity verified: ${BUNDLE_CHANGED_COUNT} bundle-changed = ${ASSET_COUNT} assets"
 
       # ── Publish GitHub Release ───────────────────────────────────────────
-      # Only CHANGED package .tgz files are uploaded as individual assets.
-      # Unchanged packages are NOT uploaded — they remain in their origin
-      # release. The complete platform truth is release-index.json.
+      # Upload current-release package assets only: source-changed packages plus
+      # any repaired carry-forward artifacts that had to be re-authored for this
+      # release. All other unchanged packages remain referenced from origin releases.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -1300,8 +1612,8 @@ jobs:
             ### BOM Release
 
             This release uses the **Bill of Materials** model:
-            - Only **changed** packages are uploaded as individual assets
-            - **Unchanged** packages are referenced from their origin release
+            - Source-**changed** packages are uploaded as individual assets
+            - Carry-forward packages are referenced from their origin release unless they had to be repaired and re-authored for this release
             - `release-index.json` is the complete platform truth
 
             ### Install (offline bundle)

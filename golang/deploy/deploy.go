@@ -64,11 +64,12 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	}
 
 	// Defaults.
-	if opts.Version == "" && opts.Bump == "" {
-		return nil, fmt.Errorf("version is required — use --version or --bump patch|minor|major")
+	opts.Channel = normalizeDeployChannel(opts.Channel)
+	if opts.Bump != "" {
+		return nil, fmt.Errorf("local deploy may not allocate a new service version via --bump; use the release workflow for semver changes and let local deploy reuse a published release version with a higher build_number")
 	}
-	if opts.Version != "" && opts.Bump == "" {
-		fmt.Println("  ⚠ deprecated: --version without --bump — use --bump to let the repository allocate versions")
+	if opts.Channel == "stable" {
+		return nil, fmt.Errorf("local deploy may not publish to the STABLE channel; use candidate/canary/dev for local builds and reserve STABLE for the release workflow")
 	}
 	if opts.Publisher == "" {
 		opts.Publisher = "core@globular.io"
@@ -111,22 +112,6 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		}
 	}
 
-	if opts.DryRun {
-		fmt.Printf("  [dry-run] Would connect to repository at %s\n", repoAddr)
-		specYAML, serr := GenerateSpec(entry)
-		if serr != nil {
-			return nil, fmt.Errorf("generate spec: %w", serr)
-		}
-		fmt.Printf("  [dry-run] Generated spec (%d bytes)\n", len(specYAML))
-		fmt.Printf("  [dry-run] Would build %s → %s\n", paths.GoPackageRelative(goPkgDir), binaryPath)
-		return &DeployResult{
-			Service:  pkgName,
-			Version:  opts.Version,
-			Action:   "dry-run",
-			Duration: time.Since(start),
-		}, nil
-	}
-
 	client, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
 	if err != nil {
 		return nil, fmt.Errorf("connect to repository at %s: %w", repoAddr, err)
@@ -142,63 +127,53 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	var reservationID string
 	var allocatedBuildID string
 
-	if opts.Bump != "" {
-		// Phase A: use AllocateUpload to get version + build_number + reservation_id.
-		var intent repopb.VersionIntent
-		switch strings.ToLower(opts.Bump) {
-		case "patch":
-			intent = repopb.VersionIntent_BUMP_PATCH
-		case "minor":
-			intent = repopb.VersionIntent_BUMP_MINOR
-		case "major":
-			intent = repopb.VersionIntent_BUMP_MAJOR
-		default:
-			return nil, fmt.Errorf("invalid --bump value %q: use patch, minor, or major", opts.Bump)
-		}
-
-		var ch repopb.ArtifactChannel
-		switch strings.ToLower(opts.Channel) {
-		case "candidate":
-			ch = repopb.ArtifactChannel_CANDIDATE
-		case "canary":
-			ch = repopb.ArtifactChannel_CANARY
-		case "dev":
-			ch = repopb.ArtifactChannel_DEV
-		case "bootstrap":
-			ch = repopb.ArtifactChannel_BOOTSTRAP
-		default:
-			ch = repopb.ArtifactChannel_STABLE
-		}
-
-		exactVersion := opts.Version // empty if --version not set
-		alloc, err := client.AllocateUpload(opts.Publisher, pkgName, opts.Platform, intent, exactVersion, ch)
+	if opts.Version == "" {
+		taggedVersion, err := latestLocalReleaseVersion(paths.Root)
 		if err != nil {
-			return nil, fmt.Errorf("allocate upload: %w", err)
+			return nil, fmt.Errorf("resolve latest local release tag: %w", err)
 		}
-		opts.Version = alloc.GetVersion()
-		nextBuild = alloc.GetBuildNumber()
-		reservationID = alloc.GetReservationId()
-		allocatedBuildID = alloc.GetBuildId()
-		fmt.Printf("  Allocated: version=%s build=%d build_id=%s\n",
-			alloc.GetVersion(), nextBuild, allocatedBuildID[:8])
-
-		// Query previous checksum for delta detection. In --bump mode the
-		// build always produces a different binary (new version embedded in
-		// ldflags), so the delta skip never fires after this fix; the query
-		// is preserved for the --Full == false / re-run telemetry case.
-		info, _ := QueryLatestBuild(ctx, client, opts.Publisher, pkgName, opts.Version, opts.Platform)
-		if info != nil {
-			prevChecksum = info.Checksum
+		ok, err := StableVersionExists(ctx, client, opts.Publisher, pkgName, taggedVersion, opts.Platform)
+		if err != nil {
+			return nil, fmt.Errorf("verify tagged release version %s: %w", taggedVersion, err)
 		}
+		if !ok {
+			return nil, fmt.Errorf("latest local release tag %s is not published as a STABLE service version for %s; repair repository/release history before local deploy", taggedVersion, pkgName)
+		}
+		opts.Version = taggedVersion
+		fmt.Printf("  Base release version: %s (latest git release tag)\n", opts.Version)
 	} else {
-		// Legacy path: query build number directly.
-		var err error
-		nextBuild, prevChecksum, err = NextBuildNumber(ctx, client, opts.Publisher, pkgName, opts.Version, opts.Platform)
+		ok, err := StableVersionExists(ctx, client, opts.Publisher, pkgName, opts.Version, opts.Platform)
 		if err != nil {
-			return nil, fmt.Errorf("query build number: %w", err)
+			return nil, fmt.Errorf("verify explicit version %s: %w", opts.Version, err)
 		}
-		fmt.Printf("  Current build: %d → Next: %d\n", nextBuild-1, nextBuild)
+		if !ok {
+			return nil, fmt.Errorf("explicit version %s is not a published STABLE service version for %s; local deploy may only rebuild an existing release version", opts.Version, pkgName)
+		}
+		fmt.Printf("  Base release version: %s (explicit published STABLE)\n", opts.Version)
 	}
+
+	if opts.DryRun {
+		fmt.Printf("  [dry-run] Would connect to repository at %s\n", repoAddr)
+		specYAML, serr := GenerateSpec(entry)
+		if serr != nil {
+			return nil, fmt.Errorf("generate spec: %w", serr)
+		}
+		fmt.Printf("  [dry-run] Generated spec (%d bytes)\n", len(specYAML))
+		fmt.Printf("  [dry-run] Would build %s → %s\n", paths.GoPackageRelative(goPkgDir), binaryPath)
+		fmt.Printf("  [dry-run] Would publish channel=%s version=%s with next build_number from repository\n", opts.Channel, opts.Version)
+		return &DeployResult{
+			Service:  pkgName,
+			Version:  opts.Version,
+			Action:   "dry-run",
+			Duration: time.Since(start),
+		}, nil
+	}
+
+	nextBuild, prevChecksum, err = NextBuildNumber(ctx, client, opts.Publisher, pkgName, opts.Version, opts.Platform)
+	if err != nil {
+		return nil, fmt.Errorf("query build number: %w", err)
+	}
+	fmt.Printf("  Current build: %d → Next: %d\n", nextBuild-1, nextBuild)
 
 	// ── Step 2: Build binary with version stamped in via ldflags ────────
 	fmt.Println("\n→ Step 2: Building binary...")
@@ -206,6 +181,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 	ldflags := buildLdflags(opts.Version, nextBuild)
 	cmd := exec.CommandContext(ctx, "go", "build",
 		"-buildvcs=false",
+		"-trimpath",
 		"-ldflags", ldflags,
 		"-o", binaryPath,
 		goPkgRel,
@@ -363,6 +339,9 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 			"--file", tgzPath,
 			"--repository", repoAddr,
 		)
+		if opts.Channel != "" {
+			publishArgs = append(publishArgs, "--channel", opts.Channel)
+		}
 		runPublish := func() (string, error) {
 			cmd := exec.CommandContext(ctx, globularCLI, publishArgs...)
 			cmd.Dir = paths.Root
@@ -520,6 +499,50 @@ func deployUpdatesDesiredState(channel string) bool {
 	return strings.ToLower(strings.TrimSpace(channel)) != "dev"
 }
 
+func normalizeDeployChannel(channel string) string {
+	normalized := strings.ToLower(strings.TrimSpace(channel))
+	if normalized == "" {
+		return "candidate"
+	}
+	return normalized
+}
+
+func latestLocalReleaseVersion(repoRoot string) (string, error) {
+	out, err := exec.Command("git", "-C", repoRoot, "tag", "--sort=-version:refname").Output()
+	if err != nil {
+		return "", fmt.Errorf("list git tags: %w", err)
+	}
+	for _, raw := range strings.Split(string(out), "\n") {
+		tag := strings.TrimSpace(raw)
+		if len(tag) == 0 || !strings.HasPrefix(tag, "v") {
+			continue
+		}
+		version := strings.TrimPrefix(tag, "v")
+		if parts := strings.Split(version, "."); len(parts) == 3 {
+			allDigits := true
+			for _, p := range parts {
+				if p == "" {
+					allDigits = false
+					break
+				}
+				for _, r := range p {
+					if r < '0' || r > '9' {
+						allDigits = false
+						break
+					}
+				}
+				if !allDigits {
+					break
+				}
+			}
+			if allDigits {
+				return version, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no strict semver git tag found")
+}
+
 // DeployAll deploys all services in the catalog sequentially.
 //
 // Sequential execution is required because:
@@ -593,7 +616,8 @@ func resolveRepoAddr() (string, error) {
 // buildLdflags returns the -ldflags argument string used for the in-tree
 // `globular deploy` build. It mirrors build/build-services.sh:29 so binaries
 // produced by `globular deploy` self-report the same shape of metadata as
-// CI-built binaries. The four ldflags symbols are:
+// CI-built binaries while also satisfying the repository's stripped-release
+// gate. The four ldflags symbols are:
 //
 //	main.Version        — repository-allocated semantic version (e.g. "1.2.43")
 //	main.BuildTime      — RFC3339 UTC build timestamp
@@ -610,7 +634,7 @@ func buildLdflags(version string, buildNumber int64) string {
 		gitCommit = strings.TrimSpace(string(out))
 	}
 	return fmt.Sprintf(
-		"-X main.Version=%s -X main.BuildTime=%s -X main.GitCommit=%s -X main.BuildNumberStr=%d",
+		"-s -w -X main.Version=%s -X main.BuildTime=%s -X main.GitCommit=%s -X main.BuildNumberStr=%d",
 		version, buildTime, gitCommit, buildNumber,
 	)
 }

@@ -385,7 +385,7 @@ The release-index.json is the bill of materials. You can generate it manually or
 python3 golang/build/detect-changes.py \
   --prev-index prev-release-index.json \
   --metadata-dir packages/metadata \
-  --bin-dir dist/bin \
+  --bin-dir dist/.staging/bin \
   --bin-map-json build/bin-map.json \
   --version 2.0.0 \
   --tag v2.0.0 \

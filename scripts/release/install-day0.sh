@@ -210,12 +210,13 @@ FORCE_REINSTALL="0"
 DOMAIN="globular.internal"
 
 # Founding-node profiles, seeded into the cluster controller's default_profiles.
-# Comma-separated; override to add workload profiles from day-0, e.g.:
-#   FOUNDING_PROFILES=core,media-server ./install-day0.sh
+# Comma-separated; the default includes the media workload profile on the
+# bootstrap node. Override as needed, e.g.:
+#   FOUNDING_PROFILES=core,media-server,gateway ./install-day0.sh
 # Note: this also becomes the join-default for nodes that join without their own
 # profiles. The controller's enforceFoundingProfiles() ALWAYS adds the founding
 # quorum (control-plane,core,storage) for the first 3 nodes regardless of this.
-FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"
+FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
 FORCE_FLAG=""
 if [[ "$FORCE_REINSTALL" == "1" ]]; then
   FORCE_FLAG="--force"
@@ -485,7 +486,7 @@ BOOTSTRAP_MINIO_PKGS=(
   # pointing at the wiped /usr/lib/globular/bin/sha256sum and breaks.
   "sha256sum_9.4.0_linux_amd64.tgz"
   "etcd_3.5.14_linux_amd64.tgz"
-  "minio_0.0.1_linux_amd64.tgz"
+  "minio_RELEASE.2025-09-07T16-13-09Z_linux_amd64.tgz"
 )
 
 DATA_LAYER_PKGS=(
@@ -507,7 +508,6 @@ CONTROL_PLANE_PKGS=(
   "resource_0.0.1_linux_amd64.tgz"
   "rbac_0.0.1_linux_amd64.tgz"
   "authentication_0.0.1_linux_amd64.tgz"
-  "discovery_0.0.1_linux_amd64.tgz"
   # DNS must be installed before repository so it gets its default port (10006).
   # The PortAllocator assigns ports in first-come order; repository would otherwise
   # grab 10006 first and force DNS to reallocate to 10007, breaking bootstrap-dns.sh.
@@ -530,8 +530,8 @@ OPS_PKGS=(
   "ai-executor_0.0.1_linux_amd64.tgz"
   "ai-router_0.0.1_linux_amd64.tgz"
   "workflow_0.0.1_linux_amd64.tgz"
-  "scylla-manager-agent_3.8.1_linux_amd64.tgz"
-  "scylla-manager_3.8.1_linux_amd64.tgz"
+  "scylla-manager-agent_3.11.1_linux_amd64.tgz"
+  "scylla-manager_3.11.1_linux_amd64.tgz"
 )
 
 OPTIONAL_WORKLOAD_PKGS=(
@@ -548,10 +548,12 @@ CMDS_PKGS=(
   "etcdctl_3.5.14_linux_amd64.tgz"
   "rclone_1.73.1_linux_amd64.tgz"
   "restic_0.18.1_linux_amd64.tgz"
-  "sctool_3.8.1_linux_amd64.tgz"
+  "sctool_3.11.1_linux_amd64.tgz"
   "sha256sum_9.4.0_linux_amd64.tgz"
   "yt-dlp_2026.2.21_linux_amd64.tgz"
   "ffmpeg_7.0.2_linux_amd64.tgz"
+  "claude_2.1.177_linux_amd64.tgz"
+  "codex_0.142.3_linux_amd64.tgz"
 )
 
 # Phase 2: Enable bootstrap mode for Day-0 installation
@@ -1751,22 +1753,36 @@ log_success "Controller and gateway restarted with fresh connections"
 
 echo ""
 # ── AI credential access + MCP auto-configuration ────────────────────────────
-# Allow the globular service user to read Claude Code credentials.
+# Seed the globular service user's own AI credential paths.
 # Must run AFTER package installation (which creates the globular user).
 INSTALLER_USER="${ORIGINAL_USER:-}"
 if [[ -n "$INSTALLER_USER" ]] && id globular >/dev/null 2>&1; then
   INSTALLER_HOME=$(eval echo "~$INSTALLER_USER")
+  GLOBULAR_HOME=$(eval echo "~globular")
+  AI_BACKEND_SEEDED=0
 
   # ── AI credentials ──────────────────────────────────────────────────────
   CLAUDE_CREDS="$INSTALLER_HOME/.claude/.credentials.json"
   if [[ -f "$CLAUDE_CREDS" ]]; then
-    log_substep "Enabling AI credential access for globular user..."
-    usermod -aG "$INSTALLER_USER" globular 2>/dev/null || true
-    chmod 750 "$INSTALLER_HOME/.claude" 2>/dev/null || true
-    chmod 640 "$CLAUDE_CREDS" 2>/dev/null || true
-    # Restart ai_executor so it picks up the new group membership.
+    install -d -o globular -g globular -m 0700 "$GLOBULAR_HOME/.claude"
+    install -o globular -g globular -m 0600 "$CLAUDE_CREDS" "$GLOBULAR_HOME/.claude/.credentials.json"
+    AI_BACKEND_SEEDED=1
+    log_success "Seeded Claude credentials for globular service user"
+  fi
+
+  CODEX_AUTH="$INSTALLER_HOME/.codex/auth.json"
+  if [[ -f "$CODEX_AUTH" ]]; then
+    install -d -o globular -g globular -m 0700 "$GLOBULAR_HOME/.codex"
+    install -o globular -g globular -m 0600 "$CODEX_AUTH" "$GLOBULAR_HOME/.codex/auth.json"
+    AI_BACKEND_SEEDED=1
+    log_success "Seeded Codex credentials for globular service user"
+  fi
+
+  if [[ "$AI_BACKEND_SEEDED" -eq 1 ]]; then
+    # Restart ai_executor so it picks up the seeded service-user credentials
+    # and syncs them to etcd during startup.
     systemctl restart globular-ai-executor.service 2>/dev/null || true
-    log_success "AI credentials accessible (ai_executor will auto-seed to etcd)"
+    log_success "AI backend credentials activated for ai_executor"
   fi
 
   # ── MCP server endpoint ─────────────────────────────────────────────────
@@ -2416,13 +2432,14 @@ echo "       globular cluster bootstrap \\"
 echo "         --node ${_BOOTSTRAP_NODE} \\"
 echo "         --domain <your-domain> \\"
 echo "         --profile core \\"
+echo "         --profile media-server \\"
 echo "         --profile gateway"
 echo ""
 echo "     Example for a single-node cluster:"
 echo "       globular cluster bootstrap \\"
 echo "         --node ${_BOOTSTRAP_NODE} \\"
 echo "         --domain mycluster.local \\"
-echo "         --profile core --profile gateway --profile storage"
+echo "         --profile core --profile media-server --profile gateway --profile storage"
 echo ""
 echo "  After bootstrap, add more nodes with:"
 echo "       curl -sfL https://<gateway>:8443/join -k | sudo bash -s -- --token <token>"
