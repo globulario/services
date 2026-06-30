@@ -59,6 +59,19 @@ func transientRetryDelay(retryCount int64) time.Duration {
 	return maxTransientRetryBackoff
 }
 
+func targetNodeAllowed(targetNodeIDs []string, nodeID string) bool {
+	targetNodeIDs = normalizeTargetNodeIDs(targetNodeIDs)
+	if len(targetNodeIDs) == 0 {
+		return true
+	}
+	for _, id := range targetNodeIDs {
+		if id == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
 // isServiceConverged checks whether a service is already installed at the
 // desired version on all eligible nodes. Used to suppress unnecessary release
 // creation and enqueue during startup — a restart must not become a full-
@@ -72,7 +85,7 @@ func transientRetryDelay(retryCount int64) time.Duration {
 // Without profile filtering, a service targeting only "core" nodes would
 // require all nodes (including "gateway-only") to have it installed — causing
 // false drift and unnecessary work.
-func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredVersion string, desiredBuildNumber int64, desiredBuildID string) bool {
+func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredVersion string, desiredBuildNumber int64, desiredBuildID string, targetNodeIDs []string) bool {
 	if serviceName == "" || desiredVersion == "" {
 		return false
 	}
@@ -122,6 +135,10 @@ func (srv *server) isServiceConverged(ctx context.Context, serviceName, desiredV
 		if isControlPlaneCritical && !bootstrapInfraReady(node.BootstrapPhase) {
 			continue
 		} else if !isControlPlaneCritical && !bootstrapPhaseReady(node.BootstrapPhase) {
+			continue
+		}
+
+		if !targetNodeAllowed(targetNodeIDs, id) {
 			continue
 		}
 
@@ -179,8 +196,8 @@ type releaseHandle struct {
 	Paused       bool
 
 	// Current status (read from the typed status)
-	Phase                  string
-	ObservedGeneration     int64
+	Phase                      string
+	ObservedGeneration         int64
 	ResolvedVersion            string
 	ResolvedBuildID            string // Phase 2: exact artifact identity
 	ResolvedBuildNumber        int64  // build_number from release spec — passed to install_package step
@@ -195,8 +212,9 @@ type releaseHandle struct {
 	RepositoryAddr string
 
 	// Installed-state lookup parameters for the canonical etcd registry.
-	InstalledStateKind string // "SERVICE", "APPLICATION", "INFRASTRUCTURE"
-	InstalledStateName string // canonical package name for installed-state lookup
+	InstalledStateKind string   // "SERVICE", "APPLICATION", "INFRASTRUCTURE"
+	InstalledStateName string   // canonical package name for installed-state lookup
+	TargetNodeIDs      []string // optional explicit node allowlist; empty = eligible cluster-wide
 
 	// Removing flag: when true, the release is being uninstalled.
 	Removing bool
@@ -229,13 +247,13 @@ type statusPatch struct {
 	ResolvedArtifactDigest     string // PACKAGE TARBALL sha256
 	ResolvedEntrypointChecksum string // BINARY sha256 (from artifact manifest)
 	DesiredHash                string
-	ObservedGeneration     int64
-	Message                string
-	Nodes                  []*cluster_controllerpb.NodeReleaseStatus
-	LastTransitionUnixMs   int64
-	WorkflowKind           string
-	StartedAtUnixMs        int64
-	TransitionReason       string
+	ObservedGeneration         int64
+	Message                    string
+	Nodes                      []*cluster_controllerpb.NodeReleaseStatus
+	LastTransitionUnixMs       int64
+	WorkflowKind               string
+	StartedAtUnixMs            int64
+	TransitionReason           string
 	// BlockedReason is a structured slug set by the "retry" path:
 	// workflow_unavailable, workflow_circuit_open, workflow_deadline, etc.
 	BlockedReason string
@@ -432,19 +450,18 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		ResolvedArtifactDigest:     resolved.Digest,
 		ResolvedEntrypointChecksum: resolved.EntrypointChecksum,
 		DesiredHash:                desiredHash,
-		ObservedGeneration:     h.Generation,
-		Message:                "",
-		LastTransitionUnixMs:   nowMs,
-		TransitionReason:       "resolved",
-		WorkflowKind:           wfKind,
-		StartedAtUnixMs:        nowMs,
-		SetFields:              "resolve",
+		ObservedGeneration:         h.Generation,
+		Message:                    "",
+		LastTransitionUnixMs:       nowMs,
+		TransitionReason:           "resolved",
+		WorkflowKind:               wfKind,
+		StartedAtUnixMs:            nowMs,
+		SetFields:                  "resolve",
 	})
 }
 
 // reconcileResolved is the shared RESOLVED phase: execute the release
 // workflow to install the package across all eligible nodes.
-//
 //
 // This replaces the old plan compilation/dispatch pipeline with direct
 // workflow execution. The workflow handles per-node install/verify/restart/
@@ -457,9 +474,9 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// Collect eligible nodes — same filtering as before.
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
 	nodeIDs := make([]string, 0, len(srv.state.Nodes))
-	var depBlockedNodeIDs []string  // nodes skipped due to unmet RuntimeLocalDependencies
-	var depBlockedMissing []string  // the missing deps (last set wins; used for logging)
-	var depClearedNodeIDs []string  // nodes whose deps were previously blocked but are now satisfied
+	var depBlockedNodeIDs []string // nodes skipped due to unmet RuntimeLocalDependencies
+	var depBlockedMissing []string // the missing deps (last set wins; used for logging)
+	var depClearedNodeIDs []string // nodes whose deps were previously blocked but are now satisfied
 	serviceName := h.Name
 	if idx := strings.LastIndex(serviceName, "/"); idx >= 0 {
 		serviceName = serviceName[idx+1:]
@@ -484,6 +501,9 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 					h.ResourceType, h.Name, id, node.BootstrapPhase)
 				continue
 			}
+		}
+		if !targetNodeAllowed(h.TargetNodeIDs, id) {
+			continue
 		}
 		// Shared placement predicate (placementAllows) — identical to
 		// platform-upgrade evaluate, so an upgrade dispatch and this reconcile
@@ -844,6 +864,9 @@ func (srv *server) hasUnservedNodes(h *releaseHandle, blockedNodes map[string]st
 		if node.BootstrapPhase == BootstrapAdmitted || node.BootstrapPhase == "" {
 			continue
 		}
+		if !targetNodeAllowed(h.TargetNodeIDs, id) {
+			continue
+		}
 		if isWorkload {
 			isControlPlaneCritical := catalogEntry != nil && catalogEntry.ControlPlaneCritical
 			if isControlPlaneCritical && !bootstrapInfraReady(node.BootstrapPhase) {
@@ -940,15 +963,15 @@ func (srv *server) convergenceBlockedNodes(ctx context.Context, pkgName string) 
 		if err != nil || r == nil {
 			continue
 		}
-	switch r.Outcome {
-	case installed_state.OutcomeBlockedMissingNativeDep,
-		installed_state.OutcomeBlockedCriticalKeyMissing,
-		installed_state.OutcomeBlockedNodeUnreachable,
-		installed_state.OutcomeFailedPermanent,
-		installed_state.OutcomeSuccessLocalPendingSync,
-		installed_state.OutcomeStaleInstalledState:
-		blocked[nodeID] = struct{}{}
-	}
+		switch r.Outcome {
+		case installed_state.OutcomeBlockedMissingNativeDep,
+			installed_state.OutcomeBlockedCriticalKeyMissing,
+			installed_state.OutcomeBlockedNodeUnreachable,
+			installed_state.OutcomeFailedPermanent,
+			installed_state.OutcomeSuccessLocalPendingSync,
+			installed_state.OutcomeStaleInstalledState:
+			blocked[nodeID] = struct{}{}
+		}
 	}
 	return blocked
 }
@@ -1037,11 +1060,12 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
 		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
 		DesiredHash:                rel.Status.DesiredHash,
-		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
-		Nodes:                  rel.Status.Nodes,
-		RepositoryAddr:         appRepoAddr(rel.Spec),
-		InstalledStateKind:     "APPLICATION",
-		InstalledStateName:     rel.Spec.AppName,
+		TargetNodeIDs:              releaseTargetNodeIDs(rel.Spec.NodeAssignments),
+		LastTransitionUnixMs:       rel.Status.LastTransitionUnixMs,
+		Nodes:                      rel.Status.Nodes,
+		RepositoryAddr:             appRepoAddr(rel.Spec),
+		InstalledStateKind:         "APPLICATION",
+		InstalledStateName:         rel.Spec.AppName,
 		ResolverSpec: &cluster_controllerpb.ServiceReleaseSpec{
 			PublisherID:  rel.Spec.PublisherID,
 			ServiceName:  rel.Spec.AppName,
@@ -1074,11 +1098,11 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
 		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
 		DesiredHash:                rel.Status.DesiredHash,
-		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
-		Nodes:                  rel.Status.Nodes,
-		RepositoryAddr:         infraRepoAddr(rel.Spec),
-		InstalledStateKind:     "INFRASTRUCTURE",
-		InstalledStateName:     rel.Spec.Component,
+		LastTransitionUnixMs:       rel.Status.LastTransitionUnixMs,
+		Nodes:                      rel.Status.Nodes,
+		RepositoryAddr:             infraRepoAddr(rel.Spec),
+		InstalledStateKind:         "INFRASTRUCTURE",
+		InstalledStateName:         rel.Spec.Component,
 		ResolverSpec: &cluster_controllerpb.ServiceReleaseSpec{
 			PublisherID:  rel.Spec.PublisherID,
 			ServiceName:  rel.Spec.Component,
@@ -1234,12 +1258,12 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
 		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
 		DesiredHash:                rel.Status.DesiredHash,
-		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
-		Nodes:                  rel.Status.Nodes,
-		RepositoryAddr:         repositoryAddrForSpec(rel.Spec),
-		InstalledStateKind:     "SERVICE",
-		InstalledStateName:     canon,
-		ResolverSpec:           rel.Spec,
+		LastTransitionUnixMs:       rel.Status.LastTransitionUnixMs,
+		Nodes:                      rel.Status.Nodes,
+		RepositoryAddr:             repositoryAddrForSpec(rel.Spec),
+		InstalledStateKind:         "SERVICE",
+		InstalledStateName:         canon,
+		ResolverSpec:               rel.Spec,
 		ComputeHash: func(resolvedVersion string, buildNumber int64) string {
 			return ComputeReleaseDesiredHash(rel.Spec.PublisherID, rel.Spec.ServiceName, resolvedVersion, buildNumber, rel.Spec.Config)
 		},

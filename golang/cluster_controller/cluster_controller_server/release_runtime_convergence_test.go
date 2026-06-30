@@ -224,3 +224,46 @@ func TestHasUnservedNodes_MissingBuildIDIsUnserved(t *testing.T) {
 		t.Fatal("expected unserved=true when the build-backed release has no resolved build_id (missing build identity)")
 	}
 }
+
+func TestHasUnservedNodes_IgnoresProfileEligibleNodeOutsideTargetList(t *testing.T) {
+	srv := &server{
+		state: &controllerState{
+			Nodes: map[string]*nodeState{
+				"n1": {
+					NodeID:            "n1",
+					Profiles:          []string{"core"},
+					BootstrapPhase:    BootstrapWorkloadReady,
+					InstalledVersions: map[string]string{"rbac": "1.2.3"},
+					Units: []unitStatusRecord{
+						{Name: "globular-rbac.service", State: "active"},
+					},
+					LastSeen: time.Now(),
+				},
+				"n2": {
+					NodeID:            "n2",
+					Profiles:          []string{"core"},
+					BootstrapPhase:    BootstrapWorkloadReady,
+					InstalledVersions: map[string]string{},
+					LastSeen:          time.Now(),
+				},
+			},
+		},
+	}
+
+	h := &releaseHandle{
+		Name:               "rbac",
+		ResourceType:       "ServiceRelease",
+		InstalledStateKind: "SERVICE",
+		InstalledStateName: "rbac",
+		ResolvedVersion:    "1.2.3",
+		ResolvedBuildID:    "0191-rbac-build",
+		TargetNodeIDs:      []string{"n1"},
+		Nodes: []*cluster_controllerpb.NodeReleaseStatus{
+			{NodeID: "n1", Phase: cluster_controllerpb.ReleasePhaseApplying},
+		},
+	}
+
+	if srv.hasUnservedNodes(h, map[string]struct{}{}) {
+		t.Fatal("expected non-target node to be ignored even when profile-eligible and not installed")
+	}
+}

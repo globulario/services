@@ -10,6 +10,46 @@ import (
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
 )
 
+func targetNodeAssignments(targetNodeIDs []string) []*cluster_controllerpb.NodeAssignment {
+	targetNodeIDs = normalizeTargetNodeIDs(targetNodeIDs)
+	if len(targetNodeIDs) == 0 {
+		return nil
+	}
+	out := make([]*cluster_controllerpb.NodeAssignment, 0, len(targetNodeIDs))
+	for _, id := range targetNodeIDs {
+		out = append(out, &cluster_controllerpb.NodeAssignment{NodeID: id})
+	}
+	return out
+}
+
+func releaseTargetNodeIDs(assignments []*cluster_controllerpb.NodeAssignment) []string {
+	if len(assignments) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(assignments))
+	for _, a := range assignments {
+		if a == nil {
+			continue
+		}
+		ids = append(ids, a.NodeID)
+	}
+	return normalizeTargetNodeIDs(ids)
+}
+
+func sameTargetNodeIDs(a, b []string) bool {
+	a = normalizeTargetNodeIDs(a)
+	b = normalizeTargetNodeIDs(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // ensureServiceRelease creates or updates a ServiceRelease object for the given
 // service so that the release reconciler can track per-service lifecycle phases.
 // Idempotent: if a ServiceRelease already exists with the same version, build
@@ -21,7 +61,7 @@ import (
 // active — the resolver will look up the artifact under the correct identity lane.
 // The ServiceRelease KEY always uses defaultPublisherID() so there is never more
 // than one release record per service regardless of override state.
-func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publisherID, version string, buildNumber int64) {
+func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publisherID, version string, buildNumber int64, targetNodeIDs []string) {
 	if !srv.mustBeLeader() {
 		return
 	}
@@ -33,6 +73,7 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publis
 		return
 	}
 
+	targetNodeIDs = normalizeTargetNodeIDs(targetNodeIDs)
 	effectivePublisher := publisherID
 	if effectivePublisher == "" {
 		effectivePublisher = defaultPublisherID()
@@ -70,7 +111,8 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publis
 			}
 			if !needsRecreate && existing.Spec.Version == version &&
 				existing.Spec.BuildNumber == buildNumber &&
-				existingPublisher == effectivePublisher {
+				existingPublisher == effectivePublisher &&
+				sameTargetNodeIDs(releaseTargetNodeIDs(existing.Spec.NodeAssignments), targetNodeIDs) {
 				return // already up-to-date and in a healthy state
 			}
 			// If the release is FAILED/ROLLED_BACK but version+publisher haven't changed,
@@ -90,11 +132,12 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publis
 	rel := &cluster_controllerpb.ServiceRelease{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: releaseName},
 		Spec: &cluster_controllerpb.ServiceReleaseSpec{
-			PublisherID: effectivePublisher,
-			ServiceName: canon,
-			Version:     version,
-			BuildNumber: buildNumber,
-			Platform:    "", // resolved per-node by the reconciler
+			PublisherID:     effectivePublisher,
+			ServiceName:     canon,
+			Version:         version,
+			BuildNumber:     buildNumber,
+			NodeAssignments: targetNodeAssignments(targetNodeIDs),
+			Platform:        "", // resolved per-node by the reconciler
 		},
 		Status: &cluster_controllerpb.ServiceReleaseStatus{
 			Phase: cluster_controllerpb.ReleasePhasePending,
@@ -156,7 +199,7 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 			srv.deleteCrossKindServiceRelease(ctx, canon)
 			continue
 		}
-		srv.ensureServiceRelease(ctx, canon, sdv.Spec.PublisherID, sdv.Spec.Version, sdv.Spec.BuildNumber)
+		srv.ensureServiceRelease(ctx, canon, sdv.Spec.PublisherID, sdv.Spec.Version, sdv.Spec.BuildNumber, sdv.Spec.TargetNodeIDs)
 		created++
 	}
 	if created > 0 {

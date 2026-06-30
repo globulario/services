@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow 
 ## [Unreleased]
 
 ### Added
+- **Node-scoped service placement** — `DesiredService` now supports `target_node_ids`, allowing explicit service deployment to selected eligible nodes instead of every node that matches a profile
 - **awareness-graph v0.0.7 (platform 1.2.132)** — Phase C+D: intent YAML importer and embed-based store bootstrap
   - **Phase C — Intent importer**: recursive walker now classifies and imports `docs/intent/` YAML files; 119/123 intent nodes loaded into Oxigraph with typed subclasses (`aw:DesignIntent`, `aw:OperationalIntent`, `aw:ProductIntent`, `aw:ConstraintIntent`); relations emitted: `aw:zoomsInto`, `aw:zoomsOutTo`, `aw:relatedTo`, `aw:expressedBy`, `aw:activationTrigger`, `aw:badSmell`; cross-links to invariants/failure-modes resolved by IRI
   - **Phase C — detectSchema fix**: composite-key detection (`id` + `level` → intent) now runs before the primary key table so intent files with `required_tests:` data fields are not misclassified
@@ -38,6 +39,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow 
 - **Computing** documentation — batch jobs, placement, verification, retry policies
 
 ### Fixed
+- **Canonical systemd unit receipts** — node-agent now hashes canonical rendered unit bytes instead of opportunistic on-disk unit reads, preventing install receipts and skip-path restamping from drifting because of staging path or ambient filesystem differences
+- **Platform upgrade scoped rollouts** — platform-upgrade desired services now preserve per-node target assignments through release bridging and reconciliation
 - **DNS provider authentication** — local DNS provider now passes cluster_id and token for ACME DNS-01 challenges
 - **Certificate paths** — all docs corrected from `/etc/globular/creds/` to `/var/lib/globular/pki/`
 - **Controller port** — all READMEs corrected from 10000 to 12000

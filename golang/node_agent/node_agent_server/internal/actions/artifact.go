@@ -18,20 +18,20 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
-	"github.com/globulario/services/golang/runtimedirs"
-	"github.com/globulario/services/golang/systemdutil"
-	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/repository/repositorypb"
-	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/runtimedirs"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/systemdutil"
+	"github.com/globulario/services/golang/unitrender"
+	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -1296,7 +1296,6 @@ func renderTemplateVars(path, stateRoot, binDir string) error {
 	if err != nil {
 		return err
 	}
-	content := string(data)
 	prefix := filepath.Dir(binDir) // e.g. /usr/lib/globular/bin -> /usr/lib/globular
 
 	// Resolve NodeIP from routable config first, then interface scan fallback.
@@ -1305,35 +1304,21 @@ func renderTemplateVars(path, stateRoot, binDir string) error {
 		nodeIP = resolveNodeIP()
 	}
 
-	rendered := replaceTemplateVars(content, map[string]string{
-		"statedir": stateRoot,
-		"prefix":   prefix,
-		"bindir":   binDir,
-		"nodeip":   nodeIP,
+	rendered := unitrender.RenderBytes(data, unitrender.Inputs{
+		StateDir: stateRoot,
+		Prefix:   prefix,
+		BinDir:   binDir,
+		LogDir:   "/var/log/globular",
+		// Package installs that need MinIO-specific rendering pass the value in
+		// the artifact/spec itself during package build or installer-engine
+		// execution; the generic payload renderer uses the canonical default.
+		MinioDataDir: filepath.Join(stateRoot, "minio", "data"),
+		NodeIP:       nodeIP,
 	})
-	if rendered == content {
+	if len(rendered) == len(data) && bytesEqual(rendered, data) {
 		return nil // no templates found, skip write
 	}
-	return os.WriteFile(path, []byte(rendered), 0o644)
-}
-
-var simpleTemplateVarRE = regexp.MustCompile(`\{\{\s*\.\s*([A-Za-z0-9_]+)\s*\}\}`)
-
-// replaceTemplateVars replaces simple Go-template variables such as
-// "{{.NodeIP}}" and tolerant variants like "{{ .NodeIp }}".
-// Unknown variables are preserved as-is.
-func replaceTemplateVars(content string, vars map[string]string) string {
-	return simpleTemplateVarRE.ReplaceAllStringFunc(content, func(match string) string {
-		sub := simpleTemplateVarRE.FindStringSubmatch(match)
-		if len(sub) != 2 {
-			return match
-		}
-		key := strings.ToLower(strings.TrimSpace(sub[1]))
-		if v, ok := vars[key]; ok {
-			return v
-		}
-		return match
-	})
+	return os.WriteFile(path, rendered, 0o644)
 }
 
 // resolveNodeIP returns the node's primary routable IPv4 address.

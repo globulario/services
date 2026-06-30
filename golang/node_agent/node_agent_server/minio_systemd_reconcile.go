@@ -526,7 +526,7 @@ func (srv *NodeAgentServer) refreshMinioInstalledStateReceipt(ctx context.Contex
 		// path will stamp the receipt when it lands. No-op.
 		return
 	}
-	stampReceiptForInstalledPackage(pkg, "node-agent.minio_systemd_reconcile", installedBinaryPath("minio", "INFRASTRUCTURE"))
+	srv.stampCanonicalReceiptForInstalledPackage(ctx, pkg, "node-agent.minio_systemd_reconcile", installedBinaryPath("minio", "INFRASTRUCTURE"))
 	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
 		log.Printf("minio-systemd: receipt write failed: %v (will retry next reconcile)", werr)
 	}

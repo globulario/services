@@ -257,10 +257,11 @@ func TestGetDesiredState_PopulatesBuildId(t *testing.T) {
 	mustApply("ServiceDesiredVersion", &cluster_controllerpb.ServiceDesiredVersion{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: "echo"},
 		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
-			ServiceName: "echo",
-			Version:     "1.2.3",
-			BuildNumber: 7,
-			BuildID:     "sdv-build-id-7",
+			ServiceName:   "echo",
+			Version:       "1.2.3",
+			BuildNumber:   7,
+			BuildID:       "sdv-build-id-7",
+			TargetNodeIDs: []string{"node-a", "node-b"},
 		},
 	})
 
@@ -288,6 +289,8 @@ func TestGetDesiredState_PopulatesBuildId(t *testing.T) {
 		t.Fatalf("echo missing from response: %+v", byID)
 	} else if echo.GetBuildId() != "sdv-build-id-7" {
 		t.Errorf("echo build_id = %q want %q", echo.GetBuildId(), "sdv-build-id-7")
+	} else if got := echo.GetTargetNodeIds(); len(got) != 2 || got[0] != "node-a" || got[1] != "node-b" {
+		t.Errorf("echo target_node_ids = %v want [node-a node-b]", got)
 	}
 	if etcd := byID["etcd"]; etcd == nil {
 		t.Fatalf("etcd missing from response: %+v", byID)

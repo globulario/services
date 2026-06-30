@@ -522,9 +522,10 @@ func scanInstalledState(ctx context.Context, report *canonReport) error {
 func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repaired, failed int) {
 	// Collect A2 anomalies.
 	type a2Entry struct {
-		service     string
-		version     string
-		buildNumber int64
+		service       string
+		version       string
+		buildNumber   int64
+		targetNodeIDs []string
 	}
 	var entries []a2Entry
 
@@ -547,9 +548,10 @@ func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repair
 	for _, svc := range resp.GetServices() {
 		if svc.GetBuildId() == "" {
 			entries = append(entries, a2Entry{
-				service:     svc.GetServiceId(),
-				version:     svc.GetVersion(),
-				buildNumber: svc.GetBuildNumber(),
+				service:       svc.GetServiceId(),
+				version:       svc.GetVersion(),
+				buildNumber:   svc.GetBuildNumber(),
+				targetNodeIDs: append([]string(nil), svc.GetTargetNodeIds()...),
 			})
 		}
 	}
@@ -563,9 +565,10 @@ func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repair
 		reqCtx, reqCancel := context.WithTimeout(ctx, 10*time.Second)
 		_, err := ctrlClient.UpsertDesiredService(reqCtx, &cluster_controllerpb.UpsertDesiredServiceRequest{
 			Service: &cluster_controllerpb.DesiredService{
-				ServiceId:   e.service,
-				Version:     e.version,
-				BuildNumber: e.buildNumber,
+				ServiceId:     e.service,
+				Version:       e.version,
+				BuildNumber:   e.buildNumber,
+				TargetNodeIds: append([]string(nil), e.targetNodeIDs...),
 			},
 		})
 		reqCancel()
@@ -588,9 +591,10 @@ func repairDesiredStateBuildID(ctx context.Context, report *canonReport) (repair
 						reqCtx2, reqCancel2 := context.WithTimeout(ctx, 10*time.Second)
 						_, err = ctrlClient2.UpsertDesiredService(reqCtx2, &cluster_controllerpb.UpsertDesiredServiceRequest{
 							Service: &cluster_controllerpb.DesiredService{
-								ServiceId:   e.service,
-								Version:     e.version,
-								BuildNumber: e.buildNumber,
+								ServiceId:     e.service,
+								Version:       e.version,
+								BuildNumber:   e.buildNumber,
+								TargetNodeIds: append([]string(nil), e.targetNodeIDs...),
 							},
 						})
 						reqCancel2()

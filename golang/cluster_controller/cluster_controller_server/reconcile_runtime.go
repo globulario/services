@@ -192,7 +192,7 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 				continue
 			}
 			canon := canonicalServiceName(sdv.Meta.Name)
-			if srv.isServiceConverged(ctx, canon, sdv.Spec.Version, sdv.Spec.BuildNumber, sdv.Spec.BuildID) {
+			if srv.isServiceConverged(ctx, canon, sdv.Spec.Version, sdv.Spec.BuildNumber, sdv.Spec.BuildID, sdv.Spec.TargetNodeIDs) {
 				suppressed++
 				continue
 			}
@@ -1082,7 +1082,7 @@ func (srv *server) reconcileDesiredFromRepository(ctx context.Context) {
 					Reason:    "published build advanced desired-state pin",
 					Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 				})
-				srv.ensureServiceRelease(ctx, canon, "", desiredVer, bestBuild)
+				srv.ensureServiceRelease(ctx, canon, "", desiredVer, bestBuild, nil)
 				updated++
 			}
 			continue

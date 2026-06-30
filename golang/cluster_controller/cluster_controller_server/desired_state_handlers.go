@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,30 @@ import (
 )
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+func normalizeTargetNodeIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	sort.Strings(out)
+	return out
+}
 
 // listAllDesiredServices fetches all ServiceDesiredVersion objects from the
 // resource store and converts them into the proto DesiredState.
@@ -124,11 +149,12 @@ func (srv *server) listAllDesiredServices(ctx context.Context) (*cluster_control
 		}
 		seen[canon] = true
 		ds.Services = append(ds.Services, &cluster_controllerpb.DesiredService{
-			ServiceId:   canon,
-			Version:     sdv.Spec.Version,
-			BuildNumber: sdv.Spec.BuildNumber,
-			BuildId:     sdv.Spec.BuildID,
-			Status:      releasePhases[canon],
+			ServiceId:     canon,
+			Version:       sdv.Spec.Version,
+			BuildNumber:   sdv.Spec.BuildNumber,
+			BuildId:       sdv.Spec.BuildID,
+			TargetNodeIds: append([]string(nil), sdv.Spec.TargetNodeIDs...),
+			Status:        releasePhases[canon],
 		})
 	}
 	// Merge InfrastructureRelease entries so infrastructure daemons
@@ -362,6 +388,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	if canon == "" {
 		return fmt.Errorf("invalid service_id %q", svc.ServiceId)
 	}
+	targetNodeIDs := normalizeTargetNodeIDs(svc.GetTargetNodeIds())
 	version := strings.TrimSpace(svc.Version)
 	if version == "" {
 		return fmt.Errorf("version is required for %q", svc.ServiceId)
@@ -436,10 +463,11 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	obj := &cluster_controllerpb.ServiceDesiredVersion{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: canon},
 		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
-			ServiceName: canon,
-			Version:     version,
-			BuildNumber: svc.BuildNumber,
-			BuildID:     buildID,
+			ServiceName:   canon,
+			Version:       version,
+			BuildNumber:   svc.BuildNumber,
+			BuildID:       buildID,
+			TargetNodeIDs: targetNodeIDs,
 		},
 	}
 	if _, err = srv.resources.Apply(ctx, "ServiceDesiredVersion", obj); err != nil {
@@ -456,7 +484,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 
 	// Ensure a corresponding ServiceRelease exists so the release reconciler can
 	// track per-service lifecycle phases.
-	srv.ensureServiceRelease(ctx, canon, "", version, svc.BuildNumber)
+	srv.ensureServiceRelease(ctx, canon, "", version, svc.BuildNumber, targetNodeIDs)
 
 	return nil
 }
@@ -787,10 +815,10 @@ func (srv *server) ListDesiredBuildIDs(ctx context.Context, _ *cluster_controlle
 	wg.Wait()
 
 	for kind, res := range map[string]listResult{
-		"ServiceDesiredVersion":  sdvRes,
-		"ServiceRelease":         svcRelRes,
-		"InfrastructureRelease":  infraRelRes,
-		"ApplicationRelease":     appRelRes,
+		"ServiceDesiredVersion": sdvRes,
+		"ServiceRelease":        svcRelRes,
+		"InfrastructureRelease": infraRelRes,
+		"ApplicationRelease":    appRelRes,
 	} {
 		if res.err != nil {
 			return nil, status.Errorf(codes.Unavailable,

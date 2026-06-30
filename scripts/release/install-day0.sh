@@ -798,26 +798,14 @@ log_step "Infrastructure Layer (etcd + minio)"
 trace_step "running" "phase.infra" "Infrastructure Layer" 5
 install_list "${BOOTSTRAP_MINIO_PKGS[@]}"
 
-# If the user chose a custom MinIO data directory, patch the systemd unit and env file
-# to use the custom path instead of the default /var/lib/globular/minio/data.
+# If the user chose a custom MinIO data directory, ensure the directory exists.
+# Do NOT patch the installed systemd unit or env file here: the installer
+# already renders both from the authoritative {{.MinioDataDir}} template input.
+# Post-install `sed -i` rewrites poison the canonical installed_state receipt
+# and create permanent unit_file_drift findings for globular-minio.service.
 DEFAULT_MINIO_PATH="/var/lib/globular/minio/data"
 if [[ "$MINIO_DATA_DIR" != "$DEFAULT_MINIO_PATH" ]]; then
-  log_substep "Applying custom MinIO data directory: $MINIO_DATA_DIR"
-
-  MINIO_UNIT="/etc/systemd/system/globular-minio.service"
-  MINIO_ENV="/var/lib/globular/minio/minio.env"
-
-  # Patch the systemd unit
-  if [[ -f "$MINIO_UNIT" ]]; then
-    sed -i "s|${DEFAULT_MINIO_PATH}|${MINIO_DATA_DIR}|g" "$MINIO_UNIT"
-    log_substep "Patched $MINIO_UNIT"
-  fi
-
-  # Patch the env file
-  if [[ -f "$MINIO_ENV" ]]; then
-    sed -i "s|${DEFAULT_MINIO_PATH}|${MINIO_DATA_DIR}|g" "$MINIO_ENV"
-    log_substep "Patched $MINIO_ENV"
-  fi
+  log_substep "Using custom MinIO data directory: $MINIO_DATA_DIR"
 
   # Create the custom data directory
   mkdir -p "$MINIO_DATA_DIR"
@@ -825,9 +813,7 @@ if [[ "$MINIO_DATA_DIR" != "$DEFAULT_MINIO_PATH" ]]; then
   chmod 0700 "$MINIO_DATA_DIR"
   log_substep "Created $MINIO_DATA_DIR"
 
-  systemctl daemon-reload
-  systemctl restart globular-minio.service 2>/dev/null || true
-  log_success "MinIO configured to use $MINIO_DATA_DIR"
+  log_success "MinIO data directory prepared at $MINIO_DATA_DIR"
 fi
 
 log_step "TLS Ownership Fix"

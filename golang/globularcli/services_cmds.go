@@ -48,6 +48,7 @@ var (
 	// 'desired set' flags.
 	svcDesiredSetPublisher       string
 	svcDesiredSetBuildNumber     int64
+	svcDesiredSetTargetNodes     []string
 	svcDesiredSetAllowRegression bool
 )
 
@@ -197,6 +198,7 @@ func init() {
 
 	servicesDesiredSetCmd.Flags().StringVar(&svcDesiredSetPublisher, "publisher", "core@globular.io", "Publisher ID for kind lookup")
 	servicesDesiredSetCmd.Flags().Int64Var(&svcDesiredSetBuildNumber, "build-number", 0, "Pin to a specific build (0 = latest)")
+	servicesDesiredSetCmd.Flags().StringSliceVar(&svcDesiredSetTargetNodes, "node", nil, "Limit desired service placement to these node IDs (repeatable)")
 	servicesDesiredSetCmd.Flags().BoolVar(&svcDesiredSetAllowRegression, "allow-regression", false,
 		"DANGER: permit moving desired version BELOW the current desired/installed floor. "+
 			"Without this, a regressing write is rejected. The override is audited as a distinct action. "+
@@ -542,9 +544,10 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 
 	resp, err := cc.UpsertDesiredService(ctx, &cluster_controllerpb.UpsertDesiredServiceRequest{
 		Service: &cluster_controllerpb.DesiredService{
-			ServiceId:   serviceID,
-			Version:     version,
-			BuildNumber: svcDesiredSetBuildNumber,
+			ServiceId:     serviceID,
+			Version:       version,
+			BuildNumber:   svcDesiredSetBuildNumber,
+			TargetNodeIds: append([]string(nil), svcDesiredSetTargetNodes...),
 		},
 		AllowRegression: svcDesiredSetAllowRegression,
 	})

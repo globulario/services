@@ -6213,7 +6213,11 @@ type DesiredService struct {
 	// /globular/resources/* etcd directly — anchored by
 	// invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage.
 	// Empty for legacy records that never had a build_id pin (pre-Phase 2).
-	BuildId       string `protobuf:"bytes,6,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`
+	BuildId string `protobuf:"bytes,6,opt,name=build_id,json=buildId,proto3" json:"build_id,omitempty"`
+	// Optional node-scoped targeting. Empty preserves today's cluster-wide
+	// behavior; otherwise the service may install only on these node IDs,
+	// still subject to profile placement eligibility.
+	TargetNodeIds []string `protobuf:"bytes,7,rep,name=target_node_ids,json=targetNodeIds,proto3" json:"target_node_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6288,6 +6292,13 @@ func (x *DesiredService) GetBuildId() string {
 		return x.BuildId
 	}
 	return ""
+}
+
+func (x *DesiredService) GetTargetNodeIds() []string {
+	if x != nil {
+		return x.TargetNodeIds
+	}
+	return nil
 }
 
 // DesiredState is the full desired-service plan returned by every write RPC.
@@ -9861,7 +9872,7 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\vconfig_diff\x18\x03 \x03(\v2\".cluster_controller.ConfigFileDiffR\n" +
 	"configDiff\x12#\n" +
 	"\rrestart_units\x18\x04 \x03(\tR\frestartUnits\x12K\n" +
-	"\x0eaffected_nodes\x18\x05 \x03(\v2$.cluster_controller.AffectedNodeDiffR\raffectedNodes\"\xbb\x01\n" +
+	"\x0eaffected_nodes\x18\x05 \x03(\v2$.cluster_controller.AffectedNodeDiffR\raffectedNodes\"\xe3\x01\n" +
 	"\x0eDesiredService\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x18\n" +
@@ -9869,7 +9880,8 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\bplatform\x18\x03 \x01(\tR\bplatform\x12!\n" +
 	"\fbuild_number\x18\x04 \x01(\x03R\vbuildNumber\x12\x16\n" +
 	"\x06status\x18\x05 \x01(\tR\x06status\x12\x19\n" +
-	"\bbuild_id\x18\x06 \x01(\tR\abuildId\"j\n" +
+	"\bbuild_id\x18\x06 \x01(\tR\abuildId\x12&\n" +
+	"\x0ftarget_node_ids\x18\a \x03(\tR\rtargetNodeIds\"j\n" +
 	"\fDesiredState\x12>\n" +
 	"\bservices\x18\x01 \x03(\v2\".cluster_controller.DesiredServiceR\bservices\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\"\x1c\n" +

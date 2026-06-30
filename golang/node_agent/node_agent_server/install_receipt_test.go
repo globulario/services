@@ -183,6 +183,32 @@ func TestStampInstallReceipt_SupersedesMigrationMarker(t *testing.T) {
 	}
 }
 
+// TestStampInstallReceipt_UnitFileContentWinsOverDisk proves the canonical
+// renderer bytes, when supplied, are the receipt authority even if the on-disk
+// unit file at UnitFilePath contains different bytes.
+func TestStampInstallReceipt_UnitFileContentWinsOverDisk(t *testing.T) {
+	dir := t.TempDir()
+	unitPath := filepath.Join(dir, "globular-svc.service")
+	if err := os.WriteFile(unitPath, []byte("[Unit]\nDescription=disk-bytes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	canonical := []byte("[Unit]\nDescription=canonical-bytes\n")
+	pkg := &node_agentpb.InstalledPackage{Name: "svc"}
+
+	if err := StampInstallReceipt(pkg, ReceiptOpts{
+		UnitFilePath:        unitPath,
+		UnitFileContent:     canonical,
+		UnitRendererVersion: "artifact-canonical-v1",
+	}); err != nil {
+		t.Fatalf("StampInstallReceipt: %v", err)
+	}
+
+	want := sha256Hex(canonical)
+	if got := pkg.Metadata[receiptKeyUnitFileSha256]; got != want {
+		t.Fatalf("unit_file_sha256 = %q, want canonical-bytes hash %q", got, want)
+	}
+}
+
 // TestStampInstallReceipt_NilPkgIsError — defensive guard.
 func TestStampInstallReceipt_NilPkgIsError(t *testing.T) {
 	if err := StampInstallReceipt(nil, ReceiptOpts{}); err == nil {

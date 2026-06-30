@@ -109,6 +109,7 @@ func Keys() []string {
 // partial receipt.
 type ReceiptOpts struct {
 	UnitFilePath        string
+	UnitFileContent     []byte
 	BinaryPath          string
 	ConfigPath          string
 	EnvFilePath         string
@@ -145,7 +146,12 @@ func Stamp(pkg *node_agentpb.InstalledPackage, opts ReceiptOpts) error {
 	type kv struct{ k, v string }
 	var stamps []kv
 
-	if opts.UnitFilePath != "" {
+	if len(opts.UnitFileContent) > 0 {
+		stamps = append(stamps, kv{KeyUnitFileSha256, hashBytes(opts.UnitFileContent)})
+		if opts.UnitFilePath != "" {
+			stamps = append(stamps, kv{KeyUnitFilePath, opts.UnitFilePath})
+		}
+	} else if opts.UnitFilePath != "" {
 		sha, err := hashFile(opts.UnitFilePath)
 		if err != nil {
 			return fmt.Errorf("installreceipt: unit file %q: %w", opts.UnitFilePath, err)
@@ -335,6 +341,11 @@ func hashFile(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func hashBytes(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 // normalize lowercases, trims whitespace, and strips a leading "sha256:"

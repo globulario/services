@@ -37,8 +37,8 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -236,11 +236,17 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 	// the correct fail-closed behaviour.
 	unitPath := filepath.Join("/etc/systemd/system", "globular-"+name+".service")
 	receiptOpts := ReceiptOpts{
-		BinaryPath:  path,
-		InstalledBy: "node-agent.installer-api",
+		BinaryPath:          path,
+		InstalledBy:         "node-agent.installer-api",
+		UnitRendererVersion: canonicalUnitRendererVersion,
 	}
-	if _, statErr := os.Stat(unitPath); statErr == nil {
-		receiptOpts.UnitFilePath = unitPath
+	if fi, statErr := os.Stat(unitPath); statErr == nil && !fi.IsDir() {
+		if renderedUnit, renderErr := srv.renderCanonicalUnitFromLocalArtifact(ctx, name, version, kind, filepath.Base(unitPath)); renderErr == nil {
+			receiptOpts.UnitFilePath = unitPath
+			receiptOpts.UnitFileContent = renderedUnit
+		} else {
+			log.Printf("installer-api: canonical unit render unavailable for %s/%s@%s: %v (skipping unit hash; fail-closed)", kind, name, version, renderErr)
+		}
 	}
 	if rerr := StampInstallReceipt(pkg, receiptOpts); rerr != nil {
 		log.Printf("installer-api: install receipt skipped for %s: %v (entrypoint_checksum still committed)", name, rerr)
@@ -298,7 +304,15 @@ func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, nam
 	if fi, statErr := os.Stat(unitPath); statErr == nil && !fi.IsDir() {
 		unitPathArg = unitPath
 	}
-	if !stampSkipPathReceipt(pkg, unitPathArg, binPath, hash) {
+	var renderedUnit []byte
+	if unitPathArg != "" {
+		if rendered, renderErr := srv.renderCanonicalUnitFromLocalArtifact(ctx, name, version, kindU, filepath.Base(unitPath)); renderErr == nil {
+			renderedUnit = rendered
+		} else {
+			log.Printf("install-skip-restamp: canonical unit render unavailable for %s/%s@%s: %v", kindU, name, version, renderErr)
+		}
+	}
+	if !stampSkipPathReceipt(pkg, unitPathArg, renderedUnit, binPath, hash) {
 		// Stamp returned an error (e.g. declared file unreadable). Do
 		// NOT write a partial-stamp pkg — that would be the same kind
 		// of half-baked receipt that caused the original drift.
@@ -340,8 +354,12 @@ func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, nam
 // forensic field, not consumed by the verifier's ApplyTime
 // calculation), so the audit trail of when the restamp ran is
 // preserved without misleading the verifier.
-func stampSkipPathReceipt(pkg *node_agentpb.InstalledPackage, unitPath, binaryPath, hash string) bool {
+func stampSkipPathReceipt(pkg *node_agentpb.InstalledPackage, unitPath string, unitContent []byte, binaryPath, hash string) bool {
 	if pkg == nil || strings.TrimSpace(hash) == "" {
+		return false
+	}
+	if unitPath != "" && len(unitContent) == 0 {
+		log.Printf("install-skip-restamp: canonical unit bytes missing for declared unit path %s; refusing partial receipt", unitPath)
 		return false
 	}
 	if pkg.Metadata == nil {
@@ -349,11 +367,13 @@ func stampSkipPathReceipt(pkg *node_agentpb.InstalledPackage, unitPath, binaryPa
 	}
 	pkg.Metadata["entrypoint_checksum"] = hash
 	opts := ReceiptOpts{
-		BinaryPath:  binaryPath,
-		InstalledBy: "node-agent.grpc_workflow.install_skip_restamp",
+		BinaryPath:          binaryPath,
+		InstalledBy:         "node-agent.grpc_workflow.install_skip_restamp",
+		UnitRendererVersion: canonicalUnitRendererVersion,
 	}
-	if unitPath != "" {
+	if unitPath != "" && len(unitContent) > 0 {
 		opts.UnitFilePath = unitPath
+		opts.UnitFileContent = unitContent
 	}
 	if err := StampInstallReceipt(pkg, opts); err != nil {
 		log.Printf("install-skip-restamp: stamp rejected for %s/%s: %v (not writing partial receipt)", pkg.GetKind(), pkg.GetName(), err)

@@ -410,10 +410,11 @@ func (srv *server) platformUpgradeDispatch(ctx context.Context, releaseTag strin
 		}
 
 		desired := &cluster_controllerpb.DesiredService{
-			ServiceId:   k.name,
-			Version:     k.version,
-			BuildNumber: manifest.GetBuildNumber(),
-			BuildId:     k.buildID,
+			ServiceId:     k.name,
+			Version:       k.version,
+			BuildNumber:   manifest.GetBuildNumber(),
+			BuildId:       k.buildID,
+			TargetNodeIds: normalizeTargetNodeIDs(nodes),
 		}
 		// allowRegression=false: a platform upgrade must not silently regress a
 		// version — automatic rollback is forbidden (deployment.automatic_rollback_is_forbidden).

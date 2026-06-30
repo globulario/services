@@ -27,6 +27,15 @@ func writeRestampFile(t *testing.T, dir, name, content string) (string, string) 
 	return path, hex.EncodeToString(sum[:])
 }
 
+func mustReadRestampFile(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
 // TestStampSkipPathReceipt_StampsCanonicalReceiptOverLegacy is the
 // regression for the live envoy unit_file_drift observation
 // (2026-06-03): the install skip path proved on-disk content matches
@@ -51,7 +60,7 @@ func TestStampSkipPathReceipt_StampsCanonicalReceiptOverLegacy(t *testing.T) {
 		},
 	}
 
-	if !stampSkipPathReceipt(pkg, unitPath, binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, wantBinSha) {
 		t.Fatal("expected stamp to succeed")
 	}
 
@@ -77,7 +86,7 @@ func TestStampSkipPathReceipt_StampsCanonicalReceiptOverLegacy(t *testing.T) {
 // panic and refuses to stamp when pkg is nil. Critical because the
 // caller fetches existing from etcd best-effort.
 func TestStampSkipPathReceipt_NilPkgIsSafe(t *testing.T) {
-	if stampSkipPathReceipt(nil, "/tmp/unit", "/tmp/bin", "abc") {
+	if stampSkipPathReceipt(nil, "/tmp/unit", nil, "/tmp/bin", "abc") {
 		t.Error("must refuse to stamp nil pkg")
 	}
 }
@@ -87,10 +96,10 @@ func TestStampSkipPathReceipt_NilPkgIsSafe(t *testing.T) {
 // stamp a half-receipt.
 func TestStampSkipPathReceipt_EmptyHashRefused(t *testing.T) {
 	pkg := &node_agentpb.InstalledPackage{Name: "envoy", Kind: "INFRASTRUCTURE"}
-	if stampSkipPathReceipt(pkg, "/tmp/unit", "/tmp/bin", "") {
+	if stampSkipPathReceipt(pkg, "/tmp/unit", nil, "/tmp/bin", "") {
 		t.Error("empty hash must be refused")
 	}
-	if stampSkipPathReceipt(pkg, "/tmp/unit", "/tmp/bin", "   ") {
+	if stampSkipPathReceipt(pkg, "/tmp/unit", nil, "/tmp/bin", "   ") {
 		t.Error("whitespace-only hash must be refused")
 	}
 }
@@ -112,7 +121,7 @@ func TestStampSkipPathReceipt_UnreadableDeclaredFileRefusesStamp(t *testing.T) {
 			installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar,
 		},
 	}
-	if stampSkipPathReceipt(pkg, missingUnit, binPath, binSha) {
+	if stampSkipPathReceipt(pkg, missingUnit, nil, binPath, binSha) {
 		t.Fatal("must refuse to stamp when declared unit file unreadable")
 	}
 	// Metadata must NOT have been partially mutated to a half-receipt
@@ -143,7 +152,7 @@ func TestStampSkipPathReceipt_StampsBinaryOnlyWhenNoUnitFile(t *testing.T) {
 		Kind:     "INFRASTRUCTURE",
 		Metadata: map[string]string{installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar},
 	}
-	if !stampSkipPathReceipt(pkg, "", binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, "", nil, binPath, wantBinSha) {
 		t.Fatal("expected stamp to succeed when only binary path provided")
 	}
 	if got := pkg.Metadata[installreceipt.KeyInstalledBy]; got == "" {
@@ -171,14 +180,14 @@ func TestStampSkipPathReceipt_IdempotentOnAlreadyCanonicalReceipt(t *testing.T) 
 	binPath, wantBinSha := writeRestampFile(t, dir, "envoy", "ELF-bytes")
 
 	pkg := &node_agentpb.InstalledPackage{Name: "envoy", Kind: "INFRASTRUCTURE"}
-	if !stampSkipPathReceipt(pkg, unitPath, binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, wantBinSha) {
 		t.Fatal("first stamp failed")
 	}
 	firstBinSha := pkg.Metadata[installreceipt.KeyBinarySha256]
 	firstUnitSha := pkg.Metadata[installreceipt.KeyUnitFileSha256]
 	firstInstalledBy := pkg.Metadata[installreceipt.KeyInstalledBy]
 
-	if !stampSkipPathReceipt(pkg, unitPath, binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, wantBinSha) {
 		t.Fatal("second stamp failed")
 	}
 	if pkg.Metadata[installreceipt.KeyBinarySha256] != firstBinSha {
@@ -216,8 +225,8 @@ func TestStampSkipPathReceipt_DoesNotAdvanceUpdatedUnix(t *testing.T) {
 	unitPath, _ := writeRestampFile(t, dir, "globular-envoy.service", "[Unit]\n")
 	binPath, binSha := writeRestampFile(t, dir, "envoy", "ELF-bytes")
 
-	const realInstallTime = 1700000000  // 4 hours-ago equivalent
-	const realUpdateTime = 1700000500   // 4 hours ago, set by the real install
+	const realInstallTime = 1700000000 // 4 hours-ago equivalent
+	const realUpdateTime = 1700000500  // 4 hours ago, set by the real install
 	pkg := &node_agentpb.InstalledPackage{
 		Name:          "envoy",
 		Kind:          "INFRASTRUCTURE",
@@ -228,7 +237,7 @@ func TestStampSkipPathReceipt_DoesNotAdvanceUpdatedUnix(t *testing.T) {
 			installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar,
 		},
 	}
-	if !stampSkipPathReceipt(pkg, unitPath, binPath, binSha) {
+	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, binSha) {
 		t.Fatal("stamp failed")
 	}
 	if pkg.InstalledUnix != realInstallTime {
@@ -271,7 +280,7 @@ func TestStampSkipPathReceipt_PreservesTimestampsAcrossRepeatedRestamps(t *testi
 		UpdatedUnix:   realUpdateTime,
 	}
 	for i := 0; i < 10; i++ {
-		if !stampSkipPathReceipt(pkg, unitPath, binPath, binSha) {
+		if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, binSha) {
 			t.Fatalf("stamp #%d failed", i)
 		}
 	}
@@ -306,7 +315,7 @@ func TestStampSkipPathReceipt_StillStampsUnitFileSha256_AfterTimestampFix(t *tes
 			installreceipt.KeyUnitFileSha256:  "STALE_PRE_INSTALL_SHA",
 		},
 	}
-	if !stampSkipPathReceipt(pkg, unitPath, binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, wantBinSha) {
 		t.Fatal("stamp failed")
 	}
 	// Timestamp preservation:
@@ -346,7 +355,7 @@ func TestStampSkipPathReceipt_PreservesSiblingNonReceiptFields(t *testing.T) {
 			"proof_binary_path":    "/usr/lib/globular/bin/envoy",
 		},
 	}
-	if !stampSkipPathReceipt(pkg, unitPath, binPath, binSha) {
+	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, binSha) {
 		t.Fatal("stamp failed")
 	}
 	if pkg.Metadata["proof_on_disk_sha256"] != "PROOF_SHA_FROM_HEARTBEAT" {

@@ -23,9 +23,9 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 )
 
@@ -37,7 +37,6 @@ import (
 //
 // Returns a degraded response (Ok=false, Status=installed_unverified). Callers
 // must NOT treat this as a SUCCESS path even though no error is set.
-//
 func (srv *NodeAgentServer) writeBinaryUnverifiedInstalledState(
 	ctx context.Context,
 	req *node_agentpb.ApplyPackageReleaseRequest,
@@ -177,7 +176,6 @@ func installedBinaryPath(name, kind string) string {
 // Authorization: gated by globular.auth.authz with permission="admin" on
 // resource "/node_agent/packages/{package_name}". Only controller workflow
 // execution (sa principal) or cluster admins can invoke this RPC.
-//
 func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_agentpb.ApplyPackageReleaseRequest) (*node_agentpb.ApplyPackageReleaseResponse, error) {
 	name := strings.TrimSpace(req.GetPackageName())
 	kind := strings.ToUpper(strings.TrimSpace(req.GetPackageKind()))
@@ -243,33 +241,15 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 							normalizedHash(req.GetExpectedSha256()))
 						// fall through to reinstall
 					} else {
-						// InstalledPackage.Checksum is the installed entrypoint/artifact
-						// binary SHA, NOT the release identity hash. A Day-0 install path
-						// can leave Checksum stamped with the release-identity hash
-						// (ServiceRelease.Status.DesiredHash), producing a permanent
-						// rollout.installed_hash_mismatch downstream. When skipping a
-						// matching build_id, repair the field from the disk's actual
-						// SHA256 so the per-node record carries the binary identity the
-						// proto declares ("Phase 4: artifact sha256 verified at apply
-						// time"). Best-effort: if the binary can't be hashed, leave the
-						// existing value as-is.
-						if diskHash, hashErr := cachedSha256(installedBinaryPath(name, kind)); hashErr == nil && diskHash != "" && !strings.EqualFold(strings.TrimSpace(existing.GetChecksum()), diskHash) {
-							log.Printf("apply-package: %s/%s@%s build_id matches, repairing top-level Checksum %s → %s (binary SHA from disk)",
-								kind, name, version,
-								normalizedHash(existing.GetChecksum()),
-								normalizedHash(diskHash))
-							repaired := *existing
-							repaired.Checksum = diskHash
-							repaired.UpdatedUnix = time.Now().Unix()
-							if repaired.Metadata == nil {
-								repaired.Metadata = make(map[string]string)
-							}
-							repaired.Metadata["entrypoint_checksum"] = diskHash
-							stampReceiptForInstalledPackage(&repaired, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
-							if werr := installed_state.WriteInstalledPackage(ctx, &repaired); werr != nil {
-								log.Printf("apply-package: %s/%s@%s Checksum repair write failed: %v (non-fatal)", kind, name, version, werr)
-							}
-						}
+						// Even on the idempotent build_id skip path, re-stamp the
+						// canonical install receipt from the live unit/binary before
+						// returning. Without this, stale receipts seeded from legacy
+						// sidecars or older unit renderings can survive forever when the
+						// package is already at the desired build and no reinstall occurs.
+						//
+						// Keep the top-level Checksum honest too: it is the installed
+						// entrypoint/binary SHA, NOT the release identity hash.
+						srv.repairInstalledStateOnBuildIDSkip(ctx, existing, kind, name, version)
 						log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
 							kind, name, version, req.GetBuildNumber(), buildID)
 						return &node_agentpb.ApplyPackageReleaseResponse{
@@ -500,9 +480,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildId:     buildID,
 			Platform:    platform,
 			// InstalledPackage.Checksum is the installed entrypoint/artifact binary
-		// SHA, not the release identity hash. actualHash comes from
-		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
-		Checksum: actualHash,
+			// SHA, not the release identity hash. actualHash comes from
+			// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+			Checksum: actualHash,
 		}
 		if actualHash != "" {
 			if pkg.Metadata == nil {
@@ -705,9 +685,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildId:     buildID,
 			Platform:    platform,
 			// InstalledPackage.Checksum is the installed entrypoint/artifact binary
-		// SHA, not the release identity hash. actualHash comes from
-		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
-		Checksum: actualHash,
+			// SHA, not the release identity hash. actualHash comes from
+			// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+			Checksum: actualHash,
 		}
 		if actualHash != "" {
 			if binaryOnlyPkg.Metadata == nil {
@@ -834,7 +814,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	}
 	// Canonical install path: stamp the receipt before committing the
 	// installed_state record. See docs/architecture/retire-systemd-sidecars.md.
-	stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
+	srv.stampCanonicalReceiptForInstalledPackage(ctx, pkg, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
 	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 		// The installed-state record is the durable commit. Side effects
 		// (revision history, config receipts) must not run if the commit
@@ -876,4 +856,47 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		OperationId: operationID,
 		BuildId:     buildID,
 	}, nil
+}
+
+// repairInstalledStateOnBuildIDSkip refreshes the installed-state binary
+// identity and canonical install receipt when ApplyPackageRelease short-circuits
+// on an exact build_id match.
+//
+// This path is best-effort and metadata-only. It exists to heal stale
+// installed_state rows left by older installers/day-0 scripts whose unit
+// receipts no longer match the on-disk unit content. Without this refresh,
+// unit_file_drift can persist forever on nodes that are already at the desired
+// build and therefore never take the reinstall path.
+func (srv *NodeAgentServer) repairInstalledStateOnBuildIDSkip(ctx context.Context, existing *node_agentpb.InstalledPackage, kind, name, version string) {
+	if existing == nil {
+		return
+	}
+	diskHash, hashErr := cachedSha256(installedBinaryPath(name, kind))
+	if hashErr != nil || diskHash == "" {
+		// No hashable binary means no safe binary-identity repair; still try the
+		// skip-path receipt restamp so unit receipts can converge from disk.
+		srv.restampReceiptOnInstallSkip(ctx, name, kind, version, existing.GetBuildId())
+		return
+	}
+
+	if !strings.EqualFold(strings.TrimSpace(existing.GetChecksum()), diskHash) {
+		repaired := *existing
+		repaired.Checksum = diskHash
+		repaired.UpdatedUnix = time.Now().Unix()
+		if repaired.Metadata == nil {
+			repaired.Metadata = make(map[string]string)
+		}
+		repaired.Metadata["entrypoint_checksum"] = diskHash
+		log.Printf("apply-package: %s/%s@%s build_id matches, repairing top-level Checksum %s → %s (binary SHA from disk)",
+			kind, name, version,
+			normalizedHash(existing.GetChecksum()),
+			normalizedHash(diskHash))
+		if werr := installed_state.WriteInstalledPackage(ctx, &repaired); werr != nil {
+			log.Printf("apply-package: %s/%s@%s Checksum repair write failed: %v (non-fatal)", kind, name, version, werr)
+		}
+	}
+
+	// Always refresh the canonical install receipt from the live disk view,
+	// even when the top-level binary checksum was already correct.
+	srv.restampReceiptOnInstallSkip(ctx, name, kind, version, existing.GetBuildId())
 }

@@ -25,6 +25,8 @@ var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/time
 goog.object.extend(proto, google_protobuf_timestamp_pb);
 var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb.js');
 goog.object.extend(proto, google_protobuf_empty_pb);
+var globular_auth_pb = require('./globular_auth_pb.js');
+goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.cluster_controller.ActivatePlatformReleaseRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ActivatePlatformReleaseResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.AffectedNodeDiff', null, global);
@@ -1990,7 +1992,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.cluster_controller.DesiredService = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.cluster_controller.DesiredService.repeatedFields_, null);
 };
 goog.inherits(proto.cluster_controller.DesiredService, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -23088,6 +23090,13 @@ proto.cluster_controller.PreviewNodeProfilesResponse.prototype.clearAffectedNode
 
 
 
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.cluster_controller.DesiredService.repeatedFields_ = [7];
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -23124,7 +23133,8 @@ version: jspb.Message.getFieldWithDefault(msg, 2, ""),
 platform: jspb.Message.getFieldWithDefault(msg, 3, ""),
 buildNumber: jspb.Message.getFieldWithDefault(msg, 4, 0),
 status: jspb.Message.getFieldWithDefault(msg, 5, ""),
-buildId: jspb.Message.getFieldWithDefault(msg, 6, "")
+buildId: jspb.Message.getFieldWithDefault(msg, 6, ""),
+targetNodeIdsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -23184,6 +23194,10 @@ proto.cluster_controller.DesiredService.deserializeBinaryFromReader = function(m
     case 6:
       var value = /** @type {string} */ (reader.readString());
       msg.setBuildId(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addTargetNodeIds(value);
       break;
     default:
       reader.skipField();
@@ -23253,6 +23267,13 @@ proto.cluster_controller.DesiredService.serializeBinaryToWriter = function(messa
   if (f.length > 0) {
     writer.writeString(
       6,
+      f
+    );
+  }
+  f = message.getTargetNodeIdsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      7,
       f
     );
   }
@@ -23364,6 +23385,43 @@ proto.cluster_controller.DesiredService.prototype.getBuildId = function() {
  */
 proto.cluster_controller.DesiredService.prototype.setBuildId = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * repeated string target_node_ids = 7;
+ * @return {!Array<string>}
+ */
+proto.cluster_controller.DesiredService.prototype.getTargetNodeIdsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.cluster_controller.DesiredService} returns this
+ */
+proto.cluster_controller.DesiredService.prototype.setTargetNodeIdsList = function(value) {
+  return jspb.Message.setField(this, 7, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.cluster_controller.DesiredService} returns this
+ */
+proto.cluster_controller.DesiredService.prototype.addTargetNodeIds = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.cluster_controller.DesiredService} returns this
+ */
+proto.cluster_controller.DesiredService.prototype.clearTargetNodeIdsList = function() {
+  return this.setTargetNodeIdsList([]);
 };
 
 

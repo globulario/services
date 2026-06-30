@@ -153,7 +153,7 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 				// resolvedBuildID no longer short-circuits to "converged" — a
 				// build-backed AVAILABLE release with no resolved build_id is
 				// "missing desired build identity" and must be re-queued, not skipped.
-				if srv.isServiceConverged(ctx, shortName, rel.Status.ResolvedVersion, rel.Status.ResolvedBuildNumber, resolvedBuildID) {
+				if srv.isServiceConverged(ctx, shortName, rel.Status.ResolvedVersion, rel.Status.ResolvedBuildNumber, resolvedBuildID, releaseTargetNodeIDs(rel.Spec.NodeAssignments)) {
 					continue // truly converged — no drift
 				}
 				if resolvedBuildID == "" {
@@ -229,7 +229,6 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 // reconcileRelease drives the phase state machine for one ServiceRelease
 // using the shared release pipeline.
 // Called from the worker goroutine when the queue key has the "release/" prefix.
-//
 func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	if !srv.mustBeLeader() {
 		return
