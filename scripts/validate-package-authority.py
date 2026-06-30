@@ -3,7 +3,7 @@
 
 Authority model:
   - packages/registry.yaml is the only authored package identity authority.
-  - packages/metadata/<name>/specs/*.yaml is the only canonical package recipe authority.
+  - packages/<name>/specs/*.yaml is the only canonical package recipe authority.
   - services/webroot is the authored release webroot source.
   - services/generated is disposable generated workspace only.
   - services/dist is disposable release output only.
@@ -53,7 +53,7 @@ ALLOWED_DIST_STAGING_REFS = {
     "scripts/validate-package-authority.py",
 }
 ALLOWED_CANONICAL_SPEC_PREFIXES = (
-    "packages/metadata/",
+    "packages/",
     "packages/specs/",
     "globular-installer/internal/packagecatalog/specs/",
     "globular-installer/internal/specs/",
@@ -370,7 +370,7 @@ def check_packages_bin_hygiene(
         if path.name not in declared_bins:
             fail(
                 errors,
-                f"{rel(path, services_root)} is not declared by packages/registry.yaml + packages/metadata/*/specs; "
+                f"{rel(path, services_root)} is not declared by packages/registry.yaml + packages/*/specs; "
                 "packages/bin may contain only declared staged binaries",
             )
 
@@ -387,7 +387,7 @@ def check_required_staged_binaries(
         if bin_name not in declared_bins:
             fail(
                 errors,
-                f"required staged binary {bin_name} is not declared by packages/registry.yaml + packages/metadata/*/specs",
+                f"required staged binary {bin_name} is not declared by packages/registry.yaml + packages/*/specs",
             )
             continue
         if not (packages_bin / bin_name).is_file():

@@ -29,6 +29,7 @@ BIN_STAGE_DIR="${DIST_STAGING_DIR}/bin"
 PKG_STAGE_DIR="${DIST_STAGING_DIR}/packages"
 REGISTRY_YAML="${PACKAGES_ROOT}/registry.yaml"
 INSTALLER_STAGE_BIN="${BIN_STAGE_DIR}/globular-installer"
+VERSIONS_FILE="${SERVICES_ROOT}/golang/build/package-versions.txt"
 
 VERSION=""
 BUMP_KIND="patch"
@@ -228,6 +229,123 @@ print("")
 PYEOF
 }
 
+resolve_package_version() {
+  local pkg_name="$1" default_version="$2"
+  python3 - "${VERSIONS_FILE}" "${pkg_name}" "${default_version}" <<'PYEOF'
+import sys
+from pathlib import Path
+versions_path, pkg_name, default = sys.argv[1:]
+path = Path(versions_path)
+if path.is_file():
+    for raw in path.read_text(encoding='utf-8').splitlines():
+        line = raw.split('#', 1)[0].strip()
+        if not line or '=' not in line:
+            continue
+        key, value = [part.strip() for part in line.split('=', 1)]
+        if key in {pkg_name, pkg_name.replace('-', '_'), pkg_name.replace('_', '-')}:
+            print(value)
+            raise SystemExit(0)
+print(default)
+PYEOF
+}
+
+resolve_package_root() {
+  local pkg_name="$1"
+  local candidate
+  for candidate in "${PACKAGES_ROOT}/${pkg_name}" "${PACKAGES_ROOT}/metadata/${pkg_name}"; do
+    if [[ -d "${candidate}" ]]; then
+      echo "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+build_installer_metadata_mirror() {
+  local mirror_root="$1"
+  python3 - "${PACKAGES_ROOT}" "${SERVICES_ROOT}" "${mirror_root}" <<'PYEOF'
+import sys
+import tarfile
+from pathlib import Path
+import yaml
+
+packages_root = Path(sys.argv[1])
+services_root = Path(sys.argv[2])
+mirror_root = Path(sys.argv[3])
+registry = yaml.safe_load((packages_root / 'registry.yaml').read_text(encoding='utf-8')) or {}
+allowed = {'service', 'infrastructure'}
+
+mirror_root.mkdir(parents=True, exist_ok=True)
+
+def direct_spec(name: str):
+    for base in (packages_root / name, packages_root / 'metadata' / name):
+        spec_dir = base / 'specs'
+        if not spec_dir.is_dir():
+            continue
+        specs = sorted(spec_dir.glob('*_service.yaml'))
+        if len(specs) == 1:
+            spec = specs[0]
+            return spec.read_text(encoding='utf-8'), spec.name
+    return None
+
+def generated_spec(name: str):
+    candidate = services_root / 'generated' / 'specs' / f"{name.replace('-', '_')}_service.yaml"
+    if candidate.is_file():
+        return candidate.read_text(encoding='utf-8'), candidate.name
+    return None
+
+def package_spec_from_tgz(root: Path, name: str):
+    matches = sorted(root.glob(f'{name}_*_linux_amd64.tgz'))
+    if not matches:
+        return None
+    pkg = matches[-1]
+    with tarfile.open(pkg, 'r:gz') as tf:
+        spec_members = [m for m in tf.getmembers() if m.isfile() and '/specs/' in m.name and m.name.endswith('_service.yaml')]
+        if len(spec_members) != 1:
+            return None
+        member = spec_members[0]
+        src = tf.extractfile(member)
+        if src is None:
+            return None
+        return src.read().decode('utf-8'), Path(member.name).name
+
+for pkg in registry.get('packages', []):
+    name = str(pkg.get('name') or '').strip()
+    kind = str(pkg.get('kind') or '').strip()
+    if not name or kind not in allowed:
+        continue
+    spec = (
+        direct_spec(name)
+        or generated_spec(name)
+        or package_spec_from_tgz(services_root / 'generated', name)
+        or package_spec_from_tgz(packages_root / 'dist', name)
+    )
+    if spec is None:
+        raise SystemExit(f'installer metadata mirror: unable to resolve *_service.yaml authority for {name}')
+    spec_text, filename = spec
+    target = mirror_root / name / 'specs' / filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(spec_text, encoding='utf-8')
+PYEOF
+}
+
+resolve_local_generated_package_source() {
+  local pkg_name="$1"
+  case "${pkg_name}" in
+    globular-cli)
+      printf '%s	%s	%s
+'         "${SERVICES_ROOT}/golang/globularcli/specs.yaml"         "globular"         "${SERVICES_ROOT}/golang/globularcli"
+      ;;
+    mcp)
+      printf '%s	%s	%s
+'         "${SERVICES_ROOT}/golang/mcp/specs.yaml"         "mcp_server"         "${SERVICES_ROOT}/golang/mcp"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 normalize_bundle_packages_dir() {
   local candidate="$1"
   if [[ -d "${candidate}/packages" ]]; then
@@ -239,11 +357,12 @@ normalize_bundle_packages_dir() {
 
 validate_generated_release_inputs() {
   local manifest_path="${SERVICES_ROOT}/generated/release-inputs.manifest.json"
-  python3 - "${SERVICES_ROOT}/generated" "${manifest_path}" "${REGISTRY_YAML}" "${VERSION}" <<'PYEOF'
+  python3 - "${SERVICES_ROOT}/generated" "${manifest_path}" "${REGISTRY_YAML}" "${VERSION}" "${VERSIONS_FILE}" <<'PYEOF'
 import glob, json, os, sys, tarfile
+from pathlib import Path
 import yaml
 
-generated_root, manifest_path, registry_path, version = sys.argv[1:]
+generated_root, manifest_path, registry_path, version, versions_file = sys.argv[1:]
 files = sorted(glob.glob(os.path.join(generated_root, "*.tgz")))
 if not files:
     sys.exit(0)
@@ -261,6 +380,28 @@ if int(manifest.get("package_count") or 0) != len(files):
 with open(registry_path, "r", encoding="utf-8") as f:
     reg = yaml.safe_load(f) or {}
 registry = {str(pkg.get("name") or "").strip() for pkg in reg.get("packages", []) if str(pkg.get("name") or "").strip()}
+
+overrides = {}
+path = Path(versions_file)
+if path.is_file():
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        key, value = [part.strip() for part in line.split("=", 1)]
+        overrides[key] = value
+
+def expected_version(name: str) -> str:
+    aliases = {
+        name,
+        name.replace("-", "_"),
+        name.replace("_", "-"),
+    }
+    for alias in aliases:
+        if alias in overrides:
+            return overrides[alias]
+    return version
+
 manifest_files = {pkg.get("filename") for pkg in manifest.get("packages", []) if pkg.get("filename")}
 actual_files = {os.path.basename(path) for path in files}
 if manifest_files != actual_files:
@@ -287,8 +428,9 @@ for path in files:
     file_version = str(pkg.get("version") or "").strip()
     if not name or name not in registry:
         raise SystemExit(f"{base}: generated package template is not registry-backed")
-    if file_version != version:
-        raise SystemExit(f"{base}: generated package template version {file_version!r} does not match release version {version!r}; rerun --full-regenerate")
+    expected = expected_version(name)
+    if file_version != expected:
+        raise SystemExit(f"{base}: generated package template version {file_version!r} does not match expected package version {expected!r}; rerun --full-regenerate")
 PYEOF
 }
 
@@ -338,9 +480,10 @@ find_source_package() {
 
 ensure_generated_source_package_template() {
   local pkg_name="$1" bin_name="$2"
-  local metadata_dir spec_src policy_dir tmpdir out_pkg
+  local metadata_dir spec_src policy_dir tmpdir out_pkg local_root
   local -a spec_candidates
   local -a scripts_args=()
+  local local_source=""
 
   out_pkg="$(find_source_package "${pkg_name}" "${GENERATED_PKG_DIR}" || true)"
   if [[ -n "${out_pkg}" ]]; then
@@ -348,12 +491,17 @@ ensure_generated_source_package_template() {
     return 0
   fi
 
-  metadata_dir="${PACKAGES_ROOT}/metadata/${pkg_name}"
-  [[ -d "${metadata_dir}" ]] || die "cannot synthesize package template for ${pkg_name}: metadata dir missing at ${metadata_dir}"
+  if local_source="$(resolve_local_generated_package_source "${pkg_name}")"; then
+    IFS=$'	' read -r spec_src _ local_root <<< "${local_source}"
+    metadata_dir="${local_root}"
+    [[ -f "${spec_src}" ]] || die "cannot synthesize package template for ${pkg_name}: local spec missing at ${spec_src}"
+  else
+    metadata_dir="$(resolve_package_root "${pkg_name}")" || die "cannot synthesize package template for ${pkg_name}: metadata dir missing at ${PACKAGES_ROOT}/${pkg_name} or ${PACKAGES_ROOT}/metadata/${pkg_name}"
 
-  mapfile -t spec_candidates < <(find "${metadata_dir}/specs" -maxdepth 1 -name '*.yaml' | sort)
-  [[ ${#spec_candidates[@]} -eq 1 ]] || die "cannot synthesize package template for ${pkg_name}: expected exactly one canonical spec under ${metadata_dir}/specs"
-  spec_src="${spec_candidates[0]}"
+    mapfile -t spec_candidates < <(find "${metadata_dir}/specs" -maxdepth 1 -name '*.yaml' | sort)
+    [[ ${#spec_candidates[@]} -eq 1 ]] || die "cannot synthesize package template for ${pkg_name}: expected exactly one canonical spec under ${metadata_dir}/specs"
+    spec_src="${spec_candidates[0]}"
+  fi
 
   [[ -x "${BIN_STAGE_DIR}/globular" ]] || die "cannot synthesize package template for ${pkg_name}: staged globular CLI missing at ${BIN_STAGE_DIR}/globular"
   [[ -f "${BIN_STAGE_DIR}/${bin_name}" ]] || die "cannot synthesize package template for ${pkg_name}: staged binary missing at ${BIN_STAGE_DIR}/${bin_name}"
@@ -383,11 +531,13 @@ ensure_generated_source_package_template() {
   fi
 
   mkdir -p "${GENERATED_PKG_DIR}"
+  local pkg_version
+  pkg_version="$(resolve_package_version "${pkg_name}" "${VERSION}")"
   "${BIN_STAGE_DIR}/globular" pkg build \
     --spec "${tmpdir}/specs/$(basename "${spec_src}")" \
     --root "${tmpdir}" \
     "${scripts_args[@]}" \
-    --version "${VERSION}" \
+    --version "${pkg_version}" \
     --publisher "core@globular.io" \
     --platform "linux_amd64" \
     --out "${GENERATED_PKG_DIR}" \
@@ -792,7 +942,8 @@ mkdir -p "${BIN_STAGE_DIR}" "${PKG_STAGE_DIR}"
 # ── Build Go binaries into release staging ───────────────────────────────────
 section "Building Go Services"
 
-LDFLAGS="-X main.Version=${VERSION} -s -w"
+bash "${SERVICES_ROOT}/golang/build/gen-version.sh" "${VERSION}" "${VERSIONS_FILE}" >/dev/null
+LDFLAGS="-s -w"
 cd "${SERVICES_ROOT}/golang"
 
 while IFS='|' read -r target output; do
@@ -814,16 +965,22 @@ cp "${BIN_STAGE_DIR}/mcp" "${BIN_STAGE_DIR}/mcp_server" 2>/dev/null || true
 info "Building xds and gateway from sibling Globular repo..."
 (
   cd "${GLOBULAR_ROOT}"
-  go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/xds" ./cmd/xds
-  go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/gateway" ./cmd/gateway
+  xds_version="$(resolve_package_version "xds" "${VERSION}")"
+  gateway_version="$(resolve_package_version "gateway" "${VERSION}")"
+  go build -trimpath -ldflags "-X main.Version=${xds_version} -s -w" -o "${BIN_STAGE_DIR}/xds" ./cmd/xds
+  go build -trimpath -ldflags "-X main.Version=${gateway_version} -s -w" -o "${BIN_STAGE_DIR}/gateway" ./cmd/gateway
 )
 
 # The installer binary is install execution authority. Always build it from the
 # current sibling source tree into release staging so fresh specs cannot be
 # bundled with a stale installer executable.
 [[ -d "${INSTALLER_ROOT}" ]] || die "globular-installer repo not found at ${INSTALLER_ROOT}"
+installer_metadata_root="$(mktemp -d)"
+trap 'rm -rf "${installer_metadata_root}"' EXIT
+build_installer_metadata_mirror "${installer_metadata_root}"
 info "Validating installer mirrors before building installer binary..."
-make -C "${INSTALLER_ROOT}" check-specs >/dev/null
+make -C "${INSTALLER_ROOT}" METADATA_ROOT="${installer_metadata_root}" sync-specs >/dev/null
+make -C "${INSTALLER_ROOT}" METADATA_ROOT="${installer_metadata_root}" check-specs >/dev/null
 info "Building globular-installer from sibling source repo..."
 (
   cd "${INSTALLER_ROOT}"
@@ -987,7 +1144,9 @@ for pkg_name in "${!BIN_MAP[@]}"; do
   fi
   [[ -n "${src_pkg}" ]] || die "missing generated source package template for ${pkg_name} in ${GENERATED_PKG_DIR}"
 
-  info "Packaging ${pkg_name} v${VERSION}..."
+  pkg_version="$(extract_package_field "${src_pkg}" version)"
+  [[ -n "${pkg_version}" ]] || die "package ${src_pkg} is missing package.json.version"
+  info "Packaging ${pkg_name} v${pkg_version}..."
 
   tmpdir=$(mktemp -d)
   tar -C "${tmpdir}" -xf "${src_pkg}" --exclude='bin/*'
@@ -998,12 +1157,11 @@ for pkg_name in "${!BIN_MAP[@]}"; do
   CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
 
   build_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
-  python3 - "${tmpdir}/package.json" "${VERSION}" "${CHECKSUM}" "${BUILD_NUMBER}" "${build_id}" <<'PYEOF'
+  python3 - "${tmpdir}/package.json" "${CHECKSUM}" "${BUILD_NUMBER}" "${build_id}" <<'PYEOF'
 import json, sys
-path, version, checksum, build_number, build_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+path, checksum, build_number, build_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 with open(path) as f:
     d = json.load(f)
-d['version'] = version
 d['build_number'] = int(build_number)
 d['build_id'] = build_id
 d['entrypoint_checksum'] = checksum
@@ -1011,7 +1169,7 @@ with open(path, 'w') as f:
     json.dump(d, f, indent=2)
 PYEOF
 
-  out_file="${PKG_STAGE_DIR}/${pkg_name}_${VERSION}_linux_amd64.tgz"
+  out_file="${PKG_STAGE_DIR}/${pkg_name}_${pkg_version}_linux_amd64.tgz"
   tar -C "${tmpdir}" -czf "${out_file}" .
   rm -rf "${tmpdir}"
   validate_package_systemd_units "${out_file}" || die "unsafe systemd unit content detected in $(basename "${out_file}")"

@@ -35,6 +35,22 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+var (
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
+func printVersion() {
+	info := map[string]string{
+		"service":    "node-agent",
+		"version":    Version,
+		"build_time": BuildTime,
+		"git_commit": GitCommit,
+	}
+	data, _ := json.MarshalIndent(info, "", "  ")
+	fmt.Println(string(data))
+}
+
 func main() {
 	// All workflow definitions live in etcd — always available on every node.
 	v1alpha1.EnableEtcdFetcher()
@@ -65,6 +81,7 @@ func main() {
 	joinTokenFlag := flag.String("join-token", "", "join token for cluster registration")
 	bootstrapTokenFlag := flag.String("bootstrap-token", "", "bootstrap token")
 	agentVersionFlag := flag.String("agent-version", "", "agent version string (injected by package installer)")
+	versionFlag := flag.Bool("version", false, "print version information and exit")
 	controllerCAFlag := flag.String("controller-ca", "", "path to controller CA certificate")
 	controllerSNIFlag := flag.String("controller-sni", "", "controller TLS SNI")
 	controllerSystemRootsFlag := flag.Bool("controller-use-system-roots", false, "use system root CAs for controller TLS")
@@ -81,6 +98,11 @@ func main() {
 	dnsIfaceFlag := flag.String("dns-iface", "", "network interface for DNS IP selection")
 
 	flag.Parse()
+
+	if *versionFlag {
+		printVersion()
+		return
+	}
 
 	port := *portFlag
 	address := fmt.Sprintf("0.0.0.0:%s", port)
