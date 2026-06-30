@@ -374,7 +374,7 @@ jobs:
           rm -rf "${tmpd}" /tmp/scylla-manager.tar.gz
 
           echo "-> claude (Anthropic Claude Code CLI via npm)..."
-          CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../../../packages/metadata/claude/package.json'))['version'])")
+          CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../../packages/metadata/claude/package.json'))['version'])")
           echo "  version: ${CLAUDE_VERSION}"
           echo "CLAUDE_VERSION=${CLAUDE_VERSION}" >> "$GITHUB_ENV"
           npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" --quiet
