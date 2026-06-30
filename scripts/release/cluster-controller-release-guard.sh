@@ -69,7 +69,7 @@ case "${MODE}" in
       scripts/release/install-day0.sh)
 
     mapfile -t package_changes < <(collect_changed_paths "${PACKAGES_ROOT}" "${PREV_TAG}" \
-      metadata/cluster-controller)
+      cluster-controller)
 
     mkdir -p "$(dirname "${OUTPUT}")"
     : > "${OUTPUT}"

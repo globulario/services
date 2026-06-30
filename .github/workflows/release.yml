@@ -382,7 +382,7 @@ jobs:
           rm -rf "${tmpd}" /tmp/scylla-manager.tar.gz
 
           echo "-> claude (Anthropic Claude Code CLI via npm)..."
-          CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../../packages/metadata/claude/package.json'))['version'])")
+          CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../../packages/claude/package.json'))['version'])")
           echo "  version: ${CLAUDE_VERSION}"
           echo "CLAUDE_VERSION=${CLAUDE_VERSION}" >> "$GITHUB_ENV"
           npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" --quiet
@@ -483,7 +483,7 @@ jobs:
 
           python3 services/golang/build/detect-changes.py \
             --prev-index dist/prev-release-index.json \
-            --metadata-dir packages/metadata \
+            --metadata-dir packages \
             --bin-dir dist/.staging/bin \
             --pkg-map-json services/golang/build/pkg-map.json \
             --go-src-dir services/golang \
@@ -699,7 +699,7 @@ jobs:
               binary   = info["binary"]
               plat_ver = info.get("platform_version", True)
               bin_path = f"dist/.staging/bin/{binary}"
-              meta_dir = f"packages/metadata/{name}"
+              meta_dir = f"packages/{name}"
 
               if not os.path.isfile(bin_path):
                   print(f"  SKIP {name}: binary {binary} not found")

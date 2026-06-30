@@ -199,7 +199,7 @@ if [[ -d "$WORKFLOW_DEFS" ]]; then
 fi
 
 echo "=> Building Go services"
-bash "$REPO_ROOT/golang/build/build-services.sh"
+VERSION="${VERSION:-0.0.1}" bash "$REPO_ROOT/golang/build/build-services.sh"
 
 echo "=> Building globular CLI"
 (

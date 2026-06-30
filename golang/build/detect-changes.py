@@ -18,7 +18,7 @@ Outputs:
 Usage:
   python3 detect-changes.py \\
     --prev-index dist/prev-release-index.json \\
-    --metadata-dir packages/metadata \\
+    --metadata-dir packages \\
     --bin-dir dist/.staging/bin \\
     --pkg-map-json services/golang/build/pkg-map.json \\
     --version 1.0.85 \\
@@ -252,7 +252,7 @@ def load_origin_index(origin_indices_dir, origin_release):
 def main():
     ap = argparse.ArgumentParser(description="BOM change detection for Globular releases")
     ap.add_argument("--prev-index",        required=True, help="Path to previous release-index.json")
-    ap.add_argument("--metadata-dir",      required=True, help="Path to packages/metadata/")
+    ap.add_argument("--metadata-dir",      required=True, help="Path to packages/ (package metadata root)")
     ap.add_argument("--bin-dir",           required=True, help="Path to dist/.staging/bin/")
     ap.add_argument("--pkg-map-json",      required=True, help="Path to pkg-map.json")
     ap.add_argument("--go-src-dir",       default="",    help="Path to golang/ source root (for source-based change detection)")

@@ -1,5 +1,25 @@
 #!/usr/bin/env bash
+# Usage: VERSION=1.2.259 bash build-all-packages.sh
+#
+# Requires generateCode.sh to have been run first with the same VERSION so the
+# staged binaries carry the correct version string. If VERSION is not set,
+# binaries will report 0.0.1 but package.json will show the VERSION default —
+# a mismatch. Always set VERSION explicitly for release builds.
 set -euo pipefail
+
+# VERSION must be set — no silent fallback to 0.0.1 which misleads package.json.
+VERSION="${VERSION:-}"
+if [[ -z "${VERSION}" ]]; then
+  echo "ERROR: VERSION is not set. Run: VERSION=1.2.259 bash build-all-packages.sh" >&2
+  echo "       Also ensure generateCode.sh was run with the same VERSION beforehand." >&2
+  exit 1
+fi
+
+# SERVICES_ONLY=1 skips Steps 1 and 2 (infra binaries + infra packages) and
+# outputs service packages directly to services/dist instead of packages/dist.
+# Useful for testing the service package pipeline without needing packages/build.sh
+# or the large third-party binary downloads.
+SERVICES_ONLY="${SERVICES_ONLY:-0}"
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
@@ -18,7 +38,12 @@ SERVICES_STAGE="${SERVICES_ROOT}/golang/tools/stage/linux-amd64/usr/local/bin"
 SERVICES_OUTPUT="${SERVICES_ROOT}/generated"
 
 # The single output directory for all built packages (infra + services).
-DIST_DIR="${PACKAGES_ROOT}/dist"
+# When SERVICES_ONLY=1, output goes to services/dist (no packages/build.sh required).
+if [[ "${SERVICES_ONLY}" == "1" ]]; then
+  DIST_DIR="${SERVICES_ROOT}/dist"
+else
+  DIST_DIR="${PACKAGES_ROOT}/dist"
+fi
 
 echo "━━━ Configuration ━━━"
 echo ""
@@ -41,6 +66,16 @@ find "${SERVICES_OUTPUT}" -maxdepth 1 -type f -name '*.tgz' -delete
 find "${SERVICES_OUTPUT}" -maxdepth 1 -type d -name '.pkg-staging-*' -exec rm -rf {} +
 echo "  ✓ Reset transient outputs under ${SERVICES_OUTPUT}"
 echo ""
+
+INFRA_COUNT=0
+
+if [[ "${SERVICES_ONLY}" == "1" ]]; then
+  echo "━━━ Step 1: Skipped (SERVICES_ONLY=1) ━━━"
+  echo "━━━ Step 2: Skipped (SERVICES_ONLY=1) ━━━"
+  echo ""
+  rm -rf "${DIST_DIR}"
+  mkdir -p "${DIST_DIR}"
+else
 
 # ── Step 1: Prepare infrastructure binaries ───────────────────────────────
 # Copies Go binaries from Globular build output and downloads third-party
@@ -78,14 +113,12 @@ spec_version() {
 }
 
 # spec_path <spec_file> — resolve a spec to its single source of truth under
-# metadata/<name>/specs/. There is no top-level packages/specs/ dir anymore
-# (removed in the 2026-06 spec source-of-truth consolidation). The package name
-# is the spec filename minus _service.yaml/_cmd.yaml with underscores→hyphens,
-# matching the metadata/ dir naming.
+# <name>/specs/. The package name is the spec filename minus
+# _service.yaml/_cmd.yaml with underscores→hyphens.
 spec_path() {
     local file="$1" name
     name="$(echo "${file}" | sed 's/_service\.yaml$//; s/_cmd\.yaml$//' | tr '_' '-')"
-    echo "${PACKAGES_ROOT}/metadata/${name}/specs/${file}"
+    echo "${PACKAGES_ROOT}/${name}/specs/${file}"
 }
 
 elf_needs_release_strip() {
@@ -346,7 +379,7 @@ fi
 # by 'globular pkg build' and extracted as PACKAGE_ROOT/data/intent/ during
 # install, where the post-install.sh script copies them to /var/lib/globular/intent/.
 MCP_INTENT_SRC="${SERVICES_ROOT}/docs/intent"
-MCP_DATA_DIR="${PACKAGES_ROOT}/metadata/mcp/data/intent"
+MCP_DATA_DIR="${PACKAGES_ROOT}/mcp/data/intent"
 if [[ -d "${MCP_INTENT_SRC}" ]]; then
     mkdir -p "${MCP_DATA_DIR}"
     cp -a "${MCP_INTENT_SRC}/." "${MCP_DATA_DIR}/"
@@ -387,6 +420,8 @@ echo "  ✓ ${INFRA_COUNT} infrastructure packages built"
 
 echo ""
 
+fi  # end of SERVICES_ONLY skip block
+
 # ── Step 3: Build service packages ────────────────────────────────────────
 echo "━━━ Step 3: Build Service Packages ━━━"
 echo ""
@@ -404,7 +439,76 @@ for _old in clustercontroller_server clusterdoctor_server nodeagent_server \
 done
 echo ""
 
-echo "→ Step 3a: Generate service specs..."
+# ── Step 3a: Rebuild service binaries from source ─────────────────────────
+# Build without -X main.Version ldflags so each binary's version comes directly
+# from its zz_version_generated.go — the single source of truth for service versions.
+# This ensures ./service_server --version reports the version declared in source.
+echo "→ Step 3a: Rebuild service binaries (version from zz_version_generated.go)..."
+mkdir -p "${SERVICES_STAGE}"
+BUILD_FAILED_FILE=$(mktemp)
+(
+  cd "${SERVICES_ROOT}/golang"
+  while IFS='|' read -r target out_rel; do
+    target="$(echo "${target}" | sed 's/#.*//' | tr -d ' ')"
+    out_rel="$(echo "${out_rel}" | tr -d ' ')"
+    [[ -z "${target}" || "${target}" == \#* ]] && continue
+    bin_name="$(basename "${out_rel}")"
+    [[ "${bin_name}" == "compute_server" ]] && continue
+    out_path="${SERVICES_STAGE}/${bin_name}"
+    printf "    %-42s " "${bin_name}"
+    if GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -buildvcs=false \
+         -o "${out_path}" "${target}" 2>&1; then
+      strip_release_binary "${out_path}" "${bin_name}" 2>/dev/null || true
+      ver=""
+      svc_path="${target#./}"
+      ver_file="${SERVICES_ROOT}/golang/${svc_path}/zz_version_generated.go"
+      [[ -f "${ver_file}" ]] && ver=$(grep 'var Version' "${ver_file}" | sed 's/.*"\(.*\)".*/\1/')
+      echo "✓ ${ver:-(no zz_version)}"
+    else
+      echo "✗ FAILED"
+      echo "${bin_name}" >> "${BUILD_FAILED_FILE}"
+    fi
+  done < build/services.list
+)
+if [[ -s "${BUILD_FAILED_FILE}" ]]; then
+  echo "  ✗ Failed to build: $(tr '\n' ' ' < "${BUILD_FAILED_FILE}")" >&2
+  rm -f "${BUILD_FAILED_FILE}"
+  exit 1
+fi
+rm -f "${BUILD_FAILED_FILE}"
+# Make globularcli available as 'globular' (install name)
+cp "${SERVICES_STAGE}/globularcli" "${SERVICES_STAGE}/globular" 2>/dev/null || true
+BUILD_COUNT=$(ls "${SERVICES_STAGE}"/*_server "${SERVICES_STAGE}/globularcli" "${SERVICES_STAGE}/mcp" 2>/dev/null | wc -l)
+echo ""
+echo "  ✓ ${BUILD_COUNT} service binaries built"
+echo ""
+
+# ── Step 3b: Generate package-versions.txt from zz_version_generated.go ──
+# Extract per-service versions so pkggen uses correct per-package BOM versions.
+# This is always derived from source; never from a platform-wide VERSION stamp.
+echo "→ Step 3b: Generate package-versions.txt from zz_version_generated.go..."
+GEN_VERSIONS_FILE="${SERVICES_ROOT}/golang/build/package-versions.txt"
+{
+  echo "# Auto-generated from zz_version_generated.go — do not edit by hand"
+  echo "# Generated by build-all-packages.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  while IFS='|' read -r target _; do
+    target="$(echo "${target}" | sed 's/#.*//' | tr -d ' ')"
+    [[ -z "${target}" || "${target}" == \#* ]] && continue
+    svc_path="${target#./}"
+    svc_name="${svc_path%%/*}"
+    svc_name_hyphen="${svc_name//_/-}"
+    ver_file="${SERVICES_ROOT}/golang/${svc_path}/zz_version_generated.go"
+    if [[ -f "${ver_file}" ]]; then
+      ver=$(grep 'var Version' "${ver_file}" | sed 's/.*"\(.*\)".*/\1/')
+      [[ -n "${ver}" ]] && echo "${svc_name_hyphen}=${ver}"
+    fi
+  done < "${SERVICES_ROOT}/golang/build/services.list"
+} > "${GEN_VERSIONS_FILE}"
+echo "  ✓ Generated ${GEN_VERSIONS_FILE} ($(grep -c '=' "${GEN_VERSIONS_FILE}") entries)"
+echo ""
+
+# ── Step 3c: Generate service specs ───────────────────────────────────────
+echo "→ Step 3c: Generate service specs..."
 if [[ -f "golang/globularcli/tools/specgen/specgen.sh" ]]; then
     bash golang/globularcli/tools/specgen/specgen.sh \
         "${SERVICES_STAGE}" \
@@ -416,46 +520,16 @@ else
 fi
 
 echo ""
-echo "→ Step 3b: Build service packages..."
+
+# ── Step 3d: Build service packages ───────────────────────────────────────
+echo "→ Step 3d: Build service packages..."
 
 # Resolve the per-package versions file.
-# Priority: VERSIONS_FILE env var → build/package-versions.txt → release-index.json auto-generate.
-# Never hardcode a single platform version for all packages — that violates the BOM invariant.
+# Priority: VERSIONS_FILE env var → just-generated build/package-versions.txt.
+# Never hardcode a single platform version for all packages — violates BOM invariant.
 VERSIONS_FILE="${VERSIONS_FILE:-}"
-if [[ -z "${VERSIONS_FILE}" && -f "${SERVICES_ROOT}/golang/build/package-versions.txt" ]]; then
-    VERSIONS_FILE="${SERVICES_ROOT}/golang/build/package-versions.txt"
-fi
 if [[ -z "${VERSIONS_FILE}" ]]; then
-    # Auto-generate from active release-index if available.
-    RELEASE_INDEX="/var/lib/globular/release-index.json"
-    GEN_VERSIONS_FILE="${SERVICES_ROOT}/golang/build/package-versions.txt"
-    if [[ -f "${RELEASE_INDEX}" ]]; then
-        echo "→ Generating package-versions.txt from ${RELEASE_INDEX}..."
-        python3 - <<PYEOF
-import json, sys
-with open("${RELEASE_INDEX}") as f:
-    idx = json.load(f)
-lines = []
-for p in idx.get("packages", []):
-    name = p.get("name", "")
-    ver  = p.get("version", "")
-    if name and ver:
-        lines.append(f"{name}={ver}")
-lines.sort()
-with open("${GEN_VERSIONS_FILE}", "w") as f:
-    f.write(f"# Auto-generated from {RELEASE_INDEX} — do not edit by hand\n")
-    f.write(f"# platform_release: {idx.get('platform_release','?')}\n")
-    for l in lines:
-        f.write(l + "\n")
-print(f"  wrote {len(lines)} entries to ${GEN_VERSIONS_FILE}")
-PYEOF
-        VERSIONS_FILE="${GEN_VERSIONS_FILE}"
-    else
-        echo "ERROR: no VERSIONS_FILE provided and ${RELEASE_INDEX} not found." >&2
-        echo "       Set VERSIONS_FILE=<path> or create golang/build/package-versions.txt" >&2
-        echo "       with one 'svcname=version' per line matching the active BOM." >&2
-        exit 1
-    fi
+    VERSIONS_FILE="${GEN_VERSIONS_FILE}"
 fi
 echo "  using versions file: ${VERSIONS_FILE}"
 
@@ -500,8 +574,8 @@ if [[ -x "${GLOBULARCLI}" ]]; then
             # generates a new build_id for an identical artifact, which causes
             # build_id drift across the 4 layers (desired updates, installed
             # stays on old build_id → reconciler re-installs identical binaries).
-            out=$("${GLOBULARCLI}" pkg publish --repository "${REPO_ADDR}" --file "${pkg}" 2>&1)
-            rc=$?
+            # Use &&/|| to capture rc without triggering set -e on failure.
+            out=$("${GLOBULARCLI}" pkg publish --repository "${REPO_ADDR}" --file "${pkg}" 2>&1) && rc=0 || rc=$?
             if [[ ${rc} -eq 0 ]]; then
                 echo "  ✓ ${name}"
                 PUBLISHED=$((PUBLISHED + 1))
@@ -527,21 +601,27 @@ echo ""
 echo "━━━ Step 5: Copy Packages to Installer Assets ━━━"
 echo ""
 
-echo "→ Syncing dist/ to installer assets..."
-if [[ -d "${INSTALLER_ASSETS}" ]]; then
-    rm -f "${INSTALLER_ASSETS}"/*.tgz
-else
-    mkdir -p "${INSTALLER_ASSETS}"
-fi
-
 TOTAL=0
-for pkg in "${DIST_DIR}"/*.tgz; do
-    if [[ -f "${pkg}" ]]; then
-        cp "${pkg}" "${INSTALLER_ASSETS}/"
-        TOTAL=$((TOTAL + 1))
+if [[ "${SERVICES_ONLY}" == "1" ]]; then
+    TOTAL=$(ls "${DIST_DIR}"/*.tgz 2>/dev/null | wc -l)
+    echo "  → Skipped installer asset sync (SERVICES_ONLY=1)"
+    echo "  ✓ ${TOTAL} packages in ${DIST_DIR}"
+else
+    echo "→ Syncing dist/ to installer assets..."
+    if [[ -d "${INSTALLER_ASSETS}" ]]; then
+        rm -f "${INSTALLER_ASSETS}"/*.tgz
+    else
+        mkdir -p "${INSTALLER_ASSETS}"
     fi
-done
-echo "  ✓ ${TOTAL} packages copied to installer"
+
+    for pkg in "${DIST_DIR}"/*.tgz; do
+        if [[ -f "${pkg}" ]]; then
+            cp "${pkg}" "${INSTALLER_ASSETS}/"
+            TOTAL=$((TOTAL + 1))
+        fi
+    done
+    echo "  ✓ ${TOTAL} packages copied to installer"
+fi
 
 echo ""
 

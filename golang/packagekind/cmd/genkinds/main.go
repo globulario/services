@@ -1,43 +1,37 @@
 // Command genkinds regenerates packagekind/kinds_generated.go from
-// packages/registry.yaml — the single canonical author of package kind.
+// golang/build/pkg-map.json — the single canonical author of package kind.
 //
 // Usage (from the services golang/ dir):
 //
-//	go run ./packagekind/cmd/genkinds [-registry <path>] [-out <path>]
+//	go run ./packagekind/cmd/genkinds [-pkgmap <path>] [-out <path>]
 //
-// Default registry path resolves the sibling globulario/packages checkout, or the
-// GLOBULAR_PACKAGES_REGISTRY env var. DO NOT hand-edit the generated output; edit
-// registry.yaml and re-run. See docs/design/package-classification-single-source.md.
+// Default pkg-map path resolves from the usual CWDs (services root or golang/).
+// DO NOT hand-edit the generated output; edit pkg-map.json and re-run.
+// See docs/design/package-classification-single-source.md.
 package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"go/format"
 	"os"
 	"sort"
-
-	"gopkg.in/yaml.v3"
 )
 
-type registry struct {
-	Packages []struct {
-		Name             string `yaml:"name"`
-		Kind             string `yaml:"kind"`
-		SkipRuntimeCheck bool   `yaml:"skip_runtime_check"`
-		SystemdUnit      string `yaml:"systemd_unit"`
-	} `yaml:"packages"`
+type pkgEntry struct {
+	Kind             string `json:"kind"`
+	SkipRuntimeCheck bool   `json:"skip_runtime_check"`
+	SystemdUnit      string `json:"systemd_unit"`
 }
 
-// deriveKind reproduces kind = form ⊕ role from the registry's axis fields
-// (Slice 5, docs/design/package-classification-single-source.md §1.4):
+// deriveKind reproduces kind = form ⊕ role from the pkg-map's axis fields:
 //   - form=command  iff skip_runtime_check
 //   - role=infrastructure iff an explicit systemd_unit is set; else service
 //
 // command(form) wins over role. This must reproduce the authored kind for every
-// package — the gate below fails generation on any divergence, so kind can never
-// drift from its form/role signals.
+// package — the gate below fails generation on any divergence.
 func deriveKind(skipRuntimeCheck bool, systemdUnit string) string {
 	if skipRuntimeCheck {
 		return "command"
@@ -49,45 +43,40 @@ func deriveKind(skipRuntimeCheck bool, systemdUnit string) string {
 }
 
 func main() {
-	var regPath, outPath string
-	flag.StringVar(&regPath, "registry", defaultRegistryPath(), "path to packages/registry.yaml (authority)")
+	var pkgmapPath, outPath string
+	flag.StringVar(&pkgmapPath, "pkgmap", defaultPkgMapPath(), "path to golang/build/pkg-map.json (authority)")
 	flag.StringVar(&outPath, "out", "packagekind/kinds_generated.go", "output Go file")
 	flag.Parse()
 
-	data, err := os.ReadFile(regPath)
+	data, err := os.ReadFile(pkgmapPath)
 	if err != nil {
-		// Exit 2 = registry not available (e.g. the packages repo isn't checked out)
-		// so the build gate can SKIP rather than FAIL. Real errors below use exit 1.
-		fmt.Fprintf(os.Stderr, "genkinds: registry not available at %s: %v\n", regPath, err)
+		// Exit 2 = pkg-map not available so the build gate can SKIP rather than FAIL.
+		fmt.Fprintf(os.Stderr, "genkinds: pkg-map not available at %s: %v\n", pkgmapPath, err)
 		os.Exit(2)
 	}
-	var reg registry
-	if err := yaml.Unmarshal(data, &reg); err != nil {
-		fatal("parse registry %s: %v", regPath, err)
+	var pkgmap map[string]pkgEntry
+	if err := json.Unmarshal(data, &pkgmap); err != nil {
+		fatal("parse pkg-map %s: %v", pkgmapPath, err)
 	}
 
 	m := map[string]string{}
-	for _, p := range reg.Packages {
-		if p.Name == "" || p.Kind == "" {
+	for name, p := range pkgmap {
+		if name == "" || p.Kind == "" {
 			continue
 		}
 		switch p.Kind {
 		case "service", "infrastructure", "command":
 		default:
-			fatal("package %q has unsupported kind %q — registry.yaml is authority; allowed: service|infrastructure|command", p.Name, p.Kind)
+			fatal("package %q has unsupported kind %q — pkg-map.json is authority; allowed: service|infrastructure|command", name, p.Kind)
 		}
-		// Slice 5 gate: kind must equal its form⊕role derivation, so the authored
-		// kind can never drift from the axis signals (§1.4). 0 mismatches today.
+		// Slice 5 gate: kind must equal its form⊕role derivation.
 		if d := deriveKind(p.SkipRuntimeCheck, p.SystemdUnit); d != p.Kind {
-			fatal("package %q: authored kind %q disagrees with form⊕role derivation %q (skip_runtime_check=%v systemd_unit=%q) — kind must equal command(if skip_runtime_check) else infrastructure(if systemd_unit set) else service; see docs/design/package-classification-single-source.md §1.4", p.Name, p.Kind, d, p.SkipRuntimeCheck, p.SystemdUnit)
+			fatal("package %q: authored kind %q disagrees with form⊕role derivation %q (skip_runtime_check=%v systemd_unit=%q) — fix pkg-map.json", name, p.Kind, d, p.SkipRuntimeCheck, p.SystemdUnit)
 		}
-		if prev, ok := m[p.Name]; ok && prev != p.Kind {
-			fatal("package %q declared with conflicting kinds %q and %q in registry.yaml", p.Name, prev, p.Kind)
-		}
-		m[p.Name] = p.Kind
+		m[name] = p.Kind
 	}
 	if len(m) == 0 {
-		fatal("no packages parsed from %s — wrong file?", regPath)
+		fatal("no packages parsed from %s — wrong file?", pkgmapPath)
 	}
 
 	names := make([]string, 0, len(m))
@@ -97,11 +86,11 @@ func main() {
 	sort.Strings(names)
 
 	var buf bytes.Buffer
-	buf.WriteString("// Code generated by packagekind/cmd/genkinds from packages/registry.yaml; DO NOT EDIT.\n")
-	buf.WriteString("// registry.yaml is the single canonical author of package kind. To change a\n")
-	buf.WriteString("// package's kind, edit registry.yaml and run `make gen-package-kinds`.\n\n")
+	buf.WriteString("// Code generated by packagekind/cmd/genkinds from golang/build/pkg-map.json; DO NOT EDIT.\n")
+	buf.WriteString("// pkg-map.json is the single canonical author of package kind. To change a\n")
+	buf.WriteString("// package's kind, edit pkg-map.json and run `make gen-package-kinds`.\n\n")
 	buf.WriteString("package packagekind\n\n")
-	buf.WriteString("// kinds maps canonical package name -> registry kind (service|infrastructure|command).\n")
+	buf.WriteString("// kinds maps canonical package name -> kind (service|infrastructure|command).\n")
 	buf.WriteString("var kinds = map[string]string{\n")
 	for _, n := range names {
 		fmt.Fprintf(&buf, "\t%q: %q,\n", n, m[n])
@@ -115,24 +104,22 @@ func main() {
 	if err := os.WriteFile(outPath, formatted, 0o644); err != nil {
 		fatal("write %s: %v", outPath, err)
 	}
-	fmt.Fprintf(os.Stderr, "genkinds: wrote %d package kinds to %s (from %s)\n", len(m), outPath, regPath)
+	fmt.Fprintf(os.Stderr, "genkinds: wrote %d package kinds to %s (from %s)\n", len(m), outPath, pkgmapPath)
 }
 
-// defaultRegistryPath resolves the sibling globulario/packages checkout from the
-// usual CWDs (services root or golang/), or honours GLOBULAR_PACKAGES_REGISTRY.
-func defaultRegistryPath() string {
-	if p := os.Getenv("GLOBULAR_PACKAGES_REGISTRY"); p != "" {
-		return p
-	}
+// defaultPkgMapPath resolves the services golang/build/pkg-map.json from the
+// usual CWDs (services root or golang/).
+func defaultPkgMapPath() string {
 	for _, c := range []string{
-		"../packages/registry.yaml",    // from services root
-		"../../packages/registry.yaml", // from services/golang
+		"golang/build/pkg-map.json",  // from services root
+		"build/pkg-map.json",         // from services/golang
+		"../build/pkg-map.json",      // from packagekind/cmd/genkinds
 	} {
 		if _, err := os.Stat(c); err == nil {
 			return c
 		}
 	}
-	return "../../packages/registry.yaml"
+	return "build/pkg-map.json"
 }
 
 func fatal(f string, a ...interface{}) {

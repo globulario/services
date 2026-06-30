@@ -1186,7 +1186,7 @@ RELEASE_NAME="globular-${VERSION}-linux-amd64"
 RELEASE_DIR="${DIST_DIR}/${RELEASE_NAME}"
 
 mkdir -p "${RELEASE_DIR}/packages"
-mkdir -p "${RELEASE_DIR}/scripts" "${RELEASE_DIR}/workflows"
+mkdir -p "${RELEASE_DIR}/scripts" "${RELEASE_DIR}/workflows" "${RELEASE_DIR}/docs"
 
 cp "${BIN_STAGE_DIR}/globular"   "${RELEASE_DIR}/globular"
 chmod 755 "${RELEASE_DIR}/globular"
@@ -1220,6 +1220,13 @@ if [[ -d "${SERVICES_ROOT}/webroot" ]]; then
   cp -a "${SERVICES_ROOT}/webroot" "${RELEASE_DIR}/webroot"
 elif [[ -n "${EXTRACTED_SOURCE_RELEASE_DIR}" && -d "${EXTRACTED_SOURCE_RELEASE_DIR}/webroot" ]]; then
   cp -a "${EXTRACTED_SOURCE_RELEASE_DIR}/webroot" "${RELEASE_DIR}/webroot"
+fi
+
+if [[ -d "${SERVICES_ROOT}/docs/operational-knowledge" ]]; then
+  cp -a "${SERVICES_ROOT}/docs/operational-knowledge" "${RELEASE_DIR}/docs/operational-knowledge"
+elif [[ -n "${EXTRACTED_SOURCE_RELEASE_DIR}" && -d "${EXTRACTED_SOURCE_RELEASE_DIR}/docs/operational-knowledge" ]]; then
+  mkdir -p "${RELEASE_DIR}/docs"
+  cp -a "${EXTRACTED_SOURCE_RELEASE_DIR}/docs/operational-knowledge" "${RELEASE_DIR}/docs/operational-knowledge"
 fi
 
 generate_release_index "${RELEASE_DIR}/packages" "${RELEASE_DIR}/release-index.json" "${PROVENANCE_FILE}"
