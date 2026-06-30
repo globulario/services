@@ -1,0 +1,83 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "cluster_doctor.ClusterDoctorService",
+  "permissions": [
+    {
+      "method": "/cluster_doctor.ClusterDoctorService/ExecuteRemediation",
+      "action": "cluster_doctor.remediation.execute",
+      "permission": "write",
+      "resource_template": "/cluster_doctor/findings/{finding_id}",
+      "resources": [
+        {
+          "field": "finding_id",
+          "kind": "finding"
+        }
+      ]
+    },
+    {
+      "method": "/cluster_doctor.ClusterDoctorService/ExplainFinding",
+      "action": "cluster_doctor.finding.explain",
+      "permission": "read",
+      "resource_template": "/cluster_doctor/findings/{finding_id}",
+      "resources": [
+        {
+          "field": "finding_id",
+          "kind": "finding"
+        }
+      ]
+    },
+    {
+      "method": "/cluster_doctor.ClusterDoctorService/GetClusterReport",
+      "action": "cluster_doctor.cluster_report.read",
+      "permission": "read",
+      "resource_template": "/cluster_doctor/cluster/report",
+      "resources": null
+    },
+    {
+      "method": "/cluster_doctor.ClusterDoctorService/GetDriftReport",
+      "action": "cluster_doctor.drift_report.read",
+      "permission": "read",
+      "resource_template": "/cluster_doctor/nodes/{node_id}/drift",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/cluster_doctor.ClusterDoctorService/GetHealHistory",
+      "action": "cluster_doctor.heal.history",
+      "permission": "read",
+      "resource_template": "/cluster_doctor/heal",
+      "resources": null
+    },
+    {
+      "method": "/cluster_doctor.ClusterDoctorService/GetNodeReport",
+      "action": "cluster_doctor.node_report.read",
+      "permission": "read",
+      "resource_template": "/cluster_doctor/nodes/{node_id}/report",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/cluster_doctor.ClusterDoctorService/StartRemediationWorkflow",
+      "action": "cluster_doctor.remediation.workflow_start",
+      "permission": "write",
+      "resource_template": "/cluster_doctor/findings/{finding_id}",
+      "resources": [
+        {
+          "field": "finding_id",
+          "kind": "finding"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,271 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "node_agent.NodeAgentService",
+  "permissions": [
+    {
+      "method": "/node_agent.NodeAgentService/ApplyPackageRelease",
+      "action": "node_agent.package_release.apply",
+      "permission": "admin",
+      "resource_template": "/node_agent/packages/{package_name}",
+      "resources": [
+        {
+          "field": "package_name",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/BootstrapFirstNode",
+      "action": "node_agent.cluster.bootstrap",
+      "permission": "admin",
+      "resource_template": "/node_agent/cluster",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/CleanupDiskJournal",
+      "action": "node_agent.disk.cleanup_journal",
+      "permission": "admin",
+      "resource_template": "/node_agent/disk/journal",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/CollectBackupSecrets",
+      "action": "node_agent.backup.collect_secrets",
+      "permission": "admin",
+      "resource_template": "/node_agent/nodes/{node_id}/backup-secrets",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/ControlService",
+      "action": "node_agent.service.control",
+      "permission": "admin",
+      "resource_template": "/node_agent/services/{unit}",
+      "resources": [
+        {
+          "field": "unit",
+          "kind": "service_unit"
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/DeleteCacheArtifact",
+      "action": "node_agent.cache.delete",
+      "permission": "admin",
+      "resource_template": "/node_agent/cache/{package_name}",
+      "resources": [
+        {
+          "field": "package_name",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetBackupTaskResult",
+      "action": "node_agent.backup_task.read",
+      "permission": "read",
+      "resource_template": "/node_agent/backup-tasks/{task_id}",
+      "resources": [
+        {
+          "field": "task_id",
+          "kind": "backup_task"
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetCertificateStatus",
+      "action": "node_agent.certificate_status.read",
+      "permission": "read",
+      "resource_template": "/node_agent/certificates",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetInfraProbe",
+      "action": "node_agent.infra_probe.read",
+      "permission": "read",
+      "resource_template": "/node_agent/infra_probes",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetInstalledPackage",
+      "action": "node_agent.installed_package.read",
+      "permission": "read",
+      "resource_template": "/node_agent/nodes/{node_id}/packages/{name}",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        },
+        {
+          "field": "name",
+          "kind": "package"
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetInventory",
+      "action": "node_agent.inventory.read",
+      "permission": "read",
+      "resource_template": "/node_agent/inventory",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetRestoreTaskResult",
+      "action": "node_agent.restore_task.read",
+      "permission": "read",
+      "resource_template": "/node_agent/restore-tasks/{task_id}",
+      "resources": [
+        {
+          "field": "task_id",
+          "kind": "backup_task"
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetServiceLogs",
+      "action": "node_agent.service_logs.read",
+      "permission": "read",
+      "resource_template": "/node_agent/services/{unit}/logs",
+      "resources": [
+        {
+          "field": "unit",
+          "kind": "service_unit"
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetServiceRuntimeProof",
+      "action": "node_agent.runtime_proof.read",
+      "permission": "read",
+      "resource_template": "/node_agent/runtime_proof",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/GetSubsystemHealth",
+      "action": "node_agent.subsystem_health.read",
+      "permission": "read",
+      "resource_template": "/node_agent/subsystems",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/JoinCluster",
+      "action": "node_agent.cluster.join",
+      "permission": "admin",
+      "resource_template": "/node_agent/cluster",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/ListInstalledPackages",
+      "action": "node_agent.installed_package.list",
+      "permission": "read",
+      "collection_template": "/node_agent/nodes/{node_id}/packages",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/RotateNodeToken",
+      "action": "node_agent.node_token.rotate",
+      "permission": "admin",
+      "resource_template": "/node_agent/node-token",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/RunBackupProvider",
+      "action": "node_agent.backup_provider.run",
+      "permission": "admin",
+      "resource_template": "/node_agent/nodes/{node_id}/backup-providers",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/RunRestoreProvider",
+      "action": "node_agent.restore_provider.run",
+      "permission": "admin",
+      "resource_template": "/node_agent/nodes/{node_id}/restore-providers",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/RunWorkflow",
+      "action": "node_agent.workflow.execute",
+      "permission": "execute",
+      "resource_template": "/node_agent/workflows",
+      "resources": null
+    },
+    {
+      "method": "/node_agent.NodeAgentService/SearchServiceLogs",
+      "action": "node_agent.service_logs.search",
+      "permission": "read",
+      "resource_template": "/node_agent/services/{unit}/logs",
+      "resources": [
+        {
+          "field": "unit",
+          "kind": "service_unit"
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/SetInstalledPackage",
+      "action": "node_agent.installed_package.write",
+      "permission": "admin",
+      "resource_template": "/node_agent/nodes/{node_id}/packages/{name}",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        },
+        {
+          "field": "name",
+          "kind": "package"
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/VerifyPackageIntegrity",
+      "action": "node_agent.package_integrity.verify",
+      "permission": "read",
+      "resource_template": "/node_agent/packages/{package_name}",
+      "resources": [
+        {
+          "field": "package_name",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/node_agent.NodeAgentService/WatchOperation",
+      "action": "node_agent.operation.watch",
+      "permission": "read",
+      "resource_template": "/node_agent/operations/{operation_id}",
+      "resources": [
+        {
+          "field": "operation_id",
+          "kind": "operation"
+        }
+      ]
+    }
+  ]
+}

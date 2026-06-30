@@ -1,0 +1,85 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "ai_memory.AiMemoryService",
+  "permissions": [
+    {
+      "method": "/ai_memory.AiMemoryService/Delete",
+      "action": "ai.memory.delete",
+      "permission": "delete",
+      "resource_template": "/ai/memory/entries/{id}",
+      "resources": [
+        {
+          "field": "id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_memory.AiMemoryService/Get",
+      "action": "ai.memory.read",
+      "permission": "read",
+      "resource_template": "/ai/memory/entries/{id}",
+      "resources": [
+        {
+          "field": "id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_memory.AiMemoryService/List",
+      "action": "ai.memory.read",
+      "permission": "read",
+      "collection_template": "/ai/memory/entries",
+      "resources": null
+    },
+    {
+      "method": "/ai_memory.AiMemoryService/Query",
+      "action": "ai.memory.read",
+      "permission": "read",
+      "collection_template": "/ai/memory/entries",
+      "resources": null
+    },
+    {
+      "method": "/ai_memory.AiMemoryService/ResumeSession",
+      "action": "ai.memory.read",
+      "permission": "read",
+      "collection_template": "/ai/memory/sessions",
+      "resources": null
+    },
+    {
+      "method": "/ai_memory.AiMemoryService/SaveSession",
+      "action": "ai.memory.write",
+      "permission": "write",
+      "collection_template": "/ai/memory/sessions",
+      "resources": null
+    },
+    {
+      "method": "/ai_memory.AiMemoryService/Stop",
+      "action": "ai.memory.admin",
+      "permission": "write",
+      "resource_template": "/ai/memory",
+      "resources": null
+    },
+    {
+      "method": "/ai_memory.AiMemoryService/Store",
+      "action": "ai.memory.write",
+      "permission": "write",
+      "collection_template": "/ai/memory/entries",
+      "resources": null
+    },
+    {
+      "method": "/ai_memory.AiMemoryService/Update",
+      "action": "ai.memory.write",
+      "permission": "write",
+      "resource_template": "/ai/memory/entries/{id}",
+      "resources": [
+        {
+          "field": "id",
+          "kind": ""
+        }
+      ]
+    }
+  ]
+}

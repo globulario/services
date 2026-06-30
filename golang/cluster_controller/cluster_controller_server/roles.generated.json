@@ -1,0 +1,81 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "cluster_controller.ClusterControllerService",
+  "roles": [
+    {
+      "name": "role:cluster_controller.viewer",
+      "actions": [
+        "cluster_controller.artifact.validate",
+        "cluster_controller.cluster.health",
+        "cluster_controller.cluster.health_v1",
+        "cluster_controller.cluster.info",
+        "cluster_controller.desired_service.preview",
+        "cluster_controller.desired_state.read",
+        "cluster_controller.domains.read",
+        "cluster_controller.ingress.read",
+        "cluster_controller.join_request.list",
+        "cluster_controller.join_request.status",
+        "cluster_controller.node.health_detail",
+        "cluster_controller.node.list",
+        "cluster_controller.node.profiles.preview",
+        "cluster_controller.node.resolve",
+        "cluster_controller.operation.watch",
+        "cluster_controller.providers.read",
+        "cluster_controller.releases.read",
+        "cluster_controller.routing.read",
+        "cluster_controller.scylla.read",
+        "cluster_controller.services.read",
+        "cluster_controller.subsystem_health.read"
+      ]
+    },
+    {
+      "name": "role:cluster_controller.editor",
+      "inherits": [
+        "role:cluster_controller.viewer"
+      ],
+      "actions": [
+        "cluster_controller.domains.create",
+        "cluster_controller.domains.delete",
+        "cluster_controller.ingress.republish",
+        "cluster_controller.join.authorize",
+        "cluster_controller.join_request.create",
+        "cluster_controller.node.set_bootstrap_phase",
+        "cluster_controller.node.status.report",
+        "cluster_controller.operation.complete",
+        "cluster_controller.providers.create",
+        "cluster_controller.scylla.enforce",
+        "cluster_controller.workflow.emit_event"
+      ]
+    },
+    {
+      "name": "role:cluster_controller.admin",
+      "inherits": [
+        "role:cluster_controller.editor"
+      ],
+      "actions": [
+        "cluster_controller.acc_config.reset",
+        "cluster_controller.acc_config.set",
+        "cluster_controller.deploy.control_plane",
+        "cluster_controller.desired_service.remove",
+        "cluster_controller.desired_service.upsert",
+        "cluster_controller.desired_state.seed",
+        "cluster_controller.join_request.approve",
+        "cluster_controller.join_request.reject",
+        "cluster_controller.join_token.create",
+        "cluster_controller.leadership.resign",
+        "cluster_controller.network.update",
+        "cluster_controller.node.remove",
+        "cluster_controller.node.set_profiles",
+        "cluster_controller.node.upgrade",
+        "cluster_controller.nodes.cleanup_ghost_packages",
+        "cluster_controller.objectstore_disk.approve",
+        "cluster_controller.objectstore_disk.reject",
+        "cluster_controller.objectstore_pool.sanitize",
+        "cluster_controller.objectstore_topology.apply",
+        "cluster_controller.objectstore_topology.plan",
+        "cluster_controller.platform.activate_release"
+      ]
+    }
+  ]
+}

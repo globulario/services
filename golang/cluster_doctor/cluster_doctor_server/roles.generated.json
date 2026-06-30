@@ -1,0 +1,27 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "cluster_doctor.ClusterDoctorService",
+  "roles": [
+    {
+      "name": "role:cluster_doctor.viewer",
+      "actions": [
+        "cluster_doctor.cluster_report.read",
+        "cluster_doctor.drift_report.read",
+        "cluster_doctor.finding.explain",
+        "cluster_doctor.heal.history",
+        "cluster_doctor.node_report.read"
+      ]
+    },
+    {
+      "name": "role:cluster_doctor.editor",
+      "inherits": [
+        "role:cluster_doctor.viewer"
+      ],
+      "actions": [
+        "cluster_doctor.remediation.execute",
+        "cluster_doctor.remediation.workflow_start"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "ai_executor.AiExecutorService",
+  "roles": [
+    {
+      "name": "role:ai_executor.viewer",
+      "actions": [
+        "ai.execute"
+      ]
+    },
+    {
+      "name": "role:ai_executor.editor",
+      "inherits": [
+        "role:ai_executor.viewer"
+      ],
+      "actions": [
+        "ai.execute",
+        "ai.execute.admin",
+        "ai.tools.invoke"
+      ]
+    },
+    {
+      "name": "role:ai_executor.admin",
+      "inherits": [
+        "role:ai_executor.editor"
+      ],
+      "actions": [
+        "ai.execute.admin"
+      ]
+    }
+  ]
+}

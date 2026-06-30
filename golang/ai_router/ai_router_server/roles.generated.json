@@ -1,0 +1,23 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "ai_router.AiRouterService",
+  "roles": [
+    {
+      "name": "role:ai_router.viewer",
+      "actions": [
+        "ai.router.read"
+      ]
+    },
+    {
+      "name": "role:ai_router.editor",
+      "inherits": [
+        "role:ai_router.viewer"
+      ],
+      "actions": [
+        "ai.router.admin",
+        "ai.router.write"
+      ]
+    }
+  ]
+}

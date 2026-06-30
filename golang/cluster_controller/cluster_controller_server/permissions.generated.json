@@ -1,0 +1,488 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "cluster_controller.ClusterControllerService",
+  "permissions": [
+    {
+      "method": "/cluster_controller.ClusterControllerService/ActivatePlatformRelease",
+      "action": "cluster_controller.platform.activate_release",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/platform/active-release",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ApplyObjectStoreTopology",
+      "action": "cluster_controller.objectstore_topology.apply",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/objectstore/topology",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ApproveJoin",
+      "action": "cluster_controller.join_request.approve",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/join-requests/{request_id}",
+      "resources": [
+        {
+          "field": "request_id",
+          "kind": "join_request"
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ApproveObjectStoreDisk",
+      "action": "cluster_controller.objectstore_disk.approve",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/objectstore/disks",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/CleanupGhostNodePackages",
+      "action": "cluster_controller.nodes.cleanup_ghost_packages",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/nodes",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/CompleteOperation",
+      "action": "cluster_controller.operation.complete",
+      "permission": "write",
+      "resource_template": "/cluster_controller/nodes/{node_id}/operations/{operation_id}",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        },
+        {
+          "field": "operation_id",
+          "kind": "operation"
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/CreateDNSProvider",
+      "action": "cluster_controller.providers.create",
+      "permission": "write",
+      "resource_template": "/cluster_controller/providers/{name}",
+      "resources": [
+        {
+          "field": "name",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/CreateExternalDomain",
+      "action": "cluster_controller.domains.create",
+      "permission": "write",
+      "resource_template": "/cluster_controller/domains/{fqdn}",
+      "resources": [
+        {
+          "field": "fqdn",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/CreateJoinToken",
+      "action": "cluster_controller.join_token.create",
+      "permission": "admin",
+      "collection_template": "/cluster_controller/join-tokens",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/DeleteExternalDomain",
+      "action": "cluster_controller.domains.delete",
+      "permission": "write",
+      "resource_template": "/cluster_controller/domains/{fqdn}",
+      "resources": [
+        {
+          "field": "fqdn",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/DeployControlPlanePackage",
+      "action": "cluster_controller.deploy.control_plane",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/deploy",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/EmitWorkflowEvent",
+      "action": "cluster_controller.workflow.emit_event",
+      "permission": "write",
+      "collection_template": "/cluster_controller/workflow",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetClusterHealth",
+      "action": "cluster_controller.cluster.health",
+      "permission": "read",
+      "resource_template": "/cluster_controller/cluster/health",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetClusterHealthV1",
+      "action": "cluster_controller.cluster.health_v1",
+      "permission": "read",
+      "resource_template": "/cluster_controller/cluster/health",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetClusterInfo",
+      "action": "cluster_controller.cluster.info",
+      "permission": "read",
+      "resource_template": "/cluster_controller/cluster",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetDesiredState",
+      "action": "cluster_controller.desired_state.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/desired-state",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetIngressStatus",
+      "action": "cluster_controller.ingress.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/ingress",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetJoinRequestStatus",
+      "action": "cluster_controller.join_request.status",
+      "permission": "read",
+      "resource_template": "/cluster_controller/join-requests/{request_id}",
+      "resources": [
+        {
+          "field": "request_id",
+          "kind": "join_request"
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetNodeHealthDetailV1",
+      "action": "cluster_controller.node.health_detail",
+      "permission": "read",
+      "resource_template": "/cluster_controller/nodes/{node_id}/health",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetRoutingRefresh",
+      "action": "cluster_controller.routing.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/routing",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetScyllaSchemaGuardStatus",
+      "action": "cluster_controller.scylla.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/scylla",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/GetSubsystemHealth",
+      "action": "cluster_controller.subsystem_health.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/subsystems",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ListDNSProviders",
+      "action": "cluster_controller.providers.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/providers",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ListDesiredBuildIDs",
+      "action": "cluster_controller.desired_state.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/desired-state",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ListExternalDomains",
+      "action": "cluster_controller.domains.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/domains",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ListInfrastructureReleasesJson",
+      "action": "cluster_controller.releases.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/releases",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ListJoinRequests",
+      "action": "cluster_controller.join_request.list",
+      "permission": "read",
+      "collection_template": "/cluster_controller/join-requests",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ListNodes",
+      "action": "cluster_controller.node.list",
+      "permission": "read",
+      "collection_template": "/cluster_controller/nodes",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ListServiceReleasesJson",
+      "action": "cluster_controller.releases.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/releases",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ListServices",
+      "action": "cluster_controller.services.read",
+      "permission": "read",
+      "resource_template": "/cluster_controller/services",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/PlanObjectStoreTopology",
+      "action": "cluster_controller.objectstore_topology.plan",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/objectstore/topology",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/PreviewDesiredServices",
+      "action": "cluster_controller.desired_service.preview",
+      "permission": "read",
+      "collection_template": "/cluster_controller/desired-state/services",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/PreviewNodeProfiles",
+      "action": "cluster_controller.node.profiles.preview",
+      "permission": "read",
+      "resource_template": "/cluster_controller/nodes/{node_id}/profiles",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/RejectJoin",
+      "action": "cluster_controller.join_request.reject",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/join-requests/{request_id}",
+      "resources": [
+        {
+          "field": "request_id",
+          "kind": "join_request"
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/RejectObjectStoreDisk",
+      "action": "cluster_controller.objectstore_disk.reject",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/objectstore/disks",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/RemoveDesiredService",
+      "action": "cluster_controller.desired_service.remove",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/desired-state/services/{service_id}",
+      "resources": [
+        {
+          "field": "service_id",
+          "kind": "desired_service"
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/RemoveNode",
+      "action": "cluster_controller.node.remove",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/nodes/{node_id}",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ReportNodeStatus",
+      "action": "cluster_controller.node.status.report",
+      "permission": "write",
+      "collection_template": "/cluster_controller/nodes",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/RequestIngressRepublish",
+      "action": "cluster_controller.ingress.republish",
+      "permission": "write",
+      "resource_template": "/cluster_controller/ingress",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/RequestJoin",
+      "action": "cluster_controller.join_request.create",
+      "permission": "write",
+      "collection_template": "/cluster_controller/join-requests",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/RequestJoinAuthorization",
+      "action": "cluster_controller.join.authorize",
+      "permission": "write",
+      "collection_template": "/cluster_controller/join/authorizations",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/RequestScyllaSchemaEnforce",
+      "action": "cluster_controller.scylla.enforce",
+      "permission": "write",
+      "resource_template": "/cluster_controller/scylla",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ResetAccConfig",
+      "action": "cluster_controller.acc_config.reset",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/system/acc-config",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ResignLeadership",
+      "action": "cluster_controller.leadership.resign",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/leadership",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ResolveNode",
+      "action": "cluster_controller.node.resolve",
+      "permission": "read",
+      "resource_template": "/cluster_controller/nodes",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/SanitizeObjectStorePool",
+      "action": "cluster_controller.objectstore_pool.sanitize",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/objectstore/pool",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/SeedDesiredState",
+      "action": "cluster_controller.desired_state.seed",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/desired-state",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/SetAccConfig",
+      "action": "cluster_controller.acc_config.set",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/system/acc-config",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/SetNodeBootstrapPhase",
+      "action": "cluster_controller.node.set_bootstrap_phase",
+      "permission": "write",
+      "resource_template": "/cluster_controller/nodes/{node_id}",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/SetNodeProfiles",
+      "action": "cluster_controller.node.set_profiles",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/nodes/{node_id}",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/UpdateClusterNetwork",
+      "action": "cluster_controller.network.update",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/cluster/network",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/UpgradeGlobular",
+      "action": "cluster_controller.node.upgrade",
+      "permission": "admin",
+      "resource_template": "/cluster_controller/nodes/{node_id}",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/UpsertDesiredService",
+      "action": "cluster_controller.desired_service.upsert",
+      "permission": "admin",
+      "collection_template": "/cluster_controller/desired-state/services",
+      "resources": null
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/ValidateArtifact",
+      "action": "cluster_controller.artifact.validate",
+      "permission": "read",
+      "resource_template": "/cluster_controller/artifacts/{service_id}",
+      "resources": [
+        {
+          "field": "service_id",
+          "kind": "desired_service"
+        }
+      ]
+    },
+    {
+      "method": "/cluster_controller.ClusterControllerService/WatchOperations",
+      "action": "cluster_controller.operation.watch",
+      "permission": "read",
+      "resource_template": "/cluster_controller/nodes/{node_id}/operations/{operation_id}",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": "node",
+          "scope_anchor": true
+        },
+        {
+          "field": "operation_id",
+          "kind": "operation"
+        }
+      ]
+    }
+  ]
+}

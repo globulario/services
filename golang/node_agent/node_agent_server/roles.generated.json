@@ -1,0 +1,44 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "node_agent.NodeAgentService",
+  "roles": [
+    {
+      "name": "role:node_agent.viewer",
+      "actions": [
+        "node_agent.backup_task.read",
+        "node_agent.certificate_status.read",
+        "node_agent.infra_probe.read",
+        "node_agent.installed_package.list",
+        "node_agent.installed_package.read",
+        "node_agent.inventory.read",
+        "node_agent.operation.watch",
+        "node_agent.package_integrity.verify",
+        "node_agent.restore_task.read",
+        "node_agent.runtime_proof.read",
+        "node_agent.service_logs.read",
+        "node_agent.service_logs.search",
+        "node_agent.subsystem_health.read"
+      ]
+    },
+    {
+      "name": "role:node_agent.admin",
+      "inherits": [
+        "role:node_agent.editor"
+      ],
+      "actions": [
+        "node_agent.backup.collect_secrets",
+        "node_agent.backup_provider.run",
+        "node_agent.cache.delete",
+        "node_agent.cluster.bootstrap",
+        "node_agent.cluster.join",
+        "node_agent.disk.cleanup_journal",
+        "node_agent.installed_package.write",
+        "node_agent.node_token.rotate",
+        "node_agent.package_release.apply",
+        "node_agent.restore_provider.run",
+        "node_agent.service.control"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,168 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "ai_executor.AiExecutorService",
+  "permissions": [
+    {
+      "method": "/ai_executor.AiExecutorService/ApproveAction",
+      "action": "ai.execute.admin",
+      "permission": "write",
+      "resource_template": "/ai/executor/jobs/{incident_id}",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/DeleteConversation",
+      "action": "ai.execute.admin",
+      "permission": "delete",
+      "resource_template": "/ai/executor/conversations/{conversation_id}",
+      "resources": [
+        {
+          "field": "conversation_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/DenyAction",
+      "action": "ai.execute.admin",
+      "permission": "write",
+      "resource_template": "/ai/executor/jobs/{incident_id}",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/GetConversation",
+      "action": "ai.execute",
+      "permission": "read",
+      "resource_template": "/ai/executor/conversations/{conversation_id}",
+      "resources": [
+        {
+          "field": "conversation_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/GetDiagnosis",
+      "action": "ai.execute",
+      "permission": "read",
+      "resource_template": "/ai/executor/incidents/{incident_id}/diagnosis",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/GetJob",
+      "action": "ai.execute",
+      "permission": "read",
+      "resource_template": "/ai/executor/jobs/{incident_id}",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/GetStatus",
+      "action": "ai.execute",
+      "permission": "read",
+      "resource_template": "/ai/executor/status",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/ListActions",
+      "action": "ai.execute",
+      "permission": "read",
+      "collection_template": "/ai/executor/actions",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/ListConversations",
+      "action": "ai.execute",
+      "permission": "read",
+      "collection_template": "/ai/executor/conversations",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/ListJobs",
+      "action": "ai.execute",
+      "permission": "read",
+      "collection_template": "/ai/executor/jobs",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/NotifyActionTaken",
+      "action": "ai.tools.invoke",
+      "permission": "write",
+      "collection_template": "/ai/executor/peers/notifications",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/Ping",
+      "action": "ai.execute",
+      "permission": "read",
+      "resource_template": "/ai/executor/peers",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/ProcessIncident",
+      "action": "ai.execute",
+      "permission": "write",
+      "collection_template": "/ai/executor/incidents",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/ProposeAction",
+      "action": "ai.tools.invoke",
+      "permission": "write",
+      "collection_template": "/ai/executor/peers/proposals",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/RetryAction",
+      "action": "ai.execute.admin",
+      "permission": "write",
+      "resource_template": "/ai/executor/jobs/{incident_id}",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/SendPrompt",
+      "action": "ai.tools.invoke",
+      "permission": "write",
+      "collection_template": "/ai/executor/conversations",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/ShareObservation",
+      "action": "ai.tools.invoke",
+      "permission": "write",
+      "collection_template": "/ai/executor/peers/observations",
+      "resources": null
+    },
+    {
+      "method": "/ai_executor.AiExecutorService/Stop",
+      "action": "ai.execute.admin",
+      "permission": "write",
+      "resource_template": "/ai/executor",
+      "resources": null
+    }
+  ]
+}

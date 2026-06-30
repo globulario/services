@@ -1,0 +1,99 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "ai_watcher.AiWatcherService",
+  "permissions": [
+    {
+      "method": "/ai_watcher.AiWatcherService/ApproveAction",
+      "action": "ai.watch.admin",
+      "permission": "write",
+      "resource_template": "/ai/watcher/incidents/{incident_id}",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/DenyAction",
+      "action": "ai.watch.admin",
+      "permission": "write",
+      "resource_template": "/ai/watcher/incidents/{incident_id}",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/GetConfig",
+      "action": "ai.watch.read",
+      "permission": "read",
+      "resource_template": "/ai/watcher/config",
+      "resources": null
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/GetIncident",
+      "action": "ai.watch.read",
+      "permission": "read",
+      "resource_template": "/ai/watcher/incidents/{id}",
+      "resources": [
+        {
+          "field": "id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/GetIncidents",
+      "action": "ai.watch.read",
+      "permission": "read",
+      "collection_template": "/ai/watcher/incidents",
+      "resources": null
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/GetPendingApprovals",
+      "action": "ai.watch.read",
+      "permission": "read",
+      "collection_template": "/ai/watcher/approvals",
+      "resources": null
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/GetStatus",
+      "action": "ai.watch.read",
+      "permission": "read",
+      "resource_template": "/ai/watcher/status",
+      "resources": null
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/Pause",
+      "action": "ai.watch.admin",
+      "permission": "write",
+      "resource_template": "/ai/watcher",
+      "resources": null
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/Resume",
+      "action": "ai.watch.admin",
+      "permission": "write",
+      "resource_template": "/ai/watcher",
+      "resources": null
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/SetConfig",
+      "action": "ai.watch.write",
+      "permission": "write",
+      "resource_template": "/ai/watcher/config",
+      "resources": null
+    },
+    {
+      "method": "/ai_watcher.AiWatcherService/Stop",
+      "action": "ai.watch.admin",
+      "permission": "write",
+      "resource_template": "/ai/watcher",
+      "resources": null
+    }
+  ]
+}

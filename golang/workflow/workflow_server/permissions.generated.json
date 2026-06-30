@@ -1,0 +1,415 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "workflow.WorkflowService, workflow.WorkflowActorService",
+  "permissions": [
+    {
+      "method": "/workflow.WorkflowActorService/ExecuteAction",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/actor/{actor}/actions",
+      "resources": [
+        {
+          "field": "actor",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/AcknowledgeRun",
+      "action": "workflow.resume",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/AddArtifactRef",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}/artifacts",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/AppendEvent",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}/events",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/ApplyIncidentAction",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/incidents/{incident_id}",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/CancelRun",
+      "action": "workflow.cancel",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/ClearCorrelationDeferState",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/defer-state/{correlation_id}",
+      "resources": [
+        {
+          "field": "correlation_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/ClearDriftObservation",
+      "action": "workflow.admin",
+      "permission": "write",
+      "collection_template": "/workflow/drift",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/DiagnoseRun",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}/diagnosis",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/ExecuteWorkflow",
+      "action": "workflow.dispatch",
+      "permission": "write",
+      "collection_template": "/workflow/executions",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/FailStep",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}/steps/{seq}",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        },
+        {
+          "field": "seq",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/FinishRun",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{id}",
+      "resources": [
+        {
+          "field": "id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/GetComponentHistory",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/components/{component_name}/history",
+      "resources": [
+        {
+          "field": "component_name",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/GetCurrentRunsForNode",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/nodes/{node_id}/runs",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/GetIncident",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/incidents/{incident_id}",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/GetRun",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/runs/{id}",
+      "resources": [
+        {
+          "field": "id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/GetRunEvents",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/runs/{run_id}/events",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/GetWorkflowDefinition",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/definitions/{name}",
+      "resources": [
+        {
+          "field": "name",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/GetWorkflowGraph",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/runs/{run_id}/graph",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/ListCorrelationDeferState",
+      "action": "workflow.read",
+      "permission": "read",
+      "collection_template": "/workflow/defer-state",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/ListDriftUnresolved",
+      "action": "workflow.read",
+      "permission": "read",
+      "collection_template": "/workflow/drift",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/ListIncidents",
+      "action": "workflow.list",
+      "permission": "read",
+      "collection_template": "/workflow/incidents",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/ListPhaseTransitions",
+      "action": "workflow.read",
+      "permission": "read",
+      "collection_template": "/workflow/phase-transitions",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/ListRuns",
+      "action": "workflow.list",
+      "permission": "read",
+      "collection_template": "/workflow/runs",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/ListStepOutcomes",
+      "action": "workflow.read",
+      "permission": "read",
+      "collection_template": "/workflow/step-outcomes",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/ListWorkflowDefinitions",
+      "action": "workflow.list",
+      "permission": "read",
+      "collection_template": "/workflow/definitions",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/ListWorkflowSummaries",
+      "action": "workflow.list",
+      "permission": "read",
+      "collection_template": "/workflow/summaries",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/RecordDriftObservation",
+      "action": "workflow.admin",
+      "permission": "write",
+      "collection_template": "/workflow/drift",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/RecordOutcome",
+      "action": "workflow.admin",
+      "permission": "write",
+      "collection_template": "/workflow/summaries",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/RecordPhaseTransition",
+      "action": "workflow.admin",
+      "permission": "write",
+      "collection_template": "/workflow/phase-transitions",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/RecordStep",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}/steps",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/RecordStepOutcome",
+      "action": "workflow.admin",
+      "permission": "write",
+      "collection_template": "/workflow/step-outcomes",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/RetryRun",
+      "action": "workflow.retry",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/StartRun",
+      "action": "workflow.admin",
+      "permission": "write",
+      "collection_template": "/workflow/runs",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/SubmitProposedFix",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/incidents/{incident_id}/fixes",
+      "resources": [
+        {
+          "field": "incident_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/UpdateRun",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{id}",
+      "resources": [
+        {
+          "field": "id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/UpdateStep",
+      "action": "workflow.admin",
+      "permission": "write",
+      "resource_template": "/workflow/runs/{run_id}/steps/{seq}",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        },
+        {
+          "field": "seq",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/WakeDeferredRunsByBlockerTag",
+      "action": "workflow.dispatch",
+      "permission": "write",
+      "collection_template": "/workflow/defer-state",
+      "resources": null
+    },
+    {
+      "method": "/workflow.WorkflowService/WatchNodeRuns",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/nodes/{node_id}/runs",
+      "resources": [
+        {
+          "field": "node_id",
+          "kind": ""
+        }
+      ]
+    },
+    {
+      "method": "/workflow.WorkflowService/WatchRun",
+      "action": "workflow.read",
+      "permission": "read",
+      "resource_template": "/workflow/runs/{run_id}",
+      "resources": [
+        {
+          "field": "run_id",
+          "kind": ""
+        }
+      ]
+    }
+  ]
+}

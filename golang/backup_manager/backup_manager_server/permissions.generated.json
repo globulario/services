@@ -1,0 +1,266 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "backup_manager.BackupManagerService, backup_manager.BackupHookService",
+  "permissions": [
+    {
+      "method": "/backup_manager.BackupHookService/FinalizeBackup",
+      "action": "backup_manager.hook.finalize",
+      "permission": "admin",
+      "resource_template": "/backup_manager/backups/{backup_id}/hooks/finalize",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupHookService/PrepareBackup",
+      "action": "backup_manager.hook.prepare",
+      "permission": "admin",
+      "resource_template": "/backup_manager/backups/{backup_id}/hooks/prepare",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/ApplyRecoverySeed",
+      "action": "backup_manager.recovery.apply_seed",
+      "permission": "admin",
+      "resource_template": "/backup_manager/recovery",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/CancelBackupJob",
+      "action": "backup_manager.job.cancel",
+      "permission": "admin",
+      "resource_template": "/backup_manager/jobs/{job_id}",
+      "resources": [
+        {
+          "field": "job_id",
+          "kind": "backup_job"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/CreateMinioBucket",
+      "action": "backup_manager.minio_bucket.create",
+      "permission": "write",
+      "collection_template": "/backup_manager/minio-buckets",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/DeleteBackup",
+      "action": "backup_manager.backup.delete",
+      "permission": "delete",
+      "resource_template": "/backup_manager/backups/{backup_id}",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/DeleteBackupJob",
+      "action": "backup_manager.job.delete",
+      "permission": "delete",
+      "resource_template": "/backup_manager/jobs/{job_id}",
+      "resources": [
+        {
+          "field": "job_id",
+          "kind": "backup_job"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/DeleteMinioBucket",
+      "action": "backup_manager.minio_bucket.delete",
+      "permission": "delete",
+      "resource_template": "/backup_manager/minio-buckets/{name}",
+      "resources": [
+        {
+          "field": "name",
+          "kind": "minio_bucket"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/DemoteBackup",
+      "action": "backup_manager.backup.demote",
+      "permission": "write",
+      "resource_template": "/backup_manager/backups/{backup_id}",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/GetBackup",
+      "action": "backup_manager.backup.read",
+      "permission": "read",
+      "resource_template": "/backup_manager/backups/{backup_id}",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/GetBackupJob",
+      "action": "backup_manager.job.read",
+      "permission": "read",
+      "resource_template": "/backup_manager/jobs/{job_id}",
+      "resources": [
+        {
+          "field": "job_id",
+          "kind": "backup_job"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/GetRecoveryStatus",
+      "action": "backup_manager.recovery.status",
+      "permission": "read",
+      "resource_template": "/backup_manager/recovery",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/GetRetentionStatus",
+      "action": "backup_manager.retention.status",
+      "permission": "read",
+      "resource_template": "/backup_manager/retention",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/GetScheduleStatus",
+      "action": "backup_manager.schedule.status",
+      "permission": "read",
+      "resource_template": "/backup_manager/schedule",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/ListBackupJobs",
+      "action": "backup_manager.job.list",
+      "permission": "read",
+      "collection_template": "/backup_manager/jobs",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/ListBackups",
+      "action": "backup_manager.backup.list",
+      "permission": "read",
+      "collection_template": "/backup_manager/backups",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/ListMinioBuckets",
+      "action": "backup_manager.minio_bucket.list",
+      "permission": "read",
+      "collection_template": "/backup_manager/minio-buckets",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/PreflightCheck",
+      "action": "backup_manager.preflight.check",
+      "permission": "read",
+      "resource_template": "/backup_manager/preflight",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/PromoteBackup",
+      "action": "backup_manager.backup.promote",
+      "permission": "write",
+      "resource_template": "/backup_manager/backups/{backup_id}",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/RestoreBackup",
+      "action": "backup_manager.restore.execute",
+      "permission": "admin",
+      "resource_template": "/backup_manager/backups/{backup_id}/restore",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/RestorePlan",
+      "action": "backup_manager.restore.plan",
+      "permission": "read",
+      "resource_template": "/backup_manager/backups/{backup_id}/restore-plan",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/RunBackup",
+      "action": "backup_manager.backup.run",
+      "permission": "admin",
+      "collection_template": "/backup_manager/backups",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/RunRestoreTest",
+      "action": "backup_manager.restore_test.run",
+      "permission": "admin",
+      "resource_template": "/backup_manager/backups/{backup_id}/restore-test",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/RunRetention",
+      "action": "backup_manager.retention.run",
+      "permission": "admin",
+      "resource_template": "/backup_manager/retention",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/Stop",
+      "action": "backup_manager.stop",
+      "permission": "admin",
+      "resource_template": "/backup_manager",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/TestScyllaConnection",
+      "action": "backup_manager.scylla.test_connection",
+      "permission": "read",
+      "resource_template": "/backup_manager/scylla",
+      "resources": null
+    },
+    {
+      "method": "/backup_manager.BackupManagerService/ValidateBackup",
+      "action": "backup_manager.backup.validate",
+      "permission": "read",
+      "resource_template": "/backup_manager/backups/{backup_id}",
+      "resources": [
+        {
+          "field": "backup_id",
+          "kind": "backup"
+        }
+      ]
+    }
+  ]
+}

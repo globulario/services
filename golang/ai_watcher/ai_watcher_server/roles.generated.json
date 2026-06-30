@@ -1,0 +1,23 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "ai_watcher.AiWatcherService",
+  "roles": [
+    {
+      "name": "role:ai_watcher.viewer",
+      "actions": [
+        "ai.watch.read"
+      ]
+    },
+    {
+      "name": "role:ai_watcher.editor",
+      "inherits": [
+        "role:ai_watcher.viewer"
+      ],
+      "actions": [
+        "ai.watch.admin",
+        "ai.watch.write"
+      ]
+    }
+  ]
+}

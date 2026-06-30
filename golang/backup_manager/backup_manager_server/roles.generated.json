@@ -1,0 +1,55 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "backup_manager.BackupManagerService",
+  "roles": [
+    {
+      "name": "role:backup_manager.viewer",
+      "actions": [
+        "backup_manager.backup.list",
+        "backup_manager.backup.read",
+        "backup_manager.backup.validate",
+        "backup_manager.job.list",
+        "backup_manager.job.read",
+        "backup_manager.minio_bucket.list",
+        "backup_manager.preflight.check",
+        "backup_manager.recovery.status",
+        "backup_manager.restore.plan",
+        "backup_manager.retention.status",
+        "backup_manager.schedule.status",
+        "backup_manager.scylla.test_connection"
+      ]
+    },
+    {
+      "name": "role:backup_manager.editor",
+      "inherits": [
+        "role:backup_manager.viewer"
+      ],
+      "actions": [
+        "backup_manager.backup.demote",
+        "backup_manager.backup.promote",
+        "backup_manager.minio_bucket.create"
+      ]
+    },
+    {
+      "name": "role:backup_manager.admin",
+      "inherits": [
+        "role:backup_manager.editor"
+      ],
+      "actions": [
+        "backup_manager.backup.delete",
+        "backup_manager.backup.run",
+        "backup_manager.hook.finalize",
+        "backup_manager.hook.prepare",
+        "backup_manager.job.cancel",
+        "backup_manager.job.delete",
+        "backup_manager.minio_bucket.delete",
+        "backup_manager.recovery.apply_seed",
+        "backup_manager.restore.execute",
+        "backup_manager.restore_test.run",
+        "backup_manager.retention.run",
+        "backup_manager.stop"
+      ]
+    }
+  ]
+}

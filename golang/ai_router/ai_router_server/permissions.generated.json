@@ -1,0 +1,42 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "ai_router.AiRouterService",
+  "permissions": [
+    {
+      "method": "/ai_router.AiRouterService/GetRoutingPolicy",
+      "action": "ai.router.read",
+      "permission": "read",
+      "resource_template": "/ai/router/policy",
+      "resources": null
+    },
+    {
+      "method": "/ai_router.AiRouterService/GetServiceClassifications",
+      "action": "ai.router.read",
+      "permission": "read",
+      "resource_template": "/ai/router/classifications",
+      "resources": null
+    },
+    {
+      "method": "/ai_router.AiRouterService/GetStatus",
+      "action": "ai.router.read",
+      "permission": "read",
+      "resource_template": "/ai/router/status",
+      "resources": null
+    },
+    {
+      "method": "/ai_router.AiRouterService/SetMode",
+      "action": "ai.router.write",
+      "permission": "write",
+      "resource_template": "/ai/router/mode",
+      "resources": null
+    },
+    {
+      "method": "/ai_router.AiRouterService/Stop",
+      "action": "ai.router.admin",
+      "permission": "write",
+      "resource_template": "/ai/router",
+      "resources": null
+    }
+  ]
+}

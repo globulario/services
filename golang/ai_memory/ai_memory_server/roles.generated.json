@@ -1,0 +1,32 @@
+{
+  "schema_version": "2",
+  "generator_version": "authzgen/0.1.0",
+  "service": "ai_memory.AiMemoryService",
+  "roles": [
+    {
+      "name": "role:ai_memory.viewer",
+      "actions": [
+        "ai.memory.read"
+      ]
+    },
+    {
+      "name": "role:ai_memory.editor",
+      "inherits": [
+        "role:ai_memory.viewer"
+      ],
+      "actions": [
+        "ai.memory.admin",
+        "ai.memory.write"
+      ]
+    },
+    {
+      "name": "role:ai_memory.admin",
+      "inherits": [
+        "role:ai_memory.editor"
+      ],
+      "actions": [
+        "ai.memory.delete"
+      ]
+    }
+  ]
+}
