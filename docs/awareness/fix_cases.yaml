@@ -104,22 +104,22 @@ fix_cases:
 
   - id: absence_as_destructive_intent
     title: Missing control-plane key must not stop or delete runtime
-    status: WIP
+    status: DONE
     pattern: "missing key stopped service"
     category: safety
     target_invariants:
       - critical_state.absence_is_not_destructive_intent
     fixed_files:
-      - golang/node_agent/node_agent_server/ingress_consumer.go
-    remaining_files:
-      - golang/node_agent/node_agent_server/objectstore_consumer.go
-      - golang/node_agent/node_agent_server/envoy_consumer.go
-      - golang/node_agent/node_agent_server/dns_consumer.go
+      - golang/node_agent/node_agent_server/ingress_reconcile.go
+      - golang/node_agent/node_agent_server/minio_contract_reconcile.go
+      - golang/node_agent/node_agent_server/xds_config_reconcile.go
+      - golang/node_agent/node_agent_server/dns_sync.go
+    remaining_files: []
     required_tests:
       - TestMissingKeyDoesNotStopRuntime
       - TestDeleteKeyWhileRunningKeepsRuntimeActive
     dod: No critical runtime shuts down solely because a key is absent.
-    notes: "DONE for ingress 2026-05-04. Objectstore/envoy/dns rollout is FUTURE."
+    notes: "DONE 2026-06-28. Ingress holds LKG on missing etcd spec; objectstore, xDS, and DNS hold/restore LKG when controller-rendered state is absent. Required-name node-agent tests cover missing/delete shapes."
 
   - id: lkg_expansion
     title: Last-known-good state must cover all critical consumers

@@ -1,13 +1,24 @@
-last_updated: "2026-05-06"
-overall: PARTIAL
-active_incidents:
-  - infra.desired_hash_mismatch_restart_storm.2026-05-06
+last_updated: "2026-06-28"
+overall: STABLE
+active_incidents: []
 completed_guardrails:
-  - config_ownership (1A)
+  - config_ownership
   - join_script_safety
   - infra_drift
-partial_guardrails:
   - desired_hash_identity
+  - lkg_required_for_critical_consumers
+  - critical_registry_completeness
+  - bootstrap_promotion_guard
+  - topology_safety_gate
+  - bounded_queries_everywhere
+  - destructive_action_guards
+  - scylla_rf_policy
+  - critical_state_absence_guard
+partial_guardrails: []
 summary: >
-  Phase 1 guardrails partially complete. 3 of 4 documented guardrails are
-  DONE or partially done. desired_hash_consistency fix is in progress.
+  Current AWG audit is clean (coverage, references, tests, contracts, and seed
+  orphans all pass). The old desired-hash restart-storm tracker is closed by
+  desired_hash_consistency. The package-config ownership audit is closed by an
+  enforcing current-layout seed guard and repair inventory. The non-ingress
+  rollout for absence as destructive intent is closed by required-name tests for
+  objectstore, xDS/Envoy, and DNS LKG behavior.

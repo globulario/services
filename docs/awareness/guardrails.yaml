@@ -2,13 +2,13 @@ guardrails:
   - id: config_ownership
     title: Package install may seed defaults only if missing. Live config is owned by controller/node-agent/workflow/identity.
     priority: P1
-    status: PARTIAL
+    status: DONE
     category: configuration
     target_invariants:
       - install.result.atomic_commit
     required_fixes:
       - config_seed_protection
-    summary: 1A done, 1B (full ownership audit) future.
+    summary: DONE 2026-06-28. Current package metadata layout is enforced by the seed guard; audited cluster-owned config seeds fail closed when specs are missing, ambiguous, or lack skip_if_exists.
 
   - id: join_script_safety
     title: Day-1 joins existing truth. It does not invent local truth.
@@ -35,13 +35,13 @@ guardrails:
   - id: desired_hash_identity
     title: Infrastructure convergence must use canonical DesiredHash throughout.
     priority: P0
-    status: PARTIAL
+    status: DONE
     category: convergence
     target_invariants:
       - infra.desired_hash_consistency
     required_fixes:
       - desired_hash_consistency
-    summary: Identified 2026-05-06; fix cases written, not yet implemented.
+    summary: DONE 2026-05-07. Convergence paths use canonical DesiredHash, not artifact digest; required tests cover controller, workflow, doctor, MCP, and debug-session paths.
 
   - id: critical_state_absence_guard
     title: Missing control-plane key must never stop or delete runtime
@@ -52,73 +52,73 @@ guardrails:
       - critical_state.absence_is_not_destructive_intent
     required_fixes:
       - absence_as_destructive_intent
-    summary: Done for ingress 2026-05-04. Objectstore/envoy/dns rollout is FUTURE.
+    summary: DONE 2026-06-28. Ingress, objectstore, xDS/Envoy, and DNS consumers hold or restore last-known-good state when control-plane state is absent; missing state is not delete/stop intent.
 
   - id: lkg_required_for_critical_consumers
     title: LKG must cover all critical runtime consumers
     priority: P1
-    status: PARTIAL
+    status: DONE
     category: resilience
     target_invariants:
       - runtime.last_known_good_required_for_critical_consumers
     required_fixes:
       - lkg_expansion
-    summary: Shared LKG lib + ingress done. Envoy/MinIO/DNS migration pending.
+    summary: DONE 2026-05-07. Shared LKG plus ingress, DNS, MinIO/objectstore contract, and Envoy/xDS consumers are covered by required tests.
 
   - id: critical_registry_completeness
     title: Every critical key must have registered owner, schema, and policy
     priority: P1
-    status: PARTIAL
+    status: DONE
     category: governance
     target_invariants:
       - critical_state.registry_ownership_required
     required_fixes:
       - critical_state_registry_ownership
-    summary: Registry structs done 2026-05-04. Doctor iteration not yet wired.
+    summary: DONE 2026-05-07. CriticalKeyPolicies are declarative and doctor emits registry-completeness findings.
 
   - id: bootstrap_promotion_guard
     title: Bootstrap state must never become authoritative without promotion
     priority: P1
-    status: PARTIAL
+    status: DONE
     category: desired_state
     target_invariants:
       - desired.bootstrap_state_requires_promotion
     required_fixes:
       - bootstrap_state_promotion
-    summary: authoritative field stamped. Promotion reconciler not yet implemented.
+    summary: DONE 2026-05-07. Bootstrap labels are stamped and promotion reconciler promotes only after AVAILABLE.
 
   - id: topology_safety_gate
     title: Drift reconciler must always run topology safety preflight
     priority: P0
-    status: PARTIAL
+    status: DONE
     category: safety
     target_invariants:
       - topology.reconciler_must_respect_safety_contract
     required_fixes:
       - topology_safety_drift_reconciler
-    summary: topologyPreflightForRemove done. Drift action planner integration missing.
+    summary: DONE 2026-05-07. Drift action planner applies per-action safety gates; safe SERVICE/COMMAND work can continue while unsafe INFRASTRUCTURE drift is blocked.
 
   - id: bounded_queries_everywhere
     title: All critical control-path queries must have bounded context
     priority: P0
-    status: PARTIAL
+    status: DONE
     category: resilience
     target_invariants:
       - critical_queries.must_be_bounded
     required_fixes:
       - bounded_critical_queries
-    summary: 13 hot paths done. DNS reconciler not yet audited.
+    summary: DONE 2026-05-07. Thirteen hot paths plus DNS reconciler are bounded and timeout maps to degraded state.
 
   - id: destructive_action_guards
     title: All destructive actions require explicit guard and audit
     priority: P0
-    status: PARTIAL
+    status: DONE
     category: safety
     target_invariants:
       - destructive_actions.require_explicit_guard
     required_fixes:
       - destructive_action_guards
-    summary: IsExplicitDisable() done. Doctor invariant emission and rate-limited audit missing.
+    summary: DONE 2026-05-07. IsExplicitDisable guards runtime stop and doctor emits proactive unguarded-disable findings.
 
   - id: scylla_rf_policy
     title: Critical Scylla keyspace RF must match storage node count policy

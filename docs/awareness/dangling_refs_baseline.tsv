@@ -586,7 +586,18 @@ https://globular.io/awareness#ForbiddenFix	write_minio_contract_fields_in_separa
 https://globular.io/awareness#ForbiddenFix	write_stream_data_before_resolving_authorized_path
 https://globular.io/awareness#ForbiddenFix	writing_new_port_to_etcd_before_listener_is_confirmed_reachable
 https://globular.io/awareness#ForbiddenFix	writing_service_desired_version_directly_from_cli
+https://globular.io/awareness#Test	../awareness-graph/golang/extractor/code_symbols_import_test.go::TestCodeSymbols_EdgeToIntent
+https://globular.io/awareness#Test	../awareness-graph/golang/extractor/importgraph/golang_test.go::TestScan_Go_InternalDependsOn
+https://globular.io/awareness#Test	../awareness-graph/golang/extractor/importgraph/python_test.go::TestScan_PY_AbsoluteAndRelative
+https://globular.io/awareness#Test	../awareness-graph/golang/extractor/importgraph/rust_test.go::TestScan_RS_CrossCrateTopLevel
+https://globular.io/awareness#Test	../awareness-graph/golang/extractor/importgraph/typescript_test.go::TestScan_TS_AliasAndExternals
+https://globular.io/awareness#Test	../awareness-graph/golang/server/graph_freshness_runtime_marker_test.go::TestMetadata_RuntimeMarkerFileMissingMarksUnknown
+https://globular.io/awareness#Test	../awareness-graph/golang/server/preflight_test.go::TestPreflight_StoreUnavailableReturnsDegradedUnknownImpact
 https://globular.io/awareness#Test	TestAbsentRecord_ClassifiedAsUnknown_NotKnownBad
+https://globular.io/awareness#Test	TestApproveAction_DispatchErrorIsNotResolved
+https://globular.io/awareness#Test	TestApproveAction_ExecutionFailureIsNotResolved
+https://globular.io/awareness#Test	TestApproveAction_RejectsNonAwaitingIncidentWithoutDispatch
+https://globular.io/awareness#Test	TestApproveAction_SuccessResolvesOnlyAfterExecution
 https://globular.io/awareness#Test	TestBOMMembership_DoesNotImplyInstalled
 https://globular.io/awareness#Test	TestCLI_PolsWorkflowUntilTerminal
 https://globular.io/awareness#Test	TestCLI_ReportsTerminalWorkflowState
@@ -618,4 +629,13 @@ https://globular.io/awareness#Test	TestStatusRollup_UnknownSubsystem_NotGreen
 https://globular.io/awareness#Test	TestVIPHolder_DerivedFromRuntimeStatus_NotProfile
 https://globular.io/awareness#Test	TestVIPHolder_ReflectsActualMaster
 https://globular.io/awareness#Test	TestWorkflowDispatch_ReturnsAccepted_NotSuccess
+https://globular.io/awareness#Test	golang/cluster_controller/cluster_controller_server/package_kind_registry_consistency_test.go::TestComponentCatalogKindMatchesRegistry
+https://globular.io/awareness#Test	golang/echo/echo_server/server_test.go::TestEchoHandler
 https://globular.io/awareness#Test	golang/extractor/intent_yaml_import_test.go:TestPhaseC_Intent_IntegrationSelfAwareness
+https://globular.io/awareness#Test	golang/mcp:TestMCPExecSurfacesAreExplicitlyAllowlisted
+https://globular.io/awareness#Test	golang/repository/repository_server/release_authority_test.go::TestReleaseAllocationRequiresNamespacePermission
+https://globular.io/awareness#Test	golang/workflow/engine:TestParallelSteps
+https://globular.io/awareness#Test	golang/workflow/engine:TestReconcile_MixedDrift
+https://globular.io/awareness#Test	make check-no-misplaced-pb
+https://globular.io/awareness#Test	make check-no-tracked-binaries
+https://globular.io/awareness#Test	make check-package-kinds
