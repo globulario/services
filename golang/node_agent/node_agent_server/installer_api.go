@@ -314,12 +314,14 @@ func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, nam
 	binPath := installedBinaryPath(name, kindU)
 	hash, err := cachedSha256(binPath)
 	if err != nil || hash == "" {
-		// Wrapper packages (bin/noop entrypoint, baseline-provided
-		// binaries) may legitimately have no hashable binary at the
-		// canonical path. Skip silently rather than block — the skip
-		// path already returned SUCCEEDED to the caller.
-		log.Printf("install-skip-restamp: %s/%s binary not hashable at %s: %v (skipping restamp)", kindU, name, binPath, err)
-		return
+		// Infrastructure packages (envoy, minio, etcd, scylla, node-exporter,
+		// alertmanager, prometheus, etc.) have binaries at system paths;
+		// installedBinaryPath returns the wrong path for them. Mirror the fix
+		// from writeInstalledStateChecksum: log and continue with unit-only
+		// restamp rather than returning and leaving the receipt permanently absent.
+		log.Printf("install-skip-restamp: %s/%s binary not hashable at %s: %v — continuing with unit-only restamp", kindU, name, binPath, err)
+		binPath = ""
+		hash = ""
 	}
 	pkg, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kindU, name)
 	if pkg == nil {
@@ -339,17 +341,43 @@ func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, nam
 			log.Printf("install-skip-restamp: canonical unit render unavailable for %s/%s@%s: %v", kindU, name, version, renderErr)
 		}
 	}
-	if !stampSkipPathReceipt(pkg, unitPathArg, renderedUnit, binPath, hash) {
-		// Stamp returned an error (e.g. declared file unreadable). Do
-		// NOT write a partial-stamp pkg — that would be the same kind
-		// of half-baked receipt that caused the original drift.
-		return
+	if hash != "" {
+		// Full restamp: binary hash available — use the canonical skip-path helper.
+		if !stampSkipPathReceipt(pkg, unitPathArg, renderedUnit, binPath, hash) {
+			// Stamp returned an error (e.g. declared file unreadable). Do
+			// NOT write a partial-stamp pkg — that would be the same kind
+			// of half-baked receipt that caused the original drift.
+			return
+		}
+	} else {
+		// Unit-only restamp: binary not hashable (infrastructure package with
+		// system-path binary). StampInstallReceipt only writes pkg.Metadata —
+		// it never touches InstalledUnix or UpdatedUnix, so no timestamp drift
+		// / false old_pid_after_upgrade. Not setting entrypoint_checksum here
+		// is correct: we're enriching forensic receipt fields, not asserting
+		// convergence identity from a secondary source.
+		if unitPathArg == "" {
+			log.Printf("install-skip-restamp: %s/%s no unit file and no binary — nothing to restamp", kindU, name)
+			return
+		}
+		stampOpts := ReceiptOpts{
+			InstalledBy:         "node-agent.grpc_workflow.install_skip_restamp",
+			UnitFilePath:        unitPathArg,
+			UnitRendererVersion: canonicalUnitRendererVersion,
+		}
+		if len(renderedUnit) > 0 {
+			stampOpts.UnitFileContent = renderedUnit
+		}
+		if serr := StampInstallReceipt(pkg, stampOpts); serr != nil {
+			log.Printf("install-skip-restamp: unit-only stamp failed for %s/%s: %v", kindU, name, serr)
+			return
+		}
 	}
 	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
 		log.Printf("install-skip-restamp: write installed-state for %s/%s: %v (non-fatal)", kindU, name, werr)
 		return
 	}
-	log.Printf("install-skip-restamp: re-stamped canonical receipt for %s/%s @ %s (legacy_sidecar superseded if present)", kindU, name, version)
+	log.Printf("install-skip-restamp: re-stamped canonical receipt for %s/%s @ %s (binary_stamped=%v)", kindU, name, version, hash != "")
 }
 
 // stampSkipPathReceipt is the pure, testable inner helper used by

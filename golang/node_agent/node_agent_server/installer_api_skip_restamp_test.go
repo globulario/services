@@ -337,6 +337,69 @@ func TestStampSkipPathReceipt_StillStampsUnitFileSha256_AfterTimestampFix(t *tes
 	}
 }
 
+// TestSkipPathUnitOnlyRestamp_BinaryHashFailsFallsThrough is the regression
+// for the permanently-absent receipt on infrastructure packages in the skip
+// path (envoy, node-exporter, alertmanager, prometheus, scylla-manager, etc.).
+//
+// Before the fix, restampReceiptOnInstallSkip returned early when cachedSha256
+// failed, leaving installed_state.metadata permanently absent and triggering
+// CRITICAL unit_receipt_drift.installed_state_missing_or_unproven on every
+// doctor sweep. The fix clears binPath/hash and falls through to a unit-only
+// stamp via StampInstallReceipt (mirroring the writeInstalledStateChecksum fix).
+//
+// This test verifies the unit-only path produces a canonical receipt with
+// skip-path attribution and unit_file_sha256 — without binary_sha256.
+// InstalledUnix/UpdatedUnix must not be advanced.
+func TestSkipPathUnitOnlyRestamp_BinaryHashFailsFallsThrough(t *testing.T) {
+	dir := t.TempDir()
+	unitContent := "[Unit]\nDescription=Envoy proxy\n[Service]\nExecStart=/usr/bin/envoy\n"
+	unitPath := filepath.Join(dir, "globular-envoy.service")
+	if err := os.WriteFile(unitPath, []byte(unitContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wantUnitSha := func() string {
+		sum := sha256.Sum256([]byte(unitContent))
+		return hex.EncodeToString(sum[:])
+	}()
+
+	const realInstallTime = 1700000000
+	const realUpdateTime = 1700000500
+	pkg := &node_agentpb.InstalledPackage{
+		Name:          "envoy",
+		Kind:          "INFRASTRUCTURE",
+		Version:       "1.35.3",
+		InstalledUnix: realInstallTime,
+		UpdatedUnix:   realUpdateTime,
+	}
+
+	// Simulate the unit-only path: StampInstallReceipt with no binary path,
+	// matching what restampReceiptOnInstallSkip now does when cachedSha256 fails.
+	opts := ReceiptOpts{
+		InstalledBy:  "node-agent.grpc_workflow.install_skip_restamp",
+		UnitFilePath: unitPath,
+	}
+	if err := StampInstallReceipt(pkg, opts); err != nil {
+		t.Fatalf("unit-only StampInstallReceipt failed: %v", err)
+	}
+
+	if got := pkg.Metadata[installreceipt.KeyInstalledBy]; got != "node-agent.grpc_workflow.install_skip_restamp" {
+		t.Errorf("installed_by = %q; want node-agent.grpc_workflow.install_skip_restamp", got)
+	}
+	if got := pkg.Metadata[installreceipt.KeyUnitFileSha256]; got != wantUnitSha {
+		t.Errorf("unit_file_sha256 = %q; want %q", got, wantUnitSha)
+	}
+	if got := pkg.Metadata[installreceipt.KeyBinarySha256]; got != "" {
+		t.Errorf("binary_sha256 must be absent in unit-only restamp; got %q", got)
+	}
+	// StampInstallReceipt only writes Metadata — timestamps must not be advanced.
+	if pkg.InstalledUnix != realInstallTime {
+		t.Errorf("InstalledUnix advanced from %d to %d; must not move on unit-only restamp", realInstallTime, pkg.InstalledUnix)
+	}
+	if pkg.UpdatedUnix != realUpdateTime {
+		t.Errorf("UpdatedUnix advanced from %d to %d; must not move on unit-only restamp", realUpdateTime, pkg.UpdatedUnix)
+	}
+}
+
 // TestStampSkipPathReceipt_PreservesSiblingNonReceiptFields proves
 // the helper does NOT clobber sibling fields like proof_on_disk_sha256
 // or proof_source that the heartbeat / proof writer manages. Only
