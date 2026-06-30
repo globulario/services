@@ -1000,8 +1000,14 @@ jobs:
 
               tarball = os.path.join("dist/unchanged", filename)
               if not os.path.isfile(tarball):
-                  mismatches.append((name, f"tarball not downloaded: {tarball}"))
-                  continue
+                  # Repair step moves stripped packages from dist/unchanged to
+                  # dist/packages — check there too before failing.
+                  repaired = os.path.join("dist/packages", filename)
+                  if os.path.isfile(repaired):
+                      tarball = repaired
+                  else:
+                      mismatches.append((name, f"tarball not downloaded: {tarball}"))
+                      continue
 
               # Read the manifest entrypoint name from package.json inside the
               # tarball. Defaults match the convention `bin/<binary>`.
