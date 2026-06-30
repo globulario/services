@@ -43,7 +43,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: services
-          fetch-depth: 0
+          # Release assembly consumes the checked-out tree at the triggering ref;
+          # it does not need the full services history on the runner.
+          fetch-depth: 1
           # Manual dispatch may target a new version that does not yet have a git tag.
           # Always checkout the triggering ref (branch for workflow_dispatch, tag for push tags).
           ref: ${{ github.ref }}
@@ -72,7 +74,9 @@ jobs:
         with:
           repository: globulario/packages
           path: packages
-          fetch-depth: 0
+          # Package metadata/registry are consumed as source authority only; no
+          # release step depends on packages git history.
+          fetch-depth: 1
 
       - name: Checkout Globular (xds + gateway)
         uses: actions/checkout@v4
