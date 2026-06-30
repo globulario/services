@@ -181,11 +181,6 @@ else
 fi
 validate_release_version "${VERSION}"
 
-if (( FULL_REGENERATE )); then
-  info "Running full regeneration for services/generated release inputs..."
-  bash "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh" --version "${VERSION}"
-fi
-
 elf_needs_release_strip() {
   local bin="$1"
   [[ -f "${bin}" ]] || return 1
@@ -992,6 +987,13 @@ info "Building globular-installer from sibling source repo..."
 ok "$(ls "${BIN_STAGE_DIR}/" | wc -l) staged release binaries built"
 rm -f "${BIN_STAGE_DIR}/compute_server" "${BIN_STAGE_DIR}/discovery_server"
 cd "${SERVICES_ROOT}"
+
+if (( FULL_REGENERATE )); then
+  section "Regenerating Release Inputs"
+  bash "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh" \
+    --version "${VERSION}" \
+    --stage-bin "${BIN_STAGE_DIR}"
+fi
 
 # ── Create service packages ──────────────────────────────────────────────────
 section "Creating Service Packages"

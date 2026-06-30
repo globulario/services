@@ -183,16 +183,40 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	return nil
 }
 
-// writeInstalledStateChecksum computes the SHA256 of the installed binary and
-// writes it to the etcd installed-state record as entrypoint_checksum. Called
-// from the join-workflow install path to prevent hash_drift and UNVERIFIED.
-// Best-effort: failures are logged but never block the install.
+// writeInstalledStateChecksum writes the canonical install receipt for a
+// package after a join-workflow install. Two failure modes this function
+// must not introduce:
+//
+//  1. Early return on unhashable binary: infrastructure packages (minio,
+//     etcd, scylla) have their binaries at system paths, not at
+//     globularBinDir. installedBinaryPath returns a path that may not
+//     exist for those packages. Returning early leaves NO receipt at all,
+//     so shouldMigrateFromSidecar sees installed_by unset → falls through
+//     to fail-closed "installed_state_missing_or_unproven".
+//
+//  2. Skipped unit_file_sha256 when renderCanonicalUnitFromLocalArtifact
+//     fails: the render requires the staged artifact tarball to contain a
+//     systemd/ directory. When it fails, omitting UnitFilePath from
+//     ReceiptOpts causes Stamp to write installed_by without
+//     unit_file_sha256. shouldMigrateFromSidecar then returns
+//     "installed_state_missing_or_unproven" on every heartbeat.
+//
+// Fixes: (1) continue past binary-hash failure instead of returning;
+// (2) fall back to hashing the on-disk unit file when the canonical
+// render is unavailable — Stamp hashes from UnitFilePath when
+// UnitFileContent is empty.
+//
+// Best-effort: all failures are logged and never block the install.
 func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, name, kind, version, buildID string) {
-	path := installedBinaryPath(name, kind)
-	hash, err := cachedSha256(path)
-	if err != nil || hash == "" {
-		log.Printf("installer-api: skip entrypoint_checksum for %s (%s): binary not hashable: %v", name, kind, err)
-		return
+	binPath := installedBinaryPath(name, kind)
+	hash, hashErr := cachedSha256(binPath)
+	if hashErr != nil || hash == "" {
+		// Infrastructure packages (minio, etcd, scylla) have their binaries
+		// at system paths; installedBinaryPath returns the wrong path for
+		// them. Log and continue — the unit receipt is still stamped below.
+		log.Printf("installer-api: binary not hashable for %s (%s) at %s: %v — skipping binary fields, continuing with unit receipt", name, kind, binPath, hashErr)
+		binPath = ""
+		hash = ""
 	}
 
 	// Read-modify-write: preserve all fields written by package.report_state
@@ -215,48 +239,51 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 	if pkg.Metadata == nil {
 		pkg.Metadata = make(map[string]string)
 	}
-	pkg.Metadata["entrypoint_checksum"] = hash
-	// InstalledPackage.Checksum is the installed entrypoint/artifact binary SHA,
-	// NOT the release identity hash (ServiceRelease.Status.DesiredHash, which is
-	// ComputeReleaseDesiredHash(publisher, name, version, build_number, config)).
-	// This field is read by the controller's drift detection and by
-	// decideNodeRolloutProof as the artifact SHA the node-agent verified at apply
-	// time. A stale or release-identity value here yields a permanent
-	// rollout.installed_hash_mismatch — see failure_mode:
-	// node_agent.install_package_aliases_convergence_hash_into_expected_sha256.
-	pkg.Checksum = hash
+	if hash != "" {
+		pkg.Metadata["entrypoint_checksum"] = hash
+		// InstalledPackage.Checksum is the installed entrypoint/artifact binary SHA,
+		// NOT the release identity hash (ServiceRelease.Status.DesiredHash, which is
+		// ComputeReleaseDesiredHash(publisher, name, version, build_number, config)).
+		// This field is read by the controller's drift detection and by
+		// decideNodeRolloutProof as the artifact SHA the node-agent verified at apply
+		// time. A stale or release-identity value here yields a permanent
+		// rollout.installed_hash_mismatch — see failure_mode:
+		// node_agent.install_package_aliases_convergence_hash_into_expected_sha256.
+		pkg.Checksum = hash
+	}
 
-	// Stamp the canonical install receipt. installed_state.metadata is the
-	// sole authority for expected unit-file/binary/config content (see
-	// docs/architecture/retire-systemd-sidecars.md). Best-effort: if the
-	// receipt cannot be computed (binary missing, unit file missing) we
-	// still write the entrypoint_checksum so the rest of the install
-	// proof chain holds — the missing receipt fields will surface as
-	// installed_state_missing_or_unproven at heartbeat time, which is
-	// the correct fail-closed behaviour.
 	unitPath := filepath.Join("/etc/systemd/system", "globular-"+name+".service")
 	receiptOpts := ReceiptOpts{
-		BinaryPath:          path,
 		InstalledBy:         "node-agent.installer-api",
 		UnitRendererVersion: canonicalUnitRendererVersion,
+	}
+	if binPath != "" {
+		receiptOpts.BinaryPath = binPath
 	}
 	if fi, statErr := os.Stat(unitPath); statErr == nil && !fi.IsDir() {
 		if renderedUnit, renderErr := srv.renderCanonicalUnitFromLocalArtifact(ctx, name, version, kind, filepath.Base(unitPath)); renderErr == nil {
 			receiptOpts.UnitFilePath = unitPath
 			receiptOpts.UnitFileContent = renderedUnit
 		} else {
-			log.Printf("installer-api: canonical unit render unavailable for %s/%s@%s: %v (skipping unit hash; fail-closed)", kind, name, version, renderErr)
+			// Canonical render requires the staged artifact tarball to have a
+			// systemd/ entry. Fall back to hashing the on-disk unit file so
+			// Stamp can write unit_file_sha256 — without it, every heartbeat
+			// returns installed_state_missing_or_unproven.
+			log.Printf("installer-api: canonical unit render unavailable for %s/%s@%s: %v — hashing on-disk unit as fallback", kind, name, version, renderErr)
+			receiptOpts.UnitFilePath = unitPath
+			// UnitFileContent intentionally empty; Stamp reads + hashes the file at UnitFilePath.
 		}
 	}
 	if rerr := StampInstallReceipt(pkg, receiptOpts); rerr != nil {
-		log.Printf("installer-api: install receipt skipped for %s: %v (entrypoint_checksum still committed)", name, rerr)
+		log.Printf("installer-api: install receipt skipped for %s: %v", name, rerr)
 	}
 
 	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
 		log.Printf("installer-api: write installed-state for %s: %v (non-fatal)", name, werr)
 		return
 	}
-	log.Printf("installer-api: stored entrypoint_checksum for %s: %s", name, hash[:16])
+	log.Printf("installer-api: stored receipt for %s/%s (binary_stamped=%v, unit_stamped=%v)",
+		kind, name, binPath != "", receiptOpts.UnitFilePath != "")
 }
 
 // restampReceiptOnInstallSkip re-stamps the canonical install receipt

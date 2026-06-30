@@ -40,6 +40,11 @@ while [[ $# -gt 0 ]]; do
       VERSION="${2#v}"
       shift 2
       ;;
+    --stage-bin)
+      [[ $# -ge 2 ]] || die "--stage-bin requires a value"
+      STAGE_BIN="$2"
+      shift 2
+      ;;
     *)
       die "unknown argument: $1"
       ;;
