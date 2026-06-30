@@ -233,10 +233,20 @@ def check_installer_packagecatalog(
     mirror_root = installer_root / "internal" / "packagecatalog" / "specs"
     manifest_path = installer_root / "internal" / "packagecatalog" / "manifest.json"
 
+    active_root = mirror_root
+    active_manifest = manifest_path
     if not mirror_root.is_dir():
-        fail(errors, f"installer packagecatalog mirror missing: {rel(mirror_root, services_root)}")
-        return
-    if legacy_root.exists():
+        if legacy_root.is_dir():
+            warn(
+                f"{rel(mirror_root, services_root)} missing — falling back to legacy embedded mirror "
+                f"{rel(legacy_root, services_root)} for pinned sibling repo"
+            )
+            active_root = legacy_root
+            active_manifest = None
+        else:
+            fail(errors, f"installer packagecatalog mirror missing: {rel(mirror_root, services_root)}")
+            return
+    elif legacy_root.exists():
         # Cross-repo transitional tolerance: some pinned installer refs still
         # carry the pre-rename embedded mirror under internal/specs. It is not
         # allowed to become authority, but its presence alone must not block the
@@ -244,11 +254,11 @@ def check_installer_packagecatalog(
         warn(f"{rel(legacy_root, services_root)} still exists — tolerated as legacy embedded mirror because internal/packagecatalog/specs is present")
 
     expected = expected_mirror_specs(registry_entries, canonical_specs)
-    actual = {path.name: path for path in spec_files(mirror_root)}
+    actual = {path.name: path for path in spec_files(active_root)}
     for filename, source_path in sorted(expected.items()):
         target = actual.get(filename)
         if target is None:
-            fail(errors, f"installer packagecatalog missing {rel(mirror_root / filename, services_root)} for registry package {source_path.parent.parent.name}")
+            fail(errors, f"installer packagecatalog missing {rel(active_root / filename, services_root)} for registry package {source_path.parent.parent.name}")
             continue
         if strip_mirror_header(target.read_text(encoding="utf-8")) != source_path.read_text(encoding="utf-8"):
             fail(errors, f"installer packagecatalog drift: {rel(target, services_root)} does not match {rel(source_path, services_root)}")
@@ -256,25 +266,27 @@ def check_installer_packagecatalog(
         if filename not in expected:
             fail(errors, f"installer packagecatalog contains unregistered extra spec: {rel(target, services_root)}")
 
-    if not manifest_path.is_file():
-        warn(f"installer packagecatalog manifest missing: {rel(manifest_path, services_root)} — tolerated for pinned sibling repo until manifest lands upstream")
+    if active_manifest is None:
+        return
+    if not active_manifest.is_file():
+        warn(f"installer packagecatalog manifest missing: {rel(active_manifest, services_root)} — tolerated for pinned sibling repo until manifest lands upstream")
         return
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = json.loads(active_manifest.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        fail(errors, f"{rel(manifest_path, services_root)} is not valid JSON: {exc}")
+        fail(errors, f"{rel(active_manifest, services_root)} is not valid JSON: {exc}")
         return
     if manifest.get("schema") != PACKAGECATALOG_SCHEMA:
-        fail(errors, f"{rel(manifest_path, services_root)} schema must be {PACKAGECATALOG_SCHEMA}")
+        fail(errors, f"{rel(active_manifest, services_root)} schema must be {PACKAGECATALOG_SCHEMA}")
     if manifest.get("source") != "packages/registry.yaml":
-        fail(errors, f"{rel(manifest_path, services_root)} source must be packages/registry.yaml")
+        fail(errors, f"{rel(active_manifest, services_root)} source must be packages/registry.yaml")
     if manifest.get("mirror_dir") != "globular-installer/internal/packagecatalog/specs":
-        fail(errors, f"{rel(manifest_path, services_root)} mirror_dir must be globular-installer/internal/packagecatalog/specs")
+        fail(errors, f"{rel(active_manifest, services_root)} mirror_dir must be globular-installer/internal/packagecatalog/specs")
     expected_digest = sha256_file(registry_path)
     if manifest.get("registry_sha256") != expected_digest:
-        fail(errors, f"{rel(manifest_path, services_root)} registry_sha256 does not match current packages/registry.yaml")
+        fail(errors, f"{rel(active_manifest, services_root)} registry_sha256 does not match current packages/registry.yaml")
     if manifest.get("package_count") != len(expected):
-        fail(errors, f"{rel(manifest_path, services_root)} package_count={manifest.get('package_count')} does not match expected embedded count {len(expected)}")
+        fail(errors, f"{rel(active_manifest, services_root)} package_count={manifest.get('package_count')} does not match expected embedded count {len(expected)}")
 
 
 def check_generated_specs_consumers(errors: list[str], services_root: Path) -> None:
