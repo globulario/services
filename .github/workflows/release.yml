@@ -999,18 +999,24 @@ jobs:
                   continue
 
               tarball = os.path.join("dist/unchanged", filename)
+              was_repaired = False
               if not os.path.isfile(tarball):
-                  # Repair step moves stripped packages from dist/unchanged to
-                  # dist/packages — check there too before failing.
+                  # Repair step strips debug symbols and moves packages from
+                  # dist/unchanged to dist/packages, updating entrypoint_checksum
+                  # in the tarball's package.json. Use the repaired tarball's own
+                  # checksum as the authority — the BOM's claimed value is stale
+                  # (it was for the pre-strip binary).
                   repaired = os.path.join("dist/packages", filename)
                   if os.path.isfile(repaired):
                       tarball = repaired
+                      was_repaired = True
                   else:
                       mismatches.append((name, f"tarball not downloaded: {tarball}"))
                       continue
 
               # Read the manifest entrypoint name from package.json inside the
-              # tarball. Defaults match the convention `bin/<binary>`.
+              # tarball. For repaired packages, also refresh `claimed` from the
+              # tarball's own package.json (repair updates the checksum after strip).
               entrypoint_name = None
               with tarfile.open(tarball, "r:gz") as tf:
                   for member in tf.getmembers():
@@ -1022,6 +1028,8 @@ jobs:
                           try:
                               pj = json.loads(f.read().decode())
                               entrypoint_name = pj.get("entrypoint", "")
+                              if was_repaired:
+                                  claimed = pj.get("entrypoint_checksum", claimed)
                           except Exception:
                               pass
                           break
