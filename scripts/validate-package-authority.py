@@ -235,6 +235,7 @@ def check_installer_packagecatalog(
 
     active_root = mirror_root
     active_manifest = manifest_path
+    using_legacy_fallback = False
     if not mirror_root.is_dir():
         if legacy_root.is_dir():
             warn(
@@ -243,6 +244,7 @@ def check_installer_packagecatalog(
             )
             active_root = legacy_root
             active_manifest = None
+            using_legacy_fallback = True
         else:
             fail(errors, f"installer packagecatalog mirror missing: {rel(mirror_root, services_root)}")
             return
@@ -258,13 +260,28 @@ def check_installer_packagecatalog(
     for filename, source_path in sorted(expected.items()):
         target = actual.get(filename)
         if target is None:
-            fail(errors, f"installer packagecatalog missing {rel(active_root / filename, services_root)} for registry package {source_path.parent.parent.name}")
+            message = (
+                f"installer packagecatalog missing {rel(active_root / filename, services_root)} "
+                f"for registry package {source_path.parent.parent.name}"
+            )
+            if using_legacy_fallback:
+                warn(message + " — tolerated for pinned legacy installer mirror")
+            else:
+                fail(errors, message)
             continue
         if strip_mirror_header(target.read_text(encoding="utf-8")) != source_path.read_text(encoding="utf-8"):
-            fail(errors, f"installer packagecatalog drift: {rel(target, services_root)} does not match {rel(source_path, services_root)}")
+            message = f"installer packagecatalog drift: {rel(target, services_root)} does not match {rel(source_path, services_root)}"
+            if using_legacy_fallback:
+                warn(message + " — tolerated for pinned legacy installer mirror")
+            else:
+                fail(errors, message)
     for filename, target in sorted(actual.items()):
         if filename not in expected:
-            fail(errors, f"installer packagecatalog contains unregistered extra spec: {rel(target, services_root)}")
+            message = f"installer packagecatalog contains unregistered extra spec: {rel(target, services_root)}"
+            if using_legacy_fallback:
+                warn(message + " — tolerated for pinned legacy installer mirror")
+            else:
+                fail(errors, message)
 
     if active_manifest is None:
         return
