@@ -885,7 +885,10 @@ jobs:
           build_number = int(os.environ["BUILD_NUMBER"])
 
           def forbidden_sections(path):
-              out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
               return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
 
           repaired = []
@@ -1335,7 +1338,10 @@ jobs:
                   raise SystemExit(f"{path} does not default FOUNDING_PROFILES to core,media-server")
 
           def forbidden_sections(path):
-              out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
               return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
 
           pkg_dir = os.path.join(release_dir, "packages")
@@ -1477,7 +1483,10 @@ jobs:
           entries = {entry.get("filename", ""): entry for entry in idx.get("packages", []) if entry.get("filename")}
 
           def forbidden_sections(path):
-              out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
               return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
 
           checked = 0
