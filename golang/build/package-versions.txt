@@ -46,9 +46,9 @@ rclone=1.73.1  # unchanged, origin=v1.2.42
 repository=1.2.52  # changed
 resource=1.2.45  # unchanged, origin=v1.2.45
 restic=0.18.1  # unchanged, origin=v1.2.42
-sctool=3.10.1  # unchanged, origin=v1.2.42
-scylla-manager=3.10.1  # unchanged, origin=v1.2.42
-scylla-manager-agent=3.10.1  # unchanged, origin=v1.2.42
+sctool=3.11.1  # unchanged, origin=v1.2.42
+scylla-manager=3.11.1  # unchanged, origin=v1.2.42
+scylla-manager-agent=3.11.1  # unchanged, origin=v1.2.42
 scylladb=2025.3.8  # unchanged, origin=v1.2.42
 search=1.2.43  # unchanged, origin=v1.2.43
 sha256sum=9.4.0  # unchanged, origin=v1.2.42

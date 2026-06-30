@@ -1,0 +1,63 @@
+id: repository.artifact_authority_matrix_is_enforced
+level: contract
+title: Repository artifact/source authority matrix must be explicit and enforced
+intent: >
+  Package identity, package recipes, authored web assets, generated workspaces,
+  release outputs, installer mirrors, and installer execution must each have one
+  declared authority. Mirrors, staging directories, generated workspaces, and
+  outputs may support build or install flows, but they must never become source
+  authority.
+agent_guidance: >
+  Before editing package specs, release assembly, generated workspaces, installer
+  mirrors, or webroot assets, identify which directory is authority, which are
+  generated mirrors, which are staging, and which are outputs. If a change would
+  let a mirror, staging directory, generated workspace, or output directory act
+  as authored source, stop and route the edit back to the true authority.
+bad_smells:
+- services/generated/specs treated as package authority
+- services/dist reused as persistent source
+- packages/bin used as a cache or alias graveyard
+- installer internal assets hand-edited as authored platform content
+- package identity inferred from binaries or tarballs
+- release wrapper treated as the real installer workflow
+- duplicate spec forest added outside packages/metadata
+activation_triggers:
+- package authority
+- registry.yaml
+- services/generated
+- services/dist
+- dist/.staging
+- packagecatalog
+- internal/assets/webroot
+- build-release.sh
+- install-day0.sh
+- install.sh
+expressed_by:
+- docs/design/artifact-authority-matrix.md
+- docs/design/package-authority-layout.md
+- scripts/validate-package-authority.py
+- Makefile
+- scripts/build-release.sh
+- scripts/install.sh
+- ../globular-installer/Makefile
+- ../globular-installer/scripts/install-day0.sh
+related_invariants:
+- repo.package_identity_and_recipe_authority_split
+- repo.release_workspace_and_output_are_not_authority
+- repo.installer_embedded_assets_are_generated_mirrors_only
+- repo.release_wrapper_is_not_install_execution_authority
+zooms_out_to:
+- subsystem.boundaries_define_authority
+- audit.every_authority_change_is_explainable
+zooms_in_to:
+- package.kind_is_registry_authored_downstream_is_projection
+related_to:
+- repository.metadata_is_authority
+- release.bom_is_precise_release_authority
+- awareness.preflight_before_edit
+required_tests:
+- scripts/validate-package-authority.py
+- make check-services
+- ../globular-installer:make check-specs
+- .github/workflows/release.yml
+status: seed

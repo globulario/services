@@ -55,6 +55,8 @@ func (srv *server) ProcessIncident(ctx context.Context, req *ai_executorpb.Proce
 
 	// Step 3: Act based on tier.
 	var action *ai_executorpb.RemediationAction
+	asyncCtx := context.WithoutCancel(ctx)
+	emitTierBehavioralExperience(asyncCtx, diagnosis, req.GetTier())
 
 	switch req.GetTier() {
 	case 0: // OBSERVE — record only
@@ -72,6 +74,15 @@ func (srv *server) ProcessIncident(ctx context.Context, req *ai_executorpb.Proce
 		Diagnosis: diagnosis,
 		Action:    action,
 	}, nil
+}
+
+func emitTierBehavioralExperience(ctx context.Context, diagnosis *ai_executorpb.Diagnosis, tier int32) {
+	switch tier {
+	case 0:
+		go emitBehavioralExperience(ctx, diagnosis, newBehavioralTraceAction(diagnosis, ai_executorpb.ActionStatus_ACTION_SKIPPED))
+	case 2:
+		go emitBehavioralExperience(ctx, diagnosis, newBehavioralTraceAction(diagnosis, ai_executorpb.ActionStatus_ACTION_PENDING))
+	}
 }
 
 // executeJob runs the proposed action for a job and records the outcome.

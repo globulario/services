@@ -88,3 +88,46 @@ authority_rules:
     related_invariants: []
     last_verified: 2026-04-15
     stale_after_days: 365
+
+  - id: authority.repository_artifact_source_matrix
+    title: Repository artifact/source paths must respect the declared authority matrix
+    layer: Repository
+    question: Which tree is authored source, and which trees are generated mirrors, staging, or outputs?
+    rule: >
+      packages/registry.yaml is the sole package identity authority.
+      packages/metadata/<name>/specs/*.yaml is the sole package recipe authority.
+      services/webroot is the sole authored release webroot source.
+      services/generated is generated workspace only.
+      services/dist is release output only.
+      services/dist/.staging is temporary release-assembly staging only.
+      packages/bin is package binary staging only.
+      packages/dist is package artifact output only.
+      globular-installer/internal/packagecatalog/* and internal/assets/webroot are generated mirrors only.
+      globular-installer/internal/assets/bin is installer-helper assets only.
+      services/scripts/install.sh is a release wrapper; install execution authority remains in globular-installer/scripts/install-day0.sh.
+    wrong_authority:
+      - services/generated/specs
+      - services/dist
+      - services/dist/.staging
+      - packages/bin
+      - packages/dist
+      - globular-installer/internal/packagecatalog/specs edited by hand
+      - globular-installer/internal/assets/webroot edited as source
+      - services/scripts/install.sh as installer workflow authority
+    correct_authority:
+      - packages/registry.yaml
+      - packages/metadata/<name>/specs/*.yaml
+      - services/webroot
+      - services/scripts/build-release.sh
+      - globular-installer/scripts/install-day0.sh
+    related_invariants:
+      - repo.package_identity_and_recipe_authority_split
+      - repo.release_workspace_and_output_are_not_authority
+      - repo.installer_embedded_assets_are_generated_mirrors_only
+      - repo.release_wrapper_is_not_install_execution_authority
+    forbidden_assumptions:
+      - generated_workspace_can_become_source
+      - release_output_can_become_source
+      - mirror_can_be_hand_authored
+    last_verified: 2026-06-29
+    stale_after_days: 180

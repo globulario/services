@@ -19,7 +19,7 @@ Usage:
   python3 detect-changes.py \\
     --prev-index dist/prev-release-index.json \\
     --metadata-dir packages/metadata \\
-    --bin-dir dist/bin \\
+    --bin-dir dist/.staging/bin \\
     --pkg-map-json services/golang/build/pkg-map.json \\
     --version 1.0.85 \\
     --tag v1.0.85 \\
@@ -253,7 +253,7 @@ def main():
     ap = argparse.ArgumentParser(description="BOM change detection for Globular releases")
     ap.add_argument("--prev-index",        required=True, help="Path to previous release-index.json")
     ap.add_argument("--metadata-dir",      required=True, help="Path to packages/metadata/")
-    ap.add_argument("--bin-dir",           required=True, help="Path to dist/bin/")
+    ap.add_argument("--bin-dir",           required=True, help="Path to dist/.staging/bin/")
     ap.add_argument("--pkg-map-json",      required=True, help="Path to pkg-map.json")
     ap.add_argument("--go-src-dir",       default="",    help="Path to golang/ source root (for source-based change detection)")
     ap.add_argument("--version",           required=True, help="Current platform version (e.g. 1.0.85)")
@@ -262,6 +262,9 @@ def main():
     ap.add_argument("--output-manifest",   required=True, help="Output: change-manifest.json")
     ap.add_argument("--force-full-rebuild", action="store_true", help="Treat all packages as changed")
     ap.add_argument("--force-reason",      default="",    help="Reason for force rebuild")
+    ap.add_argument("--force-changed-packages-file", default="",
+        help="Optional newline-delimited file of packages that MUST be marked "
+             "changed for this release. Format: <name> or <name>|<reason>.")
     ap.add_argument("--origin-indices-dir", default="",
         help="Directory of pre-fetched origin-release release-index.json files "
              "(<dir>/<origin_release_tag>.json). Required when prev_index has "
@@ -283,6 +286,23 @@ def main():
         sys.exit(1)
 
     results = []
+    forced_changed = {}
+    if args.force_changed_packages_file:
+        try:
+            with open(args.force_changed_packages_file) as f:
+                for raw in f:
+                    line = raw.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split("|", 1)
+                    name = parts[0].strip()
+                    if not name:
+                        continue
+                    forced_changed[name] = parts[1].strip() if len(parts) > 1 else ""
+        except FileNotFoundError:
+            print(f"ERROR: force-changed packages file not found: {args.force_changed_packages_file}",
+                  file=sys.stderr)
+            sys.exit(1)
 
     # Precompute shared Go package hashes. Changes to these mark ALL Go
     # services as changed (they're imported by most/all services).
@@ -363,7 +383,8 @@ def main():
         p       = prev.get(name, {})
         prev_cd = p.get("package_contract_digest", "")
 
-        if prev_cd and prev_cd == cd and not args.force_full_rebuild:
+        force_pkg = name in forced_changed
+        if prev_cd and prev_cd == cd and not args.force_full_rebuild and not force_pkg:
             # ── Unchanged: carry forward, but with ORIGIN as authority ──
             #
             # Provenance fields (entrypoint_checksum, package_digest, build_id,
@@ -450,6 +471,8 @@ def main():
                 "filename":                "",
                 "profiles":                manifest.get("profiles", []),
                 "publisher":               manifest.get("publisher", ""),
+                "forced_changed":          force_pkg,
+                "forced_changed_reason":   forced_changed.get(name, ""),
             })
 
     # ── Write version-overrides.txt for gen-version.sh ──
@@ -494,7 +517,10 @@ def main():
         print(f"  FORCED: {args.force_reason}")
     for r in results:
         if r["changed"]:
-            print(f"  CHANGED  {r['name']:30s} -> v{r['version']}")
+            extra = ""
+            if r.get("forced_changed"):
+                extra = f" [forced: {r.get('forced_changed_reason', '')}]"
+            print(f"  CHANGED  {r['name']:30s} -> v{r['version']}{extra}")
         else:
             print(f"  same     {r['name']:30s}    v{r['version']:20s} (origin: {r['origin_release']})")
 

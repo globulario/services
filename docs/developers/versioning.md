@@ -10,7 +10,7 @@ Every artifact has two separate identifiers. They serve completely different pur
 
 | Identity | What it is | Who assigns it | Used for |
 |----------|-----------|----------------|----------|
-| `version` | Semantic version string (`0.1.4`) | Developer via `--bump` | Human communication, desired-state declarations, upgrade planning |
+| `version` | Semantic version string (`0.1.4`) | Package version policy (`version_source: platform` or `version_source: self`) | Human communication, desired-state declarations, upgrade planning |
 | `build_id` | UUIDv7, e.g. `019235ab-...` | Repository on upload | Convergence decisions, exact-replay recovery, artifact provenance |
 
 **The convergence model compares `build_id`, not version strings.** When the controller checks whether a node has the right artifact installed, it compares the `build_id` in the desired-state record against the `build_id` reported by the node agent. Two artifacts with the same version but different `build_id` values are different artifacts as far as the system is concerned.
@@ -55,19 +55,80 @@ The `release-index.json` v2 schema records `origin_release` and `changed_in_rele
 
 ---
 
+## Version authority chain
+
+Package version management has one authority chain and several projections. They must not be confused.
+
+| Surface | Role | Authority level |
+|---------|------|-----------------|
+| `packages/registry.yaml` | Declares that a package exists and whether its version source is `platform` or `self` | package identity authority |
+| `packages/metadata/<name>/specs/*.yaml` | Canonical package recipe | canonical package recipe authority |
+| `golang/build/package-versions.txt` | Release-time projection of package versions selected for one build flow | generated projection only |
+| `release-index.json` | Exact BOM for one platform release, including package version, `build_number`, `build_id`, and provenance | platform release authority |
+| `zz_version_generated.go` | Runtime self-report embedded into a built service binary | runtime evidence mirror |
+| `services/dist/` | Disposable release output containing the assembled BOM and artifacts | output only, never source authority |
+
+Two consequences matter:
+
+1. `services/dist` is not supposed to "follow" `packages/registry.yaml` directly. `services/dist` is only the assembled release bundle. The version truth inside it is the `release-index.json` BOM.
+2. `packages/registry.yaml` is package identity authority, not a flat table of concrete versions. Concrete package versions come from the canonical recipe plus the `version_source` policy.
+
+---
+
+## `version_source` decides where a package version comes from
+
+Every package entry in `packages/registry.yaml` declares a `version_source`.
+
+### `version_source: platform`
+
+Use this for Globular-managed services whose package version should follow the BOM/release flow.
+
+- The package is still defined by `packages/metadata/<name>/specs/*.yaml`.
+- The literal version written in the recipe spec is not the final release authority.
+- During release assembly, BOM change detection decides whether the package is changed or unchanged.
+- Unchanged packages keep their previous package version from the prior BOM.
+- Changed packages get the release-selected package version for that build flow.
+- The chosen package version is written into `golang/build/package-versions.txt`, stamped into `zz_version_generated.go`, and recorded in the new `release-index.json`.
+
+This is why one platform release can contain mixed service versions without ambiguity.
+
+### `version_source: self`
+
+Use this for upstream or externally versioned packages that report their own version.
+
+- The canonical version lives in `packages/metadata/<name>/specs/*.yaml`.
+- Build/package steps must verify that the staged binary reports that same version.
+- Release assembly carries that package version into the BOM unchanged.
+- The platform release does not rename that package to the platform tag.
+
+Examples: `etcd`, `minio`, `envoy`, `prometheus`, `mc`, `restic`.
+
+---
+
 ## How versions are allocated
 
-Versions are allocated by the repository service via `AllocateUpload`. You do not pick a version number directly — you specify the bump type and the repository assigns the next one.
+Version control has two separate steps:
+
+1. The package version is chosen by the package's version-source policy.
+2. The repository assigns the concrete published artifact identity.
+
+For `version_source: platform` packages, the release flow selects the package version from BOM/change detection.
+
+For `version_source: self` packages, the canonical metadata recipe declares the version and the staged binary must prove it.
+
+After that version decision, the repository service assigns `build_id` and `build_number` to the uploaded artifact. The repository is the authority for artifact identity and publication state, not for inventing package identity from `services/dist` or from whatever file happens to be on disk.
+
+Repository allocation still matters for publish workflows:
 
 ```bash
-# Bump patch version (bug fix)
-globular deploy my-service --bump patch
+# Local deploy: rebuild the latest published release version and advance build_number only
+globular deploy my-service
 
-# Bump minor version (new feature)
+# Release publish: allocate a new semver through the repository
 globular pkg publish --file pkg.tgz --repository globular.internal --bump minor
 
-# Bump major version (breaking change)
-globular deploy my-service --bump major
+# Explicit local backport against an older published release version
+globular deploy my-service --version 1.2.259 --channel candidate
 ```
 
 The repository enforces:
@@ -75,7 +136,18 @@ The repository enforces:
 - **Monotonicity**: The new version must be >= the latest PUBLISHED version for that service. You cannot publish v0.1.3 after v0.1.4 has been published.
 - **Uniqueness**: Each `version + platform` combination gets exactly one `build_id`. You cannot upload a different binary with the same version.
 - **Reservation**: A 5-minute TTL prevents concurrent upload collisions. If you allocate a version slot and do not complete the upload, the slot expires.
-- **No direct version set**: Specifying `--version 0.1.0` explicitly is accepted but prints a deprecation warning. Use `--bump` in all pipelines.
+- **Local deploys do not allocate semver**: `globular deploy` reuses an existing published STABLE version and publishes a higher build_number on a non-STABLE channel.
+- **Release bumps are deliberate**: Allocate a new semver only from the release/package publish workflow, not from a workstation deploy.
+
+In practice:
+
+- `packages/registry.yaml` says what kind of version source a package uses.
+- canonical metadata says how that package is built and packaged.
+- the release flow decides the package version to ship.
+- the repository assigns the concrete published build identity.
+- the BOM records the exact outcome.
+- `scripts/build-release.sh` defaults to the next patch version from the latest git tag unless you pass an explicit version or `--bump minor|major`.
+- `scripts/build-release.sh --full-regenerate` wipes and rebuilds `services/generated` release inputs before assembling `services/dist`.
 
 ---
 
@@ -94,6 +166,24 @@ go build -ldflags "-X main.Version=0.1.4" ./...
 ```
 
 If you see a hardcoded version string in a service's source code, it is a bug.
+
+---
+
+## `zz_version_generated.go` is runtime evidence, not package authority
+
+Every built Go service gets a generated `zz_version_generated.go` file before compilation.
+
+That file exists so:
+
+- the binary can report its own version at runtime
+- the node-agent can compare installed/runtime evidence against desired state
+- operators can inspect what version a process claims to be running
+
+It is important, but it is not the root authority. The correct direction is:
+
+`packages/registry.yaml` + canonical metadata + release/BOM decision → generated runtime version file
+
+Never reverse that relationship. A stray built binary or an old generated version file must not teach the platform what version a package "really is".
 
 ---
 
@@ -144,6 +234,45 @@ Developer runs: globular deploy my-service --bump patch
 ```
 
 Layer 2 is updated by the `globular deploy` command or directly by the operator. Layers 3 and 4 follow automatically through the workflow. You cannot skip layers. If Layer 1 is not PUBLISHED, Layer 2 cannot be set. If Layer 2 is not set, Layer 3 does not change.
+
+---
+
+## Can different service versions live on the same cluster?
+
+Yes. That is not only allowed, it is the intended model.
+
+- Different packages routinely have different versions in the same platform release.
+- A node may temporarily run an older version of one package while a rollout is in progress.
+- The desired-state model pins package identity per package, not "one giant version for the whole cluster."
+
+What is not allowed is ambiguity about a given package on a given node:
+
+- desired state must point to one concrete package version
+- publish must resolve to one concrete `build_id`
+- installed state must record what is actually there
+- runtime evidence must report what is actually running
+
+So the cluster can absolutely run `gateway=1.2.52`, `repository=1.2.52`, `dns=1.2.44`, `minio=RELEASE.2025-09-07T16-13-09Z`, and `etcd=3.5.14` at the same time. That is the normal case.
+
+---
+
+## Lifecycle for a new microservice
+
+This applies both to services that live in this repository and future services that live outside it.
+
+1. Register the package in `packages/registry.yaml`.
+2. Create the canonical package recipe under `packages/metadata/<name>/specs/*.yaml`.
+3. Choose the package's `version_source`.
+4. Ensure the service binary reports its own runtime version.
+5. Build/package from the canonical recipe, never from `services/dist`.
+6. Publish so the repository assigns `build_id` and `build_number`.
+7. Include the artifact in a `release-index.json` BOM when it belongs to a platform release.
+
+Recommended policy:
+
+- Use `version_source: platform` for Globular-managed services that should participate in the BOM-driven release cadence.
+- Use `version_source: self` for third-party or externally released services where the upstream version is the package version.
+- For out-of-repo services, keep the same contract: they may live elsewhere for source code, but package identity and recipe authority still enter through `packages/registry.yaml` and `packages/metadata`.
 
 ---
 

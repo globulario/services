@@ -6,11 +6,15 @@ It is the prose companion to:
 
 - `packages/registry.yaml` — the canonical list of every package in the platform (single source of truth for kind, profiles, dependencies, bootstrap tier).
 - `packages/metadata/<name>/` — the per-package definition (declarative; checked into git).
-- `packages/specs/<name>_{service,cmd}.yaml` — the install recipe (declarative; checked into git).
+- `packages/metadata/<name>/specs/*.yaml` — the canonical install recipe path (declarative; checked into git).
 - `golang/globularcli/pkgpack/` — the Go code that parses, validates, builds, and signs packages.
 - `globular-installer/pkg/installer/specplan_builder.go` — the runtime that turns spec steps into executed actions on a node.
 
 If this document and code disagree, code wins. File a fix here.
+
+Authority note: `packages/registry.yaml` is the sole authored package identity
+authority. Any remaining `packages/specs/...` references below are historical
+debt and should be interpreted as `packages/metadata/<name>/specs/...`.
 
 ---
 

@@ -102,6 +102,8 @@ validate_release_bundle() {
   grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"' \
     "${release_dir}/scripts/install-day0.sh" \
     || { echo "ERROR: bundled install-day0.sh does not default FOUNDING_PROFILES to core,media-server." >&2; exit 1; }
+  python3 "${SERVICES_ROOT}/scripts/validate-day0-package-contract.py" \
+    "${release_dir}/scripts/install-day0.sh" "${PACKAGES_ROOT}/registry.yaml" >/dev/null
 
   for prefix in prometheus node-exporter scylla-manager scylla-manager-agent sctool; do
     tgz=$(find "${pkg_dir}" -maxdepth 1 -name "${prefix}_*_linux_amd64.tgz" | sort -V | tail -1 || true)
@@ -201,6 +203,7 @@ normalize_release_bin_dir
 # ── Determine which packages to rebuild ───────────────────────────────────────
 step "Determine changed packages"
 PREV_TAG="v${PREV_VERSION}"
+FORCED_CHANGED_FILE="$WORK/forced-packages.txt"
 
 if [[ -n "$REBUILD_PKGS" ]]; then
   IFS=',' read -ra CHANGED_NAMES <<< "$REBUILD_PKGS"
@@ -242,6 +245,21 @@ for name,info in d.items():
 
   # Deduplicate
   mapfile -t CHANGED_NAMES < <(printf '%s\n' "${CHANGED_NAMES[@]}" | sort -u)
+
+  bash "$SERVICES_ROOT/scripts/release/cluster-controller-release-guard.sh" detect \
+    --services-root "$SERVICES_ROOT" \
+    --packages-root "$PACKAGES_ROOT" \
+    --prev-tag "$PREV_TAG" \
+    --output "$FORCED_CHANGED_FILE" || true
+
+  if [[ -f "$FORCED_CHANGED_FILE" ]]; then
+    while IFS='|' read -r forced_name _reason; do
+      [[ -n "${forced_name}" ]] || continue
+      CHANGED_NAMES+=("$forced_name")
+    done < "$FORCED_CHANGED_FILE"
+    mapfile -t CHANGED_NAMES < <(printf '%s\n' "${CHANGED_NAMES[@]}" | sort -u)
+  fi
+
   log "Auto-detected changed: ${CHANGED_NAMES[*]:-none}"
 fi
 

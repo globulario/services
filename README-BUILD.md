@@ -13,7 +13,7 @@ This script will:
 2. Download/verify envoy 1.35.3 and etcd 3.5.14
 3. Build all infrastructure packages (envoy, etcd, gateway, xds, minio)
 4. Build all 24 service packages with smart TLS discovery
-5. Copy everything to globular-installer/internal/assets/packages/
+5. Copy package artifacts to the installer's embedded package mirror/output inputs
 
 ## What Gets Built
 
@@ -67,6 +67,15 @@ bash golang/globularcli/tools/pkggen/pkggen.sh \
     --version 0.0.1
 ```
 
+### Full Regenerate-And-Release Inputs
+```bash
+bash scripts/regenerate-release-inputs.sh --version 1.2.257
+```
+
+This wipes only the known release-input subtrees under `services/generated`,
+rebuilds generated policy/spec/template inputs, and writes a freshness manifest
+used by `scripts/build-release.sh --full-regenerate`.
+
 ### Build Infrastructure Packages
 ```bash
 cd ../packages
@@ -75,10 +84,10 @@ cd ../packages
 
 ## Output
 
-All packages will be in:
-- Infrastructure: `packages/out/*.tgz`
-- Services: `services/generated/packages/*.tgz`
-- Installer assets: `globular-installer/internal/assets/packages/*.tgz`
+Artifacts and staging locations:
+- Package artifact output: `packages/dist/*.tgz`
+- Generated service workspace output: `services/generated/*.tgz`
+- Installer embedded package mirror/input: `globular-installer/internal/assets/packages/*.tgz`
 
 ## Versions
 

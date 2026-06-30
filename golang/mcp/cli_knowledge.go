@@ -158,8 +158,8 @@ var cliCommands = map[string]CLICommand{
 			{Name: "root", Type: "string", Required: false, Help: "payload root containing bin/ and config/"},
 		},
 		Examples: []string{
-			"globular pkg build --spec packages/specs/echo.yaml --version 1.0.0",
-			"globular pkg build --spec-dir packages/specs/ --version 1.0.0",
+			"globular pkg build --spec packages/metadata/echo/specs/echo_service.yaml --version 1.0.0",
+			"globular pkg build --spec-dir packages/metadata/echo/specs/ --version 1.0.0",
 		},
 		Rules:    []string{"Set either --spec or --spec-dir, not both"},
 		FollowUp: []string{"pkg publish"},
@@ -459,8 +459,8 @@ var cliExamples = []CLIExample{
 	{Command: "globular generate all --proto proto/market.proto --lang go --store none --out ./golang/market --dry-run", Description: "Preview file list without writing", Category: "generate"},
 
 	// Package
-	{Command: "globular pkg build --spec packages/specs/echo.yaml --version 1.0.0", Description: "Build a single service package", Category: "pkg"},
-	{Command: "globular pkg build --spec-dir packages/specs/ --version 1.0.0", Description: "Build all service packages", Category: "pkg"},
+	{Command: "globular pkg build --spec packages/metadata/echo/specs/echo_service.yaml --version 1.0.0", Description: "Build a single service package", Category: "pkg"},
+	{Command: "globular pkg build --spec-dir packages/metadata/echo/specs/ --version 1.0.0", Description: "Build all service packages", Category: "pkg"},
 	{Command: "globular pkg publish --file echo-1.0.0.tgz --repository localhost:10200", Description: "Publish a package", Category: "pkg"},
 
 	// Cluster

@@ -1,4 +1,8 @@
 files:
+  - scripts/validate-package-authority.py
+  - scripts/build-release.sh
+  - scripts/install.sh
+  - Makefile
   - golang/cluster_controller/cluster_controller_server/reconcile_runtime.go
   - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
   - golang/cluster_controller/cluster_controller_server/convergence_committer.go

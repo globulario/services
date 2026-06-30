@@ -8,6 +8,9 @@ metadata:
     catalogue, validation, and the most common anti-patterns. The prose companion
     of this entry set is docs/operational-knowledge/packages.md, which AI agents
     SHOULD read for any non-trivial package work.
+    Authority note: packages/registry.yaml is the sole authored package identity
+    authority; historical packages/specs references below should be read as
+    packages/metadata/<name>/specs/.
   source_documents:
     - docs/operational-knowledge/packages.md
     - packages/registry.yaml

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Globular Installer
+# Globular release wrapper entrypoint.
 #
-# Installs all Globular components (infrastructure, services, PKI) from the
-# release tarball. After this completes, start the node agent and bootstrap
-# the cluster.
+# services owns release publication and ships this wrapper in the release
+# tarball. The actual Day-0 installation workflow authority remains in
+# globular-installer/scripts/install-day0.sh.
 #
 # Usage:
 #   VERSION="1.0.17"

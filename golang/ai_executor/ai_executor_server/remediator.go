@@ -34,8 +34,9 @@ func newRemediator() *remediator {
 
 // execute runs a remediation action based on the diagnosis and tier.
 // Tier 0 = observe only, Tier 1 = auto-execute, Tier 2 = await approval.
-//
 func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagnosis, tier int32) *ai_executorpb.RemediationAction {
+	asyncCtx := context.WithoutCancel(ctx)
+
 	action := &ai_executorpb.RemediationAction{
 		Id:          Utility.RandomUUID(),
 		IncidentId:  diagnosis.GetIncidentId(),
@@ -53,8 +54,8 @@ func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagn
 		action.Status = ai_executorpb.ActionStatus_ACTION_SKIPPED
 		action.Detail = "Tier 0 (observe): diagnosed and recorded, no execution"
 		action.CompletedAtMs = time.Now().UnixMilli()
-		go r.recordOutcome(ctx, diagnosis, action)
-		go recordBehavioralExperience(ctx, diagnosis, action)
+		go r.recordOutcome(asyncCtx, diagnosis, action)
+		go emitBehavioralExperience(asyncCtx, diagnosis, action)
 		return action
 	}
 
@@ -130,9 +131,9 @@ func (r *remediator) execute(ctx context.Context, diagnosis *ai_executorpb.Diagn
 	}()
 
 	// Record to ai_memory.
-	go r.recordOutcome(ctx, diagnosis, action)
+	go r.recordOutcome(asyncCtx, diagnosis, action)
 	// Afferent feed into governed behavioral-memory (best-effort, non-fatal).
-	go recordBehavioralExperience(ctx, diagnosis, action)
+	go emitBehavioralExperience(asyncCtx, diagnosis, action)
 
 	return action
 }
@@ -178,12 +179,13 @@ func statusSeverity(s ai_executorpb.ActionStatus) string {
 func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb.Diagnosis, action *ai_executorpb.RemediationAction) {
 	addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", "")
 	if addr == "" {
+		logger.Warn("ai_memory outcome record skipped: address unresolved", "incident", diagnosis.GetIncidentId())
 		return
 	}
 
 	baseOpts, err := globular.InternalDialOptions()
 	if err != nil {
-		logger.Error("internal TLS unavailable for memory store", "err", err)
+		logger.Warn("ai_memory outcome record skipped: internal TLS unavailable", "incident", diagnosis.GetIncidentId(), "err", err)
 		return
 	}
 	//nolint:staticcheck // grpc.Dial / grpc.WithTimeout not yet migrated to grpc.NewClient
@@ -191,6 +193,7 @@ func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb
 	//nolint:staticcheck
 	cc, err := grpc.Dial(addr, opts...)
 	if err != nil {
+		logger.Warn("ai_memory outcome record skipped: dial failed", "incident", diagnosis.GetIncidentId(), "addr", addr, "err", err)
 		return
 	}
 	defer cc.Close()
@@ -213,7 +216,7 @@ func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb
 	defer cancel()
 
 	client := ai_memorypb.NewAiMemoryServiceClient(cc)
-	_, _ = client.Store(callCtx, &ai_memorypb.StoreRqst{
+	if _, err := client.Store(callCtx, &ai_memorypb.StoreRqst{
 		Memory: &ai_memorypb.Memory{
 			Project: "globular-services",
 			Type:    ai_memorypb.MemoryType_DEBUG,
@@ -228,5 +231,7 @@ func (r *remediator) recordOutcome(ctx context.Context, diagnosis *ai_executorpb
 				"verified":      fmt.Sprintf("%v", action.GetStatus() == ai_executorpb.ActionStatus_ACTION_SUCCEEDED),
 			},
 		},
-	})
+	}); err != nil {
+		logger.Warn("ai_memory outcome record failed", "incident", diagnosis.GetIncidentId(), "err", err)
+	}
 }

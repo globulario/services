@@ -2941,5 +2941,493 @@ proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.request
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.SetAccConfigRequest,
+ *   !proto.cluster_controller.SetAccConfigResponse>}
+ */
+const methodDescriptor_ClusterControllerService_SetAccConfig = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/SetAccConfig',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.SetAccConfigRequest,
+  proto.cluster_controller.SetAccConfigResponse,
+  /**
+   * @param {!proto.cluster_controller.SetAccConfigRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.SetAccConfigResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.SetAccConfigRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.SetAccConfigResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.SetAccConfigResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.setAccConfig =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/SetAccConfig',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_SetAccConfig,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.SetAccConfigRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.SetAccConfigResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.setAccConfig =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/SetAccConfig',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_SetAccConfig);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ResetAccConfigRequest,
+ *   !proto.cluster_controller.ResetAccConfigResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ResetAccConfig = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ResetAccConfig',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ResetAccConfigRequest,
+  proto.cluster_controller.ResetAccConfigResponse,
+  /**
+   * @param {!proto.cluster_controller.ResetAccConfigRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ResetAccConfigResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ResetAccConfigRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ResetAccConfigResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ResetAccConfigResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.resetAccConfig =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ResetAccConfig',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ResetAccConfig,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ResetAccConfigRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ResetAccConfigResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.resetAccConfig =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ResetAccConfig',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ResetAccConfig);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ApplyObjectStoreTopologyRequest,
+ *   !proto.cluster_controller.ApplyObjectStoreTopologyResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ApplyObjectStoreTopology = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ApplyObjectStoreTopology',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ApplyObjectStoreTopologyRequest,
+  proto.cluster_controller.ApplyObjectStoreTopologyResponse,
+  /**
+   * @param {!proto.cluster_controller.ApplyObjectStoreTopologyRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ApplyObjectStoreTopologyResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ApplyObjectStoreTopologyRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ApplyObjectStoreTopologyResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ApplyObjectStoreTopologyResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.applyObjectStoreTopology =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ApplyObjectStoreTopology',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApplyObjectStoreTopology,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ApplyObjectStoreTopologyRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ApplyObjectStoreTopologyResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.applyObjectStoreTopology =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ApplyObjectStoreTopology',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApplyObjectStoreTopology);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.SanitizeObjectStorePoolRequest,
+ *   !proto.cluster_controller.SanitizeObjectStorePoolResponse>}
+ */
+const methodDescriptor_ClusterControllerService_SanitizeObjectStorePool = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/SanitizeObjectStorePool',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.SanitizeObjectStorePoolRequest,
+  proto.cluster_controller.SanitizeObjectStorePoolResponse,
+  /**
+   * @param {!proto.cluster_controller.SanitizeObjectStorePoolRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.SanitizeObjectStorePoolResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.SanitizeObjectStorePoolRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.SanitizeObjectStorePoolResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.SanitizeObjectStorePoolResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.sanitizeObjectStorePool =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/SanitizeObjectStorePool',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_SanitizeObjectStorePool,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.SanitizeObjectStorePoolRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.SanitizeObjectStorePoolResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.sanitizeObjectStorePool =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/SanitizeObjectStorePool',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_SanitizeObjectStorePool);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ApproveObjectStoreDiskRequest,
+ *   !proto.cluster_controller.ApproveObjectStoreDiskResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ApproveObjectStoreDisk = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ApproveObjectStoreDisk',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ApproveObjectStoreDiskRequest,
+  proto.cluster_controller.ApproveObjectStoreDiskResponse,
+  /**
+   * @param {!proto.cluster_controller.ApproveObjectStoreDiskRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ApproveObjectStoreDiskResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ApproveObjectStoreDiskRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ApproveObjectStoreDiskResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ApproveObjectStoreDiskResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.approveObjectStoreDisk =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ApproveObjectStoreDisk',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApproveObjectStoreDisk,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ApproveObjectStoreDiskRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ApproveObjectStoreDiskResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.approveObjectStoreDisk =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ApproveObjectStoreDisk',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ApproveObjectStoreDisk);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.RejectObjectStoreDiskRequest,
+ *   !proto.cluster_controller.RejectObjectStoreDiskResponse>}
+ */
+const methodDescriptor_ClusterControllerService_RejectObjectStoreDisk = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/RejectObjectStoreDisk',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.RejectObjectStoreDiskRequest,
+  proto.cluster_controller.RejectObjectStoreDiskResponse,
+  /**
+   * @param {!proto.cluster_controller.RejectObjectStoreDiskRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.RejectObjectStoreDiskResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.RejectObjectStoreDiskRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.RejectObjectStoreDiskResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.RejectObjectStoreDiskResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.rejectObjectStoreDisk =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/RejectObjectStoreDisk',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RejectObjectStoreDisk,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.RejectObjectStoreDiskRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.RejectObjectStoreDiskResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.rejectObjectStoreDisk =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/RejectObjectStoreDisk',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_RejectObjectStoreDisk);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.PlanObjectStoreTopologyRequest,
+ *   !proto.cluster_controller.PlanObjectStoreTopologyResponse>}
+ */
+const methodDescriptor_ClusterControllerService_PlanObjectStoreTopology = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/PlanObjectStoreTopology',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.PlanObjectStoreTopologyRequest,
+  proto.cluster_controller.PlanObjectStoreTopologyResponse,
+  /**
+   * @param {!proto.cluster_controller.PlanObjectStoreTopologyRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.PlanObjectStoreTopologyResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.PlanObjectStoreTopologyRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.PlanObjectStoreTopologyResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.PlanObjectStoreTopologyResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.planObjectStoreTopology =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/PlanObjectStoreTopology',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_PlanObjectStoreTopology,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.PlanObjectStoreTopologyRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.PlanObjectStoreTopologyResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.planObjectStoreTopology =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/PlanObjectStoreTopology',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_PlanObjectStoreTopology);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.cluster_controller.ActivatePlatformReleaseRequest,
+ *   !proto.cluster_controller.ActivatePlatformReleaseResponse>}
+ */
+const methodDescriptor_ClusterControllerService_ActivatePlatformRelease = new grpc.web.MethodDescriptor(
+  '/cluster_controller.ClusterControllerService/ActivatePlatformRelease',
+  grpc.web.MethodType.UNARY,
+  proto.cluster_controller.ActivatePlatformReleaseRequest,
+  proto.cluster_controller.ActivatePlatformReleaseResponse,
+  /**
+   * @param {!proto.cluster_controller.ActivatePlatformReleaseRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.cluster_controller.ActivatePlatformReleaseResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.cluster_controller.ActivatePlatformReleaseRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.cluster_controller.ActivatePlatformReleaseResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.cluster_controller.ActivatePlatformReleaseResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.cluster_controller.ClusterControllerServiceClient.prototype.activatePlatformRelease =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ActivatePlatformRelease',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ActivatePlatformRelease,
+      callback);
+};
+
+
+/**
+ * @param {!proto.cluster_controller.ActivatePlatformReleaseRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.cluster_controller.ActivatePlatformReleaseResponse>}
+ *     Promise that resolves to the response
+ */
+proto.cluster_controller.ClusterControllerServicePromiseClient.prototype.activatePlatformRelease =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/cluster_controller.ClusterControllerService/ActivatePlatformRelease',
+      request,
+      metadata || {},
+      methodDescriptor_ClusterControllerService_ActivatePlatformRelease);
+};
+
+
 module.exports = proto.cluster_controller;
 

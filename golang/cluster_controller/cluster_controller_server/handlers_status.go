@@ -1023,6 +1023,7 @@ func (srv *server) Watch(req *cluster_controllerpb.WatchRequest, stream cluster_
 //   - Has any Globular service → core
 //   - Has minio/repository → storage
 //   - Has ai-memory/ai-executor → ai (implies core)
+//   - Has media/title/torrent/ffmpeg/yt-dlp → media-server (implies core)
 //   - Has gateway/envoy → gateway
 //   - No control-plane services → compute
 func deriveProfilesFromInstalled(installed map[string]string) []string {
@@ -1052,6 +1053,10 @@ func deriveProfilesFromInstalled(installed map[string]string) []string {
 	}
 	if has("ai-memory", "ai-executor", "ai-watcher", "ai-router") {
 		profiles["ai"] = true
+		profiles["core"] = true
+	}
+	if has("media", "title", "torrent", "ffmpeg", "yt-dlp") {
+		profiles["media-server"] = true
 		profiles["core"] = true
 	}
 	if has("gateway", "envoy") {

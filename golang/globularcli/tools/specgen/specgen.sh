@@ -3,6 +3,22 @@ set -euo pipefail
 
 BIN_DIR="/home/dave/Documents/github.com/globulario/services/golang/tools/stage/linux-amd64/usr/local/bin"
 OUT_ROOT="$(pwd)/generated"
+SERVICES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+PACKAGES_ROOT="${SERVICES_ROOT}/../packages"
+
+registry_has_package() {
+  local pkg="$1"
+  python3 - "${PACKAGES_ROOT}/registry.yaml" "${pkg}" <<'PYEOF'
+import sys, yaml
+path, name = sys.argv[1:]
+with open(path, "r", encoding="utf-8") as f:
+    doc = yaml.safe_load(f) or {}
+for pkg in doc.get("packages") or []:
+    if str(pkg.get("name") or "").strip() == name:
+        sys.exit(0)
+sys.exit(1)
+PYEOF
+}
 
 # Normalize: strips "_server" suffix; keeps underscores for the canonical service name.
 # Systemd unit names use dashes (derived separately below).
@@ -195,6 +211,12 @@ for exe_path in "${BIN_DIR}"/*_server; do
   [ -x "${exe_path}" ] || continue
   exe="$(basename "${exe_path}")"
   svc="$(svc_name_from_exe "${exe}")"
+  pkg_name="${svc//_/-}"
+
+  if ! registry_has_package "${pkg_name}"; then
+    echo "==> ${exe} -> ${svc} (skip: unregistered package ${pkg_name})"
+    continue
+  fi
 
   echo "==> ${exe} -> ${svc}"
 

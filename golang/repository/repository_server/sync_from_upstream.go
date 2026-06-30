@@ -914,6 +914,17 @@ func (srv *server) importUpstreamArtifact(
 	}
 	key := artifactKeyWithBuild(ref, n.BuildNumber)
 
+	// Upstream sync must enforce the same release-artifact shape law as the
+	// direct publish path. Digest verification alone is insufficient: an older
+	// upstream release can carry a stable-channel tarball whose entrypoint still
+	// contains debug sections. Reject it before any idempotent skip/import path
+	// can persist or bless the artifact locally.
+	if channelFromString(n.Channel) == repopb.ArtifactChannel_STABLE {
+		if shapeErr := validateReleaseArtifactStripped(data); shapeErr != nil {
+			return fmt.Errorf("release artifact shape: %w", shapeErr)
+		}
+	}
+
 	if existingByID, stateByID, _, ok := srv.findExistingArtifactByBuildID(ctx, ref, n.BuildID); ok {
 		if !digestEqual(existingByID.GetChecksum(), digest) {
 			return fmt.Errorf("build_id conflict: same build_id=%s has different digest local=%s upstream=%s",

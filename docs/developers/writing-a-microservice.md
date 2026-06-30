@@ -22,7 +22,7 @@ Globular gives you that infrastructure as a platform, and the deal is worth unde
 | How does my service authenticate callers? | The interceptor chain does it. JWT verification, token extraction, identity propagation — zero code in your service. |
 | How is access controlled? | RBAC annotations on your proto RPCs. One line per method. The enforcement interceptor handles the rest. |
 | How is my service configured? | etcd. `config.GetServiceConfigByID()`. No env vars, no config files, no redeploy to change config. |
-| How does it get deployed? | `globular deploy my-service --bump patch`. The desired-state model propagates it across all nodes automatically. |
+| How does it get deployed? | `globular deploy my-service`. Local deploy reuses the current published release version and advances only `build_number`; release semver bumps belong to the release workflow. |
 | How do I know if it's running? | `globular cluster health`. The convergence model tracks installed vs. desired across all nodes. |
 | How do I upgrade it across a 3-node cluster in order? | The workflow service orchestrates it. Each node gets a workflow run: FETCH → VERIFY → INSTALL → START → HEALTH_CHECK. |
 | How do I recover a node that had my service installed? | The full-reseed recovery workflow reinstalls it from the artifact snapshot, in bootstrap order, with checksum verification. |
@@ -48,6 +48,14 @@ A Globular microservice is a gRPC server that:
 - Uses shared primitives for lifecycle management, configuration, and health checks
 - Registers itself in etcd for service discovery
 - Integrates with the interceptor chain for authentication, RBAC, and audit logging
+
+Before you package a new service, decide its version authority:
+
+- Register the package in `packages/registry.yaml`.
+- Create the canonical recipe in `packages/metadata/<name>/specs/*.yaml`.
+- Choose `version_source: platform` for Globular-managed services that participate in the platform BOM cadence.
+- Choose `version_source: self` only when the binary has its own external/upstream version that must be preserved.
+- Treat `services/dist` as release output only, never as the source of package identity or version truth.
 
 ## Step 1: Define the Proto Contract
 

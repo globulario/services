@@ -32,8 +32,7 @@ const (
 	ActionType_ACTION_DRAIN_ENDPOINT          ActionType = 4
 	ActionType_ACTION_BLOCK_IP                ActionType = 5
 	ActionType_ACTION_NOTIFY_ADMIN            ActionType = 6
-	// ACTION_TIGHTEN_CIRCUIT_BREAKER is a hand-added constant (run generateCode.sh to update the raw binary descriptor).
-	ActionType_ACTION_TIGHTEN_CIRCUIT_BREAKER ActionType = 7
+	ActionType_ACTION_TIGHTEN_CIRCUIT_BREAKER ActionType = 7 // tighten circuit breakers via ai_router
 )
 
 // Enum value maps for ActionType.
@@ -3294,7 +3293,7 @@ const file_ai_executor_proto_rawDesc = "" +
 	"\rconversations\x18\x01 \x03(\v2 .ai_executor.ConversationSummaryR\rconversations\"D\n" +
 	"\x19DeleteConversationRequest\x12'\n" +
 	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\"\x1c\n" +
-	"\x1aDeleteConversationResponse*\xb3\x01\n" +
+	"\x1aDeleteConversationResponse*\xd7\x01\n" +
 	"\n" +
 	"ActionType\x12\x0f\n" +
 	"\vACTION_NONE\x10\x00\x12\x1a\n" +
@@ -3303,7 +3302,8 @@ const file_ai_executor_proto_rawDesc = "" +
 	"\x11ACTION_RENEW_CERT\x10\x03\x12\x19\n" +
 	"\x15ACTION_DRAIN_ENDPOINT\x10\x04\x12\x13\n" +
 	"\x0fACTION_BLOCK_IP\x10\x05\x12\x17\n" +
-	"\x13ACTION_NOTIFY_ADMIN\x10\x06*u\n" +
+	"\x13ACTION_NOTIFY_ADMIN\x10\x06\x12\"\n" +
+	"\x1eACTION_TIGHTEN_CIRCUIT_BREAKER\x10\a*u\n" +
 	"\fActionStatus\x12\x12\n" +
 	"\x0eACTION_PENDING\x10\x00\x12\x14\n" +
 	"\x10ACTION_EXECUTING\x10\x01\x12\x14\n" +

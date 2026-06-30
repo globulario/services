@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb check-no-tracked-binaries gen-package-kinds check-package-kinds check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb check-no-tracked-binaries gen-package-kinds check-package-kinds check-package-authority check-day0-package-contract check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
 
 # ── Security boundary checks ────────────────────────────────────────────────
 #
@@ -122,6 +122,26 @@ check-package-kinds:
 		diff -u packagekind/kinds_generated.go "$$tmp" || true; rm -f "$$tmp" "$$tmp.err"; exit 1; \
 	fi
 
+# ── Cross-repo package authority gate ───────────────────────────────────────
+#
+# packages/registry.yaml is the single authored package identity/index source.
+# packages/metadata/<name>/specs/*.yaml is the canonical install-recipe source.
+# globular-installer/internal/packagecatalog/specs/*.yaml is an embedded mirror.
+# This gate fails on duplicate consumed spec roots, stale installer mirrors, or
+# missing registry provenance for the embedded package catalog.
+
+check-package-authority:
+	@python3 scripts/validate-package-authority.py
+
+# ── Day-0 package contract ─────────────────────────────────────────────────
+#
+# install-day0.sh must bootstrap every registry day0_required package and the
+# transitive hard_deps required to make those packages usable on a fresh node.
+# No unregistered package may remain in the bootstrap list.
+
+check-day0-package-contract:
+	@python3 scripts/validate-day0-package-contract.py
+
 # ── Generated protobuf placement ─────────────────────────────────────────────
 #
 # check-no-misplaced-pb: protobuf-generated Go files must live ONLY under their
@@ -164,7 +184,7 @@ check-no-tracked-binaries:
 
 # ── Aggregate check target ───────────────────────────────────────────────────
 
-check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds
+check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract
 
 # ── Test targets ─────────────────────────────────────────────────────────────
 

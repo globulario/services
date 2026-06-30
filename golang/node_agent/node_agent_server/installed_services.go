@@ -222,18 +222,18 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 // syncRepoArtifactsToEtcd uses this list to override kind=SERVICE to
 // kind=INFRASTRUCTURE for packages wrongly classified by a stale package.json.
 //
-// DRIFT TRAP — this map mirrors two external sources of truth:
-//  1. packages/specs/*_service.yaml where metadata.kind=infrastructure
-//  2. packages/specs/*_cmd.yaml (each entry needs a "<name>-cmd" key here)
+// DRIFT TRAP — this map mirrors two registry-backed spec projections:
+//  1. packages/metadata/<name>/specs/*_service.yaml where metadata.kind=infrastructure
+//  2. packages/metadata/<name>/specs/*_cmd.yaml (each entry needs a "<name>-cmd" key here)
 //
 // Off-by-ones here are silent: a missing entry produces a bogus
 // SERVICE/unknown phantom in installed_state, which then masks the real
 // INFRASTRUCTURE/COMMAND record. We hit this on claude-cmd before the test
 // below was added.
 //
-// TestCommandAndSkipUnitListsMatchSpecs walks packages/specs/ and fails on
-// drift. The structural fix is to derive this map from a shared catalog
-// package — tracked under meta-principle
+// TestCommandAndSkipUnitListsMatchSpecs walks packages/metadata/*/specs/ and
+// fails on drift. The structural fix is to derive this map from a shared
+// catalog package — tracked under meta-principle
 // code_must_not_mirror_external_enumerations.
 var skipSystemdUnits = map[string]bool{
 	// Infrastructure daemons — versions come from repo artifact or binary probe
@@ -243,7 +243,7 @@ var skipSystemdUnits = map[string]bool{
 	"node-exporter": true, "prometheus": true, "alertmanager": true,
 	"scylla-manager": true, "scylla-manager-agent": true,
 	"scylladb": true, "keepalived": true, "sidekick": true,
-	// CLI tools — not daemons (from /packages/specs/*_cmd.yaml)
+	// CLI tools — not daemons (from /packages/metadata/*/specs/*_cmd.yaml)
 	"claude-cmd": true, "etcdctl-cmd": true, "ffmpeg-cmd": true,
 	"codex-cmd": true, "globular-cli-cmd": true, "mc-cmd": true, "rclone-cmd": true,
 	"restic-cmd": true, "sctool-cmd": true, "sha256sum-cmd": true,

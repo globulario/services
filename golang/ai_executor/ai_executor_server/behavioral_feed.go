@@ -27,6 +27,24 @@ const (
 	behavioralAgentID = "ai_executor"
 )
 
+var emitBehavioralExperience = func(ctx context.Context, diagnosis *ai_executorpb.Diagnosis, action *ai_executorpb.RemediationAction) {
+	recordBehavioralExperience(ctx, diagnosis, action)
+}
+
+func newBehavioralTraceAction(diagnosis *ai_executorpb.Diagnosis, status ai_executorpb.ActionStatus) *ai_executorpb.RemediationAction {
+	if diagnosis == nil {
+		return &ai_executorpb.RemediationAction{Status: status}
+	}
+	proposed := diagnosis.GetProposedAction()
+	return &ai_executorpb.RemediationAction{
+		IncidentId: diagnosis.GetIncidentId(),
+		Type:       classifyAction(proposed),
+		Status:     status,
+		Target:     proposed,
+		Detail:     diagnosis.GetActionReason(),
+	}
+}
+
 // recordBehavioralExperience is the afferent nerve from the executor's runtime
 // experience into the governed behavioral-memory ladder:
 //
@@ -55,10 +73,12 @@ func recordBehavioralExperience(ctx context.Context, diagnosis *ai_executorpb.Di
 
 	addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", "")
 	if addr == "" {
+		logger.Warn("behavioral feed skipped: ai_memory address unresolved")
 		return // behavioral-memory not resolvable → degrade silently
 	}
 	baseOpts, err := globular.InternalDialOptions()
 	if err != nil {
+		logger.Warn("behavioral feed skipped: internal dial options unavailable", "err", err)
 		return
 	}
 	// grpc.Dial/WithTimeout are deprecated. NOT migrated to grpc.NewClient here:
@@ -74,6 +94,7 @@ func recordBehavioralExperience(ctx context.Context, diagnosis *ai_executorpb.Di
 	opts := append(baseOpts, grpc.WithTimeout(2*time.Second)) //nolint:staticcheck // see note above
 	cc, err := grpc.Dial(addr, opts...)                       //nolint:staticcheck // see note above
 	if err != nil {
+		logger.Warn("behavioral feed skipped: dial failed", "addr", addr, "err", err)
 		return
 	}
 	defer func() { _ = cc.Close() }()
@@ -105,6 +126,7 @@ func recordBehavioralExperience(ctx context.Context, diagnosis *ai_executorpb.Di
 			},
 		},
 	}); err != nil {
+		logger.Warn("behavioral feed signal record failed", "incident", incidentID, "err", err)
 		return // behavioral-memory unreachable → stop here, silently
 	}
 
@@ -126,6 +148,8 @@ func recordBehavioralExperience(ctx context.Context, diagnosis *ai_executorpb.Di
 				"verdict", chk.GetResult().GetStatus(),
 				"missing_evidence", chk.GetResult().GetMissingEvidence())
 		}
+	} else if err != nil {
+		logger.Warn("behavioral feed action check failed", "incident", incidentID, "action", actionVerb, "err", err)
 	}
 
 	// 3. Outcome — what actually happened (the learning feedback). Only for taken
@@ -134,7 +158,7 @@ func recordBehavioralExperience(ctx context.Context, diagnosis *ai_executorpb.Di
 	if status == "" {
 		return
 	}
-	_, _ = client.RecordOutcome(callCtx, &bpb.RecordOutcomeRequest{
+	if _, err := client.RecordOutcome(callCtx, &bpb.RecordOutcomeRequest{
 		Outcome: &bpb.Outcome{
 			Project:       behavioralProject,
 			Domain:        behavioralDomain,
@@ -145,7 +169,9 @@ func recordBehavioralExperience(ctx context.Context, diagnosis *ai_executorpb.Di
 			AgentId:       behavioralAgentID,
 			Note:          fmt.Sprintf("%s %s → %s", action.GetType().String(), target, action.GetStatus().String()),
 		},
-	})
+	}); err != nil {
+		logger.Warn("behavioral feed outcome record failed", "incident", incidentID, "err", err)
+	}
 }
 
 // behavioralActionVerb maps the executor's ActionType to a behavioral action_type

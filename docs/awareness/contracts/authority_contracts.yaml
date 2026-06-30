@@ -181,3 +181,41 @@ contracts:
     rule: >
       Never classify a service as READY based only on systemd active.
       Port listening + health endpoint response are required proof.
+
+  - id: contract.repository.artifact_source_authority_matrix
+    domain: repository_layout
+    kind: authority
+    summary: >
+      The repository layout has a declared artifact/source authority matrix.
+      Package identity, package recipes, authored web assets, release assembly,
+      install execution, generated workspaces, staging paths, fallback mirrors,
+      and outputs each have one owner and one role. Mirrors, staging paths, and
+      outputs may support build or install flows, but they are never source authority.
+    authority_for:
+      - packages/registry.yaml → package identity authority
+      - packages/metadata/<name>/specs/*.yaml → package recipe authority
+      - services/webroot → authored release webroot source
+      - services/scripts/build-release.sh → release assembly authority
+      - globular-installer/scripts/install-day0.sh → install execution authority
+    compared_with:
+      - services/generated
+      - services/dist
+      - services/dist/.staging
+      - packages/bin
+      - packages/dist
+      - globular-installer/internal/packagecatalog/*
+      - globular-installer/internal/assets/webroot
+      - globular-installer/internal/assets/bin
+      - services/scripts/install.sh
+    classifications:
+      duplicate_authority: REPOSITORY_AUTHORITY_SPLIT
+      mirror_drift: GENERATED_MIRROR_DRIFT
+      staging_promoted_to_source: STAGING_PROMOTED_TO_SOURCE
+      output_promoted_to_source: OUTPUT_PROMOTED_TO_SOURCE
+      wrapper_promoted_to_installer: INSTALL_WRAPPER_AUTHORITY_DRIFT
+      missing_manifest: MIRROR_PROVENANCE_MISSING
+      helper_bin_polluted: INSTALLER_HELPER_ASSET_POLLUTION
+    special_rule: >
+      The validator and make gates must reject any change that lets a generated
+      workspace, staging directory, output directory, fallback mirror, or wrapper
+      script act as authored source authority.
