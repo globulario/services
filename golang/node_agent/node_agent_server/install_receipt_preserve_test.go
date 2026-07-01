@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/installreceipt"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
@@ -44,7 +45,7 @@ func TestPreserveInstallReceiptMetadata_CopiesAllReceiptKeys(t *testing.T) {
 		Version: "1.2.3",
 	}
 	PreserveInstallReceiptMetadata(existing, next)
-	for _, k := range receiptMetadataKeys {
+	for _, k := range installreceipt.Keys() {
 		expected := existing.Metadata[k]
 		got := next.Metadata[k]
 		if expected != "" && got != expected {

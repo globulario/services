@@ -83,10 +83,6 @@ const (
 	receiptKeyMigrationSource     = installreceipt.KeyMigrationSource
 )
 
-// receiptMetadataKeys exposed for the existing test that asserts the
-// canonical key set. New code should use installreceipt.Keys().
-var receiptMetadataKeys = installreceipt.Keys()
-
 // ── Main-package-only helper ──────────────────────────────────────────────
 
 // stampReceiptForInstalledPackage is the helper every install-complete

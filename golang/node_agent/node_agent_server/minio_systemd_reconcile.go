@@ -22,8 +22,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -114,15 +112,10 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	// either falsely detect drift (post-rewrite) or fall through to
 	// installed_state_missing_or_unproven on a fresh node.
 	//
-	// Idempotent: stampReceiptForInstalledPackage reads disk and writes
-	// installed_state; if the values are unchanged, the write is a
-	// no-op modulo updated_at timestamps.
+	// Idempotent: stampCanonicalReceiptForInstalledPackage reads disk
+	// and writes installed_state; no-op when the recorded receipt already
+	// matches.
 	srv.refreshMinioInstalledStateReceipt(ctx)
-	// Legacy: also refresh the .sha256 sidecar so older node-agent
-	// readers (pre-sidecar-retirement) on this or peer nodes can still
-	// classify drift correctly. Becomes vestigial once all nodes run
-	// receipt-aware code; safe to remove in a follow-up cleanup pass.
-	refreshMinioUnitSidecar()
 
 	// 7. Report rendered generation + fingerprint to etcd.
 	//    Workflow reads both to gate the coordinated restart.
@@ -173,6 +166,11 @@ func (srv *NodeAgentServer) enforceMinioRuntimeMembership(ctx context.Context, s
 	allowed, reason := nodeIsTopologyMember(srv.nodeID, nodeIP, state)
 	if allowed {
 		return true
+	}
+	if pending, pendingReason := minioTopologyAdmissionPending(state); pending {
+		log.Printf("minio-topology-gate: node %s (ip=%s) admission deferred — %s; keeping current runtime state until controller publishes real topology authority",
+			srv.nodeID, nodeIP, pendingReason)
+		return false
 	}
 	log.Printf("minio-topology-gate: node %s (ip=%s) not admitted — %s (gen=%d)",
 		srv.nodeID, nodeIP, reason, state.Generation)
@@ -529,46 +527,6 @@ func (srv *NodeAgentServer) refreshMinioInstalledStateReceipt(ctx context.Contex
 	srv.stampCanonicalReceiptForInstalledPackage(ctx, pkg, "node-agent.minio_systemd_reconcile", installedBinaryPath("minio", "INFRASTRUCTURE"))
 	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
 		log.Printf("minio-systemd: receipt write failed: %v (will retry next reconcile)", werr)
-	}
-}
-
-// refreshMinioUnitSidecar reads /etc/systemd/system/globular-minio.service,
-// computes its SHA-256, and rewrites the sidecar file if it is absent or stale.
-//
-// Rationale: older versions of this reconciler wrote directly to the main unit
-// file without regenerating the sidecar, leaving the checkUnitHashDrift heartbeat
-// check permanently broken. This is a recovery step — the main unit file is
-// managed by the installer and should not change between reconcile cycles.
-func refreshMinioUnitSidecar() {
-	const unitPath = "/etc/systemd/system/globular-minio.service"
-	sidecarPath := unitPath + ".sha256"
-
-	data, err := os.ReadFile(unitPath)
-	if err != nil {
-		return // unit file not installed yet — nothing to do
-	}
-
-	sum := sha256.Sum256(data)
-	want := hex.EncodeToString(sum[:])
-
-	if existing, err := os.ReadFile(sidecarPath); err == nil {
-		if strings.TrimSpace(string(existing)) == want {
-			return // sidecar is correct — no write needed
-		}
-		log.Printf("minio-systemd: sidecar mismatch detected for %s — regenerating (was %s, now %s)",
-			unitPath, strings.TrimSpace(string(existing))[:8], want[:8])
-	} else {
-		log.Printf("minio-systemd: sidecar missing for %s — writing now", unitPath)
-	}
-
-	tmp := sidecarPath + ".tmp"
-	if err := os.WriteFile(tmp, []byte(want+"\n"), 0o644); err != nil {
-		log.Printf("minio-systemd: failed to write sidecar tmp %s: %v", tmp, err)
-		return
-	}
-	if err := os.Rename(tmp, sidecarPath); err != nil {
-		log.Printf("minio-systemd: failed to rename sidecar %s: %v", sidecarPath, err)
-		_ = os.Remove(tmp)
 	}
 }
 

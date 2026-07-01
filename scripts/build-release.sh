@@ -172,6 +172,7 @@ done
 
 [[ -d "${PACKAGES_ROOT}" ]] || die "packages repo not found at ${PACKAGES_ROOT} — clone it alongside services"
 [[ -f "${REGISTRY_YAML}" ]] || die "registry.yaml not found at ${REGISTRY_YAML}"
+[[ -d "${GLOBULAR_ROOT}" ]] || die "Globular repo not found at ${GLOBULAR_ROOT} — required to build xds and gateway"
 
 if (( ! EXPLICIT_VERSION )); then
   VERSION="$(resolve_release_version)"
@@ -201,6 +202,15 @@ strip_release_binary() {
   if elf_needs_release_strip "${bin}"; then
     die "${label} still contains release-forbidden debug sections after strip"
   fi
+}
+
+verify_embedded_clean_script_authority() {
+  local source_script="${SERVICES_ROOT}/scripts/clean-node.sh"
+  local embedded_script="${GLOBULAR_ROOT}/internal/gateway/handlers/cluster/clean-node.sh"
+  [[ -f "${source_script}" ]] || die "authoritative clean-node.sh missing at ${source_script}"
+  [[ -f "${embedded_script}" ]] || die "embedded gateway clean-node.sh missing at ${embedded_script}"
+  cmp -s "${source_script}" "${embedded_script}" || \
+    die "embedded /clean payload drift detected: ${embedded_script} is not byte-identical to ${source_script}; sync the gateway copy before building"
 }
 
 registry_json_field() {
@@ -247,7 +257,7 @@ PYEOF
 resolve_package_root() {
   local pkg_name="$1"
   local candidate
-  for candidate in "${PACKAGES_ROOT}/${pkg_name}" "${PACKAGES_ROOT}/metadata/${pkg_name}"; do
+  for candidate in "${PACKAGES_ROOT}/${pkg_name}"; do
     if [[ -d "${candidate}" ]]; then
       echo "${candidate}"
       return 0
@@ -289,6 +299,21 @@ def generated_spec(name: str):
         return candidate.read_text(encoding='utf-8'), candidate.name
     return None
 
+def local_spec(name: str):
+    specs_root = services_root / 'golang'
+    for candidate in sorted(specs_root.glob('**/specs.yaml')):
+        try:
+            data = yaml.safe_load(candidate.read_text(encoding='utf-8')) or {}
+        except Exception:
+            continue
+        metadata_name = str((data.get('metadata') or {}).get('name') or '').strip()
+        service_name = str((data.get('service') or {}).get('name') or '').strip()
+        canonical = metadata_name or service_name
+        if canonical.replace('_', '-') != name:
+            continue
+        return candidate.read_text(encoding='utf-8'), f"{name.replace('-', '_')}_service.yaml"
+    return None
+
 def package_spec_from_tgz(root: Path, name: str):
     matches = sorted(root.glob(f'{name}_*_linux_amd64.tgz'))
     if not matches:
@@ -312,6 +337,7 @@ for pkg in registry.get('packages', []):
     spec = (
         direct_spec(name)
         or generated_spec(name)
+        or local_spec(name)
         or package_spec_from_tgz(services_root / 'generated', name)
         or package_spec_from_tgz(packages_root / 'dist', name)
     )
@@ -327,6 +353,10 @@ PYEOF
 resolve_local_generated_package_source() {
   local pkg_name="$1"
   case "${pkg_name}" in
+    node-agent)
+      printf '%s	%s	%s
+'         "${SERVICES_ROOT}/golang/node_agent/node_agent_server/specs.yaml"         "node_agent_server"         "${SERVICES_ROOT}/golang/node_agent/node_agent_server"
+      ;;
     globular-cli)
       printf '%s	%s	%s
 '         "${SERVICES_ROOT}/golang/globularcli/specs.yaml"         "globular"         "${SERVICES_ROOT}/golang/globularcli"
@@ -892,9 +922,9 @@ validate_release_bundle_dir() {
   local pkg_dir="${release_dir}/packages"
   local prefix tgz tmpdir entrypoint
 
-  grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"' \
+  grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"' \
     "${release_dir}/scripts/install-day0.sh" \
-    || die "release bundle install-day0.sh does not default FOUNDING_PROFILES to core,media-server"
+    || die "release bundle install-day0.sh does not default FOUNDING_PROFILES to core"
   [[ -f "${release_dir}/release-index.json" ]] || die "release bundle is missing release-index.json"
   python3 "${SERVICES_ROOT}/scripts/validate-day0-package-contract.py" \
     "${release_dir}/scripts/install-day0.sh" "${REGISTRY_YAML}" >/dev/null
@@ -956,7 +986,7 @@ cp "${BIN_STAGE_DIR}/mcp" "${BIN_STAGE_DIR}/mcp_server" 2>/dev/null || true
 
 # xds and gateway are built from the sibling Globular repo, matching the CI
 # release workflow. They are current-release binaries, not carry-forward assets.
-[[ -d "${GLOBULAR_ROOT}" ]] || die "Globular repo not found at ${GLOBULAR_ROOT} — required to build xds and gateway"
+verify_embedded_clean_script_authority
 info "Building xds and gateway from sibling Globular repo..."
 (
   cd "${GLOBULAR_ROOT}"
@@ -1212,6 +1242,9 @@ fi
 if [[ -d "${SERVICES_ROOT}/scripts/release" ]]; then
   cp -a "${SERVICES_ROOT}/scripts/release/." "${RELEASE_DIR}/scripts/"
 fi
+# Release bundles must ship the authoritative cleanup script from services/,
+# not the older installer-side copy.
+cp "${SERVICES_ROOT}/scripts/clean-node.sh" "${RELEASE_DIR}/scripts/clean-node.sh"
 chmod +x "${RELEASE_DIR}/scripts/"*.sh 2>/dev/null || true
 
 cp "${SERVICES_ROOT}/golang/workflow/definitions/"*.yaml "${RELEASE_DIR}/workflows/"
@@ -1244,20 +1277,19 @@ cat > "${RELEASE_DIR}/README.md" <<HEREDOC
 sudo bash install.sh
 \`\`\`
 
-The first node always comes up with the quorum profiles plus the media workload
-profile (\`control-plane\`, \`core\`, \`storage\`, \`media-server\`). To
-override or extend the day-0 workload profiles, pass \`FOUNDING_PROFILES\`
-(comma-separated) through \`sudo\`:
+The first node always comes up with the founding quorum profiles
+(\`control-plane\`, \`core\`, \`storage\`). To opt into workload profiles such as
+\`media-server\`, pass the full explicit profile intent through \`sudo\`:
 
 \`\`\`bash
-sudo FOUNDING_PROFILES=core,media-server bash install.sh
+sudo FOUNDING_PROFILES=core,control-plane,storage,media-server bash install.sh
 \`\`\`
 
 ## Next Steps
 
 \`\`\`bash
 sudo systemctl start globular-node-agent
-globular cluster bootstrap --node <routable-node-ip>:11000 --domain <your-domain> --profile core --profile media-server --profile gateway
+globular cluster bootstrap --node <routable-node-ip>:11000 --domain <your-domain> --profile core --profile gateway
 \`\`\`
 
 Full guide: https://globular.io/docs/operators/installation
