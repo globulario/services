@@ -187,6 +187,20 @@ Finding {
 | `STATE_HASH_MISMATCH` | Node hash doesn't match expected |
 | `ENDPOINT_MISSING` | Service running but not registered in etcd |
 | `INVENTORY_INCOMPLETE` | InstalledPackage record missing or incomplete |
+| `unit_receipt_drift.unit_file_drift` | Unit file on disk differs from the hash stamped at install time (WARN) |
+| `unit_receipt_drift.installed_state_missing_or_unproven` | `installed_state.metadata` has no receipt provenance (CRITICAL — fails closed; the node cannot prove what was installed) |
+
+**Note on receipt drift:** The doctor's `unit_receipt_drift` rule fires when
+the heartbeat's `checkUnitHashDrift` emits a receipt-authority state. A
+`unit_file_drift` finding usually means the unit was modified after install
+(config management tool, manual edit, or a non-canonical write path). An
+`installed_state_missing_or_unproven` finding means the install receipt was
+never stamped — the most common cause is an infrastructure package (envoy,
+minio, etcd, etc.) whose binary lives at a system path outside
+`/usr/lib/globular/bin`, which prevented the legacy binary-hash path from
+seeding the receipt. Upgrading the node-agent to v1.2.262+ eliminates this
+class of false-positive receipt absence by falling through to a unit-only
+restamp when the binary hash is unavailable.
 
 ## Using the Doctor
 

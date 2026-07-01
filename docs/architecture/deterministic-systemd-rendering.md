@@ -2,7 +2,21 @@
 
 ## Status
 
-**Open architectural bug.** Sibling concern to [retire-systemd-sidecars.md](retire-systemd-sidecars.md). Not blocking the sidecar retirement, but the sidecar retirement does not address this root cause and would re-surface it the moment installed_state proofs need to be regenerated.
+**Partially addressed.** The sidecar retirement is complete (see
+[retire-systemd-sidecars.md](retire-systemd-sidecars.md)). As part of that
+work, `canonicalInstallReceiptOpts` (in `canonical_unit_render.go`) was
+introduced: it renders the canonical unit by extracting the template from the
+artifact tarball and expanding a declared, explicit `CanonicalUnitRenderInput`
+struct, then stamps `unit_renderer_version = "artifact-canonical-v1"` in
+`installed_state.metadata`. This makes the render path artifact-anchored and
+declarative for the install + skip-restamp paths.
+
+The root problem — ambient, undeclared inputs that made two renders of the same
+package produce different bytes — remains open for investigation. The evidence
+captured below still stands. The `artifact-canonical-v1` renderer is
+deterministic for packages whose artifact tarball contains the unit template; it
+does not yet cover packages whose unit is synthesized at render time from
+installer-template helpers outside the tarball.
 
 ## Invariant
 

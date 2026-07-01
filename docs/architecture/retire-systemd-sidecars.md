@@ -1,5 +1,26 @@
 # Globular Clean Design: Retire Systemd SHA256 Sidecars
 
+## Status
+
+**Implemented.** The design described below is complete as of `v1.2.262`. Key
+commit chain: `2c7962db` (foundation) → `708d4aa4` (no UpdatedUnix bump on
+skip-restamp) → `be663efb` (v1.2.262: binary-hash fallback for infrastructure
+packages on skip path). See
+`docs/operational-knowledge/incidents/sidecar-receipt-retirement-2026-06-03.md`
+for the full incident chain and verification.
+
+The canonical installation helpers are:
+
+| Helper | File | Purpose |
+|---|---|---|
+| `canonicalInstallReceiptOpts` | `canonical_unit_render.go` | Build `ReceiptOpts` from package identity; renders unit from artifact tarball (`artifact-canonical-v1`) |
+| `stampCanonicalReceiptForInstalledPackage` | `canonical_unit_render.go` | New-install canonical stamp (used by MinIO reconcile, apply_package_release) |
+| `restampReceiptOnInstallSkip` | `installer_api.go` | Skip-path restamp; falls through to unit-only for infrastructure packages whose binary is at a system path |
+| `StampInstallReceipt` / `installreceipt.Stamp` | `install_receipt.go` / `internal/installreceipt/` | Chokepoint: writes only `pkg.Metadata`, never `InstalledUnix`/`UpdatedUnix` |
+| `stampReceiptForInstalledPackage` | `install_receipt.go` | Legacy simple stamp (command/binary-only paths still on `apply_package_release.go`) |
+
+---
+
 ## Goal
 
 Redesign Globular's unit-file drift detection so the cluster no longer depends on `.sha256` sidecar files beside systemd units.
@@ -373,17 +394,31 @@ torrent/node-agent/unit rewrite path cannot create false drift
 
 ## Acceptance Criteria
 
-This refactor is complete when:
+**All criteria met as of v1.2.262.**
 
 ```text
-1. No production runtime path depends on <unit>.sha256 as authority.
-2. checkUnitHashDrift reads expected hash from installed_state.
-3. Install/reconcile paths stamp installed_state hashes.
-4. Doctor findings still report drift correctly.
-5. Legacy sidecars are optional and only used for migration/fallback.
-6. Missing installed proof fails closed.
-7. Tests cover install, heartbeat, doctor, migration, and regression paths.
-8. Current cluster can converge without manually editing unit files or sidecars.
+1. ✅ No production runtime path depends on <unit>.sha256 as authority.
+      heartbeat.checkUnitHashDrift reads installed_state; refuses to downgrade
+      canonical receipts with legacy_sidecar content.
+2. ✅ checkUnitHashDrift reads expected hash from installed_state.
+      Falls back to legacy sidecar only when installed_state carries zero
+      receipt provenance (migration-once semantics).
+3. ✅ Install/reconcile paths stamp installed_state hashes.
+      New path: stampCanonicalReceiptForInstalledPackage (artifact-canonical-v1).
+      Skip path: restampReceiptOnInstallSkip (falls through to unit-only for
+      infra packages whose binary is at a system path, not globularBinDir).
+      MinIO reconcile: switched from legacy refreshMinioUnitSidecar() (removed)
+      to stampCanonicalReceiptForInstalledPackage.
+4. ✅ Doctor findings still report drift correctly.
+      unit_receipt_drift rule surfaces unit_file_drift (WARN) and
+      installed_state_missing_or_unproven (CRITICAL).
+5. ✅ Legacy sidecars are optional and only used for migration/fallback.
+6. ✅ Missing installed proof fails closed (installed_state_missing_or_unproven
+      = CRITICAL in doctor).
+7. ✅ Tests: installer_api_skip_restamp_test.go covers skip-path unit-only
+      restamp when binary hash fails.
+8. ✅ Cluster converges without manually editing unit files or sidecars.
+      v1.2.262 deployed; doctor reported 0 receipt findings post-deploy.
 ```
 
 ---

@@ -207,3 +207,38 @@ Listed in priority order; each is an independent task:
   and asserts byte-identical output. The renderer was already proven
   deterministic by diagnosis during this incident, but a guard test
   would catch a future regression (map iteration order, etc.).
+
+---
+
+## Postscript — v1.2.262 (2026-06-30): infrastructure binary-hash fallback on skip path
+
+After upgrading to v1.2.261 the cluster doctor on `globule-ryzen` surfaced 20
+CRITICAL `unit_receipt_drift.installed_state_missing_or_unproven` findings
+covering nearly all infrastructure services (envoy, node-exporter,
+alertmanager, prometheus, sidekick, scylla-manager, minio, etc.).
+
+**Root cause (bug #7 in the original chain):** `restampReceiptOnInstallSkip`
+called `cachedSha256(installedBinaryPath(name, kind))`, and when that failed
+(infrastructure packages have binaries at system paths, not in `globularBinDir`
+= `/usr/lib/globular/bin`) it returned immediately — leaving `installed_state.metadata`
+permanently absent. The new-install path (`writeInstalledStateChecksum`) had
+already received the same fix in commit `81368efb`, but the skip path was missed.
+
+**Fix (commit `be663efb`, node-agent v1.2.262):** On binary-hash failure, clear
+`binPath`/`hash` and fall through to a unit-only restamp using
+`canonicalInstallReceiptOpts` + `StampInstallReceipt`. The unit-only path does
+NOT set `entrypoint_checksum` (no convergence identity from a secondary
+source); it stamps `unit_file_sha256` + `installed_by` from the rendered unit.
+`StampInstallReceipt` only writes `pkg.Metadata` — `InstalledUnix`/`UpdatedUnix`
+are never touched, so no timestamp drift or false `old_pid_after_upgrade`.
+
+**Test added:** `TestSkipPathUnitOnlyRestamp_BinaryHashFailsFallsThrough` in
+`installer_api_skip_restamp_test.go` — verifies unit-only restamp writes
+`unit_file_sha256` + `installed_by`, no `binary_sha256`, and does not advance
+`InstalledUnix`/`UpdatedUnix`.
+
+**Invariant reinforced:** Any install-skip path that short-circuits on
+already-correct content MUST still attempt a canonical receipt restamp. A hash
+failure on the *binary* must not silently abort the entire restamp — that
+converts a transient lookup failure into a permanent receipt absence that the
+doctor flags as CRITICAL.
