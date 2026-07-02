@@ -80,6 +80,29 @@ func TestArtifactLayoutDriftLocal_InstallTransactionsPlatformState_Silent(t *tes
 	}
 }
 
+func TestArtifactLayoutDriftLocal_NetworkConfigPlatformState_Silent(t *testing.T) {
+	td := t.TempDir()
+	for _, d := range []string{"pki", "etcd"} {
+		if err := os.MkdirAll(filepath.Join(td, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(td, "network.json"), []byte(`{"Domain":"globular.internal","Protocol":"https"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	findings := (artifactLayoutDriftLocal{}).Evaluate(nil, testConfig())
+	for _, f := range findings {
+		if strings.Contains(f.Summary, "network.json") {
+			t.Fatalf("network.json must be treated as platform state, not layout drift: %s", f.Summary)
+		}
+	}
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // v1.2.117 — required tests for the canonical runtime dir model.
 // See docs/intent/service_runtime_paths_must_be_canonical.yaml and the

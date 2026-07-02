@@ -247,6 +247,12 @@ entries:
         This is a legitimate platform directory — NOT safe to delete. The fix is to add `state`
         to the `platformBaseAllowlist` in the cluster-doctor source
         (`golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go`).
+      - `network.json` — Node-local network configuration materialized at
+        `/var/lib/globular/network.json`. Written by cluster-controller reconciliation and
+        materialized during Day-0 bootstrap so local health/runtime checks have the cluster
+        domain/protocol/ports before post-bootstrap convergence completes. This is legitimate
+        platform state — NOT safe to delete. The fix is to add `network.json` to the
+        `platformBaseAllowlist` in the cluster-doctor source.
 
       **How to evaluate unknown directories:**
       1. Read the files inside — are they owned by a known platform service?

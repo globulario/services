@@ -57,11 +57,17 @@ var platformBaseAllowlist = map[string]bool{
 	// install-transactions is node-agent's install ownership/transaction journal.
 	// It is platform state used to preserve installed-state truth across partial
 	// installs and duplicate workflow dispatches, not a service runtime dir.
-	"install-transactions":  true,
-	"intent":                true,
-	"inventory":             true,
-	"keys":                  true,
-	"minio":                 true,
+	"install-transactions": true,
+	"intent":               true,
+	"inventory":            true,
+	"keys":                 true,
+	"minio":                true,
+	// network.json is the node-local materialization of cluster network
+	// configuration (domain/protocol/ports). It is written under
+	// /var/lib/globular by cluster-controller reconciliation and also
+	// materialized during Day-0 bootstrap so local health/runtime checks do not
+	// depend on post-bootstrap convergence to exist first.
+	"network.json":          true,
 	"objectstore":           true,
 	"operational-knowledge": true,
 	"packages":              true,
