@@ -103,6 +103,31 @@ jobs:
           GOTOOLCHAIN=go1.25.0 go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.4.5
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      # CG-4: changed-file impact enforcement. The awareness graph gate is the
+      # one place that turns required_tests into a fail-closed PR check, so we
+      # run it in CI before the broader source-scanner gates. It resolves the
+      # PR's changed files, generates the exact go test -run plan, and then
+      # verifies that the required tests actually passed.
+      - name: Enforce impact-ci required tests
+        if: steps.checkout_awareness_graph.outcome == 'success' && github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}/awareness-graph
+        run: |
+          git -C "${GITHUB_WORKSPACE}/services" fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          changed_files="$(git -C "${GITHUB_WORKSPACE}/services" diff --name-only FETCH_HEAD...HEAD)"
+          if [ -z "$changed_files" ]; then
+            echo "impact-ci: no changed files"
+            exit 0
+          fi
+
+          plan="$(go run ./cmd/awg impact-gate -require-coverage -changed-files "$changed_files" -services-repo "${GITHUB_WORKSPACE}/services" -format run)"
+          if [ -n "$plan" ]; then
+            results="${RUNNER_TEMP}/impact-ci-results.json"
+            (cd "${GITHUB_WORKSPACE}/services/golang" && go test -count=1 -run "$plan" ./... -json) > "$results" || true
+            go run ./cmd/awg impact-gate -require-coverage -changed-files "$changed_files" -services-repo "${GITHUB_WORKSPACE}/services" -ran "$results"
+          else
+            go run ./cmd/awg impact-gate -require-coverage -changed-files "$changed_files" -services-repo "${GITHUB_WORKSPACE}/services"
+          fi
+
       # Enforcement gates (hard-fail). These run the meta-principle checks that
       # the broad "Unit Tests" step above does NOT gate (it is continue-on-error
       # because some tests need etcd/ScyllaDB). The checks below are infra-free

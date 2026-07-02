@@ -129,8 +129,8 @@ genuinely *downhill*. That is where effort should go next.
   controller desired-state gate + deploy DEV skip path, all proof-tested), and
   `staging.content_addressed` (digest-keyed staging cache plus desired-manifest
   verification).
-- **CG-1 / CG-4** — evidence audit, confirm impact-ci fires end-to-end. 🟡 Folded
-  into the grind.
+- **CG-1 / CG-4** — evidence audit, confirm impact-ci fires end-to-end. ✅ Wired
+  into services CI.
 
 **Tally:** 16 invariants active in `package_identity_invariants.yaml`, 2 proposed
 (the deferred spine changes above).

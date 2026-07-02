@@ -119,7 +119,7 @@ a previously-partial failure_mode), raise the corresponding floor in
 the same PR that adds the new enforcement. The script ratchets, it does
 not aspire — never set a floor higher than the current count.
 
-To wire into CI later (no workflow committed yet):
+This gate is wired into services CI in `.github/workflows/ci.yml`:
 
 ```yaml
 - name: Awareness coverage ratchet
