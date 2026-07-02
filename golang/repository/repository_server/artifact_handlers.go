@@ -1501,6 +1501,9 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		if shapeErr := validateReleaseArtifactStripped(data); shapeErr != nil {
 			return status.Errorf(codes.FailedPrecondition, "%v", shapeErr)
 		}
+		if shapeErr := validateReleaseArtifactSizeEnvelope(stream.Context(), srv, manifest); shapeErr != nil {
+			return status.Errorf(codes.FailedPrecondition, "%v", shapeErr)
+		}
 	}
 
 	mjson, err := marshalManifestWithState(manifest, repopb.PublishState_VERIFIED)

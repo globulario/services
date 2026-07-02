@@ -24,6 +24,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,13 +38,15 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const defaultPublisherID = "core@globular.io"
+
+var stagingRootDir = "/var/lib/globular/staging"
 
 // pinnedArtifactDir holds a copy of the last successfully installed artifact
 // for each package. This is the local resilience cache: if MinIO / the
@@ -86,9 +89,6 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 		}
 	}
 
-	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact",
-		defaultPublisherID, name)
-
 	// Find the .tgz package on disk. If not present, fetch it from the repository
 	// so that `pkg publish` + `services desired set` converges without requiring
 	// the operator to manually stage every package on every node.
@@ -114,15 +114,13 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	}
 	log.Printf("installer-api: installing %s from local package %s", name, localPath)
 
-	// Copy the .tgz to the staging path so the install handlers can find it.
-	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
-		return fmt.Errorf("create staging dir: %w", err)
-	}
+	// Copy the .tgz to the staging cache so the install handlers can find it.
 	src, err := os.ReadFile(localPath)
 	if err != nil {
 		return fmt.Errorf("read local package %s: %w", localPath, err)
 	}
-	if err := os.WriteFile(artifactPath, src, 0o644); err != nil {
+	artifactPath, err := writeStagedArtifactCache(defaultPublisherID, name, src)
+	if err != nil {
 		return fmt.Errorf("write staging artifact: %w", err)
 	}
 
@@ -751,4 +749,44 @@ func readArtifactManifestVersion(artifactPath string) string {
 			return strings.TrimSpace(manifest.Version)
 		}
 	}
+}
+
+func stagingArtifactDir(publisherID, name string) string {
+	return filepath.Join(stagingRootDir, publisherID, name)
+}
+
+func latestStagedArtifactPath(publisherID, name string) string {
+	return filepath.Join(stagingArtifactDir(publisherID, name), "latest.artifact")
+}
+
+func contentAddressedStagedArtifactPath(publisherID, name, archiveDigest string) string {
+	return filepath.Join(stagingArtifactDir(publisherID, name), archiveDigest+".artifact")
+}
+
+func archiveSHA256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum[:])
+}
+
+func writeStagedArtifactCache(publisherID, name string, archive []byte) (string, error) {
+	dir := stagingArtifactDir(publisherID, name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	digest := archiveSHA256Hex(archive)
+	contentPath := contentAddressedStagedArtifactPath(publisherID, name, digest)
+	if err := os.WriteFile(contentPath, archive, 0o644); err != nil {
+		return "", err
+	}
+
+	latestPath := latestStagedArtifactPath(publisherID, name)
+	_ = os.Remove(latestPath)
+	if err := os.Symlink(filepath.Base(contentPath), latestPath); err != nil {
+		// Fallback for environments where symlinks are unavailable; preserve the
+		// compatibility alias even if we cannot point to the content-addressed file.
+		if err := os.WriteFile(latestPath, archive, 0o644); err != nil {
+			return "", err
+		}
+	}
+	return contentPath, nil
 }

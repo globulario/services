@@ -11,11 +11,14 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
 // tgzWithBin packages binary bytes as an executable under bin/svc in a .tgz,
@@ -116,5 +119,61 @@ func TestElfDebugSectionName_Policy(t *testing.T) {
 	}
 	if got := elfDebugSectionName([]string{".text", ".debug_info"}); got != ".debug_info" {
 		t.Fatalf("DWARF must be flagged, got %q", got)
+	}
+}
+
+func TestReleaseArtifactSizeEnvelope_RejectsGreaterThan2xPriorRelease(t *testing.T) {
+	srv := newTestServer(t)
+	if err := srv.writeLedger(context.Background(), &releaseLedger{
+		Publisher: "core@globular.io",
+		Name:      "svc",
+		Releases: []*releaseLedgerEntry{{
+			Version:   "1.2.265",
+			Platform:  "linux_amd64",
+			SizeBytes: 100,
+		}},
+	}); err != nil {
+		t.Fatalf("writeLedger: %v", err)
+	}
+	err := validateReleaseArtifactSizeEnvelope(context.Background(), srv, &repopb.ArtifactManifest{
+		Ref:       &repopb.ArtifactRef{PublisherId: "core@globular.io", Name: "svc", Platform: "linux_amd64"},
+		SizeBytes: 201,
+	})
+	if err == nil {
+		t.Fatal("expected >2x prior release size to be rejected")
+	}
+	if !strings.Contains(err.Error(), "prior-release envelope") {
+		t.Fatalf("expected size-envelope rejection, got: %v", err)
+	}
+}
+
+func TestReleaseArtifactSizeEnvelope_AllowsEqualTo2xPriorRelease(t *testing.T) {
+	srv := newTestServer(t)
+	if err := srv.writeLedger(context.Background(), &releaseLedger{
+		Publisher: "core@globular.io",
+		Name:      "svc",
+		Releases: []*releaseLedgerEntry{{
+			Version:   "1.2.265",
+			Platform:  "linux_amd64",
+			SizeBytes: 100,
+		}},
+	}); err != nil {
+		t.Fatalf("writeLedger: %v", err)
+	}
+	if err := validateReleaseArtifactSizeEnvelope(context.Background(), srv, &repopb.ArtifactManifest{
+		Ref:       &repopb.ArtifactRef{PublisherId: "core@globular.io", Name: "svc", Platform: "linux_amd64"},
+		SizeBytes: 200,
+	}); err != nil {
+		t.Fatalf("expected 2x prior release size to pass, got: %v", err)
+	}
+}
+
+func TestReleaseArtifactSizeEnvelope_SkipsWhenNoPriorReleaseSize(t *testing.T) {
+	srv := newTestServer(t)
+	if err := validateReleaseArtifactSizeEnvelope(context.Background(), srv, &repopb.ArtifactManifest{
+		Ref:       &repopb.ArtifactRef{PublisherId: "core@globular.io", Name: "svc", Platform: "linux_amd64"},
+		SizeBytes: 999999,
+	}); err != nil {
+		t.Fatalf("expected size-envelope to skip without prior release size, got: %v", err)
 	}
 }

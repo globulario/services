@@ -1240,6 +1240,16 @@ required_tests:
   protects:
     invariants:
     - publish.release_artifact_must_be_stripped
+- id: golang/node_agent/node_agent_server/staging_cache_test.go::TestWriteStagedArtifactCache_WritesContentAddressedFileAndLatestAlias
+  title: Staging Cache — content-addressed artifact plus latest compatibility alias
+  protects:
+    invariants:
+    - staging.content_addressed
+- id: golang/node_agent/node_agent_server/internal/actions/verify_integrity_test.go::TestContentAddressedStagedArtifactPath_UsesDigestNotLatestAlias
+  title: Verify Integrity — staging path uses digest, not latest alias
+  protects:
+    invariants:
+    - staging.content_addressed
 - id: TestBuildIDNotResolvedAtNodeAgent
   title: Build IDNot Resolved At Node Agent
   protects:

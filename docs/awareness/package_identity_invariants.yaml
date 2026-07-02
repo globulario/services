@@ -361,12 +361,14 @@ invariants:
       PUBLISHED, by the artifact-shape law in UploadArtifact: for the release
       channel, validateReleaseArtifactStripped extracts the entrypoint ELF and
       rejects it (FailedPrecondition) if it carries a symbol table (.symtab) or
-      DWARF (.debug_*/.zdebug_*). Scope: ELF only (the cluster platform); non-ELF
-      artifacts (darwin/windows) and archives with no detectable entrypoint pass
-      through this gate (out of scope, not implicitly trusted). DEV-lane builds are
-      exempt. NOTE: the size-envelope-vs-prior-build half of the original
-      contract is deferred to its own slice (it needs a prior-build size lookup +
-      threshold); this invariant now covers the strip requirement only.
+      DWARF (.debug_*/.zdebug_*). In the same STABLE-channel gate,
+      validateReleaseArtifactSizeEnvelope rejects an archive whose size exceeds
+      2x the latest published release size for the same package/platform from the
+      release ledger — the coarse ratchet for the historical debug/unstripped ~2x
+      artifact class. Scope: ELF-only for the strip check; non-ELF artifacts
+      (darwin/windows) and archives with no detectable entrypoint pass that half
+      of the gate (out of scope, not implicitly trusted). DEV-lane builds are
+      exempt.
     protects:
       state:
         - /globular/repository/artifacts/*
@@ -376,6 +378,7 @@ invariants:
       symbols:
         - UploadArtifact
         - validateReleaseArtifactStripped
+        - validateReleaseArtifactSizeEnvelope
         - elfDebugSectionName
     forbidden_fixes:
       - publish_unstripped_debug_build_to_release_channel
@@ -384,19 +387,26 @@ invariants:
       - golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactStripped_AcceptsStrippedELF
       - golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactStripped_NonELFPasses
       - golang/repository/repository_server/release_artifact_shape_test.go::TestElfDebugSectionName_Policy
+      - golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_RejectsGreaterThan2xPriorRelease
+      - golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_AllowsEqualTo2xPriorRelease
+      - golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_SkipsWhenNoPriorReleaseSize
     related_invariants:
       - release.version_single_authority
   - id: staging.content_addressed
     title: Node-agent staging cache must be content-addressed and verified against the desired manifest
     severity: high
-    status: proposed
+    status: active
     summary: >
       The node-agent staging cache must key artifacts by content (digest/build_id),
       not by a mutable generic filename. Today /var/lib/globular/staging/<pub>/<name>/
       latest.artifact is identity-erasing, and the cache-digest integrity check
       compares the cached blob against the INSTALLED artifact's manifest instead of
       the DESIRED one, producing a permanent false cache_digest_mismatch when desired
-      != installed. Verification must use the desired artifact's manifest.
+      != installed. The fix is two-part: InstallPackage writes the staged artifact
+      to a content-addressed `<sha256>.artifact` path and refreshes
+      `latest.artifact` only as a compatibility alias; verify_integrity resolves the
+      DESIRED manifest digest and verifies the cache against that desired artifact
+      first, falling back only when no desired digest is available.
     protects:
       state:
         - /var/lib/globular/staging/*
@@ -408,6 +418,9 @@ invariants:
         - resolveArtifactDigest
     forbidden_fixes:
       - compare_cached_blob_against_installed_manifest
+    required_tests:
+      - golang/node_agent/node_agent_server/staging_cache_test.go::TestWriteStagedArtifactCache_WritesContentAddressedFileAndLatestAlias
+      - golang/node_agent/node_agent_server/internal/actions/verify_integrity_test.go::TestContentAddressedStagedArtifactPath_UsesDigestNotLatestAlias
     related_invariants:
       - convergence.identity_is_build_id
 
