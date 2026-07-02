@@ -90,20 +90,58 @@ entries:
       backups, repairs, or health checks for ScyllaDB. All backup posture RPCs return
       "no cluster" errors.
 
-      **Root cause:** The scylla-manager package installs a registration script
-      (`/usr/lib/globular/bin/scylla-manager-register-cluster`) that runs as
-      `ExecStartPost=-+` on the scylla-manager service. The script was redirecting
-      sctool output to `/tmp/scylla-manager-register-cluster.log`. In systemd's
-      execution context (even with the `+` privilege prefix), creating files in `/tmp`
-      can fail with "Permission denied" — causing the `if sctool ... ; then` block to
-      never execute. The `-` prefix makes the ExecStartPost failure non-fatal, so
-      the unit stays up and the failure is silent.
+      **Known root causes:**
+      1. Older package revisions used a registration script
+         (`/usr/lib/globular/bin/scylla-manager-register-cluster`) that ran as
+         `ExecStartPost=-+` on the scylla-manager service and redirected `sctool`
+         output to `/tmp/scylla-manager-register-cluster.log`. In systemd's
+         execution context, creating files in `/tmp` could fail with
+         "Permission denied", making the registration block silently skip.
+      2. Day-0 / bootstrap rewrites of
+         `/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml`
+         can leave the agent directory or YAML owned by `scylla:scylla` or
+         another non-shared owner. When backup-manager later tries to inject
+         MinIO S3 credentials as the `globular` service user, it fails with:
+         `permission denied`. After that, the agent config is stale and the
+         retry-based auto-registration path never converges.
 
-      **Durable fix (already applied in packages repo):**
-      The registration script now captures sctool output in a shell variable instead
-      of redirecting to `/tmp`. Journald captures all output via stderr anyway.
+      **Durable fixes:**
+      - The registration script now captures `sctool` output in a shell variable
+        instead of redirecting to `/tmp`.
+      - Day-0 install and node-agent reconcile must preserve the
+        `globular:scylla` ownership contract on both:
+        - `/var/lib/globular/scylla-manager-agent/`
+        - `/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml`
+        This is shared runtime authority: `globular` must be able to rewrite the
+        YAML, while `scylla-manager-agent` must still be able to read it.
 
       **Immediate runtime fix:**
+      First verify ownership if backup-manager logs mention `permission denied`:
+
+      ```bash
+      sudo stat -c '%U %G %a %n' \
+        /var/lib/globular/scylla-manager-agent \
+        /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml
+
+      # Expected:
+      # globular scylla 750 /var/lib/globular/scylla-manager-agent
+      # globular scylla 640 /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml
+      ```
+
+      If ownership drifted, repair it and restart backup-manager so it can rewrite
+      the agent config before retrying registration:
+
+      ```bash
+      sudo chown globular:scylla /var/lib/globular/scylla-manager-agent
+      sudo chown globular:scylla /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml
+      sudo chmod 0750 /var/lib/globular/scylla-manager-agent
+      sudo chmod 0640 /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml
+      sudo systemctl restart globular-backup-manager.service
+      ```
+
+      Then, if the cluster is still not registered, register it manually. The script's
+      Phase 4 reads the agent auth_token from the agent config file:
+
       If the cluster is not registered, register it manually. The script's Phase 4 reads
       the agent auth_token from the agent config file:
 
@@ -146,8 +184,10 @@ entries:
       ```
     procedure:
       - phase: observe
-        description: "Confirm no cluster registered and find scylla-manager listen IP"
+        description: "Confirm no cluster registered, validate shared ownership, and find scylla-manager listen IP"
         commands:
+          - cmd: "sudo stat -c '%U %G %a %n' /var/lib/globular/scylla-manager-agent /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
+            expect: "dir=globular:scylla 750, file=globular:scylla 640"
           - cmd: "ss -tlnp | grep 5080"
             expect: "scylla_manager listening on <node-ip>:5080 (not 127.0.0.1)"
           - cmd: "sudo grep auth_token /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
