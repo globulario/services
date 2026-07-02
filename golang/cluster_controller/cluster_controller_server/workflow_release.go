@@ -36,7 +36,7 @@ const (
 // ApplyPackageReleaseRequest.ExpectedSha256 — the node-agent verify gate
 // refuses verified SUCCESS without it. An empty value is permitted only when
 // the manifest itself has no checksum (legacy artifacts). NEVER synthesize.
-func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum string, resolvedBuildNumber int64, candidateNodes []string, opts ...int64) (*workflowpb.ExecuteWorkflowResponse, error) {
+func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum string, resolvedBuildNumber int64, publisherID, repositoryAddr string, candidateNodes []string, allowDowngrade bool, opts ...int64) (*workflowpb.ExecuteWorkflowResponse, error) {
 	var dispatchGen int64
 	if len(opts) > 0 {
 		dispatchGen = opts[0]
@@ -51,18 +51,21 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	}
 
 	inputs := map[string]any{
-		"cluster_id":                  srv.cfg.ClusterDomain,
-		"release_id":                  releaseID,
-		"release_name":                releaseName,
-		"package_name":                pkgName,
-		"package_kind":                pkgKind,
-		"resolved_version":            version,
-		"desired_hash":                desiredHash,
-		"resolved_build_id":           resolvedBuildID,            // Phase 2: exact artifact identity
-		"resolved_build_number":       resolvedBuildNumber,        // build_number passed to install_package step
+		"cluster_id":                   srv.cfg.ClusterDomain,
+		"release_id":                   releaseID,
+		"release_name":                 releaseName,
+		"package_name":                 pkgName,
+		"package_kind":                 pkgKind,
+		"resolved_version":             version,
+		"desired_hash":                 desiredHash,
+		"resolved_build_id":            resolvedBuildID,     // Phase 2: exact artifact identity
+		"resolved_build_number":        resolvedBuildNumber, // build_number passed to install_package step
+		"publisher_id":                 publisherID,
+		"repository_address":           repositoryAddr,
 		"resolved_entrypoint_checksum": resolvedEntrypointChecksum, // v1.2.119: BINARY sha256 for ExpectedSha256
-		"candidate_nodes":             nodesAny,
-		"max_parallel_nodes":          maxParallelNodesForKind(pkgKind),
+		"allow_downgrade":              allowDowngrade,
+		"candidate_nodes":              nodesAny,
+		"max_parallel_nodes":           maxParallelNodesForKind(pkgKind),
 	}
 
 	correlationID := releaseID
@@ -160,7 +163,7 @@ func (srv *server) publishWaveState(ctx context.Context, releaseName, pkgKind, s
 // RunInfraReleaseWorkflow executes the infrastructure-specific release workflow.
 // Delegates to RunPackageReleaseWorkflow with kind=INFRASTRUCTURE.
 func (srv *server) RunInfraReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum string, resolvedBuildNumber int64, candidateNodes []string) (*workflowpb.ExecuteWorkflowResponse, error) {
-	return srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, "INFRASTRUCTURE", version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum, resolvedBuildNumber, candidateNodes)
+	return srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, "INFRASTRUCTURE", version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum, resolvedBuildNumber, "", "", candidateNodes, false)
 }
 
 // RunRemovePackageWorkflow delegates execution of the release.remove.package
@@ -939,7 +942,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 
 func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 	return engine.NodeDirectApplyConfig{
-		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error {
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64, publisherID, repositoryAddr string, allowDowngrade bool) error {
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
 			if endpoint == "" {
@@ -966,13 +969,16 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			resp, err := client.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
 				WorkflowName: "install-package",
 				Inputs: map[string]string{
-					"package_name":    name,
-					"version":         version,
-					"kind":            kind,
-					"build_id":        buildID,
-					"build_number":    strconv.FormatInt(buildNumber, 10),
-					"desired_hash":    desiredHash,
-					"expected_sha256": expectedSha256,
+					"package_name":       name,
+					"version":            version,
+					"kind":               kind,
+					"build_id":           buildID,
+					"build_number":       strconv.FormatInt(buildNumber, 10),
+					"publisher_id":       publisherID,
+					"repository_address": repositoryAddr,
+					"desired_hash":       desiredHash,
+					"expected_sha256":    expectedSha256,
+					"allow_downgrade":    strconv.FormatBool(allowDowngrade),
 				},
 			})
 			if err != nil {
@@ -1290,14 +1296,36 @@ func skipRuntimeCheck(name string) bool {
 // install_package which itself takes longer than this cooldown, so the
 // post-install maybe_restart is never blocked.
 const defaultRestartCooldown = 10 * time.Second
+const criticalRestartCooldown = 5 * time.Minute
 
 // restartCooldownWindow returns the per-server cooldown, falling back to the
 // default. Test code can shorten this via srv.restartCooldown.
 func (srv *server) restartCooldownWindow() time.Duration {
+	return srv.restartCooldownWindowForUnit("")
+}
+
+func (srv *server) restartCooldownWindowForUnit(unit string) time.Duration {
 	if srv.restartCooldown > 0 {
 		return srv.restartCooldown
 	}
+	if isCriticalRestartUnit(unit) {
+		return criticalRestartCooldown
+	}
 	return defaultRestartCooldown
+}
+
+func isCriticalRestartUnit(unit string) bool {
+	switch strings.TrimSpace(unit) {
+	case "globular-envoy.service",
+		"globular-xds.service",
+		"globular-gateway.service",
+		"globular-etcd.service",
+		"scylla-server.service",
+		"globular-minio.service":
+		return true
+	default:
+		return false
+	}
 }
 
 // restartNow returns the current wall clock, routed through the test seam.
@@ -1332,10 +1360,11 @@ func (srv *server) dedupRestart(ctx context.Context, nodeID, endpoint, unit stri
 	if v, ok := srv.recentRestarts.Load(key); ok {
 		if last, isTime := v.(time.Time); isTime {
 			elapsed := srv.restartNow().Sub(last)
-			if elapsed < srv.restartCooldownWindow() {
+			cooldown := srv.restartCooldownWindowForUnit(unit)
+			if elapsed < cooldown {
 				log.Printf(
 					"workflow.restart_suppressed_duplicate node=%s unit=%s elapsed_ms=%d cooldown_ms=%d reason=recent_success",
-					nodeID, unit, elapsed.Milliseconds(), srv.restartCooldownWindow().Milliseconds(),
+					nodeID, unit, elapsed.Milliseconds(), cooldown.Milliseconds(),
 				)
 				return nil
 			}

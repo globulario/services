@@ -43,8 +43,11 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		"controller_loop_heartbeat_age": "time() - max(globular_controller_loop_heartbeat_unix)",
 		"workflow_oldest_active_age":    "globular_workflow_oldest_active_age_seconds",
 		"workflow_active_runs":          "globular_workflow_active_runs",
-		"node_heartbeat_age_max":        "max(time() - globular_node_agent_heartbeat_success_unix)",
-		"etcd_has_leader":               "max(etcd_server_has_leader)",
+		// Filter out zero/default heartbeat timestamps. During node-agent
+		// startup or scrape churn a zero sample means "no authoritative
+		// heartbeat yet", not "the node has been stale since the Unix epoch".
+		"node_heartbeat_age_max": "max(time() - (globular_node_agent_heartbeat_success_unix > 0))",
+		"etcd_has_leader":        "max(etcd_server_has_leader)",
 		// etcd_server_quorum_size doesn't exist in etcd 3.5.x.
 		// Use count(etcd_server_id) which counts how many etcd members
 		// this Prometheus can see. On a single-node scrape it returns 1;
@@ -56,8 +59,8 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		// when Prometheus only scrapes a non-leader controller instance.
 		"reconcile_dropped_not_leader": "sum(globular_controller_reconcile_dropped_not_leader_total)",
 		// Storm protection signals (Phase A-D).
-		"apply_loop_detected":        "globular_controller_apply_loop_detected_total",
-		"drift_kind_mismatch":        "globular_controller_drift_kind_mismatch_total",
+		"apply_loop_detected": "globular_controller_apply_loop_detected_total",
+		"drift_kind_mismatch": "globular_controller_drift_kind_mismatch_total",
 		// Rate over a 15-minute window — used by the kind_mismatch rule.
 		// Auto-clears when no new mismatches have been detected in the window.
 		// The raw counter above is kept for audit but must NOT be consumed by
@@ -67,7 +70,7 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		// globular_controller_reconcile_circuit_open_total counter must NOT be
 		// consumed here: a counter only ever grows, so the finding would fire
 		// CRITICAL forever after a single transient open and never auto-clear.
-		"reconcile_circuit_open":     "globular_controller_reconcile_circuit_open",
+		"reconcile_circuit_open": "globular_controller_reconcile_circuit_open",
 		// Raw counter — kept for backwards compatibility / audit. The rule
 		// itself should NOT consume this directly: a counter only ever
 		// grows, so the finding would fire forever after a single
@@ -111,10 +114,10 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		// listeners — port 443 stays unbound and the HTTP mesh is down even
 		// though `systemctl is-active globular-envoy.service` reports active.
 		// max() collapses any per-pod label dimensions to a single scalar.
-		"envoy_cds_update_success":   "max(envoy_cluster_manager_cds_update_success)",
-		"envoy_lds_update_attempt":   "max(envoy_listener_manager_lds_update_attempt)",
-		"envoy_lds_update_success":   "max(envoy_listener_manager_lds_update_success)",
-		"envoy_lds_update_rejected":  "max(envoy_listener_manager_lds_update_rejected)",
+		"envoy_cds_update_success":  "max(envoy_cluster_manager_cds_update_success)",
+		"envoy_lds_update_attempt":  "max(envoy_listener_manager_lds_update_attempt)",
+		"envoy_lds_update_success":  "max(envoy_listener_manager_lds_update_success)",
+		"envoy_lds_update_rejected": "max(envoy_listener_manager_lds_update_rejected)",
 	}
 
 	results := make(map[string]float64)

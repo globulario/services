@@ -126,6 +126,39 @@ func TestInstalledPackage_Checksum_FreshRecord_GetsBinarySHA(t *testing.T) {
 	}
 }
 
+func TestInfraReceipt_ChecksumIsConvergenceHashEntrypointMetadataIsBinarySHA(t *testing.T) {
+	binarySHA := "241c1702f0ed1c0dba31339abaab422906a4295cc92640f5b832c131ee385767"
+	convergenceHash := "cfd6de599b67e00a711334c6423a956b76b9d7e76c61be217bc0feabcda8d83e"
+	pkg := &node_agentpb.InstalledPackage{
+		Name:     "envoy",
+		Kind:     "INFRASTRUCTURE",
+		Version:  "1.35.3",
+		Checksum: binarySHA,
+		Metadata: map[string]string{},
+	}
+
+	applyInfraConvergenceHashToReceipt(pkg, pkg.GetKind(), convergenceHash)
+
+	if pkg.GetChecksum() != convergenceHash {
+		t.Fatalf("infra Checksum = %q, want convergence hash %q", pkg.GetChecksum(), convergenceHash)
+	}
+	if pkg.GetMetadata()["entrypoint_checksum"] != binarySHA {
+		t.Fatalf("entrypoint_checksum = %q, want binary SHA %q", pkg.GetMetadata()["entrypoint_checksum"], binarySHA)
+	}
+}
+
+func TestShouldStampTopLevelBinaryChecksum_InfraKeepsConvergenceChecksum(t *testing.T) {
+	if shouldStampTopLevelBinaryChecksum("INFRASTRUCTURE") {
+		t.Fatal("INFRASTRUCTURE top-level Checksum must remain the convergence hash; binary SHA belongs in metadata.entrypoint_checksum")
+	}
+	if !shouldStampTopLevelBinaryChecksum("SERVICE") {
+		t.Fatal("SERVICE top-level Checksum should carry binary SHA")
+	}
+	if !shouldStampTopLevelBinaryChecksum("COMMAND") {
+		t.Fatal("COMMAND top-level Checksum should carry binary SHA")
+	}
+}
+
 // TestApplyPackageRelease_SkipPath_Repairs_StaleChecksum exercises the skip-
 // path repair block in ApplyPackageRelease: when the idempotency guard
 // matches build_id and decides to skip, but the existing record's top-level

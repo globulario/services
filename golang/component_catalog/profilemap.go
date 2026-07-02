@@ -28,13 +28,13 @@ import (
 )
 
 // FoundingNodeProfiles are the profiles that MUST be present on the first
-// FoundingQuorumSize nodes of a cluster. They provide quorum-capable
-// infrastructure (etcd, ScyllaDB, MinIO) and the default media stack.
+// FoundingQuorumSize nodes of a cluster. They provide the quorum-capable
+// infrastructure only.
 //
 // This is the single source of truth shared by the cluster-controller
 // (enforced at join time) and cluster-doctor (checked at runtime).
 // Changing this list requires updating both enforcement paths.
-var FoundingNodeProfiles = []string{"core", "control-plane", "storage", "media-server"}
+var FoundingNodeProfiles = []string{"core", "control-plane", "storage"}
 
 // FoundingQuorumSize is the minimum number of nodes required for
 // infrastructure quorum (etcd, ScyllaDB, MinIO).

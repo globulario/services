@@ -62,13 +62,13 @@ done
 [[ -n "${VERSION}" ]] || die "--version is required"
 [[ "${VERSION}" =~ ^[0-9]+(\.[0-9]+){2}([.-][0-9A-Za-z._-]+)?$ ]] || die "invalid version '${VERSION}'"
 [[ -d "${PACKAGES_ROOT}" ]] || die "packages repo not found at ${PACKAGES_ROOT}"
-[[ -f "${EXTERNAL_MANIFEST}" ]] || die "external artifact manifest not found at ${EXTERNAL_MANIFEST}"
 [[ -f "${RELEASE_BUILDER}" ]] || die "release builder not found at ${RELEASE_BUILDER}"
-[[ -f "${EXTERNAL_BUILDER}" ]] || die "external package builder not found at ${EXTERNAL_BUILDER}"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 command -v bash >/dev/null 2>&1 || die "bash is required"
 
 if (( BUILD_EXTERNAL )); then
+  [[ -f "${EXTERNAL_MANIFEST}" ]] || die "external artifact manifest not found at ${EXTERNAL_MANIFEST}"
+  [[ -f "${EXTERNAL_BUILDER}" ]] || die "external package builder not found at ${EXTERNAL_BUILDER}"
   info "Cleaning prior external package artifacts from ${PACKAGES_ROOT}/dist"
   python3 - "${PACKAGES_ROOT}" "${EXTERNAL_MANIFEST}" <<'PYEOF'
 import json

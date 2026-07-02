@@ -231,7 +231,7 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	node.AgentEndpoint = newEndpoint
 	node.ReportedAt = reportedAt // node self-reported clock (diagnostics only)
 	node.LastSeen = receivedAt   // server receipt clock — drives staleness; never the node's clock
-	changed = true // LastSeen must always persist so followers see fresh heartbeats
+	changed = true               // LastSeen must always persist so followers see fresh heartbeats
 	srv.removeStaleNodesLocked(nodeID, newIdentity, newEndpoint)
 
 	if !unitsEqual(node.Units, units) {
@@ -383,19 +383,21 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			srv.state.NetworkingGeneration++
 			changed = true
 
-			// Update MinIO pool if this node has storage profile
+			// Update MinIO pool if this node has storage profile.
+			// Contract: MinioPoolNodes stores routable IPs, never hostnames/FQDNs.
+			poolIP := nodeRoutableIP(node)
 			for _, p := range derived {
-				if p == "storage" && node.AdvertiseFqdn != "" {
+				if p == "storage" && poolIP != "" {
 					found := false
 					for _, existing := range srv.state.MinioPoolNodes {
-						if existing == node.AdvertiseFqdn {
+						if existing == poolIP {
 							found = true
 							break
 						}
 					}
 					if !found {
-						srv.state.MinioPoolNodes = append(srv.state.MinioPoolNodes, node.AdvertiseFqdn)
-						log.Printf("ReportNodeStatus: added %s to MinIO pool", node.AdvertiseFqdn)
+						srv.state.MinioPoolNodes = append(srv.state.MinioPoolNodes, poolIP)
+						log.Printf("ReportNodeStatus: added %s to MinIO pool", poolIP)
 					}
 				}
 			}
@@ -1049,10 +1051,6 @@ func deriveProfilesFromInstalled(installed map[string]string) []string {
 	}
 	if has("minio", "repository", "monitoring", "backup-manager") {
 		profiles["storage"] = true
-		profiles["core"] = true
-	}
-	if has("ai-memory", "ai-executor", "ai-watcher", "ai-router") {
-		profiles["ai"] = true
 		profiles["core"] = true
 	}
 	if has("media", "title", "torrent", "ffmpeg", "yt-dlp") {

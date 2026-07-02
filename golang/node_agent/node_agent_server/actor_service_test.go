@@ -93,6 +93,32 @@ func TestActor_PickFieldFallsBackToInputs(t *testing.T) {
 	}
 }
 
+func TestActor_BuildApplyRequestKeepsDesiredHashSeparateFromExpectedSha256(t *testing.T) {
+	req := &workflowpb.ExecuteActionRequest{RunId: "run-123"}
+	get := pickField(
+		map[string]any{
+			"package_name":    "envoy",
+			"package_kind":    "INFRASTRUCTURE",
+			"version":         "1.35.3",
+			"build_id":        "build-abc",
+			"expected_sha256": "binary-sha",
+			"desired_hash":    "desired-convergence-hash",
+		},
+		nil,
+	)
+
+	apply := buildApplyPackageReleaseRequest(req, get, false, false)
+	if apply.GetExpectedSha256() != "binary-sha" {
+		t.Fatalf("ExpectedSha256 = %q, want binary-sha", apply.GetExpectedSha256())
+	}
+	if apply.GetDesiredHash() != "desired-convergence-hash" {
+		t.Fatalf("DesiredHash = %q, want desired-convergence-hash", apply.GetDesiredHash())
+	}
+	if apply.GetExpectedSha256() == apply.GetDesiredHash() {
+		t.Fatal("ExpectedSha256 and DesiredHash must remain separate hash schemas")
+	}
+}
+
 func TestActor_BoolFieldHonorsStringTrue(t *testing.T) {
 	cases := map[string]bool{
 		"true":  true,

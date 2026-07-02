@@ -22,7 +22,7 @@ func TestDispatch_PopulatesExpectedSha256FromManifest(t *testing.T) {
 
 	var seen string
 	cfg := NodeDirectApplyConfig{
-		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error {
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64, publisherID, repositoryAddr string, allowDowngrade bool) error {
 			seen = expectedSha256
 			return nil
 		},
@@ -56,7 +56,7 @@ func TestDispatch_EmptyManifestChecksumPropagatesAsEmpty(t *testing.T) {
 	var seen string
 	called := false
 	cfg := NodeDirectApplyConfig{
-		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error {
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64, publisherID, repositoryAddr string, allowDowngrade bool) error {
 			seen = expectedSha256
 			called = true
 			return nil
@@ -80,6 +80,32 @@ func TestDispatch_EmptyManifestChecksumPropagatesAsEmpty(t *testing.T) {
 	}
 	if seen != "" {
 		t.Fatalf("InstallPackage callback expected_sha256 = %q, want empty; actor must not synthesize a value", seen)
+	}
+}
+
+func TestDispatch_PopulatesAllowDowngradeFromWorkflowInput(t *testing.T) {
+	var seen bool
+	cfg := NodeDirectApplyConfig{
+		InstallPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64, publisherID, repositoryAddr string, allowDowngrade bool) error {
+			seen = allowDowngrade
+			return nil
+		},
+	}
+	handler := nodeInstallPackage(cfg)
+
+	req := ActionRequest{
+		With: map[string]any{
+			"package_name":    "cluster-doctor",
+			"version":         "1.2.257",
+			"kind":            "SERVICE",
+			"allow_downgrade": "true",
+		},
+	}
+	if _, err := handler(context.Background(), req); err != nil {
+		t.Fatalf("handler returned err: %v", err)
+	}
+	if !seen {
+		t.Fatalf("InstallPackage callback allowDowngrade = false, want true")
 	}
 }
 

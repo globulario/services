@@ -141,10 +141,10 @@ func TestResolveByBuildIDScyllaFirst_CollisionByName(t *testing.T) {
 	srv := buildResolverServer(t, rows)
 
 	resp, err := srv.ResolveArtifact(context.Background(), &repopb.ResolveArtifactRequest{
-		Name:      "sidekick",
+		Name:        "sidekick",
 		PublisherId: "glob",
-		Platform:  "linux_amd64",
-		BuildId:   collidingBuildID,
+		Platform:    "linux_amd64",
+		BuildId:     collidingBuildID,
 	})
 	if err != nil {
 		t.Fatalf("ResolveArtifact by colliding build_id: %v", err)

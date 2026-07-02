@@ -5,6 +5,25 @@ set -euo pipefail
 # Configures system resolver to use Globular DNS for the cluster domain
 #
 DOMAIN="globular.internal"
+MODE="full"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --configure-only)
+      [[ "$MODE" == "full" ]] || { echo "❌ choose only one of --configure-only or --verify-only" >&2; exit 1; }
+      MODE="configure-only"
+      ;;
+    --verify-only)
+      [[ "$MODE" == "full" ]] || { echo "❌ choose only one of --configure-only or --verify-only" >&2; exit 1; }
+      MODE="verify-only"
+      ;;
+    *)
+      echo "❌ unknown flag: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 echo ""
 echo "━━━ System Resolver Configuration ━━━"
@@ -46,7 +65,8 @@ echo "→ Node: ${HOSTNAME}"
 echo "→ IP: ${NODE_IP}"
 echo ""
 
-# Step 1: Grant CAP_NET_BIND_SERVICE (Day-0 only)
+if [[ "$MODE" != "verify-only" ]]; then
+    # Step 1: Grant CAP_NET_BIND_SERVICE (Day-0 only)
 if [[ "$NODE_TYPE" == "day0" ]]; then
     echo "[configure-resolver] Step 1: Grant CAP_NET_BIND_SERVICE to DNS server..."
     if [[ ! -f "$DNS_BINARY" ]]; then
@@ -307,6 +327,7 @@ if [[ "$NODE_TYPE" == "day0" ]]; then
 else
     echo "  → Skipping (Joining node - configure firewall manually if needed)"
 fi
+fi
 
 echo ""
 echo "[configure-resolver] Step 5: Verification..."
@@ -333,64 +354,72 @@ if [[ "$NODE_TYPE" == "joining" ]]; then
     fi
 fi
 
-# System resolver check (glibc)
-if getent_out=$(getent hosts "$TEST_DOMAIN" 2>/dev/null); then
-    RESOLVED_IPS=$(echo "$getent_out" | awk '{print $1}' | paste -sd, -)
-    echo "  ✓ getent hosts ${TEST_DOMAIN} -> ${RESOLVED_IPS}"
+if [[ "$MODE" == "configure-only" ]]; then
+    VERIFY_RESULT="SKIPPED"
+    echo "  • Verification deferred: DNS records may not exist until bootstrap-dns.sh seeds them"
+    echo "VERIFY_RESULT=${VERIFY_RESULT}"
 else
-    echo "  ⚠ getent hosts ${TEST_DOMAIN} failed (system resolver did not return an address)"
-    verify_ok=0
-fi
-
-# systemd-resolved diagnostic (non-fatal)
-if command -v resolvectl >/dev/null 2>&1; then
-    echo "  → resolvectl query ${TEST_DOMAIN} (diagnostic)"
-    if resolvectl_out=$(resolvectl query "$TEST_DOMAIN" 2>/dev/null); then
-        echo "$resolvectl_out" | sed 's/^/    /'
+    # System resolver check (glibc)
+    if getent_out=$(getent hosts "$TEST_DOMAIN" 2>/dev/null); then
+        RESOLVED_IPS=$(echo "$getent_out" | awk '{print $1}' | paste -sd, -)
+        echo "  ✓ getent hosts ${TEST_DOMAIN} -> ${RESOLVED_IPS}"
     else
-        echo "    ⚠ resolvectl query failed (service inactive or DNS unresolved)"
-    fi
-fi
-
-# Direct query against the configured DNS server
-if command -v dig >/dev/null 2>&1; then
-    if dig_out=$(dig @"${GLOBULAR_DNS_SERVER}" "$TEST_DOMAIN" +short 2>/dev/null) && [[ -n "$dig_out" ]]; then
-        DIG_IPS=$(echo "$dig_out" | tr '\n' ' ' | sed 's/[[:space:]]*$//')
-        echo "  ✓ dig @${GLOBULAR_DNS_SERVER} ${TEST_DOMAIN} -> ${DIG_IPS}"
-    else
-        echo "  ⚠ dig @${GLOBULAR_DNS_SERVER} ${TEST_DOMAIN} returned no records"
+        echo "  ⚠ getent hosts ${TEST_DOMAIN} failed (system resolver did not return an address)"
         verify_ok=0
     fi
-elif command -v nslookup >/dev/null 2>&1; then
-    if nslookup_out=$(nslookup "$TEST_DOMAIN" "${GLOBULAR_DNS_SERVER}" 2>/dev/null) && echo "$nslookup_out" | grep -qE "Address: [0-9a-fA-F:.]+"; then
-        NS_IP=$(echo "$nslookup_out" | awk '/Address: /{print $2}' | head -n1)
-        echo "  ✓ nslookup ${TEST_DOMAIN} ${GLOBULAR_DNS_SERVER} -> ${NS_IP}"
-    else
-        echo "  ⚠ nslookup ${TEST_DOMAIN} ${GLOBULAR_DNS_SERVER} returned no address"
-        verify_ok=0
-    fi
-else
-    echo "  → dig/nslookup not found; skipping direct DNS server query"
-fi
 
-if [[ $verify_ok -eq 1 ]]; then
-    VERIFY_RESULT="PASS"
-    echo "  ✓ DNS resolution verified for ${TEST_DOMAIN}"
-else
-    VERIFY_RESULT="FAIL"
-    echo "  ⚠ DNS resolution verification FAILED for ${TEST_DOMAIN}"
-    echo "    - Ensure .${DOMAIN} routes to ${GLOBULAR_DNS_SERVER}"
-    echo "    - Check firewall rules for port 53/udp and 53/tcp"
-    echo "    - Try: dig @${GLOBULAR_DNS_SERVER} ${TEST_DOMAIN} +trace"
-    if [[ "$NODE_TYPE" == "joining" ]]; then
-        echo "    - Confirm ${GLOBULAR_DNS_SERVER} is reachable from this node"
+    # systemd-resolved diagnostic (non-fatal)
+    if command -v resolvectl >/dev/null 2>&1; then
+        echo "  → resolvectl query ${TEST_DOMAIN} (diagnostic)"
+        if resolvectl_out=$(resolvectl query "$TEST_DOMAIN" 2>/dev/null); then
+            echo "$resolvectl_out" | sed 's/^/    /'
+        else
+            echo "    ⚠ resolvectl query failed (service inactive or DNS unresolved)"
+        fi
     fi
+
+    # Direct query against the configured DNS server
+    if command -v dig >/dev/null 2>&1; then
+        if dig_out=$(dig @"${GLOBULAR_DNS_SERVER}" "$TEST_DOMAIN" +short 2>/dev/null) && [[ -n "$dig_out" ]]; then
+            DIG_IPS=$(echo "$dig_out" | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+            echo "  ✓ dig @${GLOBULAR_DNS_SERVER} ${TEST_DOMAIN} -> ${DIG_IPS}"
+        else
+            echo "  ⚠ dig @${GLOBULAR_DNS_SERVER} ${TEST_DOMAIN} returned no records"
+            verify_ok=0
+        fi
+    elif command -v nslookup >/dev/null 2>&1; then
+        if nslookup_out=$(nslookup "$TEST_DOMAIN" "${GLOBULAR_DNS_SERVER}" 2>/dev/null) && echo "$nslookup_out" | grep -qE "Address: [0-9a-fA-F:.]+"; then
+            NS_IP=$(echo "$nslookup_out" | awk '/Address: /{print $2}' | head -n1)
+            echo "  ✓ nslookup ${TEST_DOMAIN} ${GLOBULAR_DNS_SERVER} -> ${NS_IP}"
+        else
+            echo "  ⚠ nslookup ${TEST_DOMAIN} ${GLOBULAR_DNS_SERVER} returned no address"
+            verify_ok=0
+        fi
+    else
+        echo "  → dig/nslookup not found; skipping direct DNS server query"
+    fi
+
+    if [[ $verify_ok -eq 1 ]]; then
+        VERIFY_RESULT="PASS"
+        echo "  ✓ DNS resolution verified for ${TEST_DOMAIN}"
+    else
+        VERIFY_RESULT="FAIL"
+        echo "  ⚠ DNS resolution verification FAILED for ${TEST_DOMAIN}"
+        echo "    - Ensure .${DOMAIN} routes to ${GLOBULAR_DNS_SERVER}"
+        echo "    - Check firewall rules for port 53/udp and 53/tcp"
+        echo "    - Try: dig @${GLOBULAR_DNS_SERVER} ${TEST_DOMAIN} +trace"
+        if [[ "$NODE_TYPE" == "joining" ]]; then
+            echo "    - Confirm ${GLOBULAR_DNS_SERVER} is reachable from this node"
+        fi
+    fi
+    echo "VERIFY_RESULT=${VERIFY_RESULT}"
 fi
-echo "VERIFY_RESULT=${VERIFY_RESULT}"
 
 echo ""
 if [[ "${VERIFY_RESULT}" == "PASS" ]]; then
     echo "[configure-resolver] ✓ System resolver configuration complete (verify: PASS)"
+elif [[ "${VERIFY_RESULT}" == "SKIPPED" ]]; then
+    echo "[configure-resolver] • System resolver configuration complete (verify: SKIPPED)"
 else
     echo "[configure-resolver] ⚠ System resolver configuration complete (verify: FAIL)"
 fi

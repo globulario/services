@@ -11,6 +11,7 @@
 //   - Cluster Controller: authoritative writer via CommitInstalledPackage
 //   - Node Agent: reads state and emits convergence evidence (no direct authoritative writes)
 //   - Gateway: reads records for admin UI queries
+//
 // @awareness namespace=globular.platform
 // @awareness component=platform_installed_state
 // @awareness file_role=installed_state_authority
@@ -56,11 +57,13 @@ func nodeKindPrefix(nodeID, kind string) string {
 	return keyPrefix + nodeID + "/packages/" + strings.ToUpper(kind) + "/"
 }
 
-// CommitInstalledPackage is the controller-side counterpart to WriteInstalledPackage.
-// It writes (or overwrites) the authoritative installed-package record using
-// StateCommitWrite (30 s timeout, 6 retries, jittered backoff). Call this from
-// the convergence committer after reading a ConvergenceResultV1; never call it
-// from the node-agent.
+// CommitInstalledPackage writes (or overwrites) an authoritative
+// installed-package record using StateCommitWrite (30 s timeout, 6 retries,
+// jittered backoff). Call this only at a commit boundary where the caller MUST
+// NOT declare success before the installed-state record is durable: controller
+// convergence commits and node-agent post-install commits after files/runtime
+// have been promoted and verified. Heartbeat/observation paths should use
+// WriteInstalledPackage instead.
 func CommitInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPackage) error {
 	if pkg.GetNodeId() == "" {
 		return fmt.Errorf("installed_state: node_id is required")

@@ -16,6 +16,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func defaultBootstrapProfiles() []string {
+	return []string{"core", "control-plane", "storage"}
+}
+
 func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_agentpb.BootstrapFirstNodeRequest) (*node_agentpb.BootstrapFirstNodeResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is required")
@@ -23,9 +27,10 @@ func (srv *NodeAgentServer) BootstrapFirstNode(ctx context.Context, req *node_ag
 
 	profiles := append([]string(nil), req.GetProfiles()...)
 	if len(profiles) == 0 {
-		// Day-0 invariant: founding node must start with all founding profiles.
-		// Mirrors foundingNodeProfiles in cluster_controller/profiles_normalize.go.
-		profiles = []string{"core", "control-plane", "storage", "media-server"}
+		// Day-0 invariant: founding node must start with the founding quorum only.
+		// Workload profiles such as media-server remain explicit controller or
+		// operator intent and are never invented by node-agent defaults.
+		profiles = defaultBootstrapProfiles()
 	}
 	profiles = component_catalog.NormalizeProfiles(profiles)
 	if unknown := component_catalog.UnknownProfiles(profiles); len(unknown) > 0 {

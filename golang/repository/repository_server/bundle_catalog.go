@@ -11,8 +11,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // ListBundles returns a summary of all bundles stored in the repository.

@@ -61,7 +61,7 @@ func sameTargetNodeIDs(a, b []string) bool {
 // active — the resolver will look up the artifact under the correct identity lane.
 // The ServiceRelease KEY always uses defaultPublisherID() so there is never more
 // than one release record per service regardless of override state.
-func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publisherID, version string, buildNumber int64, targetNodeIDs []string) {
+func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publisherID, version string, buildNumber int64, targetNodeIDs []string, allowDowngrade ...bool) {
 	if !srv.mustBeLeader() {
 		return
 	}
@@ -74,6 +74,7 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publis
 	}
 
 	targetNodeIDs = normalizeTargetNodeIDs(targetNodeIDs)
+	downgradeAllowed := len(allowDowngrade) > 0 && allowDowngrade[0]
 	effectivePublisher := publisherID
 	if effectivePublisher == "" {
 		effectivePublisher = defaultPublisherID()
@@ -111,6 +112,7 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publis
 			}
 			if !needsRecreate && existing.Spec.Version == version &&
 				existing.Spec.BuildNumber == buildNumber &&
+				existing.Spec.AllowDowngrade == downgradeAllowed &&
 				existingPublisher == effectivePublisher &&
 				sameTargetNodeIDs(releaseTargetNodeIDs(existing.Spec.NodeAssignments), targetNodeIDs) {
 				return // already up-to-date and in a healthy state
@@ -136,6 +138,7 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publis
 			ServiceName:     canon,
 			Version:         version,
 			BuildNumber:     buildNumber,
+			AllowDowngrade:  downgradeAllowed,
 			NodeAssignments: targetNodeAssignments(targetNodeIDs),
 			Platform:        "", // resolved per-node by the reconciler
 		},
@@ -199,7 +202,7 @@ func (srv *server) ensureServiceReleasesFromDesired(ctx context.Context) {
 			srv.deleteCrossKindServiceRelease(ctx, canon)
 			continue
 		}
-		srv.ensureServiceRelease(ctx, canon, sdv.Spec.PublisherID, sdv.Spec.Version, sdv.Spec.BuildNumber, sdv.Spec.TargetNodeIDs)
+		srv.ensureServiceRelease(ctx, canon, sdv.Spec.PublisherID, sdv.Spec.Version, sdv.Spec.BuildNumber, sdv.Spec.TargetNodeIDs, sdv.Spec.AllowDowngrade)
 		created++
 	}
 	if created > 0 {

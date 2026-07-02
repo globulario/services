@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -753,7 +754,14 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 					candidateStrs[i] = fmt.Sprint(c)
 				}
 
-				resp, err := srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum, resolvedBuildNumber, candidateStrs)
+				allowDowngrade := false
+				switch v := inputs["allow_downgrade"].(type) {
+				case bool:
+					allowDowngrade = v
+				case string:
+					allowDowngrade, _ = strconv.ParseBool(strings.TrimSpace(v))
+				}
+				resp, err := srv.RunPackageReleaseWorkflow(ctx, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum, resolvedBuildNumber, "", "", candidateStrs, allowDowngrade)
 				if err != nil {
 					return "", err
 				}

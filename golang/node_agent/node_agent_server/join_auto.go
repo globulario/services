@@ -87,6 +87,10 @@ func (srv *NodeAgentServer) autoInitiateJoin(ctx context.Context) {
 		srv.stateMu.Lock()
 		alreadyRequested := srv.joinRequestID != "" || srv.joinToken == ""
 		srv.stateMu.Unlock()
+		if satisfied, nodeID := srv.legacyJoinSatisfiedByStatusReport(); satisfied {
+			log.Printf("join: v1 legacy path skipped — node already registered via ReportNodeStatus (node_id=%s)", nodeID)
+			return
+		}
 		if alreadyRequested {
 			log.Printf("join: v1 legacy path: request already in flight or token cleared — stopping")
 			return

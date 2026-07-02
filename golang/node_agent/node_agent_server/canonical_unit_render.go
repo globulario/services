@@ -22,6 +22,19 @@ import (
 
 const canonicalUnitRendererVersion = "artifact-canonical-v1"
 
+// CanonicalInstallReceiptInput is the explicit input set allowed to influence
+// installed_state receipt content for a package.
+type CanonicalInstallReceiptInput struct {
+	PackageName    string
+	Version        string
+	Kind           string
+	UnitFilePath   string
+	InstalledBy    string
+	BinaryPath     string
+	PackageSha256  string
+	ArtifactDigest string
+}
+
 // CanonicalUnitRenderInput is the explicit input set allowed to influence
 // canonical unit rendering.
 type CanonicalUnitRenderInput struct {
@@ -95,11 +108,14 @@ func renderCanonicalUnitBytes(raw []byte, in CanonicalUnitRenderInput) []byte {
 }
 
 func (srv *NodeAgentServer) resolveArtifactForCanonicalUnit(name, version string) string {
+	if local := srv.findLocalPackage(name, version, runtime.GOOS+"_"+runtime.GOARCH); local != "" {
+		return local
+	}
 	staging := filepath.Join("/var/lib/globular/staging", defaultPublisherID, name, "latest.artifact")
 	if fi, err := os.Stat(staging); err == nil && !fi.IsDir() {
 		return staging
 	}
-	return srv.findLocalPackage(name, version, runtime.GOOS+"_"+runtime.GOARCH)
+	return ""
 }
 
 func (srv *NodeAgentServer) renderCanonicalUnitFromLocalArtifact(ctx context.Context, name, version, kind, unitName string) ([]byte, error) {
@@ -137,13 +153,14 @@ func renderCanonicalUnitFromArtifactPath(artifactPath, unitName string, in Canon
 		if hdr.FileInfo().IsDir() {
 			continue
 		}
+		name := strings.TrimPrefix(filepath.Clean(hdr.Name), "./")
 		switch {
-		case (strings.HasPrefix(hdr.Name, "systemd/") || strings.HasPrefix(hdr.Name, "units/")) && filepath.Base(hdr.Name) == unitName:
+		case (strings.HasPrefix(name, "systemd/") || strings.HasPrefix(name, "units/")) && filepath.Base(name) == unitName:
 			rawUnit, err = io.ReadAll(tr)
 			if err != nil {
 				return nil, fmt.Errorf("read %s: %w", hdr.Name, err)
 			}
-		case strings.HasPrefix(hdr.Name, "specs/") && (strings.HasSuffix(hdr.Name, ".yaml") || strings.HasSuffix(hdr.Name, ".yml")):
+		case strings.HasPrefix(name, "specs/") && (strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml")):
 			b, rerr := io.ReadAll(tr)
 			if rerr != nil {
 				return nil, fmt.Errorf("read %s: %w", hdr.Name, rerr)
@@ -195,31 +212,79 @@ func canonicalUnitContentEqual(a, b []byte) bool {
 	return bytes.Equal(a, b)
 }
 
+func receiptUnitContent(renderedUnit, diskUnit []byte) []byte {
+	if !canonicalUnitContentEqual(renderedUnit, diskUnit) {
+		return diskUnit
+	}
+	return renderedUnit
+}
+
+func clearUnitReceiptMetadata(pkg *node_agentpb.InstalledPackage) {
+	if pkg == nil || pkg.Metadata == nil {
+		return
+	}
+	delete(pkg.Metadata, installreceipt.KeyUnitFilePath)
+	delete(pkg.Metadata, installreceipt.KeyUnitFileSha256)
+	delete(pkg.Metadata, installreceipt.KeyUnitRendererVersion)
+}
+
+func (srv *NodeAgentServer) canonicalInstallReceiptOpts(ctx context.Context, in CanonicalInstallReceiptInput) (installreceipt.ReceiptOpts, error) {
+	opts := installreceipt.ReceiptOpts{
+		InstalledBy:         in.InstalledBy,
+		PackageSha256:       in.PackageSha256,
+		ArtifactDigest:      in.ArtifactDigest,
+		UnitRendererVersion: canonicalUnitRendererVersion,
+	}
+	if in.BinaryPath != "" {
+		if fi, err := os.Stat(in.BinaryPath); err == nil && !fi.IsDir() {
+			opts.BinaryPath = in.BinaryPath
+		}
+	}
+
+	unitPath := strings.TrimSpace(in.UnitFilePath)
+	if unitPath == "" {
+		unitPath = filepath.Join("/etc/systemd/system", "globular-"+in.PackageName+".service")
+	}
+	fi, err := os.Stat(unitPath)
+	if err != nil || fi.IsDir() {
+		return opts, nil
+	}
+	diskUnit, readErr := os.ReadFile(unitPath)
+	if readErr != nil {
+		return opts, fmt.Errorf("canonical unit receipt: read %s: %w", unitPath, readErr)
+	}
+
+	renderedUnit, renderErr := srv.renderCanonicalUnitFromLocalArtifact(ctx, in.PackageName, in.Version, in.Kind, filepath.Base(unitPath))
+	if renderErr != nil {
+		return opts, fmt.Errorf("canonical unit render unavailable for %s/%s@%s: %w", in.Kind, in.PackageName, in.Version, renderErr)
+	}
+	opts.UnitFilePath = unitPath
+	opts.UnitFileContent = receiptUnitContent(renderedUnit, diskUnit)
+	if !canonicalUnitContentEqual(renderedUnit, diskUnit) {
+		log.Printf("canonical unit receipt: %s/%s@%s rendered unit differs from disk; stamping disk evidence for %s",
+			in.Kind, in.PackageName, in.Version, unitPath)
+	}
+	return opts, nil
+}
+
 func (srv *NodeAgentServer) stampCanonicalReceiptForInstalledPackage(ctx context.Context, pkg *node_agentpb.InstalledPackage, installedBy string, binPath string) {
 	if pkg == nil || pkg.GetName() == "" {
 		return
 	}
-	opts := installreceipt.ReceiptOpts{
-		InstalledBy:         installedBy,
-		PackageSha256:       pkg.GetChecksum(),
-		ArtifactDigest:      pkg.GetChecksum(),
-		UnitRendererVersion: canonicalUnitRendererVersion,
+	opts, err := srv.canonicalInstallReceiptOpts(ctx, CanonicalInstallReceiptInput{
+		PackageName:    pkg.GetName(),
+		Version:        pkg.GetVersion(),
+		Kind:           pkg.GetKind(),
+		InstalledBy:    installedBy,
+		BinaryPath:     binPath,
+		PackageSha256:  pkg.GetChecksum(),
+		ArtifactDigest: pkg.GetChecksum(),
+	})
+	if err != nil {
+		clearUnitReceiptMetadata(pkg)
+		log.Printf("install_receipt: %v (clearing stale unit receipt; fail-closed)", err)
 	}
-	unitPath := "/etc/systemd/system/globular-" + pkg.GetName() + ".service"
-	if fi, err := os.Stat(unitPath); err == nil && !fi.IsDir() {
-		if renderedUnit, renderErr := srv.renderCanonicalUnitFromLocalArtifact(ctx, pkg.GetName(), pkg.GetVersion(), pkg.GetKind(), filepath.Base(unitPath)); renderErr == nil {
-			opts.UnitFilePath = unitPath
-			opts.UnitFileContent = renderedUnit
-		} else {
-			log.Printf("install_receipt: canonical unit render unavailable for %s/%s@%s: %v (skipping unit hash; fail-closed)", pkg.GetKind(), pkg.GetName(), pkg.GetVersion(), renderErr)
-		}
-	}
-	if binPath != "" {
-		if fi, err := os.Stat(binPath); err == nil && !fi.IsDir() {
-			opts.BinaryPath = binPath
-		}
-	}
-	if err := installreceipt.Stamp(pkg, opts); err != nil {
-		log.Printf("install_receipt: receipt skipped for %s/%s: %v", pkg.GetKind(), pkg.GetName(), err)
+	if serr := installreceipt.Stamp(pkg, opts); serr != nil {
+		log.Printf("install_receipt: receipt skipped for %s/%s: %v", pkg.GetKind(), pkg.GetName(), serr)
 	}
 }

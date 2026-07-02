@@ -4,13 +4,14 @@ package main
 //
 // The official stable namespace (publisher=core@globular.io, channel=STABLE) is
 // SEALED: once a (version, platform) is published with a given digest, no other
-// byte stream may claim that identity. A local fix must use a distinct identity.
+// byte stream may claim that stable identity. Non-stable/local publishes are
+// build lanes for the platform version; the repository allocates build_number.
 //
 // Identity lanes:
 //
-//   stable  → publisher=core@globular.io  channel=STABLE     version=semver (no suffix)
-//   dev     → publisher=local@<id>         channel=DEV        version with +local./-dev. suffix
-//   hotfix  → publisher=<any>              channel=CANDIDATE  version with -hotfix. suffix
+//   stable      → publisher=core@globular.io  channel=STABLE     version=platform semver
+//   local/dev   → publisher=<any>              channel=DEV        version=platform semver
+//   hotfix/test → publisher=<any>              channel=CANDIDATE  version=platform semver
 //
 // Enforcement entry points:
 //   - validateLocalIdentityRules()  called from UploadArtifact before any writes
@@ -84,8 +85,9 @@ func isLocalChannel(ch repopb.ArtifactChannel) bool {
 	return false
 }
 
-// hasLocalVersionSuffix returns true if the version string carries a local/dev/hotfix
-// suffix, indicating the artifact is not a clean official release.
+// hasLocalVersionSuffix returns true if the version string carries a legacy
+// local/dev/hotfix suffix. New local publishes should not create these; they are
+// accepted for compatibility except in the sealed official STABLE lane.
 //
 //	+local.<cluster>.<n>   e.g. 1.2.43+local.ryzen.1
 //	-dev.<branch>.<sha>    e.g. 1.2.43-dev.fix-retry.a1b2c3
@@ -100,14 +102,14 @@ func hasLocalVersionSuffix(version string) bool {
 }
 
 // validateLocalIdentityRules enforces that local/dev/hotfix artifacts cannot
-// masquerade as official stable artifacts.
+// masquerade as official stable artifacts. It does not require local suffixes:
+// local identity is channel/build-number scoped, while version remains the
+// platform version assigned by the repository/upstream release authority.
 //
 // Rules:
 //  1. If channel=STABLE (or unset) AND publisher=official → version must NOT have
 //     a local suffix. Official stable artifacts must be clean semver only.
-//  2. If channel=DEV → publisher must NOT be official. Local test builds must use
-//     a non-official publisher (e.g. local@<cluster-id>, org@<domain>).
-//  3. If version has a local suffix → channel must NOT be STABLE with official publisher.
+//  2. If version has a local suffix → channel must NOT be STABLE with official publisher.
 //     Mixing official stable identity with a modified version is forbidden.
 func validateLocalIdentityRules(publisherID string, ch repopb.ArtifactChannel, version string) error {
 	effective := ch
@@ -122,45 +124,8 @@ func validateLocalIdentityRules(publisherID string, ch repopb.ArtifactChannel, v
 	if official && effective == repopb.ArtifactChannel_STABLE && localSuffix {
 		return status.Errorf(codes.InvalidArgument,
 			"identity lane violation: publisher %q with channel STABLE may not use a local version suffix %q — "+
-				"use channel=dev (DEV) or channel=hotfix (CANDIDATE) and a non-official publisher for local test builds",
+				"use a non-STABLE channel and let the repository allocate build_number under the platform version",
 			publisherID, version)
-	}
-
-	// Rule 2: DEV channel artifacts must not use the official publisher.
-	// Official publisher + DEV channel would allow a local build to pollute the
-	// official namespace in resolution — only non-official publishers may publish DEV.
-	if official && effective == repopb.ArtifactChannel_DEV {
-		return status.Errorf(codes.InvalidArgument,
-			"identity lane violation: publisher %q may not publish to DEV channel — "+
-				"use a local publisher (e.g. local@<cluster-id>) for local test builds",
-			publisherID)
-	}
-
-	// Rule 3: version with local suffix + official publisher + stable = forbidden.
-	// Belt-and-suspenders guard for channels other than DEV where the caller
-	// might not set channel correctly but still carries a local version.
-	if official && effective == repopb.ArtifactChannel_STABLE && localSuffix {
-		return status.Errorf(codes.InvalidArgument,
-			"identity lane violation: local version suffix %q cannot be published as official stable — "+
-				"bump the version and use the official release pipeline", version)
-	}
-
-	// Rule 4 (#6c): a DEV artifact must carry a local/dev version suffix — it may
-	// never occupy a clean release version. This closes the dev/release boundary
-	// on the direct publish path: AllocateUpload coerces a DEV build's version
-	// (P5/devLaneVersion), but UploadArtifact writes the blob under a
-	// version-derived key before the channel is known, so it cannot coerce — it
-	// enforces here instead. The CLI already emits a suffix for --channel dev/local
-	// (pkg_cmds.go), so well-formed dev-lane publishes pass by construction; a
-	// clean-semver DEV (including one the release gate force-downgraded from an
-	// unauthorized STABLE) is rejected so it cannot squat a release version.
-	// (Official + DEV is already rejected by Rule 2 above; this covers the rest.)
-	if effective == repopb.ArtifactChannel_DEV && !localSuffix {
-		return status.Errorf(codes.InvalidArgument,
-			"identity lane violation: channel DEV requires a local/dev version suffix (e.g. %s-dev.1), "+
-				"got clean release version %q — publish with --channel dev/local (auto-suffixes) or build a "+
-				"-dev/+local version; a DEV build must never claim a release version",
-			version, version)
 	}
 
 	return nil
@@ -174,7 +139,7 @@ func validateLocalIdentityRules(publisherID string, ch repopb.ArtifactChannel, v
 // (publisher, name, version, platform) with a DIFFERENT digest, the upload
 // must be rejected immediately (before any writes). The caller is expected to:
 //   - bump the version (to create a new official release), OR
-//   - use a local identity lane (different publisher + local version suffix), OR
+//   - use a non-STABLE local identity lane with a repository-allocated build_number, OR
 //   - (the proven-phantom escape hatch) present a RepairAuthorization via gRPC
 //     metadata `x-repair-unseal-official: true` + `x-repair-reason: <text>` +
 //     `x-repair-prior-digest: <expected sealed digest>`. The repair path is
@@ -272,14 +237,14 @@ func (srv *server) enforceOfficialNamespaceSeal(ctx context.Context, publisherID
 		"official identity conflict: %s/%s@%s on %s is SEALED (digest=%s) — "+
 			"incoming artifact has a different digest (%s). "+
 			"Official stable artifacts are immutable. "+
-			"To test a local fix: use a local publisher (e.g. local@<cluster-id>) "+
-			"and a local version suffix (e.g. %s+local.<cluster>.1) with --channel dev. "+
+			"To test a local fix: publish to a non-STABLE channel; the repository will allocate "+
+			"a new build_number under the platform version. "+
 			"To repair a proven-phantom sealed artifact, re-issue with "+
 			"--unseal-official --reason \"<why>\" --prior-digest %s",
 		publisherID, name, version, platform,
 		shortDigest(existingDigest),
 		shortDigest(incomingDigest),
-		version, shortDigest(existingDigest))
+		shortDigest(existingDigest))
 }
 
 // shortDigest returns a log-friendly truncated form of a sha256 digest
@@ -316,24 +281,14 @@ func (srv *server) getPublishedDigest(ctx context.Context, publisher, name, vers
 	return ""
 }
 
-// devLaneVersion returns a lane-safe DEV version that never advances the release
-// stream (P5). An already-suffixed version is kept as-is; otherwise the base is
-// pinned to the latest published release (or the resolved version when there is
-// no release yet) and a `-dev` pre-release suffix is applied — so the DEV build
-// semver-orders BELOW the release and cannot squat a clean release version.
-// build_number then iterates within that DEV version.
+// devLaneVersion is retained for compatibility with older callers/tests. Local
+// build lanes no longer alter package version: version is the platform version,
+// while build_number/build_id distinguish local iterations.
 //
 // Pure given (latestRelease, resolvedVersion); the caller supplies the latest
 // release, so the policy is unit-tested without a ledger.
 func devLaneVersion(latestRelease, resolvedVersion string) string {
-	if hasLocalVersionSuffix(resolvedVersion) {
-		return resolvedVersion // already lane-safe (dev/local/hotfix)
-	}
-	base := strings.TrimSpace(latestRelease)
-	if base == "" {
-		base = resolvedVersion // no release to pin to; suffix the resolved version
-	}
-	return FormatLocalVersion(base, "dev", "", 0) // base + "-dev.1"
+	return strings.TrimSpace(resolvedVersion)
 }
 
 // FormatLocalVersion formats a local version string from an upstream version

@@ -44,10 +44,12 @@ func ensurePermCacheWatcher() {
 	})
 }
 
-// flushPermCache drops every permission-decision entry from the shared cache.
-// It is surgical: the cache also holds stream-auth markers, client conns, and
-// index ints, so it deletes ONLY values of type permCacheEntry. Safe to call at
-// any time; a concurrent put just repopulates with a fresh (re-validated) entry.
+// flushPermCache drops every authorization cache entry derived from RBAC state.
+// It is surgical for the shared permission cache: the cache also holds
+// stream-auth markers, client conns, and index ints, so it deletes ONLY values
+// of type permCacheEntry. Role bindings live in their own cache and must be
+// cleared too; otherwise a bootstrap-time empty binding can keep denying a newly
+// seeded service principal until roleBindingTTL expires.
 func flushPermCache() {
 	n := 0
 	cache.Range(func(k, v any) bool {
@@ -57,8 +59,16 @@ func flushPermCache() {
 		}
 		return true
 	})
-	if n > 0 {
-		slog.Info("interceptors: flushed permission cache on RBAC change", "entries", n)
+	roleN := 0
+	roleBindingCache.Range(func(k, _ any) bool {
+		roleBindingCache.Delete(k)
+		roleN++
+		return true
+	})
+	if n > 0 || roleN > 0 {
+		slog.Info("interceptors: flushed authorization caches on RBAC change",
+			"permission_entries", n,
+			"role_binding_entries", roleN)
 	}
 }
 

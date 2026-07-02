@@ -27,10 +27,11 @@ import (
 // reachability_guard.go, or reintroduces the clientv3 import.
 //
 // Anchored by:
-//   invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
-//   invariant:repository.desired_build_id_is_hard_reachability_root
-//   invariant:repository.purge_must_not_delete_active_desired_builds
-//   forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
+//
+//	invariant:four_layer.truth_read_via_owner_rpc_not_direct_storage
+//	invariant:repository.desired_build_id_is_hard_reachability_root
+//	invariant:repository.purge_must_not_delete_active_desired_builds
+//	forbidden_fix:read_owned_etcd_prefix_directly_instead_of_calling_owner_rpc
 //
 // Rebuilding the "which build_ids are desired?" semantic in a consumer
 // (even via a "narrow" etcd read) is the recurrent failure pattern this

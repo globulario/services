@@ -1,0 +1,45 @@
+id: repository.upload_reservation_is_single_build_authority
+level: contract
+title: UploadArtifact must consume the reservation as the sole build identity authority
+intent: |
+  AllocateUpload is the only allocator of build_number and build_id for a reserved
+  publish lane. When UploadArtifact carries a reservation_id, it must honor the
+  reservation's version, build_number, and build_id exactly. The upload path may
+  perform digest idempotency checks before writing, but it must not recompute a
+  new build_number/build_id or create a second artifact row for identical bytes.
+agent_guidance: |
+  Treat client-supplied build_number as advisory only unless it is corroborated by
+  a live reservation. If a reservation exists, validate that the upload identity
+  matches it and then publish using the reserved identity. If identical bytes are
+  already present for that package identity, return the canonical existing build_id
+  instead of creating a new build row.
+bad_smells:
+  - UploadArtifact calls uuid.NewV7 even though a reservation already exists
+  - UploadArtifact recomputes resolveLatestBuildNumber after AllocateUpload
+  - same version publishes once as build 1 and again as build 531 with same checksum
+  - reservation_id exists but upload ignores reservation version or channel
+activation_triggers:
+  - reservation_id
+  - AllocateUpload
+  - UploadArtifact
+  - build_number
+  - build_id
+  - same checksum
+expressed_by:
+  - golang/repository/repository_server/allocate_upload.go
+  - golang/repository/repository_server/artifact_handlers.go
+  - golang/repository/repository_server/package_identity_required_tests_test.go
+related_invariants:
+  - repository.upload_reservation_is_single_build_authority
+  - repository.publish_idempotent_same_digest
+zooms_out_to:
+  - repository.version_allocation_is_exclusive
+  - repository.publish_is_idempotent_by_digest
+zooms_in_to:
+  - repository.build_number_collision_is_corruption
+related_to:
+  - package.identity_tuple_must_be_unique
+required_tests:
+  - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadReservationIsSingleBuildAuthority
+  - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadReservationSameDigestDoesNotCreateNewBuild
+status: active

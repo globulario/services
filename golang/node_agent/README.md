@@ -239,7 +239,7 @@ For nodes with DNS profiles, the agent also applies authoritative DNS configurat
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NODE_AGENT_PORT` | gRPC listen port | `11000` |
-| `NODE_AGENT_STATE_PATH` | State file location | `/var/lib/globular/nodeagent/state.json` |
+| `NODE_AGENT_STATE_PATH` | State file location | `/var/lib/globular/node-agent/state.json` |
 | `NODE_AGENT_ETCD_MODE` | `managed` or `external` | `managed` |
 | `NODE_AGENT_TLS_CERT` | TLS certificate path | - |
 | `NODE_AGENT_TLS_KEY` | TLS private key path | - |

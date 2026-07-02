@@ -540,7 +540,9 @@ func validatePermissions(pf *PermissionsFile) []string {
 			if r.Field == "" {
 				errs = append(errs, rprefix+": missing field")
 			}
-			if !validPermissionVerbs[r.Permission] {
+			// Resource permission is optional. When omitted, callers interpret it
+			// as inheriting the RPC-level permission verb.
+			if r.Permission != "" && !validPermissionVerbs[r.Permission] {
 				errs = append(errs, fmt.Sprintf("%s: invalid permission verb %q", rprefix, r.Permission))
 			}
 			if r.Index < 0 {

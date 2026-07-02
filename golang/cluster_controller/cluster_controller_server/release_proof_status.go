@@ -128,18 +128,18 @@ type NodeRolloutProofVerdict struct {
 // verifier.hash_schema_confusion and the v1.2.59 brief at
 // /home/dave/Downloads/claude_fix_rollout_hash_schema_bootstrap_skew.md).
 //
-//   desiredEntrypoint    sha256 of the on-disk service binary, sourced from
-//                        the artifact manifest (ServiceRelease.Status
-//                        .ResolvedEntrypointChecksum). The node-agent records
-//                        its measurement in installed.Metadata["entrypoint_checksum"];
-//                        comparing the two is the v1.2.59 binary-integrity
-//                        proof signal.
-//   desiredConvergence   sha256 of the controller-rendered convergence inputs
-//                        (publisher + name + version + build_number + config).
-//                        Stamped by the node-agent into installed.Checksum
-//                        post-install so the controller's convergence
-//                        comparison terminates — apples-to-apples. NOT a
-//                        binary integrity signal.
+//	desiredEntrypoint    sha256 of the on-disk service binary, sourced from
+//	                     the artifact manifest (ServiceRelease.Status
+//	                     .ResolvedEntrypointChecksum). The node-agent records
+//	                     its measurement in installed.Metadata["entrypoint_checksum"];
+//	                     comparing the two is the v1.2.59 binary-integrity
+//	                     proof signal.
+//	desiredConvergence   sha256 of the controller-rendered convergence inputs
+//	                     (publisher + name + version + build_number + config).
+//	                     For INFRASTRUCTURE packages, stamped by the node-agent
+//	                     into installed.Checksum post-install so the controller's
+//	                     convergence comparison terminates — apples-to-apples.
+//	                     NOT a binary integrity signal.
 //
 // What we MUST NOT do (the v1.2.56/57/58 false-positive class of bug):
 // compare installed.Checksum (convergence) against ResolvedArtifactDigest
@@ -154,10 +154,10 @@ type NodeRolloutProofVerdict struct {
 //     rollout.installed_build_id_mismatch.
 //   - desiredVersion set but installed.Version disagrees → mismatch +
 //     rollout.installed_version_mismatch.
-//   - desiredConvergence and installed.Checksum both present and disagree →
-//     mismatch + rollout.installed_hash_mismatch (convergence-level drift:
-//     the node-agent applied something, but its rendered convergence hash
-//     doesn't match the controller's. Either input drift or stale stamp).
+//   - INFRASTRUCTURE desiredConvergence and installed.Checksum both present
+//     and disagree → mismatch + rollout.installed_hash_mismatch
+//     (convergence-level drift: the node-agent applied something, but its
+//     rendered convergence hash doesn't match the controller's).
 //   - Identities agree AND (runtime not needed OR runtime active) →
 //     ProofStatus=installed_verified.
 //   - Identities agree but runtime required and unit not active →
@@ -183,6 +183,7 @@ func decideNodeRolloutProof(
 	wantConvergence := normalizeDesiredHash(desiredConvergence)
 	gotBuild := strings.TrimSpace(installed.GetBuildId())
 	wantBuild := strings.TrimSpace(desiredBuildID)
+	installedKind := strings.ToUpper(strings.TrimSpace(installed.GetKind()))
 	gotEntrypoint := ""
 	if md := installed.GetMetadata(); md != nil {
 		gotEntrypoint = normalizeDesiredHash(md["entrypoint_checksum"])
@@ -198,6 +199,14 @@ func decideNodeRolloutProof(
 			FindingID:   FindingRolloutInstalledHashMismatch,
 			Reason: fmt.Sprintf("installed entrypoint_checksum %s != desired %s",
 				gotEntrypoint, wantEntrypoint),
+		}
+	}
+	if installedKind != "INFRASTRUCTURE" && wantEntrypoint != "" && gotEntrypoint == "" && gotConvergence != "" && gotConvergence != wantEntrypoint {
+		return NodeRolloutProofVerdict{
+			ProofStatus: RolloutProofMismatch,
+			FindingID:   FindingRolloutInstalledHashMismatch,
+			Reason: fmt.Sprintf("installed binary checksum %s != desired entrypoint_checksum %s",
+				gotConvergence, wantEntrypoint),
 		}
 	}
 
@@ -216,11 +225,14 @@ func decideNodeRolloutProof(
 		}
 	}
 
-	// 2. Convergence drift: controller-stamped hash should match installed.
-	//    This is apples-to-apples (convergence vs convergence). Disagreement
-	//    means the node-agent didn't get the expected rendering — distinct
-	//    from tampering, but still drift.
-	if wantConvergence != "" && gotConvergence != "" && gotConvergence != wantConvergence {
+	// 2. Convergence drift: for INFRASTRUCTURE packages only, top-level
+	//    InstalledPackage.Checksum is the controller-stamped convergence hash.
+	//    SERVICE and COMMAND records use Checksum as the binary/entrypoint SHA,
+	//    with binary proof also stored in metadata.entrypoint_checksum. Comparing
+	//    their binary checksum against DesiredHash would re-open the false
+	//    rollout.installed_hash_mismatch class pinned by
+	//    identity.field_semantic_is_single_writer_defined.
+	if installedKind == "INFRASTRUCTURE" && wantConvergence != "" && gotConvergence != "" && gotConvergence != wantConvergence {
 		return NodeRolloutProofVerdict{
 			ProofStatus: RolloutProofMismatch,
 			FindingID:   FindingRolloutInstalledHashMismatch,
@@ -234,10 +246,11 @@ func decideNodeRolloutProof(
 	//    a claim, not proof. build_id agreement is acceptable as a fallback
 	//    when binary proof isn't carried (legacy / pre-entrypoint records).
 	entrypointMatched := wantEntrypoint != "" && gotEntrypoint != "" && gotEntrypoint == wantEntrypoint
+	binaryChecksumMatched := installedKind != "INFRASTRUCTURE" && wantEntrypoint != "" && gotConvergence != "" && gotConvergence == wantEntrypoint
 	buildMatched := wantBuild != "" && gotBuild != "" && gotBuild == wantBuild
-	convergenceMatched := wantConvergence != "" && gotConvergence != "" && gotConvergence == wantConvergence
+	convergenceMatched := installedKind == "INFRASTRUCTURE" && wantConvergence != "" && gotConvergence != "" && gotConvergence == wantConvergence
 
-	if !entrypointMatched && !buildMatched && !convergenceMatched {
+	if !entrypointMatched && !binaryChecksumMatched && !buildMatched && !convergenceMatched {
 		// node-agent just told us a version is installed. That's a claim,
 		// not proof.
 		return NodeRolloutProofVerdict{
@@ -256,7 +269,7 @@ func decideNodeRolloutProof(
 	}
 
 	reason := "installed identity verified; runtime unit active"
-	if !entrypointMatched {
+	if !entrypointMatched && !binaryChecksumMatched {
 		// We have convergence/build agreement but no direct binary proof.
 		// Surface that so operators see we're relying on the weaker signal.
 		reason = "installed convergence/build_id verified; entrypoint_checksum not surfaced"

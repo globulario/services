@@ -142,15 +142,12 @@ func runPkgOverride(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--version is required: could not auto-detect version for build_id %s", pkgOverrideBuildID)
 	}
 
-	// Validate identity lane — the override publisher must NOT be the official publisher.
-	if strings.EqualFold(strings.TrimSpace(publisher), "core@globular.io") {
-		return fmt.Errorf("override publisher cannot be core@globular.io — use a local identity lane (e.g. local@<cluster-id>)")
-	}
-
-	// Validate local channel — the version must carry a local/hotfix/dev suffix.
-	if !hasLocalVersionSuffix(version) {
-		return fmt.Errorf("local override version %q must carry a local/dev/hotfix suffix (e.g. 1.2.43+local.ryzen.1, 1.2.43-hotfix.auth)\n"+
-			"Re-publish the artifact with an appropriate version before applying the override", version)
+	// Validate local identity. Overrides must target a repository-allocated
+	// build identity; version text remains the platform version.
+	if buildNumber <= 0 {
+		return fmt.Errorf("local override for %s@%s must use a repository-allocated build_number; "+
+			"publish locally through AllocateUpload and apply the override by build_id",
+			serviceName, version)
 	}
 
 	// Read current ServiceDesiredVersion for snapshot.
@@ -239,8 +236,20 @@ func runPkgOverrideRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("override record for %s has no official snapshot — cannot safely restore; delete the override key manually if needed", serviceName)
 	}
 
+	staleMetadataOnly := false
 	if err := upsertServiceDesiredVersion(snap.ServiceName, snap.Version, snap.BuildNumber, snap.BuildID); err != nil {
-		return fmt.Errorf("restore desired state: %w", err)
+		current, readErr := readServiceDesiredVersionSnapshot(serviceName)
+		if readErr != nil {
+			return fmt.Errorf("restore desired state: %w; additionally failed to read current desired state before deciding whether stale override metadata can be cleared: %v", err, readErr)
+		}
+		if desiredSnapshotMatches(current, snap) {
+			fmt.Fprintf(os.Stderr, "WARN: restore RPC failed, but current desired state already matches the saved official snapshot; clearing stale override metadata: %v\n", err)
+		} else if currentDesiredIsOutsideOverride(current, ov) {
+			fmt.Fprintf(os.Stderr, "WARN: restore RPC failed and saved snapshot is not restorable, but current desired state is already outside the local override identity; clearing stale override metadata: %v\n", err)
+			staleMetadataOnly = true
+		} else {
+			return fmt.Errorf("restore desired state: %w", err)
+		}
 	}
 
 	if err := deleteLocalOverride(serviceName); err != nil {
@@ -250,16 +259,26 @@ func runPkgOverrideRemove(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("override removed:\n")
 	fmt.Printf("  service:  %s\n", serviceName)
-	fmt.Printf("  restored: publisher=%s  version=%s\n",
-		func() string {
-			if snap.PublisherID == "" {
-				return "core@globular.io"
-			}
-			return snap.PublisherID
-		}(),
-		snap.Version,
-	)
-	fmt.Printf("\nThe controller will reinstall the official build on eligible nodes.\n")
+	if staleMetadataOnly {
+		current, err := readServiceDesiredVersionSnapshot(serviceName)
+		if err == nil && current != nil {
+			fmt.Printf("  action:   cleared stale override metadata; desired already version=%s build=%d build_id=%s\n",
+				current.Version, current.BuildNumber, current.BuildID)
+		} else {
+			fmt.Printf("  action:   cleared stale override metadata\n")
+		}
+	} else {
+		fmt.Printf("  restored: publisher=%s  version=%s\n",
+			func() string {
+				if snap.PublisherID == "" {
+					return "core@globular.io"
+				}
+				return snap.PublisherID
+			}(),
+			snap.Version,
+		)
+		fmt.Printf("\nThe controller will reinstall the official build on eligible nodes.\n")
+	}
 	return nil
 }
 
@@ -399,6 +418,59 @@ func readServiceDesiredVersionSnapshot(serviceName string) (*cluster_controllerp
 		PublisherID: rec.Spec.PublisherID,
 		Generation:  int64(rec.Meta.Generation),
 	}, nil
+}
+
+func desiredSnapshotMatches(current, official *cluster_controllerpb.LocalOverrideSnapshot) bool {
+	if current == nil || official == nil {
+		return false
+	}
+	if strings.TrimSpace(current.ServiceName) != strings.TrimSpace(official.ServiceName) {
+		return false
+	}
+	if strings.TrimSpace(current.Version) != strings.TrimSpace(official.Version) {
+		return false
+	}
+	if current.BuildNumber != official.BuildNumber {
+		return false
+	}
+	if strings.TrimSpace(current.BuildID) != strings.TrimSpace(official.BuildID) {
+		return false
+	}
+	if effectivePublisher(current.PublisherID) != effectivePublisher(official.PublisherID) {
+		return false
+	}
+	return true
+}
+
+func effectivePublisher(publisher string) string {
+	publisher = strings.TrimSpace(publisher)
+	if publisher == "" {
+		return "core@globular.io"
+	}
+	return publisher
+}
+
+func currentDesiredIsOutsideOverride(current *cluster_controllerpb.LocalOverrideSnapshot, ov *cluster_controllerpb.LocalOverride) bool {
+	if current == nil || ov == nil {
+		return false
+	}
+	if strings.TrimSpace(current.ServiceName) != strings.TrimSpace(ov.ServiceName) {
+		return false
+	}
+	currentVersion := strings.TrimSpace(current.Version)
+	if currentVersion == "" || hasLocalVersionSuffix(currentVersion) {
+		return false
+	}
+	if currentVersion == strings.TrimSpace(ov.Version) {
+		return false
+	}
+	if strings.TrimSpace(current.BuildID) != "" && strings.TrimSpace(current.BuildID) == strings.TrimSpace(ov.BuildID) {
+		return false
+	}
+	if current.BuildNumber > 0 && current.BuildNumber == ov.BuildNumber && strings.TrimSpace(ov.Version) == currentVersion {
+		return false
+	}
+	return true
 }
 
 // findArtifactByBuildID scans the repository ListArtifacts response for an

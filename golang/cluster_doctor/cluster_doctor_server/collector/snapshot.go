@@ -247,6 +247,14 @@ type Snapshot struct {
 	// Consumed by the "repository.package_version_authority" rule.
 	RepositoryVersionIndex map[string]map[string]bool
 
+	// RepositoryPublisherIndex maps package name → publisher namespace →
+	// installable versions available in the repository. Built from
+	// ListArtifacts with the same installable-state filter as
+	// RepositoryBuildIDIndex. Nil means the collector had no repository signal.
+	//
+	// Consumed by "package.publisher_namespace_collision".
+	RepositoryPublisherIndex map[string]map[string]map[string]bool
+
 	// Workflow convergence telemetry — see WI17/WI18.
 	StepOutcomes      []*workflowpb.WorkflowStepOutcome
 	WorkflowSummaries []*workflowpb.WorkflowRunSummary

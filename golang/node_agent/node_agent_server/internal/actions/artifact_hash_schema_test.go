@@ -35,6 +35,7 @@ func TestDownloadArtifactToDir_AlwaysResolvesManifestEvenIfEntrypointHashProvide
 		"SERVICE",
 		bogusEntrypointHash, // alias-bug bait: non-empty entrypoint hash
 		dest,
+		0,
 	)
 	if err == nil {
 		t.Fatalf("expected error from unreachable repo, got nil")

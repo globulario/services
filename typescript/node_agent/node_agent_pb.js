@@ -12727,7 +12727,8 @@ targetRevisionId: jspb.Message.getFieldWithDefault(msg, 15, ""),
 preserveConfigs: jspb.Message.getBooleanFieldWithDefault(msg, 16, false),
 restoreConfigSnapshot: jspb.Message.getBooleanFieldWithDefault(msg, 17, false),
 allowDowngrade: jspb.Message.getBooleanFieldWithDefault(msg, 18, false),
-previousRevisionId: jspb.Message.getFieldWithDefault(msg, 19, "")
+previousRevisionId: jspb.Message.getFieldWithDefault(msg, 19, ""),
+desiredHash: jspb.Message.getFieldWithDefault(msg, 20, "")
   };
 
   if (includeInstance) {
@@ -12839,6 +12840,10 @@ proto.node_agent.ApplyPackageReleaseRequest.deserializeBinaryFromReader = functi
     case 19:
       var value = /** @type {string} */ (reader.readString());
       msg.setPreviousRevisionId(value);
+      break;
+    case 20:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDesiredHash(value);
       break;
     default:
       reader.skipField();
@@ -12999,6 +13004,13 @@ proto.node_agent.ApplyPackageReleaseRequest.serializeBinaryToWriter = function(m
   if (f.length > 0) {
     writer.writeString(
       19,
+      f
+    );
+  }
+  f = message.getDesiredHash();
+  if (f.length > 0) {
+    writer.writeString(
+      20,
       f
     );
   }
@@ -13344,6 +13356,24 @@ proto.node_agent.ApplyPackageReleaseRequest.prototype.getPreviousRevisionId = fu
  */
 proto.node_agent.ApplyPackageReleaseRequest.prototype.setPreviousRevisionId = function(value) {
   return jspb.Message.setProto3StringField(this, 19, value);
+};
+
+
+/**
+ * optional string desired_hash = 20;
+ * @return {string}
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.getDesiredHash = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 20, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.node_agent.ApplyPackageReleaseRequest} returns this
+ */
+proto.node_agent.ApplyPackageReleaseRequest.prototype.setDesiredHash = function(value) {
+  return jspb.Message.setProto3StringField(this, 20, value);
 };
 
 

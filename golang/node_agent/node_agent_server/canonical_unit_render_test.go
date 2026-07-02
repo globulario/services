@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
 func writeCanonicalArtifact(t *testing.T, dir, name, spec string) string {
@@ -35,6 +37,87 @@ func writeCanonicalArtifact(t *testing.T, dir, name, spec string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func writeCanonicalArtifactWithEntries(t *testing.T, dir, name string, entries map[string]string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+	tw := tar.NewWriter(gz)
+	defer tw.Close()
+
+	for entryName, content := range entries {
+		body := []byte(content)
+		hdr := &tar.Header{
+			Name: entryName,
+			Mode: 0o644,
+			Size: int64(len(body)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return path
+}
+
+func TestRenderCanonicalUnitFromArtifactPath_AcceptsDotSlashTarEntries(t *testing.T) {
+	dir := t.TempDir()
+	artifact := writeCanonicalArtifactWithEntries(t, dir, "dot-slash.tgz", map[string]string{
+		"./systemd/globular-test-svc.service": "[Service]\nExecStart={{.Prefix}}/bin/test_server --node {{.NodeIP}}\n",
+		"./specs/test_service.yaml": `version: 1
+metadata:
+  name: test-svc
+`,
+	})
+
+	got, err := renderCanonicalUnitFromArtifactPath(artifact, "globular-test-svc.service", CanonicalUnitRenderInput{
+		PackageName:  "test-svc",
+		Version:      "1.0.0",
+		Kind:         "SERVICE",
+		PublisherID:  defaultPublisherID,
+		Platform:     "linux_amd64",
+		StateDir:     "/var/lib/globular",
+		Prefix:       "/usr/lib/globular",
+		BinDir:       "/usr/lib/globular/bin",
+		LogDir:       "/var/log/globular",
+		MinioDataDir: "/srv/minio/data",
+		NodeIP:       "10.0.0.8",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "ExecStart=/usr/lib/globular/bin/test_server --node 10.0.0.8") {
+		t.Fatalf("expected rendered unit from ./systemd entry, got:\n%s", got)
+	}
+}
+
+func TestReceiptUnitContent_UsesDiskWhenRenderedDiffers(t *testing.T) {
+	rendered := []byte("[Service]\nWorkingDirectory=-/var/lib/globular\nExecStart=/usr/lib/globular/bin/envoy\n")
+	disk := []byte("[Service]\nExecStart=/usr/lib/globular/bin/envoy\n")
+
+	got := receiptUnitContent(rendered, disk)
+	if string(got) != string(disk) {
+		t.Fatalf("receipt must stamp installed disk evidence when rendered unit differs")
+	}
+}
+
+func TestReceiptUnitContent_UsesRenderedWhenEqual(t *testing.T) {
+	rendered := []byte("[Service]\nExecStart=/usr/lib/globular/bin/envoy\n")
+	disk := []byte("[Service]\nExecStart=/usr/lib/globular/bin/envoy\n")
+
+	got := receiptUnitContent(rendered, disk)
+	if string(got) != string(rendered) {
+		t.Fatalf("receipt should keep canonical rendered content when it equals disk")
+	}
 }
 
 func TestRenderCanonicalUnitFromArtifactPath_DeterministicAcrossArtifactPathsAndCWD(t *testing.T) {
@@ -98,5 +181,26 @@ steps:
 	}
 	if strings.Contains(string(gotA), "WorkingDirectory=/var/lib/globular/test_svc") {
 		t.Fatalf("fragile/non-canonical WorkingDirectory survived render:\n%s", gotA)
+	}
+
+	pkgA := &node_agentpb.InstalledPackage{}
+	pkgB := &node_agentpb.InstalledPackage{}
+	if err := StampInstallReceipt(pkgA, ReceiptOpts{
+		UnitFilePath:        "/etc/systemd/system/globular-test-svc.service",
+		UnitFileContent:     gotA,
+		UnitRendererVersion: canonicalUnitRendererVersion,
+	}); err != nil {
+		t.Fatalf("StampInstallReceipt A: %v", err)
+	}
+	if err := StampInstallReceipt(pkgB, ReceiptOpts{
+		UnitFilePath:        "/etc/systemd/system/globular-test-svc.service",
+		UnitFileContent:     gotB,
+		UnitRendererVersion: canonicalUnitRendererVersion,
+	}); err != nil {
+		t.Fatalf("StampInstallReceipt B: %v", err)
+	}
+	if pkgA.Metadata[receiptKeyUnitFileSha256] != pkgB.Metadata[receiptKeyUnitFileSha256] {
+		t.Fatalf("canonical unit hash changed across artifact path/cwd: %q vs %q",
+			pkgA.Metadata[receiptKeyUnitFileSha256], pkgB.Metadata[receiptKeyUnitFileSha256])
 	}
 }

@@ -51,6 +51,7 @@ package rules
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -113,6 +114,92 @@ func (localOverrideActive) Evaluate(snap *collector.Snapshot, _ Config) []Findin
 		}
 	}
 	return findings
+}
+
+// ── package.publisher_namespace_collision ───────────────────────────────────
+
+type publisherNamespaceCollision struct{}
+
+func (publisherNamespaceCollision) ID() string { return "package.publisher_namespace_collision" }
+func (publisherNamespaceCollision) Category() string {
+	return "repository"
+}
+func (publisherNamespaceCollision) Scope() string { return "cluster" }
+
+func (publisherNamespaceCollision) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	if snap == nil || snap.RepositoryPublisherIndex == nil {
+		return nil
+	}
+
+	var findings []Finding
+	for pkgName, byPublisher := range snap.RepositoryPublisherIndex {
+		if len(byPublisher) < 2 {
+			continue
+		}
+		if !publisherCollisionIsPlatformRelevant(byPublisher) {
+			continue
+		}
+
+		publishers := sortedPublisherSummaries(byPublisher)
+		publisherList := strings.Join(publishers, ", ")
+		findings = append(findings, Finding{
+			FindingID:   FindingID("package.publisher_namespace_collision", pkgName, publisherList),
+			InvariantID: "package.publisher_namespace_collision",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+			Category:    "repository",
+			EntityRef:   "repository/" + pkgName,
+			Summary: fmt.Sprintf(
+				"package publisher namespace collision: %s has installable artifacts under multiple publishers (%s). Platform services must use core@globular.io; local@<node> is only an explicit override lane.",
+				pkgName, publisherList),
+			Evidence: []*cluster_doctorpb.Evidence{
+				kvEvidence("repository", "ListArtifacts (publisher index)", map[string]string{
+					"package":    pkgName,
+					"publishers": publisherList,
+				}),
+			},
+			Remediation: []*cluster_doctorpb.RemediationStep{
+				step(1,
+					"If this was a temporary local override, remove the override and let desired state return to the official publisher:",
+					"globular pkg override remove "+pkgName),
+				step(2,
+					"If the local build is the intended fix, publish/promote it through the official core@globular.io release lane instead of keeping a second publisher identity:",
+					"globular deploy "+pkgName+" --full --repository <cluster>:443"),
+				step(3,
+					"Archive or deprecate stale local artifacts through the repository service after no desired state references their build_id.",
+					"globular repository explain local@<node>/"+pkgName+" <version>"),
+			},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+	return findings
+}
+
+func publisherCollisionIsPlatformRelevant(byPublisher map[string]map[string]bool) bool {
+	hasCore := false
+	hasLocal := false
+	for publisher := range byPublisher {
+		switch {
+		case publisher == "core@globular.io":
+			hasCore = true
+		case strings.HasPrefix(publisher, "local@"):
+			hasLocal = true
+		}
+	}
+	return hasLocal && (hasCore || len(byPublisher) > 1)
+}
+
+func sortedPublisherSummaries(byPublisher map[string]map[string]bool) []string {
+	out := make([]string, 0, len(byPublisher))
+	for publisher, versions := range byPublisher {
+		vs := make([]string, 0, len(versions))
+		for version := range versions {
+			vs = append(vs, version)
+		}
+		sort.Strings(vs)
+		out = append(out, fmt.Sprintf("%s[%s]", publisher, strings.Join(vs, "|")))
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ── package.local_override_stale ─────────────────────────────────────────────

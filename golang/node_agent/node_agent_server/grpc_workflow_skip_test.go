@@ -187,6 +187,23 @@ func TestInstallPackageDoesNotSkipWhenChecksumMismatch(t *testing.T) {
 	}
 }
 
+func TestInfraPackageSkipDoesNotCompareTopLevelChecksumToDesiredHash(t *testing.T) {
+	pkg := installedPkg("1.35.3", "build-123")
+	pkg.Checksum = "sha256:binary-entrypoint-hash"
+	pkg.Metadata["entrypoint_checksum"] = "sha256:binary-entrypoint-hash"
+
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"envoy", "INFRASTRUCTURE", "1.35.3", "sha256:controller-convergence-hash", "build-123",
+		pkg,
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipAllowed {
+		t.Fatalf("expected installSkipAllowed for infrastructure checksum split, got %d (%s)", result, reason)
+	}
+}
+
 func TestCommandPackageDoesNotSkipWhenBinaryMissing(t *testing.T) {
 	prevExists := commandBinaryExistsFunc
 	commandBinaryExistsFunc = func(string) bool { return false }

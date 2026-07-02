@@ -166,10 +166,107 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 	assertBefore(t, steps, "configure_shared_storage", "install:persistence")
 	assertBefore(t, steps, "write_bootstrap_credentials", "install:persistence")
 	assertBefore(t, steps, "install:persistence", "install_set:xds,envoy,gateway")
+	assertBefore(t, steps, "install_profiles:core,control-plane,storage,media-server", "publish_artifacts:/var/lib/globular/packages")
+	assertBefore(t, steps, "publish_artifacts:/var/lib/globular/packages", "validate_cluster_health")
 	assertBefore(t, steps, "bootstrap_dns:globular.internal", "validate_cluster_health")
 	assertBefore(t, steps, "validate_cluster_health", "generate_join_token")
 	assertBefore(t, steps, "cluster_bootstrap", "seed_desired")
 	assertBefore(t, steps, "seed_desired", "reconcile_until_stable")
+}
+
+func TestDay0BootstrapWorkflow_WithoutMediaProfileSkipsMediaPackages(t *testing.T) {
+	steps := executeDay0BootstrapWorkflowForProfiles(t, []any{"core", "control-plane", "storage"})
+
+	assertActionAbsent(t, steps, "install_set:media,title,torrent")
+	assertActionAbsent(t, steps, "install_set:yt-dlp,ffmpeg")
+	assertActionPresent(t, steps, "install_set:file,search")
+	assertActionPresent(t, steps, "install_profiles:core,control-plane,storage")
+	assertActionPresent(t, steps, "publish_artifacts:/var/lib/globular/packages")
+}
+
+func TestDay0BootstrapWorkflow_WithMediaProfileInstallsMediaPackages(t *testing.T) {
+	steps := executeDay0BootstrapWorkflowForProfiles(t, []any{"core", "control-plane", "storage", "media-server"})
+
+	assertActionPresent(t, steps, "install_set:media,title,torrent")
+	assertActionPresent(t, steps, "install_set:yt-dlp,ffmpeg")
+	assertActionPresent(t, steps, "install_set:file,search")
+	assertActionPresent(t, steps, "install_profiles:core,control-plane,storage,media-server")
+	assertActionPresent(t, steps, "publish_artifacts:/var/lib/globular/packages")
+}
+
+func executeDay0BootstrapWorkflowForProfiles(t *testing.T, profiles []any) []string {
+	t.Helper()
+
+	loader := v1alpha1.NewLoader()
+	def, err := loader.LoadFile("../definitions/day0.bootstrap.yaml")
+	if err != nil {
+		t.Fatalf("load definition: %v", err)
+	}
+
+	var steps []string
+	var stepsMu sync.Mutex
+	record := func(name string) {
+		stepsMu.Lock()
+		steps = append(steps, name)
+		stepsMu.Unlock()
+	}
+
+	router := NewRouter()
+	RegisterNodeAgentActions(router, NodeAgentConfig{
+		ProbeInfraHealth: func(ctx context.Context, probeName string) bool { return true },
+	})
+	RegisterInstallerActions(router, InstallerConfig{
+		EnableBootstrapWindow:  func(ctx context.Context, ttl time.Duration) error { return nil },
+		DisableBootstrapWindow: func(ctx context.Context) error { return nil },
+		WriteBootstrapCreds:    func(ctx context.Context) error { return nil },
+		InstallPackage: func(ctx context.Context, name string) error {
+			record(fmt.Sprintf("install:%s", name))
+			return nil
+		},
+		InstallPackageSet: func(ctx context.Context, packages []string) error {
+			record(fmt.Sprintf("install_set:%s", strings.Join(packages, ",")))
+			return nil
+		},
+		InstallProfileSets: func(ctx context.Context, profiles []string) error {
+			record(fmt.Sprintf("install_profiles:%s", strings.Join(profiles, ",")))
+			return nil
+		},
+		ConfigureSharedStorage: func(ctx context.Context) error { return nil },
+		BootstrapDNS:           func(ctx context.Context, domain string) error { return nil },
+		ValidateClusterHealth:  func(ctx context.Context) error { return nil },
+		GenerateJoinToken:      func(ctx context.Context) (string, error) { return "test-token", nil },
+		RestartServices:        func(ctx context.Context, services []string) error { return nil },
+		ClusterBootstrap:       func(ctx context.Context, clusterID, nodeID string) error { return nil },
+		CaptureFailureBundle:   func(ctx context.Context, runID string) error { return nil },
+	})
+	RegisterRepositoryActions(router, RepositoryConfig{
+		PublishBootstrapArtifacts: func(ctx context.Context, source string) error {
+			record(fmt.Sprintf("publish_artifacts:%s", source))
+			return nil
+		},
+	})
+	RegisterReleaseControllerActions(router, ReleaseControllerConfig{
+		SeedDesiredFromInstalled: func(ctx context.Context, clusterID string) error { return nil },
+		ReconcileUntilStable:     func(ctx context.Context, clusterID string) error { return nil },
+		EmitBootstrapSucceeded:   func(ctx context.Context, clusterID string) error { return nil },
+	})
+
+	eng := &Engine{Router: router}
+	run, err := eng.Execute(context.Background(), def, map[string]any{
+		"cluster_id":              "globular.internal",
+		"bootstrap_node_id":       "node-0",
+		"bootstrap_node_hostname": "bootstrap-host",
+		"repository_address":      "10.0.0.1:443",
+		"domain":                  "globular.internal",
+		"bootstrap_node_profiles": profiles,
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if run.Status != RunSucceeded {
+		t.Fatalf("expected SUCCEEDED, got %s (error: %s)", run.Status, run.Error)
+	}
+	return steps
 }
 
 func TestForeachStep(t *testing.T) {
@@ -231,6 +328,25 @@ func TestForeachStep(t *testing.T) {
 	processed, ok := run.Outputs["processed"].([]any)
 	if !ok || len(processed) != 3 {
 		t.Errorf("expected 3 exported results, got %v", run.Outputs["processed"])
+	}
+}
+
+func assertActionPresent(t *testing.T, steps []string, want string) {
+	t.Helper()
+	for _, step := range steps {
+		if step == want {
+			return
+		}
+	}
+	t.Fatalf("missing action %q in %v", want, steps)
+}
+
+func assertActionAbsent(t *testing.T, steps []string, want string) {
+	t.Helper()
+	for _, step := range steps {
+		if step == want {
+			t.Fatalf("unexpected action %q in %v", want, steps)
+		}
 	}
 }
 

@@ -223,6 +223,7 @@ func NewRegistry(cfg Config) *Registry {
 		//     that different bytes were silently stored under an official identity.
 		runtimeVersionIdentityLane{},
 		runtimeVersionOverrideDivergence{},
+		publisherNamespaceCollision{},
 		localOverrideActive{},
 		localOverrideStale{},
 		officialIdentitySealed{},
@@ -603,6 +604,7 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 		DesiredVersionIndex:          snap.DesiredVersionIndex,
 		RepositoryBuildIDIndex:       snap.RepositoryBuildIDIndex,
 		RepositoryVersionIndex:       snap.RepositoryVersionIndex,
+		RepositoryPublisherIndex:     snap.RepositoryPublisherIndex,
 		RepositoryFindings:           snap.RepositoryFindings,
 		RepositoryOperationalStatus:  snap.RepositoryOperationalStatus,
 		RepositoryEndpointMissing:    snap.RepositoryEndpointMissing,

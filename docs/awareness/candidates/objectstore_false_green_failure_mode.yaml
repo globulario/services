@@ -1,0 +1,60 @@
+# Session-discovered awareness candidates from single-node objectstore incident review.
+candidates:
+  - id: candidate.failure_mode.objectstore_false_green_wrong_layer_repair
+    class: failure_mode
+    label: False-green objectstore unit causes wrong-layer convergence repair.
+    source_file: docs/operators/minio-operational-runbook.md
+    evidence: |
+      In the 2026-07-01 single-node incident, `globular-minio.service` inactivity
+      produced TCP refusal on `10.0.0.63:9000` while other findings also appeared:
+      services-state drift, repository endpoint missing, and scylla-manager not
+      registered. The dangerous repair path is to treat a successful `systemctl start`
+      or those secondary warnings as permission to run convergence repair even though
+      the active objectstore endpoint still does not prove socket listening or object
+      API liveness.
+    risk: high
+    confidence: high
+    status: candidate
+    discovered_from: |
+      Session 2026-07-01 America/Toronto; live cluster findings for MinIO TCP refusal
+      on 10.0.0.63:9000.
+    review_required: true
+    summary: |
+      False-green systemd state causes operator or agent to chase convergence or
+      registration noise while objectstore runtime is still absent.
+
+      Trigger shape:
+      - `globular-minio.service` appears active or was recently started
+      - the active objectstore endpoint does not prove socket listening
+      - the active objectstore endpoint does not prove object API liveness
+      - controller/node-agent drift is also present
+      - repository or scylla-manager warnings may also be present
+
+      Bad action:
+      - running `globular services repair`
+      - treating `globular cluster node <node_id>` as the next repair move
+
+      Correct action:
+      - stay in Layer 4 runtime diagnosis
+      - read `journalctl -u globular-minio.service`
+      - prove `ss -ltnp | grep ':9000'`
+      - prove `curl -v http://<active_objectstore_endpoint>/minio/health/live`
+
+      Incident example:
+      - endpoint: `10.0.0.63:9000`
+      - root boundary: TCP refusal at the objectstore endpoint is runtime absence
+        until socket and object API liveness prove otherwise
+      - not root causes:
+        - `scylla_manager.cluster_registered=false`
+        - `repository.endpoint_missing`
+        - `desired_hash != applied_hash`
+    protects:
+      files:
+        - docs/operators/minio-operational-runbook.md
+        - docs/operational-knowledge/runbooks/fix-doctor-error-findings.yaml
+      symbols:
+        - globular-minio.service
+        - objectstore.endpoint_unreachable
+        - cluster.services.drift
+        - repository.endpoint_missing
+        - scylla_manager.cluster_registered

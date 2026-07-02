@@ -42,6 +42,14 @@ func TestDeriveProfilesFromInstalled(t *testing.T) {
 			},
 			want: []string{"compute"},
 		},
+		{
+			name: "ai packages do not synthesize non-canonical ai profile",
+			installed: map[string]string{
+				"ai-memory":   "1.2.257",
+				"ai-executor": "1.2.257",
+			},
+			want: []string{"compute"},
+		},
 	}
 
 	for _, tc := range cases {

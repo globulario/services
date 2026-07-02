@@ -53,7 +53,7 @@ func TestVersionSingleAuthority_RegressionRejected(t *testing.T) {
 	_, err := srv.resolveVersionIntent(
 		context.Background(),
 		"core@globular.io", "demo-svc", "linux_amd64",
-		repopb.VersionIntent_EXACT, "1.2.234", nil,
+		repopb.VersionIntent_EXACT, "1.2.234", repopb.ArtifactChannel_STABLE, nil,
 	)
 	if err == nil {
 		t.Fatal("expected a regressive version below the published high-water mark to be rejected")
@@ -73,7 +73,7 @@ func TestVersionSingleAuthority_PublishedVersionImmutable(t *testing.T) {
 	_, err := srv.resolveVersionIntent(
 		context.Background(),
 		"core@globular.io", "demo-svc", "linux_amd64",
-		repopb.VersionIntent_EXACT, publishedHighWaterMark, nil,
+		repopb.VersionIntent_EXACT, publishedHighWaterMark, repopb.ArtifactChannel_STABLE, nil,
 	)
 	if err == nil {
 		t.Fatalf("expected re-allocating published version %s to be rejected as immutable", publishedHighWaterMark)
@@ -93,7 +93,7 @@ func TestVersionSingleAuthority_BumpAdvancesFromPublished(t *testing.T) {
 	got, err := srv.resolveVersionIntent(
 		context.Background(),
 		"core@globular.io", "demo-svc", "linux_amd64",
-		repopb.VersionIntent_BUMP_PATCH, "", nil,
+		repopb.VersionIntent_BUMP_PATCH, "", repopb.ArtifactChannel_STABLE, nil,
 	)
 	if err != nil {
 		t.Fatalf("resolveVersionIntent(BUMP_PATCH) returned error: %v", err)

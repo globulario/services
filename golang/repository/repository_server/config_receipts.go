@@ -24,7 +24,7 @@ import (
 // (table created in scylla_store.schemaCreateTable below). Tests use the
 // cache exclusively when scylla=nil.
 type receiptCache struct {
-	mu  sync.Mutex
+	mu   sync.Mutex
 	rows []*repopb.PackageConfigReceipt
 }
 

@@ -257,11 +257,11 @@ func TestBuildObjectStore_FiltersStalePoolIPs(t *testing.T) {
 // which caused resolveMinioEndpointLocked to permanently reject the endpoint.
 func TestMigratePoolNodeHostnames(t *testing.T) {
 	cases := []struct {
-		name        string
-		poolNodes   []string
-		nodes       map[string]*nodeState
-		wantPool    []string
-		wantLogged  bool // whether a replacement should have occurred
+		name       string
+		poolNodes  []string
+		nodes      map[string]*nodeState
+		wantPool   []string
+		wantLogged bool // whether a replacement should have occurred
 	}{
 		{
 			name:      "FQDN replaced with IP via advertise_fqdn",
@@ -318,10 +318,10 @@ func TestMigratePoolNodeHostnames(t *testing.T) {
 			wantLogged: true,
 		},
 		{
-			name:      "unresolvable hostname left as-is",
-			poolNodes: []string{"unknown-host.globular.internal"},
-			nodes:     map[string]*nodeState{},
-			wantPool:  []string{"unknown-host.globular.internal"},
+			name:       "unresolvable hostname left as-is",
+			poolNodes:  []string{"unknown-host.globular.internal"},
+			nodes:      map[string]*nodeState{},
+			wantPool:   []string{"unknown-host.globular.internal"},
 			wantLogged: false, // just a warning, no change
 		},
 	}
@@ -393,5 +393,34 @@ func TestBuildObjectStore_ExcludesStaleAndNonMemberPoolIPs(t *testing.T) {
 	}
 	if desired.Nodes[0] != "10.0.0.63" || desired.Nodes[1] != "10.0.0.20" {
 		t.Fatalf("unexpected filtered pool order/content: %v", desired.Nodes)
+	}
+}
+
+func TestCollectPoolMemberships_UsesPoolIPsAndMigratesLegacyFQDNs(t *testing.T) {
+	srv := newTestServer(t, &controllerState{
+		MinioPoolNodes: []string{"10.0.0.63", "globule-nuc.globular.internal"},
+		Nodes: map[string]*nodeState{
+			"ryzen": {
+				NodeID:        "ryzen",
+				AdvertiseFqdn: "globule-ryzen.globular.internal",
+				Identity:      storedIdentity{Hostname: "globule-ryzen", Ips: []string{"10.0.0.63"}},
+			},
+			"nuc": {
+				NodeID:        "nuc",
+				AdvertiseFqdn: "globule-nuc.globular.internal",
+				Identity:      storedIdentity{Hostname: "globule-nuc", Ips: []string{"10.0.0.8"}},
+			},
+		},
+	})
+	r := NewDNSReconciler(srv, nil)
+	got := r.collectPoolMemberships()
+	want := []string{"10.0.0.63", "10.0.0.8"}
+	if len(got["minio"]) != len(want) {
+		t.Fatalf("collectPoolMemberships minio len = %d, want %d (%v)", len(got["minio"]), len(want), got["minio"])
+	}
+	for i, v := range want {
+		if got["minio"][i] != v {
+			t.Fatalf("collectPoolMemberships minio[%d] = %q, want %q", i, got["minio"][i], v)
+		}
 	}
 }

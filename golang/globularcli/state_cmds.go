@@ -730,6 +730,7 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 		Version     string
 		BuildNumber int64
 		BuildID     string
+		ExpectedSHA string
 	}
 
 	cc, err := controllerClient()
@@ -807,9 +808,13 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 		}
 		mapKey := rec.Kind + "/" + rec.Name
 		installed[mapKey] = &rec
+		targetedService := fixServiceName != "" && rec.Name == fixServiceName
 
-		// Skip if already has buildId or not installed.
-		if rec.BuildID != "" || rec.Status != "installed" {
+		// Skip non-installed rows. Installed rows with a missing OR mismatched
+		// buildId are repair candidates; buildId mismatch is the same identity
+		// drift class as missing buildId and must be repaired through node-agent,
+		// the installed-state owner.
+		if rec.Status != "installed" && !targetedService {
 			continue
 		}
 		// Skip if no desired-state entry at all.
@@ -842,6 +847,9 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 			}
 		}
 		if d.BuildID == "" {
+			continue
+		}
+		if rec.BuildID == d.BuildID && !targetedService {
 			continue
 		}
 		// If targeting a specific service, filter.
@@ -931,6 +939,31 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 		}
 
 		d := desired[svc]
+		expectedSHA := d.ExpectedSHA
+		if expectedSHA == "" {
+			if repoClient == nil {
+				addr := config.ResolveServiceAddr("repository.PackageRepository", "")
+				if addr == "" {
+					if a, err := config.GetMeshAddress(); err == nil {
+						addr = a
+					}
+				}
+				if addr != "" {
+					repoClient, _ = repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")
+				}
+			}
+			if repoClient != nil {
+				if m, merr := repoClient.GetArtifactManifest(&repopb.ArtifactRef{
+					PublisherId: "core@globular.io",
+					Name:        svc,
+					Version:     d.Version,
+					Platform:    "linux_amd64",
+				}, d.BuildNumber); merr == nil {
+					expectedSHA = m.GetEntrypointChecksum()
+					d.ExpectedSHA = expectedSHA
+				}
+			}
+		}
 		kind := "SERVICE"
 		if e.rec != nil && e.rec.Kind != "" {
 			kind = e.rec.Kind
@@ -952,6 +985,7 @@ func repairInstalledStateBuildID(ctx context.Context, nodeID string) (repaired, 
 			Version:        d.Version,
 			BuildNumber:    d.BuildNumber,
 			BuildId:        d.BuildID,
+			ExpectedSha256: expectedSHA,
 			RepositoryAddr: "10.0.0.63:443",
 			Platform:       "linux_amd64",
 			Force:          true,

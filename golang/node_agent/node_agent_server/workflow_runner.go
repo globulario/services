@@ -128,7 +128,7 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 					}
 				}
 			}
-			if err := srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, version, buildID, checksum); err != nil {
+			if err := srv.InstallPackage(ctx, pkg.Name, pkg.Kind, defaultPublisherID, repoAddr, version, buildID, 0, checksum, ""); err != nil {
 				return err
 			}
 			// Start the unit after a successful first-install. install_payload only

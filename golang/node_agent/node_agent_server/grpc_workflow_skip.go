@@ -29,8 +29,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/globulario/services/golang/identity"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
@@ -156,10 +159,15 @@ func canSkipInstallPackage(
 
 	unit := packageUnit(pkgName)
 
-	// Checksum check: for managed services/infra, installed_state checksum must match
-	// when desired hash is provided. Command packages can prove checksum directly
-	// from the local binary below.
-	if unit != "" && normalizedHash(desiredHash) != "" && normalizedHash(existing.GetChecksum()) != normalizedHash(desiredHash) {
+	// Checksum check: for managed non-infrastructure services, installed_state
+	// checksum must match when desired hash is provided. Infrastructure package
+	// Checksum is the controller convergence hash; binary identity lives in
+	// metadata.entrypoint_checksum and is verified by the runtime proof below.
+	// Command packages can prove checksum directly from the local binary below.
+	if unit != "" &&
+		shouldStampTopLevelBinaryChecksum(pkgKind) &&
+		normalizedHash(desiredHash) != "" &&
+		normalizedHash(existing.GetChecksum()) != normalizedHash(desiredHash) {
 		return installSkipDeniedVersion, fmt.Sprintf(
 			"install-package %s: checksum %s != desired %s",
 			pkgName, normalizedHash(existing.GetChecksum()), normalizedHash(desiredHash))
@@ -282,6 +290,10 @@ type runtimeBinaryProvider func() map[string]RunningBinary
 
 var runtimeBinariesFunc runtimeBinaryProvider = DiscoverRunningBinaries
 
+type systemdRuntimeBinaryProvider func(context.Context, string) (RunningBinary, bool, string)
+
+var systemdRuntimeBinaryFunc systemdRuntimeBinaryProvider = discoverSystemdRuntimeBinary
+
 // runtimeProofVerdict classifies what the runtime check learned about a
 // service whose canSkipInstallPackage said "skip allowed."
 type runtimeProofVerdict int
@@ -337,9 +349,16 @@ func verifyRunningBinaryMatchesExpected(pkgName, expectedSha256 string) (runtime
 	running := runtimeBinariesFunc()
 	rb, ok := running[pkgName]
 	if !ok {
-		return runtimeProofNoRunningPID, fmt.Sprintf(
-			"runtime-proof: %s no running globular-bin PID found — cannot verify; skip not safe",
-			pkgName)
+		var detail string
+		rb, ok, detail = systemdRuntimeBinaryFunc(context.Background(), pkgName)
+		if !ok {
+			if detail == "" {
+				detail = "no running systemd MainPID found"
+			}
+			return runtimeProofNoRunningPID, fmt.Sprintf(
+				"runtime-proof: %s no running PID found via process scan or systemd (%s) — cannot verify; skip not safe",
+				pkgName, detail)
+		}
 	}
 	got := normalizedHash(rb.Checksum)
 	if got == "" {
@@ -355,4 +374,42 @@ func verifyRunningBinaryMatchesExpected(pkgName, expectedSha256 string) (runtime
 	}
 	return runtimeProofMatches, fmt.Sprintf(
 		"runtime-proof: %s running PID=%d binary checksum matches expected", pkgName, rb.PID)
+}
+
+func discoverSystemdRuntimeBinary(ctx context.Context, pkgName string) (RunningBinary, bool, string) {
+	unit := packageUnit(pkgName)
+	if key, ok := identity.NormalizeServiceKey(pkgName); ok {
+		if id, ok := identity.IdentityByKey(key); ok && strings.TrimSpace(id.UnitName) != "" {
+			unit = id.UnitName
+		}
+	}
+	if strings.TrimSpace(unit) == "" {
+		return RunningBinary{}, false, "no systemd unit"
+	}
+	props, err := supervisor.ShowProperties(ctx, unit, "MainPID", "ExecStart")
+	if err != nil {
+		return RunningBinary{}, false, fmt.Sprintf("systemctl show %s: %v", unit, err)
+	}
+	pidStr := strings.TrimSpace(props["MainPID"])
+	if pidStr == "" || pidStr == "0" {
+		return RunningBinary{}, false, fmt.Sprintf("%s MainPID=%q", unit, pidStr)
+	}
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return RunningBinary{}, false, fmt.Sprintf("%s invalid MainPID=%q", unit, pidStr)
+	}
+	exePath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+	if err != nil {
+		return RunningBinary{ServiceName: pkgName, PID: pid}, true, fmt.Sprintf("read /proc/%d/exe: %v", pid, err)
+	}
+	sum, err := cachedSha256(exePath)
+	if err != nil || strings.TrimSpace(sum) == "" {
+		return RunningBinary{ServiceName: pkgName, BinaryPath: exePath, PID: pid}, true, fmt.Sprintf("hash %s: %v", exePath, err)
+	}
+	return RunningBinary{
+		ServiceName: pkgName,
+		BinaryPath:  exePath,
+		Checksum:    sum,
+		PID:         pid,
+	}, true, ""
 }

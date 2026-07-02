@@ -35,6 +35,9 @@ FAILED_CHECKS=0
 # Results array
 declare -a FAILURES=()
 
+AWARENESS_SUMMARY_VERDICT="NOT_EVALUATED"
+AWARENESS_SUMMARY_NOTE="not evaluated"
+
 # SIMPLIFIED HOME DETECTION - Use root certificates when running as root
 # Root certificates are generated during Day-0 installation and are the
 # canonical certificates for admin/system operations.
@@ -380,10 +383,14 @@ if [[ "$DAY0_MODE" == "1" ]]; then
     echo "  → SKIP during Day-0 install: this is a Day-1 readiness gate."
     echo "    Run after the node joins the cluster:"
     echo "      globular awareness evidence classify"
+    AWARENESS_SUMMARY_VERDICT="SKIPPED"
+    AWARENESS_SUMMARY_NOTE="Day-1 readiness gate not evaluated during Day-0"
 elif [[ -z "$GLOBULAR_BIN" ]] || [[ ! -x "$GLOBULAR_BIN" ]]; then
     echo "  → SKIP: globular CLI not available; cannot run classifier"
     FAILED_CHECKS=$((FAILED_CHECKS + 1))
     FAILURES+=("L8 awareness evidence classify: globular CLI unavailable")
+    AWARENESS_SUMMARY_VERDICT="NOT_EVALUATED"
+    AWARENESS_SUMMARY_NOTE="globular CLI unavailable"
 else
     CLASSIFY_JSON=$($GLOBULAR_BIN --timeout 30s awareness evidence classify --format json 2>/dev/null || echo '{"verdict":"UNKNOWN","primary_blocker":"classifier failed to run"}')
     VERDICT=$(echo "$CLASSIFY_JSON" | jq -r '.verdict // "UNKNOWN"' 2>/dev/null || echo "UNKNOWN")
@@ -395,10 +402,14 @@ else
     if [[ "$VERDICT" == "PASS" ]]; then
         echo -e "${GREEN}✓ PASS${NC}"
         PASSED_CHECKS=$((PASSED_CHECKS + 1))
+        AWARENESS_SUMMARY_VERDICT="PASS"
+        AWARENESS_SUMMARY_NOTE="codified gate: day1.scylla_dependency_gate + readiness ladder"
     else
         echo -e "${RED}✗ FAIL${NC} (verdict=$VERDICT)"
         FAILED_CHECKS=$((FAILED_CHECKS + 1))
         FAILURES+=("awareness evidence classify: verdict=$VERDICT classification=$CLASSIFICATION blocker=$BLOCKER")
+        AWARENESS_SUMMARY_VERDICT="$VERDICT"
+        AWARENESS_SUMMARY_NOTE="$BLOCKER"
         echo ""
         echo "  Verdict:        $VERDICT"
         echo "  Classification: $CLASSIFICATION"
@@ -494,8 +505,20 @@ if [ $FAILED_CHECKS -eq 0 ]; then
     echo "  ✓ TLS/HTTPS enforced across all services"
     echo "  ✓ DNS working with local domain"
     echo "  ✓ Security model v1 fully implemented"
-    echo "  ✓ Awareness evidence verdict: PASS"
-    echo "      (codified gate: day1.scylla_dependency_gate + readiness ladder)"
+    case "$AWARENESS_SUMMARY_VERDICT" in
+      PASS)
+        echo "  ✓ Awareness evidence verdict: PASS"
+        echo "      (${AWARENESS_SUMMARY_NOTE})"
+        ;;
+      SKIPPED)
+        echo "  • Awareness evidence verdict: SKIPPED"
+        echo "      (${AWARENESS_SUMMARY_NOTE})"
+        ;;
+      *)
+        echo "  • Awareness evidence verdict: ${AWARENESS_SUMMARY_VERDICT}"
+        echo "      (${AWARENESS_SUMMARY_NOTE})"
+        ;;
+    esac
     echo ""
     exit 0
 else

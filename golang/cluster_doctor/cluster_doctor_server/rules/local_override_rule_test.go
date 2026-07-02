@@ -79,7 +79,7 @@ func TestLocalOverrideActive_LocalVersion_WarnFires(t *testing.T) {
 func TestLocalOverrideActive_MultiPackage_OnlyLocalFires(t *testing.T) {
 	snap := &collector.Snapshot{
 		RepositoryVersionIndex: map[string]map[string]bool{
-			"storage": {"1.2.43": true},                           // clean
+			"storage": {"1.2.43": true},                          // clean
 			"dns":     {"1.2.10-dev.fix1": true, "1.2.10": true}, // local version present
 			"gateway": {"2.0.1": true},                           // clean
 		},
@@ -97,6 +97,58 @@ func TestLocalOverrideActive_NilSnapshot_NoPanic(t *testing.T) {
 	findings := (localOverrideActive{}).Evaluate(nil, testConfig())
 	if len(findings) != 0 {
 		t.Errorf("nil snapshot must produce no findings, got %d", len(findings))
+	}
+}
+
+// ── publisherNamespaceCollision ───────────────────────────────────────────────
+
+func TestPublisherNamespaceCollision_CoreAndLocalSamePackage_WarnFires(t *testing.T) {
+	snap := &collector.Snapshot{
+		RepositoryPublisherIndex: map[string]map[string]map[string]bool{
+			"gateway": {
+				"core@globular.io":    {"1.2.257": true},
+				"local@globule-ryzen": {"1.2.257": true},
+			},
+		},
+	}
+	findings := (publisherNamespaceCollision{}).Evaluate(snap, testConfig())
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 publisher collision finding, got %d: %+v", len(findings), findings)
+	}
+	f := findings[0]
+	if f.InvariantID != "package.publisher_namespace_collision" {
+		t.Fatalf("wrong invariant_id: %q", f.InvariantID)
+	}
+	if f.Severity != cluster_doctorpb.Severity_SEVERITY_WARN {
+		t.Fatalf("expected WARN severity, got %v", f.Severity)
+	}
+	if !strings.Contains(f.Summary, "core@globular.io") || !strings.Contains(f.Summary, "local@globule-ryzen") {
+		t.Fatalf("summary must name both publishers, got %q", f.Summary)
+	}
+	if f.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
+		t.Fatalf("expected failing invariant status, got %v", f.InvariantStatus)
+	}
+}
+
+func TestPublisherNamespaceCollision_ThirdPartyOnly_NoFinding(t *testing.T) {
+	snap := &collector.Snapshot{
+		RepositoryPublisherIndex: map[string]map[string]map[string]bool{
+			"demo": {
+				"team-a@example.com": {"1.0.0": true},
+				"team-b@example.com": {"1.0.0": true},
+			},
+		},
+	}
+	findings := (publisherNamespaceCollision{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Fatalf("third-party publisher reuse should stay silent, got %+v", findings)
+	}
+}
+
+func TestPublisherNamespaceCollision_NoRepositorySignal_NoFinding(t *testing.T) {
+	findings := (publisherNamespaceCollision{}).Evaluate(&collector.Snapshot{}, testConfig())
+	if len(findings) != 0 {
+		t.Fatalf("nil repository publisher index must produce no findings, got %+v", findings)
 	}
 }
 

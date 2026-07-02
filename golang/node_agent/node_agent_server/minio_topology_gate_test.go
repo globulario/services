@@ -144,6 +144,86 @@ func TestTopologyGate_MultipleDay1NodesHeld(t *testing.T) {
 	}
 }
 
+func TestMinioTopologyAdmissionPending_GenerationZero(t *testing.T) {
+	state := &config.ObjectStoreDesiredState{
+		Mode:       config.ObjectStoreModeStandalone,
+		Generation: 0,
+	}
+	pending, reason := minioTopologyAdmissionPending(state)
+	if !pending {
+		t.Fatal("generation=0 must be treated as topology pending")
+	}
+	if reason == "" {
+		t.Fatal("topology pending reason must not be empty")
+	}
+}
+
+func TestMinioTopologyAdmissionPending_NoAuthorizedMembersForGeneration(t *testing.T) {
+	state := &config.ObjectStoreDesiredState{
+		Mode:              config.ObjectStoreModeDistributed,
+		Generation:        2,
+		AuthorizedMembers: []config.ObjectStoreMemberSlim{},
+	}
+	pending, reason := minioTopologyAdmissionPending(state)
+	if !pending {
+		t.Fatal("empty authorized member set at active generation must be treated as topology pending")
+	}
+	if reason == "" {
+		t.Fatal("topology pending reason must not be empty")
+	}
+}
+
+func TestMinioTopologyAdmissionPending_FalseWhenAuthorityExists(t *testing.T) {
+	state := &config.ObjectStoreDesiredState{
+		Mode:       config.ObjectStoreModeStandalone,
+		Generation: 1,
+		Nodes:      []string{"10.0.0.63"},
+	}
+	pending, reason := minioTopologyAdmissionPending(state)
+	if pending {
+		t.Fatalf("published pool membership must not be treated as pending: %s", reason)
+	}
+}
+
+func TestShouldEnsureStandaloneMinioRuntime_OnlyForSingleMemberStandalone(t *testing.T) {
+	state := &config.ObjectStoreDesiredState{
+		Mode:       config.ObjectStoreModeStandalone,
+		Generation: 0,
+		Nodes:      []string{"10.0.0.63"},
+	}
+	if !shouldEnsureStandaloneMinioRuntime(state, "10.0.0.63") {
+		t.Fatal("single-node standalone desired state must trigger MinIO runtime self-heal")
+	}
+	if shouldEnsureStandaloneMinioRuntime(state, "10.0.0.8") {
+		t.Fatal("non-member must not trigger standalone MinIO self-heal")
+	}
+}
+
+func TestShouldEnsureStandaloneMinioRuntime_DisabledForDistributedOrEmptyPool(t *testing.T) {
+	cases := []*config.ObjectStoreDesiredState{
+		{
+			Mode:       config.ObjectStoreModeDistributed,
+			Generation: 1,
+			Nodes:      []string{"10.0.0.63", "10.0.0.8"},
+		},
+		{
+			Mode:       config.ObjectStoreModeStandalone,
+			Generation: 0,
+			Nodes:      nil,
+		},
+		{
+			Mode:       config.ObjectStoreModeStandalone,
+			Generation: 0,
+			Nodes:      []string{"10.0.0.63", "10.0.0.8"},
+		},
+	}
+	for i, state := range cases {
+		if shouldEnsureStandaloneMinioRuntime(state, "10.0.0.63") {
+			t.Fatalf("case %d must not trigger standalone MinIO self-heal", i)
+		}
+	}
+}
+
 // Awareness required-test name wrapper for objectstore topology contract.
 func TestMinioHeldWhenNodeNotInPool(t *testing.T) {
 	TestTopologyGate_Day1NodeNotAdmitted(t)

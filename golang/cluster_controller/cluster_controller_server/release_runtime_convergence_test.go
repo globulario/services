@@ -100,6 +100,40 @@ func TestCommandPackageDoesNotRequireRuntime(t *testing.T) {
 	}
 }
 
+func TestClassifyPackageConvergence_ServiceChecksumIsBinaryNotDesiredHash(t *testing.T) {
+	binary := "0e91e8f830b6e2e8ad40dbcd2ac7f515e8ef56420aa0af270f280704d43382b3"
+	desiredHash := "ded015e4c8e61ad796038a6bb7301fde0510fd85408a7212f840b7981da4460c"
+	node := &nodeState{
+		LastSeen: time.Now(),
+		Units: []unitStatusRecord{
+			{Name: "globular-node-agent.service", State: "active"},
+		},
+	}
+	pc := classifyPackageConvergence(
+		node,
+		"node-agent",
+		"SERVICE",
+		"1.2.265",
+		desiredHash,
+		"019f1f21-6343-743e-af63-4d755825e07a",
+		binary,
+		true,
+		&node_agentpb.InstalledPackage{
+			Version:  "1.2.265",
+			Checksum: binary,
+			BuildId:  "019f1f21-6343-743e-af63-4d755825e07a",
+			Metadata: map[string]string{"entrypoint_checksum": binary},
+		},
+		time.Now(),
+	)
+	if pc.RepairRequired {
+		t.Fatalf("service binary checksum must not be compared to desired_hash; reason=%s", pc.Reason)
+	}
+	if !pc.HashOK {
+		t.Fatal("service hash dimension should be satisfied by schema, not desired_hash equality")
+	}
+}
+
 func TestNoDuplicateRuntimeRepairCooldown(t *testing.T) {
 	key := runtimeRepairCooldownKey("n1", "minio", "INFRASTRUCTURE", "1.0.0", "", "")
 	runtimeRepairCooldownByTarget.Delete(key)

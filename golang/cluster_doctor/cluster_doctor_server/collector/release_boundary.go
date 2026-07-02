@@ -109,6 +109,7 @@ func (c *Collector) serviceInstalledOnNode(ctx context.Context, agent node_agent
 func (c *Collector) releaseBoundaryFetchers(agent node_agentpb.NodeAgentServiceClient) boundarycheck.Fetchers {
 	return boundarycheck.Fetchers{
 		Desired: func(ctx context.Context) ([]*cluster_controllerpb.DesiredService, error) {
+			ctx = c.serviceOutgoingContext(ctx)
 			resp, err := c.controllerClient.GetDesiredState(ctx, &emptypb.Empty{})
 			if err != nil {
 				return nil, err
@@ -116,6 +117,7 @@ func (c *Collector) releaseBoundaryFetchers(agent node_agentpb.NodeAgentServiceC
 			return resp.GetServices(), nil
 		},
 		Resolve: func(ctx context.Context, req *repopb.ResolveArtifactRequest) (*repopb.ArtifactManifest, error) {
+			ctx = c.serviceOutgoingContext(ctx)
 			resp, err := c.repoClient.ResolveArtifact(ctx, req)
 			if err != nil {
 				return nil, err
@@ -123,6 +125,7 @@ func (c *Collector) releaseBoundaryFetchers(agent node_agentpb.NodeAgentServiceC
 			return resp.GetManifest(), nil
 		},
 		Verify: func(ctx context.Context, ref *repopb.ArtifactRef, buildID string) (*repopb.VerifyArtifactResponse, error) {
+			ctx = c.serviceOutgoingContext(ctx)
 			return c.repoClient.VerifyArtifact(ctx, &repopb.VerifyArtifactRequest{
 				Ref:             ref,
 				BuildId:         buildID,
@@ -133,6 +136,7 @@ func (c *Collector) releaseBoundaryFetchers(agent node_agentpb.NodeAgentServiceC
 			})
 		},
 		Installed: func(ctx context.Context, nodeID, kind, name string) (*node_agentpb.InstalledPackage, error) {
+			ctx = c.serviceOutgoingContext(ctx)
 			resp, err := agent.GetInstalledPackage(ctx, &node_agentpb.GetInstalledPackageRequest{
 				NodeId: nodeID, Kind: kind, Name: name,
 			})
@@ -142,6 +146,7 @@ func (c *Collector) releaseBoundaryFetchers(agent node_agentpb.NodeAgentServiceC
 			return resp.GetPackage(), nil
 		},
 		Runtime: func(ctx context.Context, nodeID, serviceName string) ([]*node_agentpb.ServiceRuntimeProof, error) {
+			ctx = c.serviceOutgoingContext(ctx)
 			resp, err := agent.GetServiceRuntimeProof(ctx, &node_agentpb.GetServiceRuntimeProofRequest{
 				NodeId: nodeID, ServiceName: serviceName,
 			})

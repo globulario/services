@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -50,7 +51,9 @@ const (
 //   - Workflow coordinates cluster-level stop/start and health verification.
 //   - Node-agent owns local enforcement: hold non-members, wipe on transition,
 //     render files, reload daemon, report rendered state.
-//   - Node-agent NEVER restarts MinIO independently.
+//   - Exception: standalone/bootstrap self-heal. When the desired state says
+//     this node is the sole standalone member, the node-agent may bring
+//     globular-minio.service back up if some other actor stopped it.
 func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	// 1. Load desired state — bail on transient etcd errors or pre-pool state.
 	state, ok := srv.loadMinioDesiredState(ctx)
@@ -116,6 +119,13 @@ func (srv *NodeAgentServer) reconcileMinioSystemdConfig(ctx context.Context) {
 	// and writes installed_state; no-op when the recorded receipt already
 	// matches.
 	srv.refreshMinioInstalledStateReceipt(ctx)
+
+	// 6c. Standalone/bootstrap self-heal. Day-0 may publish generation=0 or a
+	// single-node standalone topology before the coordinated topology workflow
+	// exists. If some other actor stops MinIO during that phase, leaving runtime
+	// dark forever is worse than re-asserting the locally rendered standalone
+	// service contract.
+	srv.ensureStandaloneMinioRuntime(ctx, state, nodeIP)
 
 	// 7. Report rendered generation + fingerprint to etcd.
 	//    Workflow reads both to gate the coordinated restart.
@@ -244,6 +254,44 @@ func (srv *NodeAgentServer) renderMinioSystemdFiles(ctx context.Context, state *
 // Workflow reads both to gate the coordinated restart.
 func (srv *NodeAgentServer) recordMinioRenderedState(ctx context.Context, state *config.ObjectStoreDesiredState) error {
 	return srv.writeRenderedGeneration(ctx, state)
+}
+
+func shouldEnsureStandaloneMinioRuntime(state *config.ObjectStoreDesiredState, nodeIP string) bool {
+	if state == nil || nodeIP == "" {
+		return false
+	}
+	if state.Mode != config.ObjectStoreModeStandalone {
+		return false
+	}
+	if len(state.Nodes) == 0 {
+		return false
+	}
+	if len(state.Nodes) > 1 {
+		return false
+	}
+	return state.Nodes[0] == nodeIP
+}
+
+func (srv *NodeAgentServer) ensureStandaloneMinioRuntime(ctx context.Context, state *config.ObjectStoreDesiredState, nodeIP string) {
+	if !shouldEnsureStandaloneMinioRuntime(state, nodeIP) {
+		return
+	}
+
+	checkCtx, checkCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer checkCancel()
+	if err := exec.CommandContext(checkCtx, "systemctl", "is-active", "--quiet", "globular-minio.service").Run(); err == nil {
+		return
+	}
+
+	startCtx, startCancel := context.WithTimeout(ctx, 20*time.Second)
+	defer startCancel()
+	if err := supervisor.Start(startCtx, "globular-minio.service"); err != nil {
+		log.Printf("minio-systemd: standalone self-heal failed for node %s (ip=%s): %v",
+			srv.nodeID, nodeIP, err)
+		return
+	}
+	log.Printf("minio-systemd: standalone self-heal started globular-minio.service on node %s (ip=%s)",
+		srv.nodeID, nodeIP)
 }
 
 // logFingerprintDrift logs a DRIFT DETECTED warning when the in-etcd rendered

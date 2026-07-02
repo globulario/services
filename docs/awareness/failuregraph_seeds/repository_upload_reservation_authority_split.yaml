@@ -1,0 +1,29 @@
+id: repository_upload_reservation_authority_split
+kind: failure_mode
+title: Upload path splits build authority from AllocateUpload reservation
+symptoms:
+  - same package version appears as build 1 and build 531 with identical checksum
+  - repository returns a new build_id even though AllocateUpload already reserved one
+  - identical artifact bytes create multiple repository rows for one package identity
+  - operators see duplicate Latest entries for the same version and platform
+likely_root_causes:
+  - UploadArtifact ignored reservation_id and recomputed build_number from latest manifest state
+  - UploadArtifact minted a fresh build_id instead of consuming the reservation's build_id
+  - digest idempotency ran against a non-authoritative version lane before reservation normalization
+  - client-supplied build_number was treated as meaningful without reservation authority
+forbidden_fixes:
+  - accept_second_artifact_row_for_same_digest
+  - trust_client_build_number_without_reservation
+  - pick_highest_build_number_and_hide_duplicate
+safe_diagnosis:
+  - compare AllocateUpload response build_id/build_number with the manifest written by UploadArtifact
+  - group manifests by publisher,name,version,platform,checksum and count distinct build_number/build_id
+  - confirm whether the duplicate row was created through reservation_id or direct upload path
+  - verify UploadArtifact returns the canonical existing build_id when checksum already exists
+safe_repairs:
+  - make UploadArtifact consume reservation version, build_number, and build_id as authoritative
+  - run digest idempotency after reservation normalization and before any new artifact row is written
+  - preserve the canonical existing build_id when identical bytes are re-uploaded
+required_doctor_findings:
+  - RepositoryBuildNumberCollision
+  - RepositoryChecksumDivergence

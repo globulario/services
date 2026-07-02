@@ -46,6 +46,203 @@ is_loopback_ip() {
   [[ "$1" =~ ^127\. ]] || [[ "$1" == "::1" ]]
 }
 
+declare -a SEED_EXPECTED_MANAGED_PKGS=()
+
+remember_seed_expected_pkg() {
+  local pkgfile="${1:-}"
+  [[ -n "$pkgfile" ]] || return 0
+  local base key existing
+  base="$(basename "$pkgfile" .tgz | sed 's/_linux_amd64$//')"
+  key="${base%%_*}"
+  [[ -n "$key" ]] || return 0
+  for existing in "${SEED_EXPECTED_MANAGED_PKGS[@]:-}"; do
+    [[ "$existing" == "$key" ]] && return 0
+  done
+  SEED_EXPECTED_MANAGED_PKGS+=("$key")
+}
+
+should_track_seed_inventory_request() {
+  local requested="${1:-}"
+  case "$requested" in
+    mc_*|globular-cli_*|etcdctl_*|rclone_*|restic_*|sctool_*|sha256sum_*|claude_*|codex_*|yt-dlp_*|ffmpeg_*)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+count_seed_expected_packages() {
+  echo "${#SEED_EXPECTED_MANAGED_PKGS[@]}"
+}
+
+count_node_inventory_records() {
+  local node_id="${1:-}"
+  local etcd_endpoints="${2:-}"
+  local ca_path="${3:-}"
+  local cert_path="${4:-}"
+  local key_path="${5:-}"
+  [[ -n "$node_id" ]] || { echo "0"; return 0; }
+  etcdctl --endpoints="$etcd_endpoints" \
+    --cacert="$ca_path" --cert="$cert_path" --key="$key_path" \
+    get "/globular/nodes/${node_id}/packages/" --prefix --keys-only 2>/dev/null \
+    | grep -c "^/globular/nodes/${node_id}/packages/" || true
+}
+
+resolve_node_agent_state_path() {
+  local canonical="/var/lib/globular/node-agent/state.json"
+  local legacy="/var/lib/globular/nodeagent/state.json"
+  if [[ -f "$canonical" ]]; then
+    printf '%s\n' "$canonical"
+    return 0
+  fi
+  if [[ -f "$legacy" ]]; then
+    printf '%s\n' "$legacy"
+    return 0
+  fi
+  printf '%s\n' "$canonical"
+}
+
+read_json_field() {
+  local json_path="${1:-}"
+  local field="${2:-}"
+  [[ -n "$json_path" ]] || return 0
+  [[ -n "$field" ]] || return 0
+  [[ -f "$json_path" ]] || return 0
+  python3 - "$json_path" "$field" <<'PYEOF' 2>/dev/null || true
+import json
+import sys
+
+path, field = sys.argv[1:]
+try:
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    raise SystemExit(0)
+value = data.get(field, "")
+if value is None:
+    value = ""
+print(str(value).strip())
+PYEOF
+}
+
+resolve_registered_service_port() {
+  local service_name="${1:-}"
+  local etcd_endpoints="${2:-}"
+  local ca_path="${3:-}"
+  local cert_path="${4:-}"
+  local key_path="${5:-}"
+  [[ -n "$service_name" ]] || return 0
+  etcdctl --endpoints="$etcd_endpoints" \
+    --cacert="$ca_path" --cert="$cert_path" --key="$key_path" \
+    get /globular/services/ --prefix -w json 2>/dev/null \
+    | python3 - "$service_name" <<'PYEOF' 2>/dev/null || true
+import base64
+import json
+import sys
+
+want = sys.argv[1]
+try:
+    resp = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+
+for kv in resp.get("kvs", []):
+    try:
+        key = base64.b64decode(kv["key"]).decode("utf-8", "replace")
+        if not key.endswith("/config"):
+            continue
+        cfg = json.loads(base64.b64decode(kv.get("value", "")).decode("utf-8", "replace"))
+    except Exception:
+        continue
+    if cfg.get("Name") == want and cfg.get("Port"):
+        print(cfg["Port"])
+        break
+PYEOF
+}
+
+classify_auth_login_failure() {
+  local output="${1:-}"
+  local endpoint="${2:-}"
+  local lower first_line
+  lower="$(printf '%s' "$output" | tr '[:upper:]' '[:lower:]')"
+  first_line="$(printf '%s\n' "$output" | head -n 1 | tr -d '\r')"
+  case "$lower" in
+    *"connection refused"*|*"deadline exceeded"*|*"context deadline exceeded"*|*"no route to host"*|*"connection reset by peer"*|*"unavailable desc"*)
+      printf 'endpoint unreachable at %s' "${endpoint:-<unknown>}"
+      ;;
+    *"x509:"*|*"tls:"*|*"certificate"*|*"first record does not look like a tls handshake"*)
+      printf 'TLS handshake/certificate failure at %s' "${endpoint:-<unknown>}"
+      ;;
+    *"invalid credentials"*|*"invalid username or password"*|*"wrong password"*|*"permission denied"*|*"unauthenticated"*)
+      printf 'bootstrap SA credentials rejected by authentication service'
+      ;;
+    *"user sa"*' '*"not found"*|*"account not found"*|*"no such user"*)
+      printf 'bootstrap SA account is missing or not initialized yet'
+      ;;
+    *)
+      if [[ -n "$first_line" ]]; then
+        printf 'unclassified auth failure: %s' "$first_line"
+      else
+        printf 'auth login returned no token and no diagnostic text'
+      fi
+      ;;
+  esac
+}
+
+log_node_agent_seed_diagnostics() {
+  local state_path="${1:-}"
+  local node_id="${2:-}"
+  local expected_count="${3:-0}"
+  local observed_count="${4:-0}"
+  local controller_endpoint join_token controller_state
+  controller_endpoint="$(read_json_field "$state_path" "controller_endpoint")"
+  join_token="$(read_json_field "$state_path" "join_token")"
+  controller_state="inactive"
+  if systemctl is-active --quiet globular-cluster-controller.service 2>/dev/null; then
+    controller_state="active"
+  fi
+  if systemctl is-active --quiet globular-node-agent.service 2>/dev/null; then
+    log_substep "node-agent service state: active"
+  else
+    log_warn "node-agent service is not active"
+  fi
+  log_substep "cluster-controller service state: ${controller_state}"
+  if [[ -n "$state_path" ]]; then
+    log_substep "node-agent state path: ${state_path}"
+  fi
+  if [[ -n "$node_id" ]]; then
+    log_substep "node-agent state node_id: ${node_id}"
+  else
+    log_warn "node-agent state file has no node_id yet"
+  fi
+  if [[ -n "$controller_endpoint" ]]; then
+    log_substep "node-agent controller endpoint: ${controller_endpoint}"
+  fi
+  if [[ -n "$join_token" ]]; then
+    log_substep "node-agent join token present in state file"
+  else
+    log_warn "node-agent join token missing from state file"
+  fi
+  log_substep "Observed node-agent inventory before seed timeout: ${observed_count}/${expected_count}"
+
+  local journal_excerpt join_line
+  journal_excerpt="$(journalctl -u globular-node-agent.service -n 40 --no-pager 2>/dev/null || true)"
+  join_line="$(printf '%s\n' "$journal_excerpt" | grep -F 'RequestJoin failed' | tail -1 || true)"
+  if printf '%s\n' "$journal_excerpt" | grep -Fq 'hostname already present'; then
+    log_warn "node-agent join is blocked by cluster-controller identity conflict: hostname already present"
+  elif [[ -n "$join_line" ]]; then
+    log_warn "node-agent join is failing: $(printf '%s' "$join_line" | sed 's/^[[:space:]]*//')"
+  else
+    log_substep "Recent node-agent journal excerpt:"
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      echo "    $line"
+    done <<< "$journal_excerpt"
+  fi
+}
+
 # Returns the routable IP ScyllaDB is listening on, read from scylla.yaml.
 # Never returns localhost/127.x — ScyllaDB must bind to a routable IP for
 # cluster connectivity. Falls back to the first non-loopback interface IP.
@@ -77,6 +274,16 @@ normalize_meta_value() {
       echo "$v"
       ;;
   esac
+}
+
+has_profile() {
+  local want="$1"
+  IFS=',' read -ra profiles <<< "$FOUNDING_PROFILES"
+  for p in "${profiles[@]}"; do
+    p="$(echo "$p" | xargs)"
+    [[ "$p" == "$want" ]] && return 0
+  done
+  return 1
 }
 
 # wait_scylla_write_ready HOST
@@ -210,13 +417,12 @@ FORCE_REINSTALL="0"
 DOMAIN="globular.internal"
 
 # Founding-node profiles, seeded into the cluster controller's default_profiles.
-# Comma-separated; the default includes the media workload profile on the
-# bootstrap node. Override as needed, e.g.:
-#   FOUNDING_PROFILES=core,media-server,gateway ./install-day0.sh
-# Note: this also becomes the join-default for nodes that join without their own
-# profiles. The controller's enforceFoundingProfiles() ALWAYS adds the founding
-# quorum (control-plane,core,storage) for the first 3 nodes regardless of this.
-FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
+# Comma-separated; extra workload profiles must be explicit operator intent.
+# Override as needed, e.g.:
+#   FOUNDING_PROFILES=core,gateway ./install-day0.sh
+# The controller's enforceFoundingProfiles() ALWAYS adds the founding quorum
+# (control-plane,core,storage) for the first 3 nodes regardless of this.
+FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"
 FORCE_FLAG=""
 if [[ "$FORCE_REINSTALL" == "1" ]]; then
   FORCE_FLAG="--force"
@@ -266,6 +472,48 @@ log_info "MinIO data directory: $MINIO_DATA_DIR"
 log_info "Cluster domain: $DOMAIN"
 log_info "Conformance mode: warn"
 echo ""
+
+materialize_bundled_policy_manifests() {
+  local policy_root="/var/lib/globular/policy/services"
+  local source_dir=""
+  local candidate service policy_file copied=0
+
+  for candidate in \
+    "$INSTALLER_ROOT/generated/payload" \
+    "$INSTALLER_ROOT/payload" \
+    "$INSTALLER_ROOT/../generated/payload" \
+    "$SCRIPT_DIR/../generated/payload" \
+    "$SCRIPT_DIR/../../generated/payload"; do
+    if [[ -d "$candidate" ]]; then
+      source_dir="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$source_dir" ]]; then
+    log_warn "No bundled service policy payload found; RBAC semantic action mapping may be unavailable until packages install"
+    return 0
+  fi
+
+  mkdir -p "$policy_root"
+  for candidate in "$source_dir"/*; do
+    [[ -d "$candidate/policy" ]] || continue
+    service="$(basename "$candidate")"
+    mkdir -p "$policy_root/$service"
+    for policy_file in permissions.generated.json roles.generated.json; do
+      if [[ -f "$candidate/policy/$policy_file" ]]; then
+        install -m 0644 "$candidate/policy/$policy_file" "$policy_root/$service/$policy_file"
+        copied=$((copied + 1))
+      fi
+    done
+  done
+
+  chown -R globular:globular "$policy_root" 2>/dev/null || true
+  log_success "Service RBAC policy manifests materialized: ${copied} files from ${source_dir}"
+}
+
+log_step "Service RBAC Policy Manifests"
+materialize_bundled_policy_manifests
 
 # Stop any cluster agents that might be running from a previous Day-0.
 # The node-agent's reconciliation loop will stop services (like MinIO) while
@@ -438,25 +686,35 @@ run_install() {
 install_list() {
   local pkg_array=("$@")
   for f in "${pkg_array[@]}"; do
-    local path="$PKG_DIR/$f"
-    if [[ ! -f "$path" ]]; then
-      # Exact name not found — try resolving by package name prefix (version-agnostic).
-      # Packages in the release tarball are named <name>_<release-version>_linux_amd64.tgz
-      # but install-day0.sh arrays use canonical names like <name>_0.0.1_linux_amd64.tgz.
-      local prefix="${f%%_*}"
-      local match
-      # || match="" prevents set -euo pipefail from treating ls-no-match (exit 2) as fatal
-      match=$(ls "$PKG_DIR/${prefix}_"*"_linux_amd64.tgz" 2>/dev/null | head -1) || match=""
-      if [[ -n "$match" ]]; then
-        log_substep "Resolved $f → $(basename "$match")"
-        path="$match"
-      else
-        log_substep "Warning: package not found, skipping: $path"
-        continue
-      fi
+    local path=""
+    path="$(resolve_pkg_artifact "$f" || true)"
+    if [[ -z "$path" ]]; then
+      log_substep "Warning: package not found, skipping: $PKG_DIR/$f"
+      continue
     fi
     run_install "$path"
+    if should_track_seed_inventory_request "$f"; then
+      remember_seed_expected_pkg "$path"
+    fi
   done
+}
+
+resolve_pkg_artifact() {
+  local requested="$1"
+  local exact="$PKG_DIR/$requested"
+  if [[ -f "$exact" ]]; then
+    printf '%s\n' "$exact"
+    return 0
+  fi
+  local prefix="${requested%%_*}"
+  local match=""
+  match=$(ls "$PKG_DIR/${prefix}_"*"_linux_amd64.tgz" 2>/dev/null | head -1) || match=""
+  if [[ -n "$match" ]] && [[ -f "$match" ]]; then
+    log_substep "Resolved $requested → $(basename "$match")" >&2
+    printf '%s\n' "$match"
+    return 0
+  fi
+  return 1
 }
 
 SCYLLADB_PKG="scylladb_2025.3.8_linux_amd64.tgz"  # canonical fallback name for logging
@@ -534,15 +792,18 @@ OPS_PKGS=(
   "scylla-manager_3.11.1_linux_amd64.tgz"
 )
 
-OPTIONAL_WORKLOAD_PKGS=(
+COMMON_WORKLOAD_PKGS=(
   "file_0.0.1_linux_amd64.tgz"
   "search_0.0.1_linux_amd64.tgz"
+)
+
+MEDIA_WORKLOAD_PKGS=(
   "media_0.0.1_linux_amd64.tgz"
   "title_0.0.1_linux_amd64.tgz"
   "torrent_0.0.1_linux_amd64.tgz"
 )
 
-CMDS_PKGS=(
+COMMON_CMDS_PKGS=(
   "mc_0.0.1_linux_amd64.tgz"
   "globular-cli_0.0.1_linux_amd64.tgz"
   "etcdctl_3.5.14_linux_amd64.tgz"
@@ -550,10 +811,13 @@ CMDS_PKGS=(
   "restic_0.18.1_linux_amd64.tgz"
   "sctool_3.11.1_linux_amd64.tgz"
   "sha256sum_9.4.0_linux_amd64.tgz"
-  "yt-dlp_2026.2.21_linux_amd64.tgz"
-  "ffmpeg_7.0.2_linux_amd64.tgz"
   "claude_2.1.177_linux_amd64.tgz"
   "codex_0.142.3_linux_amd64.tgz"
+)
+
+MEDIA_CMDS_PKGS=(
+  "yt-dlp_2026.2.21_linux_amd64.tgz"
+  "ffmpeg_7.0.2_linux_amd64.tgz"
 )
 
 # Phase 2: Enable bootstrap mode for Day-0 installation
@@ -706,6 +970,7 @@ else
     export SCYLLA_INSTALL_INTENT="initial-node"
     export SCYLLA_BOOTSTRAP_INTENT="first-node"
     run_install "$SCYLLADB_PKG_PATH"
+    remember_seed_expected_pkg "$SCYLLADB_PKG_PATH"
     unset SCYLLA_INSTALL_INTENT SCYLLA_BOOTSTRAP_INTENT
   else
     log_substep "Warning: no scylladb package found in $PKG_DIR or /var/lib/globular/packages, attempting direct apt install..."
@@ -923,7 +1188,10 @@ else
 fi
 
 log_step "CLI Tools (needed for bucket provisioning)"
-install_list "${CMDS_PKGS[@]}"
+install_list "${COMMON_CMDS_PKGS[@]}"
+if has_profile "media-server"; then
+  install_list "${MEDIA_CMDS_PKGS[@]}"
+fi
 
 # Seed etcd Tier-0 keys so services that cannot use DNS can find infrastructure.
 # These keys must be written BEFORE the cluster controller starts, which reads
@@ -1128,7 +1396,7 @@ PY
     log_substep "Warning: failed to normalize gateway config"
   fi
 else
-  log_substep "Warning: gateway config not found at $GATEWAY_CFG"
+  log_substep "Gateway config not found at $GATEWAY_CFG yet; expected until gateway writes its runtime config"
 fi
 
 # ── Workflow definitions (always required) ────────────────────────────────
@@ -1221,7 +1489,29 @@ if [[ "$USE_WORKFLOW" == "1" ]]; then
 
   NODE_ID="$(cat /var/lib/globular/nodeagent/node_id 2>/dev/null || echo 'bootstrap')"
 
-  GRPC_REQUEST="{\"workflow_name\":\"day0.bootstrap\",\"inputs\":{\"cluster_id\":\"$DOMAIN\",\"bootstrap_node_id\":\"$NODE_ID\",\"bootstrap_node_hostname\":\"$NODE_HOSTNAME\",\"domain\":\"$DOMAIN\"}}"
+  BOOTSTRAP_NODE_PROFILES_JSON=$(printf '%s' "$FOUNDING_PROFILES" \
+    | jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length>0))')
+  if [[ -z "$BOOTSTRAP_NODE_PROFILES_JSON" || "$BOOTSTRAP_NODE_PROFILES_JSON" == "[]" ]]; then
+    BOOTSTRAP_NODE_PROFILES_JSON='["core"]'
+  fi
+
+  GRPC_REQUEST=$(jq -cn \
+    --arg workflow_name "day0.bootstrap" \
+    --arg cluster_id "$DOMAIN" \
+    --arg bootstrap_node_id "$NODE_ID" \
+    --arg bootstrap_node_hostname "$NODE_HOSTNAME" \
+    --arg domain "$DOMAIN" \
+    --argjson bootstrap_node_profiles "$BOOTSTRAP_NODE_PROFILES_JSON" \
+    '{
+      workflow_name: $workflow_name,
+      inputs: {
+        cluster_id: $cluster_id,
+        bootstrap_node_id: $bootstrap_node_id,
+        bootstrap_node_hostname: $bootstrap_node_hostname,
+        domain: $domain,
+        bootstrap_node_profiles: $bootstrap_node_profiles
+      }
+    }')
 
   log_substep "Triggering day0.bootstrap workflow..."
   log_substep "  Request: $GRPC_REQUEST"
@@ -1315,11 +1605,16 @@ log_step "Bootstrap Services (xds, envoy, gateway, agents)"
 install_list "${BOOTSTRAP_REST_PKGS[@]}"
 
 # Explicitly ensure cluster-doctor is installed and running (common omission)
-CLUSTER_DOCTOR_PKG="$PKG_DIR/cluster-doctor_0.0.1_linux_amd64.tgz"
-if [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
-  if ! systemctl list-unit-files | grep -q "^globular-cluster-doctor.service"; then
-    log_substep "cluster-doctor unit missing; reinstalling from package..."
+CLUSTER_DOCTOR_PKG="$(resolve_pkg_artifact "cluster-doctor_0.0.1_linux_amd64.tgz" || true)"
+if [[ -n "$CLUSTER_DOCTOR_PKG" ]] && [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  if systemctl cat globular-cluster-doctor.service >/dev/null 2>&1 || \
+     systemctl status globular-cluster-doctor.service >/dev/null 2>&1; then
+    log_substep "cluster-doctor unit present"
+  else
+    log_substep "cluster-doctor unit missing after daemon-reload; reinstalling from package..."
     run_install "$CLUSTER_DOCTOR_PKG"
+    systemctl daemon-reload >/dev/null 2>&1 || true
   fi
 
   if ! systemctl is-active --quiet globular-cluster-doctor.service 2>/dev/null; then
@@ -1328,7 +1623,7 @@ if [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
     systemctl start globular-cluster-doctor.service || log_substep "Warning: failed to start cluster-doctor (check logs)"
   fi
 else
-  log_substep "Warning: cluster-doctor package not found at $CLUSTER_DOCTOR_PKG"
+  log_substep "Warning: cluster-doctor package artifact not found in bundled packages"
 fi
 
 # Restart xDS to ensure it picks up the HTTPS configuration
@@ -1410,7 +1705,7 @@ log_step "System Resolver Configuration (Day-0)"
 if [[ -x "$SCRIPT_DIR/configure-resolver.sh" ]]; then
   RESOLVER_LOG="/tmp/configure-resolver-$(date +%Y%m%d-%H%M%S).log"
   set +e
-  "$SCRIPT_DIR/configure-resolver.sh" 2>&1 | tee "$RESOLVER_LOG"
+  "$SCRIPT_DIR/configure-resolver.sh" --configure-only 2>&1 | tee "$RESOLVER_LOG"
   resolver_rc=${PIPESTATUS[0]}
   set -e
 
@@ -1418,8 +1713,10 @@ if [[ -x "$SCRIPT_DIR/configure-resolver.sh" ]]; then
     die "configure-resolver.sh failed (see $RESOLVER_LOG)"
   fi
 
-  if grep -q "VERIFY_RESULT=FAIL" "$RESOLVER_LOG"; then
-    log_substep "Warning: DNS resolver verification FAILED (see $RESOLVER_LOG)"
+  if grep -q "VERIFY_RESULT=SKIPPED" "$RESOLVER_LOG"; then
+    log_substep "System resolver configured; verification deferred until DNS bootstrap seeds records"
+  elif grep -q "VERIFY_RESULT=FAIL" "$RESOLVER_LOG"; then
+    log_substep "Warning: DNS resolver verification FAILED unexpectedly during configure-only phase (see $RESOLVER_LOG)"
   elif grep -q "VERIFY_RESULT=PASS" "$RESOLVER_LOG"; then
     log_success "System resolver configured for ${DOMAIN}"
   else
@@ -1470,6 +1767,88 @@ if [[ -x "$SCRIPT_DIR/bootstrap-dns.sh" ]]; then
   fi
 else
   log_substep "Warning: bootstrap-dns.sh not found, DNS records not initialized"
+fi
+
+log_step "System Resolver Verification (post-bootstrap)"
+if [[ -x "$SCRIPT_DIR/configure-resolver.sh" ]]; then
+  RESOLVER_VERIFY_LOG="/tmp/configure-resolver-verify-$(date +%Y%m%d-%H%M%S).log"
+  set +e
+  "$SCRIPT_DIR/configure-resolver.sh" --verify-only 2>&1 | tee "$RESOLVER_VERIFY_LOG"
+  resolver_verify_rc=${PIPESTATUS[0]}
+  set -e
+
+  if [[ $resolver_verify_rc -ne 0 ]]; then
+    die "configure-resolver.sh --verify-only failed (see $RESOLVER_VERIFY_LOG)"
+  fi
+
+  if grep -q "VERIFY_RESULT=PASS" "$RESOLVER_VERIFY_LOG"; then
+    log_success "System resolver verified for ${DOMAIN} after DNS bootstrap"
+  elif grep -q "VERIFY_RESULT=FAIL" "$RESOLVER_VERIFY_LOG"; then
+    log_warn "DNS resolver verification FAILED after DNS bootstrap (see $RESOLVER_VERIFY_LOG)"
+  else
+    log_warn "configure-resolver.sh --verify-only completed without VERIFY_RESULT marker (see $RESOLVER_VERIFY_LOG)"
+  fi
+else
+  log_warn "configure-resolver.sh not found, post-bootstrap DNS resolver verification skipped"
+fi
+
+log_step "RBAC Bootstrap Seed"
+trace_step "running" "phase.rbac_seed" "RBAC Bootstrap Seed" 4
+if [[ -x "${GLOBULAR_CLI:-}" || -x /usr/local/bin/globular || -x /usr/lib/globular/bin/globular ]]; then
+  _RBAC_CLI="${GLOBULAR_CLI:-}"
+  if [[ -z "$_RBAC_CLI" || ! -x "$_RBAC_CLI" ]]; then
+    if [[ -x /usr/local/bin/globular ]]; then
+      _RBAC_CLI="/usr/local/bin/globular"
+    else
+      _RBAC_CLI="/usr/lib/globular/bin/globular"
+    fi
+  fi
+  _RBAC_IP="${_NODE_IP:-$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')}"
+  _RBAC_IP="${_RBAC_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+  _RBAC_ETCD="${ETCD_ENDPOINTS:-https://${_RBAC_IP}:2379}"
+  _RBAC_CA="/var/lib/globular/pki/ca.crt"
+  _RBAC_CERT="/var/lib/globular/pki/issued/services/service.crt"
+  _RBAC_KEY="/var/lib/globular/pki/issued/services/service.key"
+  _RBAC_AUTH_PORT="$(resolve_registered_service_port "authentication.AuthenticationService" "$_RBAC_ETCD" "$_RBAC_CA" "$_RBAC_CERT" "$_RBAC_KEY")"
+  _RBAC_AUTH_DIRECT=""
+  if [[ -n "$_RBAC_AUTH_PORT" ]]; then
+    _RBAC_AUTH_DIRECT="${_RBAC_IP}:${_RBAC_AUTH_PORT}"
+  else
+    _RBAC_AUTH_PORT="$(sudo ss -tlnp 2>/dev/null | awk '/authentication_/{match($4,/[^:]+$/); print substr($4,RSTART,RLENGTH)}' | head -1 || true)"
+    [[ -n "$_RBAC_AUTH_PORT" ]] && _RBAC_AUTH_DIRECT="${_RBAC_IP}:${_RBAC_AUTH_PORT}"
+  fi
+  _RBAC_PASSWORD="${BOOTSTRAP_PASSWORD:-}"
+  if [[ -z "$_RBAC_PASSWORD" && -f "${BOOTSTRAP_SA_CRED:-/var/lib/globular/.bootstrap-sa-password}" ]]; then
+    _RBAC_PASSWORD="$(cat "${BOOTSTRAP_SA_CRED:-/var/lib/globular/.bootstrap-sa-password}" 2>/dev/null || true)"
+  fi
+  _RBAC_PASSWORD="${_RBAC_PASSWORD:-adminadmin}"
+  _RBAC_TOKEN=""
+  if [[ -n "$_RBAC_AUTH_DIRECT" ]]; then
+    _RBAC_AUTH_OUT="$(HOME=/root "$_RBAC_CLI" --timeout 10s --insecure --auth "$_RBAC_AUTH_DIRECT" auth login --user sa --password "$_RBAC_PASSWORD" 2>&1 || true)"
+    _RBAC_TOKEN="$(printf '%s\n' "$_RBAC_AUTH_OUT" | awk -F'Token: ' '/^Token:/ {print $2; exit}')"
+    if [[ -z "$_RBAC_TOKEN" ]]; then
+      log_warn "RBAC seed auth login failed via ${_RBAC_AUTH_DIRECT}: $(classify_auth_login_failure "$_RBAC_AUTH_OUT" "$_RBAC_AUTH_DIRECT")"
+    fi
+  else
+    log_warn "authentication service not discoverable — RBAC seed will try bootstrap gate without token"
+  fi
+  _RBAC_ARGS=(--timeout 60s --insecure)
+  [[ -n "$_RBAC_TOKEN" ]] && _RBAC_ARGS+=(--token "$_RBAC_TOKEN")
+  if "$_RBAC_CLI" "${_RBAC_ARGS[@]}" rbac seed --force; then
+    log_success "RBAC service-account bindings and roles seeded"
+  else
+    log_warn "RBAC seed failed — workflow recorder may report role_binding_denied"
+  fi
+  _RBAC_HOSTNAME="$(hostname -s 2>/dev/null || hostname 2>/dev/null || true)"
+  if [[ -n "$_RBAC_HOSTNAME" ]]; then
+    if "$_RBAC_CLI" "${_RBAC_ARGS[@]}" rbac bind --subject "$_RBAC_HOSTNAME" --role globular-node-executor; then
+      log_success "RBAC bound founding node identity ${_RBAC_HOSTNAME} to globular-node-executor"
+    else
+      log_warn "RBAC founding-node executor binding failed for ${_RBAC_HOSTNAME}"
+    fi
+  fi
+else
+  log_warn "globular CLI not found — skipping RBAC bootstrap seed"
 fi
 
 # Remove bootstrap flag — DNS bootstrap is done, and the expired flag would
@@ -1576,7 +1955,10 @@ fi
 
 log_step "Workload Services"
 trace_step "running" "phase.workloads" "Workload Services" 5
-install_list "${OPTIONAL_WORKLOAD_PKGS[@]}"
+install_list "${COMMON_WORKLOAD_PKGS[@]}"
+if has_profile "media-server"; then
+  install_list "${MEDIA_WORKLOAD_PKGS[@]}"
+fi
 
 # Run conformance tests
 # Day-0 always runs in warn mode for now.
@@ -1614,11 +1996,11 @@ if [[ "$CONFORMANCE_MODE" != "off" ]]; then
       fi
     fi
   else
-    log_substep "Conformance script not found: $CONFORMANCE_SCRIPT"
-    log_substep "Skipping conformance checks"
+    log_substep "Conformance runner not bundled: $CONFORMANCE_SCRIPT"
+    log_substep "Optional validation skipped (GLOBULAR_CONFORMANCE=$CONFORMANCE_MODE)"
 
     if [[ "$CONFORMANCE_MODE" == "fail" ]]; then
-      log_warn "Conformance script missing"
+      die "Conformance runner required but not bundled: $CONFORMANCE_SCRIPT"
     fi
   fi
 else
@@ -1692,7 +2074,7 @@ fi
 
 # Persist the token in the node-agent state file so startup does not rely on
 # any environment variable or systemd drop-in.
-NA_STATE="/var/lib/globular/nodeagent/state.json"
+NA_STATE="$(resolve_node_agent_state_path)"
 mkdir -p "$(dirname "$NA_STATE")"
 if [[ -f "$NA_STATE" ]] && command -v jq >/dev/null 2>&1; then
   jq --arg tok "$DAY0_TOKEN" '.join_token = $tok' "$NA_STATE" > "${NA_STATE}.tmp" \
@@ -1705,7 +2087,7 @@ else
 EOF
 fi
 chmod 0600 "$NA_STATE"
-log_substep "Join token written to node-agent state file"
+log_substep "Join token written to node-agent state file (${NA_STATE})"
 
 # Fix controller state if it has stale protocol=http from a previous run.
 CC_STATE="/var/lib/globular/clustercontroller/state.json"
@@ -1917,29 +2299,53 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   fi
   [[ -n "$_CTRL_PORT_ETCD" ]] || die "Could not determine cluster controller port from etcd or unit file"
   _SEED_CTRL="${_SEED_IP}:${_CTRL_PORT_ETCD}"
+  _SEED_STATE_PATH="$(resolve_node_agent_state_path)"
+  _SEED_NODE_ID=""
+  _SEED_EXPECTED_COUNT="$(count_seed_expected_packages)"
+  _SEED_LAST_NODE_ID=""
 
-  # Wait for at least one heartbeat to arrive at the controller before seeding.
-  # The seed's version regression guard requires observable=true (at least one
-  # node with a fresh heartbeat). Without this wait, services that haven't been
-  # reported yet fail with "cluster observability blackout".
-  log_substep "Waiting for node-agent heartbeat to reach controller..."
+  # Wait for both a heartbeat and the node-agent's managed package inventory to
+  # show up in etcd. Seeding too early only captures a partial subset of the
+  # install we just completed.
+  log_substep "Waiting for node-agent heartbeat and installed inventory to reach controller..."
+  log_substep "Expected managed package records from this Day-0 run: ${_SEED_EXPECTED_COUNT}"
+  log_substep "Watching node-agent state path: ${_SEED_STATE_PATH}"
   _HB_WAIT=0
-  _HB_MAX=60
+  _HB_MAX=120
+  _SEED_HEARTBEAT_MISSING=1
+  _SEED_OBSERVED_COUNT=0
+  _SEED_LAST_COUNT=-1
   while [[ $_HB_WAIT -lt $_HB_MAX ]]; do
-    # Check if the controller has received at least one node status.
-    # The node status key is written by the heartbeat path.
-    _NODE_ID=$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo "")
-    if [[ -n "$_NODE_ID" ]] && etcdctl --endpoints="$_SEED_ETCD" \
+    _SEED_STATE_PATH="$(resolve_node_agent_state_path)"
+    _SEED_NODE_ID="$(read_json_field "$_SEED_STATE_PATH" "node_id")"
+    if [[ -n "$_SEED_NODE_ID" ]] && [[ "$_SEED_NODE_ID" != "$_SEED_LAST_NODE_ID" ]]; then
+      log_substep "Using node-agent state node_id for heartbeat watch: ${_SEED_NODE_ID}"
+      _SEED_LAST_NODE_ID="$_SEED_NODE_ID"
+    fi
+    if [[ -n "$_SEED_NODE_ID" ]] && etcdctl --endpoints="$_SEED_ETCD" \
         --cacert="$_SEED_CA" --cert="$_SEED_CERT" --key="$_SEED_KEY" \
-        get "/globular/nodes/${_NODE_ID}/status" --print-value-only 2>/dev/null | grep -q "last_seen"; then
-      log_substep "Heartbeat detected after ${_HB_WAIT}s"
-      break
+        get "/globular/nodes/${_SEED_NODE_ID}/status" --print-value-only 2>/dev/null | grep -q "last_seen"; then
+      _SEED_HEARTBEAT_MISSING=0
+      _SEED_OBSERVED_COUNT="$(count_node_inventory_records "$_SEED_NODE_ID" "$_SEED_ETCD" "$_SEED_CA" "$_SEED_CERT" "$_SEED_KEY")"
+      if [[ "$_SEED_OBSERVED_COUNT" != "$_SEED_LAST_COUNT" ]]; then
+        log_substep "Observed node-agent inventory after ${_HB_WAIT}s: ${_SEED_OBSERVED_COUNT}/${_SEED_EXPECTED_COUNT} managed package records"
+        _SEED_LAST_COUNT="$_SEED_OBSERVED_COUNT"
+      fi
+      if [[ "$_SEED_OBSERVED_COUNT" -ge "$_SEED_EXPECTED_COUNT" ]]; then
+        log_substep "Heartbeat and full managed inventory detected after ${_HB_WAIT}s"
+        break
+      fi
     fi
     sleep 3
     _HB_WAIT=$((_HB_WAIT + 3))
   done
   if [[ $_HB_WAIT -ge $_HB_MAX ]]; then
-    log_warn "No heartbeat detected after ${_HB_MAX}s — seed may partially fail (safe to re-run)"
+    if [[ "${_SEED_HEARTBEAT_MISSING:-1}" -eq 1 ]]; then
+      log_warn "No heartbeat detected after ${_HB_MAX}s for node-agent state node_id '${_SEED_NODE_ID:-<unset>}' — seed may partially fail (safe to re-run)"
+      log_node_agent_seed_diagnostics "$_SEED_STATE_PATH" "$_SEED_NODE_ID" "$_SEED_EXPECTED_COUNT" "$_SEED_OBSERVED_COUNT"
+    else
+      log_warn "Inventory did not reach expected count after ${_HB_MAX}s — observed ${_SEED_OBSERVED_COUNT}/${_SEED_EXPECTED_COUNT} managed package records"
+    fi
   fi
 
   # Seed with retry: transient heartbeat timing can still cause partial failures.
@@ -1949,10 +2355,28 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   _SEED_OK=false
   for _attempt in $(seq 1 $_SEED_ATTEMPTS); do
     log_substep "Running 'globular services seed' (attempt ${_attempt}/${_SEED_ATTEMPTS}, controller=${_SEED_CTRL})..."
-    if "$GLOBULAR_CLI" services seed \
+    _SEED_OUT="$("$GLOBULAR_CLI" services seed \
         --controller "${_SEED_CTRL}" \
-        --ca "${_SEED_CA}" 2>&1 | while IFS= read -r line; do echo "  [seed] $line"; done; then
+        --ca "${_SEED_CA}" 2>&1)" && _SEED_RC=0 || _SEED_RC=$?
+    while IFS= read -r line; do
+      echo "  [seed] $line"
+    done <<< "$_SEED_OUT"
+    if [[ $_SEED_RC -eq 0 ]]; then
       log_success "Desired state seeded from installed packages"
+      _SEEDED_COUNT="$(printf '%s\n' "$_SEED_OUT" | sed -n 's/.*Desired state seeded with \([0-9][0-9]*\) service.*/\1/p' | head -1)"
+      if [[ "${_SEED_HEARTBEAT_MISSING:-0}" -eq 1 ]]; then
+        if [[ -n "$_SEEDED_COUNT" ]]; then
+          log_warn "Desired state seeding completed without a heartbeat; seeded ${_SEEDED_COUNT} service(s), result may be partial"
+        else
+          log_warn "Desired state seeding completed without a heartbeat; result may be partial"
+        fi
+      elif [[ "${_SEED_OBSERVED_COUNT:-0}" -lt "${_SEED_EXPECTED_COUNT:-0}" ]]; then
+        if [[ -n "$_SEEDED_COUNT" ]]; then
+          log_warn "Desired state seeding completed with partial node-agent inventory; seeded ${_SEEDED_COUNT} service(s), observed ${_SEED_OBSERVED_COUNT}/${_SEED_EXPECTED_COUNT} managed package records"
+        else
+          log_warn "Desired state seeding completed with partial node-agent inventory; observed ${_SEED_OBSERVED_COUNT}/${_SEED_EXPECTED_COUNT} managed package records"
+        fi
+      fi
       _SEED_OK=true
       break
     fi
@@ -2118,38 +2542,9 @@ EOF
   _OPS_KEY="/var/lib/globular/pki/issued/services/service.key"
   _OPS_ETCD="${ETCD_ENDPOINTS:-https://${_OPS_IP}:2379}"
 
-  _ops_find_ai_memory_port() {
-    # Echoes the port for the registered ai_memory.AiMemoryService config,
-    # or nothing if not yet registered. Uses etcdctl -w json so the
-    # service-list scan is robust to pretty-printed multi-line values
-    # (the text-mode output of `etcdctl get --prefix` interleaves keys
-    # with formatted JSON across many lines and is not line-parseable).
-    etcdctl --endpoints="$_OPS_ETCD" \
-      --cacert="$_OPS_CA" --cert="$_OPS_CERT" --key="$_OPS_KEY" \
-      get /globular/services/ --prefix -w json 2>/dev/null \
-      | python3 -c '
-import sys, json, base64
-try:
-    resp = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-for kv in resp.get("kvs", []):
-    try:
-        key = base64.b64decode(kv["key"]).decode("utf-8", "replace")
-        if not key.endswith("/config"):
-            continue
-        cfg = json.loads(base64.b64decode(kv.get("value","")).decode("utf-8", "replace"))
-    except Exception:
-        continue
-    if cfg.get("Name") == "ai_memory.AiMemoryService" and cfg.get("Port"):
-        print(cfg["Port"])
-        break
-'
-  }
-
   _OPS_MEM_PORT=""
   for _ops_port_try in $(seq 1 30); do
-    _OPS_MEM_PORT="$(_ops_find_ai_memory_port 2>/dev/null || true)"
+    _OPS_MEM_PORT="$(resolve_registered_service_port "ai_memory.AiMemoryService" "$_OPS_ETCD" "$_OPS_CA" "$_OPS_CERT" "$_OPS_KEY")"
     if [[ -n "$_OPS_MEM_PORT" ]]; then
       break
     fi
@@ -2165,10 +2560,26 @@ for kv in resp.get("kvs", []):
 
   # Auth is only needed when ai-memory is reachable.
   _OPS_TOKEN=""
+  _OPS_AUTH_PORT=""
+  _OPS_AUTH_ENDPOINT=""
   if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
+    _OPS_AUTH_PORT="$(resolve_registered_service_port "authentication.AuthenticationService" "$_OPS_ETCD" "$_OPS_CA" "$_OPS_CERT" "$_OPS_KEY")"
+    if [[ -z "$_OPS_AUTH_PORT" ]]; then
+      _OPS_AUTH_PORT="$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-authentication.service 2>/dev/null | head -1 || true)"
+    fi
+    if [[ -n "$_OPS_AUTH_PORT" ]]; then
+      _OPS_AUTH_ENDPOINT="${_OPS_IP}:${_OPS_AUTH_PORT}"
+      log_substep "Authentication service endpoint for ops seed: ${_OPS_AUTH_ENDPOINT}"
+    else
+      log_warn "Could not resolve authentication service port for ops seed — authentication readiness will be classified from CLI output only"
+    fi
     log_substep "Authenticating as bootstrap SA user for ops-knowledge seed..."
     for _ops_auth_try in $(seq 1 5); do
-      _LOGIN_OUT="$("$GLOBULAR_CLI" --ca "$_OPS_CA" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
+      _LOGIN_ARGS=(--ca "$_OPS_CA")
+      if [[ -n "$_OPS_AUTH_ENDPOINT" ]]; then
+        _LOGIN_ARGS+=(--auth "$_OPS_AUTH_ENDPOINT")
+      fi
+      _LOGIN_OUT="$("$GLOBULAR_CLI" "${_LOGIN_ARGS[@]}" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
       _OPS_TOKEN="$(echo "$_LOGIN_OUT" | sed -n 's/^Token: //p' | head -n1 || true)"
       if [[ -z "$_OPS_TOKEN" && -f /root/.config/globular/token ]]; then
         _OPS_TOKEN="$(cat /root/.config/globular/token 2>/dev/null || true)"
@@ -2176,11 +2587,16 @@ for kv in resp.get("kvs", []):
       if [[ -n "$_OPS_TOKEN" ]]; then
         break
       fi
-      log_substep "Auth not ready for ops seed (attempt ${_ops_auth_try}/5), retrying..."
+      log_substep "Auth not ready for ops seed (attempt ${_ops_auth_try}/5): $(classify_auth_login_failure "$_LOGIN_OUT" "$_OPS_AUTH_ENDPOINT")"
       sleep 2
     done
     if [[ -z "$_OPS_TOKEN" ]]; then
-      log_warn "Failed to get auth token for ops-knowledge seed — authentication not ready. Seed deferred to day-1."
+      if systemctl is-active --quiet globular-authentication.service 2>/dev/null; then
+        log_substep "authentication service state: active"
+      else
+        log_warn "authentication service is not active"
+      fi
+      log_warn "Failed to get auth token for ops-knowledge seed — $(classify_auth_login_failure "$_LOGIN_OUT" "$_OPS_AUTH_ENDPOINT"). Seed deferred to day-1."
       _OPS_SKIP_SEED=1
     fi
   fi
@@ -2417,15 +2833,13 @@ echo "  2. Bootstrap this node (in another terminal):"
 echo "       globular cluster bootstrap \\"
 echo "         --node ${_BOOTSTRAP_NODE} \\"
 echo "         --domain <your-domain> \\"
-echo "         --profile core \\"
-echo "         --profile media-server \\"
-echo "         --profile gateway"
+echo "         --profile core"
 echo ""
 echo "     Example for a single-node cluster:"
 echo "       globular cluster bootstrap \\"
 echo "         --node ${_BOOTSTRAP_NODE} \\"
 echo "         --domain mycluster.local \\"
-echo "         --profile core --profile media-server --profile gateway --profile storage"
+echo "         --profile core --profile storage"
 echo ""
 echo "  After bootstrap, add more nodes with:"
 echo "       curl -sfL https://<gateway>:8443/join -k | sudo bash -s -- --token <token>"

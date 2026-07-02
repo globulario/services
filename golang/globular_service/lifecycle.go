@@ -63,19 +63,11 @@ func (lm *LifecycleManager) Start() error {
 		return fmt.Errorf("gRPC server not initialized (call Init first)")
 	}
 
-	// Start the service using Globular's lifecycle
-	if err := lm.srv.StartService(); err != nil {
-		lm.logger.Error("failed to start service",
-			"name", lm.srv.GetName(),
-			"id", lm.srv.GetId(),
-			"err", err,
-		)
-		return fmt.Errorf("start service failed: %w", err)
-	}
-
 	// Load externalized permission mappings (action → method) so the
 	// authz interceptor can enforce RBAC instead of falling through
 	// with "no_rbac_mapping_warning".
+	// This must happen before StartService: gRPC Serve blocks on the hot path,
+	// so loading after StartService makes semantic action mapping unreachable.
 	svcName := lm.srv.GetName()
 	if idx := strings.Index(svcName, "."); idx > 0 {
 		svcName = svcName[:idx] // "file.FileService" → "file"
@@ -94,6 +86,16 @@ func (lm *LifecycleManager) Start() error {
 			"service", svcName,
 			"expected_path", "/var/lib/globular/policy/services/"+svcName+"/permissions.generated.json",
 		)
+	}
+
+	// Start the service using Globular's lifecycle
+	if err := lm.srv.StartService(); err != nil {
+		lm.logger.Error("failed to start service",
+			"name", lm.srv.GetName(),
+			"id", lm.srv.GetId(),
+			"err", err,
+		)
+		return fmt.Errorf("start service failed: %w", err)
 	}
 
 	// Mark as running

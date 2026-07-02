@@ -943,6 +943,11 @@ func (srv *server) loadPublishedCatalog(ctx context.Context) []*repopb.ArtifactM
 type packageManifest struct {
 	Type                 string   `json:"type"`
 	Name                 string   `json:"name"`
+	Version              string   `json:"version"`
+	Platform             string   `json:"platform"`
+	Publisher            string   `json:"publisher"`
+	BuildNumber          int64    `json:"build_number,omitempty"`
+	Entrypoint           string   `json:"entrypoint,omitempty"`
 	Profiles             []string `json:"profiles,omitempty"`
 	Priority             int      `json:"priority,omitempty"`
 	InstallMode          string   `json:"install_mode,omitempty"`
@@ -1100,6 +1105,21 @@ func recvArtifactStream(stream repopb.PackageRepository_UploadArtifactServer) (*
 		}
 		data = append(data, msg.GetData()...)
 	}
+}
+
+func reservationVersionMatches(requested, reserved string) bool {
+	requested = strings.TrimSpace(requested)
+	reserved = strings.TrimSpace(reserved)
+	if requested == "" || requested == reserved {
+		return true
+	}
+	if cv, err := versionutil.Canonical(requested); err == nil {
+		requested = cv
+	}
+	if cv, err := versionutil.Canonical(reserved); err == nil {
+		reserved = cv
+	}
+	return requested == reserved
 }
 
 // ── public handlers ───────────────────────────────────────────────────────
@@ -1279,14 +1299,64 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 		return err
 	}
 
+	var reserved *reservation
+	if reservationID != "" {
+		reserved = reservations.consume(reservationID)
+		if reserved == nil {
+			return status.Errorf(codes.FailedPrecondition,
+				"reservation %q is invalid or expired; build identity must come from AllocateUpload", reservationID)
+		}
+		if reserved.Publisher != publisherID ||
+			reserved.Name != ref.GetName() ||
+			reserved.Platform != ref.GetPlatform() {
+			return status.Errorf(codes.InvalidArgument,
+				"reservation %q does not match upload identity (%s/%s %s)",
+				reservationID, publisherID, ref.GetName(), ref.GetPlatform())
+		}
+		if !reservationVersionMatches(ref.GetVersion(), reserved.Version) {
+			return status.Errorf(codes.InvalidArgument,
+				"reservation %q version mismatch: request=%q reservation=%q",
+				reservationID, ref.GetVersion(), reserved.Version)
+		}
+		if buildNumber != 0 && buildNumber != reserved.BuildNumber {
+			return status.Errorf(codes.InvalidArgument,
+				"reservation %q build_number mismatch: request=%d reservation=%d",
+				reservationID, buildNumber, reserved.BuildNumber)
+		}
+		ref.Version = reserved.Version
+		buildNumber = reserved.BuildNumber
+	} else if buildNumber != 0 {
+		slog.Warn("upload artifact: ignoring client-supplied build_number without reservation",
+			"publisher", publisherID,
+			"name", ref.GetName(),
+			"version", ref.GetVersion(),
+			"platform", ref.GetPlatform(),
+			"build_number", buildNumber)
+	}
+
 	newChecksum := checksumBytes(data)
+
+	// Parse package metadata before stable-release gates. Direct UploadArtifact
+	// does not carry channel in ArtifactRef, so package.json is the first point
+	// where a local/candidate/dev lane can be distinguished from STABLE.
+	packageManifest := extractPackageManifest(data)
+	uploadChannel := repopb.ArtifactChannel_CHANNEL_UNSET
+	if packageManifest != nil {
+		uploadChannel = channelFromString(packageManifest.Channel)
+	}
+	if reserved != nil && reserved.Channel != repopb.ArtifactChannel_CHANNEL_UNSET {
+		uploadChannel = reserved.Channel
+	}
+	effectiveUploadChannel := uploadChannel
+	if effectiveUploadChannel == repopb.ArtifactChannel_CHANNEL_UNSET {
+		effectiveUploadChannel = repopb.ArtifactChannel_STABLE
+	}
 
 	// ── Official namespace seal (pre-write) ───────────────────────────────
 	// If the official stable namespace already has this (name, version, platform)
-	// with a different digest, reject immediately — before ANY I/O. Channel is
-	// not yet known (it comes from package.json inside the tgz), so we conservatively
-	// check for STABLE (CHANNEL_UNSET). Post-enrichment enforcement (below) handles
-	// any channel overrides from package.json or reservation.
+	// with a different digest, reject immediately — before ANY I/O. Direct uploads
+	// carry their publish lane in package.json rather than ArtifactRef, so parse
+	// package metadata first and apply this seal only to the actual STABLE lane.
 	//
 	// The optional repair authorization is parsed from gRPC metadata
 	// (`x-repair-unseal-official` + `x-repair-reason` + `x-repair-prior-digest`)
@@ -1296,7 +1366,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	repair := getRepairAuthorization(ctx)
 	if sealErr := srv.enforceOfficialNamespaceSeal(ctx,
 		publisherID, ref.GetName(), ref.GetVersion(), ref.GetPlatform(),
-		newChecksum, repopb.ArtifactChannel_CHANNEL_UNSET, repair,
+		newChecksum, effectiveUploadChannel, repair,
 	); sealErr != nil {
 		return sealErr
 	}
@@ -1358,30 +1428,39 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// Non-nil with valid prior-digest + reason = allow re-publish under the
 	// existing official identity (a new build_number is still allocated
 	// downstream so the phantom row stays queryable for forensics).
-	var resolvedVer string
-	var verErr error
-	if clientVer := ref.GetVersion(); clientVer != "" {
-		resolvedVer, verErr = srv.resolveVersionIntent(ctx,
-			ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
-			repopb.VersionIntent_EXACT, clientVer, repair)
-	} else {
-		resolvedVer, verErr = srv.resolveVersionIntent(ctx,
-			ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
-			repopb.VersionIntent_BUMP_PATCH, "", nil)
-	}
-	if verErr != nil {
-		// Propagate AlreadyExists from version immutability check with the
-		// original gRPC code so callers can distinguish it from generic errors.
-		if st, ok2 := status.FromError(verErr); ok2 && st.Code() == codes.AlreadyExists {
-			return status.Errorf(codes.AlreadyExists, "version already published: %v", verErr)
+	if reserved == nil {
+		var resolvedVer string
+		var verErr error
+		if clientVer := ref.GetVersion(); clientVer != "" {
+			if effectiveUploadChannel == repopb.ArtifactChannel_STABLE {
+				resolvedVer, verErr = srv.resolveVersionIntent(ctx,
+					ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
+					repopb.VersionIntent_EXACT, clientVer, effectiveUploadChannel, repair)
+			} else {
+				resolvedVer, verErr = versionutil.NormalizeExact(clientVer)
+				if verErr != nil {
+					verErr = status.Errorf(codes.InvalidArgument, "invalid version %q: %v", clientVer, verErr)
+				}
+			}
+		} else {
+			resolvedVer, verErr = srv.resolveVersionIntent(ctx,
+				ref.GetPublisherId(), ref.GetName(), ref.GetPlatform(),
+				repopb.VersionIntent_BUMP_PATCH, "", effectiveUploadChannel, nil)
 		}
-		return status.Errorf(codes.Internal, "version resolution failed: %v", verErr)
-	}
-	ref.Version = resolvedVer
+		if verErr != nil {
+			// Propagate AlreadyExists from version immutability check with the
+			// original gRPC code so callers can distinguish it from generic errors.
+			if st, ok2 := status.FromError(verErr); ok2 && st.Code() == codes.AlreadyExists {
+				return status.Errorf(codes.AlreadyExists, "version already published: %v", verErr)
+			}
+			return status.Errorf(codes.Internal, "version resolution failed: %v", verErr)
+		}
+		ref.Version = resolvedVer
 
-	// buildNumber is auto-assigned by the repository to the next available
-	// number for this version, ensuring uniqueness.
-	buildNumber = srv.resolveLatestBuildNumber(ctx, ref) + 1
+		// buildNumber is auto-assigned by the repository to the next available
+		// number for this version, ensuring uniqueness.
+		buildNumber = srv.resolveLatestBuildNumber(ctx, ref) + 1
+	}
 
 	key := artifactKeyWithBuild(ref, buildNumber)
 
@@ -1402,6 +1481,9 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// Phase 2: allocate a repository-owned build_id (UUIDv7). This is the sole
 	// authoritative artifact identity — clients cannot provide or override it.
 	buildID := uuid.Must(uuid.NewV7()).String()
+	if reserved != nil {
+		buildID = reserved.BuildID
+	}
 
 	manifest := &repopb.ArtifactManifest{
 		Ref:          ref,
@@ -1413,7 +1495,7 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	}
 
 	// Enrich manifest with catalog metadata from package.json inside the tgz.
-	if pkg := extractPackageManifest(data); pkg != nil {
+	if pkg := packageManifest; pkg != nil {
 		// Hard integrity gate: compute checksum from the uploaded artifact bytes.
 		// If package.json declares entrypoint_checksum, it must match the binary
 		// that is actually inside the uploaded archive.
@@ -1441,11 +1523,9 @@ func (srv *server) UploadArtifact(stream repopb.PackageRepository_UploadArtifact
 	// If a reservation was provided, consume it and apply its channel.
 	// The reservation channel overrides whatever was in package.json —
 	// publish-time channel wins over build-time default.
-	if reservationID != "" {
-		if res := reservations.consume(reservationID); res != nil {
-			if res.Channel != repopb.ArtifactChannel_CHANNEL_UNSET {
-				manifest.Channel = res.Channel
-			}
+	if reserved != nil {
+		if reserved.Channel != repopb.ArtifactChannel_CHANNEL_UNSET {
+			manifest.Channel = reserved.Channel
 		}
 	}
 

@@ -30,6 +30,7 @@ type BuildOptions struct {
 	Version            string
 	BuildNumber        int64
 	Publisher          string
+	Channel            string
 	Platform           string
 	OutDir             string
 	SkipMissingConfig  bool
@@ -362,6 +363,11 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		return nil, fmt.Errorf("checksum entrypoint binary: %w", err)
 	}
 
+	channel := strings.TrimSpace(opts.Channel)
+	if channel == "" {
+		channel = info.Metadata.Channel
+	}
+
 	manifest := Manifest{
 		Type:               pkgType,
 		Name:               info.ServiceName,
@@ -378,7 +384,7 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		Description: info.Metadata.Description,
 		Keywords:    info.Metadata.Keywords,
 		License:     info.Metadata.License,
-		Channel:     info.Metadata.Channel,
+		Channel:     channel,
 
 		// Catalog metadata from spec.
 		Profiles:             info.Metadata.Profiles,

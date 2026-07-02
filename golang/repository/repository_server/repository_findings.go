@@ -346,8 +346,25 @@ func (srv *server) evalVersionResolutionAmbiguity(rows []manifestRow, now int64)
 		if len(builds) < 2 {
 			continue
 		}
+		buildNumbers := make(map[int64]string, len(builds))
+		var ambiguous []manifestRow
+		for bid, row := range builds {
+			buildNumber := row.BuildNumber
+			if buildNumber <= 0 {
+				ambiguous = append(ambiguous, row)
+				continue
+			}
+			if priorBuildID, ok := buildNumbers[buildNumber]; ok && priorBuildID != bid {
+				ambiguous = append(ambiguous, row)
+				continue
+			}
+			buildNumbers[buildNumber] = bid
+		}
+		if len(ambiguous) == 0 {
+			continue
+		}
 		var sample manifestRow
-		for _, row := range builds {
+		for _, row := range ambiguous {
 			sample = row
 			break
 		}
@@ -362,12 +379,13 @@ func (srv *server) evalVersionResolutionAmbiguity(rows []manifestRow, now int64)
 			RecommendedCommand: "globular repository doctor identity",
 			ObservedAtUnix:     now,
 			Evidence: map[string]string{
-				"publisher":       k.Publisher,
-				"name":            k.Name,
-				"version":         k.Version,
-				"platform":        k.Platform,
+				"publisher":        k.Publisher,
+				"name":             k.Name,
+				"version":          k.Version,
+				"platform":         k.Platform,
 				"published_builds": fmt.Sprintf("%d", len(builds)),
-				"invariant":       "version_resolution_requires_build_id_pin",
+				"ambiguous_builds": fmt.Sprintf("%d", len(ambiguous)),
+				"invariant":        "version_resolution_requires_build_id_pin",
 			},
 		})
 	}
@@ -446,13 +464,13 @@ func (srv *server) buildSignatureFinding(row *manifestRow, ref *repopb.ArtifactR
 		severity = repopb.RepositoryFindingSeverity_REPO_FIND_ERROR
 	}
 	return &repopb.RepositoryFinding{
-		Kind:               repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED,
-		Severity:           severity,
-		ArtifactKey:        row.ArtifactKey,
-		Ref:                ref,
-		CurrentState:       string(srv.readArtifactState(context.Background(), row.ArtifactKey)),
-		ExpectedState:      "PUBLISHED + valid trusted signature",
-		Reason:             dec.Reason,
+		Kind:          repopb.RepositoryFindingKind_REPO_FIND_PUBLISHED_UNSIGNED_REQUIRED,
+		Severity:      severity,
+		ArtifactKey:   row.ArtifactKey,
+		Ref:           ref,
+		CurrentState:  string(srv.readArtifactState(context.Background(), row.ArtifactKey)),
+		ExpectedState: "PUBLISHED + valid trusted signature",
+		Reason:        dec.Reason,
 		RecommendedCommand: fmt.Sprintf("globular repository signature verify %s/%s %s --platform %s",
 			ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()),
 		Evidence: map[string]string{
@@ -475,39 +493,39 @@ func (srv *server) evalLifecycleCoherence(ctx context.Context, row *manifestRow,
 	switch {
 	case publish == repopb.PublishState_PUBLISHED.String() && pipeline == PipelineRevoked:
 		return &repopb.RepositoryFinding{
-			Kind:           repopb.RepositoryFindingKind_REPO_FIND_REVOKED_INSTALLABLE,
-			Severity:       repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
-			ArtifactKey:    row.ArtifactKey,
-			Ref:            ref,
-			CurrentState:   "publish_state=PUBLISHED, artifact_state=REVOKED",
-			ExpectedState:  "both REVOKED",
-			Reason:         "REVOKED artifact has stale publish_state=PUBLISHED",
+			Kind:          repopb.RepositoryFindingKind_REPO_FIND_REVOKED_INSTALLABLE,
+			Severity:      repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
+			ArtifactKey:   row.ArtifactKey,
+			Ref:           ref,
+			CurrentState:  "publish_state=PUBLISHED, artifact_state=REVOKED",
+			ExpectedState: "both REVOKED",
+			Reason:        "REVOKED artifact has stale publish_state=PUBLISHED",
 			RecommendedCommand: fmt.Sprintf("globular repository artifact revoke %s/%s %s --platform %s",
 				ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()),
 			ObservedAtUnix: now,
 		}
 	case publish == repopb.PublishState_PUBLISHED.String() && pipeline == PipelineQuarantined:
 		return &repopb.RepositoryFinding{
-			Kind:           repopb.RepositoryFindingKind_REPO_FIND_QUARANTINED_INSTALLABLE,
-			Severity:       repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
-			ArtifactKey:    row.ArtifactKey,
-			Ref:            ref,
-			CurrentState:   "publish_state=PUBLISHED, artifact_state=QUARANTINED",
-			ExpectedState:  "both QUARANTINED",
-			Reason:         "QUARANTINED artifact has stale publish_state=PUBLISHED",
+			Kind:          repopb.RepositoryFindingKind_REPO_FIND_QUARANTINED_INSTALLABLE,
+			Severity:      repopb.RepositoryFindingSeverity_REPO_FIND_CRITICAL,
+			ArtifactKey:   row.ArtifactKey,
+			Ref:           ref,
+			CurrentState:  "publish_state=PUBLISHED, artifact_state=QUARANTINED",
+			ExpectedState: "both QUARANTINED",
+			Reason:        "QUARANTINED artifact has stale publish_state=PUBLISHED",
 			RecommendedCommand: fmt.Sprintf("globular repository artifact quarantine %s/%s %s --platform %s",
 				ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()),
 			ObservedAtUnix: now,
 		}
 	case publish == repopb.PublishState_REVOKED.String() && pipeline != PipelineRevoked && pipeline != PipelineUnspecified:
 		return &repopb.RepositoryFinding{
-			Kind:           repopb.RepositoryFindingKind_REPO_FIND_REVOKED_INSTALLABLE,
-			Severity:       repopb.RepositoryFindingSeverity_REPO_FIND_ERROR,
-			ArtifactKey:    row.ArtifactKey,
-			Ref:            ref,
-			CurrentState:   fmt.Sprintf("publish_state=REVOKED, artifact_state=%s", pipeline),
-			ExpectedState:  "both REVOKED",
-			Reason:         "publish_state=REVOKED but pipeline_state has not been moved",
+			Kind:          repopb.RepositoryFindingKind_REPO_FIND_REVOKED_INSTALLABLE,
+			Severity:      repopb.RepositoryFindingSeverity_REPO_FIND_ERROR,
+			ArtifactKey:   row.ArtifactKey,
+			Ref:           ref,
+			CurrentState:  fmt.Sprintf("publish_state=REVOKED, artifact_state=%s", pipeline),
+			ExpectedState: "both REVOKED",
+			Reason:        "publish_state=REVOKED but pipeline_state has not been moved",
 			RecommendedCommand: fmt.Sprintf("globular repository artifact revoke %s/%s %s --platform %s",
 				ref.GetPublisherId(), ref.GetName(), ref.GetVersion(), ref.GetPlatform()),
 			ObservedAtUnix: now,

@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"testing"
+	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/storage_backend"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -445,6 +448,141 @@ func TestFindExistingArtifactByDigestIgnoresBuildNumber(t *testing.T) {
 	}
 }
 
+type uploadArtifactTestStream struct {
+	ctx      context.Context
+	reqs     []*repopb.UploadArtifactRequest
+	idx      int
+	resp     *repopb.UploadArtifactResponse
+	closeErr error
+}
+
+func (s *uploadArtifactTestStream) Recv() (*repopb.UploadArtifactRequest, error) {
+	if s.idx >= len(s.reqs) {
+		return nil, io.EOF
+	}
+	req := s.reqs[s.idx]
+	s.idx++
+	return req, nil
+}
+
+func (s *uploadArtifactTestStream) SendAndClose(resp *repopb.UploadArtifactResponse) error {
+	s.resp = resp
+	return s.closeErr
+}
+
+func (s *uploadArtifactTestStream) Context() context.Context       { return s.ctx }
+func (s *uploadArtifactTestStream) SendMsg(_ any) error            { return nil }
+func (s *uploadArtifactTestStream) RecvMsg(_ any) error            { return nil }
+func (s *uploadArtifactTestStream) SetHeader(_ metadata.MD) error  { return nil }
+func (s *uploadArtifactTestStream) SendHeader(_ metadata.MD) error { return nil }
+func (s *uploadArtifactTestStream) SetTrailer(_ metadata.MD)       {}
+
+func TestUploadArtifactUsesReservedIdentityAuthority(t *testing.T) {
+	srv := newTestServer(t)
+	ref := &repopb.ArtifactRef{
+		PublisherId: "local@test",
+		Name:        "workflow",
+		Version:     "1.2.257-dev.test.1",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	res := &reservation{
+		ID:          "res-test-authority",
+		Publisher:   ref.GetPublisherId(),
+		Name:        ref.GetName(),
+		Version:     ref.GetVersion(),
+		Platform:    ref.GetPlatform(),
+		BuildID:     "019d0001-0000-7000-8000-000000000531",
+		BuildNumber: 531,
+		Channel:     repopb.ArtifactChannel_DEV,
+		ExpiresAt:   time.Now().Add(time.Minute),
+	}
+	reservations.reservations[reservationKey(res.Publisher, res.Name, res.Version, res.Platform)] = res
+
+	stream := &uploadArtifactTestStream{
+		ctx: context.Background(),
+		reqs: []*repopb.UploadArtifactRequest{{
+			Ref:           ref,
+			Data:          []byte("dev-artifact"),
+			BuildNumber:   res.BuildNumber,
+			ReservationId: res.ID,
+		}},
+	}
+	if err := srv.UploadArtifact(stream); err != nil {
+		t.Fatalf("UploadArtifact: %v", err)
+	}
+	if stream.resp == nil || !stream.resp.GetResult() {
+		t.Fatalf("expected successful upload response, got %+v", stream.resp)
+	}
+	if stream.resp.GetBuildId() != res.BuildID {
+		t.Fatalf("response build_id=%q, want reservation build_id=%q", stream.resp.GetBuildId(), res.BuildID)
+	}
+
+	m, err := srv.readManifestWithFallback(context.Background(), ref, res.BuildNumber)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if m.GetBuildId() != res.BuildID {
+		t.Fatalf("manifest build_id=%q, want reservation build_id=%q", m.GetBuildId(), res.BuildID)
+	}
+	if m.GetBuildNumber() != res.BuildNumber {
+		t.Fatalf("manifest build_number=%d, want %d", m.GetBuildNumber(), res.BuildNumber)
+	}
+}
+
+func TestUploadArtifactReservationIdempotentSameDigestReturnsCanonicalBuild(t *testing.T) {
+	srv := newTestServer(t)
+	existingData := []byte("same-bytes")
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io",
+		Name:        "repository",
+		Version:     "1.2.257",
+		Platform:    "linux_amd64",
+		Kind:        repopb.ArtifactKind_SERVICE,
+	}
+	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
+		Ref:         ref,
+		BuildNumber: 1,
+		BuildId:     "019d0001-0000-7000-8000-000000000001",
+		Checksum:    checksumBytes(existingData),
+		SizeBytes:   int64(len(existingData)),
+	})
+	res := &reservation{
+		ID:          "res-test-dedupe",
+		Publisher:   ref.GetPublisherId(),
+		Name:        ref.GetName(),
+		Version:     ref.GetVersion(),
+		Platform:    ref.GetPlatform(),
+		BuildID:     "019d0001-0000-7000-8000-000000000531",
+		BuildNumber: 531,
+		Channel:     repopb.ArtifactChannel_STABLE,
+		ExpiresAt:   time.Now().Add(time.Minute),
+	}
+	reservations.reservations[reservationKey(res.Publisher, res.Name, res.Version, res.Platform)] = res
+
+	stream := &uploadArtifactTestStream{
+		ctx: context.Background(),
+		reqs: []*repopb.UploadArtifactRequest{{
+			Ref:           ref,
+			Data:          existingData,
+			BuildNumber:   res.BuildNumber,
+			ReservationId: res.ID,
+		}},
+	}
+	if err := srv.UploadArtifact(stream); err != nil {
+		t.Fatalf("UploadArtifact: %v", err)
+	}
+	if stream.resp == nil || !stream.resp.GetResult() {
+		t.Fatalf("expected successful upload response, got %+v", stream.resp)
+	}
+	if stream.resp.GetBuildId() != "019d0001-0000-7000-8000-000000000001" {
+		t.Fatalf("response build_id=%q, want canonical existing build_id", stream.resp.GetBuildId())
+	}
+	if _, err := srv.readManifestWithFallback(context.Background(), ref, 531); err == nil {
+		t.Fatal("did not expect a duplicate build_number=531 artifact to be created for identical bytes")
+	}
+}
+
 func TestResolveVersionIntentExactAcceptsUpstreamNativeVersion(t *testing.T) {
 	srv := newTestServer(t)
 	got, err := srv.resolveVersionIntent(
@@ -454,7 +592,7 @@ func TestResolveVersionIntentExactAcceptsUpstreamNativeVersion(t *testing.T) {
 		"linux_amd64",
 		repopb.VersionIntent_EXACT,
 		"RELEASE.2025-09-07T16-13-09Z",
-		nil,
+		repopb.ArtifactChannel_STABLE, nil,
 	)
 	if err != nil {
 		t.Fatalf("resolveVersionIntent returned error: %v", err)

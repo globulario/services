@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -60,10 +61,16 @@ func (srv *NodeAgentServer) recreateServiceUnitFromSpec(ctx context.Context, nam
 	defer os.RemoveAll(stagingDir)
 
 	ictx, err := installer.NewContext(installer.Options{
-		Version:    version,
-		StagingDir: stagingDir,
-		Force:      true,
-		Verbose:    true,
+		Prefix:         filepath.Dir(globularBinDir),
+		StateDir:       "/var/lib/globular",
+		ConfigDir:      "/var/lib/globular/services",
+		Version:        version,
+		StagingDir:     stagingDir,
+		Force:          true,
+		Verbose:        true,
+		NonInteractive: true,
+		SkipStart:      true,
+		MinioDataDir:   "/var/lib/globular/minio/data",
 	})
 	if err != nil {
 		return fmt.Errorf("installer context for %s unit recovery: %w", name, err)

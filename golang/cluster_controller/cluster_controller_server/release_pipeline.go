@@ -663,6 +663,10 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 		}
 		defer func() { <-srv.workflowSem }()
 
+		publisherID := ""
+		if h.ResolverSpec != nil {
+			publisherID = h.ResolverSpec.PublisherID
+		}
 		_, err := srv.RunPackageReleaseWorkflow(wfCtx,
 			releaseID,
 			h.Name,
@@ -673,7 +677,10 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			h.ResolvedBuildID,
 			h.ResolvedEntrypointChecksum, // v1.2.119: BINARY hash → ExpectedSha256
 			h.ResolvedBuildNumber,
+			publisherID,
+			h.RepositoryAddr,
 			nodeIDs,
+			h.ResolverSpec != nil && h.ResolverSpec.AllowDowngrade,
 			h.Generation, // generation guard: callbacks skip writes if generation advanced
 		)
 

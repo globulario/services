@@ -150,7 +150,7 @@ func TestMaterializeLocalPackageArchive_VersionMatchesImportedManifest(t *testin
 	// The version from the prior local state must not be created.
 	forbidden := filepath.Join(dir, "repository_1.2.110_linux_amd64.tgz")
 	if _, err := os.Stat(forbidden); err == nil {
-		t.Errorf("v1.2.110 archive was created for a v1.2.116 import; "+
+		t.Errorf("v1.2.110 archive was created for a v1.2.116 import; " +
 			"materialize must use the caller's version verbatim")
 	}
 }

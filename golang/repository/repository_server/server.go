@@ -823,7 +823,13 @@ func main() {
 	pr := newPublishReconciler(s)
 	pr.Start(ctx)
 
-	// 7f. Phase 4: start reservation cleanup goroutine.
+	// 7f. Start background repository reconciliation:
+	//   - staged package archives -> repository authority projection
+	//   - local CAS receipts -> Scylla repair
+	//   - published blob presence verification
+	s.startReconcilerLoop(ctx)
+
+	// 7g. Phase 4: start reservation cleanup goroutine.
 	startReservationCleanup(ctx)
 
 	// 8. Register gRPC service and reflection

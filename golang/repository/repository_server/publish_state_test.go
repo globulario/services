@@ -268,7 +268,7 @@ func TestPublishReconciler_PromotesStuckVerified(t *testing.T) {
 	blobContent := []byte("fake-binary-for-reconciler-test")
 	m := &repopb.ArtifactManifest{
 		Ref:          ref,
-		Checksum:     checksumBytes(blobContent), // must match actual blob
+		Checksum:     checksumBytes(blobContent),              // must match actual blob
 		ModifiedUnix: time.Now().Add(-2 * time.Minute).Unix(), // well past threshold
 		SizeBytes:    int64(len(blobContent)),
 	}
@@ -311,8 +311,8 @@ func TestPublishReconciler_RespectsRetryLimit(t *testing.T) {
 	key := artifactKeyWithBuild(ref, 0)
 	_ = srv.Storage().MkdirAll(ctx, artifactsDir, 0o755)
 	m := &repopb.ArtifactManifest{
-		Ref:         ref,
-		Checksum:    "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+		Ref:          ref,
+		Checksum:     "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
 		ModifiedUnix: time.Now().Add(-2 * time.Minute).Unix(),
 	}
 	data, err := marshalManifestWithState(m, repopb.PublishState_VERIFIED)

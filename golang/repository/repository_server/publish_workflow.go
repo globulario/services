@@ -240,7 +240,6 @@ func (srv *server) registerDescriptor(ctx context.Context, manifest *repopb.Arti
 
 // promoteToPublished marks an artifact PUBLISHED.
 //
-//
 // Write order (Scylla-first):
 //  1. Verify binary present in local store (CAS) or mirror.
 //  2. Write PUBLISHED state to Scylla ledger (publish_state column) — REQUIRED.

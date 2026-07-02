@@ -17,10 +17,9 @@ import (
 // that cascade into workflow execution, artifact publishing, and reconciliation.
 //
 // INVARIANT: The first 3 nodes MUST have core + control-plane + storage.
-// This is non-negotiable and enforced at join time.
-// media-server is included so that fresh clusters get the full media stack
-// (media, title, ffmpeg, yt-dlp, torrent) without manual profile assignment.
-var foundingNodeProfiles = []string{"core", "control-plane", "storage", "media-server"}
+// This is non-negotiable and enforced at join time. Workload profiles such as
+// media-server remain explicit operator intent and are never granted here.
+var foundingNodeProfiles = []string{"core", "control-plane", "storage"}
 
 // MinQuorumNodes is the minimum number of nodes required for infrastructure
 // quorum (etcd, ScyllaDB, MinIO). Below this count, every node MUST have
@@ -89,9 +88,9 @@ func (srv *server) enforceStorageQuorumLocked() bool {
 
 	// Collect candidates: nodes without storage, preferring control-plane.
 	type candidate struct {
-		id             string
+		id              string
 		hasControlPlane bool
-		lastSeen       time.Time
+		lastSeen        time.Time
 	}
 	var candidates []candidate
 	for id, n := range srv.state.Nodes {

@@ -85,6 +85,36 @@ invariants:
 
     related_invariants:
       - meta.identity_computation_must_be_invariant
+  - id: repository.upload_reservation_is_single_build_authority
+    title: Upload must honor repository-issued reservation build_id and build_number
+    severity: critical
+    status: active
+    summary: >
+      When AllocateUpload has reserved a version/build lane, UploadArtifact must
+      use that reservation's build_id and build_number as the sole authority for
+      the publish attempt. The upload path must not mint a second build_id,
+      recalculate build_number, or create a new artifact row when identical
+      bytes already exist for that package identity.
+    protects:
+      state:
+        - /globular/repository/artifacts/*
+      files:
+        - golang/repository/repository_server/allocate_upload.go
+        - golang/repository/repository_server/artifact_handlers.go
+      symbols:
+        - AllocateUpload
+        - UploadArtifact
+        - findExistingArtifactByDigest
+    forbidden_fixes:
+      - upload_recomputes_reserved_build_number
+      - upload_mints_new_build_id_despite_reservation
+      - create_second_build_row_for_same_digest_retry
+    required_tests:
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadReservationIsSingleBuildAuthority
+      - golang/repository/repository_server/package_identity_required_tests_test.go::TestUploadReservationSameDigestDoesNotCreateNewBuild
+    related_invariants:
+      - repository.publish_idempotent_same_digest
+      - release.version_single_authority
   - id: repository.repair_selects_existing_build
     title: Repair must select broken existing builds, not only installable builds
     severity: high

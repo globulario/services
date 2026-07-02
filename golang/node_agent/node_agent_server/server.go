@@ -1423,6 +1423,57 @@ func waitOrDone(ctx context.Context, ticker *time.Ticker) bool {
 	}
 }
 
+func (srv *NodeAgentServer) legacyJoinEligibleForStatusSatisfaction() (bool, string) {
+	srv.stateMu.Lock()
+	defer srv.stateMu.Unlock()
+	if !srv.wasJoining || srv.joinRequestID != "" || srv.state == nil {
+		return false, ""
+	}
+	if strings.TrimSpace(srv.state.JoinID) != "" {
+		return false, ""
+	}
+	nodeID := strings.TrimSpace(srv.nodeID)
+	if nodeID == "" {
+		return false, ""
+	}
+	return true, nodeID
+}
+
+func (srv *NodeAgentServer) legacyJoinSatisfiedByStatusReport() (bool, string) {
+	srv.stateMu.Lock()
+	defer srv.stateMu.Unlock()
+	if srv.state == nil || !srv.state.LegacyJoinSatisfied {
+		return false, ""
+	}
+	nodeID := strings.TrimSpace(srv.nodeID)
+	if nodeID == "" {
+		return false, ""
+	}
+	return true, nodeID
+}
+
+func (srv *NodeAgentServer) markLegacyJoinSatisfiedByStatusReport() {
+	ok, nodeID := srv.legacyJoinEligibleForStatusSatisfaction()
+	if !ok {
+		return
+	}
+
+	srv.stateMu.Lock()
+	srv.joinToken = ""
+	if srv.state != nil {
+		srv.state.LegacyJoinSatisfied = true
+		srv.state.JoinToken = ""
+		srv.state.RequestID = ""
+	}
+	srv.stateMu.Unlock()
+
+	if err := srv.saveState(); err != nil {
+		log.Printf("join: ReportNodeStatus accepted node %s — failed to persist legacy join completion: %v", nodeID, err)
+		return
+	}
+	log.Printf("join: ReportNodeStatus accepted node %s — legacy join satisfied; suppressing further v1 RequestJoin retries", nodeID)
+}
+
 func (srv *NodeAgentServer) joinRequestLabels() map[string]string {
 	labels := make(map[string]string)
 	for k, v := range srv.cfg.Labels {
@@ -1448,6 +1499,7 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	srv.state.RequestID = ""
 	srv.state.JoinID = ""        // clear v2 join_id so auto-join doesn't re-fire on restart
 	srv.state.JoinPlanJSON = nil // clear stored plan; no longer needed after approval
+	srv.state.LegacyJoinSatisfied = false
 	srv.joinRequestID = ""
 	srv.joinToken = "" // clear so auto-join doesn't re-fire on restart
 	srv.stateMu.Unlock()

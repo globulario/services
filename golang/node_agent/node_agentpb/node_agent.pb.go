@@ -3479,8 +3479,12 @@ type ApplyPackageReleaseRequest struct {
 	// row we are replacing. Recorded into the new revision's previous_revision_id
 	// so the history table forms a linked list.
 	PreviousRevisionId string `protobuf:"bytes,19,opt,name=previous_revision_id,json=previousRevisionId,proto3" json:"previous_revision_id,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// desired_hash: release convergence identity for infrastructure packages.
+	// This is intentionally separate from expected_sha256, which is the binary
+	// entrypoint checksum used for artifact/runtime proof.
+	DesiredHash   string `protobuf:"bytes,20,opt,name=desired_hash,json=desiredHash,proto3" json:"desired_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ApplyPackageReleaseRequest) Reset() {
@@ -3642,6 +3646,13 @@ func (x *ApplyPackageReleaseRequest) GetAllowDowngrade() bool {
 func (x *ApplyPackageReleaseRequest) GetPreviousRevisionId() string {
 	if x != nil {
 		return x.PreviousRevisionId
+	}
+	return ""
+}
+
+func (x *ApplyPackageReleaseRequest) GetDesiredHash() string {
+	if x != nil {
+		return x.DesiredHash
 	}
 	return ""
 }
@@ -4607,7 +4618,7 @@ const file_node_agent_proto_rawDesc = "" +
 	"stepsTotal\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\a \x01(\x03R\n" +
-	"durationMs\"\xe1\x05\n" +
+	"durationMs\"\x84\x06\n" +
 	"\x1aApplyPackageReleaseRequest\x12!\n" +
 	"\fpackage_name\x18\x01 \x01(\tR\vpackageName\x12!\n" +
 	"\fpackage_kind\x18\x02 \x01(\tR\vpackageKind\x12\x18\n" +
@@ -4628,7 +4639,8 @@ const file_node_agent_proto_rawDesc = "" +
 	"\x10preserve_configs\x18\x10 \x01(\bR\x0fpreserveConfigs\x126\n" +
 	"\x17restore_config_snapshot\x18\x11 \x01(\bR\x15restoreConfigSnapshot\x12'\n" +
 	"\x0fallow_downgrade\x18\x12 \x01(\bR\x0eallowDowngrade\x120\n" +
-	"\x14previous_revision_id\x18\x13 \x01(\tR\x12previousRevisionId\"\x99\x02\n" +
+	"\x14previous_revision_id\x18\x13 \x01(\tR\x12previousRevisionId\x12!\n" +
+	"\fdesired_hash\x18\x14 \x01(\tR\vdesiredHash\"\x99\x02\n" +
 	"\x1bApplyPackageReleaseResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12!\n" +

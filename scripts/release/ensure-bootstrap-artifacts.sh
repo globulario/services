@@ -61,7 +61,7 @@ is_unusable_etcd_host() {
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
-PKG_DIR="${1:-}"
+PKG_DIR="${1:-/var/lib/globular/packages}"
 if [[ -z "$PKG_DIR" || ! -d "$PKG_DIR" ]]; then
   log_fail "PKG_DIR is not set or does not exist: ${PKG_DIR:-<unset>}"
   exit 1
@@ -364,6 +364,75 @@ if [[ -z "${GLOBULAR_TOKEN}" ]]; then
   log_success "Auth token acquired"
 fi
 
+# ── Repository identity authority preflight ───────────────────────────────────
+#
+# Invariant: a published release tag has exactly one authority for version and
+# build_number assignment. If we have a release tag, the authoritative Layer-1
+# import path is `repo sync --tag <tag>`; Day-0 local `pkg publish` must not mint
+# competing build_number=1 rows for the same (publisher,name,version,platform).
+#
+# Explicit escape hatch for air-gapped/bootstrap recovery only:
+#   GLOBULAR_FORCE_LOCAL_BOOTSTRAP_PUBLISH=1
+#
+# Without that override, a detected release tag suppresses local repository
+# publication and lets the later upstream sync establish canonical identities.
+SYNC_TAG=""
+RELEASE_INDEX=""
+BOOTSTRAP_LOCAL_PUBLISH_ENABLED=1
+BOOTSTRAP_LOCAL_PUBLISH_REASON="no authoritative release tag detected"
+
+for _ri in \
+    "/var/lib/globular/release-index.json" \
+    "$PKG_DIR/../release-index.json" \
+    "$PKG_DIR/../../release-index.json" \
+    "${SCRIPT_DIR}/../release-index.json" \
+    "${SCRIPT_DIR}/../../release-index.json"; do
+  if [[ -f "$_ri" ]]; then
+    RELEASE_INDEX="$(cd "$(dirname "$_ri")" && pwd)/$(basename "$_ri")"
+    break
+  fi
+done
+
+if [[ -n "$RELEASE_INDEX" ]]; then
+  SYNC_TAG=$(python3 -c "
+import json, sys
+try:
+    idx = json.load(open('${RELEASE_INDEX}'))
+    print(idx.get('release_tag', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+fi
+
+if [[ -z "$SYNC_TAG" && -n "${GLOBULAR_RELEASE_TAG:-}" ]]; then
+  SYNC_TAG="$GLOBULAR_RELEASE_TAG"
+fi
+
+if [[ -z "$SYNC_TAG" ]]; then
+  for _pkg_file in "$PKG_DIR"/cluster-controller_*_linux_amd64.tgz \
+                    "$PKG_DIR"/repository_*_linux_amd64.tgz \
+                    "$PKG_DIR"/node-agent_*_linux_amd64.tgz; do
+    [[ -f "$_pkg_file" ]] || continue
+    _base=$(basename "$_pkg_file")
+    _ver=$(echo "$_base" | sed -E 's/^.+_([0-9]+\.[0-9]+\.[0-9]+)_linux_amd64\.tgz$/\1/')
+    if [[ "$_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      SYNC_TAG="v${_ver}"
+      break
+    fi
+  done
+fi
+
+# Local/dev tags (for example v1.2.262-local) still need a local Day-0 publish.
+# Only canonical upstream release tags may suppress bootstrap-local publish.
+if [[ -n "$SYNC_TAG" && "${GLOBULAR_FORCE_LOCAL_BOOTSTRAP_PUBLISH:-0}" != "1" ]]; then
+  if [[ "$SYNC_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    BOOTSTRAP_LOCAL_PUBLISH_ENABLED=0
+    BOOTSTRAP_LOCAL_PUBLISH_REASON="release tag ${SYNC_TAG} is present; upstream sync owns version/build_number authority"
+  else
+    BOOTSTRAP_LOCAL_PUBLISH_REASON="non-canonical release tag ${SYNC_TAG} requires local bootstrap publish"
+  fi
+fi
+
 # ── Step 3: Publish each core package ────────────────────────────────────────
 
 # Extract a human-readable name and version from the .tgz filename.
@@ -391,8 +460,8 @@ TOTAL=0
 FAILED_LIST=""
 
 # Local state file: maps entrypoint_checksum → 1 for each successfully published binary.
-# This is the idempotency key — the repository assigns its own version counter (0.0.x)
-# and has no dedup by content. Without this, every run creates a new version entry.
+# This is only a local rerun optimization. Repository-side digest idempotency remains
+# authoritative for direct uploads.
 PUBLISHED_CHECKSUMS_FILE="${STATE_DIR}/.bootstrap-artifacts-checksums"
 declare -A PUBLISHED_CHECKSUMS
 if [[ -f "$PUBLISHED_CHECKSUMS_FILE" ]]; then
@@ -401,6 +470,10 @@ if [[ -f "$PUBLISHED_CHECKSUMS_FILE" ]]; then
   done < "$PUBLISHED_CHECKSUMS_FILE"
 fi
 
+if (( ! BOOTSTRAP_LOCAL_PUBLISH_ENABLED )); then
+  log_info "Skipping local Day-0 repository publish: ${BOOTSTRAP_LOCAL_PUBLISH_REASON}"
+  log_info "Set GLOBULAR_FORCE_LOCAL_BOOTSTRAP_PUBLISH=1 only for explicit air-gap/bootstrap recovery."
+else
 for pattern in "${CORE_PACKAGES[@]}"; do
   # Resolve glob pattern to actual file
   # shellcheck disable=SC2206
@@ -517,6 +590,7 @@ except:
   fi
   rm -f "$PUBLISH_ERR_FILE" 2>/dev/null || true
 done
+fi
 
 # ── Step 4: Register upstream source (provider-neutral) ──────────────────────
 #
@@ -703,7 +777,9 @@ fi
 # Day-0 completes with locally published artifacts. The operator can retry:
 #   globular repo sync --source <name> --tag <tag>
 
-SYNC_TAG=""
+# SYNC_TAG was resolved before Step 3 so local Day-0 publish could respect
+# repository identity authority. Reuse that value here for the actual upstream
+# import rather than recomputing a competing decision.
 
 # ── Detect release tag from release-index.json (BOM model) ─────────────────
 # The release-index.json included in the installer bundle is the authoritative

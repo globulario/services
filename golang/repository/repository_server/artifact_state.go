@@ -71,7 +71,6 @@ func computeSHA256(data []byte) string {
 }
 
 // ArtifactPipelineState is the durable pipeline state tracker.
-//
 type ArtifactPipelineState string
 
 const (
@@ -311,19 +310,19 @@ func (srv *server) transitionArtifactState(
 	// active for this transition.
 	if workflowRunID != "" && srv.workflowRec != nil {
 		details := map[string]any{
-			"artifact_key":  artifactKey,
-			"from":          string(from),
-			"to":            string(to),
-			"reason":        reason,
-			"blob_key":      fields.BlobKey,
-			"checksum":      fields.Checksum,
-			"size_bytes":    fields.SizeBytes,
-			"build_id":      fields.BuildID,
-			"build_number":  fields.BuildNumber,
-			"publisher":     fields.PublisherID,
-			"name":          fields.Name,
-			"version":       fields.Version,
-			"platform":      fields.Platform,
+			"artifact_key": artifactKey,
+			"from":         string(from),
+			"to":           string(to),
+			"reason":       reason,
+			"blob_key":     fields.BlobKey,
+			"checksum":     fields.Checksum,
+			"size_bytes":   fields.SizeBytes,
+			"build_id":     fields.BuildID,
+			"build_number": fields.BuildNumber,
+			"publisher":    fields.PublisherID,
+			"name":         fields.Name,
+			"version":      fields.Version,
+			"platform":     fields.Platform,
 		}
 		var detailsJSON string
 		if b, err := json.Marshal(details); err == nil {

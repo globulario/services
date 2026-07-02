@@ -166,7 +166,7 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		InstallPackage: func(ctx context.Context, name string) error {
 			// Day-0 bootstrap: no build pinning — fetch layer will resolve
 			// the latest published digest from the manifest.
-			if err := srv.InstallPackage(ctx, name, "SERVICE", repoAddr, "", "", ""); err != nil {
+			if err := srv.InstallPackage(ctx, name, "SERVICE", defaultPublisherID, repoAddr, "", "", 0, "", ""); err != nil {
 				return err
 			}
 			startUnitAfterDay0Install(ctx, name)
@@ -177,7 +177,7 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			var errs []string
 			for _, pkg := range packages {
 				kind := inferPackageKind(pkg)
-				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr, "", "", ""); err != nil {
+				if err := srv.InstallPackage(ctx, pkg, kind, defaultPublisherID, repoAddr, "", "", 0, "", ""); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: %v", pkg, err))
 					continue
 				}
@@ -216,7 +216,7 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			var errs []string
 			for _, pkg := range packages {
 				kind := inferPackageKind(pkg)
-				if err := srv.InstallPackage(ctx, pkg, kind, repoAddr, "", "", ""); err != nil {
+				if err := srv.InstallPackage(ctx, pkg, kind, defaultPublisherID, repoAddr, "", "", 0, "", ""); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: %v", pkg, err))
 					continue
 				}
@@ -404,7 +404,11 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 			// Try the ensure-bootstrap-artifacts.sh script if available.
 			script := "/usr/lib/globular/scripts/ensure-bootstrap-artifacts.sh"
 			if _, err := os.Stat(script); err == nil {
-				cmd := exec.CommandContext(ctx, "/bin/bash", script)
+				pkgDir := strings.TrimSpace(source)
+				if pkgDir == "" {
+					pkgDir = "/var/lib/globular/packages"
+				}
+				cmd := exec.CommandContext(ctx, "/bin/bash", script, pkgDir)
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					return fmt.Errorf("publish artifacts: %s (%w)", strings.TrimSpace(string(out)), err)
@@ -465,7 +469,7 @@ func (srv *NodeAgentServer) RunDay0BootstrapWorkflow(ctx context.Context, defPat
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
 			// Engine PackageRef does not carry build_id/digest yet;
 			// the fetch layer resolves the manifest digest automatically.
-			if err := srv.InstallPackage(ctx, pkg.Name, pkg.Kind, repoAddr, "", "", ""); err != nil {
+			if err := srv.InstallPackage(ctx, pkg.Name, pkg.Kind, defaultPublisherID, repoAddr, "", "", 0, "", ""); err != nil {
 				return err
 			}
 			startUnitAfterDay0Install(ctx, pkg.Name)

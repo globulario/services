@@ -58,7 +58,7 @@ func TestResolveVersion_NoRepair_VersionAlreadyPublished_Rejects(t *testing.T) {
 		context.Background(),
 		"core@globular.io", "node-agent", "linux_amd64",
 		repopb.VersionIntent_EXACT, "1.2.143",
-		nil,
+		repopb.ArtifactChannel_STABLE, nil,
 	)
 	if err == nil {
 		t.Fatal("expected AlreadyExists, got nil")
@@ -86,7 +86,7 @@ func TestResolveVersion_RepairValidatesAndAllows(t *testing.T) {
 		context.Background(),
 		"core@globular.io", "node-agent", "linux_amd64",
 		repopb.VersionIntent_EXACT, "1.2.143",
-		repair,
+		repopb.ArtifactChannel_STABLE, repair,
 	)
 	if err != nil {
 		t.Fatalf("expected repair to be authorized at version gate, got: %v", err)
@@ -111,6 +111,7 @@ func TestResolveVersion_RepairEmptyReason_RejectsInvalidArgument(t *testing.T) {
 		context.Background(),
 		"core@globular.io", "node-agent", "linux_amd64",
 		repopb.VersionIntent_EXACT, "1.2.143",
+		repopb.ArtifactChannel_STABLE,
 		&RepairAuthorization{Requested: true, Reason: "", PriorDigest: versionSealedDigest},
 	)
 	if err == nil {
@@ -132,6 +133,7 @@ func TestResolveVersion_RepairWrongPriorDigest_RejectsFailedPrecondition(t *test
 		context.Background(),
 		"core@globular.io", "node-agent", "linux_amd64",
 		repopb.VersionIntent_EXACT, "1.2.143",
+		repopb.ArtifactChannel_STABLE,
 		&RepairAuthorization{
 			Requested:   true,
 			Reason:      "test",
@@ -162,7 +164,7 @@ func TestResolveVersion_RepairOnNewVersion_NoOp(t *testing.T) {
 		context.Background(),
 		"core@globular.io", "node-agent", "linux_amd64",
 		repopb.VersionIntent_EXACT, "1.2.99",
-		repair,
+		repopb.ArtifactChannel_STABLE, repair,
 	)
 	if err != nil {
 		t.Fatalf("first-publish should succeed regardless of repair, got: %v", err)
@@ -190,7 +192,7 @@ func TestResolveVersion_RepairUsedFlagPropagates(t *testing.T) {
 		context.Background(),
 		"core@globular.io", "node-agent", "linux_amd64",
 		repopb.VersionIntent_EXACT, "1.2.143",
-		repair,
+		repopb.ArtifactChannel_STABLE, repair,
 	); err != nil {
 		t.Fatalf("resolveVersionIntent err=%v", err)
 	}
@@ -214,7 +216,7 @@ func TestResolveVersion_RepairBumpIntentIgnoresRepair(t *testing.T) {
 		context.Background(),
 		"core@globular.io", "node-agent", "linux_amd64",
 		repopb.VersionIntent_BUMP_PATCH, "",
-		repair,
+		repopb.ArtifactChannel_STABLE, repair,
 	)
 	if err != nil {
 		t.Fatalf("bump should succeed, got: %v", err)
@@ -260,7 +262,7 @@ func TestResolveVersion_BothGatesShareRepairState(t *testing.T) {
 	if _, err := srv.resolveVersionIntent(ctx,
 		"core@globular.io", "node-agent", "linux_amd64",
 		repopb.VersionIntent_EXACT, "1.2.143",
-		repair,
+		repopb.ArtifactChannel_STABLE, repair,
 	); err != nil {
 		t.Fatalf("version gate failed after seal: %v", err)
 	}

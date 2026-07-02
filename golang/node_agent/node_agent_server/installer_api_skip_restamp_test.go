@@ -60,7 +60,7 @@ func TestStampSkipPathReceipt_StampsCanonicalReceiptOverLegacy(t *testing.T) {
 		},
 	}
 
-	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitFilePath: unitPath, UnitFileContent: mustReadRestampFile(t, unitPath), UnitRendererVersion: canonicalUnitRendererVersion}, wantBinSha) {
 		t.Fatal("expected stamp to succeed")
 	}
 
@@ -86,7 +86,7 @@ func TestStampSkipPathReceipt_StampsCanonicalReceiptOverLegacy(t *testing.T) {
 // panic and refuses to stamp when pkg is nil. Critical because the
 // caller fetches existing from etcd best-effort.
 func TestStampSkipPathReceipt_NilPkgIsSafe(t *testing.T) {
-	if stampSkipPathReceipt(nil, "/tmp/unit", nil, "/tmp/bin", "abc") {
+	if stampSkipPathReceipt(nil, ReceiptOpts{BinaryPath: "/tmp/bin", UnitFilePath: "/tmp/unit"}, "abc") {
 		t.Error("must refuse to stamp nil pkg")
 	}
 }
@@ -96,10 +96,10 @@ func TestStampSkipPathReceipt_NilPkgIsSafe(t *testing.T) {
 // stamp a half-receipt.
 func TestStampSkipPathReceipt_EmptyHashRefused(t *testing.T) {
 	pkg := &node_agentpb.InstalledPackage{Name: "envoy", Kind: "INFRASTRUCTURE"}
-	if stampSkipPathReceipt(pkg, "/tmp/unit", nil, "/tmp/bin", "") {
+	if stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: "/tmp/bin", UnitFilePath: "/tmp/unit"}, "") {
 		t.Error("empty hash must be refused")
 	}
-	if stampSkipPathReceipt(pkg, "/tmp/unit", nil, "/tmp/bin", "   ") {
+	if stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: "/tmp/bin", UnitFilePath: "/tmp/unit"}, "   ") {
 		t.Error("whitespace-only hash must be refused")
 	}
 }
@@ -121,7 +121,7 @@ func TestStampSkipPathReceipt_UnreadableDeclaredFileRefusesStamp(t *testing.T) {
 			installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar,
 		},
 	}
-	if stampSkipPathReceipt(pkg, missingUnit, nil, binPath, binSha) {
+	if stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitFilePath: missingUnit, UnitRendererVersion: canonicalUnitRendererVersion}, binSha) {
 		t.Fatal("must refuse to stamp when declared unit file unreadable")
 	}
 	// Metadata must NOT have been partially mutated to a half-receipt
@@ -152,7 +152,7 @@ func TestStampSkipPathReceipt_StampsBinaryOnlyWhenNoUnitFile(t *testing.T) {
 		Kind:     "INFRASTRUCTURE",
 		Metadata: map[string]string{installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar},
 	}
-	if !stampSkipPathReceipt(pkg, "", nil, binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitRendererVersion: canonicalUnitRendererVersion}, wantBinSha) {
 		t.Fatal("expected stamp to succeed when only binary path provided")
 	}
 	if got := pkg.Metadata[installreceipt.KeyInstalledBy]; got == "" {
@@ -180,14 +180,14 @@ func TestStampSkipPathReceipt_IdempotentOnAlreadyCanonicalReceipt(t *testing.T) 
 	binPath, wantBinSha := writeRestampFile(t, dir, "envoy", "ELF-bytes")
 
 	pkg := &node_agentpb.InstalledPackage{Name: "envoy", Kind: "INFRASTRUCTURE"}
-	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitFilePath: unitPath, UnitFileContent: mustReadRestampFile(t, unitPath), UnitRendererVersion: canonicalUnitRendererVersion}, wantBinSha) {
 		t.Fatal("first stamp failed")
 	}
 	firstBinSha := pkg.Metadata[installreceipt.KeyBinarySha256]
 	firstUnitSha := pkg.Metadata[installreceipt.KeyUnitFileSha256]
 	firstInstalledBy := pkg.Metadata[installreceipt.KeyInstalledBy]
 
-	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitFilePath: unitPath, UnitFileContent: mustReadRestampFile(t, unitPath), UnitRendererVersion: canonicalUnitRendererVersion}, wantBinSha) {
 		t.Fatal("second stamp failed")
 	}
 	if pkg.Metadata[installreceipt.KeyBinarySha256] != firstBinSha {
@@ -237,7 +237,7 @@ func TestStampSkipPathReceipt_DoesNotAdvanceUpdatedUnix(t *testing.T) {
 			installreceipt.KeyMigrationSource: installreceipt.MigrationSourceLegacySidecar,
 		},
 	}
-	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, binSha) {
+	if !stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitFilePath: unitPath, UnitFileContent: mustReadRestampFile(t, unitPath), UnitRendererVersion: canonicalUnitRendererVersion}, binSha) {
 		t.Fatal("stamp failed")
 	}
 	if pkg.InstalledUnix != realInstallTime {
@@ -280,7 +280,7 @@ func TestStampSkipPathReceipt_PreservesTimestampsAcrossRepeatedRestamps(t *testi
 		UpdatedUnix:   realUpdateTime,
 	}
 	for i := 0; i < 10; i++ {
-		if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, binSha) {
+		if !stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitFilePath: unitPath, UnitFileContent: mustReadRestampFile(t, unitPath), UnitRendererVersion: canonicalUnitRendererVersion}, binSha) {
 			t.Fatalf("stamp #%d failed", i)
 		}
 	}
@@ -315,7 +315,7 @@ func TestStampSkipPathReceipt_StillStampsUnitFileSha256_AfterTimestampFix(t *tes
 			installreceipt.KeyUnitFileSha256:  "STALE_PRE_INSTALL_SHA",
 		},
 	}
-	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, wantBinSha) {
+	if !stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitFilePath: unitPath, UnitFileContent: mustReadRestampFile(t, unitPath), UnitRendererVersion: canonicalUnitRendererVersion}, wantBinSha) {
 		t.Fatal("stamp failed")
 	}
 	// Timestamp preservation:
@@ -418,7 +418,7 @@ func TestStampSkipPathReceipt_PreservesSiblingNonReceiptFields(t *testing.T) {
 			"proof_binary_path":    "/usr/lib/globular/bin/envoy",
 		},
 	}
-	if !stampSkipPathReceipt(pkg, unitPath, mustReadRestampFile(t, unitPath), binPath, binSha) {
+	if !stampSkipPathReceipt(pkg, ReceiptOpts{BinaryPath: binPath, InstalledBy: "node-agent.grpc_workflow.install_skip_restamp", UnitFilePath: unitPath, UnitFileContent: mustReadRestampFile(t, unitPath), UnitRendererVersion: canonicalUnitRendererVersion}, binSha) {
 		t.Fatal("stamp failed")
 	}
 	if pkg.Metadata["proof_on_disk_sha256"] != "PROOF_SHA_FROM_HEARTBEAT" {

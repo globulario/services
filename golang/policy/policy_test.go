@@ -216,10 +216,10 @@ func TestIsActionKey(t *testing.T) {
 		{"dns.zone.write", true},
 		{"/file.FileService/ReadDir", false},
 		{"", false},
-		{"file", false},              // needs at least one dot
-		{"File.Read", false},         // uppercase
-		{"*", false},                 // wildcard
-		{"file.read.v2.beta", true},  // multiple dots ok
+		{"file", false},             // needs at least one dot
+		{"File.Read", false},        // uppercase
+		{"*", false},                // wildcard
+		{"file.read.v2.beta", true}, // multiple dots ok
 	}
 	for _, tt := range tests {
 		if got := IsActionKey(tt.input); got != tt.want {
@@ -331,6 +331,26 @@ func TestValidatePermissions_DuplicateMethod(t *testing.T) {
 	errs := validatePermissions(pf)
 	if len(errs) == 0 {
 		t.Error("expected validation error for duplicate method")
+	}
+}
+
+func TestValidatePermissions_ResourcePermissionMayInheritRPCPermission(t *testing.T) {
+	pf := &PermissionsFile{
+		Version: "1.0",
+		Service: "workflow.WorkflowService",
+		Permissions: []Permission{
+			{
+				Method:     "/workflow.WorkflowService/RecordPhaseTransition",
+				Action:     "workflow.admin",
+				Permission: "write",
+				Resources: []Resource{
+					{Field: "run_id"},
+				},
+			},
+		},
+	}
+	if errs := validatePermissions(pf); len(errs) > 0 {
+		t.Fatalf("resource permission should be optional and inherit RPC permission, got: %v", errs)
 	}
 }
 

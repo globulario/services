@@ -93,14 +93,17 @@ func TestLocalPublish1_OfficialStableAllowsSameDigest(t *testing.T) {
 
 // ── Test 2: Local publish creates local identity ───────────────────────────
 
-// TestLocalPublish2_LocalVersionSuffixPassesIdentityRules verifies that a
-// non-official publisher + DEV channel + local version suffix is valid.
-func TestLocalPublish2_LocalVersionSuffixPassesIdentityRules(t *testing.T) {
+// TestLocalPublish2_LocalPlatformVersionPassesIdentityRules verifies that
+// local/non-STABLE lanes use the platform version while repository build_number
+// distinguishes iterations. Legacy suffixed versions remain accepted.
+func TestLocalPublish2_LocalPlatformVersionPassesIdentityRules(t *testing.T) {
 	cases := []struct {
 		publisher string
 		channel   repopb.ArtifactChannel
 		version   string
 	}{
+		{"local@ryzen", repopb.ArtifactChannel_DEV, "1.2.43"},
+		{"core@globular.io", repopb.ArtifactChannel_DEV, "1.2.43"},
 		{"local@ryzen", repopb.ArtifactChannel_DEV, "1.2.43+local.ryzen.1"},
 		{"local@nuc", repopb.ArtifactChannel_DEV, "1.2.43-dev.fix-retry.a1b2c3"},
 		{"org@acme.com", repopb.ArtifactChannel_CANDIDATE, "1.2.43-hotfix.1"},
@@ -114,19 +117,16 @@ func TestLocalPublish2_LocalVersionSuffixPassesIdentityRules(t *testing.T) {
 	}
 }
 
-// TestLocalPublish2_OfficialPublisherCannotUseDEVChannel verifies that the
-// official publisher is forbidden from publishing to DEV channel.
-func TestLocalPublish2_OfficialPublisherCannotUseDEVChannel(t *testing.T) {
+// TestLocalPublish2_OfficialPublisherCanUseDEVChannel verifies that the official
+// publisher can create non-STABLE build iterations under the platform version.
+func TestLocalPublish2_OfficialPublisherCanUseDEVChannel(t *testing.T) {
 	err := validateLocalIdentityRules(
 		"core@globular.io",
 		repopb.ArtifactChannel_DEV,
 		"1.2.43",
 	)
-	if err == nil {
-		t.Fatal("expected identity rule violation for official publisher + DEV channel")
-	}
-	if !strings.Contains(err.Error(), "DEV channel") && !strings.Contains(err.Error(), "identity lane") {
-		t.Errorf("expected 'DEV channel' or 'identity lane' in error, got: %v", err)
+	if err != nil {
+		t.Fatalf("official publisher + DEV platform version should be valid; got %v", err)
 	}
 }
 

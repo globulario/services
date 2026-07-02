@@ -6,17 +6,16 @@ package main
 //
 //   1. LocalOverride JSON round-trip (marshal → unmarshal identity)
 //   2. LocalOverrideSnapshot preserved inside override after marshal/unmarshal
-//   3. Official publisher guard rejects core@globular.io
+//   3. Override identity is build_id/build_number, not a version suffix
 //   4. explain-package table output — no active override shows mode=official
 //   5. explain-package table output — active override shows banner + fields
 //   6. explain-package JSON output — local_override block present and correct
 //   7. upsertServiceDesiredVersion spec includes publisher_id when set
 //   8. upsertServiceDesiredVersion omits publisher_id when empty
 //
-//   Guardrail 2 — override compatibility validation:
+//   Guardrail 2 — legacy suffix helper compatibility:
 //   9. hasLocalVersionSuffix accepts local/dev/hotfix versions
-//   10. hasLocalVersionSuffix rejects official semver versions
-//   11. Official-version suffix blocked → correct error
+//   10. hasLocalVersionSuffix rejects platform semver versions
 
 import (
 	"bytes"
@@ -36,8 +35,8 @@ import (
 func TestLocalOverrideJSONRoundTrip(t *testing.T) {
 	orig := &cluster_controllerpb.LocalOverride{
 		ServiceName:    "storage",
-		PublisherID:    "local@ryzen",
-		Version:        "1.2.43+local.ryzen.1",
+		PublisherID:    "core@globular.io",
+		Version:        "1.2.43",
 		BuildID:        "abc123def456",
 		BuildNumber:    7,
 		BasedOnVersion: "1.2.43",
@@ -86,8 +85,8 @@ func TestLocalOverrideJSONRoundTrip(t *testing.T) {
 func TestLocalOverrideSnapshotRoundTrip(t *testing.T) {
 	orig := &cluster_controllerpb.LocalOverride{
 		ServiceName: "dns",
-		PublisherID: "local@nuc",
-		Version:     "1.2.10-hotfix.auth",
+		PublisherID: "core@globular.io",
+		Version:     "1.2.10",
 		BuildID:     "hotfix-build-001",
 		OfficialSnapshot: &cluster_controllerpb.LocalOverrideSnapshot{
 			ServiceName: "dns",
@@ -370,6 +369,85 @@ func TestVersionSuffixGuard_LocalVersionAllowed(t *testing.T) {
 		if !hasLocalVersionSuffix(v) {
 			t.Errorf("local version %q must pass hasLocalVersionSuffix", v)
 		}
+	}
+}
+
+func TestDesiredSnapshotMatches_AllIdentityFields(t *testing.T) {
+	official := &cluster_controllerpb.LocalOverrideSnapshot{
+		ServiceName: "cluster-doctor",
+		Version:     "1.2.257",
+		BuildNumber: 2,
+		BuildID:     "official-build",
+		PublisherID: "",
+	}
+	current := &cluster_controllerpb.LocalOverrideSnapshot{
+		ServiceName: " cluster-doctor ",
+		Version:     " 1.2.257 ",
+		BuildNumber: 2,
+		BuildID:     " official-build ",
+		PublisherID: " core@globular.io ",
+	}
+
+	if !desiredSnapshotMatches(current, official) {
+		t.Fatal("expected current desired state to match official snapshot")
+	}
+
+	cases := []struct {
+		name   string
+		mutate func(*cluster_controllerpb.LocalOverrideSnapshot)
+	}{
+		{name: "service", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.ServiceName = "repository" }},
+		{name: "version", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.Version = "1.2.258" }},
+		{name: "build_number", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.BuildNumber = 3 }},
+		{name: "build_id", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.BuildID = "other-build" }},
+		{name: "publisher", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.PublisherID = "local@node" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := *current
+			tc.mutate(&got)
+			if desiredSnapshotMatches(&got, official) {
+				t.Fatalf("expected mismatch after changing %s", tc.name)
+			}
+		})
+	}
+}
+
+func TestCurrentDesiredIsOutsideOverride_RequiresOfficialDesired(t *testing.T) {
+	ov := &cluster_controllerpb.LocalOverride{
+		ServiceName: "cluster-doctor",
+		Version:     "1.2.266+local.globule-ryzen.1",
+		BuildID:     "local-build",
+		BuildNumber: 1,
+	}
+	current := &cluster_controllerpb.LocalOverrideSnapshot{
+		ServiceName: "cluster-doctor",
+		Version:     "1.2.257",
+		BuildNumber: 2,
+		BuildID:     "official-build",
+	}
+
+	if !currentDesiredIsOutsideOverride(current, ov) {
+		t.Fatal("expected official desired state to be outside stale local override")
+	}
+
+	cases := []struct {
+		name   string
+		mutate func(*cluster_controllerpb.LocalOverrideSnapshot)
+	}{
+		{name: "different_service", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.ServiceName = "repository" }},
+		{name: "local_version", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.Version = "1.2.257+local.node.1" }},
+		{name: "override_version", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.Version = ov.Version }},
+		{name: "override_build_id", mutate: func(s *cluster_controllerpb.LocalOverrideSnapshot) { s.BuildID = ov.BuildID }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := *current
+			tc.mutate(&got)
+			if currentDesiredIsOutsideOverride(&got, ov) {
+				t.Fatalf("expected %s to block stale override cleanup", tc.name)
+			}
+		})
 	}
 }
 

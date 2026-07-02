@@ -276,6 +276,196 @@ func TestServiceInstallPayloadPromotesFiles(t *testing.T) {
 	// Port config should be generated for known services (none for generic svc)
 }
 
+func TestServiceInstallPayload_FailureAfterValidateDoesNotPromote(t *testing.T) {
+	binDir := filepath.Join(t.TempDir(), "bin")
+	systemdDir := filepath.Join(t.TempDir(), "systemd")
+	configDir := filepath.Join(t.TempDir(), "config")
+	stagingRoot := t.TempDir()
+	sr := t.TempDir()
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionSystemdDir = systemdDir
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionConfigDir = configDir
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSkipSystemd = false
+	t.Cleanup(func() { ActionSkipSystemd = false })
+	ActionSkipDaemonReload = true
+	t.Cleanup(func() { ActionSkipDaemonReload = false })
+	ActionStagingRoot = stagingRoot
+	t.Cleanup(func() { ActionStagingRoot = "" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	ActionInstallTxnFailPhase = "after_validate"
+	t.Cleanup(func() { ActionInstallTxnFailPhase = "" })
+	serviceports.BinDir = binDir
+	t.Cleanup(func() { serviceports.BinDir = "/usr/lib/globular/bin" })
+
+	artifactPath := filepath.Join(t.TempDir(), "svc.tgz")
+	createTestArchive(t, artifactPath)
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"service":        "svc",
+		"version":        "1.0.0",
+		"artifact_path":  artifactPath,
+		"transaction_id": "txn-validate",
+		"package_id":     "svc",
+	})
+	_, err := (serviceInstallPayloadAction{}).Apply(context.Background(), args)
+	if err == nil {
+		t.Fatal("expected injected validation failure")
+	}
+	if _, err := os.Stat(filepath.Join(binDir, "svc_server")); !os.IsNotExist(err) {
+		t.Fatalf("binary was promoted despite pre-promotion failure: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(systemdDir, "testsvc.service")); !os.IsNotExist(err) {
+		t.Fatalf("unit was promoted despite pre-promotion failure: %v", err)
+	}
+	rec, err := loadInstallTransaction("txn-validate")
+	if err != nil {
+		t.Fatalf("load transaction: %v", err)
+	}
+	if rec.Phase != InstallTxnPhaseValidated {
+		t.Fatalf("phase = %q, want %q", rec.Phase, InstallTxnPhaseValidated)
+	}
+}
+
+func TestServiceInstallPayload_FailureAfterPromoteRollsBack(t *testing.T) {
+	binDir := filepath.Join(t.TempDir(), "bin")
+	systemdDir := filepath.Join(t.TempDir(), "systemd")
+	configDir := filepath.Join(t.TempDir(), "config")
+	stagingRoot := t.TempDir()
+	sr := t.TempDir()
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionSystemdDir = systemdDir
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionConfigDir = configDir
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSkipDaemonReload = true
+	t.Cleanup(func() { ActionSkipDaemonReload = false })
+	ActionStagingRoot = stagingRoot
+	t.Cleanup(func() { ActionStagingRoot = "" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	ActionInstallTxnFailPhase = "after_promote"
+	t.Cleanup(func() { ActionInstallTxnFailPhase = "" })
+	serviceports.BinDir = binDir
+	t.Cleanup(func() { serviceports.BinDir = "/usr/lib/globular/bin" })
+
+	oldBin := filepath.Join(binDir, "svc_server")
+	oldUnit := filepath.Join(systemdDir, "testsvc.service")
+	if err := os.MkdirAll(filepath.Dir(oldBin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(oldUnit), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldBin, []byte("old-binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldUnit, []byte("[Unit]\nDescription=old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	artifactPath := filepath.Join(t.TempDir(), "svc.tgz")
+	createTestArchive(t, artifactPath)
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"service":        "svc",
+		"version":        "1.0.0",
+		"artifact_path":  artifactPath,
+		"transaction_id": "txn-promote",
+		"package_id":     "svc",
+	})
+	_, err := (serviceInstallPayloadAction{}).Apply(context.Background(), args)
+	if err == nil {
+		t.Fatal("expected injected post-promotion failure")
+	}
+	gotBin, err := os.ReadFile(oldBin)
+	if err != nil {
+		t.Fatalf("read restored binary: %v", err)
+	}
+	if string(gotBin) != "old-binary" {
+		t.Fatalf("binary rollback failed: got %q", string(gotBin))
+	}
+	gotUnit, err := os.ReadFile(oldUnit)
+	if err != nil {
+		t.Fatalf("read restored unit: %v", err)
+	}
+	if string(gotUnit) != "[Unit]\nDescription=old\n" {
+		t.Fatalf("unit rollback failed: got %q", string(gotUnit))
+	}
+	rec, err := loadInstallTransaction("txn-promote")
+	if err != nil {
+		t.Fatalf("load transaction: %v", err)
+	}
+	if rec.Phase != InstallTxnPhaseRolledBack {
+		t.Fatalf("phase = %q, want %q", rec.Phase, InstallTxnPhaseRolledBack)
+	}
+}
+
+func TestServiceInstallPayload_FailureAfterReloadRollsBack(t *testing.T) {
+	binDir := filepath.Join(t.TempDir(), "bin")
+	systemdDir := filepath.Join(t.TempDir(), "systemd")
+	configDir := filepath.Join(t.TempDir(), "config")
+	stagingRoot := t.TempDir()
+	sr := t.TempDir()
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionSystemdDir = systemdDir
+	t.Cleanup(func() { ActionSystemdDir = "/etc/systemd/system" })
+	ActionConfigDir = configDir
+	t.Cleanup(func() { ActionConfigDir = "/etc/globular" })
+	ActionSkipDaemonReload = true
+	t.Cleanup(func() { ActionSkipDaemonReload = false })
+	ActionStagingRoot = stagingRoot
+	t.Cleanup(func() { ActionStagingRoot = "" })
+	ActionStateDir = sr
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+	ActionInstallTxnFailPhase = "after_reload"
+	t.Cleanup(func() { ActionInstallTxnFailPhase = "" })
+	serviceports.BinDir = binDir
+	t.Cleanup(func() { serviceports.BinDir = "/usr/lib/globular/bin" })
+
+	oldUnit := filepath.Join(systemdDir, "testsvc.service")
+	if err := os.MkdirAll(filepath.Dir(oldUnit), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldUnit, []byte("[Unit]\nDescription=old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	artifactPath := filepath.Join(t.TempDir(), "svc.tgz")
+	createTestArchive(t, artifactPath)
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"service":        "svc",
+		"version":        "1.0.0",
+		"artifact_path":  artifactPath,
+		"transaction_id": "txn-reload",
+		"package_id":     "svc",
+	})
+	_, err := (serviceInstallPayloadAction{}).Apply(context.Background(), args)
+	if err == nil {
+		t.Fatal("expected injected post-reload failure")
+	}
+	gotUnit, err := os.ReadFile(oldUnit)
+	if err != nil {
+		t.Fatalf("read restored unit: %v", err)
+	}
+	if string(gotUnit) != "[Unit]\nDescription=old\n" {
+		t.Fatalf("unit rollback failed after reload: got %q", string(gotUnit))
+	}
+	rec, err := loadInstallTransaction("txn-reload")
+	if err != nil {
+		t.Fatalf("load transaction: %v", err)
+	}
+	if rec.Phase != InstallTxnPhaseRolledBack {
+		t.Fatalf("phase = %q, want %q", rec.Phase, InstallTxnPhaseRolledBack)
+	}
+}
+
 // TestServiceInstallPayloadReinstallPreservesConfig verifies Guardrail 1:
 // package reinstall must never overwrite existing config files (seed-only).
 func TestServiceInstallPayloadReinstallPreservesConfig(t *testing.T) {
@@ -375,7 +565,7 @@ func TestServiceInstallPayloadExtractsPolicyFiles(t *testing.T) {
 	tw := tar.NewWriter(gz)
 	writeEntry := func(name, content string) {
 		tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(content))}) //nolint:errcheck
-		tw.Write([]byte(content))                                                         //nolint:errcheck
+		tw.Write([]byte(content))                                                       //nolint:errcheck
 	}
 	writeEntry("bin/svc_server", "#!/bin/sh")
 	writeEntry("policy/permissions.generated.json", `{"schema_version":"2","permissions":[]}`)

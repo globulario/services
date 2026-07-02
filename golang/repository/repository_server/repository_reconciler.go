@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -28,6 +29,13 @@ import (
 	"time"
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
+)
+
+const (
+	stagedPackageProjectionInterval = 10 * time.Second
+	stagedPackageStableAge          = 2 * time.Second
 )
 
 // ── Forward pass: Scylla → local POSIX ───────────────────────────────────────
@@ -175,6 +183,235 @@ func (srv *server) reconcileScyllaFromLocalCAS(ctx context.Context) {
 		"rebuilt", rebuilt, "skipped", skipped, "errors", errors)
 }
 
+// reconcileScyllaFromStagedPackages scans staged package archives under the
+// node-local bootstrap/join package dirs and projects valid artifacts into the
+// repository-owned authority path (UploadArtifact -> local CAS + Scylla).
+//
+// The staged directory is only evidence of bytes on disk. Publication still
+// flows through repository-owned gates: package identity extraction, checksum
+// idempotency, manifest sync, descriptor registration, and promotion to
+// PUBLISHED. This keeps /var/lib/globular/packages as local-input truth while
+// preserving Scylla + repository CAS as Layer 1 authority.
+func (srv *server) reconcileScyllaFromStagedPackages(ctx context.Context, dirs []string) {
+	if srv.scylla == nil || srv.localStorage == nil {
+		return
+	}
+
+	var published, skipped, invalid, failures int
+	seen := make(map[string]struct{})
+
+	for _, dir := range dirs {
+		info, err := os.Stat(dir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			slog.Warn("reconciler: cannot stat staged package dir", "dir", dir, "err", err)
+			continue
+		}
+		if !info.IsDir() {
+			continue
+		}
+
+		walkErr := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				slog.Warn("reconciler: staged walk error", "dir", dir, "path", path, "err", err)
+				failures++
+				return nil
+			}
+			if info == nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".tgz") {
+				return nil
+			}
+			if !isStableStagedPackage(info, time.Now()) {
+				slog.Debug("reconciler: staged package still settling, skip until next projection",
+					"path", path,
+					"modified", info.ModTime(),
+					"stable_age", stagedPackageStableAge.String())
+				skipped++
+				return nil
+			}
+			clean := filepath.Clean(path)
+			if _, ok := seen[clean]; ok {
+				return nil
+			}
+			seen[clean] = struct{}{}
+
+			status, pubErr := srv.publishStagedArchive(ctx, clean)
+			switch status {
+			case stagedPublishPublished:
+				published++
+			case stagedPublishSkipped:
+				skipped++
+			case stagedPublishInvalid:
+				invalid++
+			default:
+				failures++
+			}
+			if pubErr != nil {
+				slog.Warn("reconciler: staged package publish failed", "path", clean, "status", status, "err", pubErr)
+			}
+			return nil
+		})
+		if walkErr != nil && !os.IsNotExist(walkErr) {
+			slog.Warn("reconciler: staged package walk failed", "dir", dir, "err", walkErr)
+		}
+	}
+
+	slog.Info("reconciler: staged-package projection complete",
+		"dirs", len(dirs),
+		"published", published,
+		"skipped", skipped,
+		"invalid", invalid,
+		"failures", failures)
+}
+
+func isStableStagedPackage(info os.FileInfo, now time.Time) bool {
+	if info == nil {
+		return false
+	}
+	if info.Size() <= 0 {
+		return false
+	}
+	if info.ModTime().IsZero() {
+		return true
+	}
+	return !info.ModTime().After(now) && now.Sub(info.ModTime()) >= stagedPackageStableAge
+}
+
+type stagedPublishStatus string
+
+const (
+	stagedPublishPublished stagedPublishStatus = "published"
+	stagedPublishSkipped   stagedPublishStatus = "skipped"
+	stagedPublishInvalid   stagedPublishStatus = "invalid"
+	stagedPublishFailed    stagedPublishStatus = "failed"
+)
+
+func (srv *server) publishStagedArchive(ctx context.Context, archivePath string) (stagedPublishStatus, error) {
+	data, err := os.ReadFile(archivePath)
+	if err != nil {
+		return stagedPublishFailed, err
+	}
+
+	pkg, err := parseStagedPackageManifest(data)
+	if err != nil {
+		return stagedPublishInvalid, fmt.Errorf("parse package.json: %w", err)
+	}
+
+	kind := registryArtifactKind(pkg.Name, stagedPackageKind(pkg.Type))
+	ref := &repopb.ArtifactRef{
+		PublisherId: pkg.Publisher,
+		Name:        pkg.Name,
+		Version:     pkg.Version,
+		Platform:    pkg.Platform,
+		Kind:        kind,
+	}
+
+	if existing, _, _, ok := srv.findExistingArtifactByDigest(ctx, ref, checksumBytes(data)); ok {
+		slog.Info("reconciler: staged archive already published", "path", archivePath, "build_id", existing.GetBuildId())
+		return stagedPublishSkipped, nil
+	}
+
+	resp, err := srv.uploadArtifactInternally(ctx, ref, data)
+	if err != nil {
+		return stagedPublishFailed, err
+	}
+	if resp == nil || !resp.GetResult() {
+		return stagedPublishFailed, fmt.Errorf("upload returned non-success response")
+	}
+
+	slog.Info("reconciler: staged archive published into repository authority",
+		"path", archivePath,
+		"publisher", ref.GetPublisherId(),
+		"name", ref.GetName(),
+		"version", ref.GetVersion(),
+		"platform", ref.GetPlatform(),
+		"build_id", resp.GetBuildId())
+	return stagedPublishPublished, nil
+}
+
+func parseStagedPackageManifest(data []byte) (*packageManifest, error) {
+	pkg := extractPackageManifest(data)
+	if pkg == nil {
+		return nil, fmt.Errorf("package.json missing or unreadable")
+	}
+	pkg.Name = strings.TrimSpace(pkg.Name)
+	pkg.Version = strings.TrimSpace(pkg.Version)
+	pkg.Platform = strings.TrimSpace(pkg.Platform)
+	pkg.Publisher = strings.TrimSpace(pkg.Publisher)
+	if pkg.Name == "" {
+		return nil, fmt.Errorf("package.json missing name")
+	}
+	if pkg.Version == "" {
+		return nil, fmt.Errorf("package.json missing version")
+	}
+	if pkg.Platform == "" {
+		return nil, fmt.Errorf("package.json missing platform")
+	}
+	if pkg.Publisher == "" {
+		return nil, fmt.Errorf("package.json missing publisher")
+	}
+	return pkg, nil
+}
+
+func stagedPackageKind(pkgType string) repopb.ArtifactKind {
+	switch strings.ToLower(strings.TrimSpace(pkgType)) {
+	case "application":
+		return repopb.ArtifactKind_APPLICATION
+	case "infrastructure":
+		return repopb.ArtifactKind_INFRASTRUCTURE
+	case "command":
+		return repopb.ArtifactKind_COMMAND
+	default:
+		return repopb.ArtifactKind_SERVICE
+	}
+}
+
+type internalUploadArtifactStream struct {
+	ctx  context.Context
+	reqs []*repopb.UploadArtifactRequest
+	idx  int
+	resp *repopb.UploadArtifactResponse
+}
+
+func (s *internalUploadArtifactStream) Recv() (*repopb.UploadArtifactRequest, error) {
+	if s.idx >= len(s.reqs) {
+		return nil, io.EOF
+	}
+	req := s.reqs[s.idx]
+	s.idx++
+	return proto.Clone(req).(*repopb.UploadArtifactRequest), nil
+}
+
+func (s *internalUploadArtifactStream) SendAndClose(resp *repopb.UploadArtifactResponse) error {
+	s.resp = proto.Clone(resp).(*repopb.UploadArtifactResponse)
+	return nil
+}
+
+func (s *internalUploadArtifactStream) Context() context.Context       { return s.ctx }
+func (s *internalUploadArtifactStream) SendMsg(_ any) error            { return nil }
+func (s *internalUploadArtifactStream) RecvMsg(_ any) error            { return nil }
+func (s *internalUploadArtifactStream) SetHeader(_ metadata.MD) error  { return nil }
+func (s *internalUploadArtifactStream) SendHeader(_ metadata.MD) error { return nil }
+func (s *internalUploadArtifactStream) SetTrailer(_ metadata.MD)       {}
+
+func (srv *server) uploadArtifactInternally(ctx context.Context, ref *repopb.ArtifactRef, data []byte) (*repopb.UploadArtifactResponse, error) {
+	stream := &internalUploadArtifactStream{
+		ctx: ctx,
+		reqs: []*repopb.UploadArtifactRequest{{
+			Ref:  proto.Clone(ref).(*repopb.ArtifactRef),
+			Data: append([]byte(nil), data...),
+		}},
+	}
+	if err := srv.UploadArtifact(stream); err != nil {
+		return nil, err
+	}
+	if stream.resp == nil {
+		return nil, fmt.Errorf("upload returned no response")
+	}
+	return stream.resp, nil
+}
+
 // ── Scheduled loop ────────────────────────────────────────────────────────────
 
 // startReconcilerLoop runs the reconciler on startup and then periodically.
@@ -189,18 +426,31 @@ func (srv *server) startReconcilerLoop(ctx context.Context) {
 			return
 		case <-time.After(30 * time.Second):
 		}
+		srv.reconcileScyllaFromStagedPackages(ctx, stagedPackageDirs)
 		srv.reconcileScyllaFromLocalCAS(ctx)
 		srv.reconcileLocalCASVsScylla(ctx)
 		srv.sweepOrphanTempBlobs(ctx, time.Now())
 
-		// Periodic reconciliation every hour.
-		ticker := time.NewTicker(time.Hour)
-		defer ticker.Stop()
+		// Near-real-time staged-package projection keeps
+		// /var/lib/globular/packages reflected into repository Layer 1 without
+		// making Day-0 remember a one-shot publish ceremony. This still only
+		// publishes repository authority; desired state and runtime restarts stay
+		// owned by controller/workflow/node-agent.
+		stagedTicker := time.NewTicker(stagedPackageProjectionInterval)
+		defer stagedTicker.Stop()
+
+		// Full integrity reconciliation remains lower-frequency because it can
+		// scan all Scylla rows and local CAS receipts.
+		fullTicker := time.NewTicker(time.Hour)
+		defer fullTicker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-stagedTicker.C:
+				srv.reconcileScyllaFromStagedPackages(ctx, stagedPackageDirs)
+			case <-fullTicker.C:
+				srv.reconcileScyllaFromStagedPackages(ctx, stagedPackageDirs)
 				srv.reconcileLocalCASVsScylla(ctx)
 				srv.sweepOrphanTempBlobs(ctx, time.Now())
 			}

@@ -215,8 +215,8 @@ spec:
         resume_policy: verify_effect
 
     # ── Tier 8: Workload services (parallel with CLI tools) ─────────────
-    - id: install_workload_services
-      title: Install file, search, media, title, torrent
+    - id: install_workload_services_common
+      title: Install common workload services
       dependsOn: [install_ops_services]
       actor: installer
       action: installer.install_package_set
@@ -224,6 +224,20 @@ spec:
         packages:
           - file
           - search
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    - id: install_media_services
+      title: Install media workload services
+      dependsOn: [install_ops_services]
+      when:
+        expr: contains(inputs.bootstrap_node_profiles, 'media-server')
+      actor: installer
+      action: installer.install_package_set
+      with:
+        packages:
           - media
           - title
           - torrent
@@ -232,8 +246,8 @@ spec:
         idempotency: verify_then_continue
         resume_policy: verify_effect
 
-    - id: install_cli_tools
-      title: Install CLI tools (mc, globular-cli, etcdctl, restic, etc.)
+    - id: install_cli_tools_common
+      title: Install common CLI tools (mc, globular-cli, etcdctl, restic, etc.)
       dependsOn: [install_ops_services]
       actor: installer
       action: installer.install_package_set
@@ -246,6 +260,20 @@ spec:
           - restic
           - sctool
           - sha256sum
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
+    - id: install_media_cli_tools
+      title: Install media CLI tools
+      dependsOn: [install_ops_services]
+      when:
+        expr: contains(inputs.bootstrap_node_profiles, 'media-server')
+      actor: installer
+      action: installer.install_package_set
+      with:
+        packages:
           - yt-dlp
           - ffmpeg
       timeout: $.install_timeout
@@ -267,7 +295,7 @@ spec:
     # profile-driven step is the source of truth for completeness.
     - id: verify_profile_install_set
       title: Verify install set matches catalog for bootstrap node profiles
-      dependsOn: [install_workload_services, install_cli_tools]
+      dependsOn: [install_workload_services_common, install_media_services, install_cli_tools_common, install_media_cli_tools]
       actor: installer
       action: installer.install_profile_sets
       with:
@@ -277,10 +305,27 @@ spec:
         idempotency: verify_then_continue
         resume_policy: verify_effect
 
+    # ── Tier 8.75: Repository authority bootstrap ──────────────────────
+    # Day-0 must end with the local repository populated from the staged
+    # package archives under /var/lib/globular/packages. Without this step a
+    # Day-0 rerun can finish with services installed locally but Layer 1
+    # repository authority empty, leaving resolve/explain-package blind.
+    - id: publish_bootstrap_artifacts
+      title: Publish staged Day-0 package archives into the repository
+      dependsOn: [verify_profile_install_set]
+      actor: repository
+      action: repository.publish_bootstrap_artifacts
+      with:
+        source: /var/lib/globular/packages
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+
     # ── Tier 9: Post-install ────────────────────────────────────────────
     - id: validate_cluster_health
       title: Validate cluster health and conformance
-      dependsOn: [verify_profile_install_set]
+      dependsOn: [publish_bootstrap_artifacts]
       actor: installer
       action: installer.validate_cluster_health
       timeout: $.health_timeout

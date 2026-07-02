@@ -25,8 +25,6 @@ var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/time
 goog.object.extend(proto, google_protobuf_timestamp_pb);
 var google_protobuf_empty_pb = require('google-protobuf/google/protobuf/empty_pb.js');
 goog.object.extend(proto, google_protobuf_empty_pb);
-var globular_auth_pb = require('./globular_auth_pb.js');
-goog.object.extend(proto, globular_auth_pb);
 goog.exportSymbol('proto.cluster_controller.ActivatePlatformReleaseRequest', null, global);
 goog.exportSymbol('proto.cluster_controller.ActivatePlatformReleaseResponse', null, global);
 goog.exportSymbol('proto.cluster_controller.AffectedNodeDiff', null, global);

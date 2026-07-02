@@ -38,6 +38,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/installreceipt"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -73,9 +74,13 @@ var localPackageDirs = []string{
 // Packages are distributed via the gateway's /join/packages/ endpoint and
 // stored in /var/lib/globular/packages/ before the node-agent starts.
 // The repository/MinIO path has been removed — local disk is the sole source.
-func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr, desiredVersion string, buildID string, expectedSHA256 string) error {
+func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, publisherID, repositoryAddr, desiredVersion string, buildID string, buildNumber int64, expectedSHA256 string, transactionID string) error {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
 	version := strings.TrimSpace(desiredVersion)
+	publisherID = strings.TrimSpace(publisherID)
+	if publisherID == "" {
+		publisherID = defaultPublisherID
+	}
 	if version == "" {
 		if bomVersion, bomErr := resolveVersionFromReleaseIndexFunc(name); bomErr == nil && strings.TrimSpace(bomVersion) != "" {
 			version = strings.TrimSpace(bomVersion)
@@ -87,14 +92,23 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	}
 
 	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact",
-		defaultPublisherID, name)
+		publisherID, name)
 
-	// Find the .tgz package on disk. If not present, fetch it from the repository
-	// so that `pkg publish` + `services desired set` converges without requiring
-	// the operator to manually stage every package on every node.
-	localPath := srv.findLocalPackage(name, version, platform)
+	// Find the .tgz package on disk. Exact build requests must not be satisfied
+	// by the version-only local cache; that cache is a resilience fallback, not
+	// artifact identity authority. When build_id/build_number is provided, fetch
+	// the requested build from the repository so desired build identity cannot
+	// accidentally install a stale version-only tarball.
+	localPath := ""
+	exactBuildRequested := strings.TrimSpace(buildID) != "" || buildNumber > 0
+	if !exactBuildRequested {
+		localPath = srv.findLocalPackage(name, version, platform)
+	}
 	if localPath == "" {
-		repoAddr := srv.discoverRepositoryAddr()
+		repoAddr := strings.TrimSpace(repositoryAddr)
+		if repoAddr == "" {
+			repoAddr = srv.discoverRepositoryAddr()
+		}
 		if repoAddr == "" {
 			return fmt.Errorf("install %s: package not found in local dirs %v (version=%s) and repository address unavailable", name, localPackageDirs, version)
 		}
@@ -105,7 +119,7 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 		// DownloadArtifactToDir resolves the bundle digest from the
 		// manifest itself. See invariant
 		// install_package.hash_schemas_must_not_alias.
-		dlPath, dlErr := actions.DownloadArtifactToDir(ctx, repoAddr, defaultPublisherID, name, version, platform, kind, expectedSHA256, "/var/lib/globular/packages")
+		dlPath, dlErr := actions.DownloadArtifactToDir(ctx, repoAddr, publisherID, name, version, platform, kind, expectedSHA256, "/var/lib/globular/packages", buildNumber)
 		if dlErr != nil {
 			return fmt.Errorf("install %s: not in local dirs and repository download failed: %w", name, dlErr)
 		}
@@ -113,6 +127,9 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 		log.Printf("installer-api: downloaded %s@%s to %s", name, version, dlPath)
 	}
 	log.Printf("installer-api: installing %s from local package %s", name, localPath)
+	if strings.TrimSpace(transactionID) == "" {
+		transactionID = fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	}
 
 	// Copy the .tgz to the staging path so the install handlers can find it.
 	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
@@ -165,9 +182,9 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	var installErr error
 	switch strings.ToUpper(kind) {
 	case "INFRASTRUCTURE":
-		installErr = srv.installInfra(ctx, name, version, artifactPath)
+		installErr = srv.installInfra(ctx, name, version, artifactPath, buildID, transactionID)
 	default: // SERVICE, COMMAND
-		installErr = srv.installPayload(ctx, name, version, artifactPath)
+		installErr = srv.installPayload(ctx, name, strings.ToUpper(kind), version, artifactPath, buildID, transactionID)
 	}
 	if installErr != nil {
 		return installErr
@@ -179,7 +196,9 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	// a VERIFIED verdict (UNVERIFIED finding). ApplyPackageRelease does this
 	// on the normal reconciler path; here we mirror that behaviour for packages
 	// installed via the join workflow.
-	srv.writeInstalledStateChecksum(ctx, name, strings.ToUpper(kind), version, buildID)
+	if err := srv.writeInstalledStateChecksum(ctx, name, strings.ToUpper(kind), version, buildID); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -202,12 +221,12 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 //     "installed_state_missing_or_unproven" on every heartbeat.
 //
 // Fixes: (1) continue past binary-hash failure instead of returning;
-// (2) fall back to hashing the on-disk unit file when the canonical
-// render is unavailable — Stamp hashes from UnitFilePath when
-// UnitFileContent is empty.
+// (2) use canonical rendered unit bytes as the sole unit_hash
+// authority and clear stale unit receipt fields when the canonical
+// render is unavailable.
 //
 // Best-effort: all failures are logged and never block the install.
-func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, name, kind, version, buildID string) {
+func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, name, kind, version, buildID string) error {
 	binPath := installedBinaryPath(name, kind)
 	hash, hashErr := cachedSha256(binPath)
 	if hashErr != nil || hash == "" {
@@ -241,49 +260,42 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 	}
 	if hash != "" {
 		pkg.Metadata["entrypoint_checksum"] = hash
-		// InstalledPackage.Checksum is the installed entrypoint/artifact binary SHA,
-		// NOT the release identity hash (ServiceRelease.Status.DesiredHash, which is
-		// ComputeReleaseDesiredHash(publisher, name, version, build_number, config)).
-		// This field is read by the controller's drift detection and by
-		// decideNodeRolloutProof as the artifact SHA the node-agent verified at apply
-		// time. A stale or release-identity value here yields a permanent
-		// rollout.installed_hash_mismatch — see failure_mode:
-		// node_agent.install_package_aliases_convergence_hash_into_expected_sha256.
-		pkg.Checksum = hash
+		if shouldStampTopLevelBinaryChecksum(kind) {
+			// SERVICE/COMMAND installed-state checksum carries the installed
+			// binary identity. INFRASTRUCTURE is different: the controller
+			// convergence classifier compares top-level Checksum to
+			// InfrastructureRelease.Status.DesiredHash, while binary proof
+			// stays in metadata.entrypoint_checksum. Stamping the binary SHA
+			// here reopens the Envoy restart storm loop.
+			pkg.Checksum = hash
+		}
 	}
 
-	unitPath := filepath.Join("/etc/systemd/system", "globular-"+name+".service")
-	receiptOpts := ReceiptOpts{
-		InstalledBy:         "node-agent.installer-api",
-		UnitRendererVersion: canonicalUnitRendererVersion,
-	}
-	if binPath != "" {
-		receiptOpts.BinaryPath = binPath
-	}
-	if fi, statErr := os.Stat(unitPath); statErr == nil && !fi.IsDir() {
-		if renderedUnit, renderErr := srv.renderCanonicalUnitFromLocalArtifact(ctx, name, version, kind, filepath.Base(unitPath)); renderErr == nil {
-			receiptOpts.UnitFilePath = unitPath
-			receiptOpts.UnitFileContent = renderedUnit
-		} else {
-			// Canonical render requires the staged artifact tarball to have a
-			// systemd/ entry. Fall back to hashing the on-disk unit file so
-			// Stamp can write unit_file_sha256 — without it, every heartbeat
-			// returns installed_state_missing_or_unproven.
-			log.Printf("installer-api: canonical unit render unavailable for %s/%s@%s: %v — hashing on-disk unit as fallback", kind, name, version, renderErr)
-			receiptOpts.UnitFilePath = unitPath
-			// UnitFileContent intentionally empty; Stamp reads + hashes the file at UnitFilePath.
-		}
+	receiptOpts, receiptErr := srv.canonicalInstallReceiptOpts(ctx, CanonicalInstallReceiptInput{
+		PackageName:    name,
+		Version:        version,
+		Kind:           kind,
+		InstalledBy:    "node-agent.installer-api",
+		BinaryPath:     binPath,
+		PackageSha256:  pkg.GetChecksum(),
+		ArtifactDigest: pkg.GetChecksum(),
+	})
+	if receiptErr != nil {
+		clearUnitReceiptMetadata(pkg)
+		log.Printf("installer-api: %v — clearing stale unit receipt and continuing with non-unit evidence", receiptErr)
 	}
 	if rerr := StampInstallReceipt(pkg, receiptOpts); rerr != nil {
 		log.Printf("installer-api: install receipt skipped for %s: %v", name, rerr)
 	}
 
 	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
-		log.Printf("installer-api: write installed-state for %s: %v (non-fatal)", name, werr)
-		return
+		_, _ = actions.RollbackActiveInstallTransaction(name, buildID, werr.Error())
+		return fmt.Errorf("installer-api: write installed-state for %s: %w", name, werr)
 	}
+	_ = actions.CommitActiveInstallTransaction(name, buildID)
 	log.Printf("installer-api: stored receipt for %s/%s (binary_stamped=%v, unit_stamped=%v)",
 		kind, name, binPath != "", receiptOpts.UnitFilePath != "")
+	return nil
 }
 
 // restampReceiptOnInstallSkip re-stamps the canonical install receipt
@@ -309,7 +321,7 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 // Attribution "node-agent.grpc_workflow.install_skip_restamp"
 // distinguishes skip-path stamps from normal installer-api stamps
 // in audit / forensic queries.
-func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, name, kind, version, buildID string) {
+func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, name, kind, version, buildID, convergenceHash string) {
 	kindU := strings.ToUpper(kind)
 	binPath := installedBinaryPath(name, kindU)
 	hash, err := cachedSha256(binPath)
@@ -328,25 +340,21 @@ func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, nam
 		log.Printf("install-skip-restamp: %s/%s has no existing installed_state row; nothing to restamp", kindU, name)
 		return
 	}
-	unitPath := filepath.Join("/etc/systemd/system", "globular-"+name+".service")
-	unitPathArg := ""
-	if fi, statErr := os.Stat(unitPath); statErr == nil && !fi.IsDir() {
-		unitPathArg = unitPath
-	}
-	var renderedUnit []byte
-	if unitPathArg != "" {
-		if rendered, renderErr := srv.renderCanonicalUnitFromLocalArtifact(ctx, name, version, kindU, filepath.Base(unitPath)); renderErr == nil {
-			renderedUnit = rendered
-		} else {
-			log.Printf("install-skip-restamp: canonical unit render unavailable for %s/%s@%s: %v", kindU, name, version, renderErr)
-		}
-	}
 	if hash != "" {
-		// Full restamp: binary hash available — use the canonical skip-path helper.
-		if !stampSkipPathReceipt(pkg, unitPathArg, renderedUnit, binPath, hash) {
-			// Stamp returned an error (e.g. declared file unreadable). Do
-			// NOT write a partial-stamp pkg — that would be the same kind
-			// of half-baked receipt that caused the original drift.
+		receiptOpts, receiptErr := srv.canonicalInstallReceiptOpts(ctx, CanonicalInstallReceiptInput{
+			PackageName:    name,
+			Version:        version,
+			Kind:           kindU,
+			InstalledBy:    "node-agent.grpc_workflow.install_skip_restamp",
+			BinaryPath:     binPath,
+			PackageSha256:  pkg.GetChecksum(),
+			ArtifactDigest: pkg.GetChecksum(),
+		})
+		if receiptErr != nil {
+			clearUnitReceiptMetadata(pkg)
+			log.Printf("install-skip-restamp: %v — clearing stale unit receipt and continuing with binary-only evidence", receiptErr)
+		}
+		if !stampSkipPathReceipt(pkg, receiptOpts, hash) {
 			return
 		}
 	} else {
@@ -356,23 +364,28 @@ func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, nam
 		// / false old_pid_after_upgrade. Not setting entrypoint_checksum here
 		// is correct: we're enriching forensic receipt fields, not asserting
 		// convergence identity from a secondary source.
-		if unitPathArg == "" {
+		receiptOpts, receiptErr := srv.canonicalInstallReceiptOpts(ctx, CanonicalInstallReceiptInput{
+			PackageName:    name,
+			Version:        version,
+			Kind:           kindU,
+			InstalledBy:    "node-agent.grpc_workflow.install_skip_restamp",
+			PackageSha256:  pkg.GetChecksum(),
+			ArtifactDigest: pkg.GetChecksum(),
+		})
+		if receiptErr != nil {
+			clearUnitReceiptMetadata(pkg)
+			log.Printf("install-skip-restamp: %v — clearing stale unit receipt and refusing non-canonical unit hash", receiptErr)
+		}
+		if receiptOpts.UnitFilePath == "" || len(receiptOpts.UnitFileContent) == 0 {
 			log.Printf("install-skip-restamp: %s/%s no unit file and no binary — nothing to restamp", kindU, name)
 			return
 		}
-		stampOpts := ReceiptOpts{
-			InstalledBy:         "node-agent.grpc_workflow.install_skip_restamp",
-			UnitFilePath:        unitPathArg,
-			UnitRendererVersion: canonicalUnitRendererVersion,
-		}
-		if len(renderedUnit) > 0 {
-			stampOpts.UnitFileContent = renderedUnit
-		}
-		if serr := StampInstallReceipt(pkg, stampOpts); serr != nil {
+		if serr := StampInstallReceipt(pkg, receiptOpts); serr != nil {
 			log.Printf("install-skip-restamp: unit-only stamp failed for %s/%s: %v", kindU, name, serr)
 			return
 		}
 	}
+	applyInfraConvergenceHashToReceipt(pkg, kindU, convergenceHash)
 	if werr := installed_state.WriteInstalledPackage(ctx, pkg); werr != nil {
 		log.Printf("install-skip-restamp: write installed-state for %s/%s: %v (non-fatal)", kindU, name, werr)
 		return
@@ -409,32 +422,40 @@ func (srv *NodeAgentServer) restampReceiptOnInstallSkip(ctx context.Context, nam
 // forensic field, not consumed by the verifier's ApplyTime
 // calculation), so the audit trail of when the restamp ran is
 // preserved without misleading the verifier.
-func stampSkipPathReceipt(pkg *node_agentpb.InstalledPackage, unitPath string, unitContent []byte, binaryPath, hash string) bool {
+func stampSkipPathReceipt(pkg *node_agentpb.InstalledPackage, opts ReceiptOpts, hash string) bool {
 	if pkg == nil || strings.TrimSpace(hash) == "" {
-		return false
-	}
-	if unitPath != "" && len(unitContent) == 0 {
-		log.Printf("install-skip-restamp: canonical unit bytes missing for declared unit path %s; refusing partial receipt", unitPath)
 		return false
 	}
 	if pkg.Metadata == nil {
 		pkg.Metadata = make(map[string]string)
 	}
 	pkg.Metadata["entrypoint_checksum"] = hash
-	opts := ReceiptOpts{
-		BinaryPath:          binaryPath,
-		InstalledBy:         "node-agent.grpc_workflow.install_skip_restamp",
-		UnitRendererVersion: canonicalUnitRendererVersion,
-	}
-	if unitPath != "" && len(unitContent) > 0 {
-		opts.UnitFilePath = unitPath
-		opts.UnitFileContent = unitContent
-	}
 	if err := StampInstallReceipt(pkg, opts); err != nil {
 		log.Printf("install-skip-restamp: stamp rejected for %s/%s: %v (not writing partial receipt)", pkg.GetKind(), pkg.GetName(), err)
 		return false
 	}
 	return true
+}
+
+func applyInfraConvergenceHashToReceipt(pkg *node_agentpb.InstalledPackage, kind, convergenceHash string) {
+	if pkg == nil || !strings.EqualFold(strings.TrimSpace(kind), "INFRASTRUCTURE") {
+		return
+	}
+	convergenceHash = strings.TrimSpace(convergenceHash)
+	if convergenceHash == "" {
+		return
+	}
+	if pkg.Metadata == nil {
+		pkg.Metadata = make(map[string]string)
+	}
+	if pkg.Metadata["entrypoint_checksum"] == "" && strings.TrimSpace(pkg.GetChecksum()) != "" {
+		pkg.Metadata["entrypoint_checksum"] = pkg.GetChecksum()
+	}
+	pkg.Checksum = convergenceHash
+}
+
+func shouldStampTopLevelBinaryChecksum(kind string) bool {
+	return !strings.EqualFold(strings.TrimSpace(kind), "INFRASTRUCTURE")
 }
 
 // pinArtifact copies the fetched artifact to the local pinned directory.
@@ -632,15 +653,34 @@ func findLocalPackageAnyVersion(dir, name, platform string) string {
 	return matches[len(matches)-1]
 }
 
-func (srv *NodeAgentServer) installPayload(ctx context.Context, name, version, artifactPath string) error {
+func (srv *NodeAgentServer) installPayload(ctx context.Context, name, kind, version, artifactPath, buildID, transactionID string) error {
 	handler := actions.Get("service.install_payload")
 	if handler == nil {
 		return fmt.Errorf("action service.install_payload not registered")
 	}
+	previousReceiptJSON := ""
+	if existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name); existing != nil && len(existing.GetMetadata()) > 0 {
+		receiptMetadata := make(map[string]string)
+		for _, key := range installreceipt.Keys() {
+			if value := strings.TrimSpace(existing.GetMetadata()[key]); value != "" {
+				receiptMetadata[key] = value
+			}
+		}
+		if len(receiptMetadata) > 0 {
+			if data, err := json.Marshal(receiptMetadata); err == nil {
+				previousReceiptJSON = string(data)
+			}
+		}
+	}
 	args, err := structpb.NewStruct(map[string]any{
-		"service":       name,
-		"version":       version,
-		"artifact_path": artifactPath,
+		"service":               name,
+		"version":               version,
+		"artifact_path":         artifactPath,
+		"transaction_id":        transactionID,
+		"node_id":               srv.nodeID,
+		"package_id":            name,
+		"target_build_id":       buildID,
+		"previous_receipt_json": previousReceiptJSON,
 	})
 	if err != nil {
 		return err
@@ -651,15 +691,34 @@ func (srv *NodeAgentServer) installPayload(ctx context.Context, name, version, a
 	return srv.writeMarker(name, version)
 }
 
-func (srv *NodeAgentServer) installInfra(ctx context.Context, name, version, artifactPath string) error {
+func (srv *NodeAgentServer) installInfra(ctx context.Context, name, version, artifactPath, buildID, transactionID string) error {
 	handler := actions.Get("infrastructure.install")
 	if handler == nil {
 		return fmt.Errorf("action infrastructure.install not registered")
 	}
+	previousReceiptJSON := ""
+	if existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); existing != nil && len(existing.GetMetadata()) > 0 {
+		receiptMetadata := make(map[string]string)
+		for _, key := range installreceipt.Keys() {
+			if value := strings.TrimSpace(existing.GetMetadata()[key]); value != "" {
+				receiptMetadata[key] = value
+			}
+		}
+		if len(receiptMetadata) > 0 {
+			if data, err := json.Marshal(receiptMetadata); err == nil {
+				previousReceiptJSON = string(data)
+			}
+		}
+	}
 	args, err := structpb.NewStruct(map[string]any{
-		"name":          name,
-		"version":       version,
-		"artifact_path": artifactPath,
+		"name":                  name,
+		"version":               version,
+		"artifact_path":         artifactPath,
+		"transaction_id":        transactionID,
+		"node_id":               srv.nodeID,
+		"package_id":            name,
+		"target_build_id":       buildID,
+		"previous_receipt_json": previousReceiptJSON,
 	})
 	if err != nil {
 		return err

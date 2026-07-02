@@ -36,8 +36,8 @@ func TestListRepositoryFindings_PublishedMissingBlob(t *testing.T) {
 	// Install a fake ledger so ListRepositoryFindings has a row to scan.
 	srv.scylla = &fakeLedger{
 		rows: map[string]*manifestRow{key: {
-			ArtifactKey:  key,
-			PublisherID:  "core@globular.io", Name: "echo",
+			ArtifactKey: key,
+			PublisherID: "core@globular.io", Name: "echo",
 			Version: "1.0.0", Platform: "linux_amd64",
 			BuildNumber: 1, Checksum: "sha256:abcd", SizeBytes: 100,
 			PublishState: repopb.PublishState_PUBLISHED.String(),
@@ -94,8 +94,8 @@ func TestListRepositoryFindings_MissingLocalBlob_StaysCritical(t *testing.T) {
 
 	srv.scylla = &fakeLedger{
 		rows: map[string]*manifestRow{key: {
-			ArtifactKey:  key,
-			PublisherID:  "core@globular.io", Name: "echo",
+			ArtifactKey: key,
+			PublisherID: "core@globular.io", Name: "echo",
 			Version: "1.0.0", Platform: "linux_amd64",
 			BuildNumber: 1, Checksum: "sha256:abcd", SizeBytes: 100,
 			PublishState: repopb.PublishState_PUBLISHED.String(),
@@ -141,8 +141,8 @@ func TestListRepositoryFindings_PublishedChecksumMismatch(t *testing.T) {
 	// Force size mismatch by setting expected size different from on-disk blob size.
 	srv.scylla = &fakeLedger{
 		rows: map[string]*manifestRow{key: {
-			ArtifactKey:  key,
-			PublisherID:  "core@globular.io", Name: "echo",
+			ArtifactKey: key,
+			PublisherID: "core@globular.io", Name: "echo",
 			Version: "1.0.0", Platform: "linux_amd64",
 			BuildNumber: 1, Checksum: "sha256:abcd", SizeBytes: 9999,
 			PublishState: repopb.PublishState_PUBLISHED.String(),
@@ -244,12 +244,12 @@ func TestListRepositoryFindings_BuildIDChecksumConflict(t *testing.T) {
 	}
 	m1 := &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 1, BuildId: "shared-build-id",
-		Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Checksum:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SizeBytes: 100,
 	}
 	m2 := &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 2, BuildId: "shared-build-id",
-		Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Checksum:  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		SizeBytes: 100,
 	}
 	seedPublishedArtifact(t, srv, m1)
@@ -299,7 +299,7 @@ func TestListRepositoryFindings_BuildIDChecksumConflict(t *testing.T) {
 	}
 }
 
-func TestListRepositoryFindings_VersionResolutionAmbiguous(t *testing.T) {
+func TestListRepositoryFindings_MultipleBuildNumbersNotAmbiguous(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 	ref := &repopb.ArtifactRef{
@@ -308,16 +308,17 @@ func TestListRepositoryFindings_VersionResolutionAmbiguous(t *testing.T) {
 	}
 	m1 := &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 1, BuildId: "build-A",
-		Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Checksum:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SizeBytes: 100,
 	}
 	m2 := &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 2, BuildId: "build-B",
-		Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Checksum:  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		SizeBytes: 100,
 	}
-	// Use direct seeding to simulate legacy/corrupted data (two build_ids for
-	// the same version+platform). Real publish flow blocks this via the ledger.
+	// Multiple build_ids under one version are valid when each occupies a unique
+	// repository build_number lane. Desired-state and installed-state must pin
+	// build_number/build_id; the repository must not report this as a conflict.
 	seedPublishedArtifactDirect(t, srv, m1)
 	seedPublishedArtifactDirect(t, srv, m2)
 	m1JSON, err := marshalManifestWithState(m1, repopb.PublishState_PUBLISHED)
@@ -341,6 +342,62 @@ func TestListRepositoryFindings_VersionResolutionAmbiguous(t *testing.T) {
 			key2: {
 				ArtifactKey: key2, PublisherID: ref.GetPublisherId(), Name: ref.GetName(), Version: ref.GetVersion(), Platform: ref.GetPlatform(),
 				BuildNumber: 2, Checksum: m2.GetChecksum(), SizeBytes: 100,
+				PublishState: repopb.PublishState_PUBLISHED.String(), ManifestJSON: m2JSON,
+			},
+		},
+	}
+
+	resp, err := srv.ListRepositoryFindings(ctx, &repopb.ListRepositoryFindingsRequest{})
+	if err != nil {
+		t.Fatalf("ListRepositoryFindings: %v", err)
+	}
+	for _, f := range resp.GetFindings() {
+		if f.GetReason() == "repository.identity.version_resolution_ambiguous" {
+			t.Fatalf("did not expect version resolution ambiguity for distinct build_numbers: %+v", f)
+		}
+	}
+}
+
+func TestListRepositoryFindings_DuplicateBuildNumberAmbiguous(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+	ref := &repopb.ArtifactRef{
+		PublisherId: "core@globular.io", Name: "workflow",
+		Version: "1.0.53", Platform: "linux_amd64", Kind: repopb.ArtifactKind_SERVICE,
+	}
+	m1 := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "build-A",
+		Checksum:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SizeBytes: 100,
+	}
+	m2 := &repopb.ArtifactManifest{
+		Ref: ref, BuildNumber: 1, BuildId: "build-B",
+		Checksum:  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		SizeBytes: 100,
+	}
+	seedPublishedArtifactDirect(t, srv, m1)
+	seedPublishedArtifactDirect(t, srv, m2)
+	m1JSON, err := marshalManifestWithState(m1, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal m1: %v", err)
+	}
+	m2JSON, err := marshalManifestWithState(m2, repopb.PublishState_PUBLISHED)
+	if err != nil {
+		t.Fatalf("marshal m2: %v", err)
+	}
+
+	key1 := artifactKeyWithBuild(ref, 1)
+	key2 := key1 + "%duplicate-build-B"
+	srv.scylla = &fakeLedger{
+		rows: map[string]*manifestRow{
+			key1: {
+				ArtifactKey: key1, PublisherID: ref.GetPublisherId(), Name: ref.GetName(), Version: ref.GetVersion(), Platform: ref.GetPlatform(),
+				BuildNumber: 1, Checksum: m1.GetChecksum(), SizeBytes: 100,
+				PublishState: repopb.PublishState_PUBLISHED.String(), ManifestJSON: m1JSON,
+			},
+			key2: {
+				ArtifactKey: key2, PublisherID: ref.GetPublisherId(), Name: ref.GetName(), Version: ref.GetVersion(), Platform: ref.GetPlatform(),
+				BuildNumber: 1, Checksum: m2.GetChecksum(), SizeBytes: 100,
 				PublishState: repopb.PublishState_PUBLISHED.String(), ManifestJSON: m2JSON,
 			},
 		},
@@ -381,8 +438,8 @@ func TestListRepositoryFindings_PublishedUnsignedRequired(t *testing.T) {
 	key := artifactKeyWithBuild(ref, 1)
 	srv.scylla = &fakeLedger{
 		rows: map[string]*manifestRow{key: {
-			ArtifactKey:  key,
-			PublisherID:  "core@globular.io", Name: "echo",
+			ArtifactKey: key,
+			PublisherID: "core@globular.io", Name: "echo",
 			Version: "1.0.0", Platform: "linux_amd64",
 			BuildNumber: 1, Checksum: "sha256:abcd", SizeBytes: 100,
 			PublishState: repopb.PublishState_PUBLISHED.String(),
@@ -423,10 +480,10 @@ func TestListRepositoryFindings_RevokedInstallableCoherence(t *testing.T) {
 	})
 	srv.scylla = &fakeLedger{
 		rows: map[string]*manifestRow{key: {
-			ArtifactKey:   key,
-			PublisherID:   "core@globular.io", Name: "echo",
+			ArtifactKey: key,
+			PublisherID: "core@globular.io", Name: "echo",
 			Version: "1.0.0", Platform: "linux_amd64",
-			BuildNumber:   1, Checksum: "sha256:abcd", SizeBytes: 100,
+			BuildNumber: 1, Checksum: "sha256:abcd", SizeBytes: 100,
 			PublishState:  repopb.PublishState_PUBLISHED.String(),
 			ArtifactState: string(PipelineRevoked),
 		}},
@@ -454,9 +511,9 @@ func TestRecordAndListConfigReceipts(t *testing.T) {
 	r := &repopb.PackageConfigReceipt{
 		NodeId: "n1", PublisherId: "core@globular.io", Name: "echo",
 		Platform: "linux_amd64", BuildNumber: 1, Path: "/etc/globular/echo.json",
-		ConfigKind:    repopb.ConfigKind_CONFIG_OPERATOR_OVERRIDE,
-		MergeStrategy: repopb.MergeStrategy_MERGE_PRESERVE,
-		Action:        repopb.ConfigReceiptAction_CONFIG_RECEIPT_PRESERVED,
+		ConfigKind:     repopb.ConfigKind_CONFIG_OPERATOR_OVERRIDE,
+		MergeStrategy:  repopb.MergeStrategy_MERGE_PRESERVE,
+		Action:         repopb.ConfigReceiptAction_CONFIG_RECEIPT_PRESERVED,
 		ChecksumBefore: "sha256:abc", ChecksumAfter: "sha256:abc",
 	}
 	if _, err := srv.RecordConfigReceipt(ctx, &repopb.RecordConfigReceiptRequest{Receipt: r}); err != nil {
@@ -516,7 +573,7 @@ func TestConfigReceipts_ConflictFilterReturnsOnlyConflicts(t *testing.T) {
 		})
 	}
 	resp, _ := srv.ListConfigReceipts(ctx, &repopb.ListConfigReceiptsRequest{
-		PublisherId:  "core@globular.io", Name: "echo", Platform: "linux_amd64",
+		PublisherId: "core@globular.io", Name: "echo", Platform: "linux_amd64",
 		ActionFilter: repopb.ConfigReceiptAction_CONFIG_RECEIPT_CONFLICT,
 	})
 	if len(resp.GetReceipts()) != 2 {

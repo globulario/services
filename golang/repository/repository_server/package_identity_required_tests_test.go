@@ -32,6 +32,14 @@ func TestUploadDifferentDigestSamePublishedVersionRejected(t *testing.T) {
 	TestINV6_ImportProvisional_RejectDifferentDigest(t)
 }
 
+func TestUploadReservationIsSingleBuildAuthority(t *testing.T) {
+	TestUploadArtifactUsesReservedIdentityAuthority(t)
+}
+
+func TestUploadReservationSameDigestDoesNotCreateNewBuild(t *testing.T) {
+	TestUploadArtifactReservationIdempotentSameDigestReturnsCanonicalBuild(t)
+}
+
 func TestVersionImmutabilityRunsAfterDigestIdempotency(t *testing.T) {
 	// Existing ledger-level immutability guard: same version/platform cannot be
 	// rebound to a different build identity.
@@ -57,7 +65,7 @@ func TestRepositoryRepairDoesNotRequireInstallableState(t *testing.T) {
 func TestRepositoryDoctorReportsDuplicateBuildNumberCollision(t *testing.T) {
 	// Existing doctor behavior emits ambiguity finding when one identity lane
 	// can resolve to multiple build identities.
-	TestListRepositoryFindings_VersionResolutionAmbiguous(t)
+	TestListRepositoryFindings_DuplicateBuildNumberAmbiguous(t)
 }
 
 func TestRepositoryDoctorReportsBuildIDReuse(t *testing.T) {
@@ -97,12 +105,12 @@ func TestRepositoryDoctorCollisionFindingIncludesForbiddenFixes(t *testing.T) {
 	}
 	m1 := &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 1, BuildId: "build-A",
-		Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Checksum:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SizeBytes: 100,
 	}
 	m2 := &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 2, BuildId: "build-B",
-		Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Checksum:  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		SizeBytes: 100,
 	}
 	seedPublishedArtifactDirect(t, srv, m1)

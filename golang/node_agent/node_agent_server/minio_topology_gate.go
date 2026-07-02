@@ -67,7 +67,6 @@ func nodeIPInPool(nodeIP string, state *config.ObjectStoreDesiredState) bool {
 //   - "blocked: <reason>"  → Admitted=false (controller set this from lifecycle/intent)
 //
 // Pure function — no I/O. Safe to call from unit tests without a live cluster.
-//
 func nodeIsTopologyMember(nodeID, nodeIP string, state *config.ObjectStoreDesiredState) (bool, string) {
 	if state == nil {
 		return false, "objectstore desired state not available"
@@ -107,6 +106,31 @@ func nodeIsTopologyMember(nodeID, nodeIP string, state *config.ObjectStoreDesire
 	return false, "node not listed in approved objectstore topology"
 }
 
+// minioTopologyAdmissionPending reports whether the current desired state lacks
+// positive topology authority for runtime exclusion. During Day-0/bootstrap,
+// an empty or generation-zero desired state is fog, not proof that a locally
+// bootstrapped MinIO member must be stopped.
+func minioTopologyAdmissionPending(state *config.ObjectStoreDesiredState) (bool, string) {
+	if state == nil {
+		return false, ""
+	}
+	if state.Generation <= 0 {
+		return true, "objectstore topology pending: generation=0"
+	}
+	if state.AuthorizedMembers != nil {
+		for _, m := range state.AuthorizedMembers {
+			if m.Admitted && m.IntentGeneration == uint64(state.Generation) {
+				return false, ""
+			}
+		}
+		return true, "objectstore topology pending: no admitted members for current generation"
+	}
+	if len(state.Nodes) == 0 {
+		return true, "objectstore topology pending: no pool nodes published"
+	}
+	return false, ""
+}
+
 // enforceMinioHeld stops globular-minio.service if it is currently active and
 // this node is not in ObjectStoreDesiredState.Nodes.
 //
@@ -120,7 +144,6 @@ func nodeIsTopologyMember(nodeID, nodeIP string, state *config.ObjectStoreDesire
 //   - No config files are modified.
 //   - Stopping is idempotent — if the service is already stopped, this is a no-op.
 //   - If systemctl fails, the error is logged but the reconcile loop continues.
-//
 func (srv *NodeAgentServer) enforceMinioHeld(ctx context.Context, nodeIP string, desiredGen int64) {
 	checkCtx, checkCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer checkCancel()

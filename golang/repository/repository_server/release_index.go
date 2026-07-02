@@ -92,15 +92,15 @@ type releaseIndex struct {
 
 // releaseIndexEntry describes one downloadable package within a release.
 type releaseIndexEntry struct {
-	Name               string `json:"name"`
-	Kind               string `json:"kind"`
-	Publisher          string `json:"publisher"`
-	Version            string `json:"version"`
-	BuildNumber        int64  `json:"build_number"`
-	BuildID            string `json:"build_id"`
-	Channel            string `json:"channel"`
-	Platform           string `json:"platform"`
-	Filename           string `json:"filename"`
+	Name        string `json:"name"`
+	Kind        string `json:"kind"`
+	Publisher   string `json:"publisher"`
+	Version     string `json:"version"`
+	BuildNumber int64  `json:"build_number"`
+	BuildID     string `json:"build_id"`
+	Channel     string `json:"channel"`
+	Platform    string `json:"platform"`
+	Filename    string `json:"filename"`
 
 	// Digest model (3-layer):
 	//   PackageContractDigest — normalized content identity for change detection.
@@ -376,18 +376,18 @@ func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 		// Backward/forward compatibility:
 		// - v2 release indexes may provide package_digest (legacy alias) only.
 		// - install validation requires an immutable artifact digest either way.
-			if strings.TrimSpace(e.ArtifactSha256) == "" {
-				legacy := strings.TrimSpace(e.PackageDigest)
-				if legacy == "" {
-					legacy = strings.TrimSpace(e.Checksum)
-				}
-				if legacy == "" {
-					return fmt.Errorf("packages[%d] (%s): artifact_sha256, package_digest, or checksum is required for install validation", i, e.Name)
-				}
-				// Normalize in-memory so downstream install paths that read
-				// artifact_sha256 continue to work without special-casing.
-				e.ArtifactSha256 = legacy
+		if strings.TrimSpace(e.ArtifactSha256) == "" {
+			legacy := strings.TrimSpace(e.PackageDigest)
+			if legacy == "" {
+				legacy = strings.TrimSpace(e.Checksum)
 			}
+			if legacy == "" {
+				return fmt.Errorf("packages[%d] (%s): artifact_sha256, package_digest, or checksum is required for install validation", i, e.Name)
+			}
+			// Normalize in-memory so downstream install paths that read
+			// artifact_sha256 continue to work without special-casing.
+			e.ArtifactSha256 = legacy
+		}
 	}
 	return nil
 }
@@ -601,9 +601,9 @@ func ComputeContractDigest(components ContractComponents) string {
 // a package's install/runtime contract.
 type ContractComponents struct {
 	EntrypointChecksum string
-	ManifestSha256     string            // sha256 of normalized package.json
-	SpecSha256         string            // sha256 of spec yaml
-	SystemdSha256      string            // sha256 of systemd unit
+	ManifestSha256     string // sha256 of normalized package.json
+	SpecSha256         string // sha256 of spec yaml
+	SystemdSha256      string // sha256 of systemd unit
 	Profiles           []string
 	HardDeps           []string
 	Provides           []string

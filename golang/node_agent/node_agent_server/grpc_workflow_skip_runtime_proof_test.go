@@ -23,6 +23,7 @@ package main
 // that drops the runtime-proof check fires immediately.
 
 import (
+	"context"
 	"testing"
 )
 
@@ -33,6 +34,13 @@ func withRuntimeBinariesFunc(t *testing.T, fn runtimeBinaryProvider) {
 	prev := runtimeBinariesFunc
 	runtimeBinariesFunc = fn
 	t.Cleanup(func() { runtimeBinariesFunc = prev })
+}
+
+func withSystemdRuntimeBinaryFunc(t *testing.T, fn systemdRuntimeBinaryProvider) {
+	t.Helper()
+	prev := systemdRuntimeBinaryFunc
+	systemdRuntimeBinaryFunc = fn
+	t.Cleanup(func() { systemdRuntimeBinaryFunc = prev })
 }
 
 func TestVerifyRunningBinary_NoExpectedSha256_MatchesByDefault(t *testing.T) {
@@ -122,9 +130,49 @@ func TestVerifyRunningBinary_NoRunningPID_ReturnsNoRunningPID(t *testing.T) {
 			"workflow": {ServiceName: "workflow", Checksum: "xxx", PID: 5678},
 		}
 	})
+	withSystemdRuntimeBinaryFunc(t, func(context.Context, string) (RunningBinary, bool, string) {
+		return RunningBinary{}, false, "not active"
+	})
 	verdict, _ := verifyRunningBinaryMatchesExpected("awareness-graph", "NEWNEWNEWNEW")
 	if verdict != runtimeProofNoRunningPID {
 		t.Fatalf("verdict: want runtimeProofNoRunningPID, got %v", verdict)
+	}
+}
+
+func TestVerifyRunningBinary_ProcessScanMiss_SystemdMainPIDMatches(t *testing.T) {
+	const expected = "abc123def456"
+	withRuntimeBinariesFunc(t, func() map[string]RunningBinary {
+		return map[string]RunningBinary{}
+	})
+	withSystemdRuntimeBinaryFunc(t, func(_ context.Context, pkgName string) (RunningBinary, bool, string) {
+		return RunningBinary{
+			ServiceName: pkgName,
+			BinaryPath:  "/usr/local/bin/minio",
+			Checksum:    expected,
+			PID:         2222,
+		}, true, ""
+	})
+	verdict, reason := verifyRunningBinaryMatchesExpected("minio", expected)
+	if verdict != runtimeProofMatches {
+		t.Fatalf("systemd MainPID fallback should prove non-globular-bin runtime: got %v (%s)", verdict, reason)
+	}
+}
+
+func TestVerifyRunningBinary_ProcessScanMiss_SystemdMainPIDStale(t *testing.T) {
+	withRuntimeBinariesFunc(t, func() map[string]RunningBinary {
+		return map[string]RunningBinary{}
+	})
+	withSystemdRuntimeBinaryFunc(t, func(_ context.Context, pkgName string) (RunningBinary, bool, string) {
+		return RunningBinary{
+			ServiceName: pkgName,
+			BinaryPath:  "/usr/local/bin/minio",
+			Checksum:    "oldhash",
+			PID:         2222,
+		}, true, ""
+	})
+	verdict, reason := verifyRunningBinaryMatchesExpected("minio", "newhash")
+	if verdict != runtimeProofStale {
+		t.Fatalf("systemd MainPID fallback must still detect stale runtime: got %v (%s)", verdict, reason)
 	}
 }
 

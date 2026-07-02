@@ -1009,7 +1009,7 @@ func releaseFinalizeDirectApply(cfg ReleaseControllerConfig) ActionHandler {
 // Passing one for the other is the v1.2.56/v1.2.57/v1.2.58 hash-schema-confusion
 // bug class. See invariant runtime.success_requires_expected_binary_checksum.
 type NodeDirectApplyConfig struct {
-	InstallPackage         func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error
+	InstallPackage         func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64, publisherID, repositoryAddr string, allowDowngrade bool) error
 	VerifyPackageInstalled func(ctx context.Context, name, version, hash string) error
 	RestartPackageService  func(ctx context.Context, name string) error
 	MaybeRestartPackage    func(ctx context.Context, name, kind, restartPolicy string) error
@@ -1057,6 +1057,18 @@ func WithNodeContext(ctx context.Context, nc NodeContext) context.Context {
 func GetNodeContext(ctx context.Context) (NodeContext, bool) {
 	nc, ok := ctx.Value(nodeContextKey{}).(NodeContext)
 	return nc, ok
+}
+
+func boolValue(v any) bool {
+	switch x := v.(type) {
+	case bool:
+		return x
+	case string:
+		b, _ := strconv.ParseBool(strings.TrimSpace(x))
+		return b
+	default:
+		return false
+	}
 }
 
 // enrichNodeContext extracts node_id and agent_endpoint from the action
@@ -1116,8 +1128,17 @@ func nodeInstallPackage(cfg NodeDirectApplyConfig) ActionHandler {
 				}
 			}
 		}
+		publisherID := fmt.Sprint(req.With["publisher_id"])
+		if publisherID == "<nil>" {
+			publisherID = ""
+		}
+		repositoryAddr := fmt.Sprint(req.With["repository_address"])
+		if repositoryAddr == "<nil>" {
+			repositoryAddr = ""
+		}
+		allowDowngrade := boolValue(req.With["allow_downgrade"])
 		if cfg.InstallPackage != nil {
-			if err := cfg.InstallPackage(ctx, name, version, kind, buildID, desiredHash, expectedSha256, buildNumber); err != nil {
+			if err := cfg.InstallPackage(ctx, name, version, kind, buildID, desiredHash, expectedSha256, buildNumber, publisherID, repositoryAddr, allowDowngrade); err != nil {
 				return nil, fmt.Errorf("install %s: %w", name, err)
 			}
 		}
@@ -1204,25 +1225,11 @@ func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {
 		ctx = enrichNodeContext(ctx, req)
 		name := fmt.Sprint(req.With["package_name"])
 		version := fmt.Sprint(req.With["version"])
-		// Project J: read the BINARY sha256 (resolved_entrypoint_checksum
-		// from the manifest), NOT the synthetic identity desired_hash.
-		// InstalledPackage.Checksum is the binary sha256 across every
-		// other writer (apply_package_release.go, self_hosted_runtime_proof
-		// writer); the committer was the only path aliasing desired_hash
-		// into it. The phantom value sha256("publisher/name=version+b:build;…")
-		// is INC-2026-0014 territory — explicitly forbidden by
-		// install_package.hash_schemas_must_not_alias.
-		//
-		// Fallback rule: when resolved_entrypoint_checksum is absent or
-		// the synthesized "<nil>" string (older releases / pre-manifest
-		// dispatch paths), pass an empty string. The heartbeat /
-		// self-hosted proof writer will fill it from on-disk truth on the
-		// next cycle. We MUST NOT regress to writing desired_hash.
-		hash := fmt.Sprint(req.With["resolved_entrypoint_checksum"])
-		if hash == "<nil>" || hash == "" {
-			hash = ""
-		}
 		kind := fmt.Sprint(req.With["package_kind"])
+		if kind == "<nil>" {
+			kind = ""
+		}
+		hash := syncInstalledPackageHash(req.With, kind)
 		buildID := fmt.Sprint(req.With["build_id"])
 		if buildID == "<nil>" {
 			buildID = ""
@@ -1234,6 +1241,26 @@ func nodeSyncPackageState(cfg NodeDirectApplyConfig) ActionHandler {
 		}
 		return &ActionResult{OK: true, Output: map[string]any{"synced": true}}, nil
 	}
+}
+
+func syncInstalledPackageHash(with map[string]any, kind string) string {
+	// INFRASTRUCTURE installed-state convergence uses Checksum as the
+	// release identity hash. Binary identity stays in metadata.entrypoint_checksum.
+	if strings.EqualFold(strings.TrimSpace(kind), "INFRASTRUCTURE") {
+		return cleanWorkflowString(with["desired_hash"])
+	}
+	// SERVICE/APPLICATION/COMMAND packages keep Checksum as the binary SHA from
+	// manifest.entrypoint_checksum. Never fall back to desired_hash here; that
+	// reintroduces hash-schema aliasing for non-infrastructure packages.
+	return cleanWorkflowString(with["resolved_entrypoint_checksum"])
+}
+
+func cleanWorkflowString(v any) string {
+	s := fmt.Sprint(v)
+	if s == "<nil>" {
+		return ""
+	}
+	return s
 }
 
 // --------------------------------------------------------------------------

@@ -15,9 +15,9 @@
 #   sudo bash install.sh
 #
 # Optional — set the founding node's profiles (comma-separated). The quorum
-# profiles (control-plane,core,storage) are always enforced; this adds workload
-# profiles from day-0. Example, to also run media services on this node:
-#   sudo FOUNDING_PROFILES=core,media-server bash install.sh
+# profiles (control-plane,core,storage) are always enforced; this adds explicit
+# workload profiles from day-0. Example:
+#   sudo FOUNDING_PROFILES=core,gateway bash install.sh
 #
 # After installation, the installer prints the exact bootstrap command with the
 # node's routable IP and the actual node-agent port. Example:
@@ -68,11 +68,54 @@ STATE_DIR="/var/lib/globular"
 GLOBULAR_DOMAIN="globular.internal"
 
 # Founding-node profiles, forwarded to install-day0.sh (comma-separated). The
-# controller always enforces the quorum trio (control-plane,core,storage); this
-# default also enables the media workload profile on the bootstrap node.
+# controller always enforces the quorum trio (control-plane,core,storage).
+# Extra workload profiles must be explicit operator intent.
 # Override via the environment, e.g.:
-#   sudo FOUNDING_PROFILES=core,media-server,gateway bash install.sh
-export FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
+#   sudo FOUNDING_PROFILES=core,gateway bash install.sh
+export FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"
+
+release_version_from_bundle() {
+  local index="${SCRIPT_DIR}/release-index.json"
+  [[ -f "${index}" ]] || return 1
+  python3 - "${index}" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+try:
+    data = json.load(open(path, "r", encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+value = (data.get("platform_release") or data.get("release_tag") or "").strip()
+if value.lower().startswith("v"):
+    value = value[1:]
+if not value:
+    raise SystemExit(1)
+print(value)
+PYEOF
+}
+
+print_bootstrap_profiles() {
+  local profile trimmed
+  local -a bootstrap_profiles=("core")
+  IFS=',' read -ra _profiles <<< "${FOUNDING_PROFILES:-core}"
+  for profile in "${_profiles[@]}"; do
+    trimmed="$(echo "${profile}" | xargs)"
+    case "${trimmed}" in
+      ""|"core"|"control-plane"|"storage")
+        continue
+        ;;
+    esac
+    bootstrap_profiles+=("${trimmed}")
+  done
+  local idx last
+  last=$((${#bootstrap_profiles[@]} - 1))
+  for idx in "${!bootstrap_profiles[@]}"; do
+    if [[ "${idx}" -lt "${last}" ]]; then
+      echo "    --profile ${bootstrap_profiles[$idx]} \\"
+    else
+      echo "    --profile ${bootstrap_profiles[$idx]}"
+    fi
+  done
+}
 
 mkdir -p "${SCRIPT_DIR}/bin" "${SCRIPT_DIR}/internal/assets"
 ln -sf "${INSTALLER_BIN}" "${SCRIPT_DIR}/bin/globular-installer"
@@ -83,7 +126,10 @@ info "Installing globular CLI..."
 install -m 755 "${SCRIPT_DIR}/globular" /usr/local/bin/globular
 ok "globular → /usr/local/bin/globular"
 
-VERSION=$("${SCRIPT_DIR}/globular" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+VERSION="$(release_version_from_bundle 2>/dev/null || true)"
+if [[ -z "${VERSION}" ]]; then
+  VERSION=$("${SCRIPT_DIR}/globular" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+fi
 info "Release version: ${VERSION}"
 
 # ── Run Day-0 installation ────────────────────────────────────────────────────
@@ -117,7 +163,6 @@ echo "Corrected bootstrap command:"
 echo "  globular cluster bootstrap \\"
 echo "    --node ${NODE_IP}:${NODE_AGENT_PORT} \\"
 echo "    --domain <your-domain> \\"
-echo "    --profile core \\"
-echo "    --profile media-server \\"
-echo "    --profile gateway"
+print_bootstrap_profiles
+echo "  Add any additional explicit workload profiles only if you intend to run them."
 echo ""

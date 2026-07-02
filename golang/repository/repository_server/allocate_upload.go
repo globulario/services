@@ -147,24 +147,28 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 		platform = "linux_amd64"
 	}
 
-	// Resolve version from intent. AllocateUpload is the reservation flow
-	// used for new-version allocation (bump intents) — repair is not
-	// meaningful here. Direct UploadArtifact threads the repair
-	// authorization through artifact_handlers.go.
-	version, err := srv.resolveVersionIntent(ctx, publisher, name, platform, req.GetIntent(), req.GetExactVersion(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate build_id. build_number is computed after the channel and version
-	// are final (a DEV coercion below changes the version it is counted against).
-	buildID := uuid.Must(uuid.NewV7()).String()
-
 	// Resolve channel — default to STABLE.
 	ch := req.GetChannel()
 	if ch == repopb.ArtifactChannel_CHANNEL_UNSET {
 		ch = repopb.ArtifactChannel_STABLE
 	}
+	if ch != repopb.ArtifactChannel_STABLE && req.GetIntent() != repopb.VersionIntent_EXACT {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"non-STABLE uploads must use intent=EXACT with the platform version; repository allocates build_number under that version")
+	}
+
+	// Resolve version from intent. AllocateUpload is the reservation flow
+	// used for repository-owned version/build allocation. Repair is not
+	// meaningful here; direct UploadArtifact threads repair authorization
+	// through artifact_handlers.go.
+	version, err := srv.resolveVersionIntent(ctx, publisher, name, platform, req.GetIntent(), req.GetExactVersion(), ch, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate build_id. build_number is computed after the channel and version
+	// are final.
+	buildID := uuid.Must(uuid.NewV7()).String()
 
 	// RBAC-native release gate (docs/design/package-lifecycle.md §3.4).
 	// Targeting STABLE requires the federated subject to hold release.allocate on
@@ -198,25 +202,7 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 		}
 	}
 
-	// ── DEV version semantics (P5) ────────────────────────────────────────
-	// A DEV build must never advance the release stream. Once the channel is
-	// final, pin a DEV build's version off the release stream: a clean release
-	// semver (whether requested or bumped by intent above, or the result of the
-	// gate forcing STABLE → DEV) is rewritten to a lane-safe `-dev` version
-	// anchored to the latest published release. build_number (computed next)
-	// then iterates within that DEV version. This is the repository-owned,
-	// non-destructive coercion — the reservation/`deploy` flow never lets DEV
-	// occupy a release version.
-	if ch == repopb.ArtifactChannel_DEV {
-		latest, _ := srv.getLatestRelease(ctx, publisher, name, platform)
-		if coerced := devLaneVersion(latest, version); coerced != version {
-			slog.Warn("dev-version: pinning DEV build off the release stream",
-				"publisher", publisher, "name", name, "from", version, "to", coerced)
-			version = coerced
-		}
-	}
-
-	// build_number is counted against the FINAL (possibly coerced) version.
+	// build_number is counted against the repository-resolved version.
 	buildNumber := srv.resolveLatestBuildNumber(ctx, &repopb.ArtifactRef{
 		PublisherId: publisher, Name: name, Version: version, Platform: platform,
 	}) + 1
@@ -251,7 +237,7 @@ func (srv *server) AllocateUpload(ctx context.Context, req *repopb.AllocateUploa
 // the PUBLISHED ledger; this is the second immutability gate Phase 32
 // extends after Phase 31 covered the first (enforceOfficialNamespaceSeal).
 // See repair_authorization.go for the contract.
-func (srv *server) resolveVersionIntent(ctx context.Context, publisher, name, platform string, intent repopb.VersionIntent, exactVersion string, repair *RepairAuthorization) (string, error) {
+func (srv *server) resolveVersionIntent(ctx context.Context, publisher, name, platform string, intent repopb.VersionIntent, exactVersion string, channel repopb.ArtifactChannel, repair *RepairAuthorization) (string, error) {
 	switch intent {
 	case repopb.VersionIntent_EXACT:
 		if exactVersion == "" {
@@ -272,7 +258,10 @@ func (srv *server) resolveVersionIntent(ctx context.Context, publisher, name, pl
 		// re-publish iff prior-digest matches the actually-published digest
 		// AND reason is non-empty. Same four gates as the seal check; same
 		// audit event timing (post-success in UploadArtifact).
-		if existingBuildID := srv.getExactRelease(ctx, publisher, name, cv, platform); existingBuildID != "" {
+		// STABLE exact versions are immutable. Non-STABLE/local channels may
+		// reuse the platform version; build_number/build_id carry the local
+		// iteration identity and are allocated by this repository reservation.
+		if existingBuildID := srv.getExactRelease(ctx, publisher, name, cv, platform); existingBuildID != "" && channel == repopb.ArtifactChannel_STABLE {
 			if repair == nil || !repair.Requested {
 				return "", status.Errorf(codes.AlreadyExists,
 					"version %s is already published for %s/%s on %s (build_id=%.8s) — published versions are immutable; bump the version to release a new build, "+

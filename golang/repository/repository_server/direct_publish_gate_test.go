@@ -5,8 +5,7 @@ package main
 //
 // These prove "agent builds = DEV by construction": a caller with write access
 // but no release.allocate cannot land STABLE — non-official publishers are
-// downgraded to DEV, and the sealed official namespace is rejected (it cannot be
-// DEV). Only STABLE is gated; an authorized caller is untouched.
+// downgraded to DEV. Only STABLE is gated; an authorized caller is untouched.
 
 import (
 	"testing"
@@ -27,7 +26,7 @@ func TestDirectPublishGate_UnauthorizedNonOfficialStableForcedToDev(t *testing.T
 func TestDirectPublishGate_UnauthorizedOfficialStableRejected(t *testing.T) {
 	final, reject := releaseChannelDecision(repopb.ArtifactChannel_STABLE, officialPublisher, false)
 	if !reject {
-		t.Fatalf("unauthorized official STABLE must be rejected (cannot be DEV per lane Rule 2); got final=%v", final)
+		t.Fatalf("unauthorized official STABLE must be rejected; got final=%v", final)
 	}
 }
 
@@ -55,22 +54,18 @@ func TestDirectPublishGate_NonStableChannelsPassThrough(t *testing.T) {
 	}
 }
 
-// The downgraded channel is DEV; per #6c a DEV artifact is lane-legal only with a
-// suffixed version. A CLEAN-semver downgrade is therefore NOT lane-legal (it
-// would squat a release version) — the caller must use the dev lane. A suffixed
-// version on the same downgraded channel passes. This ties the gate's output to
-// the (now stricter) lane invariant.
+// The downgraded channel is DEV. DEV/local artifacts now keep the platform
+// version and iterate repository-owned build_number; legacy suffixed versions
+// remain valid for compatibility.
 func TestDirectPublishGate_DowngradedResultLaneRules(t *testing.T) {
 	final, reject := releaseChannelDecision(repopb.ArtifactChannel_STABLE, "local@ryzen", false)
 	if reject {
 		t.Fatal("non-official must downgrade, not reject")
 	}
-	// Clean semver on the downgraded DEV channel is now a lane violation (#6c).
-	if err := validateLocalIdentityRules("local@ryzen", final, "1.2.43"); err == nil {
-		t.Fatal("clean-semver DEV must be rejected (Rule 4): a DEV build may not claim a release version")
+	if err := validateLocalIdentityRules("local@ryzen", final, "1.2.43"); err != nil {
+		t.Fatalf("clean platform semver must satisfy DEV/local identity rules; got %v", err)
 	}
-	// A dev-lane version on the same channel is legal.
 	if err := validateLocalIdentityRules("local@ryzen", final, "1.2.43-dev.1"); err != nil {
-		t.Fatalf("suffixed DEV must satisfy identity-lane rules; got %v", err)
+		t.Fatalf("legacy suffixed DEV must satisfy identity-lane rules; got %v", err)
 	}
 }

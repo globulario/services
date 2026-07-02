@@ -170,7 +170,9 @@ func classifyPackageConvergence(
 
 	gotHash := normalizeDesiredHash(installed.GetChecksum())
 	wantHash := normalizeDesiredHash(desiredHash)
-	if wantHash == "" || gotHash == wantHash {
+	kind := strings.ToUpper(strings.TrimSpace(pkgKind))
+	hashIsConvergence := kind == "INFRASTRUCTURE"
+	if !hashIsConvergence || wantHash == "" || gotHash == wantHash {
 		pc.HashOK = true
 	} else {
 		pc.RepairRequired = true

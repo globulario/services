@@ -584,6 +584,8 @@ func (artifactVerifyAction) Apply(ctx context.Context, args *structpb.Struct) (s
 
 type serviceInstallPayloadAction struct{}
 
+var ActionInstallTxnFailPhase string
+
 func (serviceInstallPayloadAction) Name() string { return "service.install_payload" }
 
 func (serviceInstallPayloadAction) Validate(args *structpb.Struct) error { return nil }
@@ -593,11 +595,22 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	service := strings.TrimSpace(fields["service"].GetStringValue())
 	artifact := strings.TrimSpace(fields["artifact_path"].GetStringValue())
 	version := strings.TrimSpace(fields["version"].GetStringValue())
+	transactionID := strings.TrimSpace(fields["transaction_id"].GetStringValue())
+	nodeID := strings.TrimSpace(fields["node_id"].GetStringValue())
+	packageID := strings.TrimSpace(fields["package_id"].GetStringValue())
+	targetBuildID := strings.TrimSpace(fields["target_build_id"].GetStringValue())
+	previousReceiptJSON := strings.TrimSpace(fields["previous_receipt_json"].GetStringValue())
 	if service == "" {
 		return "", fmt.Errorf("service is required")
 	}
 	if artifact == "" {
 		return "", fmt.Errorf("artifact_path is required")
+	}
+	if transactionID == "" {
+		transactionID = fmt.Sprintf("%s-%d", service, time.Now().UnixNano())
+	}
+	if packageID == "" {
+		packageID = service
 	}
 	stagingRoot := filepath.Join(ActionStateDir, "staging", service)
 	if ActionStagingRoot != "" {
@@ -606,8 +619,26 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	if err := os.MkdirAll(stagingRoot, 0o755); err != nil {
 		return "", fmt.Errorf("create staging dir: %w", err)
 	}
-	if _, err := os.MkdirTemp(stagingRoot, "extract-"); err != nil {
-		return "", fmt.Errorf("create extract dir: %w", err)
+	stageDir := filepath.Join(stagingRoot, "transactions", transactionID, "staged")
+	if err := os.MkdirAll(stageDir, 0o755); err != nil {
+		return "", fmt.Errorf("create stage dir: %w", err)
+	}
+	prevReceipt := map[string]string(nil)
+	if previousReceiptJSON != "" {
+		if err := json.Unmarshal([]byte(previousReceiptJSON), &prevReceipt); err != nil {
+			return "", fmt.Errorf("decode previous_receipt_json: %w", err)
+		}
+	}
+	txRec := &InstallTransactionRecord{
+		TransactionID:   transactionID,
+		NodeID:          nodeID,
+		PackageID:       packageID,
+		TargetBuildID:   targetBuildID,
+		Phase:           InstallTxnPhaseStaging,
+		PreviousReceipt: prevReceipt,
+	}
+	if err := startInstallTransaction(txRec); err != nil {
+		return "", fmt.Errorf("start install transaction: %w", err)
 	}
 	f, err := os.Open(artifact)
 	if err != nil {
@@ -622,8 +653,13 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	tr := tar.NewReader(gz)
 
 	binDir, systemdDir, configDir, skipSystemd := installPaths()
-	scriptsDir := filepath.Join(stagingRoot, "scripts")
+	scriptsDir := filepath.Join(stageDir, "scripts")
 	var wroteUnit bool
+	var promoted []installTxnPromotion
+	var stagedBinary string
+	stagePathForDest := func(dest string) string {
+		return filepath.Join(stageDir, strings.TrimPrefix(dest, "/"))
+	}
 
 	for {
 		hdr, err := tr.Next()
@@ -680,7 +716,11 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return "", fmt.Errorf("mkdir for %s: %w", dest, err)
 		}
-		tmp := dest + ".tmp"
+		stagePath := stagePathForDest(dest)
+		if err := os.MkdirAll(filepath.Dir(stagePath), 0o755); err != nil {
+			return "", fmt.Errorf("mkdir stage for %s: %w", dest, err)
+		}
+		tmp := stagePath + ".tmp"
 		df, err := os.Create(tmp)
 		if err != nil {
 			return "", fmt.Errorf("create %s: %w", tmp, err)
@@ -718,9 +758,14 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 				return "", fmt.Errorf("normalize unit %s: %w", dest, err)
 			}
 		}
-		if err := os.Rename(tmp, dest); err != nil {
+		if err := os.Rename(tmp, stagePath); err != nil {
 			os.Remove(tmp)
 			return "", fmt.Errorf("rename %s: %w", dest, err)
+		}
+		promoted = append(promoted, installTxnPromotion{FinalPath: dest, StagedPath: stagePath})
+		txRec.StagedPaths = append(txRec.StagedPaths, stagePath)
+		if strings.HasPrefix(name, "bin/") && filepath.Base(dest) == executableForService(service) {
+			stagedBinary = stagePath
 		}
 		// Note: .sha256 sidecars for systemd unit files were previously
 		// written here as the heartbeat's drift authority. They have
@@ -731,6 +776,51 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		// installed_state.metadata receipt via stampReceiptForInstalled
 		// Package. The receipt is the sole authority for expected unit
 		// content.
+	}
+	if err := writeInstallTransaction(txRec); err != nil {
+		return "", fmt.Errorf("persist staged transaction: %w", err)
+	}
+
+	if stagedBinary != "" {
+		if err := verifyInstalledBinary(stagedBinary); err != nil {
+			_ = updateInstallTransactionPhase(transactionID, InstallTxnPhaseRolledBack, err.Error())
+			return "", &InstallTransactionError{TransactionID: transactionID, RecordPath: installTransactionRecordPath(transactionID), Cause: fmt.Errorf("validate staged binary: %w", err)}
+		}
+	}
+	for _, file := range promoted {
+		if strings.HasPrefix(file.FinalPath, systemdDir+string(os.PathSeparator)) {
+			data, err := os.ReadFile(file.StagedPath)
+			if err != nil {
+				_ = updateInstallTransactionPhase(transactionID, InstallTxnPhaseRolledBack, err.Error())
+				return "", &InstallTransactionError{TransactionID: transactionID, RecordPath: installTransactionRecordPath(transactionID), Cause: fmt.Errorf("read staged unit: %w", err)}
+			}
+			if len(systemdutil.NormalizeUnitWorkingDirectory(data)) == 0 {
+				err := fmt.Errorf("canonical unit render empty for %s", file.FinalPath)
+				_ = updateInstallTransactionPhase(transactionID, InstallTxnPhaseRolledBack, err.Error())
+				return "", &InstallTransactionError{TransactionID: transactionID, RecordPath: installTransactionRecordPath(transactionID), Cause: err}
+			}
+		}
+	}
+	if err := updateInstallTransactionPhase(transactionID, InstallTxnPhaseValidated, ""); err != nil {
+		return "", fmt.Errorf("update transaction validated: %w", err)
+	}
+	if ActionInstallTxnFailPhase == "after_validate" {
+		return "", &InstallTransactionError{
+			TransactionID: transactionID,
+			RecordPath:    installTransactionRecordPath(transactionID),
+			Cause:         fmt.Errorf("injected failure after staged validation"),
+		}
+	}
+	if err := promoteInstallTransactionFiles(transactionID, txRec, promoted); err != nil {
+		rolled, rerr := rollbackInstallTransactionByID(transactionID, err.Error())
+		return "", buildInstallTransactionFailure(transactionID, err, rolled, rerr)
+	}
+	if err := updateInstallTransactionPhase(transactionID, InstallTxnPhasePromoted, ""); err != nil {
+		return "", fmt.Errorf("update transaction promoted: %w", err)
+	}
+	if ActionInstallTxnFailPhase == "after_promote" {
+		rolled, rerr := rollbackInstallTransactionByID(transactionID, "injected failure after promotion")
+		return "", buildInstallTransactionFailure(transactionID, fmt.Errorf("injected failure after promotion"), rolled, rerr)
 	}
 
 	// Ensure the service working directory exists.  Even though we normalize
@@ -775,8 +865,16 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		// daemon-reload via the supervisor (the single allowlisted systemd-control
 		// path), not raw exec (EX-2 unit-control boundary).
 		if err := supervisor.DaemonReload(cctx); err != nil {
-			return "", fmt.Errorf("systemctl daemon-reload: %w", err)
+			rolled, rerr := rollbackInstallTransactionByID(transactionID, err.Error())
+			return "", buildInstallTransactionFailure(transactionID, fmt.Errorf("systemctl daemon-reload: %w", err), rolled, rerr)
 		}
+	}
+	if err := updateInstallTransactionPhase(transactionID, InstallTxnPhaseReloaded, ""); err != nil {
+		return "", fmt.Errorf("update transaction reloaded: %w", err)
+	}
+	if ActionInstallTxnFailPhase == "after_reload" {
+		rolled, rerr := rollbackInstallTransactionByID(transactionID, "injected failure after reload")
+		return "", buildInstallTransactionFailure(transactionID, fmt.Errorf("injected failure after reload"), rolled, rerr)
 	}
 
 	if version == "" {
@@ -794,7 +892,8 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	// Infrastructure packages (scylladb, etc.) use this to generate config
 	// files that depend on runtime state (node IP, seed discovery, etc.).
 	if err := runPostInstallScript(ctx, scriptsDir, ActionStateDir); err != nil {
-		return "", fmt.Errorf("post-install script: %w", err)
+		rolled, rerr := rollbackInstallTransactionByID(transactionID, err.Error())
+		return "", buildInstallTransactionFailure(transactionID, fmt.Errorf("post-install script: %w", err), rolled, rerr)
 	}
 
 	// Safe post-install verification: confirm the bytes we just extracted
@@ -807,20 +906,39 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	if exe != "" {
 		binPath := filepath.Join(binDir, exe)
 		if err := verifyInstalledBinary(binPath); err != nil {
-			return "", fmt.Errorf("verify %s: %w", service, err)
+			rolled, rerr := rollbackInstallTransactionByID(transactionID, err.Error())
+			return "", buildInstallTransactionFailure(transactionID, fmt.Errorf("verify %s: %w", service, err), rolled, rerr)
 		}
 		// Preflight: check that all native shared-library dependencies of the
 		// binary are present on this node. Fail immediately rather than letting
 		// systemd crash-loop for minutes before verify_runtime times out.
 		if missing, err := MissingNativeLibs(ctx, binPath); err == nil && len(missing) > 0 {
-			return "", fmt.Errorf(
+			rolled, rerr := rollbackInstallTransactionByID(transactionID, strings.Join(missing, ","))
+			return "", buildInstallTransactionFailure(transactionID, fmt.Errorf(
 				"NATIVE_LIBRARY_DEPENDENCY_MISSING: %s requires native libraries not installed on this node: %v — install the OS packages providing them (e.g. for libodbc.so.2: apt install unixodbc)",
 				service, missing,
-			)
+			), rolled, rerr)
 		}
 	}
 
-	return fmt.Sprintf("service payload installed version=%s", version), nil
+	return fmt.Sprintf("service payload installed version=%s transaction_id=%s", version, transactionID), nil
+}
+
+func buildInstallTransactionFailure(transactionID string, cause error, rolled *InstallTransactionRecord, rollbackErr error) error {
+	txErr := &InstallTransactionError{
+		TransactionID: transactionID,
+		RecordPath:    installTransactionRecordPath(transactionID),
+		Cause:         cause,
+	}
+	if rollbackErr != nil {
+		txErr.RecoveryRequired = true
+		txErr.Cause = fmt.Errorf("%w (rollback incomplete: %v)", cause, rollbackErr)
+		return txErr
+	}
+	if rolled != nil && rolled.Phase == InstallTxnPhasePartialInstallRecovery {
+		txErr.RecoveryRequired = true
+	}
+	return txErr
 }
 
 // verifyInstalledBinary checks that an installed binary is present, executable,
@@ -1477,7 +1595,7 @@ func init() {
 // manifest must be reachable and carry a valid bundle checksum. If the
 // manifest is missing or malformed the download is rejected (we never
 // fetch without proof of what we expect to receive).
-func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, version, platform, kindStr, expectedEntrypointSHA256, destDir string) (string, error) {
+func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, version, platform, kindStr, expectedEntrypointSHA256, destDir string, buildNumber int64) (string, error) {
 	artifactKind := repositorypb.ArtifactKind_SERVICE
 	switch strings.ToUpper(kindStr) {
 	case "INFRASTRUCTURE":
@@ -1499,7 +1617,7 @@ func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, ver
 	// expectedEntrypointSHA256 is a different hash schema (binary, not
 	// bundle) and must not be used for bundle verification — see the
 	// invariant note in the function doc.
-	bundleDigest, err := resolveArtifactDigest(ctx, repoAddr, publisherID, name, version, platform, kindStr, 0)
+	bundleDigest, err := resolveArtifactDigest(ctx, repoAddr, publisherID, name, version, platform, kindStr, buildNumber)
 	if err != nil {
 		return "", fmt.Errorf("download %s@%s: cannot resolve manifest bundle checksum (required before download): %w", name, version, err)
 	}
@@ -1510,8 +1628,12 @@ func DownloadArtifactToDir(ctx context.Context, repoAddr, publisherID, name, ver
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return "", fmt.Errorf("create download dir %s: %w", destDir, err)
 	}
-	dest := filepath.Join(destDir, fmt.Sprintf("%s_%s_%s.tgz", name, version, platform))
-	if err := downloadArtifactFromRepository(ctx, repoAddr, ref, dest, bundleDigest, false, "", 0); err != nil {
+	fileVersion := version
+	if buildNumber > 0 {
+		fileVersion = fmt.Sprintf("%s+b%d", version, buildNumber)
+	}
+	dest := filepath.Join(destDir, fmt.Sprintf("%s_%s_%s.tgz", name, fileVersion, platform))
+	if err := downloadArtifactFromRepository(ctx, repoAddr, ref, dest, bundleDigest, false, "", buildNumber); err != nil {
 		return "", fmt.Errorf("download %s@%s from %s: %w", name, version, repoAddr, err)
 	}
 	return dest, nil

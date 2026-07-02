@@ -63,9 +63,9 @@ var ErrNoPublishedArtifact = errors.New("no published artifact found")
 // to an exact version string, its SHA256 artifact digest, and the build number.
 // It contacts the repository service to confirm the artifact exists and retrieve its manifest.
 type ReleaseResolver struct {
-	RepositoryAddr string // gRPC endpoint for repository service (resolved from etcd)
+	RepositoryAddr string                                  // gRPC endpoint for repository service (resolved from etcd)
 	InstallPolicy  *cluster_controllerpb.InstallPolicySpec // optional consumer install policy
-	ArtifactKind   repositorypb.ArtifactKind // default SERVICE; set to INFRASTRUCTURE for infra releases
+	ArtifactKind   repositorypb.ArtifactKind               // default SERVICE; set to INFRASTRUCTURE for infra releases
 }
 
 // ResolvedArtifact holds the full identity of a resolved artifact.
@@ -76,8 +76,8 @@ type ReleaseResolver struct {
 // docs/awareness/failure_modes.yaml entry verifier.hash_schema_confusion.
 type ResolvedArtifact struct {
 	Version            string
-	Digest             string                    // PACKAGE TARBALL sha256 (never compared to a binary)
-	EntrypointChecksum string                    // BINARY sha256 (compared to installed entrypoint_checksum)
+	Digest             string // PACKAGE TARBALL sha256 (never compared to a binary)
+	EntrypointChecksum string // BINARY sha256 (compared to installed entrypoint_checksum)
 	BuildNumber        int64
 	BuildID            string                    // Phase 2: repository-allocated exact artifact identity
 	RepoKind           repositorypb.ArtifactKind // actual kind from repository manifest
@@ -196,12 +196,12 @@ func (r *ReleaseResolver) Resolve(ctx context.Context, spec *cluster_controllerp
 	}
 
 	// Slice 3 hard gate (Invariant E): reject any resolved artifact that is not on a
-	// convergence-eligible channel (STABLE / legacy UNSET). This also covers PINNED
-	// resolution, where getLatestPublished is bypassed — a desired pin pointing at a
-	// DEV artifact must never resolve as a convergence target.
+	// convergence-eligible release channel. This also covers PINNED resolution, where
+	// getLatestPublished is bypassed — a desired pin pointing at a DEV artifact must
+	// never resolve as a convergence target.
 	if !isConvergeableChannel(manifest.GetChannel()) {
 		return nil, fmt.Errorf("artifact %s/%s@%s build %d is on channel %s, not a "+
-			"convergence-eligible release channel (STABLE); DEV artifacts are never valid "+
+			"convergence-eligible release channel; DEV artifacts are never valid "+
 			"desired-state targets", spec.PublisherID, spec.ServiceName, version, buildNumber,
 			manifest.GetChannel())
 	}
@@ -229,29 +229,22 @@ type artifactCandidate struct {
 }
 
 // isConvergeableChannel reports whether an artifact on this channel may be a
-// cluster convergence (desired-state) target. Per repository.proto Invariant E,
-// "the reconciler resolves from STABLE only"; CHANNEL_UNSET is legacy and treated
-// as STABLE. DEV (and every other non-STABLE channel) is NEVER a valid desired-
-// state target — this is the controller-side half of the dev/release boundary
-// (docs/design/package-lifecycle.md §3.4; invariant
-// package.release_vs_dev_channel_boundary).
-//
-// This predicate is the SINGLE authority on convergence eligibility. In
-// particular BOOTSTRAP is NOT convergeable here, even though the repository lists
-// it by default in searches (isDefaultListChannel) and will serve it on explicit
-// request: bootstrap-phase artifacts must be discoverable and fetchable, but must
-// never auto-advance desired state. That asymmetry is the contract, not a
-// discrepancy — see docs/design/package-lifecycle.md §3.4.5. Do NOT widen this
-// set to match the repository's default-list set.
+// cluster convergence (desired-state) target. DEV artifacts are developer-lane
+// only and never valid desired-state targets. Release tiers are convergeable:
+// STABLE, CANDIDATE, CANARY, BOOTSTRAP, and legacy CHANNEL_UNSET.
 func isConvergeableChannel(ch repositorypb.ArtifactChannel) bool {
-	return ch == repositorypb.ArtifactChannel_CHANNEL_UNSET ||
-		ch == repositorypb.ArtifactChannel_STABLE
+	switch ch {
+	case repositorypb.ArtifactChannel_DEV:
+		return false
+	default:
+		return true
+	}
 }
 
 // pickBestConvergeableBuild returns the highest build_number (and its build_id)
-// among CONVERGENCE-ELIGIBLE artifacts (STABLE / legacy UNSET) matching canon and
-// desiredVer. DEV-channel artifacts are skipped so they can never advance desired
-// state (Slice 3 / Invariant E). Pure function — unit-tested directly.
+// among CONVERGENCE-ELIGIBLE artifacts matching canon and desiredVer.
+// DEV-channel artifacts are skipped so they can never advance desired state
+// (Slice 3 / Invariant E). Pure function — unit-tested directly.
 func pickBestConvergeableBuild(allArts []*repositorypb.ArtifactManifest, canon, desiredVer string) (int64, string) {
 	var bestBuild int64
 	var bestBuildID string
@@ -308,9 +301,9 @@ func (r *ReleaseResolver) getLatestPublished(ctx context.Context, client reposit
 			continue
 		}
 
-		// Slice 3 (Invariant E): only STABLE-channel (or legacy UNSET) artifacts are
-		// convergence-eligible. Skip DEV and other channels so latest-resolution picks
-		// the latest STABLE release, never a DEV artifact.
+		// Slice 3 (Invariant E): only release-tier artifacts are
+		// convergence-eligible. Skip DEV so latest-resolution never picks a
+		// developer-lane artifact.
 		if !isConvergeableChannel(a.GetChannel()) {
 			continue
 		}

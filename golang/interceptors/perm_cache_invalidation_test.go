@@ -16,6 +16,10 @@ func TestFlushPermCache_SurgicalAndComplete(t *testing.T) {
 	// Seed permission-decision entries (these MUST be flushed).
 	putPermCache("perm:a", true, time.Minute)
 	putPermCache("perm:b", false, time.Minute)
+	// Seed role-binding entries (these MUST also be flushed). A stale empty
+	// binding can keep denying a newly granted service principal after Day-0
+	// seeds RBAC.
+	putCachedRoleBinding("globule-ryzen", []string{})
 	// Seed non-permission entries sharing the same cache (these MUST survive).
 	cache.Store("stream-uuid-1", struct{}{})
 	cache.Store("idx-key", 7)
@@ -27,6 +31,9 @@ func TestFlushPermCache_SurgicalAndComplete(t *testing.T) {
 	}
 	if _, ok := getPermCache("perm:b"); ok {
 		t.Error("perm entry 'perm:b' survived flush")
+	}
+	if _, ok := getCachedRoleBinding("globule-ryzen"); ok {
+		t.Error("role binding entry survived flush — a stale empty binding could keep denying workflow writes")
 	}
 	if _, ok := cache.Load("stream-uuid-1"); !ok {
 		t.Error("flush dropped a stream-auth marker — flush must be surgical (perm entries only)")

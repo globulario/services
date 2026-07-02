@@ -76,7 +76,7 @@ func newCooldownTestServer(addr string, now func() time.Time, cooldown time.Dura
 // advance the clock by reassigning the underlying time.
 type fixedClock struct{ t time.Time }
 
-func (c *fixedClock) now() time.Time     { return c.t }
+func (c *fixedClock) now() time.Time      { return c.t }
 func (c *fixedClock) add(d time.Duration) { c.t = c.t.Add(d) }
 
 func TestDedupCooldown_RapidRedispatchSuppressed(t *testing.T) {
@@ -129,6 +129,31 @@ func TestDedupCooldown_AfterCooldown_DispatchesAgain(t *testing.T) {
 
 	if got := agent.calls.Load(); got != 2 {
 		t.Fatalf("expected 2 ControlService calls (one per cooldown window), got %d", got)
+	}
+}
+
+func TestDedupCooldown_CriticalUnitsUseLongDefaultWindow(t *testing.T) {
+	srv := &server{}
+
+	if got := srv.restartCooldownWindowForUnit("globular-envoy.service"); got != criticalRestartCooldown {
+		t.Fatalf("envoy cooldown=%s, want %s", got, criticalRestartCooldown)
+	}
+	if got := srv.restartCooldownWindowForUnit("globular-etcd.service"); got != criticalRestartCooldown {
+		t.Fatalf("etcd cooldown=%s, want %s", got, criticalRestartCooldown)
+	}
+	if got := srv.restartCooldownWindowForUnit("scylla-server.service"); got != criticalRestartCooldown {
+		t.Fatalf("scylla cooldown=%s, want %s", got, criticalRestartCooldown)
+	}
+	if got := srv.restartCooldownWindowForUnit("globular-dns.service"); got != defaultRestartCooldown {
+		t.Fatalf("non-critical cooldown=%s, want %s", got, defaultRestartCooldown)
+	}
+}
+
+func TestDedupCooldown_TestOverrideStillAppliesToCriticalUnits(t *testing.T) {
+	srv := &server{restartCooldown: 3 * time.Second}
+
+	if got := srv.restartCooldownWindowForUnit("globular-envoy.service"); got != 3*time.Second {
+		t.Fatalf("test override cooldown=%s, want 3s", got)
 	}
 }
 

@@ -110,6 +110,10 @@ type nodeAgentState struct {
 	// JoinPlanJSON is the raw JoinPlan JSON written by the installer alongside
 	// the join_id. The node-agent validates the plan before polling for admission.
 	JoinPlanJSON []byte `json:"join_plan_json,omitempty"`
+	// LegacyJoinSatisfied records that ReportNodeStatus was accepted for this
+	// node during the legacy v1 join lifecycle, so further RequestJoin retries
+	// must stay suppressed until the join state is explicitly reset.
+	LegacyJoinSatisfied bool `json:"legacy_join_satisfied,omitempty"`
 }
 
 func newNodeAgentState() *nodeAgentState {

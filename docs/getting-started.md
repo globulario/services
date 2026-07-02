@@ -51,6 +51,10 @@ sudo bash install.sh
 > ```bash
 > sudo FOUNDING_PROFILES=core,media-server bash install.sh
 > ```
+>
+> `media-server` is optional workload intent. The founding/default bootstrap set
+> is `core,control-plane,storage`; add `media-server` only when you explicitly
+> want the media stack on that node.
 
 > **Note**: individual service packages are versioned independently (the
 > release tag bundles a BOM of per-package versions). You will rarely see all

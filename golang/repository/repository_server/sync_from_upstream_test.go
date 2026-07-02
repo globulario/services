@@ -193,13 +193,13 @@ func TestImportUpstreamArtifact_IdempotentSkipPersistsAlias(t *testing.T) {
 	})
 
 	n := &normalizedEntry{
-		Publisher: "core@globular.io",
-		Name:      "workflow",
-		Version:   "1.0.53",
-		Platform:  "linux_amd64",
-		BuildID:   "upstream-67",
-		BuildNumber: 67,
-		Digest:    "sha256:same-content",
+		Publisher:     "core@globular.io",
+		Name:          "workflow",
+		Version:       "1.0.53",
+		Platform:      "linux_amd64",
+		BuildID:       "upstream-67",
+		BuildNumber:   67,
+		Digest:        "sha256:same-content",
 		OriginRelease: "v1.0.53",
 	}
 	err := srv.importUpstreamArtifact(
@@ -443,7 +443,7 @@ func TestCheckImportPolicy_ChannelDefaultsToStable(t *testing.T) {
 	// Entry with no channel should default to "stable" after normalization.
 	entry := &releaseIndexEntry{Name: "echo", Kind: "SERVICE", Version: "1.0.0", Platform: "linux_amd64",
 		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		AssetURL: "https://example.com/echo.tgz"}
+		AssetURL:      "https://example.com/echo.tgz"}
 	src := &repopb.UpstreamSource{AllowedChannels: []string{"stable"}}
 
 	n := normalizeReleaseEntry(entry, src)
@@ -519,7 +519,7 @@ func TestNormalizeReleaseEntry_ExplicitBuildNumber(t *testing.T) {
 		Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
 		BuildNumber: 42, BuildID: "run-42",
 		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		AssetURL: "https://example.com/echo.tgz",
+		AssetURL:      "https://example.com/echo.tgz",
 	}
 	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{})
 	if n.BuildNumber != 42 {
@@ -534,7 +534,7 @@ func TestNormalizeReleaseEntry_MissingBuildNumberDerived(t *testing.T) {
 	entry := &releaseIndexEntry{
 		Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
 		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		AssetURL: "https://example.com/echo.tgz",
+		AssetURL:      "https://example.com/echo.tgz",
 	}
 	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{})
 	if n.BuildNumber <= 0 {
@@ -549,12 +549,12 @@ func TestNormalizeReleaseEntry_TwoMissingBuildIDsNoCollision(t *testing.T) {
 	entry1 := &releaseIndexEntry{
 		Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
 		PackageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		AssetURL: "https://example.com/echo.tgz",
+		AssetURL:      "https://example.com/echo.tgz",
 	}
 	entry2 := &releaseIndexEntry{
 		Name: "rbac", Version: "1.0.0", Platform: "linux_amd64",
 		PackageDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		AssetURL: "https://example.com/rbac.tgz",
+		AssetURL:      "https://example.com/rbac.tgz",
 	}
 	src := &repopb.UpstreamSource{}
 	n1 := normalizeReleaseEntry(entry1, src)
@@ -570,9 +570,9 @@ func TestNormalizeReleaseEntry_TwoMissingBuildIDsNoCollision(t *testing.T) {
 func TestNormalizeReleaseEntry_NonNumericBuildID(t *testing.T) {
 	entry := &releaseIndexEntry{
 		Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
-		BuildID: "ci-run-abc-123",
+		BuildID:       "ci-run-abc-123",
 		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		AssetURL: "https://example.com/echo.tgz",
+		AssetURL:      "https://example.com/echo.tgz",
 	}
 	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{})
 	if n.BuildID != "ci-run-abc-123" {
@@ -587,9 +587,9 @@ func TestNormalizeReleaseEntry_NonNumericBuildID(t *testing.T) {
 func TestNormalizeReleaseEntry_NumericBuildIDReplaced(t *testing.T) {
 	entry := &releaseIndexEntry{
 		Name: "sidekick", Version: "1.1.0", Platform: "linux_amd64",
-		BuildID: "105",
+		BuildID:       "105",
 		PackageDigest: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-		AssetURL: "https://example.com/sidekick.tgz",
+		AssetURL:      "https://example.com/sidekick.tgz",
 	}
 	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{})
 	if n.BuildID == "105" {
@@ -689,9 +689,9 @@ func TestUpstreamFallbackAllowed_MissingChecksum(t *testing.T) {
 func TestNormalizeReleaseEntry_ChannelFromEntry(t *testing.T) {
 	entry := &releaseIndexEntry{
 		Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
-		Channel: "candidate",
+		Channel:       "candidate",
 		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		AssetURL: "https://example.com/echo.tgz",
+		AssetURL:      "https://example.com/echo.tgz",
 	}
 	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{Channel: "stable"})
 	if n.Channel != "candidate" {
@@ -703,7 +703,7 @@ func TestNormalizeReleaseEntry_ChannelFallsBackToSource(t *testing.T) {
 	entry := &releaseIndexEntry{
 		Name: "echo", Version: "1.0.0", Platform: "linux_amd64",
 		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		AssetURL: "https://example.com/echo.tgz",
+		AssetURL:      "https://example.com/echo.tgz",
 	}
 	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{Channel: "candidate"})
 	if n.Channel != "candidate" {
@@ -850,7 +850,7 @@ func TestProcessSyncEntry_UnchangedPackagePreservesVersion(t *testing.T) {
 	src := &repopb.UpstreamSource{Name: "test-source"}
 
 	prov, pOpts := testProvider()
-		result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true, "")
+	result := srv.processSyncEntry(context.Background(), entry, src, prov, pOpts, "v1.0.84", true, "")
 	// Version should be the package version (1.0.82), not the platform release (1.0.84).
 	if result.Version != "1.0.82" {
 		t.Fatalf("expected package version 1.0.82, got %q", result.Version)
@@ -871,7 +871,7 @@ func TestProcessSyncEntry_MixedVersionRelease(t *testing.T) {
 		{
 			Name: "repository", Kind: "SERVICE", Publisher: "core@globular.io",
 			Version: "1.0.84", BuildNumber: 24, BuildID: "24",
-			Platform: "linux_amd64",
+			Platform:      "linux_amd64",
 			PackageDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			AssetURL:      "https://example.com/v1.0.84/repository.tgz",
 			ReleaseTag:    "v1.0.84", OriginRelease: "v1.0.84",
@@ -880,7 +880,7 @@ func TestProcessSyncEntry_MixedVersionRelease(t *testing.T) {
 		{
 			Name: "gateway", Kind: "SERVICE", Publisher: "core@globular.io",
 			Version: "1.0.82", BuildNumber: 9, BuildID: "9",
-			Platform: "linux_amd64",
+			Platform:      "linux_amd64",
 			PackageDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 			AssetURL:      "https://example.com/v1.0.82/gateway.tgz",
 			ReleaseTag:    "v1.0.84", OriginRelease: "v1.0.82",
@@ -912,7 +912,7 @@ func TestSameArtifactMultipleReleases_NoConflict(t *testing.T) {
 	}
 	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 9, BuildId: "9",
-		Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Checksum:  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		SizeBytes: 100,
 	})
 
@@ -949,7 +949,7 @@ func TestSamePackageIdentityDifferentSha256_Conflict(t *testing.T) {
 	}
 	seedPublishedArtifact(t, srv, &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 9, BuildId: "bid-9",
-		Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Checksum:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SizeBytes: 100,
 	})
 
@@ -1024,10 +1024,10 @@ func TestProcessSyncEntry_NoAssetURLNoAssetPath_DryRun(t *testing.T) {
 func TestNormalizedEntry_PopulatesAssetPathAndFilename(t *testing.T) {
 	entry := &releaseIndexEntry{
 		Name: "echo", Version: "1.0.84", Platform: "linux_amd64",
-		AssetPath: "packages/echo.tgz",
-		Filename:  "echo_1.0.84.tgz",
+		AssetPath:     "packages/echo.tgz",
+		Filename:      "echo_1.0.84.tgz",
 		PackageDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-		AssetURL:  "", // intentionally empty
+		AssetURL:      "", // intentionally empty
 	}
 	n := normalizeReleaseEntry(entry, &repopb.UpstreamSource{})
 	if n.AssetPath != "packages/echo.tgz" {
@@ -1338,8 +1338,8 @@ func TestResolveProvenanceAssetURL_Variants(t *testing.T) {
 
 // Scenario A: duplicate upstream package.
 //
-//   local:    repository@0.3.4 linux_amd64 build_id=A build_number=100 checksum=X
-//   upstream: repository@0.3.4 linux_amd64 build_id=B build_number=101 checksum=X
+//	local:    repository@0.3.4 linux_amd64 build_id=A build_number=100 checksum=X
+//	upstream: repository@0.3.4 linux_amd64 build_id=B build_number=101 checksum=X
 //
 // Expected: one canonical artifact, alias for build_number=101 -> canonical
 // build_id A, no second artifact row, sync reports SYNC_SKIPPED action=up_to_date.
@@ -1394,8 +1394,8 @@ func TestScenarioA_DuplicateUpstreamPackage_DedupesWithAlias(t *testing.T) {
 
 // Scenario B: malicious/confused upstream build_id reuse.
 //
-//   local:    build_id=A checksum=X
-//   upstream: build_id=A checksum=Y
+//	local:    build_id=A checksum=X
+//	upstream: build_id=A checksum=Y
 //
 // Expected: reject, quarantine the incoming metadata, local artifact unchanged.
 func TestScenarioB_UpstreamBuildIDReuseRejected(t *testing.T) {
@@ -1457,8 +1457,8 @@ func TestScenarioB_UpstreamBuildIDReuseRejected(t *testing.T) {
 
 // Scenario C: same version, real new build.
 //
-//   local:    repository@0.3.4 build_id=A checksum=X build_number=100
-//   upstream: repository@0.3.4 build_id=B checksum=Y build_number=101
+//	local:    repository@0.3.4 build_id=A checksum=X build_number=100
+//	upstream: repository@0.3.4 build_id=B checksum=Y build_number=101
 //
 // Expected: both builds allowed (different build_id AND different checksum =
 // distinct artifact identities); a version-only resolution then fails as
@@ -1522,12 +1522,12 @@ func TestScenarioC_SameVersionRealNewBuild_AmbiguousResolution(t *testing.T) {
 
 // Scenario D: release-index platform pin (resolver-side invariants only).
 //
-//   A previously-imported artifact at build_id=A checksum=X must always be
-//   reachable by build_id-pinned resolve, regardless of which release tag
-//   later referenced it. The sync-side half of Scenario D (sync re-sees the
-//   same pin and produces SYNC_SKIPPED + persists the alias) is blocked on
-//   the same platform-normalization fix described above and is intentionally
-//   not covered here — see also TestProcessSyncEntryDedupesDifferentBuildNumber.
+//	A previously-imported artifact at build_id=A checksum=X must always be
+//	reachable by build_id-pinned resolve, regardless of which release tag
+//	later referenced it. The sync-side half of Scenario D (sync re-sees the
+//	same pin and produces SYNC_SKIPPED + persists the alias) is blocked on
+//	the same platform-normalization fix described above and is intentionally
+//	not covered here — see also TestProcessSyncEntryDedupesDifferentBuildNumber.
 func TestScenarioD_ReleaseIndexPin_ResolveByBuildIDIsDeterministic(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()

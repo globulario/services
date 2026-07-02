@@ -164,6 +164,40 @@ func TestNodeSyncPackageState_HashSchemasMustNotAlias(t *testing.T) {
 	}
 }
 
+// 5. INFRASTRUCTURE is the sanctioned exception: InstalledPackage.Checksum is
+// the convergence identity hash and binary proof lives in metadata.entrypoint_checksum.
+// This is what stops infrastructure release workflows from redispatching forever.
+func TestNodeSyncPackageState_InfrastructureWritesDesiredHash(t *testing.T) {
+	const binaryHash = "879e841827e74446259b878c354de4f92d9a48859546ee4ae0021b618f00a79a"
+	const convergenceHash = "de2b04ff64ce4489abcdef0123456789abcdef0123456789abcdef0123456789"
+
+	var seen string
+	cfg := NodeDirectApplyConfig{
+		SyncInstalledPackage: func(ctx context.Context, name, version, hash, kind, buildID string) error {
+			seen = hash
+			return nil
+		},
+	}
+	handler := nodeSyncPackageState(cfg)
+
+	req := ActionRequest{
+		With: map[string]any{
+			"package_name":                 "envoy",
+			"version":                      "1.2.37",
+			"package_kind":                 "INFRASTRUCTURE",
+			"build_id":                     "019f1f0a-6b13-739c-924a-51e84e7a4ecb",
+			"desired_hash":                 convergenceHash,
+			"resolved_entrypoint_checksum": binaryHash,
+		},
+	}
+	if _, err := handler(context.Background(), req); err != nil {
+		t.Fatalf("handler returned err: %v", err)
+	}
+	if seen != convergenceHash {
+		t.Fatalf("infrastructure hash = %q, want desired_hash=%q", seen, convergenceHash)
+	}
+}
+
 // 5. Non-string types in with: map: ensure fmt.Sprint conversion doesn't
 // produce a garbage value. Some workflow loaders deliver int / int64 for
 // numeric fields. resolved_entrypoint_checksum is always a hex string in

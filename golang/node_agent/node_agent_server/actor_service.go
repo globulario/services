@@ -34,8 +34,8 @@ import (
 	"strings"
 	"time"
 
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
@@ -110,27 +110,7 @@ func (a *NodeAgentActorServer) handlePackageApply(ctx context.Context, req *work
 		preserveConfigs = true
 	}
 
-	apply := &node_agentpb.ApplyPackageReleaseRequest{
-		PackageName:           strField(get, "package_name", "name"),
-		PackageKind:           strField(get, "package_kind", "kind"),
-		Version:               strField(get, "version", "target_version"),
-		Publisher:             strField(get, "publisher", "publisher_id"),
-		Platform:              strField(get, "platform"),
-		Force:                 boolField(get, "force"),
-		ExpectedSha256:        strField(get, "expected_sha256", "checksum"),
-		OperationId:           defaultIfEmpty(req.GetRunId(), strField(get, "operation_id")),
-		RepositoryAddr:        strField(get, "repository_addr"),
-		BuildNumber:           int64Field(get, "build_number"),
-		BuildId:               strField(get, "build_id"),
-		RollbackMode:          rollback,
-		RollbackReason:        strField(get, "rollback_reason", "reason"),
-		WorkflowRunId:         req.GetRunId(),
-		TargetRevisionId:      strField(get, "target_revision_id"),
-		PreserveConfigs:       preserveConfigs,
-		RestoreConfigSnapshot: boolField(get, "restore_config_snapshot"),
-		AllowDowngrade:        rollback || boolField(get, "allow_downgrade"),
-		PreviousRevisionId:    strField(get, "previous_revision_id"),
-	}
+	apply := buildApplyPackageReleaseRequest(req, get, rollback, preserveConfigs)
 	if apply.PackageName == "" {
 		return &workflowpb.ExecuteActionResponse{Ok: false, Message: "package.apply: missing package_name"}, nil
 	}
@@ -156,6 +136,31 @@ func (a *NodeAgentActorServer) handlePackageApply(ctx context.Context, req *work
 		Message:    resp.GetMessage(),
 		OutputJson: string(outJSON),
 	}, nil
+}
+
+func buildApplyPackageReleaseRequest(req *workflowpb.ExecuteActionRequest, get func(...string) any, rollback, preserveConfigs bool) *node_agentpb.ApplyPackageReleaseRequest {
+	return &node_agentpb.ApplyPackageReleaseRequest{
+		PackageName:           strField(get, "package_name", "name"),
+		PackageKind:           strField(get, "package_kind", "kind"),
+		Version:               strField(get, "version", "target_version"),
+		Publisher:             strField(get, "publisher", "publisher_id"),
+		Platform:              strField(get, "platform"),
+		Force:                 boolField(get, "force"),
+		ExpectedSha256:        strField(get, "expected_sha256", "checksum"),
+		OperationId:           defaultIfEmpty(req.GetRunId(), strField(get, "operation_id")),
+		RepositoryAddr:        strField(get, "repository_addr"),
+		BuildNumber:           int64Field(get, "build_number"),
+		BuildId:               strField(get, "build_id"),
+		RollbackMode:          rollback,
+		RollbackReason:        strField(get, "rollback_reason", "reason"),
+		WorkflowRunId:         req.GetRunId(),
+		TargetRevisionId:      strField(get, "target_revision_id"),
+		PreserveConfigs:       preserveConfigs,
+		RestoreConfigSnapshot: boolField(get, "restore_config_snapshot"),
+		AllowDowngrade:        rollback || boolField(get, "allow_downgrade"),
+		PreviousRevisionId:    strField(get, "previous_revision_id"),
+		DesiredHash:           strField(get, "desired_hash"),
+	}
 }
 
 func (a *NodeAgentActorServer) handleServiceDrain(ctx context.Context, _ *workflowpb.ExecuteActionRequest, with, inputs map[string]any) (*workflowpb.ExecuteActionResponse, error) {

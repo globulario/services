@@ -457,17 +457,20 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	// D4: enforce the no-regression floor for the SERVICE path here — only after
 	// kind routing has confirmed this is a genuine SERVICE write, so the SERVICE
 	// floor never interferes with an infrastructure-routed write.
+	floor := desiredVersionFloor(srv.currentDesiredServiceVersion(ctx, canon), highVer)
+	allowDowngrade := allowRegression && regressesBelowFloor(version, floor)
 	if err := srv.enforceServiceDesiredFloor(ctx, canon, version, highVer, allowRegression); err != nil {
 		return err
 	}
 	obj := &cluster_controllerpb.ServiceDesiredVersion{
 		Meta: &cluster_controllerpb.ObjectMeta{Name: canon},
 		Spec: &cluster_controllerpb.ServiceDesiredVersionSpec{
-			ServiceName:   canon,
-			Version:       version,
-			BuildNumber:   svc.BuildNumber,
-			BuildID:       buildID,
-			TargetNodeIDs: targetNodeIDs,
+			ServiceName:    canon,
+			Version:        version,
+			BuildNumber:    svc.BuildNumber,
+			BuildID:        buildID,
+			AllowDowngrade: allowDowngrade,
+			TargetNodeIDs:  targetNodeIDs,
 		},
 	}
 	if _, err = srv.resources.Apply(ctx, "ServiceDesiredVersion", obj); err != nil {
@@ -484,7 +487,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 
 	// Ensure a corresponding ServiceRelease exists so the release reconciler can
 	// track per-service lifecycle phases.
-	srv.ensureServiceRelease(ctx, canon, "", version, svc.BuildNumber, targetNodeIDs)
+	srv.ensureServiceRelease(ctx, canon, "", version, svc.BuildNumber, targetNodeIDs, allowDowngrade)
 
 	return nil
 }

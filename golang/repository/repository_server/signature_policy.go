@@ -42,11 +42,11 @@ const signaturePolicyEtcdKey = "/globular/repository/security/policy"
 // but it must be opt-in: operators register trusted publisher keys, sign
 // their core artifacts, then write the strict policy to etcd:
 //
-//   etcdctl put /globular/repository/security/policy '{
-//     "require_signatures_for_core":      true,
-//     "trusted_core_publishers":          ["core@globular.io"],
-//     "quarantine_on_invalid_signature":  true
-//   }'
+//	etcdctl put /globular/repository/security/policy '{
+//	  "require_signatures_for_core":      true,
+//	  "trusted_core_publishers":          ["core@globular.io"],
+//	  "quarantine_on_invalid_signature":  true
+//	}'
 //
 // REVOKED keys are ALWAYS disqualifying regardless of policy — the
 // permissive default does NOT loosen that.

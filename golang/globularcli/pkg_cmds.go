@@ -124,6 +124,7 @@ var (
 	pkgScriptsDir         string
 	pkgVersion            string
 	pkgPublisher          string
+	pkgChannel            string
 	pkgPlatform           string
 	pkgOutDir             string
 	pkgBuildNumber        int64
@@ -135,13 +136,13 @@ var (
 	pkgVerifySpec string // --spec flag for validating a raw spec YAML
 
 	// Publish / register command flags
-	pkgPublishFile       string
-	pkgPublishDir        string
-	pkgPublishRepository string
-	pkgPublishPublisher  string
-	pkgPublishDryRun     bool
-	pkgPublishForce      bool
-	pkgPublishOutput     string // "table" | "json" | "yaml"
+	pkgPublishFile        string
+	pkgPublishDir         string
+	pkgPublishRepository  string
+	pkgPublishPublisher   string
+	pkgPublishDryRun      bool
+	pkgPublishForce       bool
+	pkgPublishOutput      string // "table" | "json" | "yaml"
 	pkgPublishBump        string // "patch" | "minor" | "major" — calls AllocateUpload
 	pkgPublishChannel     string // "stable" | "candidate" | "canary" | "dev" | "local" | "hotfix" | "bootstrap"
 	pkgPublishBasedOn     string // "name@version" — official source artifact (for local builds)
@@ -184,6 +185,7 @@ func init() {
 	pkgBuildCmd.Flags().StringVar(&pkgVersion, "version", "0.0.1", "package version tag (SemVer preferred; upstream-native tags allowed when supported)")
 	pkgBuildCmd.Flags().Int64Var(&pkgBuildNumber, "build-number", 0, "build iteration within version (0 = legacy)")
 	pkgBuildCmd.Flags().StringVar(&pkgPublisher, "publisher", "core@globular.io", "publisher identifier")
+	pkgBuildCmd.Flags().StringVar(&pkgChannel, "channel", "", "release channel to stamp into package metadata: stable|candidate|canary|dev|bootstrap")
 	pkgBuildCmd.Flags().StringVar(&pkgPlatform, "platform", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH), "target platform (goos_goarch)")
 	pkgBuildCmd.Flags().StringVar(&pkgOutDir, "out", "", "output directory (required)")
 	pkgBuildCmd.Flags().BoolVar(&pkgSkipMissingConfig, "skip-missing-config", true, "skip missing config directories")
@@ -213,7 +215,7 @@ func init() {
 	pkgPublishCmd.Flags().StringVar(&pkgPublishPriorDigest, "prior-digest", "", "expected sealed digest the caller intends to replace (required when --unseal-official is set; server rejects mismatch as FailedPrecondition)")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishOutput, "output", "table", "output format: table|json|yaml")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishBump, "bump", "", "version bump intent: patch|minor|major (calls AllocateUpload)")
-	pkgPublishCmd.Flags().StringVar(&pkgPublishChannel, "channel", "", "release channel: stable|candidate|canary|dev|local|hotfix|bootstrap\n  local → DEV channel + auto local version suffix\n  hotfix → CANDIDATE channel + -hotfix. suffix\n  (default: stable)")
+	pkgPublishCmd.Flags().StringVar(&pkgPublishChannel, "channel", "", "release channel: stable|candidate|canary|dev|local|hotfix|bootstrap\n  local/dev → DEV channel + repository build_number under the platform version\n  hotfix → CANDIDATE channel + repository build_number under the platform version\n  (default: stable)")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishBasedOn, "based-on", "", "official source artifact for local/hotfix build (name@version, e.g. storage@1.2.43)")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishPatchReason, "patch-reason", "", "human-readable reason for a local or hotfix build (stored in manifest)")
 
@@ -263,6 +265,7 @@ func runPkgBuild(cmd *cobra.Command, args []string) error {
 		Version:            pkgVersion,
 		BuildNumber:        pkgBuildNumber,
 		Publisher:          pkgPublisher,
+		Channel:            pkgChannel,
 		Platform:           pkgPlatform,
 		OutDir:             pkgOutDir,
 		DebsDir:            pkgDebsDir,
@@ -581,29 +584,6 @@ func publishOne(file, token string) pkgPublishOne {
 	}
 	r.publisher = publisher
 
-	// For local/hotfix channels without --bump, auto-append the appropriate version
-	// suffix if the package version is bare semver. This enforces identity lane rules
-	// client-side before the upload even reaches the server.
-	if pkgPublishBump == "" {
-		lane := strings.ToLower(pkgPublishChannel)
-		switch lane {
-		case "local", "dev":
-			if !hasLocalVersionSuffixCLI(summary.Version) {
-				hostname, _ := os.Hostname()
-				if hostname == "" {
-					hostname = "local"
-				}
-				summary.Version = formatLocalVersionCLI(summary.Version, "local", hostname, 1)
-				r.version = summary.Version
-			}
-		case "hotfix":
-			if !hasLocalVersionSuffixCLI(summary.Version) {
-				summary.Version = formatLocalVersionCLI(summary.Version, "hotfix", "", 1)
-				r.version = summary.Version
-			}
-		}
-	}
-
 	if pkgPublishDryRun {
 		r.duration = time.Since(start)
 		return r
@@ -655,42 +635,43 @@ func publishOne(file, token string) pkgPublishOne {
 		client.SetToken(token)
 	}
 
-	// Step 2b: Allocate version via repository if --bump is set.
+	// Step 2b: Allocate identity via repository when the caller needs a repository-owned
+	// build_number. Stable release flows may bump the platform version. Non-STABLE
+	// local/dev/candidate/hotfix flows must keep the package/platform version exact
+	// and only iterate build_number.
 	var reservationID string
-	if pkgPublishBump != "" {
-		var intent repopb.VersionIntent
-		switch strings.ToLower(pkgPublishBump) {
-		case "patch":
-			intent = repopb.VersionIntent_BUMP_PATCH
-		case "minor":
-			intent = repopb.VersionIntent_BUMP_MINOR
-		case "major":
-			intent = repopb.VersionIntent_BUMP_MAJOR
-		default:
-			r.err = fmt.Errorf("invalid --bump value %q: use patch, minor, or major", pkgPublishBump)
-			r.duration = time.Since(start)
-			return r
+	ch, err := parsePkgPublishChannel(pkgPublishChannel)
+	if err != nil {
+		r.err = err
+		r.duration = time.Since(start)
+		return r
+	}
+	needsAllocation := pkgPublishBump != "" || ch != repopb.ArtifactChannel_STABLE
+	if needsAllocation {
+		intent := repopb.VersionIntent_EXACT
+		exactVersion := summary.Version
+		if pkgPublishBump != "" {
+			if ch != repopb.ArtifactChannel_STABLE {
+				r.err = fmt.Errorf("--bump is only valid for stable release allocation; non-STABLE channels use the exact platform version and repository build_number")
+				r.duration = time.Since(start)
+				return r
+			}
+			exactVersion = ""
+			switch strings.ToLower(pkgPublishBump) {
+			case "patch":
+				intent = repopb.VersionIntent_BUMP_PATCH
+			case "minor":
+				intent = repopb.VersionIntent_BUMP_MINOR
+			case "major":
+				intent = repopb.VersionIntent_BUMP_MAJOR
+			default:
+				r.err = fmt.Errorf("invalid --bump value %q: use patch, minor, or major", pkgPublishBump)
+				r.duration = time.Since(start)
+				return r
+			}
 		}
 
-		var ch repopb.ArtifactChannel
-		switch strings.ToLower(pkgPublishChannel) {
-		case "stable", "":
-			ch = repopb.ArtifactChannel_STABLE
-		case "candidate", "hotfix":
-			ch = repopb.ArtifactChannel_CANDIDATE
-		case "canary":
-			ch = repopb.ArtifactChannel_CANARY
-		case "dev", "local":
-			ch = repopb.ArtifactChannel_DEV
-		case "bootstrap":
-			ch = repopb.ArtifactChannel_BOOTSTRAP
-		default:
-			r.err = fmt.Errorf("invalid --channel value %q: use stable, candidate, canary, dev, local, hotfix, or bootstrap", pkgPublishChannel)
-			r.duration = time.Since(start)
-			return r
-		}
-
-		alloc, err := client.AllocateUpload(publisher, summary.Name, summary.Platform, intent, "", ch)
+		alloc, err := client.AllocateUpload(publisher, summary.Name, summary.Platform, intent, exactVersion, ch)
 		if err != nil {
 			r.err = fmt.Errorf("allocate upload: %w", err)
 			r.duration = time.Since(start)
@@ -951,41 +932,20 @@ func setPackageDescriptor(name, publisherID, version, description string, keywor
 	return action, nil
 }
 
-// hasLocalVersionSuffixCLI mirrors the server-side hasLocalVersionSuffix without
-// importing the repository package. Used for client-side pre-check only.
-func hasLocalVersionSuffixCLI(version string) bool {
-	lower := strings.ToLower(version)
-	return strings.Contains(lower, "+local.") ||
-		strings.Contains(lower, "-dev.") ||
-		strings.Contains(lower, "-hotfix.") ||
-		strings.Contains(lower, "+dev.") ||
-		strings.Contains(lower, "+hotfix.")
-}
-
-// formatLocalVersionCLI mirrors FormatLocalVersion from local_publish_guard.go.
-func formatLocalVersionCLI(baseVersion, lane, qualifier string, n int) string {
-	v := strings.TrimPrefix(baseVersion, "v")
-	switch lane {
-	case "hotfix":
-		if n > 0 {
-			return fmt.Sprintf("%s-hotfix.%d", v, n)
-		}
-		return v + "-hotfix.1"
-	case "dev":
-		if qualifier != "" && n > 0 {
-			return fmt.Sprintf("%s-dev.%s.%d", v, qualifier, n)
-		}
-		if qualifier != "" {
-			return fmt.Sprintf("%s-dev.%s", v, qualifier)
-		}
-		return v + "-dev.1"
-	default: // local
-		if qualifier != "" && n > 0 {
-			return fmt.Sprintf("%s+local.%s.%d", v, qualifier, n)
-		}
-		if qualifier != "" {
-			return fmt.Sprintf("%s+local.%s", v, qualifier)
-		}
-		return v + "+local.1"
+func parsePkgPublishChannel(channel string) (repopb.ArtifactChannel, error) {
+	switch strings.ToLower(strings.TrimSpace(channel)) {
+	case "stable", "":
+		return repopb.ArtifactChannel_STABLE, nil
+	case "candidate", "hotfix":
+		return repopb.ArtifactChannel_CANDIDATE, nil
+	case "canary":
+		return repopb.ArtifactChannel_CANARY, nil
+	case "dev", "local":
+		return repopb.ArtifactChannel_DEV, nil
+	case "bootstrap":
+		return repopb.ArtifactChannel_BOOTSTRAP, nil
+	default:
+		return repopb.ArtifactChannel_CHANNEL_UNSET,
+			fmt.Errorf("invalid --channel value %q: use stable, candidate, canary, dev, local, hotfix, or bootstrap", channel)
 	}
 }

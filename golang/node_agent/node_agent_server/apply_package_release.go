@@ -18,7 +18,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -28,6 +27,10 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 )
+
+func installStateCommitContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 45*time.Second)
+}
 
 // writeBinaryUnverifiedInstalledState records an apply that completed without
 // a provable binary identity (no expected_sha256 from manifest, or legacy
@@ -129,8 +132,6 @@ func (srv *NodeAgentServer) writeBinaryHashMismatchInstalledState(
 	}
 }
 
-// applyMu prevents concurrent ApplyPackageRelease calls for the same package.
-var applyMu sync.Mutex
 var embeddedBuildTokenPattern = regexp.MustCompile(`(?i)(?:^|[.+-])b[0-9]+(?:$|[.+-])`)
 
 // installedBinaryPath returns the expected deployed executable path for a package.
@@ -184,6 +185,11 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	operationID := req.GetOperationId()
 	platform := strings.TrimSpace(req.GetPlatform())
 	buildID := strings.TrimSpace(req.GetBuildId()) // Phase 2: exact artifact identity
+	convergenceHash := strings.TrimSpace(req.GetDesiredHash())
+	publisherID := strings.TrimSpace(req.GetPublisher())
+	if publisherID == "" {
+		publisherID = defaultPublisherID
+	}
 
 	if name == "" {
 		return nil, fmt.Errorf("package_name is required")
@@ -249,7 +255,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 						//
 						// Keep the top-level Checksum honest too: it is the installed
 						// entrypoint/binary SHA, NOT the release identity hash.
-						srv.repairInstalledStateOnBuildIDSkip(ctx, existing, kind, name, version)
+						srv.repairInstalledStateOnBuildIDSkip(ctx, existing, kind, name, version, convergenceHash)
 						log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
 							kind, name, version, req.GetBuildNumber(), buildID)
 						return &node_agentpb.ApplyPackageReleaseResponse{
@@ -306,18 +312,82 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// post-success hook can pick the right action label (install / upgrade /
 	// rollback) for the InstalledPackageRevision row.
 	previousInstalled, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
-
-	// Serialize concurrent applies to prevent conflicts.
-	applyMu.Lock()
-	defer applyMu.Unlock()
+	transactionID := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	recoveryMode := req.GetRollbackMode()
+	ownership, ownershipErr := actions.AcquireInstallOwnership(actions.AcquireInstallOwnershipRequest{
+		NodeID:        srv.nodeID,
+		PackageID:     name,
+		TargetBuildID: buildID,
+		TransactionID: transactionID,
+		WorkflowRunID: req.GetWorkflowRunId(),
+		OperationID:   operationID,
+		RecoveryMode:  recoveryMode,
+	})
+	if ownershipErr != nil {
+		var busyErr *actions.InstallOwnershipBusyError
+		var cooldownErr *actions.InstallOwnershipCooldownError
+		var recoveryErr *actions.InstallOwnershipRecoveryRequiredError
+		switch {
+		case errors.As(ownershipErr, &busyErr):
+			return &node_agentpb.ApplyPackageReleaseResponse{
+				Ok:          true,
+				Message:     fmt.Sprintf("suppressed duplicate install for %s/%s while transaction %s owns install key", kind, name, busyErr.Record.TransactionID),
+				PackageName: name,
+				Version:     version,
+				Status:      "suppressed_duplicate",
+				OperationId: operationID,
+				BuildId:     buildID,
+			}, nil
+		case errors.As(ownershipErr, &cooldownErr):
+			return &node_agentpb.ApplyPackageReleaseResponse{
+				Ok:          true,
+				Message:     fmt.Sprintf("install suppressed by cooldown until %s", cooldownErr.CooldownUntil.UTC().Format(time.RFC3339)),
+				PackageName: name,
+				Version:     version,
+				Status:      "suppressed_cooldown",
+				OperationId: operationID,
+				BuildId:     buildID,
+			}, nil
+		case errors.As(ownershipErr, &recoveryErr):
+			return &node_agentpb.ApplyPackageReleaseResponse{
+				Ok:          false,
+				Message:     "install blocked by partial_install_recovery; recovery workflow must own the install key",
+				PackageName: name,
+				Version:     version,
+				Status:      "partial_install_recovery",
+				ErrorDetail: recoveryErr.Error(),
+				OperationId: operationID,
+				BuildId:     buildID,
+			}, nil
+		default:
+			return nil, ownershipErr
+		}
+	}
+	ownershipClosed := false
+	closeOwnership := func(state, lastErr string, cooldown time.Duration) {
+		if ownershipClosed {
+			return
+		}
+		ownershipClosed = true
+		if err := actions.CloseInstallOwnership(srv.nodeID, name, buildID, transactionID, state, lastErr, cooldown); err != nil {
+			log.Printf("apply-package: close install ownership failed for %s/%s: %v", kind, name, err)
+		}
+	}
+	defer func() {
+		if !ownershipClosed {
+			closeOwnership(actions.InstallOwnershipStateReleased, "apply exited without explicit ownership close", 0)
+		}
+	}()
+	log.Printf("apply-package: acquired install key %s via transaction %s", ownership.InstallKey, transactionID)
 
 	// Publish guard (Law 8): verify the artifact is PUBLISHED before installing.
 	// This is the final safety boundary — even if the controller dispatches an
 	// install for a non-PUBLISHED artifact, the node-agent must reject it.
 	if repoAddr != "" {
 		if err := actions.CheckArtifactPublished(ctx, repoAddr,
-			defaultPublisherID, name, version, platform, kind, req.GetBuildNumber()); err != nil {
+			publisherID, name, version, platform, kind, req.GetBuildNumber()); err != nil {
 			log.Printf("apply-package: REJECTED %s/%s@%s — %v", kind, name, version, err)
+			closeOwnership(actions.InstallOwnershipStateBlocked, err.Error(), 15*time.Second)
 			return &node_agentpb.ApplyPackageReleaseResponse{
 				Ok:          false,
 				Message:     fmt.Sprintf("publish guard: artifact not PUBLISHED: %v", err),
@@ -338,10 +408,6 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// the post-success hook can emit accurate PRESERVED/REPLACED receipts;
 	// returns an error when a FAIL_ON_LOCAL_MODIFICATION conflict is detected
 	// (a CONFLICT receipt has already been recorded). In that case we abort.
-	publisherID := strings.TrimSpace(req.GetPublisher())
-	if publisherID == "" {
-		publisherID = defaultPublisherID
-	}
 	preInstallPkg := &node_agentpb.InstalledPackage{
 		Name: name, Version: version, Kind: kind, Platform: platform,
 		BuildNumber: req.GetBuildNumber(), BuildId: buildID,
@@ -366,6 +432,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			OperationId: operationID, BuildNumber: req.GetBuildNumber(),
 			Metadata: map[string]string{"error": configErr.Error()},
 		})
+		closeOwnership(actions.InstallOwnershipStateBlocked, configErr.Error(), 15*time.Second)
 		return &node_agentpb.ApplyPackageReleaseResponse{
 			Ok:          false,
 			Message:     fmt.Sprintf("config policy blocked apply: %v", configErr),
@@ -409,32 +476,10 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// build_id + expected_sha256 MUST flow end-to-end so the fetch layer
 	// can validate cached bytes. Dropping either field here was the cause of
 	// the "stale cache reinstall" incident.
-	if err := srv.InstallPackage(ctx, name, kind, repoAddr, version,
-		buildID, req.GetExpectedSha256()); err != nil {
+	if err := srv.InstallPackage(ctx, name, kind, publisherID, repoAddr, version,
+		buildID, req.GetBuildNumber(), req.GetExpectedSha256(), transactionID); err != nil {
 		log.Printf("apply-package: install failed for %s/%s@%s: %v", kind, name, version, err)
-
-		// Mark as failed in installed-state.
-		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
-			NodeId:      srv.nodeID,
-			Name:        name,
-			Version:     version,
-			Kind:        kind,
-			Status:      "failed",
-			UpdatedUnix: time.Now().Unix(),
-			OperationId: operationID,
-			BuildNumber: req.GetBuildNumber(),
-			Metadata:    map[string]string{"error": err.Error()},
-		})
-
-		return &node_agentpb.ApplyPackageReleaseResponse{
-			Ok:          false,
-			Message:     fmt.Sprintf("install failed: %v", err),
-			PackageName: name,
-			Version:     version,
-			Status:      "failed",
-			ErrorDetail: err.Error(),
-			OperationId: operationID,
-		}, nil
+		return srv.writeInstallFailureState(ctx, req, name, kind, version, buildID, transactionID, err), nil
 	}
 
 	// ── COMMAND-kind packages: no service to restart ────────────────────
@@ -496,15 +541,20 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// legacy. Best-effort: missing receipt surfaces as fail-closed
 		// at heartbeat, which is correct.
 		stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.command", installedBinaryPath(name, kind))
-		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
-			log.Printf("apply-package: WARNING installed_state write failed for COMMAND %s@%s: %v — skipping post-install side effects", name, version, err)
-		} else {
-			// Record the installed revision in the repository's history and emit
-			// config receipts — same hook the service-restart path uses. The
-			// rollback workflow consumes this; without it COMMAND installs would
-			// never appear in Provenance / Audit screens.
-			srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
+		commitCtx, cancel := installStateCommitContext()
+		err := installed_state.CommitInstalledPackage(commitCtx, pkg)
+		cancel()
+		if err != nil {
+			log.Printf("apply-package: installed_state write failed for COMMAND %s@%s: %v — rolling back promoted files", name, version, err)
+			return srv.writeInstallFailureState(ctx, req, name, kind, version, buildID, transactionID, err), nil
 		}
+		_ = actions.CommitActiveInstallTransaction(name, buildID)
+		closeOwnership(actions.InstallOwnershipStateCommitted, "", 0)
+		// Record the installed revision in the repository's history and emit
+		// config receipts — same hook the service-restart path uses. The
+		// rollback workflow consumes this; without it COMMAND installs would
+		// never appear in Provenance / Audit screens.
+		srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
 		return &node_agentpb.ApplyPackageReleaseResponse{
 			Ok:          true,
 			Message:     fmt.Sprintf("installed %s/%s@%s (COMMAND — no service to restart)", kind, name, version),
@@ -533,28 +583,36 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	if name == "minio" {
 		nodeIP := srv.nodeIP()
 		poolState, poolErr := config.LoadObjectStoreDesiredState(ctx)
-		if poolErr == nil && !nodeIPInPool(nodeIP, poolState) {
-			log.Printf("apply-package: minio installed on non-member node %s (ip=%s) — skipping service start (held_not_in_topology)", srv.nodeID, nodeIP)
-			_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
-				NodeId:      srv.nodeID,
-				Name:        name,
-				Version:     version,
-				Kind:        kind,
-				Status:      "installed_held",
-				UpdatedUnix: time.Now().Unix(),
-				OperationId: operationID,
-				BuildNumber: req.GetBuildNumber(),
-				BuildId:     buildID,
-				Metadata:    map[string]string{"held_reason": "not_in_objectstore_pool"},
-			})
-			return &node_agentpb.ApplyPackageReleaseResponse{
-				Ok:          true,
-				Message:     fmt.Sprintf("minio installed on %s (ip=%s) but service held — not in ObjectStoreDesiredState.Nodes (run apply-topology to admit)", srv.nodeID, nodeIP),
-				PackageName: name,
-				Version:     version,
-				Status:      "installed_held",
-				OperationId: operationID,
-			}, nil
+		if poolErr == nil {
+			if pending, pendingReason := minioTopologyAdmissionPending(poolState); pending {
+				log.Printf("apply-package: minio topology admission pending on node %s (ip=%s) — allowing bootstrap-local start (%s)",
+					srv.nodeID, nodeIP, pendingReason)
+			} else if !nodeIPInPool(nodeIP, poolState) {
+				log.Printf("apply-package: minio installed on non-member node %s (ip=%s) — skipping service start (held_not_in_topology)", srv.nodeID, nodeIP)
+				commitCtx, cancel := installStateCommitContext()
+				_ = installed_state.CommitInstalledPackage(commitCtx, &node_agentpb.InstalledPackage{
+					NodeId:      srv.nodeID,
+					Name:        name,
+					Version:     version,
+					Kind:        kind,
+					Status:      "installed_held",
+					UpdatedUnix: time.Now().Unix(),
+					OperationId: operationID,
+					BuildNumber: req.GetBuildNumber(),
+					BuildId:     buildID,
+					Metadata:    map[string]string{"held_reason": "not_in_objectstore_pool"},
+				})
+				cancel()
+				closeOwnership(actions.InstallOwnershipStateReleased, "", 0)
+				return &node_agentpb.ApplyPackageReleaseResponse{
+					Ok:          true,
+					Message:     fmt.Sprintf("minio installed on %s (ip=%s) but service held — not in ObjectStoreDesiredState.Nodes (run apply-topology to admit)", srv.nodeID, nodeIP),
+					PackageName: name,
+					Version:     version,
+					Status:      "installed_held",
+					OperationId: operationID,
+				}, nil
+			}
 		}
 	}
 
@@ -594,6 +652,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 				BuildNumber: req.GetBuildNumber(),
 				Metadata:    map[string]string{"error": errMsg},
 			})
+			closeOwnership(actions.InstallOwnershipStateBlocked, errMsg, 15*time.Second)
 			return &node_agentpb.ApplyPackageReleaseResponse{
 				Ok:          false,
 				Message:     errMsg,
@@ -607,6 +666,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// Upgrader is running — it will restart us, wait for active, and write
 		// installed-state. Return success for the install portion; the upgrader
 		// owns the restart truth boundary.
+		closeOwnership(actions.InstallOwnershipStateReleased, "", 0)
 		return &node_agentpb.ApplyPackageReleaseResponse{
 			Ok:          true,
 			Message:     fmt.Sprintf("installed %s/%s@%s, upgrader handling restart", kind, name, version),
@@ -645,9 +705,11 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// meta.failure_response_must_contract_not_amplify)
 	if _, statErr := os.Stat(unitPath); os.IsNotExist(statErr) && isServiceKind(kind) {
 		if rerr := srv.recreateServiceUnitFromSpec(ctx, name, version); rerr != nil {
+			closeOwnership(actions.InstallOwnershipStateBlocked, rerr.Error(), 15*time.Second)
 			return srv.writeServiceUnitUnrecoverableInstalledState(ctx, req, name, kind, version, unitPath, rerr), nil
 		}
 		if _, st2 := os.Stat(unitPath); os.IsNotExist(st2) {
+			closeOwnership(actions.InstallOwnershipStateBlocked, "no install_services unit found in the bundled package spec", 15*time.Second)
 			return srv.writeServiceUnitUnrecoverableInstalledState(ctx, req, name, kind, version, unitPath,
 				fmt.Errorf("no install_services unit found in the bundled package spec")), nil
 		}
@@ -666,9 +728,11 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// we mark installed.
 		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
 		if verr != nil {
+			closeOwnership(actions.InstallOwnershipStateBlocked, verr.Error(), 15*time.Second)
 			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
 		}
 		if verdict == BinaryUnverified {
+			closeOwnership(actions.InstallOwnershipStateBlocked, "binary unverified", 15*time.Second)
 			return srv.writeBinaryUnverifiedInstalledState(ctx, req, name, kind, version, actualHash,
 				"no expected_sha256 provided in apply request — cannot prove installed binary matches the desired artifact"), nil
 		}
@@ -696,11 +760,16 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			binaryOnlyPkg.Metadata["entrypoint_checksum"] = actualHash
 		}
 		stampReceiptForInstalledPackage(binaryOnlyPkg, "node-agent.apply_package_release.binary_only", installedBinaryPath(name, kind))
-		if err := installed_state.WriteInstalledPackage(ctx, binaryOnlyPkg); err != nil {
-			log.Printf("apply-package: WARNING installed_state write failed for binary-only %s@%s: %v — skipping post-install side effects", name, version, err)
-		} else {
-			srv.recordRevisionAndReceipts(ctx, repoAddr, req, binaryOnlyPkg, previousInstalled, configSnap)
+		commitCtx, cancel := installStateCommitContext()
+		err := installed_state.CommitInstalledPackage(commitCtx, binaryOnlyPkg)
+		cancel()
+		if err != nil {
+			log.Printf("apply-package: installed_state write failed for binary-only %s@%s: %v — rolling back promoted files", name, version, err)
+			return srv.writeInstallFailureState(ctx, req, name, kind, version, buildID, transactionID, err), nil
 		}
+		_ = actions.CommitActiveInstallTransaction(name, buildID)
+		closeOwnership(actions.InstallOwnershipStateCommitted, "", 0)
+		srv.recordRevisionAndReceipts(ctx, repoAddr, req, binaryOnlyPkg, previousInstalled, configSnap)
 		return &node_agentpb.ApplyPackageReleaseResponse{
 			Ok:          true,
 			Message:     fmt.Sprintf("installed %s/%s@%s (binary-only — no systemd unit)", kind, name, version),
@@ -722,52 +791,14 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	if err := supervisor.Restart(restartCtx, unit); err != nil {
 		errMsg := fmt.Sprintf("restart failed for %s: %v", unit, err)
 		log.Printf("apply-package: %s", errMsg)
-		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
-			NodeId:      srv.nodeID,
-			Name:        name,
-			Version:     version,
-			Kind:        kind,
-			Status:      "failed",
-			UpdatedUnix: time.Now().Unix(),
-			OperationId: operationID,
-			BuildNumber: req.GetBuildNumber(),
-			Metadata:    map[string]string{"error": errMsg},
-		})
-		return &node_agentpb.ApplyPackageReleaseResponse{
-			Ok:          false,
-			Message:     errMsg,
-			PackageName: name,
-			Version:     version,
-			Status:      "failed",
-			ErrorDetail: errMsg,
-			OperationId: operationID,
-		}, nil
+		return srv.writeInstallFailureState(ctx, req, name, kind, version, buildID, transactionID, fmt.Errorf("%s", errMsg)), nil
 	}
 
 	// Wait for the service to become active (systemd is-active).
 	if err := supervisor.WaitActive(restartCtx, unit, 30*time.Second); err != nil {
 		errMsg := fmt.Sprintf("service %s did not become active within 30s after restart: %v", unit, err)
 		log.Printf("apply-package: %s", errMsg)
-		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
-			NodeId:      srv.nodeID,
-			Name:        name,
-			Version:     version,
-			Kind:        kind,
-			Status:      "failed",
-			UpdatedUnix: time.Now().Unix(),
-			OperationId: operationID,
-			BuildNumber: req.GetBuildNumber(),
-			Metadata:    map[string]string{"error": errMsg},
-		})
-		return &node_agentpb.ApplyPackageReleaseResponse{
-			Ok:          false,
-			Message:     errMsg,
-			PackageName: name,
-			Version:     version,
-			Status:      "failed",
-			ErrorDetail: errMsg,
-			OperationId: operationID,
-		}, nil
+		return srv.writeInstallFailureState(ctx, req, name, kind, version, buildID, transactionID, fmt.Errorf("%s", errMsg)), nil
 	}
 
 	// ── Success: service is running ─────────────────────────────────────
@@ -778,9 +809,11 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// mark installed.
 	actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
 	if verr != nil {
+		closeOwnership(actions.InstallOwnershipStateBlocked, verr.Error(), 15*time.Second)
 		return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
 	}
 	if verdict == BinaryUnverified {
+		closeOwnership(actions.InstallOwnershipStateBlocked, "binary unverified", 15*time.Second)
 		return srv.writeBinaryUnverifiedInstalledState(ctx, req, name, kind, version, actualHash,
 			"no expected_sha256 provided in apply request — cannot prove installed binary matches the desired artifact"), nil
 	}
@@ -815,22 +848,21 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// Canonical install path: stamp the receipt before committing the
 	// installed_state record. See docs/architecture/retire-systemd-sidecars.md.
 	srv.stampCanonicalReceiptForInstalledPackage(ctx, pkg, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
-	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
-		// The installed-state record is the durable commit. Side effects
-		// (revision history, config receipts) must not run if the commit
-		// fails — otherwise the repository says "installed at vX" while
-		// etcd still says "updating". Log and return success for the
-		// binary install (it IS on disk) but skip the side effects.
-		// See meta.state_mutations_must_be_durably_committed_before_side_effects.
-		log.Printf("apply-package: WARNING installed_state write failed for %s/%s@%s: %v — skipping post-install side effects", kind, name, version, err)
-	} else {
-		// Phase F post-success hook: record the installed revision in the
-		// repository's history table and emit one config-receipt per declared
-		// config file. Both calls are best-effort and never block the apply
-		// response. The rollback workflow consumes RecordInstalledRevision; the
-		// `pkg config conflicts` CLI consumes RecordConfigReceipt.
-		srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
+	commitCtx, cancel := installStateCommitContext()
+	err := installed_state.CommitInstalledPackage(commitCtx, pkg)
+	cancel()
+	if err != nil {
+		log.Printf("apply-package: installed_state write failed for %s/%s@%s: %v — rolling back promoted files", kind, name, version, err)
+		return srv.writeInstallFailureState(ctx, req, name, kind, version, buildID, transactionID, err), nil
 	}
+	_ = actions.CommitActiveInstallTransaction(name, buildID)
+	closeOwnership(actions.InstallOwnershipStateCommitted, "", 0)
+	// Phase F post-success hook: record the installed revision in the
+	// repository's history table and emit one config-receipt per declared
+	// config file. Both calls are best-effort and never block the apply
+	// response. The rollback workflow consumes RecordInstalledRevision; the
+	// `pkg config conflicts` CLI consumes RecordConfigReceipt.
+	srv.recordRevisionAndReceipts(ctx, repoAddr, req, pkg, previousInstalled, configSnap)
 
 	// Tombstone any stale INFRASTRUCTURE record when the package is installed as
 	// SERVICE. Services that were originally deployed via Day-0 bootstrap carry a
@@ -867,7 +899,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 // receipts no longer match the on-disk unit content. Without this refresh,
 // unit_file_drift can persist forever on nodes that are already at the desired
 // build and therefore never take the reinstall path.
-func (srv *NodeAgentServer) repairInstalledStateOnBuildIDSkip(ctx context.Context, existing *node_agentpb.InstalledPackage, kind, name, version string) {
+func (srv *NodeAgentServer) repairInstalledStateOnBuildIDSkip(ctx context.Context, existing *node_agentpb.InstalledPackage, kind, name, version, convergenceHash string) {
 	if existing == nil {
 		return
 	}
@@ -875,11 +907,11 @@ func (srv *NodeAgentServer) repairInstalledStateOnBuildIDSkip(ctx context.Contex
 	if hashErr != nil || diskHash == "" {
 		// No hashable binary means no safe binary-identity repair; still try the
 		// skip-path receipt restamp so unit receipts can converge from disk.
-		srv.restampReceiptOnInstallSkip(ctx, name, kind, version, existing.GetBuildId())
+		srv.restampReceiptOnInstallSkip(ctx, name, kind, version, existing.GetBuildId(), convergenceHash)
 		return
 	}
 
-	if !strings.EqualFold(strings.TrimSpace(existing.GetChecksum()), diskHash) {
+	if shouldStampTopLevelBinaryChecksum(kind) && !strings.EqualFold(strings.TrimSpace(existing.GetChecksum()), diskHash) {
 		repaired := *existing
 		repaired.Checksum = diskHash
 		repaired.UpdatedUnix = time.Now().Unix()
@@ -898,5 +930,5 @@ func (srv *NodeAgentServer) repairInstalledStateOnBuildIDSkip(ctx context.Contex
 
 	// Always refresh the canonical install receipt from the live disk view,
 	// even when the top-level binary checksum was already correct.
-	srv.restampReceiptOnInstallSkip(ctx, name, kind, version, existing.GetBuildId())
+	srv.restampReceiptOnInstallSkip(ctx, name, kind, version, existing.GetBuildId(), convergenceHash)
 }

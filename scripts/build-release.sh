@@ -1186,6 +1186,15 @@ for pkg_name in "${!BIN_MAP[@]}"; do
   cp "${bin_path}" "${tmpdir}/bin/${bin_name}"
   chmod 755 "${tmpdir}/bin/${bin_name}"
 
+  policy_dir="${SERVICES_ROOT}/generated/policy/${pkg_name//-/_}"
+  if [[ -d "${policy_dir}" ]]; then
+    mkdir -p "${tmpdir}/policy"
+    for policy_file in permissions.generated.json roles.generated.json; do
+      [[ -f "${policy_dir}/${policy_file}" ]] || die "generated policy missing for ${pkg_name}: ${policy_dir}/${policy_file}"
+      cp -a "${policy_dir}/${policy_file}" "${tmpdir}/policy/${policy_file}"
+    done
+  fi
+
   CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
 
   build_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
@@ -1204,6 +1213,12 @@ PYEOF
   out_file="${PKG_STAGE_DIR}/${pkg_name}_${pkg_version}_linux_amd64.tgz"
   tar -C "${tmpdir}" -czf "${out_file}" .
   rm -rf "${tmpdir}"
+  if [[ -d "${SERVICES_ROOT}/generated/policy/${pkg_name//-/_}" ]]; then
+    tar -tzf "${out_file}" | grep -Eq '(^|[.]/)policy/permissions[.]generated[.]json$' || \
+      die "package ${out_file} lost policy/permissions.generated.json during assembly"
+    tar -tzf "${out_file}" | grep -Eq '(^|[.]/)policy/roles[.]generated[.]json$' || \
+      die "package ${out_file} lost policy/roles.generated.json during assembly"
+  fi
   validate_package_systemd_units "${out_file}" || die "unsafe systemd unit content detected in $(basename "${out_file}")"
   printf '%s\t%s\t%s\t%s\n' "${pkg_name}" "generated-current-release" "v${VERSION}" "${src_pkg}" >> "${PROVENANCE_FILE}"
   pkg_count=$((pkg_count + 1))

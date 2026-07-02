@@ -343,29 +343,9 @@ fi
 echo "[bootstrap-dns] Hostname: $NODE_HOSTNAME"
 echo "[bootstrap-dns] Node IP: $NODE_IP"
 
-# Wait for ScyllaDB to be ready for writes before probing DNS.
-# The DNS service binds its gRPC port and port 53 quickly, but its ScyllaDB
-# schema init runs in the background. Without this gate, the first 8-10 write
-# probes always fail with exit code 1, producing misleading noise in the log.
-echo "[bootstrap-dns] Waiting for ScyllaDB to accept writes..."
-_SCYLLA_READY=0
-for _si in $(seq 1 60); do
-    if cqlsh "${NODE_IP}" 9042 --ssl \
-        --ssl-ca-certs "${STATE_DIR}/pki/ca.crt" \
-        --ssl-certfile "${STATE_DIR}/pki/issued/services/service.crt" \
-        --ssl-keyfile  "${STATE_DIR}/pki/issued/services/service.key" \
-        -e "SELECT now() FROM system.local;" >/dev/null 2>&1; then
-        _SCYLLA_READY=1
-        echo "[bootstrap-dns] ✓ ScyllaDB ready (after ${_si}s)"
-        break
-    fi
-    sleep 1
-done
-if [[ $_SCYLLA_READY -eq 0 ]]; then
-    echo "[bootstrap-dns] ⚠ ScyllaDB not confirmed ready after 60s — proceeding anyway" >&2
-fi
-
-# Wait for DNS service to be ready for write operations
+# DNS database write-readiness is the authority here. A standalone CQL read
+# probe can disagree with the DNS service's actual schema/write path, so we go
+# straight to the DNS write probe instead of waiting on a separate Scylla gate.
 echo "[bootstrap-dns] Waiting for DNS database to accept writes..."
 MAX_WAIT=120
 DNS_WRITABLE=0

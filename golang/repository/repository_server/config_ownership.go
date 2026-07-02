@@ -55,16 +55,16 @@ func ResolveConfigEntry(in *repopb.PackageConfigFile) *repopb.PackageConfigFile 
 		return nil
 	}
 	out := &repopb.PackageConfigFile{
-		Path:                in.GetPath(),
-		ConfigKind:          in.GetConfigKind(),
-		OwnerPackage:        in.GetOwnerPackage(),
-		ChecksumAtInstall:   in.GetChecksumAtInstall(),
-		CurrentChecksum:     in.GetCurrentChecksum(),
-		LastModifiedUnix:    in.GetLastModifiedUnix(),
-		MergeStrategy:       in.GetMergeStrategy(),
-		PreserveOnUpgrade:   in.GetPreserveOnUpgrade(),
-		RestoreOnRollback:   in.GetRestoreOnRollback(),
-		Sensitive:           in.GetSensitive(),
+		Path:              in.GetPath(),
+		ConfigKind:        in.GetConfigKind(),
+		OwnerPackage:      in.GetOwnerPackage(),
+		ChecksumAtInstall: in.GetChecksumAtInstall(),
+		CurrentChecksum:   in.GetCurrentChecksum(),
+		LastModifiedUnix:  in.GetLastModifiedUnix(),
+		MergeStrategy:     in.GetMergeStrategy(),
+		PreserveOnUpgrade: in.GetPreserveOnUpgrade(),
+		RestoreOnRollback: in.GetRestoreOnRollback(),
+		Sensitive:         in.GetSensitive(),
 	}
 	if out.MergeStrategy == repopb.MergeStrategy_MERGE_STRATEGY_UNSPECIFIED {
 		out.MergeStrategy = DefaultMergeStrategy(out.ConfigKind)
@@ -86,12 +86,12 @@ func ResolveConfigEntry(in *repopb.PackageConfigFile) *repopb.PackageConfigFile 
 type ConfigDiffStatus string
 
 const (
-	ConfigStatusUnknown    ConfigDiffStatus = "UNKNOWN"
-	ConfigStatusUnchanged  ConfigDiffStatus = "UNCHANGED"
-	ConfigStatusModified   ConfigDiffStatus = "MODIFIED"
-	ConfigStatusMissing    ConfigDiffStatus = "MISSING"
-	ConfigStatusGenerated  ConfigDiffStatus = "GENERATED" // GENERATED kind — drift is normal
-	ConfigStatusRedacted   ConfigDiffStatus = "REDACTED"  // SECRET — checksum reported, content withheld
+	ConfigStatusUnknown   ConfigDiffStatus = "UNKNOWN"
+	ConfigStatusUnchanged ConfigDiffStatus = "UNCHANGED"
+	ConfigStatusModified  ConfigDiffStatus = "MODIFIED"
+	ConfigStatusMissing   ConfigDiffStatus = "MISSING"
+	ConfigStatusGenerated ConfigDiffStatus = "GENERATED" // GENERATED kind — drift is normal
+	ConfigStatusRedacted  ConfigDiffStatus = "REDACTED"  // SECRET — checksum reported, content withheld
 )
 
 // ClassifyConfigDiff returns the diff status based on checksum-at-install vs

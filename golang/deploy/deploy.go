@@ -281,6 +281,7 @@ func DeployService(ctx context.Context, opts DeployOptions) (*DeployResult, erro
 		Version:           opts.Version,
 		BuildNumber:       nextBuild,
 		Publisher:         opts.Publisher,
+		Channel:           opts.Channel,
 		Platform:          opts.Platform,
 		OutDir:            paths.Generated,
 		SkipMissingConfig: true,

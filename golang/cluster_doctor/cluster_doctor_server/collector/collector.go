@@ -105,6 +105,21 @@ type Collector struct {
 	driftSince map[string]time.Time // keyed by nodeID
 }
 
+var resolveServiceAddrFn = config.ResolveServiceAddr
+
+var newRepositoryClientFn = func(endpoint string) (repopb.PackageRepositoryClient, error) {
+	dt := config.ResolveDialTarget(endpoint)
+	conn, err := grpc.NewClient(dt.Address,
+		grpc.WithTransportCredentials(agentClientTLSCreds(dt.ServerName)),
+		grpc.WithUnaryInterceptor(clusterIDInjectingUnaryInterceptor()),
+		grpc.WithStreamInterceptor(clusterIDInjectingStreamInterceptor()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("dial repository %s: %w", dt.Address, err)
+	}
+	return repopb.NewPackageRepositoryClient(conn), nil
+}
+
 func New(cfg CollectorConfig, cc cluster_controllerpb.ClusterControllerServiceClient) *Collector {
 	return &Collector{
 		cfg:              cfg,
@@ -227,6 +242,7 @@ func (c *Collector) GetSnapshotWithFreshness(ctx context.Context, forceFresh boo
 
 // fetch does the actual upstream calls.
 func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
+	c.refreshRepositoryDiscovery()
 	snap := newSnapshot(uuid.New().String())
 	snap.RepositoryEndpointMissing = c.repoEndpointMissing
 
@@ -619,6 +635,44 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	c.fetchGatewayBackendDivergence(ctx, snap)
 
 	return snap, nil
+}
+
+// refreshRepositoryDiscovery re-checks the repository service registry on each
+// fetch instead of latching a startup-time miss forever. This prevents a false
+// repository.endpoint_missing warning when doctor starts before repository has
+// published its etcd config, then repository becomes available later.
+func (c *Collector) refreshRepositoryDiscovery() {
+	endpoint := strings.TrimSpace(resolveServiceAddrFn("repository.PackageRepository", ""))
+	c.repoEndpointMissing = endpoint == ""
+	if endpoint == "" || c.repoClient != nil {
+		return
+	}
+	repoClient, err := newRepositoryClientFn(endpoint)
+	if err != nil {
+		log.Printf("collector: repository client late-bind failed: %v", err)
+		return
+	}
+	c.repoClient = repoClient
+}
+
+func (c *Collector) serviceOutgoingContext(ctx context.Context) context.Context {
+	if c.clusterID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", c.clusterID)
+	}
+	mac, err := config.GetMacAddress()
+	if err != nil {
+		log.Printf("collector: get mac for service token: %v", err)
+		return ctx
+	}
+	token, err := security.GetLocalToken(mac)
+	if err != nil {
+		log.Printf("collector: get service token: %v", err)
+		return ctx
+	}
+	if strings.TrimSpace(token) == "" {
+		return ctx
+	}
+	return metadata.AppendToOutgoingContext(ctx, "token", token)
 }
 
 // fetchOpsKnowledgeMemoryEntries pulls every operational-knowledge seed
@@ -1098,9 +1152,11 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 	}
 	index := buildIDIndexFromManifests(listResp.GetArtifacts())
 	vindex := versionIndexFromManifests(listResp.GetArtifacts())
+	pindex := publisherIndexFromManifests(listResp.GetArtifacts())
 	snap.mu.Lock()
 	snap.RepositoryBuildIDIndex = index
 	snap.RepositoryVersionIndex = vindex
+	snap.RepositoryPublisherIndex = pindex
 	snap.mu.Unlock()
 	snap.addSource("repository.ListArtifacts")
 }
@@ -1224,6 +1280,42 @@ func versionIndexFromManifests(in []*repopb.ArtifactManifest) map[string]map[str
 			index[name] = make(map[string]bool)
 		}
 		index[name][ver] = true
+	}
+	return index
+}
+
+// publisherIndexFromManifests builds package-name → publisher → version set
+// from installable artifacts. The publisher namespace is part of repository
+// artifact identity, but runtime convergence is keyed by canonical package
+// name/unit. This index lets doctor detect accidental split identity lanes
+// such as core@globular.io/gateway and local@node/gateway both being
+// installable.
+func publisherIndexFromManifests(in []*repopb.ArtifactManifest) map[string]map[string]map[string]bool {
+	index := make(map[string]map[string]map[string]bool)
+	for _, a := range in {
+		if a == nil {
+			continue
+		}
+		if !repopb.IsInstallableByPin(a.GetPublishState()) {
+			continue
+		}
+		ref := a.GetRef()
+		if ref == nil {
+			continue
+		}
+		name := strings.TrimSpace(ref.GetName())
+		publisher := strings.TrimSpace(ref.GetPublisherId())
+		version := strings.TrimSpace(ref.GetVersion())
+		if name == "" || publisher == "" || version == "" {
+			continue
+		}
+		if index[name] == nil {
+			index[name] = make(map[string]map[string]bool)
+		}
+		if index[name][publisher] == nil {
+			index[name][publisher] = make(map[string]bool)
+		}
+		index[name][publisher][version] = true
 	}
 	return index
 }

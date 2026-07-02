@@ -739,6 +739,11 @@ message ApplyPackageReleaseRequest {
   // row we are replacing. Recorded into the new revision's previous_revision_id
   // so the history table forms a linked list.
   string previous_revision_id    = 19;
+
+  // desired_hash: release convergence identity for infrastructure packages.
+  // This is intentionally separate from expected_sha256, which is the binary
+  // entrypoint checksum used for artifact/runtime proof.
+  string desired_hash            = 20;
 }
 
 message ApplyPackageReleaseResponse {

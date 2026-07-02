@@ -60,6 +60,7 @@ func (srv *NodeAgentServer) JoinCluster(ctx context.Context, req *node_agentpb.J
 	srv.joinRequestID = resp.GetRequestId()
 	srv.state.RequestID = srv.joinRequestID
 	srv.state.NodeID = ""
+	srv.state.LegacyJoinSatisfied = false
 	srv.nodeID = ""
 	if err := srv.saveState(); err != nil {
 		fmt.Printf("warn: persist join request: %v\n", err)

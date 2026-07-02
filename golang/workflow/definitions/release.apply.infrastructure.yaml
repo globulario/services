@@ -157,6 +157,7 @@ spec:
             kind: INFRASTRUCTURE
             build_id: $.resolved_build_id
             build_number: $.resolved_build_number
+            allow_downgrade: $.allow_downgrade
           timeout: $.execute_timeout
           export: install_result
           execution:
@@ -246,11 +247,10 @@ spec:
             package_name: $.package_name
             version: $.resolved_version
             desired_hash: $.desired_hash
-            # Project J: thread the BINARY sha256 (manifest entrypoint_checksum)
-            # so the sync actor writes InstalledPackage.Checksum with the binary
-            # hash. INC-2026-0014's hash_schemas_must_not_alias invariant
-            # forbids aliasing desired_hash (synthetic identity) into the
-            # binary-sha256 slot.
+            package_kind: $.package_kind
+            # INFRASTRUCTURE convergence writes desired_hash into
+            # InstalledPackage.Checksum. Binary proof remains
+            # metadata.entrypoint_checksum on the node-agent receipt.
             resolved_entrypoint_checksum: $.resolved_entrypoint_checksum
             build_id: $.resolved_build_id
           export: sync_result

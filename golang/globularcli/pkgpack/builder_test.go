@@ -111,6 +111,7 @@ func TestBuildPackagesWithRoot(t *testing.T) {
 		Root:      payloadRoot,
 		SpecPath:  specPath,
 		Version:   "1.2.3",
+		Channel:   "candidate",
 		Platform:  platform,
 		OutDir:    outDir,
 		Publisher: "tester@example.com",
@@ -126,5 +127,16 @@ func TestBuildPackagesWithRoot(t *testing.T) {
 	}
 	if _, err := VerifyTGZ(results[0].OutputPath); err != nil {
 		t.Fatalf("verify tgz: %v", err)
+	}
+	manifestBytes, err := readEntryFromTgz(results[0].OutputPath, "package.json")
+	if err != nil {
+		t.Fatalf("read package manifest: %v", err)
+	}
+	var manifest Manifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("decode package manifest: %v", err)
+	}
+	if manifest.Channel != "candidate" {
+		t.Fatalf("package channel = %q, want candidate", manifest.Channel)
 	}
 }

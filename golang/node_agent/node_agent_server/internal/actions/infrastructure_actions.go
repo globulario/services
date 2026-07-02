@@ -26,10 +26,12 @@ package actions
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -37,6 +39,12 @@ import (
 	_ "github.com/globulario/globular-installer/pkg/platform/linux"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"google.golang.org/protobuf/types/known/structpb"
+)
+
+var (
+	infrastructureInstallRunner = installerEngineInstall
+	installerNewContext         = installer.NewContext
+	installerInstall            = installer.Install
 )
 
 // ── infrastructure.install ──────────────────────────────────────────────────
@@ -72,6 +80,11 @@ func (infrastructureInstallAction) Apply(_ context.Context, args *structpb.Struc
 	version := strings.TrimSpace(fields["version"].GetStringValue())
 	artifactPath := strings.TrimSpace(fields["artifact_path"].GetStringValue())
 	dataDirsStr := strings.TrimSpace(fields["data_dirs"].GetStringValue())
+	transactionID := strings.TrimSpace(fields["transaction_id"].GetStringValue())
+	nodeID := strings.TrimSpace(fields["node_id"].GetStringValue())
+	packageID := strings.TrimSpace(fields["package_id"].GetStringValue())
+	targetBuildID := strings.TrimSpace(fields["target_build_id"].GetStringValue())
+	previousReceiptJSON := strings.TrimSpace(fields["previous_receipt_json"].GetStringValue())
 
 	// Stage the package: extract .tgz to a temp directory.
 	stagingDir, err := installer.ExtractPackageToTemp(artifactPath)
@@ -80,7 +93,67 @@ func (infrastructureInstallAction) Apply(_ context.Context, args *structpb.Struc
 	}
 	defer os.RemoveAll(stagingDir)
 
-	return installerEngineInstall(component, version, stagingDir, dataDirsStr)
+	if transactionID == "" {
+		transactionID = fmt.Sprintf("%s-%d", component, time.Now().UnixNano())
+	}
+	if packageID == "" {
+		packageID = component
+	}
+	prevReceipt := map[string]string(nil)
+	if previousReceiptJSON != "" {
+		if err := json.Unmarshal([]byte(previousReceiptJSON), &prevReceipt); err != nil {
+			return "", fmt.Errorf("infrastructure.install: decode previous_receipt_json: %w", err)
+		}
+	}
+	txRec := &InstallTransactionRecord{
+		TransactionID:   transactionID,
+		NodeID:          nodeID,
+		PackageID:       packageID,
+		TargetBuildID:   targetBuildID,
+		Phase:           InstallTxnPhaseStaging,
+		PreviousReceipt: prevReceipt,
+		StagedPaths:     []string{stagingDir},
+	}
+	if err := startInstallTransaction(txRec); err != nil {
+		return "", fmt.Errorf("infrastructure.install: start transaction: %w", err)
+	}
+	targets, err := infrastructureTransactionTargets(component, stagingDir)
+	if err != nil {
+		return "", fmt.Errorf("infrastructure.install: derive transaction targets: %w", err)
+	}
+	for _, target := range targets {
+		snap, err := snapshotInstallTxnFile(transactionID, target)
+		if err != nil {
+			return "", fmt.Errorf("infrastructure.install: snapshot %s: %w", target, err)
+		}
+		txRec.PreviousFiles = append(txRec.PreviousFiles, snap)
+	}
+	if err := writeInstallTransaction(txRec); err != nil {
+		return "", fmt.Errorf("infrastructure.install: persist transaction snapshot: %w", err)
+	}
+	if err := updateInstallTransactionPhase(transactionID, InstallTxnPhaseValidated, ""); err != nil {
+		return "", fmt.Errorf("infrastructure.install: update transaction validated: %w", err)
+	}
+	msg, err := infrastructureInstallRunner(component, version, stagingDir, dataDirsStr)
+	if err != nil {
+		rolled, rerr := rollbackInstallTransactionByID(transactionID, err.Error())
+		return "", buildInstallTransactionFailure(transactionID, err, rolled, rerr)
+	}
+	if err := updateInstallTransactionPhase(transactionID, InstallTxnPhasePromoted, ""); err != nil {
+		return "", fmt.Errorf("infrastructure.install: update transaction promoted: %w", err)
+	}
+	if err := scrubInfrastructureUnitSidecars(targets); err != nil {
+		rolled, rerr := rollbackInstallTransactionByID(transactionID, err.Error())
+		return "", buildInstallTransactionFailure(transactionID, fmt.Errorf("infrastructure.install: scrub unit sidecars: %w", err), rolled, rerr)
+	}
+	if ActionInstallTxnFailPhase == "infra_after_promote" {
+		rolled, rerr := rollbackInstallTransactionByID(transactionID, "injected infrastructure failure after promotion")
+		return "", buildInstallTransactionFailure(transactionID, fmt.Errorf("injected infrastructure failure after promotion"), rolled, rerr)
+	}
+	if err := updateInstallTransactionPhase(transactionID, InstallTxnPhaseReloaded, ""); err != nil {
+		return "", fmt.Errorf("infrastructure.install: update transaction reloaded: %w", err)
+	}
+	return fmt.Sprintf("%s transaction_id=%s", msg, transactionID), nil
 }
 
 // installerEngineInstall delegates infra installation to the shared installer engine.
@@ -88,18 +161,32 @@ func installerEngineInstall(component, version, stagingDir, dataDirsStr string) 
 	log.Printf("[installer-engine] using installer engine for %s@%s", component, version)
 
 	opts := installer.Options{
+		Prefix:     filepath.Dir(ActionBinDir),
+		StateDir:   ActionStateDir,
+		ConfigDir:  filepath.Join(ActionStateDir, "services"),
 		Version:    version,
 		StagingDir: stagingDir,
 		Force:      true,
 		Verbose:    true,
+		// node-agent runs package apply as root and must never enter an
+		// interactive installer prompt. Runtime/topology code owns any
+		// operator-visible MinIO disk choice outside this apply path.
+		NonInteractive: true,
+		SkipStart:      true,
+	}
+	if component == "minio" {
+		// Node-agent package apply is not an objectstore topology planner. Pin the
+		// package-rendered data dir so this path never invokes installer disk
+		// discovery or an operator prompt while converging desired state.
+		opts.MinioDataDir = filepath.Join(ActionStateDir, "minio", "data")
 	}
 
-	ictx, err := installer.NewContext(opts)
+	ictx, err := installerNewContext(opts)
 	if err != nil {
 		return "", fmt.Errorf("infrastructure.install: create installer context: %w", err)
 	}
 
-	report, err := installer.Install(ictx)
+	report, err := installerInstall(ictx)
 	if err != nil {
 		return "", fmt.Errorf("infrastructure.install: installer engine failed for %s: %w", component, err)
 	}
@@ -123,6 +210,106 @@ func installerEngineInstall(component, version, stagingDir, dataDirsStr string) 
 	stepCount := len(report.Results)
 	failedCount := report.ErrorCount()
 	return fmt.Sprintf("infrastructure %s@%s installed via installer engine (%d steps, %d failed)", component, version, stepCount, failedCount), nil
+}
+
+func infrastructureTransactionTargets(component, stagingDir string) ([]string, error) {
+	set := make(map[string]struct{})
+	add := func(path string) {
+		path = strings.TrimSpace(path)
+		if path != "" {
+			set[path] = struct{}{}
+		}
+	}
+
+	binDir := filepath.Join(stagingDir, "bin")
+	if entries, err := os.ReadDir(binDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			add(filepath.Join(ActionBinDir, entry.Name()))
+		}
+	}
+
+	configDir := filepath.Join(stagingDir, "config")
+	if entries, err := os.ReadDir(configDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			root := filepath.Join(configDir, entry.Name())
+			_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info == nil || info.IsDir() {
+					return nil
+				}
+				rel, rerr := filepath.Rel(root, path)
+				if rerr == nil {
+					add(filepath.Join(ActionStateDir, entry.Name(), rel))
+				}
+				return nil
+			})
+		}
+	}
+
+	stateDir := filepath.Join(stagingDir, "state")
+	_ = filepath.Walk(stateDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		rel, rerr := filepath.Rel(stateDir, path)
+		if rerr == nil {
+			add(filepath.Join(ActionStateDir, rel))
+		}
+		return nil
+	})
+
+	assetsDir := filepath.Join(stagingDir, "assets")
+	assetsRoot := filepath.Join(filepath.Dir(ActionBinDir), "assets")
+	_ = filepath.Walk(assetsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		rel, rerr := filepath.Rel(assetsDir, path)
+		if rerr == nil {
+			add(filepath.Join(assetsRoot, rel))
+		}
+		return nil
+	})
+
+	systemdDir := filepath.Join(stagingDir, "systemd")
+	if entries, err := os.ReadDir(systemdDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".service") {
+				continue
+			}
+			unitPath := filepath.Join(ActionSystemdDir, entry.Name())
+			add(unitPath)
+			add(unitPath + ".sha256")
+		}
+	}
+
+	if component == "scylla-manager" {
+		add("/usr/lib/globular/bin/scylla-manager-configure")
+	}
+
+	out := make([]string, 0, len(set))
+	for path := range set {
+		out = append(out, path)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func scrubInfrastructureUnitSidecars(targets []string) error {
+	for _, path := range targets {
+		if !strings.HasSuffix(path, ".service") {
+			continue
+		}
+		if err := os.Remove(path + ".sha256"); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func ensureScyllaManagerConfigureScript(component string) error {

@@ -128,8 +128,8 @@ func TestBothPathsProduceSameManifestFields(t *testing.T) {
 	bundleKey := artifactKeyWithBuild(ref, 0)
 	_ = srv.Storage().MkdirAll(ctx, artifactsDir, 0o755)
 	bundleManifest := &repopb.ArtifactManifest{
-		Ref:      ref,
-		Checksum: "1111111111111111111111111111111111111111111111111111111111111111",
+		Ref:       ref,
+		Checksum:  "1111111111111111111111111111111111111111111111111111111111111111",
 		SizeBytes: 1024,
 	}
 	bundleData, _ := marshalManifestWithState(bundleManifest, repopb.PublishState_PUBLISHED)

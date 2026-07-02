@@ -28,6 +28,10 @@ type ServiceDesiredVersionSpec struct {
 	Version     string `json:"version,omitempty"`
 	BuildNumber int64  `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
 	BuildID     string `json:"build_id,omitempty"`     // Phase 2: exact artifact identity (UUIDv7, repository-allocated)
+	// AllowDowngrade records that this desired target was written through an
+	// explicit audited regression override and may require node-agent
+	// allow_downgrade to converge from a higher installed local/dev build.
+	AllowDowngrade bool `json:"allow_downgrade,omitempty"`
 	// Optional node-scoped targeting. Empty preserves cluster-wide placement;
 	// otherwise the desired record is eligible only for these node IDs, still
 	// bounded by the catalog profile rules.
@@ -140,7 +144,8 @@ type ServiceReleaseSpec struct {
 	Version          string            `json:"version,omitempty"`      // Exact; empty = resolve latest published
 	BuildNumber      int64             `json:"build_number,omitempty"` // Build iteration within version (0 = legacy)
 	BuildID          string            `json:"build_id,omitempty"`     // Phase 2: exact artifact identity (UUIDv7)
-	Channel          string            `json:"channel,omitempty"`      // Deprecated: functionally ignored, will be removed
+	AllowDowngrade   bool              `json:"allow_downgrade,omitempty"`
+	Channel          string            `json:"channel,omitempty"` // Deprecated: functionally ignored, will be removed
 	RepositoryID     string            `json:"repository_id,omitempty"`
 	Platform         string            `json:"platform,omitempty"`         // e.g. "linux_amd64"
 	RolloutStrategy  string            `json:"rollout_strategy,omitempty"` // RolloutRolling | RolloutAllAtOnce

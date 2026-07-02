@@ -48,9 +48,10 @@ sudo bash install.sh
 > sudo FOUNDING_PROFILES=core,media-server bash install.sh
 > ```
 >
-> This value also becomes the default for nodes that later join without their own
-> profiles. Available profiles include `core`, `control-plane`, `storage`,
-> `gateway`, and `media-server`.
+> `media-server` is an explicit workload profile. The bootstrap/founding default
+> is `core,control-plane,storage`; only add `media-server` when that node should
+> host the media workload. Available profiles include `core`, `control-plane`,
+> `storage`, `gateway`, and `media-server`.
 
 > **Platform vs. package versions** — the release tag (`v1.2.30`) is a BOM of
 > per-package versions. Individual services (controller, gateway, repository,

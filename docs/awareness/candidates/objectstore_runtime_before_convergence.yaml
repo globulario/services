@@ -1,0 +1,81 @@
+# Session-discovered awareness candidates from single-node objectstore incident review.
+candidates:
+  - id: candidate.invariant.objectstore_runtime_before_convergence
+    class: invariant
+    label: Objectstore runtime proof gates convergence repair.
+    source_file: docs/operators/minio-operational-runbook.md
+    evidence: |
+      Incident review on 2026-07-01 for a single-node local cluster showed:
+      `objectstore.endpoint_unreachable` with `dial tcp 10.0.0.63:9000: connect:
+      connection refused`, `globular-minio.service` inactive, services-state hash
+      drift, `repository.endpoint_missing`, and
+      `scylla_manager.cluster_registered` warning. The decisive boundary was Layer 4:
+      nothing was listening on the active objectstore endpoint. The recovery order
+      must require runtime proof first: `systemctl` may start the unit, but `ss`
+      must prove `:9000` is listening and
+      `curl http://<active_objectstore_endpoint>/minio/health/live` must prove
+      object API liveness before any convergence repair runs.
+    risk: high
+    confidence: high
+    status: candidate
+    discovered_from: |
+      Session 2026-07-01 America/Toronto; live cluster findings for MinIO TCP refusal
+      on 10.0.0.63:9000.
+    review_required: true
+    summary: |
+      No convergence repair against a dead objectstore endpoint. Runtime truth first,
+      convergence second, capability registration third.
+
+      The active objectstore endpoint must prove both socket availability and object
+      API liveness before controller/node-agent drift repair is allowed. A green
+      `systemctl` state alone is insufficient evidence. Repository endpoint warnings,
+      desired/applied drift, and Scylla Manager registration warnings are not runtime
+      proof and must not be treated as the cause of TCP refusal.
+
+      After objectstore runtime proof succeeds, repository endpoint availability
+      must be checked before package-dependent repair is trusted. Prove
+      `repository.PackageRepository` is registered and reachable, then classify a
+      missing repository endpoint as one of:
+      - registration/publication bug
+      - service absent or down
+      - profile/scoping debt
+
+      Runtime gate:
+      - `ss -ltnp | grep ':9000'`
+      - `curl -v http://<active_objectstore_endpoint>/minio/health/live`
+
+      Repository gate:
+      - after objectstore runtime is back, prove repository endpoint truth before
+        trusting package-dependent repair
+      - use service status or etcd/service-discovery evidence for
+        `repository.PackageRepository`
+
+      Forbidden fix:
+      - Do not run `globular services repair` or use `globular cluster node <node_id>`
+        as a convergence action while MinIO socket/API proof still fails.
+      - Do not trust package-dependent repair after MinIO recovery if
+        `repository.PackageRepository` is still missing or unreachable.
+
+      Recovery order:
+      - P0 runtime truth: restore objectstore runtime and prove socket/object API
+        liveness.
+      - P1a repository endpoint truth: after objectstore runtime is proven, verify
+        `repository.PackageRepository` registration/reachability before trusting
+        package-dependent repair.
+      - P1b convergence repair: only after runtime proof succeeds, repair
+        controller/node-agent drift.
+      - P2 capability registration: register dependent capabilities such as
+        scylla-manager cluster membership separately.
+      - P3 cleanup-only findings: handle informational cleanup candidates after
+        runtime, repository, and convergence work.
+    protects:
+      files:
+        - docs/operators/minio-operational-runbook.md
+        - docs/operational-knowledge/runbooks/fix-doctor-error-findings.yaml
+        - scripts/release/install-day0.sh
+      symbols:
+        - globular-minio.service
+        - objectstore.endpoint_unreachable
+        - scylla_manager.cluster_registered
+        - repository.endpoint_missing
+        - cluster.services.drift

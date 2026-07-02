@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
 
@@ -84,7 +85,10 @@ func (srv *NodeAgentServer) ControlService(ctx context.Context, req *node_agentp
 				"minio topology gate: etcd unavailable — cannot verify pool membership before %s: %v", action, loadErr)
 		}
 		nodeIP := srv.nodeIP()
-		if !nodeIPInPool(nodeIP, state) {
+		if pending, pendingReason := minioTopologyAdmissionPending(state); pending {
+			log.Printf("minio topology gate: allowing %s on node ip=%s while topology admission is pending (%s)",
+				action, nodeIP, pendingReason)
+		} else if !nodeIPInPool(nodeIP, state) {
 			return &node_agentpb.ControlServiceResponse{
 				Ok:      false,
 				Unit:    unit,

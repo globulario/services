@@ -25,6 +25,12 @@ func ip(version, checksum, buildID string) *node_agentpb.InstalledPackage {
 	}
 }
 
+func ipKind(kind, version, checksum, buildID string) *node_agentpb.InstalledPackage {
+	pkg := ip(version, checksum, buildID)
+	pkg.Kind = kind
+	return pkg
+}
+
 // ipMeta builds an installed-package record with an entrypoint_checksum stored
 // in Metadata — the schema the node-agent writes since v1.2.x.
 func ipMeta(version, convergenceChecksum, buildID, entrypoint string) *node_agentpb.InstalledPackage {
@@ -36,6 +42,12 @@ func ipMeta(version, convergenceChecksum, buildID, entrypoint string) *node_agen
 	if entrypoint != "" {
 		pkg.Metadata = map[string]string{"entrypoint_checksum": entrypoint}
 	}
+	return pkg
+}
+
+func ipMetaKind(kind, version, convergenceChecksum, buildID, entrypoint string) *node_agentpb.InstalledPackage {
+	pkg := ipMeta(version, convergenceChecksum, buildID, entrypoint)
+	pkg.Kind = kind
 	return pkg
 }
 
@@ -105,15 +117,12 @@ func TestDecideNodeRolloutProof_ClusterControllerStaleHashRegression(t *testing.
 
 	t.Run("pre_fix_writer_Checksum_eq_release_identity_reproduces_drift", func(t *testing.T) {
 		// Pre-fix shape: top-level Checksum = release-identity hash,
-		// metadata.entrypoint_checksum = binary SHA. The binary leg would
-		// match (both sides binary SHA), so to reproduce the original
-		// dispatch-loop scenario we exercise the convergence leg alone:
-		// metadata.entrypoint_checksum empty, top-level Checksum carrying
-		// the release-identity, wantEntrypoint empty, wantConvergence =
-		// binary SHA (what the controller would compare against after the
-		// fix lands). The mismatch must fire.
+		// metadata.entrypoint_checksum empty. The controller still knows the
+		// desired entrypoint checksum from the resolved release manifest, so
+		// service Checksum must be treated as a binary checksum fallback and
+		// must not silently verify when it carries the old release identity.
 		pkg := ipMeta(version, releaseIdentity, buildID, "")
-		v := decideNodeRolloutProof(version, binarySHA, buildID, "", pkg, true, true)
+		v := decideNodeRolloutProof(version, "", buildID, binarySHA, pkg, true, true)
 		if v.FindingID != FindingRolloutInstalledHashMismatch {
 			t.Fatalf("pre-fix fixture must fire %s, got FindingID=%q reason=%q",
 				FindingRolloutInstalledHashMismatch, v.FindingID, v.Reason)
@@ -154,7 +163,7 @@ func TestDecideNodeRolloutProof_HashMismatch_Mismatch(t *testing.T) {
 	// Convergence-hash disagreement still fires installed_hash_mismatch.
 	v := decideNodeRolloutProof(
 		"1.2.0", "sha256:aaaa", "bid-a", "",
-		ip("1.2.0", "sha256:bbbb", "bid-a"),
+		ipKind("INFRASTRUCTURE", "1.2.0", "sha256:bbbb", "bid-a"),
 		true, true,
 	)
 	if v.ProofStatus != RolloutProofMismatch {
@@ -256,7 +265,7 @@ func TestDecideNodeRolloutProof_NoHashNoBuild_InventoryClaim(t *testing.T) {
 func TestDecideNodeRolloutProof_HashNormalization(t *testing.T) {
 	v := decideNodeRolloutProof(
 		"1.2.0", "SHA256:ABCD", "", "",
-		ip("1.2.0", "sha256:abcd", ""),
+		ipKind("INFRASTRUCTURE", "1.2.0", "sha256:abcd", ""),
 		false, false,
 	)
 	if v.ProofStatus != RolloutProofInstalledVerified {
@@ -324,7 +333,7 @@ func TestDecideNodeRolloutProof_RealBinaryMismatch_StillFires(t *testing.T) {
 	if v.FindingID != FindingRolloutInstalledHashMismatch {
 		t.Errorf("FindingID=%q want=%q", v.FindingID, FindingRolloutInstalledHashMismatch)
 	}
-	if !strings.Contains(v.Reason,"entrypoint_checksum") {
+	if !strings.Contains(v.Reason, "entrypoint_checksum") {
 		t.Errorf("reason should name entrypoint_checksum drift; got %q", v.Reason)
 	}
 }
@@ -337,8 +346,10 @@ func TestDecideNodeRolloutProof_RealBinaryMismatch_StillFires(t *testing.T) {
 func TestDecideNodeRolloutProof_MissingEntrypointInMetadata_NoFalseMismatch(t *testing.T) {
 	convergence := "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	desiredBinary := "1111111111111111111111111111111111111111111111111111111111111111"
-	// No entrypoint_checksum in metadata.
-	pkg := ip("1.2.59", convergence, "bid")
+	// No entrypoint_checksum in metadata. This is an infrastructure record,
+	// where top-level Checksum is still convergence state, not a service
+	// binary checksum fallback.
+	pkg := ipKind("INFRASTRUCTURE", "1.2.59", convergence, "bid")
 	v := decideNodeRolloutProof(
 		"1.2.59", convergence, "bid", desiredBinary,
 		pkg, true, true,
@@ -350,7 +361,7 @@ func TestDecideNodeRolloutProof_MissingEntrypointInMetadata_NoFalseMismatch(t *t
 	if v.FindingID != "" {
 		t.Errorf("FindingID=%q want empty (no drift, just weaker proof)", v.FindingID)
 	}
-	if !strings.Contains(v.Reason,"entrypoint_checksum not surfaced") {
+	if !strings.Contains(v.Reason, "entrypoint_checksum not surfaced") {
 		t.Errorf("reason should call out the weaker proof; got %q", v.Reason)
 	}
 }
@@ -359,7 +370,7 @@ func TestDecideNodeRolloutProof_MissingEntrypointInMetadata_NoFalseMismatch(t *t
 // remains live so a node whose stamped checksum disagrees with the
 // controller's rendering is flagged.
 func TestDecideNodeRolloutProof_ConvergenceDrift_StillFires(t *testing.T) {
-	pkg := ipMeta("1.2.59",
+	pkg := ipMetaKind("INFRASTRUCTURE", "1.2.59",
 		"installed_convergence_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"bid",
 		"binary_matches_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
@@ -376,8 +387,32 @@ func TestDecideNodeRolloutProof_ConvergenceDrift_StillFires(t *testing.T) {
 	if v.FindingID != FindingRolloutInstalledHashMismatch {
 		t.Errorf("FindingID=%q want=%q", v.FindingID, FindingRolloutInstalledHashMismatch)
 	}
-	if !strings.Contains(v.Reason,"convergence_hash") {
+	if !strings.Contains(v.Reason, "convergence_hash") {
 		t.Errorf("reason should name convergence_hash drift; got %q", v.Reason)
+	}
+}
+
+func TestDecideNodeRolloutProof_ServiceChecksumIsBinarySHA_NotConvergenceDrift(t *testing.T) {
+	binary := "0e91e8f830b6e2e8ad40dbcd2ac7f515e8ef56420aa0af270f280704d43382b3"
+	desiredHash := "ded015e4c8e61ad796038a6bb7301fde0510fd85408a7212f840b7981da4460c"
+	buildID := "019f1f21-6343-743e-af63-4d755825e07a"
+	pkg := ipMetaKind("SERVICE", "1.2.265", binary, buildID, binary)
+
+	v := decideNodeRolloutProof(
+		"1.2.265",
+		desiredHash,
+		buildID,
+		binary,
+		pkg,
+		true,
+		true,
+	)
+	if v.ProofStatus != RolloutProofInstalledVerified {
+		t.Fatalf("service binary checksum must not be compared to DesiredHash; got proof=%q finding=%q reason=%q",
+			v.ProofStatus, v.FindingID, v.Reason)
+	}
+	if v.FindingID != "" {
+		t.Fatalf("service binary/checksum match must not produce finding; got %q", v.FindingID)
 	}
 }
 
@@ -516,11 +551,11 @@ func TestRolloutProofMin_PicksWeaker(t *testing.T) {
 func TestApplyPatchToSvcStatus_NodesPath_PersistsProofStatusAndFindings(t *testing.T) {
 	s := &cluster_controllerpb.ServiceReleaseStatus{}
 	p := statusPatch{
-		SetFields:    "nodes",
-		Phase:        cluster_controllerpb.ReleasePhaseAvailable,
-		Nodes:        []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", ProofStatus: RolloutProofInventoryClaim}},
-		ProofStatus:  RolloutProofInventoryClaim,
-		Findings:     []string{FindingRolloutPartialNotConverged},
+		SetFields:            "nodes",
+		Phase:                cluster_controllerpb.ReleasePhaseAvailable,
+		Nodes:                []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", ProofStatus: RolloutProofInventoryClaim}},
+		ProofStatus:          RolloutProofInventoryClaim,
+		Findings:             []string{FindingRolloutPartialNotConverged},
 		LastTransitionUnixMs: 1,
 	}
 	if !applyPatchToSvcStatus(s, p) {

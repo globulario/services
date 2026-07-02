@@ -250,7 +250,7 @@ func TestLedger_RepairAuditCrossGateState(t *testing.T) {
 	if _, err := srv.resolveVersionIntent(ctx,
 		"core@globular.io", "test-svc", "linux_amd64",
 		repopb.VersionIntent_EXACT, "2.0.0",
-		repair,
+		repopb.ArtifactChannel_STABLE, repair,
 	); err != nil {
 		t.Fatalf("gate 3 (version): %v", err)
 	}

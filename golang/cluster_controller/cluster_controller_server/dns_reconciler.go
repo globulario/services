@@ -39,11 +39,11 @@ import (
 	"crypto/x509"
 
 	"github.com/globulario/services/golang/cluster_controller/cluster_controller_server/internal/dnsprovider"
-	"github.com/globulario/services/golang/globular_service"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/domain"
+	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
@@ -52,8 +52,8 @@ import (
 )
 
 const (
-	dnsReconcileInterval = 30 * time.Second
-	dnsReconcileTimeout  = 10 * time.Second
+	dnsReconcileInterval   = 30 * time.Second
+	dnsReconcileTimeout    = 10 * time.Second
 	dnsHealthCheckInterval = 30 * time.Second // PR7: Check DNS health every 30s
 )
 
@@ -451,9 +451,9 @@ func (r *DNSReconciler) collectPoolMemberships() map[string][]string {
 	defer r.srv.unlock()
 	pools := map[string][]string{}
 	if len(r.srv.state.MinioPoolNodes) > 0 {
-		// MinioPoolNodes stores FQDNs (e.g. "node-2.globular.internal").
-		// DNS A records require IPv4 addresses. Resolve each FQDN to
-		// its IP from the controller's node state.
+		// Contract: MinioPoolNodes stores stable routable IPs. Older controller
+		// state may still contain hostnames/FQDNs, so keep a migration fallback
+		// here until those legacy values are naturally rewritten.
 		clusterVIP := r.srv.clusterVIP()
 		fqdnToIP := make(map[string]string)
 		for _, node := range r.srv.state.Nodes {
@@ -464,8 +464,12 @@ func (r *DNSReconciler) collectPoolMemberships() map[string][]string {
 			}
 		}
 		var ips []string
-		for _, fqdn := range r.srv.state.MinioPoolNodes {
-			if ip, ok := fqdnToIP[fqdn]; ok {
+		for _, entry := range r.srv.state.MinioPoolNodes {
+			if net.ParseIP(entry) != nil {
+				ips = append(ips, entry)
+				continue
+			}
+			if ip, ok := fqdnToIP[entry]; ok {
 				ips = append(ips, ip)
 			}
 		}
@@ -1127,14 +1131,14 @@ func (r *DNSReconciler) cleanupOldDomain(oldDomain string) error {
 
 // ReconcilerMetrics holds metrics about DNS reconciliation (PR10)
 type ReconcilerMetrics struct {
-	Total          uint64        // Total reconciliations attempted
-	Success        uint64        // Successful reconciliations
-	Failure        uint64        // Failed reconciliations
-	LastAt         time.Time     // Last reconciliation timestamp
-	LastDuration   time.Duration // Duration of last reconciliation
-	CurrentGen     uint64        // Current generation
-	EndpointsTotal int           // Total DNS endpoints
-	EndpointsHealthy int         // Healthy DNS endpoints
+	Total            uint64        // Total reconciliations attempted
+	Success          uint64        // Successful reconciliations
+	Failure          uint64        // Failed reconciliations
+	LastAt           time.Time     // Last reconciliation timestamp
+	LastDuration     time.Duration // Duration of last reconciliation
+	CurrentGen       uint64        // Current generation
+	EndpointsTotal   int           // Total DNS endpoints
+	EndpointsHealthy int           // Healthy DNS endpoints
 }
 
 // GetMetrics returns current reconciler metrics (PR10)
