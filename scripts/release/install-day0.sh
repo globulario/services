@@ -1987,19 +1987,21 @@ rclone:
   # the canonical values are written.
   if [[ -n "$AGENT_S3_BLOCK" ]]; then
     printf "%s\n" "$AGENT_S3_BLOCK" >> "$AGENT_CONFIG"
-    chown scylla:globular "$AGENT_CONFIG"
+    chown globular:scylla "$AGENT_CONFIG"
     chmod 0640 "$AGENT_CONFIG"
     log_success "scylla-manager-agent S3 config appended (endpoint=https://${SCYLLA_IP}:9000)"
   fi
 fi
 
-# Always ensure the agent config directory is owned by scylla (agent runs as scylla)
-# with globular group so backup-manager can read it.
+# Always preserve the shared-writer contract on the agent config path:
+#   - owner globular: backup-manager can update S3 credentials later
+#   - group scylla: scylla-manager-agent can still read the file
+#   - 0750 dir / 0640 file: secrets stay off the world
 if [[ -d /var/lib/globular/scylla-manager-agent ]]; then
   chmod 0750 /var/lib/globular/scylla-manager-agent
-  chown scylla:globular /var/lib/globular/scylla-manager-agent
+  chown globular:scylla /var/lib/globular/scylla-manager-agent
   # Fix ownership of files inside too.
-  chown scylla:globular /var/lib/globular/scylla-manager-agent/* 2>/dev/null || true
+  chown globular:scylla /var/lib/globular/scylla-manager-agent/* 2>/dev/null || true
 fi
 
 log_step "Workload Services"

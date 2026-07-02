@@ -20,6 +20,8 @@ import (
 const (
 	scyllaAgentConfigPrimary = "/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
 	scyllaAgentConfigEtc     = "/etc/scylla-manager-agent/scylla-manager-agent.yaml"
+	globularServiceUser      = "globular"
+	scyllaServiceUser        = "scylla"
 )
 
 // scyllaAgent* constants define non-conflicting ports for scylla-manager-agent.
@@ -79,6 +81,9 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	tokenMatches := currentAuthToken(content) == derivedToken
 	hasURL := hasScyllaAPIURL(content, nodeIP)
 	hasPorts := hasScyllaAgentPorts(content, nodeIP)
+	if err := ensureScyllaManagerAgentConfigOwnership(cfgPath); err != nil {
+		log.Printf("nodeagent: scylla-manager-agent ownership reconcile skipped: %v", err)
+	}
 	if tokenMatches && hasURL && hasPorts {
 		return
 	}
@@ -108,10 +113,13 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 		log.Printf("nodeagent: scylla-manager-agent config write failed (%s): %v", cfgPath, err)
 		return
 	}
-	// scylla-manager-agent.service runs as User=scylla; without chgrp the
-	// scylla user can't read this file and the unit crash-loops with
-	// "permission denied". Mode 0640 only helps if the group is scylla.
-	chgrpScyllaAgentConfig(cfgPath)
+	// backup_manager also mutates this file to inject MinIO S3 credentials, so
+	// the file must be writable by the globular service user while remaining
+	// readable to the scylla-manager-agent daemon (User=scylla).
+	if err := ensureScyllaManagerAgentConfigOwnership(cfgPath); err != nil {
+		log.Printf("nodeagent: scylla-manager-agent ownership reconcile failed after write (%s): %v", cfgPath, err)
+		return
+	}
 	log.Printf("nodeagent: ensured scylla-manager-agent config in %s (token=%v api_url=%v ports=%v)",
 		cfgPath, !tokenMatches, !hasURL, !hasPorts)
 
@@ -128,23 +136,61 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	log.Printf("nodeagent: restarted globular-scylla-manager-agent.service after config change")
 }
 
-// chgrpScyllaAgentConfig sets the file's group to "scylla" so the
-// scylla-manager-agent unit (User=scylla, Group=scylla) can read its config.
-// Per CLAUDE.md: never hardcode UIDs/GIDs — always resolve via user.Lookup.
-func chgrpScyllaAgentConfig(path string) {
-	u, err := user.Lookup("scylla")
+func lookupUserIDs(name string) (int, int, error) {
+	u, err := user.Lookup(name)
 	if err != nil {
-		log.Printf("nodeagent: scylla user not found — cannot chgrp %s: %v", path, err)
-		return
+		return 0, 0, err
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid %s UID %q: %w", name, u.Uid, err)
 	}
 	gid, err := strconv.Atoi(u.Gid)
 	if err != nil {
-		log.Printf("nodeagent: invalid scylla GID %q: %v", u.Gid, err)
-		return
+		return 0, 0, fmt.Errorf("invalid %s GID %q: %w", name, u.Gid, err)
 	}
-	if err := os.Chown(path, -1, gid); err != nil {
-		log.Printf("nodeagent: cannot chgrp scylla group on %s: %v", path, err)
+	return uid, gid, nil
+}
+
+// ensureScyllaManagerAgentConfigOwnership preserves the shared-writer contract
+// for scylla-manager-agent.yaml:
+//   - owner globular: backup_manager can update MinIO S3 credentials
+//   - group scylla: scylla-manager-agent can still read the file
+//   - dir mode 0750 / file mode 0640: secrets stay off the world
+func ensureScyllaManagerAgentConfigOwnership(path string) error {
+	globularUID, _, err := lookupUserIDs(globularServiceUser)
+	if err != nil {
+		return err
 	}
+	_, scyllaGID, err := lookupUserIDs(scyllaServiceUser)
+	if err != nil {
+		return err
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	if err := os.Chown(dir, globularUID, scyllaGID); err != nil {
+		return fmt.Errorf("chown dir %s: %w", dir, err)
+	}
+	if err := os.Chmod(dir, 0o750); err != nil {
+		return fmt.Errorf("chmod dir %s: %w", dir, err)
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if err := os.Chown(path, globularUID, scyllaGID); err != nil {
+		return fmt.Errorf("chown file %s: %w", path, err)
+	}
+	if err := os.Chmod(path, 0o640); err != nil {
+		return fmt.Errorf("chmod file %s: %w", path, err)
+	}
+	return nil
 }
 
 func scyllaManagerAgentUnitExists(ctx context.Context) bool {
