@@ -10,19 +10,24 @@ package main
 // Scope (CG-3 slice, by decision 2026-06-25): ELF only (the cluster platform).
 // Non-ELF artifacts (darwin/windows) and archives without a detectable
 // entrypoint binary pass through unchecked — they are out of scope for this
-// gate, not implicitly trusted. The size-envelope-vs-prior-build half of the
-// invariant is deferred to its own slice.
+// gate, not implicitly trusted. The size-envelope half compares the archive
+// size against the latest published release on the same platform.
 
 import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"debug/elf"
 	"fmt"
 	"io"
 	"path"
 	"strings"
+
+	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
+
+const releaseArtifactMaxGrowthFactor int64 = 2
 
 // extractEntrypointBinary returns the bytes of the entrypoint executable inside
 // a .tgz package payload (the executable under bin/), mirroring the discovery
@@ -107,4 +112,52 @@ func validateReleaseArtifactStripped(data []byte) error {
 		)
 	}
 	return nil
+}
+
+// latestPublishedReleaseSize returns the latest published release size for the
+// same package/platform from the release ledger. ok=false means there is no
+// usable prior release size, so the size-envelope gate must skip.
+func latestPublishedReleaseSize(ctx context.Context, srv *server, manifest *repopb.ArtifactManifest) (size int64, ok bool) {
+	if srv == nil || manifest == nil || manifest.GetRef() == nil {
+		return 0, false
+	}
+	ledger := srv.readLedger(ctx, manifest.GetRef().GetPublisherId(), manifest.GetRef().GetName())
+	if ledger == nil {
+		return 0, false
+	}
+	platform := strings.TrimSpace(manifest.GetRef().GetPlatform())
+	for i := len(ledger.Releases) - 1; i >= 0; i-- {
+		rel := ledger.Releases[i]
+		if rel == nil || rel.SizeBytes <= 0 {
+			continue
+		}
+		if strings.TrimSpace(rel.Platform) != platform {
+			continue
+		}
+		return rel.SizeBytes, true
+	}
+	return 0, false
+}
+
+// validateReleaseArtifactSizeEnvelope rejects a release-channel upload whose
+// archive size exceeds 2x the latest published release size for the same
+// package/platform. This is a coarse ratchet for the debug/unstripped class
+// without inventing a fuzzy heuristic. First publish, missing history, or zero
+// prior size skip the check.
+func validateReleaseArtifactSizeEnvelope(ctx context.Context, srv *server, manifest *repopb.ArtifactManifest) error {
+	prior, ok := latestPublishedReleaseSize(ctx, srv, manifest)
+	if !ok {
+		return nil
+	}
+	current := manifest.GetSizeBytes()
+	if current <= 0 {
+		return nil
+	}
+	if current <= prior*releaseArtifactMaxGrowthFactor {
+		return nil
+	}
+	return fmt.Errorf(
+		"release artifact size %d exceeds the %dx prior-release envelope (prior=%d)",
+		current, releaseArtifactMaxGrowthFactor, prior,
+	)
 }
