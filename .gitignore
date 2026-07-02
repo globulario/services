@@ -21,6 +21,7 @@ build/
 /ai_memory_server
 /mcp
 /*_server
+/globularcli
 
 # Compiled service binaries (in golang/ root — local build dumps)
 golang/*_server
@@ -53,6 +54,7 @@ golang/bin/
 golang/error
 golang/checks_test.go
 TODO.md
+import_behavioral_memory_signals.err*
 
 # Binary executables
 *.exe
