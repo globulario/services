@@ -123,11 +123,12 @@ genuinely *downhill*. That is where effort should go next.
   Done: `release.version_single_authority` (#143, proof test),
   `publish.release_artifact_must_be_stripped` strip-half (#144, new ELF strip
   gate), `convergence.identity_is_build_id` (Path C landed in
-  `repair_node_workflow` with focused proof tests). Deferred as spine changes,
-  each with a recorded finding: `package.release_vs_dev_channel_boundary`
-  (`25cb9f59` — deploy.go DEV desired-state gap), `publish...stripped`
-  size-envelope half (`7b326026`), `staging.content_addressed` (largest,
-  unscoped).
+  `repair_node_workflow` with focused proof tests), and
+  `package.release_vs_dev_channel_boundary` (repo dev-lane coercion +
+  controller desired-state gate + deploy DEV skip path, all proof-tested).
+  Deferred as spine changes, each with a recorded finding:
+  `publish...stripped` size-envelope half (`7b326026`),
+  `staging.content_addressed` (largest, unscoped).
 - **CG-1 / CG-4** — evidence audit, confirm impact-ci fires end-to-end. 🟡 Folded
   into the grind.
 
@@ -202,9 +203,10 @@ promotion scaffold remains cross-repo in `awareness-graph`. Do it last.
 ```
 NOW →  The easy coverage is exhausted AND Tier E is closed. What remains is
        dedicated, optional engineering — one careful slice at a time, none urgent:
-         • CG-3 spine changes (own design session each): `package.release_vs_dev_channel_boundary`,
-           the `publish...stripped` size-envelope half, and `staging.content_addressed`.
-           `convergence.identity_is_build_id` is already landed in `services`.
+         • CG-3 spine changes (own design session each): the
+           `publish...stripped` size-envelope half and `staging.content_addressed`.
+           `convergence.identity_is_build_id` and
+           `package.release_vs_dev_channel_boundary` are already landed in `services`.
          • Tier G template harvest (promote-invariant scaffold, dispatcher
            template, onboarding template, runbooks) — patterns now proven stable.
        Optional small seam: wire WB-2 incident→candidate into a standing review
