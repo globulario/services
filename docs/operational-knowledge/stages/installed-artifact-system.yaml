@@ -52,6 +52,52 @@ entries:
       Disk files must never silently override etcd authority when values diverge.
       If etcd is unavailable, control-plane writes should fail/degrade explicitly.
 
+  - id: ops.artifacts.four-layer-model
+    type: ARCHITECTURE
+    title: "The 4-layer truth model — never collapse authority"
+    tags: [always, artifacts, desired-state, installed-state, runtime]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: [cluster-controller, node-agent]
+    content: |
+      Globular cluster state is intentionally split into four independent layers.
+      They are related, but none is an implied shortcut for the others:
+
+      1. Repository / Artifact
+         - Question: "Does this version exist?"
+         - Owner: repository service
+         - Evidence: package tarball, manifest, checksum, publication record
+
+      2. Desired State
+         - Question: "What should be running?"
+         - Owner: cluster-controller
+         - Evidence: etcd desired-release keys and workflow dispatch records
+
+      3. Installed State
+         - Question: "What is actually installed on this node?"
+         - Owner: node-agent
+         - Evidence: node-agent installed-state records, local receipts, version markers
+
+      4. Runtime Health
+         - Question: "Is it running and healthy right now?"
+         - Owner: systemd plus node-agent probes
+         - Evidence: systemd unit state, health checks, process identity, runtime proof
+
+      Rules:
+      - Do not infer Desired from Installed.
+      - Do not infer Installed from Runtime.
+      - Do not use the Repository as a proxy for what is already installed.
+      - Always identify which layer owns the value before mutating or diagnosing it.
+      - A fix is only valid when it respects the authority of the layer that owns the
+        bad value.
+
+      Diagnostic order:
+      Repository → Desired → Installed → Runtime
+
+      This ordering is mandatory for package and service incidents. It prevents stale
+      binaries, stale desired records, and runtime-only observations from being treated
+      as cluster truth.
+
   - id: ops.artifacts.subdir-contract
     type: REFERENCE
     title: "State-root subdirectory contract"
