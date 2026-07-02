@@ -38,8 +38,8 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -89,7 +89,6 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 		}
 	}
 
-<<<<<<< HEAD
 	// Find the .tgz package on disk. If not present, fetch it from the repository
 	// so that `pkg publish` + `services desired set` converges without requiring
 	// the operator to manually stage every package on every node.
