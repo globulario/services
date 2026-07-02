@@ -414,6 +414,11 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	// self_hosted_runtime_proof_may_refresh_installed_state.
 	srv.refreshSelfHostedInstalledState(ctx)
 
+	// Phase 1.8: general receipt repair for installed rows that are missing
+	// canonical unit receipts. This is metadata-only and refuses packages not
+	// authorized by the node's current profiles.
+	srv.repairInstalledStateReceipts(ctx)
+
 	// Phase 2: Enrich existing records with correct version/kind from repo.
 	srv.syncRepoArtifactsToEtcd(ctx, now, platform, &synced)
 
@@ -843,6 +848,14 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 		}
 
 		name := ref.GetName()
+		if kind == "COMMAND" {
+			if profiles, ok := srv.receiptRepairProfiles(ctx); ok {
+				if authorized, reason := packageAuthorizedForReceiptRepair(name, profiles); !authorized {
+					log.Printf("nodeagent: sync repo artifacts: skip COMMAND/%s: %s", name, reason)
+					continue
+				}
+			}
+		}
 
 		// Migration guard: xds and gateway had "type":"service" in package.json
 		// before the v1.2.7 fix. Artifacts published before that fix carry
@@ -1355,8 +1368,10 @@ func (srv *NodeAgentServer) sendStatusWithRetry(ctx context.Context, statusReq *
 		if err := srv.saveState(); err != nil {
 			log.Printf("node-agent: failed to persist redirected controller endpoint (%s -> %s): %v", old, srv.controllerEndpoint, err)
 		}
+		srv.markLegacyJoinSatisfiedByStatusReport()
 		return nil
 	}
+	srv.markLegacyJoinSatisfiedByStatusReport()
 	return nil
 }
 

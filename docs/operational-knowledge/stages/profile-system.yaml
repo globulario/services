@@ -56,6 +56,7 @@ entries:
       Current inheritance:
       - `control-plane` implies `core`
       - `compute` implies `core`
+      - `media-server` implies `core`
 
       Unknown profiles are invalid in controller-issued JoinPlan and in node-agent join gate.
       They are rejected with explicit errors (never silently accepted during join/bootstrap).
@@ -102,6 +103,45 @@ entries:
       - Day-0 install uses the same canonical map the controller validates for Day-1+.
 
       This prevents split-brain between bootstrap install behavior and steady-state reconciliation.
+
+  - id: ops.always.profile.media-placement-contract
+    type: DECISION
+    title: "Media packages require explicit media-server placement"
+    tags: [always, profile, media-server, package, placement]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Media packages are optional placement, not founding-quorum baseline.
+
+      The `media-server` profile is the only profile that should cause these packages to be
+      installed or receipt-repaired:
+      - SERVICE: `title`, `media`, `torrent`
+      - COMMAND: `ffmpeg`, `yt-dlp`
+
+      Day-0, `day0.bootstrap`, and day-1 `node.join` must all enforce the same rule. A core
+      node without `media-server` must not install or report those packages just because they
+      exist in the repository.
+
+      When adding an optional package class, check every install surface:
+      1. release/package registry profile metadata
+      2. installer script package arrays
+      3. workflow definitions (`day0.bootstrap`, `node.join`, topology workflows)
+      4. node-agent receipt repair and installed-state sync
+      5. cluster-doctor package placement findings
+
+      Do not "fix" a placement warning by adding the profile silently. Profiles are operator
+      intent. The correct fix is to remove the unauthorized installed/runtime state or gate the
+      install path so it only runs for nodes with explicit placement.
+    links:
+      cli_commands:
+        - "globular --controller <host>:443 --insecure doctor report cluster --fresh"
+        - "globular pkg info ffmpeg"
+        - "globular pkg info yt-dlp"
+    related_ids:
+      - ops.always.profile.authority-model
+      - ops.always.profile.catalog-resolution
+      - ops.day-1.join.workflow-profile-inputs
 
   - id: ops.always.profile.join-gates
     type: DECISION

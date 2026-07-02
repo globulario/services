@@ -21,6 +21,10 @@ spec:
       node_id: { type: string }
       node_hostname: { type: string }
       node_ip: { type: string }
+      node_profiles:
+        type: array
+        items: { type: string }
+        default: []
       repository_address: { type: string, default: "" }
       install_timeout: { type: string, default: 5m }
   defaults:
@@ -265,9 +269,6 @@ spec:
           - { name: mail, kind: SERVICE }
           - { name: blog, kind: SERVICE }
           - { name: conversation, kind: SERVICE }
-          - { name: title, kind: SERVICE }
-          - { name: media, kind: SERVICE }
-          - { name: torrent, kind: SERVICE }
           - { name: echo, kind: SERVICE }
           - { name: persistence, kind: SERVICE }
           - { name: backup-manager, kind: SERVICE }
@@ -300,9 +301,6 @@ spec:
             - { name: mail, kind: SERVICE }
             - { name: blog, kind: SERVICE }
             - { name: conversation, kind: SERVICE }
-            - { name: title, kind: SERVICE }
-            - { name: media, kind: SERVICE }
-            - { name: torrent, kind: SERVICE }
             - { name: echo, kind: SERVICE }
             - { name: persistence, kind: SERVICE }
             - { name: backup-manager, kind: SERVICE }
@@ -314,6 +312,35 @@ spec:
             - { name: ai-executor, kind: SERVICE }
             - { name: ai-watcher, kind: SERVICE }
             - { name: ai-router, kind: SERVICE }
+        success:
+          expr: all_installed == true
+
+    - id: install_media_workloads
+      title: Install media services
+      dependsOn: [install_foundational]
+      when:
+        expr: contains(inputs.node_profiles, 'media-server')
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: title, kind: SERVICE }
+          - { name: media, kind: SERVICE }
+          - { name: torrent, kind: SERVICE }
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_media_workloads
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: title, kind: SERVICE }
+            - { name: media, kind: SERVICE }
+            - { name: torrent, kind: SERVICE }
         success:
           expr: all_installed == true
 
@@ -331,9 +358,7 @@ spec:
           - { name: restic, kind: COMMAND }
           - { name: mc, kind: COMMAND }
           - { name: sctool, kind: COMMAND }
-          - { name: ffmpeg, kind: COMMAND }
           - { name: sha256sum, kind: COMMAND }
-          - { name: yt-dlp, kind: COMMAND }
           - { name: claude, kind: COMMAND }
           - { name: codex, kind: COMMAND }
       timeout: 2m
@@ -353,18 +378,43 @@ spec:
             - { name: restic, kind: COMMAND }
             - { name: mc, kind: COMMAND }
             - { name: sctool, kind: COMMAND }
-            - { name: ffmpeg, kind: COMMAND }
             - { name: sha256sum, kind: COMMAND }
-            - { name: yt-dlp, kind: COMMAND }
             - { name: claude, kind: COMMAND }
             - { name: codex, kind: COMMAND }
+        success:
+          expr: all_installed == true
+
+    - id: install_media_commands
+      title: Install media CLI tools
+      dependsOn: [install_commands]
+      when:
+        expr: contains(inputs.node_profiles, 'media-server')
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: ffmpeg, kind: COMMAND }
+          - { name: yt-dlp, kind: COMMAND }
+      timeout: 2m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_media_commands
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: ffmpeg, kind: COMMAND }
+            - { name: yt-dlp, kind: COMMAND }
         success:
           expr: all_installed == true
 
     # ── Final: Report convergence ─────────────────────────────────────────
     - id: report_installed
       title: Sync installed state to etcd
-      dependsOn: [install_workloads, install_scylla_tools, install_commands]
+      dependsOn: [install_workloads, install_media_workloads, install_scylla_tools, install_commands, install_media_commands]
       actor: node-agent
       action: node.sync_installed_state
       execution:

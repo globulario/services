@@ -139,6 +139,46 @@ entries:
     links:
       awareness_invariants: []
 
+  - id: ops.always.package.publisher-authority
+    type: DECISION
+    title: "Publisher authority — same package must not fork by publisher"
+    tags: [always, package, publisher, authority, identity]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: [repository]
+    content: |
+      Publisher is part of package identity and must be governed, not accidental.
+
+      For platform packages, the canonical publisher is `core@globular.io`. A local machine
+      publisher such as `local@<hostname>` for the same package name creates a parallel
+      identity stream. That is almost always an incident smell:
+      - Repository layer now sees two publishers for the same package.
+      - Desired state may resolve one identity while installed state reports another.
+      - Cleanup tooling becomes ambiguous because the same name exists under two authorities.
+
+      Rule:
+      - Platform services, infrastructure, and commands are published as `core@globular.io`
+        unless an explicit upstream/repository authority says otherwise.
+      - Local rebuilds may reuse the same package version only when the repository allocates
+        a new build identity/build number under the canonical publisher.
+      - Do not encode local build identity into `version`; version describes the platform
+        release era when the service changed, while build number/build_id are repository-owned.
+      - If duplicate publisher IDs appear for the same platform package, treat it as an
+        incident: report it, identify which layer references each identity, then remove through
+        the repository/package owner path. Do not delete desired state to hide it.
+
+      Before deleting any package artifact or installed marker, map the layer:
+      Repository artifact, Desired, Installed, or Runtime. Use the owner API for that layer.
+    links:
+      cli_commands:
+        - "globular pkg info <name>"
+        - "globular repository status"
+        - "globular --controller <host>:443 --insecure doctor report cluster --fresh"
+    related_ids:
+      - ops.always.package.identity-rules
+      - ops.always.package.what-a-package-is
+      - ops.service.version.identity-source
+
   - id: ops.always.package.install-steps
     type: REFERENCE
     title: "Install step catalogue — every supported step type"

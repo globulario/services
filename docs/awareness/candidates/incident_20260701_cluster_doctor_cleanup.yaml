@@ -1,0 +1,103 @@
+candidates:
+  - id: globular.platform.failure_mode.scylla_manager_registration_blocked_by_cross_cluster_gossip
+    class: failure_mode
+    label: |
+      Scylla Manager registration can fail because Scylla gossip has merged with a live external cluster that shares the same cluster_name.
+    source_file: golang/node_agent/node_agent_server/infra_health_probe.go
+    evidence: |
+      2026-07-01 cluster-doctor showed scylla_manager.cluster_registered while
+      scylla-manager was active. The registration script and sctool discovered
+      10.0.0.9 from Scylla gossip and failed against that peer's manager-agent
+      auth. Local and remote Scylla REST both reported cluster_name
+      "globular.internal" and live gossip endpoints ["10.0.0.9","10.0.0.63"].
+      nodetool removenode for the 10.0.0.9 host_id failed because the host was
+      not a removable member from the local ring view; it was a live peer from a
+      different cluster/domain colliding at Scylla gossip identity.
+    risk: critical
+    confidence: high
+    status: candidate
+    discovered_from: |
+      2026-07-01 cluster-doctor remediation session on globule-ryzen.
+    review_required: true
+    summary: |
+      Agents must not treat scylla-manager cluster_count=0 as only a local
+      registration problem. First verify Scylla gossip endpoints, cluster_name,
+      host IDs, and whether discovered peers are live. Blindly retrying
+      sctool cluster add, forcing removenode, or editing manager state can make
+      cross-cluster contamination worse. The safe next step is an explicit
+      isolation/reseed decision or a documented Scylla topology repair path.
+    protects:
+      files:
+        - golang/node_agent/node_agent_server/infra_health_probe.go
+        - golang/node_agent/node_agent_server/grpc_scylla_remove_node.go
+      symbols:
+        - runProbeScyllaHealth
+        - runScyllaRemoveNode
+
+  - id: globular.platform.failure_mode.node_agent_same_version_local_deploy_skips_new_build_identity
+    class: failure_mode
+    label: |
+      A same-version local deploy of node-agent can leave the old build running unless build identity and binary checksums are proven.
+    source_file: golang/node_agent/node_agent_server/grpc_workflow.go
+    evidence: |
+      2026-07-01 local deploy published node-agent 1.2.265 build 6 and build 7,
+      and desired state advanced, but the live node-agent initially skipped
+      self-apply because the semver already matched. The installed and running
+      binary checksums remained on the older build until the package payload was
+      manually promoted and node-agent restarted. Cluster-doctor then correctly
+      reported installed digest/build mismatch until installed-state was repaired
+      through state canonicalize.
+    risk: critical
+    confidence: high
+    status: candidate
+    discovered_from: |
+      2026-07-01 cluster-doctor remediation session on globule-ryzen.
+    review_required: true
+    summary: |
+      Same semver is not sufficient proof for self-hosted service convergence.
+      Build ID, build number, package entrypoint checksum, installed binary
+      checksum, and /proc/<pid>/exe checksum must agree before declaring the
+      node-agent converged. If a controlled manual binary promotion is used to
+      bootstrap a broken self-update path, the installed-state proof must be
+      repaired with the owner tool afterward.
+    protects:
+      files:
+        - golang/node_agent/node_agent_server/grpc_workflow.go
+        - golang/node_agent/node_agent_server/heartbeat.go
+      symbols:
+        - runInstallPackage
+        - canSkipInstallPackage
+        - syncRepoArtifactsToEtcd
+
+  - id: globular.platform.invariant.command_installed_state_sync_must_respect_profile_placement
+    class: invariant
+    label: |
+      Node-agent repository artifact sync must not create or backfill COMMAND installed-state for packages not authorized by the node's profiles.
+    source_file: golang/node_agent/node_agent_server/heartbeat.go
+    evidence: |
+      During 2026-07-01 cleanup, ffmpeg and yt-dlp were not authorized for the
+      core/control-plane/storage node profile. COMMAND uninstall removed the
+      binary and marker, but heartbeat Phase 2/4 recreated installed-state and
+      version markers because commandBinaryExists found binaries on PATH and
+      repo sync did not apply the profile placement gate used by receipt repair.
+      The fix gates COMMAND repository sync with component_catalog placement via
+      packageAuthorizedForReceiptRepair.
+    risk: high
+    confidence: high
+    status: candidate
+    discovered_from: |
+      2026-07-01 cluster-doctor placement.installed_package_orphaned remediation.
+    review_required: true
+    summary: |
+      COMMAND packages are still packages with placement authority. A binary on
+      PATH is not enough to declare a Globular COMMAND package installed on a
+      node. Sync and marker backfill must respect the same profile placement
+      authority as receipt repair, otherwise unauthorized command packages
+      reappear after uninstall and doctor keeps reporting placement orphans.
+    protects:
+      files:
+        - golang/node_agent/node_agent_server/heartbeat.go
+        - golang/node_agent/node_agent_server/receipt_repair.go
+      symbols:
+        - syncRepoArtifactsToEtcd
+        - packageAuthorizedForReceiptRepair

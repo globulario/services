@@ -108,9 +108,13 @@ func TestNodeJoinWorkflow(t *testing.T) {
 
 	// Count results.
 	succeeded := 0
+	skipped := 0
 	for _, st := range run.Steps {
 		if st.Status == StepSucceeded {
 			succeeded++
+		}
+		if st.Status == StepSkipped {
+			skipped++
 		}
 	}
 
@@ -119,9 +123,18 @@ func TestNodeJoinWorkflow(t *testing.T) {
 	t.Logf("Packages installed: %d", len(installLog))
 	t.Logf("Max concurrent installs: %d", maxConcurrent)
 
-	// Verify all steps succeeded.
-	if succeeded != len(run.Steps) {
-		t.Errorf("expected all %d steps to succeed, got %d", len(run.Steps), succeeded)
+	// Verify all non-conditional steps succeeded. Media steps are intentionally
+	// skipped when node_profiles does not include media-server.
+	if succeeded+skipped != len(run.Steps) {
+		t.Errorf("expected all %d steps to succeed or skip, got succeeded=%d skipped=%d", len(run.Steps), succeeded, skipped)
+	}
+	for _, id := range []string{"install_media_workloads", "install_media_commands"} {
+		if st := run.Steps[id]; st == nil || st.Status != StepSkipped {
+			t.Errorf("expected %s to be skipped on non-media node, got %#v", id, st)
+		}
+	}
+	if st := run.Steps["report_installed"]; st == nil || st.Status != StepSucceeded {
+		t.Errorf("expected report_installed to succeed after skipped media steps, got %#v", st)
 	}
 
 	// Verify parallelism happened (tier 3 has 8 foundational services).

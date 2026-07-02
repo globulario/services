@@ -366,3 +366,101 @@ entries:
     links:
       awareness_failure_modes:
         - service.old_pid_after_upgrade
+
+  - id: ops.runbook.doctor.cluster-cleanup-2026-07
+    type: SKILL
+    title: "Incident pattern: doctor cleanup without layer collapse"
+    tags: [day-1, day-2, cluster-doctor, scylla-manager, package, objectstore, runbook]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-doctor, cluster-controller, node-agent]
+    content: |
+      **Incident pattern:** A cluster-doctor cleanup may surface several independent layer
+      mismatches at once. Do not flatten them into one reinstall or one raw etcd edit.
+
+      The 2026-07-01 cleanup had these classes:
+      1. `scylla_manager.cluster_registered` while Scylla Manager and agent were active.
+      2. Scylla gossip contained a foreign live endpoint from another cluster.
+      3. COMMAND packages (`ffmpeg`, `yt-dlp`) appeared as installed/orphaned on a node
+         without `media-server` placement.
+      4. ObjectStoreDesiredState briefly appeared empty while MinIO runtime was active, then
+         converged to standalone topology on the next fresh read.
+
+      **Decision order:**
+      - Observe every layer separately: Repository, Desired, Installed, Runtime.
+      - Use AWG/AI Memory before changing runtime/deployment/package/workflow code.
+      - Prefer owner APIs and workflows. Raw etcd writes are last resort and must target the
+        correct owner key only.
+      - Do not restart critical services just to "refresh" state. Critical services include
+        etcd, ScyllaDB, MinIO, Envoy/gateway, node-agent, and cluster-controller.
+
+      **Scylla Manager unregistered:**
+      - First verify Scylla itself is healthy and identify gossip peers.
+      - If a foreign endpoint is live in local gossip but not a real cluster node, quarantine
+        it through the narrow Scylla owner path (`/gossiper/force_remove_endpoint/<ip>`) only
+        after proving local storage has the correct host_id and desired membership excludes it.
+      - Then run the manager registration script. Do not store or repeat Scylla Manager auth
+        tokens in docs, memory, or chat summaries.
+      - Verify with `sctool --api-url http://<node-ip>:5080/api/v1 status`.
+
+      **Unauthorized media command packages:**
+      - `ffmpeg` and `yt-dlp` are valid packages, but only for nodes with `media-server`.
+      - Check `globular pkg info <name>` to distinguish desired/installed/repository state.
+      - Remove installed COMMAND state through node-agent uninstall workflow, not by deleting
+        desired state:
+        `node_agent.NodeAgentService/RunWorkflow` with workflow_name `uninstall-package`,
+        inputs `package_name`, `kind=COMMAND`, `publisher_id=core@globular.io`.
+      - Fix the source of recurrence: gate media packages in day-0 and `node.join`, and ensure
+        node-agent receipt repair refuses packages not authorized by the node's profiles.
+
+      **Objectstore active-on-non-member finding:**
+      - Before stopping MinIO, run `globular objectstore topology status`.
+      - A fresh doctor snapshot may race topology convergence. If topology status reports
+        `Overall: CONVERGED` and a routable endpoint, rerun doctor before acting.
+      - Stop MinIO only when desired topology still excludes the node. Do not promote local
+        `.minio.sys` or active systemd state into desired topology.
+
+      **Completion evidence:**
+      - Fresh doctor report has no findings (`overall_status: 1`).
+      - Gateway through Envoy returns HTTP 200 from `https://<node-ip>:443/`.
+      - Critical systemd units are active.
+      - Scylla gossip live endpoints match intended membership.
+    procedure:
+      - phase: observe
+        description: "Collect layer-specific evidence"
+        commands:
+          - cmd: "globular --controller <host>:443 --insecure --timeout 90s doctor report cluster --fresh --json"
+          - cmd: "globular objectstore topology status"
+          - cmd: "curl -sS --max-time 8 http://<scylla-ip>:10000/gossiper/endpoint/live"
+          - cmd: "globular pkg info ffmpeg && globular pkg info yt-dlp"
+      - phase: diagnose
+        description: "Classify each finding by its owner layer before changing anything"
+        commands:
+          - cmd: "sctool --api-url http://<scylla-ip>:5080/api/v1 status"
+            expect: "registered cluster with intended nodes, or explicit no-cluster evidence"
+      - phase: execute
+        description: "Use owner paths only"
+        commands:
+          - cmd: "node-agent RunWorkflow uninstall-package for unauthorized COMMAND packages"
+          - cmd: "scylla-manager-register-cluster when Scylla gossip and membership are clean"
+      - phase: verify
+        description: "Prove convergence at runtime and doctor layers"
+        commands:
+          - cmd: "globular --controller <host>:443 --insecure --timeout 90s doctor report cluster --fresh --json"
+            expect: "overall_status: 1 and no findings"
+          - cmd: "sudo curl -skI --max-time 8 https://<node-ip>:443/"
+            expect: "HTTP/2 200 and server: envoy"
+          - cmd: "curl -sS --max-time 8 http://<scylla-ip>:10000/gossiper/endpoint/live"
+            expect: "only intended live endpoints"
+    links:
+      cli_commands:
+        - "globular --controller <host>:443 --insecure --timeout 90s doctor report cluster --fresh --json"
+        - "globular objectstore topology status"
+        - "globular pkg info ffmpeg"
+        - "globular pkg info yt-dlp"
+        - "sctool --api-url http://<scylla-ip>:5080/api/v1 status"
+    related_ids:
+      - ops.always.profile.media-placement-contract
+      - ops.always.package.publisher-authority
+      - ops.role.node-agent
+      - ops.role.cluster-doctor

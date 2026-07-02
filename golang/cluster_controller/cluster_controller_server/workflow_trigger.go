@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -11,9 +15,6 @@ import (
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"crypto/tls"
-	"crypto/x509"
-	"os"
 )
 
 // triggerJoinWorkflow calls NodeAgent.RunWorkflow on the joining node
@@ -47,8 +48,16 @@ func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
 
 	client := node_agentpb.NewNodeAgentServiceClient(conn)
 
+	inputs := map[string]string{}
+	srv.lock("triggerJoinWorkflow:inputs")
+	if n := srv.state.Nodes[nodeID]; n != nil && len(n.Profiles) > 0 {
+		inputs["node_profiles"] = strings.Join(normalizeProfiles(n.Profiles), ",")
+	}
+	srv.unlock()
+
 	resp, err := client.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
 		WorkflowName: "node.join",
+		Inputs:       inputs,
 	})
 	if err != nil {
 		log.Printf("workflow-trigger: RunWorkflow failed for node %s: %v", nodeID, err)

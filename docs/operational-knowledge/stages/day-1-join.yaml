@@ -155,6 +155,43 @@ entries:
       awareness_failure_modes:
         - vip_contamination.node_routable_ip_returns_vip
 
+  - id: ops.day-1.join.workflow-profile-inputs
+    type: DEBUG
+    title: "node.join must receive controller-assigned profiles"
+    tags: [day-1, join, workflow, profile, node-agent]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster-controller, node-agent]
+    content: |
+      `node.join` is a workflow definition, but profile assignment is controller-owned.
+      The controller must thread the node's assigned profiles into `node-agent.RunWorkflow`
+      as workflow input `node_profiles`.
+
+      Why this matters:
+      - Optional workflow steps use conditions like `contains(inputs.node_profiles, 'media-server')`.
+      - If the controller invokes `node.join` with no inputs, optional profile steps silently
+        skip even for nodes that should receive them.
+      - If node-agent invents profiles as a fallback, it violates profile authority.
+
+      Correct behavior:
+      - Controller reads profiles from cluster state / JoinPlan authority.
+      - Controller passes `node_profiles` to node-agent when triggering `node.join`.
+      - Node-agent decodes profile list input into an array before executing the workflow.
+      - Missing `node_profiles` means "no optional profiles"; it must not imply media-server.
+
+      Test expectation:
+      - On a non-media node, `install_media_workloads` and `install_media_commands` are
+        `SKIPPED`, and `report_installed` still runs.
+      - On a media-server node, both media steps execute and verify.
+    links:
+      cli_commands:
+        - "globular workflow list --workflow node.join"
+        - "globular --controller <host>:443 --insecure doctor report cluster --fresh"
+    related_ids:
+      - ops.always.profile.authority-model
+      - ops.always.profile.media-placement-contract
+      - ops.role.workflow
+
   - id: ops.day-1.node.clean
     type: SKILL
     title: "How to cleanly wipe a node before rejoining the cluster"

@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +49,39 @@ func defaultClusterID() string {
 		return strings.TrimSpace(d)
 	}
 	return "globular.internal"
+}
+
+func parseWorkflowBool(raw string) bool {
+	b, _ := strconv.ParseBool(strings.TrimSpace(raw))
+	return b
+}
+
+func ensureDay0BootstrapProfilesInput(inputs map[string]any) bool {
+	if inputs == nil {
+		return false
+	}
+	if _, ok := inputs["bootstrap_node_profiles"]; ok {
+		return false
+	}
+	// Legacy callers that omitted the required workflow input get the
+	// founding quorum only. media-server is explicit operator intent and
+	// must never be silently granted by node-agent fallback.
+	inputs["bootstrap_node_profiles"] = []string{"core", "control-plane", "storage"}
+	return true
+}
+
+func decodeWorkflowInputValue(key, raw string) any {
+	if key == "node_profiles" || key == "bootstrap_node_profiles" {
+		parts := strings.Split(raw, ",")
+		values := make([]any, 0, len(parts))
+		for _, part := range parts {
+			if v := strings.TrimSpace(part); v != "" {
+				values = append(values, v)
+			}
+		}
+		return values
+	}
+	return raw
 }
 
 // RunWorkflow implements the gRPC endpoint for workflow execution.
@@ -94,7 +128,7 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 	// Build inputs from request + local state.
 	inputs := make(map[string]any)
 	for k, v := range req.GetInputs() {
-		inputs[k] = v
+		inputs[k] = decodeWorkflowInputValue(k, v)
 	}
 	// Fill in defaults from local state.
 	if _, ok := inputs["cluster_id"]; !ok {
@@ -215,6 +249,17 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	// Check if already installed at the desired version with runtime proof.
 	desiredVersion := inputs["version"]
 	buildID := inputs["build_id"]
+	publisherID := strings.TrimSpace(inputs["publisher_id"])
+	if publisherID == "" {
+		publisherID = defaultPublisherID
+	}
+	repositoryAddr := strings.TrimSpace(inputs["repository_address"])
+	var buildNumber int64
+	if raw := strings.TrimSpace(inputs["build_number"]); raw != "" {
+		if parsed, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			buildNumber = parsed
+		}
+	}
 	convergenceHash, expectedSha256 := extractRunInstallPackageHashes(inputs)
 	forceReinstall := false // set true when unit file is gone so apply-package bypasses its own idempotency guard
 	if desiredVersion != "" {
@@ -257,7 +302,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			//
 			// Best-effort: failures are logged but never affect any
 			// subsequent return value.
-			srv.restampReceiptOnInstallSkip(ctx, pkgName, pkgKind, desiredVersion, buildID)
+			srv.restampReceiptOnInstallSkip(ctx, pkgName, pkgKind, desiredVersion, buildID, convergenceHash)
 
 			// Phase 27: runtime-proof refresh before claiming SUCCEEDED.
 			// canSkipInstallPackage proved on-disk binary + active unit,
@@ -348,6 +393,11 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 			if startErr := supervisor.Start(ctx, unit); startErr == nil {
 				if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr == nil {
 					log.Printf("grpc-workflow: install-package %s: repair via Start succeeded", pkgName)
+					if strings.ToUpper(pkgKind) == "INFRASTRUCTURE" && convergenceHash != "" {
+						if stampErr := StampInfraConvergenceHash(ctx, srv.nodeID, pkgName, convergenceHash); stampErr != nil {
+							log.Printf("grpc-workflow: stamp convergence hash for %s failed after start repair (non-fatal): %v", pkgName, stampErr)
+						}
+					}
 					srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
 						ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
 						WorkflowID:      wfID,
@@ -434,11 +484,15 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		PackageName:    pkgName,
 		PackageKind:    pkgKind,
 		Version:        desiredVersion,
-		Publisher:      defaultPublisherID,
+		Publisher:      publisherID,
 		ExpectedSha256: expectedSha256, // BINARY hash from manifest.entrypoint_checksum (NOT convergenceHash)
+		DesiredHash:    convergenceHash,
 		OperationId:    inputs["workflow_id"],
+		RepositoryAddr: repositoryAddr,
+		BuildNumber:    buildNumber,
 		BuildId:        buildID,
 		Force:          forceReinstall,
+		AllowDowngrade: parseWorkflowBool(inputs["allow_downgrade"]),
 	})
 	elapsed := time.Since(start)
 
@@ -508,14 +562,14 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		resp.StepsSucceeded = 1
 		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v, status=%s)", pkgName, elapsed, applyResp.GetStatus())
 		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
-			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
-			WorkflowID:      wfIDFull,
-			Package:         pkgName,
-			NodeID:          srv.nodeID,
-			DesiredVersion:  desiredVersion,
-			DesiredBuildID:  buildID,
-			LocalVersion:    desiredVersion,
-			LocalBuildID:    buildID,
+			ActionID:       convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+			WorkflowID:     wfIDFull,
+			Package:        pkgName,
+			NodeID:         srv.nodeID,
+			DesiredVersion: desiredVersion,
+			DesiredBuildID: buildID,
+			LocalVersion:   desiredVersion,
+			LocalBuildID:   buildID,
 			// LocalHash tells the controller what artifact digest was installed so
 			// it can stamp pkg.Checksum and stop re-dispatching on checksum mismatch.
 			LocalHash:       convergenceHash,
@@ -670,9 +724,18 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 	}
 
 	// Step 2: Clear installed state from etcd.
-	if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName); err != nil {
-		log.Printf("grpc-workflow: uninstall-package %s: warning: failed to clear installed state: %v", pkgName, err)
-		// Non-fatal — the package files are already removed.
+	//
+	// COMMAND packages have historically been mis-recorded under sibling kinds
+	// by receipt repair/bootstrap paths. If those siblings survive, the
+	// immediate sync below backfills /var/lib/globular/services/<name>/version
+	// from stale installed-state and resurrects the orphan. SERVICE and
+	// INFRASTRUCTURE uninstalls stay exact-kind to avoid over-removing a real
+	// service that happens to share a name with another package kind.
+	for _, kind := range installedStateKindsToDeleteForUninstall(pkgKind) {
+		if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, kind, pkgName); err != nil {
+			log.Printf("grpc-workflow: uninstall-package %s: warning: failed to clear installed state %s/%s: %v", pkgName, kind, pkgName, err)
+			// Non-fatal — the package files are already removed.
+		}
 	}
 
 	// Also clean up service config from etcd so it no longer appears in admin catalog.
@@ -682,6 +745,13 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 
 	// Step 3: Sync installed state so the controller sees the change immediately.
 	srv.syncInstalledStateToEtcd(ctx)
+	if pkgKind == "COMMAND" {
+		// Belt-and-suspenders for orphan cleanup: if a stale record raced the
+		// sync backfill, do not leave the marker that caused the original
+		// placement orphan. The next heartbeat will only recreate it if a valid
+		// installed-state record still exists, which doctor will keep reporting.
+		_ = os.RemoveAll(filepath.Dir(versionutil.MarkerPath(pkgName)))
+	}
 
 	elapsed := time.Since(start)
 	log.Printf("grpc-workflow: uninstall-package %s SUCCEEDED (%v)", pkgName, elapsed)
@@ -691,6 +761,17 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 		StepsTotal:     totalSteps,
 		StepsSucceeded: totalSteps,
 	}, nil
+}
+
+func installedStateKindsToDeleteForUninstall(pkgKind string) []string {
+	pkgKind = strings.ToUpper(strings.TrimSpace(pkgKind))
+	if pkgKind == "COMMAND" {
+		return []string{"COMMAND", "SERVICE", "INFRASTRUCTURE"}
+	}
+	if pkgKind == "" {
+		return []string{"SERVICE"}
+	}
+	return []string{pkgKind}
 }
 
 // runDay0Bootstrap handles the "day0.bootstrap" workflow.
@@ -727,10 +808,8 @@ func (srv *NodeAgentServer) runDay0Bootstrap(ctx context.Context, req *node_agen
 	if _, ok := inputs["repository_address"]; !ok {
 		inputs["repository_address"] = ""
 	}
-	if _, ok := inputs["bootstrap_node_profiles"]; !ok {
-		// Mirror foundingNodeProfiles from cluster_controller/profiles_normalize.go.
-		// The workflow's verify_profile_install_set step requires this input.
-		inputs["bootstrap_node_profiles"] = []string{"core", "control-plane", "storage", "media-server"}
+	if ensureDay0BootstrapProfilesInput(inputs) {
+		log.Printf("grpc-workflow: day0.bootstrap missing required bootstrap_node_profiles input — using legacy fallback [core control-plane storage]")
 	}
 
 	log.Printf("grpc-workflow: starting day0.bootstrap (def=%s)", defPath)
