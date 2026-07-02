@@ -13,16 +13,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/globulario/services/golang/config"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
+	"github.com/spf13/cobra"
 )
 
 var (
 	healthLocal      bool
 	healthJSON       bool
 	healthTimeoutSec int
+)
+
+var (
+	networkSpecPath = "/var/lib/globular/network.json"
+	loadLocalConfig = func() (map[string]interface{}, error) {
+		return config.GetLocalConfig(true)
+	}
 )
 
 func init() {
@@ -168,7 +175,7 @@ func runLocalHealthChecks() error {
 	defer cancel()
 
 	// Load network spec to determine what to check
-	networkSpec, specErr := loadNetworkSpec()
+	networkSpec, specErr := loadEffectiveNetworkSpec()
 
 	checks := []HealthCheckResult{}
 
@@ -263,13 +270,13 @@ func runClusterHealthChecks() error {
 	if healthJSON {
 		// Convert to JSON
 		data := map[string]interface{}{
-			"healthy":          strings.ToLower(resp.GetStatus()) == "healthy",
-			"status":           resp.GetStatus(),
-			"total_nodes":      resp.GetTotalNodes(),
-			"healthy_nodes":    resp.GetHealthyNodes(),
-			"unhealthy_nodes":  resp.GetUnhealthyNodes(),
-			"unknown_nodes":    resp.GetUnknownNodes(),
-			"node_health":      resp.GetNodeHealth(),
+			"healthy":         strings.ToLower(resp.GetStatus()) == "healthy",
+			"status":          resp.GetStatus(),
+			"total_nodes":     resp.GetTotalNodes(),
+			"healthy_nodes":   resp.GetHealthyNodes(),
+			"unhealthy_nodes": resp.GetUnhealthyNodes(),
+			"unknown_nodes":   resp.GetUnknownNodes(),
+			"node_health":     resp.GetNodeHealth(),
 		}
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
@@ -303,17 +310,111 @@ func runClusterHealthChecks() error {
 
 // loadNetworkSpec reads the network spec from the local file
 func loadNetworkSpec() (*cluster_controllerpb.ClusterNetworkSpec, error) {
-	data, err := os.ReadFile("/var/lib/globular/network.json")
+	data, err := os.ReadFile(networkSpecPath)
 	if err != nil {
 		return nil, fmt.Errorf("read network spec: %w", err)
 	}
 
-	var spec cluster_controllerpb.ClusterNetworkSpec
-	if err := json.Unmarshal(data, &spec); err != nil {
+	var raw struct {
+		ClusterDomain string `json:"cluster_domain"`
+		Domain        string `json:"Domain"`
+		Protocol      string `json:"protocol"`
+		ProtocolAlt   string `json:"Protocol"`
+		PortHTTP      uint32 `json:"port_http"`
+		PortHTTPAlt   uint32 `json:"PortHTTP"`
+		PortHTTPS     uint32 `json:"port_https"`
+		PortHTTPSAlt  uint32 `json:"PortHTTPS"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("unmarshal network spec: %w", err)
 	}
 
-	return &spec, nil
+	spec := &cluster_controllerpb.ClusterNetworkSpec{
+		ClusterDomain: strings.TrimSpace(raw.ClusterDomain),
+		Protocol:      strings.TrimSpace(raw.Protocol),
+		PortHttp:      raw.PortHTTP,
+		PortHttps:     raw.PortHTTPS,
+	}
+	if spec.ClusterDomain == "" {
+		spec.ClusterDomain = strings.TrimSpace(raw.Domain)
+	}
+	if spec.Protocol == "" {
+		spec.Protocol = strings.TrimSpace(raw.ProtocolAlt)
+	}
+	if spec.PortHttp == 0 {
+		spec.PortHttp = raw.PortHTTPAlt
+	}
+	if spec.PortHttps == 0 {
+		spec.PortHttps = raw.PortHTTPSAlt
+	}
+
+	if spec.ClusterDomain == "" && spec.Protocol == "" && spec.PortHttp == 0 && spec.PortHttps == 0 {
+		return nil, fmt.Errorf("network spec file %s does not contain usable network fields", networkSpecPath)
+	}
+
+	return spec, nil
+}
+
+func loadEffectiveNetworkSpec() (*cluster_controllerpb.ClusterNetworkSpec, error) {
+	spec, err := loadNetworkSpec()
+	if err == nil {
+		return spec, nil
+	}
+
+	cfg, cfgErr := loadLocalConfig()
+	if cfgErr != nil {
+		return nil, err
+	}
+
+	spec = &cluster_controllerpb.ClusterNetworkSpec{
+		ClusterDomain: strings.TrimSpace(stringValue(cfg["Domain"])),
+		Protocol:      strings.TrimSpace(stringValue(cfg["Protocol"])),
+		PortHttp:      uint32(intValue(cfg["PortHTTP"])),
+		PortHttps:     uint32(intValue(cfg["PortHTTPS"])),
+	}
+	if spec.Protocol == "" {
+		spec.Protocol = "https"
+	}
+	if spec.PortHttp == 0 {
+		spec.PortHttp = 80
+	}
+	if spec.PortHttps == 0 {
+		spec.PortHttps = 443
+	}
+
+	return spec, nil
+}
+
+func stringValue(v interface{}) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return x
+	case fmt.Stringer:
+		return x.String()
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+func intValue(v interface{}) int {
+	switch x := v.(type) {
+	case int:
+		return x
+	case int32:
+		return int(x)
+	case int64:
+		return int(x)
+	case uint32:
+		return int(x)
+	case uint64:
+		return int(x)
+	case float64:
+		return int(x)
+	default:
+		return 0
+	}
 }
 
 // checkEtcd checks if etcd is reachable
@@ -374,8 +475,14 @@ func checkMinio(ctx context.Context) HealthCheckResult {
 func checkEnvoy(ctx context.Context) HealthCheckResult {
 	result := HealthCheckResult{Name: "envoy"}
 
-	fallback := Endpoint{Host: config.GetRoutableIPv4(), Port: 9901, Scheme: "http", Path: "/ready"}
+	fallback := Endpoint{Host: "127.0.0.1", Port: 9901, Scheme: "http", Path: "/ready"}
 	endpoint, _ := ResolveEndpoint("envoy-admin", fallback)
+	if endpoint.Host == "" || endpoint.Host == "0.0.0.0" {
+		endpoint.Host = fallback.Host
+	}
+	if endpoint.Path == "" {
+		endpoint.Path = fallback.Path
+	}
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
 	if err := httpProbe(ctx, endpoint); err != nil {

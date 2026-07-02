@@ -8,6 +8,7 @@ package rules
 
 import (
 	"testing"
+	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
@@ -69,5 +70,21 @@ func TestNodeUnitsRunning_OtherUnitsStillFire(t *testing.T) {
 		if f.EntityRef == "n1/keepalived.service" {
 			t.Errorf("keepalived must be suppressed; got %+v", f)
 		}
+	}
+}
+
+func TestNodeUnitsRunning_InactiveSuppressedDuringFreshDrift(t *testing.T) {
+	snap := &collector.Snapshot{
+		Nodes: []*cluster_controllerpb.NodeRecord{{NodeId: "n1"}},
+		Inventories: map[string]*node_agentpb.Inventory{
+			"n1": {Units: []*node_agentpb.UnitStatus{{Name: "globular-file.service", State: "inactive"}}},
+		},
+		NodeDriftAge: map[string]time.Duration{
+			"n1": 30 * time.Second,
+		},
+	}
+	findings := (nodeUnitsRunning{}).Evaluate(snap, testConfig())
+	if len(findings) != 0 {
+		t.Fatalf("inactive unit during fresh drift should be suppressed, got %d findings: %+v", len(findings), findings)
 	}
 }

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -366,5 +366,24 @@ func TestInstalledStateRuntimeMismatch_ActivatingEtcdFiresAfterExtendedGrace(t *
 	findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
 	if len(findings) == 0 {
 		t.Fatal("etcd activating past extended grace must fire mismatch finding")
+	}
+}
+
+func TestInstalledStateRuntimeMismatch_TransientStatesSuppressedDuringFreshDrift(t *testing.T) {
+	for _, state := range []string{"inactive", "deactivating"} {
+		t.Run(state, func(t *testing.T) {
+			snap := &collector.Snapshot{
+				Nodes:       []*cluster_controllerpb.NodeRecord{freshNodeRecord("n1")},
+				NodeHealths: map[string]*cluster_controllerpb.NodeHealth{"n1": freshNodeHealth("n1", map[string]string{"authentication": "1.2.131"})},
+				Inventories: map[string]*node_agentpb.Inventory{"n1": inventoryWithUnits(unit("globular-authentication.service", state))},
+				NodeDriftAge: map[string]time.Duration{
+					"n1": 30 * time.Second,
+				},
+			}
+			findings := (installedStateRuntimeMismatch{}).Evaluate(snap, testConfig())
+			if len(findings) != 0 {
+				t.Fatalf("%s during fresh drift should be suppressed, got %d findings: %+v", state, len(findings), findings)
+			}
+		})
 	}
 }

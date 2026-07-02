@@ -16,6 +16,11 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 )
 
+var (
+	scyllaRegisterRetryAttempts = 20
+	scyllaRegisterRetryInterval = 15 * time.Second
+)
+
 // persistScyllaConfig writes auto-detected ScyllaDB config back to etcd. The
 // startup detection/registration sets srv fields in memory only; without this
 // the registered cluster is invisible to the configured backup path on the
@@ -179,12 +184,22 @@ func outboundIP() string {
 // using the Globular domain as the cluster name.
 // This runs in background at startup — failures are non-fatal.
 func (srv *server) ensureScyllaRegistered() {
-	// Wait a bit for scylla-manager to be ready
 	time.Sleep(5 * time.Second)
 
+	for attempt := 1; attempt <= scyllaRegisterRetryAttempts; attempt++ {
+		if srv.tryEnsureScyllaRegistered(attempt) {
+			return
+		}
+		if attempt < scyllaRegisterRetryAttempts {
+			time.Sleep(scyllaRegisterRetryInterval)
+		}
+	}
+}
+
+func (srv *server) tryEnsureScyllaRegistered(attempt int) bool {
 	// Check if sctool is available
 	if _, err := exec.LookPath("sctool"); err != nil {
-		return
+		return true
 	}
 
 	// Auto-detect API URL from scylla-manager config if not set
@@ -192,6 +207,9 @@ func (srv *server) ensureScyllaRegistered() {
 		if detected := detectScyllaManagerAPIURL(); detected != "" {
 			srv.ScyllaManagerAPI = detected
 			slog.Info("auto-detected scylla-manager API URL", "url", srv.ScyllaManagerAPI)
+		} else {
+			slog.Info("scylla-manager API not ready yet; will retry registration", "attempt", attempt)
+			return false
 		}
 	}
 
@@ -247,18 +265,20 @@ func (srv *server) ensureScyllaRegistered() {
 							"cluster", clusterName, "output", strings.TrimSpace(string(updateOut)))
 					}
 				} else {
-					slog.Warn("cannot read agent config to fix unreachable cluster — manual intervention needed")
+					slog.Info("cannot read agent config to fix unreachable cluster yet; will retry registration",
+						"attempt", attempt, "cluster", clusterName)
+					return false
 				}
 			}
 		}
-		return
+		return true
 	}
 
 	// No clusters registered — check if ScyllaDB is actually running
 	scyllaHost, nativeName := detectNativeScyllaDB()
 	if nativeName == "" {
-		// ScyllaDB not reachable, nothing to register
-		return
+		slog.Info("native ScyllaDB not ready yet; will retry registration", "attempt", attempt)
+		return false
 	}
 
 	// Use Globular domain as the scylla-manager cluster name
@@ -273,14 +293,13 @@ func (srv *server) ensureScyllaRegistered() {
 	args := append([]string{"cluster", "add", "--host", scyllaHost, "--name", clusterName}, srv.scyllaAPIArgs(srv.ScyllaManagerAPI)...)
 	agentArgs := scyllaAgentArgs()
 	if agentArgs == nil {
-		slog.Warn("cannot read scylla-manager-agent config for auth token — "+
-			"cluster registration will likely fail with 401. "+
-			"Ensure the agent config is readable by the backup-manager process.",
+		slog.Info("cannot read scylla-manager-agent config for auth token yet; will retry registration",
+			"attempt", attempt,
 			"tried", []string{
 				"/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml",
 				"/etc/scylla-manager-agent/scylla-manager-agent.yaml",
 			})
-		return
+		return false
 	}
 	args = append(args, agentArgs...)
 
@@ -295,11 +314,12 @@ func (srv *server) ensureScyllaRegistered() {
 		// Check if it failed because it's already registered (race condition)
 		if strings.Contains(output, "already exists") || strings.Contains(output, "conflict") {
 			slog.Info("ScyllaDB cluster already registered", "output", output)
+			return true
 		} else {
-			slog.Warn("failed to auto-register ScyllaDB in scylla-manager",
-				"error", err, "output", output)
+			slog.Info("failed to auto-register ScyllaDB in scylla-manager; will retry",
+				"attempt", attempt, "error", err, "output", output)
 		}
-		return
+		return false
 	}
 
 	slog.Info("ScyllaDB auto-registered in scylla-manager",
@@ -312,6 +332,7 @@ func (srv *server) ensureScyllaRegistered() {
 	// Persist the freshly-registered cluster to etcd so it survives restarts
 	// and is visible to the configured backup path.
 	srv.persistScyllaConfig()
+	return true
 }
 
 // PreflightCheck verifies that required CLI tools are available.

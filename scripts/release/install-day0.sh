@@ -104,6 +104,20 @@ resolve_node_agent_state_path() {
   printf '%s\n' "$canonical"
 }
 
+resolve_controller_state_path() {
+  local canonical="/var/lib/globular/cluster-controller/state.json"
+  local legacy="/var/lib/globular/clustercontroller/state.json"
+  if [[ -f "$canonical" ]]; then
+    printf '%s\n' "$canonical"
+    return 0
+  fi
+  if [[ -f "$legacy" ]]; then
+    printf '%s\n' "$legacy"
+    return 0
+  fi
+  printf '%s\n' "$canonical"
+}
+
 read_json_field() {
   local json_path="${1:-}"
   local field="${2:-}"
@@ -124,6 +138,30 @@ value = data.get(field, "")
 if value is None:
     value = ""
 print(str(value).strip())
+PYEOF
+}
+
+read_controller_node_seed_status() {
+  local state_path="${1:-}"
+  local node_id="${2:-}"
+  [[ -n "$state_path" ]] || return 0
+  [[ -n "$node_id" ]] || return 0
+  [[ -f "$state_path" ]] || return 0
+  python3 - "$state_path" "$node_id" <<'PYEOF' 2>/dev/null || true
+import json
+import sys
+
+state_path, node_id = sys.argv[1:]
+try:
+    with open(state_path, "r", encoding="utf-8") as fh:
+        state = json.load(fh)
+except Exception:
+    raise SystemExit(0)
+node = (state.get("nodes") or {}).get(node_id) or {}
+last_seen = 1 if node.get("last_seen") else 0
+inventory_complete = 1 if node.get("inventory_complete") else 0
+installed_versions = node.get("installed_versions") or {}
+print(f"{last_seen}\t{inventory_complete}\t{len(installed_versions)}")
 PYEOF
 }
 
@@ -1577,6 +1615,17 @@ if [[ -x "$SCRIPT_DIR/setup-config.sh" ]]; then
     fi
     chmod 644 /var/lib/globular/network.json
     log_substep "Set network.json permissions to 644"
+  else
+    cat > /var/lib/globular/network.json <<EOF
+{
+  "Domain": "${DOMAIN}",
+  "Protocol": "https",
+  "PortHTTP": 80,
+  "PortHTTPS": 443
+}
+EOF
+    chmod 644 /var/lib/globular/network.json
+    log_substep "Materialized bootstrap network.json for local runtime checks"
   fi
 
   # CRITICAL: Regenerate client certificates now that domain is configured
@@ -2300,39 +2349,54 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   [[ -n "$_CTRL_PORT_ETCD" ]] || die "Could not determine cluster controller port from etcd or unit file"
   _SEED_CTRL="${_SEED_IP}:${_CTRL_PORT_ETCD}"
   _SEED_STATE_PATH="$(resolve_node_agent_state_path)"
+  _SEED_CONTROLLER_STATE_PATH="$(resolve_controller_state_path)"
   _SEED_NODE_ID=""
   _SEED_EXPECTED_COUNT="$(count_seed_expected_packages)"
   _SEED_LAST_NODE_ID=""
 
-  # Wait for both a heartbeat and the node-agent's managed package inventory to
-  # show up in etcd. Seeding too early only captures a partial subset of the
+  # Wait for the controller-owned node record to show both last_seen and
+  # inventory_complete. Seeding too early only captures a partial subset of the
   # install we just completed.
-  log_substep "Waiting for node-agent heartbeat and installed inventory to reach controller..."
+  log_substep "Waiting for controller-owned node heartbeat and inventory_complete..."
   log_substep "Expected managed package records from this Day-0 run: ${_SEED_EXPECTED_COUNT}"
   log_substep "Watching node-agent state path: ${_SEED_STATE_PATH}"
+  log_substep "Watching controller state path: ${_SEED_CONTROLLER_STATE_PATH}"
   _HB_WAIT=0
   _HB_MAX=120
   _SEED_HEARTBEAT_MISSING=1
   _SEED_OBSERVED_COUNT=0
   _SEED_LAST_COUNT=-1
+  _SEED_INVENTORY_COMPLETE=0
   while [[ $_HB_WAIT -lt $_HB_MAX ]]; do
     _SEED_STATE_PATH="$(resolve_node_agent_state_path)"
+    _SEED_CONTROLLER_STATE_PATH="$(resolve_controller_state_path)"
     _SEED_NODE_ID="$(read_json_field "$_SEED_STATE_PATH" "node_id")"
     if [[ -n "$_SEED_NODE_ID" ]] && [[ "$_SEED_NODE_ID" != "$_SEED_LAST_NODE_ID" ]]; then
       log_substep "Using node-agent state node_id for heartbeat watch: ${_SEED_NODE_ID}"
       _SEED_LAST_NODE_ID="$_SEED_NODE_ID"
     fi
-    if [[ -n "$_SEED_NODE_ID" ]] && etcdctl --endpoints="$_SEED_ETCD" \
-        --cacert="$_SEED_CA" --cert="$_SEED_CERT" --key="$_SEED_KEY" \
-        get "/globular/nodes/${_SEED_NODE_ID}/status" --print-value-only 2>/dev/null | grep -q "last_seen"; then
+    if [[ -n "$_SEED_NODE_ID" ]]; then
+      _SEED_STATUS="$(read_controller_node_seed_status "$_SEED_CONTROLLER_STATE_PATH" "$_SEED_NODE_ID")"
+    else
+      _SEED_STATUS=""
+    fi
+    if [[ -n "$_SEED_STATUS" ]]; then
+      IFS=$'\t' read -r _SEED_HAS_LAST_SEEN _SEED_HAS_INVENTORY_COMPLETE _SEED_CONTROLLER_COUNT <<< "$_SEED_STATUS"
+    else
+      _SEED_HAS_LAST_SEEN=0
+      _SEED_HAS_INVENTORY_COMPLETE=0
+      _SEED_CONTROLLER_COUNT=0
+    fi
+    if [[ "${_SEED_HAS_LAST_SEEN:-0}" == "1" ]]; then
       _SEED_HEARTBEAT_MISSING=0
-      _SEED_OBSERVED_COUNT="$(count_node_inventory_records "$_SEED_NODE_ID" "$_SEED_ETCD" "$_SEED_CA" "$_SEED_CERT" "$_SEED_KEY")"
+      _SEED_OBSERVED_COUNT="${_SEED_CONTROLLER_COUNT:-0}"
       if [[ "$_SEED_OBSERVED_COUNT" != "$_SEED_LAST_COUNT" ]]; then
-        log_substep "Observed node-agent inventory after ${_HB_WAIT}s: ${_SEED_OBSERVED_COUNT}/${_SEED_EXPECTED_COUNT} managed package records"
+        log_substep "Observed controller inventory after ${_HB_WAIT}s: ${_SEED_OBSERVED_COUNT} managed services recorded"
         _SEED_LAST_COUNT="$_SEED_OBSERVED_COUNT"
       fi
-      if [[ "$_SEED_OBSERVED_COUNT" -ge "$_SEED_EXPECTED_COUNT" ]]; then
-        log_substep "Heartbeat and full managed inventory detected after ${_HB_WAIT}s"
+      if [[ "${_SEED_HAS_INVENTORY_COMPLETE:-0}" == "1" ]]; then
+        _SEED_INVENTORY_COMPLETE=1
+        log_substep "Heartbeat and inventory_complete detected after ${_HB_WAIT}s"
         break
       fi
     fi
@@ -2344,7 +2408,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
       log_warn "No heartbeat detected after ${_HB_MAX}s for node-agent state node_id '${_SEED_NODE_ID:-<unset>}' — seed may partially fail (safe to re-run)"
       log_node_agent_seed_diagnostics "$_SEED_STATE_PATH" "$_SEED_NODE_ID" "$_SEED_EXPECTED_COUNT" "$_SEED_OBSERVED_COUNT"
     else
-      log_warn "Inventory did not reach expected count after ${_HB_MAX}s — observed ${_SEED_OBSERVED_COUNT}/${_SEED_EXPECTED_COUNT} managed package records"
+      log_warn "Controller state did not mark inventory_complete after ${_HB_MAX}s — observed ${_SEED_OBSERVED_COUNT} managed services"
     fi
   fi
 
@@ -2370,11 +2434,11 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
         else
           log_warn "Desired state seeding completed without a heartbeat; result may be partial"
         fi
-      elif [[ "${_SEED_OBSERVED_COUNT:-0}" -lt "${_SEED_EXPECTED_COUNT:-0}" ]]; then
+      elif [[ "${_SEED_INVENTORY_COMPLETE:-0}" -ne 1 ]]; then
         if [[ -n "$_SEEDED_COUNT" ]]; then
-          log_warn "Desired state seeding completed with partial node-agent inventory; seeded ${_SEEDED_COUNT} service(s), observed ${_SEED_OBSERVED_COUNT}/${_SEED_EXPECTED_COUNT} managed package records"
+          log_warn "Desired state seeding completed before controller inventory_complete; seeded ${_SEEDED_COUNT} service(s), observed ${_SEED_OBSERVED_COUNT} managed services"
         else
-          log_warn "Desired state seeding completed with partial node-agent inventory; observed ${_SEED_OBSERVED_COUNT}/${_SEED_EXPECTED_COUNT} managed package records"
+          log_warn "Desired state seeding completed before controller inventory_complete; observed ${_SEED_OBSERVED_COUNT} managed services"
         fi
       fi
       _SEED_OK=true

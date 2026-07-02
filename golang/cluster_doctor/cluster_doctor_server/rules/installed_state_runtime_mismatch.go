@@ -50,6 +50,15 @@ func activatingGraceForPackage(pkg string) time.Duration {
 	return activatingDriftGrace
 }
 
+func stateIsRuntimeTransition(state string) bool {
+	switch state {
+	case "activating", "deactivating", "inactive":
+		return true
+	default:
+		return false
+	}
+}
+
 func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Config) []Finding {
 	// Guard: refuse to emit findings when the data source errored — "no data" must not become "no problems." See meta.absence_scope_must_be_explicit.
 	if snap.HadError("cluster_controller", "GetClusterHealthV1") {
@@ -139,11 +148,11 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 			case !ok:
 				mismatch = true
 				reason = fmt.Sprintf("runtime unit missing (%s)", unit)
-			case state == "activating" && inHashDrift && driftAge <= activatingGraceForPackage(canon):
+			case stateIsRuntimeTransition(state) && inHashDrift && driftAge <= activatingGraceForPackage(canon):
 				// During a fresh desired->applied convergence wave, units may
-				// legitimately report "activating" for a short window.
-				// Keep the mismatch signal for stuck activations, but suppress
-				// immediate rollout noise.
+				// legitimately report short-lived non-active states while the
+				// rollout is still settling. Keep the mismatch signal for
+				// stuck transitions, but suppress immediate rollout noise.
 				continue
 			case state != "active":
 				mismatch = true

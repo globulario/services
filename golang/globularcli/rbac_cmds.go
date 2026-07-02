@@ -29,10 +29,16 @@ import (
 // resolveRbacAddr discovers the RBAC service endpoint from etcd or the cluster gateway.
 // Returns empty string if the service cannot be discovered.
 func resolveRbacAddr() string {
+	if addr := config.ResolveLocalServiceAddr("rbac.RbacService"); addr != "" {
+		return addr
+	}
 	return config.ResolveServiceAddr("rbac.RbacService", "")
 }
 
 func resolveResourceAddr() string {
+	if addr := config.ResolveLocalServiceAddr("resource.ResourceService"); addr != "" {
+		return addr
+	}
 	return config.ResolveServiceAddr("resource.ResourceService", "")
 }
 

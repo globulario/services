@@ -57,8 +57,8 @@ var day0CountExistingFn = func(srv *server, clusterID, corrID string) (existing 
 
 // day0WriteRunFn writes the parsed Day-0 lines as a workflow run + steps.
 // Test seam: spy in tests to assert the IDEMPOTENT branch did NOT call it.
-var day0WriteRunFn = func(srv *server, clusterID, corrID string, lines []day0LogLine) {
-	srv.writeDay0Run(clusterID, corrID, lines)
+var day0WriteRunFn = func(srv *server, clusterID, corrID string, lines []day0LogLine) bool {
+	return srv.writeDay0Run(clusterID, corrID, lines)
 }
 
 // importDay0Trace reads the Day-0 install JSON log and creates a workflow
@@ -83,6 +83,7 @@ func (srv *server) importDay0Trace() {
 	}
 	if existing > 0 {
 		logger.Info("Day-0 trace already imported, skipping")
+		_ = os.Remove(day0LogPath)
 		return
 	}
 
@@ -98,13 +99,15 @@ func (srv *server) importDay0Trace() {
 		return
 	}
 
-	day0WriteRunFn(srv, clusterID, corrID, lines)
+	if day0WriteRunFn(srv, clusterID, corrID, lines) {
+		_ = os.Remove(day0LogPath)
+	}
 }
 
 // writeDay0Run is the production write path for the Day-0 trace import.
 // Extracted from importDay0Trace so day0WriteRunFn can wrap it; the body
 // matches the pre-refactor inline code so production behavior is unchanged.
-func (srv *server) writeDay0Run(clusterID, corrID string, lines []day0LogLine) {
+func (srv *server) writeDay0Run(clusterID, corrID string, lines []day0LogLine) bool {
 	// Find hostname and timestamps.
 	hostname := "unknown"
 	var runStart, runEnd int64
@@ -157,7 +160,7 @@ func (srv *server) writeDay0Run(clusterID, corrID string, lines []day0LogLine) {
 	resp, err := srv.StartRun(context.Background(), &workflowpb.StartRunRequest{Run: run})
 	if err != nil {
 		logger.Error("Day-0 import: StartRun failed", "err", err)
-		return
+		return false
 	}
 
 	var stepCount int
@@ -199,4 +202,5 @@ func (srv *server) writeDay0Run(clusterID, corrID string, lines []day0LogLine) {
 	logger.Info("Day-0 trace imported",
 		"run_id", resp.Id, "steps", stepCount, "hostname", hostname,
 		"status", finalStatus.String())
+	return true
 }

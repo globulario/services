@@ -284,9 +284,11 @@ func TestCheckHealthWithMockedProbes(t *testing.T) {
 	// Save original probe functions
 	origTCPProbe := tcpProbe
 	origHTTPProbe := httpProbe
+	origLoadLocalConfig := loadLocalConfig
 	defer func() {
 		tcpProbe = origTCPProbe
 		httpProbe = origHTTPProbe
+		loadLocalConfig = origLoadLocalConfig
 	}()
 
 	t.Run("etcd_check_uses_resolved_endpoint", func(t *testing.T) {
@@ -373,6 +375,9 @@ func TestCheckHealthWithMockedProbes(t *testing.T) {
 		if capturedEndpoint.Scheme != "http" {
 			t.Errorf("httpProbe called with scheme %s, want http", capturedEndpoint.Scheme)
 		}
+		if capturedEndpoint.Host != "127.0.0.1" {
+			t.Errorf("httpProbe called with host %s, want 127.0.0.1", capturedEndpoint.Host)
+		}
 	})
 
 	t.Run("probe_failure_results_in_failed_check", func(t *testing.T) {
@@ -390,6 +395,65 @@ func TestCheckHealthWithMockedProbes(t *testing.T) {
 			t.Error("checkEtcd() should include error details")
 		}
 	})
+}
+
+func TestLoadNetworkSpecCanonicalJSON(t *testing.T) {
+	origPath := networkSpecPath
+	defer func() { networkSpecPath = origPath }()
+
+	tmpDir := t.TempDir()
+	networkSpecPath = filepath.Join(tmpDir, "network.json")
+	data := []byte(`{"Domain":"globular.internal","Protocol":"https","PortHTTP":80,"PortHTTPS":443}`)
+	if err := os.WriteFile(networkSpecPath, data, 0o644); err != nil {
+		t.Fatalf("write network spec: %v", err)
+	}
+
+	spec, err := loadNetworkSpec()
+	if err != nil {
+		t.Fatalf("loadNetworkSpec() error: %v", err)
+	}
+	if got := spec.GetClusterDomain(); got != "globular.internal" {
+		t.Fatalf("cluster domain = %q, want globular.internal", got)
+	}
+	if got := spec.GetProtocol(); got != "https" {
+		t.Fatalf("protocol = %q, want https", got)
+	}
+	if got := spec.GetPortHttp(); got != 80 {
+		t.Fatalf("port_http = %d, want 80", got)
+	}
+	if got := spec.GetPortHttps(); got != 443 {
+		t.Fatalf("port_https = %d, want 443", got)
+	}
+}
+
+func TestLoadEffectiveNetworkSpecFallsBackToLocalConfig(t *testing.T) {
+	origPath := networkSpecPath
+	origLoadLocalConfig := loadLocalConfig
+	defer func() {
+		networkSpecPath = origPath
+		loadLocalConfig = origLoadLocalConfig
+	}()
+
+	networkSpecPath = filepath.Join(t.TempDir(), "missing-network.json")
+	loadLocalConfig = func() (map[string]interface{}, error) {
+		return map[string]interface{}{
+			"Domain":    "globular.internal",
+			"Protocol":  "https",
+			"PortHTTP":  float64(80),
+			"PortHTTPS": float64(443),
+		}, nil
+	}
+
+	spec, err := loadEffectiveNetworkSpec()
+	if err != nil {
+		t.Fatalf("loadEffectiveNetworkSpec() error: %v", err)
+	}
+	if got := spec.GetClusterDomain(); got != "globular.internal" {
+		t.Fatalf("cluster domain = %q, want globular.internal", got)
+	}
+	if got := spec.GetPortHttps(); got != 443 {
+		t.Fatalf("port_https = %d, want 443", got)
+	}
 }
 
 // TestResolveEndpointWithFakeBinary creates a fake executable that outputs --describe JSON

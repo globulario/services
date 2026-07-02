@@ -51,6 +51,8 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 		if !ok {
 			continue
 		}
+		driftAge := snap.NodeDriftAge[nodeID]
+		inHashDrift := driftAge > 0
 
 		// Minio non-member check is per-node; compute once per node.
 		minioNonMember := nodeIsMinioNonMember(nodeID, snap)
@@ -58,6 +60,9 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 		for _, u := range inv.GetUnits() {
 			state := NormalizeUnitState(u.GetState())
 			if state != UnitStateFailed && state != UnitStateInactive {
+				continue
+			}
+			if state == UnitStateInactive && inHashDrift && driftAge <= activatingGraceForPackage(unitPackageName(u.GetName())) {
 				continue
 			}
 			if u.GetName() == "keepalived.service" && ingressDisabled {
@@ -117,4 +122,18 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 		}
 	}
 	return findings
+}
+
+func unitPackageName(unit string) string {
+	name := strings.ToLower(strings.TrimSpace(unit))
+	switch name {
+	case "scylla-server.service":
+		return "scylladb"
+	case "keepalived.service":
+		return "keepalived"
+	}
+	if strings.HasPrefix(name, "globular-") && strings.HasSuffix(name, ".service") {
+		return strings.TrimSuffix(strings.TrimPrefix(name, "globular-"), ".service")
+	}
+	return ""
 }

@@ -26,7 +26,7 @@ func withDay0LogPath(t *testing.T, path string) {
 func withDay0Seams(
 	t *testing.T,
 	count func(srv *server, clusterID, corrID string) (int, bool),
-	write func(srv *server, clusterID, corrID string, lines []day0LogLine),
+	write func(srv *server, clusterID, corrID string, lines []day0LogLine) bool,
 ) {
 	t.Helper()
 	prevCount := day0CountExistingFn
@@ -103,10 +103,11 @@ func TestImportDay0Trace_IdempotentAcrossRestarts(t *testing.T) {
 			}
 			return existing, true
 		},
-		func(srv *server, clusterID, corrID string, lines []day0LogLine) {
+		func(srv *server, clusterID, corrID string, lines []day0LogLine) bool {
 			writeCalls++
 			// Simulate the write landing — next call sees existing > 0.
 			existing = 1
+			return true
 		},
 	)
 
@@ -122,5 +123,48 @@ func TestImportDay0Trace_IdempotentAcrossRestarts(t *testing.T) {
 	srv.importDay0Trace()
 	if writeCalls != 1 {
 		t.Fatalf("second call: expected write count to stay 1 (IDEMPOTENT), got %d", writeCalls)
+	}
+}
+
+func TestImportDay0Trace_RemovesLogAfterSuccessfulImport(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "day0-install.jsonl")
+	body := `{"type":"run_start","ts":1,"hostname":"test"}` + "\n" +
+		`{"type":"run_finish","ts":2,"status":"ok"}` + "\n"
+	if err := os.WriteFile(logPath, []byte(body), 0o644); err != nil {
+		t.Fatalf("write fixture log: %v", err)
+	}
+	withDay0LogPath(t, logPath)
+
+	withDay0Seams(t,
+		func(srv *server, clusterID, corrID string) (int, bool) { return 0, true },
+		func(srv *server, clusterID, corrID string, lines []day0LogLine) bool { return true },
+	)
+
+	srv := &server{}
+	srv.importDay0Trace()
+	if _, err := os.Stat(logPath); !os.IsNotExist(err) {
+		t.Fatalf("expected imported day0 log to be removed, stat err=%v", err)
+	}
+}
+
+func TestImportDay0Trace_RemovesLogWhenAlreadyImported(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "day0-install.jsonl")
+	if err := os.WriteFile(logPath, []byte(`{"type":"run_start","ts":1}`+"\n"), 0o644); err != nil {
+		t.Fatalf("write fixture log: %v", err)
+	}
+	withDay0LogPath(t, logPath)
+
+	withDay0Seams(t,
+		func(srv *server, clusterID, corrID string) (int, bool) { return 1, true },
+		func(srv *server, clusterID, corrID string, lines []day0LogLine) bool {
+			t.Fatal("write seam must not be called when trace already imported")
+			return false
+		},
+	)
+
+	srv := &server{}
+	srv.importDay0Trace()
+	if _, err := os.Stat(logPath); !os.IsNotExist(err) {
+		t.Fatalf("expected already-imported day0 log to be removed, stat err=%v", err)
 	}
 }
