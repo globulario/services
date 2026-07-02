@@ -293,20 +293,58 @@
     backups, repairs, or health checks for ScyllaDB. All backup posture RPCs return
     "no cluster" errors.
 
-    **Root cause:** The scylla-manager package installs a registration script
-    (`/usr/lib/globular/bin/scylla-manager-register-cluster`) that runs as
-    `ExecStartPost=-+` on the scylla-manager service. The script was redirecting
-    sctool output to `/tmp/scylla-manager-register-cluster.log`. In systemd's
-    execution context (even with the `+` privilege prefix), creating files in `/tmp`
-    can fail with "Permission denied" — causing the `if sctool ... ; then` block to
-    never execute. The `-` prefix makes the ExecStartPost failure non-fatal, so
-    the unit stays up and the failure is silent.
+    **Known root causes:**
+    1. Older package revisions used a registration script
+       (`/usr/lib/globular/bin/scylla-manager-register-cluster`) that ran as
+       `ExecStartPost=-+` on the scylla-manager service and redirected `sctool`
+       output to `/tmp/scylla-manager-register-cluster.log`. In systemd's
+       execution context, creating files in `/tmp` could fail with
+       "Permission denied", making the registration block silently skip.
+    2. Day-0 / bootstrap rewrites of
+       `/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml`
+       can leave the agent directory or YAML owned by `scylla:scylla` or
+       another non-shared owner. When backup-manager later tries to inject
+       MinIO S3 credentials as the `globular` service user, it fails with:
+       `permission denied`. After that, the agent config is stale and the
+       retry-based auto-registration path never converges.
 
-    **Durable fix (already applied in packages repo):**
-    The registration script now captures sctool output in a shell variable instead
-    of redirecting to `/tmp`. Journald captures all output via stderr anyway.
+    **Durable fixes:**
+    - The registration script now captures `sctool` output in a shell variable
+      instead of redirecting to `/tmp`.
+    - Day-0 install and node-agent reconcile must preserve the
+      `globular:scylla` ownership contract on both:
+      - `/var/lib/globular/scylla-manager-agent/`
+      - `/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml`
+      This is shared runtime authority: `globular` must be able to rewrite the
+      YAML, while `scylla-manager-agent` must still be able to read it.
 
     **Immediate runtime fix:**
+    First verify ownership if backup-manager logs mention `permission denied`:
+
+    ```bash
+    sudo stat -c '%U %G %a %n' \
+      /var/lib/globular/scylla-manager-agent \
+      /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml
+
+    # Expected:
+    # globular scylla 750 /var/lib/globular/scylla-manager-agent
+    # globular scylla 640 /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml
+    ```
+
+    If ownership drifted, repair it and restart backup-manager so it can rewrite
+    the agent config before retrying registration:
+
+    ```bash
+    sudo chown globular:scylla /var/lib/globular/scylla-manager-agent
+    sudo chown globular:scylla /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml
+    sudo chmod 0750 /var/lib/globular/scylla-manager-agent
+    sudo chmod 0640 /var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml
+    sudo systemctl restart globular-backup-manager.service
+    ```
+
+    Then, if the cluster is still not registered, register it manually. The script's
+    Phase 4 reads the agent auth_token from the agent config file:
+
     If the cluster is not registered, register it manually. The script's Phase 4 reads
     the agent auth_token from the agent config file:
 
@@ -347,7 +385,7 @@
     ```bash
     ss -tlnp | grep 5080
     ```
-  seed_sha256: 0d2c4c075e7067ef7225c78d0f7a51f92967d4dc40dd998ea4b6761e57d364e5
+  seed_sha256: 466a90d89690d993d8eaa63b64eade5f34bcc3a399051751aee5fed29824b466
 - id: ops.runbook.doctor.services-state-drift
   type: SKILL
   title: 'WARN/ERROR: services state hash mismatch (desired ≠ applied)'
@@ -431,6 +469,12 @@
       This is a legitimate platform directory — NOT safe to delete. The fix is to add `state`
       to the `platformBaseAllowlist` in the cluster-doctor source
       (`golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local.go`).
+    - `network.json` — Node-local network configuration materialized at
+      `/var/lib/globular/network.json`. Written by cluster-controller reconciliation and
+      materialized during Day-0 bootstrap so local health/runtime checks have the cluster
+      domain/protocol/ports before post-bootstrap convergence completes. This is legitimate
+      platform state — NOT safe to delete. The fix is to add `network.json` to the
+      `platformBaseAllowlist` in the cluster-doctor source.
 
     **How to evaluate unknown directories:**
     1. Read the files inside — are they owned by a known platform service?
@@ -445,7 +489,7 @@
     the alerting value. Per awareness invariant `forbidden.fix.layout_drift_by_expanding_allowlist_only`:
     any allowlist addition must be accompanied by documentation of why the directory is
     a genuine platform artifact.
-  seed_sha256: 7b7cd0b5f25cf20ace2cf5eb5aff7b3093103778a6ba0468ba76d00ebdb5bb2e
+  seed_sha256: 6daeaae5ca1586c99be5ecd294d8ed86bcd88faaa46a18cc00747423f2fda12b
 - id: ops.runbook.doctor.legacy-alias-dirs
   type: SKILL
   title: 'WARN: non-empty legacy-alias runtime dirs alongside canonical names'
@@ -546,6 +590,74 @@
     wall clock. If you see this finding on a service that was just deployed, check that the
     proof writer is using PID start time and not `time.Now()`.
   seed_sha256: a689255ef5b8301669bacd4a42964957e12358525c739f5b882ebf7135e0160d
+- id: ops.runbook.doctor.cluster-cleanup-2026-07
+  type: SKILL
+  title: 'Incident pattern: doctor cleanup without layer collapse'
+  tags:
+    - day-1
+    - day-2
+    - cluster-doctor
+    - scylla-manager
+    - package
+    - objectstore
+    - runbook
+  content: |
+    **Incident pattern:** A cluster-doctor cleanup may surface several independent layer
+    mismatches at once. Do not flatten them into one reinstall or one raw etcd edit.
+
+    The 2026-07-01 cleanup had these classes:
+    1. `scylla_manager.cluster_registered` while Scylla Manager and agent were active.
+    2. Scylla gossip contained a foreign live endpoint from another cluster.
+    3. COMMAND packages (`ffmpeg`, `yt-dlp`) appeared as installed/orphaned on a node
+       without `media-server` placement.
+    4. ObjectStoreDesiredState briefly appeared empty while MinIO runtime was active, then
+       converged to standalone topology on the next fresh read.
+
+    **Decision order:**
+    - Observe every layer separately: Repository, Desired, Installed, Runtime.
+    - Use AWG/AI Memory before changing runtime/deployment/package/workflow code.
+    - Prefer owner APIs and workflows. Raw etcd writes are last resort and must target the
+      correct owner key only.
+    - Do not restart critical services just to "refresh" state. Critical services include
+      etcd, ScyllaDB, MinIO, Envoy/gateway, node-agent, and cluster-controller.
+
+    **Scylla Manager unregistered:**
+    - First verify Scylla itself is healthy and identify gossip peers.
+    - If a foreign endpoint is live in local gossip but not a real cluster node, quarantine
+      it through the narrow Scylla owner path (`/gossiper/force_remove_endpoint/<ip>`) only
+      after proving local storage has the correct host_id and desired membership excludes it.
+    - Then run the manager registration script. Do not store or repeat Scylla Manager auth
+      tokens in docs, memory, or chat summaries.
+    - Verify with `sctool --api-url http://<node-ip>:5080/api/v1 status`.
+
+    **Unauthorized media command packages:**
+    - `ffmpeg` and `yt-dlp` are valid packages, but only for nodes with `media-server`.
+    - Check `globular pkg info <name>` to distinguish desired/installed/repository state.
+    - Remove installed COMMAND state through node-agent uninstall workflow, not by deleting
+      desired state:
+      `node_agent.NodeAgentService/RunWorkflow` with workflow_name `uninstall-package`,
+      inputs `package_name`, `kind=COMMAND`, `publisher_id=core@globular.io`.
+    - Fix the source of recurrence: gate media packages in day-0 and `node.join`, and ensure
+      node-agent receipt repair refuses packages not authorized by the node's profiles.
+
+    **Objectstore active-on-non-member finding:**
+    - Before stopping MinIO, run `globular objectstore topology status`.
+    - A fresh doctor snapshot may race topology convergence. If topology status reports
+      `Overall: CONVERGED` and a routable endpoint, rerun doctor before acting.
+    - Stop MinIO only when desired topology still excludes the node. Do not promote local
+      `.minio.sys` or active systemd state into desired topology.
+
+    **Completion evidence:**
+    - Fresh doctor report has no findings (`overall_status: 1`).
+    - Gateway through Envoy returns HTTP 200 from `https://<node-ip>:443/`.
+    - Critical systemd units are active.
+    - Scylla gossip live endpoints match intended membership.
+  related_ids:
+    - ops.always.profile.media-placement-contract
+    - ops.always.package.publisher-authority
+    - ops.role.node-agent
+    - ops.role.cluster-doctor
+  seed_sha256: f596c7e132b88ed35f9b0ce49d79c3d0a39701f9a34b0c12a41e3b2e683a9c1e
 - id: ops.runbook.initialize-awareness-graph
   type: SKILL
   title: Initialize or rebuild the awareness graph from YAML sources
@@ -3491,6 +3603,41 @@
     `publishScyllaHostsIfNeeded` writes seed addresses to /globular/scylla/hosts; this MUST
     use `StableIP(clusterVIP)` (NOT `PrimaryIP()` which would return the VIP).
   seed_sha256: bea47392a17c8692c33d6cab42cf396c50902bc4d600aed0c68b8884efd71aa1
+- id: ops.day-1.join.workflow-profile-inputs
+  type: DEBUG
+  title: node.join must receive controller-assigned profiles
+  tags:
+    - day-1
+    - join
+    - workflow
+    - profile
+    - node-agent
+  content: |
+    `node.join` is a workflow definition, but profile assignment is controller-owned.
+    The controller must thread the node's assigned profiles into `node-agent.RunWorkflow`
+    as workflow input `node_profiles`.
+
+    Why this matters:
+    - Optional workflow steps use conditions like `contains(inputs.node_profiles, 'media-server')`.
+    - If the controller invokes `node.join` with no inputs, optional profile steps silently
+      skip even for nodes that should receive them.
+    - If node-agent invents profiles as a fallback, it violates profile authority.
+
+    Correct behavior:
+    - Controller reads profiles from cluster state / JoinPlan authority.
+    - Controller passes `node_profiles` to node-agent when triggering `node.join`.
+    - Node-agent decodes profile list input into an array before executing the workflow.
+    - Missing `node_profiles` means "no optional profiles"; it must not imply media-server.
+
+    Test expectation:
+    - On a non-media node, `install_media_workloads` and `install_media_commands` are
+      `SKIPPED`, and `report_installed` still runs.
+    - On a media-server node, both media steps execute and verify.
+  related_ids:
+    - ops.always.profile.authority-model
+    - ops.always.profile.media-placement-contract
+    - ops.role.workflow
+  seed_sha256: ae5756b8660ca8f907795db02c1b1b26715d86a1bee741ee4c4cc2b770b348c2
 - id: ops.day-1.node.clean
   type: SKILL
   title: How to cleanly wipe a node before rejoining the cluster
@@ -5045,6 +5192,43 @@
 
     If any equality breaks, the layer that owns it owns the fix.
   seed_sha256: be6fc775c667fa2496e8da0113b8f898044608476fedb0acd991721496cfddfc
+- id: ops.always.package.publisher-authority
+  type: DECISION
+  title: Publisher authority — same package must not fork by publisher
+  tags:
+    - always
+    - package
+    - publisher
+    - authority
+    - identity
+  content: |
+    Publisher is part of package identity and must be governed, not accidental.
+
+    For platform packages, the canonical publisher is `core@globular.io`. A local machine
+    publisher such as `local@<hostname>` for the same package name creates a parallel
+    identity stream. That is almost always an incident smell:
+    - Repository layer now sees two publishers for the same package.
+    - Desired state may resolve one identity while installed state reports another.
+    - Cleanup tooling becomes ambiguous because the same name exists under two authorities.
+
+    Rule:
+    - Platform services, infrastructure, and commands are published as `core@globular.io`
+      unless an explicit upstream/repository authority says otherwise.
+    - Local rebuilds may reuse the same package version only when the repository allocates
+      a new build identity/build number under the canonical publisher.
+    - Do not encode local build identity into `version`; version describes the platform
+      release era when the service changed, while build number/build_id are repository-owned.
+    - If duplicate publisher IDs appear for the same platform package, treat it as an
+      incident: report it, identify which layer references each identity, then remove through
+      the repository/package owner path. Do not delete desired state to hide it.
+
+    Before deleting any package artifact or installed marker, map the layer:
+    Repository artifact, Desired, Installed, or Runtime. Use the owner API for that layer.
+  related_ids:
+    - ops.always.package.identity-rules
+    - ops.always.package.what-a-package-is
+    - ops.service.version.identity-source
+  seed_sha256: 4535a5888521b11cdc37ee03c2519253a5f2cc06120f4408034bac4a61c4c852
 - id: ops.always.package.install-steps
   type: REFERENCE
   title: Install step catalogue — every supported step type
@@ -5363,10 +5547,11 @@
     Current inheritance:
     - `control-plane` implies `core`
     - `compute` implies `core`
+    - `media-server` implies `core`
 
     Unknown profiles are invalid in controller-issued JoinPlan and in node-agent join gate.
     They are rejected with explicit errors (never silently accepted during join/bootstrap).
-  seed_sha256: 5623ba02e6db45483613240c04599362961527b9be965f12b7be2e5935d0baf0
+  seed_sha256: 76e565aacd210e3cf668187c5b7c7918368799a2c2a67bd14fa2be250e2b8172
 - id: ops.always.profile.founding-quorum
   type: ARCHITECTURE
   title: Founding quorum profile invariant
@@ -5405,6 +5590,42 @@
 
     This prevents split-brain between bootstrap install behavior and steady-state reconciliation.
   seed_sha256: 4377a97c3e7f9f8c3c0eff0a9c6f23d1aa91d7d0cd209ae209fc4dcf01d026c8
+- id: ops.always.profile.media-placement-contract
+  type: DECISION
+  title: Media packages require explicit media-server placement
+  tags:
+    - always
+    - profile
+    - media-server
+    - package
+    - placement
+  content: |
+    Media packages are optional placement, not founding-quorum baseline.
+
+    The `media-server` profile is the only profile that should cause these packages to be
+    installed or receipt-repaired:
+    - SERVICE: `title`, `media`, `torrent`
+    - COMMAND: `ffmpeg`, `yt-dlp`
+
+    Day-0, `day0.bootstrap`, and day-1 `node.join` must all enforce the same rule. A core
+    node without `media-server` must not install or report those packages just because they
+    exist in the repository.
+
+    When adding an optional package class, check every install surface:
+    1. release/package registry profile metadata
+    2. installer script package arrays
+    3. workflow definitions (`day0.bootstrap`, `node.join`, topology workflows)
+    4. node-agent receipt repair and installed-state sync
+    5. cluster-doctor package placement findings
+
+    Do not "fix" a placement warning by adding the profile silently. Profiles are operator
+    intent. The correct fix is to remove the unauthorized installed/runtime state or gate the
+    install path so it only runs for nodes with explicit placement.
+  related_ids:
+    - ops.always.profile.authority-model
+    - ops.always.profile.catalog-resolution
+    - ops.day-1.join.workflow-profile-inputs
+  seed_sha256: 65c12d4041cc0df28e95d37effc5f8f4afaa41902780ea14e9e6e7f5d653669a
 - id: ops.always.profile.join-gates
   type: DECISION
   title: Join-time validation gates for profiles

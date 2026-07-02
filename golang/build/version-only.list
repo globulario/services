@@ -1,0 +1,3 @@
+# Main packages that need zz_version_generated.go for `go test ./...`
+# but are intentionally excluded from the release build/package manifests.
+./compute/compute_server

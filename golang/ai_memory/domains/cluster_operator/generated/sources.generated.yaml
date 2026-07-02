@@ -14,7 +14,7 @@
 - ref: opsknowledge:incident.sidecar_receipt_retirement_2026_06_03
   kind: incident
   path: docs/operational-knowledge/incidents/sidecar-receipt-retirement-2026-06-03.md
-  hash: 167c906c7957bfe7683cd6ff8dc4ffa7a6c4e1b67bef1e5c5966e564a82cd351
+  hash: 0741e54cdfdc554cd0fdea43136cabc51d92001d9b2e507de3f2bba7164ec813
   title: Incident closure — sidecar receipt retirement (2026-06-03)
 - ref: opsknowledge:runbook.add_node_to_minio_pool
   kind: runbook
@@ -44,7 +44,7 @@
 - ref: opsknowledge:runbook.fix_doctor_error_findings
   kind: runbook
   path: docs/operational-knowledge/runbooks/fix-doctor-error-findings.yaml
-  hash: 8c0e4fc53d303a239793dd2f3d19d6e69bebaa3b8e76795cc78b4a671c6187e6
+  hash: 7488e279aa335758cb6813346bcebaf16a8014c11fb70897ddadc795e6c861ad
   title: Fixing cluster-doctor ERROR and WARN findings — root causes and remediation
 - ref: opsknowledge:runbook.initialize_awareness_graph
   kind: runbook
@@ -194,7 +194,7 @@
 - ref: opsknowledge:stage.day_1_join
   kind: stage
   path: docs/operational-knowledge/stages/day-1-join.yaml
-  hash: 3e7ec691a3b3ebccff02bd38d817a40e73226d4579d1b4cce60bfdea0fc87a05
+  hash: 0aeaf8ec9b5ab4d60469513c7c21e5ea9c5a95db7522a66da81a677e75da843f
   title: Day-1 — Multi-node join and founding quorum
 - ref: opsknowledge:stage.day_1_keepalived
   kind: stage
@@ -234,12 +234,12 @@
 - ref: opsknowledge:stage.package_system
   kind: stage
   path: docs/operational-knowledge/stages/package-system.yaml
-  hash: 8b85d1e7085952c739ba25a1b7cce7d8cf11c45687ccc71829d73b7d0af50410
+  hash: d7c95f5cbd2f1d6f900e884ac541098929002e7b0537e1992d3193b968efed8d
   title: Package system — anatomy, identity, install lifecycle, validation
 - ref: opsknowledge:stage.profile_system
   kind: stage
   path: docs/operational-knowledge/stages/profile-system.yaml
-  hash: fb0e2b0f652c7a0b3edcb768e221e92b085bcccadb8713bfb2a457b0511ef109
+  hash: 6731afd9cf0e2b63e68ac59ec404a52e38b3ad9afc11a418789205cd569799ba
   title: Profile system — intent, invariants, normalization, enforcement
 - ref: opsknowledge:stage.security_system
   kind: stage

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -24,6 +25,15 @@ func TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock(t *testing.T) {
 	statePath := filepath.Join(t.TempDir(), "state.json")
 	srv := newServer(defaultClusterControllerConfig(), "", statePath, state, nil)
 	srv.setLeader(true, "test", "127.0.0.1:1234") // ReportNodeStatus requires leadership
+
+	origSaveMeta := saveCAMetadataFn
+	origSaveCert := saveCACertificateIfEmptyFn
+	t.Cleanup(func() {
+		saveCAMetadataFn = origSaveMeta
+		saveCACertificateIfEmptyFn = origSaveCert
+	})
+	saveCAMetadataFn = func(context.Context, config.CAMetadata) error { return nil }
+	saveCACertificateIfEmptyFn = func(context.Context, []byte) error { return nil }
 
 	// The node reports a wildly-skewed clock: one hour in the past.
 	skewed := time.Now().Add(-time.Hour)

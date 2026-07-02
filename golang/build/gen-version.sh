@@ -65,15 +65,21 @@ if [[ -n "$OVERRIDES_FILE" && -f "$OVERRIDES_FILE" ]]; then
   echo "gen-version: loaded ${#VERSION_OVERRIDES[@]} overrides from $OVERRIDES_FILE"
 fi
 
-# Read package directories from services.list
+# Read package directories from build target manifests.
+# services.list is the release build manifest. version-only.list is for main
+# packages that must compile under `go test ./...` but are intentionally not
+# built or packaged in the release pipeline.
 PKGS=()
-while IFS='|' read -r target _; do
-  target="$(echo "$target" | tr -d ' ')"
-  [[ -z "$target" || "$target" == \#* ]] && continue
-  # target is e.g. ./authentication/authentication_server
-  pkg_dir="$GOLANG_ROOT/${target#./}"
-  [[ -d "$pkg_dir" ]] && PKGS+=("$pkg_dir")
-done < "$SCRIPT_DIR/services.list"
+for manifest in "$SCRIPT_DIR/services.list" "$SCRIPT_DIR/version-only.list"; do
+  [[ -f "$manifest" ]] || continue
+  while IFS='|' read -r target _; do
+    target="$(echo "$target" | tr -d ' ')"
+    [[ -z "$target" || "$target" == \#* ]] && continue
+    # target is e.g. ./authentication/authentication_server
+    pkg_dir="$GOLANG_ROOT/${target#./}"
+    [[ -d "$pkg_dir" ]] && PKGS+=("$pkg_dir")
+  done < "$manifest"
+done
 
 COUNT=0
 OVERRIDDEN=0
