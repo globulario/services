@@ -216,7 +216,7 @@ spec:
 
     # ── Tier 8: Workload services (parallel with CLI tools) ─────────────
     - id: install_workload_services
-      title: Install file, search, media, title, torrent
+      title: Install file and search
       dependsOn: [install_ops_services]
       actor: installer
       action: installer.install_package_set
@@ -224,9 +224,6 @@ spec:
         packages:
           - file
           - search
-          - media
-          - title
-          - torrent
       timeout: $.install_timeout
       execution:
         idempotency: verify_then_continue
@@ -246,8 +243,6 @@ spec:
           - restic
           - sctool
           - sha256sum
-          - yt-dlp
-          - ffmpeg
       timeout: $.install_timeout
       execution:
         idempotency: verify_then_continue

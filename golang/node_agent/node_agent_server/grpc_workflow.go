@@ -35,7 +35,6 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
-	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -508,14 +507,14 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		resp.StepsSucceeded = 1
 		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v, status=%s)", pkgName, elapsed, applyResp.GetStatus())
 		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
-			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
-			WorkflowID:      wfIDFull,
-			Package:         pkgName,
-			NodeID:          srv.nodeID,
-			DesiredVersion:  desiredVersion,
-			DesiredBuildID:  buildID,
-			LocalVersion:    desiredVersion,
-			LocalBuildID:    buildID,
+			ActionID:       convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+			WorkflowID:     wfIDFull,
+			Package:        pkgName,
+			NodeID:         srv.nodeID,
+			DesiredVersion: desiredVersion,
+			DesiredBuildID: buildID,
+			LocalVersion:   desiredVersion,
+			LocalBuildID:   buildID,
 			// LocalHash tells the controller what artifact digest was installed so
 			// it can stamp pkg.Checksum and stop re-dispatching on checksum mismatch.
 			LocalHash:       convergenceHash,
@@ -616,7 +615,8 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 	const totalSteps int32 = 3 // uninstall files, clear etcd state, sync
 
 	// Step 1: Uninstall files (stop systemd, remove binary/unit/config).
-	// Delegate to the registered package.uninstall or handle COMMAND directly.
+	// Delegate to the registered package.uninstall for every package kind so the
+	// uninstall contract is centralized in one action.
 	var uninstallErr error
 	switch pkgKind {
 	case "SERVICE", "INFRASTRUCTURE":
@@ -643,16 +643,21 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 			}
 		}
 	case "COMMAND":
-		// Commands have no systemd unit — just remove the binary and markers.
-		binDir := "/usr/lib/globular/bin"
-		binPath := filepath.Join(binDir, pkgName)
-		_ = os.Remove(binPath)
-
-		// Remove version marker.
-		markerPath := versionutil.MarkerPath(pkgName)
-		_ = os.RemoveAll(filepath.Dir(markerPath))
-
-		log.Printf("grpc-workflow: uninstall-package %s: removed command binary", pkgName)
+		handler := actions.Get("package.uninstall")
+		if handler == nil {
+			uninstallErr = fmt.Errorf("action package.uninstall not registered")
+		} else {
+			argsMap := map[string]any{
+				"name": pkgName,
+				"kind": pkgKind,
+			}
+			args, err := structpb.NewStruct(argsMap)
+			if err != nil {
+				uninstallErr = fmt.Errorf("build uninstall args: %w", err)
+			} else if _, err := handler.Apply(ctx, args); err != nil {
+				uninstallErr = fmt.Errorf("uninstall %s: %w", pkgName, err)
+			}
+		}
 	default:
 		uninstallErr = fmt.Errorf("unsupported package kind %q", pkgKind)
 	}

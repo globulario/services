@@ -82,8 +82,9 @@ func init() {
 // ActionBinDir and ActionStateDir are package-level defaults.
 // Tests may override before calling actions.
 var (
-	ActionBinDir   = "/usr/lib/globular/bin"
-	ActionStateDir = "/var/lib/globular"
+	ActionBinDir       = "/usr/lib/globular/bin"
+	ActionLegacyBinDir = "/usr/local/bin"
+	ActionStateDir     = "/var/lib/globular"
 
 	// ActionStagingRoot overrides the staging root used by service.install_payload.
 	// When non-empty, staging goes to filepath.Join(ActionStagingRoot, service)

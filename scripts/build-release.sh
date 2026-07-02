@@ -349,6 +349,9 @@ ensure_generated_source_package_template() {
   fi
 
   metadata_dir="${PACKAGES_ROOT}/metadata/${pkg_name}"
+  if [[ ! -d "${metadata_dir}" ]]; then
+    metadata_dir="${PACKAGES_ROOT}/${pkg_name}"
+  fi
   [[ -d "${metadata_dir}" ]] || die "cannot synthesize package template for ${pkg_name}: metadata dir missing at ${metadata_dir}"
 
   mapfile -t spec_candidates < <(find "${metadata_dir}/specs" -maxdepth 1 -name '*.yaml' | sort)

@@ -74,6 +74,10 @@ func TestNormalizeServiceKey_KnownServices(t *testing.T) {
 		{"globular-gateway.service", "gateway"},
 		{"globular-xds", "xds"},
 		{"globular-xds.service", "xds"},
+		{"scylla_manager", "scylla-manager"},
+		{"globular-scylla-manager.service", "scylla-manager"},
+		{"scylla_manager_agent", "scylla-manager-agent"},
+		{"globular-scylla-manager-agent.service", "scylla-manager-agent"},
 	}
 	for _, tc := range cases {
 		got, ok := identity.NormalizeServiceKey(tc.input)

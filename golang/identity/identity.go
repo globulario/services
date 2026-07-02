@@ -283,6 +283,25 @@ var registry = func() map[string]ServiceIdentity {
 			Aliases:    []string{"globular-xds", "globular-xds.service"},
 		},
 		{
+			// Scylla Manager ships as a plain binary name with underscores, not the
+			// generic *_server convention used by most Globular services.
+			Key:        "scylla-manager",
+			BundleName: "scylla-manager",
+			UnitName:   "globular-scylla-manager.service",
+			GrpcFull:   "scylla-manager",
+			Binary:     "scylla_manager",
+			Aliases:    []string{"globular-scylla-manager", "globular-scylla-manager.service", "scylla_manager"},
+		},
+		{
+			// The agent follows the same plain-underscore binary naming.
+			Key:        "scylla-manager-agent",
+			BundleName: "scylla-manager-agent",
+			UnitName:   "globular-scylla-manager-agent.service",
+			GrpcFull:   "scylla-manager-agent",
+			Binary:     "scylla_manager_agent",
+			Aliases:    []string{"globular-scylla-manager-agent", "globular-scylla-manager-agent.service", "scylla_manager_agent"},
+		},
+		{
 			// Globular packages envoy as globular-envoy.service (not the OS system envoy.service).
 			Key:        "envoy",
 			BundleName: "envoy",

@@ -208,6 +208,22 @@ func (packageUninstallAction) Apply(ctx context.Context, args *structpb.Struct) 
 		}
 		return handler.Apply(ctx, args)
 
+	case "COMMAND":
+		// COMMAND packages are standalone binaries. They may have been installed
+		// into /usr/lib/globular/bin or a legacy system PATH location like
+		// /usr/local/bin, so remove every known install root before clearing the
+		// version marker that installed-state sync watches.
+		name := strings.TrimSpace(fields["name"].GetStringValue())
+		if name == "" {
+			return "", fmt.Errorf("package.uninstall: name is required")
+		}
+		for _, dir := range []string{ActionBinDir, ActionLegacyBinDir} {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+		_ = os.RemoveAll(filepath.Join(stateDir(), "versions", name))
+		removeSyncReadVersionMarker(name)
+		return fmt.Sprintf("command %s uninstalled", name), nil
+
 	case "INFRASTRUCTURE":
 		handler := Get("infrastructure.uninstall")
 		if handler == nil {

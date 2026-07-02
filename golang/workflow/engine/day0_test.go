@@ -159,6 +159,14 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 	}
 	t.Logf("Steps: %d succeeded out of %d total", succeeded, len(run.Steps))
 	t.Logf("Actions: %s", strings.Join(steps, " → "))
+	for _, forbidden := range []string{
+		"install_set:file,search,media,title,torrent",
+		"install_set:mc,globular-cli,etcdctl,rclone,restic,sctool,sha256sum,yt-dlp,ffmpeg",
+	} {
+		if strings.Contains(strings.Join(steps, " → "), forbidden) {
+			t.Fatalf("day0 bootstrap still contains forbidden default install set %q", forbidden)
+		}
+	}
 
 	// Verify ordering where dependencies exist in the YAML.
 	// Note: steps with no dependsOn run in parallel, so we only assert
@@ -166,6 +174,7 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 	assertBefore(t, steps, "configure_shared_storage", "install:persistence")
 	assertBefore(t, steps, "write_bootstrap_credentials", "install:persistence")
 	assertBefore(t, steps, "install:persistence", "install_set:xds,envoy,gateway")
+	assertBefore(t, steps, "install_set:file,search", "install_profiles:core,control-plane,storage")
 	assertBefore(t, steps, "bootstrap_dns:globular.internal", "validate_cluster_health")
 	assertBefore(t, steps, "validate_cluster_health", "generate_join_token")
 	assertBefore(t, steps, "cluster_bootstrap", "seed_desired")

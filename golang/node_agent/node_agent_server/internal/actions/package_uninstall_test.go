@@ -167,3 +167,54 @@ func TestApplicationUninstall_Idempotent(t *testing.T) {
 		t.Fatal("expected non-empty message")
 	}
 }
+
+func TestCommandUninstall_RemovesAllKnownBinaryLocations(t *testing.T) {
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	legacyDir := filepath.Join(dir, "legacy")
+	stateDir := filepath.Join(dir, "state")
+	markerDir := filepath.Join(stateDir, "versions", "yt-dlp")
+
+	os.MkdirAll(binDir, 0o755)
+	os.MkdirAll(legacyDir, 0o755)
+	os.MkdirAll(markerDir, 0o755)
+
+	os.WriteFile(filepath.Join(binDir, "yt-dlp"), []byte("binary"), 0o755)
+	os.WriteFile(filepath.Join(legacyDir, "yt-dlp"), []byte("binary"), 0o755)
+	os.WriteFile(filepath.Join(markerDir, "version"), []byte("1.0.0"), 0o644)
+
+	ActionBinDir = binDir
+	t.Cleanup(func() { ActionBinDir = "/usr/lib/globular/bin" })
+	ActionLegacyBinDir = legacyDir
+	t.Cleanup(func() { ActionLegacyBinDir = "/usr/local/bin" })
+	ActionStateDir = stateDir
+	t.Cleanup(func() { ActionStateDir = "/var/lib/globular" })
+
+	args, _ := structpb.NewStruct(map[string]interface{}{
+		"name": "yt-dlp",
+		"kind": "COMMAND",
+	})
+
+	handler := Get("package.uninstall")
+	if handler == nil {
+		t.Fatal("package.uninstall action not registered")
+	}
+
+	msg, err := handler.Apply(context.Background(), args)
+	if err != nil {
+		t.Fatalf("command uninstall failed: %v", err)
+	}
+	if msg == "" {
+		t.Fatal("expected non-empty message")
+	}
+
+	if _, err := os.Stat(filepath.Join(binDir, "yt-dlp")); !os.IsNotExist(err) {
+		t.Error("primary command binary should have been removed")
+	}
+	if _, err := os.Stat(filepath.Join(legacyDir, "yt-dlp")); !os.IsNotExist(err) {
+		t.Error("legacy command binary should have been removed")
+	}
+	if _, err := os.Stat(markerDir); !os.IsNotExist(err) {
+		t.Error("version marker directory should have been removed")
+	}
+}

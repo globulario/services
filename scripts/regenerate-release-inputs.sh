@@ -122,6 +122,9 @@ build_extra_template() {
   [[ -x "${src_bin}" ]] || die "required stage binary missing for ${pkg_name}: ${src_bin}"
 
   metadata_dir="${PACKAGES_ROOT}/metadata/${pkg_name}"
+  if [[ ! -d "${metadata_dir}" ]]; then
+    metadata_dir="${PACKAGES_ROOT}/${pkg_name}"
+  fi
   [[ -d "${metadata_dir}" ]] || die "metadata directory missing for ${pkg_name}: ${metadata_dir}"
   mapfile -t spec_candidates < <(find "${metadata_dir}/specs" -maxdepth 1 -name '*.yaml' | sort)
   [[ ${#spec_candidates[@]} -eq 1 ]] || die "expected exactly one spec for ${pkg_name} under ${metadata_dir}/specs"

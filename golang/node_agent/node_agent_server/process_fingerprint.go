@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
@@ -94,8 +95,8 @@ func DiscoverRunningBinaries() map[string]RunningBinary {
 		}
 
 		binName := filepath.Base(exePath)
-		svcName := binaryToServiceName(binName)
-		if svcName == "" {
+		svcName, ok := serviceNameFromBinary(binName)
+		if !ok || svcName == "" {
 			continue
 		}
 
@@ -153,15 +154,19 @@ func cachedSha256(path string) (string, error) {
 	return checksum, nil
 }
 
-// binaryToServiceName converts a binary filename to a canonical service name.
-func binaryToServiceName(binName string) string {
+// serviceNameFromBinary converts a binary filename to a canonical service name.
+// The identity registry is authoritative for binaries that do not follow the
+// historical *_server / *_service naming convention.
+func serviceNameFromBinary(binName string) (string, bool) {
+	if key, ok := identity.NormalizeServiceKey(binName); ok {
+		return key, true
+	}
 	name := strings.TrimSuffix(binName, "_server")
 	name = strings.TrimSuffix(name, "_service")
 	if name == binName {
-		return ""
+		return "", false
 	}
-	name = strings.ReplaceAll(name, "_", "-")
-	return name
+	return strings.ReplaceAll(name, "_", "-"), true
 }
 
 // sha256File computes the SHA256 hash of a file.
