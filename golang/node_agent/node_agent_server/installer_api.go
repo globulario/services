@@ -24,6 +24,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,6 +46,8 @@ import (
 )
 
 const defaultPublisherID = "core@globular.io"
+
+var stagingRootDir = "/var/lib/globular/staging"
 
 // pinnedArtifactDir holds a copy of the last successfully installed artifact
 // for each package. This is the local resilience cache: if MinIO / the
@@ -91,9 +94,6 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, publ
 		}
 	}
 
-	artifactPath := fmt.Sprintf("/var/lib/globular/staging/%s/%s/latest.artifact",
-		publisherID, name)
-
 	// Find the .tgz package on disk. Exact build requests must not be satisfied
 	// by the version-only local cache; that cache is a resilience fallback, not
 	// artifact identity authority. When build_id/build_number is provided, fetch
@@ -131,15 +131,13 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, publ
 		transactionID = fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
 	}
 
-	// Copy the .tgz to the staging path so the install handlers can find it.
-	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
-		return fmt.Errorf("create staging dir: %w", err)
-	}
+	// Copy the .tgz to the staging cache so the install handlers can find it.
 	src, err := os.ReadFile(localPath)
 	if err != nil {
 		return fmt.Errorf("read local package %s: %w", localPath, err)
 	}
-	if err := os.WriteFile(artifactPath, src, 0o644); err != nil {
+	artifactPath, err := writeStagedArtifactCache(publisherID, name, src)
+	if err != nil {
 		return fmt.Errorf("write staging artifact: %w", err)
 	}
 
@@ -885,4 +883,44 @@ func readArtifactManifestVersion(artifactPath string) string {
 			return strings.TrimSpace(manifest.Version)
 		}
 	}
+}
+
+func stagingArtifactDir(publisherID, name string) string {
+	return filepath.Join(stagingRootDir, publisherID, name)
+}
+
+func latestStagedArtifactPath(publisherID, name string) string {
+	return filepath.Join(stagingArtifactDir(publisherID, name), "latest.artifact")
+}
+
+func contentAddressedStagedArtifactPath(publisherID, name, archiveDigest string) string {
+	return filepath.Join(stagingArtifactDir(publisherID, name), archiveDigest+".artifact")
+}
+
+func archiveSHA256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum[:])
+}
+
+func writeStagedArtifactCache(publisherID, name string, archive []byte) (string, error) {
+	dir := stagingArtifactDir(publisherID, name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	digest := archiveSHA256Hex(archive)
+	contentPath := contentAddressedStagedArtifactPath(publisherID, name, digest)
+	if err := os.WriteFile(contentPath, archive, 0o644); err != nil {
+		return "", err
+	}
+
+	latestPath := latestStagedArtifactPath(publisherID, name)
+	_ = os.Remove(latestPath)
+	if err := os.Symlink(filepath.Base(contentPath), latestPath); err != nil {
+		// Fallback for environments where symlinks are unavailable; preserve the
+		// compatibility alias even if we cannot point to the content-addressed file.
+		if err := os.WriteFile(latestPath, archive, 0o644); err != nil {
+			return "", err
+		}
+	}
+	return contentPath, nil
 }

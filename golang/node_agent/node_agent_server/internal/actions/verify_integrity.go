@@ -100,6 +100,18 @@ type integrityReport struct {
 	Invariants map[string]int     `json:"invariants"` // id → fail count
 }
 
+func stagingArtifactDir(publisherID, name string) string {
+	return filepath.Join("/var/lib/globular/staging", publisherID, name)
+}
+
+func latestStagedArtifactPath(publisherID, name string) string {
+	return filepath.Join(stagingArtifactDir(publisherID, name), "latest.artifact")
+}
+
+func contentAddressedStagedArtifactPath(publisherID, name, archiveDigest string) string {
+	return filepath.Join(stagingArtifactDir(publisherID, name), archiveDigest+".artifact")
+}
+
 func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.Struct) (string, error) {
 	fields := args.GetFields()
 	pkgFilter := strings.TrimSpace(fields["package_name"].GetStringValue())
@@ -265,6 +277,26 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 
 	// Collect desired versions once.
 	desiredMap := readDesiredVersions(ctx)
+	desiredArchiveDigests := make(map[string]string, len(installedMap))
+	if repoAddr != "" {
+		for key, inst := range installedMap {
+			d, ok := desiredMap[strings.ToLower(inst.ref.GetName())]
+			if !ok || !desiredVersionCheckAppliesToKind(inst.kind) || d.Version == "" || d.Build <= 0 {
+				continue
+			}
+			digest, err := resolveArtifactDigest(ctx, repoAddr,
+				inst.ref.GetPublisherId(), inst.ref.GetName(),
+				d.Version, inst.ref.GetPlatform(),
+				strings.ToUpper(inst.kind), d.Build)
+			if err != nil {
+				report.Errors = append(report.Errors,
+					fmt.Sprintf("resolve desired manifest %s/%s@%s+%d: %v",
+						inst.ref.GetPublisherId(), inst.ref.GetName(), d.Version, d.Build, err))
+				continue
+			}
+			desiredArchiveDigests[key] = digest
+		}
+	}
 
 	// ── Evaluate invariants ──
 	for key, inst := range installedMap {
@@ -322,10 +354,17 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 		}
 
 		// I1: cached artifact checksum vs manifest digest
-		cachePath := filepath.Join("/var/lib/globular/staging",
-			inst.ref.GetPublisherId(), inst.ref.GetName(), "latest.artifact")
+		expected := manifestArchiveDigests[key]
+		cachePath := latestStagedArtifactPath(inst.ref.GetPublisherId(), inst.ref.GetName())
+		if desiredDigest, ok := desiredArchiveDigests[key]; ok && desiredDigest != "" {
+			expected = desiredDigest
+			cachePath = contentAddressedStagedArtifactPath(inst.ref.GetPublisherId(), inst.ref.GetName(), desiredDigest)
+			if fi, err := os.Stat(cachePath); err != nil || fi.IsDir() {
+				cachePath = latestStagedArtifactPath(inst.ref.GetPublisherId(), inst.ref.GetName())
+			}
+		}
 		if fi, err := os.Stat(cachePath); err == nil && !fi.IsDir() {
-			if expected, ok := manifestArchiveDigests[key]; ok && expected != "" {
+			if expected != "" {
 				actual, herr := sha256OfFile(cachePath)
 				if herr != nil {
 					report.Errors = append(report.Errors, fmt.Sprintf("hash %s: %v", cachePath, herr))
