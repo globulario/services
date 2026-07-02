@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -74,6 +75,30 @@ func sevFromString(s string) cluster_doctorpb.Severity {
 	default:
 		return cluster_doctorpb.Severity_SEVERITY_WARN
 	}
+}
+
+func normalizedNonEmptySet(addrs []string) map[string]bool {
+	out := map[string]bool{}
+	for _, addr := range addrs {
+		addr = strings.Trim(strings.TrimSpace(addr), "\"'")
+		if addr == "" {
+			continue
+		}
+		out[addr] = true
+	}
+	return out
+}
+
+func sortedForeignPeers(observed, admitted []string) []string {
+	admittedSet := normalizedNonEmptySet(admitted)
+	var foreign []string
+	for peer := range normalizedNonEmptySet(observed) {
+		if !admittedSet[peer] {
+			foreign = append(foreign, peer)
+		}
+	}
+	sort.Strings(foreign)
+	return foreign
 }
 
 // ── scylla.loopback_forbidden (CRITICAL, node) ───────────────────────────────
@@ -252,6 +277,68 @@ func (scyllaPeersMatchExpected) Evaluate(snap *collector.Snapshot, _ Config) []F
 			Remediation: []*cluster_doctorpb.RemediationStep{
 				step(1, "Check gossip/connectivity between this node and the missing peers; verify seeds are reachable.", ""),
 				step(2, "Explain the stall: globular cluster infra explain-stall --node "+nid+" --component scylladb", ""),
+			},
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		})
+	}
+	return findings
+}
+
+// ── scylla.foreign_topology_evidence (CRITICAL, cluster) ────────────────────
+
+type scyllaForeignTopologyEvidence struct{}
+
+func (scyllaForeignTopologyEvidence) ID() string       { return "scylla.foreign_topology_evidence" }
+func (scyllaForeignTopologyEvidence) Category() string { return "scylla" }
+func (scyllaForeignTopologyEvidence) Scope() string    { return "cluster" }
+
+func (scyllaForeignTopologyEvidence) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
+	var findings []Finding
+	for _, node := range snap.Nodes {
+		nid := node.GetNodeId()
+		probe := scyllaProbeFor(snap, nid)
+		if probe == nil || !probe.GetInstalled() || !probe.GetDaemonActive() {
+			continue
+		}
+		foreignPeers := sortedForeignPeers(probe.GetObservedPeers(), probe.GetExpectedPeers())
+		if len(foreignPeers) == 0 {
+			continue
+		}
+		localNode := ""
+		for _, ip := range node.GetIdentity().GetIps() {
+			if normalizedNonEmptySet(probe.GetExpectedPeers())[ip] {
+				localNode = ip
+				break
+			}
+		}
+		if localNode == "" && len(probe.GetExpectedPeers()) > 0 {
+			localNode = probe.GetExpectedPeers()[0]
+		}
+		findings = append(findings, Finding{
+			FindingID:   FindingID("scylla.foreign_topology_evidence", nid, strings.Join(foreignPeers, ",")),
+			InvariantID: "scylla.foreign_topology_evidence",
+			Severity:    cluster_doctorpb.Severity_SEVERITY_CRITICAL,
+			Category:    "scylla",
+			EntityRef:   nid,
+			Summary:     fmt.Sprintf("Node %s ScyllaDB sees foreign gossip peers outside admitted Globular topology: %v", nid, foreignPeers),
+			Evidence: []*cluster_doctorpb.Evidence{
+				kvEvidence("node_agent", "GetInfraProbe", map[string]string{
+					"node_id":            nid,
+					"local_node":         localNode,
+					"admitted_nodes":     strings.Join(probe.GetExpectedPeers(), ","),
+					"observed_peers":     strings.Join(probe.GetObservedPeers(), ","),
+					"foreign_peers":      strings.Join(foreignPeers, ","),
+					"local_host_id":      probe.GetRuntime()["host_id"],
+					"local_health":       fmt.Sprintf("%t", probe.GetHealthy()),
+					"topology_authority": "fail",
+					"reinstall_safety":   "blocked",
+					"summary":            probe.GetSummary(),
+				}),
+			},
+			Remediation: []*cluster_doctorpb.RemediationStep{
+				step(1, "Shut down or isolate the foreign Scylla node(s) before relying on this topology for reinstall or manager registration.", ""),
+				step(2, "Firewall Scylla gossip and storage ports between the admitted node(s) and the foreign peer(s) if the foreign node must remain online.", ""),
+				step(3, "Use a cluster-unique Scylla identity for future installs; shared cluster_name alone is not sufficient authority.", ""),
 			},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})

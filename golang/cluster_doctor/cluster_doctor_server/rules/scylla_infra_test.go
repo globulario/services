@@ -89,6 +89,42 @@ func TestScyllaPeersMatch_MissingPeer(t *testing.T) {
 	}
 }
 
+func TestScyllaForeignTopologyEvidence_FiresForForeignPeer(t *testing.T) {
+	p := healthyScyllaProbe()
+	p.ExpectedPeers = []string{"10.0.0.63"}
+	p.ObservedPeers = []string{"10.0.0.63", "10.0.0.9"}
+	p.Runtime = map[string]string{"host_id": "45c71646-aeeb-40d6-931b-12827535111b"}
+	snap := snapWithScyllaProbe("node-1", p)
+	snap.Nodes[0].Identity = &cluster_controllerpb.NodeIdentity{Ips: []string{"10.0.0.63"}}
+	f := (scyllaForeignTopologyEvidence{}).Evaluate(snap, testConfig())
+	if len(f) != 1 {
+		t.Fatalf("expected 1 finding, got %+v", f)
+	}
+	if f[0].Severity != cluster_doctorpb.Severity_SEVERITY_CRITICAL {
+		t.Fatalf("expected CRITICAL, got %v", f[0].Severity)
+	}
+	if f[0].InvariantID != "scylla.foreign_topology_evidence" {
+		t.Fatalf("unexpected invariant id: %s", f[0].InvariantID)
+	}
+	if got := f[0].Evidence[0].GetKeyValues()["foreign_peers"]; got != "10.0.0.9" {
+		t.Fatalf("foreign_peers=%q, want 10.0.0.9", got)
+	}
+	if got := f[0].Evidence[0].GetKeyValues()["reinstall_safety"]; got != "blocked" {
+		t.Fatalf("reinstall_safety=%q, want blocked", got)
+	}
+}
+
+func TestScyllaForeignTopologyEvidence_SilentWhenObservedMatchesAdmitted(t *testing.T) {
+	p := healthyScyllaProbe()
+	p.ExpectedPeers = []string{"10.0.0.63"}
+	p.ObservedPeers = []string{"10.0.0.63"}
+	snap := snapWithScyllaProbe("node-1", p)
+	snap.Nodes[0].Identity = &cluster_controllerpb.NodeIdentity{Ips: []string{"10.0.0.63"}}
+	if f := (scyllaForeignTopologyEvidence{}).Evaluate(snap, testConfig()); len(f) != 0 {
+		t.Fatalf("expected silence when observed peers match admitted topology, got %+v", f)
+	}
+}
+
 func TestScyllaJoinStalled_Detection(t *testing.T) {
 	p := healthyScyllaProbe()
 	p.Healthy = false

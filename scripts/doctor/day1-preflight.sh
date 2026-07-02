@@ -57,6 +57,10 @@ blocked = {
     "artifact.cache_digest_mismatch",
     "repository.watchdog_inconsistency",
     "dns.zone_reload_failed",
+    # A local Scylla node can be runtime-healthy while topology authority is
+    # poisoned by foreign gossip peers. Reinstall/readiness must fail closed on
+    # this condition instead of certifying only local daemon health.
+    "scylla.foreign_topology_evidence",
 }
 
 hits = []

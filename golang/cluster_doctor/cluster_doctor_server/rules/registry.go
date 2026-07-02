@@ -256,6 +256,7 @@ func NewRegistry(cfg Config) *Registry {
 		scyllaLoopbackForbidden{},
 		scyllaConfigValid{},
 		scyllaJoinNotStalled{},
+		scyllaForeignTopologyEvidence{},
 		scyllaPeersMatchExpected{},
 		scyllaProbeRequiredWhenInstalled{},
 		// Infrastructure truth plane (Phase 2): etcd config attestation,
