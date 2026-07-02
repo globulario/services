@@ -1,9 +1,12 @@
-# CG-3 — convergence.identity_is_build_id (verify-first scope / spike)
+# CG-3 — convergence.identity_is_build_id
 
-Opening the highest-value deferred CG-3 spine change the same way as
-RT-1/OT-1/EX-1: establish the real current state before proposing code. The
-headline: this is a genuine cross-layer change with a fork in the road, and the
-safe slice is **not** the obvious "make the cluster hash carry build_id."
+> Status: implemented via Path C and verified in repo state.
+
+This note originally scoped the highest-value deferred CG-3 spine change the
+same way as RT-1/OT-1/EX-1: establish the real current state before proposing
+code. The verify-first conclusion held: the safe slice was **not** "make the
+cluster hash carry build_id"; it was the targeted authority fix below. That
+slice is now the landed state in `services`.
 
 ## The invariant
 `convergence.identity_is_build_id` (status: active; coverage tier: planned):
@@ -83,29 +86,25 @@ that already exists; relabel the cluster summary hash honestly as coarse.
   longer load-bearing for convergence authority, which is what the invariant
   actually governs.
 
-## Recommendation
-**Path C.** It targets the genuine authority bite (reference-node selection) with
-the per-package build_id machinery that is already correct and tested, avoids the
-high-risk both-sides cluster-hash rewrite, and is honest about the summary hash's
-coarse role. Then promote `convergence.identity_is_build_id` planned → behavioral
-citing: the existing per-package build_id tests + a new test that the reference-
-node gate refuses a same-version/different-build_id node.
+## Landed resolution
+**Path C** is what shipped.
 
-## Decision needed (architectural intent)
-Is the cluster summary hash *meant* to be convergence authority (→ Path A,
-accept the blast radius) or a coarse summary with per-package as the real
-authority (→ Path C)? Path C is recommended and is the smallest safe slice; Path
-A is a dedicated, carefully-staged effort if the cluster hash must itself be
-build_id-exact.
+- `repair_node_workflow.go` now treats the cluster summary hash as a coarse
+  version pre-check only.
+- Reference-node acceptance uses `referenceNodeBuildIDMismatch(...)` as the
+  build-identity authority check.
+- Same version + different build_id is refused.
+- Services with no resolved desired build_id are skipped, matching the
+  per-package `requireBuildID` discipline.
+- The per-package convergence path remains build_id-correct independently.
 
-## If Path C: smallest-slice plan
-1. Add a per-package build_id convergence helper usable by `repair_node_workflow`
-   for a single node (reuse `classifyPackageConvergence` / reference-node L3
-   build_ids).
-2. Replace the cluster-hash equality gate at repair_node_workflow:685 with it.
-3. Relabel `stableServiceDesiredHash` / `computeAppliedServicesHash` doc comments
-   as coarse version-summary (not convergence authority).
-4. Test: reference node with same version but different build_id is REFUSED;
-   same build_id is ACCEPTED.
-5. Promote planned → behavioral citing the new test + the per-package tests.
-6. No schema bump; no node-agent struct change; no cross-layer hash rewrite.
+Evidence in this repo:
+
+- [golang/cluster_controller/cluster_controller_server/repair_node_workflow.go](/home/dave/Documents/github.com/globulario/services/golang/cluster_controller/cluster_controller_server/repair_node_workflow.go:681)
+- [golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go](/home/dave/Documents/github.com/globulario/services/golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go:1)
+- [golang/cluster_controller/cluster_controller_server/build_id_convergence_dimension_test.go](/home/dave/Documents/github.com/globulario/services/golang/cluster_controller/cluster_controller_server/build_id_convergence_dimension_test.go:1)
+
+## Result
+The decision point is closed in favor of "cluster summary hash is coarse; build
+identity is the real convergence authority." No schema bump, no node-agent
+struct change, and no cross-layer hash rewrite were required.
