@@ -747,9 +747,9 @@ validate_release_bundle_dir() {
   local pkg_dir="${release_dir}/packages"
   local prefix tgz tmpdir entrypoint
 
-  grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"' \
+  grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"' \
     "${release_dir}/scripts/install-day0.sh" \
-    || die "release bundle install-day0.sh does not default FOUNDING_PROFILES to core,media-server"
+    || die "release bundle install-day0.sh does not default FOUNDING_PROFILES to core"
   [[ -f "${release_dir}/release-index.json" ]] || die "release bundle is missing release-index.json"
   python3 "${SERVICES_ROOT}/scripts/validate-day0-package-contract.py" \
     "${release_dir}/scripts/install-day0.sh" "${REGISTRY_YAML}" >/dev/null
@@ -1077,10 +1077,9 @@ cat > "${RELEASE_DIR}/README.md" <<HEREDOC
 sudo bash install.sh
 \`\`\`
 
-The first node always comes up with the quorum profiles plus the media workload
-profile (\`control-plane\`, \`core\`, \`storage\`, \`media-server\`). To
-override or extend the day-0 workload profiles, pass \`FOUNDING_PROFILES\`
-(comma-separated) through \`sudo\`:
+The first node always comes up with the quorum profiles
+(\`control-plane\`, \`core\`, \`storage\`). To add a workload profile from
+day-0, pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\`:
 
 \`\`\`bash
 sudo FOUNDING_PROFILES=core,media-server bash install.sh
@@ -1090,7 +1089,7 @@ sudo FOUNDING_PROFILES=core,media-server bash install.sh
 
 \`\`\`bash
 sudo systemctl start globular-node-agent
-globular cluster bootstrap --node <routable-node-ip>:11000 --domain <your-domain> --profile core --profile media-server --profile gateway
+globular cluster bootstrap --node <routable-node-ip>:11000 --domain <your-domain> --profile core --profile gateway
 \`\`\`
 
 Full guide: https://globular.io/docs/operators/installation

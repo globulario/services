@@ -1348,12 +1348,12 @@ jobs:
           install_path = os.path.join(release_dir, "install.sh")
           day0_path = os.path.join(release_dir, "scripts", "install-day0.sh")
           index_path = os.path.join(release_dir, "release-index.json")
-          expected = 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"'
+          expected = 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"'
 
           for path in (install_path, day0_path):
               data = open(path, "r", encoding="utf-8").read()
               if expected not in data:
-                  raise SystemExit(f"{path} does not default FOUNDING_PROFILES to core,media-server")
+                  raise SystemExit(f"{path} does not default FOUNDING_PROFILES to core")
 
           def forbidden_sections(path):
               try:
@@ -1441,10 +1441,9 @@ jobs:
           sudo bash install.sh
           \`\`\`
 
-          The first node always comes up with the quorum profiles plus the media
-          workload profile (\`control-plane\`, \`core\`, \`storage\`,
-          \`media-server\`). To override or extend the day-0 workload profiles,
-          pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\`:
+          The first node always comes up with the quorum profiles
+          (\`control-plane\`, \`core\`, \`storage\`). To add a workload profile from
+          day-0, pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\`:
 
           \`\`\`bash
           sudo FOUNDING_PROFILES=core,media-server bash install.sh

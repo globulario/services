@@ -135,7 +135,7 @@ func TestDay0BootstrapWorkflow(t *testing.T) {
 		"domain":                  "globular.internal",
 		// Founding bootstrap node profiles — required by the workflow
 		// to derive the verify_profile_install_set step's package list.
-		"bootstrap_node_profiles": []any{"core", "control-plane", "storage", "media-server"},
+		"bootstrap_node_profiles": []any{"core", "control-plane", "storage"},
 	})
 
 	if err != nil {

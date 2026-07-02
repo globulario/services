@@ -99,9 +99,9 @@ validate_release_bundle() {
   local pkg_dir="${release_dir}/packages"
   local prefix tgz tmpdir entrypoint
 
-  grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"' \
+  grep -q 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"' \
     "${release_dir}/scripts/install-day0.sh" \
-    || { echo "ERROR: bundled install-day0.sh does not default FOUNDING_PROFILES to core,media-server." >&2; exit 1; }
+    || { echo "ERROR: bundled install-day0.sh does not default FOUNDING_PROFILES to core." >&2; exit 1; }
   python3 "${SERVICES_ROOT}/scripts/validate-day0-package-contract.py" \
     "${release_dir}/scripts/install-day0.sh" "${PACKAGES_ROOT}/registry.yaml" >/dev/null
 

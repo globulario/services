@@ -41,8 +41,9 @@ sudo bash install.sh
 
 > **Choosing the founding node's profiles** — by default the first node comes up
 > with the quorum profiles (`control-plane`, `core`, `storage`, always enforced).
-> To add a workload profile from day-0, pass `FOUNDING_PROFILES` (comma-separated)
-> through `sudo`. For example, to also run media services on this node:
+> Media workloads are opt-in. To add one from day-0, pass `FOUNDING_PROFILES`
+> (comma-separated) through `sudo`. For example, to also run media services on
+> this node:
 >
 > ```bash
 > sudo FOUNDING_PROFILES=core,media-server bash install.sh

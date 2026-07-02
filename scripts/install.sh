@@ -15,8 +15,9 @@
 #   sudo bash install.sh
 #
 # Optional — set the founding node's profiles (comma-separated). The quorum
-# profiles (control-plane,core,storage) are always enforced; this adds workload
-# profiles from day-0. Example, to also run media services on this node:
+# profiles (control-plane,core,storage) are always enforced; this seeds the
+# controller's default profile list for day-0. Example, to also run media
+# services on this node:
 #   sudo FOUNDING_PROFILES=core,media-server bash install.sh
 #
 # After installation, the installer prints the exact bootstrap command with the
@@ -69,10 +70,10 @@ GLOBULAR_DOMAIN="globular.internal"
 
 # Founding-node profiles, forwarded to install-day0.sh (comma-separated). The
 # controller always enforces the quorum trio (control-plane,core,storage); this
-# default also enables the media workload profile on the bootstrap node.
+# default keeps media workloads opt-in on the bootstrap node.
 # Override via the environment, e.g.:
 #   sudo FOUNDING_PROFILES=core,media-server,gateway bash install.sh
-export FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
+export FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"
 
 mkdir -p "${SCRIPT_DIR}/bin" "${SCRIPT_DIR}/internal/assets"
 ln -sf "${INSTALLER_BIN}" "${SCRIPT_DIR}/bin/globular-installer"
@@ -118,6 +119,5 @@ echo "  globular cluster bootstrap \\"
 echo "    --node ${NODE_IP}:${NODE_AGENT_PORT} \\"
 echo "    --domain <your-domain> \\"
 echo "    --profile core \\"
-echo "    --profile media-server \\"
 echo "    --profile gateway"
 echo ""

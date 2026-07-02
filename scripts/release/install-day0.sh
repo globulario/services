@@ -210,13 +210,13 @@ FORCE_REINSTALL="0"
 DOMAIN="globular.internal"
 
 # Founding-node profiles, seeded into the cluster controller's default_profiles.
-# Comma-separated; the default includes the media workload profile on the
-# bootstrap node. Override as needed, e.g.:
+# Comma-separated; the default seeds the quorum/base profile set without
+# media workloads. Override as needed, e.g.:
 #   FOUNDING_PROFILES=core,media-server,gateway ./install-day0.sh
 # Note: this also becomes the join-default for nodes that join without their own
 # profiles. The controller's enforceFoundingProfiles() ALWAYS adds the founding
 # quorum (control-plane,core,storage) for the first 3 nodes regardless of this.
-FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
+FOUNDING_PROFILES="${FOUNDING_PROFILES:-core}"
 FORCE_FLAG=""
 if [[ "$FORCE_REINSTALL" == "1" ]]; then
   FORCE_FLAG="--force"
@@ -1384,7 +1384,7 @@ CC_CONFIG_DIR="/var/lib/globular/cluster-controller"
 CC_CONFIG_FILE="${CC_CONFIG_DIR}/config.json"
 mkdir -p "${CC_CONFIG_DIR}"
 # Build default_profiles JSON array from the comma-separated FOUNDING_PROFILES
-# (e.g. "core,media-server" -> ["core","media-server"]). Empty entries dropped.
+# (e.g. "core" -> ["core"]). Empty entries dropped.
 DEFAULT_PROFILES_JSON=$(printf '%s' "$FOUNDING_PROFILES" \
   | jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length>0))')
 if [[ -z "$DEFAULT_PROFILES_JSON" || "$DEFAULT_PROFILES_JSON" == "[]" ]]; then
@@ -2432,14 +2432,13 @@ echo "       globular cluster bootstrap \\"
 echo "         --node ${_BOOTSTRAP_NODE} \\"
 echo "         --domain <your-domain> \\"
 echo "         --profile core \\"
-echo "         --profile media-server \\"
 echo "         --profile gateway"
 echo ""
 echo "     Example for a single-node cluster:"
 echo "       globular cluster bootstrap \\"
 echo "         --node ${_BOOTSTRAP_NODE} \\"
 echo "         --domain mycluster.local \\"
-echo "         --profile core --profile media-server --profile gateway --profile storage"
+echo "         --profile core --profile gateway --profile storage"
 echo ""
 echo "  After bootstrap, add more nodes with:"
 echo "       curl -sfL https://<gateway>:8443/join -k | sudo bash -s -- --token <token>"

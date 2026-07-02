@@ -18,9 +18,10 @@ import (
 //
 // INVARIANT: The first 3 nodes MUST have core + control-plane + storage.
 // This is non-negotiable and enforced at join time.
-// media-server is included so that fresh clusters get the full media stack
-// (media, title, ffmpeg, yt-dlp, torrent) without manual profile assignment.
-var foundingNodeProfiles = []string{"core", "control-plane", "storage", "media-server"}
+// media-server is intentionally excluded here. The founding node must always
+// carry quorum + core, but media workloads are opt-in so fresh nodes do not
+// inherit content/media services by default.
+var foundingNodeProfiles = []string{"core", "control-plane", "storage"}
 
 // MinQuorumNodes is the minimum number of nodes required for infrastructure
 // quorum (etcd, ScyllaDB, MinIO). Below this count, every node MUST have

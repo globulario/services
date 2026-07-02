@@ -9,14 +9,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/spf13/cobra"
 )
 
 var (
 	nodeReconcileDryRun bool
 	nodeReconcileJSON   bool
 	nodeReconcileNodeID string
+	nodeUninstallNodeID string
+	nodeUninstallKind   string
+	nodeUninstallJSON   bool
 )
 
 var nodeCmd = &cobra.Command{
@@ -43,13 +47,35 @@ Examples:
 	RunE: runNodeReconcile,
 }
 
+var nodeUninstallCmd = &cobra.Command{
+	Use:   "uninstall <package>",
+	Short: "Uninstall a package from a node via the node-agent workflow",
+	Args:  cobra.ExactArgs(1),
+	Long: `Dispatches the node-agent's uninstall-package workflow for a single package.
+
+This removes the package's files, clears its installed-state record, and
+cleans the service config if present. It is the targeted cleanup path for
+orphaned installs that can never converge on the current node profiles.
+
+Examples:
+  globular node uninstall media --node-id node-123
+  globular node uninstall title --node-id node-123 --kind SERVICE
+  globular node uninstall yt-dlp --node-id node-123 --json`,
+	RunE: runNodeUninstall,
+}
+
 func init() {
 	nodeReconcileCmd.Flags().StringVar(&nodeReconcileNodeID, "node-id", "", "Target node ID (required)")
 	nodeReconcileCmd.Flags().BoolVar(&nodeReconcileDryRun, "dry-run", false, "Show what would be reconciled without executing")
 	nodeReconcileCmd.Flags().BoolVar(&nodeReconcileJSON, "json", false, "Output result in JSON format")
 	nodeReconcileCmd.MarkFlagRequired("node-id")
+	nodeUninstallCmd.Flags().StringVar(&nodeUninstallNodeID, "node-id", "", "Target node ID or hostname (required)")
+	nodeUninstallCmd.Flags().StringVar(&nodeUninstallKind, "kind", "SERVICE", "Package kind (SERVICE|INFRASTRUCTURE|COMMAND|APPLICATION)")
+	nodeUninstallCmd.Flags().BoolVar(&nodeUninstallJSON, "json", false, "Output result in JSON format")
+	nodeUninstallCmd.MarkFlagRequired("node-id")
 
 	nodeCmd.AddCommand(nodeReconcileCmd)
+	nodeCmd.AddCommand(nodeUninstallCmd)
 	nodeCmd.AddCommand(nodeResolveCmd)
 	rootCmd.AddCommand(nodeCmd)
 
@@ -66,6 +92,64 @@ func runNodeReconcile(cmd *cobra.Command, args []string) error {
 	}
 
 	return runNodeReconcileApply()
+}
+
+func runNodeUninstall(cmd *cobra.Command, args []string) error {
+	name := strings.TrimSpace(args[0])
+	if name == "" {
+		return errors.New("package name is required")
+	}
+	if nodeUninstallNodeID == "" {
+		return errors.New("--node-id is required")
+	}
+
+	cc, err := controllerClient()
+	if err != nil {
+		return err
+	}
+	defer cc.Close()
+
+	ctrl := cluster_controllerpb.NewClusterControllerServiceClient(cc)
+	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
+	defer cancel()
+
+	na, canonicalNodeID, err := dialNodeAgentForNode(ctx, ctrl, nodeUninstallNodeID)
+	if err != nil {
+		return fmt.Errorf("resolve node-agent: %w", err)
+	}
+	defer na.close()
+
+	resp, err := na.client.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
+		WorkflowName: "uninstall-package",
+		Inputs: map[string]string{
+			"package_name": name,
+			"kind":         strings.ToUpper(strings.TrimSpace(nodeUninstallKind)),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("uninstall %s on node %s: %w", name, canonicalNodeID, err)
+	}
+
+	if nodeUninstallJSON {
+		out := map[string]any{
+			"node_id": canonicalNodeID,
+			"package": name,
+			"kind":    strings.ToUpper(strings.TrimSpace(nodeUninstallKind)),
+			"run_id":  resp.GetRunId(),
+			"status":  resp.GetStatus(),
+			"error":   resp.GetError(),
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(out)
+	}
+
+	if resp.GetStatus() != "SUCCEEDED" {
+		return fmt.Errorf("uninstall %s on node %s: %s", name, canonicalNodeID, resp.GetError())
+	}
+
+	fmt.Printf("✅ Uninstalled %s on node %s (run %s)\n", name, canonicalNodeID, resp.GetRunId())
+	return nil
 }
 
 func runNodeReconcileDryRun() error {
