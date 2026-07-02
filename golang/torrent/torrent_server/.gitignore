@@ -1,3 +1,4 @@
 *
 !.gitignore
 !*.go
+zz_version_generated.go
