@@ -119,18 +119,20 @@ genuinely *downhill*. That is where effort should go next.
   #141 ×2, #142 ×1), every one evidence + test + gate-backed. The verify-against-
   real-code discipline caught 8+ wrong/non-existent symbols the triage agent
   listed — none shipped.
-- **CG-3 — earn new truth (guard/test first, promote second).** 🟡 In progress.
+- **CG-3 — earn new truth (guard/test first, promote second).** ✅ Complete for
+  the `services` repo.
   Done: `release.version_single_authority` (#143, proof test),
   `publish.release_artifact_must_be_stripped` (ELF strip gate plus release-ledger
   2x size-envelope ratchet), `convergence.identity_is_build_id` (Path C landed in
   `repair_node_workflow` with focused proof tests), and
   `package.release_vs_dev_channel_boundary` (repo dev-lane coercion +
-  controller desired-state gate + deploy DEV skip path, all proof-tested).
-  Deferred as a spine change: `staging.content_addressed` (largest, unscoped).
+  controller desired-state gate + deploy DEV skip path, all proof-tested), and
+  `staging.content_addressed` (digest-keyed staging cache plus desired-manifest
+  verification).
 - **CG-1 / CG-4** — evidence audit, confirm impact-ci fires end-to-end. 🟡 Folded
   into the grind.
 
-**Tally:** 15 invariants active in `package_identity_invariants.yaml`, 3 proposed
+**Tally:** 16 invariants active in `package_identity_invariants.yaml`, 2 proposed
 (the deferred spine changes above).
 
 ## Tier D — Universalize runtime governance (RT) — `services` repo — ✅ COMPLETE
@@ -201,10 +203,6 @@ promotion scaffold remains cross-repo in `awareness-graph`. Do it last.
 ```
 NOW →  The easy coverage is exhausted AND Tier E is closed. What remains is
        dedicated, optional engineering — one careful slice at a time, none urgent:
-         • CG-3 spine changes (own design session each): `staging.content_addressed`.
-           `convergence.identity_is_build_id`,
-           `package.release_vs_dev_channel_boundary` are already landed in `services`.
-           `publish.release_artifact_must_be_stripped` is now fully landed too.
          • Tier G template harvest (promote-invariant scaffold, dispatcher
            template, onboarding template, runbooks) — patterns now proven stable.
        Optional small seam: wire WB-2 incident→candidate into a standing review

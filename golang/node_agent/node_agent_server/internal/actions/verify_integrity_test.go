@@ -114,3 +114,13 @@ func TestIntegrityReportSerializes(t *testing.T) {
 		t.Fatalf("JSON missing invariant id: %s", string(blob))
 	}
 }
+
+func TestContentAddressedStagedArtifactPath_UsesDigestNotLatestAlias(t *testing.T) {
+	got := contentAddressedStagedArtifactPath("core@globular.io", "xds", "abc123")
+	if !strings.HasSuffix(got, "/core@globular.io/xds/abc123.artifact") {
+		t.Fatalf("contentAddressedStagedArtifactPath = %q", got)
+	}
+	if strings.Contains(got, "latest.artifact") {
+		t.Fatalf("content-addressed path must not use latest alias: %q", got)
+	}
+}
