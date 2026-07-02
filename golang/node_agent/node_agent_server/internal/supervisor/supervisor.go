@@ -21,6 +21,7 @@ var allowed = map[string]struct{}{
 	"start":         {},
 	"stop":          {},
 	"restart":       {},
+	"reload":        {},
 	"enable":        {},
 	"disable":       {},
 	"status":        {},
@@ -198,6 +199,14 @@ func Stop(ctx context.Context, unit string) error {
 // Restart restarts the unit.
 func Restart(ctx context.Context, unit string) error {
 	_, err := ApplyUnitAction(ctx, unit, "restart")
+	return err
+}
+
+// Reload sends SIGHUP to the unit, causing it to reload its configuration
+// without restarting the process. Not all units support reload; callers
+// should fall back to Restart on error.
+func Reload(ctx context.Context, unit string) error {
+	_, err := ApplyUnitAction(ctx, unit, "reload")
 	return err
 }
 

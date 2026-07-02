@@ -346,25 +346,12 @@ func (srv *server) evalVersionResolutionAmbiguity(rows []manifestRow, now int64)
 		if len(builds) < 2 {
 			continue
 		}
-		buildNumbers := make(map[int64]string, len(builds))
-		var ambiguous []manifestRow
-		for bid, row := range builds {
-			buildNumber := row.BuildNumber
-			if buildNumber <= 0 {
-				ambiguous = append(ambiguous, row)
-				continue
-			}
-			if priorBuildID, ok := buildNumbers[buildNumber]; ok && priorBuildID != bid {
-				ambiguous = append(ambiguous, row)
-				continue
-			}
-			buildNumbers[buildNumber] = bid
-		}
-		if len(ambiguous) == 0 {
-			continue
-		}
+		// Any two distinct build_ids for the same (publisher, name, version, platform)
+		// constitute a version-resolution ambiguity — callers must pin build_id.
+		// build_number uniqueness is a separate invariant (package_build_lane_unique);
+		// do not gate this finding on build_number collisions.
 		var sample manifestRow
-		for _, row := range ambiguous {
+		for _, row := range builds {
 			sample = row
 			break
 		}
@@ -384,7 +371,7 @@ func (srv *server) evalVersionResolutionAmbiguity(rows []manifestRow, now int64)
 				"version":          k.Version,
 				"platform":         k.Platform,
 				"published_builds": fmt.Sprintf("%d", len(builds)),
-				"ambiguous_builds": fmt.Sprintf("%d", len(ambiguous)),
+				"ambiguous_builds": fmt.Sprintf("%d", len(builds)),
 				"invariant":        "version_resolution_requires_build_id_pin",
 			},
 		})

@@ -238,10 +238,9 @@ func (a *keepalivedReconcileAction) Apply(ctx context.Context, args *structpb.St
 			return "", fmt.Errorf("start keepalived: %w", err)
 		}
 	} else if configChanged {
-		// Reload if config changed and service is running
-		// keepalived supports reload via SIGHUP
-		if err := reloadKeepalived(ctx); err != nil {
-			// Fallback to restart if reload fails
+		// keepalived supports graceful config reload via SIGHUP; fall back to
+		// restart if the unit does not support reload.
+		if err := supervisor.Reload(ctx, keepalivedServiceName); err != nil {
 			if err := supervisor.Restart(ctx, keepalivedServiceName); err != nil {
 				return "", fmt.Errorf("restart keepalived: %w", err)
 			}
@@ -373,16 +372,6 @@ func ensureKeepalivedPresent() error {
 	}
 
 	return fmt.Errorf("keepalived binary not found (expected to be installed by installer)")
-}
-
-// reloadKeepalived sends SIGHUP to keepalived to reload configuration
-func reloadKeepalived(ctx context.Context) error {
-	// keepalived reloads config on SIGHUP
-	cmd := exec.CommandContext(ctx, "systemctl", "reload", keepalivedServiceName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("reload keepalived: %w", err)
-	}
-	return nil
 }
 
 // SetEtcdClient sets the etcd client for this action (used for dependency injection)

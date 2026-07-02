@@ -36,11 +36,19 @@ import (
 // runs in full hermetic mode.
 
 const registerScriptPath = "/usr/lib/globular/bin/scylla-manager-register-cluster"
+const defaultAgentConfigPath = "/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
 
 func skipIfScriptNotInstalled(t *testing.T) {
 	t.Helper()
 	if _, err := os.Stat(registerScriptPath); err != nil {
 		t.Skipf("script not installed at %s — Project U.2 integration tests skipped", registerScriptPath)
+	}
+}
+
+func skipIfAgentConfigMissing(t *testing.T) {
+	t.Helper()
+	if _, err := os.Stat(defaultAgentConfigPath); err != nil {
+		t.Skipf("agent config not accessible at %s (%v) — skipping integration test", defaultAgentConfigPath, err)
 	}
 }
 
@@ -61,6 +69,7 @@ func writeCABundle(t *testing.T, srv *httptest.Server) string {
 // 1. HTTPS available and trusted → script chooses HTTPS for read-side probes.
 func TestRegisterScript_HTTPSReachable_PrefersHTTPS(t *testing.T) {
 	skipIfScriptNotInstalled(t)
+	skipIfAgentConfigMissing(t)
 
 	clusters := []map[string]any{
 		{"id": "test-cluster-1", "name": "globular-internal", "host": "10.0.0.99"},
@@ -111,6 +120,7 @@ func TestRegisterScript_HTTPSReachable_PrefersHTTPS(t *testing.T) {
 // 2. HTTPS connection refused → script falls back to HTTP.
 func TestRegisterScript_HTTPSConnectionRefused_FallsBackToHTTP(t *testing.T) {
 	skipIfScriptNotInstalled(t)
+	skipIfAgentConfigMissing(t)
 
 	httpHit := 0
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,6 +169,7 @@ func TestRegisterScript_HTTPSConnectionRefused_FallsBackToHTTP(t *testing.T) {
 // Critical for the security contract: we do not silently downgrade.
 func TestRegisterScript_HTTPSCertInvalid_FailsClosed(t *testing.T) {
 	skipIfScriptNotInstalled(t)
+	skipIfAgentConfigMissing(t)
 
 	httpsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"version": "3.10.1"})
@@ -203,6 +214,7 @@ func TestRegisterScript_HTTPSCertInvalid_FailsClosed(t *testing.T) {
 // Same as test 1 but explicit; documents the contract from spec item 4.
 func TestRegisterScript_ExistingClusterByName_NoOp(t *testing.T) {
 	skipIfScriptNotInstalled(t)
+	skipIfAgentConfigMissing(t)
 
 	httpsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

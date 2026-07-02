@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -257,9 +256,7 @@ func shortBuildID(bid string) string {
 //     "mismatch"   — claim or proof disagrees; finding_id names the specific failure
 //
 // The Ok bit follows the brief's directive: claim-only is NOT OK. A version
-// match without independent runtime proof is degraded, not healthy. Operators
-// who need the legacy semantics during transition can set the env var
-// GLOBULAR_HEALTH_LEGACY_CLAIM_OK=1 (see legacyClaimOkOverride).
+// match without independent runtime proof is degraded, not healthy.
 type versionHealthVerdict struct {
 	Ok          bool
 	Reason      string
@@ -269,16 +266,6 @@ type versionHealthVerdict struct {
 	// proof state. Operator UIs that key off the legacy bool can read this
 	// when the strict Ok bit is unsuitable for their context.
 	ClaimOK bool
-}
-
-// legacyClaimOkOverride lets operators temporarily restore the pre-Phase-3
-// behaviour where a passing claim check produced Ok=true. Default is OFF —
-// the brief is explicit that "claim ok=true" alone is forbidden. The escape
-// hatch exists so a fleet doesn't go entirely red the instant this change
-// ships; it should be removed once Phase 9 (verifier) is live.
-func legacyClaimOkOverride() bool {
-	v := strings.TrimSpace(os.Getenv("GLOBULAR_HEALTH_LEGACY_CLAIM_OK"))
-	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 }
 
 // decideVersionVerdict is the Phase 3 entry point that reconciles claim inputs
@@ -415,17 +402,6 @@ func decideVersionVerdict(desiredVer, desiredBID, installedVer, installedBID str
 		reason += " " + claimReason
 	}
 	reason += "] proof:UNVERIFIED — no verifier verdict yet for this (node, service); finding: service.runtime_identity_unproven"
-
-	if legacyClaimOkOverride() {
-		// Escape hatch: restore pre-Phase-3 behaviour during transition.
-		return versionHealthVerdict{
-			Ok:          true,
-			Reason:      claimReason, // mirror legacy text exactly when override active
-			ProofStatus: "claim_only",
-			FindingID:   "service.runtime_identity_unproven",
-			ClaimOK:     true,
-		}
-	}
 
 	return versionHealthVerdict{
 		Ok:          false,
