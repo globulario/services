@@ -37,7 +37,6 @@ PACKAGECATALOG_SCHEMA = "globular.packagecatalog.mirror/v1"
 LEGACY_SPEC_ROOTS = (Path("../specs/specs"),)
 ALLOWED_GENERATED_SPECS_REFS = {
     "README-BUILD.md",
-    "build-all-packages.sh",
     "golang/deploy/deploy.go",
     "golang/deploy/deploy_test.go",
     "golang/globularcli/pkgpack/packagespec_real_test.go",
@@ -307,7 +306,7 @@ def check_installer_packagecatalog(
 
 
 def check_generated_specs_consumers(errors: list[str], services_root: Path) -> None:
-    refs = rg_files("generated/specs", ["golang", "scripts", "build-all-packages.sh", "README.md", "README-BUILD.md"], services_root)
+    refs = rg_files("generated/specs", ["golang", "scripts", "README.md", "README-BUILD.md"], services_root)
     for path in sorted(refs - ALLOWED_GENERATED_SPECS_REFS):
         fail(errors, f"{path} references services/generated/specs but is not an allowlisted generator/build helper")
 

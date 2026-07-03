@@ -10313,7 +10313,7 @@ invariants:
       2. packages/registry.yaml               binary: <name>
       3. packages/specs/<pkg>_{service,cmd}.yaml  metadata.entrypoint
 
-    The release builder (release.yml and scripts/build-local-release.sh) reads
+    The release builder (release.yml and scripts/build-release.sh) reads
     pkg-map.json to decide WHICH binary to copy into the package payload and then
     computes entrypoint_checksum from whatever it copied. registry.yaml and the
     spec entrypoint express the SAME fact but are read by other paths
@@ -10340,7 +10340,7 @@ invariants:
   protects:
     files:
     - golang/build/pkg-map.json
-    - scripts/build-local-release.sh
+    - scripts/build-release.sh
     - scripts/check-package-binary-consistency.py
     - .github/workflows/release.yml
   related_invariants:

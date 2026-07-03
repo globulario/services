@@ -68,7 +68,7 @@ bash generateCode.sh
 
 ```bash
 # Still in the services/ directory
-bash build-all-packages.sh
+bash scripts/build-release.sh
 ```
 
 **What this does:**
@@ -137,7 +137,7 @@ globular services desired list
 
 ```bash
 # Full build from scratch (one-liner)
-cd services && bash generateCode.sh && bash build-all-packages.sh && \
+cd services && bash generateCode.sh && bash scripts/build-release.sh && \
 cd ../globular-installer && make sync-specs && make build
 
 # Install

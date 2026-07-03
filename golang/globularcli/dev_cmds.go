@@ -87,7 +87,7 @@ func proposedSettings() *claudeSettings {
 				"Bash(bash:*)",
 				"Bash(protoc:*)",
 				"Bash(./generateCode.sh:*)",
-				"Bash(./build-all-packages.sh:*)",
+				"Bash(bash scripts/build-release.sh:*)",
 				"Bash(./build.sh:*)",
 
 				// CLI tools

@@ -212,7 +212,7 @@ services/
 ├── typescript/                # gRPC-Web client library
 ├── docs/                      # Full documentation (49 files)
 ├── generateCode.sh            # Proto → Go/TypeScript + build services
-└── build-all-packages.sh      # Package build pipeline
+└── scripts/build-release.sh   # Local release build → dist/ tarball
 ```
 
 > **Note**: Service ports are runtime attributes resolved from etcd — never hardcode them. Query `service_config_list` for current values. Only `cluster_controller` (12000) and `node_agent` (11000) are fixed bootstrap ports used before etcd is available.
@@ -296,7 +296,7 @@ cd golang && go build ./echo/echo_server             # Build specific service
 cd golang && go test ./... -race                     # Run all tests
 cd golang && go test ./echo/echo_server -v           # Test specific package
 ./generateCode.sh                                    # Proto → Go/TypeScript
-./build-all-packages.sh                              # Full package build
+bash scripts/build-release.sh                        # Local release build → dist/
 make check-services                                  # Security constraints
 ```
 

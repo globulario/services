@@ -244,10 +244,10 @@ See [Repository Overview](repository-overview.md) for details on the reachabilit
 
 ## Building All Packages
 
-The `build-all-packages.sh` script builds the entire Globular platform from source:
+The `scripts/build-release.sh` script builds the entire Globular platform from source:
 
 ```bash
-./build-all-packages.sh
+bash scripts/build-release.sh
 ```
 
 This executes five stages:

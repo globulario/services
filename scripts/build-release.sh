@@ -759,6 +759,8 @@ validate_release_bundle_dir() {
 
   validate_release_index_against_packages "${release_dir}"
   bash "${SERVICES_ROOT}/scripts/test-release-bom.sh" "${release_dir}/release-index.json" "${REGISTRY_YAML}" >/dev/null
+  bash "${SERVICES_ROOT}/scripts/test-day0-bom.sh" "${release_dir}" "${REGISTRY_YAML}" >/dev/null
+  bash "${SERVICES_ROOT}/scripts/test-release-install-contract.sh" "${release_dir}" >/dev/null
 
   while IFS= read -r tgz; do
     [[ -n "${tgz}" ]] || continue

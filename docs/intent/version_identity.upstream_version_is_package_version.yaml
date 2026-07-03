@@ -29,7 +29,7 @@ bad_smells:
 expressed_by:
   - release-index.json
   - ../packages/metadata/etcd/specs/etcd_service.yaml
-  - build-all-packages.sh
+  - scripts/build-release.sh
 
 related_invariants:
 

@@ -234,7 +234,7 @@ else
   echo "=> WARN: Globular repo not found at $REPO_ROOT/../Globular — skipping gateway/xds build"
 fi
 
-# Copy binaries to packages/bin so build-all-packages.sh finds them
+# Copy binaries to packages/bin so scripts/build-release.sh finds them
 if [[ -d "$PACKAGES_BIN" ]]; then
   for bin in mcp gateway xds; do
     if [[ -f "$STAGE_BIN/$bin" ]]; then

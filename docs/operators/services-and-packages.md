@@ -187,10 +187,10 @@ The `pkg build` command:
 
 ### Building All Packages
 
-The `build-all-packages.sh` script builds the entire platform:
+The `scripts/build-release.sh` script builds the entire platform:
 
 ```bash
-./build-all-packages.sh
+bash scripts/build-release.sh
 ```
 
 This script executes five stages:

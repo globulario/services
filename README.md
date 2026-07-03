@@ -8,8 +8,8 @@ Microservices platform for self-hosted distributed applications. Built on gRPC w
 Proto definitions (proto/)
     ↓ generateCode.sh
 Go services (golang/) + TypeScript clients (typescript/)
-    ↓ build-all-packages.sh
-Package archives (.tgz)
+    ↓ scripts/build-release.sh
+Release tarball (dist/globular-<version>-linux-amd64.tar.gz)
     ↓ globular-installer
 Running cluster (systemd + etcd + Envoy)
 ```
@@ -48,7 +48,7 @@ services/
 ├── generated/                 # Disposable generated workspace (never source authority)
 ├── dist/                      # Disposable release output assembled by scripts/build-release.sh
 ├── generateCode.sh            # Proto → Go/TypeScript code generation
-└── build-all-packages.sh      # Full package build pipeline
+└── scripts/build-release.sh   # Local release build → dist/ tarball
 ```
 
 ## Quick Start
@@ -61,8 +61,8 @@ services/
 # Generate code and build all services
 bash generateCode.sh
 
-# Build all packages (infrastructure + services)
-bash build-all-packages.sh
+# Build the release tarball (infrastructure + services)
+bash scripts/build-release.sh
 ```
 
 ### Run Tests

@@ -418,7 +418,7 @@ Reasons:
 **Never do:**
 - `go build` → package directly → `pkg publish` (wrong checksums, missing ldflags).
 - Modify binary content to fake a version bump.
-- Use `build-all-packages.sh` as a recovery tool — it is for creating new releases, not restoring existing ones.
+- Use `scripts/build-release.sh` as a recovery tool — it is for creating new releases, not restoring existing ones.
 
 ## 15. Deploying a package — MCP tools only, never `cp`
 

@@ -65,7 +65,7 @@ comparison path** (`golang/digest` consolidation is the only install-path change
 this branch made; verify_integrity / heartbeat / blob_integrity).
 
 ```bash
-scripts/build-local-release.sh --version <next>   # full local bundle, mirrors CI
+scripts/build-release.sh <next>                    # full local bundle, mirrors CI
 sudo bash install-day0.sh                          # on ryzen; expect EXIT=0 + all milestones
 ```
 

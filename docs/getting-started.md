@@ -71,7 +71,7 @@ git clone https://github.com/globulario/globular-installer.git
 # Build everything
 cd services
 bash generateCode.sh
-bash build-all-packages.sh
+bash scripts/build-release.sh
 
 # Build installer
 cd ../globular-installer

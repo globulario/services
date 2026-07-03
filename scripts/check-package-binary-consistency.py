@@ -4,7 +4,7 @@
 A package's entrypoint binary is declared in THREE independent places:
 
   1. services/golang/build/pkg-map.json   ["<pkg>"]["binary"]   ← AUTHORITATIVE
-     (release.yml and build-local-release.sh read this to decide which binary to
+     (release.yml and build-release.sh read this to decide which binary to
       copy into the package payload and to compute entrypoint_checksum)
   2. packages/registry.yaml                 binary: <name>
   3. packages/metadata/<pkg>/specs/<pkg>_{service,cmd}.yaml  metadata.entrypoint

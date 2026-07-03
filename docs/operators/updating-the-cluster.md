@@ -231,8 +231,8 @@ done
 When upgrading the entire Globular platform (all services from a new build):
 
 ```bash
-# 1. Build all packages from the new source
-./build-all-packages.sh
+# 1. Build the release tarball from the new source
+bash scripts/build-release.sh
 
 # 2. Packages are automatically published to the repository (Stage 4)
 

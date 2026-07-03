@@ -191,7 +191,7 @@ For CI/CD, use the build scripts:
 # Build all services from source
 ./generateCode.sh                    # Generate protobuf code
 golang/build/build-services.sh       # Compile all Go services
-./build-all-packages.sh              # Package everything
+bash scripts/build-release.sh        # Assemble the release tarball
 ```
 
 ### Cross-Compilation

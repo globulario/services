@@ -5,15 +5,15 @@
 To rebuild all infrastructure and service packages with updated binaries:
 
 ```bash
-./build-all-packages.sh
+bash scripts/build-release.sh [version] [--bump patch|minor|major]
 ```
 
-This script will:
+This script mirrors the GitHub Actions release build (`release.yml`) and will:
 1. Prepare infrastructure binaries (gateway, xds, globularcli)
 2. Download/verify envoy 1.35.3 and etcd 3.5.14
 3. Build all infrastructure packages (envoy, etcd, gateway, xds, minio)
 4. Build all 24 service packages with smart TLS discovery
-5. Copy package artifacts to the installer's embedded package mirror/output inputs
+5. Assemble the versioned release tarball at `services/dist/globular-<version>-linux-amd64.tar.gz` (+ `.sha256`)
 
 ## What Gets Built
 
@@ -91,7 +91,7 @@ Artifacts and staging locations:
 
 ## Versions
 
-Default versions (can be changed in build-all-packages.sh):
+Default versions (can be changed in scripts/build-release.sh):
 - Envoy: 1.35.3
 - etcd: 3.5.14
 - All packages: 0.0.1

@@ -15,7 +15,7 @@
 # labelled fallback, NOT the platform release version.
 #
 # Canonical overrides source: golang/build/package-versions.txt
-# (auto-generated from release-index.json by build-all-packages.sh)
+# (auto-generated from release-index.json by scripts/build-release.sh)
 #
 # Override file format (one "key=version" per line):
 #   Accepts EITHER of these key formats:
