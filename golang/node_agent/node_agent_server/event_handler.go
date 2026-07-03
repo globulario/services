@@ -61,7 +61,9 @@ func (eh *eventHandler) run(ctx context.Context) {
 		}
 
 		Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
-		eventAddr := config.ResolveServiceAddr("event.EventService", "")
+		// DIRECT event endpoint (no mesh :443 rewrite) — control-plane event
+		// subscription must survive mesh (re)builds during day-0/day-1.
+		eventAddr := config.ResolveServiceDirectAddr("event.EventService")
 		if eventAddr == "" {
 			logRetryErr("event service not found in registry, retrying in 10s")
 			time.Sleep(10 * time.Second)

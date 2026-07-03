@@ -1173,6 +1173,35 @@ func invalidateMeshConn() {
 	meshChecked = time.Time{}
 }
 
+// ReleaseClientConnection releases a connection previously obtained from
+// GetClientConnection. It closes the connection ONLY when the caller owns it —
+// i.e. a per-client direct-dial connection. It MUST NOT close the process-wide
+// shared mesh connection (getMeshConn's meshConn), which is reused by every
+// service client on this process and is managed (health-checked, reconnected,
+// invalidated) by the mesh cache itself.
+//
+// This exists because GetClientConnection transparently returns either the
+// shared mesh conn or a fresh direct conn, and callers cannot tell which. A
+// client that blindly calls cc.Close() on its cached conn (e.g. a subscribe
+// stream tearing down to reconnect) would otherwise close the shared mesh conn
+// out from under all other services, causing cluster-wide "connection is
+// closing" churn and circuit-breaker flapping. When the released conn IS the
+// shared mesh conn, this is a no-op — the next getMeshConn call re-validates
+// and reconnects it if its state is Shutdown/TransientFailure.
+func ReleaseClientConnection(cc *grpc.ClientConn) {
+	if cc == nil {
+		return
+	}
+	meshMu.RLock()
+	shared := meshConn != nil && cc == meshConn
+	meshMu.RUnlock()
+	if shared {
+		// Owned by the shared mesh cache — do not close it here.
+		return
+	}
+	cc.Close()
+}
+
 // GetClientConnection dials a gRPC connection to the client's current endpoint.
 // Strategy: mesh-first (via local Envoy) with fallback to direct connection.
 //
@@ -1199,7 +1228,19 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 		meshMu.Unlock()
 	}
 
-	// Fallback: direct connection to the service
+	return GetClientConnectionDirect(client)
+}
+
+// GetClientConnectionDirect dials the client's endpoint directly (host:port from
+// GetAddress/GetPort), ALWAYS bypassing the Envoy service mesh. Each call
+// returns a fresh, caller-owned connection — it is never the process-wide shared
+// mesh conn, so the caller may Close() it safely.
+//
+// Use this for control-plane traffic that must not depend on mesh health (e.g.
+// the controller's event publishing). The address MUST be a raw direct endpoint
+// (see config.ResolveServiceDirectAddr), not a mesh-routed :443 address.
+func GetClientConnectionDirect(client Client) (*grpc.ClientConn, error) {
+	// Direct connection to the service
 	address := client.GetAddress()
 	if strings.Contains(address, ":") {
 		address = strings.Split(address, ":")[0]

@@ -602,10 +602,11 @@ func (srv *NodeAgentServer) writeMarker(name, version string) error {
 }
 
 func (srv *NodeAgentServer) discoverRepositoryAddr() string {
-	// Primary source of truth: service discovery from etcd. Prefer a non-local
-	// endpoint to avoid self-routing loops during Day-1 when the local gateway
-	// advertises :443 but upstream repository isn't actually ready.
-	if addrs := config.ResolveServiceAddrs("repository.PackageRepository"); len(addrs) > 0 {
+	// Primary source of truth: DIRECT service discovery from etcd (raw host:port,
+	// no mesh :443 rewrite). The node-agent pulls install artifacts during
+	// convergence, when the Envoy mesh may be down (day-0/day-1). Prefer a
+	// non-local endpoint to avoid self-routing loops.
+	if addrs := config.ResolveServiceDirectAddrs("repository.PackageRepository"); len(addrs) > 0 {
 		localIP := strings.TrimSpace(config.GetRoutableIPv4())
 		for _, addr := range addrs {
 			if !isLocalEndpoint(addr, localIP) {
@@ -615,13 +616,10 @@ func (srv *NodeAgentServer) discoverRepositoryAddr() string {
 		// No remote endpoint found; fall back to the first discovered address.
 		return strings.TrimSpace(addrs[0])
 	}
-	// Fallback for early bootstrap cases where service discovery is not ready.
-	if srv.state != nil && srv.state.ControllerEndpoint != "" {
-		host, _, err := splitHostPort(srv.state.ControllerEndpoint)
-		if err == nil && host != "" {
-			return host + ":443"
-		}
-	}
+	// No repository endpoint discovered. Deliberately NO controllerHost:443
+	// fallback: routing artifact pulls through the mesh gateway reintroduces the
+	// control-plane→mesh dependency cycle. Return empty and let the caller retry
+	// once the repository registers a direct endpoint in etcd.
 	return ""
 }
 

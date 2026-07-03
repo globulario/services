@@ -66,11 +66,39 @@ type Event_Client struct {
 
 	// it will be started at first subjecribe...
 	isRunning atomic.Bool
+
+	// directOnly forces every (re)connect to dial the service endpoint directly,
+	// bypassing the Envoy service mesh. Control-plane callers (e.g. the cluster
+	// controller publishing convergence events) set this so their event traffic
+	// never depends on mesh health and never rides the process-wide shared mesh
+	// connection. Requires the client address to be a raw direct endpoint.
+	directOnly bool
 }
+
+// SetDirectOnly makes the client dial the service directly (bypassing the Envoy
+// mesh) on the next Reconnect. Set it before the first connect for it to take
+// effect on the initial dial.
+func (client *Event_Client) SetDirectOnly(v bool) { client.directOnly = v }
 
 // Create a connection to the service.
 func NewEventService_Client(address string, id string) (*Event_Client, error) {
+	return newEventServiceClient(address, id, false)
+}
+
+// NewEventService_Client_Direct creates an event client that always dials the
+// service directly, bypassing the Envoy mesh. Use for control-plane traffic
+// (e.g. the cluster controller publishing convergence events) so it never
+// depends on mesh health. The address MUST be a raw direct endpoint
+// (config.ResolveServiceDirectAddr), not a mesh-routed :443 address.
+func NewEventService_Client_Direct(address string, id string) (*Event_Client, error) {
+	return newEventServiceClient(address, id, true)
+}
+
+func newEventServiceClient(address string, id string, directOnly bool) (*Event_Client, error) {
 	client := new(Event_Client)
+	// Set directOnly before InitClient/Reconnect so the INITIAL dial bypasses
+	// the mesh too — not just subsequent reconnects.
+	client.directOnly = directOnly
 
 	err := globular.InitClient(client, address, id)
 	if err != nil {
@@ -96,7 +124,11 @@ func (client *Event_Client) Reconnect() error {
 	nb_try_connect := 10
 
 	for i := 0; i < nb_try_connect; i++ {
-		client.cc, err = globular.GetClientConnection(client)
+		if client.directOnly {
+			client.cc, err = globular.GetClientConnectionDirect(client)
+		} else {
+			client.cc, err = globular.GetClientConnection(client)
+		}
 		if err == nil {
 			client.c = eventpb.NewEventServiceClient(client.cc)
 			break
@@ -139,9 +171,16 @@ func (client *Event_Client) run() error {
 		select {
 		case <-exit:
 
-			// Close old connection before reconnecting.
+			// Release the old connection before reconnecting. Use the
+			// ownership-aware release: client.cc may be the process-wide shared
+			// mesh connection (getMeshConn), and blindly closing it here would
+			// tear down the mesh for every other service on this process,
+			// causing cluster-wide "connection is closing" churn and event
+			// circuit-breaker flapping. ReleaseClientConnection closes it only
+			// when it is a caller-owned direct connection; when it is the shared
+			// mesh conn it is a no-op and the mesh cache handles reconnection.
 			if client.cc != nil {
-				client.cc.Close()
+				globular.ReleaseClientConnection(client.cc)
 			}
 
 			// Circuit breaker gate: if too many consecutive reconnect
@@ -317,7 +356,9 @@ func (client *Event_Client) Close() {
 	}
 
 	if client.cc != nil {
-		client.cc.Close()
+		// Ownership-aware release — never close the shared mesh connection out
+		// from under other services (see the reconnect path above).
+		globular.ReleaseClientConnection(client.cc)
 	}
 }
 

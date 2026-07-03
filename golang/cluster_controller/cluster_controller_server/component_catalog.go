@@ -956,7 +956,9 @@ func checkCycle(name string, path []string) error {
 // fall back to static entries from buildCatalog().
 func LoadCatalogFromRepository(repoAddr string) error {
 	if repoAddr == "" {
-		repoAddr = config.ResolveServiceAddr("repository.PackageRepository", "")
+		// DIRECT repository endpoint (no mesh :443) — catalog load is a Layer-1
+		// authority read that gates convergence; must not depend on the mesh.
+		repoAddr = config.ResolveServiceDirectAddr("repository.PackageRepository")
 		if repoAddr == "" {
 			return fmt.Errorf("cannot resolve repository service address from etcd")
 		}

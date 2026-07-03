@@ -263,7 +263,9 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 	// etcd registry is source of truth; persisted state is only last-known cache.
 	controllerEndpoint := strings.TrimSpace(cfg.ControllerEndpoint)
 	if controllerEndpoint == "" {
-		controllerEndpoint = strings.TrimSpace(config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""))
+		// DIRECT control endpoint (raw host:port), not mesh-routed :443 — the
+		// node-agent must reach the controller without the Envoy mesh.
+		controllerEndpoint = strings.TrimSpace(config.ResolveControllerDirectAddr())
 	}
 	if controllerEndpoint == "" {
 		controllerEndpoint = state.ControllerEndpoint

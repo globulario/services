@@ -227,8 +227,10 @@ func main() {
 		}
 	}
 	wfResolver := func() string {
-		// Resolve workflow service address from etcd via service discovery.
-		if addr := config.ResolveServiceAddr("workflow.WorkflowService", ""); addr != "" {
+		// DIRECT workflow endpoint (raw host:port, no mesh :443 rewrite) —
+		// node-agent workflow coordination is control-plane and must not depend
+		// on the Envoy mesh. The discoverServiceAddr(10220) fallback is also direct.
+		if addr := config.ResolveServiceDirectAddr("workflow.WorkflowService"); addr != "" {
 			return addr
 		}
 		return discoverServiceAddr(10220)

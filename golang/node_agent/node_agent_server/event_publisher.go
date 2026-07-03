@@ -73,11 +73,13 @@ func newEventPublisher(nodeID string) *eventPublisher {
 }
 
 // connect establishes a gRPC connection to the event service.
-// On Day 1 nodes the event service is on the control-plane node, so we
-// route through the gateway (same host as controller, port 443).
+// Control-plane: the node-agent publishes convergence/crash-loop events DIRECT
+// to the event service (raw host:port), bypassing the Envoy mesh — the same
+// direct-to-node fix applied to the controller's event client. Riding the mesh
+// coupled event publishing to a data plane that is down during day-0/day-1.
 func (ep *eventPublisher) connect() error {
-	// Resolve event service from etcd — source of truth for address and port.
-	rawAddr := config.ResolveServiceAddr("event.EventService", "")
+	// Resolve event service from etcd — DIRECT address (no mesh :443 rewrite).
+	rawAddr := config.ResolveServiceDirectAddr("event.EventService")
 	dt := config.ResolveDialTarget(rawAddr)
 
 	// mTLS: client cert for authentication + CA for server verification.

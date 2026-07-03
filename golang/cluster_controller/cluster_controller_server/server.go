@@ -499,23 +499,27 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	// Connect to EventService for reconciliation event publishing.
 	// On cold boot the event service may not be registered yet —
 	// retry in background so we don't permanently miss it.
+	//
+	// Control-plane event publishing is DIRECT-TO-NODE, bypassing the Envoy
+	// mesh: the controller must be able to emit convergence events even while
+	// the mesh (envoy/xDS) is itself being (re)built during day-0/day-1. Routing
+	// this through the mesh previously coupled the controller to the shared mesh
+	// connection, so a mesh blip flapped the event circuit breaker indefinitely.
+	// Resolve the RAW direct endpoint (no :443 mesh rewrite) and dial it directly.
+	// This mirrors the ResolveControllerDirectAddr precedent (actor callbacks
+	// bypass the mesh for the same reason).
 	go func() {
 		for attempt := 0; attempt < 60; attempt++ {
-			eventAddr := config.ResolveServiceAddr("event.EventService", "")
-			if eventAddr == "" {
-				if addr, err := config.GetMeshAddress(); err == nil {
-					eventAddr = addr
-				}
-			}
+			eventAddr := config.ResolveServiceDirectAddr("event.EventService")
 			if eventAddr != "" {
-				if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
+				if ec, err := event_client.NewEventService_Client_Direct(eventAddr, "event.EventService"); err == nil {
 					srv.eventClient.Store(ec)
-					log.Printf("cluster-controller: event client connected (attempt %d)", attempt+1)
+					log.Printf("cluster-controller: event client connected direct-to-node at %s (attempt %d)", eventAddr, attempt+1)
 					return
 				}
 			}
 			if attempt == 0 {
-				log.Printf("cluster-controller: event service not yet available — will retry")
+				log.Printf("cluster-controller: event service not yet available (direct) — will retry")
 			}
 			time.Sleep(5 * time.Second)
 		}
@@ -534,8 +538,11 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		if addr := config.ResolveLocalServiceAddr("workflow.WorkflowService"); addr != "" {
 			return addr
 		}
-		// Fallback: mesh address (gateway) if local not yet registered.
-		if addr, err := config.GetMeshAddress(); err == nil {
+		// Fallback: any workflow instance via its DIRECT address (raw host:port).
+		// Never fall back to the mesh gateway (:443) — a direct→mesh fallback
+		// reintroduces the control-plane→data-plane dependency cycle
+		// (invariant.control_plane_must_not_depend_on_the_data_plane_mesh_it_mana).
+		if addr := config.ResolveServiceDirectAddr("workflow.WorkflowService"); addr != "" {
 			return addr
 		}
 		return ""

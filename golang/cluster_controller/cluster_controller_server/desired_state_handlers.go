@@ -583,7 +583,9 @@ func (srv *server) highestHealthyInstalledVersion(serviceName string) (string, b
 // so convergence can use exact identity.
 func (srv *server) validateArtifactInRepo(ctx context.Context, serviceName, version string, buildNumber int64) (string, error) {
 	// Resolve repository address — same path used by the release resolver.
-	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	// DIRECT repository endpoint (no mesh :443) — Layer-1 authority reads that
+	// gate desired-state writes must not depend on the Envoy mesh (day-0/day-1).
+	addr := config.ResolveServiceDirectAddr("repository.PackageRepository")
 	if addr == "" {
 		return "", status.Errorf(codes.Unavailable,
 			"repository address not configured; cannot validate artifact for %s@%s", serviceName, version)
@@ -1591,7 +1593,9 @@ func (srv *server) ValidateArtifact(_ context.Context, req *cluster_controllerpb
 	}
 
 	// Resolve repository address: env var → default.
-	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	// DIRECT repository endpoint (no mesh :443) — Layer-1 authority reads that
+	// gate desired-state writes must not depend on the Envoy mesh (day-0/day-1).
+	addr := config.ResolveServiceDirectAddr("repository.PackageRepository")
 
 	repoClient, err := repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")
 	if err != nil {
@@ -1814,7 +1818,9 @@ func (srv *server) PreviewDesiredServices(_ context.Context, req *cluster_contro
 	preview := &cluster_controllerpb.ServiceChangePreview{}
 
 	// Query repository for artifact validation (best-effort; degraded if unreachable).
-	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
+	// DIRECT repository endpoint (no mesh :443) — Layer-1 authority reads that
+	// gate desired-state writes must not depend on the Envoy mesh (day-0/day-1).
+	addr := config.ResolveServiceDirectAddr("repository.PackageRepository")
 
 	// Build a unified package index from both artifact manifests and bundle summaries.
 	pkgIndex := make(map[string]resolvedPkg)

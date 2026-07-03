@@ -686,3 +686,59 @@ func ResolveControllerDirectAddr() string {
 	}
 	return net.JoinHostPort(host, strconv.Itoa(port))
 }
+
+// ResolveServiceDirectAddr returns a service's raw direct gRPC address
+// (host:port from etcd) WITHOUT meshRouteAddrs rewriting the port to :443, i.e.
+// it bypasses the Envoy service mesh. It returns the first healthy instance
+// (no round-robin) so a caller gets a single stable target.
+//
+// Use this for CONTROL-PLANE traffic that must not depend on the mesh being
+// healthy — e.g. the controller publishing convergence events. During day-0/
+// day-1 the mesh (envoy/xDS) is itself being (re)built, so routing control
+// traffic through it couples correctness-critical operations to a component
+// that is transiently down; a mesh blip then strands the shared client
+// connection and flaps the event circuit breaker. This mirrors the established
+// ResolveControllerDirectAddr precedent above (actor callbacks bypass the mesh
+// for the same reason). Data-plane/steady-state traffic should keep using the
+// mesh-routed ResolveServiceAddr.
+func ResolveServiceDirectAddr(serviceName string) string {
+	svcs, err := GetServicesConfigurationsByName(serviceName)
+	if err != nil {
+		return ""
+	}
+	for _, s := range svcs {
+		host := svcHost(s)
+		port := svcPort(s)
+		if host == "" || port == 0 {
+			continue
+		}
+		return net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	return ""
+}
+
+// ResolveServiceDirectAddrs returns ALL instances' raw direct gRPC addresses
+// (host:port from etcd) WITHOUT meshRouteAddrs rewriting the port to :443 — the
+// plural, mesh-bypassing counterpart to ResolveServiceAddrs. Use for
+// control-plane callers that must reach a service directly and want to choose an
+// instance (e.g. prefer a non-local endpoint). Loopback addresses are dropped —
+// a loopback is never a valid cluster endpoint.
+func ResolveServiceDirectAddrs(serviceName string) []string {
+	svcs, err := GetServicesConfigurationsByName(serviceName)
+	if err != nil {
+		return nil
+	}
+	var addrs []string
+	for _, s := range svcs {
+		host := svcHost(s)
+		port := svcPort(s)
+		if host == "" || port == 0 {
+			continue
+		}
+		if ip := net.ParseIP(host); host == "localhost" || (ip != nil && ip.IsLoopback()) {
+			continue // loopback is never a valid cluster endpoint
+		}
+		addrs = append(addrs, net.JoinHostPort(host, strconv.Itoa(port)))
+	}
+	return addrs
+}

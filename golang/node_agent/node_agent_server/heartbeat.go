@@ -1133,8 +1133,10 @@ func (srv *NodeAgentServer) detectPartialApply(ctx context.Context, now int64) {
 //  1. etcd service registry (source of truth)
 //  2. persisted state fallback (last-known cache)
 func (srv *NodeAgentServer) rediscoverControllerEndpoint() string {
-	// Step 1: etcd service registry — same call used at startup.
-	if addr := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", ""); addr != "" {
+	// Step 1: etcd service registry — DIRECT control endpoint (raw host:port), not
+	// mesh-routed :443. Heartbeat is control-plane liveness and must reach the
+	// controller even while the Envoy mesh is being (re)built during day-0/day-1.
+	if addr := config.ResolveControllerDirectAddr(); addr != "" {
 		return addr
 	}
 	// Step 2: persisted state fallback.

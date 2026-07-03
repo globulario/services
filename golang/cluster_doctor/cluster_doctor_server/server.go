@@ -170,9 +170,11 @@ func dialOptionsForInternalService(serverName string) []grpc.DialOption {
 }
 
 func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, error) {
-	// Resolve controller endpoint from etcd (source of truth), falling
-	// back to config file value only if etcd is unreachable.
-	ccEndpoint := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", cfg.ControllerEndpoint)
+	// Resolve controller endpoint from etcd (source of truth) as a DIRECT address
+	// (raw host:port, no mesh :443 rewrite), falling back to the config file value
+	// only if etcd is unreachable. The doctor must reach the controller to
+	// diagnose authority state even when the Envoy mesh it diagnoses is down.
+	ccEndpoint := config.ResolveControllerDirectAddr()
 	if ccEndpoint == "" {
 		ccEndpoint = cfg.ControllerEndpoint
 	}
@@ -207,7 +209,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	// that may not match the actual running workflow service.
 	var wfClient workflowpb.WorkflowServiceClient
 	clusterID := cfg.ClusterID
-	wfEndpoint := config.ResolveServiceAddr("workflow.WorkflowService", cfg.WorkflowEndpoint)
+	wfEndpoint := config.ResolveServiceDirectAddr("workflow.WorkflowService") // DIRECT, no mesh :443
 	if wfEndpoint == "" {
 		wfEndpoint = cfg.WorkflowEndpoint // last-resort compiled default
 	}
@@ -230,8 +232,9 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	}
 
 	// Attach repository-service client for ListRepositoryFindings + GetRepositoryStatus.
-	// Resolved from etcd; optional — if unreachable, repository invariants degrade gracefully.
-	repoEndpoint := config.ResolveServiceAddr("repository.PackageRepository", "")
+	// Resolved from etcd as a DIRECT address (no mesh :443); optional — if
+	// unreachable, repository invariants degrade gracefully.
+	repoEndpoint := config.ResolveServiceDirectAddr("repository.PackageRepository")
 	if repoEndpoint != "" {
 		repoTarget := config.ResolveDialTarget(repoEndpoint)
 		if repoConn, repoErr := grpc.NewClient(repoTarget.Address,
@@ -250,7 +253,7 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	// loaded into ai-memory. Optional — if unreachable, the rule falls
 	// back to bundle-only verification.
 	var aiMemClient ai_memorypb.AiMemoryServiceClient
-	memEndpoint := config.ResolveServiceAddr("ai_memory.AiMemoryService", "")
+	memEndpoint := config.ResolveServiceDirectAddr("ai_memory.AiMemoryService") // DIRECT, no mesh :443
 	if memEndpoint != "" {
 		memTarget := config.ResolveDialTarget(memEndpoint)
 		if memConn, memErr := grpc.NewClient(memTarget.Address,
@@ -295,8 +298,8 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	if cfg.EmitAuditEvents {
 		// Dial the local event service via its in-cluster address.
 		// Default to localhost (not 127.0.0.1) so the TLS cert's
-		// Resolve event service from etcd (source of truth).
-		addr := config.ResolveServiceAddr("event.EventService", "")
+		// Resolve event service from etcd — DIRECT address (no mesh :443).
+		addr := config.ResolveServiceDirectAddr("event.EventService")
 		if addr != "" {
 			if ec, err := event_client.NewEventService_Client(addr, "event.EventService"); err == nil {
 				s.eventClient = ec

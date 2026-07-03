@@ -199,7 +199,9 @@ func main() {
 	srv.startHealerLoop(electionCtx)
 
 	// Log the resolved controller endpoint (from etcd, not config default).
-	resolvedCC := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", cfg.ControllerEndpoint)
+	// DIRECT controller address (no mesh :443) — the doctor's authority client
+	// reaches the controller directly, so the logged endpoint must match.
+	resolvedCC := config.ResolveControllerDirectAddr()
 	if resolvedCC == "" {
 		resolvedCC = cfg.ControllerEndpoint
 	}
