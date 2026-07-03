@@ -30,6 +30,40 @@ func TestRuntimeChecksumFromManifest_FallsBackToArchive(t *testing.T) {
 	}
 }
 
+func TestHeartbeatChecksumForInstalledState_InfrastructurePreservesConvergenceHash(t *testing.T) {
+	existing := &node_agentpb.InstalledPackage{
+		Kind:     "INFRASTRUCTURE",
+		Checksum: "infra:core@globular.io/envoy=1.35.3+b:0;",
+	}
+	m := &repositorypb.ArtifactManifest{
+		Checksum:           "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		EntrypointChecksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	}
+
+	got := heartbeatChecksumForInstalledState("INFRASTRUCTURE", existing, m)
+	want := "infra:core@globular.io/envoy=1.35.3+b:0;"
+	if got != want {
+		t.Fatalf("heartbeatChecksumForInstalledState() = %q, want preserved convergence hash %q", got, want)
+	}
+}
+
+func TestHeartbeatChecksumForInstalledState_ServiceUsesRuntimeIdentity(t *testing.T) {
+	existing := &node_agentpb.InstalledPackage{
+		Kind:     "SERVICE",
+		Checksum: "service-convergence-hash-that-must-not-win",
+	}
+	m := &repositorypb.ArtifactManifest{
+		Checksum:           "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		EntrypointChecksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	}
+
+	got := heartbeatChecksumForInstalledState("SERVICE", existing, m)
+	want := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	if got != want {
+		t.Fatalf("heartbeatChecksumForInstalledState() = %q, want runtime identity %q", got, want)
+	}
+}
+
 // TestAssignEntrypointChecksumMetadata_ManifestIsCanonical pins
 // identity.has_single_canonical_source_and_is_immutable and
 // meta.identity_computation_must_be_invariant. When both the manifest claim
@@ -88,4 +122,3 @@ func TestAssignEntrypointChecksumMetadata_NoOpOnEmpty(t *testing.T) {
 		t.Errorf("metadata mutated on empty inputs: %v", pkg.Metadata)
 	}
 }
-

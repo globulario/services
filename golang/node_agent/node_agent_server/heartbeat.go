@@ -976,7 +976,7 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			PublisherId:   ref.GetPublisherId(),
 			Platform:      platform,
 			Kind:          kind,
-			Checksum:      runtimeChecksumFromManifest(m),
+			Checksum:      heartbeatChecksumForInstalledState(kind, existing, m),
 			BuildNumber:   m.GetBuildNumber(),
 			InstalledUnix: now,
 			UpdatedUnix:   now,
@@ -1042,6 +1042,24 @@ func runtimeChecksumFromManifest(m *repositorypb.ArtifactManifest) string {
 		return ep
 	}
 	return digest.CanonicalSHA256(m.GetChecksum())
+}
+
+// heartbeatChecksumForInstalledState returns the checksum field the heartbeat
+// should write into installed_state.
+//
+// For INFRASTRUCTURE packages, Checksum is the convergence identity the
+// controller compares against DesiredHash, not the binary/runtime identity.
+// The runtime/binary proof lives in metadata.entrypoint_checksum. Preserving
+// the existing infrastructure checksum avoids clobbering the convergence hash
+// every heartbeat tick, which otherwise reopens the perpetual redispatch loop
+// and service restart storm for packages like envoy.
+func heartbeatChecksumForInstalledState(kind string, existing *node_agentpb.InstalledPackage, m *repositorypb.ArtifactManifest) string {
+	if strings.EqualFold(strings.TrimSpace(kind), "INFRASTRUCTURE") && existing != nil {
+		if existingChecksum := digest.CanonicalSHA256(existing.GetChecksum()); existingChecksum != "" {
+			return existingChecksum
+		}
+	}
+	return runtimeChecksumFromManifest(m)
 }
 
 // commandBinaryExists checks whether a COMMAND package's binary is installed
