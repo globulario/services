@@ -41,7 +41,7 @@ func TestArtifactLayoutDriftLocal_UnexpectedEntry_Warns(t *testing.T) {
 
 func TestArtifactLayoutDriftLocal_AllowlistOnly_Silent(t *testing.T) {
 	td := t.TempDir()
-	for _, d := range []string{"pki", "etcd", "config", "services", "repository"} {
+	for _, d := range []string{"pki", "etcd", "config", "services", "repository", "network.json"} {
 		if err := os.MkdirAll(filepath.Join(td, d), 0o755); err != nil {
 			t.Fatal(err)
 		}

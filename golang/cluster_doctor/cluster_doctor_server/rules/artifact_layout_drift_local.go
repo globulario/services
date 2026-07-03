@@ -37,8 +37,8 @@ var systemdUnitDirsForLayoutDrift = []string{
 // and forbidden_fix forbidden.fix.layout_drift_by_expanding_allowlist_only.
 var platformBaseAllowlist = map[string]bool{
 	// Platform infrastructure — present on every node regardless of installed services.
-	"awareness":             true,
-	"backups":               true,
+	"awareness": true,
+	"backups":   true,
 	// state/ is the platform-managed installation-state directory. It holds
 	// post-install ownership records (e.g. state/scylladb/ownership.json) that
 	// the package post-install scripts and install-day0.sh use to detect whether
@@ -46,18 +46,21 @@ var platformBaseAllowlist = map[string]bool{
 	// written by platform packages, not by Globular services, so it does not
 	// appear in any service inventory. See packages/metadata/scylladb/scripts/
 	// post-install.sh and scripts/release/install-day0.sh.
-	"state":                 true,
-	"bootstrap.enabled":     true,
-	"config":                true,
-	"config.json":           true,
-	"data":                  true,
-	"domains":               true,
-	"etcd":                  true,
-	"ingress":               true,
-	"intent":                true,
-	"inventory":             true,
-	"keys":                  true,
-	"minio":                 true,
+	"state":             true,
+	"bootstrap.enabled": true,
+	"config":            true,
+	"config.json":       true,
+	"data":              true,
+	"domains":           true,
+	"etcd":              true,
+	"ingress":           true,
+	"intent":            true,
+	"inventory":         true,
+	"keys":              true,
+	"minio":             true,
+	// Controller-rendered network config. This is the authoritative local
+	// cache of the cluster network spec, not ad hoc state.
+	"network.json":          true,
 	"objectstore":           true,
 	"operational-knowledge": true,
 	"packages":              true,
@@ -77,28 +80,28 @@ var platformBaseAllowlist = map[string]bool{
 	// populated an inventory (e.g. early boot, test fixtures with
 	// snap=nil). When the inventory IS populated, discoverInstalledRuntimeDirs
 	// will additionally see them as installed.
-	"cluster-controller": true,
-	"mcp":                true,
-	"node-agent":         true,
-	"prometheus":         true,
-	"repository":         true,
-	"scylla-manager":     true,
+	"cluster-controller":   true,
+	"mcp":                  true,
+	"node-agent":           true,
+	"prometheus":           true,
+	"repository":           true,
+	"scylla-manager":       true,
 	"scylla-manager-agent": true,
-	"sidekick":           true,
-	"workflow":           true,
-	"xds":                true,
+	"sidekick":             true,
+	"workflow":             true,
+	"xds":                  true,
 }
 
 // dirClassification is the verdict for one top-level entry.
 type dirClassification int
 
 const (
-	classOK              dirClassification = iota // platform base or canonical service runtime — silent
-	classCleanupEmpty                             // known legacy alias, empty → cleanup candidate (INFO)
-	classCleanupTransient                         // backup/transient file (e.g. config.json.bak.*) → cleanup candidate
-	classWarnDuplicate                            // known legacy alias with content (data-bearing) → operator review
-	classWarnUnknown                              // truly unknown dir → WARN
-	classWarnOrphanData                           // catalog-known service, not installed, data present → WARN (review before removal)
+	classOK               dirClassification = iota // platform base or canonical service runtime — silent
+	classCleanupEmpty                              // known legacy alias, empty → cleanup candidate (INFO)
+	classCleanupTransient                          // backup/transient file (e.g. config.json.bak.*) → cleanup candidate
+	classWarnDuplicate                             // known legacy alias with content (data-bearing) → operator review
+	classWarnUnknown                               // truly unknown dir → WARN
+	classWarnOrphanData                            // catalog-known service, not installed, data present → WARN (review before removal)
 )
 
 // classifyEntry returns the verdict for a single top-level entry name + path.
