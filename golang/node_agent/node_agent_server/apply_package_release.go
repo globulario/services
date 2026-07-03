@@ -739,7 +739,21 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		log.Printf("apply-package: enable %s failed (proceeding to restart): %v", unit, err)
 	}
 
-	if err := supervisor.Restart(restartCtx, unit); err != nil {
+	// Adopt-before-disrupt (meta.repository.adopt_correct_runtime_before_disrupting_it):
+	// If the service is already active AND its LIVE process is provably running
+	// the expected artifact binary, restarting it is pure disruption — most
+	// visibly the day-0 bootstrap→convergence handoff, where envoy was
+	// bootstrap-started (not yet in installed-state) and a needless restart
+	// blacks out the mesh ~60s while envoy re-fetches xDS. Skip the restart and
+	// fall through to the SAME WaitActive + hash-verify + installed-state write
+	// below, which re-proves correctness before reporting success. The guard
+	// checks the RUNNING process (/proc/<MainPID>/exe), never the on-disk binary,
+	// because installPayload may have just overwritten the file while the old
+	// executable is still live (failure_mode:service.running_binary_hash_mismatch);
+	// a stale running binary therefore does NOT match expected and still restarts.
+	if runtimeAlreadyMatchesExpected(restartCtx, name, req.GetExpectedSha256(), defaultAdoptProofDeps()) {
+		log.Printf("apply-package: %s live process already runs the expected binary (hash verified) — adopting without restart (avoids convergence blackout)", unit)
+	} else if err := supervisor.Restart(restartCtx, unit); err != nil {
 		errMsg := fmt.Sprintf("restart failed for %s: %v", unit, err)
 		log.Printf("apply-package: %s", errMsg)
 		_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
@@ -876,4 +890,56 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		OperationId: operationID,
 		BuildId:     buildID,
 	}, nil
+}
+
+// adoptProofDeps is the injection surface for runtimeAlreadyMatchesExpected so
+// the adopt-before-disrupt decision is unit-testable without a live host.
+type adoptProofDeps struct {
+	FindRunningPID func(ctx context.Context, canonicalName string) int
+	ReadProcExe    func(pid int) (string, error)
+	HashFile       func(path string) (string, error)
+}
+
+func defaultAdoptProofDeps() adoptProofDeps {
+	return adoptProofDeps{
+		FindRunningPID: defaultFindRunningPID,
+		ReadProcExe:    func(pid int) (string, error) { return os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)) },
+		HashFile:       cachedSha256,
+	}
+}
+
+// runtimeAlreadyMatchesExpected reports whether the service's LIVE process is
+// already executing the expected artifact binary — the precondition for
+// adopt-without-restart (meta.repository.adopt_correct_runtime_before_disrupting_it).
+//
+// It verifies the RUNNING process (/proc/<MainPID>/exe), never the on-disk
+// binary: installPayload may have just overwritten the file on disk while the
+// old executable is still the live process, so an on-disk match would falsely
+// adopt a service that is actually running stale code
+// (failure_mode:service.running_binary_hash_mismatch).
+//
+// Returns false — meaning "must restart" — unless ALL hold:
+//   - expected_sha256 is present (never adopt on unproven identity)
+//   - the service has a live MainPID (>0; not running ⇒ must start)
+//   - that PID's /proc/exe hashes to expected_sha256
+func runtimeAlreadyMatchesExpected(ctx context.Context, canonicalName, expectedSha256 string, deps adoptProofDeps) bool {
+	// Normalize case BEFORE trimming the prefix — TrimPrefix is case-sensitive,
+	// so lowercasing first lets an upper/mixed-case "SHA256:" prefix be stripped.
+	exp := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(expectedSha256)), "sha256:")
+	if exp == "" {
+		return false // unproven identity — never adopt, always (re)start
+	}
+	pid := deps.FindRunningPID(ctx, canonicalName)
+	if pid <= 0 {
+		return false // not running — must start
+	}
+	exePath, err := deps.ReadProcExe(pid)
+	if err != nil || strings.TrimSpace(exePath) == "" {
+		return false
+	}
+	liveHash, err := deps.HashFile(exePath)
+	if err != nil {
+		return false
+	}
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(liveHash)), "sha256:") == exp
 }
