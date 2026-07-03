@@ -22,6 +22,7 @@ docs/operational-knowledge/
 ├── packages.md              # canonical reference: what a package is, files, install, validation
 ├── dns-records.md           # canonical reference: managing DNS records (A, AAAA, MX, TXT, SRV, CAA, etc.)
 ├── awg-operator-guide.md    # canonical reference: using AWG (standalone sidecar) — 7 tools, CLI, write path
+├── build-and-release.md     # canonical reference: local dist build (build-release.sh) + GitHub CI (ci/docs/release.yml)
 ├── stages/                  # lifecycle-stage seed entries (what's true at this stage)
 │   ├── day-0-bootstrap.yaml           ✓ shipped
 │   ├── day-1-join.yaml                ✓ shipped (join procedure, stale dep-block recovery)

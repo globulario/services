@@ -534,14 +534,34 @@ OPS_PKGS=(
   "scylla-manager_3.11.1_linux_amd64.tgz"
 )
 
+# Base workloads installed on every Day-0 node. Keep this list to workloads that
+# belong on the founding quorum regardless of a media/compute intent:
+#   - file:   PlatformDefault core workload (catalog Profiles: core,compute,storage)
+#   - search: core-profile workload
+#
+# DO NOT add media-stack workloads (media, title, torrent) here. They belong to
+# the `media-server` profile in the controller catalog and are NOT PlatformDefault
+# — exactly like blog/conversation (`compute` profile). They must be deploy-on-demand,
+# NOT installed on disk at Day-0. Installing them unconditionally here was a
+# four-layer authority leak: disk (Layer 3) got media packages the founding
+# profile (core) never asked for, then `services seed` imported them into desired
+# state (Layer 2), making them sticky and unremovable via the service path.
+# They remain available in the repository catalog (Layer 1, synced from the BOM
+# below) and converge onto any node whose profiles include `media-server`.
 OPTIONAL_WORKLOAD_PKGS=(
   "file_0.0.1_linux_amd64.tgz"
   "search_0.0.1_linux_amd64.tgz"
-  "media_0.0.1_linux_amd64.tgz"
-  "title_0.0.1_linux_amd64.tgz"
-  "torrent_0.0.1_linux_amd64.tgz"
 )
 
+# Command packages installed on every Day-0 node. These are core-profile tooling
+# (object-store client, CLI, etcdctl, backup/replication tools, checksum, AI CLIs).
+#
+# DO NOT add media-stack commands (ffmpeg, yt-dlp) here. In the controller catalog
+# they are KindCommand with Profiles: media-server (not PlatformDefault). Installing
+# them at Day-0 put them on disk (Layer 3) with no matching intent, `services seed`
+# promoted them to a desired InfrastructureRelease (Layer 2), and the service-remove
+# path then correctly refuses them ("not a service") — leaving them sticky. They
+# converge onto media-server nodes on demand from the repository catalog (Layer 1).
 CMDS_PKGS=(
   "mc_0.0.1_linux_amd64.tgz"
   "globular-cli_0.0.1_linux_amd64.tgz"
@@ -550,8 +570,6 @@ CMDS_PKGS=(
   "restic_0.18.1_linux_amd64.tgz"
   "sctool_3.11.1_linux_amd64.tgz"
   "sha256sum_9.4.0_linux_amd64.tgz"
-  "yt-dlp_2026.2.21_linux_amd64.tgz"
-  "ffmpeg_7.0.2_linux_amd64.tgz"
   "claude_2.1.177_linux_amd64.tgz"
   "codex_0.142.3_linux_amd64.tgz"
 )

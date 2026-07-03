@@ -455,6 +455,36 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 		}
 	}
 
+	// Phase 3.6: Clean up stale COMMAND records whose binary is no longer
+	// installed under a globular-managed root. Symmetric with the Phase 3
+	// SERVICE prune and the INFRASTRUCTURE prune — installed-state (Layer 3, this
+	// node's own) must converge to disk truth for EVERY kind, not just services.
+	// Without this, a command uninstalled out-of-band (binary removed but the
+	// typed uninstall workflow's DeleteInstalledPackage never ran) leaves a
+	// permanent stale record, which cluster-doctor surfaces forever as
+	// placement.installed_package_orphaned (e.g. ffmpeg/yt-dlp on a core node).
+	//
+	// Disk truth here is the GLOBULAR roots ONLY (see globularCommandBinaryExists)
+	// — never $PATH: a coincidental system binary (apt's /usr/bin/ffmpeg) is not
+	// the globular-managed command and must not keep the record alive. Fail-closed:
+	// delete only on proof of absence, keyed by the record's own COMMAND kind — no
+	// kind re-derivation (avoids heartbeat.stale_kind_manifest_poisons_installed_state).
+	if srv.nodeID != "" {
+		if cmdPkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, "COMMAND"); err == nil {
+			for _, pkg := range cmdPkgs {
+				name := pkg.GetName()
+				if name == "" || globularCommandBinaryExists(name) {
+					continue // genuinely installed under a globular root
+				}
+				if delErr := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "COMMAND", name); delErr != nil {
+					log.Printf("nodeagent: WARNING: failed to delete stale installed-state COMMAND/%s: %v", name, delErr)
+				} else {
+					log.Printf("nodeagent: removed stale installed-state COMMAND/%s (no binary in /usr/lib/globular/bin or /usr/local/bin)", name)
+				}
+			}
+		}
+	}
+
 	// Phase 4: Backfill missing version markers from etcd records.
 	// Packages installed by bootstrap, manual deploy, or other tools may
 	// exist in etcd installed_state but lack a local version marker. Without
@@ -1027,6 +1057,27 @@ func commandBinaryExists(name string) bool {
 	// Also check PATH as a fallback
 	if _, err := exec.LookPath(bin); err == nil {
 		return true
+	}
+	return false
+}
+
+// globularCommandBinaryExists reports whether a COMMAND package's binary is
+// installed under a GLOBULAR-managed root (/usr/lib/globular/bin or
+// /usr/local/bin — the exact roots package.uninstall removes from). Unlike
+// commandBinaryExists it deliberately does NOT fall back to $PATH: a system
+// binary of the same name (e.g. apt's /usr/bin/ffmpeg) is not the
+// globular-managed command, and must not keep a stale installed-state record
+// alive. Used by the heartbeat COMMAND prune, which must decide "is the
+// globular command still installed" strictly by globular disk truth.
+func globularCommandBinaryExists(name string) bool {
+	bin := strings.TrimSuffix(strings.TrimSpace(name), "-cmd")
+	if bin == "" {
+		return false
+	}
+	for _, dir := range []string{globularBinDir, "/usr/local/bin"} {
+		if _, err := os.Stat(filepath.Join(dir, bin)); err == nil {
+			return true
+		}
 	}
 	return false
 }

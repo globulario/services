@@ -1067,6 +1067,18 @@ elif [[ -n "${EXTRACTED_SOURCE_RELEASE_DIR}" && -d "${EXTRACTED_SOURCE_RELEASE_D
   cp -a "${EXTRACTED_SOURCE_RELEASE_DIR}/webroot" "${RELEASE_DIR}/webroot"
 fi
 
+# Operational-knowledge (ops-knowledge seed). Day-0 preloads ai-memory from the
+# bundle: install-day0.sh reads "${INSTALLER_ROOT}/docs/operational-knowledge".
+# Without it Day-0 warns "operational-knowledge directory not found — skipping
+# ops-knowledge seed (ai-memory will be seeded at day-1)". Ship it in the bundle.
+if [[ -d "${SERVICES_ROOT}/docs/operational-knowledge" ]]; then
+  mkdir -p "${RELEASE_DIR}/docs"
+  cp -a "${SERVICES_ROOT}/docs/operational-knowledge" "${RELEASE_DIR}/docs/operational-knowledge"
+elif [[ -n "${EXTRACTED_SOURCE_RELEASE_DIR}" && -d "${EXTRACTED_SOURCE_RELEASE_DIR}/docs/operational-knowledge" ]]; then
+  mkdir -p "${RELEASE_DIR}/docs"
+  cp -a "${EXTRACTED_SOURCE_RELEASE_DIR}/docs/operational-knowledge" "${RELEASE_DIR}/docs/operational-knowledge"
+fi
+
 generate_release_index "${RELEASE_DIR}/packages" "${RELEASE_DIR}/release-index.json" "${PROVENANCE_FILE}"
 (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
 validate_release_bundle_dir "${RELEASE_DIR}"

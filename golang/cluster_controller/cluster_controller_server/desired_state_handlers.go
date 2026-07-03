@@ -959,14 +959,63 @@ func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_contro
 		return nil, status.Errorf(codes.Internal, "remove desired service: %v", err)
 	}
 
-	// Set Removing flag on the ServiceRelease to trigger the removal workflow.
+	// Remove the ServiceRelease. Two cases, decided ONLY from the release's own
+	// authoritative lifecycle status — never from a node installed-state probe
+	// (invariant cluster.desired_state_authority_over_installed_state: desired
+	// state must not be deleted based on installed-state observations, which can
+	// be blacked out or partial).
+	//
+	//  1. Never dispatched to any node — the release only resolved an artifact and
+	//     never rolled out (Status.Nodes empty AND phase never past RESOLVED). The
+	//     controller itself records that no install was ever dispatched, so there
+	//     is nothing to uninstall. Garbage-collect the ServiceRelease
+	//     SYNCHRONOUSLY here so the operator's removal takes effect immediately in
+	//     the desired/install list (what ListServiceReleasesJson and the UI read),
+	//     independent of the async removal reconcile or the workflow engine — which
+	//     may be unavailable. Without this, a removed-but-never-deployed service
+	//     (e.g. a media workload that only ever RESOLVED) lingers as "0/1" forever
+	//     while the reconcile/workflow path is degraded.
+	//
+	//  2. Rolled out to one or more nodes — flag spec.removing so the
+	//     lifecycle-tracked removal workflow (REMOVING → REMOVED) actually
+	//     uninstalls it from those nodes before the release is GC'd. Node-side
+	//     uninstall MUST stay async and workflow-driven (HARD RULE 4).
 	releaseName := defaultPublisherID() + "/" + name
 	obj, _, err := srv.resources.Get(ctx, "ServiceRelease", releaseName)
 	if err == nil && obj != nil {
 		if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Spec != nil {
-			rel.Spec.Removing = true
-			if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
-				return nil, status.Errorf(codes.Internal, "mark release %s for removal: %v", releaseName, err)
+			phase := ""
+			if rel.Status != nil {
+				phase = rel.Status.Phase
+			}
+			// neverDispatched: the controller's own record shows no install was
+			// ever sent to a node. Pre-rollout phases only ("" / PENDING / WAITING
+			// / RESOLVED); any of APPLYING/AVAILABLE/DEGRADED/FAILED/ROLLED_BACK/
+			// REMOVING/REMOVED, or any per-node status, means it may have installed
+			// bits somewhere and must go through the async uninstall workflow.
+			neverDispatched := rel.Status == nil || len(rel.Status.Nodes) == 0
+			switch phase {
+			case "", cluster_controllerpb.ReleasePhasePending,
+				cluster_controllerpb.ReleasePhaseWaiting,
+				cluster_controllerpb.ReleasePhaseResolved:
+				// pre-rollout — eligible for synchronous GC
+			default:
+				neverDispatched = false
+			}
+
+			if neverDispatched {
+				// Cancel any resolve/install work in flight (removal takes
+				// precedence, mirrors reconcileRemoving) and GC immediately.
+				srv.cancelInflightWorkflow("ServiceRelease/" + releaseName)
+				if err := srv.resources.Delete(ctx, "ServiceRelease", releaseName); err != nil {
+					return nil, status.Errorf(codes.Internal, "garbage-collect release %s: %v", releaseName, err)
+				}
+				log.Printf("RemoveDesiredService %s: never dispatched to any node (phase=%q, nodes=0) — release garbage-collected synchronously", releaseName, phase)
+			} else {
+				rel.Spec.Removing = true
+				if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+					return nil, status.Errorf(codes.Internal, "mark release %s for removal: %v", releaseName, err)
+				}
 			}
 		}
 	}

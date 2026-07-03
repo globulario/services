@@ -178,6 +178,15 @@ func outboundIP() string {
 // scylla-manager. If ScyllaDB is reachable but not registered, it auto-registers
 // using the Globular domain as the cluster name.
 // This runs in background at startup — failures are non-fatal.
+// isRegisteredScyllaCluster reports whether a detectScyllaClusters entry names an
+// actually-registered scylla-manager cluster, rather than a synthetic
+// "native:<name>" / "scylla_host:<ip>" marker emitted for a ScyllaDB that is
+// reachable but NOT registered. Counting a synthetic marker as registered skips
+// `sctool cluster add` and leaves the cluster unregistered (cluster_count=0).
+func isRegisteredScyllaCluster(name string) bool {
+	return !strings.HasPrefix(name, "native:") && !strings.HasPrefix(name, "scylla_host:")
+}
+
 func (srv *server) ensureScyllaRegistered() {
 	// Wait a bit for scylla-manager to be ready
 	time.Sleep(5 * time.Second)
@@ -195,14 +204,65 @@ func (srv *server) ensureScyllaRegistered() {
 		}
 	}
 
+	// Retry loop: registration CANNOT succeed until the node-agent has reconciled
+	// the scylla-manager-agent auth token + HTTPS port on every ring member. That
+	// reconcile happens on the agent's first heartbeat AFTER install-day0 finishes
+	// (golang/node_agent/.../scylla_manager_agent_config.go), so a one-shot attempt
+	// at backup_manager startup races it and fails with "agent [HTTP 401]
+	// unauthorized" / "unable to connect" — after which the cluster stays
+	// permanently unregistered and cluster-doctor raises
+	// scylla_manager.cluster_registered. This is the deferral install-day0 promises
+	// ("runs after agent token/port reconcile"): keep retrying with backoff until a
+	// managed cluster is registered, bounded so we never spin forever.
+	const (
+		scyllaRegisterMaxAttempts = 30
+		scyllaRegisterBackoff     = 15 * time.Second
+		scyllaRegisterBackoffMax  = 60 * time.Second
+	)
+	backoff := scyllaRegisterBackoff
+	for attempt := 1; attempt <= scyllaRegisterMaxAttempts; attempt++ {
+		if srv.attemptScyllaRegister() {
+			return // registered (or nothing to register) — done
+		}
+		if attempt == scyllaRegisterMaxAttempts {
+			slog.Warn("giving up on scylla-manager cluster registration after retries — "+
+				"register manually with `sctool cluster add` once the agent token/port are stable",
+				"attempts", attempt)
+			return
+		}
+		slog.Info("scylla-manager cluster not registered yet — retrying",
+			"attempt", attempt, "next_in", backoff.String())
+		time.Sleep(backoff)
+		if backoff < scyllaRegisterBackoffMax {
+			backoff *= 2
+			if backoff > scyllaRegisterBackoffMax {
+				backoff = scyllaRegisterBackoffMax
+			}
+		}
+	}
+}
+
+// attemptScyllaRegister performs one registration attempt. It returns true when
+// the work is done — a managed cluster is registered (either already present or
+// freshly added) — and false when the caller should retry (ScyllaDB not yet
+// reachable, agent auth config not yet readable, or `sctool cluster add` failed
+// because agent token/port are not stable across the ring yet).
+func (srv *server) attemptScyllaRegister() bool {
 	// Clean up duplicate cluster entries (accumulate across wipe+Day0 cycles).
 	srv.deduplicateScyllaManagerClusters(srv.ScyllaManagerAPI)
 
-	// Check if any cluster is already registered
+	// Check if any cluster is already registered. detectScyllaClusters also emits
+	// SYNTHETIC "native:<name>" and "scylla_host:<ip>" entries for a ScyllaDB that
+	// is reachable but NOT yet registered in scylla-manager. Neither is a real
+	// registration — counting "scylla_host:" as managed (the old bug) makes this
+	// path believe the cluster is already registered, skip `sctool cluster add`,
+	// and leave it permanently unregistered (cluster_count=0). Only entries with
+	// no synthetic prefix are actually-registered clusters. (Mirrors the correct
+	// check in PreflightCheck.)
 	existing := srv.detectScyllaClusters(srv.ScyllaManagerAPI)
 	managed := 0
 	for _, c := range existing {
-		if !strings.HasPrefix(c, "native:") {
+		if isRegisteredScyllaCluster(c) {
 			managed++
 		}
 	}
@@ -251,14 +311,14 @@ func (srv *server) ensureScyllaRegistered() {
 				}
 			}
 		}
-		return
+		return true // a managed cluster is registered — done
 	}
 
 	// No clusters registered — check if ScyllaDB is actually running
 	scyllaHost, nativeName := detectNativeScyllaDB()
 	if nativeName == "" {
-		// ScyllaDB not reachable, nothing to register
-		return
+		// ScyllaDB not reachable yet (still starting) — retry.
+		return false
 	}
 
 	// Use Globular domain as the scylla-manager cluster name
@@ -280,7 +340,7 @@ func (srv *server) ensureScyllaRegistered() {
 				"/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml",
 				"/etc/scylla-manager-agent/scylla-manager-agent.yaml",
 			})
-		return
+		return false // agent config not readable yet — retry
 	}
 	args = append(args, agentArgs...)
 
@@ -292,14 +352,17 @@ func (srv *server) ensureScyllaRegistered() {
 	output := strings.TrimSpace(string(out))
 
 	if err != nil {
-		// Check if it failed because it's already registered (race condition)
+		// Already registered (race with another attempt) counts as done.
 		if strings.Contains(output, "already exists") || strings.Contains(output, "conflict") {
 			slog.Info("ScyllaDB cluster already registered", "output", output)
-		} else {
-			slog.Warn("failed to auto-register ScyllaDB in scylla-manager",
-				"error", err, "output", output)
+			return true
 		}
-		return
+		// Typically "agent [HTTP 401] unauthorized" / "unable to connect" while the
+		// node-agent has not yet reconciled the agent token/port on every ring
+		// member — retry.
+		slog.Warn("failed to auto-register ScyllaDB in scylla-manager",
+			"error", err, "output", output)
+		return false
 	}
 
 	slog.Info("ScyllaDB auto-registered in scylla-manager",
@@ -312,6 +375,7 @@ func (srv *server) ensureScyllaRegistered() {
 	// Persist the freshly-registered cluster to etcd so it survives restarts
 	// and is visible to the configured backup path.
 	srv.persistScyllaConfig()
+	return true
 }
 
 // PreflightCheck verifies that required CLI tools are available.
