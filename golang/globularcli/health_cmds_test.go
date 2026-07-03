@@ -284,9 +284,11 @@ func TestCheckHealthWithMockedProbes(t *testing.T) {
 	// Save original probe functions
 	origTCPProbe := tcpProbe
 	origHTTPProbe := httpProbe
+	origRenderedEnvoyAdminEndpoint := readRenderedEnvoyAdminEndpoint
 	defer func() {
 		tcpProbe = origTCPProbe
 		httpProbe = origHTTPProbe
+		readRenderedEnvoyAdminEndpoint = origRenderedEnvoyAdminEndpoint
 	}()
 
 	t.Run("etcd_check_uses_resolved_endpoint", func(t *testing.T) {
@@ -372,6 +374,43 @@ func TestCheckHealthWithMockedProbes(t *testing.T) {
 		}
 		if capturedEndpoint.Scheme != "http" {
 			t.Errorf("httpProbe called with scheme %s, want http", capturedEndpoint.Scheme)
+		}
+	})
+
+	t.Run("envoy_check_falls_back_to_loopback_admin", func(t *testing.T) {
+		calls := 0
+		httpProbe = func(ctx context.Context, endpoint Endpoint) error {
+			calls++
+			if calls == 1 {
+				return fmt.Errorf("connection refused")
+			}
+			if endpoint.Host != "127.0.0.1" {
+				t.Fatalf("fallback host = %s, want 127.0.0.1", endpoint.Host)
+			}
+			return nil
+		}
+		readRenderedEnvoyAdminEndpoint = func() (Endpoint, bool) {
+			return Endpoint{Host: "127.0.0.1", Port: 9901, Scheme: "http", Path: "/ready"}, true
+		}
+
+		ctx := context.Background()
+		result := checkEnvoy(ctx)
+
+		if !result.OK {
+			t.Errorf("checkEnvoy() failed: %s", result.Details)
+		}
+		if calls != 2 {
+			t.Fatalf("httpProbe called %d times, want 2", calls)
+		}
+	})
+
+	t.Run("parse_rendered_envoy_admin_endpoint", func(t *testing.T) {
+		endpoint, ok := parseRenderedEnvoyAdminEndpoint([]byte(`{"admin":{"address":{"socket_address":{"address":"127.0.0.1","port_value":9901}}}}`))
+		if !ok {
+			t.Fatal("expected envoy admin endpoint to parse")
+		}
+		if endpoint.Host != "127.0.0.1" || endpoint.Port != 9901 || endpoint.Path != "/ready" {
+			t.Fatalf("parsed endpoint = %+v", endpoint)
 		}
 	})
 

@@ -13,16 +13,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/globulario/services/golang/config"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
+	"github.com/spf13/cobra"
 )
 
 var (
-	healthLocal      bool
-	healthJSON       bool
-	healthTimeoutSec int
+	healthLocal                    bool
+	healthJSON                     bool
+	healthTimeoutSec               int
+	readRenderedEnvoyAdminEndpoint = loadRenderedEnvoyAdminEndpoint
 )
 
 func init() {
@@ -263,13 +264,13 @@ func runClusterHealthChecks() error {
 	if healthJSON {
 		// Convert to JSON
 		data := map[string]interface{}{
-			"healthy":          strings.ToLower(resp.GetStatus()) == "healthy",
-			"status":           resp.GetStatus(),
-			"total_nodes":      resp.GetTotalNodes(),
-			"healthy_nodes":    resp.GetHealthyNodes(),
-			"unhealthy_nodes":  resp.GetUnhealthyNodes(),
-			"unknown_nodes":    resp.GetUnknownNodes(),
-			"node_health":      resp.GetNodeHealth(),
+			"healthy":         strings.ToLower(resp.GetStatus()) == "healthy",
+			"status":          resp.GetStatus(),
+			"total_nodes":     resp.GetTotalNodes(),
+			"healthy_nodes":   resp.GetHealthyNodes(),
+			"unhealthy_nodes": resp.GetUnhealthyNodes(),
+			"unknown_nodes":   resp.GetUnknownNodes(),
+			"node_health":     resp.GetNodeHealth(),
 		}
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
@@ -379,6 +380,13 @@ func checkEnvoy(ctx context.Context) HealthCheckResult {
 
 	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
 	if err := httpProbe(ctx, endpoint); err != nil {
+		if bootstrap, ok := readRenderedEnvoyAdminEndpoint(); ok {
+			if bootstrapErr := httpProbe(ctx, bootstrap); bootstrapErr == nil {
+				result.OK = true
+				result.Details = "envoy ready"
+				return result
+			}
+		}
 		result.OK = false
 		result.Details = fmt.Sprintf("envoy admin unreachable on %s", address)
 		return result
@@ -387,6 +395,39 @@ func checkEnvoy(ctx context.Context) HealthCheckResult {
 	result.OK = true
 	result.Details = "envoy ready"
 	return result
+}
+
+func loadRenderedEnvoyAdminEndpoint() (Endpoint, bool) {
+	data, err := os.ReadFile("/run/globular/envoy/envoy-bootstrap.json")
+	if err != nil {
+		return Endpoint{}, false
+	}
+	return parseRenderedEnvoyAdminEndpoint(data)
+}
+
+func parseRenderedEnvoyAdminEndpoint(data []byte) (Endpoint, bool) {
+	if len(data) == 0 {
+		return Endpoint{}, false
+	}
+	var raw struct {
+		Admin struct {
+			Address struct {
+				SocketAddress struct {
+					Address   string `json:"address"`
+					PortValue int    `json:"port_value"`
+				} `json:"socket_address"`
+			} `json:"address"`
+		} `json:"admin"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return Endpoint{}, false
+	}
+	host := strings.TrimSpace(raw.Admin.Address.SocketAddress.Address)
+	port := raw.Admin.Address.SocketAddress.PortValue
+	if host == "" || port == 0 {
+		return Endpoint{}, false
+	}
+	return Endpoint{Host: host, Port: port, Scheme: "http", Path: "/ready"}, true
 }
 
 // checkGateway checks if gateway is reachable on the configured port
