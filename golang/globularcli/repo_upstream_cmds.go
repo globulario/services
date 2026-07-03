@@ -26,6 +26,7 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/repository/upstream"
+	"github.com/globulario/services/golang/security"
 	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/spf13/cobra"
 )
@@ -393,6 +394,15 @@ func runPkgSyncUpstream(cmd *cobra.Command, args []string) error {
 	if len(only) > 0 {
 		inputs["only"] = only
 	}
+
+	clusterID, _ := security.GetLocalClusterID()
+	if clusterID == "" {
+		clusterID, _ = config.GetDomain()
+	}
+	if clusterID == "" {
+		return fmt.Errorf("cluster_id unresolvable from local config")
+	}
+	inputs["cluster_id"] = clusterID
 	inputsJSON, err := json.Marshal(inputs)
 	if err != nil {
 		return fmt.Errorf("marshal inputs: %w", err)
@@ -415,6 +425,7 @@ func runPkgSyncUpstream(cmd *cobra.Command, args []string) error {
 	wfClient := workflowpb.NewWorkflowServiceClient(cc)
 	resp, err := wfClient.ExecuteWorkflow(ctxWithTimeout(), &workflowpb.ExecuteWorkflowRequest{
 		WorkflowName: "repository.sync.upstream",
+		ClusterId:    clusterID,
 		InputsJson:   string(inputsJSON),
 		ActorEndpoints: map[string]string{
 			"repository":         controllerAddr,
