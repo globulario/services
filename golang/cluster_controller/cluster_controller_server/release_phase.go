@@ -24,6 +24,7 @@ var validPhaseTransitions = map[string]map[string]bool{
 	"": {
 		cluster_controllerpb.ReleasePhasePending:  true,
 		cluster_controllerpb.ReleasePhaseResolved: true,
+		cluster_controllerpb.ReleasePhaseWaiting:  true, // first resolve found no published artifact — enter WAITING backoff (e.g. a bundled infra package like scylladb not yet published); WAITING → PENDING retries after releaseWaitingBackoff
 		cluster_controllerpb.ReleasePhaseFailed:   true, // immediate resolution failure
 		ReleasePhaseRemoving:                      true,
 	},
