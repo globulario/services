@@ -2195,7 +2195,7 @@ failure_modes:
         the representative address. The VIP is read from /globular/ingress/v1/spec vip_failover.vip.
 
         Affected surfaces that must be patched:
-          1. install-day1.sh: NODE_IP selection must exclude VIP when ingress mode is vip_failover
+          1. gateway join_script.go (served Day-1 join script): NODE_IP selection must exclude VIP when ingress mode is vip_failover
           2. etcd member advertise/listen URLs: use StableIP(clusterVIP)
           3. ScyllaDB host list: use StableIP(clusterVIP) in publishScyllaHostsIfNeeded
           4. MinIO pool IPs: use StableIP(clusterVIP) in objectstore topology
@@ -2233,7 +2233,7 @@ failure_modes:
       root_cause: |
         PrimaryIP() returns the keepalived floating VIP when a node holds it (because the VIP is
         the first non-loopback interface). This VIP leaks into:
-          1. etcd member advertise/listen URLs (written at join time by install-day1.sh)
+          1. etcd member advertise/listen URLs (written at join time by the gateway-served join_script.go)
           2. removeStaleMembers desiredPeerURLs (controller reads node.PrimaryIP and builds the URL set)
           3. ScyllaDB hosts list (publishScyllaHostsIfNeeded)
           4. MinIO pool IPs (objectstore topology)

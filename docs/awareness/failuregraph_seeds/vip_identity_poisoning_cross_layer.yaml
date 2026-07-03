@@ -28,9 +28,11 @@ symptoms:
 causes:
   - id: CAUSE-bootstrap_identity_from_primary_route
     summary: >
-      scripts/release/install-day1.sh derives NODE_IP from route/hostname order
-      and does not explicitly exclude ingress VIP. If VIP is selected, etcd
-      config is rendered with poisoned identity URLs.
+      The gateway-served Day-1 join script
+      (Globular/internal/gateway/handlers/cluster/join_script.go) derives NODE_IP
+      from route/hostname order (hostname -I, first IP) and does not explicitly
+      exclude the ingress VIP. If VIP is selected, etcd config is rendered with
+      poisoned identity URLs.
   - id: CAUSE-fallback_prefers_primaryip
     summary: >
       node_agent_endpoint_fallback.go prefers node.PrimaryIP() for direct-IP
@@ -62,7 +64,7 @@ wrong_fixes:
   - "Manually editing one node's etcd.yaml without fixing upstream render/bootstrap logic"
 
 checks:
-  - "Audit scripts/release/install-day1.sh: NODE_IP selection must exclude cluster VIP when ingress mode is vip_failover"
+  - "Audit gateway join_script.go (served Day-1 join script): NODE_IP selection must exclude cluster VIP when ingress mode is vip_failover"
   - "Audit node_agent_endpoint_fallback.go: fallback candidate order must not prioritize PrimaryIP when VIP is known"
   - "Audit workflow_controller_deploy.go and deploy_control_plane.go: leader/self IP matching must be VIP-aware"
   - "Verify rendered /var/lib/globular/config/etcd.yaml advertise URLs use stable NIC IP on VIP holder"

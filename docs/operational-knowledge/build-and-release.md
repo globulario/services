@@ -108,6 +108,28 @@ dist/.staging/                                # transient assembly area
 Day-0 logs *"operational-knowledge directory not found — skipping ops-knowledge
 seed"* and defers to Day-1.
 
+### Shared Day-0 / Day-1 bundle contract
+Day-0 and Day-1 must rely on the same release-bundle shape. The release tarball
+is not just a Day-0 artifact; it is also the source shape that Day-1 expects
+when joining from GitHub or from a controller-local fallback bundle. Minimum
+contract:
+
+- `globular-installer` at the bundle root
+- `packages/`
+- `workflows/`
+- `release-index.json`
+- `scripts/install-day0.sh`
+
+Day-1 does not ship a bundled join script: the canonical Day-1 path is the
+gateway-served join script (`Globular/internal/gateway/handlers/cluster/join_script.go`,
+served at `/join`), which consumes the bundle's `globular-installer`, `packages/`,
+`workflows/`, and `release-index.json`. There is no `scripts/install-day1.sh`.
+
+The Day-0 wrapper `services/scripts/install.sh` must also persist
+`globular-installer` to `/usr/lib/globular/bin/globular-installer`. Without
+that, a controller cannot reconstruct an equivalent Day-1 fallback bundle after
+the original extracted release tree is gone.
+
 ---
 
 ## 3. CI — GitHub Actions
