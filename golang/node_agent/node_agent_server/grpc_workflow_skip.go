@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
@@ -101,16 +102,11 @@ func isCommandPackage(pkgName string) bool {
 
 // packageUnit returns the systemd unit name for pkgName, or "" for command packages.
 func packageUnit(pkgName string) string {
-	switch pkgName {
-	case "scylladb":
-		return "scylla-server.service"
-	case "scylla-manager":
-		return "globular-scylla-manager.service"
-	case "scylla-manager-agent":
-		return "globular-scylla-manager-agent.service"
-	}
 	if isCommandPackage(pkgName) {
 		return ""
+	}
+	if unit := identity.UnitForService(pkgName); unit != "" {
+		return unit
 	}
 	return "globular-" + pkgName + ".service"
 }

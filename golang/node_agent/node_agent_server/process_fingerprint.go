@@ -164,7 +164,15 @@ func serviceNameFromBinary(binName string) (string, bool) {
 	name := strings.TrimSuffix(binName, "_server")
 	name = strings.TrimSuffix(name, "_service")
 	if name == binName {
-		return "", false
+		// Some managed binaries are plain names under /usr/lib/globular/bin
+		// (prometheus, node_exporter, keepalived wrappers, etc.) rather than the
+		// historical *_server suffix. Fall back to the package-style kebab-case
+		// name so runtime-proof refresh can still match the running PID.
+		name = strings.ReplaceAll(binName, "_", "-")
+		if name == "" {
+			return "", false
+		}
+		return name, true
 	}
 	return strings.ReplaceAll(name, "_", "-"), true
 }

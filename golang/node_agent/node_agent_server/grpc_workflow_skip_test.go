@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -25,7 +26,7 @@ func installedPkgNoChecksum(version, buildID string) *node_agentpb.InstalledPack
 	}
 }
 
-func alwaysActive(_ context.Context, _ string) (bool, error)  { return true, nil }
+func alwaysActive(_ context.Context, _ string) (bool, error)   { return true, nil }
 func alwaysInactive(_ context.Context, _ string) (bool, error) { return false, nil }
 func alwaysLoaded(_ context.Context, _ string) (bool, error)   { return true, nil }
 func alwaysUnloaded(_ context.Context, _ string) (bool, error) { return false, nil }
@@ -156,6 +157,26 @@ func TestScyllaInactiveDoesNotReturnSuccess(t *testing.T) {
 	// Confirm correct unit name is in the reason string.
 	if reason == "" {
 		t.Fatal("expected non-empty reason")
+	}
+}
+
+func TestKeepalivedUsesCanonicalUnitMapping(t *testing.T) {
+	if got := packageUnit("keepalived"); got != "keepalived.service" {
+		t.Fatalf("packageUnit(keepalived) = %q, want keepalived.service", got)
+	}
+
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"keepalived", "INFRASTRUCTURE", "2.2.8", "", "",
+		installedPkg("2.2.8", ""),
+		alwaysInactive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedInactive {
+		t.Fatalf("expected installSkipDeniedInactive for keepalived, got %d (%s)", result, reason)
+	}
+	if !strings.Contains(reason, "keepalived.service") {
+		t.Fatalf("reason %q does not mention canonical keepalived.service", reason)
 	}
 }
 

@@ -10,6 +10,8 @@ func TestServiceNameFromBinary_KnownPlainBinaryNames(t *testing.T) {
 	}{
 		{"gateway", "gateway", true},
 		{"xds", "xds", true},
+		{"prometheus", "prometheus", true},
+		{"node_exporter", "node-exporter", true},
 		{"scylla_manager", "scylla-manager", true},
 		{"scylla_manager_agent", "scylla-manager-agent", true},
 	}
