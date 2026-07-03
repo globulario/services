@@ -1033,6 +1033,11 @@ type importStats struct {
 	SkippedNames   []string // names of skipped entries
 	Failed         int      // entries that failed to upsert
 	FailedNames    []string // names of failed entries
+	// SkippedUnplaced counts installed packages NOT seeded to desired because no
+	// admitted profile places them (installed≠desired gate). They remain observed
+	// and removable — capability residue, not cluster intent.
+	SkippedUnplaced      int
+	SkippedUnplacedNames []string
 }
 
 // importInstalledToDesired is the core idempotent logic for importing
@@ -1043,12 +1048,62 @@ type importStats struct {
 //   - returns import statistics
 //
 // This is safe to call repeatedly — already-present entries are skipped.
+// maySeedDesiredFromInstalled decides whether an OBSERVED installed package may
+// promote to DESIRED state during Day-0/bootstrap seeding. Installed state is
+// observation, not intent (installed_state_is_observation_not_desired /
+// capability_is_not_intent): a package seeds desired only when the controller's
+// admitted node profiles PLACE it — i.e. its catalog placement profiles overlap
+// an admitted profile. A package installed but not placeable on any admitted
+// profile is capability residue / orphan; it stays observed and removable, never
+// desired (the sticky ffmpeg/yt-dlp/media-service class). This reuses the same
+// placementAllows predicate the release pipeline uses, so seeding and placement
+// can never disagree.
+//
+// Guards:
+//   - admittedProfiles empty → true: profiles not yet known (very early
+//     bootstrap); refusing every seed would break day-0, so do NOT gate.
+//   - catalogProfiles empty → placementAllows returns true (uncataloged package;
+//     unchanged behavior — this gate only blocks CATALOGED workloads that no
+//     admitted profile places).
+func maySeedDesiredFromInstalled(catalogProfiles, admittedProfiles []string) bool {
+	if len(admittedProfiles) == 0 {
+		return true // unknown profile authority — never block bootstrap
+	}
+	return placementAllows(catalogProfiles, admittedProfiles)
+}
+
+// admittedNodeProfiles returns the deduplicated, normalized union of profiles
+// across all admitted nodes in controller state — the placement authority used
+// to decide which installed packages may seed desired. Empty when no node has
+// reported profiles yet. Acquires srv.mu; callers must NOT hold it.
+func (srv *server) admittedNodeProfiles() []string {
+	srv.lock("admittedNodeProfiles")
+	defer srv.unlock()
+	seen := make(map[string]bool)
+	var out []string
+	for _, node := range srv.state.Nodes {
+		for _, p := range normalizeProfiles(node.Profiles) {
+			if p == "" || seen[p] {
+				continue
+			}
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, error) {
 	var stats importStats
 
 	if srv.resources == nil {
 		return stats, fmt.Errorf("resource store unavailable")
 	}
+
+	// Placement authority for the installed≠desired gate. Computed once, before
+	// any lock below (srv.mu is non-reentrant). An installed package seeds
+	// desired only if an admitted profile places it (maySeedDesiredFromInstalled).
+	admittedProfiles := srv.admittedNodeProfiles()
 
 	// Step 1: Collect installed versions from canonical installed-state registry (etcd).
 	// Union across all nodes, first-seen wins.
@@ -1189,6 +1244,19 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 		if infraManaged[name] {
 			continue // managed by InfrastructureRelease, not ServiceRelease
 		}
+		// installed≠desired gate: an installed service seeds desired only if an
+		// admitted node profile places it. Unplaceable installs are capability
+		// residue (media/ffmpeg on a non-media node) — leave them observed and
+		// removable, never desired.
+		if !maySeedDesiredFromInstalled(ProfilesForComponent(name), admittedProfiles) {
+			stats.SkippedUnplaced++
+			stats.SkippedUnplacedNames = append(stats.SkippedUnplacedNames, name)
+			logger.Info("importInstalledToDesired: NOT seeding desired — installed service not placed by any admitted profile (capability residue, stays observed/removable)",
+				slog.String("service", name),
+				slog.Any("catalog_profiles", ProfilesForComponent(name)),
+				slog.Any("admitted_profiles", admittedProfiles))
+			continue
+		}
 		ex, found := existingMap[name]
 		if found && versionutil.EqualFull(ex.version, ex.buildNumber, inst.version, inst.buildNumber) {
 			// Already present with matching version+build — skip.
@@ -1237,7 +1305,7 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 	}
 
 	// Step 4: Import APPLICATION packages as ApplicationRelease desired-state.
-	appStats := srv.importInstalledAppsToDesired(ctx)
+	appStats := srv.importInstalledAppsToDesired(ctx, admittedProfiles)
 	stats.Imported += appStats.Imported
 	stats.AlreadyPresent += appStats.AlreadyPresent
 	stats.Updated += appStats.Updated
@@ -1245,9 +1313,11 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 	stats.SkippedNames = append(stats.SkippedNames, appStats.SkippedNames...)
 	stats.Failed += appStats.Failed
 	stats.FailedNames = append(stats.FailedNames, appStats.FailedNames...)
+	stats.SkippedUnplaced += appStats.SkippedUnplaced
+	stats.SkippedUnplacedNames = append(stats.SkippedUnplacedNames, appStats.SkippedUnplacedNames...)
 
 	// Step 5: Import INFRASTRUCTURE packages as InfrastructureRelease desired-state.
-	infraStats := srv.importInstalledInfraToDesired(ctx)
+	infraStats := srv.importInstalledInfraToDesired(ctx, admittedProfiles)
 	stats.Imported += infraStats.Imported
 	stats.AlreadyPresent += infraStats.AlreadyPresent
 	stats.Updated += infraStats.Updated
@@ -1255,6 +1325,8 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 	stats.SkippedNames = append(stats.SkippedNames, infraStats.SkippedNames...)
 	stats.Failed += infraStats.Failed
 	stats.FailedNames = append(stats.FailedNames, infraStats.FailedNames...)
+	stats.SkippedUnplaced += infraStats.SkippedUnplaced
+	stats.SkippedUnplacedNames = append(stats.SkippedUnplacedNames, infraStats.SkippedUnplacedNames...)
 
 	return stats, nil
 }
@@ -1283,6 +1355,9 @@ type releaseImportConfig struct {
 	existingName func(obj interface{}) string
 	// buildRelease constructs the typed release object for Apply.
 	buildRelease func(info installedPkgInfo) interface{}
+	// admittedProfiles is the union of admitted node profiles — the placement
+	// authority for the installed≠desired seed gate (empty ⇒ do not gate).
+	admittedProfiles []string
 }
 
 // importInstalledReleasesToDesired is the generic implementation behind
@@ -1336,6 +1411,18 @@ func (srv *server) importInstalledReleasesToDesired(ctx context.Context, cfg rel
 			stats.AlreadyPresent++
 			continue
 		}
+		// installed≠desired gate: seed desired only if an admitted profile places
+		// this package. Unplaceable installs stay observed/removable (capability
+		// residue), never desired.
+		if !maySeedDesiredFromInstalled(ProfilesForComponent(canonicalServiceName(info.name)), cfg.admittedProfiles) {
+			stats.SkippedUnplaced++
+			stats.SkippedUnplacedNames = append(stats.SkippedUnplacedNames, cfg.logPrefix+":"+info.name)
+			logger.Info("import"+cfg.logPrefix+"ToDesired: NOT seeding desired — not placed by any admitted profile (capability residue, stays observed/removable)",
+				slog.String(cfg.logPrefix, info.name),
+				slog.Any("catalog_profiles", ProfilesForComponent(canonicalServiceName(info.name))),
+				slog.Any("admitted_profiles", cfg.admittedProfiles))
+			continue
+		}
 		rel := cfg.buildRelease(info)
 		if _, err := srv.resources.Apply(ctx, cfg.resourceType, rel); err != nil {
 			stats.Failed++
@@ -1355,11 +1442,12 @@ func (srv *server) importInstalledReleasesToDesired(ctx context.Context, cfg rel
 // importInstalledAppsToDesired creates ApplicationRelease desired-state objects
 // for APPLICATION packages found in the installed-state registry that don't
 // already have a corresponding ApplicationRelease.
-func (srv *server) importInstalledAppsToDesired(ctx context.Context) importStats {
+func (srv *server) importInstalledAppsToDesired(ctx context.Context, admittedProfiles []string) importStats {
 	return srv.importInstalledReleasesToDesired(ctx, releaseImportConfig{
-		installedKind: "APPLICATION",
-		resourceType:  "ApplicationRelease",
-		logPrefix:     "app",
+		installedKind:    "APPLICATION",
+		resourceType:     "ApplicationRelease",
+		logPrefix:        "app",
+		admittedProfiles: admittedProfiles,
 		existingName: func(obj interface{}) string {
 			if rel, ok := obj.(*cluster_controllerpb.ApplicationRelease); ok && rel.Meta != nil {
 				return rel.Meta.Name
@@ -1384,11 +1472,12 @@ func (srv *server) importInstalledAppsToDesired(ctx context.Context) importStats
 // importInstalledInfraToDesired creates InfrastructureRelease desired-state
 // objects for INFRASTRUCTURE packages found in the installed-state registry
 // that don't already have a corresponding InfrastructureRelease.
-func (srv *server) importInstalledInfraToDesired(ctx context.Context) importStats {
+func (srv *server) importInstalledInfraToDesired(ctx context.Context, admittedProfiles []string) importStats {
 	return srv.importInstalledReleasesToDesired(ctx, releaseImportConfig{
-		installedKind: "INFRASTRUCTURE",
-		resourceType:  "InfrastructureRelease",
-		logPrefix:     "infra",
+		installedKind:    "INFRASTRUCTURE",
+		resourceType:     "InfrastructureRelease",
+		logPrefix:        "infra",
+		admittedProfiles: admittedProfiles,
 		existingName: func(obj interface{}) string {
 			// Return the bare component name for dedup (existing[info.name] uses bare).
 			// Meta.Name may be bare (legacy) or "<publisher>/<component>" (new). Prefer
