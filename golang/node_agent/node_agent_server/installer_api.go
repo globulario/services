@@ -171,6 +171,15 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 		return installErr
 	}
 
+	// Wrapper packages that declare entrypoint=noop rely on the shared stub at
+	// /usr/lib/globular/bin/noop for installed-state proof. If the installer
+	// path omitted that stub, materialize it directly from the trusted artifact
+	// before checksum/proof write so Day-1 joins do not wedge on wrapper
+	// packages like keepalived or scylladb.
+	if err := ensureArtifactEntrypointMaterialized(name, artifactPath); err != nil {
+		log.Printf("installer-api: warn materialize entrypoint for %s: %v", name, err)
+	}
+
 	// Write entrypoint_checksum to the etcd installed-state record. Without
 	// this, the heartbeat compares the binary hash against an empty checksum
 	// and reports hash_drift, and the runtime verifier has no hash to produce
@@ -249,6 +258,94 @@ func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, nam
 		return
 	}
 	log.Printf("installer-api: stored entrypoint_checksum for %s: %s", name, hash[:16])
+}
+
+func ensureArtifactEntrypointMaterialized(name, artifactPath string) error {
+	entrypoint := normalizeArtifactEntrypoint(readArtifactManifestEntrypoint(artifactPath))
+	if entrypoint == "" || entrypoint != "noop" {
+		return nil
+	}
+	dst := filepath.Join(globularBinDir, entrypoint)
+	if _, err := os.Stat(dst); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := extractArtifactFile(artifactPath, "bin/"+entrypoint, dst, 0o755); err != nil {
+		return err
+	}
+	log.Printf("installer-api: materialized wrapper entrypoint for %s at %s", name, dst)
+	return nil
+}
+
+func normalizeArtifactEntrypoint(entrypoint string) string {
+	entrypoint = strings.TrimSpace(entrypoint)
+	entrypoint = strings.TrimPrefix(entrypoint, "./")
+	entrypoint = strings.TrimPrefix(entrypoint, "bin/")
+	entrypoint = filepath.Base(entrypoint)
+	if entrypoint == "." || entrypoint == "/" {
+		return ""
+	}
+	return entrypoint
+}
+
+func extractArtifactFile(artifactPath, memberName, dst string, mode os.FileMode) error {
+	f, err := os.Open(artifactPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		name := strings.TrimPrefix(filepath.Clean(hdr.Name), "./")
+		if name != memberName {
+			continue
+		}
+		if hdr.FileInfo().IsDir() {
+			return fmt.Errorf("artifact member %s is a directory", memberName)
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return err
+		}
+		tmp, err := os.CreateTemp(filepath.Dir(dst), ".entrypoint-*")
+		if err != nil {
+			return err
+		}
+		tmpName := tmp.Name()
+		if _, err := io.Copy(tmp, tr); err != nil {
+			tmp.Close()
+			_ = os.Remove(tmpName)
+			return err
+		}
+		if err := tmp.Close(); err != nil {
+			_ = os.Remove(tmpName)
+			return err
+		}
+		if err := os.Chmod(tmpName, mode); err != nil {
+			_ = os.Remove(tmpName)
+			return err
+		}
+		if err := os.Rename(tmpName, dst); err != nil {
+			_ = os.Remove(tmpName)
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("artifact member %s not found in %s", memberName, artifactPath)
 }
 
 // restampReceiptOnInstallSkip re-stamps the canonical install receipt
