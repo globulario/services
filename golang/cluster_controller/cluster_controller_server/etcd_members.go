@@ -755,10 +755,18 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 		}
 	}
 
+	// Collect stale removal candidates and count live (started) members first, so
+	// the fail-safe guards below can refuse on empty/ambiguous desired authority
+	// or a quorum-breaking batch. NEVER MemberRemove inline before the guards run
+	// (sibling of etcd.auto_rejoin_leader_guard_fails_open — a guard that failed
+	// OPEN on empty input and could wipe the cluster).
+	started := 0
+	var staleCandidates []staleEtcdMember
 	for _, member := range resp.Members {
 		if member.Name == "" {
 			continue // unstarted member — might be mid-join, don't remove
 		}
+		started++
 		if joinInProgress[member.Name] {
 			// Day-1 join in flight for this hostname; don't evict.
 			continue
@@ -802,17 +810,73 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 			continue
 		}
 
+		staleCandidates = append(staleCandidates, staleEtcdMember{
+			id:       member.ID,
+			name:     member.Name,
+			peerURLs: append([]string(nil), member.PeerURLs...),
+		})
+	}
+
+	// Fail-safe guards: absence, emptiness, or ambiguity in desired etcd
+	// membership must NEVER authorize member removal, and a removal batch must
+	// never drop live members below quorum. Refuse the whole pass on either.
+	if reason := etcdRemovalRefusalReason(
+		len(desiredEtcdNodes), len(desiredPeerURLs), len(desiredHostnames),
+		started, len(staleCandidates),
+	); reason != "" {
+		log.Printf("etcd member-remove REFUSED (no members removed): %s", reason)
+		return fmt.Errorf("etcd stale-member removal refused: %s", reason)
+	}
+
+	for _, cand := range staleCandidates {
 		rmCtx, rmCancel := context.WithTimeout(ctx, 10*time.Second)
-		_, err := m.client.MemberRemove(rmCtx, member.ID)
+		_, err := m.client.MemberRemove(rmCtx, cand.id)
 		rmCancel()
 		if err != nil {
-			log.Printf("etcd member-remove: failed to remove stale member %s (id=%d): %v", member.Name, member.ID, err)
+			log.Printf("etcd member-remove: failed to remove stale member %s (id=%d): %v", cand.name, cand.id, err)
 			continue
 		}
-		log.Printf("etcd member-remove: removed stale member %s (id=%d, peer=%v)", member.Name, member.ID, member.PeerURLs)
+		log.Printf("etcd member-remove: removed stale member %s (id=%d, peer=%v)", cand.name, cand.id, cand.peerURLs)
 	}
 
 	return nil
+}
+
+// staleEtcdMember is a captured removal candidate — enough to MemberRemove and
+// log, without holding a reference to the live MemberList response.
+type staleEtcdMember struct {
+	id       uint64
+	name     string
+	peerURLs []string
+}
+
+// etcdRemovalRefusalReason returns a non-empty reason when a stale etcd member
+// removal batch MUST be refused. Absence, emptiness, or ambiguity in the desired
+// etcd set — or a removal that would drop live started members below quorum —
+// never authorizes MemberRemove. An empty return means the batch is safe.
+//
+// This is the fail-CLOSED counterpart to etcd.auto_rejoin_leader_guard_fails_open:
+// an empty desired set is uncertainty (inventory.missing_means_uncertain), not a
+// mandate to execute the cluster (delete_requires_explicit_intent_marker).
+func etcdRemovalRefusalReason(desiredNodes, desiredPeerURLs, desiredHostnames, startedMembers, removalCandidates int) string {
+	if removalCandidates == 0 {
+		return "" // nothing to remove — trivially safe
+	}
+	// Guard A: empty or no-usable-identity desired authority.
+	if desiredNodes == 0 || (desiredPeerURLs == 0 && desiredHostnames == 0) {
+		return fmt.Sprintf("desired etcd set is empty or has no usable identities "+
+			"(nodes=%d peerURLs=%d hostnames=%d) — absence is not permission to remove members",
+			desiredNodes, desiredPeerURLs, desiredHostnames)
+	}
+	// Guard B: quorum floor. etcd quorum is floor(N/2)+1 of the started members;
+	// the survivors after removal must still form that quorum.
+	quorum := startedMembers/2 + 1
+	if startedMembers-removalCandidates < quorum {
+		return fmt.Sprintf("removing %d of %d started etcd members would leave %d, "+
+			"below quorum floor %d — refusing",
+			removalCandidates, startedMembers, startedMembers-removalCandidates, quorum)
+	}
+	return ""
 }
 
 // seedEtcdEndpointsFromState writes /var/lib/globular/config/etcd_endpoints

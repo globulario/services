@@ -67,14 +67,24 @@ func (srv *server) CleanupGhostNodePackages(ctx context.Context, req *cluster_co
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list nodes: %v", err)
 	}
+	registeredIDs := make([]string, 0, len(nodesResp.GetNodes()))
 	for _, n := range nodesResp.GetNodes() {
-		if n.GetNodeId() == nodeID {
-			log.Printf("cleanup-ghost: refusing to clean active node %s", short8(nodeID))
-			return &cluster_controllerpb.CleanupGhostNodePackagesResponse{
-				Deleted:           0,
-				RefusedActiveNode: true,
-			}, nil
-		}
+		registeredIDs = append(registeredIDs, n.GetNodeId())
+	}
+	switch classifyGhostCleanup(registeredIDs, nodeID) {
+	case ghostCleanupRefuseEmptyRegistry:
+		// An empty-but-successful registry read is UNKNOWN authority, not proof
+		// the node is a ghost. Deleting on it would wipe a live node's Layer-3
+		// records during a registry blip. Absence is not permission to erase.
+		log.Printf("cleanup-ghost: REFUSED — node registry returned zero nodes; cannot classify ghost packages from an empty authority set (node %s)", short8(nodeID))
+		return nil, status.Error(codes.FailedPrecondition,
+			"ghost cleanup refused: node registry returned zero nodes; refusing destructive cleanup on empty authority")
+	case ghostCleanupRefuseActiveMember:
+		log.Printf("cleanup-ghost: refusing to clean active node %s", short8(nodeID))
+		return &cluster_controllerpb.CleanupGhostNodePackagesResponse{
+			Deleted:           0,
+			RefusedActiveNode: true,
+		}, nil
 	}
 
 	prefix := fmt.Sprintf("/globular/nodes/%s/packages/", nodeID)
@@ -98,4 +108,33 @@ func short8(s string) string {
 		return s
 	}
 	return s[:8]
+}
+
+// ghostCleanupDecision is the classification of a ghost-package cleanup request
+// against the current node registry.
+type ghostCleanupDecision int
+
+const (
+	ghostCleanupAllow ghostCleanupDecision = iota
+	// ghostCleanupRefuseEmptyRegistry: the registry read returned zero nodes —
+	// UNKNOWN authority, not proof the target is a ghost. Refuse (fail closed).
+	ghostCleanupRefuseEmptyRegistry
+	// ghostCleanupRefuseActiveMember: the target is a current registry member —
+	// not a ghost. Refuse.
+	ghostCleanupRefuseActiveMember
+)
+
+// classifyGhostCleanup decides whether ghost-package cleanup for targetNodeID is
+// allowed. An empty node registry is uncertainty, not permission to erase, so it
+// refuses; a target that is still a listed member refuses; otherwise allow.
+func classifyGhostCleanup(registeredNodeIDs []string, targetNodeID string) ghostCleanupDecision {
+	if len(registeredNodeIDs) == 0 {
+		return ghostCleanupRefuseEmptyRegistry
+	}
+	for _, id := range registeredNodeIDs {
+		if strings.TrimSpace(id) == targetNodeID {
+			return ghostCleanupRefuseActiveMember
+		}
+	}
+	return ghostCleanupAllow
 }
