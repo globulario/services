@@ -1265,6 +1265,42 @@ invariants:
   severity: critical
   status: active
   title: etcd voting-membership changes require a non-founder multi-node validation harness
+- description: 'A Day-1 etcd join must not add a new node as a full voting member
+    before the node is healthy enough to participate in quorum. A full-voter MemberAdd
+    during a 1->2 expansion immediately changes quorum from 1/1 to 2/2, so a failed or
+    stalled join can leave the founder at 1 live voter of 2 — no quorum, read-only. The
+    safe pattern is learner-first membership (non-voting MemberAddAsLearner), bounded
+    promotion retry after the node is caught up, and rollback by learner removal before
+    promotion.
+
+    '
+  forbidden_fixes:
+  - adding a Day-1 etcd member as a full voter before it is healthy (use MemberAddAsLearner)
+  - relying on operator repair-etcd as the routine recovery for a failed voter join
+  - auto-removing a stuck full-voter member on a failed probe — never auto-evict; the
+    real fix is learner-first so no quorum change ever occurred
+  id: infra.etcd.full_voter_join_may_break_founder_quorum
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/etcd_members.go
+  rationale: 'Earned 2026-07-04. On the current Day-1 path the join script runs
+    `etcdctl member add` directly as a full voter; the controller is observe-only and
+    does not auto-remove a stuck member (destructive_actions.require_explicit_guard).
+    ScyllaDB failed-join rollback (via node.remove) covers only Case A (etcd ok,
+    scylla fails). Case B — etcd member add succeeds, the node fails before etcd is
+    healthy, scylla never starts — leaves the founder at 2/2 voters with 1 alive until
+    operator repair. Learner-first membership closes this gap. See
+    docs/design/unified-day0-day1-installer.md (staged etcd-learner appendix) and the
+    installer etcd_join_step.go member-add path.
+
+    '
+  related_invariants:
+  - infra.etcd.quorum_mutation_requires_non_founder_harness
+  - cluster.founding_profiles_quorum_immutable
+  - founding.quorum.three_nodes_required
+  severity: critical
+  status: active
+  title: Day-1 etcd join must be learner-first — a full-voter join can break founder quorum
 - description: 'SetNodeProfiles must refuse to remove core, control-plane, or storage from a node when doing so would drop
     the cluster below MinQuorumNodes storage members.
 

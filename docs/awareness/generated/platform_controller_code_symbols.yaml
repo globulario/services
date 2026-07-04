@@ -2611,6 +2611,12 @@ test_symbols:
     symbol: TestIngressControllerConfig_PublishRestoreSpec_WritesBothKeys
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/inheritable_cluster_profiles_test.go:TestFilterCatalogProfiles
+    file: golang/cluster_controller/cluster_controller_server/inheritable_cluster_profiles_test.go
+    symbol: TestFilterCatalogProfiles
+    package: main
+    language: go
+    doc: "TestFilterCatalogProfiles verifies operator-requested profiles are filtered to\nreal catalog profiles (unknown/derived labels dropped), while catalog profiles\n— including hardware-gated ones an operator may legitimately request — pass."
   - id: golang/cluster_controller/cluster_controller_server/inheritable_cluster_profiles_test.go:TestInheritableClusterProfiles
     file: golang/cluster_controller/cluster_controller_server/inheritable_cluster_profiles_test.go
     symbol: TestInheritableClusterProfiles
@@ -5061,6 +5067,36 @@ test_symbols:
     package: main
     language: go
     doc: "TestIsNodeVerifiedStorageEligible_UnreachableNodeExcluded verifies that a\nnode with status=unreachable is excluded."
+  - id: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go:TestScyllaRollback_FailedFreshJoinSchedulesRemoval
+    file: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go
+    symbol: TestScyllaRollback_FailedFreshJoinSchedulesRemoval
+    package: main
+    language: go
+    doc: "TestScyllaRollback_FailedFreshJoinSchedulesRemoval: a never-verified failed\ncandidate enqueues removal and transitions to RollbackPending."
+  - id: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go:TestScyllaRollback_NilHookIsSafe
+    file: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go
+    symbol: TestScyllaRollback_NilHookIsSafe
+    package: main
+    language: go
+    doc: "TestScyllaRollback_NilHookIsSafe: with no removal capability wired, a failed\ncandidate stays Failed (no panic, no phantom rollback)."
+  - id: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go:TestScyllaRollback_PendingReEnqueuesOnlyAfterTimeout
+    file: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go
+    symbol: TestScyllaRollback_PendingReEnqueuesOnlyAfterTimeout
+    package: main
+    language: go
+    doc: "TestScyllaRollback_PendingReEnqueuesOnlyAfterTimeout: RollbackPending is a\nbounded, idempotent retry — no re-dispatch before the timeout, one after."
+  - id: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go:TestScyllaRollback_RefusesVerifiedMember
+    file: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go
+    symbol: TestScyllaRollback_RefusesVerifiedMember
+    package: main
+    language: go
+    doc: "TestScyllaRollback_RefusesVerifiedMember: an owning member (ScyllaWasEverVerified)\nis NEVER decommissioned on failure — the hard fence."
+  - id: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go:TestScyllaRollback_SuccessPathNeverDecommissions
+    file: golang/cluster_controller/cluster_controller_server/scylla_rollback_test.go
+    symbol: TestScyllaRollback_SuccessPathNeverDecommissions
+    package: main
+    language: go
+    doc: "TestScyllaRollback_SuccessPathNeverDecommissions: a verified node is not touched."
   - id: golang/cluster_controller/cluster_controller_server/scylla_schema_guard_drift_test.go:TestCriticalScyllaKeyspacesMatchSourceCreateStatements
     file: golang/cluster_controller/cluster_controller_server/scylla_schema_guard_drift_test.go
     symbol: TestCriticalScyllaKeyspacesMatchSourceCreateStatements

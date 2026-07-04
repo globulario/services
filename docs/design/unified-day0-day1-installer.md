@@ -201,6 +201,37 @@ Change:
 5. **founding-quorum**: learners don't count toward `enforceFoundingProfiles` /
    RF eligibility — confirm the founding-quorum invariant only counts promoted voters.
 
-Same staged pattern applies to ScyllaDB (zero-token / `GROUP0_LIMITED_VOTERS`), and
-to auto-decommission on `ScyllaJoinFailed` — both to be scoped after the etcd learner
-lands and is validated on a multi-node harness.
+Same staged pattern applies to ScyllaDB (zero-token / `GROUP0_LIMITED_VOTERS`) — to
+be scoped after the etcd learner lands and is validated on a multi-node harness.
+(Auto-decommission on `ScyllaJoinFailed` has since **landed** — see below.)
+
+### Remaining asymmetry before staged etcd-learner join
+
+This is the explicit *why* for the etcd-learner branch. It is not a "nice etcd
+improvement" — it closes the one remaining pure-etcd failure hole. Do not blur it:
+"scylla rollback handles failed joins now" is only **half** true.
+
+**Case A — etcd succeeds, ScyllaDB fails (self-healing today).** ScyllaDB join
+rollback is now workflow-owned and self-healing for failed *never-verified* scylla
+joins. If a node reaches `ScyllaJoinFailed` after etcd membership was added, the
+`node.remove` workflow owns cleanup and removes the stale ScyllaDB **and** etcd
+membership (`remove_scylla_ring` + `remove_etcd_membership`), restoring quorum. A
+self-healing path exists end-to-end.
+
+**Case B — etcd `member add` succeeds, node fails before etcd is healthy (gap).**
+On the current Day-1 path the join script runs `etcdctl member add` directly as a
+**full voting member**, which immediately changes quorum from 1/1 to 2/2. If the
+joining node fails before etcd becomes healthy — and therefore before ScyllaDB even
+starts — `node.remove` is never triggered (nothing reaches `ScyllaJoinFailed`). The
+controller only classifies the stuck join as `EtcdJoinRejoinRequired` and, by design
+(`destructive_actions.require_explicit_guard` — never auto-evict on a failed probe),
+does **not** auto-remove the etcd member. The founder can be left at **1 live voter
+out of 2 → no quorum → read-only**, requiring operator `repair-etcd`. This is exactly
+the 2026-07-04 incident.
+
+**The staged-learner design eliminates Case B:** Day-1 adds the new etcd member as a
+**non-voting learner**, preserving founder quorum while the node catches up; only
+after successful promotion does it become a voter; a failed pre-promotion join is
+rolled back by simply removing the learner (no quorum change ever occurred). Gated
+behind `infra.etcd.quorum_mutation_requires_non_founder_harness` and the invariant
+`infra.etcd.full_voter_join_may_break_founder_quorum`.
