@@ -155,6 +155,18 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 				// node auto-retries from admitted on the next cycle.
 				failBootstrap(node, "etcd rejoin failed: "+node.EtcdJoinError)
 				dirty = true
+			} else if node.EtcdJoinPhase == EtcdJoinPromoting {
+				// Joined as a non-voting learner (Policy A'). The controller promotes
+				// it to a voter toward the HA target on its own schedule — a learner
+				// may legitimately wait for a third node before promotion. Its etcd is
+				// a functional member, so do NOT fail bootstrap on timeout while it
+				// awaits promotion: hold in etcd_joining until it becomes a verified
+				// voter. Mirrors the rejoin "suppress timeout" handling above.
+				if node.BootstrapError != "etcd learner awaiting promotion to voter" {
+					node.BootstrapError = "etcd learner awaiting promotion to voter"
+				}
+				node.BootstrapStartedAt = now // reset phase timer so it never auto-fails
+				dirty = true
 			} else if phaseTimedOut(node, now) {
 				failBootstrap(node, "timeout waiting for etcd join")
 				dirty = true

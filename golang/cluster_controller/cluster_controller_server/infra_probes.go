@@ -167,7 +167,10 @@ func isActiveInfraMember(node *nodeState, pkgName string) bool {
 
 	case name == "etcd":
 		switch node.EtcdJoinPhase {
-		case EtcdJoinVerified, EtcdJoinStarted:
+		case EtcdJoinVerified, EtcdJoinStarted, EtcdJoinPromoting:
+			// EtcdJoinPromoting = a non-voting learner whose etcd IS a running,
+			// syncing member — protect it from release-pipeline disruption too, so
+			// its catch-up/promotion is not interrupted.
 			return true
 		}
 
