@@ -77,11 +77,18 @@ func (etcdQuorumHealth) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 
 		switch etcdPhase {
 		case "verified":
+			// Contract: "verified" means a PROMOTED VOTER (healthy and voting).
+			// An etcd learner is NOT a voter and must never carry this phase —
+			// it stays "promoting" until promotion (meta.limited_members_are_not_capacity).
+			// Counting a learner as verified would inflate quorum capacity with a
+			// non-voting member.
 			etcdVerified++
 		case "failed":
 			etcdFailed++
 			failedHostnames = append(failedHostnames, node.GetIdentity().GetHostname())
-		case "member_added", "started", "prepared":
+		case "member_added", "started", "prepared", "promoting":
+			// "promoting" = a learner awaiting promotion: non-voting, so it counts
+			// as joining, never toward the verified-voter quorum.
 			etcdJoining++
 		}
 	}

@@ -2204,6 +2204,12 @@ test_symbols:
     symbol: TestTopologyAllowsLearnerPromotion
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemovalRefusal_LearnerNeverCountsAsQuorumCapacity
+    file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
+    symbol: TestRemovalRefusal_LearnerNeverCountsAsQuorumCapacity
+    package: main
+    language: go
+    doc: "TestRemovalRefusal_LearnerNeverCountsAsQuorumCapacity is the direct\nmeta.limited_members_are_not_capacity guard on the pure decision. A learner\npresent in the cluster must not change the voter-based math."
   - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemoveStaleMembersAllowsQuorumSafeRemoval
     file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
     symbol: TestRemoveStaleMembersAllowsQuorumSafeRemoval
@@ -2219,6 +2225,12 @@ test_symbols:
     symbol: TestRemoveStaleMembersRefusesEmptyDesiredSet
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemoveStaleMembers_LoopExcludesLearners
+    file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
+    symbol: TestRemoveStaleMembers_LoopExcludesLearners
+    package: main
+    language: go
+    doc: "TestRemoveStaleMembers_LoopExcludesLearners proves the fix at the loop level\n(not just the pure guard): removeStaleMembers must compute startedVoters and\nvotingRemovalCandidates with IsLearner excluded, driven against a fake etcd."
   - id: golang/cluster_controller/cluster_controller_server/etcd_members_test.go:TestEtcdJoin_AlreadyMember
     file: golang/cluster_controller/cluster_controller_server/etcd_members_test.go
     symbol: TestEtcdJoin_AlreadyMember

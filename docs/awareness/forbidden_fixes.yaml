@@ -3999,3 +3999,83 @@ forbidden_fixes:
     Route desired writes through routeInfrastructureDesired; prune cross-kind records
     (pruneCrossKindServiceReleases / deleteCrossKindServiceRelease) with the component
     catalog as oracle; block stale converged persistence (isStaleResolvedGhost). One id → one kind.
+
+# Distributed-data-substrate capacity family (authored 2026-07-04). These three
+# forbidden fixes are the sharp, enforceable form of the meta.* topology family:
+# a member's ROLE and VERIFIED capacity, not its presence/label/liveness, decides
+# whether it counts. Found by auditing the new principles against existing code
+# (etcd removal quorum floor, founding/RF profile counting, scylla/minio verify
+# heuristics).
+
+- id: learner_counts_as_quorum_capacity
+  summary: >-
+    Count a named etcd learner as started/voter capacity — toward the quorum
+    floor, HA, or removal-safety math — because it appears in MemberList or has a
+    join phase. A learner is non-voting; counting it miscalibrates the safety
+    guard exactly when learners exist (the emergency brake carries ghost weight).
+  rationale: >-
+    etcd quorum is floor(V/2)+1 over VOTERS. A started-but-unpromoted learner has
+    a Name and can reach a healthy/participating state, so member-count or
+    join-phase reasoning silently treats it as a voter. In removeStaleMembers this
+    made the removal quorum floor count learners as started voters; in
+    cluster_doctor it made quorum verdicts learner-blind (false PASS/FAIL). Both
+    are safety guards, so the error is invisible until it matters.
+  safe_alternative: >-
+    Count only voters: filter member.IsLearner when computing quorum floors,
+    voter-survivor counts, and HA verdicts. Removing a learner is always
+    quorum-safe (it never lowers the voter-survivor count). In metadata, a learner
+    is phase "promoting" (non-voting), never "verified" (promoted voter).
+  related_invariants:
+  - meta.limited_members_are_not_capacity
+  - meta.ha_requires_failure_tolerance_not_member_count
+  - infra.etcd.two_voter_topology_is_not_ha
+
+- id: profile_label_counts_as_storage_capacity
+  summary: >-
+    Use a node's profile label (storage / control-plane / core) as proof of
+    founding-quorum, storage-quorum, RF, or HA capacity. A label is placement
+    INTENT; it is set the instant the profile is assigned, before any substrate
+    is verified in the ring/pool.
+  rationale: >-
+    countNodesWithProfile and its callers (topology_safety, workflow_invariant,
+    enforceStorageQuorumLocked, join/SetNodeProfiles handlers) count nodes toward
+    quorum by profile-string presence. A node "present by label" but never
+    verified in the Scylla ring or MinIO pool inflates the capacity count — it can
+    both block a legitimate removal and permit removing a real owner while a
+    phantom fills the count. A label is intent; verification is capacity.
+  safe_alternative: >-
+    Route capacity counts through the verified-eligibility gate that already
+    exists (IsNodeVerifiedStorageEligible, used by storageControlPlaneNodeCount),
+    or a substrate-aware equivalent. Preserve profile labels ONLY where they are
+    genuinely intent/placement, never as proof of realized capacity.
+  related_invariants:
+  - meta.limited_members_are_not_capacity
+  - infra.scylla.rf_safety_requires_ownership_not_process_health
+  - infra.minio.erasure_safety_requires_pool_and_heal_state
+  - cluster.founding_profiles_quorum_immutable
+
+- id: time_or_port_probe_marks_stateful_verified
+  summary: >-
+    Mark a distributed data substrate Verified / healthy / HA / durable from
+    elapsed time, systemd active state, a bare TCP port being open, or a generic
+    liveness endpoint — instead of substrate-specific topology truth.
+  rationale: >-
+    "active for >30s ⇒ erasure set formed / in the ring" (minio_pools.go,
+    scylla_members.go) and "port 9042/9000 open or /health/live 200 ⇒ healthy"
+    (infra_health_probe.go) fabricate a durability/quorum claim from liveness. A
+    process can be up, and a port open, while the node is JOINING/BOOTSTRAPPING,
+    the erasure set is degraded/healing, or write/read quorum is lost. Each of
+    these shortcuts sits next to a correct quorum-aware sibling it should have
+    called.
+  safe_alternative: >-
+    Require substrate truth: etcd voter-vs-learner status; Scylla operation mode
+    (UN / NORMAL), ring membership, and token/RF ownership; MinIO admitted pool,
+    erasure-set layout, online drives, and write/read-quorum + heal state. Model
+    on the existing correct paths (minio_lifecycle.go, infra_truth lifecycles,
+    scylla_rf_eligibility.go). Never let elapsed time or a port probe promote a
+    member to Verified.
+  related_invariants:
+  - meta.membership_promotion_requires_readiness_proof
+  - meta.distributed_data_topology_is_correctness
+  - infra.scylla.rf_safety_requires_ownership_not_process_health
+  - infra.minio.erasure_safety_requires_pool_and_heal_state

@@ -1596,6 +1596,18 @@ test_symbols:
     symbol: TestEtcdInfraProbeRequired_WhenInstalledButMissing
     package: rules
     language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/etcd_learner_quorum_test.go:TestEtcdQuorumHealth_LearnerNotCountedAsVerifiedVoter
+    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_learner_quorum_test.go
+    symbol: TestEtcdQuorumHealth_LearnerNotCountedAsVerifiedVoter
+    package: rules
+    language: go
+    doc: "TestEtcdQuorumHealth_LearnerNotCountedAsVerifiedVoter proves the etcd.quorum\nrule counts a \"promoting\" learner as joining, never as a verified voter\n(meta.limited_members_are_not_capacity). With 1 real voter + 1 failed + 1\nlearner, quorum is at risk (1 verified < 2 needed) and the CRITICAL finding\nMUST fire. If the learner were miscounted as verified, verified would be 2 and\nthe risk would be silently masked (a false PASS on a path to cluster loss)."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/etcd_learner_quorum_test.go:TestEtcdStaleMember_LearnerExcludedFromVoterQuorum
+    file: golang/cluster_doctor/cluster_doctor_server/rules/etcd_learner_quorum_test.go
+    symbol: TestEtcdStaleMember_LearnerExcludedFromVoterQuorum
+    package: rules
+    language: go
+    doc: "TestEtcdStaleMember_LearnerExcludedFromVoterQuorum proves the etcd.stale_member\nrule excludes a \"promoting\" learner from the voter-quorum analysis: 1 voter + 1\nlearner is NOT a 2-voter cluster, so the \"2 members / zero fault tolerance\"\nwarning MUST NOT fire. If the learner were counted, it would falsely warn about\na 2/2 quorum that does not exist."
   - id: golang/cluster_doctor/cluster_doctor_server/rules/evidence_collection_time_test.go:TestStampEvidenceCollectionTime
     file: golang/cluster_doctor/cluster_doctor_server/rules/evidence_collection_time_test.go
     symbol: TestStampEvidenceCollectionTime

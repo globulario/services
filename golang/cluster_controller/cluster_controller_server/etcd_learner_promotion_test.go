@@ -15,6 +15,7 @@ type fakeEtcdAPI struct {
 	members      []*etcdserverpb.Member
 	promoteErr   error    // when set, MemberPromote fails (simulates "not in sync")
 	promoteCalls []uint64 // IDs successfully promoted
+	removeCalls  []uint64 // IDs passed to MemberRemove
 }
 
 func mkVoter(id uint64) *etcdserverpb.Member   { return &etcdserverpb.Member{ID: id, IsLearner: false} }
@@ -49,6 +50,7 @@ func (f *fakeEtcdAPI) MemberAddAsLearner(ctx context.Context, peerAddrs []string
 	return &clientv3.MemberAddResponse{}, nil
 }
 func (f *fakeEtcdAPI) MemberRemove(ctx context.Context, id uint64) (*clientv3.MemberRemoveResponse, error) {
+	f.removeCalls = append(f.removeCalls, id)
 	return &clientv3.MemberRemoveResponse{}, nil
 }
 func (f *fakeEtcdAPI) MemberUpdate(ctx context.Context, id uint64, peerAddrs []string) (*clientv3.MemberUpdateResponse, error) {

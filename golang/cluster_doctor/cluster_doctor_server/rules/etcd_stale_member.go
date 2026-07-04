@@ -76,6 +76,14 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 		if joinPhase == "" {
 			continue
 		}
+		// Learners are non-voting (meta.limited_members_are_not_capacity): they do
+		// not count toward the voter quorum and a stale learner is never a quorum
+		// risk (removing it is always safe). Exclude "promoting" (learner-awaiting-
+		// promotion) nodes from this stale-VOTER quorum analysis entirely, so they
+		// neither inflate the quorum denominator nor trip the 2-member warning.
+		if joinPhase == "promoting" {
+			continue
+		}
 
 		lastSeen := node.GetLastSeen().AsTime()
 		stale := time.Since(lastSeen) > staleThreshold

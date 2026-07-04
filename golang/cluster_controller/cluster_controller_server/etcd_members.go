@@ -778,18 +778,28 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 		}
 	}
 
-	// Collect stale removal candidates and count live (started) members first, so
-	// the fail-safe guards below can refuse on empty/ambiguous desired authority
-	// or a quorum-breaking batch. NEVER MemberRemove inline before the guards run
+	// Collect stale removal candidates and count live started VOTERS first, so the
+	// fail-safe guards below can refuse on empty/ambiguous desired authority or a
+	// quorum-breaking batch. NEVER MemberRemove inline before the guards run
 	// (sibling of etcd.auto_rejoin_leader_guard_fails_open — a guard that failed
 	// OPEN on empty input and could wipe the cluster).
-	started := 0
+	//
+	// Quorum is a VOTER concept: etcd learners do not vote and do not count toward
+	// quorum (meta.limited_members_are_not_capacity). A started-but-unpromoted
+	// learner has a Name, so counting it here would miscalibrate the removal
+	// quorum floor exactly when learners exist — the safety brake would carry ghost
+	// weight. Count only non-learner (voting) members toward startedVoters, and
+	// track per-candidate learner status so removing a learner (always quorum-safe)
+	// never counts against the voter-survivor floor.
+	startedVoters := 0
 	var staleCandidates []staleEtcdMember
 	for _, member := range resp.Members {
 		if member.Name == "" {
 			continue // unstarted member — might be mid-join, don't remove
 		}
-		started++
+		if !member.IsLearner {
+			startedVoters++
+		}
 		if joinInProgress[member.Name] {
 			// Day-1 join in flight for this hostname; don't evict.
 			continue
@@ -834,18 +844,28 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 		}
 
 		staleCandidates = append(staleCandidates, staleEtcdMember{
-			id:       member.ID,
-			name:     member.Name,
-			peerURLs: append([]string(nil), member.PeerURLs...),
+			id:        member.ID,
+			name:      member.Name,
+			peerURLs:  append([]string(nil), member.PeerURLs...),
+			isLearner: member.IsLearner,
 		})
+	}
+
+	// Count how many removal candidates are voters — only these reduce the
+	// voter-survivor count. Removing a learner is always quorum-safe.
+	votingRemovalCandidates := 0
+	for _, cand := range staleCandidates {
+		if !cand.isLearner {
+			votingRemovalCandidates++
+		}
 	}
 
 	// Fail-safe guards: absence, emptiness, or ambiguity in desired etcd
 	// membership must NEVER authorize member removal, and a removal batch must
-	// never drop live members below quorum. Refuse the whole pass on either.
+	// never drop live VOTERS below quorum. Refuse the whole pass on either.
 	if reason := etcdRemovalRefusalReason(
 		len(desiredEtcdNodes), len(desiredPeerURLs), len(desiredHostnames),
-		started, len(staleCandidates),
+		startedVoters, len(staleCandidates), votingRemovalCandidates,
 	); reason != "" {
 		log.Printf("etcd member-remove REFUSED (no members removed): %s", reason)
 		return fmt.Errorf("etcd stale-member removal refused: %s", reason)
@@ -868,20 +888,26 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 // staleEtcdMember is a captured removal candidate — enough to MemberRemove and
 // log, without holding a reference to the live MemberList response.
 type staleEtcdMember struct {
-	id       uint64
-	name     string
-	peerURLs []string
+	id        uint64
+	name      string
+	peerURLs  []string
+	isLearner bool // learners never count toward the removal quorum floor
 }
 
 // etcdRemovalRefusalReason returns a non-empty reason when a stale etcd member
 // removal batch MUST be refused. Absence, emptiness, or ambiguity in the desired
-// etcd set — or a removal that would drop live started members below quorum —
+// etcd set — or a removal that would drop live started VOTERS below quorum —
 // never authorizes MemberRemove. An empty return means the batch is safe.
 //
 // This is the fail-CLOSED counterpart to etcd.auto_rejoin_leader_guard_fails_open:
 // an empty desired set is uncertainty (inventory.missing_means_uncertain), not a
 // mandate to execute the cluster (delete_requires_explicit_intent_marker).
-func etcdRemovalRefusalReason(desiredNodes, desiredPeerURLs, desiredHostnames, startedMembers, removalCandidates int) string {
+//
+// Quorum is a VOTER concept (meta.limited_members_are_not_capacity): the guard
+// counts only started voters and only voting removals. Learners neither raise the
+// quorum floor nor, when removed, lower the voter-survivor count — so removing a
+// stale learner is always safe, and a started learner never inflates the brake.
+func etcdRemovalRefusalReason(desiredNodes, desiredPeerURLs, desiredHostnames, startedVoters, removalCandidates, votingRemovalCandidates int) string {
 	if removalCandidates == 0 {
 		return "" // nothing to remove — trivially safe
 	}
@@ -891,13 +917,15 @@ func etcdRemovalRefusalReason(desiredNodes, desiredPeerURLs, desiredHostnames, s
 			"(nodes=%d peerURLs=%d hostnames=%d) — absence is not permission to remove members",
 			desiredNodes, desiredPeerURLs, desiredHostnames)
 	}
-	// Guard B: quorum floor. etcd quorum is floor(N/2)+1 of the started members;
-	// the survivors after removal must still form that quorum.
-	quorum := startedMembers/2 + 1
-	if startedMembers-removalCandidates < quorum {
-		return fmt.Sprintf("removing %d of %d started etcd members would leave %d, "+
+	// Guard B: voter quorum floor. etcd quorum is floor(V/2)+1 of the started
+	// VOTERS; the voting survivors after removal must still form that quorum.
+	// Removing learners does not reduce votingSurvivors, so it never trips this.
+	quorum := startedVoters/2 + 1
+	votingSurvivors := startedVoters - votingRemovalCandidates
+	if votingSurvivors < quorum {
+		return fmt.Sprintf("removing %d voting of %d started etcd voters would leave %d, "+
 			"below quorum floor %d — refusing",
-			removalCandidates, startedMembers, startedMembers-removalCandidates, quorum)
+			votingRemovalCandidates, startedVoters, votingSurvivors, quorum)
 	}
 	return ""
 }
