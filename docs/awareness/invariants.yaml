@@ -1267,11 +1267,18 @@ invariants:
   title: etcd voting-membership changes require a non-founder multi-node validation harness
 - description: 'A Day-1 etcd join must not add a new node as a full voting member
     before the node is healthy enough to participate in quorum. A full-voter MemberAdd
-    during a 1->2 expansion immediately changes quorum from 1/1 to 2/2, so a failed or
-    stalled join can leave the founder at 1 live voter of 2 — no quorum, read-only. The
-    safe pattern is learner-first membership (non-voting MemberAddAsLearner), bounded
-    promotion retry after the node is caught up, and rollback by learner removal before
-    promotion.
+    during a 1->2 expansion immediately raises quorum from 1/1 to 2/2. If the joining
+    node dies before participating, the founder is left at 1 of 2 voters — no quorum,
+    read-only — AND cannot cleanly remove the failed member, because MemberRemove
+    itself requires quorum to commit: you need quorum to remove the member that
+    destroyed quorum. There is no amount of controller cleverness that escapes this
+    once the door is locked; node.remove cleanup (removeStaleMembers) only succeeds
+    while the failed node''s etcd is still alive and quorum still holds (Case A —
+    scylla fails but the node is up). A node that dies mid-etcd-join (Case B) is behind
+    the locked door and needs disaster/operator repair. The only architectural fix is
+    learner-first membership: add non-voting (MemberAddAsLearner) so quorum never
+    changes, catch up, promote with bounded retry, and roll back by removing the
+    learner before promotion — a learner never changes quorum, so the door never locks.
 
     '
   forbidden_fixes:
