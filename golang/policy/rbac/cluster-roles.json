@@ -275,6 +275,8 @@
       "repository.bundle.read",
       "repository.bundle.list",
       "repository.namespace.read",
+      "repository.status.read",
+      "repository.findings.list",
       "dns.*",
       "event.*"
     ],
