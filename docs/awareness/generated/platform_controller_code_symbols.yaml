@@ -2164,6 +2164,24 @@ test_symbols:
     symbol: TestParseEtcdJoinLockKeys_HappyPath
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdLearner_JoinPreservesFounderQuorumOnLoss
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
+    symbol: TestEtcdLearner_JoinPreservesFounderQuorumOnLoss
+    package: main
+    language: go
+    doc: "TestEtcdLearner_JoinPreservesFounderQuorumOnLoss proves the fix: a learner is\nnon-voting, so a 1->2 learner join never changes quorum. Losing the learner\nbefore promotion leaves the founder fully writable."
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdLearner_PromotionCreatesVoterAfterCatchup
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
+    symbol: TestEtcdLearner_PromotionCreatesVoterAfterCatchup
+    package: main
+    language: go
+    doc: "TestEtcdLearner_PromotionCreatesVoterAfterCatchup proves promotion semantics:\nMemberPromote succeeds only once the learner is caught up, and yields a\nvoting member. This is the catch-up-before-voter contract the promotion FSM\nmust honor (retry MemberPromote until it stops returning \"not in sync\")."
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdTrap_FullVoterJoinBreaksFounderQuorumOnLoss
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
+    symbol: TestEtcdTrap_FullVoterJoinBreaksFounderQuorumOnLoss
+    package: main
+    language: go
+    doc: "TestEtcdTrap_FullVoterJoinBreaksFounderQuorumOnLoss reproduces the dangerous\n1->2 quorum trap: adding a full voter raises quorum to 2/2, so when the new\nnode dies the founder — the only survivor — can no longer commit writes."
   - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemoveStaleMembersAllowsQuorumSafeRemoval
     file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
     symbol: TestRemoveStaleMembersAllowsQuorumSafeRemoval

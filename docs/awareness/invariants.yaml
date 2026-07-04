@@ -1308,6 +1308,48 @@ invariants:
   severity: critical
   status: active
   title: Day-1 etcd join must be learner-first — a full-voter join can break founder quorum
+- description: 'Globular must not treat two promoted etcd voters as a highly available
+    control-plane topology. A 2-voter etcd cluster requires BOTH voters for quorum, so
+    losing either node makes etcd unavailable — proven on the harness by
+    TestEtcdTrap_FullVoterJoinBreaksFounderQuorumOnLoss. etcd membership must therefore
+    be topology-aware, with four states: (1) FounderOnly — 1 voter, quorum 1, writable,
+    NOT HA; (2) ExpandingWithLearner — 1 voter + >=1 learner, quorum 1, writable, NOT
+    HA, a failed learner is removed safely; (3) TransitionalTwoVoters — 2 voters, quorum
+    2, writable only while both are alive, explicitly NON-HA and risk-marked; (4)
+    HAThreeVoters — 3 voters, quorum 2, survives one voter loss, the first real HA state.
+    A joining node MUST enter as a learner (learners do not change quorum and do not
+    count as HA voters). Promotion from learner to voter is gated by catch-up proof AND
+    topology policy: promoting to 2 voters is transitional/non-HA only; HA is declared
+    only at 3 healthy voters. Default (Policy A): do NOT auto-promote the second node to
+    voter — keep it a learner until a third node is ready, then promote into a 3-voter
+    topology. This is the rule that keeps Globular from walking back into a broken
+    control-plane state.
+
+    '
+  forbidden_fixes:
+  - calling a 2-voter etcd cluster "healthy HA" or advertising fault tolerance for it
+  - auto-promoting the second node to a voting member as a final/steady state
+  - adding a full voter during a 1->2 join before catch-up proof
+  - auto-removing voters after quorum is already lost
+  id: infra.etcd.two_voter_topology_is_not_ha
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/etcd_members.go
+  rationale: 'Earned 2026-07-04 and proven on the etcd harness
+    (etcd_learner_harness_test.go): a 2-voter cluster loses quorum the moment either
+    voter dies, so it is not failure tolerant and must never be treated as a completed
+    HA cluster. Prevents promoting node 2 to a voter and pretending the cluster is HA.
+    Pairs with infra.etcd.full_voter_join_may_break_founder_quorum (learner-first
+    membership) and founding.quorum.three_nodes_required (HA needs 3).
+
+    '
+  related_invariants:
+  - infra.etcd.full_voter_join_may_break_founder_quorum
+  - infra.etcd.quorum_mutation_requires_non_founder_harness
+  - founding.quorum.three_nodes_required
+  severity: critical
+  status: active
+  title: A 2-voter etcd topology is not HA — etcd membership must be topology-aware (learner-first; HA only at 3 voters)
 - description: 'SetNodeProfiles must refuse to remove core, control-plane, or storage from a node when doing so would drop
     the cluster below MinQuorumNodes storage members.
 
