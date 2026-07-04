@@ -77,3 +77,11 @@ scripts/__pycache__/
 # golang/*_server[...] file is a `go build`/`go build -o` output, never source.
 /golang/*_server
 /golang/*_server_new
+
+# Transient AI-loop / awareness local state — never a deliverable.
+# .awg/ is a local awareness-graph build-digest marker (graph-authority.json);
+# the *.err dumps are failed behavioral-memory signal-import logs that
+# re-accumulate on every import run.
+.awg/
+import_behavioral_memory_signals.err*
+.claude/scheduled_tasks.lock
