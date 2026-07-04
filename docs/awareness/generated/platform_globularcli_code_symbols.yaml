@@ -439,6 +439,12 @@ test_symbols:
     package: pkgpack
     language: go
     doc: "TestBuildPackage_ScriptsAutoDiscoverFromRoot verifies scripts are discovered\nfrom root/scripts/<service>/ when --scripts-dir is not set."
+  - id: golang/globularcli/pkgpack/builder_package_test.go:TestPackageShipsPolicyVocabulary
+    file: golang/globularcli/pkgpack/builder_package_test.go
+    symbol: TestPackageShipsPolicyVocabulary
+    package: pkgpack
+    language: go
+    doc: "TestPackageShipsPolicyVocabulary is the regression guard for invariant\nrbac.enforced_service_requires_packaged_policy_vocabulary: a service that\nstages a policy/ dir under its root MUST carry that generated RBAC\npermission/action vocabulary INSIDE its package. The v1.2.267 incident was\nthat the builder rebuilt its staging dir from scratch and silently dropped\nthe staged policy/, so packages shipped no vocabulary and every role-based\ncall was denied post-bootstrap (policy_version=unknown / role_binding_denied)."
   - id: golang/globularcli/pkgpack/builder_test.go:TestBuildPackagesWithRoot
     file: golang/globularcli/pkgpack/builder_test.go
     symbol: TestBuildPackagesWithRoot

@@ -77,6 +77,36 @@ test_symbols:
     package: config
     language: go
     doc: "TestGetCACertificatePathCanonical verifies the CA cert path is always\nderived from the state root — no env var overrides (per hard rules)."
+  - id: golang/config/control_plane_direct_addr_ratchet_test.go:TestControlPlaneAuthorityFilesUseDirectAddressing
+    file: golang/config/control_plane_direct_addr_ratchet_test.go
+    symbol: TestControlPlaneAuthorityFilesUseDirectAddressing
+    package: config
+    language: go
+    doc: "TestControlPlaneAuthorityFilesUseDirectAddressing is the core ratchet: no\ncontrol-plane authority file may resolve a gRPC address through the mesh."
+  - id: golang/config/control_plane_direct_addr_ratchet_test.go:TestControlPlaneClientDoesNotFallbackToGateway443
+    file: golang/config/control_plane_direct_addr_ratchet_test.go
+    symbol: TestControlPlaneClientDoesNotFallbackToGateway443
+    package: config
+    language: go
+    doc: "TestControlPlaneClientDoesNotFallbackToGateway443 — a \"direct failed -> try\n:443\" fallback reintroduces the mesh dependency through the back door. Guard\nthe file we deliberately stripped that fallback from (installer_api.go) so it\ncan't creep back."
+  - id: golang/config/control_plane_direct_addr_ratchet_test.go:TestDoctorAuthorityClientsRejectMeshResolvedAddress
+    file: golang/config/control_plane_direct_addr_ratchet_test.go
+    symbol: TestDoctorAuthorityClientsRejectMeshResolvedAddress
+    package: config
+    language: go
+    doc: "TestDoctorAuthorityClientsRejectMeshResolvedAddress — the doctor's authority\nclients (controller, workflow, repository, ai_memory, event) must be direct."
+  - id: golang/config/control_plane_direct_addr_ratchet_test.go:TestMeshHealthProbeIsExplicitlyMarkedDataPlaneProbe
+    file: golang/config/control_plane_direct_addr_ratchet_test.go
+    symbol: TestMeshHealthProbeIsExplicitlyMarkedDataPlaneProbe
+    package: config
+    language: go
+    doc: "TestMeshHealthProbeIsExplicitlyMarkedDataPlaneProbe — the sanctioned mesh uses\nlive only in the data-plane allowlist, and the doctor's GetMeshAddress use is\nconfined to the explicit gateway-backend-divergence probe (which must measure\nthe mesh). If a mesh resolver appears in a doctor file outside that probe, fail."
+  - id: golang/config/control_plane_direct_addr_ratchet_test.go:TestNodeAgentHeartbeatUsesDirectControlAddress
+    file: golang/config/control_plane_direct_addr_ratchet_test.go
+    symbol: TestNodeAgentHeartbeatUsesDirectControlAddress
+    package: config
+    language: go
+    doc: "TestNodeAgentHeartbeatUsesDirectControlAddress — the heartbeat is the node's\nprimary control-plane channel; it must reach the controller directly."
   - id: golang/config/critical_keys_policy_test.go:TestDeleteCriticalKeyTriggerOwnerRestore
     file: golang/config/critical_keys_policy_test.go
     symbol: TestDeleteCriticalKeyTriggerOwnerRestore

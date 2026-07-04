@@ -516,6 +516,12 @@ test_symbols:
     symbol: TestActor_UnknownActionRejected
     package: main
     language: go
+  - id: golang/node_agent/node_agent_server/adopt_without_restart_test.go:TestRuntimeAlreadyMatchesExpected
+    file: golang/node_agent/node_agent_server/adopt_without_restart_test.go
+    symbol: TestRuntimeAlreadyMatchesExpected
+    package: main
+    language: go
+    doc: "TestRuntimeAlreadyMatchesExpected is the regression guard for\nmeta.repository.adopt_correct_runtime_before_disrupting_it. The critical\nsafety property: a STALE running binary (live /proc/exe hash != expected)\nMUST NOT be adopted — it must fall through to a restart. Adoption is allowed\nONLY when the live process is provably running the expected artifact."
   - id: golang/node_agent/node_agent_server/apply_package_command_kind_test.go:TestCommandKindGate_KnownCLIPackages
     file: golang/node_agent/node_agent_server/apply_package_command_kind_test.go
     symbol: TestCommandKindGate_KnownCLIPackages
@@ -962,6 +968,12 @@ test_symbols:
     symbol: TestCommandPackageWithNoUnitProducesNoFinding
     package: main
     language: go
+  - id: golang/node_agent/node_agent_server/grpc_workflow_skip_test.go:TestInactiveByDesignSkipsRepairWhenDesiredLayerDisables
+    file: golang/node_agent/node_agent_server/grpc_workflow_skip_test.go
+    symbol: TestInactiveByDesignSkipsRepairWhenDesiredLayerDisables
+    package: main
+    language: go
+    doc: "TestInactiveByDesignSkipsRepairWhenDesiredLayerDisables is the regression guard\nfor the keepalived repair loop (task #28): when the desired layer says an\ninactive unit is convergent (keepalived while ingress explicitly disables the\nVIP), node-agent must classify it installSkipInactiveByDesign and NOT repair.\nThe FAIL-SAFE half is equally important (invariant\ndestructive_actions.ambiguous_disable): if the disable is not fully-qualified,\nit must fall through to the normal repair path — never silently stop a unit."
   - id: golang/node_agent/node_agent_server/grpc_workflow_skip_test.go:TestInstallPackageDoesNotCrossKindSkip
     file: golang/node_agent/node_agent_server/grpc_workflow_skip_test.go
     symbol: TestInstallPackageDoesNotCrossKindSkip
@@ -1002,6 +1014,11 @@ test_symbols:
     package: main
     language: go
     doc: "TestInstallPackageSkipsOnlyWhenRuntimeActive — happy path: version matches,\nunit is active, entrypoint_checksum present → skip is allowed."
+  - id: golang/node_agent/node_agent_server/grpc_workflow_skip_test.go:TestKeepalivedUsesCanonicalUnitMapping
+    file: golang/node_agent/node_agent_server/grpc_workflow_skip_test.go
+    symbol: TestKeepalivedUsesCanonicalUnitMapping
+    package: main
+    language: go
   - id: golang/node_agent/node_agent_server/grpc_workflow_skip_test.go:TestNewCommandPackagesAreRecognized
     file: golang/node_agent/node_agent_server/grpc_workflow_skip_test.go
     symbol: TestNewCommandPackagesAreRecognized
@@ -1057,6 +1074,16 @@ test_symbols:
     package: main
     language: go
     doc: "TestAssignEntrypointChecksumMetadata_NoOpOnEmpty confirms the helper is\na true no-op when neither identity nor evidence is available — never\nwrites empty values, never allocates an empty map."
+  - id: golang/node_agent/node_agent_server/heartbeat_checksum_test.go:TestHeartbeatChecksumForInstalledState_InfrastructurePreservesConvergenceHash
+    file: golang/node_agent/node_agent_server/heartbeat_checksum_test.go
+    symbol: TestHeartbeatChecksumForInstalledState_InfrastructurePreservesConvergenceHash
+    package: main
+    language: go
+  - id: golang/node_agent/node_agent_server/heartbeat_checksum_test.go:TestHeartbeatChecksumForInstalledState_ServiceUsesRuntimeIdentity
+    file: golang/node_agent/node_agent_server/heartbeat_checksum_test.go
+    symbol: TestHeartbeatChecksumForInstalledState_ServiceUsesRuntimeIdentity
+    package: main
+    language: go
   - id: golang/node_agent/node_agent_server/heartbeat_checksum_test.go:TestRuntimeChecksumFromManifest_FallsBackToArchive
     file: golang/node_agent/node_agent_server/heartbeat_checksum_test.go
     symbol: TestRuntimeChecksumFromManifest_FallsBackToArchive
@@ -1911,6 +1938,11 @@ test_symbols:
     symbol: TestFindLocalPackageAnyVersion_SelectsLatestLexicographic
     package: main
     language: go
+  - id: golang/node_agent/node_agent_server/installer_api_noop_test.go:TestEnsureArtifactEntrypointMaterialized_Noop
+    file: golang/node_agent/node_agent_server/installer_api_noop_test.go
+    symbol: TestEnsureArtifactEntrypointMaterialized_Noop
+    package: main
+    language: go
   - id: golang/node_agent/node_agent_server/installer_api_repo_addr_test.go:TestIsLocalEndpoint
     file: golang/node_agent/node_agent_server/installer_api_repo_addr_test.go
     symbol: TestIsLocalEndpoint
@@ -2501,6 +2533,12 @@ test_symbols:
     symbol: TestServiceUninstall_RemovesBinaryAndConfig
     package: actions
     language: go
+  - id: golang/node_agent/node_agent_server/internal/actions/scylla_join_script_env_test.go:TestScyllaJoinScriptEnv
+    file: golang/node_agent/node_agent_server/internal/actions/scylla_join_script_env_test.go
+    symbol: TestScyllaJoinScriptEnv
+    package: actions
+    language: go
+    doc: "TestScyllaJoinScriptEnv verifies the Day-1 ScyllaDB fresh-join script env is\nproduced only for scylladb during an active join, and nil otherwise — so the\ndestructive fresh-join branch can never be activated during steady-state\nre-installs or for other infrastructure packages."
   - id: golang/node_agent/node_agent_server/internal/actions/service_config_tcp_test.go:TestServiceConfigTCPProbe
     file: golang/node_agent/node_agent_server/internal/actions/service_config_tcp_test.go
     symbol: TestServiceConfigTCPProbe

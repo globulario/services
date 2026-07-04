@@ -1230,6 +1230,41 @@ invariants:
   severity: critical
   status: active
   title: First 3 nodes must have core + control-plane + storage profiles for quorum
+- description: 'Any code path that changes etcd voting membership — adding a member
+    as a voter, promoting a learner, or removing a member that alters the voter set —
+    must be validated in an environment where quorum can fail without destroying the
+    founder: a multi-node etcd test harness. Unit tests (mocked etcd client) may
+    validate FSM behavior, but are NOT sufficient proof for learner promotion timing,
+    quorum-floor preservation, or rollback safety. Such a change must be refused for
+    founder deployment until harness-validated.
+
+    '
+  forbidden_fixes:
+  - validating an etcd quorum-mutation change against the single live founder etcd
+  - treating unit tests with a mocked etcd client as sufficient proof for learner
+    promotion timing or rollback safety
+  - adding a member as a full voter when an add-learner-then-promote path is available
+  id: infra.etcd.quorum_mutation_requires_non_founder_harness
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/etcd_members.go
+  rationale: 'Earned 2026-07-04: a Day-1 join added a node as a full etcd voter
+    (quorum 1->2); the failed node was then removed without an etcd member remove,
+    leaving the founder at 1-of-2 — no quorum, read-only — and requiring manual
+    recovery. etcd member add as a voter changes the quorum floor immediately, before
+    the newcomer has proven anything. Learner mode is the correct design, but
+    MemberPromote fails until the learner is caught up, and rollback safety cannot be
+    proven without a multi-node harness. See docs/design/unified-day0-day1-installer.md
+    (staged etcd-learner appendix).
+
+    '
+  related_invariants:
+  - cluster.founding_profiles_quorum_immutable
+  - founding.quorum.three_nodes_required
+  - meta.no_resolution_without_a_respected_contract
+  severity: critical
+  status: active
+  title: etcd voting-membership changes require a non-founder multi-node validation harness
 - description: 'SetNodeProfiles must refuse to remove core, control-plane, or storage from a node when doing so would drop
     the cluster below MinQuorumNodes storage members.
 

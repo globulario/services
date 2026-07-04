@@ -1161,6 +1161,12 @@ test_symbols:
     symbol: TestConvergeableChannel_BootstrapExcluded
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/cleanup_ghost_node_packages_test.go:TestClassifyGhostCleanup
+    file: golang/cluster_controller/cluster_controller_server/cleanup_ghost_node_packages_test.go
+    symbol: TestClassifyGhostCleanup
+    package: main
+    language: go
+    doc: "TestClassifyGhostCleanup is the regression guard for the destructive\nghost-package cleanup path: an empty-but-successful node registry read is\nUNKNOWN authority, not permission to erase a node's Layer-3 records."
   - id: golang/cluster_controller/cluster_controller_server/clock_skew_lastseen_test.go:TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
     file: golang/cluster_controller/cluster_controller_server/clock_skew_lastseen_test.go
     symbol: TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock
@@ -1822,6 +1828,30 @@ test_symbols:
     symbol: TestRegressesBelowFloor
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/desired_seed_profile_gate_test.go:TestDay0DoesNotSeedDesiredFromInstalledPackages
+    file: golang/cluster_controller/cluster_controller_server/desired_seed_profile_gate_test.go
+    symbol: TestDay0DoesNotSeedDesiredFromInstalledPackages
+    package: main
+    language: go
+    doc: "TestDay0DoesNotSeedDesiredFromInstalledPackages: the general law — an\ninstalled package not placed by any admitted profile does not become desired.\n(Uncataloged packages keep prior behavior: they seed, since placement is\nunknown; the gate only blocks CATALOGED workloads with no admitted placement.)"
+  - id: golang/cluster_controller/cluster_controller_server/desired_seed_profile_gate_test.go:TestDay0SeedsOnlyFoundingProfilePackages
+    file: golang/cluster_controller/cluster_controller_server/desired_seed_profile_gate_test.go
+    symbol: TestDay0SeedsOnlyFoundingProfilePackages
+    package: main
+    language: go
+    doc: "TestDay0SeedsOnlyFoundingProfilePackages: packages placed by a founding\nprofile seed; packages placed only by non-admitted profiles do not."
+  - id: golang/cluster_controller/cluster_controller_server/desired_seed_profile_gate_test.go:TestInstalledMediaPackageDoesNotBecomeDesiredWithoutMediaProfile
+    file: golang/cluster_controller/cluster_controller_server/desired_seed_profile_gate_test.go
+    symbol: TestInstalledMediaPackageDoesNotBecomeDesiredWithoutMediaProfile
+    package: main
+    language: go
+    doc: "TestInstalledMediaPackageDoesNotBecomeDesiredWithoutMediaProfile: a media\nworkload (catalog placement = media-server) installed on a founding node must\nNOT seed desired — it is capability residue, not intent. This is the sticky\nffmpeg/yt-dlp/media-service bug."
+  - id: golang/cluster_controller/cluster_controller_server/desired_seed_profile_gate_test.go:TestObservedInstalledPackageRemainsRemovable
+    file: golang/cluster_controller/cluster_controller_server/desired_seed_profile_gate_test.go
+    symbol: TestObservedInstalledPackageRemainsRemovable
+    package: main
+    language: go
+    doc: "TestObservedInstalledPackageRemainsRemovable: the removability property is a\ndirect consequence of NOT seeding — an installed-but-not-desired package is an\norphan the reconciler can remove. We assert the gate refuses to seed it, which\nis what keeps it removable (installed present, desired absent)."
   - id: golang/cluster_controller/cluster_controller_server/desired_state_crosskind_test.go:TestRejectCrossKindDesiredWrite_ByCatalogKind
     file: golang/cluster_controller/cluster_controller_server/desired_state_crosskind_test.go
     symbol: TestRejectCrossKindDesiredWrite_ByCatalogKind
@@ -2132,6 +2162,21 @@ test_symbols:
   - id: golang/cluster_controller/cluster_controller_server/etcd_join_lock_test.go:TestParseEtcdJoinLockKeys_HappyPath
     file: golang/cluster_controller/cluster_controller_server/etcd_join_lock_test.go
     symbol: TestParseEtcdJoinLockKeys_HappyPath
+    package: main
+    language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemoveStaleMembersAllowsQuorumSafeRemoval
+    file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
+    symbol: TestRemoveStaleMembersAllowsQuorumSafeRemoval
+    package: main
+    language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemoveStaleMembersPreservesQuorumFloor
+    file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
+    symbol: TestRemoveStaleMembersPreservesQuorumFloor
+    package: main
+    language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemoveStaleMembersRefusesEmptyDesiredSet
+    file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
+    symbol: TestRemoveStaleMembersRefusesEmptyDesiredSet
     package: main
     language: go
   - id: golang/cluster_controller/cluster_controller_server/etcd_members_test.go:TestEtcdJoin_AlreadyMember
@@ -2566,6 +2611,18 @@ test_symbols:
     symbol: TestIngressControllerConfig_PublishRestoreSpec_WritesBothKeys
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/inheritable_cluster_profiles_test.go:TestInheritableClusterProfiles
+    file: golang/cluster_controller/cluster_controller_server/inheritable_cluster_profiles_test.go
+    symbol: TestInheritableClusterProfiles
+    package: main
+    language: go
+    doc: "TestInheritableClusterProfiles verifies that a joining node inherits the\ncluster's real, assignable catalog profiles while excluding:\n  - hardware-gated profiles (control-plane, storage, gateway),\n  - opt-in workloads (media-server),\n  - non-catalog / derived labels (e.g. \"ai\")."
+  - id: golang/cluster_controller/cluster_controller_server/inheritable_cluster_profiles_test.go:TestInheritableClusterProfilesEmpty
+    file: golang/cluster_controller/cluster_controller_server/inheritable_cluster_profiles_test.go
+    symbol: TestInheritableClusterProfilesEmpty
+    package: main
+    language: go
+    doc: "TestInheritableClusterProfilesEmpty verifies an empty cluster inherits nothing\n(no panic, no spurious profiles)."
   - id: golang/cluster_controller/cluster_controller_server/install_policy_test.go:TestInstallPolicySpec_DefaultValues
     file: golang/cluster_controller/cluster_controller_server/install_policy_test.go
     symbol: TestInstallPolicySpec_DefaultValues
@@ -4271,6 +4328,12 @@ test_symbols:
     symbol: TestReconcileRelease_DeterministicBlocked_ParkedUntilUnblockSignal
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/release_phase_initial_waiting_test.go:TestInitialPhaseCanEnterWaiting
+    file: golang/cluster_controller/cluster_controller_server/release_phase_initial_waiting_test.go
+    symbol: TestInitialPhaseCanEnterWaiting
+    package: main
+    language: go
+    doc: "TestInitialPhaseCanEnterWaiting is the regression guard for the\nscylladb-not-in-repository CRIT: a fresh InfrastructureRelease (empty status,\nphase \"\") whose artifact is not yet published must be allowed to transition\n\"\" -> WAITING (the publish-wait backoff), not fail with\n`invalid phase transition \"\" → \"WAITING\"`. release_pipeline.go patches\nstraight to WAITING on ErrNoPublishedArtifact, and a fresh release is still at\nphase \"\" at that point."
   - id: golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go:TestDetectInfraDrift_CommandLikeComponents_NoDrift
     file: golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go
     symbol: TestDetectInfraDrift_CommandLikeComponents_NoDrift
