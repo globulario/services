@@ -370,6 +370,30 @@ func FileSPKIFingerprint(path string) (string, error) {
 // Client creds
 // ----------------------------------------------------------------------------
 
+// caAuthorityAddress returns the address of the node that holds the cluster CA
+// (ca.key) and therefore serves get_ca_certificate and sign_ca_certificate.
+//
+// CA identity must be EXPLICIT, never inferred from convenient local routing
+// (intent:dns_pki.explicit_identity_over_convenient_routing). On the CA-holding
+// node itself (ca.key present) the local gateway IS the authority, so we keep
+// localAddr. On a joining/non-CA node the local gateway may not be running
+// during the bootstrap window (intent:bootstrap.window_is_not_steady_state_auth),
+// so we route to the CA gateway published in etcd, falling back to the
+// controller endpoint recorded in node-agent state. This mirrors the routing
+// the CSR-signing path already uses, so the CA fetch and CSR signing always
+// target the same authority.
+func caAuthorityAddress(localAddr string) string {
+	if _, statErr := os.Stat("/var/lib/globular/pki/ca.key"); os.IsNotExist(statErr) {
+		if caHost := config_.GetCAGatewayHost(); caHost != "" {
+			return caHost
+		}
+		if ctrlHost := config_.GetControllerGatewayHost(); ctrlHost != "" {
+			return ctrlHost
+		}
+	}
+	return localAddr
+}
+
 func getClientCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}) (keyPath string, certPath string, caPath string, err error) {
 	const pwd = "1111"
 
@@ -397,8 +421,13 @@ func getClientCredentialConfig(path string, domain string, country string, state
 		return "", "", "", fmt.Errorf("client creds: invalid gateway URL format: %s", gatewayURL)
 	}
 
-	// Retrieve CA certificate from Gateway (deterministic)
-	caCRT, err := getCaCertificate(gatewayAddress, gatewayPort)
+	// Retrieve the CA certificate from the CA-holding node EXPLICITLY, not via
+	// the racy local-gateway probe (intent:dns_pki.explicit_identity_over_convenient_routing).
+	// A joining node's own gateway is not up during the bootstrap window
+	// (intent:bootstrap.window_is_not_steady_state_auth); both the CA fetch and
+	// the CSR signing below target the same CA authority.
+	caAddr := caAuthorityAddress(gatewayAddress)
+	caCRT, err := getCaCertificate(caAddr, gatewayPort)
 	if err != nil {
 		return "", "", "", fmt.Errorf("client creds: get ca.crt from gateway: %w", err)
 	}
@@ -437,17 +466,8 @@ func getClientCredentialConfig(path string, domain string, country string, state
 		if err != nil {
 			return fmt.Errorf("client creds: read CSR: %w", err)
 		}
-		// Route signing to the CA-holding node. On non-bootstrap nodes ca.key
-		// is absent, so read the CA gateway from etcd (written at controller startup).
-		signingAddress := gatewayAddress
-		if _, statErr := os.Stat("/var/lib/globular/pki/ca.key"); os.IsNotExist(statErr) {
-			if caHost := config_.GetCAGatewayHost(); caHost != "" {
-				signingAddress = caHost
-			} else if ctrlHost := config_.GetControllerGatewayHost(); ctrlHost != "" {
-				signingAddress = ctrlHost
-			}
-		}
-		clientCRT, err := signCaCertificate(signingAddress, string(csr), gatewayPort)
+		// Sign at the same CA-holding node that served ca.crt above.
+		clientCRT, err := signCaCertificate(caAddr, string(csr), gatewayPort)
 		if err != nil {
 			return fmt.Errorf("client creds: sign via CA: %w", err)
 		}
@@ -497,8 +517,13 @@ func getServerCredentialConfig(path string, domain string, country string, state
 		return "", "", "", fmt.Errorf("server creds: invalid gateway URL format: %s", gatewayURL)
 	}
 
-	// Retrieve CA certificate from Gateway (deterministic)
-	caCRT, err := getCaCertificate(gatewayAddress, gatewayPort)
+	// Retrieve the CA certificate from the CA-holding node EXPLICITLY, not via
+	// the racy local-gateway probe (intent:dns_pki.explicit_identity_over_convenient_routing).
+	// A joining node's own gateway is not up during the bootstrap window
+	// (intent:bootstrap.window_is_not_steady_state_auth); both the CA fetch and
+	// the CSR signing below target the same CA authority.
+	caAddr := caAuthorityAddress(gatewayAddress)
+	caCRT, err := getCaCertificate(caAddr, gatewayPort)
 	if err != nil {
 		return "", "", "", fmt.Errorf("server creds: get ca.crt from gateway: %w", err)
 	}
@@ -536,17 +561,8 @@ func getServerCredentialConfig(path string, domain string, country string, state
 		if err != nil {
 			return fmt.Errorf("server creds: read CSR: %w", err)
 		}
-		// Route signing to the CA-holding node. On non-bootstrap nodes ca.key
-		// is absent, so read the CA gateway from etcd (written at controller startup).
-		signingAddress := gatewayAddress
-		if _, statErr := os.Stat("/var/lib/globular/pki/ca.key"); os.IsNotExist(statErr) {
-			if caHost := config_.GetCAGatewayHost(); caHost != "" {
-				signingAddress = caHost
-			} else if ctrlHost := config_.GetControllerGatewayHost(); ctrlHost != "" {
-				signingAddress = ctrlHost
-			}
-		}
-		crt, err := signCaCertificate(signingAddress, string(csr), gatewayPort)
+		// Sign at the same CA-holding node that served ca.crt above.
+		crt, err := signCaCertificate(caAddr, string(csr), gatewayPort)
 		if err != nil {
 			return fmt.Errorf("server creds: sign via CA: %w", err)
 		}
