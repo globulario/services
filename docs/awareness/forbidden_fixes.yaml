@@ -4079,3 +4079,31 @@ forbidden_fixes:
   - meta.distributed_data_topology_is_correctness
   - infra.scylla.rf_safety_requires_ownership_not_process_health
   - infra.minio.erasure_safety_requires_pool_and_heal_state
+
+- id: heuristic_signal_marks_substrate_verified
+  summary: >-
+    Let a heuristic signal — elapsed time, systemd active state, a bare TCP port,
+    or a generic liveness endpoint — advance a distributed data substrate (etcd,
+    ScyllaDB, MinIO) to VERIFIED / HA / RF-safe. These signals may only prove that
+    something STARTED; they must never prove the substrate is verified.
+  rationale: >-
+    The join state machines are a ladder: None -> Started -> Provisional /
+    AwaitingSubstrateTruth -> Verified. Heuristic signals may advance a node up to
+    Started/Provisional (they prove a process came up), but the Started/Provisional
+    -> Verified edge is a topology claim that only substrate truth can make. When a
+    heuristic crosses that edge, fake truth gets a badge: the node counts toward
+    RF/quorum/HA/founding capacity and (for Scylla) is permanently fenced from
+    wipe-rollback via ScyllaWasEverVerified — all without ever being in the ring.
+  safe_alternative: >-
+    Downgrade to provisional. If the substrate-truth probe is available and passes,
+    mark Verified. If it is available and fails, stay unverified and record the
+    failure reason. If it is UNAVAILABLE, hold Started/Provisional only: do not
+    mark Verified, do not count toward RF/quorum/HA/founding capacity, and emit
+    explicit "verification unavailable" evidence. Substrate truth = etcd
+    voter/learner role; Scylla ring membership + operation mode (UN/NORMAL) + token
+    ownership; MinIO admitted pool + erasure-set + write/read-quorum + heal state.
+  related_invariants:
+  - meta.membership_promotion_requires_readiness_proof
+  - meta.distributed_data_topology_is_correctness
+  - infra.scylla.rf_safety_requires_ownership_not_process_health
+  - infra.minio.erasure_safety_requires_pool_and_heal_state

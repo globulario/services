@@ -129,13 +129,18 @@ func TestNodeIsPreparedForScyllaJoin(t *testing.T) {
 }
 
 // TestScyllaJoin_HappyPath tests: prepared → configured → started → verified.
+// Verification now requires a passing SUBSTRATE-TRUTH probe (ring/mode), not an
+// elapsed-time heuristic (forbidden_fix:heuristic_signal_marks_substrate_verified).
 func TestScyllaJoin_HappyPath(t *testing.T) {
 	mgr := newScyllaClusterManager()
+	// Substrate-truth probe available and passing (node is in the ring, NORMAL).
+	mgr.probeNodeHealth = func(context.Context, string) bool { return true }
 
 	node := &nodeState{
 		NodeID:         "n1",
 		Identity:       storedIdentity{Hostname: "scylla-node", Ips: []string{"10.0.0.5"}},
 		Profiles:       []string{"scylla"},
+		AgentEndpoint:  "10.0.0.5:11000",
 		Units:          []unitStatusRecord{{Name: "scylla-server.service", State: "inactive"}},
 		BootstrapPhase: BootstrapStorageJoining,
 	}
@@ -163,11 +168,54 @@ func TestScyllaJoin_HappyPath(t *testing.T) {
 		t.Fatalf("expected started, got %s", node.ScyllaJoinPhase)
 	}
 
-	// started → verified: after 30s heuristic
+	// started → verified: min wait met AND the substrate probe passes.
 	node.ScyllaJoinStartedAt = time.Now().Add(-35 * time.Second)
 	dirty = mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
 	if !dirty || node.ScyllaJoinPhase != ScyllaJoinVerified {
 		t.Fatalf("expected verified, got %s", node.ScyllaJoinPhase)
+	}
+	if !node.ScyllaWasEverVerified {
+		t.Fatal("a substrate-verified node must set ScyllaWasEverVerified")
+	}
+}
+
+// TestScyllaJoin_NoProbeStaysProvisional proves the P2 downgrade: with NO
+// substrate-truth probe wired, elapsed time must NOT mark the node Verified. It
+// holds PROVISIONAL (started, awaiting verification): not Verified, not
+// WasEverVerified, not RF-eligible, with explicit "verification unavailable"
+// evidence (forbidden_fix:heuristic_signal_marks_substrate_verified).
+func TestScyllaJoin_NoProbeStaysProvisional(t *testing.T) {
+	mgr := newScyllaClusterManager() // probeNodeHealth == nil (no substrate truth)
+
+	node := &nodeState{
+		NodeID:              "n1",
+		Identity:            storedIdentity{Hostname: "scylla-node", Ips: []string{"10.0.0.5"}},
+		Profiles:            []string{"scylla"},
+		AgentEndpoint:       "10.0.0.5:11000",
+		Units:               []unitStatusRecord{{Name: "scylla-server.service", State: "active"}},
+		BootstrapPhase:      BootstrapStorageJoining,
+		ScyllaJoinPhase:     ScyllaJoinStarted,
+		ScyllaJoinStartedAt: time.Now().Add(-35 * time.Second), // min wait long exceeded
+	}
+	nodes := []*nodeState{node}
+
+	mgr.reconcileScyllaJoinPhases(context.Background(), nodes)
+
+	if node.ScyllaJoinPhase == ScyllaJoinVerified {
+		t.Fatal("elapsed time must NOT mark scylla Verified without a substrate-truth probe")
+	}
+	if node.ScyllaJoinPhase != ScyllaJoinStarted {
+		t.Fatalf("expected provisional (still started), got %s", node.ScyllaJoinPhase)
+	}
+	if node.ScyllaWasEverVerified {
+		t.Fatal("a provisional node must NOT be marked ScyllaWasEverVerified")
+	}
+	if node.ScyllaJoinError != scyllaVerificationUnavailable {
+		t.Fatalf("expected explicit 'verification unavailable' evidence, got %q", node.ScyllaJoinError)
+	}
+	// And it must not count toward RF.
+	if IsNodeVerifiedStorageEligible(node) {
+		t.Fatal("a provisional (unverified) scylla node must not be RF-eligible")
 	}
 }
 

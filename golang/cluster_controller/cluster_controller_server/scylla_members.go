@@ -20,6 +20,12 @@ const scyllaJoinTimeout = 5 * time.Minute
 // the operator waiting 10+ min on the documented v1.x raft hang.
 const scyllaRaftRestartTimeout = 2 * time.Minute
 
+// scyllaVerificationUnavailable is the evidence recorded on a node held in a
+// PROVISIONAL state because no substrate-truth probe is available to verify ring
+// membership. Heuristic signals (elapsed time, unit-active) may prove "started"
+// but never "verified" (forbidden_fix:heuristic_signal_marks_substrate_verified).
+const scyllaVerificationUnavailable = "substrate verification unavailable — provisional, not verified"
+
 // nodeHasScyllaUnit returns true if the node reports a scylla-server.service
 // unit file (any state).
 func nodeHasScyllaUnit(node *nodeState) bool {
@@ -225,13 +231,31 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 
 		case ScyllaJoinStarted:
 			// ScyllaDB is running. Verify it has joined the gossip ring.
-			// We require a minimum 30s wait to avoid flapping, then use a
-			// real probe if available, falling back to the time-based heuristic.
+			// meta.membership_promotion_requires_readiness_proof: elapsed time and
+			// unit-active state prove only that the process STARTED — they must
+			// never prove ring membership. Only substrate truth (the node-agent's
+			// nodetool ring / operation-mode probe) may mark Verified
+			// (forbidden_fix:heuristic_signal_marks_substrate_verified). Require a
+			// minimum 30s wait to avoid flapping, then the real probe.
 			elapsed := now.Sub(node.ScyllaJoinStartedAt)
 			minWaitMet := elapsed > 30*time.Second
 
+			// No substrate-truth probe wired at all → hold PROVISIONAL. The node
+			// stays started/awaiting-verification: never Verified, never counted
+			// toward RF/quorum (ScyllaJoinStarted is RF-ineligible), and never
+			// failed or wiped merely for lack of a probe. Production always wires
+			// the probe (main.go); this is the safe fallback for probe-less paths.
+			if m.probeNodeHealth == nil {
+				if minWaitMet && node.ScyllaJoinError != scyllaVerificationUnavailable {
+					node.ScyllaJoinError = scyllaVerificationUnavailable
+					dirty = true
+					log.Printf("scylla join: node %s PROVISIONAL — no substrate-truth probe available; not marking verified", node.NodeID)
+				}
+				continue
+			}
+
 			probeOK := false
-			if minWaitMet && m.probeNodeHealth != nil && node.AgentEndpoint != "" {
+			if minWaitMet && node.AgentEndpoint != "" {
 				probeOK = m.probeNodeHealth(ctx, node.AgentEndpoint)
 			}
 
@@ -241,15 +265,6 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 				node.ScyllaJoinError = ""
 				dirty = true
 				log.Printf("scylla join: node %s verified in gossip ring (probe=%v)", node.NodeID, probeOK)
-				continue
-			}
-			// Fallback: if no probe is available, use elapsed-only heuristic.
-			if minWaitMet && m.probeNodeHealth == nil {
-				node.ScyllaJoinPhase = ScyllaJoinVerified
-				node.ScyllaWasEverVerified = true
-				node.ScyllaJoinError = ""
-				dirty = true
-				log.Printf("scylla join: node %s verified in gossip ring (heuristic)", node.NodeID)
 				continue
 			}
 			if now.Sub(node.ScyllaJoinStartedAt) > scyllaRaftRestartTimeout {

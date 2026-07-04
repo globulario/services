@@ -5034,7 +5034,13 @@ test_symbols:
     symbol: TestScyllaJoin_HappyPath
     package: main
     language: go
-    doc: "TestScyllaJoin_HappyPath tests: prepared → configured → started → verified."
+    doc: "TestScyllaJoin_HappyPath tests: prepared → configured → started → verified.\nVerification now requires a passing SUBSTRATE-TRUTH probe (ring/mode), not an\nelapsed-time heuristic (forbidden_fix:heuristic_signal_marks_substrate_verified)."
+  - id: golang/cluster_controller/cluster_controller_server/scylla_members_test.go:TestScyllaJoin_NoProbeStaysProvisional
+    file: golang/cluster_controller/cluster_controller_server/scylla_members_test.go
+    symbol: TestScyllaJoin_NoProbeStaysProvisional
+    package: main
+    language: go
+    doc: "TestScyllaJoin_NoProbeStaysProvisional proves the P2 downgrade: with NO\nsubstrate-truth probe wired, elapsed time must NOT mark the node Verified. It\nholds PROVISIONAL (started, awaiting verification): not Verified, not\nWasEverVerified, not RF-eligible, with explicit \"verification unavailable\"\nevidence (forbidden_fix:heuristic_signal_marks_substrate_verified)."
   - id: golang/cluster_controller/cluster_controller_server/scylla_members_test.go:TestScyllaJoin_NonScyllaNodeSkipped
     file: golang/cluster_controller/cluster_controller_server/scylla_members_test.go
     symbol: TestScyllaJoin_NonScyllaNodeSkipped
@@ -5732,6 +5738,12 @@ test_symbols:
     package: main
     language: go
     doc: "TestUpgradeLoopSuppression is the mandatory integration test for the full\ndispatch-gate chain. It exercises the scenario that caused the original\nupgrade loops: a 3-node cluster where one node is blocked and another is\nunserved. The test verifies that:\n  1. A blocked node (BLOCKED_*/FAILED_PERMANENT) does NOT count as unserved.\n  2. A truly unserved node still triggers dispatch (hasUnservedNodes=true).\n  3. Once all non-blocked nodes are served, the loop stops (false)."
+  - id: golang/cluster_controller/cluster_controller_server/verified_storage_count_test.go:TestCountVerifiedNodesWithProfile_LabelIsNotCapacity
+    file: golang/cluster_controller/cluster_controller_server/verified_storage_count_test.go
+    symbol: TestCountVerifiedNodesWithProfile_LabelIsNotCapacity
+    package: main
+    language: go
+    doc: "TestCountVerifiedNodesWithProfile_LabelIsNotCapacity is the P1 regression:\na node that carries the \"storage\" (or \"control-plane\") LABEL but is not a\nverified cluster member must NOT count toward founding/storage/RF quorum\n(meta.limited_members_are_not_capacity /\nforbidden_fix:profile_label_counts_as_storage_capacity). A label is intent;\nverification is capacity."
   - id: golang/cluster_controller/cluster_controller_server/version_helpers_test.go:TestLookupInstalledVersionFromMap_CanonicalizesQuery
     file: golang/cluster_controller/cluster_controller_server/version_helpers_test.go
     symbol: TestLookupInstalledVersionFromMap_CanonicalizesQuery
