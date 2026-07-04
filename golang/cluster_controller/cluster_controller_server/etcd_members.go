@@ -224,11 +224,28 @@ func resolveEtcdLeaderNode(leaderID uint64, memberPeerURLs map[uint64]string, no
 	return leaderNodeID, leaderKnown
 }
 
+// etcdClientAPI is the subset of *clientv3.Client that the etcd member manager
+// uses. Extracting it lets the join/promotion FSM (learner-first work) be
+// unit-tested against a fake etcd — quorum-mutating logic must be provable
+// without a live cluster. *clientv3.Client satisfies this directly (methods are
+// promoted from its embedded Cluster/KV/Maintenance interfaces).
+type etcdClientAPI interface {
+	Endpoints() []string
+	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
+	MemberList(ctx context.Context) (*clientv3.MemberListResponse, error)
+	MemberAdd(ctx context.Context, peerAddrs []string) (*clientv3.MemberAddResponse, error)
+	MemberAddAsLearner(ctx context.Context, peerAddrs []string) (*clientv3.MemberAddResponse, error)
+	MemberRemove(ctx context.Context, id uint64) (*clientv3.MemberRemoveResponse, error)
+	MemberUpdate(ctx context.Context, id uint64, peerAddrs []string) (*clientv3.MemberUpdateResponse, error)
+	MemberPromote(ctx context.Context, id uint64) (*clientv3.MemberPromoteResponse, error)
+	Status(ctx context.Context, endpoint string) (*clientv3.StatusResponse, error)
+}
+
 // etcdMemberManager handles automatic etcd cluster membership changes.
 // It drives the etcd join state machine: nodes transition through
 // prepared → member_added → started → verified, with rollback on failure.
 type etcdMemberManager struct {
-	client *clientv3.Client
+	client etcdClientAPI
 }
 
 type etcdMembershipManager interface {
@@ -239,7 +256,13 @@ type etcdMembershipManager interface {
 }
 
 func newEtcdMemberManager(client *clientv3.Client) *etcdMemberManager {
-	return &etcdMemberManager{client: client}
+	m := &etcdMemberManager{}
+	// Preserve a nil interface (not a typed-nil *clientv3.Client) so the
+	// existing `m.client == nil` guards keep working when there is no client.
+	if client != nil {
+		m.client = client
+	}
+	return m
 }
 
 // snapshotEtcdMembers queries the live etcd cluster and returns the current

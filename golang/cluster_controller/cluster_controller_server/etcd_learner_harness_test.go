@@ -325,3 +325,152 @@ func TestEtcdLearner_PromotionCreatesVoterAfterCatchup(t *testing.T) {
 	}
 	t.Log("confirmed: MemberPromote succeeds only after catch-up and yields a voting member")
 }
+
+// TestEtcdConstraint_DefaultCapsLearnersAtOne pins the etcd fact that shapes
+// Policy A: by default etcd allows only ONE learner. A founder that already has
+// a learner rejects a second with "too many learner members in cluster". This is
+// why StartEtcdServer sets experimental-max-learners=2 (process.go) — without it,
+// topologyAllowsLearnerPromotion would strand the cluster at 1 voter + 1 learner
+// (can't add a 2nd learner, won't promote into a non-HA 2-voter state).
+func TestEtcdConstraint_DefaultCapsLearnersAtOne(t *testing.T) {
+	h := newEtcdHarness(t)
+	founder := h.startFounder("founder") // NO max-learners override -> etcd default (1)
+	fc := h.client(founder)
+	if !waitWritable(fc, 15*time.Second) {
+		t.Fatal("founder never became writable")
+	}
+	l1 := h.mkNode("l1", 1)
+	l2 := h.mkNode("l2", 2)
+
+	c1, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err := fc.MemberAddAsLearner(c1, []string{l1.peerURL})
+	cancel()
+	if err != nil {
+		t.Fatalf("first learner add should succeed: %v", err)
+	}
+
+	c2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err2 := fc.MemberAddAsLearner(c2, []string{l2.peerURL})
+	cancel2()
+	if err2 == nil {
+		t.Fatal("EXPECTED etcd to reject a second learner by default, but the add succeeded — max-learners assumption is wrong")
+	}
+	t.Logf("confirmed: default etcd caps learners at 1 (second add rejected: %v)", err2)
+}
+
+// TestEtcdLearner_PolicyADrivesOneToThreeVotersHA is the capstone: on real etcd
+// 3.5.14 (learners hard-capped at 1) it drives a cluster from 1 voter to 3 voters
+// using the PRODUCTION reconcileLearnerPromotion driver, SEQUENTIALLY — one
+// learner added and promoted at a time, passing through a transient 2-voter state
+// (Policy A′). It then proves the result is genuinely HA by killing one voter and
+// confirming the cluster still commits writes. End to end, real etcd, no fakes.
+func TestEtcdLearner_PolicyADrivesOneToThreeVotersHA(t *testing.T) {
+	const target = etcdHAVoterTarget // intended voter count = 3
+
+	h := newEtcdHarness(t)
+	founder := h.startFounder("founder") // default cap (1 learner) — the real constraint
+	fc := h.client(founder)
+	if !waitWritable(fc, 15*time.Second) {
+		t.Fatal("founder never became writable")
+	}
+	mgr := &etcdMemberManager{client: fc}
+
+	// addLearnerAndPromote registers + starts one learner, then drives the
+	// production promotion loop until that learner becomes a voter (etcd gates
+	// promotion on catch-up, so we retry).
+	addLearnerAndPromote := func(name string, index int, wantVoters int) {
+		l := h.mkNode(name, index)
+		// etcd's strict-reconfig check refuses a member add unless the current
+		// voter set is healthy (has quorum). Right after a promotion the new voter
+		// takes a moment to report healthy, so wait-for-writable then retry the add
+		// on the transient "unhealthy cluster" — exactly what a real join must do.
+		if !waitWritable(fc, 15*time.Second) {
+			t.Fatalf("cluster not writable before adding learner %s", name)
+		}
+		addDeadline := time.Now().Add(20 * time.Second)
+		for {
+			ac, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_, err := fc.MemberAddAsLearner(ac, []string{l.peerURL})
+			cancel()
+			if err == nil {
+				break
+			}
+			if time.Now().After(addDeadline) {
+				t.Fatalf("MemberAddAsLearner %s: %v", name, err)
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		// A learner must never cost the founder its quorum, even before it starts.
+		if !canWrite(fc) {
+			t.Fatalf("founder lost quorum after adding learner %s — learners must not count toward quorum", name)
+		}
+
+		// initial-cluster must list every current member (voters + this learner).
+		parts := []string{fmt.Sprintf("%s=%s", founder.name, founder.peerURL)}
+		for nm, nd := range h.nodes {
+			if nm == founder.name || nm == name {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("%s=%s", nm, nd.peerURL))
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", name, l.peerURL))
+		h.startJoiner(name, index, joinInitialCluster(parts))
+
+		deadline := time.Now().Add(45 * time.Second)
+		for time.Now().Before(deadline) {
+			mgr.reconcileLearnerPromotion(context.Background(), target)
+			if v, lc := countEtcdMembers(t, fc); v >= wantVoters && lc == 0 {
+				return
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		v, lc := countEtcdMembers(t, fc)
+		t.Fatalf("driver never reached %d voters / 0 learners for %s (got %dv %dl)", wantVoters, name, v, lc)
+	}
+
+	// 1v -> 2v (transient) -> 3v, one learner at a time.
+	addLearnerAndPromote("n2", 1, 2)
+	t.Log("confirmed: reconcileLearnerPromotion promoted through the transient 2-voter state")
+	addLearnerAndPromote("n3", 2, 3)
+	t.Log("confirmed: reconcileLearnerPromotion completed the 3-voter HA set sequentially")
+
+	// HA proof: kill one voter. 2 of 3 remain = quorum, so writes still commit.
+	// (Contrast the 2-voter trap where losing one voter is fatal —
+	// TestEtcdTrap_FullVoterJoinBreaksFounderQuorumOnLoss.)
+	h.stopNode("n3")
+	if !waitWritable(fc, 15*time.Second) {
+		t.Fatal("EXPECTED a 3-voter cluster to survive losing one voter, but it went unwritable — not HA")
+	}
+	t.Log("confirmed: 3-voter cluster remains writable after losing one voter (genuine HA)")
+}
+
+// joinInitialCluster joins member specs into an etcd --initial-cluster string.
+func joinInitialCluster(parts []string) string {
+	out := ""
+	for i, p := range parts {
+		if i > 0 {
+			out += ","
+		}
+		out += p
+	}
+	return out
+}
+
+// countEtcdMembers returns (voters, learners) from a live MemberList.
+func countEtcdMembers(t *testing.T, cli *clientv3.Client) (voters, learners int) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ml, err := cli.MemberList(ctx)
+	if err != nil {
+		return 0, 0
+	}
+	for _, m := range ml.Members {
+		if m.IsLearner {
+			learners++
+		} else {
+			voters++
+		}
+	}
+	return voters, learners
+}

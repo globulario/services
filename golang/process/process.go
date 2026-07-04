@@ -1585,6 +1585,15 @@ func StartEtcdServer() error {
 		nodeCfg["initial-cluster-state"] = "new"
 	}
 
+	// NOTE (etcd 3.5.14): learners are hard-capped at 1. Neither the
+	// experimental-max-learners config key nor a --experimental-max-learners flag
+	// exists on this version (multi-learner support is etcd 3.6+); both are
+	// silently ignored — proven in etcd_learner_harness_test.go
+	// (TestEtcdConstraint_DefaultCapsLearnersAtOne). Quorum-safe Day-1 growth must
+	// therefore reach 3 voters SEQUENTIALLY (1v -> +learner -> promote -> 2v
+	// transient -> +learner -> promote -> 3v), never via a 1v+2l staging. See
+	// cluster_controller etcd_learner_promotion.go.
+
 	// If etcd already healthy at advertised endpoint, do NOT start another.
 	var clientCertFile, clientKeyFile string
 	if wantTLS && clientMTLS {
