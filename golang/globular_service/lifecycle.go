@@ -63,19 +63,22 @@ func (lm *LifecycleManager) Start() error {
 		return fmt.Errorf("gRPC server not initialized (call Init first)")
 	}
 
-	// Start the service using Globular's lifecycle
-	if err := lm.srv.StartService(); err != nil {
-		lm.logger.Error("failed to start service",
-			"name", lm.srv.GetName(),
-			"id", lm.srv.GetId(),
-			"err", err,
-		)
-		return fmt.Errorf("start service failed: %w", err)
-	}
-
-	// Load externalized permission mappings (action → method) so the
-	// authz interceptor can enforce RBAC instead of falling through
-	// with "no_rbac_mapping_warning".
+	// Load externalized permission mappings (method → action) and register them
+	// with the global resolver the RBAC interceptor consults — BEFORE serving.
+	//
+	// ORDERING IS LOad-BEARING: globular.StartService() blocks until a
+	// termination signal (it serves in a goroutine, then waits on <-ch), so it
+	// does NOT return during normal operation. Any registration performed AFTER
+	// StartService is therefore dead code — the interceptor would resolve every
+	// gRPC method to its raw path and deny role-based calls (policy_version
+	// unknown, role_binding_denied). This must run first so the resolver is
+	// populated before the first request arrives.
+	//
+	// Root cause of the v1.2.267 empty-resolver incident: this block previously
+	// ran after the blocking StartService. Services with a separate hardcoded
+	// LoadPermissions call (conversation, file, resource) were unaffected;
+	// services relying only on this path (repository, workflow) never registered
+	// their resolver and denied every role-based method with the raw method path.
 	svcName := lm.srv.GetName()
 	if idx := strings.Index(svcName, "."); idx > 0 {
 		svcName = svcName[:idx] // "file.FileService" → "file"
@@ -90,20 +93,34 @@ func (lm *LifecycleManager) Start() error {
 			"action_mappings", reg.ActionMappingCount,
 		)
 	} else {
-		lm.logger.Debug("authz: no permission file found — semantic action mapping unavailable",
+		// Elevated from Debug: a serving RBAC-enforced process with no
+		// registered mappings resolves raw method paths and denies role-based
+		// calls. That must be visible, not swallowed.
+		lm.logger.Warn("authz: no permission mappings registered — RBAC will resolve raw method paths and deny role-based calls",
 			"service", svcName,
 			"expected_path", "/var/lib/globular/policy/services/"+svcName+"/permissions.generated.json",
 		)
 	}
 
-	// Mark as running
+	// Mark as running and log readiness before handing off to the blocking
+	// serve loop (nothing after StartService executes during normal operation).
 	lm.srv.SetState("running")
-
 	lm.logger.Info("service started successfully",
 		"name", lm.srv.GetName(),
 		"id", lm.srv.GetId(),
 		"port", lm.srv.GetPort(),
 	)
+
+	// Start the service using Globular's lifecycle. StartService blocks until a
+	// termination signal — it must be the LAST call in Start().
+	if err := lm.srv.StartService(); err != nil {
+		lm.logger.Error("failed to start service",
+			"name", lm.srv.GetName(),
+			"id", lm.srv.GetId(),
+			"err", err,
+		)
+		return fmt.Errorf("start service failed: %w", err)
+	}
 
 	return nil
 }
