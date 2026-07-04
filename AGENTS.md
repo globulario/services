@@ -277,6 +277,11 @@ If the Globular MCP server is available in your session, follow the same rules a
 | Active incident | `awareness_offline_diagnose` |
 | After fixing a non-obvious invariant | `awareness_learn_from_fix` |
 
+**Hard rule:** if AWG is not accessible, stop and display the access error before
+continuing with any fallback. Do not silently substitute repo-local files or
+assume graph behavior unless the unavailable state has been shown to the user.
+This applies especially to high-risk or behavior-changing work.
+
 `UNKNOWN_IMPACT` from preflight ≠ safe. If graph is unavailable, grep
 `docs/awareness/failure_modes.yaml` and `docs/awareness/invariants.yaml` directly.
 
