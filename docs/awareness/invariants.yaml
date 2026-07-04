@@ -1320,17 +1320,23 @@ invariants:
     A joining node MUST enter as a learner (learners do not change quorum and do not
     count as HA voters). Promotion from learner to voter is gated by catch-up proof AND
     topology policy: promoting to 2 voters is transitional/non-HA only; HA is declared
-    only at 3 healthy voters. Default (Policy A): do NOT auto-promote the second node to
-    voter — keep it a learner until a third node is ready, then promote into a 3-voter
-    topology. This is the rule that keeps Globular from walking back into a broken
+    only at 3 healthy voters. Policy A′ (settled 2026-07-04): reach 3 voters
+    SEQUENTIALLY, never settling at 2. etcd 3.5.14 hard-caps learners at 1 (proven by
+    TestEtcdConstraint_DefaultCapsLearnersAtOne), so the "hold two learners, promote both
+    into 3 voters at once" path is unreachable on the deployed etcd; instead the driver
+    promotes one caught-up learner at a time (1v -> +learner -> promote -> 2v transient ->
+    +learner -> promote -> 3v), gated on an intended voter target >= 3 so it never stops
+    at 2. The transient 2-voter state is permitted only while driving onward to 3, never
+    as a final state. This is the rule that keeps Globular from walking back into a broken
     control-plane state.
 
     '
   forbidden_fixes:
   - calling a 2-voter etcd cluster "healthy HA" or advertising fault tolerance for it
-  - auto-promoting the second node to a voting member as a final/steady state
+  - settling at 2 voters as a final/steady state (transient 2v toward 3 is allowed)
   - adding a full voter during a 1->2 join before catch-up proof
   - auto-removing voters after quorum is already lost
+  - promoting a learner into a voter target < 3 (growing toward a non-HA settle)
   id: infra.etcd.two_voter_topology_is_not_ha
   protects:
     files:
@@ -1347,9 +1353,111 @@ invariants:
   - infra.etcd.full_voter_join_may_break_founder_quorum
   - infra.etcd.quorum_mutation_requires_non_founder_harness
   - founding.quorum.three_nodes_required
+  - meta.ha_requires_failure_tolerance_not_member_count
+  - meta.limited_members_are_not_capacity
+  - meta.topology_policy_must_be_explicit_before_automation
   severity: critical
   status: active
   title: A 2-voter etcd topology is not HA — etcd membership must be topology-aware (learner-first; HA only at 3 voters)
+- description: 'Globular must not classify ScyllaDB as replication-factor-safe merely
+    because scylla-server is active. RF safety requires validated ring membership,
+    expected token ownership, the expected operation mode (NORMAL, not JOINING/
+    BOOTSTRAPPING), and admitted topology. A fresh-join, zero-token, limited-voter, or
+    never-verified node must not count as durable RF capacity. Process/unit health is not
+    data-plane safety: Scylla can be "running" while the ring is under-replicated or a
+    node has not finished joining. Doctor/status must derive RF safety from the ring, not
+    from systemd state.
+
+    '
+  forbidden_fixes:
+  - treating scylla-server active/systemd-running as proof the keyspace RF is satisfied
+  - counting a JOINING/BOOTSTRAPPING or zero-token node toward RF/ownership
+  - inferring data durability from control-plane or process health
+  id: infra.scylla.rf_safety_requires_ownership_not_process_health
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/scylla_members.go
+  rationale: 'Earned 2026-07-04. Globular instance of
+    meta.distributed_data_topology_is_correctness and meta.limited_members_are_not_capacity
+    applied to ScyllaDB: a running scylla-server says nothing about ring ownership or RF.
+    Pairs with scylla.join_wipe_safe_only_if_never_verified (never-verified fence) and
+    meta.membership_promotion_requires_readiness_proof (ring-join readiness before a node
+    counts).
+
+    '
+  related_invariants:
+  - meta.distributed_data_topology_is_correctness
+  - meta.limited_members_are_not_capacity
+  - meta.membership_promotion_requires_readiness_proof
+  - scylla.join_wipe_safe_only_if_never_verified
+  severity: critical
+  status: active
+  title: ScyllaDB RF safety requires validated ring ownership, not process health
+- description: 'Globular must not classify MinIO as durable merely because the service is
+    active or reachable. Durability must be computed from admitted pools, erasure-set
+    layout, online drives/nodes, healing status, and the configured parity/failure
+    tolerance. A degraded or healing pool must be reported as such, not as fully
+    protected. Drives or nodes not admitted into the active erasure set do not count as
+    durability capacity. Serving some reads is not proof of protection.
+
+    '
+  forbidden_fixes:
+  - reporting a MinIO pool as durable/protected while it is healing or missing drives
+  - counting drives/nodes outside the active erasure set toward durability
+  - inferring object durability from service reachability or a successful read
+  id: infra.minio.erasure_safety_requires_pool_and_heal_state
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/minio_pools.go
+    - golang/cluster_controller/cluster_controller_server/reconcile_minio.go
+  rationale: 'Earned 2026-07-04. Globular instance of
+    meta.distributed_data_topology_is_correctness, meta.ha_requires_failure_tolerance_not_member_count,
+    and meta.limited_members_are_not_capacity applied to MinIO erasure coding: durability
+    is a property of the erasure set and its heal state, not of process liveness.
+
+    '
+  related_invariants:
+  - meta.distributed_data_topology_is_correctness
+  - meta.ha_requires_failure_tolerance_not_member_count
+  - meta.limited_members_are_not_capacity
+  severity: high
+  status: active
+  title: MinIO durability requires admitted pool + erasure-set heal state, not process liveness
+- description: 'A joining stateful member must enter through the least-dangerous role the
+    substrate offers: etcd learner (non-voting), Scylla zero-token/limited participant,
+    or MinIO drive not yet in the active erasure set. It must not become quorum-critical
+    or ownership-critical until readiness is proven (catch-up / ring-join / heal). A join
+    that fails before it was ever verified may be cleaned up (bounded, ownership-fenced),
+    but a member that was ever verified as a real voter/owner requires an explicit
+    removal/decommission workflow — never inline auto-eviction. This closes the gap where
+    a half-finished join leaves the substrate one failure from quorum/durability loss.
+
+    '
+  forbidden_fixes:
+  - joining a stateful member directly as a full voter/owner when a non-critical role exists
+  - auto-evicting a verified data owner/voter without an explicit removal workflow
+  - promoting a joined member before substrate-native readiness proof
+  id: infra.stateful_join_must_be_non_destructive_until_verified
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/internal/actions/infrastructure_actions.go
+    - golang/cluster_controller/cluster_controller_server/scylla_members.go
+  rationale: 'Earned 2026-07-04 from the etcd learner-first work and the ScyllaDB
+    failed-join rollback. Globular instance of meta.quorum_change_requires_pre_failure_safety
+    and meta.membership_promotion_requires_readiness_proof across all three substrates.
+    Pairs with destructive_actions.require_explicit_guard and
+    scylla.join_wipe_safe_only_if_never_verified.
+
+    '
+  related_invariants:
+  - meta.quorum_change_requires_pre_failure_safety
+  - meta.membership_promotion_requires_readiness_proof
+  - destructive_actions.require_explicit_guard
+  - scylla.join_wipe_safe_only_if_never_verified
+  - infra.etcd.full_voter_join_may_break_founder_quorum
+  severity: critical
+  status: active
+  title: A joining stateful member must enter a non-destructive role until verified
 - description: 'SetNodeProfiles must refuse to remove core, control-plane, or storage from a node when doing so would drop
     the cluster below MinQuorumNodes storage members.
 

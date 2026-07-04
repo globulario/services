@@ -2164,12 +2164,24 @@ test_symbols:
     symbol: TestParseEtcdJoinLockKeys_HappyPath
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdConstraint_DefaultCapsLearnersAtOne
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
+    symbol: TestEtcdConstraint_DefaultCapsLearnersAtOne
+    package: main
+    language: go
+    doc: "TestEtcdConstraint_DefaultCapsLearnersAtOne pins the etcd fact that shapes\nPolicy A: by default etcd allows only ONE learner. A founder that already has\na learner rejects a second with \"too many learner members in cluster\". This is\nwhy StartEtcdServer sets experimental-max-learners=2 (process.go) — without it,\ntopologyAllowsLearnerPromotion would strand the cluster at 1 voter + 1 learner\n(can't add a 2nd learner, won't promote into a non-HA 2-voter state)."
   - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdLearner_JoinPreservesFounderQuorumOnLoss
     file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
     symbol: TestEtcdLearner_JoinPreservesFounderQuorumOnLoss
     package: main
     language: go
     doc: "TestEtcdLearner_JoinPreservesFounderQuorumOnLoss proves the fix: a learner is\nnon-voting, so a 1->2 learner join never changes quorum. Losing the learner\nbefore promotion leaves the founder fully writable."
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdLearner_PolicyADrivesOneToThreeVotersHA
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
+    symbol: TestEtcdLearner_PolicyADrivesOneToThreeVotersHA
+    package: main
+    language: go
+    doc: "TestEtcdLearner_PolicyADrivesOneToThreeVotersHA is the capstone: on real etcd\n3.5.14 (learners hard-capped at 1) it drives a cluster from 1 voter to 3 voters\nusing the PRODUCTION reconcileLearnerPromotion driver, SEQUENTIALLY — one\nlearner added and promoted at a time, passing through a transient 2-voter state\n(Policy A′). It then proves the result is genuinely HA by killing one voter and\nconfirming the cluster still commits writes. End to end, real etcd, no fakes."
   - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdLearner_PromotionCreatesVoterAfterCatchup
     file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
     symbol: TestEtcdLearner_PromotionCreatesVoterAfterCatchup
@@ -2182,6 +2194,16 @@ test_symbols:
     package: main
     language: go
     doc: "TestEtcdTrap_FullVoterJoinBreaksFounderQuorumOnLoss reproduces the dangerous\n1->2 quorum trap: adding a full voter raises quorum to 2/2, so when the new\nnode dies the founder — the only survivor — can no longer commit writes."
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_promotion_test.go:TestReconcileLearnerPromotion_PolicyA
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_promotion_test.go
+    symbol: TestReconcileLearnerPromotion_PolicyA
+    package: main
+    language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_promotion_test.go:TestTopologyAllowsLearnerPromotion
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_promotion_test.go
+    symbol: TestTopologyAllowsLearnerPromotion
+    package: main
+    language: go
   - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemoveStaleMembersAllowsQuorumSafeRemoval
     file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
     symbol: TestRemoveStaleMembersAllowsQuorumSafeRemoval
