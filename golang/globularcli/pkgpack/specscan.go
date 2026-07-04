@@ -80,6 +80,7 @@ type SpecInfo struct {
 	Scripts       []ScriptFile
 	DebPaths      []string // .deb files to bundle in debs/ directory
 	DataDir       string   // optional data/ directory to bundle (e.g. workflow definitions)
+	PolicyDir     string   // optional policy/ dir holding {permissions,roles}.generated.json
 	Metadata      SpecMetadata
 }
 

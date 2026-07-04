@@ -1,4 +1,55 @@
 invariants:
+- forbidden_fixes: []
+  id: rbac.enforced_service_requires_packaged_policy_vocabulary
+  protects:
+    files:
+    - golang/globularcli/pkgpack/builder.go
+    - golang/node_agent/node_agent_server/internal/actions/artifact.go
+    - golang/policy/policy.go
+    - golang/globular_service/lifecycle.go
+    state:
+    - /var/lib/globular/policy/services/{service}/permissions.generated.json
+    - /var/lib/globular/policy/services/{service}/roles.generated.json
+    symbols:
+    - LoadAndRegisterPermissions
+    - RegisterAllFromDirectory
+    - assertPackageGuards
+    - ActionPolicyDir
+  related_invariants:
+  - meta.contract_must_be_explicit_before_resolution
+  related_intents:
+  - interceptors.bootstrap_gate_is_four_level
+  required_tests:
+  - golang/globularcli/pkgpack/builder_package_test.go::TestPackageShipsPolicyVocabulary
+  severity: critical
+  status: active
+  summary: 'A service that participates in post-bootstrap RBAC enforcement MUST ship and
+    deploy its generated permission/action vocabulary (permissions.generated.json +
+    roles.generated.json) inside its package, deploy it to
+    /var/lib/globular/policy/services/{service}/, and register it at startup.
+    Bootstrap success does NOT prove post-bootstrap authorization correctness: the
+    bootstrap gate + sa superadmin bypass mask a missing vocabulary. Without the
+    per-service files, the runtime resolver cannot map gRPC methods to the
+    fine-grained actions the roles grant, falls back to a coarse action key
+    (repository.read) that the role (which grants repository.artifact.read) does not
+    contain, and every role-based call is denied post-bootstrap
+    (policy_version=unknown, role_binding_denied) even when identity + binding +
+    role are conceptually correct. A package is not self-describing if it carries
+    executable code but not its governance vocabulary: it can run but cannot be
+    governed. FORBIDDEN: (1) grant broader/wildcard/superadmin roles to compensate
+    for missing permissions.generated.json; (2) bypass RBAC in doctor or repository;
+    (3) rely on the bootstrap gate for post-bootstrap calls; (4) treat
+    policy_version=unknown as acceptable after bootstrap; (5) manually copy policy
+    files outside the package/install lifecycle; (6) make the central
+    cluster-roles.json the only policy source when service methods require the
+    generated action mapping. Root incident (v1.2.267): pkgpack/builder.go rebuilt
+    its staging dir from scratch and dropped the policy/ that pkggen had staged, so
+    every service package shipped no vocabulary; cluster-doctor post-bootstrap
+    verification harvest (repository.artifact.read across all packages) was denied
+    wholesale, surfacing as ''7 data sources unavailable''.
+
+    '
+  title: RBAC-enforced services must ship and deploy their packaged policy vocabulary
 - actor_writer_dirs:
   - golang/ai_executor/ai_executor_server
   - golang/ai_memory/ai_memory_server

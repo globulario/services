@@ -77,6 +77,74 @@ func TestBuildPackage_OmitsEmptyConfigDir(t *testing.T) {
 	}
 }
 
+// TestPackageShipsPolicyVocabulary is the regression guard for invariant
+// rbac.enforced_service_requires_packaged_policy_vocabulary: a service that
+// stages a policy/ dir under its root MUST carry that generated RBAC
+// permission/action vocabulary INSIDE its package. The v1.2.267 incident was
+// that the builder rebuilt its staging dir from scratch and silently dropped
+// the staged policy/, so packages shipped no vocabulary and every role-based
+// call was denied post-bootstrap (policy_version=unknown / role_binding_denied).
+func TestPackageShipsPolicyVocabulary(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	specDir := filepath.Join(root, "specs")
+	policyDir := filepath.Join(root, "policy")
+	for _, d := range []string{binDir, specDir, policyDir} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "policy-svc"), []byte("#!/bin/sh\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	// authzgen output staged under root/policy/ (as pkggen copies it).
+	if err := os.WriteFile(filepath.Join(policyDir, "permissions.generated.json"),
+		[]byte(`{"schema_version":"2","service":"policy-svc","permissions":[]}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(policyDir, "roles.generated.json"),
+		[]byte(`{"schema_version":"2","service":"policy-svc","roles":[]}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	specPath := filepath.Join(specDir, "policy_service.yaml")
+	spec := "metadata:\n  name: policy-svc\nservice:\n  name: policy-svc\n  exec: policy-svc\nsteps:\n  - id: install-policy-svc\n    type: install_package_payload\n    install_bins: true\n    install_config: false\n    install_spec: true\n    install_systemd: false\n"
+	if err := os.WriteFile(specPath, []byte(spec), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	outDir := t.TempDir()
+	platform := runtime.GOOS + "_" + runtime.GOARCH
+	results, err := BuildPackages(BuildOptions{
+		Root:               root,
+		SpecPath:           specPath,
+		Version:            "0.0.1",
+		Platform:           platform,
+		OutDir:             outDir,
+		Publisher:          "test@example.com",
+		SkipMissingConfig:  true,
+		SkipMissingSystemd: true,
+	})
+	if err != nil {
+		t.Fatalf("build packages: %v", err)
+	}
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("result error: %+v", results)
+	}
+	pkg := results[0].OutputPath
+
+	// Both generated policy files must be inside the package.
+	for _, entry := range []string{
+		"policy/permissions.generated.json",
+		"policy/roles.generated.json",
+	} {
+		if ok, err := tgzContains(pkg, entry); err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			t.Fatalf("package must ship %s (invariant: rbac.enforced_service_requires_packaged_policy_vocabulary)", entry)
+		}
+	}
+}
+
 // TestBuildPackage_IncludesScripts verifies that scripts from ScriptsRoot are
 // embedded in the package with 0755 permissions and listed in the manifest.
 func TestBuildPackage_IncludesScripts(t *testing.T) {

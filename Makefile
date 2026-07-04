@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb check-no-tracked-binaries gen-package-kinds check-package-kinds check-package-authority check-day0-package-contract check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb check-no-tracked-binaries gen-package-kinds check-package-kinds check-package-authority check-package-policy check-day0-package-contract check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
 
 # ── Security boundary checks ────────────────────────────────────────────────
 #
@@ -133,6 +133,24 @@ check-package-kinds:
 check-package-authority:
 	@python3 scripts/validate-package-authority.py
 
+# ── Packaged RBAC policy vocabulary ────────────────────────────────────────
+#
+# Invariant rbac.enforced_service_requires_packaged_policy_vocabulary: a
+# gRPC-native service that participates in post-bootstrap RBAC enforcement must
+# ship its generated permission/action vocabulary inside its package, so the
+# node can register method->action mappings after the bootstrap gate closes.
+# Scope is gRPC-native services ONLY — authzgen emits generated/policy/<svc>/
+# only for services with (globular.auth.authz) RPCs; infra (scylla, envoy, etcd,
+# keepalived, minio) and external packages have none and are never required to
+# ship policy. CI-visible mirror of the in-build guard pkgpack.assertPackageGuards.
+#
+# Born from a real scar (v1.2.267): the package builder dropped the staged
+# policy/, so every service package shipped no vocabulary and every role-based
+# call was denied post-bootstrap. See docs/awareness/invariants.yaml.
+
+check-package-policy:
+	@python3 scripts/check-package-policy.py
+
 # ── Day-0 package contract ─────────────────────────────────────────────────
 #
 # install-day0.sh must bootstrap every registry day0_required package and the
@@ -184,7 +202,7 @@ check-no-tracked-binaries:
 
 # ── Aggregate check target ───────────────────────────────────────────────────
 
-check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract
+check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-package-policy check-day0-package-contract
 
 # ── Test targets ─────────────────────────────────────────────────────────────
 

@@ -141,6 +141,18 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		}
 		roots := AssetRoots{BinRoot: binRoot, ConfigRoot: configRoot, ScriptsRoot: scriptsRoot}
 		info, err := ScanSpec(spec, roots, ScanOptions{SkipMissingConfig: opts.SkipMissingConfig, SkipMissingSystemd: opts.SkipMissingSystemd})
+		if err == nil && opts.Root != "" {
+			// Auto-discover the generated authorization policy staged under
+			// root/policy/ (pkggen copies generated/policy/<svc>/ there). This
+			// is a service's post-bootstrap RBAC action vocabulary — it MUST
+			// travel inside the package so the node can register method→action
+			// mappings after bootstrap. See invariant
+			// rbac.enforced_service_requires_packaged_policy_vocabulary.
+			candidate := filepath.Join(opts.Root, "policy")
+			if st, e := os.Stat(candidate); e == nil && st.IsDir() {
+				info.PolicyDir = candidate
+			}
+		}
 		if err != nil {
 			res.Err = err
 			results = append(results, res)
@@ -314,6 +326,32 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		log.Printf("  bundled data/ directory from %s", info.DataDir)
 	}
 
+	// Bundle the generated authorization policy so the service carries its
+	// post-bootstrap RBAC action vocabulary. Without this the node cannot map
+	// the service's gRPC methods to the fine-grained actions its roles grant,
+	// and every role-based call is denied after the bootstrap gate closes.
+	// Invariant: rbac.enforced_service_requires_packaged_policy_vocabulary.
+	stagedPolicy := 0
+	if info.PolicyDir != "" {
+		policyRoot := filepath.Join(stagingDir, "policy")
+		for _, f := range []string{"permissions.generated.json", "roles.generated.json"} {
+			src := filepath.Join(info.PolicyDir, f)
+			if _, err := os.Stat(src); err != nil {
+				continue // roles.generated.json may be absent for permission-only services
+			}
+			if err := os.MkdirAll(policyRoot, 0755); err != nil {
+				return nil, err
+			}
+			if err := copyFile(src, filepath.Join(policyRoot, f)); err != nil {
+				return nil, fmt.Errorf("bundle policy %s: %w", f, err)
+			}
+			stagedPolicy++
+		}
+		if stagedPolicy > 0 {
+			log.Printf("  bundled %d policy file(s) from %s", stagedPolicy, info.PolicyDir)
+		}
+	}
+
 	// Bundle .deb files for offline installation.
 	if len(info.DebPaths) > 0 {
 		debsRoot := filepath.Join(stagingDir, "debs")
@@ -433,6 +471,24 @@ func assertPackageGuards(pkgPath string, info *SpecInfo) error {
 	}
 	if !strings.Contains(string(specData), "install_package_payload") {
 		return fmt.Errorf("package %s spec %s missing install_package_payload", pkgPath, specEntry)
+	}
+
+	// 3) authorization vocabulary present when the service declares RBAC.
+	// authzgen emits permissions.generated.json for every RBAC-enforced
+	// service; if a policy source was discovered it MUST be inside the package.
+	// A package that declares RBAC enforcement but ships no policy is invalid:
+	// the node could run it but never govern it (policy_version=unknown, coarse
+	// action keys, role_binding_denied). Invariant:
+	// rbac.enforced_service_requires_packaged_policy_vocabulary.
+	if info.PolicyDir != "" {
+		if _, err := os.Stat(filepath.Join(info.PolicyDir, "permissions.generated.json")); err == nil {
+			if ok, err := tgzContains(pkgPath, "policy/permissions.generated.json"); err != nil {
+				return err
+			} else if !ok {
+				return fmt.Errorf("package %s declares RBAC policy (%s) but ships no policy/permissions.generated.json",
+					pkgPath, info.PolicyDir)
+			}
+		}
 	}
 	return nil
 }
