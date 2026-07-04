@@ -419,6 +419,83 @@ func (m *etcdMemberManager) memberRemove(ctx context.Context, memberID uint64) e
 	return nil
 }
 
+// etcdMemberRole is the live role of a named etcd member, keyed by peer URL.
+type etcdMemberRole struct {
+	id        uint64
+	isLearner bool
+}
+
+// namedMemberRoles returns peerURL -> role for every NAMED etcd member (unnamed
+// ghost members are skipped). This is the live-membership truth used to project a
+// node's join phase (task#17 e): a learner is NOT a voter and must never be
+// reported as verified.
+func (m *etcdMemberManager) namedMemberRoles(ctx context.Context) (map[string]etcdMemberRole, error) {
+	if m == nil || m.client == nil {
+		return nil, nil
+	}
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := m.client.MemberList(tctx)
+	if err != nil {
+		return nil, fmt.Errorf("etcd member list: %w", err)
+	}
+	roles := make(map[string]etcdMemberRole, len(resp.Members))
+	for _, member := range resp.Members {
+		if member.Name == "" {
+			continue // skip unnamed ghost members
+		}
+		for _, purl := range member.PeerURLs {
+			roles[purl] = etcdMemberRole{id: member.ID, isLearner: member.IsLearner}
+		}
+	}
+	return roles, nil
+}
+
+// matchNodeEtcdMemberRole returns the live role of the etcd member for this node,
+// matched by any of the node's peer URLs (https://<ip>:2380), and whether a match
+// was found.
+func matchNodeEtcdMemberRole(node *nodeState, roles map[string]etcdMemberRole) (etcdMemberRole, bool) {
+	for _, ip := range node.Identity.Ips {
+		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+			continue
+		}
+		if r, ok := roles[fmt.Sprintf("https://%s:2380", ip)]; ok {
+			return r, true
+		}
+	}
+	return etcdMemberRole{}, false
+}
+
+// projectEtcdRolePhase sets node.EtcdJoinPhase from the live member role and
+// returns whether it changed anything (task#17 e). This is the single source of
+// truth for the transitional topology:
+//   - LEARNER -> EtcdJoinPromoting, and the member ID is PRESERVED (needed for
+//     promotion tracking and safe removal of a failed pre-promotion learner).
+//   - VOTER   -> EtcdJoinVerified (promoted, participating).
+//
+// It never fabricates verified from a learner, and never clears EtcdMemberID
+// before verification is confirmed.
+func projectEtcdRolePhase(node *nodeState, role etcdMemberRole) (changed bool) {
+	if role.isLearner {
+		if node.EtcdMemberID != role.id {
+			node.EtcdMemberID = role.id
+			changed = true
+		}
+		if node.EtcdJoinPhase != EtcdJoinPromoting {
+			node.EtcdJoinPhase = EtcdJoinPromoting
+			node.EtcdJoinError = ""
+			changed = true
+		}
+		return changed
+	}
+	if node.EtcdJoinPhase != EtcdJoinVerified {
+		node.EtcdJoinPhase = EtcdJoinVerified
+		node.EtcdJoinError = ""
+		changed = true
+	}
+	return changed
+}
+
 // reconcileEtcdJoinPhases drives the etcd join state machine for all nodes.
 // It is called once per reconciliation cycle.
 //
@@ -451,6 +528,14 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 		namedURLs = existingURLs
 	}
 
+	// Live member roles (learner vs voter) — the truth used to project a node's
+	// join phase (task#17 e). On error, namedRoles is empty and the role-aware
+	// projection is skipped this cycle (the phase is left unchanged, never faked).
+	namedRoles, rerr := m.namedMemberRoles(ctx)
+	if rerr != nil {
+		log.Printf("etcd join: cannot list member roles (skipping role projection this cycle): %v", rerr)
+	}
+
 	now := time.Now()
 
 	for _, node := range nodes {
@@ -466,15 +551,17 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 
 		case EtcdJoinNone, EtcdJoinFailed:
 			// Observe-only: the join script on the node handles MemberAdd directly.
-			// The controller just detects when a node has successfully joined the
-			// etcd cluster and marks it as verified. This avoids dangerous
-			// controller-initiated MemberAdd calls, especially during 1→2 expansion
-			// where quorum requires 2/2 members immediately.
-			if nodeAnyIPIsEtcdMember(node, namedURLs) {
-				node.EtcdJoinPhase = EtcdJoinVerified
-				node.EtcdJoinError = ""
-				dirty = true
-				log.Printf("etcd join: node %s (%s) detected as existing etcd member, marking verified", node.NodeID, node.Identity.Hostname)
+			// The controller projects the node's phase from the LIVE member role
+			// (task#17 e), never from script assumptions: a learner becomes
+			// EtcdJoinPromoting (awaiting promotion), a voter becomes
+			// EtcdJoinVerified. This avoids dangerous controller-initiated MemberAdd
+			// and — critically — never reports a non-voting learner as verified.
+			if role, ok := matchNodeEtcdMemberRole(node, namedRoles); ok {
+				if projectEtcdRolePhase(node, role) {
+					dirty = true
+					log.Printf("etcd join: node %s (%s) projected from live member role (learner=%v) -> %s",
+						node.NodeID, node.Identity.Hostname, role.isLearner, node.EtcdJoinPhase)
+				}
 				continue
 			}
 			// Check for permanently stuck join: WAL "removed from cluster" or ghost
@@ -565,6 +652,22 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 				log.Printf("etcd join: node %s timed out in started phase after %v, rolling back", node.NodeID, now.Sub(node.EtcdJoinStartedAt))
 				m.rollbackJoin(ctx, node, "timeout waiting for etcd member to become healthy")
 				dirty = true
+			}
+
+		case EtcdJoinPromoting:
+			// Node joined as a non-voting LEARNER and is awaiting promotion by
+			// reconcileLearnerPromotion (Policy A′). Re-project from the live role:
+			// once promoted to a voter it becomes verified; while still a learner it
+			// stays promoting — a valid, stable state (1v+1l waits safely for a third
+			// node), so there is NO timeout-to-failed here. If the member has
+			// vanished pre-promotion, the phase is left for the removal/rollback
+			// path (g); it is never faked to verified.
+			if role, ok := matchNodeEtcdMemberRole(node, namedRoles); ok {
+				if projectEtcdRolePhase(node, role) {
+					dirty = true
+					log.Printf("etcd join: node %s (%s) promoting -> %s (learner=%v)",
+						node.NodeID, node.Identity.Hostname, node.EtcdJoinPhase, role.isLearner)
+				}
 			}
 
 		case EtcdJoinVerified:
