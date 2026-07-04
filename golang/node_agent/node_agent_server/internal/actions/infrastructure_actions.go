@@ -83,6 +83,29 @@ func (infrastructureInstallAction) Apply(_ context.Context, args *structpb.Struc
 	return installerEngineInstall(component, version, stagingDir, dataDirsStr)
 }
 
+// scyllaJoinScriptEnv returns the extra run_script environment for a Day-1
+// ScyllaDB fresh join, or nil for anything else. It is scoped two ways:
+//   - component must be scylladb (only ScyllaDB's post-install reads these vars), and
+//   - joinActive must be true — the node-agent sets this only while it holds
+//     Day-1 join credentials, never during steady-state re-installs.
+//
+// SCYLLA_INSTALL_INTENT=fresh-join switches the post-install from its fail-safe
+// "preserve" default (which fails closed on any stale Raft state) to its
+// fresh-join branch. The destructive wipe stays fenced
+// (intent:node_recovery.fence_before_destructive_reseed): the post-install's
+// CA-derived ownership fingerprint preserves data owned by THIS cluster, so an
+// existing member re-installing is never wiped — only foreign stale state from a
+// different cluster epoch is cleared.
+func scyllaJoinScriptEnv(component string, joinActive bool) map[string]string {
+	if !joinActive || !strings.EqualFold(strings.TrimSpace(component), "scylladb") {
+		return nil
+	}
+	return map[string]string{
+		"SCYLLA_INSTALL_INTENT":             "fresh-join",
+		"ALLOW_STALE_SCYLLA_REINIT_ON_JOIN": "true",
+	}
+}
+
 // installerEngineInstall delegates infra installation to the shared installer engine.
 func installerEngineInstall(component, version, stagingDir, dataDirsStr string) (string, error) {
 	log.Printf("[installer-engine] using installer engine for %s@%s", component, version)
@@ -92,6 +115,15 @@ func installerEngineInstall(component, version, stagingDir, dataDirsStr string) 
 		StagingDir: stagingDir,
 		Force:      true,
 		Verbose:    true,
+	}
+
+	// Day-1 join: tell the ScyllaDB post-install this is a fresh join (see
+	// scyllaJoinScriptEnv). Without it the post-install runs in the fail-safe
+	// "preserve" default and fails closed on any stale Raft state — the common
+	// re-join case.
+	if env := scyllaJoinScriptEnv(component, IsJoinActive()); env != nil {
+		opts.ScriptEnv = env
+		log.Printf("[installer-engine] Day-1 join: ScyllaDB fresh-join intent enabled (fenced by CA-derived ownership fingerprint)")
 	}
 
 	ictx, err := installer.NewContext(opts)
