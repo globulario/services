@@ -58,3 +58,37 @@ func TestInheritableClusterProfilesEmpty(t *testing.T) {
 		t.Errorf("nil node map must inherit no profiles; got %v", got)
 	}
 }
+
+// TestFilterCatalogProfiles verifies operator-requested profiles are filtered to
+// real catalog profiles (unknown/derived labels dropped), while catalog profiles
+// — including hardware-gated ones an operator may legitimately request — pass.
+func TestFilterCatalogProfiles(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"catalog software", []string{"dns", "compute"}, []string{"dns", "compute"}},
+		{"drops non-catalog ai", []string{"ai", "dns"}, []string{"dns"}},
+		{"operator may request hardware-gated", []string{"storage", "control-plane"}, []string{"storage", "control-plane"}},
+		{"all unknown -> nil", []string{"ai", "bogus"}, nil},
+		{"empty -> nil", nil, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := filterCatalogProfiles(tc.in)
+			set := map[string]bool{}
+			for _, p := range got {
+				set[p] = true
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("filterCatalogProfiles(%v) = %v, want %v", tc.in, got, tc.want)
+			}
+			for _, w := range tc.want {
+				if !set[w] {
+					t.Errorf("expected %q in result %v", w, got)
+				}
+			}
+		})
+	}
+}

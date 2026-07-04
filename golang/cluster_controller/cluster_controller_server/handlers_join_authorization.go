@@ -156,7 +156,12 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 	}
 
 	// Approve: assign profiles (enforcing founding quorum), assign node_id.
-	srv.approveJoinRecordLocked(jr, nil)
+	// Operator-requested profiles (join --profiles) take precedence over the
+	// suggested/inherited default; the controller validates them to catalog
+	// profiles here (the gateway is a courier and never assigns). Unknown labels
+	// are dropped, degrading to defaults. enforceFoundingProfiles in the approve
+	// path still guarantees core+control-plane+storage on the first quorum nodes.
+	srv.approveJoinRecordLocked(jr, filterCatalogProfiles(req.RequestedProfiles))
 
 	// Build and sign the JoinPlan now that profiles and node_id are determined.
 	plan, err := srv.buildJoinPlan(jr)
@@ -248,12 +253,13 @@ func protoToJoinAuthRequest(req *cluster_controllerpb.JoinAuthorizationRequest) 
 	}
 	caps := req.GetCapabilities()
 	r := &JoinAuthorizationRequest{
-		JoinToken:        strings.TrimSpace(req.GetJoinToken()),
-		Identity:         id,
-		Labels:           copyLabels(req.GetLabels()),
-		Nonce:            req.GetNonce(),
-		InstallerVersion: req.GetInstallerVersion(),
-		ClusterID:        strings.TrimSpace(req.GetClusterId()),
+		JoinToken:         strings.TrimSpace(req.GetJoinToken()),
+		Identity:          id,
+		Labels:            copyLabels(req.GetLabels()),
+		Nonce:             req.GetNonce(),
+		InstallerVersion:  req.GetInstallerVersion(),
+		ClusterID:         strings.TrimSpace(req.GetClusterId()),
+		RequestedProfiles: append([]string(nil), req.GetRequestedProfiles()...),
 	}
 	if caps != nil {
 		r.CPUCount = caps.GetCpuCount()

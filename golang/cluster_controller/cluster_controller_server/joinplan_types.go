@@ -102,6 +102,11 @@ type JoinAuthorizationRequest struct {
 	ClusterID string `json:"cluster_id,omitempty"`
 	// Nonce is a caller-generated unique request ID for idempotency tracking.
 	Nonce string `json:"nonce"`
+	// RequestedProfiles is an operator preference (e.g. from `join --profiles`).
+	// The controller validates it to catalog profiles and decides — profile
+	// intent is a controller-owned placement contract; the gateway is a courier.
+	// Empty means "use suggested/inherited defaults".
+	RequestedProfiles []string `json:"requested_profiles,omitempty"`
 }
 
 // JoinAuthorizationResponse carries the controller's authorization decision.

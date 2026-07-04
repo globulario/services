@@ -142,6 +142,10 @@ message JoinAuthorizationRequest {
   string nonce = 5;
   string installer_version = 6;
   string cluster_id = 7;
+  // requested_profiles is an operator preference (e.g. from `join --profiles`).
+  // The controller VALIDATES and decides — the gateway remains a courier and
+  // MUST NOT assign profiles. Empty means "use suggested/inherited defaults".
+  repeated string requested_profiles = 8;
 }
 
 // JoinAuthorizationResponse carries the signed JoinPlan on success.

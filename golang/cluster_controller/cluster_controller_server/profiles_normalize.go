@@ -56,6 +56,22 @@ var notInheritedProfiles = map[string]bool{
 	"media-server":  true,
 }
 
+// filterCatalogProfiles returns only the catalog-defined profiles from raw
+// (case-insensitive via component_catalog.HasProfile), dropping unknown or
+// derived labels. Returns nil if none remain, so a caller passing an
+// operator-requested set degrades to suggested/inherited defaults rather than
+// assigning an undefined profile. The controller — not the requester — decides;
+// this upholds the profile↔component bijection invariant.
+func filterCatalogProfiles(raw []string) []string {
+	var out []string
+	for _, p := range raw {
+		if component_catalog.HasProfile(p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // inheritableClusterProfiles returns the union of assignable (catalog) profiles
 // currently present across cluster nodes, excluding notInheritedProfiles and any
 // non-catalog/derived label (e.g. "ai", which is derived from installed ai-*
@@ -142,9 +158,9 @@ func (srv *server) enforceStorageQuorumLocked() bool {
 
 	// Collect candidates: nodes without storage, preferring control-plane.
 	type candidate struct {
-		id             string
+		id              string
 		hasControlPlane bool
-		lastSeen       time.Time
+		lastSeen        time.Time
 	}
 	var candidates []candidate
 	for id, n := range srv.state.Nodes {
