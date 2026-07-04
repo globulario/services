@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -139,7 +140,7 @@ func TestObjectStoreMember_ReconcileSkipsNodeNotInDesiredList(t *testing.T) {
 	}
 
 	m := newMinioPoolManager()
-	dirty := m.reconcileMinioJoinPhases([]*nodeState{node}, state)
+	dirty := m.reconcileMinioJoinPhases(context.Background(), []*nodeState{node}, state)
 	if dirty {
 		t.Error("reconcile must not touch a node not in desired list")
 	}
@@ -165,7 +166,7 @@ func TestObjectStoreMember_ReconcileAdmitsNodeInDesiredList(t *testing.T) {
 	}
 
 	m := newMinioPoolManager()
-	dirty := m.reconcileMinioJoinPhases([]*nodeState{node}, state)
+	dirty := m.reconcileMinioJoinPhases(context.Background(), []*nodeState{node}, state)
 	if !dirty {
 		t.Error("reconcile must advance the node in desired list (Day-0 bootstrap)")
 	}

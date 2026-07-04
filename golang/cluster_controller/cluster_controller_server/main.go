@@ -318,6 +318,9 @@ func main() {
 	// removal request; the node.remove workflow owns the actual decommission.
 	srv.scyllaMembers.enqueueNodeRemoval = srv.enqueueNodeRemovalRequest
 	srv.minioPoolMgr = newMinioPoolManager()
+	srv.minioPoolMgr.probeMinioHealth = func(ctx context.Context, endpoint string) bool {
+		return srv.probeMinioHealth(ctx, endpoint)
+	}
 
 	// Ensure cluster-roles.json is deployed on disk before checking roles.
 	// On fresh installs, the file doesn't exist yet — deploy the embedded copy.

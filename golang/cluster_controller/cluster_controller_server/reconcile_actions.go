@@ -109,7 +109,7 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 		state := srv.state
 		poolNodes = append([]string(nil), srv.state.MinioPoolNodes...)
 		srv.unlock()
-		if dirty := srv.minioPoolMgr.reconcileMinioJoinPhases(nodes, state); dirty {
+		if dirty := srv.minioPoolMgr.reconcileMinioJoinPhases(ctx, nodes, state); dirty {
 			srv.lock("reconcileAdvanceInfraJoins:minio-persist")
 			_ = srv.persistStateLocked(false)
 			srv.unlock()

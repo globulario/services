@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -82,11 +83,22 @@ func nodeIsPreparedForMinioJoin(node *nodeState) bool {
 // minioPoolManager drives MinIO pool expansion.
 // MinIO erasure sets are fixed at creation — expansion appends new nodes
 // to the ordered pool list and restarts all nodes with the updated config.
-type minioPoolManager struct{}
+type minioPoolManager struct {
+	// probeMinioHealth returns true only when the node's MinIO reports SUBSTRATE
+	// TRUTH — write quorum AND read quorum — via the node-agent probe. It is nil
+	// when no probe is wired, in which case a node is held PROVISIONAL rather than
+	// falsely marked Verified from elapsed time
+	// (forbidden_fix:heuristic_signal_marks_substrate_verified).
+	probeMinioHealth func(ctx context.Context, endpoint string) bool
+}
 
 func newMinioPoolManager() *minioPoolManager {
 	return &minioPoolManager{}
 }
+
+// minioVerificationUnavailable is the evidence recorded on a node held PROVISIONAL
+// because no substrate-truth probe is available to verify pool health.
+const minioVerificationUnavailable = "substrate verification unavailable — provisional, not verified"
 
 // markMinioNonMember sets the node to MinioJoinNonMember idempotently and
 // reports whether the phase changed.
@@ -120,8 +132,8 @@ func markMinioNonMember(node *nodeState) bool {
 //  1. prepared: preconditions met
 //  2. pool_updated: node IP appended to MinioPoolNodes (bootstrap only)
 //  3. started: globular-minio.service active
-//  4. verified: service healthy (active for >30s)
-func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *controllerState) (dirty bool) {
+//  4. verified: pool healthy — write + read quorum via substrate-truth probe
+func (m *minioPoolManager) reconcileMinioJoinPhases(ctx context.Context, nodes []*nodeState, state *controllerState) (dirty bool) {
 	now := time.Now()
 
 	for _, node := range nodes {
@@ -241,14 +253,31 @@ func (m *minioPoolManager) reconcileMinioJoinPhases(nodes []*nodeState, state *c
 			}
 
 		case MinioJoinStarted:
-			// MinIO is running — verify it's healthy.
-			// Heuristic: active for >30s means erasure set formed.
+			// MinIO is running — verify pool health. Elapsed time and unit-active
+			// state prove only that the process STARTED; they must never prove the
+			// erasure set is formed and serving
+			// (forbidden_fix:heuristic_signal_marks_substrate_verified). Only a
+			// passing substrate-truth probe (write + read quorum) may mark Verified.
 			elapsed := now.Sub(node.MinioJoinStartedAt)
-			if elapsed > 30*time.Second {
+			minWaitMet := elapsed > 30*time.Second
+
+			// No substrate-truth probe wired → hold PROVISIONAL: stay started, never
+			// Verified, never counted toward durability, never failed merely for
+			// lack of a probe. Production always wires the probe (main.go).
+			if m.probeMinioHealth == nil {
+				if minWaitMet && node.MinioJoinError != minioVerificationUnavailable {
+					node.MinioJoinError = minioVerificationUnavailable
+					dirty = true
+					log.Printf("minio pool: node %s PROVISIONAL — no substrate-truth probe available; not marking verified", node.NodeID)
+				}
+				continue
+			}
+
+			if minWaitMet && node.AgentEndpoint != "" && m.probeMinioHealth(ctx, node.AgentEndpoint) {
 				node.MinioJoinPhase = MinioJoinVerified
 				node.MinioJoinError = ""
 				dirty = true
-				log.Printf("minio pool: node %s verified healthy", node.NodeID)
+				log.Printf("minio pool: node %s verified healthy (write+read quorum)", node.NodeID)
 				continue
 			}
 			if now.Sub(node.MinioJoinStartedAt) > minioJoinTimeout {

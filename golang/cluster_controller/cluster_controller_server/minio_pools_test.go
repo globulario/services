@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -78,25 +79,30 @@ func TestNodeIsPreparedForMinioJoin(t *testing.T) {
 // none → prepared → pool_updated → started → verified.
 func TestMinioJoin_HappyPath(t *testing.T) {
 	mgr := newMinioPoolManager()
+	// Substrate-truth probe available and passing (pool has write + read quorum).
+	// Verification now requires this, not an elapsed-time heuristic
+	// (forbidden_fix:heuristic_signal_marks_substrate_verified).
+	mgr.probeMinioHealth = func(context.Context, string) bool { return true }
 	state := &controllerState{MinioCredentials: generateMinioCredentials()}
 
 	node := &nodeState{
 		NodeID:         "n1",
 		Identity:       storedIdentity{Hostname: "core-1", Ips: []string{"10.0.0.5"}},
 		Profiles:       []string{"core"},
+		AgentEndpoint:  "10.0.0.5:11000",
 		Units:          []unitStatusRecord{{Name: "globular-minio.service", State: "inactive"}},
 		BootstrapPhase: BootstrapStorageJoining,
 	}
 	nodes := []*nodeState{node}
 
 	// none → prepared
-	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty := mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty || node.MinioJoinPhase != MinioJoinPrepared {
 		t.Fatalf("expected prepared, got %s", node.MinioJoinPhase)
 	}
 
 	// prepared → pool_updated (IP appended)
-	dirty = mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty = mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty || node.MinioJoinPhase != MinioJoinPoolUpdated {
 		t.Fatalf("expected pool_updated, got %s", node.MinioJoinPhase)
 	}
@@ -105,23 +111,55 @@ func TestMinioJoin_HappyPath(t *testing.T) {
 	}
 
 	// pool_updated: minio not running → stays
-	dirty = mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty = mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if dirty {
 		t.Fatal("expected no change — minio not active")
 	}
 
 	// pool_updated → started: minio active
 	node.Units = []unitStatusRecord{{Name: "globular-minio.service", State: "active"}}
-	dirty = mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty = mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty || node.MinioJoinPhase != MinioJoinStarted {
 		t.Fatalf("expected started, got %s", node.MinioJoinPhase)
 	}
 
-	// started → verified: after 30s
+	// started → verified: min wait met AND the substrate probe passes.
 	node.MinioJoinStartedAt = time.Now().Add(-35 * time.Second)
-	dirty = mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty = mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty || node.MinioJoinPhase != MinioJoinVerified {
 		t.Fatalf("expected verified, got %s", node.MinioJoinPhase)
+	}
+}
+
+// TestMinioJoin_NoProbeStaysProvisional proves the P2 downgrade: with NO
+// substrate-truth probe wired, elapsed time must NOT mark MinIO Verified. It holds
+// PROVISIONAL (started, awaiting verification) with explicit "verification
+// unavailable" evidence (forbidden_fix:heuristic_signal_marks_substrate_verified).
+func TestMinioJoin_NoProbeStaysProvisional(t *testing.T) {
+	mgr := newMinioPoolManager() // probeMinioHealth == nil (no substrate truth)
+	state := &controllerState{MinioCredentials: generateMinioCredentials()}
+
+	node := &nodeState{
+		NodeID:             "n1",
+		Identity:           storedIdentity{Hostname: "core-1", Ips: []string{"10.0.0.5"}},
+		Profiles:           []string{"core"},
+		AgentEndpoint:      "10.0.0.5:11000",
+		Units:              []unitStatusRecord{{Name: "globular-minio.service", State: "active"}},
+		MinioJoinPhase:     MinioJoinStarted,
+		MinioJoinStartedAt: time.Now().Add(-35 * time.Second), // min wait long exceeded
+	}
+	nodes := []*nodeState{node}
+
+	mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
+
+	if node.MinioJoinPhase == MinioJoinVerified {
+		t.Fatal("elapsed time must NOT mark MinIO Verified without a substrate-truth probe")
+	}
+	if node.MinioJoinPhase != MinioJoinStarted {
+		t.Fatalf("expected provisional (still started), got %s", node.MinioJoinPhase)
+	}
+	if node.MinioJoinError != minioVerificationUnavailable {
+		t.Fatalf("expected explicit 'verification unavailable' evidence, got %q", node.MinioJoinError)
 	}
 }
 
@@ -155,7 +193,7 @@ func TestMinioJoin_TopologyContract_Day1NodeNotAutoJoined(t *testing.T) {
 
 	// Run several reconcile cycles as the controller would.
 	for i := 0; i < 5; i++ {
-		mgr.reconcileMinioJoinPhases(nodes, state)
+		mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	}
 
 	// Pool must be unchanged.
@@ -206,7 +244,7 @@ func TestMinioJoin_TopologyContract_MultipleDay1NodesHeld(t *testing.T) {
 	nodes := []*nodeState{node2, node3}
 
 	for i := 0; i < 4; i++ {
-		mgr.reconcileMinioJoinPhases(nodes, state)
+		mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	}
 
 	if len(state.MinioPoolNodes) != 1 {
@@ -239,7 +277,7 @@ func TestMinioJoin_TopologyContract_AfterApplyTopology(t *testing.T) {
 	nodes := []*nodeState{day1Node}
 
 	// Held before apply-topology — node is classified as a confirmed non-member.
-	mgr.reconcileMinioJoinPhases(nodes, state)
+	mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if day1Node.MinioJoinPhase != MinioJoinNonMember {
 		t.Fatalf("expected non_member before apply-topology, got %s", day1Node.MinioJoinPhase)
 	}
@@ -249,7 +287,7 @@ func TestMinioJoin_TopologyContract_AfterApplyTopology(t *testing.T) {
 	state.ObjectStoreGeneration = 2
 
 	// Pool manager should now fast-forward n2 to verified (minio is active).
-	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty := mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty {
 		t.Fatal("expected dirty after apply-topology added node to pool")
 	}
@@ -290,7 +328,7 @@ func TestMinioJoin_VIPHolder_MatchesByAnyIP(t *testing.T) {
 	nodes := []*nodeState{vipHolder}
 
 	// Held before apply-topology — node not in pool.
-	mgr.reconcileMinioJoinPhases(nodes, state)
+	mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if vipHolder.MinioJoinPhase != MinioJoinNonMember {
 		t.Fatalf("expected non_member before apply-topology, got %s", vipHolder.MinioJoinPhase)
 	}
@@ -299,7 +337,7 @@ func TestMinioJoin_VIPHolder_MatchesByAnyIP(t *testing.T) {
 	state.MinioPoolNodes = append(state.MinioPoolNodes, "10.0.0.8")
 	state.ObjectStoreGeneration = 2
 
-	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty := mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty {
 		t.Fatal("expected dirty after apply-topology added stable IP")
 	}
@@ -335,7 +373,7 @@ func TestMinioJoin_TopologyContract_PreparedStateResets(t *testing.T) {
 	}
 	nodes := []*nodeState{staleNode}
 
-	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty := mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty {
 		t.Fatal("expected dirty (reset from stale Prepared state)")
 	}
@@ -352,7 +390,7 @@ func TestMinioJoin_TopologyContract_PreparedStateResets(t *testing.T) {
 	// After reset, subsequent cycles classify the node as a confirmed non-member.
 	// It must not re-enter Prepared, and the pool must not grow.
 	for i := 0; i < 3; i++ {
-		mgr.reconcileMinioJoinPhases(nodes, state)
+		mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	}
 	if staleNode.MinioJoinPhase != MinioJoinNonMember {
 		t.Errorf("expected non_member after stale-reset cycles, got %s", staleNode.MinioJoinPhase)
@@ -378,7 +416,7 @@ func TestMinioJoin_Timeout(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty := mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty || node.MinioJoinPhase != MinioJoinFailed {
 		t.Fatalf("expected failed, got %s", node.MinioJoinPhase)
 	}
@@ -401,7 +439,7 @@ func TestMinioJoin_AlreadyInPool(t *testing.T) {
 	}
 	nodes := []*nodeState{node}
 
-	dirty := mgr.reconcileMinioJoinPhases(nodes, state)
+	dirty := mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	if !dirty {
 		t.Fatal("expected dirty")
 	}
@@ -558,7 +596,7 @@ func TestMinioJoin_HeldNonMember_NoMinioUnit(t *testing.T) {
 	nodes := []*nodeState{heldNode}
 
 	for i := 0; i < 5; i++ {
-		mgr.reconcileMinioJoinPhases(nodes, state)
+		mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	}
 
 	if heldNode.MinioJoinPhase != MinioJoinNonMember {
@@ -602,7 +640,7 @@ func TestMinioJoin_NotListedMember_StaysUntouched(t *testing.T) {
 	nodes := []*nodeState{notListed}
 
 	for i := 0; i < 3; i++ {
-		mgr.reconcileMinioJoinPhases(nodes, state)
+		mgr.reconcileMinioJoinPhases(context.Background(), nodes, state)
 	}
 
 	if notListed.MinioJoinPhase != MinioJoinNone {
