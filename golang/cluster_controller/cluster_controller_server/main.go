@@ -314,6 +314,9 @@ func main() {
 		}
 		return nil
 	}
+	// Rollback of a failed fresh-join candidate: the FSM enqueues an explicit
+	// removal request; the node.remove workflow owns the actual decommission.
+	srv.scyllaMembers.enqueueNodeRemoval = srv.enqueueNodeRemovalRequest
 	srv.minioPoolMgr = newMinioPoolManager()
 
 	// Ensure cluster-roles.json is deployed on disk before checking roles.

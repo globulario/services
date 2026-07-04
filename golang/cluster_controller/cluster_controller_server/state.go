@@ -306,7 +306,21 @@ const (
 	ScyllaJoinStarted    ScyllaJoinPhase = "started"     // scylla-server running
 	ScyllaJoinVerified   ScyllaJoinPhase = "verified"    // node in gossip ring
 	ScyllaJoinFailed     ScyllaJoinPhase = "failed"      // join failed
+	// ScyllaJoinRollbackPending: a never-verified fresh-join candidate whose join
+	// failed and whose decommission has been dispatched via the node.remove
+	// workflow (the mutation is workflow-owned, never inline). The node record is
+	// then removed by that workflow — this phase is the observable in-progress
+	// state (no ghost rollback). Reached only when ScyllaWasEverVerified is false.
+	ScyllaJoinRollbackPending ScyllaJoinPhase = "rollback_pending"
 )
+
+// scyllaJoinIsFailedPhase reports whether a phase represents a failed join,
+// including the post-failure rollback. Consumers that gate on failure (admission
+// proof, RF eligibility) must treat rollback-pending as failed — a candidate
+// being decommissioned is not eligible and has no valid member proof.
+func scyllaJoinIsFailedPhase(p ScyllaJoinPhase) bool {
+	return p == ScyllaJoinFailed || p == ScyllaJoinRollbackPending
+}
 
 // MinioJoinPhase tracks where a node is in the MinIO pool join sequence.
 // MinIO uses erasure coding sets that are fixed at creation — expansion

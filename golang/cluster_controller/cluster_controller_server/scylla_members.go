@@ -114,6 +114,15 @@ type scyllaClusterManager struct {
 	// Used as escalation when restart alone doesn't unstick the Raft join —
 	// stale Raft group state from a failed first boot prevents re-joining.
 	wipeScyllaData func(ctx context.Context, endpoint string) error
+
+	// enqueueNodeRemoval writes an explicit node-removal request so the
+	// node.remove workflow decommissions a FAILED FRESH-JOIN candidate (rolling
+	// back the failed join so it can't linger as a stale/DN ring member). Set by
+	// the server at startup. Called ONLY for never-verified candidates
+	// (invariant:scylla.join_wipe_safe_only_if_never_verified) — the destructive
+	// mutation is owned by the node.remove workflow, never done inline here
+	// (invariant:workflow.every_state_mutation_belongs_to_a_workflow_instance).
+	enqueueNodeRemoval func(ctx context.Context, nodeID, hostname, ip, agentEndpoint string) error
 }
 
 func newScyllaClusterManager() *scyllaClusterManager {
@@ -158,7 +167,11 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 		}
 
 		switch node.ScyllaJoinPhase {
-		case ScyllaJoinNone, ScyllaJoinFailed:
+		case ScyllaJoinNone:
+			// ScyllaJoinFailed is handled separately below (rollback), not here —
+			// a terminally-failed fresh join is decommissioned, not retried. The
+			// replace_address retry re-enters via ScyllaJoinNone, so transient
+			// recovery still works.
 			if !nodeIsPreparedForScyllaJoin(node) {
 				continue
 			}
@@ -300,6 +313,48 @@ func (m *scyllaClusterManager) reconcileScyllaJoinPhases(ctx context.Context, no
 					node.ScyllaJoinRestarts = 0
 					node.ScyllaJoinError = "probe regression: node no longer healthy"
 					dirty = true
+				}
+			}
+
+		case ScyllaJoinFailed:
+			// Auto-rollback a FAILED FRESH-JOIN candidate so it cannot linger as a
+			// stale/DN ring member (the founder-quorum-loss scenario).
+			//
+			// HARD FENCE (invariant:scylla.join_wipe_safe_only_if_never_verified):
+			// only a node that was NEVER verified is decommissioned here. An owning
+			// member's failure is transient — removing it would be destructive to
+			// real data (forbidden_fix:wipe_scylla_data_on_verified_healthy_node).
+			//
+			// The removal MUTATION is owned by the node.remove workflow: we only
+			// enqueue an explicit removal request (the sanctioned trigger), never
+			// mutate ring state inline
+			// (invariant:workflow.every_state_mutation_belongs_to_a_workflow_instance).
+			if node.ScyllaWasEverVerified || m.enqueueNodeRemoval == nil {
+				continue
+			}
+			if err := m.enqueueNodeRemoval(ctx, node.NodeID, node.Identity.Hostname, nodeRoutableIP(node), node.AgentEndpoint); err != nil {
+				log.Printf("scylla join: node %s rollback enqueue failed: %v — will retry", node.NodeID, err)
+				node.ScyllaJoinError = "rollback: enqueue removal failed: " + err.Error()
+				dirty = true
+				continue
+			}
+			node.ScyllaJoinPhase = ScyllaJoinRollbackPending
+			node.ScyllaJoinStartedAt = now
+			node.ScyllaJoinError = "fresh join failed (never verified) — decommission dispatched via node.remove workflow"
+			dirty = true
+			log.Printf("scylla join: node %s fresh join failed — dispatched decommission, rollback pending", node.NodeID)
+
+		case ScyllaJoinRollbackPending:
+			// Waiting for the node.remove workflow (dispatched via the removal
+			// queue) to decommission this candidate; the node record is then
+			// deleted and drops out of this loop. Bounded, idempotent retry: if the
+			// candidate is still present after the timeout, re-enqueue (writing the
+			// same request key is safe).
+			if now.Sub(node.ScyllaJoinStartedAt) > scyllaJoinTimeout && m.enqueueNodeRemoval != nil {
+				if err := m.enqueueNodeRemoval(ctx, node.NodeID, node.Identity.Hostname, nodeRoutableIP(node), node.AgentEndpoint); err == nil {
+					node.ScyllaJoinStartedAt = now // throttle to one re-dispatch per timeout
+					dirty = true
+					log.Printf("scylla join: node %s rollback still pending — re-dispatched decommission", node.NodeID)
 				}
 			}
 		}

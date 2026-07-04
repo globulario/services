@@ -42,6 +42,47 @@ type nodeRemovalRequest struct {
 	AgentEndpoint string `json:"agent_endpoint,omitempty"`
 }
 
+// enqueueNodeRemovalRequest writes an explicit removal request record to the
+// queue (drained by processNodeRemovalRequests, which dispatches the node.remove
+// workflow). This is the sanctioned trigger for the scylla-join FSM to roll back
+// a FAILED FRESH-JOIN CANDIDATE: the destructive mutation stays owned by the
+// node.remove workflow, never done inline
+// (invariant:workflow.every_state_mutation_belongs_to_a_workflow_instance).
+//
+// EXPLICIT GUARD (invariant:destructive_actions.require_explicit_guard): callers
+// MUST only enqueue for a node that was never a verified ScyllaDB member
+// (ScyllaWasEverVerified==false). The "controller MUST NOT infer removal from a
+// failed probe" rule protects established members from transient-failure
+// cluster-shrink; a never-verified candidate is not a member, so its cleanup is
+// out of that rule's scope. Writing an explicit request record here satisfies
+// intent:delete_requires_explicit_intent_marker. Idempotent: re-writing the same
+// node's key is safe (the consumer is idempotent and deletes the key).
+func (srv *server) enqueueNodeRemovalRequest(ctx context.Context, nodeID, hostname, ip, agentEndpoint string) error {
+	if srv == nil || srv.etcdClient == nil {
+		return fmt.Errorf("enqueue node removal: no etcd client")
+	}
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return fmt.Errorf("enqueue node removal: node_id is required")
+	}
+	payload, err := json.Marshal(nodeRemovalRequest{
+		NodeID:        nodeID,
+		Hostname:      strings.TrimSpace(hostname),
+		IP:            strings.TrimSpace(ip),
+		AgentEndpoint: strings.TrimSpace(agentEndpoint),
+	})
+	if err != nil {
+		return fmt.Errorf("enqueue node removal: marshal: %w", err)
+	}
+	putCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := srv.etcdClient.Put(putCtx, nodeRemovalRequestPrefix+nodeID, string(payload)); err != nil {
+		return fmt.Errorf("enqueue node removal: put %q: %w", nodeID, err)
+	}
+	log.Printf("node-removal-requests: enqueued removal request for node %s (source: scylla fresh-join rollback)", nodeID)
+	return nil
+}
+
 // processNodeRemovalRequests drains explicit removal requests written by
 // clean-node flows running on target nodes. This guarantees that a node which
 // explicitly asks to leave the cluster is removed authoritatively even when

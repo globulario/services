@@ -78,7 +78,9 @@ func nodeStorageEligibilityReason(n *nodeState) string {
 	//
 	// If ScyllaJoinStartedAt is zero the state machine has never tracked this
 	// node (legacy cluster or non-Scylla node). Treat as eligible with a TODO.
-	if n.ScyllaJoinPhase == ScyllaJoinFailed {
+	if scyllaJoinIsFailedPhase(n.ScyllaJoinPhase) {
+		// Includes ScyllaJoinRollbackPending: a candidate being decommissioned
+		// must not count toward replication factor.
 		return "scylla_join_failed"
 	}
 	if !n.ScyllaJoinStartedAt.IsZero() && n.ScyllaJoinStartedAt != (time.Time{}) {

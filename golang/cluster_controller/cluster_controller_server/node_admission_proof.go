@@ -255,15 +255,16 @@ func EvaluateNodeAdmissionProof(state *controllerState, node *nodeState) NodeAdm
 	// ── Scylla member proof ────────────────────────────────────────────────────
 	if node.ScyllaIntent != nil && node.ScyllaIntent.Member {
 		proof.ScyllaRequired = true
-		switch node.ScyllaJoinPhase {
-		case ScyllaJoinFailed:
+		if scyllaJoinIsFailedPhase(node.ScyllaJoinPhase) {
+			// Includes ScyllaJoinRollbackPending: a candidate being decommissioned
+			// has no valid member proof.
 			proof.ScyllaProofOK = false
 			errDetail := node.ScyllaJoinError
 			if errDetail == "" {
 				errDetail = "scylla join failed (see node state)"
 			}
 			details["scylla_join"] = errDetail
-		default:
+		} else {
 			proof.ScyllaProofOK = true
 		}
 		proof.ScyllaFullyVerified = node.ScyllaJoinPhase == ScyllaJoinVerified
