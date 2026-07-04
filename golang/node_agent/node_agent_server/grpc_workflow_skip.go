@@ -25,14 +25,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/ingress"
 )
 
 // installSkipResult is the decision returned by canSkipInstallPackage.
@@ -58,6 +62,15 @@ const (
 	// installSkipDeniedUnitGone — version matches but the systemd unit file is missing entirely.
 	// Must reinstall.
 	installSkipDeniedUnitGone
+
+	// installSkipInactiveByDesign — version matches and the unit is loaded but
+	// inactive, AND the desired/spec layer says this inactive runtime is
+	// CONVERGENT, not drift (e.g. keepalived while the ingress spec explicitly
+	// disables the VIP). The caller must NOT repair/restart/reinstall — an
+	// inactive runtime is the correct converged state. Derives runtime intent
+	// from the desired layer, not from installed_state presence
+	// (four_layer.runtime_expectation_must_be_derived_from_desired_not_installed).
+	installSkipInactiveByDesign
 )
 
 // commandPackages is the set of binary-only packages that have no systemd unit.
@@ -92,6 +105,44 @@ var commandPackages = map[string]bool{
 }
 
 var commandBinaryExistsFunc = commandBinaryExists
+
+// inactiveByDesignFunc reports whether a loaded-but-inactive unit is CONVERGENT
+// per the desired/spec layer (so node-agent must not repair it). Injectable for
+// tests, mirroring commandBinaryExistsFunc. Default: keepalivedInactiveByDesign.
+var inactiveByDesignFunc = keepalivedInactiveByDesign
+
+// keepalivedInactiveByDesign returns true only for the keepalived package when
+// the ingress spec carries a FULLY-QUALIFIED explicit-disable intent. keepalived
+// is VIP/VRRP failover plumbing: with the VIP explicitly disabled there is
+// nothing for it to do, so an inactive unit is the converged state, not drift.
+//
+// FAIL-SAFE by construction (invariant destructive_actions.require_explicit_guard
+// + failure_mode destructive_actions.ambiguous_disable): any uncertainty — not
+// keepalived, no etcd client, missing spec, malformed JSON, or a disable that is
+// not fully-qualified (ingress.Spec.IsExplicitDisable requires mode=disabled AND
+// explicit_disabled AND non-empty reason AND generation>0) — returns false, so
+// the caller falls through to the normal repair path. Only an unambiguous,
+// authoritative disable classifies keepalived-inactive as convergent.
+func keepalivedInactiveByDesign(ctx context.Context, pkgName string) bool {
+	if pkgName != "keepalived" {
+		return false
+	}
+	etcdClient, err := config.GetEtcdClient()
+	if err != nil {
+		return false // cannot determine desired state → fail safe (repair)
+	}
+	readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := etcdClient.Get(readCtx, ingressSpecKey)
+	if err != nil || len(resp.Kvs) == 0 {
+		return false // no/unreadable spec → not an explicit disable → repair
+	}
+	var spec ingress.Spec
+	if err := json.Unmarshal(resp.Kvs[0].Value, &spec); err != nil {
+		return false // malformed spec → ambiguous → repair, not silent stop
+	}
+	return spec.IsExplicitDisable()
+}
 var commandBinaryPathFunc = commandBinaryPath
 var binaryChecksumFunc = cachedSha256
 
@@ -205,6 +256,17 @@ func canSkipInstallPackage(
 	// Unit exists but is not active — check whether the unit file is loaded.
 	loaded, _ := isLoaded(ctx, unit)
 	if loaded {
+		// Derive runtime intent from the DESIRED layer, not from installed_state:
+		// if the desired/spec layer says this inactive unit is convergent (e.g.
+		// keepalived while the ingress spec explicitly disables the VIP), an
+		// inactive runtime is the correct converged state — do NOT repair. The
+		// guard is fail-safe (only a fully-qualified explicit disable qualifies;
+		// ambiguity falls through to repair below).
+		if inactiveByDesignFunc(ctx, pkgName) {
+			return installSkipInactiveByDesign, fmt.Sprintf(
+				"install-package %s: %s inactive is convergent by design (desired layer disables it); not repairing",
+				pkgName, unit)
+		}
 		return installSkipDeniedInactive, fmt.Sprintf(
 			"install-package %s: installed_state matches but %s is inactive; attempting repair",
 			pkgName, unit)

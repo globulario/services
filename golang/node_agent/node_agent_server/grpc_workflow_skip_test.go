@@ -76,6 +76,44 @@ func TestInstallPackageDoesNotSkipWhenUnitInactive(t *testing.T) {
 	}
 }
 
+// TestInactiveByDesignSkipsRepairWhenDesiredLayerDisables is the regression guard
+// for the keepalived repair loop (task #28): when the desired layer says an
+// inactive unit is convergent (keepalived while ingress explicitly disables the
+// VIP), node-agent must classify it installSkipInactiveByDesign and NOT repair.
+// The FAIL-SAFE half is equally important (invariant
+// destructive_actions.ambiguous_disable): if the disable is not fully-qualified,
+// it must fall through to the normal repair path — never silently stop a unit.
+func TestInactiveByDesignSkipsRepairWhenDesiredLayerDisables(t *testing.T) {
+	old := inactiveByDesignFunc
+	defer func() { inactiveByDesignFunc = old }()
+
+	// Desired layer explicitly disables → inactive is convergent, no repair.
+	inactiveByDesignFunc = func(_ context.Context, pkgName string) bool { return pkgName == "keepalived" }
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"keepalived", "INFRASTRUCTURE", "2.2.8", "", "",
+		installedPkg("2.2.8", ""),
+		alwaysInactive,
+		alwaysLoaded,
+	)
+	if result != installSkipInactiveByDesign {
+		t.Fatalf("expected installSkipInactiveByDesign for keepalived with ingress disabled, got %d (%s)", result, reason)
+	}
+
+	// FAIL-SAFE: not a fully-qualified explicit disable → must still repair.
+	inactiveByDesignFunc = func(_ context.Context, _ string) bool { return false }
+	result2, reason2 := canSkipInstallPackage(
+		context.Background(),
+		"keepalived", "INFRASTRUCTURE", "2.2.8", "", "",
+		installedPkg("2.2.8", ""),
+		alwaysInactive,
+		alwaysLoaded,
+	)
+	if result2 != installSkipDeniedInactive {
+		t.Fatalf("fail-safe: expected installSkipDeniedInactive when disable is not explicit, got %d (%s)", result2, reason2)
+	}
+}
+
 // TestInstallPackageDoesNotSkipWhenUnitMissing — version matches but unit file
 // is gone → must reinstall.
 func TestInstallPackageDoesNotSkipWhenUnitMissing(t *testing.T) {

@@ -340,6 +340,36 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 				StepsSucceeded: 1,
 			}, nil
 
+		case installSkipInactiveByDesign:
+			// The desired layer says this inactive unit is convergent (e.g.
+			// keepalived while ingress explicitly disables the VIP). Do NOT
+			// Start/repair/reinstall — inactive IS the converged state. Record
+			// the runtime proof as inactive_by_design and report success so the
+			// reconciler stops looping (four_layer.runtime_expectation_must_be_
+			// derived_from_desired_not_installed; install_skip_must_refresh_
+			// runtime_proof). node-agent stays an executor: it derives this from
+			// the controller-authored ingress spec, it does not invent policy.
+			log.Printf("grpc-workflow: %s", reason)
+			srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+				ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+				WorkflowID:      wfID,
+				Package:         pkgName,
+				NodeID:          srv.nodeID,
+				DesiredVersion:  desiredVersion,
+				DesiredBuildID:  buildID,
+				LocalVersion:    existing.GetVersion(),
+				LocalBuildID:    existing.GetBuildId(),
+				LocalHash:       convergenceHash,
+				Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
+				SourceComponent: "node-agent",
+				Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "inactive_by_design", "runtime_state": "inactive_by_design"},
+			})
+			return &node_agentpb.RunWorkflowResponse{
+				Status:         "SUCCEEDED",
+				StepsTotal:     1,
+				StepsSucceeded: 1,
+			}, nil
+
 		case installSkipDeniedInactive:
 			// Unit is loaded but inactive — try a Start before full reinstall.
 			log.Printf("grpc-workflow: %s", reason)
