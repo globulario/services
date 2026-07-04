@@ -35,6 +35,33 @@ FAILED_CHECKS=0
 # Results array
 declare -a FAILURES=()
 
+https_port() {
+    local port=""
+    if [[ -f /var/lib/globular/config.json ]]; then
+        port=$(jq -r '.PortHTTPS // 8443' /var/lib/globular/config.json 2>/dev/null || true)
+    fi
+    if [[ ! "$port" =~ ^[0-9]+$ ]] || [[ "$port" -le 0 ]]; then
+        port=8443
+    fi
+    echo "$port"
+}
+
+envoy_listener_snapshot() {
+    curl -fsS --max-time 2 http://127.0.0.1:9901/stats?format=json 2>/dev/null \
+        | jq -r '
+            reduce (.stats // [])[] as $s (
+              {"cds":0,"lds":0,"listeners":0};
+              if $s.name == "cluster_manager.cds.update_success" then .cds = ($s.value // 0)
+              elif $s.name == "listener_manager.lds.update_attempt" then .lds = ($s.value // 0)
+              elif $s.name == "listener_manager.total_listeners_active" then .listeners = ($s.value // 0)
+              else .
+              end
+            )
+            | "\(.cds) \(.lds) \(.listeners)"' 2>/dev/null
+}
+
+ENV_HTTPS_PORT="$(https_port)"
+
 # SIMPLIFIED HOME DETECTION - Use root certificates when running as root
 # Root certificates are generated during Day-0 installation and are the
 # canonical certificates for admin/system operations.
@@ -174,8 +201,8 @@ check "ScyllaDB listening on port 9042" \
     "ss -tlnp | grep ':9042'" \
     "9042"
 
-check "Envoy HTTPS port listening (8443)" \
-    "ss -tln | grep -q ':8443 ' && echo 'ok'" \
+check "Envoy HTTPS port listening (${ENV_HTTPS_PORT})" \
+    "ss -tln | grep -q ':${ENV_HTTPS_PORT} ' && echo 'ok'" \
     "ok"
 
 check "Envoy admin port listening (9901)" \
@@ -236,6 +263,14 @@ sleep 5
 
 check "ScyllaDB connection test" \
     "host=\$(awk -F': *' '/^(rpc_address|listen_address)/ {print \$2}' /etc/scylla/scylla.yaml 2>/dev/null | head -n1 | tr -d \"'\"); host=\${host:-\$(hostname -I | awk '{print \$1}')}; cqlsh \"\$host\" -e 'SELECT now() FROM system.local;' 2>/dev/null | grep -q 'now()' && echo \"ok (\$host)\"" \
+    "ok"
+
+check "Envoy admin API reachable" \
+    "curl -fsS --max-time 2 http://127.0.0.1:9901/server_info >/dev/null && echo 'ok'" \
+    "ok"
+
+check "Envoy has active listeners" \
+    "read -r cds lds listeners <<<\"\$(envoy_listener_snapshot)\"; if [[ \${listeners:-0} -gt 0 ]]; then echo \"ok (cds=\${cds:-0}, lds=\${lds:-0}, listeners=\${listeners:-0})\"; else echo \"FAIL: active but listenerless Envoy (cds=\${cds:-0}, lds=\${lds:-0}, listeners=\${listeners:-0})\" >&2; exit 1; fi" \
     "ok"
 
 # DNS check with retry (in case service just started)
@@ -476,7 +511,7 @@ if [ $FAILED_CHECKS -eq 0 ]; then
     echo "├──────────────┼────────────┼──────────┼───────────┼────────────┤"
     echo "│ ScyllaDB     │ ✅ Running │ ⚪ CQL   │ 9042      │ ✅ Healthy │"
     echo "├──────────────┼────────────┼──────────┼───────────┼────────────┤"
-    echo "│ Envoy        │ ✅ Running │ ✅ HTTPS │ 8443/9901 │ ✅ Healthy │"
+    echo "│ Envoy        │ ✅ Running │ ✅ HTTPS │ ${ENV_HTTPS_PORT}/9901 │ ✅ Healthy │"
     echo "├──────────────┼────────────┼──────────┼───────────┼────────────┤"
     echo "│ Gateway      │ ✅ Running │ ✅ HTTPS │ 8443      │ ✅ Healthy │"
     echo "├──────────────┼────────────┼──────────┼───────────┼────────────┤"

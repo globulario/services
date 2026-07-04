@@ -390,9 +390,17 @@ FAILED=0
 TOTAL=0
 FAILED_LIST=""
 
-# Local state file: maps entrypoint_checksum → 1 for each successfully published binary.
-# This is the idempotency key — the repository assigns its own version counter (0.0.x)
-# and has no dedup by content. Without this, every run creates a new version entry.
+# Local state file: maps "<package-name>:<entrypoint_checksum>" → 1 for each
+# successfully published binary. This is the idempotency key — the repository
+# assigns its own version counter (0.0.x) and has no dedup by content. Without
+# this, every run creates a new version entry.
+#
+# The key MUST include the package name, not the checksum alone: all binary=noop
+# infrastructure packages (scylladb, keepalived, …) ship the identical bin/noop
+# binary and therefore share one entrypoint_checksum. Keying by checksum alone
+# collides them — the first noop package published records the shared checksum
+# and every subsequent noop package (e.g. scylladb) is falsely skipped as
+# "already present" and never published, leaving its release stuck WAITING.
 PUBLISHED_CHECKSUMS_FILE="${STATE_DIR}/.bootstrap-artifacts-checksums"
 declare -A PUBLISHED_CHECKSUMS
 if [[ -f "$PUBLISHED_CHECKSUMS_FILE" ]]; then
@@ -427,7 +435,11 @@ for pattern in "${CORE_PACKAGES[@]}"; do
   PKG_CHECKSUM=$(tar xOf "$PACKAGE" ./package.json 2>/dev/null \
     | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('entrypoint_checksum',''))" 2>/dev/null || true)
 
-  if [[ -n "$PKG_CHECKSUM" && -n "${PUBLISHED_CHECKSUMS[$PKG_CHECKSUM]+x}" ]]; then
+  # Dedup by package IDENTITY (name + checksum), never the checksum alone —
+  # noop packages share one entrypoint_checksum (see PUBLISHED_CHECKSUMS_FILE note).
+  PKG_DEDUP_KEY="${SVC_NAME}:${PKG_CHECKSUM}"
+
+  if [[ -n "$PKG_CHECKSUM" && -n "${PUBLISHED_CHECKSUMS[$PKG_DEDUP_KEY]+x}" ]]; then
     log_success "$(printf '%-28s %s (already present)' "$SVC_NAME" "$SVC_VER")"
     SKIPPED=$((SKIPPED + 1))
     continue
@@ -494,10 +506,10 @@ except:
       log_success "$(printf '%-28s %s (published)' "$SVC_NAME" "$SVC_VER")"
       PUBLISHED=$((PUBLISHED + 1))
     fi
-    # Record checksum so re-runs skip this binary.
+    # Record name+checksum so re-runs skip this exact package (not every noop).
     if [[ -n "$PKG_CHECKSUM" ]]; then
-      PUBLISHED_CHECKSUMS["$PKG_CHECKSUM"]=1
-      echo "$PKG_CHECKSUM" >> "$PUBLISHED_CHECKSUMS_FILE"
+      PUBLISHED_CHECKSUMS["$PKG_DEDUP_KEY"]=1
+      echo "$PKG_DEDUP_KEY" >> "$PUBLISHED_CHECKSUMS_FILE"
     fi
   else
     # Check for "already exists" style errors in the raw output

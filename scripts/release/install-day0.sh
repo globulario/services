@@ -106,6 +106,50 @@ CQL
   fi
 }
 
+globular_https_port() {
+  local port=""
+  if [[ -f "${STATE_DIR}/config.json" ]]; then
+    port=$(jq -r '.PortHTTPS // 8443' "${STATE_DIR}/config.json" 2>/dev/null || true)
+  fi
+  if [[ ! "$port" =~ ^[0-9]+$ ]] || [[ "$port" -le 0 ]]; then
+    port=8443
+  fi
+  echo "$port"
+}
+
+envoy_listener_snapshot() {
+  curl -fsS --max-time 2 http://127.0.0.1:9901/stats?format=json 2>/dev/null \
+    | jq -r '
+        reduce (.stats // [])[] as $s (
+          {"cds":0,"lds":0,"listeners":0};
+          if $s.name == "cluster_manager.cds.update_success" then .cds = ($s.value // 0)
+          elif $s.name == "listener_manager.lds.update_attempt" then .lds = ($s.value // 0)
+          elif $s.name == "listener_manager.total_listeners_active" then .listeners = ($s.value // 0)
+          else .
+          end
+        )
+        | "\(.cds) \(.lds) \(.listeners)"' 2>/dev/null
+}
+
+wait_envoy_listener_readiness() {
+  local https_port="${1:-$(globular_https_port)}"
+  local snapshot cds lds listeners
+  log_substep "Waiting for Envoy listeners on HTTPS port ${https_port}..."
+  for _i in $(seq 1 45); do
+    snapshot="$(envoy_listener_snapshot || true)"
+    if [[ -n "$snapshot" ]]; then
+      read -r cds lds listeners <<<"$snapshot"
+      if [[ "${listeners:-0}" -gt 0 ]]; then
+        log_success "Envoy listeners active (cds=${cds:-0}, lds_attempt=${lds:-0}, listeners=${listeners})"
+        return 0
+      fi
+    fi
+    sleep 2
+  done
+  log_warn "Envoy admin never reported active listeners on port ${https_port}; validate-cluster-health will surface the exact failure mode"
+  return 1
+}
+
 # ── Workflow trace log ─────────────────────────────────────────────────────
 # Writes JSON-lines to DAY0_TRACE_LOG. The workflow service imports this on
 # startup to create a proper workflow run visible in the admin UI.
@@ -1160,7 +1204,10 @@ PY
     log_substep "Warning: failed to normalize gateway config"
   fi
 else
-  log_substep "Warning: gateway config not found at $GATEWAY_CFG"
+  # The gateway reads its runtime config from etcd (the sole source of truth);
+  # a local config.json is optional and absent on a fresh Day-0 install. Nothing
+  # to normalize — this is expected, not a warning.
+  log_substep "Gateway config is etcd-managed; local $GATEWAY_CFG not present (nothing to normalize)"
 fi
 
 # ── Workflow definitions (always required) ────────────────────────────────
@@ -1346,9 +1393,13 @@ fi
 log_step "Bootstrap Services (xds, envoy, gateway, agents)"
 install_list "${BOOTSTRAP_REST_PKGS[@]}"
 
-# Explicitly ensure cluster-doctor is installed and running (common omission)
-CLUSTER_DOCTOR_PKG="$PKG_DIR/cluster-doctor_0.0.1_linux_amd64.tgz"
-if [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
+# Explicitly ensure cluster-doctor is installed and running (common omission).
+# Resolve by prefix — the release tarball names packages
+# cluster-doctor_<release-version>_linux_amd64.tgz, not the canonical _0.0.1_
+# placeholder. Hardcoding _0.0.1_ here produced a spurious "package not found"
+# warning even though the main install loop already installed it.
+CLUSTER_DOCTOR_PKG="$(ls "$PKG_DIR/cluster-doctor_"*"_linux_amd64.tgz" 2>/dev/null | head -1)" || CLUSTER_DOCTOR_PKG=""
+if [[ -n "$CLUSTER_DOCTOR_PKG" ]] && [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
   if ! systemctl list-unit-files | grep -q "^globular-cluster-doctor.service"; then
     log_substep "cluster-doctor unit missing; reinstalling from package..."
     run_install "$CLUSTER_DOCTOR_PKG"
@@ -1360,23 +1411,28 @@ if [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
     systemctl start globular-cluster-doctor.service || log_substep "Warning: failed to start cluster-doctor (check logs)"
   fi
 else
-  log_substep "Warning: cluster-doctor package not found at $CLUSTER_DOCTOR_PKG"
+  log_substep "Warning: cluster-doctor package not found under $PKG_DIR (cluster-doctor_*_linux_amd64.tgz)"
 fi
 
 # Restart xDS to ensure it picks up the HTTPS configuration
 log_substep "Restarting xDS service to apply HTTPS configuration..."
 if systemctl is-active --quiet globular-xds.service; then
   systemctl restart globular-xds.service
-  sleep 3  # Wait for xDS to regenerate Envoy config
+  sleep 3
   log_success "xDS restarted with HTTPS config"
 fi
 
-# Restart Envoy to pick up the new configuration from xDS
-log_substep "Restarting Envoy with HTTPS configuration..."
+# Envoy gets dynamic config from xDS; blindly bouncing it here can wedge the LDS
+# handshake before listeners become active. Keep a healthy daemon running and
+# only start it if install_list left the unit inactive.
+HTTPS_PORT="$(globular_https_port)"
 if systemctl is-active --quiet globular-envoy.service; then
-  systemctl restart globular-envoy.service
-  sleep 3  # Wait for Envoy to start with new config
-  log_success "Envoy restarted on port 8443 (HTTPS)"
+  log_substep "Envoy already active; skipping forced restart and waiting for listeners on port ${HTTPS_PORT}..."
+  wait_envoy_listener_readiness "${HTTPS_PORT}" || true
+else
+  log_substep "Starting Envoy with HTTPS configuration on port ${HTTPS_PORT}..."
+  systemctl start globular-envoy.service
+  wait_envoy_listener_readiness "${HTTPS_PORT}" || true
 fi
 
 log_step "Control Plane Services"
@@ -1438,29 +1494,11 @@ if systemctl is-active --quiet globular-cluster-controller.service 2>/dev/null; 
   log_substep "Restarted cluster controller with cluster_domain"
 fi
 
-log_step "System Resolver Configuration (Day-0)"
-if [[ -x "$SCRIPT_DIR/configure-resolver.sh" ]]; then
-  RESOLVER_LOG="/tmp/configure-resolver-$(date +%Y%m%d-%H%M%S).log"
-  set +e
-  "$SCRIPT_DIR/configure-resolver.sh" 2>&1 | tee "$RESOLVER_LOG"
-  resolver_rc=${PIPESTATUS[0]}
-  set -e
-
-  if [[ $resolver_rc -ne 0 ]]; then
-    die "configure-resolver.sh failed (see $RESOLVER_LOG)"
-  fi
-
-  if grep -q "VERIFY_RESULT=FAIL" "$RESOLVER_LOG"; then
-    log_substep "Warning: DNS resolver verification FAILED (see $RESOLVER_LOG)"
-  elif grep -q "VERIFY_RESULT=PASS" "$RESOLVER_LOG"; then
-    log_success "System resolver configured for ${DOMAIN}"
-  else
-    log_substep "Warning: configure-resolver.sh completed without VERIFY_RESULT marker (see $RESOLVER_LOG)"
-  fi
-else
-  log_substep "Warning: configure-resolver.sh not found, DNS system resolver not configured"
-fi
-
+# NOTE: DNS record seeding (below) MUST run before System Resolver Configuration.
+# configure-resolver.sh's Step-5 verification resolves api.${DOMAIN}; if the DNS
+# records have not been seeded yet it always reports VERIFY_RESULT=FAIL. Seeding
+# first (bootstrap-dns uses direct IP + client certs, not the system resolver)
+# makes that verification meaningful instead of a guaranteed false failure.
 log_step "DNS Bootstrap (Day-0)"
 
 # Ensure globular CLI is callable as "globular" in PATH for bootstrap-dns.sh.
@@ -1508,6 +1546,32 @@ fi
 # cause every subsequent gRPC call to fail on first attempt (bootstrap_expired
 # denial before falling through to normal auth), making publish very slow.
 rm -f "${BOOTSTRAP_FLAG}" 2>/dev/null
+
+# System resolver configuration runs AFTER DNS records are seeded (above) so
+# configure-resolver.sh's Step-5 verification of api.${DOMAIN} can succeed
+# instead of failing on records that do not exist yet.
+log_step "System Resolver Configuration (Day-0)"
+if [[ -x "$SCRIPT_DIR/configure-resolver.sh" ]]; then
+  RESOLVER_LOG="/tmp/configure-resolver-$(date +%Y%m%d-%H%M%S).log"
+  set +e
+  "$SCRIPT_DIR/configure-resolver.sh" 2>&1 | tee "$RESOLVER_LOG"
+  resolver_rc=${PIPESTATUS[0]}
+  set -e
+
+  if [[ $resolver_rc -ne 0 ]]; then
+    die "configure-resolver.sh failed (see $RESOLVER_LOG)"
+  fi
+
+  if grep -q "VERIFY_RESULT=FAIL" "$RESOLVER_LOG"; then
+    log_substep "Warning: DNS resolver verification FAILED (see $RESOLVER_LOG)"
+  elif grep -q "VERIFY_RESULT=PASS" "$RESOLVER_LOG"; then
+    log_success "System resolver configured for ${DOMAIN}"
+  else
+    log_substep "Warning: configure-resolver.sh completed without VERIFY_RESULT marker (see $RESOLVER_LOG)"
+  fi
+else
+  log_substep "Warning: configure-resolver.sh not found, DNS system resolver not configured"
+fi
 
 log_step "Operations Services"
 trace_step "running" "phase.ops" "Operations Services" 5
