@@ -84,6 +84,11 @@ info "Installing globular CLI..."
 install -m 755 "${SCRIPT_DIR}/globular" /usr/local/bin/globular
 ok "globular → /usr/local/bin/globular"
 
+info "Installing globular-installer runtime..."
+install -d -m 755 /usr/lib/globular/bin
+install -m 755 "${INSTALLER_BIN}" /usr/lib/globular/bin/globular-installer
+ok "globular-installer → /usr/lib/globular/bin/globular-installer"
+
 VERSION=$("${SCRIPT_DIR}/globular" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
 info "Release version: ${VERSION}"
 

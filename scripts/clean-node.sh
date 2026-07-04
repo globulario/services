@@ -12,23 +12,83 @@ set -euo pipefail
 #   b. Decommissions the ScyllaDB node (streams data to peers before shutdown).
 #   c. Removes the etcd member (prevents quorum breakage on remaining peers).
 #
+# Detachment is BEST-EFFORT: any failure warns loudly (with the manual
+# remediation command) and continues — a node that is already isolated from the
+# cluster is exactly when a force-clean is needed, so detachment must never
+# block the local wipe. Use --local-only to skip cluster detachment entirely.
+#
 # Phases 1–5: Local cleanup — stops services and wipes state.
 #
 # Usage:
 #   sudo bash clean-node.sh              # interactive (asks before wiping)
 #   sudo bash clean-node.sh --force      # non-interactive (no prompts)
+#   sudo bash clean-node.sh --local-only # skip cluster detachment, wipe locally
 #
 # Can be run remotely:
 #   ssh user@node "sudo bash -s" < clean-node.sh
 
 FORCE=0
-[[ "${1:-}" == "--force" ]] && FORCE=1
+LOCAL_ONLY=0
+TEST_ALLOW_NON_ROOT="${GLOBULAR_CLEAN_NODE_TEST_ALLOW_NON_ROOT:-0}"
+TEST_STOP_AFTER="${GLOBULAR_CLEAN_NODE_TEST_STOP_AFTER:-}"
+STATE_DIR_ROOT="${GLOBULAR_STATE_DIR_OVERRIDE:-/var/lib/globular}"
 
 die() { echo "  ✗ ERROR: $*" >&2; exit 1; }
 log_info() { echo "  → $*"; }
 log_success() { echo "  ✓ $*"; }
 log_warn() { echo "  ⚠ $*"; }
 log_step() { echo ""; echo "━━━ $* ━━━"; echo ""; }
+
+# Parse args after the log/die helpers are defined — the unknown-argument case
+# calls die(), so the helpers must exist before this loop runs.
+while [[ $# -gt 0 ]]; do
+    case "${1:-}" in
+        --force)
+            FORCE=1
+            ;;
+        --local-only)
+            LOCAL_ONLY=1
+            ;;
+        *)
+            die "unknown argument: ${1}"
+            ;;
+    esac
+    shift
+done
+phase_marker() {
+    local marker_id="${1:-}"
+    local marker_text="${2:-}"
+    [[ -n "${marker_text}" ]] && log_info "${marker_text}"
+    if [[ -n "${TEST_STOP_AFTER}" && "${TEST_STOP_AFTER}" == "${marker_id}" ]]; then
+        log_success "Test stop after phase marker: ${marker_id}"
+        exit 0
+    fi
+}
+
+count_scylla_up_nodes() {
+    local status_output=""
+    status_output="$(nodetool status 2>/dev/null || true)"
+    if [[ -z "${status_output}" ]]; then
+        log_warn "nodetool status unavailable — treating ScyllaDB peer count as 0" >&2
+        printf '0\n'
+        return 0
+    fi
+    printf '%s\n' "${status_output}" | awk '/^U[NL] / {n++} END {print n+0}'
+}
+
+resolve_node_agent_state_path() {
+    local canonical="${STATE_DIR_ROOT}/node-agent/state.json"
+    local legacy="${STATE_DIR_ROOT}/nodeagent/state.json"
+    if [[ -f "${canonical}" ]]; then
+        printf '%s\n' "${canonical}"
+        return 0
+    fi
+    if [[ -f "${legacy}" ]]; then
+        printf '%s\n' "${legacy}"
+        return 0
+    fi
+    printf '%s\n' "${canonical}"
+}
 
 # hard_stop_scylla — kills ScyllaDB completely before any wipe.
 # Fails closed (exits non-zero) if Scylla cannot be killed within 10s, because
@@ -55,8 +115,13 @@ hard_stop_scylla() {
     pkill -9 -x scylla-manager-agent 2>/dev/null || true
 
     # Wait up to 10 s for all Scylla processes to exit.
+    # Match ONLY real ScyllaDB binaries by exact process name (-x), never the
+    # full command line (-f): a caller whose argv merely *contains* "scylla" —
+    # this cleanup script itself, or `systemctl reset-failed 'scylla-*'`, or a
+    # log tail — must not be mistaken for a live database and block the wipe.
+    local scylla_name_re='scylla|scylla-manager|scylla-manager-agent'
     for i in $(seq 1 10); do
-        if ! pgrep -af 'scylla' >/dev/null 2>&1; then
+        if ! pgrep -x "${scylla_name_re}" >/dev/null 2>&1; then
             log_success "No ScyllaDB process remains"
             return 0
         fi
@@ -64,7 +129,7 @@ hard_stop_scylla() {
     done
 
     log_warn "ScyllaDB processes still alive after hard stop:"
-    pgrep -af 'scylla' || true
+    pgrep -ax "${scylla_name_re}" || true
     die "Refusing to wipe /var/lib/scylla while ScyllaDB may still be running. Kill the process manually and rerun."
 }
 
@@ -87,7 +152,7 @@ assert_scylla_wiped() {
 }
 
 # Must be root
-[[ $EUID -eq 0 ]] || die "This script must be run as root (use sudo)"
+[[ $EUID -eq 0 || "${TEST_ALLOW_NON_ROOT}" == "1" ]] || die "This script must be run as root (use sudo)"
 
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
@@ -206,9 +271,17 @@ fi
 
 log_step "Detaching from Cluster (before local wipe)"
 
-_STATE_DIR="/var/lib/globular"
+if [[ "$LOCAL_ONLY" == "1" ]]; then
+  log_warn "--local-only: skipping cluster detachment (controller / ScyllaDB ring / etcd member / MinIO pool)."
+  log_warn "  This node's peer-membership in each of those subsystems is NOT cleaned by a local wipe."
+  log_warn "  On a multi-node cluster, remove it from a controller/admin host after the wipe —"
+  log_warn "  this single command cascades to xDS endpoint pruning AND MinIO pool eviction:"
+  log_warn "    globular cluster nodes remove <node-id> --force --drain=false"
+fi
+
+_STATE_DIR="${STATE_DIR_ROOT}"
 _PKI_DIR="${_STATE_DIR}/pki"
-_STATE_FILE="${_STATE_DIR}/nodeagent/state.json"
+_STATE_FILE="$(resolve_node_agent_state_path)"
 _ETCD_CACERT="${_PKI_DIR}/ca.crt"
 _ETCD_CERT="${_PKI_DIR}/issued/etcd/client.crt"
 _ETCD_KEY="${_PKI_DIR}/issued/etcd/client.key"
@@ -229,7 +302,7 @@ if [[ -f "$_STATE_FILE" ]] && command -v python3 >/dev/null 2>&1; then
 import json
 try:
     d = json.load(open('$_STATE_FILE'))
-    print(d.get('NodeID', '').strip())
+    print(d.get('node_id', '').strip())
 except Exception:
     pass
 " 2>/dev/null || true)
@@ -240,7 +313,8 @@ fi
 # its own controller auth — no user token is required on the cleaning node.
 # Fallback: globular CLI (needs a cached token at ~/.config/globular/token).
 
-if [[ -n "$_NODE_ID" ]]; then
+if [[ "$LOCAL_ONLY" != "1" && -n "$_NODE_ID" ]]; then
+  phase_marker "controller_removal_start" "controller removal start"
   # Derive gateway host from controller_endpoint in state.json (strip scheme/port).
   _GATEWAY_HOST="globular.internal"
   if [[ -f "$_STATE_FILE" ]] && command -v python3 >/dev/null 2>&1; then
@@ -258,38 +332,56 @@ except Exception: pass
   fi
 
   log_info "Removing node ${_NODE_ID} from cluster via gateway API (${_GATEWAY_HOST}:8443)..."
-  _HTTP_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+  # NOTE: no -f. Without -f, curl exits 0 on an HTTP error and -w reports the
+  # real status (404/500/…); on a connection failure curl reports 000 via -w and
+  # exits non-zero. Do NOT append `|| echo 000` — curl already prints 000 on
+  # failure, so the extra echo concatenated into a bogus "000000". The `|| true`
+  # only guards `set -e`; the `[[ -z ]]` guard covers the no-output edge case.
+  _HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
     -X DELETE "https://${_GATEWAY_HOST}:8443/api/cluster/nodes/${_NODE_ID}" \
     -k -H "Content-Type: application/json" \
-    -d '{"force":true,"drain":false}' 2>/dev/null || echo "000")
+    -d '{"force":true,"drain":false}' 2>/dev/null || true)
+  [[ -z "$_HTTP_STATUS" ]] && _HTTP_STATUS="000"
 
   if [[ "$_HTTP_STATUS" == "200" ]]; then
     log_success "Node removed from cluster controller"
+    phase_marker "controller_removal_success" "controller removal success"
   else
+    phase_marker "controller_removal_failure" "controller removal failure"
     log_warn "Gateway API returned HTTP ${_HTTP_STATUS} — falling back to globular CLI..."
     if [[ -n "$_GLOBULAR_BIN" ]]; then
       _REMOVE_ERR=$("$_GLOBULAR_BIN" cluster nodes remove "$_NODE_ID" --force --drain=false 2>&1 || true)
       if echo "$_REMOVE_ERR" | grep -q "^message:"; then
         log_success "Node removed from cluster controller (via CLI)"
+        phase_marker "controller_removal_success" "controller removal success"
       else
+        # Best-effort: detachment failure must NOT block the local wipe.
         log_warn "CLI removal also failed: ${_REMOVE_ERR}"
-        log_warn "Run manually after cleanup: globular cluster nodes remove ${_NODE_ID} --force --drain=false"
+        log_warn "  Controller removal is what cascades to xDS endpoint pruning AND"
+        log_warn "  MinIO pool eviction — neither happened. Run this from a controller/admin"
+        log_warn "  host after the wipe to complete both:"
+        log_warn "    globular cluster nodes remove ${_NODE_ID} --force --drain=false"
       fi
     else
-      log_warn "globular CLI not found — run manually after cleanup:"
-      log_warn "  curl -X DELETE https://${_GATEWAY_HOST}:8443/api/cluster/nodes/${_NODE_ID} -k -d '{\"force\":true,\"drain\":false}'"
+      # No CLI on this node and the gateway API was unreachable. Warn with the
+      # manual remediation and continue — the local wipe still proceeds.
+      log_warn "globular CLI not found — controller removal could not run on this node."
+      log_warn "  xDS endpoint pruning AND MinIO pool eviction cascade from controller removal;"
+      log_warn "  neither happened. Complete both from a controller/admin host after the wipe:"
+      log_warn "    globular cluster nodes remove ${_NODE_ID} --force --drain=false"
+      log_warn "  or: curl -X DELETE https://${_GATEWAY_HOST}:8443/api/cluster/nodes/${_NODE_ID} -k -d '{\"force\":true,\"drain\":false}'"
     fi
   fi
-elif [[ -z "$_NODE_ID" ]]; then
+elif [[ "$LOCAL_ONLY" != "1" && -z "$_NODE_ID" ]]; then
   log_warn "No node ID in ${_STATE_FILE} — skipping controller removal (node may not be registered)"
 fi
 
 # ── 0.2 ScyllaDB: decommission before shutdown ───────────────────────────────
 # Streams data to remaining peers; must run while scylla-server is still active.
 # Skip when this is the only ScyllaDB node (nothing to stream to).
-if systemctl is-active --quiet scylla-server.service 2>/dev/null; then
+if [[ "$LOCAL_ONLY" != "1" ]] && systemctl is-active --quiet scylla-server.service 2>/dev/null; then
   if command -v nodetool >/dev/null 2>&1; then
-    _SCYLLA_UP=$(nodetool status 2>/dev/null | grep -cE "^U[NL] " || echo "0")
+    _SCYLLA_UP="$(count_scylla_up_nodes)"
     if [[ "$_SCYLLA_UP" -gt 1 ]]; then
       log_info "Decommissioning ScyllaDB node (streaming data to peers — this may take a few minutes)..."
       if nodetool decommission 2>/dev/null; then
@@ -310,7 +402,8 @@ fi
 # ── 0.3 etcd: remove member before data wipe ─────────────────────────────────
 # Without this the remaining peers still count this node toward quorum and will
 # stall on the next leader election or write if it stays missing.
-if systemctl is-active --quiet globular-etcd.service 2>/dev/null \
+if [[ "$LOCAL_ONLY" != "1" ]] \
+    && systemctl is-active --quiet globular-etcd.service 2>/dev/null \
     && [[ -n "$_ETCDCTL_BIN" ]] \
     && [[ -f "$_ETCD_CACERT" ]] && [[ -f "$_ETCD_CERT" ]] && [[ -f "$_ETCD_KEY" ]]; then
 
@@ -346,21 +439,23 @@ except Exception:
   else
     log_warn "This node not found in etcd member list — may already be removed"
   fi
-elif systemctl is-active --quiet globular-etcd.service 2>/dev/null; then
+elif [[ "$LOCAL_ONLY" != "1" ]] && systemctl is-active --quiet globular-etcd.service 2>/dev/null; then
   log_warn "etcdctl or TLS certs missing — skipping etcd member removal"
   log_warn "  Manual fix: etcdctl member list → etcdctl member remove <id>"
 fi
 
 # ── Phase 1: Stop services ────────────────────────────────────────────────────
 
+phase_marker "service_stop_start" "service stop start"
 log_step "Stopping Services"
 
 # Stop all globular services
-for unit in $(systemctl list-units 'globular-*' --no-pager --no-legend --plain 2>/dev/null | awk '{print $1}'); do
+while IFS= read -r unit; do
+  [[ -n "$unit" ]] || continue
   log_info "Stopping $unit"
   systemctl stop "$unit" 2>/dev/null || true
   systemctl disable "$unit" 2>/dev/null || true
-done
+done < <(systemctl list-units 'globular-*' --no-pager --no-legend --plain 2>/dev/null | awk '{print $1}' || true)
 
 # Stop ScyllaDB (best-effort via systemctl; hard_stop_scylla below does the
 # definitive kill and verifies no process remains before we wipe anything).
@@ -374,11 +469,12 @@ for unit in scylla-server.service scylla-node-exporter.service scylla-tune-sched
 done
 
 # Stop ScyllaDB timers
-for timer in $(systemctl list-timers 'scylla-*' --no-pager --no-legend --plain 2>/dev/null | awk '{print $NF}'); do
+while IFS= read -r timer; do
+  [[ -n "$timer" ]] || continue
   log_info "Stopping timer $timer"
   systemctl stop "$timer" 2>/dev/null || true
   systemctl disable "$timer" 2>/dev/null || true
-done
+done < <(systemctl list-timers 'scylla-*' --no-pager --no-legend --plain 2>/dev/null | awk '{print $NF}' || true)
 
 # Hard-kill ScyllaDB — must succeed before any wipe begins.
 # This is a non-negotiable gate: a live Scylla process can recreate system
@@ -390,11 +486,12 @@ hard_stop_scylla
 log_step "Force-Killing Surviving Processes"
 
 # Kill all globular server processes
-for proc in $(ps aux 2>/dev/null | grep -E '_server|globularcli|mcp|gateway|xds_server|envoy' | grep -v grep | awk '{print $2}'); do
+while IFS= read -r proc; do
+  [[ -n "$proc" ]] || continue
   cmd=$(ps -p "$proc" -o comm= 2>/dev/null || true)
   log_warn "Killing PID $proc ($cmd)"
   kill -9 "$proc" 2>/dev/null || true
-done
+done < <(ps aux 2>/dev/null | awk '/_server|globularcli|mcp|gateway|xds_server|envoy/ && $0 !~ /awk/ {print $2}' || true)
 
 # Kill etcd if running
 pkill -9 -x etcd 2>/dev/null && log_warn "Killed etcd" || true
@@ -432,7 +529,9 @@ systemctl daemon-reload 2>/dev/null || true
 
 # ── Phase 4: Wipe state ─────────────────────────────────────────────────────
 
+phase_marker "data_wipe_start" "data wipe start"
 log_step "Wiping State"
+phase_marker "package_state_wipe_start" "package/state wipe start"
 
 # Globular state — unconditional rm -rf (safe on missing dirs, avoids
 # permission-race with the globular user that was just removed)
@@ -492,6 +591,25 @@ assert_scylla_wiped
 if [[ -d /var/lib/etcd ]]; then
   rm -rf /var/lib/etcd
   log_success "Removed /var/lib/etcd"
+fi
+
+# ── keepalived / ingress VIP cleanup ─────────────────────────────────────────
+# The keepalived VIP (e.g. the ingress 10.0.0.100) is cluster-managed floating
+# state that MUST NOT survive a node wipe. A stale /etc/keepalived/keepalived.conf
+# left behind poisons the next install: keepalived raises the old VIP on the
+# interface, the node-agent gathers it and — because a fresh day-0 ingress spec
+# is "disabled", so lookupIngressVIP() returns "" and the VIP-exclusion guard is
+# a no-op — publishes it as the node's PRIMARY identity IP. That IP then fails
+# cert SAN coverage (cluster-doctor: security.certs.san_coverage ERROR) and is
+# mis-reported as the wired-primary IP. Stop keepalived (releases the VIP) and
+# remove its config so the next install starts from a clean, VIP-free identity.
+for _ka in keepalived.service globular-keepalived.service; do
+  systemctl stop "$_ka" 2>/dev/null || true
+  systemctl disable "$_ka" 2>/dev/null || true
+done
+if [[ -e /etc/keepalived/keepalived.conf ]]; then
+  rm -f /etc/keepalived/keepalived.conf
+  log_success "Removed /etc/keepalived/keepalived.conf (stale ingress VIP config)"
 fi
 
 
@@ -587,6 +705,7 @@ fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 
+phase_marker "cleanup_complete" "cleanup complete"
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║     ✓ NODE CLEANUP COMPLETE                                    ║"
