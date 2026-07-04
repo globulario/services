@@ -8,7 +8,7 @@
 # Coherence is gated by TestMetaPrincipleCoverageMirrorCoherence
 # (awareness-graph/cmd/principle-check): a conflicting tier or invented
 # classification HARD-fails CI; lag behind canonical is reported, not silent.
-# Last synced against canonical: 2026-06-26.
+# Last synced against canonical: 2026-07-03.
 # ============================================================================
 # Meta-principle coverage map
 # ===========================
@@ -350,7 +350,391 @@ meta_principle_coverage:
       Mechanizable as a structural-diff gate requiring companion intent or
       decision updates when authority, ownership, boundary, lifecycle, or
       contract shape changes. The mechanism is named, but not yet implemented.
+  - principle: meta.capability_is_not_intent
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a gate that rejects install/start/restart decisions derived
+      from package/binary/config presence without a controller-owned desired-state
+      record, but the generalized capability-vs-intent proof is not built yet.
+  - principle: meta.cleanup_must_be_owned_and_reversible
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as an install-ledger completeness and cleanup-verification gate
+      proving every mutating install path records ownership plus rollback/remove
+      evidence, but that generalized ledger check is not built yet.
+  - principle: meta.event_is_notification_not_authority
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a gate over event handlers requiring a re-read of owner
+      state before mutation, but the generalized event-payload-vs-owner-state
+      enforcement is not built yet.
+  - principle: meta.membership_is_admitted_not_self_declared
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as an admission-path gate proving topology membership comes
+      only from controller admission records and signed join plans, not from local
+      config, package presence, or discovery, but the generalized gate is not built yet.
+  - principle: meta.projection_must_be_rebuildable_from_owner
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a regenerate-from-owner proof for generated configs,
+      manifests, and projections, but the generalized delete-and-rebuild gate is
+      not built yet.
+  - principle: meta.reconciler_repairs_only_within_its_authority_lane
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a lane-boundary gate over mutating code paths proving each
+      actor writes only its owned layer, but the generalized cross-lane mutation
+      check is not built yet.
+  - principle: meta.recovery_mode_must_be_explicit_and_narrower
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a recovery-path registry and gate requiring bounded scope,
+      evidence, audit, and narrower privileges than normal mode, but that
+      generalized recovery-mode enforcement is not built yet.
 
+  # 2026-07-03 repository/package-management corpus expansion: all are named
+  # as behavioral/planned because they are mechanizable supply-chain/install
+  # gates, but the generalized enforcement has not been built yet.
+  - principle: meta.repository.adopt_correct_runtime_before_disrupting_it
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a pre-disruption runtime-convergence gate that blocks
+      installs/upgrades until current runtime truth is classified, but the
+      generalized adoption-before-disruption check is not built yet.
+  - principle: meta.repository.artifact_identity_is_digest_bound
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as an install-contract gate requiring expected digests and
+      rejecting same-version different-bytes artifacts, but the generalized
+      digest-bound identity proof is not built yet.
+  - principle: meta.repository.artifact_requires_provenance_continuity
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a release-assembly provenance gate requiring every shipped
+      artifact to trace to a current staged input or accepted external source, but
+      the generalized continuity proof is not built yet.
+  - principle: meta.repository.build_output_is_not_source_input
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a gate forbidding generated outputs from re-entering build
+      or release input without explicit promotion provenance, but the generalized
+      output-as-input check is not built yet.
+  - principle: meta.repository.config_migration_is_separate_from_install
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a package-apply gate separating config migration from
+      artifact install/apply steps, but the generalized migration-boundary check
+      is not built yet.
+  - principle: meta.repository.dependency_is_not_workload_membership
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a gate rejecting workload start or topology membership
+      inferred from dependency/package presence, but the generalized
+      dependency-vs-workload enforcement is not built yet.
+  - principle: meta.repository.installed_state_is_observation_not_desired
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a convergence gate proving installed-state observations do
+      not overwrite desired state, but the generalized installed-vs-desired check
+      is not built yet.
+  - principle: meta.repository.is_artifact_authority_not_deployment_authority
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a gate ensuring repository metadata and availability never
+      trigger deployment decisions directly, but the generalized artifact-authority
+      boundary check is not built yet.
+  - principle: meta.repository.network_dependency_is_declared
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a package/runtime dependency gate requiring external network
+      dependencies to be declared in install/release metadata, but that
+      generalized declaration check is not built yet.
+  - principle: meta.repository.package_apply_is_transaction_owned
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a package-apply transaction gate requiring durable
+      transaction identity and duplicate suppression for every mutation, but the
+      generalized transaction-ownership proof is not built yet.
+  - principle: meta.repository.package_existence_is_not_install_intent
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a gate rejecting install/carry-forward decisions caused by
+      artifact presence in repos, caches, or bundles, but the generalized
+      package-presence-vs-intent check is not built yet.
+  - principle: meta.repository.package_manager_does_not_write_control_truth
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a boundary gate proving package managers mutate local
+      artifacts only and never write controller truth, but the generalized
+      package-manager authority check is not built yet.
+  - principle: meta.repository.package_profile_gate_is_explicit
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a profile-admission gate over optional package installs, but
+      the generalized package-profile enforcement is not built yet.
+  - principle: meta.repository.package_scripts_are_bounded_mutators
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a script-scope gate requiring package scripts to declare and
+      bound their mutating surfaces, but the generalized script-boundary check is
+      not built yet.
+  - principle: meta.repository.partial_install_requires_recovery_mode
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a package-state gate requiring partial installs to enter an
+      explicit recovery workflow, but the generalized partial-install recovery
+      check is not built yet.
+  - principle: meta.repository.platform_compatibility_is_preflighted
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a release/install preflight gate over platform, ABI, and
+      capability compatibility, but the generalized compatibility proof is not
+      built yet.
+  - principle: meta.repository.publish_is_not_promotion
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a release-lifecycle gate separating repository publish from
+      rollout/promotion authority, but the generalized publish-vs-promotion check
+      is not built yet.
+  - principle: meta.repository.release_manifest_is_install_contract
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as an install gate requiring manifest/BOM resolution instead of
+      directory scanning, but the generalized manifest-contract enforcement is not
+      built yet.
+  - principle: meta.repository.revocation_overrides_availability
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a repository/install gate proving revoked or quarantined
+      artifacts cannot be selected despite availability, but the generalized
+      revocation precedence check is not built yet.
+  - principle: meta.repository.rollback_target_is_precomputed
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a transaction gate requiring rollback targets and receipts
+      to exist before apply starts, but the generalized rollback-target proof is
+      not built yet.
+  - principle: meta.repository.service_start_requires_verified_apply
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a service-start gate requiring successful artifact verify
+      and apply receipts before supervision starts the service, but the
+      generalized verified-apply enforcement is not built yet.
+  - principle: meta.repository.shared_dependency_requires_ref_ownership
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as an uninstall/GC gate requiring shared dependencies to carry
+      explicit reference ownership before removal, but the generalized shared-ref
+      proof is not built yet.
+  - principle: meta.repository.signed_metadata_is_immutable
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a metadata verification gate requiring signed repository
+      metadata to remain immutable after publication, but the generalized
+      signed-metadata enforcement is not built yet.
+  - principle: meta.repository.uninstall_is_not_data_purge
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as an uninstall gate separating package removal from data
+      destruction unless explicitly owned and authorized, but the generalized
+      uninstall-vs-purge enforcement is not built yet.
+  - principle: meta.repository.uninstall_uses_artifact_ownership_ledger
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as an uninstall ledger gate requiring removal decisions to
+      consult durable artifact ownership records, but the generalized ledger-based
+      uninstall enforcement is not built yet.
+  - principle: meta.repository.version_resolution_precedes_apply
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as an install gate requiring exact version/build/digest
+      resolution before mutation begins, but the generalized resolution-before-apply
+      proof is not built yet.
+
+  # 2026-07-03 workflow corpus expansion: all are mechanizable state-machine
+  # and transaction gates, but the generalized workflow-engine checker does not
+  # exist yet.
+  - principle: meta.workflow.boundary_commands_are_idempotent
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a boundary-command contract gate over idempotency keys and
+      duplicate-delivery behavior, but the generalized idempotent-callback proof
+      is not built yet.
+  - principle: meta.workflow.command_is_not_state
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow-surface gate proving commands request
+      transitions rather than writing state directly, but the generalized
+      command-vs-state enforcement is not built yet.
+  - principle: meta.workflow.commands_are_generation_guarded
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a command gate requiring expected generation or version on
+      every state-changing request, but the generalized generation-guard check is
+      not built yet.
+  - principle: meta.workflow.compensation_is_forward_recovery
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow-recovery gate requiring explicit compensation
+      states/events instead of silent rollback fantasy, but the generalized
+      compensation-model check is not built yet.
+  - principle: meta.workflow.current_state_is_rebuildable_projection
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow replay gate proving current state can be rebuilt
+      from history, but the generalized replayability check is not built yet.
+  - principle: meta.workflow.failure_state_is_classified
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a state-machine gate requiring named, classified failure
+      states instead of generic failed buckets, but the generalized failure-state
+      classification check is not built yet.
+  - principle: meta.workflow.history_is_append_only
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow-store gate forbidding mutation/deletion of
+      historical events, but the generalized append-only history proof is not
+      built yet.
+  - principle: meta.workflow.instance_has_single_transition_writer
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow-ownership gate requiring CAS/lease/single-writer
+      discipline per instance, but the generalized single-writer proof is not
+      built yet.
+  - principle: meta.workflow.observation_is_not_transition_authority
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a probe/event handling gate proving observations append
+      evidence but do not mutate workflow state directly, but the generalized
+      observation-vs-transition check is not built yet.
+  - principle: meta.workflow.projection_must_not_drive_progression
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow gate forbidding queue/UI/cache projections from
+      triggering state transitions, but the generalized projection-feedback check
+      is not built yet.
+  - principle: meta.workflow.retry_is_modeled_state
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a retry-contract gate requiring explicit retry state,
+      attempt count, and schedule instead of hidden loops, but the generalized
+      modeled-retry enforcement is not built yet.
+  - principle: meta.workflow.side_effects_cross_outbox_boundary
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow delivery gate requiring durable receipts/outbox
+      semantics before external side effects are considered sent, but the
+      generalized outbox-boundary proof is not built yet.
+  - principle: meta.workflow.state_is_declared_machine_state
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow-definition gate requiring closed state enums and
+      declared transition tables, but the generalized declared-state-machine check
+      is not built yet.
+  - principle: meta.workflow.state_machine_version_is_pinned
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow-instance contract requiring definition version
+      pinning plus explicit migrations for incompatible changes, but the
+      generalized version-pinning check is not built yet.
+  - principle: meta.workflow.terminal_state_is_final_without_recovery_contract
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a state-machine gate proving terminal states cannot
+      transition without a named recovery contract, but the generalized
+      terminal-state enforcement is not built yet.
+  - principle: meta.workflow.time_is_durable_event
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow-event gate requiring retry/backoff/deadline time
+      facts to be durably recorded instead of hidden in process memory, but the
+      generalized durable-time check is not built yet.
+  - principle: meta.workflow.transition_guards_are_named_contracts
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow-definition gate requiring named transition guards
+      instead of anonymous condition piles, but the generalized guard-contract
+      check is not built yet.
+  - principle: meta.workflow.transition_is_atomic_with_history
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a transaction gate requiring state updates and causal events
+      to commit atomically, but the generalized atomic-transition proof is not
+      built yet.
+  - principle: meta.workflow.transitions_are_explicit
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow implementation gate requiring named transition
+      APIs rather than implicit boolean/status jumps, but the generalized
+      explicit-transition check is not built yet.
+  - principle: meta.workflow.unknown_must_not_be_invented
+    tier: planned
+    intended_tier: behavioral
+    reason: >
+      Mechanizable as a workflow truth-classification gate requiring UNKNOWN /
+      reconcile-needed states when truth cannot be proven, but the generalized
+      unknown-vs-invented-state check is not built yet.
+
+  # ── behavioral: scanner-backed via ruleguard/regex gates ────────────────
+  # These principles have dedicated scanner rules in cmd/principle-check/rules/
+  # that provide Go AST / regex enforcement. The auto-derived code_scanner tier
+  # requires instance → meta related_invariants links in the services corpus
+  # (cross-repo, not available without SERVICES_REPO). Until those links are
+  # wired, this explicit behavioral entry satisfies the coverage ratchet —
+  # the scanners are real and gate CI, so behavioral is the accurate tier.
   # ── review_only: irreducible design philosophy (terminal tier) ───────────
   - principle: meta.MTTR_focus_outperforms_MTBF_for_evolving_systems
     tier: review_only

@@ -485,6 +485,12 @@ test_symbols:
     package: main
     language: go
     doc: "scyllaLocations must yield an object-store location whenever MinIO is\navailable, even with only a local destination configured — otherwise the\nscylla provider is judged \"unavailable\" and ScyllaDB (ai-memory, behavioral\nmemory) is silently never backed up."
+  - id: golang/backup_manager/backup_manager_server/scylla_register_test.go:TestIsRegisteredScyllaCluster
+    file: golang/backup_manager/backup_manager_server/scylla_register_test.go
+    symbol: TestIsRegisteredScyllaCluster
+    package: main
+    language: go
+    doc: "Regression for the scylla-manager auto-registration bug: detectScyllaClusters\nemits synthetic \"native:<name>\" AND \"scylla_host:<ip>\" markers for a ScyllaDB\nthat is reachable but NOT registered. The registration path counted\n\"scylla_host:\" as a managed (registered) cluster, so it believed registration\nwas already done, skipped `sctool cluster add`, and left the cluster\nunregistered forever (doctor scylla_manager.cluster_registered, cluster_count=0)."
   - id: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go:TestBuildClusterManifest_SummaryCounts
     file: golang/backup_manager/backup_manager_server/secret_collector_cluster_test.go
     symbol: TestBuildClusterManifest_SummaryCounts

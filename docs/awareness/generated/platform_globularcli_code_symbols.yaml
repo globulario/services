@@ -247,6 +247,12 @@ test_symbols:
     symbol: TestResolveMCPURL_FallsBackToDefault
     package: main
     language: go
+  - id: golang/globularcli/node_profiles_cmd_test.go:TestNodeProfilesCommandTree
+    file: golang/globularcli/node_profiles_cmd_test.go
+    symbol: TestNodeProfilesCommandTree
+    package: main
+    language: go
+    doc: "TestNodeProfilesCommandTree guards against the cobra \"two command names\nwearing one trench coat\" regression: previously both the set and preview\ncommands used multi-word Use strings (\"profiles set <node_id>\" / \"profiles\npreview <node_id>\"), so cobra registered BOTH under the single command name\n\"profiles\". That made `profiles preview` unreachable (it routed to set) and\nmade `profiles set <id>` parse the literal \"set\" as a positional arg.\n\nThe fix introduces a real command tree:\n\n\tnodes\n\t  profiles            (parent, no RunE)\n\t    set <node_id>\n\t    preview <node_id>\n\nThese assertions prove `... profiles set` and `... profiles preview` resolve\nto DIFFERENT handlers, with the node_id left as the single remaining arg."
   - id: golang/globularcli/objectstore_placement_rpc_test.go:TestRunObjectstoreDiskApprove_RoutesThroughOwnerRPC
     file: golang/globularcli/objectstore_placement_rpc_test.go
     symbol: TestRunObjectstoreDiskApprove_RoutesThroughOwnerRPC
@@ -446,6 +452,11 @@ test_symbols:
   - id: golang/globularcli/pkgpack/builder_test.go:TestVerifyConfigDirPresent
     file: golang/globularcli/pkgpack/builder_test.go
     symbol: TestVerifyConfigDirPresent
+    package: pkgpack
+    language: go
+  - id: golang/globularcli/pkgpack/hyphenated_state_dir_guard_test.go:TestHyphenatedPackagesUseHyphenatedStateDirsInSystemdMetadata
+    file: golang/globularcli/pkgpack/hyphenated_state_dir_guard_test.go
+    symbol: TestHyphenatedPackagesUseHyphenatedStateDirsInSystemdMetadata
     package: pkgpack
     language: go
   - id: golang/globularcli/pkgpack/packagespec_real_test.go:TestParseRealSpecs

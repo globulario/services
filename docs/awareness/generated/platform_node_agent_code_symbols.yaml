@@ -449,6 +449,18 @@ code_symbols:
       enforces:
         - globular.platform:invariant.envoy.lds_progress_required_for_http_mesh_readiness
 test_symbols:
+  - id: golang/node_agent/node_agent_server/absence_guard_test.go:TestDeleteKeyWhileRunningKeepsRuntimeActive
+    file: golang/node_agent/node_agent_server/absence_guard_test.go
+    symbol: TestDeleteKeyWhileRunningKeepsRuntimeActive
+    package: main
+    language: go
+    doc: "TestDeleteKeyWhileRunningKeepsRuntimeActive covers the same invariant for\ndelete/race shape: after a valid state has been observed, removing the\ncontroller-rendered file must leave the runtime consumer with LKG state."
+  - id: golang/node_agent/node_agent_server/absence_guard_test.go:TestMissingKeyDoesNotStopRuntime
+    file: golang/node_agent/node_agent_server/absence_guard_test.go
+    symbol: TestMissingKeyDoesNotStopRuntime
+    package: main
+    language: go
+    doc: "TestMissingKeyDoesNotStopRuntime verifies the non-ingress rollout of\ncritical_state.absence_is_not_destructive_intent. Objectstore, xDS, and DNS\nconsumers must hold/restore last-known-good state when controller-rendered\nstate is absent instead of converting absence into stop/delete intent."
   - id: golang/node_agent/node_agent_server/actor_service_test.go:TestActor_BoolFieldHonorsStringTrue
     file: golang/node_agent/node_agent_server/actor_service_test.go
     symbol: TestActor_BoolFieldHonorsStringTrue
@@ -1053,6 +1065,16 @@ test_symbols:
   - id: golang/node_agent/node_agent_server/heartbeat_checksum_test.go:TestRuntimeChecksumFromManifest_PrefersEntrypoint
     file: golang/node_agent/node_agent_server/heartbeat_checksum_test.go
     symbol: TestRuntimeChecksumFromManifest_PrefersEntrypoint
+    package: main
+    language: go
+  - id: golang/node_agent/node_agent_server/heartbeat_command_prune_test.go:TestGlobularCommandBinaryExists_GlobularRootOnly
+    file: golang/node_agent/node_agent_server/heartbeat_command_prune_test.go
+    symbol: TestGlobularCommandBinaryExists_GlobularRootOnly
+    package: main
+    language: go
+  - id: golang/node_agent/node_agent_server/heartbeat_command_prune_test.go:TestGlobularCommandBinaryExists_IgnoresSystemPath
+    file: golang/node_agent/node_agent_server/heartbeat_command_prune_test.go
+    symbol: TestGlobularCommandBinaryExists_IgnoresSystemPath
     package: main
     language: go
   - id: golang/node_agent/node_agent_server/heartbeat_etcd_endpoints_test.go:TestParseEtcdEndpointsPayload_JSONArray
@@ -2436,9 +2458,32 @@ test_symbols:
     package: actions
     language: go
     doc: "TestStampReceiptForReportState_StampsInstalledByEvenWithoutFiles\nproves the helper writes installed_by even when conventional file\npaths do not exist. The receipt is forensic — partial receipts are\nallowed when binaries/units are not at conventional paths; what is\nNOT allowed is a missing installed_by, because that is the canonical\nsignal that report_state is the install commit."
+  - id: golang/node_agent/node_agent_server/internal/actions/package_uninstall_marker_test.go:TestRemoveSyncReadVersionMarker
+    file: golang/node_agent/node_agent_server/internal/actions/package_uninstall_marker_test.go
+    symbol: TestRemoveSyncReadVersionMarker
+    package: actions
+    language: go
+    doc: "TestRemoveSyncReadVersionMarker is the regression for the torrent stub bug:\nuninstall used to leave the version marker that the installed-state sync reads\n(versionutil.MarkerPath = BaseDir/<name>/version), so syncInstalledStateToEtcd\nre-discovered the package and re-minted a degraded installed-state record — the\norphan that survived uninstall. The uninstall paths must remove that marker so\nthe uninstall is idempotent (reconciliation.must_be_idempotent_and_bounded)."
+  - id: golang/node_agent/node_agent_server/internal/actions/package_uninstall_marker_test.go:TestRemoveSyncReadVersionMarker_EmptyNameIsNoop
+    file: golang/node_agent/node_agent_server/internal/actions/package_uninstall_marker_test.go
+    symbol: TestRemoveSyncReadVersionMarker_EmptyNameIsNoop
+    package: actions
+    language: go
+    doc: "TestRemoveSyncReadVersionMarker_EmptyNameIsNoop guards against a blank name\nwiping the marker base directory."
+  - id: golang/node_agent/node_agent_server/internal/actions/package_uninstall_marker_test.go:TestRemoveSyncReadVersionMarker_LegacyUnderscore
+    file: golang/node_agent/node_agent_server/internal/actions/package_uninstall_marker_test.go
+    symbol: TestRemoveSyncReadVersionMarker_LegacyUnderscore
+    package: actions
+    language: go
+    doc: "TestRemoveSyncReadVersionMarker_LegacyUnderscore covers packages whose marker\nwas written under the legacy underscore form (e.g. scylla_manager) while the\ncanonical name is hyphenated (scylla-manager). Both must be removed."
   - id: golang/node_agent/node_agent_server/internal/actions/package_uninstall_test.go:TestApplicationUninstall_Idempotent
     file: golang/node_agent/node_agent_server/internal/actions/package_uninstall_test.go
     symbol: TestApplicationUninstall_Idempotent
+    package: actions
+    language: go
+  - id: golang/node_agent/node_agent_server/internal/actions/package_uninstall_test.go:TestCommandUninstall_RemovesAllKnownBinaryLocations
+    file: golang/node_agent/node_agent_server/internal/actions/package_uninstall_test.go
+    symbol: TestCommandUninstall_RemovesAllKnownBinaryLocations
     package: actions
     language: go
   - id: golang/node_agent/node_agent_server/internal/actions/package_uninstall_test.go:TestServiceUninstall_CustomUnit
@@ -2615,6 +2660,17 @@ test_symbols:
     package: actions
     language: go
     doc: "TestVerifyIntegrity_ResolverHasSafeDefault guards against an empty\nstate where the server forgets to install the resolver: the action\nmust skip the I2 invariant rather than panic or fabricate state."
+  - id: golang/node_agent/node_agent_server/internal/actions/verify_integrity_kind_test.go:TestDesiredVersionCheckAppliesToKind
+    file: golang/node_agent/node_agent_server/internal/actions/verify_integrity_kind_test.go
+    symbol: TestDesiredVersionCheckAppliesToKind
+    package: actions
+    language: go
+    doc: "TestDesiredVersionCheckAppliesToKind locks the read-side half of\ninvariant desired.keyed_by_kind_and_name: the I2 desired-version drift check\n(installed vs ServiceDesiredVersion) applies ONLY to SERVICE packages.\nINFRASTRUCTURE/COMMAND/APPLICATION packages have their own controller-owned\ndesired authority (InfrastructureRelease/ApplicationRelease); comparing them\nagainst service-desired re-introduces the cross-kind stale-resolved ghost\n(the xds 1.2.235-vs-1.2.237 phantom drift)."
+  - id: golang/node_agent/node_agent_server/internal/actions/verify_integrity_test.go:TestContentAddressedStagedArtifactPath_UsesDigestNotLatestAlias
+    file: golang/node_agent/node_agent_server/internal/actions/verify_integrity_test.go
+    symbol: TestContentAddressedStagedArtifactPath_UsesDigestNotLatestAlias
+    package: actions
+    language: go
   - id: golang/node_agent/node_agent_server/internal/actions/verify_integrity_test.go:TestIntegrityReportSerializes
     file: golang/node_agent/node_agent_server/internal/actions/verify_integrity_test.go
     symbol: TestIntegrityReportSerializes
@@ -3498,6 +3554,28 @@ test_symbols:
     package: main
     language: go
     doc: "TestPartialApplyDetectionContract verifies the mismatch detection contract:\nwhen a binary checksum differs from the recorded entrypoint_checksum but the\nversion is unchanged, the status should be flagged as \"partial_apply\"."
+  - id: golang/node_agent/node_agent_server/pin_hygiene_test.go:TestParsePinnedArtifactName
+    file: golang/node_agent/node_agent_server/pin_hygiene_test.go
+    symbol: TestParsePinnedArtifactName
+    package: main
+    language: go
+    doc: "TestParsePinnedArtifactName covers the filename parse the sweep relies on,\nincluding kebab names and non-semver (RELEASE.*) versions."
+  - id: golang/node_agent/node_agent_server/pin_hygiene_test.go:TestPruneStalePinnedArtifacts
+    file: golang/node_agent/node_agent_server/pin_hygiene_test.go
+    symbol: TestPruneStalePinnedArtifacts
+    package: main
+    language: go
+    doc: "TestPruneStalePinnedArtifacts is the resilience-pin invariant regression:\nafter a successful upgrade A->B, the pinned dir must contain only B for that\npackage. A stale A-pin is a latent downgrade path — findLocalPackage searches\npinnedArtifactDir first, so it would re-stage / resilience-reinstall the older\nartifact (the recurring xds cache_digest_mismatch)."
+  - id: golang/node_agent/node_agent_server/process_fingerprint_test.go:TestServiceNameFromBinary_KnownPlainBinaryNames
+    file: golang/node_agent/node_agent_server/process_fingerprint_test.go
+    symbol: TestServiceNameFromBinary_KnownPlainBinaryNames
+    package: main
+    language: go
+  - id: golang/node_agent/node_agent_server/process_fingerprint_test.go:TestServiceNameFromBinary_ServerSuffixFallback
+    file: golang/node_agent/node_agent_server/process_fingerprint_test.go
+    symbol: TestServiceNameFromBinary_ServerSuffixFallback
+    package: main
+    language: go
   - id: golang/node_agent/node_agent_server/restart_order_test.go:TestOrderRestartUnits
     file: golang/node_agent/node_agent_server/restart_order_test.go
     symbol: TestOrderRestartUnits
@@ -3508,6 +3586,42 @@ test_symbols:
     symbol: TestResolveUnitAliases
     package: main
     language: go
+  - id: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go:TestCanonicalizeRuntimeDirs_ConflictPreservesBoth
+    file: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go
+    symbol: TestCanonicalizeRuntimeDirs_ConflictPreservesBoth
+    package: main
+    language: go
+    doc: "Case 4: a conflicting entry is never overwritten, and the legacy dir is left\nintact for operator review."
+  - id: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go:TestCanonicalizeRuntimeDirs_ContentsMigratedLegacyRemoved
+    file: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go
+    symbol: TestCanonicalizeRuntimeDirs_ContentsMigratedLegacyRemoved
+    package: main
+    language: go
+    doc: "Case 2: a legacy dir with contents migrates into the canonical dir (created\nif missing) and the now-empty legacy dir is removed."
+  - id: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go:TestCanonicalizeRuntimeDirs_EmptyLegacyRemoved
+    file: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go
+    symbol: TestCanonicalizeRuntimeDirs_EmptyLegacyRemoved
+    package: main
+    language: go
+    doc: "Case 1: an empty legacy alias dir is removed; the canonical dir is untouched."
+  - id: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go:TestCanonicalizeRuntimeDirs_Idempotent
+    file: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go
+    symbol: TestCanonicalizeRuntimeDirs_Idempotent
+    package: main
+    language: go
+    doc: "Idempotency: running twice is safe and leaves the same end state."
+  - id: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go:TestCanonicalizeRuntimeDirs_NoopWhenOnlyCanonical
+    file: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go
+    symbol: TestCanonicalizeRuntimeDirs_NoopWhenOnlyCanonical
+    package: main
+    language: go
+    doc: "Case 3: when only the canonical dir exists, the sweep is a no-op and never\nfabricates a legacy dir."
+  - id: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go:TestCanonicalizeRuntimeDirs_UsesSharedAliasMap
+    file: golang/node_agent/node_agent_server/runtime_dir_canonicalize_test.go
+    symbol: TestCanonicalizeRuntimeDirs_UsesSharedAliasMap
+    package: main
+    language: go
+    doc: "Case 5: the sweep is driven by the SHARED runtimedirs alias map, not a local\nduplicate list. Seed an empty legacy dir for every known alias and assert all\nare canonicalized away."
   - id: golang/node_agent/node_agent_server/runtime_proof_test.go:TestCollectServiceRuntimeProof_CommandKindSkipsSystemd
     file: golang/node_agent/node_agent_server/runtime_proof_test.go
     symbol: TestCollectServiceRuntimeProof_CommandKindSkipsSystemd
@@ -3914,6 +4028,11 @@ test_symbols:
   - id: golang/node_agent/node_agent_server/server_test.go:TestPerformRestartUnitsFailsWhenCommandFails
     file: golang/node_agent/node_agent_server/server_test.go
     symbol: TestPerformRestartUnitsFailsWhenCommandFails
+    package: main
+    language: go
+  - id: golang/node_agent/node_agent_server/staging_cache_test.go:TestWriteStagedArtifactCache_WritesContentAddressedFileAndLatestAlias
+    file: golang/node_agent/node_agent_server/staging_cache_test.go
+    symbol: TestWriteStagedArtifactCache_WritesContentAddressedFileAndLatestAlias
     package: main
     language: go
   - id: golang/node_agent/node_agent_server/state_migration_test.go:TestMigrateLegacyStatePath_NodeAgent_BothExist_CanonicalWins

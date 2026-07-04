@@ -344,6 +344,9 @@ code_edges:
   - from: globular.platform:code.go.platform_cluster_controller.remediation_consumer
     relation: implements
     to: globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
+  - from: globular.platform:code.go.platform_cluster_controller.remove_desired_service_gc_test
+    relation: enforces
+    to: globular.platform:invariant.cluster.desired_state_authority_over_installed_state
   - from: globular.platform:code.go.platform_cluster_controller.repair_handler
     relation: enforces
     to: globular.platform:invariant.destructive_actions.require_explicit_guard

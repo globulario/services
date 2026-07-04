@@ -2004,6 +2004,21 @@ test_symbols:
     package: main
     language: go
     doc: "(policy) The section-name policy flags a symbol table / DWARF and clears a\nstripped section set."
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactSizeEnvelope_AllowsEqualTo2xPriorRelease
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactSizeEnvelope_AllowsEqualTo2xPriorRelease
+    package: main
+    language: go
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactSizeEnvelope_RejectsGreaterThan2xPriorRelease
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactSizeEnvelope_RejectsGreaterThan2xPriorRelease
+    package: main
+    language: go
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactSizeEnvelope_SkipsWhenNoPriorReleaseSize
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactSizeEnvelope_SkipsWhenNoPriorReleaseSize
+    package: main
+    language: go
   - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactStripped_AcceptsStrippedELF
     file: golang/repository/repository_server/release_artifact_shape_test.go
     symbol: TestReleaseArtifactStripped_AcceptsStrippedELF

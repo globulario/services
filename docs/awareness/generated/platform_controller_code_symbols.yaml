@@ -607,6 +607,15 @@ code_symbols:
       implements:
         - globular.platform:intent.autonomy.remediation_is_bounded_and_escalates
         - globular.platform:intent.ai.remediation_actions_dispatched_via_event_bus_not_direct_rpc
+  - id: globular.platform:code.go.platform_cluster_controller.remove_desired_service_gc_test
+    namespace: globular.platform
+    language: go
+    file: golang/cluster_controller/cluster_controller_server/remove_desired_service_gc_test.go
+    component: platform_cluster_controller.remove_desired_service_gc_test
+    risk: high
+    annotations:
+      enforces:
+        - globular.platform:invariant.cluster.desired_state_authority_over_installed_state
   - id: globular.platform:code.go.platform_cluster_controller.repair_handler
     namespace: globular.platform
     language: go
@@ -807,6 +816,94 @@ code_symbols:
       protects:
         - globular.platform:failure_mode.workflow.stale_release_callback_overwrites_generation
 test_symbols:
+  - id: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go:TestAutoAdvance_AlreadyActive_NoOp
+    file: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go
+    symbol: TestAutoAdvance_AlreadyActive_NoOp
+    package: main
+    language: go
+    doc: "Already active → idempotent no-op even when converged."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go:TestAutoAdvance_ConvergedAdvances
+    file: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go
+    symbol: TestAutoAdvance_ConvergedAdvances
+    package: main
+    language: go
+    doc: "Converged + a newer/first desired target → advance."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go:TestAutoAdvance_NativeUnorderable_Refused
+    file: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go
+    symbol: TestAutoAdvance_NativeUnorderable_Refused
+    package: main
+    language: go
+    doc: "Native (non-SemVer) desired platform that cannot be ordered against the current\nactive is refused (no silent guess), mirroring decideActivation."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go:TestAutoAdvance_NoRegression_Refused
+    file: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go
+    symbol: TestAutoAdvance_NoRegression_Refused
+    package: main
+    language: go
+    doc: "No-regression: the auto-advance never moves the pointer backward (it has no\nallow-regression escape hatch — converged or not, an older desired is refused)."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go:TestAutoAdvance_NotConverged_NoOp
+    file: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go
+    symbol: TestAutoAdvance_NotConverged_NoOp
+    package: main
+    language: go
+    doc: "Not converged (laggards present) → never advances, regardless of desired."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go:TestDesiredReleaseAnchor_JSONRoundTrip
+    file: golang/cluster_controller/cluster_controller_server/active_release_auto_advance_test.go
+    symbol: TestDesiredReleaseAnchor_JSONRoundTrip
+    package: main
+    language: go
+    doc: "desired_release anchor JSON round-trips (the new Slice 2 etcd document)."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestDecideActivation_ConvergenceGate
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestDecideActivation_ConvergenceGate
+    package: main
+    language: go
+    doc: "Convergence gate: not-converged refused unless force."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestDecideActivation_FirstActivation
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestDecideActivation_FirstActivation
+    package: main
+    language: go
+    doc: "First activation (no current anchor) is allowed when converged."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestDecideActivation_Idempotent
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestDecideActivation_Idempotent
+    package: main
+    language: go
+    doc: "Idempotency: re-activating the current tag is a no-op."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestDecideActivation_NoRegression
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestDecideActivation_NoRegression
+    package: main
+    language: go
+    doc: "No-regression: older platform_release refused unless allowRegression."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestEvaluateActivationReadiness_AllConverged
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestEvaluateActivationReadiness_AllConverged
+    package: main
+    language: go
+    doc: "Convergence gate: empty result == cluster converged to the BOM."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestEvaluateActivationReadiness_NativeVersions
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestEvaluateActivationReadiness_NativeVersions
+    package: main
+    language: go
+    doc: "Native (non-SemVer) versions: equal → converged; different → laggard."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestEvaluateActivationReadiness_NotInstalledSkipped_AndExtraIgnored
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestEvaluateActivationReadiness_NotInstalledSkipped_AndExtraIgnored
+    package: main
+    language: go
+    doc: "Not-installed packages are skipped (operator removal preserved); packages not\nin the BOM are ignored."
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestEvaluateActivationReadiness_OneLagging
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestEvaluateActivationReadiness_OneLagging
+    package: main
+    language: go
+  - id: golang/cluster_controller/cluster_controller_server/active_release_test.go:TestPlatformReleaseFromTag
+    file: golang/cluster_controller/cluster_controller_server/active_release_test.go
+    symbol: TestPlatformReleaseFromTag
+    package: main
+    language: go
   - id: golang/cluster_controller/cluster_controller_server/artifact_kind_exhaustive_test.go:TestAllProtoArtifactKindsEnumerated
     file: golang/cluster_controller/cluster_controller_server/artifact_kind_exhaustive_test.go
     symbol: TestAllProtoArtifactKindsEnumerated
@@ -1486,6 +1583,42 @@ test_symbols:
     package: main
     language: go
     doc: "TestCriticalStateRegistryAgreesWithConfigOwnership is the owner-guard\nconsolidation ratchet.\n\nThere are two tables describing critical-key ownership: config.CriticalKeyPolicies\n(the single ownership authority — what the runtime write primitive guards every\ncritical write against, and what ValidateCriticalKeyWrite now delegates to) and\nthis package's criticalStateRegistry (the rich restore / doctor / LKG metadata\ntable). config cannot import this package, so the two are necessarily separate\nobjects. This test locks their ownership in step: every key must appear in both,\nwith the same owner. If they ever drift, there would again be two conflicting\nsources of ownership truth — the exact condition this consolidation removed."
+  - id: golang/cluster_controller/cluster_controller_server/cross_kind_desired_cleanup_test.go:TestPruneCrossKindServiceDesired
+    file: golang/cluster_controller/cluster_controller_server/cross_kind_desired_cleanup_test.go
+    symbol: TestPruneCrossKindServiceDesired
+    package: main
+    language: go
+    doc: "TestPruneCrossKindServiceDesired removes the legacy cross-kind ServiceDesiredVersion\nfor an infrastructure-owned name (xds) while preserving valid service-desired (sql)."
+  - id: golang/cluster_controller/cluster_controller_server/cross_kind_desired_cleanup_test.go:TestPruneCrossKindServiceDesired_NoInfraOwnerDeletesNothing
+    file: golang/cluster_controller/cluster_controller_server/cross_kind_desired_cleanup_test.go
+    symbol: TestPruneCrossKindServiceDesired_NoInfraOwnerDeletesNothing
+    package: main
+    language: go
+    doc: "TestPruneCrossKindServiceDesired_NoInfraOwnerDeletesNothing is the fail-safe:\nif no InfrastructureRelease exists, ownership cannot be classified, so the\ncleanup must delete nothing rather than guess."
+  - id: golang/cluster_controller/cluster_controller_server/cross_kind_release_cleanup_test.go:TestDeleteCrossKindServiceRelease
+    file: golang/cluster_controller/cluster_controller_server/cross_kind_release_cleanup_test.go
+    symbol: TestDeleteCrossKindServiceRelease
+    package: main
+    language: go
+    doc: "TestDeleteCrossKindServiceRelease (seam 2) covers the create-path reconcile:\nan infra-managed name must not retain a ServiceRelease — skipping create is not\nenough, the pre-existing one is actively removed. Absent release is a no-op."
+  - id: golang/cluster_controller/cluster_controller_server/cross_kind_release_cleanup_test.go:TestPruneCrossKindServiceReleases
+    file: golang/cluster_controller/cluster_controller_server/cross_kind_release_cleanup_test.go
+    symbol: TestPruneCrossKindServiceReleases
+    package: main
+    language: go
+    doc: "TestPruneCrossKindServiceReleases (seam 1) removes the legacy cross-kind\nServiceRelease for an infrastructure-owned name (xds) while preserving a valid\nservice release (sql) and the InfrastructureRelease authority itself."
+  - id: golang/cluster_controller/cluster_controller_server/cross_kind_release_cleanup_test.go:TestPruneCrossKindServiceReleases_CatalogIsOracleWithoutInfraRelease
+    file: golang/cluster_controller/cluster_controller_server/cross_kind_release_cleanup_test.go
+    symbol: TestPruneCrossKindServiceReleases_CatalogIsOracleWithoutInfraRelease
+    package: main
+    language: go
+    doc: "TestPruneCrossKindServiceReleases_CatalogIsOracleWithoutInfraRelease is the\nmodel regression for #160: kind is classified by the component catalog (the\nSAME oracle as the write guard), NOT by \"does an InfrastructureRelease object\nexist\". The catalog knows xds is INFRASTRUCTURE whether or not an\nInfrastructureRelease has been created yet, so the cross-kind faucet is closed\neven in the bootstrap / join / backup-restore window where the old\nInfrastructureRelease-existence proxy went inert and let the ghost survive."
+  - id: golang/cluster_controller/cluster_controller_server/cross_kind_release_cleanup_test.go:TestPruneCrossKindServiceReleases_ThirdPartyNotInCatalogKept
+    file: golang/cluster_controller/cluster_controller_server/cross_kind_release_cleanup_test.go
+    symbol: TestPruneCrossKindServiceReleases_ThirdPartyNotInCatalogKept
+    package: main
+    language: go
+    doc: "TestPruneCrossKindServiceReleases_ThirdPartyNotInCatalogKept is the fail-open:\na name absent from the component catalog is treated as a service and must never\nbe pruned, so third-party services are unaffected."
   - id: golang/cluster_controller/cluster_controller_server/day0_seed_test.go:TestEnsureCriticalPrefixMarkers_SeedsMarkers
     file: golang/cluster_controller/cluster_controller_server/day0_seed_test.go
     symbol: TestEnsureCriticalPrefixMarkers_SeedsMarkers
@@ -1724,6 +1857,23 @@ test_symbols:
     package: main
     language: go
     doc: "TestDispatch_ResolverEntrypointChecksumIsBinaryHash documents the hash schema\ncontract: ResolvedArtifact.EntrypointChecksum is the BINARY sha256, and\nResolvedArtifact.Digest is the PACKAGE TARBALL sha256. The dispatch chain\nmust propagate EntrypointChecksum, not Digest. Confusing the two is the\nv1.2.56/v1.2.57/v1.2.58 hash-schema-confusion bug class — see hash schema\ndocumentation in release_resolver.go."
+  - id: golang/cluster_controller/cluster_controller_server/dispatch_native_version_test.go:TestNormalizeDesiredVersion_AcceptsNativeTags
+    file: golang/cluster_controller/cluster_controller_server/dispatch_native_version_test.go
+    symbol: TestNormalizeDesiredVersion_AcceptsNativeTags
+    package: main
+    language: go
+    doc: "Regression for failure_mode\nrelease.platform_upgrade_dispatch_rejects_non_semver_versions.\n\nplatform_upgrade.dispatch upserts a desired-state record for every package it\ndecides to upgrade, including upstream-native (non-SemVer) packages (ffmpeg\nn8.x, minio/mc RELEASE.x). upsertOne previously normalized the version with\nversionutil.Canonical, which rejects native tags as \"invalid semver\" — so a\nsingle native package (ffmpeg) failed the whole dispatch step and the platform\nupgrade reported FAILED even though every SemVer package converged. The fix:\nupsertOne normalizes via normalizeDesiredVersion (NormalizeExact), which\npreserves native tags. These tests fail if anyone reverts to Canonical."
+  - id: golang/cluster_controller/cluster_controller_server/dispatch_native_version_test.go:TestNormalizeDesiredVersion_CanonicalizesSemverAndRejectsGarbage
+    file: golang/cluster_controller/cluster_controller_server/dispatch_native_version_test.go
+    symbol: TestNormalizeDesiredVersion_CanonicalizesSemverAndRejectsGarbage
+    package: main
+    language: go
+  - id: golang/cluster_controller/cluster_controller_server/dispatch_native_version_test.go:TestRegressesBelowFloor_NativeVersionsAreNotRegressions
+    file: golang/cluster_controller/cluster_controller_server/dispatch_native_version_test.go
+    symbol: TestRegressesBelowFloor_NativeVersionsAreNotRegressions
+    package: main
+    language: go
+    doc: "The no-regression floor must tolerate native versions: they cannot be ordered\nby SemVer, so regressesBelowFloor returns false rather than falsely flagging a\ndowngrade. This is what makes the dispatch fix safe — a native upgrade is never\nrejected as a regression, and the repository artifact resolver stays the final\ngate on installability."
   - id: golang/cluster_controller/cluster_controller_server/dns_gating_test.go:TestComputeDesiredState_ControllerSRVOnlyHealthy
     file: golang/cluster_controller/cluster_controller_server/dns_gating_test.go
     symbol: TestComputeDesiredState_ControllerSRVOnlyHealthy
@@ -3578,6 +3728,11 @@ test_symbols:
     package: main
     language: go
     doc: "TestIsOrphanedInstall pins the drift-reconciler's orphaned-install guard\nagainst the real compiled component catalog. An orphan is a package whose\ncatalog profiles do not overlap the node's profiles — it can never converge\nthere, so the drift-reconciler must suppress its dispatch (and cluster-doctor\nsurfaces the operator-facing verdict)."
+  - id: golang/cluster_controller/cluster_controller_server/package_kind_registry_consistency_test.go:TestComponentCatalogKindMatchesRegistry
+    file: golang/cluster_controller/cluster_controller_server/package_kind_registry_consistency_test.go
+    symbol: TestComponentCatalogKindMatchesRegistry
+    package: main
+    language: go
   - id: golang/cluster_controller/cluster_controller_server/phantom_guard_test.go:TestAutoImportDisabled_DesiredUnchanged
     file: golang/cluster_controller/cluster_controller_server/phantom_guard_test.go
     symbol: TestAutoImportDisabled_DesiredUnchanged
@@ -3702,6 +3857,11 @@ test_symbols:
     package: main
     language: go
     doc: "Confirm the server's posture atomic is readable by the gate check pattern\nused in executeWorkflowCentralized. This ensures the integration plumbing\n(atomic.Load → ClusterPosture cast → postureGateCheck) works correctly."
+  - id: golang/cluster_controller/cluster_controller_server/profile_derivation_test.go:TestDeriveProfilesFromInstalled
+    file: golang/cluster_controller/cluster_controller_server/profile_derivation_test.go
+    symbol: TestDeriveProfilesFromInstalled
+    package: main
+    language: go
   - id: golang/cluster_controller/cluster_controller_server/profile_invariants_test.go:TestResolveNodeIntent_EmptyProfilesIsError
     file: golang/cluster_controller/cluster_controller_server/profile_invariants_test.go
     symbol: TestResolveNodeIntent_EmptyProfilesIsError
@@ -4183,6 +4343,24 @@ test_symbols:
     package: main
     language: go
     doc: "TestInfraReleaseHandle_DriftDetectorWired verifies that infraReleaseHandle\nwires a non-nil DriftDetector. This is the compilation-time contract check."
+  - id: golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go:TestIsStaleResolvedGhost
+    file: golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go
+    symbol: TestIsStaleResolvedGhost
+    package: main
+    language: go
+    doc: "TestIsStaleResolvedGhost is the enforcement ratchet for\ninvariant:reconciler.resolution_must_match_spec. It locks the decision the\nstatus-write choke points (patchReleaseStatus / patchAppReleaseStatus /\npatchInfraReleaseStatus) use to REFUSE persisting a converged release whose\nresolved_version disagrees with spec.version. If this logic regresses, the\nstale-resolved ghost — the system reporting a desired/resolved version it\nnever actually resolved (the xds 1.2.235-vs-1.2.237 incident) — can be\npersisted again. That state must remain impossible to persist."
+  - id: golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go:TestReconcileAvailable_SpecResolvedDrift_ReentersPending
+    file: golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go
+    symbol: TestReconcileAvailable_SpecResolvedDrift_ReentersPending
+    package: main
+    language: go
+    doc: "TestReconcileAvailable_SpecResolvedDrift_ReentersPending reproduces the stuck\nxds infra-release: phase AVAILABLE, generation fully observed\n(Generation == ObservedGeneration), but ResolvedVersion (1.2.235) lags\nspec.Version (1.2.237). The coherence guard\n(intent:reconciler.resolution_must_match_spec) must re-enter PENDING with\nreason spec_resolved_drift so reconcilePending re-resolves the spec version.\nThe guard returns before any etcd-backed call, so this exercises the real\nreconcileAvailable path hermetically."
+  - id: golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go:TestVersionForDriftCompare
+    file: golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go
+    symbol: TestVersionForDriftCompare
+    package: main
+    language: go
+    doc: "TestVersionForDriftCompare covers the decision logic of the coherence guard\nwithout driving the etcd-backed tail of reconcileAvailable: semver versions\ncanonicalize (so \"v1.2.237\" == \"1.2.237\" → no false-positive churn), blank\nspecs are skipped (channel/latest releases), non-semver infra versions fall\nback to raw equality, and a genuine version lag is detected as unequal."
   - id: golang/cluster_controller/cluster_controller_server/release_proof_status_test.go:TestAggregateRolloutProof_AllVerified_NoFinding
     file: golang/cluster_controller/cluster_controller_server/release_proof_status_test.go
     symbol: TestAggregateRolloutProof_AllVerified_NoFinding
@@ -4446,6 +4624,16 @@ test_symbols:
     package: main
     language: go
     doc: "TestSkipRuntimeCheck_DaemonServices verifies that real daemon services are\nNOT skipped — their runtime health must be verified."
+  - id: golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go:TestChannelEligibleForDesiredState_DevRejected
+    file: golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go
+    symbol: TestChannelEligibleForDesiredState_DevRejected
+    package: main
+    language: go
+  - id: golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go:TestChannelEligibleForDesiredState_ReleaseTiersAccepted
+    file: golang/cluster_controller/cluster_controller_server/release_vs_dev_desired_test.go
+    symbol: TestChannelEligibleForDesiredState_ReleaseTiersAccepted
+    package: main
+    language: go
   - id: golang/cluster_controller/cluster_controller_server/release_workflow_test.go:TestAdvancePhase_InvalidTransition_ReturnsError
     file: golang/cluster_controller/cluster_controller_server/release_workflow_test.go
     symbol: TestAdvancePhase_InvalidTransition_ReturnsError
@@ -4511,6 +4699,48 @@ test_symbols:
     symbol: TestWorkflowKindUpgrade
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/remove_desired_service_gc_test.go:TestRemoveDesiredService_NeverDispatched_GCsReleaseSynchronously
+    file: golang/cluster_controller/cluster_controller_server/remove_desired_service_gc_test.go
+    symbol: TestRemoveDesiredService_NeverDispatched_GCsReleaseSynchronously
+    package: main
+    language: go
+    doc: "A workload service that only ever RESOLVED (never dispatched to any node: no\nper-node status) has nothing to uninstall. RemoveDesiredService must garbage-\ncollect its ServiceRelease SYNCHRONOUSLY so it disappears from the desired/\ninstall list immediately — without waiting on the async removal reconcile or\nthe workflow engine. This decision is made from the release's OWN lifecycle\nstatus (phase + Status.Nodes), never from a node installed-state probe, so it\nstays clear of cluster.desired_state_authority_over_installed_state."
+  - id: golang/cluster_controller/cluster_controller_server/remove_desired_service_gc_test.go:TestRemoveDesiredService_RolledOut_FlagsRemovingKeepsRelease
+    file: golang/cluster_controller/cluster_controller_server/remove_desired_service_gc_test.go
+    symbol: TestRemoveDesiredService_RolledOut_FlagsRemovingKeepsRelease
+    package: main
+    language: go
+    doc: "A workload service that DID roll out to a node must NOT be dropped\nsynchronously — its ServiceRelease is flagged spec.removing so the async,\nlifecycle-tracked removal workflow actually uninstalls it from that node\nfirst (HARD RULE 4). Synchronously deleting it would orphan the installed\nbits on the node with no uninstall."
+  - id: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go:TestReferenceNodeBuildID_MissingInstalledBuildRefused
+    file: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go
+    symbol: TestReferenceNodeBuildID_MissingInstalledBuildRefused
+    package: main
+    language: go
+    doc: "A node missing the build_id for a build-backed desired service is NOT proven\nconverged ⇒ refused (empty installed != desired build_id)."
+  - id: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go:TestReferenceNodeBuildID_NoDesiredBuildIDSkipped
+    file: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go
+    symbol: TestReferenceNodeBuildID_NoDesiredBuildIDSkipped
+    package: main
+    language: go
+    doc: "Upstream-native / dev services (no resolved desired build_id) are skipped —\nbuild identity cannot be enforced where none exists; version convergence (the\ncoarse hash) governs those."
+  - id: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go:TestReferenceNodeBuildID_OnlyFilteredServicesChecked
+    file: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go
+    symbol: TestReferenceNodeBuildID_OnlyFilteredServicesChecked
+    package: main
+    language: go
+    doc: "Only services in the per-node desired set are checked — a build_id mismatch on\na service NOT desired on this node does not refuse it."
+  - id: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go:TestReferenceNodeBuildID_SameBuildAccepted
+    file: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go
+    symbol: TestReferenceNodeBuildID_SameBuildAccepted
+    package: main
+    language: go
+    doc: "Same build_id ⇒ accepted."
+  - id: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go:TestReferenceNodeBuildID_SameVersionDifferentBuildRefused
+    file: golang/cluster_controller/cluster_controller_server/repair_node_buildid_test.go
+    symbol: TestReferenceNodeBuildID_SameVersionDifferentBuildRefused
+    package: main
+    language: go
+    doc: "(the bite) Same version, different build_id ⇒ refused."
   - id: golang/cluster_controller/cluster_controller_server/repair_node_workflow_test.go:TestClassifier_DetectsOldController
     file: golang/cluster_controller/cluster_controller_server/repair_node_workflow_test.go
     symbol: TestClassifier_DetectsOldController
