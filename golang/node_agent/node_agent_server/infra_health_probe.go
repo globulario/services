@@ -9,7 +9,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -107,7 +106,7 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 				status := fields[0]
 				ip := fields[1]
 				if localIPs[ip] {
-					if status == "UN" {
+					if scyllaSubstrateVerified(status, "") {
 						return probeOK(start), nil
 					}
 					return probeFail(start, fmt.Sprintf("nodetool status=%s for %s%s",
@@ -121,18 +120,44 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 	}
 
 	// Strategy 2: REST API reports NORMAL — accept without nodetool.
-	if jm.OperationMode == "NORMAL" {
+	if scyllaSubstrateVerified("", jm.OperationMode) {
 		return probeOK(start), nil
 	}
 
-	// Strategy 3: TCP connect to CQL port 9042.
+	// TCP 9042 reachability is NOT health. A JOINING/BOOTSTRAPPING node can accept
+	// CQL connections while not yet in the ring, so an open port must never be
+	// reported as healthy/verified
+	// (forbidden_fix:heuristic_signal_marks_substrate_verified). Record it only as
+	// diagnostic context: verification requires Scylla substrate truth (nodetool
+	// status=UN or REST operation mode=NORMAL), both of which failed above.
+	cqlReachable := false
 	for ip := range localIPs {
 		if tryTCPConnect(ip, 9042, 2*time.Second) {
-			return probeOK(start), nil
+			cqlReachable = true
+			break
 		}
 	}
+	return probeFail(start, fmt.Sprintf(
+		"no Scylla substrate-truth evidence: nodetool status not UN and REST mode != NORMAL "+
+			"(cql_9042_reachable=%v — reachability is not health)%s", cqlReachable, jm.format())), nil
+}
 
-	return probeFail(start, fmt.Sprintf("CQL port 9042 unreachable and nodetool unavailable%s", jm.format())), nil
+// scyllaSubstrateVerified is the pure health decision: a node is verified only on
+// Scylla SUBSTRATE TRUTH — nodetool status "UN" (Up/Normal) or REST operation mode
+// "NORMAL". Anything else (JOINING, BOOTSTRAPPING, DN, empty) is not verified.
+// TCP-9042 reachability is deliberately NOT an input: an open port is not health
+// (forbidden_fix:heuristic_signal_marks_substrate_verified).
+func scyllaSubstrateVerified(nodetoolStatus, restOperationMode string) bool {
+	return nodetoolStatus == "UN" || restOperationMode == "NORMAL"
+}
+
+// minioSubstrateVerified is the pure health decision: MinIO is verified only when
+// the pool has BOTH write quorum and read quorum. Liveness (the server answers)
+// and reachability (port 9000 open) are deliberately NOT inputs — a live,
+// reachable server can sit on a degraded erasure set that cannot serve reads or
+// writes (forbidden_fix:heuristic_signal_marks_substrate_verified).
+func minioSubstrateVerified(writeQuorum, readQuorum bool) bool {
+	return writeQuorum && readQuorum
 }
 
 // scyllaJoinMetrics holds a snapshot of ScyllaDB join-progress state for
@@ -410,11 +435,16 @@ func (srv *NodeAgentServer) runProbeEtcdHealth(ctx context.Context, req *node_ag
 	return probeFail(start, "etcd status failed on all endpoints: "+strings.Join(errs, "; ")), nil
 }
 
-// runProbeMinioHealth checks whether MinIO is healthy on this node.
+// runProbeMinioHealth checks whether MinIO is VERIFIED-healthy on this node.
 //
-// Strategy:
-//  1. HTTP GET to the MinIO liveness endpoint.
-//  2. Fallback: TCP connect to port 9000.
+// Verified health is SUBSTRATE TRUTH: the pool has both write quorum
+// (/minio/health/cluster) and read quorum (/minio/health/cluster/read). Liveness
+// (/minio/health/live) and a bare TCP connect to port 9000 prove only that the
+// process answers — a MinIO server can be live and reachable while its erasure
+// set is degraded and the pool cannot serve reads or writes. Reporting liveness
+// or reachability as healthy is forbidden
+// (forbidden_fix:heuristic_signal_marks_substrate_verified). This uses the same
+// substrate-truth observer as the infra truth plane (minio_lifecycle.go).
 func (srv *NodeAgentServer) runProbeMinioHealth(ctx context.Context, req *node_agentpb.RunWorkflowRequest) (*node_agentpb.RunWorkflowResponse, error) {
 	start := time.Now()
 
@@ -426,26 +456,19 @@ func (srv *NodeAgentServer) runProbeMinioHealth(ctx context.Context, req *node_a
 		nodeIP = config.GetRoutableIPv4()
 	}
 
-	// --- Strategy 1: HTTP liveness endpoint ---
-	client := &http.Client{
-		Timeout:   3 * time.Second,
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
-	}
-	resp, err := client.Get(fmt.Sprintf("https://%s:9000/minio/health/live", nodeIP))
-	if err == nil {
-		resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			return probeOK(start), nil
-		}
-		return probeFail(start, fmt.Sprintf("MinIO liveness returned HTTP %d", resp.StatusCode)), nil
-	}
+	rt := observeMinioRuntime(ctx, fmt.Sprintf("https://%s:9000", nodeIP))
 
-	// --- Strategy 2: TCP connect ---
-	if tryTCPConnect(nodeIP, 9000, 2*time.Second) {
+	// Verified requires BOTH quorum dimensions — never liveness/reachability alone.
+	if minioSubstrateVerified(rt.WriteQuorum, rt.ReadQuorum) {
 		return probeOK(start), nil
 	}
 
-	return probeFail(start, fmt.Sprintf("MinIO unreachable at %s: liveness HTTPS failed (%v) and port 9000 closed", nodeIP, err)), nil
+	// Not verified: report exactly which quorum dimension is missing, and note
+	// (as diagnostic only) whether the server is merely live/reachable.
+	reachable := rt.Live || tryTCPConnect(nodeIP, 9000, 2*time.Second)
+	return probeFail(start, fmt.Sprintf(
+		"MinIO not verified: write_quorum=%v read_quorum=%v (live=%v reachable=%v — liveness/reachability is not health); evidence: %v",
+		rt.WriteQuorum, rt.ReadQuorum, rt.Live, reachable, rt.Errors)), nil
 }
 
 // ---------------------------------------------------------------------------
