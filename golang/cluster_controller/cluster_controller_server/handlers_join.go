@@ -261,11 +261,21 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 //
 // profiles may be nil/empty; in that case the suggested or default profiles are used.
 func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []string) {
+	explicitProfiles := len(profiles) > 0
 	if len(profiles) == 0 {
 		profiles = jr.SuggestedProfiles
 	}
 	if len(profiles) == 0 {
 		profiles = srv.cfg.DefaultProfiles
+	}
+	// When the operator did not request an explicit profile set, inherit the
+	// cluster's existing assignable (catalog) profiles so joining nodes come out
+	// identical to the founder (e.g. dns, compute). Hardware-gated profiles
+	// (control-plane, storage, gateway) stay governed per-node by deduceProfiles
+	// and enforceFoundingProfiles; opt-in workloads (media-server) and derived
+	// non-catalog labels (e.g. "ai") are not inherited. See inheritableClusterProfiles.
+	if !explicitProfiles {
+		profiles = append(append([]string(nil), profiles...), inheritableClusterProfiles(srv.state.Nodes)...)
 	}
 	profiles = normalizeProfiles(profiles)
 

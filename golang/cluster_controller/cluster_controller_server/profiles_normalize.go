@@ -1,10 +1,12 @@
 package main
 
 import (
-	"github.com/globulario/services/golang/component_catalog"
 	"log"
 	"sort"
+	"strings"
 	"time"
+
+	"github.com/globulario/services/golang/component_catalog"
 )
 
 // foundingNodeProfiles are the profiles that MUST be present on the first 3
@@ -34,6 +36,56 @@ const MinQuorumNodes = 3
 //	["control-plane", "gateway"] → ["control-plane", "core", "gateway"]
 func normalizeProfiles(raw []string) []string {
 	return component_catalog.NormalizeProfiles(raw)
+}
+
+// notInheritedProfiles are excluded from cluster-profile inheritance
+// (inheritableClusterProfiles). Two categories:
+//   - hardware-gated: control-plane, storage, gateway — governed per-node by
+//     deduceProfiles from the node's own capabilities, so a resource-light node
+//     never inherits e.g. "storage" it cannot serve. enforceFoundingProfiles
+//     still guarantees these on the first MinQuorumNodes nodes for quorum.
+//   - opt-in workloads: media-server — deliberately opt-in (see foundingNodeProfiles
+//     comment above); fresh nodes must not auto-inherit content/media services.
+//
+// Everything else that is a real catalog profile (core, compute, dns, database,
+// scylla, …) is inheritable so joining nodes come out identical to the founder.
+var notInheritedProfiles = map[string]bool{
+	"control-plane": true,
+	"storage":       true,
+	"gateway":       true,
+	"media-server":  true,
+}
+
+// inheritableClusterProfiles returns the union of assignable (catalog) profiles
+// currently present across cluster nodes, excluding notInheritedProfiles and any
+// non-catalog/derived label (e.g. "ai", which is derived from installed ai-*
+// services in the status projection, not an assignable profile). A joining node
+// inherits these when no explicit profile set was requested, so nodes come out
+// identical to the founder for software/infrastructure profiles while hardware
+// and opt-in profiles stay governed elsewhere.
+//
+// Only catalog-defined profiles are ever returned (component_catalog.HasProfile),
+// which upholds the profile↔component bijection invariant — inheritance can never
+// introduce an undefined profile.
+//
+// Caller must hold srv.lock (reads the passed srv.state.Nodes map).
+func inheritableClusterProfiles(nodes map[string]*nodeState) []string {
+	var out []string
+	for _, n := range nodes {
+		if n == nil {
+			continue
+		}
+		for _, p := range n.Profiles {
+			key := strings.ToLower(strings.TrimSpace(p))
+			if notInheritedProfiles[key] {
+				continue
+			}
+			if component_catalog.HasProfile(key) {
+				out = append(out, key)
+			}
+		}
+	}
+	return out // dedup handled by normalizeProfiles at the callsite
 }
 
 // enforceFoundingProfiles ensures the founding node profiles are present
