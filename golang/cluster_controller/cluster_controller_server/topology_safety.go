@@ -53,7 +53,11 @@ func (srv *server) checkStorageQuorumSafe(nodeID string) *topologySafetyViolatio
 		if n == nil || id == nodeID {
 			continue
 		}
-		if n.Status == "removed" || n.Status == "blocked" || n.Status == "unreachable" {
+		// Count only VERIFIED storage members toward the redundancy floor — a
+		// labeled-but-unverified node is not real storage capacity
+		// (forbidden_fix:profile_label_counts_as_storage_capacity). This gate is a
+		// superset of the removed/blocked/unreachable status exclusions.
+		if !IsNodeVerifiedStorageEligible(n) {
 			continue
 		}
 		for _, p := range n.Profiles {
@@ -180,7 +184,14 @@ func (srv *server) driftTopologyPreflight(ctx context.Context) []topologySafetyV
 	var storageCount, controlPlaneCount int
 	pool := append([]string(nil), srv.state.MinioPoolNodes...)
 	for _, n := range srv.state.Nodes {
-		if n == nil || n.Status == "removed" || n.Status == "blocked" || n.Status == "unreachable" {
+		if n == nil {
+			continue
+		}
+		// Count only VERIFIED members toward the drift-preflight quorum floor — a
+		// labeled-but-unverified node is not capacity
+		// (forbidden_fix:profile_label_counts_as_storage_capacity). This gate
+		// subsumes the removed/blocked/unreachable status exclusions.
+		if !IsNodeVerifiedStorageEligible(n) {
 			continue
 		}
 		if nodeHasProfile(&memberNode{Profiles: n.Profiles}, []string{"storage"}) {

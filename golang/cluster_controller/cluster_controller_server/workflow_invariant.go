@@ -151,8 +151,10 @@ func (srv *server) invariantValidateInfraQuorum(ctx context.Context, minScylla, 
 	var violations []map[string]any
 	var candidates []map[string]any
 
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
-	cpCount := countNodesWithProfile(srv.state.Nodes, "control-plane")
+	// Scylla/MinIO quorum is realized capacity, not labels: count only VERIFIED
+	// storage/control-plane members (forbidden_fix:profile_label_counts_as_storage_capacity).
+	storageCount := countVerifiedNodesWithProfile(srv.state.Nodes, "storage")
+	cpCount := countVerifiedNodesWithProfile(srv.state.Nodes, "control-plane")
 	totalNodes := len(srv.state.Nodes)
 
 	// etcd runs on all nodes — check that node count is at least 1.
@@ -235,7 +237,7 @@ func (srv *server) invariantVerifyQuorum(ctx context.Context, minScylla, minMini
 	srv.lock("invariantVerifyQuorum")
 	defer srv.unlock()
 
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
+	storageCount := countVerifiedNodesWithProfile(srv.state.Nodes, "storage")
 	return storageCount >= minScylla && storageCount >= minMinio, nil
 }
 

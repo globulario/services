@@ -125,10 +125,38 @@ func enforceFoundingProfiles(profiles []string, storageNodeCount int) []string {
 	return normalizeProfiles(merged)
 }
 
-// countNodesWithProfile counts how many nodes in the map have the given profile.
+// countNodesWithProfile counts how many nodes in the map carry the given profile
+// LABEL. A label is placement intent, not proof of realized capacity — use this
+// only for intent/placement decisions (e.g. deducing suggested profiles), never
+// to answer a quorum/RF/capacity question. For that, use
+// countVerifiedNodesWithProfile.
 func countNodesWithProfile(nodes map[string]*nodeState, profile string) int {
 	count := 0
 	for _, n := range nodes {
+		for _, p := range n.Profiles {
+			if p == profile {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
+// countVerifiedNodesWithProfile counts nodes that BOTH carry the given profile
+// label AND are verified-eligible cluster members (IsNodeVerifiedStorageEligible).
+// This is the capacity/quorum count: a label is intent, verification is capacity
+// (meta.limited_members_are_not_capacity /
+// forbidden_fix:profile_label_counts_as_storage_capacity). A node labeled
+// "storage" but still bootstrapping, failed, or mid-join is NOT storage capacity
+// and must not satisfy founding/storage quorum. Mirrors the gate already used by
+// storageControlPlaneNodeCount.
+func countVerifiedNodesWithProfile(nodes map[string]*nodeState, profile string) int {
+	count := 0
+	for _, n := range nodes {
+		if !IsNodeVerifiedStorageEligible(n) {
+			continue
+		}
 		for _, p := range n.Profiles {
 			if p == profile {
 				count++
@@ -150,7 +178,9 @@ func countNodesWithProfile(nodes map[string]*nodeState, profile string) int {
 //
 // MUST be called under srv.lock(). Returns true if state was modified.
 func (srv *server) enforceStorageQuorumLocked() bool {
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
+	// Quorum is a capacity question: count only VERIFIED storage members, not
+	// nodes that merely carry the label (forbidden_fix:profile_label_counts_as_storage_capacity).
+	storageCount := countVerifiedNodesWithProfile(srv.state.Nodes, "storage")
 	if storageCount >= MinQuorumNodes {
 		return false
 	}

@@ -284,7 +284,12 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 	// ScyllaDB, and MinIO. Without 3 storage nodes, there is no
 	// redundancy — MinIO becomes a single point of failure that
 	// cascades into workflow execution and artifact publishing.
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
+	// Count only VERIFIED storage members toward founding quorum — a node that
+	// carries the label but has not verified in the ring/pool is not capacity
+	// (forbidden_fix:profile_label_counts_as_storage_capacity). Under-counting is
+	// the safe direction here: it forces storage onto the joiner rather than
+	// assuming quorum is already met.
+	storageCount := countVerifiedNodesWithProfile(srv.state.Nodes, "storage")
 	profiles = enforceFoundingProfiles(profiles, storageCount)
 	jr.Profiles = profiles
 

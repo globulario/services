@@ -133,7 +133,9 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *cluster_controllerp
 	// INVARIANT: Cannot remove foundational profiles from a node if doing so
 	// would drop the cluster below MinQuorumNodes for storage. The first 3
 	// nodes MUST have core + control-plane + storage for etcd/ScyllaDB/MinIO quorum.
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
+	// Count only VERIFIED storage members — a labeled-but-unverified node is not
+	// capacity (forbidden_fix:profile_label_counts_as_storage_capacity).
+	storageCount := countVerifiedNodesWithProfile(srv.state.Nodes, "storage")
 	normalized = enforceFoundingProfiles(normalized, storageCount)
 
 	node.Profiles = normalized
