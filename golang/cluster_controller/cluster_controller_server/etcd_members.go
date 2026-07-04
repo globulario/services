@@ -253,6 +253,7 @@ type etcdMembershipManager interface {
 	reconcileEtcdJoinPhases(ctx context.Context, nodes []*nodeState) (dirty bool)
 	reconcileEtcdAutoRejoin(ctx context.Context, nodes []*nodeState) (dirty bool)
 	removeStaleMembers(ctx context.Context, desiredEtcdNodes []memberNode) error
+	reconcileLearnerPromotion(ctx context.Context, targetVoters int) (dirty bool)
 }
 
 func newEtcdMemberManager(client *clientv3.Client) *etcdMemberManager {

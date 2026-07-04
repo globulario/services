@@ -75,9 +75,16 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 	// Drive etcd join phases.
 	if srv.etcdMembers != nil {
 		membership := srv.snapshotClusterMembership()
+		etcdVoterTarget := 0
 		if membership != nil {
+			desiredEtcdNodes := filterNodesByProfile(membership, profilesForEtcd)
+			// The intended etcd voter count is the admitted etcd membership. Policy A′
+			// (topologyAllowsLearnerPromotion) only promotes toward a >=3 target, so
+			// using the live admitted count naturally keeps the second node a learner
+			// until a third is admitted, and never settles at a transient 2 voters
+			// (invariant:infra.etcd.two_voter_topology_is_not_ha).
+			etcdVoterTarget = len(desiredEtcdNodes)
 			if ok, reason := shouldPruneEtcdStaleMembers(time.Now(), nodes); ok {
-				desiredEtcdNodes := filterNodesByProfile(membership, profilesForEtcd)
 				if err := srv.etcdMembers.removeStaleMembers(ctx, desiredEtcdNodes); err != nil {
 					log.Printf("reconcile-workflow: etcd stale-member prune failed: %v", err)
 				}
@@ -89,6 +96,13 @@ func (srv *server) reconcileAdvanceInfraJoins(ctx context.Context, clusterID str
 			srv.lock("reconcileAdvanceInfraJoins:etcd-persist")
 			_ = srv.persistStateLocked(false)
 			srv.unlock()
+		}
+		// Policy A′: promote caught-up learners to voters toward the intended voter
+		// count. Never settles at 2 voters; etcd itself gates catch-up (MemberPromote
+		// fails until the learner is in sync). This is a pure etcd membership change —
+		// no controller node-state to persist.
+		if etcdVoterTarget > 0 {
+			srv.etcdMembers.reconcileLearnerPromotion(ctx, etcdVoterTarget)
 		}
 		// Auto-rejoin nodes that were permanently removed: call MemberAdd and
 		// transition them to RejoinInProgress so the node agent wipes their

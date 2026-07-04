@@ -12,9 +12,15 @@ import (
 )
 
 type recordingEtcdMembershipManager struct {
-	removeCalls []string
-	lastDesired []memberNode
-	removeErr   error
+	removeCalls      []string
+	lastDesired      []memberNode
+	removeErr        error
+	promotionTargets []int // targetVoters passed to reconcileLearnerPromotion
+}
+
+func (m *recordingEtcdMembershipManager) reconcileLearnerPromotion(_ context.Context, targetVoters int) bool {
+	m.promotionTargets = append(m.promotionTargets, targetVoters)
+	return false
 }
 
 func (m *recordingEtcdMembershipManager) snapshotEtcdMembers(context.Context) (*etcdMemberState, error) {

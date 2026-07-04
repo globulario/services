@@ -345,7 +345,8 @@ const (
 	EtcdJoinPrepared    EtcdJoinPhase = "prepared"       // package installed, unit exists, ready for MemberAdd
 	EtcdJoinMemberAdded EtcdJoinPhase = "member_added"   // MemberAdd called, config rendered, awaiting service start
 	EtcdJoinStarted     EtcdJoinPhase = "started"        // etcd service started, awaiting health verification
-	EtcdJoinVerified    EtcdJoinPhase = "verified"       // etcd member healthy and participating
+	EtcdJoinPromoting   EtcdJoinPhase = "promoting"      // joined as a non-voting LEARNER, awaiting promotion (Policy A′); NOT a voter, excluded from quorum/HA counts
+	EtcdJoinVerified    EtcdJoinPhase = "verified"       // etcd member healthy and participating as a promoted VOTER
 	EtcdJoinFailed      EtcdJoinPhase = "failed"         // join failed, rollback performed or needed
 
 	// Rejoin states — set when a node is permanently stuck in etcd_joining
