@@ -71,6 +71,12 @@ test_symbols:
     package: config
     language: go
     doc: "TestScyllaHostsCacheStaleOnEtcdDown verifies that when etcd becomes unavailable,\nGetScyllaHosts returns the last known host list rather than an error (within\nthe StaleIfError window). This prevents Scylla reconnect storms from also\nspiking etcd reads.\n\nUses TTL=0 so every Get calls fetch; stale-if-error is tested cleanly without\nbackdating entries."
+  - id: golang/config/cluster_membership_id_test.go:TestReadClusterMembershipID_FailClosed
+    file: golang/config/cluster_membership_id_test.go
+    symbol: TestReadClusterMembershipID_FailClosed
+    package: config
+    language: go
+    doc: "TestReadClusterMembershipID_FailClosed proves the reader never invents,\nderives, or defaults an identity: absence/emptiness → ErrClusterMembershipIDAbsent\nwith an empty string, transport errors propagate, and a real value round-trips."
   - id: golang/config/config_test.go:TestGetCACertificatePathCanonical
     file: golang/config/config_test.go
     symbol: TestGetCACertificatePathCanonical

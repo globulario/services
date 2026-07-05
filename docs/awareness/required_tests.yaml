@@ -5872,12 +5872,10 @@ required_tests:
   title: Node Principal Own Node Allowed
 - id: security:TestSADeprecationWarningOnNodeScopedPath
   title: SADeprecation Warning On Node Scoped Path
-- id: security:TestValidateClusterID_EmptyDenied
-  title: Validate Cluster ID Empty Denied
-- id: security:TestValidateClusterID_MatchAllowed
-  title: Validate Cluster ID Match Allowed
-- id: security:TestValidateClusterID_MismatchDenied
-  title: Validate Cluster ID Mismatch Denied
+- id: security:TestGetLocalClusterUID_CacheHitIsNotDomain
+  title: Get Local Cluster UID Cache Hit Is Not Domain
+- id: security:TestValidateClusterMembership_UUIDOnlyFailClosed
+  title: Validate Cluster Membership UUID Only Fail Closed
 - id: verifier:TestClassifyGap_MissingVerdict_SweepAgeUnknown
   title: Classify Gap Missing Verdict Sweep Age Unknown
 - id: verifier:TestEtcdKeyForVerification_LayoutMatchesBrief
