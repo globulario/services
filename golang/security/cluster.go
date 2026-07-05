@@ -116,6 +116,13 @@ func getValidator() (*ClusterValidator, error) {
 
 // ValidateClusterID is a package-level convenience function that uses the
 // default cluster validator.
+//
+// LEGACY (domain-based request-origin check): cluster MEMBERSHIP is now validated
+// by the opaque minted UUID via ValidateClusterMembership, which the gRPC
+// interceptor enforces. This domain-origin validator has no production callers;
+// it is retained pending a paired removal that also updates the intent
+// security.cluster_id_validates_request_origin. Do NOT wire new membership checks
+// through it — use ValidateClusterMembership.
 func ValidateClusterID(ctx context.Context, claimedClusterID string) error {
 	cv, err := getValidator()
 	if err != nil {
@@ -191,9 +198,11 @@ func OverrideLocalClusterID(t interface{ Cleanup(func()) }, clusterID string) {
 // opaque MEMBERSHIP identity — deliberately NOT the domain (config.GetDomain()
 // remains the DNS/storage/workflow namespace).
 //
-// Identity-migration status: ADDITIVE. This reader makes the true identity
-// readable; it does not yet drive any validation (membership auth still uses the
-// domain until the Phase-2 dual-accept airlock).
+// Identity-migration status: ACTIVE. This UUID is the sole membership credential —
+// ValidateClusterMembership (below) validates against it, fail-closed, and the
+// gRPC interceptor enforces it on every request. The domain-based ValidateClusterID
+// is legacy request-origin validation, retained only until the paired intent
+// (security.cluster_id_validates_request_origin) is updated to name the UUID gate.
 var (
 	clusterUIDMu  sync.RWMutex
 	clusterUIDVal string
