@@ -45,9 +45,10 @@ func (srv *server) CreateJoinToken(ctx context.Context, req *cluster_controllerp
 		expiresAt = req.ExpiresAt.AsTime()
 	}
 	srv.state.JoinTokens[token] = &joinTokenRecord{
-		Token:     token,
-		ExpiresAt: expiresAt,
-		MaxUses:   1,
+		Token:      token,
+		ExpiresAt:  expiresAt,
+		MaxUses:    1,
+		ClusterUID: srv.state.ClusterUID, // bind the token to the cluster membership identity
 	}
 	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist token: %v", err)
