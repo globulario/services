@@ -297,6 +297,13 @@ func (m *executorLeaseManager) StartOrphanScanner(ctx context.Context) {
 	}
 
 	go func() {
+		// Recover immediately on startup so a freshly (re)started instance adopts
+		// orphaned (stale-lease) and stranded (unleased EXECUTING) runs without
+		// waiting a full scan interval — this is the fast-failover path when an
+		// executor instance dies and another takes over.
+		m.scanAndClaimOrphans(ctx)
+		m.scanAndClaimUnleasedRuns(ctx)
+
 		ticker := time.NewTicker(orphanScanInterval)
 		defer ticker.Stop()
 
