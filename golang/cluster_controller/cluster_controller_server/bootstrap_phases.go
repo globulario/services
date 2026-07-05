@@ -25,6 +25,7 @@ import (
 	"log"
 	"time"
 
+	config "github.com/globulario/services/golang/config"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow"
 	"github.com/globulario/services/golang/workflow/workflowpb"
@@ -60,6 +61,31 @@ type eventEmitter interface {
 //
 // Phases are skipped when the node's profiles don't include the relevant service.
 // Returns true if any node state was modified.
+// bootstrapLearnerFreshness bounds how recently a degraded-accepted etcd learner
+// (and the voter it defers to) must have been seen for the two_node degraded
+// bootstrap-progression exception to apply.
+const bootstrapLearnerFreshness = 90 * time.Second
+
+// hasHealthyEtcdVoter reports whether some OTHER node is a reachable etcd voter
+// (i.e. a member that is NOT a non-voting learner and not failed) — the write
+// authority a degraded learner defers to. Used only to gate the explicit
+// two_node degraded bootstrap-progression exception; it is not an HA claim. The
+// founder carries an empty EtcdJoinPhase and qualifies when reachable.
+func hasHealthyEtcdVoter(nodes []*nodeState, excludeID string, now time.Time) bool {
+	for _, n := range nodes {
+		if n == nil || n.NodeID == excludeID {
+			continue
+		}
+		if n.EtcdJoinPhase == EtcdJoinPromoting || n.EtcdJoinPhase == EtcdJoinFailed {
+			continue // learner or failed — not a voter
+		}
+		if !n.LastSeen.IsZero() && now.Sub(n.LastSeen) < bootstrapLearnerFreshness {
+			return true
+		}
+	}
+	return false
+}
+
 func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter eventEmitter) (dirty bool) {
 	now := time.Now()
 
@@ -128,6 +154,9 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 			// Wait for the etcd join state machine to reach verified.
 			// The etcd state machine (reconcileEtcdJoinPhases) runs separately.
 			if node.EtcdJoinPhase == EtcdJoinVerified {
+				// Real voter verification supersedes any degraded acceptance.
+				node.EtcdBootstrapDegraded = false
+				node.EtcdDegradedReason = ""
 				node.BootstrapPhase = BootstrapEtcdReady
 				node.BootstrapStartedAt = now
 				dirty = true
@@ -156,17 +185,42 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 				failBootstrap(node, "etcd rejoin failed: "+node.EtcdJoinError)
 				dirty = true
 			} else if node.EtcdJoinPhase == EtcdJoinPromoting {
-				// Joined as a non-voting learner (Policy A'). The controller promotes
-				// it to a voter toward the HA target on its own schedule — a learner
-				// may legitimately wait for a third node before promotion. Its etcd is
-				// a functional member, so do NOT fail bootstrap on timeout while it
-				// awaits promotion: hold in etcd_joining until it becomes a verified
-				// voter. Mirrors the rejoin "suppress timeout" handling above.
-				if node.BootstrapError != "etcd learner awaiting promotion to voter" {
-					node.BootstrapError = "etcd learner awaiting promotion to voter"
+				// Joined as a non-voting learner (Policy A'). Two behaviors:
+				//
+				// Durable/default: the controller promotes it to a voter toward the HA
+				// target on its own schedule — a learner may legitimately wait for a
+				// third node. Its etcd is a functional member, so do NOT fail bootstrap
+				// on timeout: hold in etcd_joining until it becomes a verified voter.
+				//
+				// Explicit degraded two_node: accept the healthy synced learner for
+				// bootstrap PROGRESSION only — advance past etcd_joining WITHOUT
+				// promoting it to a voter (EtcdJoinPhase stays Promoting), provided a
+				// healthy voter (founder) remains the write authority. This is a
+				// bootstrap-progression exception, never an etcd membership promotion,
+				// and never a claim of HA. When a 3rd node joins, Policy A' completes
+				// real 3-voter promotion. Only the DECLARED policy enables this — never
+				// the observed node count (intent:degraded_is_explicit_not_hidden;
+				// forbidden: auto promote-to-2-voters).
+				pol := storagePolicyCachedOrDurable()
+				learnerHealthy := !node.LastSeen.IsZero() && now.Sub(node.LastSeen) < bootstrapLearnerFreshness
+				if pol.AllowDegraded && pol.Profile == config.StorageProfileTwoNodeDegraded &&
+					learnerHealthy && hasHealthyEtcdVoter(nodes, node.NodeID, now) {
+					node.EtcdBootstrapDegraded = true
+					node.EtcdDegradedReason = "etcd learner accepted for degraded two_node bootstrap — non-voter, NOT HA; founder/current voter is the write authority"
+					node.BootstrapError = ""
+					node.BlockedReason = ""
+					node.BootstrapPhase = BootstrapEtcdReady
+					node.BootstrapStartedAt = now
+					log.Printf("bootstrap: node %s (%s) ETCD_DEGRADED — learner accepted for bootstrap progression under explicit two_node degraded policy (non-voter, not HA); EtcdJoinPhase stays %s",
+						node.NodeID, node.Identity.Hostname, node.EtcdJoinPhase)
+					dirty = true
+				} else {
+					if node.BootstrapError != "etcd learner awaiting promotion to voter" {
+						node.BootstrapError = "etcd learner awaiting promotion to voter"
+					}
+					node.BootstrapStartedAt = now // reset phase timer so it never auto-fails
+					dirty = true
 				}
-				node.BootstrapStartedAt = now // reset phase timer so it never auto-fails
-				dirty = true
 			} else if phaseTimedOut(node, now) {
 				failBootstrap(node, "timeout waiting for etcd join")
 				dirty = true

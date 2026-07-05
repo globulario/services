@@ -384,6 +384,14 @@ type nodeState struct {
 	EtcdJoinError      string        `json:"etcd_join_error,omitempty"`
 	EtcdMemberID       uint64        `json:"etcd_member_id,omitempty"`        // for rollback via MemberRemove
 	EtcdMissingCycles  int           `json:"etcd_missing_cycles,omitempty"`   // consecutive cycles where member missing + etcd not running
+	// EtcdBootstrapDegraded records that this node advanced past etcd_joining as a
+	// NON-VOTING learner under an explicit degraded two_node StoragePolicy — a
+	// bootstrap-progression exception, NOT a voter promotion. EtcdJoinPhase stays
+	// Promoting (learner); the founder/current voter remains the write authority.
+	// Surfaced as ETCD_DEGRADED / non-voter / not-HA in health. Cleared when the
+	// node is later promoted to a real voter (EtcdJoinVerified) after a 3rd node.
+	EtcdBootstrapDegraded bool   `json:"etcd_bootstrap_degraded,omitempty"`
+	EtcdDegradedReason    string `json:"etcd_degraded_reason,omitempty"`
 	// MinIO pool join state machine (erasure-coded expansion)
 	MinioJoinPhase     MinioJoinPhase `json:"minio_join_phase,omitempty"`
 	MinioJoinStartedAt time.Time      `json:"minio_join_started_at,omitempty"`
