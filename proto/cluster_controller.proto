@@ -105,6 +105,10 @@ message CreateJoinTokenRequest {
 message CreateJoinTokenResponse {
   string join_token = 1;
   google.protobuf.Timestamp expires_at = 2;
+  // cluster_uid is the cluster MEMBERSHIP identity this token is bound to. The
+  // installer forwards it on the join authorization request so the controller can
+  // require it after initialization. Token-bound distribution — not operator free text.
+  string cluster_uid = 3;
 }
 
 message RequestJoinRequest {
@@ -141,11 +145,15 @@ message JoinAuthorizationRequest {
   NodeCapabilities capabilities = 4;
   string nonce = 5;
   string installer_version = 6;
-  string cluster_id = 7;
+  string cluster_id = 7; // DNS/namespace value (not identity)
   // requested_profiles is an operator preference (e.g. from `join --profiles`).
   // The controller VALIDATES and decides — the gateway remains a courier and
   // MUST NOT assign profiles. Empty means "use suggested/inherited defaults".
   repeated string requested_profiles = 8;
+  // cluster_uid is the opaque cluster MEMBERSHIP identity the installer forwards
+  // (received via the join token / prior JoinPlan). Validated against the minted
+  // UUID; the domain is never a valid identity here.
+  string cluster_uid = 9;
 }
 
 // JoinAuthorizationResponse carries the signed JoinPlan on success.

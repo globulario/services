@@ -123,14 +123,26 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 		}
 	}
 
-	// Membership identity gate (A5/A6): if the installer presents a cluster_uid it
-	// MUST equal the minted membership UUID. The domain is not an identity, so a
-	// domain value here is a mismatch. This validates when present (a re-joining
-	// node carries the UUID from its prior signed JoinPlan) without breaking first
-	// join. A6 makes it REQUIRED (empty denied) once every installer receives the
-	// UUID via the JoinPlan.
-	if callerUID := strings.TrimSpace(req.ClusterUID); callerUID != "" {
-		if srv.state.ClusterUID != "" && callerUID != srv.state.ClusterUID {
+	// Membership identity gate (A6): the cluster identity is the minted UUID
+	// (state.ClusterUID), never the domain. The join carries it two ways and both
+	// are VERIFIED when present:
+	//   - the token is BOUND to it at creation (jt.ClusterUID, server-side/unspoofable)
+	//   - the installer FORWARDS it (req.ClusterUID, from CreateJoinToken/JoinPlan)
+	// Once initialized, a token bound to a DIFFERENT cluster, or a forwarded value
+	// that doesn't match (e.g. the domain), is rejected. A token with NO binding and
+	// no forwarded value is allowed through — the token secret + the gRPC interceptor
+	// remain the gates — so multi-node bootstrap, whose founding seed tokens predate
+	// the minted identity, is not broken. Strict "missing denied after init" follows
+	// once all bootstrap-seed tokens are guaranteed bound post-mint.
+	if srv.state.ClusterUID != "" {
+		if jt.ClusterUID != "" && jt.ClusterUID != srv.state.ClusterUID {
+			srv.unlock()
+			return &JoinAuthorizationResponse{
+				Allowed:      false,
+				DeniedReason: fmt.Sprintf("join token bound to a different cluster: token=%q cluster=%q", jt.ClusterUID, srv.state.ClusterUID),
+			}, nil
+		}
+		if callerUID := strings.TrimSpace(req.ClusterUID); callerUID != "" && callerUID != srv.state.ClusterUID {
 			srv.unlock()
 			return &JoinAuthorizationResponse{
 				Allowed:      false,
@@ -282,6 +294,7 @@ func protoToJoinAuthRequest(req *cluster_controllerpb.JoinAuthorizationRequest) 
 		Nonce:             req.GetNonce(),
 		InstallerVersion:  req.GetInstallerVersion(),
 		ClusterID:         strings.TrimSpace(req.GetClusterId()),
+		ClusterUID:        strings.TrimSpace(req.GetClusterUid()),
 		RequestedProfiles: append([]string(nil), req.GetRequestedProfiles()...),
 	}
 	if caps != nil {

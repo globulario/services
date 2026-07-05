@@ -144,6 +144,26 @@ func TestJoinAuthorization_ClusterUIDValidatedWhenPresent(t *testing.T) {
 	}
 }
 
+// TestJoinAuthorization_TokenBoundToDifferentClusterDenied (A6): a join token
+// bound (at creation) to a DIFFERENT cluster's membership UUID is rejected — the
+// token-bound identity is verified server-side and cannot be replayed cross-cluster.
+func TestJoinAuthorization_TokenBoundToDifferentClusterDenied(t *testing.T) {
+	srv := newJoinAuthServer(t) // state.ClusterUID = abcdef01-...
+	srv.state.JoinTokens["tok-v2"].ClusterUID = "99999999-9999-9999-9999-999999999999"
+
+	resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+		JoinToken: "tok-v2",
+		Identity:  NodePlanIdentity{Hostname: "n", IPs: []string{"10.0.0.1"}},
+		Nonce:     "nonce-crosscluster",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Allowed || !strings.Contains(resp.DeniedReason, "different cluster") {
+		t.Errorf("a token bound to a different cluster must be denied; got allowed=%v reason=%q", resp.Allowed, resp.DeniedReason)
+	}
+}
+
 // TestJoinAuthorization_FoundingNodeReceivesPlan verifies the happy path:
 // a valid token + routable identity → allowed=true, signed plan with profiles.
 func TestJoinAuthorization_FoundingNodeReceivesPlan(t *testing.T) {

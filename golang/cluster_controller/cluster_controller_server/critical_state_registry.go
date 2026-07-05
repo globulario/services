@@ -127,6 +127,23 @@ var criticalStateRegistry = []CriticalKeyRecord{
 		GuardedBy:           "controller-reconcile",
 	},
 	{
+		// Cluster membership identity — an opaque UUID minted once by the
+		// controller at Day-0 seed, immutable thereafter. This is NOT the
+		// cluster domain (DNS/storage/workflow namespace); it is the membership
+		// credential every RPC is validated against. Restore re-persists the
+		// controller's cached ClusterUID (state.ClusterUID) — it MUST NOT be
+		// re-minted to a new value, which would sever every node's membership.
+		// Consumers fail closed when it is absent: they never invent an id.
+		Key:                 "/globular/system/cluster/id",
+		Owner:               "cluster-controller",
+		SchemaVersion:       "v1",
+		Restore:             RestoreFromState,
+		LKGConsumerBehavior: "membership validation fails closed — consumers never invent an id",
+		Delete:              DeleteNeverAutomatic,
+		DoctorInvariant:     "cluster.membership_id_missing",
+		GuardedBy:           "cluster-membership-id-mint",
+	},
+	{
 		Key:                 "/globular/nodes/",
 		IsPrefix:            true,
 		Owner:               "node-agent",
