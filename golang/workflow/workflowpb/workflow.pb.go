@@ -6181,8 +6181,15 @@ type ExecuteWorkflowRequest struct {
 	// All endpoints are resolved via config.ResolveDialTarget before dialing.
 	ActorEndpoints map[string]string `protobuf:"bytes,4,rep,name=actor_endpoints,json=actorEndpoints,proto3" json:"actor_endpoints,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	CorrelationId  string            `protobuf:"bytes,5,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"` // optional, for linking to existing workflow lineage
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// detached: ack-on-dispatch. When true, the service persists the run (StartRun +
+	// inputs) and its lease synchronously, then executes the DAG in a background
+	// goroutine and returns immediately with status EXECUTING — the caller does not
+	// block for the run duration. Opt-in; MUST NOT be set for child workflows
+	// (wait_child_terminal needs a terminal child). Used by long release workflows
+	// so a slow run cannot time out the dispatch RPC and open the workflow breaker.
+	Detached      bool `protobuf:"varint,6,opt,name=detached,proto3" json:"detached,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ExecuteWorkflowRequest) Reset() {
@@ -6248,6 +6255,13 @@ func (x *ExecuteWorkflowRequest) GetCorrelationId() string {
 		return x.CorrelationId
 	}
 	return ""
+}
+
+func (x *ExecuteWorkflowRequest) GetDetached() bool {
+	if x != nil {
+		return x.Detached
+	}
+	return false
 }
 
 type ExecuteWorkflowResponse struct {
@@ -7493,7 +7507,7 @@ const file_workflow_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"V\n" +
 	"\x1dGetWorkflowDefinitionResponse\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
-	"\fyaml_content\x18\x02 \x01(\tR\vyamlContent\"\xc6\x02\n" +
+	"\fyaml_content\x18\x02 \x01(\tR\vyamlContent\"\xe2\x02\n" +
 	"\x16ExecuteWorkflowRequest\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
@@ -7501,7 +7515,8 @@ const file_workflow_proto_rawDesc = "" +
 	"\vinputs_json\x18\x03 \x01(\tR\n" +
 	"inputsJson\x12]\n" +
 	"\x0factor_endpoints\x18\x04 \x03(\v24.workflow.ExecuteWorkflowRequest.ActorEndpointsEntryR\x0eactorEndpoints\x12%\n" +
-	"\x0ecorrelation_id\x18\x05 \x01(\tR\rcorrelationId\x1aA\n" +
+	"\x0ecorrelation_id\x18\x05 \x01(\tR\rcorrelationId\x12\x1a\n" +
+	"\bdetached\x18\x06 \x01(\bR\bdetached\x1aA\n" +
 	"\x13ActorEndpointsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x81\x01\n" +

@@ -160,8 +160,18 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	}
 
 	// ── 3. Build remote-dispatch router ──────────────────────────────────
+	// detached is set true by the ack-on-dispatch path below. When set, the
+	// dispatcher and the lease are owned by the background goroutine, so these
+	// RPC-return defers must NOT fire on the immediate return — they would close
+	// the actor connections and release the lease out from under the still-running
+	// detached execution.
+	detached := false
 	dispatcher := newActorDispatcher(req.ActorEndpoints)
-	defer dispatcher.close()
+	defer func() {
+		if !detached {
+			dispatcher.close()
+		}
+	}()
 
 	router := engine.NewRouter()
 	// Register workflow-service as a local actor (self-dispatch for child
@@ -231,7 +241,11 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		} else if !claimed {
 			return nil, fmt.Errorf("run %s already owned by another executor", runID)
 		}
-		defer srv.leaseManager.ReleaseRun(runID)
+		defer func() {
+			if !detached {
+				srv.leaseManager.ReleaseRun(runID)
+			}
+		}()
 	}
 
 	// ── 6. Record run start ──────────────────────────────────────────────
@@ -359,159 +373,194 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	}
 
 	// ── 6. Execute ───────────────────────────────────────────────────────
-	logger.Info("executor: starting workflow",
-		"workflow", req.WorkflowName, "run_id", runID,
-		"actors", fmt.Sprintf("%v", mapKeys(req.ActorEndpoints)))
-	srv.metricsRunStart(runID, req.WorkflowName, time.Now())
+	// runToCompletion runs the engine DAG, finalizes the run (FinishRun with
+	// retry), clears defer state, and builds the response. Shared by the
+	// synchronous path and the detached background goroutine; it takes the
+	// execution context explicitly because detached must run on a FRESH context
+	// (the request ctx is cancelled the moment ExecuteWorkflow returns). Every
+	// other value (def/inputs/eng/cw/runID/req/logger/srv) is captured.
+	runToCompletion := func(ctx context.Context) *workflowpb.ExecuteWorkflowResponse {
+		logger.Info("executor: starting workflow",
+			"workflow", req.WorkflowName, "run_id", runID,
+			"actors", fmt.Sprintf("%v", mapKeys(req.ActorEndpoints)))
+		srv.metricsRunStart(runID, req.WorkflowName, time.Now())
 
-	logger.Info("executor: engine.Execute starting", "run_id", runID, "steps", len(def.Spec.Steps))
-	run, execErr := eng.Execute(ctx, def, inputs)
-	if execErr != nil {
-		logger.Warn("executor: engine.Execute returned error", "run_id", runID, "error", execErr.Error())
-	} else {
-		logger.Info("executor: engine.Execute completed", "run_id", runID)
-	}
-
-	// ── 7. Record run finish ─────────────────────────────────────────────
-	status := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
-	var errMsg string
-	if run != nil && run.Status == engine.RunDeferred && run.Defer != nil {
-		// WF-DEFER B2: a step yielded its slot. Persist defer_until +
-		// defer_count via a direct UPDATE — FinishRun's path is for
-		// terminal/blocked outcomes and overwriting the row here would
-		// drop our backoff fields.
-		status = workflowpb.RunStatus_RUN_STATUS_DEFERRED
-		errMsg = run.Defer.Reason
-		if rerr := srv.recordRunDeferred(ctx, req.ClusterId, runID, run.Defer); rerr != nil {
-			logger.Warn("executor: failed to record deferred run", "run_id", runID, "err", rerr)
+		logger.Info("executor: engine.Execute starting", "run_id", runID, "steps", len(def.Spec.Steps))
+		run, execErr := eng.Execute(ctx, def, inputs)
+		if execErr != nil {
+			logger.Warn("executor: engine.Execute returned error", "run_id", runID, "error", execErr.Error())
+		} else {
+			logger.Info("executor: engine.Execute completed", "run_id", runID)
 		}
-		// WF-DEFER B3: increment the persistent across-runs counter.
-		// Once defer_count >= max_defers, the store flips abandoned=true
-		// and the next dispatch attempt for this correlation_id is
-		// refused permanently (until operator clear).
-		if req.CorrelationId != "" && srv.deferStore != nil {
-			if state, derr := srv.deferStore.RecordDefer(ctx, req.ClusterId, req.CorrelationId, run.Defer); derr != nil {
-				logger.Warn("executor: failed to record persistent defer state",
-					"correlation_id", req.CorrelationId, "err", derr)
-			} else if state != nil {
-				logger.Info("executor: defer state updated",
-					"correlation_id", req.CorrelationId,
-					"defer_count", state.DeferCount,
-					"max_defers", state.MaxDefers,
-					"abandoned", state.Abandoned,
-					"last_step_id", state.LastStepID,
-					"last_blocker_tags", state.LastBlockerTags,
-				)
-				if state.Abandoned {
-					logger.Warn("executor: correlation now ABANDONED — auto-retry stopped, operator action required",
+
+		// ── 7. Record run finish ─────────────────────────────────────────────
+		status := workflowpb.RunStatus_RUN_STATUS_SUCCEEDED
+		var errMsg string
+		if run != nil && run.Status == engine.RunDeferred && run.Defer != nil {
+			// WF-DEFER B2: a step yielded its slot. Persist defer_until +
+			// defer_count via a direct UPDATE — FinishRun's path is for
+			// terminal/blocked outcomes and overwriting the row here would
+			// drop our backoff fields.
+			status = workflowpb.RunStatus_RUN_STATUS_DEFERRED
+			errMsg = run.Defer.Reason
+			if rerr := srv.recordRunDeferred(ctx, req.ClusterId, runID, run.Defer); rerr != nil {
+				logger.Warn("executor: failed to record deferred run", "run_id", runID, "err", rerr)
+			}
+			// WF-DEFER B3: increment the persistent across-runs counter.
+			// Once defer_count >= max_defers, the store flips abandoned=true
+			// and the next dispatch attempt for this correlation_id is
+			// refused permanently (until operator clear).
+			if req.CorrelationId != "" && srv.deferStore != nil {
+				if state, derr := srv.deferStore.RecordDefer(ctx, req.ClusterId, req.CorrelationId, run.Defer); derr != nil {
+					logger.Warn("executor: failed to record persistent defer state",
+						"correlation_id", req.CorrelationId, "err", derr)
+				} else if state != nil {
+					logger.Info("executor: defer state updated",
 						"correlation_id", req.CorrelationId,
 						"defer_count", state.DeferCount,
 						"max_defers", state.MaxDefers,
+						"abandoned", state.Abandoned,
 						"last_step_id", state.LastStepID,
-						"last_reason", state.LastReason,
+						"last_blocker_tags", state.LastBlockerTags,
 					)
-					publishWorkflowEvent("workflow.correlation.abandoned", map[string]interface{}{
-						"correlation_id":    req.CorrelationId,
-						"workflow":          req.WorkflowName,
-						"defer_count":       state.DeferCount,
-						"max_defers":        state.MaxDefers,
-						"last_step_id":      state.LastStepID,
-						"last_reason":       state.LastReason,
-						"last_blocker_tags": state.LastBlockerTags,
-					})
+					if state.Abandoned {
+						logger.Warn("executor: correlation now ABANDONED — auto-retry stopped, operator action required",
+							"correlation_id", req.CorrelationId,
+							"defer_count", state.DeferCount,
+							"max_defers", state.MaxDefers,
+							"last_step_id", state.LastStepID,
+							"last_reason", state.LastReason,
+						)
+						publishWorkflowEvent("workflow.correlation.abandoned", map[string]interface{}{
+							"correlation_id":    req.CorrelationId,
+							"workflow":          req.WorkflowName,
+							"defer_count":       state.DeferCount,
+							"max_defers":        state.MaxDefers,
+							"last_step_id":      state.LastStepID,
+							"last_reason":       state.LastReason,
+							"last_blocker_tags": state.LastBlockerTags,
+						})
+					}
 				}
 			}
+		} else if run != nil && run.BlockedStepID != "" {
+			// MC-3: Run is blocked waiting for operator approval.
+			status = workflowpb.RunStatus_RUN_STATUS_BLOCKED
+			errMsg = run.BlockedReason
+		} else if execErr != nil {
+			status = workflowpb.RunStatus_RUN_STATUS_FAILED
+			errMsg = execErr.Error()
 		}
-	} else if run != nil && run.BlockedStepID != "" {
-		// MC-3: Run is blocked waiting for operator approval.
-		status = workflowpb.RunStatus_RUN_STATUS_BLOCKED
-		errMsg = run.BlockedReason
-	} else if execErr != nil {
-		status = workflowpb.RunStatus_RUN_STATUS_FAILED
-		errMsg = execErr.Error()
-	}
 
-	summary := fmt.Sprintf("%s: %s", req.WorkflowName, status.String())
-	// FinishRun handles terminal+BLOCKED status writes. DEFERRED was
-	// already persisted above with backoff fields; calling FinishRun
-	// here would overwrite the row without those fields.
-	if status != workflowpb.RunStatus_RUN_STATUS_DEFERRED {
-		// The terminal close must survive (a) a cancelled/expired request context
-		// — under load the caller's ExecuteWorkflow deadline can elapse before the
-		// DAG finishes, and closing on that dead ctx silently fails — and (b) a
-		// transient ScyllaDB blip. Otherwise the run is stranded non-terminal
-		// (workflow.must_reach_terminal_state), which is exactly the hung-run
-		// symptom. FinishRun is idempotent (server.go terminal-status guard), so
-		// bounded retry on a FRESH context is safe. If every attempt fails, the
-		// reaper's progress-deadline path is the durable backstop.
-		finishReq := &workflowpb.FinishRunRequest{
-			Id:           runID,
-			ClusterId:    req.ClusterId,
-			Status:       status,
-			Summary:      summary,
-			ErrorMessage: errMsg,
-		}
-		var finishErr error
-		for attempt := 1; attempt <= 3; attempt++ {
-			fctx, fcancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, finishErr = srv.FinishRun(fctx, finishReq)
-			fcancel()
-			if finishErr == nil {
-				break
+		summary := fmt.Sprintf("%s: %s", req.WorkflowName, status.String())
+		// FinishRun handles terminal+BLOCKED status writes. DEFERRED was
+		// already persisted above with backoff fields; calling FinishRun
+		// here would overwrite the row without those fields.
+		if status != workflowpb.RunStatus_RUN_STATUS_DEFERRED {
+			// The terminal close must survive (a) a cancelled/expired request context
+			// — under load the caller's ExecuteWorkflow deadline can elapse before the
+			// DAG finishes, and closing on that dead ctx silently fails — and (b) a
+			// transient ScyllaDB blip. Otherwise the run is stranded non-terminal
+			// (workflow.must_reach_terminal_state), which is exactly the hung-run
+			// symptom. FinishRun is idempotent (server.go terminal-status guard), so
+			// bounded retry on a FRESH context is safe. If every attempt fails, the
+			// reaper's progress-deadline path is the durable backstop.
+			finishReq := &workflowpb.FinishRunRequest{
+				Id:           runID,
+				ClusterId:    req.ClusterId,
+				Status:       status,
+				Summary:      summary,
+				ErrorMessage: errMsg,
 			}
-			logger.Warn("executor: FinishRun attempt failed, retrying",
-				"run_id", runID, "attempt", attempt, "err", finishErr)
-			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			var finishErr error
+			for attempt := 1; attempt <= 3; attempt++ {
+				fctx, fcancel := context.WithTimeout(context.Background(), 10*time.Second)
+				_, finishErr = srv.FinishRun(fctx, finishReq)
+				fcancel()
+				if finishErr == nil {
+					break
+				}
+				logger.Warn("executor: FinishRun attempt failed, retrying",
+					"run_id", runID, "attempt", attempt, "err", finishErr)
+				time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+			}
+			if finishErr != nil {
+				logger.Error("executor: FinishRun failed after retries — run left non-terminal for reaper to finalize",
+					"run_id", runID, "status", status.String(), "err", finishErr)
+			}
 		}
-		if finishErr != nil {
-			logger.Error("executor: FinishRun failed after retries — run left non-terminal for reaper to finalize",
-				"run_id", runID, "status", status.String(), "err", finishErr)
+
+		// WF-DEFER B3: clear the persistent defer counter on a clean
+		// success. A correlation that deferred N times and finally
+		// converged should get a full retry budget on its NEXT failure
+		// rather than starting at N — otherwise a single transient blip
+		// during the year could quietly burn the whole budget. Hard
+		// failures leave the counter alone (a deferred condition is a
+		// distinct mode from a hard failure mode).
+		if status == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED &&
+			req.CorrelationId != "" && srv.deferStore != nil {
+			if cerr := srv.deferStore.ClearOnSuccess(ctx, req.ClusterId, req.CorrelationId); cerr != nil {
+				logger.Warn("executor: failed to clear persistent defer state on success",
+					"correlation_id", req.CorrelationId, "err", cerr)
+			}
 		}
+
+		logger.Info("executor: workflow finished",
+			"workflow", req.WorkflowName, "run_id", runID,
+			"status", status.String())
+		srv.metricsRunFinish(runID, status, time.Now())
+
+		// ── 8. Build response ────────────────────────────────────────────────
+		resp := &workflowpb.ExecuteWorkflowResponse{
+			RunId:  runID,
+			Status: status.String(),
+			Error:  errMsg,
+		}
+		if run != nil && run.Outputs != nil {
+			if b, err := json.Marshal(run.Outputs); err == nil {
+				resp.OutputsJson = string(b)
+			}
+		}
+
+		// AL-1: Project incident to ai-memory on FAILED/BLOCKED runs.
+		// Fire-and-forget with a bounded timeout — learning must never block
+		// workflow response, but unbounded goroutines must not accumulate when
+		// ai-memory is slow. See meta.failure_response_must_contract_not_amplify.
+		incidentCtx, incidentCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		go func() {
+			defer incidentCancel()
+			srv.projectIncident(incidentCtx, req, resp)
+		}()
+
+		return resp
 	}
 
-	// WF-DEFER B3: clear the persistent defer counter on a clean
-	// success. A correlation that deferred N times and finally
-	// converged should get a full retry budget on its NEXT failure
-	// rather than starting at N — otherwise a single transient blip
-	// during the year could quietly burn the whole budget. Hard
-	// failures leave the counter alone (a deferred condition is a
-	// distinct mode from a hard failure mode).
-	if status == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED &&
-		req.CorrelationId != "" && srv.deferStore != nil {
-		if cerr := srv.deferStore.ClearOnSuccess(ctx, req.ClusterId, req.CorrelationId); cerr != nil {
-			logger.Warn("executor: failed to clear persistent defer state on success",
-				"correlation_id", req.CorrelationId, "err", cerr)
-		}
+	// Detached (ack-on-dispatch): the run row, its inputs, and the lease are
+	// durably committed and claimed above. Execute the DAG in the background on a
+	// FRESH context and return EXECUTING immediately, so the caller never blocks
+	// for the run duration — a long run then cannot time out the dispatch RPC and
+	// open the caller's workflow circuit breaker. The dispatcher and lease are
+	// released inside the goroutine (the RPC-return defers are suppressed via
+	// `detached`). Opt-in; callers MUST NOT set detached for child workflows —
+	// wait_child_terminal needs a terminal child.
+	if req.Detached {
+		detached = true
+		go func() {
+			defer dispatcher.close()
+			if srv.leaseManager != nil {
+				defer srv.leaseManager.ReleaseRun(runID)
+			}
+			bgCtx, bgCancel := context.WithCancel(context.Background())
+			defer bgCancel()
+			runToCompletion(bgCtx)
+		}()
+		return &workflowpb.ExecuteWorkflowResponse{
+			RunId:  runID,
+			Status: workflowpb.RunStatus_RUN_STATUS_EXECUTING.String(),
+		}, nil
 	}
 
-	logger.Info("executor: workflow finished",
-		"workflow", req.WorkflowName, "run_id", runID,
-		"status", status.String())
-	srv.metricsRunFinish(runID, status, time.Now())
-
-	// ── 8. Build response ────────────────────────────────────────────────
-	resp := &workflowpb.ExecuteWorkflowResponse{
-		RunId:  runID,
-		Status: status.String(),
-		Error:  errMsg,
-	}
-	if run != nil && run.Outputs != nil {
-		if b, err := json.Marshal(run.Outputs); err == nil {
-			resp.OutputsJson = string(b)
-		}
-	}
-
-	// AL-1: Project incident to ai-memory on FAILED/BLOCKED runs.
-	// Fire-and-forget with a bounded timeout — learning must never block
-	// workflow response, but unbounded goroutines must not accumulate when
-	// ai-memory is slow. See meta.failure_response_must_contract_not_amplify.
-	incidentCtx, incidentCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	go func() {
-		defer incidentCancel()
-		srv.projectIncident(incidentCtx, req, resp)
-	}()
-
-	return resp, nil
+	return runToCompletion(ctx), nil
 }
 
 // ─── Actor dispatcher ────────────────────────────────────────────────────────

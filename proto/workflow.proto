@@ -1206,6 +1206,13 @@ message ExecuteWorkflowRequest {
   // All endpoints are resolved via config.ResolveDialTarget before dialing.
   map<string, string> actor_endpoints = 4;
   string correlation_id = 5;   // optional, for linking to existing workflow lineage
+  // detached: ack-on-dispatch. When true, the service persists the run (StartRun +
+  // inputs) and its lease synchronously, then executes the DAG in a background
+  // goroutine and returns immediately with status EXECUTING — the caller does not
+  // block for the run duration. Opt-in; MUST NOT be set for child workflows
+  // (wait_child_terminal needs a terminal child). Used by long release workflows
+  // so a slow run cannot time out the dispatch RPC and open the workflow breaker.
+  bool detached = 6;
 }
 
 message ExecuteWorkflowResponse {
