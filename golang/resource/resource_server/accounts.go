@@ -56,6 +56,7 @@ func (srv *server) createGroup(token, id, name, owner, description string, membe
 	// Here will create the new peer.
 	g := make(map[string]interface{}, 0)
 	g["_id"] = id
+	g["uuid"] = newPrincipalUUID() // opaque, immutable membership identity (additive)
 	g["name"] = name
 	g["description"] = description
 	g["domain"] = localDomain
@@ -170,6 +171,7 @@ func (srv *server) createRole(ctx context.Context, id, name, owner string, descr
 	// Here will create the new role.
 	role := make(map[string]interface{})
 	role["_id"] = id
+	role["uuid"] = newPrincipalUUID() // opaque, immutable membership identity (additive)
 	role["name"] = name
 	role["actions"] = actions
 	role["domain"] = localDomain
@@ -470,6 +472,7 @@ func (srv *server) CreateOrganization(ctx context.Context, rqst *resourcepb.Crea
 	// Here will create the new peer.
 	o := make(map[string]interface{}, 0)
 	o["_id"] = rqst.Organization.Id
+	o["uuid"] = newPrincipalUUID() // opaque, immutable membership identity (additive)
 	o["name"] = rqst.Organization.Name
 	o["icon"] = rqst.Organization.Icon
 	o["email"] = rqst.Organization.Email
@@ -1336,6 +1339,7 @@ func (srv *server) getGroup(id string) (*resourcepb.Group, error) {
 	if values != nil {
 		group.Name = values.(map[string]interface{})["name"].(string)
 		group.Id = values.(map[string]interface{})["_id"].(string)
+		group.Uuid = Utility.ToString(values.(map[string]interface{})["uuid"]) // opaque membership identity (additive)
 		group.Description = values.(map[string]interface{})["description"].(string)
 		group.Accounts = make([]string, 0)
 		if values.(map[string]interface{})["domain"] != nil {
@@ -1521,6 +1525,7 @@ func (srv *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, strea
 		organization := new(resourcepb.Organization)
 		organization.TypeName = "Organization"
 		organization.Id = o["_id"].(string)
+		organization.Uuid = Utility.ToString(o["uuid"]) // opaque membership identity (additive)
 		organization.Name = o["name"].(string)
 		organization.Icon = o["icon"].(string)
 		organization.Description = o["description"].(string)
@@ -1689,13 +1694,14 @@ func (srv *server) IsOrgnanizationMember(ctx context.Context, rqst *resourcepb.I
 	}, nil
 }
 
-// newAccountUUID mints an account's opaque, immutable MEMBERSHIP identity.
-// It is a RANDOM (v4) UUID by contract — NEVER derived from a mutable attribute
-// (id/name/email/domain). Deriving it (e.g. Utility.GenerateUUID(name), a v3/MD5
-// hash of a mutable string) is exactly the identity deviation this migration
-// removes: it would make identity change with the name and collide on rename.
-// Minted once at registration; immutable thereafter.
-func newAccountUUID() string {
+// newPrincipalUUID is the single mint authority for a resource principal's
+// (account, group, organization, application, role) opaque, immutable MEMBERSHIP
+// identity. It is a RANDOM (v4) UUID by contract — NEVER derived from a mutable
+// attribute (id/name/email/domain). Deriving it (e.g. Utility.GenerateUUID(name),
+// a v3/MD5 hash of a mutable string) is exactly the identity deviation this
+// migration removes: it would make identity change with the name and collide on
+// rename. Minted once at creation; immutable thereafter.
+func newPrincipalUUID() string {
 	return Utility.RandomUUID()
 }
 
@@ -1751,7 +1757,7 @@ func (srv *server) registerAccount(ctx context.Context, domain, id, name, email,
 	// creation, never derived from id/name/email/domain. This is the stable
 	// identity later phases key the JWT subject, RBAC subject, and grants on.
 	// Additive: nothing reads it for authorization yet (see Account.uuid proto).
-	account["uuid"] = newAccountUUID()
+	account["uuid"] = newPrincipalUUID()
 	account["name"] = name
 	account["email"] = email
 	account["domain"] = domain
