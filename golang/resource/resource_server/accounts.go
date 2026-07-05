@@ -1078,10 +1078,18 @@ func (srv *server) GetAccount(ctx context.Context, rqst *resourcepb.GetAccountRq
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", q, ``)
 	if err != nil {
-		logger.Info("log", "args", []interface{}{"fail to retrieve account:", accountId, " from database with error:", err})
-		return nil, status.Errorf(
-			codes.Internal,
-			"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		// Additive (Phase 3): resolve by the account's opaque uuid too, so a
+		// uuid-subject resolves once the identity migration flips the JWT/RBAC
+		// subject to the uuid. A real account's uuid is a random v4 distinct from
+		// the name _id, so this never shadows the _id lookup.
+		if uuidVals, uerr := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", accountUUIDQuery(accountId), ``); uerr == nil && uuidVals != nil {
+			values = uuidVals
+		} else {
+			logger.Info("log", "args", []interface{}{"fail to retrieve account:", accountId, " from database with error:", err})
+			return nil, status.Errorf(
+				codes.Internal,
+				"%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	account := values.(map[string]interface{})
@@ -1703,6 +1711,14 @@ func (srv *server) IsOrgnanizationMember(ctx context.Context, rqst *resourcepb.I
 // rename. Minted once at creation; immutable thereafter.
 func newPrincipalUUID() string {
 	return Utility.RandomUUID()
+}
+
+// accountUUIDQuery builds the persistence query that resolves an account by its
+// opaque uuid (the additive Phase-3 lookup key). The field name MUST match the
+// key written at mint time (account["uuid"] in registerAccount) — a mismatch
+// would silently break uuid resolution once the JWT/RBAC subject flips to it.
+func accountUUIDQuery(uuid string) string {
+	return `{"uuid":"` + uuid + `"}`
 }
 
 /**

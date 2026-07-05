@@ -7,6 +7,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// TestAccountUUIDQuery_MatchesMintFieldName pins the uuid lookup key to the field
+// written at mint time. registerAccount stores account["uuid"]; GetAccount resolves
+// a uuid-subject via accountUUIDQuery. If these diverge, uuid resolution silently
+// breaks once the JWT/RBAC subject flips to the uuid — this fails first.
+func TestAccountUUIDQuery_MatchesMintFieldName(t *testing.T) {
+	const uid = "eb9a2dac-05b0-52ac-9002-99d8ffd35902"
+	got := accountUUIDQuery(uid)
+	const want = `{"uuid":"` + uid + `"}`
+	if got != want {
+		t.Errorf("accountUUIDQuery = %q, want %q — must query the same field the mint writes (account[\"uuid\"])", got, want)
+	}
+}
+
 // TestNewPrincipalUUID_IsOpaqueRandomNotDerived is the Phase-3 regression guard
 // for every resource principal's MEMBERSHIP identity (account/group/organization/
 // application/role — all mint through this one authority). The mint must be an
