@@ -7059,3 +7059,48 @@ failure_modes:
         - cluster-controller
         - repository
       required_tests: []
+    - fixed_in: 80a3619d
+      id: workflow.hung_but_heartbeating_executor
+      protects:
+        files:
+            - golang/workflow/workflow_server/executor_lease.go
+            - golang/workflow/workflow_server/server.go
+            - golang/workflow/workflow_server/executor.go
+            - golang/workflow/workflow_server/executor_resume.go
+      related_invariants:
+        - workflow.executor_liveness_is_progress_based
+        - workflow.must_reach_terminal_state
+        - meta.half_done_must_not_look_done
+        - meta.competing_writers_must_converge_or_be_fenced
+      related_services:
+        - workflow
+        - cluster-controller
+      required_tests:
+        - golang/workflow/workflow_server/reaper_decision_test.go::TestReaperDecide
+        - golang/workflow/workflow_server/reaper_decision_test.go::TestRunIsRecoverableWhenUnleased
+      root_cause: |
+        The executor lease tracked only heartbeat_at (process alive), never step
+        progress. A hung-but-alive executor keeps heartbeating every 10s, so
+        reapStaleRuns (server.go, 15m threshold, 2m lease grace) AND
+        StartOrphanScanner (executor_lease.go, 30s stale) were both suppressed —
+        liveness was measured as "process alive", not "run progressing". FinishRun's
+        error was swallowed with no retry, so a lost terminal-close stranded the run;
+        the deferred ReleaseRun could then delete the lease, leaving a non-terminal
+        run with NO lease that the orphan scanner never inspected.
+        Fixed by: last_progress_at on the lease (stamped per step in onStepDone);
+        reaper progress-deadline that revokes a hung-but-heartbeating lease so
+        orphan + ResumeRun recover it (a slow-but-progressing step is left alone,
+        respecting orphan_lease_slow_step_double_claim); scanAndClaimUnleasedRuns for
+        the stranded no-lease case; and FinishRun bounded retry on a fresh context.
+      severity: critical
+      status: fixed
+      symptoms:
+        - Run header stuck at RUN_STATUS_EXECUTING while all recorded steps are terminal (including finalize_release SUCCEEDED)
+        - Run age exceeds the reaper staleThreshold (15m) yet the run is not reaped to FAILED (proof the lease is still heartbeating)
+        - Controller logs "workflow already in-flight, skipping dispatch" every reconcile; release stuck RESOLVED; joining node stuck converging
+        - acknowledged=false (a red herring — an operator ack flag, decoupled from completion)
+      title: Executor is alive and heartbeating but the run makes no step progress — run stuck EXECUTING forever, neither reaper nor orphan scanner recovers it
+      trigger: |
+        eng.Execute hangs after the last step, or FinishRun fails/blocks under a
+        cancelled request context, while the heartbeat goroutine keeps renewing the
+        lease every 10s.

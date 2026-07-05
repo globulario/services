@@ -11546,3 +11546,101 @@ invariants:
     ServiceRelease+InfrastructureRelease into one PackageRelease (Slice 6) and the full
     orthogonal-axis decomposition (form/role/provenance/criticality as first-class
     fields). See ai-memory architecture/b3ae1cce and architecture/83b8f143.
+- id: workflow.executor_liveness_is_progress_based
+  protects:
+    files:
+    - golang/workflow/workflow_server/executor_lease.go
+    - golang/workflow/workflow_server/server.go
+    - golang/workflow/workflow_server/executor.go
+    - golang/workflow/workflow_server/executor_resume.go
+    symbols:
+    - RecordProgress
+    - RevokeLease
+    - reaperDecide
+    - scanAndClaimUnleasedRuns
+    - last_progress_at
+  related_failure_modes:
+  - workflow.hung_but_heartbeating_executor
+  - workflow.orphan_lease_slow_step_double_claim
+  related_invariants:
+  - workflow.must_reach_terminal_state
+  - meta.half_done_must_not_look_done
+  - meta.competing_writers_must_converge_or_be_fenced
+  required_tests:
+  - golang/workflow/workflow_server/reaper_decision_test.go::TestReaperDecide
+  - golang/workflow/workflow_server/reaper_decision_test.go::TestRunIsRecoverableWhenUnleased
+  severity: critical
+  status: active
+  summary: 'A workflow executor is "live" only while its run makes step progress, not
+    merely while its process heartbeats. The executor lease carries last_progress_at
+    (stamped per completed step in onStepDone); an executor whose heartbeat is fresh
+    but whose progress is stale past reaperProgressDeadline is HUNG, and its lease is
+    revoked so orphan recovery + ResumeRun close or re-drive the run. A slow-but-
+    progressing step is never revoked (meta.competing_writers_must_converge_or_be_
+    fenced). Every EXECUTING run therefore reaches a terminal state on exactly one of
+    three fenced paths: hung (revoke -> resume), dead (stale lease -> orphan scanner),
+    or stranded (no lease -> scanAndClaimUnleasedRuns). Heartbeat-only liveness is the
+    hung_but_heartbeating_executor trap.'
+  title: Executor liveness is progress-based, not heartbeat-based
+- id: workflow.actor_action_targets_node_by_identity
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/workflow_release.go
+    - golang/node_agent/node_agent_server/grpc_workflow.go
+    - golang/workflow/engine/actors.go
+    symbols:
+    - target_node_id
+    - RunWorkflow
+    - dialNodeAgentForNode
+    - enrichNodeContext
+  related_failure_modes: []
+  related_invariants:
+  - four_layer.workflow_actor_attribution_required
+  required_tests:
+  - golang/node_agent/node_agent_server/grpc_workflow_node_fence_test.go::TestRunWorkflow_NodeIdentityFence_RejectsWrongTarget
+  severity: high
+  status: active
+  summary: 'A node-targeted workflow action (e.g. install-package on node X) must
+    execute only on node X. The controller dials the specific node''s agent
+    (dialNodeAgentForNode) AND stamps target_node_id on the request; the node-agent''s
+    RunWorkflow refuses any workflow whose target_node_id does not match its own node
+    identity. A mis-resolved or stale endpoint that reaches the wrong node-agent is
+    rejected, not silently installed on the wrong node — the action is attributed
+    pointwise to the intended node (forbidden_fix:cross_instance_coupling_via_single_
+    workflow_run). Absent target_node_id keeps older dispatchers working unchanged.'
+  title: A node-targeted actor action runs only on its intended node (identity fence)
+- id: workflow.release_dispatch_completion_is_reconcile_authoritative
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+    - golang/cluster_controller/cluster_controller_server/workflow_execute.go
+    - golang/cluster_controller/cluster_controller_server/workflow_release.go
+    - golang/cluster_controller/cluster_controller_server/actor_service.go
+    - golang/workflow/workflow_server/executor.go
+    symbols:
+    - inflightWorkflow
+    - sweepInflightWorkflows
+    - inflightSweepDecide
+    - finalizeInflightRelease
+    - rebuildReleaseRouterFromInputs
+    - Detached
+  related_failure_modes: []
+  related_invariants:
+  - workflow.must_reach_terminal_state
+  - four_layer.workflow_actor_attribution_required
+  required_tests:
+  - golang/cluster_controller/cluster_controller_server/inflight_sweep_test.go::TestInflightSweepDecide
+  - golang/cluster_controller/cluster_controller_server/workflow_router_rebuild_test.go::TestRebuildReleaseRouterFromInputs
+  severity: high
+  status: active
+  summary: 'Release dispatch is detached: ExecuteWorkflow returns EXECUTING and the run
+    executes in the workflow-service background, so completion cannot key off the RPC
+    return. The reconcile loop — a leader-only inflight sweep that finalizes on GetRun
+    terminal state or a hard startedAt timeout — is the AUTHORITATIVE completion
+    detector; the best-effort workflow.run.finished event is only a latency
+    optimization and must never be relied on. The inflight entry and the per-run router
+    are kept until terminal finalize, NOT the RPC return; on a router miss the per-run
+    router (and its generation guard) is rebuilt from the callback''s self-describing
+    dispatch_generation, or the write is refused — never written guard-less. Detached
+    is opt-in for release apply only; child workflows stay synchronous.'
+  title: Detached release completion is reconcile-authoritative (not event-driven); router and generation guard survive to terminal
