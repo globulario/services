@@ -20,6 +20,7 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
+	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
 // releaseRetryBackoff is the minimum time to wait before auto-retrying a
@@ -592,53 +593,51 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// overwrites + deletes the actor router, causing "no router registered"
 	// errors on the first workflow's callbacks.
 	srv.inflightMu.Lock()
-	if cancel, running := srv.inflightWorkflows[releaseID]; running {
+	if _, running := srv.inflightWorkflows[releaseID]; running {
 		srv.inflightMu.Unlock()
-		_ = cancel // suppress unused warning; already running, don't cancel here
 		log.Printf("%s %s: workflow already in-flight, skipping dispatch", h.ResourceType, h.Name)
 		return
 	}
-	// Create a cancellable context for this workflow. If desired state changes
-	// mid-flight, cancelInflightWorkflow() cancels this context so the engine's
-	// DAG loop exits promptly via ctx.Err().
+	// wfCtx covers the (now fast, detached) dispatch. The inflight entry is kept
+	// until the sweep finalizes it on terminal — it is NOT deleted on RPC return,
+	// because the run outlives the dispatch (ExecuteWorkflow returns EXECUTING and
+	// the run continues in the workflow service).
 	wfCtx, wfCancel := context.WithCancel(ctx)
-	srv.inflightWorkflows[releaseID] = wfCancel
+	srv.inflightWorkflows[releaseID] = &inflightWorkflow{
+		cancel:       wfCancel,
+		resourceType: h.ResourceType,
+		releaseName:  h.Name,
+		pkgKind:      pkgKind,
+		pkgName:      h.InstalledStateName,
+		version:      h.ResolvedVersion,
+		nodeCount:    len(nodeIDs),
+		dispatchGen:  h.Generation,
+		startedAt:    time.Now(),
+	}
 	srv.inflightMu.Unlock()
 
-	// Execute the release workflow asynchronously so the work queue worker
-	// is not blocked. This prevents gRPC server deadlocks when multiple
-	// workflows try to acquire srv.lock concurrently with gRPC handlers.
 	workflowDispatchTotal.WithLabelValues(computeWorkflowKind(ctx, h)).Inc()
-	log.Printf("%s %s: dispatching release workflow across %d nodes (v=%s)",
+	log.Printf("%s %s: dispatching release workflow (detached) across %d nodes (v=%s)",
 		h.ResourceType, h.Name, len(nodeIDs), h.ResolvedVersion)
 
 	go func() {
 		defer wfCancel()
-		defer func() {
-			srv.inflightMu.Lock()
-			delete(srv.inflightWorkflows, releaseID)
-			srv.inflightMu.Unlock()
-		}()
 
-		// Acquire semaphore to limit concurrent workflows and prevent
-		// systemd overload on target nodes from too many parallel restarts.
-		// Use a timeout so a stuck workflow doesn't starve the pipeline
-		// indefinitely. If the timeout fires, the release stays RESOLVED
-		// and will be retried on the next reconcile cycle.
+		// Acquire the dispatch semaphore. Detached dispatch is fast, so this now
+		// bounds concurrent DISPATCHES (ms each), not concurrent run durations —
+		// the 2m wait effectively never fires. On a pre-dispatch bailout no run
+		// started and no router was registered, so clearInflight is enough and the
+		// release stays RESOLVED to retry.
 		select {
 		case srv.workflowSem <- struct{}{}:
-			// acquired
 		case <-wfCtx.Done():
 			log.Printf("%s %s: workflow context cancelled while waiting for semaphore", h.ResourceType, h.Name)
+			srv.clearInflight(releaseID)
 			return
 		case <-time.After(2 * time.Minute):
-			log.Printf("%s %s: workflow semaphore timeout (all slots busy for 2m), deferring — backoff 30s before allowing re-dispatch", h.ResourceType, h.Name)
+			log.Printf("%s %s: workflow semaphore timeout (all slots busy for 2m), deferring", h.ResourceType, h.Name)
 			workflowSemTimeoutTotal.WithLabelValues(h.ResourceType).Inc()
-			// Sleep before returning so the inflight record stays alive for
-			// one reconcile tick (~30s). Without this backoff the deferred
-			// cleanup deletes the inflight key immediately, and the very
-			// next reconcile tick re-dispatches into the same full semaphore.
-			time.Sleep(30 * time.Second)
+			srv.clearInflight(releaseID)
 			return
 		}
 		defer func() { <-srv.workflowSem }()
@@ -656,14 +655,11 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 			nodeIDs,
 			h.Generation, // generation guard: callbacks skip writes if generation advanced
 		)
-
-		// Success path: workflow callbacks (MarkNodeSucceeded/Failed,
-		// FinalizeDirectApply, MarkReleaseFailed) already wrote the final
-		// release phase and per-node status. Controller does not re-patch.
 		if err != nil {
-			// classifyWorkflowError distinguishes infrastructure/transient errors
-			// (keep RESOLVED, retry with backoff) from real execution failures
-			// (transition to FAILED, needs operator attention).
+			// DISPATCH failed — the detached run never started. Finalize the
+			// inflight entry (unregister router + report) and set the release
+			// phase: transient → stay RESOLVED and retry, else FAILED.
+			srv.finalizeInflightRelease(ctx, releaseID, "FAILED", err.Error())
 			if isTransient, reason := classifyWorkflowError(err); isTransient {
 				log.Printf("%s %s: workflow transient error (%s), staying RESOLVED for retry: %v",
 					h.ResourceType, h.Name, reason, err)
@@ -674,45 +670,242 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 					SetFields:        "retry",
 				})
 			} else {
-				log.Printf("%s %s: release workflow engine error: %v", h.ResourceType, h.Name, err)
+				log.Printf("%s %s: release workflow dispatch error: %v", h.ResourceType, h.Name, err)
 				h.PatchStatus(ctx, statusPatch{
 					Phase:                cluster_controllerpb.ReleasePhaseFailed,
-					Message:              fmt.Sprintf("workflow engine error: %v", err),
+					Message:              fmt.Sprintf("workflow dispatch error: %v", err),
 					LastTransitionUnixMs: time.Now().UnixMilli(),
 					TransitionReason:     "workflow_engine_error",
 					SetFields:            "fail",
 				})
 			}
+			return
 		}
+		// Dispatched OK — the run is executing in the workflow service. The
+		// inflight entry and per-run router stay registered; sweepInflightWorkflows
+		// finalizes them when the run is terminal (or the hard timeout fires).
+		// Actor callbacks write the release phase during execution.
 	}()
 }
 
-// cancelInflightWorkflow cancels the context of a running workflow for the
-// given release ID. Called when desired state changes mid-flight so the
-// engine's DAG loop exits promptly instead of running to completion.
+// inflightWorkflow records a dispatched-but-not-yet-terminal release workflow.
+// Because release dispatch is detached (the run outlives the dispatch RPC), this
+// is the record the inflight sweep uses to finalize the release when its run
+// reaches a terminal state. Fields beyond `cancel` carry exactly what the
+// finalize path needs to publish completion (wave state + run-done) without a
+// second lookup.
+type inflightWorkflow struct {
+	cancel       context.CancelFunc
+	resourceType string    // e.g. "ServiceRelease"
+	releaseName  string    // h.Name, e.g. "core@globular.io/echo"
+	pkgKind      string    // SERVICE / INFRASTRUCTURE / WORKLOAD
+	pkgName      string    // h.InstalledStateName
+	version      string    // h.ResolvedVersion
+	nodeCount    int       // wave count = ceil(nodeCount / maxParallel)
+	dispatchGen  int64     // generation guard for a sweep-driven FAILED patch
+	startedAt    time.Time // hard-timeout anchor
+}
+
+// inflightHardTimeout bounds how long a dispatched release may stay non-terminal
+// before the sweep force-fails it. It must exceed the longest legitimate release
+// (large multi-node installs + restarts + verify) so a slow-but-live run is not
+// prematurely failed; the run itself is separately protected by the workflow
+// service's progress-based reaper.
+const inflightHardTimeout = 30 * time.Minute
+
+// cancelInflightWorkflow cancels the dispatch context of an in-flight workflow.
+// Under detached dispatch this interrupts the (fast) dispatch and dispatch-wait;
+// the run itself, once dispatched, is fenced by its lease and the callback
+// generation guard, so a superseding desired-state change is handled there.
 func (srv *server) cancelInflightWorkflow(releaseID string) {
 	srv.inflightMu.Lock()
-	if cancel, ok := srv.inflightWorkflows[releaseID]; ok {
-		cancel()
-		log.Printf("release %s: cancelled in-flight workflow (desired state changed)", releaseID)
+	if inf, ok := srv.inflightWorkflows[releaseID]; ok && inf.cancel != nil {
+		inf.cancel()
+		log.Printf("release %s: cancelled in-flight workflow dispatch (desired state changed)", releaseID)
 	}
 	srv.inflightMu.Unlock()
 }
 
-// cancelAllInflightWorkflows cancels every running workflow goroutine.
-// Called on leadership demotion so the old leader stops writing release
-// state — the new leader owns all reconciliation from this point.
+// cancelAllInflightWorkflows cancels every in-flight dispatch. Called on
+// leadership demotion so the old leader stops driving dispatch; the new leader
+// owns reconciliation (and its own inflight sweep) from this point.
 func (srv *server) cancelAllInflightWorkflows() {
 	srv.inflightMu.Lock()
 	n := len(srv.inflightWorkflows)
-	for id, cancel := range srv.inflightWorkflows {
-		cancel()
+	for id, inf := range srv.inflightWorkflows {
+		if inf.cancel != nil {
+			inf.cancel()
+		}
 		log.Printf("release %s: cancelled in-flight workflow (leadership lost)", id)
 	}
 	srv.inflightMu.Unlock()
 	if n > 0 {
 		log.Printf("leader demotion: cancelled %d in-flight workflow(s)", n)
 	}
+}
+
+// clearInflight removes an inflight entry without any completion reporting. Used
+// for pre-dispatch bailouts (semaphore timeout / cancelled) where no run started
+// and no router was registered — the release stays RESOLVED and retries.
+func (srv *server) clearInflight(releaseID string) {
+	srv.inflightMu.Lock()
+	if inf, ok := srv.inflightWorkflows[releaseID]; ok {
+		if inf.cancel != nil {
+			inf.cancel()
+		}
+		delete(srv.inflightWorkflows, releaseID)
+	}
+	srv.inflightMu.Unlock()
+}
+
+// finalizeInflightRelease is the terminal cleanup for a dispatched release: it
+// removes the inflight entry, unregisters the per-run router (no more callbacks
+// expected), and publishes the completion wave state + run-done report that used
+// to be derived from the synchronous ExecuteWorkflow return. Idempotent: a second
+// call for an already-finalized release is a no-op.
+func (srv *server) finalizeInflightRelease(ctx context.Context, releaseID, terminalStatus, detail string) {
+	srv.inflightMu.Lock()
+	inf, ok := srv.inflightWorkflows[releaseID]
+	if ok {
+		delete(srv.inflightWorkflows, releaseID)
+	}
+	srv.inflightMu.Unlock()
+	if !ok {
+		return
+	}
+	if inf.cancel != nil {
+		inf.cancel()
+	}
+	srv.actorServer.UnregisterRouter(releaseID)
+
+	failed := terminalStatus != "SUCCEEDED"
+	parallel := maxParallelNodesForKind(inf.pkgKind)
+	if parallel < 1 {
+		parallel = 1
+	}
+	totalWaves := (inf.nodeCount + parallel - 1) / parallel
+	if failed {
+		_ = srv.publishWaveState(ctx, inf.releaseName, inf.pkgKind, waveStateBlocked, parallel, inf.nodeCount, totalWaves, detail)
+	} else {
+		_ = srv.publishWaveState(ctx, inf.releaseName, inf.pkgKind, waveStateCommitted, parallel, inf.nodeCount, totalWaves, "")
+	}
+	srv.reportRunDone(releaseID, inf.pkgName, failed,
+		fmt.Sprintf("%s@%s %s: %s", inf.pkgName, inf.version, terminalStatus, detail))
+	log.Printf("%s: finalized in-flight release (status=%s): %s", releaseID, terminalStatus, detail)
+}
+
+// isTerminalRunStatus reports whether a workflow run is done (not still executing
+// or parked). DEFERRED is excluded — a deferred run re-runs later, so the sweep
+// leaves it until it converges or the hard timeout fires.
+func isTerminalRunStatus(s workflowpb.RunStatus) bool {
+	switch s {
+	case workflowpb.RunStatus_RUN_STATUS_SUCCEEDED,
+		workflowpb.RunStatus_RUN_STATUS_FAILED,
+		workflowpb.RunStatus_RUN_STATUS_CANCELED,
+		workflowpb.RunStatus_RUN_STATUS_ROLLED_BACK,
+		workflowpb.RunStatus_RUN_STATUS_SUPERSEDED:
+		return true
+	}
+	return false
+}
+
+// sweepInflightWorkflows is the authoritative completion detector for detached
+// release runs: since the run outlives the dispatch RPC and the completion event
+// is best-effort, the leader periodically checks each in-flight release's run and
+// finalizes it when terminal (or force-fails it past the hard timeout). Actor
+// callbacks still write the release phase during execution; this sweep only
+// finalizes the controller-side bookkeeping and, for the engine-error case where
+// no MarkReleaseFailed callback ran, sets the FAILED phase (generation-guarded).
+func (srv *server) sweepInflightWorkflows(ctx context.Context) {
+	ticker := time.NewTicker(20 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			srv.sweepInflightOnce(ctx)
+		}
+	}
+}
+
+func (srv *server) sweepInflightOnce(ctx context.Context) {
+	if !srv.mustBeLeader() {
+		return
+	}
+	type item struct {
+		releaseID, resourceType, releaseName string
+		dispatchGen                          int64
+		startedAt                            time.Time
+	}
+	srv.inflightMu.Lock()
+	items := make([]item, 0, len(srv.inflightWorkflows))
+	for id, inf := range srv.inflightWorkflows {
+		items = append(items, item{id, inf.resourceType, inf.releaseName, inf.dispatchGen, inf.startedAt})
+	}
+	srv.inflightMu.Unlock()
+	if len(items) == 0 {
+		return
+	}
+	wfClient := srv.getWorkflowClient()
+	for _, it := range items {
+		// Fetch the run's terminal state (best-effort). A missing/unreachable run
+		// is "not visible" — the decision then rests on the hard timeout.
+		runVisible := false
+		var st workflowpb.RunStatus
+		var errMsg string
+		if wfClient != nil {
+			if detail, err := wfClient.GetRun(ctx, &workflowpb.GetRunRequest{Id: it.releaseID}); err == nil && detail.GetRun() != nil {
+				runVisible = true
+				st = detail.GetRun().GetStatus()
+				errMsg = detail.GetRun().GetErrorMessage()
+			}
+		}
+		switch inflightSweepDecide(runVisible, st, time.Since(it.startedAt), inflightHardTimeout) {
+		case sweepFinalizeSuccess:
+			srv.finalizeInflightRelease(ctx, it.releaseID, "SUCCEEDED", "")
+		case sweepFinalizeFailed:
+			// Ensure the release phase reflects FAILED for the engine-error case
+			// where no MarkReleaseFailed callback ran; guarded + idempotent, so a
+			// redundant patch after a callback already wrote FAILED is harmless.
+			srv.patchReleasePhaseGuarded(ctx, it.resourceType, it.releaseName,
+				cluster_controllerpb.ReleasePhaseFailed, strings.TrimSpace(errMsg), it.dispatchGen)
+			srv.finalizeInflightRelease(ctx, it.releaseID, st.String(), errMsg)
+		case sweepForceFailTimeout:
+			// A run that never reports terminal must not wedge the release forever.
+			srv.patchReleasePhaseGuarded(ctx, it.resourceType, it.releaseName,
+				cluster_controllerpb.ReleasePhaseFailed, "workflow run exceeded hard timeout", it.dispatchGen)
+			srv.finalizeInflightRelease(ctx, it.releaseID, "FAILED", "hard timeout")
+		case sweepLeave:
+			// Still executing (or not yet visible) and within the hard timeout.
+		}
+	}
+}
+
+type sweepVerdict int
+
+const (
+	sweepLeave sweepVerdict = iota
+	sweepFinalizeSuccess
+	sweepFinalizeFailed
+	sweepForceFailTimeout
+)
+
+// inflightSweepDecide is the pure per-release sweep decision, extracted so the
+// completion policy is unit-testable without a workflow client. A visible
+// terminal run decides by its status; otherwise the hard timeout is the backstop
+// for a run that never reports terminal (or a workflow service we cannot reach).
+func inflightSweepDecide(runVisible bool, status workflowpb.RunStatus, age, hardTimeout time.Duration) sweepVerdict {
+	if runVisible && isTerminalRunStatus(status) {
+		if status == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED {
+			return sweepFinalizeSuccess
+		}
+		return sweepFinalizeFailed
+	}
+	if age > hardTimeout {
+		return sweepForceFailTimeout
+	}
+	return sweepLeave
 }
 
 // reconcileAvailable is the shared AVAILABLE/DEGRADED phase: detect spec

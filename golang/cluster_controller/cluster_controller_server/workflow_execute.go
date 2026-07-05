@@ -89,6 +89,23 @@ func (srv *server) executeWorkflowCentralized(
 	inputs map[string]any,
 	router *engine.Router,
 ) (*workflowpb.ExecuteWorkflowResponse, error) {
+	return srv.executeWorkflowCentralizedOpts(ctx, workflowName, correlationID, inputs, router, false)
+}
+
+// executeWorkflowCentralizedOpts is executeWorkflowCentralized with an explicit
+// detached flag. detached=true is used ONLY by release apply/remove dispatch: the
+// run executes in the workflow-service background and this returns EXECUTING
+// immediately, so the per-run router is NOT unregistered on return — background
+// actor callbacks keep the generation guard, and the inflight sweep unregisters
+// it at terminal. All other callers use the synchronous default (detached=false).
+func (srv *server) executeWorkflowCentralizedOpts(
+	ctx context.Context,
+	workflowName string,
+	correlationID string,
+	inputs map[string]any,
+	router *engine.Router,
+	detached bool,
+) (*workflowpb.ExecuteWorkflowResponse, error) {
 	wfClient := srv.getWorkflowClient()
 	if wfClient == nil {
 		return nil, fmt.Errorf("workflow service not reachable (no running instance in etcd service registry)")
@@ -138,7 +155,13 @@ func (srv *server) executeWorkflowCentralized(
 	// Register the per-run Router so the actor service can dispatch
 	// callbacks to the right handlers.
 	srv.actorServer.RegisterRouter(correlationID, router)
-	defer srv.actorServer.UnregisterRouter(correlationID)
+	if !detached {
+		// Synchronous path: unregister when the run completes (on return). For
+		// detached release dispatch the router MUST outlive this return so the
+		// background actor callbacks keep the per-run generation guard; the
+		// inflight sweep unregisters it at terminal (finalizeInflightRelease).
+		defer srv.actorServer.UnregisterRouter(correlationID)
+	}
 
 	// Callback endpoint: the workflow service calls back to THIS controller
 	// for actor dispatch. Use our real address from the service registry,
@@ -169,6 +192,7 @@ func (srv *server) executeWorkflowCentralized(
 			"workflow-service": controllerEndpoint,
 		},
 		CorrelationId: correlationID,
+		Detached:      detached,
 	})
 	if err != nil {
 		log.Printf("workflow %s (correlation=%s): RPC failed: %v", workflowName, correlationID, err)

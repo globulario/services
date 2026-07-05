@@ -161,6 +161,14 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	// guard-disabled default router. See rebuildReleaseRouterFromInputs.
 	srv.actorServer.SetRouterRebuilder(srv.rebuildReleaseRouterFromInputs)
 
+	// Inflight sweep: the authoritative completion detector for detached release
+	// dispatch. Since the run outlives the dispatch RPC and the completion event
+	// is best-effort, the leader periodically checks each in-flight release's run
+	// and finalizes it when terminal (or force-fails past the hard timeout).
+	safeGo("inflight-workflow-sweep", func() {
+		srv.sweepInflightWorkflows(ctx)
+	})
+
 	// Staggered initial enqueue: wait for readiness predicates to pass, then
 	// filter out already-converged services and enqueue in small batches.
 	// This prevents a restart from becoming a full-cluster apply storm.

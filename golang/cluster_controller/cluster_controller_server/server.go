@@ -210,15 +210,16 @@ type server struct {
 	// last ran, enforcing a 60-second cooldown.
 	lastInfraRetry time.Time
 
-	// inflightWorkflows tracks release IDs that have an active workflow
-	// goroutine. Prevents reconcileResolved from dispatching duplicate
-	// goroutines for the same release, which would cause a router
-	// registration race (the second goroutine overwrites + deletes the
-	// first's router on lease contention failure).
-	// The cancel func is called when desired state changes mid-flight
-	// so the engine's ctx.Err() check stops the DAG walk promptly.
+	// inflightWorkflows tracks release IDs that have a dispatched-but-not-yet-
+	// terminal workflow. It prevents duplicate dispatch AND — since release
+	// dispatch is now detached (ExecuteWorkflow returns EXECUTING immediately and
+	// the run executes in the workflow-service background) — it is the record the
+	// inflight sweep uses to finalize a release when its run reaches a terminal
+	// state (the run outlives the dispatch RPC, so completion cannot key off the
+	// RPC return). Entries are removed only at terminal finalize, never on RPC
+	// return. See sweepInflightWorkflows / finalizeInflightRelease.
 	inflightMu        sync.Mutex
-	inflightWorkflows map[string]context.CancelFunc
+	inflightWorkflows map[string]*inflightWorkflow
 
 	// workflowGate is a circuit breaker that prevents dispatching workflows
 	// when the backend is unhealthy (repeated RPC failures).
@@ -486,7 +487,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 		watchers:          make(map[*operationWatcher]struct{}),
 		workflowSem:       make(chan struct{}, 3), // max 3 concurrent release workflows
 		resolveSem:        make(chan struct{}, 2), // max 2 concurrent repository resolve calls
-		inflightWorkflows: make(map[string]context.CancelFunc),
+		inflightWorkflows: make(map[string]*inflightWorkflow),
 		resignCh:          make(chan struct{}, 1),
 		actorServer:       NewControllerActorServer(),
 		workflowGate:      newWorkflowHealthGate(),

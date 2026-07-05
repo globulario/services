@@ -29,7 +29,7 @@ func newRemovingTestServer(t *testing.T) *server {
 			"node-a": {Identity: storedIdentity{Hostname: "node-a"}},
 		},
 	}
-	srv.inflightWorkflows = map[string]context.CancelFunc{}
+	srv.inflightWorkflows = map[string]*inflightWorkflow{}
 	return srv
 }
 
@@ -125,7 +125,7 @@ func TestReconcileRemoving_FastPath_ActiveWorkflowDeferredNoFastPath(t *testing.
 	// Simulate an in-flight workflow for this release.
 	releaseID := "ServiceRelease/core@globular.io/echo"
 	_, cancel := context.WithCancel(context.Background())
-	srv.inflightWorkflows[releaseID] = cancel
+	srv.inflightWorkflows[releaseID] = &inflightWorkflow{cancel: cancel}
 	defer cancel()
 
 	var patches []statusPatch

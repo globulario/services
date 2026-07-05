@@ -86,30 +86,18 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	// Publish legacy event for ai-watcher compatibility.
 	srv.reportRunStart(pkgName, pkgKind, version, releaseID, len(candidateNodes))
 
-	start := time.Now()
-	resp, err := srv.executeWorkflowCentralized(ctx, "release.apply.package", correlationID, inputs, router)
-	elapsed := time.Since(start)
-
+	// Detached dispatch: ExecuteWorkflow returns EXECUTING immediately and the run
+	// continues in the workflow service. Completion (final wave state + run-done)
+	// is published by the inflight sweep's finalize when the run reaches a terminal
+	// state (finalizeInflightRelease). A dispatch error is finalized by the caller
+	// (reconcileResolved goroutine), which also sets the release phase.
+	resp, err := srv.executeWorkflowCentralizedOpts(ctx, "release.apply.package", correlationID, inputs, router, true)
 	if err != nil {
-		_ = srv.publishWaveState(ctx, releaseName, pkgKind, waveStateBlocked, parallel, len(candidateNodes), totalWaves, err.Error())
-		log.Printf("release-workflow: %s FAILED after %s: %v",
-			releaseName, elapsed.Round(time.Millisecond), err)
-		srv.reportRunDone("", pkgName, true,
-			fmt.Sprintf("%s FAILED after %s: %v", releaseName, elapsed.Round(time.Millisecond), err))
+		log.Printf("release-workflow: %s dispatch FAILED: %v", releaseName, err)
 		return nil, err
 	}
-
-	failed := resp.Status != "SUCCEEDED"
-	if failed {
-		_ = srv.publishWaveState(ctx, releaseName, pkgKind, waveStateBlocked, parallel, len(candidateNodes), totalWaves, resp.Status)
-	} else {
-		_ = srv.publishWaveState(ctx, releaseName, pkgKind, waveStateCommitted, parallel, len(candidateNodes), totalWaves, "")
-	}
-	log.Printf("release-workflow: %s finished in %s: %s",
-		releaseName, elapsed.Round(time.Millisecond), resp.Status)
-	srv.reportRunDone(resp.RunId, pkgName, failed,
-		fmt.Sprintf("%s@%s %s in %s", pkgName, version, resp.Status, elapsed.Round(time.Millisecond)))
-
+	log.Printf("release-workflow: %s dispatched (run=%s, status=%s) — completion via inflight sweep",
+		releaseName, resp.RunId, resp.Status)
 	return resp, nil
 }
 
