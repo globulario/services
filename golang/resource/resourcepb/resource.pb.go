@@ -1469,7 +1469,7 @@ func (x *RemoveRolesActionRsp) GetResult() bool {
 // Represents an account with various attributes.
 type Account struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                         // Unique identifier of the account.
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                         // Mutable account handle (the login/username, used as the DB _id and, today, as the principal key). NOT the stable identity — see uuid.
 	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                     // Name associated with the account.
 	Email          string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`                   // Email of the account holder.
 	Password       string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`             // Encrypted password (only for non-OAuth accounts).
@@ -1484,6 +1484,13 @@ type Account struct {
 	Groups        []string `protobuf:"bytes,12,rep,name=groups,proto3" json:"groups,omitempty"`               // List of groups the account is part of.
 	Roles         []string `protobuf:"bytes,13,rep,name=roles,proto3" json:"roles,omitempty"`                 // List of roles assigned to the account.
 	TypeName      string   `protobuf:"bytes,14,opt,name=typeName,proto3" json:"typeName,omitempty"`           // Type of the account object, for internal use.
+	// uuid is the account's opaque, immutable MEMBERSHIP identity — minted once at
+	// registration, never derived from a mutable attribute (name/email/domain) and
+	// never reused. This is the stable identity the JWT subject, RBAC subject, and
+	// ownership/grant records will key on. Distinct from `id` (a mutable handle).
+	// Additive during the identity migration: minted and readable now; readers move
+	// to it in later phases. Empty only for pre-migration records.
+	Uuid          string `protobuf:"bytes,15,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1612,6 +1619,13 @@ func (x *Account) GetRoles() []string {
 func (x *Account) GetTypeName() string {
 	if x != nil {
 		return x.TypeName
+	}
+	return ""
+}
+
+func (x *Account) GetUuid() string {
+	if x != nil {
+		return x.Uuid
 	}
 	return ""
 }
@@ -8894,7 +8908,7 @@ const file_resource_proto_rawDesc = "" +
 	"\x15RemoveRolesActionRqst\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\".\n" +
 	"\x14RemoveRolesActionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x85\x03\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x99\x03\n" +
 	"\aAccount\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -8910,7 +8924,8 @@ const file_resource_proto_rawDesc = "" +
 	"\rorganizations\x18\v \x03(\tR\rorganizations\x12\x16\n" +
 	"\x06groups\x18\f \x03(\tR\x06groups\x12\x14\n" +
 	"\x05roles\x18\r \x03(\tR\x05roles\x12\x1a\n" +
-	"\btypeName\x18\x0e \x01(\tR\btypeName\"m\n" +
+	"\btypeName\x18\x0e \x01(\tR\btypeName\x12\x12\n" +
+	"\x04uuid\x18\x0f \x01(\tR\x04uuid\"m\n" +
 	"\x13RegisterAccountRqst\x12+\n" +
 	"\aaccount\x18\x01 \x01(\v2\x11.resource.AccountR\aaccount\x12)\n" +
 	"\x10confirm_password\x18\x02 \x01(\tR\x0fconfirmPassword\",\n" +

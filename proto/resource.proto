@@ -151,7 +151,7 @@ message RemoveRolesActionRsp {
  * Represents an account with various attributes.
  */
 message Account {
-  string id = 1; // Unique identifier of the account.
+  string id = 1; // Mutable account handle (the login/username, used as the DB _id and, today, as the principal key). NOT the stable identity — see uuid.
   string name = 2; // Name associated with the account.
   string email = 3; // Email of the account holder.
   string password = 4; // Encrypted password (only for non-OAuth accounts).
@@ -168,6 +168,14 @@ message Account {
   repeated string roles = 13; // List of roles assigned to the account.
 
   string typeName = 14; // Type of the account object, for internal use.
+
+  // uuid is the account's opaque, immutable MEMBERSHIP identity — minted once at
+  // registration, never derived from a mutable attribute (name/email/domain) and
+  // never reused. This is the stable identity the JWT subject, RBAC subject, and
+  // ownership/grant records will key on. Distinct from `id` (a mutable handle).
+  // Additive during the identity migration: minted and readable now; readers move
+  // to it in later phases. Empty only for pre-migration records.
+  string uuid = 15;
 }
 
 message RegisterAccountRqst {
