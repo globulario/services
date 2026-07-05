@@ -417,9 +417,14 @@ func (ValidationIssue_Severity) EnumDescriptor() ([]byte, []int) {
 
 type ClusterInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
-	ClusterDomain string                 `protobuf:"bytes,2,opt,name=cluster_domain,json=clusterDomain,proto3" json:"cluster_domain,omitempty"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`             // legacy: equals cluster_domain (DNS/namespace value, NOT identity)
+	ClusterDomain string                 `protobuf:"bytes,2,opt,name=cluster_domain,json=clusterDomain,proto3" json:"cluster_domain,omitempty"` // DNS/storage/workflow namespace
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// cluster_uid is the opaque cluster MEMBERSHIP identity — minted once at Day-0,
+	// immutable, never derived from the domain. This is the authoritative cluster
+	// identity; cluster_id/cluster_domain are namespace values. Empty before the
+	// cluster is initialized.
+	ClusterUid    string `protobuf:"bytes,4,opt,name=cluster_uid,json=clusterUid,proto3" json:"cluster_uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -473,6 +478,13 @@ func (x *ClusterInfo) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *ClusterInfo) GetClusterUid() string {
+	if x != nil {
+		return x.ClusterUid
+	}
+	return ""
 }
 
 type ClusterNetworkSpec struct {
@@ -9728,13 +9740,15 @@ var File_cluster_controller_proto protoreflect.FileDescriptor
 
 const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
-	"\x18cluster_controller.proto\x12\x12cluster_controller\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x13globular_auth.proto\"\x8e\x01\n" +
+	"\x18cluster_controller.proto\x12\x12cluster_controller\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x13globular_auth.proto\"\xaf\x01\n" +
 	"\vClusterInfo\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12%\n" +
 	"\x0ecluster_domain\x18\x02 \x01(\tR\rclusterDomain\x129\n" +
 	"\n" +
-	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xa6\x04\n" +
+	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1f\n" +
+	"\vcluster_uid\x18\x04 \x01(\tR\n" +
+	"clusterUid\"\xa6\x04\n" +
 	"\x12ClusterNetworkSpec\x12%\n" +
 	"\x0ecluster_domain\x18\x01 \x01(\tR\rclusterDomain\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x1b\n" +
