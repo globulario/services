@@ -210,6 +210,15 @@ code_symbols:
   - id: globular.platform:code.go.platform_cluster_controller.etcd_members
     namespace: globular.platform
     language: go
+    file: golang/cluster_controller/cluster_controller_server/handlers_etcd_voter_endpoints.go
+    component: platform_cluster_controller.etcd_members
+    risk: high
+    annotations:
+      implements:
+        - globular.platform:intent.etcd.is_source_of_truth
+  - id: globular.platform:code.go.platform_cluster_controller.etcd_members
+    namespace: globular.platform
+    language: go
     file: golang/cluster_controller/cluster_controller_server/etcd_members.go
     component: platform_cluster_controller.etcd_members
     risk: critical
@@ -2176,12 +2185,18 @@ test_symbols:
     symbol: TestParseEtcdJoinLockKeys_HappyPath
     package: main
     language: go
-  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_bootstrap_test.go:TestBootstrap_LearnerAwaitingPromotionDoesNotFail
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_bootstrap_test.go:TestBootstrap_HealthyLearnerWithVoterProceedsWithoutDeclaredPolicy
     file: golang/cluster_controller/cluster_controller_server/etcd_learner_bootstrap_test.go
-    symbol: TestBootstrap_LearnerAwaitingPromotionDoesNotFail
+    symbol: TestBootstrap_HealthyLearnerWithVoterProceedsWithoutDeclaredPolicy
     package: main
     language: go
-    doc: "TestBootstrap_LearnerAwaitingPromotionDoesNotFail is the task#17(f) regression:\na node that joined etcd as a non-voting learner sits in EtcdJoinPromoting until\nthe controller promotes it (which under Policy A′ may wait for a third node).\nIts bootstrap must NOT fail on the etcd-joining phase timeout while it waits —\nits etcd is a functional member. Once promoted to a voter (EtcdJoinVerified),\nbootstrap advances."
+    doc: "TestBootstrap_HealthyLearnerWithVoterProceedsWithoutDeclaredPolicy is the core\nbuildout-contract regression: a healthy non-voting learner that defers to a\nhealthy voter must PROCEED through bootstrap as an explicit non-voter WITHOUT any\ndeclared two_node_degraded storage policy (bootstrap is not steady state; you\ncannot reach 3 voters without first passing through 2). It must:\n  - advance past etcd_joining to etcd_ready,\n  - be marked etcd_degraded / not-HA (surfaced, not hidden),\n  - remain a LEARNER (EtcdJoinPhase stays EtcdJoinPromoting) — Policy A' must not\n    be short-circuited into a 2-voter promotion."
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_bootstrap_test.go:TestBootstrap_LearnerWithNoVoterWaits
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_bootstrap_test.go
+    symbol: TestBootstrap_LearnerWithNoVoterWaits
+    package: main
+    language: go
+    doc: "TestBootstrap_LearnerWithNoVoterWaits: a promoting learner that has NO healthy\nvoter to defer to must hold in etcd_joining (a genuine wait) and must NOT fail\nbootstrap on the phase timeout — its etcd is a functional member. This is the\n\"no write authority yet\" branch."
   - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdConstraint_DefaultCapsLearnersAtOne
     file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
     symbol: TestEtcdConstraint_DefaultCapsLearnersAtOne
@@ -2372,6 +2387,18 @@ test_symbols:
     package: main
     language: go
     doc: "TestEtcdRoleProjection is the task#17(e) regression: a node's etcd join phase is\nprojected from the LIVE member role, never from script assumptions. A learner\nmust never be reported as verified."
+  - id: golang/cluster_controller/cluster_controller_server/etcd_voter_endpoints_test.go:TestVoterClientEndpoints_ExcludesLearners
+    file: golang/cluster_controller/cluster_controller_server/etcd_voter_endpoints_test.go
+    symbol: TestVoterClientEndpoints_ExcludesLearners
+    package: main
+    language: go
+    doc: "TestVoterClientEndpoints_ExcludesLearners verifies the authoritative voter\nfilter: voterClientEndpoints returns ONLY the client URLs of non-learner\n(voting) members, excluding non-voting learners (which refuse client RPCs) and\nunnamed ghost members. This is the list handed to a joining learner node so it\nnever depends on its own learner for desired-state authority."
+  - id: golang/cluster_controller/cluster_controller_server/etcd_voter_endpoints_test.go:TestVoterClientEndpoints_MultipleVotersSorted
+    file: golang/cluster_controller/cluster_controller_server/etcd_voter_endpoints_test.go
+    symbol: TestVoterClientEndpoints_MultipleVotersSorted
+    package: main
+    language: go
+    doc: "TestVoterClientEndpoints_MultipleVotersSorted verifies all voters are returned,\ndeduplicated and sorted, once the cluster is at HA."
   - id: golang/cluster_controller/cluster_controller_server/get_routing_refresh_test.go:TestGetRoutingRefresh_NegativeEpochClampedToZero
     file: golang/cluster_controller/cluster_controller_server/get_routing_refresh_test.go
     symbol: TestGetRoutingRefresh_NegativeEpochClampedToZero
@@ -2641,6 +2668,18 @@ test_symbols:
     package: main
     language: go
     doc: "TestHighestHealthyInstalledVersion_FreshButNoServiceIsObservable pins\nthe legitimate \"\" case: fresh heartbeats exist but no fresh node runs\nthe queried service. observable=true means caller can safely allow a\nfresh deploy (no version to regress against). This contrasts with the\nall-stale case which returns observable=false."
+  - id: golang/cluster_controller/cluster_controller_server/inflight_sweep_test.go:TestInflightSweepDecide
+    file: golang/cluster_controller/cluster_controller_server/inflight_sweep_test.go
+    symbol: TestInflightSweepDecide
+    package: main
+    language: go
+    doc: "TestInflightSweepDecide pins the completion policy for a detached release run."
+  - id: golang/cluster_controller/cluster_controller_server/inflight_sweep_test.go:TestIsTerminalRunStatus
+    file: golang/cluster_controller/cluster_controller_server/inflight_sweep_test.go
+    symbol: TestIsTerminalRunStatus
+    package: main
+    language: go
+    doc: "TestIsTerminalRunStatus pins which run states the sweep treats as done.\nDEFERRED must NOT be terminal (a deferred run re-runs later)."
   - id: golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go:TestInfraDesiredHashConsistency
     file: golang/cluster_controller/cluster_controller_server/infrastructure_reconciler_test.go
     symbol: TestInfraDesiredHashConsistency
@@ -4153,12 +4192,24 @@ test_symbols:
     package: main
     language: go
     doc: "TestEtcdEndpointReconciler_OutcomeJSON verifies that the outcome record\nserialises cleanly to JSON (no field name typos or marshal panics)."
+  - id: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_test.go:TestEtcdEndpointReconciler_PublishesCompleteSmallCluster
+    file: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_test.go
+    symbol: TestEtcdEndpointReconciler_PublishesCompleteSmallCluster
+    package: main
+    language: go
+    doc: "TestEtcdEndpointReconciler_PublishesCompleteSmallCluster verifies the buildout\nrelaxation: a genuinely small cluster (2 core nodes total, both ready) publishes\nits COMPLETE endpoint list even though it is below the HA quorum minimum, so the\njoined node has a steady-state endpoint-refresh path after bootstrap."
   - id: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_test.go:TestEtcdEndpointReconciler_QuorumGuard
     file: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_test.go
     symbol: TestEtcdEndpointReconciler_QuorumGuard
     package: main
     language: go
     doc: "TestEtcdEndpointReconciler_QuorumGuard verifies that the reconciler does NOT\ncall MemberList or write to etcd when fewer than etcdEndpointQuorumMin core\nnodes are ready — preventing a partial endpoint list from being published."
+  - id: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_test.go:TestEtcdEndpointReconciler_SkipsTruncatedSubset
+    file: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_test.go
+    symbol: TestEtcdEndpointReconciler_SkipsTruncatedSubset
+    package: main
+    language: go
+    doc: "TestEtcdEndpointReconciler_SkipsTruncatedSubset verifies the truncation guard is\npreserved: a larger cluster (5 core nodes total) that transiently sees only 2\nready must NOT publish a truncated list that would drop live voters."
   - id: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_test.go:TestEtcdEndpointReconciler_StaleLoggedButNotRemoved
     file: golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_test.go
     symbol: TestEtcdEndpointReconciler_StaleLoggedButNotRemoved
@@ -5833,6 +5884,18 @@ test_symbols:
     package: main
     language: go
     doc: "TestReleaseApplyWorkflows_NoStateMutationAttributedToWorkflowService is\nthe broader sibling test: scan every release.apply.*.yaml and assert no\nstep using a state-mutation action (controller.*, node.*, repository.*)\nis attributed to actor: workflow-service.\n\nThe workflow service is the ROUTER between actors. Its job is to\ndispatch each step to the actor named in the YAML — never to substitute\nits own identity. A workflow-service-attributed mutation is the exact\nforbidden_fix shape captured by\nactor_substitutes_workflow_service_identity_for_step_actor."
+  - id: golang/cluster_controller/cluster_controller_server/workflow_client_test.go:TestOrderWorkflowCandidates
+    file: golang/cluster_controller/cluster_controller_server/workflow_client_test.go
+    symbol: TestOrderWorkflowCandidates
+    package: main
+    language: go
+    doc: "TestOrderWorkflowCandidates pins the failover preference: a RUNNING instance\non the LOCAL node is tried first, then running remotes, then non-running as a\nlast resort — so the controller reaches a healthy workflow instance and rolls\nover when one dies, without ever depending on the mesh."
+  - id: golang/cluster_controller/cluster_controller_server/workflow_client_test.go:TestOrderWorkflowCandidates_Empty
+    file: golang/cluster_controller/cluster_controller_server/workflow_client_test.go
+    symbol: TestOrderWorkflowCandidates_Empty
+    package: main
+    language: go
+    doc: "TestOrderWorkflowCandidates_Empty returns nil for no candidates."
   - id: golang/cluster_controller/cluster_controller_server/workflow_definitions_load_test.go:TestCoreWorkflowDefinitions_ThreadExpectedSha256
     file: golang/cluster_controller/cluster_controller_server/workflow_definitions_load_test.go
     symbol: TestCoreWorkflowDefinitions_ThreadExpectedSha256
@@ -6160,6 +6223,12 @@ test_symbols:
     package: main
     language: go
     doc: "TestIsSyntheticReleaseName locks in the contract the patch helpers\ndepend on: any release name emitted by cluster.reconcile's drift\ndispatch (reconcile_actions.go:371-372) is treated as synthetic and\nits status patches become no-ops. The prefix \"reconcile-\" is the\nunique marker — real releases are named after their package.\n\nIf this predicate drifts (e.g. a new reconcile path uses a different\nprefix, or a real release accidentally gets a \"reconcile-\" name),\nthis test fails loudly instead of the status patches silently\nsucceeding on a release that actually existed."
+  - id: golang/cluster_controller/cluster_controller_server/workflow_router_rebuild_test.go:TestRebuildReleaseRouterFromInputs
+    file: golang/cluster_controller/cluster_controller_server/workflow_router_rebuild_test.go
+    symbol: TestRebuildReleaseRouterFromInputs
+    package: main
+    language: go
+    doc: "TestRebuildReleaseRouterFromInputs pins the restart-safe rebuild contract:\na release callback that self-describes its generation rebuilds a per-run\nrouter; one that cannot recover its generation is refused (fail-safe, so the\ncaller never writes through a guard-disabled router); a non-release callback\npasses through to the default router."
   - id: golang/cluster_controller/cluster_controller_server/zz_awareness_required_test_aliases_test.go:TestControllerLeaderMatch_VIPAware
     file: golang/cluster_controller/cluster_controller_server/zz_awareness_required_test_aliases_test.go
     symbol: TestControllerLeaderMatch_VIPAware

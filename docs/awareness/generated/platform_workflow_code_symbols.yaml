@@ -1457,6 +1457,24 @@ test_symbols:
     package: main
     language: go
     doc: "TestDriftWorkflowUsesDesiredHash verifies that INFRASTRUCTURE drift workflows\ncarry the convergence hash (computed by ComputeInfrastructureDesiredHash), not\nthe raw artifact digest (ResolvedArtifactDigest). When the two hashes are\naccidentally equal, the controller has violated the infra_desired_hash schema\nand the node agent's post-install stamp will never match the controller's\nexpectation — causing a perpetual redispatch loop (the Envoy restart storm,\n2026-05-06).\n\nInvariant: infra.desired_hash_consistency"
+  - id: golang/workflow/workflow_server/reaper_decision_test.go:TestReaperDecide
+    file: golang/workflow/workflow_server/reaper_decision_test.go
+    symbol: TestReaperDecide
+    package: main
+    language: go
+    doc: "TestReaperDecide covers the liveness policy exhaustively. The single most\nimportant case is \"alive + slow-but-progressing step\" → Skip, which is the\nguard against failure_mode:workflow.orphan_lease_slow_step_double_claim."
+  - id: golang/workflow/workflow_server/reaper_decision_test.go:TestRecordProgressAndRevokeWithoutScylla
+    file: golang/workflow/workflow_server/reaper_decision_test.go
+    symbol: TestRecordProgressAndRevokeWithoutScylla
+    package: main
+    language: go
+    doc: "TestRecordProgressAndRevokeWithoutScylla verifies the new lease methods are\nsafe no-ops when the ScyllaDB fence is unavailable (single-node/degraded)."
+  - id: golang/workflow/workflow_server/reaper_decision_test.go:TestRunIsRecoverableWhenUnleased
+    file: golang/workflow/workflow_server/reaper_decision_test.go
+    symbol: TestRunIsRecoverableWhenUnleased
+    package: main
+    language: go
+    doc: "TestRunIsRecoverableWhenUnleased pins the eligibility for universal recovery:\nonly EXECUTING runs are driven when unowned. Terminal, DEFERRED (parked), and\nespecially BLOCKED (awaiting operator approval) must never be resumed."
   - id: golang/workflow/workflow_server/receipt_failure_classifier_test.go:TestBuildStepReceiptPayload_BlockedFields
     file: golang/workflow/workflow_server/receipt_failure_classifier_test.go
     symbol: TestBuildStepReceiptPayload_BlockedFields

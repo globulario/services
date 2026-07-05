@@ -896,6 +896,12 @@ test_symbols:
     symbol: TestRunInstallPackage_NativeDepMissing_BlocksBeforeInstall
     package: main
     language: go
+  - id: golang/node_agent/node_agent_server/grpc_workflow_node_fence_test.go:TestRunWorkflow_NodeIdentityFence_RejectsWrongTarget
+    file: golang/node_agent/node_agent_server/grpc_workflow_node_fence_test.go
+    symbol: TestRunWorkflow_NodeIdentityFence_RejectsWrongTarget
+    package: main
+    language: go
+    doc: "TestRunWorkflow_NodeIdentityFence_RejectsWrongTarget verifies that a\nnode-targeted workflow whose target_node_id does not match this agent's own\nidentity is rejected before any action runs — \"install on node X\" must never\nexecute on node Y even if a mis-resolved endpoint routed it here.\n(four_layer.workflow_actor_attribution_required)"
   - id: golang/node_agent/node_agent_server/grpc_workflow_skip_runtime_proof_test.go:TestVerifyRunningBinary_Idempotent_RepeatedCallsSameVerdict
     file: golang/node_agent/node_agent_server/grpc_workflow_skip_runtime_proof_test.go
     symbol: TestVerifyRunningBinary_Idempotent_RepeatedCallsSameVerdict

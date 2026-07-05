@@ -6303,3 +6303,36 @@ required_tests:
     - python3 scripts/validate-package-authority.py
     - make check-services
     - cd ../globular-installer && make check-specs
+- id: golang/workflow/workflow_server/reaper_decision_test.go::TestReaperDecide
+  title: Reaper progress-deadline decision — revoke a hung-but-heartbeating lease, leave a slow-but-progressing step alone
+  protects:
+    invariants:
+    - workflow.executor_liveness_is_progress_based
+    failure_modes:
+    - workflow.hung_but_heartbeating_executor
+    - workflow.orphan_lease_slow_step_double_claim
+- id: golang/workflow/workflow_server/reaper_decision_test.go::TestRunIsRecoverableWhenUnleased
+  title: Only EXECUTING unleased runs are recovered — BLOCKED/DEFERRED/terminal never resumed
+  protects:
+    invariants:
+    - workflow.executor_liveness_is_progress_based
+    failure_modes:
+    - workflow.hung_but_heartbeating_executor
+- id: golang/node_agent/node_agent_server/grpc_workflow_node_fence_test.go::TestRunWorkflow_NodeIdentityFence_RejectsWrongTarget
+  title: Node-identity fence rejects a workflow targeted at a different node
+  protects:
+    invariants:
+    - workflow.actor_action_targets_node_by_identity
+    - four_layer.workflow_actor_attribution_required
+- id: golang/cluster_controller/cluster_controller_server/inflight_sweep_test.go::TestInflightSweepDecide
+  title: Inflight sweep completion decision — terminal finalize vs hard-timeout backstop
+  protects:
+    invariants:
+    - workflow.release_dispatch_completion_is_reconcile_authoritative
+    - workflow.must_reach_terminal_state
+- id: golang/cluster_controller/cluster_controller_server/workflow_router_rebuild_test.go::TestRebuildReleaseRouterFromInputs
+  title: Per-run router rebuild-from-state preserves the generation guard, fail-safe refuse when unrecoverable
+  protects:
+    invariants:
+    - workflow.release_dispatch_completion_is_reconcile_authoritative
+    - four_layer.workflow_actor_attribution_required

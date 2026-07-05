@@ -180,6 +180,18 @@ test_symbols:
     package: config
     language: go
     doc: "TestValidateLANAddress covers every rejection class plus the accept paths.\nPins the rollout invariant that loopback / docker0 / link-local / multicast\n/ unspecified addresses can never be treated as canonical LAN identity,\nwhile genuine private-LAN and routable public IPs pass through."
+  - id: golang/config/etcd_client_autosync_test.go:TestAutoSyncIntervalFor
+    file: golang/config/etcd_client_autosync_test.go
+    symbol: TestAutoSyncIntervalFor
+    package: config
+    language: go
+    doc: "TestAutoSyncIntervalFor covers the Wall-2 client rule: when the local etcd\nmember is ABSENT from the endpoint list (the deliberate \"point at remote voters\nwhile local is a learner\" case), AutoSync must be DISABLED so a MemberList\nagainst a voter cannot drag the local learner endpoint back in. When the local\nmember IS present (founder / promoted voter), AutoSync stays enabled."
+  - id: golang/config/etcd_client_autosync_test.go:TestLocalEtcdIsAmongEndpoints
+    file: golang/config/etcd_client_autosync_test.go
+    symbol: TestLocalEtcdIsAmongEndpoints
+    package: config
+    language: go
+    doc: "TestLocalEtcdIsAmongEndpoints spot-checks the predicate the rule is built on."
   - id: golang/config/mesh_routing_test.go:TestGetMeshAddress
     file: golang/config/mesh_routing_test.go
     symbol: TestGetMeshAddress
@@ -449,6 +461,31 @@ test_symbols:
     package: config
     language: go
     doc: "TestServiceConfigCacheWatchInvalidation verifies that the onEvent callback\n(called by WatchInvalidator for every /globular/services/ change) causes the\nnext read to re-fetch rather than returning the TTL-cached value."
+  - id: golang/config/storage_policy_test.go:TestStoragePolicy_DefaultIsDurableAndSafe
+    file: golang/config/storage_policy_test.go
+    symbol: TestStoragePolicy_DefaultIsDurableAndSafe
+    package: config
+    language: go
+  - id: golang/config/storage_policy_test.go:TestStoragePolicy_MinStorageNodes
+    file: golang/config/storage_policy_test.go
+    symbol: TestStoragePolicy_MinStorageNodes
+    package: config
+    language: go
+  - id: golang/config/storage_policy_test.go:TestStoragePolicy_NilTreatedAsDurable
+    file: golang/config/storage_policy_test.go
+    symbol: TestStoragePolicy_NilTreatedAsDurable
+    package: config
+    language: go
+  - id: golang/config/storage_policy_test.go:TestStoragePolicy_ScyllaReplicationFactor
+    file: golang/config/storage_policy_test.go
+    symbol: TestStoragePolicy_ScyllaReplicationFactor
+    package: config
+    language: go
+  - id: golang/config/storage_policy_test.go:TestStoragePolicy_Validate
+    file: golang/config/storage_policy_test.go
+    symbol: TestStoragePolicy_Validate
+    package: config
+    language: go
   - id: golang/config/write_class_test.go:TestPutRuntimeWithClass_AppliesPolicyByClass
     file: golang/config/write_class_test.go
     symbol: TestPutRuntimeWithClass_AppliesPolicyByClass
