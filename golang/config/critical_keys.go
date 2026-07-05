@@ -14,6 +14,7 @@ import (
 // for presence by the doctor collector.
 var CriticalEtcdKeys = []string{
 	"/globular/system/config",
+	ClusterMembershipIDKey, // /globular/system/cluster/id — minted membership UUID
 	"/globular/ingress/v1/spec",
 	"/globular/ingress/v1/spec_backup",
 	"/globular/pki/ca",
@@ -78,6 +79,17 @@ var CriticalKeyPolicies = []CriticalKeyPolicy{
 		SchemaVersion:    "v1",
 		DeletePolicyName: "never_automatic",
 		DoctorInvariant:  "system.config_missing",
+	},
+	{
+		// Canonical cluster MEMBERSHIP identity — opaque UUID minted once by the
+		// controller at Day-0, immutable thereafter. Sole writer: cluster-controller;
+		// readers fail-closed, never derive from the domain. See cluster_membership_id.go
+		// and docs/design/cluster-id-minted-uuid-migration.md.
+		Key:              ClusterMembershipIDKey,
+		Owner:            "cluster-controller",
+		SchemaVersion:    "v1",
+		DeletePolicyName: "never_automatic",
+		DoctorInvariant:  "cluster.membership_id_missing",
 	},
 	{
 		Key:              "/globular/ingress/v1/spec",

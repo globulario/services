@@ -197,6 +197,9 @@ func serviceCallContext() context.Context {
 	if clusterID != "" {
 		md.Set("cluster_id", clusterID)
 	}
+	if uid, uerr := security.GetLocalClusterUID(); uerr == nil && uid != "" {
+		md.Set("cluster_uid", uid) // opaque membership identity, not just the namespace
+	}
 
 	return metadata.NewOutgoingContext(context.Background(), md)
 }

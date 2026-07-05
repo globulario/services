@@ -52,11 +52,96 @@ func newJoinAuthServer(t *testing.T) *server {
 		ExpiresAt: time.Now().Add(time.Hour),
 		MaxUses:   10,
 	}
-	state.ClusterId = "cluster-abc"
+	state.ClusterId = "cluster-abc"                              // namespace (legacy overloaded field)
+	state.ClusterUID = "abcdef01-2345-6789-abcd-ef0123456789"    // minted membership UUID (identity)
 	state.ClusterNetworkSpec = &cluster_controllerpb.ClusterNetworkSpec{
 		ClusterDomain: "globular.internal",
 	}
 	return newTestServer(t, state)
+}
+
+// TestJoinPlan_CarriesClusterUID (A5): the issued plan carries the minted
+// membership UUID as its identity, distinct from the namespace ClusterID.
+func TestJoinPlan_CarriesClusterUID(t *testing.T) {
+	srv := newJoinAuthServer(t)
+	resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+		JoinToken: "tok-v2",
+		Identity:  NodePlanIdentity{Hostname: "node-01", IPs: []string{"10.0.0.1"}},
+		Nonce:     "nonce-carry-uid",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.Allowed || resp.Plan == nil {
+		t.Fatalf("expected an allowed plan, denied=%q", resp.DeniedReason)
+	}
+	if resp.Plan.ClusterUID != srv.state.ClusterUID {
+		t.Errorf("plan.ClusterUID = %q, want the minted membership UUID %q", resp.Plan.ClusterUID, srv.state.ClusterUID)
+	}
+	if resp.Plan.ClusterUID == resp.Plan.ClusterID {
+		t.Errorf("plan must carry a distinct identity (ClusterUID) and namespace (ClusterID)")
+	}
+}
+
+// TestJoinPlan_ClusterUID_IsSigned (A5): the membership UUID is covered by the
+// Ed25519 signature — tampering it must invalidate the plan.
+func TestJoinPlan_ClusterUID_IsSigned(t *testing.T) {
+	pub, priv, kid := generateTestKeyPair(t)
+	plan := &JoinPlan{
+		JoinID:               "j-uid",
+		ClusterID:            "globular.internal", // namespace
+		ClusterUID:           "abcdef01-2345-6789-abcd-ef0123456789",
+		IssuedAt:             time.Now(),
+		ExpiresAt:            time.Now().Add(time.Hour),
+		AssignedProfiles:     []string{"core"},
+		AssignedNodeID:       "node-x",
+		ExpectedNodeIdentity: NodePlanIdentity{Hostname: "node-01", IPs: []string{"10.0.0.1"}},
+	}
+	if err := signJoinPlanWithKey(plan, priv, kid); err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if err := verifyJoinPlanWithKey(plan, pub); err != nil {
+		t.Fatalf("verify (untampered): %v", err)
+	}
+	plan.ClusterUID = "00000000-0000-0000-0000-000000000000" // tamper
+	if err := verifyJoinPlanWithKey(plan, pub); err == nil {
+		t.Error("tampering ClusterUID must break the signature — the membership UUID must be signed")
+	}
+}
+
+// TestJoinAuthorization_ClusterUIDValidatedWhenPresent (A6, transitional): when
+// the installer presents a cluster_uid it must equal the minted UUID; the domain
+// is rejected as identity. (Empty is still allowed until A6 requires it.)
+func TestJoinAuthorization_ClusterUIDValidatedWhenPresent(t *testing.T) {
+	srv := newJoinAuthServer(t)
+	for _, badUID := range []string{"wrong-uuid", "globular.internal", "cluster-abc"} {
+		resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+			JoinToken:  "tok-v2",
+			Identity:   NodePlanIdentity{Hostname: "node-01", IPs: []string{"10.0.0.1"}},
+			Nonce:      "nonce-" + badUID,
+			ClusterUID: badUID,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resp.Allowed || !strings.Contains(resp.DeniedReason, "cluster_uid mismatch") {
+			t.Errorf("cluster_uid %q must be denied as a mismatch (domain/wrong is not identity); got allowed=%v reason=%q",
+				badUID, resp.Allowed, resp.DeniedReason)
+		}
+	}
+	// The matching minted UUID passes the identity gate.
+	resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+		JoinToken:  "tok-v2",
+		Identity:   NodePlanIdentity{Hostname: "node-02", IPs: []string{"10.0.0.2"}},
+		Nonce:      "nonce-good-uid",
+		ClusterUID: srv.state.ClusterUID,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(resp.DeniedReason, "cluster_uid mismatch") {
+		t.Errorf("matching cluster_uid must pass the identity gate, got: %s", resp.DeniedReason)
+	}
 }
 
 // TestJoinAuthorization_FoundingNodeReceivesPlan verifies the happy path:

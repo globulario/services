@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -364,6 +365,9 @@ func tokenInjector(token, clusterID string) grpc.UnaryClientInterceptor {
 		md.Set("token", token)
 		if clusterID != "" {
 			md.Set("cluster_id", clusterID)
+		}
+		if uid, uerr := security.GetLocalClusterUID(); uerr == nil && uid != "" {
+			md.Set("cluster_uid", uid) // opaque membership identity, not just the namespace
 		}
 		return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)
 	}

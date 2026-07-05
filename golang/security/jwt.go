@@ -67,6 +67,11 @@ type Claims struct {
 	// Core identity (opaque, stable, domain-independent)
 	PrincipalID string `json:"principal_id"` // Opaque user ID (e.g., "usr_7f9a3b2c")
 	ClusterID   string `json:"cluster_id"`   // Blocker Fix #8: Cluster identifier for cross-cluster validation
+	// ClusterUID is the opaque MEMBERSHIP UUID (minted, immutable). Additive
+	// dual-claim: emitted alongside ClusterID=domain during the identity migration
+	// (docs/design/cluster-id-minted-uuid-migration.md). NOT yet validated —
+	// validators still key off ClusterID until the Phase-2 dual-accept airlock.
+	ClusterUID string `json:"cluster_uid,omitempty"`
 
 	// Display/contact information (NOT used for identity)
 	ID       string `json:"id"`       // Legacy username, kept for compatibility
@@ -192,9 +197,17 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 		return "", fmt.Errorf("generate token: get cluster id: %w", err)
 	}
 
+	// Additive dual-claim: also emit the opaque membership UUID when it has been
+	// minted. Best-effort — a not-yet-minted cluster (or transient etcd error)
+	// still issues tokens with the UUID claim simply omitted. No validation
+	// depends on ClusterUID yet; this only makes the true identity visible on the
+	// wire ahead of the Phase-2 dual-accept flip.
+	clusterUID, _ := GetLocalClusterUID()
+
 	claims := &Claims{
 		PrincipalID: principalID, // v1: Opaque identity
 		ClusterID:   clusterID,   // v1: Cluster identifier (domain)
+		ClusterUID:  clusterUID,  // additive: opaque membership UUID (may be empty pre-mint)
 		ID:          userId,      // Legacy field, kept for compatibility
 		Username:    userName,    // Display name only
 		Email:       email,       // Contact only

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_service"
+	"github.com/google/uuid"
 )
 
 const (
@@ -64,6 +66,7 @@ func (srv *server) seedDay0CriticalState(ctx context.Context) {
 	defer cancel()
 
 	srv.ensureSystemConfigKey(wctx, kv)
+	srv.ensureClusterMembershipID(wctx, kv)
 	srv.ensureCriticalPrefixMarkers(wctx, kv)
 
 	// Seed ingress/objectstore/CA via existing canonical publishers.
@@ -101,6 +104,49 @@ func (srv *server) ensureSystemConfigKey(ctx context.Context, kv kvClient) {
 		return
 	}
 	log.Printf("day0-seed: seeded %s", systemConfigKey)
+}
+
+// ensureClusterMembershipID mints the cluster's opaque MEMBERSHIP UUID exactly
+// once, into the controller-owned key /globular/system/cluster/id. This is the
+// canonical membership identity, deliberately distinct from the cluster domain
+// (the domain remains the DNS/storage/workflow namespace). See
+// config.ClusterMembershipIDKey and docs/design/cluster-id-minted-uuid-migration.md.
+//
+// Mint-once + immutable: if a non-empty value already exists it is left
+// untouched (never overwritten). Idempotent — safe to run on every Day-0 seed
+// pass (day0_day1_are_repeatable_ceremonies). Leader-only (caller-gated).
+//
+// This step is ADDITIVE: it makes the true identity exist and become readable.
+// It does NOT change any validation — membership auth still uses the domain
+// until the Phase-2 dual-accept airlock.
+func (srv *server) ensureClusterMembershipID(ctx context.Context, kv kvClient) {
+	resp, err := kv.Get(ctx, config.ClusterMembershipIDKey)
+	if err != nil {
+		log.Printf("day0-seed: cannot read %s: %v", config.ClusterMembershipIDKey, err)
+		return
+	}
+	id := ""
+	if len(resp.Kvs) > 0 {
+		id = strings.TrimSpace(string(resp.Kvs[0].Value))
+	}
+	if id == "" {
+		// Absent — mint once. (An existing non-empty value is immutable: never
+		// overwritten, only cached below.)
+		id = uuid.NewString()
+		if _, err := kv.Put(ctx, config.ClusterMembershipIDKey, id); err != nil {
+			log.Printf("day0-seed: failed to mint %s: %v", config.ClusterMembershipIDKey, err)
+			return
+		}
+		log.Printf("day0-seed: minted cluster membership id %s at %s", id, config.ClusterMembershipIDKey)
+	}
+	// Cache the authoritative membership UUID into controller state so identity
+	// readers (join gate, membership records, GetClusterInfo) use it without a
+	// per-read etcd call. The domain is never a membership credential.
+	srv.lock("ensureClusterMembershipID")
+	if srv.state != nil && srv.state.ClusterUID != id {
+		srv.state.ClusterUID = id
+	}
+	srv.unlock()
 }
 
 func (srv *server) ensureCriticalPrefixMarkers(ctx context.Context, kv kvClient) {

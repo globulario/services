@@ -455,6 +455,9 @@ func controllerTokenInterceptor(clusterID string) grpc.UnaryClientInterceptor {
 		if clusterID != "" {
 			md.Set("cluster_id", clusterID)
 		}
+		if uid, uerr := security.GetLocalClusterUID(); uerr == nil && uid != "" {
+			md.Set("cluster_uid", uid) // opaque membership identity, not just the namespace
+		}
 		return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)
 	}
 }

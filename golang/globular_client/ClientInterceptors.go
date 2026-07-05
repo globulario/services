@@ -48,6 +48,14 @@ func clientStreamInterceptor(_ Client) func(ctx context.Context, desc *grpc.Stre
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
 			}
 		}
+		// Additive dual-emit: also carry the opaque membership UUID when minted.
+		// Best-effort — omit on absence, never fall back to the domain. Nothing
+		// validates cluster_uid yet (Phase-2 dual-accept).
+		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_uid")) == 0 {
+			if uid, err := security.GetLocalClusterUID(); err == nil && uid != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_uid", uid)
+			}
+		}
 
 		return streamer(ctx, desc, cc, method, opts...)
 	}
@@ -86,6 +94,14 @@ func clientInterceptor(client_ Client) func(ctx context.Context, method string, 
 		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_id")) == 0 {
 			if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
+			}
+		}
+		// Additive dual-emit: also carry the opaque membership UUID when minted.
+		// Best-effort — omit on absence, never fall back to the domain. Nothing
+		// validates cluster_uid yet (Phase-2 dual-accept).
+		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_uid")) == 0 {
+			if uid, err := security.GetLocalClusterUID(); err == nil && uid != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_uid", uid)
 			}
 		}
 
