@@ -156,6 +156,12 @@ type joinTokenRecord struct {
 	ExpiresAt time.Time `json:"expires_at"`
 	MaxUses   int       `json:"max_uses"`
 	Uses      int       `json:"uses"`
+	// ClusterUID binds this token to the cluster MEMBERSHIP identity (the minted
+	// UUID at creation time). Token-bound distribution (A6): the join carries the
+	// identity via the secret token, so it cannot be spoofed and the installer need
+	// not know the UUID out-of-band. Empty for legacy / bootstrap-seed tokens minted
+	// before the UUID existed.
+	ClusterUID string `json:"cluster_uid,omitempty"`
 }
 
 type joinRequestRecord struct {
