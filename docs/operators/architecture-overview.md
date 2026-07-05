@@ -115,7 +115,7 @@ The Node Agent runs on every cluster node on port 11000. It is the **only compon
 The Node Agent's responsibilities:
 
 **Workflow Step Execution**: When the Workflow Service dispatches a step to a node agent, the agent executes it locally. This might mean:
-- Fetching a package archive from MinIO
+- Fetching a package archive from the Repository service (POSIX CAS, not MinIO)
 - Verifying its SHA256 checksum against the artifact manifest
 - Extracting the binary to `/usr/local/bin/`
 - Writing a systemd unit file
@@ -324,8 +324,8 @@ The controller writes a `DesiredService` record to etcd. The service now exists 
 
 The controller's release reconciler detects the new desired-state entry and creates a workflow. The Workflow Service orchestrates:
 
-1. **FETCH**: Node Agent downloads the `.tgz` from MinIO to a staging path (`/var/lib/globular/staging/`)
-2. **INSTALL**: Verify the SHA256 checksum matches the artifact manifest. Extract the binary to `/usr/local/bin/`
+1. **FETCH**: Node Agent downloads the `.tgz` from the Repository service (POSIX CAS at `/var/lib/globular/repository`, **not** MinIO) into the node install cache (`/var/lib/globular/packages/`)
+2. **INSTALL**: Verify the SHA256 checksum matches the artifact manifest. Extract the binary
 3. **CONFIGURE**: Write the systemd unit file, update etcd with service configuration
 4. **START**: Run `systemctl start my_service`
 5. **VERIFY**: Check the gRPC health endpoint to confirm the service is responding
@@ -397,7 +397,14 @@ etcd itself runs as a cluster across multiple nodes (typically 3 or 5 for quorum
 
 ### MinIO Cluster
 
-MinIO runs in erasure-coded mode across cluster nodes. The controller manages pool expansion when new nodes are added. MinIO provides object storage for package artifacts and backups with redundancy across nodes.
+MinIO runs in erasure-coded mode across cluster nodes. The controller manages pool expansion when new nodes are added (via a dedicated topology workflow, gated on a 3-storage-node quorum).
+
+> **MinIO stores secondary user data only** (files, search indexes) — it is a *commodity* tier,
+> not a pillar, and must never gate a primary service's health or block node convergence.
+> **Packages are never in MinIO**: published artifacts live in the repository's POSIX CAS at
+> `/var/lib/globular/repository`, the per-node install cache at `/var/lib/globular/packages/`,
+> and the package index in ScyllaDB. See
+> [Cluster Formation and Node Join](cluster-formation-and-join.md).
 
 ## What's Next
 

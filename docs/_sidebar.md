@@ -18,6 +18,7 @@
   - [Day-0 / Day-1 / Day-2](operators/day-0-1-2-operations.md)
   - [Installation](operators/installation.md)
   - [Adding Nodes](operators/adding-nodes.md)
+  - [Cluster Formation & Node Join](operators/cluster-formation-and-join.md)
   - [Repository Overview](operators/repository-overview.md)
   - [Package Lifecycle](operators/package-lifecycle.md)
   - [Publishing Services](operators/publishing-services.md)

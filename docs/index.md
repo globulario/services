@@ -53,6 +53,7 @@ Day-0 through Day-2 operational guides.
 - [Day-0 / Day-1 / Day-2 Operations](operators/day-0-1-2-operations.md) — Complete lifecycle from first boot to ongoing maintenance
 - [Installation (Day-0)](operators/installation.md) — Bootstrap the first node
 - [Adding Nodes (Day-1)](operators/adding-nodes.md) — Join tokens, approval, profile assignment
+- [Cluster Formation & Node Join](operators/cluster-formation-and-join.md) — The whole dynamic: bootstrap phases, leader election, service mesh, and how etcd/ScyllaDB/MinIO/Envoy come to life as a cluster grows 1→2→3 into HA
 - [Deploying Applications](operators/deploying-applications.md) — Desired-state model, monitoring, repair
 - [Repository Overview](operators/repository-overview.md) — Philosophy, identity model, state machine, GC, invariants
 - [Package Lifecycle](operators/package-lifecycle.md) — Verify / repair / explain, signing policy, rollback workflow, config receipts, doctor invariants

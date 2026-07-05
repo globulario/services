@@ -2,6 +2,11 @@
 
 This page covers expanding a Globular cluster by adding new nodes. The process involves creating a join token, requesting to join from the new node, approving the request, and watching the convergence model install services automatically.
 
+> **Want the model underneath these commands?** [Cluster Formation and Node Join](cluster-formation-and-join.md)
+> explains the whole dynamic — bootstrap phases, leader election, the service mesh, and how each
+> infrastructure pillar (etcd learner→voter, ScyllaDB, MinIO, Envoy) comes to life as a cluster
+> grows from 1 → 2 → 3 nodes into HA.
+
 ## Why Add Nodes
 
 Adding nodes to a Globular cluster provides:
@@ -134,7 +139,7 @@ DECISION → FETCH → INSTALL → CONFIGURE → START → VERIFY → COMPLETE
 ```
 
 For each service:
-- **FETCH**: Download the package from the Repository service (MinIO)
+- **FETCH**: Download the package from the Repository service (POSIX CAS at `/var/lib/globular/repository`, **not** MinIO) into the node install cache
 - **INSTALL**: Verify checksum, extract binary, write systemd unit
 - **CONFIGURE**: Write service configuration to etcd
 - **START**: `systemctl start <service>`
@@ -159,20 +164,21 @@ globular workflow list --node node_abc456
 
 When a new node joins with certain profiles, the controller also expands infrastructure:
 
-**etcd cluster expansion**: If the cluster has fewer than the target etcd members (typically 3 or 5), the controller adds the new node to the etcd cluster:
-1. Calls `etcdctl member add` with the new node's peer URL
-2. Starts etcd on the new node configured to join the existing cluster
-3. Waits for the new member to sync
+**etcd expansion — learner-first (Policy A′)**: the joining node adds itself as a **non-voting
+learner** (`etcdctl member add --learner`), so a slow or failed join can never break the existing
+cluster's quorum. The controller promotes the learner to a **voter only when the voter target is
+≥ 3**. On a 2-node cluster the second node stays a learner (`etcd_ha=false`) — correct, not a
+failure. See [Cluster Formation and Node Join](cluster-formation-and-join.md#51-etcd--the-state-plane-and-the-heart-of-the-join).
 
-**MinIO pool expansion**: If MinIO is assigned to the new node's profiles, the controller adds a new erasure pool:
-1. Configures the new MinIO instance with the existing cluster credentials
-2. Adds the new node to the MinIO pool configuration
-3. MinIO rebalances data across the expanded pool
+**MinIO expansion — dedicated topology workflow**: MinIO is *held* at join time and installed by
+a separate leader-only topology workflow **once 3 storage nodes exist** (erasure-coding quorum).
+Under a declared degraded storage policy it runs standalone instead. MinIO stores secondary user
+data only — never packages.
 
-**ScyllaDB expansion**: If ScyllaDB is assigned:
-1. Configures the new ScyllaDB instance with gossip seeds pointing to existing nodes
-2. Starts ScyllaDB, which joins the cluster via gossip protocol
-3. Data begins streaming to the new node
+**ScyllaDB expansion — native gossip**: the controller renders `scylla.yaml` with gossip seeds
+(all storage nodes, including self); ScyllaDB auto-joins the ring on start (no explicit
+member-add). Replication factor rises `1 → 2 → 3` and caps at 3 as verified storage nodes join;
+the schema guard applies the `ALTER KEYSPACE` and a `nodetool repair` is required afterward.
 
 ### Step 7: Verify
 
@@ -244,19 +250,24 @@ Removing a profile from a node stops and uninstalls services that were exclusive
 
 ### 3-Node Production Cluster
 
-A typical production setup:
+A production cluster's **first three nodes must each carry the three founding profiles**
+(`core`, `control-plane`, `storage`) — this is enforced at join time and cannot be bypassed,
+because etcd (3 voters), ScyllaDB (RF 3), and MinIO (erasure quorum) each need three nodes:
 
-| Node | Profiles | Services |
+| Node | Profiles | Provides |
 |------|----------|----------|
-| node-1 | core, gateway | controller, auth, rbac, event, discovery, gateway, etcd, minio |
-| node-2 | core, database | controller (standby), auth, etcd, minio, postgresql, scylladb |
-| node-3 | worker, monitoring | compute, monitoring, prometheus, alertmanager, etcd, minio |
+| node-1 | core, control-plane, storage | etcd voter, controller (leader), ScyllaDB, MinIO |
+| node-2 | core, control-plane, storage | etcd voter, controller (standby), ScyllaDB, MinIO |
+| node-3 | core, control-plane, storage | etcd voter, controller (standby), ScyllaDB, MinIO |
 
 This provides:
-- etcd quorum across 3 nodes (tolerates 1 failure)
-- MinIO erasure coding across 3 nodes
-- Controller HA (leader on node-1, standby on node-2)
-- Service redundancy for authentication and RBAC
+- etcd **3-voter quorum** across 3 nodes (tolerates 1 failure)
+- MinIO distributed erasure coding across 3 nodes
+- ScyllaDB replication factor 3
+- Controller HA (leader + standbys via etcd-lease election)
+
+> The founding-quorum requirement is why you can't build a "3-node cluster" where only one node
+> carries storage. See [Cluster Formation and Node Join](cluster-formation-and-join.md#3-founding-quorum-why-the-first-three-nodes-are-special).
 
 ### Adding Nodes to Existing 3-Node Cluster
 

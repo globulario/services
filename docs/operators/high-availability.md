@@ -96,11 +96,20 @@ etcd uses the Raft consensus algorithm. In a cluster of N members:
 
 The Cluster Controller manages etcd cluster membership:
 
-**Adding a member** (during node join):
-1. Controller calls `etcdctl member add` with the new node's peer URL
-2. The new node's etcd instance starts configured to join the existing cluster
-3. etcd replicates data to the new member
-4. New member becomes a full voting member after sync
+**Adding a member** (during node join) — *learner-first (Policy A′)*:
+1. The joining node adds itself as a **non-voting learner** (`etcdctl member add --learner`). A
+   learner replicates the Raft log but does **not** count toward quorum, so a slow or failed
+   join can never strand the existing cluster below quorum.
+2. The new node's etcd instance starts configured to join the existing cluster (`initial-cluster-state: existing`)
+3. etcd replicates data to the learner until it is caught up
+4. The controller promotes the learner to a **voter only when the voter target is ≥ 3**
+   (`topologyAllowsLearnerPromotion`). A **settled 2-voter cluster is forbidden** — losing
+   either voter destroys quorum. A 3-voter target is reached *sequentially* through a transient
+   2-voter step: `1v → +learner → promote → 2v(transient) → +learner → promote → 3v`.
+
+> On a 2-node cluster the second node stays a **learner** (target 2 < 3) and reports
+> `etcd_ha=false` — this is correct, not a failure. See
+> [Cluster Formation and Node Join](cluster-formation-and-join.md) for the full model.
 
 **Removing a member** (during node removal):
 1. Controller calls `etcdctl member remove` with the member's ID
