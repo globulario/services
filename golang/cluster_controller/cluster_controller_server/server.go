@@ -758,6 +758,7 @@ func (srv *server) GetClusterInfo(ctx context.Context, req *timestamppb.Timestam
 	info := &cluster_controllerpb.ClusterInfo{
 		ClusterDomain: domain,
 		ClusterId:     clusterID,
+		ClusterUid:    srv.state.ClusterUID, // opaque membership identity; empty before init
 		CreatedAt:     timestamppb.New(created),
 	}
 	return info, nil

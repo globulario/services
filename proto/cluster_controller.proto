@@ -9,9 +9,14 @@ import "google/protobuf/empty.proto";
 import "globular_auth.proto";
 
 message ClusterInfo {
-  string cluster_id = 1;
-  string cluster_domain = 2;
+  string cluster_id = 1;      // legacy: equals cluster_domain (DNS/namespace value, NOT identity)
+  string cluster_domain = 2;  // DNS/storage/workflow namespace
   google.protobuf.Timestamp created_at = 3;
+  // cluster_uid is the opaque cluster MEMBERSHIP identity — minted once at Day-0,
+  // immutable, never derived from the domain. This is the authoritative cluster
+  // identity; cluster_id/cluster_domain are namespace values. Empty before the
+  // cluster is initialized.
+  string cluster_uid = 4;
 }
 
 message ClusterNetworkSpec {
