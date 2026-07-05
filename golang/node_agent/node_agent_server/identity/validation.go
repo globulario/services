@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/uuid"
+	"github.com/globulario/services/golang/nodeid"
 )
 
 // ValidateAdvertiseEndpoint ensures endpoint is not localhost/loopback in cluster mode
@@ -220,8 +220,8 @@ func SanitizeNodeName(hostname string) string {
 	return sanitizeNodeName(hostname)
 }
 
-// globularNodeIDNamespace is a fixed UUID v5 namespace for Globular node IDs.
-var globularNodeIDNamespace = uuid.MustParse("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
+// Node-id derivation is centralized in the shared nodeid package (the single
+// authority for the scheme; controller and resource store derive through it too).
 
 // StableNodeID returns a deterministic UUID derived from the best available
 // hardware identifier on this machine. It picks the MAC address of the
@@ -236,7 +236,7 @@ var globularNodeIDNamespace = uuid.MustParse("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c
 func StableNodeID() (string, error) {
 	mac, err := SelectBestMAC()
 	if err == nil && mac != "" {
-		return uuid.NewSHA1(globularNodeIDNamespace, []byte("mac:"+mac)).String(), nil
+		return nodeid.FromMAC(mac), nil
 	}
 
 	// Fallback: hostname + IPs
@@ -248,9 +248,7 @@ func StableNodeID() (string, error) {
 	if hostname == "" && len(ips) == 0 {
 		return "", fmt.Errorf("stable node ID: no MAC, hostname, or IP available")
 	}
-	sort.Strings(ips)
-	key := hostname + "|" + strings.Join(ips, "|")
-	return uuid.NewSHA1(globularNodeIDNamespace, []byte("host:"+key)).String(), nil
+	return nodeid.FromHostAndIPs(hostname, ips), nil
 }
 
 // SelectBestMAC picks the MAC address from the best available interface.

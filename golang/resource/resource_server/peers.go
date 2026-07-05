@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/globulario/services/golang/nodeid"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc/codes"
@@ -103,7 +104,10 @@ func (srv *server) UpsertNodeIdentity(ctx context.Context, rqst *resourcepb.Upse
 
 	node := rqst.Node
 	if node.NodeId == "" {
-		node.NodeId = Utility.GenerateUUID(node.Mac)
+		// Derive the canonical cluster node id (shared nodeid authority), NOT a
+		// divergent v3/MD5 value. proto NodeIdentity.node_id is the node-agent's
+		// canonical id; callers should supply it, and this fallback must match.
+		node.NodeId = nodeid.FromMAC(node.Mac)
 	}
 	if node.LastSeen == 0 {
 		node.LastSeen = time.Now().Unix()
