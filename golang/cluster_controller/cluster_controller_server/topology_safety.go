@@ -67,13 +67,18 @@ func (srv *server) checkStorageQuorumSafe(nodeID string) *topologySafetyViolatio
 			}
 		}
 	}
-	if active < 3 {
+	// The redundancy floor is policy-derived: durable/undeclared -> 3; a declared
+	// degraded policy lowers it to 2 or 1. cachedMinStorageNodes is the no-I/O
+	// accessor (this runs under srv.lock) and is conservative (durable floor) on a
+	// cold cache, so removal safety never weakens by accident.
+	minStorage := cachedMinStorageNodes()
+	if active < minStorage {
 		return &topologySafetyViolation{
 			Kind:   "storage_quorum",
 			NodeID: nodeID,
 			Message: fmt.Sprintf(
-				"removing node would leave %d active storage node(s) — minimum 3 required for ScyllaDB/MinIO redundancy",
-				active,
+				"removing node would leave %d active storage node(s) — minimum %d required for ScyllaDB/MinIO redundancy",
+				active, minStorage,
 			),
 		}
 	}
@@ -203,10 +208,15 @@ func (srv *server) driftTopologyPreflight(ctx context.Context) []topologySafetyV
 	}
 	srv.unlock()
 
-	if storageCount < 3 {
+	// The storage-quorum floor is policy-derived: durable/undeclared -> 3; a
+	// declared degraded policy (config.StoragePolicy) lowers it to 2 or 1 so a
+	// small cluster's stateful substrates may materialize. Runs outside the lock,
+	// so the I/O accessor is safe here (intent:degraded_is_explicit_not_hidden).
+	minStorage := effectiveMinStorageNodes(ctx)
+	if storageCount < minStorage {
 		violations = append(violations, topologySafetyViolation{
 			Kind:    "storage_quorum",
-			Message: fmt.Sprintf("drift preflight: only %d active storage node(s), minimum 3 required", storageCount),
+			Message: fmt.Sprintf("drift preflight: only %d active storage node(s), minimum %d required", storageCount, minStorage),
 		})
 	}
 	if controlPlaneCount < 1 {

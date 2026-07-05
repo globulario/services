@@ -181,10 +181,16 @@ func (srv *server) enforceStorageQuorumLocked() bool {
 	// Quorum is a capacity question: count only VERIFIED storage members, not
 	// nodes that merely carry the label (forbidden_fix:profile_label_counts_as_storage_capacity).
 	storageCount := countVerifiedNodesWithProfile(srv.state.Nodes, "storage")
-	if storageCount >= MinQuorumNodes {
+	// The storage-node floor is policy-derived: durable/undeclared -> MinQuorumNodes
+	// (3); a declared degraded policy lowers it to 2 or 1. cachedMinStorageNodes is
+	// the no-I/O accessor (this runs under srv.lock) and resolves to the durable
+	// floor on a cold cache — never degraded by accident
+	// (intent:degraded_is_explicit_not_hidden).
+	minNodes := cachedMinStorageNodes()
+	if storageCount >= minNodes {
 		return false
 	}
-	needed := MinQuorumNodes - storageCount
+	needed := minNodes - storageCount
 
 	// Collect candidates: nodes without storage, preferring control-plane.
 	type candidate struct {
@@ -229,7 +235,7 @@ func (srv *server) enforceStorageQuorumLocked() bool {
 		node := srv.state.Nodes[candidates[i].id]
 		node.Profiles = enforceFoundingProfiles(node.Profiles, 0) // force all foundational
 		log.Printf("storage-quorum: auto-promoted node %s (%s) to storage profile (was %d/%d, need %d)",
-			candidates[i].id, node.Identity.Hostname, storageCount+i, MinQuorumNodes, MinQuorumNodes)
+			candidates[i].id, node.Identity.Hostname, storageCount+i, minNodes, minNodes)
 		modified = true
 	}
 

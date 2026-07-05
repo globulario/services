@@ -148,6 +148,20 @@ func (srv *server) invariantValidateInfraQuorum(ctx context.Context, minScylla, 
 	srv.lock("invariantValidateInfraQuorum")
 	defer srv.unlock()
 
+	// The required Scylla/MinIO quorum is policy-derived: a declared degraded
+	// StoragePolicy lowers the durable floor (3) to 2 or 1. Clamp the caller's
+	// requirement DOWN to the policy floor only — never raise it — so degraded
+	// clusters validate while durable clusters are unchanged. No-I/O accessor:
+	// this runs under srv.lock (intent:degraded_is_explicit_not_hidden).
+	if floor := cachedMinStorageNodes(); floor < minScylla || floor < minMinio {
+		if minScylla > floor {
+			minScylla = floor
+		}
+		if minMinio > floor {
+			minMinio = floor
+		}
+	}
+
 	var violations []map[string]any
 	var candidates []map[string]any
 
@@ -236,6 +250,18 @@ func (srv *server) invariantEnforceQuorum(ctx context.Context, quorumReport map[
 func (srv *server) invariantVerifyQuorum(ctx context.Context, minScylla, minMinio int) (bool, error) {
 	srv.lock("invariantVerifyQuorum")
 	defer srv.unlock()
+
+	// Policy-derived floor (see invariantValidateInfraQuorum): clamp the required
+	// quorum DOWN to a declared degraded policy so verification agrees with
+	// validation. Durable/undeclared is unchanged (floor 3).
+	if floor := cachedMinStorageNodes(); floor < minScylla || floor < minMinio {
+		if minScylla > floor {
+			minScylla = floor
+		}
+		if minMinio > floor {
+			minMinio = floor
+		}
+	}
 
 	storageCount := countVerifiedNodesWithProfile(srv.state.Nodes, "storage")
 	return storageCount >= minScylla && storageCount >= minMinio, nil
