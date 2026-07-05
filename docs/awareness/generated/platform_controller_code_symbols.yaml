@@ -1070,6 +1070,42 @@ test_symbols:
     package: main
     language: go
     doc: "TestReportNodeStatus_LastSeenUsesServerClockNotNodeClock is the ratchet for\nmeta.clock_skew_invalidates_cross_node_time_comparison. node.LastSeen drives\nevery time.Since(node.LastSeen) heartbeat-staleness decision in the controller\n(leader_liveness, posture, stale_instance_purger, release_pipeline, ...). It\nMUST be stamped with the controller's receipt clock, never the node's\nself-reported time — otherwise a node with a skewed clock is judged stale by\nthe skew amount and could be marked down. ReportedAt keeps the node's value\nfor diagnostics."
+  - id: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go:TestEnsureClusterMembershipID_BackfillsUnboundTokens
+    file: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go
+    symbol: TestEnsureClusterMembershipID_BackfillsUnboundTokens
+    package: main
+    language: go
+    doc: "TestEnsureClusterMembershipID_BackfillsUnboundTokens: minting the identity\nbinds — atomically with caching state.ClusterUID under one lock hold — any join\ntoken that was seeded before the identity existed (the config token is seeded\npre-mint on Day-0). This closes the window that would otherwise let an\ninitialized cluster hold an unbound token, which the strict join gate rejects.\nA token already bound (even to a different value) is NEVER silently rebound —\nthat would be a cross-cluster hijack."
+  - id: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go:TestEnsureClusterMembershipID_Idempotent
+    file: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go
+    symbol: TestEnsureClusterMembershipID_Idempotent
+    package: main
+    language: go
+    doc: "TestEnsureClusterMembershipID_Idempotent: re-running the Day-0 seed pass does\nnot re-mint (day0_day1_are_repeatable_ceremonies) — mint-once holds."
+  - id: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go:TestEnsureClusterMembershipID_MintsOnceOpaqueUUID
+    file: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go
+    symbol: TestEnsureClusterMembershipID_MintsOnceOpaqueUUID
+    package: main
+    language: go
+    doc: "TestEnsureClusterMembershipID_MintsOnceOpaqueUUID: on an empty store the\ncontroller mints a valid opaque UUID; the value is NOT the domain."
+  - id: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go:TestEnsureClusterMembershipID_NeverOverwrites
+    file: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go
+    symbol: TestEnsureClusterMembershipID_NeverOverwrites
+    package: main
+    language: go
+    doc: "TestEnsureClusterMembershipID_NeverOverwrites: an already-established identity\nis immutable — the controller must never overwrite it."
+  - id: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go:TestEnsureClusterMembershipID_PopulatesState
+    file: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go
+    symbol: TestEnsureClusterMembershipID_PopulatesState
+    package: main
+    language: go
+    doc: "TestEnsureClusterMembershipID_PopulatesState proves the A3 core: the minted\nmembership UUID is cached into controller state (state.ClusterUID) so identity\nreaders use it without a per-read etcd call — and it is NOT the domain."
+  - id: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go:TestLoadControllerState_DoesNotCoerceOpaqueClusterId
+    file: golang/cluster_controller/cluster_controller_server/cluster_membership_id_mint_test.go
+    symbol: TestLoadControllerState_DoesNotCoerceOpaqueClusterId
+    package: main
+    language: go
+    doc: "TestLoadControllerState_DoesNotCoerceOpaqueClusterId is the guard on the\n\"dragon's nostril\": loadControllerState must NOT rewrite an opaque (UUID)\nClusterId back to a domain shape. It defaults to the domain only when unset."
   - id: golang/cluster_controller/cluster_controller_server/component_catalog_test.go:TestArtifactToComponent
     file: golang/cluster_controller/cluster_controller_server/component_catalog_test.go
     symbol: TestArtifactToComponent
@@ -2533,6 +2569,12 @@ test_symbols:
     package: main
     language: go
     doc: "TestJoinAuthorization_ClusterIDMismatchDenied verifies that a join request\nthat claims the wrong cluster_id is denied with Allowed=false (not an error)."
+  - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinAuthorization_ClusterUIDValidatedWhenPresent
+    file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
+    symbol: TestJoinAuthorization_ClusterUIDValidatedWhenPresent
+    package: main
+    language: go
+    doc: "TestJoinAuthorization_ClusterUIDValidatedWhenPresent (A6-final): with a\ncorrectly-bound token, a FORWARDED cluster_uid (req.ClusterUID) must still\nequal the minted UUID — the domain and any wrong value are rejected as\nidentity. This is the defense-in-depth check layered on top of the token\nbinding (unbound tokens are handled separately by the strict gate)."
   - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinAuthorization_ExpiredPlanFailsValidation
     file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
     symbol: TestJoinAuthorization_ExpiredPlanFailsValidation
@@ -2593,6 +2635,24 @@ test_symbols:
     package: main
     language: go
     doc: "TestJoinAuthorization_TamperedPlanFailsValidation checks that altering any\nfield after signing causes ValidateJoinPlan to reject the plan."
+  - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinAuthorization_TokenBoundToDifferentClusterDenied
+    file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
+    symbol: TestJoinAuthorization_TokenBoundToDifferentClusterDenied
+    package: main
+    language: go
+    doc: "TestJoinAuthorization_TokenBoundToDifferentClusterDenied (A6): a join token\nbound (at creation) to a DIFFERENT cluster's membership UUID is rejected — the\ntoken-bound identity is verified server-side and cannot be replayed cross-cluster."
+  - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinAuthorization_UnboundTokenAllowedBeforeInit
+    file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
+    symbol: TestJoinAuthorization_UnboundTokenAllowedBeforeInit
+    package: main
+    language: go
+    doc: "TestJoinAuthorization_UnboundTokenAllowedBeforeInit (A6-final): before the\ncluster is initialized (state.ClusterUID == \"\"), an unbound token is allowed —\nthe Day-0 bootstrap window is not steady-state auth\n(intent:bootstrap.window_is_not_steady_state_auth). The token secret and the\ngRPC interceptor remain the gates until the identity is minted. This is what\nlets founding nodes 2/3 join before the UUID exists."
+  - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinAuthorization_UnboundTokenDeniedAfterInit
+    file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
+    symbol: TestJoinAuthorization_UnboundTokenDeniedAfterInit
+    package: main
+    language: go
+    doc: "TestJoinAuthorization_UnboundTokenDeniedAfterInit (A6-final): once the cluster\nis initialized (state.ClusterUID set), a join token with NO membership binding\nis rejected. In production no legitimate token is unbound after init (config\ntoken bound at seed/reconcile + backfilled atomically at mint), so an unbound\ntoken reaching the gate is stale or forged."
   - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinAuthorization_UnknownAssignedProfileRejected
     file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
     symbol: TestJoinAuthorization_UnknownAssignedProfileRejected
@@ -2604,6 +2664,18 @@ test_symbols:
     package: main
     language: go
     doc: "TestJoinAuthorization_WrongNodeIdentityFailsValidation verifies that an\ninstaller with a different hostname than the plan expects is rejected."
+  - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinPlan_CarriesClusterUID
+    file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
+    symbol: TestJoinPlan_CarriesClusterUID
+    package: main
+    language: go
+    doc: "TestJoinPlan_CarriesClusterUID (A5): the issued plan carries the minted\nmembership UUID as its identity, distinct from the namespace ClusterID."
+  - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinPlan_ClusterUID_IsSigned
+    file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
+    symbol: TestJoinPlan_ClusterUID_IsSigned
+    package: main
+    language: go
+    doc: "TestJoinPlan_ClusterUID_IsSigned (A5): the membership UUID is covered by the\nEd25519 signature — tampering it must invalidate the plan."
   - id: golang/cluster_controller/cluster_controller_server/leader_ctx_test.go:TestDeployDispatchRespectsLeaderCtx
     file: golang/cluster_controller/cluster_controller_server/leader_ctx_test.go
     symbol: TestDeployDispatchRespectsLeaderCtx

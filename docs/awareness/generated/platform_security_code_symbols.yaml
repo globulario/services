@@ -295,6 +295,30 @@ test_symbols:
     package: security
     language: go
     doc: "TestIsMutatingRPC verifies the read/write classifier."
+  - id: golang/security/cluster_uid_test.go:TestClaims_ClusterUID_CoexistsWithClusterID
+    file: golang/security/cluster_uid_test.go
+    symbol: TestClaims_ClusterUID_CoexistsWithClusterID
+    package: security
+    language: go
+    doc: "TestClaims_ClusterUID_CoexistsWithClusterID: the additive membership-UUID claim\nround-trips and sits alongside the legacy domain cluster_id — dual-claim."
+  - id: golang/security/cluster_uid_test.go:TestClaims_ClusterUID_OmittedWhenEmpty
+    file: golang/security/cluster_uid_test.go
+    symbol: TestClaims_ClusterUID_OmittedWhenEmpty
+    package: security
+    language: go
+    doc: "TestClaims_ClusterUID_OmittedWhenEmpty: pre-mint clusters issue tokens with no\ncluster_uid (omitempty) — the additive claim never breaks issuance."
+  - id: golang/security/cluster_uid_test.go:TestGetLocalClusterUID_CacheHitIsNotDomain
+    file: golang/security/cluster_uid_test.go
+    symbol: TestGetLocalClusterUID_CacheHitIsNotDomain
+    package: security
+    language: go
+    doc: "TestGetLocalClusterUID_CacheHitIsNotDomain: a populated cache returns the\nminted UUID directly (no etcd) and is never the domain — the reader does not\nderive identity from a mutable attribute."
+  - id: golang/security/cluster_uid_test.go:TestValidateClusterMembership_UUIDOnlyFailClosed
+    file: golang/security/cluster_uid_test.go
+    symbol: TestValidateClusterMembership_UUIDOnlyFailClosed
+    package: security
+    language: go
+    doc: "TestValidateClusterMembership_UUIDOnlyFailClosed: membership is granted ONLY by\na matching minted UUID. Empty, mismatched, and — critically — the domain are\nall denied. The domain is never a membership credential."
   - id: golang/security/jwt_bootstrap_test.go:TestGetClientIdRejectsExternalBootstrapToken
     file: golang/security/jwt_bootstrap_test.go
     symbol: TestGetClientIdRejectsExternalBootstrapToken

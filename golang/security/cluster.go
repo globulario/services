@@ -15,57 +15,27 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// ClusterValidator provides cluster ID validation for cross-cluster security.
-// Prevents nodes from one cluster from impersonating nodes in another cluster.
+// ClusterValidator caches the local cluster's NAMESPACE identifier (the domain,
+// via config.GetDomain) for GetLocalClusterID — the value emitted as cluster_id
+// metadata to scope requests. It is NOT the membership credential: cross-cluster
+// impersonation is prevented by ValidateClusterMembership over the opaque minted
+// cluster UUID (see intent security.cluster_id_validates_request_origin).
 type ClusterValidator struct {
 	localClusterID string
 }
 
-// NewClusterValidator creates a new cluster validator with the local cluster ID.
+// NewClusterValidator creates a validator holding the local cluster NAMESPACE
+// identifier (the domain). This is the cluster_id scoping value, NOT the
+// membership credential — the opaque minted UUID (GetLocalClusterUID) is the
+// identity, validated by ValidateClusterMembership.
 func NewClusterValidator() (*ClusterValidator, error) {
-	// Get local cluster ID from config
-	// This should be a stable identifier for this cluster (e.g., domain, UUID, etc.)
 	domain, err := config.GetDomain()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get local domain for cluster validation: %w", err)
+		return nil, fmt.Errorf("failed to get local domain for cluster namespace: %w", err)
 	}
-
-	// For now, use domain as cluster ID
-	// In a multi-cluster setup, this would be a globally unique cluster UUID
 	return &ClusterValidator{
 		localClusterID: domain,
 	}, nil
-}
-
-// ValidateClusterID verifies that a claimed cluster ID matches the local cluster.
-// This prevents cross-cluster attacks where a node from cluster A tries to
-// access resources in cluster B by claiming to be a member.
-//
-// Parameters:
-//   - ctx: Request context (for future use with distributed config)
-//   - claimedClusterID: The cluster ID claimed by the requester
-//
-// Returns:
-//   - error: nil if validation passes, error describing the issue otherwise
-//
-// Security properties:
-//   - DENY if claimedClusterID is empty (no cluster ID provided)
-//   - DENY if claimedClusterID != localClusterID (cross-cluster attempt)
-//   - ALLOW if claimedClusterID == localClusterID (same cluster)
-func (cv *ClusterValidator) ValidateClusterID(ctx context.Context, claimedClusterID string) error {
-	// Empty cluster ID is not allowed
-	if claimedClusterID == "" {
-		return fmt.Errorf("cluster ID validation failed: no cluster ID provided")
-	}
-
-	// Check if claimed cluster matches local cluster
-	if claimedClusterID != cv.localClusterID {
-		return fmt.Errorf("cluster ID validation failed: claimed cluster %q does not match local cluster %q",
-			claimedClusterID, cv.localClusterID)
-	}
-
-	// Validation passed
-	return nil
 }
 
 // GetLocalClusterID returns the local cluster ID.
@@ -114,23 +84,6 @@ func getValidator() (*ClusterValidator, error) {
 	return refreshValidator()
 }
 
-// ValidateClusterID is a package-level convenience function that uses the
-// default cluster validator.
-//
-// LEGACY (domain-based request-origin check): cluster MEMBERSHIP is now validated
-// by the opaque minted UUID via ValidateClusterMembership, which the gRPC
-// interceptor enforces. This domain-origin validator has no production callers;
-// it is retained pending a paired removal that also updates the intent
-// security.cluster_id_validates_request_origin. Do NOT wire new membership checks
-// through it — use ValidateClusterMembership.
-func ValidateClusterID(ctx context.Context, claimedClusterID string) error {
-	cv, err := getValidator()
-	if err != nil {
-		return fmt.Errorf("failed to initialize cluster validator: %w", err)
-	}
-	return cv.ValidateClusterID(ctx, claimedClusterID)
-}
-
 // ValidateClusterMembership verifies cluster membership by the opaque membership
 // UUID — the ONLY membership credential. Fail-closed: a request is admitted iff
 // its claimed cluster_uid equals the local minted UUID. An empty claim, a
@@ -161,8 +114,8 @@ func GetLocalClusterID() (string, error) {
 	return cv.GetLocalClusterID(), nil
 }
 
-// InvalidateClusterValidator forces the next GetLocalClusterID / ValidateClusterID
-// call to re-read from config. Call this after changing the local domain.
+// InvalidateClusterValidator forces the next GetLocalClusterID call to re-read
+// from config. Call this after changing the local domain.
 func InvalidateClusterValidator() {
 	validatorMu.Lock()
 	validatorInst = nil
@@ -200,9 +153,9 @@ func OverrideLocalClusterID(t interface{ Cleanup(func()) }, clusterID string) {
 //
 // Identity-migration status: ACTIVE. This UUID is the sole membership credential —
 // ValidateClusterMembership (below) validates against it, fail-closed, and the
-// gRPC interceptor enforces it on every request. The domain-based ValidateClusterID
-// is legacy request-origin validation, retained only until the paired intent
-// (security.cluster_id_validates_request_origin) is updated to name the UUID gate.
+// gRPC interceptor enforces it on every request. The legacy domain-based
+// ValidateClusterID has been removed; the domain is namespace only. See intent
+// security.cluster_id_validates_request_origin.
 var (
 	clusterUIDMu  sync.RWMutex
 	clusterUIDVal string
