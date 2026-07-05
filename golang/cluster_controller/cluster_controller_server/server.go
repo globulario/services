@@ -1299,8 +1299,14 @@ func (srv *server) buildObjectStoreDesiredStateLocked() (*config.ObjectStoreDesi
 		domain = srv.state.ClusterNetworkSpec.ClusterDomain
 	}
 
+	// Distributed (erasure-coded) MinIO requires >= 2 pool nodes. But under a
+	// declared degraded StoragePolicy the cluster runs MinIO STANDALONE on each
+	// storage node (local S3 for the local backup-manager), never a distributed
+	// pool — a 1- or 2-node pool is split-brain-prone. The policy floor is the
+	// authority; a 2-node degraded cluster stays standalone
+	// (intent:degraded_is_explicit_not_hidden).
 	mode := config.ObjectStoreModeStandalone
-	if len(allowedPool) >= 2 {
+	if len(allowedPool) >= 2 && !storagePolicyCachedOrDurable().MinioStandalone() {
 		mode = config.ObjectStoreModeDistributed
 	}
 
