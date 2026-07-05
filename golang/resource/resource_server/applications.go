@@ -164,7 +164,7 @@ func (srv *server) deleteApplication(ctx context.Context, applicationId string) 
 
 	// I will remove all the access to the application, before removing the application.
 	srv.deleteAllAccess(token, applicationId, rbacpb.SubjectType_APPLICATION)
-	srv.deleteResourcePermissions(token,applicationId)
+	srv.deleteResourcePermissions(token, applicationId)
 
 	application := values.(map[string]interface{})
 
@@ -380,7 +380,7 @@ func (srv *server) getApplications(query string, options string) ([]*resourcepb.
 			}
 		}
 
-		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["name"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), PublisherID: values_["PublisherID"].(string), Version: values_["version"].(string), Actions: actions, Keywords: keywords}
+		application := &resourcepb.Application{Id: values_["_id"].(string), Uuid: Utility.ToString(values_["uuid"]), Name: values_["name"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), PublisherID: values_["PublisherID"].(string), Version: values_["version"].(string), Actions: actions, Keywords: keywords}
 
 		// TODO validate token...
 		application.Password = values_["password"].(string)
@@ -673,6 +673,7 @@ func (srv *server) save_application(ctx context.Context, app *resourcepb.Applica
 
 	application := make(map[string]interface{}, 0)
 	application["_id"] = app.Id
+	application["uuid"] = newPrincipalUUID() // opaque, immutable membership identity (additive)
 	application["name"] = app.Name
 	application["path"] = "/" + app.Name // The path must be the same as the application name.
 	application["PublisherID"] = app.PublisherID
@@ -699,7 +700,6 @@ func (srv *server) save_application(ctx context.Context, app *resourcepb.Applica
 
 	// Save the actual time.
 	application["last_deployed"] = time.Now().Unix() // save it as unix time.
-
 
 	// Here I will set the resource to manage the applicaiton access permission.
 	if err != nil {

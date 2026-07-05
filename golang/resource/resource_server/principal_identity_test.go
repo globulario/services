@@ -7,14 +7,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// TestNewAccountUUID_IsOpaqueRandomNotDerived is the Phase-3 regression guard for
-// the account MEMBERSHIP identity. The mint must be an opaque, random (v4) UUID —
-// never derived from a mutable attribute (name/email/domain). The exact deviation
-// this migration removes is someone "helpfully" changing the mint to
-// Utility.GenerateUUID(name) (a v3/MD5 hash of a mutable string), which would make
-// identity churn on rename and collide across renames.
-func TestNewAccountUUID_IsOpaqueRandomNotDerived(t *testing.T) {
-	a := newAccountUUID()
+// TestNewPrincipalUUID_IsOpaqueRandomNotDerived is the Phase-3 regression guard
+// for every resource principal's MEMBERSHIP identity (account/group/organization/
+// application/role — all mint through this one authority). The mint must be an
+// opaque, random (v4) UUID — never derived from a mutable attribute
+// (name/email/domain). The exact deviation this migration removes is someone
+// "helpfully" changing the mint to Utility.GenerateUUID(name) (a v3/MD5 hash of a
+// mutable string), which would make identity churn on rename and collide across
+// renames.
+func TestNewPrincipalUUID_IsOpaqueRandomNotDerived(t *testing.T) {
+	a := newPrincipalUUID()
 
 	// Must be a valid UUID.
 	parsed, err := uuid.Parse(a)
@@ -31,14 +33,14 @@ func TestNewAccountUUID_IsOpaqueRandomNotDerived(t *testing.T) {
 
 	// Must be opaque/unique per mint, i.e. NOT a deterministic function of any
 	// account attribute: two mints differ.
-	if b := newAccountUUID(); a == b {
+	if b := newPrincipalUUID(); a == b {
 		t.Errorf("account uuid must be unique per mint (opaque), got identical %q twice — that is a derived, not minted, identity", a)
 	}
 
 	// Guard the deviation directly: the derived form (GenerateUUID over a mutable
 	// attribute) is v3 and deterministic — prove the mint is NOT that.
 	derived := Utility.GenerateUUID("some-account-name")
-	if newAccountUUID() == derived {
+	if newPrincipalUUID() == derived {
 		t.Error("account uuid must never equal a name-derived GenerateUUID value")
 	}
 	if p, _ := uuid.Parse(derived); p.Version() == 4 {

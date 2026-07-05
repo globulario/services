@@ -384,7 +384,7 @@ func (srv *server) getRole(id string) (*resourcepb.Role, error) {
 	}
 
 	role := values.(map[string]interface{})
-	r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Actions: make([]string, 0)}
+	r := &resourcepb.Role{Id: role["_id"].(string), Uuid: Utility.ToString(role["uuid"]), Name: role["name"].(string), Actions: make([]string, 0)}
 
 	if role["domain"] != nil {
 		r.Domain = role["domain"].(string)

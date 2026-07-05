@@ -116,6 +116,11 @@ message Role {
   repeated string groups = 8; // Groups associated with this role.
 
   string typeName = 9; // Type name for object type identification.
+
+  // uuid is the role's opaque, immutable membership identity — minted once at
+  // creation, never derived from a mutable attribute (see Account.uuid). Distinct
+  // from `id` (a mutable handle). Additive during the identity migration.
+  string uuid = 10;
 }
 
 
@@ -351,6 +356,11 @@ message Application {
   int64 last_deployed = 14;            // Timestamp of the last deployment of the application.
 
   string typeName = 15;                // Type information about the object.
+
+  // uuid is the application's opaque, immutable membership identity — minted once
+  // at creation, never derived from a mutable attribute (see Account.uuid).
+  // Distinct from `id` (a mutable handle). Additive during the identity migration.
+  string uuid = 16;
 }
 
 /** Request to create or update an application. */
@@ -456,6 +466,11 @@ message Group {
   repeated string organizations = 7;// Organizations associated with the group, can be empty.
   repeated string roles = 8;        // List of roles assigned to the account.
   string typeName = 9;              // Type information about the object.
+
+  // uuid is the group's opaque, immutable membership identity — minted once at
+  // creation, never derived from a mutable attribute (see Account.uuid). Distinct
+  // from `id` (a mutable handle). Additive during the identity migration.
+  string uuid = 10;
 }
 
 /** Request to create a new group. */
@@ -551,6 +566,11 @@ message Organization {
   repeated string applications = 10;  // Applications developed or used by the organization.
 
   string typeName = 11;               // Type information about the object.
+
+  // uuid is the organization's opaque, immutable membership identity — minted
+  // once at creation, never derived from a mutable attribute (see Account.uuid).
+  // Distinct from `id` (a mutable handle). Additive during the identity migration.
+  string uuid = 12;
 }
 
 /** Request to create a new organization. */
