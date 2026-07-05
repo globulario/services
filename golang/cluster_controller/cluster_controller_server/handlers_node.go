@@ -63,6 +63,16 @@ func (srv *server) ListNodes(ctx context.Context, req *cluster_controllerpb.List
 		if node.EtcdJoinPhase != "" {
 			meta["etcd_join_phase"] = string(node.EtcdJoinPhase)
 		}
+		// Degraded etcd must be visible, never silently absorbed: a learner
+		// accepted for bootstrap progression under explicit two_node degraded
+		// policy is NOT a voter and NOT HA (intent:degraded_is_explicit_not_hidden).
+		if node.EtcdBootstrapDegraded {
+			meta["etcd_degraded"] = "true"
+			meta["etcd_ha"] = "false"
+			if node.EtcdDegradedReason != "" {
+				meta["etcd_degraded_reason"] = node.EtcdDegradedReason
+			}
+		}
 		if node.ScyllaJoinPhase != "" {
 			meta["scylla_join_phase"] = string(node.ScyllaJoinPhase)
 		}
