@@ -155,6 +155,11 @@ func (srv *server) startControllerRuntime(ctx context.Context, workers int) {
 	// and hidden_workflow.controller_node_removal_requests_queue_consumer).
 	engine.RegisterNodeRemoveControllerActions(defaultRouter, srv.buildNodeRemoveControllerConfig())
 	srv.actorServer.SetDefaultRouter(defaultRouter)
+	// Restart-safe per-run router rebuild: on a router miss the actor server
+	// reconstructs the correct per-run router (with the real dispatch generation)
+	// from the callback's self-describing inputs, instead of using the
+	// guard-disabled default router. See rebuildReleaseRouterFromInputs.
+	srv.actorServer.SetRouterRebuilder(srv.rebuildReleaseRouterFromInputs)
 
 	// Staggered initial enqueue: wait for readiness predicates to pass, then
 	// filter out already-converged services and enqueue in small batches.

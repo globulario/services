@@ -33,9 +33,24 @@ type ControllerActorServer struct {
 
 	mu      sync.RWMutex
 	routers map[string]*engine.Router // run_id or correlation_id → Router
-	// defaultRouter is used when no per-run router is registered (e.g. if the
-	// controller restarted mid-run). It should only contain safe no-op handlers.
+	// defaultRouter is a last-resort fallback for context-free actions when no
+	// per-run router is registered and none can be rebuilt. It must contain only
+	// safe handlers; it must NOT be used for a generation-guarded release write
+	// (that path rebuilds or refuses — see ExecuteAction).
 	defaultRouter *engine.Router
+	// rebuild reconstructs a per-run router from a callback's self-describing
+	// inputs when the in-memory registry lost it (controller restart/failover).
+	// Injected so the actor server stays decoupled from *server. Returns
+	// (router, isReleaseCallback) — see rebuildReleaseRouterFromInputs.
+	rebuild func(runID, inputsJSON string) (*engine.Router, bool)
+}
+
+// SetRouterRebuilder installs the per-run router rebuild function. Wired at
+// startup to srv.rebuildReleaseRouterFromInputs.
+func (s *ControllerActorServer) SetRouterRebuilder(fn func(runID, inputsJSON string) (*engine.Router, bool)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rebuild = fn
 }
 
 // NewControllerActorServer creates an actor server with an empty router registry.
@@ -71,22 +86,20 @@ func (s *ControllerActorServer) UnregisterRouter(id string) {
 	delete(s.routers, id)
 }
 
-func (s *ControllerActorServer) resolveRouter(runID string) *engine.Router {
+// resolvePerRunRouter returns the per-run router registered for this run (exact
+// or, for foreach sub-runs "parent[i]", the parent). It does NOT fall back to the
+// default router — callers decide fallback vs. rebuild vs. refuse.
+func (s *ControllerActorServer) resolvePerRunRouter(runID string) *engine.Router {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if r, ok := s.routers[runID]; ok {
 		return r
 	}
-	// Foreach sub-steps use suffixed run IDs like "parent-id[0]", "parent-id[1]".
-	// Fall back to the parent ID by stripping the bracket suffix.
 	if idx := strings.LastIndex(runID, "["); idx > 0 {
 		parent := runID[:idx]
 		if r, ok := s.routers[parent]; ok {
 			return r
 		}
-	}
-	if s.defaultRouter != nil {
-		return s.defaultRouter
 	}
 	return nil
 }
@@ -99,13 +112,39 @@ func (s *ControllerActorServer) ExecuteAction(ctx context.Context, req *workflow
 		return nil, fmt.Errorf("actor is required")
 	}
 
-	// Look up the per-run Router registered by the workflow runner.
-	router := s.resolveRouter(req.RunId)
+	// Look up the per-run Router registered by the workflow runner. On a miss
+	// (this controller restarted or failed over after dispatch, so the in-memory
+	// registry is gone), rebuild it from the callback's self-describing inputs so
+	// the per-run GENERATION GUARD is preserved. A release write whose generation
+	// cannot be recovered is REFUSED rather than written through a guard-disabled
+	// router — the run then fails and the reconcile backstop re-drives the release
+	// cleanly (fire-and-reconcile, never fire-and-pray).
+	router := s.resolvePerRunRouter(req.RunId)
 	if router == nil {
-		return &workflowpb.ExecuteActionResponse{
-			Ok:      false,
-			Message: fmt.Sprintf("controller: no router registered for run_id=%q", req.RunId),
-		}, nil
+		s.mu.RLock()
+		rebuild := s.rebuild
+		def := s.defaultRouter
+		s.mu.RUnlock()
+		var isRelease bool
+		if rebuild != nil {
+			router, isRelease = rebuild(req.RunId, req.InputsJson)
+		}
+		switch {
+		case router != nil:
+			s.RegisterRouter(req.RunId, router) // cache for the rest of this run's callbacks
+		case isRelease:
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("controller: no router for run_id=%q and dispatch generation unrecoverable — refusing guard-less release write (will be re-driven)", req.RunId),
+			}, nil
+		case def != nil:
+			router = def
+		default:
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("controller: no router registered for run_id=%q", req.RunId),
+			}, nil
+		}
 	}
 
 	handler, ok := router.Resolve(v1alpha1.ActorType(req.Actor), req.Action)

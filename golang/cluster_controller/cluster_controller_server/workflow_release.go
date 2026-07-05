@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -41,9 +42,7 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	if len(opts) > 0 {
 		dispatchGen = opts[0]
 	}
-	router := engine.NewRouter()
-	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfigWithGen(releaseName, pkgKind, dispatchGen))
-	engine.RegisterNodeDirectApplyActions(router, srv.buildNodeDirectApplyConfig())
+	router := srv.buildReleaseRouter(releaseName, pkgKind, dispatchGen)
 
 	nodesAny := make([]any, len(candidateNodes))
 	for i, n := range candidateNodes {
@@ -63,6 +62,13 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 		"resolved_entrypoint_checksum": resolvedEntrypointChecksum, // v1.2.119: BINARY sha256 for ExpectedSha256
 		"candidate_nodes":             nodesAny,
 		"max_parallel_nodes":          maxParallelNodesForKind(pkgKind),
+		// dispatch_generation makes every controller.release callback
+		// self-describing: it propagates into each step's ExecuteAction.Inputs
+		// (engine sets ActionRequest.Inputs = run.Inputs), so on a controller
+		// restart/failover where the in-memory per-run Router is gone, the actor
+		// service can rebuild the router with the CORRECT generation guard from
+		// the callback itself instead of falling back to a guard-disabled router.
+		"dispatch_generation": dispatchGen,
 	}
 
 	correlationID := releaseID
@@ -105,6 +111,60 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 		fmt.Sprintf("%s@%s %s in %s", pkgName, version, resp.Status, elapsed.Round(time.Millisecond)))
 
 	return resp, nil
+}
+
+// buildReleaseRouter constructs the per-run actor Router for a release workflow
+// at the given dispatch generation. Shared by RunPackageReleaseWorkflow (at
+// dispatch) and rebuildReleaseRouterFromInputs (on a router miss after a
+// controller restart/failover) so a rebuilt router carries the SAME generation
+// guard as the original — never a guard-disabled fallback.
+func (srv *server) buildReleaseRouter(releaseName, pkgKind string, dispatchGen int64) *engine.Router {
+	router := engine.NewRouter()
+	engine.RegisterReleaseControllerActions(router, srv.buildReleaseControllerConfigWithGen(releaseName, pkgKind, dispatchGen))
+	engine.RegisterNodeDirectApplyActions(router, srv.buildNodeDirectApplyConfig())
+	return router
+}
+
+// rebuildReleaseRouterFromInputs reconstructs a release run's per-run Router from
+// the self-describing callback inputs (run.Inputs, propagated into every
+// controller.release ExecuteAction). Returns (router, isReleaseCallback):
+//   - non-nil router when the inputs carry release_name AND dispatch_generation —
+//     the correct generation guard is restored on any controller instance after a
+//     restart/failover (and on orphan-resume, which previously used a
+//     guard-disabled router);
+//   - (nil, true) when it IS a release callback but dispatch_generation is
+//     unrecoverable — the caller MUST refuse the write rather than guard-lessly
+//     overwrite a possibly-newer generation (fire-and-reconcile);
+//   - (nil, false) when it is not a release callback (no release_name) — the
+//     caller may use the default router for context-free actions.
+func (srv *server) rebuildReleaseRouterFromInputs(runID, inputsJSON string) (*engine.Router, bool) {
+	if inputsJSON == "" {
+		return nil, false
+	}
+	var in map[string]any
+	if err := json.Unmarshal([]byte(inputsJSON), &in); err != nil {
+		return nil, false
+	}
+	releaseName, _ := in["release_name"].(string)
+	if strings.TrimSpace(releaseName) == "" {
+		return nil, false // not a release callback
+	}
+	pkgKind, _ := in["package_kind"].(string)
+	var gen int64
+	genOK := false
+	switch n := in["dispatch_generation"].(type) {
+	case float64:
+		gen, genOK = int64(n), true
+	case int64:
+		gen, genOK = n, true
+	case int:
+		gen, genOK = int64(n), true
+	}
+	if !genOK {
+		log.Printf("actor: release callback run_id=%s missing dispatch_generation — refusing guard-less rebuild", runID)
+		return nil, true
+	}
+	return srv.buildReleaseRouter(releaseName, pkgKind, gen), true
 }
 
 // publishWaveState announces wave-level progress on the release record. The
