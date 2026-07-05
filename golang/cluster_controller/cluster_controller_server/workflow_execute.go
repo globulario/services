@@ -89,8 +89,9 @@ func (srv *server) executeWorkflowCentralized(
 	inputs map[string]any,
 	router *engine.Router,
 ) (*workflowpb.ExecuteWorkflowResponse, error) {
-	if srv.workflowClient == nil {
-		return nil, fmt.Errorf("workflow service not configured (workflowClient is nil — check CLUSTER_WORKFLOW_SERVICE_ADDR or etcd service registry)")
+	wfClient := srv.getWorkflowClient()
+	if wfClient == nil {
+		return nil, fmt.Errorf("workflow service not reachable (no running instance in etcd service registry)")
 	}
 
 	// Health gate: block dispatch if workflow backend is under pressure.
@@ -150,7 +151,7 @@ func (srv *server) executeWorkflowCentralized(
 	log.Printf("workflow %s: dispatching to workflow service (callback=%s, correlation=%s)",
 		workflowName, controllerEndpoint, correlationID)
 
-	resp, err := srv.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
+	resp, err := wfClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
 		ClusterId:    srv.cfg.ClusterDomain,
 		WorkflowName: workflowName,
 		InputsJson:   string(inputsJSON),
@@ -212,8 +213,9 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 	inputs map[string]any,
 	router *engine.Router,
 ) (*workflowpb.ExecuteWorkflowResponse, error) {
-	if srv.workflowClient == nil {
-		return nil, fmt.Errorf("workflow service not configured (workflowClient is nil)")
+	wfClient := srv.getWorkflowClient()
+	if wfClient == nil {
+		return nil, fmt.Errorf("workflow service not reachable (no running instance)")
 	}
 
 	// Health gate: block dispatch if workflow backend is under pressure.
@@ -251,7 +253,7 @@ func (srv *server) executeWorkflowWithRunIDRouter(
 	srv.actorServer.RegisterRouter(correlationID, router)
 	defer srv.actorServer.UnregisterRouter(correlationID)
 
-	resp, err := srv.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
+	resp, err := wfClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
 		ClusterId:    srv.cfg.ClusterDomain,
 		WorkflowName: workflowName,
 		InputsJson:   string(inputsJSON),

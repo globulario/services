@@ -29,7 +29,6 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow"
-	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
@@ -255,10 +254,12 @@ type server struct {
 	// workflow trace recorder (fire-and-forget, nil-safe if unavailable)
 	workflowRec *workflow.Recorder
 
-	// workflowClient is used to delegate workflow execution to the
-	// centralized WorkflowService. Lazily connected via the same
-	// address resolver as workflowRec.
-	workflowClient workflowpb.WorkflowServiceClient
+	// Workflow execution is delegated to the centralized WorkflowService via
+	// getWorkflowClient() (workflow_client.go), which re-resolves per call and
+	// fails over to a healthy instance. wfConns caches direct-dial connections
+	// keyed by address; wfMu guards it.
+	wfMu    sync.Mutex
+	wfConns map[string]*grpc.ClientConn
 
 	// actorServer handles workflow callbacks from the centralized
 	// WorkflowService. Per-run Routers are registered before each
@@ -549,64 +550,11 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	}
 	srv.workflowRec = workflow.NewRecorderWithResolver(wfAddrResolver, clusterID)
 
-	// Create a WorkflowService client for centralized execution.
-	// Resolve the LOCAL workflow service from etcd registry (source of truth).
-	// The workflow service runs on every node — we always use the local
-	// instance so execution stays on this node. HA durability is handled by
-	// executor leases and orphan recovery, not by routing to remote instances.
-	//
-	// On cold boot (e.g. Docker quickstart), the workflow service may not be
-	// registered in etcd yet when the controller starts. Resolve lazily in
-	// a background goroutine so we don't permanently miss it.
-	go func() {
-		for attempt := 0; attempt < 60; attempt++ {
-			// Try local workflow service first (same node, avoids mesh routing).
-			wfAddr := config.ResolveLocalServiceAddr("workflow.WorkflowService")
-			if wfAddr == "" {
-				// Fallback: any workflow service in the cluster via DIRECT port
-				// (not mesh-routed through Envoy). The controller needs direct
-				// gRPC with mTLS+token auth which Envoy would strip.
-				if svcs, err := config.GetServicesConfigurationsByName("workflow.WorkflowService"); err == nil {
-					for _, s := range svcs {
-						addr, _ := s["Address"].(string)
-						addr = strings.TrimSpace(addr)
-						// Strip port suffix if embedded in address
-						if idx := strings.LastIndex(addr, ":"); idx > 0 {
-							addr = addr[:idx]
-						}
-						port := 0
-						if p, ok := s["Port"].(float64); ok {
-							port = int(p)
-						}
-						if addr != "" && port > 0 {
-							wfAddr = fmt.Sprintf("%s:%d", addr, port)
-							break
-						}
-					}
-				}
-			}
-			if wfAddr != "" {
-				dt := config.ResolveDialTarget(wfAddr)
-				log.Printf("cluster-controller: workflow client dialing %s (resolved from %s)", dt.Address, wfAddr)
-				dialOpts := []grpc.DialOption{
-					grpc.WithTransportCredentials(buildControllerClientTLSCreds(dt.ServerName)),
-					grpc.WithUnaryInterceptor(controllerTokenInterceptor(clusterID)),
-				}
-				if wfConn, err := grpc.NewClient(dt.Address, dialOpts...); err == nil {
-					srv.workflowClient = workflowpb.NewWorkflowServiceClient(wfConn)
-					log.Printf("cluster-controller: workflow client connected (attempt %d)", attempt+1)
-					return
-				} else {
-					log.Printf("cluster-controller: workflow client dial failed: %v", err)
-				}
-			}
-			if attempt == 0 {
-				log.Printf("cluster-controller: workflow service not yet in registry — will retry")
-			}
-			time.Sleep(5 * time.Second)
-		}
-		log.Printf("cluster-controller: WARNING — workflow client not available after 60 attempts")
-	}()
+	// The WorkflowService execution client is resolved lazily and per-call via
+	// getWorkflowClient() (workflow_client.go): it re-resolves from etcd, prefers
+	// a RUNNING instance on the local node, and fails over to a healthy remote
+	// instance via direct dial (never the Envoy mesh). No boot-time pin — a
+	// workflow instance that starts, dies, or moves is picked up on the next call.
 
 	// Subscribe to AI remediation events (operation.restart_requested).
 	// The consumer waits for the event client to become available, so

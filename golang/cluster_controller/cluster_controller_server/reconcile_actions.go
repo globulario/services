@@ -469,14 +469,15 @@ func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]ma
 // Used only when enableServiceRemoval=false, where unmanaged drift is
 // intentionally not remediated and would otherwise stick forever as noop.
 func (srv *server) clearUnmanagedDriftObservations(ctx context.Context) {
-	if srv.workflowClient == nil {
+	wfClient := srv.getWorkflowClient()
+	if wfClient == nil {
 		return
 	}
 	clusterID := strings.TrimSpace(srv.cfg.ClusterDomain)
 	if clusterID == "" {
 		return
 	}
-	resp, err := srv.workflowClient.ListDriftUnresolved(ctx, &workflowpb.ListDriftUnresolvedRequest{
+	resp, err := wfClient.ListDriftUnresolved(ctx, &workflowpb.ListDriftUnresolvedRequest{
 		ClusterId: clusterID,
 		DriftType: "unmanaged_package",
 		MinCycles: 1,
@@ -488,7 +489,7 @@ func (srv *server) clearUnmanagedDriftObservations(ctx context.Context) {
 		if item == nil || strings.TrimSpace(item.GetEntityRef()) == "" {
 			continue
 		}
-		_, _ = srv.workflowClient.ClearDriftObservation(ctx, &workflowpb.ClearDriftObservationRequest{
+		_, _ = wfClient.ClearDriftObservation(ctx, &workflowpb.ClearDriftObservationRequest{
 			ClusterId: clusterID,
 			DriftType: "unmanaged_package",
 			EntityRef: item.GetEntityRef(),
