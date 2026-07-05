@@ -116,9 +116,9 @@ func (srv *server) ensureSystemConfigKey(ctx context.Context, kv kvClient) {
 // untouched (never overwritten). Idempotent — safe to run on every Day-0 seed
 // pass (day0_day1_are_repeatable_ceremonies). Leader-only (caller-gated).
 //
-// This step is ADDITIVE: it makes the true identity exist and become readable.
-// It does NOT change any validation — membership auth still uses the domain
-// until the Phase-2 dual-accept airlock.
+// The minted UUID is the authoritative membership credential: the gRPC
+// interceptor validates it UUID-only (fail-closed), and once it exists the join
+// gate requires every token to be bound to it (see the token backfill below).
 func (srv *server) ensureClusterMembershipID(ctx context.Context, kv kvClient) {
 	resp, err := kv.Get(ctx, config.ClusterMembershipIDKey)
 	if err != nil {
@@ -142,9 +142,25 @@ func (srv *server) ensureClusterMembershipID(ctx context.Context, kv kvClient) {
 	// Cache the authoritative membership UUID into controller state so identity
 	// readers (join gate, membership records, GetClusterInfo) use it without a
 	// per-read etcd call. The domain is never a membership credential.
+	//
+	// In the SAME lock hold, backfill any join token that was seeded before the
+	// identity existed (the config token is seeded at startup/reconcile, which on
+	// true Day-0 runs before this mint). Binding those tokens to the minted UUID
+	// here — atomically with setting state.ClusterUID — guarantees the join gate
+	// never observes an initialized cluster (ClusterUID set) holding an unbound
+	// token. This is what makes the gate's strict "unbound denied after init"
+	// safe: there is no window where ClusterUID is set but a legitimate token is
+	// still unbound. Mint-once identity → bind-once here; idempotent.
 	srv.lock("ensureClusterMembershipID")
-	if srv.state != nil && srv.state.ClusterUID != id {
-		srv.state.ClusterUID = id
+	if srv.state != nil {
+		if srv.state.ClusterUID != id {
+			srv.state.ClusterUID = id
+		}
+		for _, jt := range srv.state.JoinTokens {
+			if jt != nil && strings.TrimSpace(jt.ClusterUID) == "" {
+				jt.ClusterUID = id
+			}
+		}
 	}
 	srv.unlock()
 }

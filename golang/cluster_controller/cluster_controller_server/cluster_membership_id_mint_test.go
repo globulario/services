@@ -98,6 +98,34 @@ func TestEnsureClusterMembershipID_PopulatesState(t *testing.T) {
 	}
 }
 
+// TestEnsureClusterMembershipID_BackfillsUnboundTokens: minting the identity
+// binds — atomically with caching state.ClusterUID under one lock hold — any join
+// token that was seeded before the identity existed (the config token is seeded
+// pre-mint on Day-0). This closes the window that would otherwise let an
+// initialized cluster hold an unbound token, which the strict join gate rejects.
+// A token already bound (even to a different value) is NEVER silently rebound —
+// that would be a cross-cluster hijack.
+func TestEnsureClusterMembershipID_BackfillsUnboundTokens(t *testing.T) {
+	state := newControllerState()
+	state.JoinTokens["cfg-tok"] = &joinTokenRecord{Token: "cfg-tok"}                          // unbound (pre-mint seed)
+	state.JoinTokens["foreign"] = &joinTokenRecord{Token: "foreign", ClusterUID: "keep-me-9"} // already bound
+	srv := newTestServer(t, state)
+	kv := &fakeMintKV{} // empty store → mint fresh
+
+	srv.ensureClusterMembershipID(context.Background(), kv)
+
+	minted := srv.state.ClusterUID
+	if minted == "" {
+		t.Fatal("expected a minted membership UUID cached into state")
+	}
+	if got := srv.state.JoinTokens["cfg-tok"].ClusterUID; got != minted {
+		t.Errorf("unbound token was not backfilled: ClusterUID=%q, want minted %q", got, minted)
+	}
+	if got := srv.state.JoinTokens["foreign"].ClusterUID; got != "keep-me-9" {
+		t.Errorf("an already-bound token must not be rebound (hijack guard): got %q, want keep-me-9", got)
+	}
+}
+
 // TestLoadControllerState_DoesNotCoerceOpaqueClusterId is the guard on the
 // "dragon's nostril": loadControllerState must NOT rewrite an opaque (UUID)
 // ClusterId back to a domain shape. It defaults to the domain only when unset.

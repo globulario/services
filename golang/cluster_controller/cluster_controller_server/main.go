@@ -179,9 +179,10 @@ func main() {
 		}
 		if existing := state.JoinTokens[tok]; existing == nil || existing.Uses >= existing.MaxUses {
 			state.JoinTokens[tok] = &joinTokenRecord{
-				Token:     tok,
-				ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7-day bootstrap window
-				MaxUses:   100,                                // allow many join attempts (multi-node cluster)
+				Token:      tok,
+				ExpiresAt:  time.Now().Add(7 * 24 * time.Hour), // 7-day bootstrap window
+				MaxUses:    100,                                // allow many join attempts (multi-node cluster)
+				ClusterUID: state.ClusterUID,                  // bind to membership identity if already known (restart of an initialized cluster); empty on true Day-0, rebound at mint
 			}
 			if err := state.save(*statePath); err != nil {
 				logger.Warn("failed to persist seeded join token", "err", err)

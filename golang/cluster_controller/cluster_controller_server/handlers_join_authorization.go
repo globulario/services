@@ -123,19 +123,30 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 		}
 	}
 
-	// Membership identity gate (A6): the cluster identity is the minted UUID
-	// (state.ClusterUID), never the domain. The join carries it two ways and both
-	// are VERIFIED when present:
-	//   - the token is BOUND to it at creation (jt.ClusterUID, server-side/unspoofable)
-	//   - the installer FORWARDS it (req.ClusterUID, from CreateJoinToken/JoinPlan)
-	// Once initialized, a token bound to a DIFFERENT cluster, or a forwarded value
-	// that doesn't match (e.g. the domain), is rejected. A token with NO binding and
-	// no forwarded value is allowed through — the token secret + the gRPC interceptor
-	// remain the gates — so multi-node bootstrap, whose founding seed tokens predate
-	// the minted identity, is not broken. Strict "missing denied after init" follows
-	// once all bootstrap-seed tokens are guaranteed bound post-mint.
+	// Membership identity gate (A6-final): the cluster identity is the minted UUID
+	// (state.ClusterUID), never the domain. Once the cluster is INITIALIZED
+	// (ClusterUID set), EVERY join token must be bound to it:
+	//   - unbound token (jt.ClusterUID == "") is REJECTED — no legitimate token is
+	//     unbound after init. The config token is bound at seed/reconcile and
+	//     backfilled atomically at mint (ensureClusterMembershipID), so an unbound
+	//     token here is stale or forged.
+	//   - a token bound to a DIFFERENT cluster is REJECTED (jt.ClusterUID is
+	//     server-side / unspoofable).
+	//   - a FORWARDED value that doesn't match (e.g. the domain) is REJECTED.
+	// BEFORE init (ClusterUID == "") the token secret + the gRPC interceptor are
+	// the gates and unbound is expected — the Day-0 bootstrap window is not
+	// steady-state auth (intent:bootstrap.window_is_not_steady_state_auth). This
+	// does not weaken founding-quorum join: the mint backfill binds the founding
+	// config token atomically with ClusterUID, so nodes 2/3 present a bound token.
 	if srv.state.ClusterUID != "" {
-		if jt.ClusterUID != "" && jt.ClusterUID != srv.state.ClusterUID {
+		if strings.TrimSpace(jt.ClusterUID) == "" {
+			srv.unlock()
+			return &JoinAuthorizationResponse{
+				Allowed:      false,
+				DeniedReason: "join token is not bound to the cluster membership identity",
+			}, nil
+		}
+		if jt.ClusterUID != srv.state.ClusterUID {
 			srv.unlock()
 			return &JoinAuthorizationResponse{
 				Allowed:      false,

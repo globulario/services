@@ -53,15 +53,27 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	// Re-seed the configured join token if it was cleaned up or never persisted.
 	// This makes the token durable across controller restarts and reconcile cycles.
 	if tok := strings.TrimSpace(srv.cfg.JoinToken); tok != "" {
-		if existing := srv.state.JoinTokens[tok]; existing == nil || existing.Uses >= existing.MaxUses {
-			if srv.state.JoinTokens == nil {
-				srv.state.JoinTokens = make(map[string]*joinTokenRecord)
-			}
+		if srv.state.JoinTokens == nil {
+			srv.state.JoinTokens = make(map[string]*joinTokenRecord)
+		}
+		existing := srv.state.JoinTokens[tok]
+		switch {
+		case existing == nil || existing.Uses >= existing.MaxUses:
+			// Fresh seed / re-seed after expiry or use-exhaustion: bind to the
+			// cluster membership identity. ClusterUID is set once Day-0 has
+			// minted it (this reconcile runs after the Day-0 seed loop), so the
+			// re-seeded token is born bound and passes the strict join gate.
 			srv.state.JoinTokens[tok] = &joinTokenRecord{
-				Token:     tok,
-				ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-				MaxUses:   100,
+				Token:      tok,
+				ExpiresAt:  time.Now().Add(7 * 24 * time.Hour),
+				MaxUses:    100,
+				ClusterUID: srv.state.ClusterUID,
 			}
+			stateDirty = true
+		case strings.TrimSpace(existing.ClusterUID) == "" && srv.state.ClusterUID != "":
+			// Rebind a token that was seeded before the identity was minted
+			// (belt-and-suspenders; the Day-0 mint backfill already covers this).
+			existing.ClusterUID = srv.state.ClusterUID
 			stateDirty = true
 		}
 	}
