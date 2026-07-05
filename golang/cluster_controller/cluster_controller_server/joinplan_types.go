@@ -12,8 +12,12 @@ import "time"
 type JoinPlan struct {
 	// JoinID is a unique identifier for this authorization.
 	JoinID string `json:"join_id"`
-	// ClusterID is the cluster this plan is valid for.
+	// ClusterID is the cluster DNS/namespace value this plan is valid for.
 	ClusterID string `json:"cluster_id"`
+	// ClusterUID is the opaque cluster MEMBERSHIP identity (the minted UUID from
+	// /globular/system/cluster/id). SIGNED as part of the plan. Distinct from
+	// ClusterID (namespace) — the installer uses this to prove cluster membership.
+	ClusterUID string `json:"cluster_uid,omitempty"`
 	// ControllerGeneration is the controller state generation at issuance.
 	ControllerGeneration int64 `json:"controller_generation"`
 	// IssuedAt is when the plan was signed.
@@ -97,9 +101,13 @@ type JoinAuthorizationRequest struct {
 	DiskBytes uint64 `json:"disk_bytes,omitempty"`
 	// InstallerVersion is the version/build of the installer making this request.
 	InstallerVersion string `json:"installer_version,omitempty"`
-	// ClusterID is the cluster ID the installer believes it is joining.
-	// The controller rejects the request if this does not match the cluster.
+	// ClusterID is the cluster DNS/namespace value the installer believes it is
+	// joining. The controller rejects the request if this does not match.
 	ClusterID string `json:"cluster_id,omitempty"`
+	// ClusterUID is the opaque cluster MEMBERSHIP identity the installer presents
+	// (learned from a prior JoinPlan / the operator). When present it is validated
+	// against the minted UUID; the domain is never a valid identity here.
+	ClusterUID string `json:"cluster_uid,omitempty"`
 	// Nonce is a caller-generated unique request ID for idempotency tracking.
 	Nonce string `json:"nonce"`
 	// RequestedProfiles is an operator preference (e.g. from `join --profiles`).

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"google.golang.org/grpc/metadata"
 )
 
 // ClusterValidator provides cluster ID validation for cross-cluster security.
@@ -123,6 +124,27 @@ func ValidateClusterID(ctx context.Context, claimedClusterID string) error {
 	return cv.ValidateClusterID(ctx, claimedClusterID)
 }
 
+// ValidateClusterMembership verifies cluster membership by the opaque membership
+// UUID — the ONLY membership credential. Fail-closed: a request is admitted iff
+// its claimed cluster_uid equals the local minted UUID. An empty claim, a
+// mismatch, or an unavailable local UUID is denied — never fall back to the
+// domain, never fail open. The domain is NOT a membership credential; it remains
+// only the DNS/storage/workflow namespace (config.GetDomain()).
+func ValidateClusterMembership(claimedUID string) error {
+	if claimedUID == "" {
+		return fmt.Errorf("cluster membership validation failed: no cluster_uid provided")
+	}
+	localUID, err := GetLocalClusterUID()
+	if err != nil {
+		// Fail-closed: without the local minted identity we cannot verify membership.
+		return fmt.Errorf("cluster membership validation failed: local cluster uid unavailable: %w", err)
+	}
+	if claimedUID != localUID {
+		return fmt.Errorf("cluster membership validation failed: cluster_uid mismatch")
+	}
+	return nil
+}
+
 // GetLocalClusterID returns the local cluster ID using the default validator.
 func GetLocalClusterID() (string, error) {
 	cv, err := getValidator()
@@ -159,4 +181,69 @@ func OverrideLocalClusterID(t interface{ Cleanup(func()) }, clusterID string) {
 		validatorMu.Unlock()
 		InvalidateClusterInitCache()
 	})
+}
+
+// ── Cluster membership UUID (opaque identity) — read-through cache ────────────
+//
+// The membership UUID is minted once by the controller into
+// /globular/system/cluster/id (config.ClusterMembershipIDKey) and is IMMUTABLE,
+// so once read it is cached for the life of the process. This is the cluster's
+// opaque MEMBERSHIP identity — deliberately NOT the domain (config.GetDomain()
+// remains the DNS/storage/workflow namespace).
+//
+// Identity-migration status: ADDITIVE. This reader makes the true identity
+// readable; it does not yet drive any validation (membership auth still uses the
+// domain until the Phase-2 dual-accept airlock).
+var (
+	clusterUIDMu  sync.RWMutex
+	clusterUIDVal string
+)
+
+// GetLocalClusterUID returns the cluster's opaque membership UUID, read from the
+// controller-owned authority (config.ReadClusterMembershipID). It NEVER derives
+// from, coerces, or defaults to the domain.
+//
+// Fail-closed: absence (config.ErrClusterMembershipIDAbsent) or a transport error
+// is returned and NOT cached, so a not-yet-minted cluster retries on the next
+// call until the controller mints it. A caller doing additive dual-emit must
+// treat an error as "omit the UUID" — NEVER as "fall back to the domain".
+func GetLocalClusterUID() (string, error) {
+	clusterUIDMu.RLock()
+	v := clusterUIDVal
+	clusterUIDMu.RUnlock()
+	if v != "" {
+		return v, nil
+	}
+	id, err := config.ReadClusterMembershipID(context.Background())
+	if err != nil {
+		return "", err
+	}
+	clusterUIDMu.Lock()
+	clusterUIDVal = id
+	clusterUIDMu.Unlock()
+	return id, nil
+}
+
+// AppendClusterUIDMetadata appends the opaque membership UUID (cluster_uid) to the
+// outgoing gRPC metadata when it has been minted, so EVERY internal caller carries
+// the membership badge — not just globular_client. Call it right after emitting
+// cluster_id so membership semantics never depend on the transport (mTLS) exemption.
+//
+// Best-effort and idempotent: omit on absence (never fall back to the domain),
+// skip if a cluster_uid is already set.
+func AppendClusterUIDMetadata(ctx context.Context) context.Context {
+	if md, ok := metadata.FromOutgoingContext(ctx); ok && len(md.Get("cluster_uid")) > 0 {
+		return ctx
+	}
+	if uid, err := GetLocalClusterUID(); err == nil && uid != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "cluster_uid", uid)
+	}
+	return ctx
+}
+
+// invalidateClusterUIDForTest resets the membership-UUID cache (tests only).
+func invalidateClusterUIDForTest() {
+	clusterUIDMu.Lock()
+	clusterUIDVal = ""
+	clusterUIDMu.Unlock()
 }

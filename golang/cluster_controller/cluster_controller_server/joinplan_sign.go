@@ -15,6 +15,7 @@ import (
 type joinPlanCanonical struct {
 	JoinID               string           `json:"join_id"`
 	ClusterID            string           `json:"cluster_id"`
+	ClusterUID           string           `json:"cluster_uid,omitempty"` // membership identity — signed
 	ControllerGeneration int64            `json:"controller_generation"`
 	IssuedAt             int64            `json:"issued_at_unix"`  // Unix seconds for determinism
 	ExpiresAt            int64            `json:"expires_at_unix"` // Unix seconds for determinism
@@ -40,6 +41,7 @@ func canonicalJoinPlanBytes(plan *JoinPlan) ([]byte, error) {
 	c := joinPlanCanonical{
 		JoinID:               plan.JoinID,
 		ClusterID:            plan.ClusterID,
+		ClusterUID:           plan.ClusterUID,
 		ControllerGeneration: plan.ControllerGeneration,
 		IssuedAt:             plan.IssuedAt.Unix(),
 		ExpiresAt:            plan.ExpiresAt.Unix(),

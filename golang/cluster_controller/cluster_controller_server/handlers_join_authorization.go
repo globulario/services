@@ -107,12 +107,34 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 	}
 
 	// Cluster identity gate: if the installer knows the cluster_id, it must match.
+	//
+	// Still namespace-based (state.ClusterId) BY DESIGN until A6: the installer
+	// learns the membership UUID only FROM the signed JoinPlan (issued after this
+	// authorization), so it cannot present the UUID here yet. A5 distributes the
+	// UUID via the JoinPlan; A6 then flips this gate to state.ClusterUID. The
+	// primary membership enforcement (the gRPC interceptor) is already UUID-only.
 	if callerClusterID := strings.TrimSpace(req.ClusterID); callerClusterID != "" {
 		if srv.state.ClusterId != "" && callerClusterID != srv.state.ClusterId {
 			srv.unlock()
 			return &JoinAuthorizationResponse{
 				Allowed:      false,
 				DeniedReason: fmt.Sprintf("cluster_id mismatch: request=%q cluster=%q", callerClusterID, srv.state.ClusterId),
+			}, nil
+		}
+	}
+
+	// Membership identity gate (A5/A6): if the installer presents a cluster_uid it
+	// MUST equal the minted membership UUID. The domain is not an identity, so a
+	// domain value here is a mismatch. This validates when present (a re-joining
+	// node carries the UUID from its prior signed JoinPlan) without breaking first
+	// join. A6 makes it REQUIRED (empty denied) once every installer receives the
+	// UUID via the JoinPlan.
+	if callerUID := strings.TrimSpace(req.ClusterUID); callerUID != "" {
+		if srv.state.ClusterUID != "" && callerUID != srv.state.ClusterUID {
+			srv.unlock()
+			return &JoinAuthorizationResponse{
+				Allowed:      false,
+				DeniedReason: fmt.Sprintf("cluster_uid mismatch: request=%q cluster=%q", callerUID, srv.state.ClusterUID),
 			}, nil
 		}
 	}
@@ -210,7 +232,8 @@ func (srv *server) buildJoinPlan(jr *joinRequestRecord) (*JoinPlan, error) {
 
 	plan := &JoinPlan{
 		JoinID:               jr.RequestID,
-		ClusterID:            clusterID,
+		ClusterID:            clusterID,           // namespace (domain)
+		ClusterUID:           srv.state.ClusterUID, // membership identity (signed)
 		ControllerGeneration: generation,
 		IssuedAt:             time.Now(),
 		ExpiresAt:            time.Now().Add(joinPlanTTL),
