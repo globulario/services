@@ -353,4 +353,10 @@ var schemaCQLStatements = []string{
 // fresh clusters already have the column from the CREATE statements above.
 var schemaAlterStatements = []string{
 	`ALTER TABLE workflow.workflow_runs ADD inputs_json text`,
+	// last_progress_at distinguishes "executor process alive" (heartbeat_at)
+	// from "run is making step progress". A hung-but-heartbeating executor keeps
+	// heartbeat_at fresh while last_progress_at goes stale — the reaper uses this
+	// to recover runs that would otherwise sit in EXECUTING forever
+	// (workflow.hung_but_heartbeating_executor). See reapStaleRuns.
+	`ALTER TABLE workflow.executor_leases ADD last_progress_at bigint`,
 }

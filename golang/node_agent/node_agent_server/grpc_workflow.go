@@ -57,6 +57,23 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 		name = "node.join"
 	}
 
+	// Node-identity fence: a node-targeted workflow must execute only on its
+	// intended node. The controller stamps target_node_id when it dispatches to
+	// a specific node's agent; if present it MUST match this agent's own
+	// identity. A package meant for node X reaching node Y's agent (e.g. a
+	// mis-resolved or stale endpoint) is rejected here rather than silently
+	// installed on the wrong node — the action is attributed pointwise to the
+	// intended node (four_layer.workflow_actor_attribution_required;
+	// forbidden_fix:cross_instance_coupling_via_single_workflow_run). Absent
+	// target_node_id keeps older dispatchers working unchanged.
+	if tgt := strings.TrimSpace(req.GetInputs()["target_node_id"]); tgt != "" && srv.nodeID != "" && tgt != srv.nodeID {
+		return &node_agentpb.RunWorkflowResponse{
+			Status: "FAILED",
+			Error: fmt.Sprintf("node-identity fence: workflow %q targeted node %s but this agent is node %s",
+				name, tgt, srv.nodeID),
+		}, nil
+	}
+
 	// Synthetic workflows: simple actions that don't need a YAML definition.
 	switch name {
 	case "install-package":

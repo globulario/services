@@ -13,17 +13,31 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
 const createExecutorLeasesTableCQL = `
 CREATE TABLE IF NOT EXISTS workflow.executor_leases (
-    run_id       text PRIMARY KEY,
-    executor_id  text,
-    heartbeat_at bigint,
-    started_at   bigint
+    run_id           text PRIMARY KEY,
+    executor_id      text,
+    heartbeat_at     bigint,
+    started_at       bigint,
+    last_progress_at bigint
 )`
+
+// leaseHeartbeatInterval is how often an owning executor refreshes heartbeat_at.
+// A package var (not const) so tests can shorten it. Keep well under
+// orphanHeartbeatTimeout so a healthy executor never looks orphaned.
+var leaseHeartbeatInterval = 10 * time.Second
+
+// revokedExecutorID is the tombstone owner the reaper writes onto a hung run's
+// lease. It belongs to no live executor, so (a) the prior owner's heartbeat CAS
+// (IF executor_id = <prior>) fails and it stops, and (b) any orphan scanner sees
+// executor_id != self with a backdated heartbeat and claims the run for resume.
+const revokedExecutorID = "__reaper_revoked__"
 
 // ── Lease Manager ────────────────────────────────────────────────────────────
 
@@ -70,12 +84,14 @@ func (m *executorLeaseManager) ClaimRun(ctx context.Context, runID string) (bool
 	now := time.Now().UnixMilli()
 
 	// LWT: INSERT IF NOT EXISTS — only succeeds if no current owner.
+	// last_progress_at is seeded to now so a freshly-claimed run has a valid
+	// progress clock before its first step completes (see RecordProgress).
 	applied, err := sess.Query(`
-		INSERT INTO workflow.executor_leases (run_id, executor_id, heartbeat_at, started_at)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO workflow.executor_leases (run_id, executor_id, heartbeat_at, started_at, last_progress_at)
+		VALUES (?, ?, ?, ?, ?)
 		IF NOT EXISTS`,
-		runID, m.executorID, now, now,
-	).ScanCAS(nil, nil, nil, nil)
+		runID, m.executorID, now, now, now,
+	).ScanCAS(nil, nil, nil, nil, nil)
 
 	if err != nil {
 		return false, fmt.Errorf("claim run %s: %w", runID, err)
@@ -157,7 +173,7 @@ func (m *executorLeaseManager) ReleaseRun(runID string) {
 // heartbeatLoop updates the heartbeat_at timestamp every 10 seconds.
 // Stops when the context is cancelled (run completed or released).
 func (m *executorLeaseManager) heartbeatLoop(ctx context.Context, runID string) {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(leaseHeartbeatInterval)
 	defer ticker.Stop()
 
 	for {
@@ -196,6 +212,75 @@ func (m *executorLeaseManager) heartbeatLoop(ctx context.Context, runID string) 
 	}
 }
 
+// RecordProgress stamps last_progress_at=now for a run this executor owns.
+// Called on every step completion (executionRecorder.onStepDone) so the reaper
+// can distinguish an executor that is alive AND advancing steps from one that is
+// alive but hung (heartbeat fresh, no step progress). Best-effort and fenced by
+// executor ownership: a failed or non-owned update is logged, never fatal — a
+// missed stamp only makes the run look slightly staler, which the generous
+// progressDeadline absorbs. No-op when the ScyllaDB fence is unavailable.
+func (m *executorLeaseManager) RecordProgress(runID string) {
+	sess := m.srv.getSession()
+	if sess == nil {
+		return
+	}
+	now := time.Now().UnixMilli()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if _, err := sess.Query(`
+		UPDATE workflow.executor_leases SET last_progress_at = ?
+		WHERE run_id = ?
+		IF executor_id = ?`,
+		now, runID, m.executorID,
+	).WithContext(ctx).ScanCAS(nil); err != nil {
+		slog.Debug("executor lease: record progress failed",
+			"run_id", runID, "err", err)
+	}
+}
+
+// RevokeLease forces a run's lease to look orphaned so the orphan scanner
+// resumes it. The reaper calls this when an executor is alive (heartbeating) but
+// has made no step progress past the deadline — a hung-but-heartbeating executor
+// that neither the heartbeat check nor the normal orphan scan would recover.
+//
+// It tombstones the owner (executor_id = revokedExecutorID) and backdates the
+// heartbeat to 0, fenced on currentOwner so a lease that changed hands
+// concurrently is left alone (meta.competing_writers_must_converge_or_be_fenced).
+// After this: the prior owner's next heartbeat CAS fails and it stops; the orphan
+// scanner sees a stale, foreign lease and claims it via claimOrphan, which drives
+// ResumeRun. Resume then closes an all-terminal run (empty Execute → idempotent
+// FinishRun) or re-runs the remaining/RUNNING step (actors are idempotent).
+// Returns true if the revoke was applied (this run was still owned by currentOwner).
+func (m *executorLeaseManager) RevokeLease(runID, currentOwner string) (bool, error) {
+	sess := m.srv.getSession()
+	if sess == nil {
+		return false, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	applied, err := sess.Query(`
+		UPDATE workflow.executor_leases
+		SET executor_id = ?, heartbeat_at = ?
+		WHERE run_id = ?
+		IF executor_id = ?`,
+		revokedExecutorID, int64(0), runID, currentOwner,
+	).WithContext(ctx).ScanCAS(nil)
+	if err != nil {
+		return false, fmt.Errorf("revoke lease %s: %w", runID, err)
+	}
+	// If this executor happens to be the (local) owner, stop its heartbeat now
+	// rather than waiting for the CAS to fail on the next tick.
+	if applied {
+		m.mu.Lock()
+		if cancel, ok := m.ownedRuns[runID]; ok {
+			cancel()
+			delete(m.ownedRuns, runID)
+		}
+		m.mu.Unlock()
+	}
+	return applied, nil
+}
+
 // ── Orphan Scanner ───────────────────────────────────────────────────────────
 
 const (
@@ -221,6 +306,7 @@ func (m *executorLeaseManager) StartOrphanScanner(ctx context.Context) {
 				return
 			case <-ticker.C:
 				m.scanAndClaimOrphans(ctx)
+				m.scanAndClaimUnleasedRuns(ctx)
 			}
 		}
 	}()
@@ -337,12 +423,15 @@ func (m *executorLeaseManager) claimOrphan(ctx context.Context, runID string, st
 	now := time.Now().UnixMilli()
 
 	// LWT: only succeed if heartbeat hasn't changed (no one else claimed it).
+	// Seed last_progress_at to now so the resuming executor starts with a fresh
+	// progress clock (the prior owner's stalled progress must not immediately
+	// re-trip the reaper against the new owner).
 	applied, err := sess.Query(`
 		UPDATE workflow.executor_leases
-		SET executor_id = ?, heartbeat_at = ?
+		SET executor_id = ?, heartbeat_at = ?, last_progress_at = ?
 		WHERE run_id = ?
 		IF heartbeat_at = ?`,
-		m.executorID, now, runID, staleHeartbeat,
+		m.executorID, now, now, runID, staleHeartbeat,
 	).ScanCAS(nil)
 
 	if err != nil {
@@ -359,4 +448,91 @@ func (m *executorLeaseManager) claimOrphan(ctx context.Context, runID string, st
 	}
 
 	return applied, nil
+}
+
+// runIsRecoverableWhenUnleased decides whether a run that currently has NO
+// executor lease should be claimed and driven to completion by any available
+// instance. Only RUN_STATUS_EXECUTING qualifies: it means "this run is supposed
+// to be running but nobody owns it" — the orphaned/stranded case. Terminal and
+// DEFERRED runs are done or parked; BLOCKED runs are intentionally waiting for
+// operator approval and MUST NOT be resumed. Pure so the policy is unit-testable.
+func runIsRecoverableWhenUnleased(status int) bool {
+	return workflowpb.RunStatus(status) == workflowpb.RunStatus_RUN_STATUS_EXECUTING
+}
+
+// scanAndClaimUnleasedRuns realises "any engine instance can load and progress
+// any run from shared state": it finds EXECUTING runs that have NO lease (the
+// stranded case — e.g. an executor that returned with FinishRun still failing,
+// whose deferred ReleaseRun then deleted the lease), claims each via the same
+// LWT fence as ClaimRun, and drives it through ResumeRun (close it if all steps
+// are already terminal, else re-run the remainder).
+//
+// This complements the orphan scanner (stale-lease) and the reaper (hung, fresh
+// lease): together they guarantee every EXECUTING run has exactly one live owner
+// or is recovered. A sync-executing run always holds a lease (ClaimRun precedes
+// StartRun), so it is never seen here — only genuinely unowned runs are claimed
+// (meta.competing_writers_must_converge_or_be_fenced).
+func (m *executorLeaseManager) scanAndClaimUnleasedRuns(ctx context.Context) {
+	if time.Now().Before(m.scanBackoffUntil) {
+		return
+	}
+	sess := m.srv.getSession()
+	if sess == nil {
+		return
+	}
+	scanCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	// Snapshot the set of run_ids that currently hold a lease. Any EXECUTING run
+	// NOT in this set is unowned.
+	leased := make(map[string]struct{})
+	lit := sess.Query(`SELECT run_id FROM workflow.executor_leases`).WithContext(scanCtx).Iter()
+	var leaseRunID string
+	for lit.Scan(&leaseRunID) {
+		leased[leaseRunID] = struct{}{}
+	}
+	if err := lit.Close(); err != nil {
+		slog.Warn("executor lease: unleased scan (lease list) error", "err", err)
+		return
+	}
+
+	rit := sess.Query(`SELECT id, status FROM workflow.workflow_runs LIMIT 500 ALLOW FILTERING`).
+		WithContext(scanCtx).Iter()
+	var (
+		runID   string
+		status  int
+		claimed int
+	)
+	for rit.Scan(&runID, &status) {
+		if !runIsRecoverableWhenUnleased(status) {
+			continue
+		}
+		if _, ok := leased[runID]; ok {
+			continue // owned — leave to heartbeat/orphan/reaper
+		}
+		ok, err := m.ClaimRun(ctx, runID)
+		if err != nil {
+			slog.Warn("executor lease: claim unleased run failed", "run_id", runID, "err", err)
+			continue
+		}
+		if !ok {
+			continue // another instance claimed it first
+		}
+		claimed++
+		slog.Info("executor lease: claimed unleased EXECUTING run, resuming", "run_id", runID)
+		go func(rID string) {
+			resumeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if err := m.srv.resumeOrphanedRun(resumeCtx, rID); err != nil {
+				slog.Warn("executor lease: unleased-run resume failed", "run_id", rID, "err", err)
+			}
+			m.ReleaseRun(rID)
+		}(runID)
+	}
+	if err := rit.Close(); err != nil {
+		slog.Warn("executor lease: unleased scan (runs) error", "err", err)
+	}
+	if claimed > 0 {
+		slog.Info("executor lease: recovered unleased EXECUTING runs", "claimed", claimed)
+	}
 }

@@ -660,18 +660,44 @@ func (srv *server) scanTelemetryAndEmit() {
 	}
 }
 
-// reapStaleRuns ensures every run has an explicit terminal outcome.
-// Runs stuck in non-terminal states past the deadline are marked FAILED
-// with reason "timeout". This prevents orphaned runs when the workflow
-// engine crashes before FinishRun is called.
-func (srv *server) reapStaleRuns() {
-	const staleThreshold = 15 * time.Minute
-	const sweepInterval = 5 * time.Minute
+// Reaper / liveness tunables. Package vars (not consts) so tests can shorten
+// them and future etcd config can override them; the defaults preserve prior
+// behavior. See reapStaleRuns.
+var (
+	// reaperStaleThreshold gates the FAILED backstop for runs with no live
+	// owner (no lease, or a dead/stale-heartbeat executor).
+	reaperStaleThreshold = 15 * time.Minute
+	// reaperSweepInterval is how often the reaper scans.
+	reaperSweepInterval = 5 * time.Minute
+	// reaperLeaseGracePeriod: a lease whose heartbeat is younger than this means
+	// the executor PROCESS is alive (half_done_must_not_look_done).
+	reaperLeaseGracePeriod = 2 * time.Minute
+	// reaperProgressDeadline: a run whose executor still heartbeats but has
+	// completed no step for this long is HUNG — alive process, no run progress.
+	// It is handed to resume (not failed). Must exceed the longest legitimate
+	// single step (large installs) so a slow-but-live step is not revoked
+	// (failure_mode:workflow.orphan_lease_slow_step_double_claim).
+	reaperProgressDeadline = 10 * time.Minute
+)
 
+// reapStaleRuns ensures every run reaches an explicit terminal outcome, and that
+// a hung-but-heartbeating executor cannot keep a run EXECUTING forever
+// (workflow.hung_but_heartbeating_executor / meta.half_done_must_not_look_done).
+//
+// Two distinct conditions, two distinct responses:
+//   - Executor alive (heartbeat fresh) but NOT progressing (last_progress_at
+//     stale past reaperProgressDeadline) → HUNG. Revoke the lease so the orphan
+//     scanner + ResumeRun recover the run — closing it if all steps are already
+//     terminal (only the terminal-close was lost), or re-running the remaining
+//     step. NOT marked FAILED: the run may actually be complete.
+//   - No live owner (no lease, or heartbeat stale past the grace period) and no
+//     progress past reaperStaleThreshold → mark FAILED. This is the backstop for
+//     runs the orphan scanner cannot resume.
+func (srv *server) reapStaleRuns() {
 	for {
 		sess := srv.getSession()
 		if sess == nil {
-			time.Sleep(sweepInterval)
+			time.Sleep(reaperSweepInterval)
 			continue
 		}
 
@@ -686,59 +712,126 @@ func (srv *server) reapStaleRuns() {
 			startedAt, updatedAt time.Time
 		)
 		now := time.Now()
-		reaped := 0
+		reaped, revoked := 0, 0
 		for iter.Scan(&id, &clusterID, &startedAt, &status, &updatedAt) {
 			s := workflowpb.RunStatus(status)
 			// Skip terminal statuses — they're done.
 			if isTerminalStatus(s) {
 				continue
 			}
-			lastActivity := updatedAt
-			if lastActivity.IsZero() {
-				lastActivity = startedAt
-			}
-			if now.Sub(lastActivity) < staleThreshold {
-				continue
-			}
 
-			// half_done_must_not_look_done: before marking a run FAILED,
-			// check whether an executor lease is still being heartbeated.
-			// A live executor may simply be slow — reaping it would create
-			// a split-brain between the reaper and the executor.
-			const leaseGracePeriod = 2 * time.Minute
-			var heartbeatAt int64
+			// Consult the executor lease: is the owner PROCESS alive, and is the
+			// RUN making step progress (last_progress_at, stamped per completed
+			// step) — not merely the process heartbeating?
+			var leaseOwner string
+			var heartbeatAt, lastProgressAt int64
+			haveLease := false
 			if err := sess.Query(
-				`SELECT heartbeat_at FROM workflow.executor_leases WHERE run_id = ?`, id,
-			).Scan(&heartbeatAt); err == nil {
-				leaseAge := time.Since(time.UnixMilli(heartbeatAt))
-				if leaseAge < leaseGracePeriod {
-					slog.Debug("reaper: skipping run with active executor lease",
-						"run_id", id, "lease_age", leaseAge)
-					continue
-				}
+				`SELECT executor_id, heartbeat_at, last_progress_at FROM workflow.executor_leases WHERE run_id = ?`, id,
+			).Scan(&leaseOwner, &heartbeatAt, &lastProgressAt); err == nil {
+				haveLease = true
 			}
 
-			// Mark as FAILED with timeout reason.
-			sess.Query(`
-				UPDATE workflow_runs SET status=?, failure_class=?, error_message=?, summary=?, finished_at=?, updated_at=?
-				WHERE cluster_id=? AND started_at=? AND id=?`,
-				int(workflowpb.RunStatus_RUN_STATUS_FAILED),
-				int(workflowpb.FailureClass_FAILURE_CLASS_UNKNOWN),
-				"timeout: no progress for "+staleThreshold.String(),
-				"Reaped by watchdog: run stuck in "+s.String(),
-				now, now,
-				clusterID, startedAt, id,
-			).Exec()
-			reaped++
+			switch reaperDecide(now, leaseLiveness{
+				present:        haveLease,
+				owner:          leaseOwner,
+				heartbeatAt:    heartbeatAt,
+				lastProgressAt: lastProgressAt,
+			}, updatedAt, startedAt) {
+			case reaperRevokeForResume:
+				// Hung: alive but no step progress past the deadline. Revoke the
+				// lease so the orphan scanner + ResumeRun recover the run (close
+				// if all steps terminal, else re-run remaining). NOT marked FAILED.
+				if srv.leaseManager != nil {
+					if ok, err := srv.leaseManager.RevokeLease(id, leaseOwner); err != nil {
+						slog.Warn("reaper: revoke hung lease failed", "run_id", id, "err", err)
+					} else if ok {
+						revoked++
+						slog.Warn("reaper: revoked hung-but-heartbeating executor lease for resume",
+							"run_id", id, "owner", leaseOwner,
+							"progress_age", now.Sub(time.UnixMilli(lastProgressAt)).String())
+					}
+				}
+			case reaperMarkFailed:
+				// No live owner and no progress past the threshold: FAILED backstop
+				// for runs the orphan scanner cannot resume.
+				sess.Query(`
+					UPDATE workflow_runs SET status=?, failure_class=?, error_message=?, summary=?, finished_at=?, updated_at=?
+					WHERE cluster_id=? AND started_at=? AND id=?`,
+					int(workflowpb.RunStatus_RUN_STATUS_FAILED),
+					int(workflowpb.FailureClass_FAILURE_CLASS_UNKNOWN),
+					"timeout: no progress for "+reaperStaleThreshold.String(),
+					"Reaped by watchdog: run stuck in "+s.String(),
+					now, now,
+					clusterID, startedAt, id,
+				).Exec()
+				reaped++
+			default:
+				// reaperSkip — alive+advancing, just-claimed, revoke-pending, or
+				// not yet stale. Leave the terminal outcome to the executor/resume.
+			}
 		}
 		iter.Close()
 
-		if reaped > 0 {
-			slog.Warn("reaped stale runs", "reaped", reaped, "threshold", staleThreshold)
+		if reaped > 0 || revoked > 0 {
+			slog.Warn("reaper: swept runs", "reaped_failed", reaped, "revoked_for_resume", revoked)
 		}
 
-		time.Sleep(sweepInterval)
+		time.Sleep(reaperSweepInterval)
 	}
+}
+
+// leaseLiveness is the executor-lease snapshot the reaper uses to decide a run's
+// fate. heartbeatAt/lastProgressAt are epoch-ms (0 = absent/unstamped).
+type leaseLiveness struct {
+	present        bool
+	owner          string
+	heartbeatAt    int64
+	lastProgressAt int64
+}
+
+type reaperVerdict int
+
+const (
+	reaperSkip reaperVerdict = iota
+	reaperRevokeForResume
+	reaperMarkFailed
+)
+
+// reaperDecide is the pure per-run decision, extracted so the liveness policy
+// (which is subtle and safety-critical) is unit-testable without ScyllaDB. It
+// encodes exactly two recoverable conditions plus skip:
+//
+//   - process alive (heartbeat fresh) but run not progressing (last_progress_at
+//     stale past reaperProgressDeadline) → RevokeForResume. lastProgressAt==0
+//     means "no progress signal yet" and is treated as working, never hung.
+//   - no live owner (no lease, or heartbeat stale) and no activity past
+//     reaperStaleThreshold → MarkFailed. A tombstoned (revoked) lease is
+//     resume-pending → Skip, never failed.
+//
+// Critically, an executor that is alive AND advancing — including a legitimately
+// SLOW step whose last_progress_at is still within the deadline — returns Skip,
+// which is what keeps this from re-triggering
+// failure_mode:workflow.orphan_lease_slow_step_double_claim.
+func reaperDecide(now time.Time, lease leaseLiveness, updatedAt, startedAt time.Time) reaperVerdict {
+	if lease.present && now.Sub(time.UnixMilli(lease.heartbeatAt)) < reaperLeaseGracePeriod {
+		if lease.lastProgressAt > 0 &&
+			now.Sub(time.UnixMilli(lease.lastProgressAt)) >= reaperProgressDeadline {
+			return reaperRevokeForResume
+		}
+		return reaperSkip
+	}
+	if lease.present && lease.owner == revokedExecutorID {
+		return reaperSkip
+	}
+	lastActivity := updatedAt
+	if lastActivity.IsZero() {
+		lastActivity = startedAt
+	}
+	if now.Sub(lastActivity) < reaperStaleThreshold {
+		return reaperSkip
+	}
+	return reaperMarkFailed
 }
 
 // isTerminalStatus returns true if the run status is a terminal outcome

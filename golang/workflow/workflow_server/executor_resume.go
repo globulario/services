@@ -201,6 +201,11 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 		OnStepDone: func(r *engine.Run, step *engine.StepState) {
 			slog.Info("resume: step done",
 				"run_id", runID, "step", step.ID, "status", string(step.Status))
+			// Keep the progress clock fresh while a resumed run advances, so a
+			// resume that itself hangs is recoverable on the same terms.
+			if srv.leaseManager != nil {
+				srv.leaseManager.RecordProgress(runID)
+			}
 		},
 	}
 

@@ -974,13 +974,20 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			resp, err := client.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
 				WorkflowName: "install-package",
 				Inputs: map[string]string{
-					"package_name":    name,
-					"version":         version,
-					"kind":            kind,
-					"build_id":        buildID,
-					"build_number":    strconv.FormatInt(buildNumber, 10),
-					"desired_hash":    desiredHash,
+					"package_name": name,
+					"version":      version,
+					"kind":         kind,
+					"build_id":     buildID,
+					"build_number": strconv.FormatInt(buildNumber, 10),
+					"desired_hash": desiredHash,
+					// Distinct hash schema from desired_hash — binary verify hash,
+					// never aliased (install_package.hash_schemas_must_not_alias).
 					"expected_sha256": expectedSha256,
+					// Node-identity fence: the receiving agent rejects this install
+					// unless it is node `nodeID` (see RunWorkflow). Guarantees
+					// "install on node X" runs only on node X even if the resolved
+					// endpoint is wrong (four_layer.workflow_actor_attribution_required).
+					"target_node_id": nodeID,
 				},
 			})
 			if err != nil {

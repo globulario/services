@@ -436,14 +436,36 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	// already persisted above with backoff fields; calling FinishRun
 	// here would overwrite the row without those fields.
 	if status != workflowpb.RunStatus_RUN_STATUS_DEFERRED {
-		if _, err := srv.FinishRun(ctx, &workflowpb.FinishRunRequest{
+		// The terminal close must survive (a) a cancelled/expired request context
+		// — under load the caller's ExecuteWorkflow deadline can elapse before the
+		// DAG finishes, and closing on that dead ctx silently fails — and (b) a
+		// transient ScyllaDB blip. Otherwise the run is stranded non-terminal
+		// (workflow.must_reach_terminal_state), which is exactly the hung-run
+		// symptom. FinishRun is idempotent (server.go terminal-status guard), so
+		// bounded retry on a FRESH context is safe. If every attempt fails, the
+		// reaper's progress-deadline path is the durable backstop.
+		finishReq := &workflowpb.FinishRunRequest{
 			Id:           runID,
 			ClusterId:    req.ClusterId,
 			Status:       status,
 			Summary:      summary,
 			ErrorMessage: errMsg,
-		}); err != nil {
-			logger.Warn("executor: failed to record run finish", "run_id", runID, "err", err)
+		}
+		var finishErr error
+		for attempt := 1; attempt <= 3; attempt++ {
+			fctx, fcancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_, finishErr = srv.FinishRun(fctx, finishReq)
+			fcancel()
+			if finishErr == nil {
+				break
+			}
+			logger.Warn("executor: FinishRun attempt failed, retrying",
+				"run_id", runID, "attempt", attempt, "err", finishErr)
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+		}
+		if finishErr != nil {
+			logger.Error("executor: FinishRun failed after retries — run left non-terminal for reaper to finalize",
+				"run_id", runID, "status", status.String(), "err", finishErr)
 		}
 	}
 
@@ -724,6 +746,14 @@ func (r *executionRecorder) onStepDone(run *engine.Run, step *engine.StepState) 
 	}); err != nil {
 		slog.Warn("executor: failed to record step",
 			"run_id", r.runID, "step", step.ID, "err", err)
+	}
+
+	// Stamp run progress on the executor lease. This is the signal that lets the
+	// reaper tell "alive and advancing" from "alive but hung": every completed
+	// step refreshes last_progress_at, so a run whose executor stops advancing
+	// (but keeps heartbeating) goes stale and becomes recoverable.
+	if r.srv.leaseManager != nil {
+		r.srv.leaseManager.RecordProgress(r.runID)
 	}
 }
 
