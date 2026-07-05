@@ -89,22 +89,6 @@ func ValidateResourceOwnership(ctx context.Context, resourcePath string, operati
 	}
 }
 
-// ValidateClusterMembership verifies that a node claiming cluster membership
-// actually belongs to the local cluster.
-//
-// Parameters:
-//   - ctx: Request context
-//   - clusterID: Cluster ID claimed by the node
-//
-// Returns:
-//   - error: nil if cluster ID matches local cluster, error otherwise
-//
-// This prevents cross-cluster attacks where node A from cluster X tries to
-// access resources in cluster Y.
-func ValidateClusterMembership(ctx context.Context, clusterID string) error {
-	return security.ValidateClusterID(ctx, clusterID)
-}
-
 // ValidateFilePath canonicalizes a file path and ensures it stays within
 // the allowed base directory.
 //

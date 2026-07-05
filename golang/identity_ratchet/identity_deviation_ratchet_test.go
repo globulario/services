@@ -13,6 +13,13 @@
 // any NEW violation, and on any STALE baseline entry (a file the migration
 // phases have since fixed), so the baseline can only shrink as Phases 1-4 land.
 //
+// Phase 1 (cluster membership identity → minted UUID) is COMPLETE: the
+// cluster_id-is-domain / isDomainLike-coercion classifiers were retired because
+// cluster_id is now the sanctioned namespace and identity moved to the opaque
+// minted ClusterUID. A forward guard (clusterUIDFromDomainRe) now watches the
+// identity field so it can never be re-derived from the domain. Remaining classes:
+// node_id from MAC/hostname (Phase 2) and service-instance id churn (Phase 4).
+//
 // Deliberately NOT flagged (content-addressing of immutable content is correct,
 // per invariant convergence.identity_is_build_id): GenerateUUID(publisher%name%
 // version) artifact keys, DNS record natural keys, cache keys. The regexes below
@@ -43,25 +50,26 @@ var serviceInstanceIDChurnRe = regexp.MustCompile(`GenerateUUID\(.*[Vv]ersion.*[
 //   uuid.NewSHA1(ns, "mac:"+mac) / "host:"+key  — controller + node-agent canonical
 var nodeIDFromMacRe = regexp.MustCompile(`GenerateUUID\([^)]*\.Mac\b|NewSHA1\([^)]*"(mac|host):`)
 
-// clusterIDIsDomainRe: cluster IDENTITY assigned from the mutable domain, or the
-// hardcoded "globular.internal" fallback shortcut that manufactures a value where
-// the authority is absent (the shortcut that HIDES the missing authority).
-var clusterIDIsDomainRe = regexp.MustCompile(
-	`(ClusterId|clusterID|localClusterID)\s*[:=]\s*[^=].*(GetDomain\(\)|DefaultClusterDomain\(\)|ClusterDomain\b)` +
-		`|(ClusterId|clusterID|ClusterID|domain)\s*=\s*"globular\.internal"`)
-
-// isDomainLikeCoercionRe: the state.go guard that force-overwrites a UUID cluster
-// id back to the domain — the first blocker to a minted-UUID cluster identity.
-var isDomainLikeCoercionRe = regexp.MustCompile(`isDomainLike\(`)
+// clusterUIDFromDomainRe: the FORWARD guard for the migrated cluster identity.
+// Phase 1 resolved cluster MEMBERSHIP identity into an opaque UUID minted once by
+// the controller (ClusterUID / /globular/system/cluster/id). cluster_id and
+// ClusterDomain are now the SANCTIONED namespace (DNS/storage/workflow) and are
+// deliberately NOT flagged — assigning cluster_id from the domain is the intended
+// design, not a deviation. What must never happen is the IDENTITY field being
+// derived from the mutable domain; that would re-open exactly the deviation
+// Phase 1 closed (and the isDomainLike coercion that used to do it is gone).
+// Expected matches: zero.
+var clusterUIDFromDomainRe = regexp.MustCompile(
+	`ClusterUID\s*[:=]\s*[^=].*(GetDomain\(\)|DefaultClusterDomain\(\)|ClusterDomain\b)` +
+		`|ClusterUID\s*[:=]\s*"globular\.internal"`)
 
 type idClass string
 
 const (
-	classServiceChurn idClass = "service_instance_id_churn"
-	classNodeMac      idClass = "node_id_from_mutable_attr"
-	classClusterDomain idClass = "cluster_id_is_domain_or_default_fallback"
-	classDomainCoerce idClass = "cluster_id_domain_coercion"
-	classOK           idClass = "ok"
+	classServiceChurn         idClass = "service_instance_id_churn"
+	classNodeMac              idClass = "node_id_from_mutable_attr"
+	classClusterUIDFromDomain idClass = "cluster_uid_derived_from_domain"
+	classOK                   idClass = "ok"
 )
 
 // classifyIdentityLine returns the violation class for one Go source line, or
@@ -76,10 +84,8 @@ func classifyIdentityLine(line string) idClass {
 		return classServiceChurn
 	case nodeIDFromMacRe.MatchString(l):
 		return classNodeMac
-	case isDomainLikeCoercionRe.MatchString(l):
-		return classDomainCoerce
-	case clusterIDIsDomainRe.MatchString(l):
-		return classClusterDomain
+	case clusterUIDFromDomainRe.MatchString(l):
+		return classClusterUIDFromDomain
 	}
 	return classOK
 }
@@ -110,20 +116,14 @@ var identityDeviationBaseline = map[string]string{
 	"golang/title/title_server/server.go":                        "service_instance_id_churn (Phase 4)",
 	"golang/torrent/torrent_server/server.go":                    "service_instance_id_churn (Phase 4)",
 	// Phase 2 — node_id derived from MAC/hostname (and resource/peers.go diverges v3/MD5):
-	"golang/node_agent/node_agent_server/identity/validation.go": "node_id_from_mutable_attr (Phase 2 — canonical scheme)",
-	"golang/resource/resource_server/peers.go":                   "node_id_from_mutable_attr (Phase 2 — DIVERGENT v3/MD5, primary fix)",
-	// Phase 1 — cluster_id = domain / "globular.internal" fallback / isDomainLike coercion:
-	"golang/cluster_controller/cluster_controller_server/server.go":                 "cluster_id_is_domain + node_id_from_mac (Phase 1/2)",
-	"golang/cluster_controller/cluster_controller_server/state.go":                  "cluster_id_is_domain + isDomainLike coercion (Phase 1 — first blocker)",
-	"golang/cluster_controller/cluster_controller_server/reconcile_nodes.go":        "cluster_id_is_domain (Phase 1)",
-	"golang/cluster_controller/cluster_controller_server/workflow_client.go":        "cluster_id_is_domain (Phase 1)",
-	"golang/cluster_controller/cluster_controller_server/workflow_execute.go":       "cluster_id_is_domain (Phase 1)",
-	"golang/dns/dns_client/dns_client.go":                                           "cluster_id_is_domain (Phase 1)",
-	"golang/globularcli/workflow_cmds.go":                                           "cluster_id_is_domain (Phase 1)",
-	"golang/mcp/tools_workflow.go":                                                  "cluster_id_is_domain (Phase 1)",
-	"golang/node_agent/node_agent_server/main.go":                                   "cluster_id_is_domain (Phase 1)",
-	"golang/node_agent/node_agent_server/scylla_manager_agent_config.go":            "cluster_id_is_domain fallback (Phase 1 — keep domain-seeded token, drop hardcoded fallback)",
-	"golang/workflow/workflow_server/import_day0.go":                                "cluster_id_is_domain (Phase 1)",
+	"golang/node_agent/node_agent_server/identity/validation.go":    "node_id_from_mutable_attr (Phase 2 — canonical scheme)",
+	"golang/resource/resource_server/peers.go":                      "node_id_from_mutable_attr (Phase 2 — DIVERGENT v3/MD5, primary fix)",
+	"golang/cluster_controller/cluster_controller_server/server.go": "node_id_from_mutable_attr (Phase 2 — cluster_id_is_domain retired: Phase 1 resolved, cluster_id is now sanctioned namespace)",
+	// Phase 1 — cluster membership identity → minted UUID: COMPLETE. The
+	// cluster_id_is_domain / isDomainLike-coercion classifiers were retired
+	// (cluster_id is now the sanctioned namespace; identity moved to the minted
+	// ClusterUID, guarded going forward by clusterUIDFromDomainRe). All former
+	// Phase-1-only baseline files dropped out as the class no longer exists.
 }
 
 func servicesRepoRoot(t *testing.T) string {
@@ -230,14 +230,14 @@ func TestClassifyIdentityLine(t *testing.T) {
 		{`node.NodeId = Utility.GenerateUUID(node.Mac)`, classNodeMac},
 		{`return uuid.NewSHA1(globularNodeIDNamespace, []byte("mac:"+mac)).String()`, classNodeMac},
 		{`return uuid.NewSHA1(ns, []byte("host:"+key)).String()`, classNodeMac},
-		{`return &ClusterValidator{localClusterID: domain}`, classOK}, // assigns from var 'domain', not GetDomain()/ClusterDomain
-		{`cv := &ClusterValidator{localClusterID: config.GetDomain()}`, classClusterDomain},
-		{`if cfg.ClusterDomain == "" { cfg.ClusterDomain = domain }`, classOK}, // domain is the DNS attribute here, legit
-		{`clusterID = "globular.internal"`, classClusterDomain},
-		{`if state.ClusterId == "" || !isDomainLike(state.ClusterId) {`, classDomainCoerce},
-		{`id := Utility.GenerateUUID(publisher + "%" + name + "%" + version)`, classOK}, // content-address, no Mac
-		{`key := Utility.GenerateUUID("A:" + domain)`, classOK}, // DNS record natural key
-		{`// srv.Id = GenerateUUID(Name + ":" + Version + ":" + Mac)`, classOK}, // comment
+		{`state.ClusterUID = config.GetDomain()`, classClusterUIDFromDomain},                   // identity must never be domain-derived
+		{`return &JoinPlan{ClusterUID: srv.cfg.ClusterDomain}`, classClusterUIDFromDomain},     // identity field from domain
+		{`state.ClusterId = netutil.DefaultClusterDomain()`, classOK},                          // cluster_id IS the sanctioned namespace now
+		{`clusterID = "globular.internal"`, classOK},                                           // namespace scoping value, not identity
+		{`cv := &ClusterValidator{localClusterID: config.GetDomain()}`, classOK},               // cluster_id namespace getter, not identity
+		{`id := Utility.GenerateUUID(publisher + "%" + name + "%" + version)`, classOK},        // content-address, no Mac
+		{`key := Utility.GenerateUUID("A:" + domain)`, classOK},                                // DNS record natural key
+		{`// state.ClusterUID = config.GetDomain()`, classOK},                                  // comment
 	}
 	for _, c := range cases {
 		if got := classifyIdentityLine(c.line); got != c.want {
