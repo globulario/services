@@ -1088,6 +1088,10 @@ type Role struct {
 	Organizations []string `protobuf:"bytes,7,rep,name=organizations,proto3" json:"organizations,omitempty"` // Organizations associated with this role.
 	Groups        []string `protobuf:"bytes,8,rep,name=groups,proto3" json:"groups,omitempty"`               // Groups associated with this role.
 	TypeName      string   `protobuf:"bytes,9,opt,name=typeName,proto3" json:"typeName,omitempty"`           // Type name for object type identification.
+	// uuid is the role's opaque, immutable membership identity — minted once at
+	// creation, never derived from a mutable attribute (see Account.uuid). Distinct
+	// from `id` (a mutable handle). Additive during the identity migration.
+	Uuid          string `protobuf:"bytes,10,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1181,6 +1185,13 @@ func (x *Role) GetGroups() []string {
 func (x *Role) GetTypeName() string {
 	if x != nil {
 		return x.TypeName
+	}
+	return ""
+}
+
+func (x *Role) GetUuid() string {
+	if x != nil {
+		return x.Uuid
 	}
 	return ""
 }
@@ -1469,7 +1480,7 @@ func (x *RemoveRolesActionRsp) GetResult() bool {
 // Represents an account with various attributes.
 type Account struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                         // Unique identifier of the account.
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                         // Mutable account handle (the login/username, used as the DB _id and, today, as the principal key). NOT the stable identity — see uuid.
 	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                     // Name associated with the account.
 	Email          string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`                   // Email of the account holder.
 	Password       string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`             // Encrypted password (only for non-OAuth accounts).
@@ -1484,6 +1495,13 @@ type Account struct {
 	Groups        []string `protobuf:"bytes,12,rep,name=groups,proto3" json:"groups,omitempty"`               // List of groups the account is part of.
 	Roles         []string `protobuf:"bytes,13,rep,name=roles,proto3" json:"roles,omitempty"`                 // List of roles assigned to the account.
 	TypeName      string   `protobuf:"bytes,14,opt,name=typeName,proto3" json:"typeName,omitempty"`           // Type of the account object, for internal use.
+	// uuid is the account's opaque, immutable MEMBERSHIP identity — minted once at
+	// registration, never derived from a mutable attribute (name/email/domain) and
+	// never reused. This is the stable identity the JWT subject, RBAC subject, and
+	// ownership/grant records will key on. Distinct from `id` (a mutable handle).
+	// Additive during the identity migration: minted and readable now; readers move
+	// to it in later phases. Empty only for pre-migration records.
+	Uuid          string `protobuf:"bytes,15,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1612,6 +1630,13 @@ func (x *Account) GetRoles() []string {
 func (x *Account) GetTypeName() string {
 	if x != nil {
 		return x.TypeName
+	}
+	return ""
+}
+
+func (x *Account) GetUuid() string {
+	if x != nil {
+		return x.Uuid
 	}
 	return ""
 }
@@ -3087,22 +3112,26 @@ func (x *DeleteRoleRsp) GetResult() bool {
 
 // * Represents an application with various attributes and metadata.
 type Application struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                           // Unique identifier of the application.
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                       // Name of the application.
-	Domain        string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`                                   // Domain associated with the application.
-	Password      string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`                               // Password for the application (if applicable).
-	Path          string                 `protobuf:"bytes,5,opt,name=path,proto3" json:"path,omitempty"`                                       // Path where the application is located or deployed.
-	Version       string                 `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`                                 // Version of the application.
-	Description   string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`                         // Description of the application.
-	Actions       []string               `protobuf:"bytes,8,rep,name=actions,proto3" json:"actions,omitempty"`                                 // List of actions associated with the application.
-	Keywords      []string               `protobuf:"bytes,9,rep,name=keywords,proto3" json:"keywords,omitempty"`                               // Keywords for categorizing or searching the application.
-	Icon          string                 `protobuf:"bytes,10,opt,name=icon,proto3" json:"icon,omitempty"`                                      // URL or path to the application's icon.
-	Alias         string                 `protobuf:"bytes,11,opt,name=alias,proto3" json:"alias,omitempty"`                                    // Alias for the application.
-	PublisherID   string                 `protobuf:"bytes,12,opt,name=PublisherID,proto3" json:"PublisherID,omitempty"`                        // Identifier of the publisher of the application.
-	CreationDate  int64                  `protobuf:"varint,13,opt,name=creation_date,json=creationDate,proto3" json:"creation_date,omitempty"` // Timestamp of the application's creation.
-	LastDeployed  int64                  `protobuf:"varint,14,opt,name=last_deployed,json=lastDeployed,proto3" json:"last_deployed,omitempty"` // Timestamp of the last deployment of the application.
-	TypeName      string                 `protobuf:"bytes,15,opt,name=typeName,proto3" json:"typeName,omitempty"`                              // Type information about the object.
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                           // Unique identifier of the application.
+	Name         string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                       // Name of the application.
+	Domain       string                 `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`                                   // Domain associated with the application.
+	Password     string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`                               // Password for the application (if applicable).
+	Path         string                 `protobuf:"bytes,5,opt,name=path,proto3" json:"path,omitempty"`                                       // Path where the application is located or deployed.
+	Version      string                 `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`                                 // Version of the application.
+	Description  string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`                         // Description of the application.
+	Actions      []string               `protobuf:"bytes,8,rep,name=actions,proto3" json:"actions,omitempty"`                                 // List of actions associated with the application.
+	Keywords     []string               `protobuf:"bytes,9,rep,name=keywords,proto3" json:"keywords,omitempty"`                               // Keywords for categorizing or searching the application.
+	Icon         string                 `protobuf:"bytes,10,opt,name=icon,proto3" json:"icon,omitempty"`                                      // URL or path to the application's icon.
+	Alias        string                 `protobuf:"bytes,11,opt,name=alias,proto3" json:"alias,omitempty"`                                    // Alias for the application.
+	PublisherID  string                 `protobuf:"bytes,12,opt,name=PublisherID,proto3" json:"PublisherID,omitempty"`                        // Identifier of the publisher of the application.
+	CreationDate int64                  `protobuf:"varint,13,opt,name=creation_date,json=creationDate,proto3" json:"creation_date,omitempty"` // Timestamp of the application's creation.
+	LastDeployed int64                  `protobuf:"varint,14,opt,name=last_deployed,json=lastDeployed,proto3" json:"last_deployed,omitempty"` // Timestamp of the last deployment of the application.
+	TypeName     string                 `protobuf:"bytes,15,opt,name=typeName,proto3" json:"typeName,omitempty"`                              // Type information about the object.
+	// uuid is the application's opaque, immutable membership identity — minted once
+	// at creation, never derived from a mutable attribute (see Account.uuid).
+	// Distinct from `id` (a mutable handle). Additive during the identity migration.
+	Uuid          string `protobuf:"bytes,16,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3238,6 +3267,13 @@ func (x *Application) GetLastDeployed() int64 {
 func (x *Application) GetTypeName() string {
 	if x != nil {
 		return x.TypeName
+	}
+	return ""
+}
+
+func (x *Application) GetUuid() string {
+	if x != nil {
+		return x.Uuid
 	}
 	return ""
 }
@@ -4168,6 +4204,10 @@ type Group struct {
 	Organizations []string               `protobuf:"bytes,7,rep,name=organizations,proto3" json:"organizations,omitempty"` // Organizations associated with the group, can be empty.
 	Roles         []string               `protobuf:"bytes,8,rep,name=roles,proto3" json:"roles,omitempty"`                 // List of roles assigned to the account.
 	TypeName      string                 `protobuf:"bytes,9,opt,name=typeName,proto3" json:"typeName,omitempty"`           // Type information about the object.
+	// uuid is the group's opaque, immutable membership identity — minted once at
+	// creation, never derived from a mutable attribute (see Account.uuid). Distinct
+	// from `id` (a mutable handle). Additive during the identity migration.
+	Uuid          string `protobuf:"bytes,10,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4261,6 +4301,13 @@ func (x *Group) GetRoles() []string {
 func (x *Group) GetTypeName() string {
 	if x != nil {
 		return x.TypeName
+	}
+	return ""
+}
+
+func (x *Group) GetUuid() string {
+	if x != nil {
+		return x.Uuid
 	}
 	return ""
 }
@@ -5033,11 +5080,15 @@ type Organization struct {
 	Icon        string                 `protobuf:"bytes,5,opt,name=icon,proto3" json:"icon,omitempty"`               // Icon representing the organization.
 	Description string                 `protobuf:"bytes,6,opt,name=description,proto3" json:"description,omitempty"` // Description of the organization.
 	// Aggregations
-	Accounts      []string `protobuf:"bytes,7,rep,name=accounts,proto3" json:"accounts,omitempty"`          // List of accounts associated with the organization.
-	Groups        []string `protobuf:"bytes,8,rep,name=groups,proto3" json:"groups,omitempty"`              // List of groups under the organization.
-	Roles         []string `protobuf:"bytes,9,rep,name=roles,proto3" json:"roles,omitempty"`                // List of roles defined within the organization.
-	Applications  []string `protobuf:"bytes,10,rep,name=applications,proto3" json:"applications,omitempty"` // Applications developed or used by the organization.
-	TypeName      string   `protobuf:"bytes,11,opt,name=typeName,proto3" json:"typeName,omitempty"`         // Type information about the object.
+	Accounts     []string `protobuf:"bytes,7,rep,name=accounts,proto3" json:"accounts,omitempty"`          // List of accounts associated with the organization.
+	Groups       []string `protobuf:"bytes,8,rep,name=groups,proto3" json:"groups,omitempty"`              // List of groups under the organization.
+	Roles        []string `protobuf:"bytes,9,rep,name=roles,proto3" json:"roles,omitempty"`                // List of roles defined within the organization.
+	Applications []string `protobuf:"bytes,10,rep,name=applications,proto3" json:"applications,omitempty"` // Applications developed or used by the organization.
+	TypeName     string   `protobuf:"bytes,11,opt,name=typeName,proto3" json:"typeName,omitempty"`         // Type information about the object.
+	// uuid is the organization's opaque, immutable membership identity — minted
+	// once at creation, never derived from a mutable attribute (see Account.uuid).
+	// Distinct from `id` (a mutable handle). Additive during the identity migration.
+	Uuid          string `protobuf:"bytes,12,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5145,6 +5196,13 @@ func (x *Organization) GetApplications() []string {
 func (x *Organization) GetTypeName() string {
 	if x != nil {
 		return x.TypeName
+	}
+	return ""
+}
+
+func (x *Organization) GetUuid() string {
+	if x != nil {
+		return x.Uuid
 	}
 	return ""
 }
@@ -8868,7 +8926,7 @@ const file_resource_proto_rawDesc = "" +
 	"\x1dFindPackagesDescriptorRequest\x12\x1a\n" +
 	"\bkeywords\x18\x01 \x03(\tR\bkeywords\"W\n" +
 	"\x1eFindPackagesDescriptorResponse\x125\n" +
-	"\aresults\x18\x01 \x03(\v2\x1b.resource.PackageDescriptorR\aresults\"\xf4\x01\n" +
+	"\aresults\x18\x01 \x03(\v2\x1b.resource.PackageDescriptorR\aresults\"\x88\x02\n" +
 	"\x04Role\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -8878,7 +8936,9 @@ const file_resource_proto_rawDesc = "" +
 	"\baccounts\x18\x06 \x03(\tR\baccounts\x12$\n" +
 	"\rorganizations\x18\a \x03(\tR\rorganizations\x12\x16\n" +
 	"\x06groups\x18\b \x03(\tR\x06groups\x12\x1a\n" +
-	"\btypeName\x18\t \x01(\tR\btypeName\"T\n" +
+	"\btypeName\x18\t \x01(\tR\btypeName\x12\x12\n" +
+	"\x04uuid\x18\n" +
+	" \x01(\tR\x04uuid\"T\n" +
 	"\x12AddRoleActionsRqst\x12$\n" +
 	"\x06roleId\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
 	"\x04role\x10\x01R\x06roleId\x12\x18\n" +
@@ -8894,7 +8954,7 @@ const file_resource_proto_rawDesc = "" +
 	"\x15RemoveRolesActionRqst\x12\x16\n" +
 	"\x06action\x18\x02 \x01(\tR\x06action\".\n" +
 	"\x14RemoveRolesActionRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x85\x03\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\x99\x03\n" +
 	"\aAccount\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -8910,7 +8970,8 @@ const file_resource_proto_rawDesc = "" +
 	"\rorganizations\x18\v \x03(\tR\rorganizations\x12\x16\n" +
 	"\x06groups\x18\f \x03(\tR\x06groups\x12\x14\n" +
 	"\x05roles\x18\r \x03(\tR\x05roles\x12\x1a\n" +
-	"\btypeName\x18\x0e \x01(\tR\btypeName\"m\n" +
+	"\btypeName\x18\x0e \x01(\tR\btypeName\x12\x12\n" +
+	"\x04uuid\x18\x0f \x01(\tR\x04uuid\"m\n" +
 	"\x13RegisterAccountRqst\x12+\n" +
 	"\aaccount\x18\x01 \x01(\v2\x11.resource.AccountR\aaccount\x12)\n" +
 	"\x10confirm_password\x18\x02 \x01(\tR\x0fconfirmPassword\",\n" +
@@ -8998,7 +9059,7 @@ const file_resource_proto_rawDesc = "" +
 	"\x06roleId\x18\x01 \x01(\tB\f\x8a\xb5\x18\b\n" +
 	"\x04role\x10\x01R\x06roleId\"'\n" +
 	"\rDeleteRoleRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\x9d\x03\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xb1\x03\n" +
 	"\vApplication\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -9015,7 +9076,8 @@ const file_resource_proto_rawDesc = "" +
 	"\vPublisherID\x18\f \x01(\tR\vPublisherID\x12#\n" +
 	"\rcreation_date\x18\r \x01(\x03R\fcreationDate\x12#\n" +
 	"\rlast_deployed\x18\x0e \x01(\x03R\flastDeployed\x12\x1a\n" +
-	"\btypeName\x18\x0f \x01(\tR\btypeName\"P\n" +
+	"\btypeName\x18\x0f \x01(\tR\btypeName\x12\x12\n" +
+	"\x04uuid\x18\x10 \x01(\tR\x04uuid\"P\n" +
 	"\x15CreateApplicationRqst\x127\n" +
 	"\vapplication\x18\x01 \x01(\v2\x15.resource.ApplicationR\vapplication\"\x16\n" +
 	"\x14CreateApplicationRsp\"j\n" +
@@ -9065,7 +9127,7 @@ const file_resource_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tB\x13\x8a\xb5\x18\x0f\n" +
 	"\vapplication\x10\x01R\x02id\".\n" +
 	"\x16GetApplicationAliasRsp\x12\x14\n" +
-	"\x05alias\x18\x01 \x01(\tR\x05alias\"\xed\x01\n" +
+	"\x05alias\x18\x01 \x01(\tR\x05alias\"\x81\x02\n" +
 	"\x05Group\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -9075,7 +9137,9 @@ const file_resource_proto_rawDesc = "" +
 	"\baccounts\x18\x06 \x03(\tR\baccounts\x12$\n" +
 	"\rorganizations\x18\a \x03(\tR\rorganizations\x12\x14\n" +
 	"\x05roles\x18\b \x03(\tR\x05roles\x12\x1a\n" +
-	"\btypeName\x18\t \x01(\tR\btypeName\"8\n" +
+	"\btypeName\x18\t \x01(\tR\btypeName\x12\x12\n" +
+	"\x04uuid\x18\n" +
+	" \x01(\tR\x04uuid\"8\n" +
 	"\x0fCreateGroupRqst\x12%\n" +
 	"\x05group\x18\x01 \x01(\v2\x0f.resource.GroupR\x05group\"(\n" +
 	"\x0eCreateGroupRsp\x12\x16\n" +
@@ -9125,7 +9189,7 @@ const file_resource_proto_rawDesc = "" +
 	"\x8a\xb5\x18\x06\n" +
 	"\x04roleR\x06roleId\",\n" +
 	"\x12RemoveGroupRoleRsp\x12\x16\n" +
-	"\x06result\x18\x01 \x01(\bR\x06result\"\xa0\x02\n" +
+	"\x06result\x18\x01 \x01(\bR\x06result\"\xb4\x02\n" +
 	"\fOrganization\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x12\n" +
@@ -9138,7 +9202,8 @@ const file_resource_proto_rawDesc = "" +
 	"\x05roles\x18\t \x03(\tR\x05roles\x12\"\n" +
 	"\fapplications\x18\n" +
 	" \x03(\tR\fapplications\x12\x1a\n" +
-	"\btypeName\x18\v \x01(\tR\btypeName\"T\n" +
+	"\btypeName\x18\v \x01(\tR\btypeName\x12\x12\n" +
+	"\x04uuid\x18\f \x01(\tR\x04uuid\"T\n" +
 	"\x16CreateOrganizationRqst\x12:\n" +
 	"\forganization\x18\x01 \x01(\v2\x16.resource.OrganizationR\forganization\"/\n" +
 	"\x15CreateOrganizationRsp\x12\x16\n" +

@@ -116,6 +116,11 @@ message Role {
   repeated string groups = 8; // Groups associated with this role.
 
   string typeName = 9; // Type name for object type identification.
+
+  // uuid is the role's opaque, immutable membership identity — minted once at
+  // creation, never derived from a mutable attribute (see Account.uuid). Distinct
+  // from `id` (a mutable handle). Additive during the identity migration.
+  string uuid = 10;
 }
 
 
@@ -151,7 +156,7 @@ message RemoveRolesActionRsp {
  * Represents an account with various attributes.
  */
 message Account {
-  string id = 1; // Unique identifier of the account.
+  string id = 1; // Mutable account handle (the login/username, used as the DB _id and, today, as the principal key). NOT the stable identity — see uuid.
   string name = 2; // Name associated with the account.
   string email = 3; // Email of the account holder.
   string password = 4; // Encrypted password (only for non-OAuth accounts).
@@ -168,6 +173,14 @@ message Account {
   repeated string roles = 13; // List of roles assigned to the account.
 
   string typeName = 14; // Type of the account object, for internal use.
+
+  // uuid is the account's opaque, immutable MEMBERSHIP identity — minted once at
+  // registration, never derived from a mutable attribute (name/email/domain) and
+  // never reused. This is the stable identity the JWT subject, RBAC subject, and
+  // ownership/grant records will key on. Distinct from `id` (a mutable handle).
+  // Additive during the identity migration: minted and readable now; readers move
+  // to it in later phases. Empty only for pre-migration records.
+  string uuid = 15;
 }
 
 message RegisterAccountRqst {
@@ -343,6 +356,11 @@ message Application {
   int64 last_deployed = 14;            // Timestamp of the last deployment of the application.
 
   string typeName = 15;                // Type information about the object.
+
+  // uuid is the application's opaque, immutable membership identity — minted once
+  // at creation, never derived from a mutable attribute (see Account.uuid).
+  // Distinct from `id` (a mutable handle). Additive during the identity migration.
+  string uuid = 16;
 }
 
 /** Request to create or update an application. */
@@ -448,6 +466,11 @@ message Group {
   repeated string organizations = 7;// Organizations associated with the group, can be empty.
   repeated string roles = 8;        // List of roles assigned to the account.
   string typeName = 9;              // Type information about the object.
+
+  // uuid is the group's opaque, immutable membership identity — minted once at
+  // creation, never derived from a mutable attribute (see Account.uuid). Distinct
+  // from `id` (a mutable handle). Additive during the identity migration.
+  string uuid = 10;
 }
 
 /** Request to create a new group. */
@@ -543,6 +566,11 @@ message Organization {
   repeated string applications = 10;  // Applications developed or used by the organization.
 
   string typeName = 11;               // Type information about the object.
+
+  // uuid is the organization's opaque, immutable membership identity — minted
+  // once at creation, never derived from a mutable attribute (see Account.uuid).
+  // Distinct from `id` (a mutable handle). Additive during the identity migration.
+  string uuid = 12;
 }
 
 /** Request to create a new organization. */
