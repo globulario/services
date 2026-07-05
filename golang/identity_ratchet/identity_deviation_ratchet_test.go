@@ -115,10 +115,14 @@ var identityDeviationBaseline = map[string]string{
 	"golang/storage/storage_server/server.go":                    "service_instance_id_churn (Phase 4)",
 	"golang/title/title_server/server.go":                        "service_instance_id_churn (Phase 4)",
 	"golang/torrent/torrent_server/server.go":                    "service_instance_id_churn (Phase 4)",
-	// Phase 2 — node_id derived from MAC/hostname (and resource/peers.go diverges v3/MD5):
-	"golang/node_agent/node_agent_server/identity/validation.go":    "node_id_from_mutable_attr (Phase 2 — canonical scheme)",
-	"golang/resource/resource_server/peers.go":                      "node_id_from_mutable_attr (Phase 2 — DIVERGENT v3/MD5, primary fix)",
-	"golang/cluster_controller/cluster_controller_server/server.go": "node_id_from_mutable_attr (Phase 2 — cluster_id_is_domain retired: Phase 1 resolved, cluster_id is now sanctioned namespace)",
+	// Phase 2 — node_id derivation: the DIVERGENCE is FIXED. resource/peers.go no
+	// longer fabricates a v3/MD5 id; the controller (deterministicNodeID), the node
+	// agent (StableNodeID) and the resource store all derive through the single
+	// nodeid authority, so a node maps to one id everywhere. The remaining deviation
+	// is that node_id is still derived from the mutable MAC/hostname rather than
+	// minted opaque + read through — now confined to ONE site for a later
+	// mint-random-node_id phase:
+	"golang/nodeid/nodeid.go": "node_id_from_mutable_attr (Phase 2 — SINGLE canonical authority; divergence fixed; mint-random-node_id is the remaining deviation, deferred)",
 	// Phase 1 — cluster membership identity → minted UUID: COMPLETE. The
 	// cluster_id_is_domain / isDomainLike-coercion classifiers were retired
 	// (cluster_id is now the sanctioned namespace; identity moved to the minted

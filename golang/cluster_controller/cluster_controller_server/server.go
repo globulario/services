@@ -27,8 +27,10 @@ import (
 	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/netutil"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/nodeid"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow"
+	"github.com/globulario/services/golang/nodeid"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -166,8 +168,8 @@ type server struct {
 	leaderCtx                  context.Context    // cancelled when leadership is lost
 	leaderCancel               context.CancelFunc // called by setLeader(false, ...)
 	leaderCtxMu                sync.Mutex         // guards leaderCtx/leaderCancel
-	resignCh                   chan struct{}       // signal leader election to resign
-	lastHeartbeatProcessed     atomic.Int64  // UnixNano of last successful ReportNodeStatus
+	resignCh                   chan struct{}      // signal leader election to resign
+	lastHeartbeatProcessed     atomic.Int64       // UnixNano of last successful ReportNodeStatus
 	reconcileRunning           atomic.Bool
 	clusterReconcileRunning    atomic.Bool
 	clusterReconcilePending    atomic.Bool
@@ -1047,27 +1049,15 @@ func (srv *server) observedUnitsForNode(nodeID string) []unitStatusRecord {
 	return append([]unitStatusRecord(nil), node.Units...)
 }
 
-// globularNodeIDNamespace is a fixed UUID v5 namespace for Globular node IDs.
-// Must match the same constant in identity/validation.go.
-var globularNodeIDNamespace = uuid.MustParse("a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d")
-
-// deterministicNodeID generates a stable UUID v5 from the node's identity.
-// Prefers MAC address (label "node.mac") for hardware-stable identity;
-// falls back to hostname + sorted IPs.
+// deterministicNodeID generates a stable UUID v5 from the node's identity via the
+// shared nodeid package — the single authority for the derivation scheme, shared
+// with the node agent (StableNodeID) and the resource store, so a node maps to one
+// id everywhere. Prefers MAC (label "node.mac"); falls back to hostname + IPs.
 func deterministicNodeID(identity storedIdentity, labels map[string]string) string {
-	// Prefer MAC address if provided (most stable across restores).
 	if mac := labels["node.mac"]; mac != "" {
-		return uuid.NewSHA1(globularNodeIDNamespace, []byte("mac:"+mac)).String()
+		return nodeid.FromMAC(mac)
 	}
-
-	// Fallback: hostname + sorted IPs.
-	parts := []string{identity.Hostname}
-	ips := make([]string, len(identity.Ips))
-	copy(ips, identity.Ips)
-	sort.Strings(ips)
-	parts = append(parts, ips...)
-	key := strings.Join(parts, "|")
-	return uuid.NewSHA1(globularNodeIDNamespace, []byte("host:"+key)).String()
+	return nodeid.FromHostAndIPs(identity.Hostname, identity.Ips)
 }
 
 const staleDuplicateNodeWindow = 90 * time.Second
