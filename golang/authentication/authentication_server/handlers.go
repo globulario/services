@@ -127,8 +127,9 @@ func (srv *server) RefreshToken(ctx context.Context, rqst *authenticationpb.Refr
 		return nil, logInternal("RefreshToken:tooOld", errors.New("the token cannot be refreshed after 7 days"))
 	}
 
-	tokenString, err := security.GenerateToken(
-		srv.SessionTimeout, claims.Issuer, claims.ID, claims.Username, claims.Email,
+	// Preserve the account's opaque membership identity across refresh.
+	tokenString, err := security.GenerateTokenWithAccountUUID(
+		srv.SessionTimeout, claims.Issuer, claims.ID, claims.Username, claims.Email, claims.AccountUUID,
 	)
 	if err != nil {
 		return nil, logInternal("RefreshToken:generate", err)
@@ -479,7 +480,9 @@ func (srv *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	sid := normalizeAccountId(account.Id)
 	session.AccountId = sid
 
-	tokenString, err := security.GenerateToken(srv.SessionTimeout, issuer, account.Id, account.Name, account.Email)
+	// Carry the account's opaque membership identity (Account.uuid) in the token —
+	// additive; authorization still uses account.Id until RBAC/storage dual-read.
+	tokenString, err := security.GenerateTokenWithAccountUUID(srv.SessionTimeout, issuer, account.Id, account.Name, account.Email, account.Uuid)
 	if err != nil {
 		return "", logInternal("authenticate:generate", err)
 	}

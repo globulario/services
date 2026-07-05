@@ -34,6 +34,7 @@ type AuthContext struct {
 	// Core identity (extracted from JWT claims)
 	ClusterID     string // Cluster identifier for cross-cluster validation
 	Subject       string // Identity: user/app/node (domain-independent, e.g. "dave", not "dave@localhost")
+	AccountUUID   string // Opaque account membership identity (Account.uuid) — additive; not yet used for authz. Empty for non-account/pre-migration principals.
 	PrincipalType string // "user", "application", "node", "anonymous"
 	AuthMethod    string // "jwt", "mtls", "apikey", "anonymous"
 
@@ -175,6 +176,10 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 			// ClusterID is set to domain by token generator (same as GetLocalClusterID())
 			// Issuer is MAC address, which creates mismatch with cluster validation
 			authCtx.ClusterID = claims.ClusterID
+
+			// Additive: expose the opaque account membership identity. Does NOT
+			// change Subject or any authorization decision (readers migrate later).
+			authCtx.AccountUUID = claims.AccountUUID
 		}
 	}
 
