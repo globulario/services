@@ -24,6 +24,11 @@ func (srv *server) reconcileNodes(ctx context.Context) {
 	if !srv.mustBeLeader() {
 		return
 	}
+	// Warm the StoragePolicy cache once per reconcile pass so the no-I/O
+	// quorum-gate accessors (cachedMinStorageNodes, and the health overlay) see
+	// the current declared policy even on an otherwise-idle/clean cluster, where
+	// driftTopologyPreflight (the other warmer) may not run. Idempotent, cheap.
+	_ = loadStoragePolicyCached(ctx)
 	// Process explicit node-leave requests queued by clean-node flows before
 	// regular convergence work. This keeps cluster membership authoritative
 	// when a departing node could not call RemoveNode directly via gateway/CLI.

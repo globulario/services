@@ -95,7 +95,7 @@ func (srv *server) GetClusterHealth(ctx context.Context, req *cluster_controller
 	// (which reads as HA) under a degraded policy; surface storage_degraded so the
 	// platform status stays a contract, not a vibe
 	// (intent:platform_status.is_contract_not_vibe, degraded_is_explicit_not_hidden).
-	if pol := storagePolicyCachedOrDurable(); pol.IsDegraded() && resp.Status == "healthy" {
+	if pol := loadStoragePolicyCached(ctx); pol.IsDegraded() && resp.Status == "healthy" {
 		resp.Status = "storage_degraded"
 	}
 
