@@ -385,11 +385,14 @@ type nodeState struct {
 	EtcdMemberID       uint64        `json:"etcd_member_id,omitempty"`        // for rollback via MemberRemove
 	EtcdMissingCycles  int           `json:"etcd_missing_cycles,omitempty"`   // consecutive cycles where member missing + etcd not running
 	// EtcdBootstrapDegraded records that this node advanced past etcd_joining as a
-	// NON-VOTING learner under an explicit degraded two_node StoragePolicy — a
-	// bootstrap-progression exception, NOT a voter promotion. EtcdJoinPhase stays
+	// NON-VOTING learner during buildout — a bootstrap-progression exception, NOT a
+	// voter promotion. Set for any healthy learner that defers to a healthy voter;
+	// bootstrap is not steady state, so NO declared degraded StoragePolicy is
+	// required — the not-HA condition is SURFACED (etcd_ha=false), not pre-declared
+	// (degraded_is_explicit_not_hidden is honored by visibility). EtcdJoinPhase stays
 	// Promoting (learner); the founder/current voter remains the write authority.
-	// Surfaced as ETCD_DEGRADED / non-voter / not-HA in health. Cleared when the
-	// node is later promoted to a real voter (EtcdJoinVerified) after a 3rd node.
+	// Cleared when the node is later promoted to a real voter (EtcdJoinVerified)
+	// after a 3rd node makes the voter target HA (Policy A').
 	EtcdBootstrapDegraded bool   `json:"etcd_bootstrap_degraded,omitempty"`
 	EtcdDegradedReason    string `json:"etcd_degraded_reason,omitempty"`
 	// MinIO pool join state machine (erasure-coded expansion)

@@ -139,6 +139,70 @@ func TestExtractEtcdIPFromURL(t *testing.T) {
 	}
 }
 
+// TestEtcdEndpointReconciler_PublishesCompleteSmallCluster verifies the buildout
+// relaxation: a genuinely small cluster (2 core nodes total, both ready) publishes
+// its COMPLETE endpoint list even though it is below the HA quorum minimum, so the
+// joined node has a steady-state endpoint-refresh path after bootstrap.
+func TestEtcdEndpointReconciler_PublishesCompleteSmallCluster(t *testing.T) {
+	r := &etcdEndpointReconciler{
+		srv:      newTestServer(t, &controllerState{}),
+		interval: etcdEndpointReconcileInterval,
+		now:      time.Now,
+	}
+	r.snapshotCoreNodes = func() []string { return []string{"10.0.0.63", "10.0.0.8"} }
+	r.snapshotCoreNodeTotal = func() int { return 2 } // complete: 2 ready == 2 total
+	memberListCalled := false
+	r.listMembers = func(_ context.Context) ([]memberSnapshot, error) {
+		memberListCalled = true
+		return []memberSnapshot{
+			{Name: "ryzen", PeerURLs: []string{"https://10.0.0.63:2380"}, ClientURLs: []string{"https://10.0.0.63:2379"}},
+		}, nil
+	}
+	wrote := false
+	r.writeToEtcd = func(_ context.Context, key, _ string) error {
+		if key == etcdEndpointListKey {
+			wrote = true
+		}
+		return nil
+	}
+	r.writeOutcome = func(_ context.Context, _ etcdEndpointReconcileOutcome) error { return nil }
+
+	r.reconcileOnce(context.Background())
+
+	if !memberListCalled {
+		t.Fatal("a complete 2-node cluster should proceed past the quorum guard (MemberList called)")
+	}
+	if !wrote {
+		t.Fatal("a complete 2-node cluster should publish its endpoint list")
+	}
+}
+
+// TestEtcdEndpointReconciler_SkipsTruncatedSubset verifies the truncation guard is
+// preserved: a larger cluster (5 core nodes total) that transiently sees only 2
+// ready must NOT publish a truncated list that would drop live voters.
+func TestEtcdEndpointReconciler_SkipsTruncatedSubset(t *testing.T) {
+	r := &etcdEndpointReconciler{
+		srv:      newTestServer(t, &controllerState{}),
+		interval: etcdEndpointReconcileInterval,
+		now:      time.Now,
+	}
+	r.snapshotCoreNodes = func() []string { return []string{"10.0.0.63", "10.0.0.8"} }
+	r.snapshotCoreNodeTotal = func() int { return 5 } // incomplete: 2 ready of 5 total
+	memberListCalled := false
+	r.listMembers = func(_ context.Context) ([]memberSnapshot, error) {
+		memberListCalled = true
+		return nil, nil
+	}
+	r.writeOutcome = func(_ context.Context, _ etcdEndpointReconcileOutcome) error { return nil }
+	r.writeToEtcd = func(_ context.Context, _, _ string) error { return nil }
+
+	r.reconcileOnce(context.Background())
+
+	if memberListCalled {
+		t.Error("a 2-of-5 subset must be skipped by the truncation guard (no MemberList)")
+	}
+}
+
 // TestEtcdEndpointReconciler_QuorumGuard verifies that the reconciler does NOT
 // call MemberList or write to etcd when fewer than etcdEndpointQuorumMin core
 // nodes are ready — preventing a partial endpoint list from being published.

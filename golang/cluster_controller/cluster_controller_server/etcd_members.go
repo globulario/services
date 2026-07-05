@@ -33,6 +33,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -254,6 +255,7 @@ type etcdMembershipManager interface {
 	reconcileEtcdAutoRejoin(ctx context.Context, nodes []*nodeState) (dirty bool)
 	removeStaleMembers(ctx context.Context, desiredEtcdNodes []memberNode) error
 	reconcileLearnerPromotion(ctx context.Context, targetVoters int) (dirty bool)
+	voterClientEndpoints(ctx context.Context) ([]string, error)
 }
 
 func newEtcdMemberManager(client *clientv3.Client) *etcdMemberManager {
@@ -449,6 +451,43 @@ func (m *etcdMemberManager) namedMemberRoles(ctx context.Context) (map[string]et
 		}
 	}
 	return roles, nil
+}
+
+// voterClientEndpoints returns the client endpoints (https://IP:2379) of all
+// NON-learner (voting) etcd members, from live MemberList truth. It deliberately
+// EXCLUDES learners — a learner refuses client RPCs ("rpc not supported for
+// learner"), so a joining node whose own local member is a learner must use this
+// authoritative voter list as its desired-state authority endpoint(s) rather than
+// depending on its local learner. Returns an error (never a silently-empty list)
+// when membership cannot be read, so callers can stay degraded/pending with a
+// precise reason instead of guessing endpoints.
+func (m *etcdMemberManager) voterClientEndpoints(ctx context.Context) ([]string, error) {
+	if m == nil || m.client == nil {
+		return nil, fmt.Errorf("etcd member manager not initialised")
+	}
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := m.client.MemberList(tctx)
+	if err != nil {
+		return nil, fmt.Errorf("etcd member list: %w", err)
+	}
+	seen := map[string]bool{}
+	eps := make([]string, 0, len(resp.Members))
+	for _, member := range resp.Members {
+		if member.Name == "" || member.IsLearner {
+			continue // skip unnamed ghost members and non-voting learners
+		}
+		for _, curl := range member.ClientURLs {
+			curl = strings.TrimSpace(curl)
+			if curl == "" || seen[curl] {
+				continue
+			}
+			seen[curl] = true
+			eps = append(eps, curl)
+		}
+	}
+	sort.Strings(eps)
+	return eps, nil
 }
 
 // matchNodeEtcdMemberRole returns the live role of the etcd member for this node,

@@ -81,7 +81,7 @@ func etcdClient() (*clientv3.Client, error) {
 	cfg := clientv3.Config{
 		Endpoints:        hostports,
 		DialTimeout:      4 * time.Second,
-		AutoSyncInterval: 30 * time.Second,
+		AutoSyncInterval: autoSyncIntervalFor(hostports),
 	}
 
 	// TLS is MANDATORY for all etcd connections
@@ -143,7 +143,7 @@ func NewEtcdClient() (*clientv3.Client, error) {
 	c, err := clientv3.New(clientv3.Config{
 		Endpoints:        hostports,
 		DialTimeout:      4 * time.Second,
-		AutoSyncInterval: 30 * time.Second,
+		AutoSyncInterval: autoSyncIntervalFor(hostports),
 		TLS:              tlsCfg,
 	})
 	if err != nil {
@@ -295,6 +295,51 @@ func preferLocalEtcdEndpoint(in []string) []string {
 		return in
 	}
 	return append(local, remote...)
+}
+
+// localEtcdIsAmongEndpoints reports whether one of the resolved etcd endpoints is
+// this node's own local member.
+//
+// When it is NOT — i.e. the endpoint list was deliberately narrowed to remote
+// voter endpoints because the local etcd member is a non-voting learner during
+// buildout — AutoSync MUST be disabled (see autoSyncIntervalFor). AutoSync issues
+// MemberList against a voter, which returns the FULL membership including this
+// node's local learner; the client would then re-add the learner endpoint and
+// (via preferLocalEtcdEndpoint) pin to it again, reviving the "rpc not supported
+// for learner" failure the controller-issued voter list was meant to avoid.
+func localEtcdIsAmongEndpoints(hostports []string) bool {
+	localHosts := map[string]bool{"127.0.0.1": true, "localhost": true}
+	if ip := strings.TrimSpace(GetRoutableIPv4()); ip != "" {
+		localHosts[ip] = true
+	}
+	if name, err := os.Hostname(); err == nil {
+		if n := strings.TrimSpace(strings.ToLower(name)); n != "" {
+			localHosts[n] = true
+		}
+	}
+	for _, ep := range hostports {
+		host, _, err := net.SplitHostPort(ep)
+		if err != nil {
+			host = ep
+		}
+		if localHosts[strings.ToLower(strings.TrimSpace(host))] {
+			return true
+		}
+	}
+	return false
+}
+
+// autoSyncIntervalFor returns the etcd client AutoSync interval for the given
+// endpoint set. AutoSync is disabled (0) when the local member is absent from the
+// endpoints — the deliberate "point at remote voters while local is a learner"
+// case. Keeping it off holds the client on the controller-issued voter endpoints
+// until the node is promoted and its endpoint file is rewritten to include the
+// local member (at which point AutoSync resumes normally).
+func autoSyncIntervalFor(hostports []string) time.Duration {
+	if localEtcdIsAmongEndpoints(hostports) {
+		return 30 * time.Second
+	}
+	return 0
 }
 
 // etcdEndpointsFile is the path where the cluster controller renders the list

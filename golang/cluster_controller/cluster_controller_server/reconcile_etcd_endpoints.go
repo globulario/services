@@ -86,9 +86,16 @@ type etcdEndpointReconciler struct {
 	now      func() time.Time
 
 	listMembers       func(ctx context.Context) ([]memberSnapshot, error)
-	snapshotCoreNodes func() []string // returns routable IPs of core-profile ready nodes
-	writeToEtcd       func(ctx context.Context, key, value string) error
-	writeOutcome      func(ctx context.Context, out etcdEndpointReconcileOutcome) error
+	snapshotCoreNodes func() []string // returns routable IPs of core-profile READY nodes
+	// snapshotCoreNodeTotal returns the count of ALL core-profile nodes known to the
+	// controller (any status). It lets the reconciler distinguish a genuinely small
+	// cluster building toward HA (e.g. 2 nodes total, both ready) from a larger
+	// cluster that transiently sees only a subset — publishing is safe in the former
+	// but would truncate the endpoint list in the latter. Nil means "unknown", in
+	// which case the strict etcdEndpointQuorumMin floor applies (no relaxation).
+	snapshotCoreNodeTotal func() int
+	writeToEtcd           func(ctx context.Context, key, value string) error
+	writeOutcome          func(ctx context.Context, out etcdEndpointReconcileOutcome) error
 }
 
 func newEtcdEndpointReconciler(srv *server) *etcdEndpointReconciler {
@@ -145,6 +152,23 @@ func newEtcdEndpointReconciler(srv *server) *etcdEndpointReconciler {
 		}
 		return ips
 	}
+	r.snapshotCoreNodeTotal = func() int {
+		srv.lock("etcd-endpoint-reconciler:snapshot-total")
+		defer srv.unlock()
+		total := 0
+		for _, n := range srv.state.Nodes {
+			if n == nil {
+				continue
+			}
+			for _, p := range n.Profiles {
+				if p == "core" {
+					total++
+					break
+				}
+			}
+		}
+		return total
+	}
 	r.writeToEtcd = func(ctx context.Context, key, value string) error {
 		if srv.etcdClient == nil {
 			return fmt.Errorf("etcd client not initialised")
@@ -186,9 +210,21 @@ func (r *etcdEndpointReconciler) Start(ctx context.Context) {
 
 func (r *etcdEndpointReconciler) reconcileOnce(ctx context.Context) {
 	coreIPs := r.snapshotCoreNodes()
-	if len(coreIPs) < etcdEndpointQuorumMin {
+	// Normally require etcdEndpointQuorumMin (HA target) ready core nodes before
+	// publishing, so a larger cluster that transiently sees only a subset never
+	// publishes a TRUNCATED list that drops live voters. A genuinely small cluster
+	// building toward HA (e.g. 2 nodes total) is the exception: publishing a COMPLETE
+	// list — every known core node ready and included — is safe and is needed so the
+	// joined node has a steady-state endpoint-refresh path after bootstrap.
+	minNeeded := etcdEndpointQuorumMin
+	if r.snapshotCoreNodeTotal != nil {
+		if total := r.snapshotCoreNodeTotal(); total >= 2 && total < minNeeded && len(coreIPs) == total {
+			minNeeded = total
+		}
+	}
+	if len(coreIPs) < minNeeded {
 		log.Printf("etcd-endpoint-reconciler: only %d core node(s) ready (need %d) — skipping write",
-			len(coreIPs), etcdEndpointQuorumMin)
+			len(coreIPs), minNeeded)
 		return
 	}
 

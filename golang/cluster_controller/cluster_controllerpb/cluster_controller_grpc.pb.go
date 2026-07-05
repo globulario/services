@@ -38,6 +38,7 @@ const (
 	ClusterControllerService_GetClusterHealth_FullMethodName               = "/cluster_controller.ClusterControllerService/GetClusterHealth"
 	ClusterControllerService_UpdateClusterNetwork_FullMethodName           = "/cluster_controller.ClusterControllerService/UpdateClusterNetwork"
 	ClusterControllerService_ReportNodeStatus_FullMethodName               = "/cluster_controller.ClusterControllerService/ReportNodeStatus"
+	ClusterControllerService_GetEtcdVoterEndpoints_FullMethodName          = "/cluster_controller.ClusterControllerService/GetEtcdVoterEndpoints"
 	ClusterControllerService_GetJoinRequestStatus_FullMethodName           = "/cluster_controller.ClusterControllerService/GetJoinRequestStatus"
 	ClusterControllerService_UpgradeGlobular_FullMethodName                = "/cluster_controller.ClusterControllerService/UpgradeGlobular"
 	ClusterControllerService_CompleteOperation_FullMethodName              = "/cluster_controller.ClusterControllerService/CompleteOperation"
@@ -115,6 +116,7 @@ type ClusterControllerServiceClient interface {
 	GetClusterHealth(ctx context.Context, in *GetClusterHealthRequest, opts ...grpc.CallOption) (*GetClusterHealthResponse, error)
 	UpdateClusterNetwork(ctx context.Context, in *UpdateClusterNetworkRequest, opts ...grpc.CallOption) (*UpdateClusterNetworkResponse, error)
 	ReportNodeStatus(ctx context.Context, in *ReportNodeStatusRequest, opts ...grpc.CallOption) (*ReportNodeStatusResponse, error)
+	GetEtcdVoterEndpoints(ctx context.Context, in *GetEtcdVoterEndpointsRequest, opts ...grpc.CallOption) (*GetEtcdVoterEndpointsResponse, error)
 	GetJoinRequestStatus(ctx context.Context, in *GetJoinRequestStatusRequest, opts ...grpc.CallOption) (*GetJoinRequestStatusResponse, error)
 	UpgradeGlobular(ctx context.Context, in *UpgradeGlobularRequest, opts ...grpc.CallOption) (*UpgradeGlobularResponse, error)
 	CompleteOperation(ctx context.Context, in *CompleteOperationRequest, opts ...grpc.CallOption) (*CompleteOperationResponse, error)
@@ -494,6 +496,16 @@ func (c *clusterControllerServiceClient) ReportNodeStatus(ctx context.Context, i
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReportNodeStatusResponse)
 	err := c.cc.Invoke(ctx, ClusterControllerService_ReportNodeStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) GetEtcdVoterEndpoints(ctx context.Context, in *GetEtcdVoterEndpointsRequest, opts ...grpc.CallOption) (*GetEtcdVoterEndpointsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetEtcdVoterEndpointsResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetEtcdVoterEndpoints_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -944,6 +956,7 @@ type ClusterControllerServiceServer interface {
 	GetClusterHealth(context.Context, *GetClusterHealthRequest) (*GetClusterHealthResponse, error)
 	UpdateClusterNetwork(context.Context, *UpdateClusterNetworkRequest) (*UpdateClusterNetworkResponse, error)
 	ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error)
+	GetEtcdVoterEndpoints(context.Context, *GetEtcdVoterEndpointsRequest) (*GetEtcdVoterEndpointsResponse, error)
 	GetJoinRequestStatus(context.Context, *GetJoinRequestStatusRequest) (*GetJoinRequestStatusResponse, error)
 	UpgradeGlobular(context.Context, *UpgradeGlobularRequest) (*UpgradeGlobularResponse, error)
 	CompleteOperation(context.Context, *CompleteOperationRequest) (*CompleteOperationResponse, error)
@@ -1208,6 +1221,9 @@ func (UnimplementedClusterControllerServiceServer) UpdateClusterNetwork(context.
 }
 func (UnimplementedClusterControllerServiceServer) ReportNodeStatus(context.Context, *ReportNodeStatusRequest) (*ReportNodeStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportNodeStatus not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetEtcdVoterEndpoints(context.Context, *GetEtcdVoterEndpointsRequest) (*GetEtcdVoterEndpointsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEtcdVoterEndpoints not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) GetJoinRequestStatus(context.Context, *GetJoinRequestStatusRequest) (*GetJoinRequestStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetJoinRequestStatus not implemented")
@@ -1651,6 +1667,24 @@ func _ClusterControllerService_ReportNodeStatus_Handler(srv interface{}, ctx con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClusterControllerServiceServer).ReportNodeStatus(ctx, req.(*ReportNodeStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_GetEtcdVoterEndpoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEtcdVoterEndpointsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetEtcdVoterEndpoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetEtcdVoterEndpoints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetEtcdVoterEndpoints(ctx, req.(*GetEtcdVoterEndpointsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2442,6 +2476,10 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReportNodeStatus",
 			Handler:    _ClusterControllerService_ReportNodeStatus_Handler,
+		},
+		{
+			MethodName: "GetEtcdVoterEndpoints",
+			Handler:    _ClusterControllerService_GetEtcdVoterEndpoints_Handler,
 		},
 		{
 			MethodName: "GetJoinRequestStatus",

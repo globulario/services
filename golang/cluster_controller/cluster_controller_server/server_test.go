@@ -48,6 +48,10 @@ func (m *recordingEtcdMembershipManager) removeStaleMembers(_ context.Context, d
 	return nil
 }
 
+func (m *recordingEtcdMembershipManager) voterClientEndpoints(context.Context) ([]string, error) {
+	return nil, nil
+}
+
 // newTestServer creates a server with a writable temp state path for tests.
 func newTestServer(t *testing.T, state *controllerState) *server {
 	t.Helper()

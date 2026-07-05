@@ -99,6 +99,21 @@ func (srv *server) GetClusterHealth(ctx context.Context, req *cluster_controller
 		resp.Status = "storage_degraded"
 	}
 
+	// etcd HA honesty: a node still running as a non-voting learner during buildout
+	// means the cluster has not reached etcd quorum HA (1 voter + learner(s), Policy
+	// A' defers promotion until a 3rd node). This is a transitional buildout state,
+	// not a failure — but it is NOT highly available, so never report plain "healthy"
+	// (which reads as HA). Surface etcd_degraded instead
+	// (intent:platform_status.is_contract_not_vibe, degraded_is_explicit_not_hidden).
+	for _, node := range srv.state.Nodes {
+		if node != nil && node.EtcdBootstrapDegraded {
+			if resp.Status == "healthy" {
+				resp.Status = "etcd_degraded"
+			}
+			break
+		}
+	}
+
 	return resp, nil
 }
 

@@ -95,6 +95,12 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		defer cancel()
 		fn(opCtx)
 	}
+	// Before ANY etcd use: if this node's local etcd member is a non-voting
+	// learner (buildout, pre-promotion), pin the endpoint file to controller-issued
+	// voter endpoints so desired-state reads/writes never hit the local learner
+	// (which refuses client RPCs). Runs before syncInstalledStateToEtcd — the first
+	// etcd consumer on this path.
+	withOpTimeout(15*time.Second, srv.reconcileEtcdEndpointsForRole)
 	// Initial sync: populate installed-state etcd records for packages
 	// installed by the Day-0 installer (which doesn't go through plan execution).
 	withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
@@ -180,6 +186,9 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			runHeartbeat()
 			heartbeatTimer.Reset(heartbeatDelay)
 		case <-syncTicker.C:
+			// Re-evaluate etcd membership role: pin voter endpoints while a learner,
+			// restore all-members endpoints once promoted to a voter.
+			withOpTimeout(15*time.Second, srv.reconcileEtcdEndpointsForRole)
 			withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
 			withOpTimeout(15*time.Second, srv.syncEtcHosts)
 			withOpTimeout(15*time.Second, srv.reconcileMinioContract)
@@ -223,14 +232,100 @@ func (srv *NodeAgentServer) refreshEtcdEndpointsFromSystemKey(ctx context.Contex
 	if len(endpoints) == 0 {
 		return
 	}
-	path := "/var/lib/globular/config/etcd_endpoints"
-	content := strings.Join(endpoints, "\n") + "\n"
-	if err := writeEtcdEndpointsFile(path, []byte(content), 0o644); err != nil {
+	if err := applyEtcdEndpoints(endpoints); err != nil {
 		log.Printf("nodeagent: failed to write refreshed etcd endpoints: %v", err)
 		return
 	}
-	resetSharedEtcdClient()
 	log.Printf("nodeagent: refreshed etcd endpoint list from %s (%d endpoint(s))", etcdEndpointsSystemKey, len(endpoints))
+}
+
+// applyEtcdEndpoints writes the endpoint list to the local etcd endpoints file and
+// resets the shared etcd client so subsequent config.GetEtcdClient() calls rebuild
+// against them. Observer-only: this writes a LOCAL config file, never etcd
+// desired-state. Refuses an empty list so a failed fetch can never blank the file.
+func applyEtcdEndpoints(endpoints []string) error {
+	if len(endpoints) == 0 {
+		return fmt.Errorf("refuse to write empty etcd endpoint list")
+	}
+	path := "/var/lib/globular/config/etcd_endpoints"
+	content := strings.Join(endpoints, "\n") + "\n"
+	if err := writeEtcdEndpointsFile(path, []byte(content), 0o644); err != nil {
+		return err
+	}
+	resetSharedEtcdClient()
+	return nil
+}
+
+// localEtcdClientURL returns this node's own etcd client URL (https://<ip>:2379),
+// used only to OBSERVE the local member's role (voter vs learner). Empty when no
+// routable IP is available.
+func localEtcdClientURL() string {
+	ip, err := config.GetRoutableIP()
+	if err != nil || strings.TrimSpace(ip) == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://%s:2379", strings.TrimSpace(ip))
+}
+
+// fetchEtcdVoterEndpointsFromController asks the controller (over the trusted
+// controller endpoint from the join plan) for the authoritative list of etcd
+// VOTER endpoints. This is the owner path: endpoints are never guessed and never
+// discovered via the local learner's MemberList (which it refuses). Declared as a
+// var so tests can stub it.
+var fetchEtcdVoterEndpointsFromController = func(ctx context.Context, srv *NodeAgentServer) ([]string, error) {
+	if err := srv.ensureControllerClient(ctx); err != nil {
+		return nil, fmt.Errorf("controller client unavailable: %w", err)
+	}
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := srv.controllerClient.GetEtcdVoterEndpoints(tctx, &cluster_controllerpb.GetEtcdVoterEndpointsRequest{NodeId: srv.nodeID})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetEndpoints(), nil
+}
+
+// reconcileEtcdEndpointsForRole keeps this node's etcd endpoint file pointed at a
+// USABLE etcd authority for its current membership role:
+//
+//   - Local member is a non-voting LEARNER (buildout, pre-promotion): desired-state
+//     reads/writes must go to a VOTER. Fetch the authoritative voter endpoint list
+//     from the controller (owner path) and pin the endpoint file to it. If the
+//     fetch fails, leave the file untouched and stay pending with a precise reason
+//     — never guess (contract: controller-issued config, not guessed).
+//   - Local member is a VOTER (promoted, or founder): restore the normal all-members
+//     endpoint file from the published system key so preferLocal + AutoSync resume
+//     steady-state behavior.
+//   - No reachable local member: no-op (nothing authoritative to base a change on).
+//
+// Observer-only: it writes a LOCAL config file, never etcd desired-state.
+func (srv *NodeAgentServer) reconcileEtcdEndpointsForRole(ctx context.Context) {
+	clientURL := localEtcdClientURL()
+	if clientURL == "" {
+		return
+	}
+	octx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	rt := observeEtcdRuntime(octx, clientURL)
+	cancel()
+	if rt == nil || !rt.LocalReachable {
+		return // cannot positively observe the local member — do not change endpoints
+	}
+	if !rt.IsLearner {
+		// Voter (or founder): steady-state — ensure the file reflects full membership.
+		srv.refreshEtcdEndpointsFromSystemKey(ctx)
+		return
+	}
+	// Non-voting learner: pin to controller-issued voter endpoints.
+	eps, err := fetchEtcdVoterEndpointsFromController(ctx, srv)
+	if err != nil || len(eps) == 0 {
+		log.Printf("nodeagent: local etcd member is a non-voting learner but the controller-issued voter endpoint fetch failed (%v) — desired-state authority PENDING, not guessing endpoints", err)
+		return
+	}
+	if err := applyEtcdEndpoints(eps); err != nil {
+		log.Printf("nodeagent: failed to pin voter endpoints: %v", err)
+		return
+	}
+	log.Printf("nodeagent: etcd quorum not yet HA: local member learner, using controller-issued voter endpoint(s) %v for desired-state authority (etcd_ha=false until promoted)", eps)
 }
 
 // syncInstalledStateToEtcd writes installed-state records to etcd for every

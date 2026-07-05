@@ -563,6 +563,18 @@ message ReportNodeStatusResponse {
   string message = 1;
 }
 
+message GetEtcdVoterEndpointsRequest {
+  string node_id = 1;
+}
+
+message GetEtcdVoterEndpointsResponse {
+  // Client endpoints (https://IP:2379) of healthy, NON-learner (voting) etcd
+  // members only. A joining node whose local etcd member is a non-voting learner
+  // uses this authoritative list as its desired-state authority endpoint(s) while
+  // local is a learner — it must never depend on MemberList from its own learner.
+  repeated string endpoints = 1;
+}
+
 message WatchOperationsRequest {
   string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
   string operation_id = 2 [(globular.auth.resource) = { kind: "operation" }];
@@ -723,6 +735,14 @@ service ClusterControllerService {
       permission: "write"
       collection_template: "/cluster_controller/nodes"
       default_role_hint: "editor"
+    };
+  };
+  rpc GetEtcdVoterEndpoints(GetEtcdVoterEndpointsRequest) returns (GetEtcdVoterEndpointsResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.etcd.voter_endpoints.get"
+      permission: "read"
+      collection_template: "/cluster_controller/nodes"
+      default_role_hint: "viewer"
     };
   };
   rpc GetJoinRequestStatus(GetJoinRequestStatusRequest) returns (GetJoinRequestStatusResponse) {
