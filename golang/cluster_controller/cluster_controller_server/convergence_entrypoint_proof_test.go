@@ -153,6 +153,108 @@ func TestClassifyPackageConvergence_InstalledEntrypointEmpty_NoOpinion(t *testin
 	}
 }
 
+// TestInfrastructureReleaseConvergence_ResolvedBuildAndEntrypointMatchIgnoresConvergenceHashMismatch
+// pins the gateway/envoy/keepalived reinstall-loop fix (2026-07-04).
+//
+// Real infra installed_state carries the BINARY sha256 in the Checksum field,
+// while an InfrastructureRelease's desired_hash is the compact CONVERGENCE
+// identity (publisher+name+version+build_number+config) — a DIFFERENT identity
+// domain. The two can never be equal. The OLD classifier compared
+// installed.GetChecksum() == desiredHash and hard-failed → RepairRequired every
+// cycle → perpetual re-dispatch → gateway/envoy restart churn.
+//
+// The authoritative convergence identity is build_id
+// (invariant:convergence.identity_is_build_id) plus the entrypoint binary proof.
+// When BOTH agree, the package IS converged and the desired_hash≠binary_checksum
+// mismatch must be IGNORED (advisory HashOK only, never a repair authority)
+// — forbidden_fix:convergence_hash_compared_to_binary_checksum.
+//
+// This test FAILS on the old behavior (old dim-2 returns RepairRequired on the
+// hash mismatch) and passes only after the fix.
+func TestInfrastructureReleaseConvergence_ResolvedBuildAndEntrypointMatchIgnoresConvergenceHashMismatch(t *testing.T) {
+	const (
+		binaryChecksum  = "7eaec88a0e2f4b1c9d3e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081" // installed binary == resolved entrypoint
+		convergenceHash = "8bc776870102030405060708090a0b0c0d0e0f101112131415161718191a1b1c" // desired_hash (compact convergence identity)
+		resolvedBuildID = "019f2f7e-1234-7abc-8def-0123456789ab"                              // installed == resolved
+	)
+	node := &nodeState{
+		LastSeen: time.Now(),
+		Units: []unitStatusRecord{
+			{Name: "globular-gateway.service", State: "active"},
+		},
+	}
+	installed := &node_agentpb.InstalledPackage{
+		Version:  "1.2.269",
+		Checksum: binaryChecksum, // installed_state records the BINARY sha256 here
+		BuildId:  resolvedBuildID,
+		Metadata: map[string]string{"entrypoint_checksum": binaryChecksum},
+	}
+	pc := classifyPackageConvergence(
+		node,
+		"gateway",
+		"INFRASTRUCTURE",
+		"1.2.269",
+		convergenceHash, // desiredHash — convergence identity, NOT the binary checksum
+		resolvedBuildID, // resolved build_id matches installed
+		binaryChecksum,  // desired entrypoint matches installed binary
+		true,            // requireBuildID — build-backed infra release
+		installed,
+		time.Now(),
+	)
+	if pc.RepairRequired {
+		t.Fatalf("build_id + entrypoint both match ⇒ CONVERGED; desired_hash≠binary_checksum must be ignored, got RepairRequired reason=%q", pc.Reason)
+	}
+	if !pc.BuildIDOK {
+		t.Errorf("resolved build_id matches installed ⇒ BuildIDOK must be true")
+	}
+	if pc.HashOK {
+		t.Errorf("desired_hash (convergence) ≠ installed binary checksum ⇒ HashOK must be advisory-false, not manufactured true")
+	}
+	if !pc.RuntimeOK {
+		t.Errorf("runtime active ⇒ RuntimeOK, got %s", pc.RuntimeState)
+	}
+}
+
+// TestInfrastructureReleaseConvergence_EntrypointMismatchStillRequiresRepair is
+// the negative guard: ignoring the desired_hash summary must NOT weaken the
+// authoritative binary proof. build_id matches but the on-disk entrypoint binary
+// differs ⇒ the node is running the wrong bytes ⇒ RepairRequired.
+func TestInfrastructureReleaseConvergence_EntrypointMismatchStillRequiresRepair(t *testing.T) {
+	const (
+		resolvedBuildID   = "019f2f7e-1234-7abc-8def-0123456789ab"
+		installedBinary   = "0000000000000000000000000000000000000000000000000000000000000000"
+		desiredEntrypoint = "7eaec88a0e2f4b1c9d3e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081"
+		convergenceHash   = "8bc776870102030405060708090a0b0c0d0e0f101112131415161718191a1b1c"
+	)
+	node := &nodeState{
+		LastSeen: time.Now(),
+		Units: []unitStatusRecord{
+			{Name: "globular-gateway.service", State: "active"},
+		},
+	}
+	installed := &node_agentpb.InstalledPackage{
+		Version:  "1.2.269",
+		Checksum: installedBinary,
+		BuildId:  resolvedBuildID,
+		Metadata: map[string]string{"entrypoint_checksum": installedBinary}, // OLD/wrong bytes on disk
+	}
+	pc := classifyPackageConvergence(
+		node,
+		"gateway",
+		"INFRASTRUCTURE",
+		"1.2.269",
+		convergenceHash,
+		resolvedBuildID,   // build_id matches
+		desiredEntrypoint, // but desired entrypoint differs from on-disk binary
+		true,
+		installed,
+		time.Now(),
+	)
+	if !pc.RepairRequired {
+		t.Fatalf("entrypoint binary mismatch must require repair even when build_id matches; reason=%q", pc.Reason)
+	}
+}
+
 func TestNormalizeEntrypointChecksum_Variants(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"sha256:ABCDEF", "abcdef"},

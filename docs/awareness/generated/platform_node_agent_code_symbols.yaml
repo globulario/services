@@ -1149,6 +1149,18 @@ test_symbols:
     package: main
     language: go
     doc: "Regression guard: a floating keepalived VIP must never be published\nas stable node identity IP."
+  - id: golang/node_agent/node_agent_server/infra_health_probe_substrate_test.go:TestMinioSubstrateVerified
+    file: golang/node_agent/node_agent_server/infra_health_probe_substrate_test.go
+    symbol: TestMinioSubstrateVerified
+    package: main
+    language: go
+    doc: "TestMinioSubstrateVerified proves the MinIO probe reports Verified only when the\npool has BOTH write quorum and read quorum. Liveness (server answers) and\nreachability (port 9000 open) are not inputs, so neither alone can verify\n(forbidden_fix:heuristic_signal_marks_substrate_verified)."
+  - id: golang/node_agent/node_agent_server/infra_health_probe_substrate_test.go:TestScyllaSubstrateVerified
+    file: golang/node_agent/node_agent_server/infra_health_probe_substrate_test.go
+    symbol: TestScyllaSubstrateVerified
+    package: main
+    language: go
+    doc: "TestScyllaSubstrateVerified proves the Scylla probe reports Verified only on\nsubstrate truth (nodetool UN / REST NORMAL), never from reachability. TCP-9042\nis not even an input to the decision, so an open port alone can never verify\n(forbidden_fix:heuristic_signal_marks_substrate_verified)."
   - id: golang/node_agent/node_agent_server/infra_health_probe_test.go:TestRequireReadableByUnixUser
     file: golang/node_agent/node_agent_server/infra_health_probe_test.go
     symbol: TestRequireReadableByUnixUser

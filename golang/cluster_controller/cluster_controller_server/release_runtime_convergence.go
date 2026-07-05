@@ -168,15 +168,19 @@ func classifyPackageConvergence(
 		return pc
 	}
 
+	// desired_hash (D2) is the compact CONVERGENCE identity
+	// (publisher+name+version+build_number+config), NOT a binary checksum. It is
+	// recorded for observability (HashOK) but is NOT a repair authority: the
+	// installed "checksum" field can carry the binary sha256 (infra releases),
+	// so comparing it HARD against desired_hash manufactured false drift every
+	// cycle — the gateway/envoy/keepalived reinstall loop
+	// (forbidden_fix:convergence_hash_compared_to_binary_checksum). The
+	// authoritative convergence identity is build_id below
+	// (invariant:convergence.identity_is_build_id) plus the entrypoint binary
+	// proof (Phase 38); those two gate repair, not this summary hash.
 	gotHash := normalizeDesiredHash(installed.GetChecksum())
 	wantHash := normalizeDesiredHash(desiredHash)
-	if wantHash == "" || gotHash == wantHash {
-		pc.HashOK = true
-	} else {
-		pc.RepairRequired = true
-		pc.Reason = fmt.Sprintf("installed checksum %s != desired %s", gotHash, wantHash)
-		return pc
-	}
+	pc.HashOK = wantHash == "" || gotHash == wantHash
 
 	// build_id is the package artifact identity (UUIDv7) and an INDEPENDENT
 	// convergence dimension (D3). When the desired build_id is present it is
@@ -424,6 +428,56 @@ func (srv *server) lookupResolvedEntrypointChecksum(ctx context.Context, publish
 				// in steady state.
 				log.Printf("lookupResolvedEntrypointChecksum: unknown release item type %T for rt=%s package=%s — checksum lookup will return \"\" if no other release type matches",
 					v, rt, pkgName)
+			}
+		}
+	}
+	return ""
+}
+
+// lookupResolvedBuildID returns the resolved artifact build_id (UUIDv7) the
+// controller pinned for a package, read from the ServiceRelease /
+// InfrastructureRelease / ApplicationRelease Status.ResolvedBuildID. Mirrors
+// lookupResolvedEntrypointChecksum: this is the artifact IDENTITY the build_id
+// convergence dimension compares against installed_state's build_id
+// (invariant:convergence.identity_is_build_id). Returns "" when unresolved —
+// callers MUST treat empty as "no build identity yet", never as "matches".
+//
+// This exists because the Select*Targets closures do not thread the resolved
+// build_id into selectReleaseTargets; without it every build-backed release
+// fails the requireBuildID gate forever and manufactures false drift.
+func (srv *server) lookupResolvedBuildID(ctx context.Context, publisherID, pkgName, installedKind string) string {
+	if srv == nil || srv.resources == nil {
+		return ""
+	}
+	for _, rt := range []string{"InfrastructureRelease", "ServiceRelease", "ApplicationRelease"} {
+		items, _, err := srv.resources.List(ctx, rt, "")
+		if err != nil {
+			continue
+		}
+		for _, obj := range items {
+			switch v := obj.(type) {
+			case *cluster_controllerpb.ServiceRelease:
+				if v != nil && v.Spec != nil && v.Status != nil &&
+					(canonicalServiceName(v.Spec.ServiceName) == pkgName || v.Spec.ServiceName == pkgName) &&
+					v.Spec.PublisherID == publisherID {
+					if s := strings.TrimSpace(v.Status.ResolvedBuildID); s != "" {
+						return s
+					}
+				}
+			case *cluster_controllerpb.InfrastructureRelease:
+				if v != nil && v.Spec != nil && v.Status != nil &&
+					v.Spec.Component == pkgName && v.Spec.PublisherID == publisherID {
+					if s := strings.TrimSpace(v.Status.ResolvedBuildID); s != "" {
+						return s
+					}
+				}
+			case *cluster_controllerpb.ApplicationRelease:
+				if v != nil && v.Spec != nil && v.Status != nil &&
+					v.Spec.AppName == pkgName && v.Spec.PublisherID == publisherID {
+					if s := strings.TrimSpace(v.Status.ResolvedBuildID); s != "" {
+						return s
+					}
+				}
 			}
 		}
 	}

@@ -881,6 +881,14 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 		if len(resolvedBuildID) > 0 {
 			wantBuildID = resolvedBuildID[0]
 		}
+		if wantBuildID == "" {
+			// The Select*Targets closures don't thread the resolved build_id, so
+			// look it up from the release record — the SAME source as wantEntrypoint
+			// below. Without the resolved build identity, requireBuildID=true fails
+			// closed for every build-backed release and manufactures false drift
+			// every cycle (invariant:convergence.identity_is_build_id).
+			wantBuildID = srv.lookupResolvedBuildID(ctx, "core@globular.io", pkgName, ec.installedKind)
+		}
 		// Phase 38: look up the resolved entrypoint checksum so the
 		// convergence check can detect "buildId matches but the binary
 		// on disk is wrong" — the lying-installed_state pattern caught

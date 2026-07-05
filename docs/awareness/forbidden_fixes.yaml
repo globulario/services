@@ -4080,6 +4080,37 @@ forbidden_fixes:
   - infra.scylla.rf_safety_requires_ownership_not_process_health
   - infra.minio.erasure_safety_requires_pool_and_heal_state
 
+- id: convergence_hash_compared_to_binary_checksum
+  summary: >-
+    A package / infrastructure reconciler compares a desired-state or convergence
+    hash to an installed binary / artifact checksum (or vice-versa) as a repair
+    gate. build_ids, artifact checksums, entrypoint checksums, versions, and
+    convergence hashes are separate identity domains and must never be aliased or
+    cross-compared.
+  rationale: >-
+    In classifyPackageConvergence (release_runtime_convergence.go) dimension 2
+    compared installed.GetChecksum() — which for infra releases carries the BINARY
+    sha256 — against desiredHash, the compact CONVERGENCE identity
+    (publisher+name+version+build_number+config). Those two values live in
+    different identity domains and can never be equal, so the classifier reported
+    RepairRequired every reconcile cycle for gateway/envoy/keepalived, producing a
+    perpetual re-dispatch loop that churned the mesh (envoy /ready flapping during
+    joins). This is the controller-side sibling of
+    node_agent.install_package_aliases_convergence_hash_into_expected_sha256.
+  safe_alternative: >-
+    Decide convergence on like-for-like identity domains only: build_id (the
+    authoritative convergence identity — invariant convergence.identity_is_build_id)
+    resolved from the release record, and the entrypoint binary proof (installed
+    entrypoint_checksum vs resolved_entrypoint_checksum). Keep desired_hash for the
+    domain it actually represents — target selection and cooldown keys — and, if
+    surfaced in convergence at all, only as an advisory signal that never forces
+    repair. If like-for-like identity is unavailable, report unresolved identity
+    rather than dispatching a reinstall loop.
+  related_invariants:
+  - convergence.identity_is_build_id
+  - desired_hash.is_convergence_identity
+  - install_package.hash_schemas_must_not_alias
+
 - id: heuristic_signal_marks_substrate_verified
   summary: >-
     Let a heuristic signal — elapsed time, systemd active state, a bare TCP port,

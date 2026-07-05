@@ -1508,6 +1508,18 @@ test_symbols:
     symbol: TestClassifyPackageConvergence_InstalledEntrypointEmpty_NoOpinion
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/convergence_entrypoint_proof_test.go:TestInfrastructureReleaseConvergence_EntrypointMismatchStillRequiresRepair
+    file: golang/cluster_controller/cluster_controller_server/convergence_entrypoint_proof_test.go
+    symbol: TestInfrastructureReleaseConvergence_EntrypointMismatchStillRequiresRepair
+    package: main
+    language: go
+    doc: "TestInfrastructureReleaseConvergence_EntrypointMismatchStillRequiresRepair is\nthe negative guard: ignoring the desired_hash summary must NOT weaken the\nauthoritative binary proof. build_id matches but the on-disk entrypoint binary\ndiffers ⇒ the node is running the wrong bytes ⇒ RepairRequired."
+  - id: golang/cluster_controller/cluster_controller_server/convergence_entrypoint_proof_test.go:TestInfrastructureReleaseConvergence_ResolvedBuildAndEntrypointMatchIgnoresConvergenceHashMismatch
+    file: golang/cluster_controller/cluster_controller_server/convergence_entrypoint_proof_test.go
+    symbol: TestInfrastructureReleaseConvergence_ResolvedBuildAndEntrypointMatchIgnoresConvergenceHashMismatch
+    package: main
+    language: go
+    doc: "TestInfrastructureReleaseConvergence_ResolvedBuildAndEntrypointMatchIgnoresConvergenceHashMismatch\npins the gateway/envoy/keepalived reinstall-loop fix (2026-07-04).\n\nReal infra installed_state carries the BINARY sha256 in the Checksum field,\nwhile an InfrastructureRelease's desired_hash is the compact CONVERGENCE\nidentity (publisher+name+version+build_number+config) — a DIFFERENT identity\ndomain. The two can never be equal. The OLD classifier compared\ninstalled.GetChecksum() == desiredHash and hard-failed → RepairRequired every\ncycle → perpetual re-dispatch → gateway/envoy restart churn.\n\nThe authoritative convergence identity is build_id\n(invariant:convergence.identity_is_build_id) plus the entrypoint binary proof.\nWhen BOTH agree, the package IS converged and the desired_hash≠binary_checksum\nmismatch must be IGNORED (advisory HashOK only, never a repair authority)\n— forbidden_fix:convergence_hash_compared_to_binary_checksum.\n\nThis test FAILS on the old behavior (old dim-2 returns RepairRequired on the\nhash mismatch) and passes only after the fix."
   - id: golang/cluster_controller/cluster_controller_server/convergence_entrypoint_proof_test.go:TestNormalizeEntrypointChecksum_Variants
     file: golang/cluster_controller/cluster_controller_server/convergence_entrypoint_proof_test.go
     symbol: TestNormalizeEntrypointChecksum_Variants
@@ -2164,6 +2176,12 @@ test_symbols:
     symbol: TestParseEtcdJoinLockKeys_HappyPath
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_bootstrap_test.go:TestBootstrap_LearnerAwaitingPromotionDoesNotFail
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_bootstrap_test.go
+    symbol: TestBootstrap_LearnerAwaitingPromotionDoesNotFail
+    package: main
+    language: go
+    doc: "TestBootstrap_LearnerAwaitingPromotionDoesNotFail is the task#17(f) regression:\na node that joined etcd as a non-voting learner sits in EtcdJoinPromoting until\nthe controller promotes it (which under Policy A′ may wait for a third node).\nIts bootstrap must NOT fail on the etcd-joining phase timeout while it waits —\nits etcd is a functional member. Once promoted to a voter (EtcdJoinVerified),\nbootstrap advances."
   - id: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go:TestEtcdConstraint_DefaultCapsLearnersAtOne
     file: golang/cluster_controller/cluster_controller_server/etcd_learner_harness_test.go
     symbol: TestEtcdConstraint_DefaultCapsLearnersAtOne
@@ -2204,6 +2222,12 @@ test_symbols:
     symbol: TestTopologyAllowsLearnerPromotion
     package: main
     language: go
+  - id: golang/cluster_controller/cluster_controller_server/etcd_learner_promotion_wiring_test.go:TestReconcileAdvanceInfraJoins_WiresLearnerPromotion
+    file: golang/cluster_controller/cluster_controller_server/etcd_learner_promotion_wiring_test.go
+    symbol: TestReconcileAdvanceInfraJoins_WiresLearnerPromotion
+    package: main
+    language: go
+    doc: "TestReconcileAdvanceInfraJoins_WiresLearnerPromotion proves step (d): the\nreconcile loop drives reconcileLearnerPromotion once per cycle, with the target\nvoter count equal to the admitted etcd membership (len(desiredEtcdNodes)). That\ntarget is what makes Policy A′ wait for a third node before promoting the\nsecond and never settle at a transient 2 voters."
   - id: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go:TestRemovalRefusal_LearnerNeverCountsAsQuorumCapacity
     file: golang/cluster_controller/cluster_controller_server/etcd_members_stale_guard_test.go
     symbol: TestRemovalRefusal_LearnerNeverCountsAsQuorumCapacity
@@ -2342,6 +2366,12 @@ test_symbols:
     package: main
     language: go
     doc: "resolveEtcdLeaderNode is the fail-closed gate for the \"never auto-rejoin the\netcd leader\" safety check in reconcileEtcdAutoRejoin. If the leader cannot be\nconfidently identified, leaderKnown must be false so the caller refuses all\ndestructive auto-rejoins this cycle — otherwise a node that IS the leader could\nbe wiped, destroying quorum with no recovery path."
+  - id: golang/cluster_controller/cluster_controller_server/etcd_role_projection_test.go:TestEtcdRoleProjection
+    file: golang/cluster_controller/cluster_controller_server/etcd_role_projection_test.go
+    symbol: TestEtcdRoleProjection
+    package: main
+    language: go
+    doc: "TestEtcdRoleProjection is the task#17(e) regression: a node's etcd join phase is\nprojected from the LIVE member role, never from script assumptions. A learner\nmust never be reported as verified."
   - id: golang/cluster_controller/cluster_controller_server/get_routing_refresh_test.go:TestGetRoutingRefresh_NegativeEpochClampedToZero
     file: golang/cluster_controller/cluster_controller_server/get_routing_refresh_test.go
     symbol: TestGetRoutingRefresh_NegativeEpochClampedToZero
@@ -3055,6 +3085,12 @@ test_symbols:
     package: main
     language: go
     doc: "TestMinioJoin_HeldNonMember_NoMinioUnit is the regression for the bootstrap\nwedge observed on globule-dell: a Day-1 storage-profile node that is NOT in\nthe active pool and does NOT report globular-minio.service (the unit was\nstopped / never started while the node waits for apply-topology admission)\nmust be resolved to MinioJoinNonMember, not left at the empty MinioJoinNone.\n\nBefore the fix, nodeIsPreparedForMinioJoin returned false (no minio unit), so\nreconcileMinioJoinPhases hit `continue` and the node stayed at MinioJoinNone.\nThe bootstrap storage-join gate only advances on Verified OR NonMember, so the\nnode wedged in storage_joining forever — MinIO can only be configured once the\npool is expanded to it, and must never block bootstrap before then."
+  - id: golang/cluster_controller/cluster_controller_server/minio_pools_test.go:TestMinioJoin_NoProbeStaysProvisional
+    file: golang/cluster_controller/cluster_controller_server/minio_pools_test.go
+    symbol: TestMinioJoin_NoProbeStaysProvisional
+    package: main
+    language: go
+    doc: "TestMinioJoin_NoProbeStaysProvisional proves the P2 downgrade: with NO\nsubstrate-truth probe wired, elapsed time must NOT mark MinIO Verified. It holds\nPROVISIONAL (started, awaiting verification) with explicit \"verification\nunavailable\" evidence (forbidden_fix:heuristic_signal_marks_substrate_verified)."
   - id: golang/cluster_controller/cluster_controller_server/minio_pools_test.go:TestMinioJoin_NotListedMember_StaysUntouched
     file: golang/cluster_controller/cluster_controller_server/minio_pools_test.go
     symbol: TestMinioJoin_NotListedMember_StaysUntouched

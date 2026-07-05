@@ -24,11 +24,17 @@ check-target-paths-exist:
 
 check-controller-no-exec: check-target-paths-exist
 	@echo "Checking cluster_controller_server has no forbidden exec usage..."
-	@if grep -R --include='*.go' -nE '"os/exec"|exec\.Command(Context)?\(' "$(CONTROLLER_DIR)"; then \
+	@# The production controller binary must NEVER launch processes (security
+	@# boundary: no os/exec, syscall, or systemctl). This applies to shipped code
+	@# only — *_test.go files are not compiled into the binary. Integration test
+	@# harnesses (e.g. etcd_learner_harness_test.go) legitimately spawn a real etcd
+	@# to prove FSM behaviour against etcd 3.5.14, and must live in `package main`
+	@# to reach unexported symbols, so they are excluded here.
+	@if grep -R --include='*.go' --exclude='*_test.go' -nE '"os/exec"|exec\.Command(Context)?\(' "$(CONTROLLER_DIR)"; then \
 		echo "FAIL: forbidden exec usage found in $(CONTROLLER_DIR)"; \
 		exit 1; \
 	fi
-	@echo "OK: no forbidden exec usage in cluster_controller_server"
+	@echo "OK: no forbidden exec usage in cluster_controller_server (production code)"
 
 check-nodeagent-exec-boundary: check-target-paths-exist
 	@echo "Checking node_agent_server exec usage is confined to operational code..."
