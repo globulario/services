@@ -30,6 +30,8 @@ const (
 	ClusterControllerService_ListNodes_FullMethodName                      = "/cluster_controller.ClusterControllerService/ListNodes"
 	ClusterControllerService_ResolveNode_FullMethodName                    = "/cluster_controller.ClusterControllerService/ResolveNode"
 	ClusterControllerService_SetNodeProfiles_FullMethodName                = "/cluster_controller.ClusterControllerService/SetNodeProfiles"
+	ClusterControllerService_SetStoragePolicy_FullMethodName               = "/cluster_controller.ClusterControllerService/SetStoragePolicy"
+	ClusterControllerService_GetStoragePolicy_FullMethodName               = "/cluster_controller.ClusterControllerService/GetStoragePolicy"
 	ClusterControllerService_SetNodeBootstrapPhase_FullMethodName          = "/cluster_controller.ClusterControllerService/SetNodeBootstrapPhase"
 	ClusterControllerService_EmitWorkflowEvent_FullMethodName              = "/cluster_controller.ClusterControllerService/EmitWorkflowEvent"
 	ClusterControllerService_RemoveNode_FullMethodName                     = "/cluster_controller.ClusterControllerService/RemoveNode"
@@ -94,6 +96,14 @@ type ClusterControllerServiceClient interface {
 	// one target. Governed by projection-clauses.md (Phase 1 contract).
 	ResolveNode(ctx context.Context, in *ResolveNodeRequest, opts ...grpc.CallOption) (*ResolveNodeResponse, error)
 	SetNodeProfiles(ctx context.Context, in *SetNodeProfilesRequest, opts ...grpc.CallOption) (*SetNodeProfilesResponse, error)
+	// SetStoragePolicy declares the cluster storage-durability policy. The
+	// controller (owner of /globular/system/storage-policy) validates and persists
+	// it through the governed owner-write path — degraded requires explicit
+	// allow_degraded, never inferred from node count.
+	SetStoragePolicy(ctx context.Context, in *SetStoragePolicyRequest, opts ...grpc.CallOption) (*SetStoragePolicyResponse, error)
+	// GetStoragePolicy returns the declared cluster storage policy (durable when
+	// none declared).
+	GetStoragePolicy(ctx context.Context, in *GetStoragePolicyRequest, opts ...grpc.CallOption) (*GetStoragePolicyResponse, error)
 	// SetNodeBootstrapPhase is called by node-agent from workflow steps to
 	// update its own bootstrap phase. The controller updates in-memory node
 	// state and emits lifecycle events.
@@ -404,6 +414,26 @@ func (c *clusterControllerServiceClient) SetNodeProfiles(ctx context.Context, in
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetNodeProfilesResponse)
 	err := c.cc.Invoke(ctx, ClusterControllerService_SetNodeProfiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) SetStoragePolicy(ctx context.Context, in *SetStoragePolicyRequest, opts ...grpc.CallOption) (*SetStoragePolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetStoragePolicyResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_SetStoragePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterControllerServiceClient) GetStoragePolicy(ctx context.Context, in *GetStoragePolicyRequest, opts ...grpc.CallOption) (*GetStoragePolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetStoragePolicyResponse)
+	err := c.cc.Invoke(ctx, ClusterControllerService_GetStoragePolicy_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -895,6 +925,14 @@ type ClusterControllerServiceServer interface {
 	// one target. Governed by projection-clauses.md (Phase 1 contract).
 	ResolveNode(context.Context, *ResolveNodeRequest) (*ResolveNodeResponse, error)
 	SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error)
+	// SetStoragePolicy declares the cluster storage-durability policy. The
+	// controller (owner of /globular/system/storage-policy) validates and persists
+	// it through the governed owner-write path — degraded requires explicit
+	// allow_degraded, never inferred from node count.
+	SetStoragePolicy(context.Context, *SetStoragePolicyRequest) (*SetStoragePolicyResponse, error)
+	// GetStoragePolicy returns the declared cluster storage policy (durable when
+	// none declared).
+	GetStoragePolicy(context.Context, *GetStoragePolicyRequest) (*GetStoragePolicyResponse, error)
 	// SetNodeBootstrapPhase is called by node-agent from workflow steps to
 	// update its own bootstrap phase. The controller updates in-memory node
 	// state and emits lifecycle events.
@@ -1146,6 +1184,12 @@ func (UnimplementedClusterControllerServiceServer) ResolveNode(context.Context, 
 }
 func (UnimplementedClusterControllerServiceServer) SetNodeProfiles(context.Context, *SetNodeProfilesRequest) (*SetNodeProfilesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetNodeProfiles not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) SetStoragePolicy(context.Context, *SetStoragePolicyRequest) (*SetStoragePolicyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetStoragePolicy not implemented")
+}
+func (UnimplementedClusterControllerServiceServer) GetStoragePolicy(context.Context, *GetStoragePolicyRequest) (*GetStoragePolicyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetStoragePolicy not implemented")
 }
 func (UnimplementedClusterControllerServiceServer) SetNodeBootstrapPhase(context.Context, *SetNodeBootstrapPhaseRequest) (*SetNodeBootstrapPhaseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetNodeBootstrapPhase not implemented")
@@ -1463,6 +1507,42 @@ func _ClusterControllerService_SetNodeProfiles_Handler(srv interface{}, ctx cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClusterControllerServiceServer).SetNodeProfiles(ctx, req.(*SetNodeProfilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_SetStoragePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetStoragePolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).SetStoragePolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_SetStoragePolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).SetStoragePolicy(ctx, req.(*SetStoragePolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterControllerService_GetStoragePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStoragePolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterControllerServiceServer).GetStoragePolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterControllerService_GetStoragePolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterControllerServiceServer).GetStoragePolicy(ctx, req.(*GetStoragePolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2330,6 +2410,14 @@ var ClusterControllerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetNodeProfiles",
 			Handler:    _ClusterControllerService_SetNodeProfiles_Handler,
+		},
+		{
+			MethodName: "SetStoragePolicy",
+			Handler:    _ClusterControllerService_SetStoragePolicy_Handler,
+		},
+		{
+			MethodName: "GetStoragePolicy",
+			Handler:    _ClusterControllerService_GetStoragePolicy_Handler,
 		},
 		{
 			MethodName: "SetNodeBootstrapPhase",

@@ -235,6 +235,39 @@ message SetNodeProfilesResponse {
   string operation_id = 1;
 }
 
+// StoragePolicy declaration — the operator-visible, explicit opt-in that lets a
+// cluster run its stateful substrates (ScyllaDB, MinIO) below the durable 3-node
+// quorum. Absent policy => durable. Degraded profiles REQUIRE allow_degraded.
+message SetStoragePolicyRequest {
+  // profile: "durable" | "two_node_degraded" | "single_node".
+  string profile = 1;
+  // allow_degraded MUST be true for a degraded profile — degraded storage is
+  // never inferred from the current node count; it is explicitly declared.
+  bool allow_degraded = 2;
+  // reason is an optional human note (e.g. "2-node lab").
+  string reason = 3;
+  // declared_by identifies the operator/actor making the declaration.
+  string declared_by = 4;
+}
+message SetStoragePolicyResponse {
+  string profile = 1;
+  bool allow_degraded = 2;
+  int64 generation = 3;
+  int32 min_storage_nodes = 4;
+  bool is_degraded = 5;
+}
+
+message GetStoragePolicyRequest {}
+message GetStoragePolicyResponse {
+  string profile = 1;
+  bool allow_degraded = 2;
+  int64 generation = 3;
+  int32 min_storage_nodes = 4;
+  bool is_degraded = 5;
+  string declared_by = 6;
+  string reason = 7;
+}
+
 // Called by node-agent from workflow steps to update bootstrap phase.
 message SetNodeBootstrapPhaseRequest {
   string node_id = 1 [(globular.auth.resource) = { kind: "node", scope_anchor: true }];
@@ -611,6 +644,28 @@ service ClusterControllerService {
       permission: "admin"
       resource_template: "/cluster_controller/nodes/{node_id}"
       default_role_hint: "admin"
+    };
+  };
+  // SetStoragePolicy declares the cluster storage-durability policy. The
+  // controller (owner of /globular/system/storage-policy) validates and persists
+  // it through the governed owner-write path — degraded requires explicit
+  // allow_degraded, never inferred from node count.
+  rpc SetStoragePolicy(SetStoragePolicyRequest) returns (SetStoragePolicyResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.storage.set_policy"
+      permission: "admin"
+      resource_template: "/cluster_controller/storage/policy"
+      default_role_hint: "admin"
+    };
+  };
+  // GetStoragePolicy returns the declared cluster storage policy (durable when
+  // none declared).
+  rpc GetStoragePolicy(GetStoragePolicyRequest) returns (GetStoragePolicyResponse) {
+    option (globular.auth.authz) = {
+      action: "cluster_controller.storage.get_policy"
+      permission: "read"
+      resource_template: "/cluster_controller/storage/policy"
+      default_role_hint: "viewer"
     };
   };
   // SetNodeBootstrapPhase is called by node-agent from workflow steps to
