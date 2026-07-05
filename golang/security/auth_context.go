@@ -35,6 +35,7 @@ type AuthContext struct {
 	ClusterID     string // Cluster identifier for cross-cluster validation
 	ClusterUID    string // Opaque membership UUID (additive: readable, NOT yet used for validation)
 	Subject       string // Identity: user/app/node (domain-independent, e.g. "dave", not "dave@localhost")
+	AccountUUID   string // Opaque account membership identity (Account.uuid) — additive; not yet used for authz. Empty for non-account/pre-migration principals.
 	PrincipalType string // "user", "application", "node", "anonymous"
 	AuthMethod    string // "jwt", "mtls", "apikey", "anonymous"
 
@@ -180,6 +181,10 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 			// NOT used for any authorization decision yet (validators key off
 			// ClusterID until the Phase-2 dual-accept airlock).
 			authCtx.ClusterUID = claims.ClusterUID
+
+			// Additive: expose the opaque account membership identity. Does NOT
+			// change Subject or any authorization decision (readers migrate later).
+			authCtx.AccountUUID = claims.AccountUUID
 		}
 	}
 
