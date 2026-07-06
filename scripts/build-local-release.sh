@@ -3,25 +3,39 @@
 # to what CI (release.yml) produces, without downloading from the internet.
 #
 # Usage:
-#   bash scripts/build-local-release.sh --version 1.2.139
+#   # Fully automated: rebuild ALL Go-service packages, auto-locate a base bundle,
+#   # publish to services/dist/ — no other flags or manual setup needed.
+#   bash scripts/build-local-release.sh --version 1.2.267 --all
+#
 #   bash scripts/build-local-release.sh --version 1.2.139 --prev /tmp/globular-1.2.138-linux-amd64.tar.gz
 #   bash scripts/build-local-release.sh --version 1.2.139 --rebuild node-agent,cluster-doctor
+#   bash scripts/build-local-release.sh --version 1.2.139 --all --out /some/dir
 #
-# Output: /tmp/globular-<version>-linux-amd64.tar.gz  (+.sha256)
+# Flags:
+#   --version X.Y.Z   (required) release version to stamp
+#   --all             rebuild every Go-service package (all pkg-map go_target entries)
+#   --rebuild a,b,c   rebuild only these packages (ignored if --all)
+#   --prev <tgz>      base bundle for infra carry-forward (auto-located if omitted)
+#   --out <dir>       publish destination (default: services/dist/)
 #
-# Strategy (mirrors CI release.yml):
-#   1. Extract infra binaries from previous bundle packages (no internet needed)
-#   2. Build changed Go services with real ldflags (-X main.Version=...)
-#   3. Rebuild changed packages via packages/build.sh pattern
-#   4. Copy unchanged packages from previous bundle
-#   5. Generate release-index.json
-#   6. Assemble bundle: globular, globular-installer, scripts/, webroot/,
-#      workflows/, docs/, packages/, release-index.json
-#   7. Pack tarball + sha256
+# Output: <out>/globular-<version>-linux-amd64.tar.gz (+.sha256) and the extracted dir.
+#
+# Strategy (mirrors CI release.yml), fully self-contained:
+#   1. Auto-locate a base bundle (/tmp, ~/, or --out) for infra binaries + xds/
+#      gateway + installer — the parts that cannot be rebuilt locally.
+#   2. Build changed/all Go services from CURRENT source with real ldflags.
+#   3. Package them from ../packages metadata (either metadata/<name>/ or the
+#      flattened <name>/ layout — resolve_meta_dir handles both, so NO packages
+#      branch switching is required).
+#   4. Copy unchanged (infra) packages forward from the base bundle.
+#   5. Generate release-index.json; ship current docs/operational-knowledge;
+#      regenerate README.md for this version+commit.
+#   6. Assemble, hardlink-dedup internal/assets/packages, pack tarball + sha256.
+#   7. Publish to services/dist/ (clears root-owned leftovers first).
 #
 # Repos assumed at same level as services/:
-#   ../packages/   — globulario/packages
-#   ../Globular/   — globulario/Globular (for xds/gateway)
+#   ../packages/   — globulario/packages (any branch: layout auto-detected)
+#   ../Globular/   — globulario/Globular (for xds/gateway, only if in rebuild set)
 #
 set -euo pipefail
 
@@ -33,17 +47,32 @@ GLOBULAR_ROOT="$(cd "$SERVICES_ROOT/../Globular" 2>/dev/null && pwd)" || GLOBULA
 VERSION=""
 PREV_TGZ=""
 REBUILD_PKGS=""     # comma-separated list; empty = auto-detect via git diff
+REBUILD_ALL=0       # --all: rebuild every Go-service package (all pkg-map go_target entries)
+OUT_DIR="$SERVICES_ROOT/dist"   # final destination for the bundle + tarball
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --version)   VERSION="$2";      shift 2 ;;
     --prev)      PREV_TGZ="$2";     shift 2 ;;
     --rebuild)   REBUILD_PKGS="$2"; shift 2 ;;
+    --all)       REBUILD_ALL=1;     shift 1 ;;
+    --out)       OUT_DIR="$2";      shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
 
-[[ -z "$VERSION" ]] && { echo "Usage: $0 --version X.Y.Z [--prev <path>.tar.gz] [--rebuild pkg1,pkg2]" >&2; exit 1; }
+[[ -z "$VERSION" ]] && { echo "Usage: $0 --version X.Y.Z [--prev <path>.tar.gz] [--rebuild pkg1,pkg2 | --all] [--out <dir>]" >&2; exit 1; }
+
+# --all expands to every package that has a go_target in pkg-map (all locally
+# buildable Go services). Infra/third-party packages carry forward from the base
+# bundle. Takes precedence over --rebuild.
+if (( REBUILD_ALL )); then
+  REBUILD_PKGS="$(python3 -c "
+import json
+d = json.load(open('$SERVICES_ROOT/golang/build/pkg-map.json'))
+print(','.join(sorted(n for n, i in d.items() if i.get('go_target'))))
+")"
+fi
 
 OUT_TGZ="/tmp/globular-${VERSION}-linux-amd64.tar.gz"
 DIST_DIR="/tmp/globular-${VERSION}-linux-amd64"
@@ -59,6 +88,20 @@ BUNDLE_PKG_DIR="$DIST_DIR/internal/assets/packages"
 
 log()  { echo "  $*"; }
 step() { echo ""; echo "=== $* ==="; }
+
+# resolve_meta_dir <pkg_name> — a package's metadata (package.json + specs/) lives
+# at packages/metadata/<name>/ (pre-migration layout) OR packages/<name>/ (the
+# flattened migration layout). Support BOTH so the build works against whichever
+# packages branch is checked out, with no git switching. Prints the resolved dir,
+# or nothing if neither exists.
+resolve_meta_dir() {
+  local name="$1"
+  if [[ -f "$PACKAGES_ROOT/metadata/$name/package.json" ]]; then
+    echo "$PACKAGES_ROOT/metadata/$name"
+  elif [[ -f "$PACKAGES_ROOT/$name/package.json" ]]; then
+    echo "$PACKAGES_ROOT/$name"
+  fi
+}
 
 elf_needs_release_strip() {
   local bin="$1"
@@ -157,9 +200,14 @@ PYEOF
 # ── Find previous bundle ──────────────────────────────────────────────────────
 step "Locate previous bundle"
 if [[ -z "$PREV_TGZ" ]]; then
-  PREV_TGZ=$(ls /tmp/globular-*.tar.gz 2>/dev/null | sort -V | grep -v "${VERSION}" | tail -1 || true)
+  # Auto-locate a base bundle: newest tarball (of a DIFFERENT version) under /tmp,
+  # ~/, or the output dir. The base only supplies third-party infra binaries +
+  # xds/gateway + installer that cannot be rebuilt locally; all Go services are
+  # rebuilt from current source.
+  PREV_TGZ=$(ls /tmp/globular-*.tar.gz "$HOME"/globular-*.tar.gz "$OUT_DIR"/globular-*.tar.gz 2>/dev/null \
+             | sort -V | grep -v "globular-${VERSION}-" | tail -1 || true)
 fi
-[[ -z "$PREV_TGZ" || ! -f "$PREV_TGZ" ]] && { echo "ERROR: No previous bundle found. Pass --prev <path>." >&2; exit 1; }
+[[ -z "$PREV_TGZ" || ! -f "$PREV_TGZ" ]] && { echo "ERROR: No base bundle found. Pass --prev <path>.tar.gz." >&2; exit 1; }
 log "Using previous bundle: $PREV_TGZ"
 
 PREV_DIR="$WORK/prev"
@@ -315,13 +363,13 @@ BUILD_NUMBER=$(date +%s)   # local builds use unix timestamp as build_number
 BUILD_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
 
 for pkg_name in "${CHANGED_NAMES[@]}"; do
-  meta_dir="$PACKAGES_ROOT/metadata/$pkg_name"
-  # Single source of truth: metadata/<name>/specs/ (top-level specs/ was removed
-  # in the 2026-06 spec consolidation).
+  meta_dir="$(resolve_meta_dir "$pkg_name")"
+  # Spec source: <meta_dir>/specs/<name>_service.yaml (or _cmd.yaml). Works for
+  # both the metadata/<name>/ and flattened <name>/ layouts via resolve_meta_dir.
   spec_file="$meta_dir/specs/${pkg_name//-/_}_service.yaml"
   [[ -f "$spec_file" ]] || spec_file="$meta_dir/specs/${pkg_name//-/_}_cmd.yaml"
 
-  [[ -d "$meta_dir" ]] || { log "SKIP $pkg_name: no metadata dir"; continue; }
+  [[ -n "$meta_dir" && -d "$meta_dir" ]] || { log "SKIP $pkg_name: no metadata dir"; continue; }
   [[ -f "$spec_file" ]] || { log "SKIP $pkg_name: no spec yaml"; continue; }
 
   binary=$(python3 -c "
@@ -508,10 +556,14 @@ elif [[ -f "$PREV_DIR/globular-installer" ]]; then
   cp "$PREV_DIR/globular-installer" "$DIST_DIR/globular-installer"
 fi
 
-# Packages — install-day0.sh reads from internal/assets/packages/
-# Also mirror to packages/ (legacy path some scripts use)
-cp "$PKG_OUT/"*.tgz "$BUNDLE_PKG_DIR/"
+# Packages — install-day0.sh reads from internal/assets/packages/, and packages/
+# is a legacy mirror some scripts use. Populate packages/ once, then HARDLINK the
+# internal/assets/packages/ copies to it so the ~700MB package set is stored once,
+# not twice (matches the reference bundle layout; keeps the tarball ~750MB, not 1.5GB).
 cp "$PKG_OUT/"*.tgz "$DIST_DIR/packages/"
+for f in "$DIST_DIR/packages/"*.tgz; do
+  ln -f "$f" "$BUNDLE_PKG_DIR/$(basename "$f")"
+done
 
 # release-index.json
 cp "$WORK/release-index.json" "$DIST_DIR/release-index.json"
@@ -537,6 +589,61 @@ for d in webroot workflows docs; do
   [[ -d "$PREV_DIR/$d" ]] && cp -r "$PREV_DIR/$d" "$DIST_DIR/$d"
 done
 
+# Ship the CURRENT ops-knowledge corpus (seeds ai-memory on the installed node),
+# not the prev bundle's stale copy. Authored source is docs/operational-knowledge.
+if [[ -d "$SERVICES_ROOT/docs/operational-knowledge" ]]; then
+  rm -rf "$DIST_DIR/docs/operational-knowledge"
+  mkdir -p "$DIST_DIR/docs"
+  cp -a "$SERVICES_ROOT/docs/operational-knowledge" "$DIST_DIR/docs/operational-knowledge"
+fi
+
+# README.md — regenerate for THIS version + the exact source commit it was built
+# from (the prev bundle's README names the old version).
+SRC_COMMIT="$(git -C "$SERVICES_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+PKG_COUNT="$(ls "$DIST_DIR/packages/"*.tgz 2>/dev/null | wc -l | tr -d ' ')"
+cat > "$DIST_DIR/README.md" <<HEREDOC
+# Globular ${VERSION}
+
+An open-source microservices platform for self-hosted distributed systems.
+No containers. No Kubernetes. No cloud required.
+
+## Install
+
+\`\`\`bash
+sudo bash install.sh
+\`\`\`
+
+The first node always comes up with the quorum profiles
+(\`control-plane\`, \`core\`, \`storage\`). To add a workload profile from
+day-0, pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\`:
+
+\`\`\`bash
+sudo FOUNDING_PROFILES=core,media-server bash install.sh
+\`\`\`
+
+## What's Included
+
+- \`globular\` — CLI tool
+- \`globular-installer\` — Day-0 package installer
+- \`scripts/\` — Bootstrap scripts (TLS, minio contract, DNS, etc.)
+- \`packages/\` — ${PKG_COUNT} packages (composition lockfile)
+- \`release-index.json\` — BOM (Bill of Materials) for this platform release
+- \`install.sh\` — Installer entry point
+
+## BOM Release Model
+
+This release is a **composition lockfile**. Each package keeps its own version.
+Only packages whose content changed are rebuilt for this release; unchanged
+packages reference their origin release via release-index.json.
+
+## Built From
+
+Repository: https://github.com/globulario/services
+Tag:        v${VERSION}
+Commit:     ${SRC_COMMIT}
+HEREDOC
+log "README.md written (v${VERSION}, commit ${SRC_COMMIT:0:12})"
+
 validate_release_bundle "$DIST_DIR"
 
 # ── Pack tarball ──────────────────────────────────────────────────────────────
@@ -545,16 +652,34 @@ rm -f "$OUT_TGZ" "${OUT_TGZ}.sha256"
 tar -C /tmp -czf "$OUT_TGZ" "globular-${VERSION}-linux-amd64/"
 sha256sum "$OUT_TGZ" > "${OUT_TGZ}.sha256"
 
-SIZE=$(du -sh "$OUT_TGZ" | awk '{print $1}')
+# ── Publish to the output directory (default: services/dist) ──────────────────
+# A previous `sudo install` can leave root-owned files in an existing bundle dir;
+# clear them (best-effort sudo) so the copy is not blocked.
+step "Publish to $OUT_DIR"
+if [[ -e "$OUT_DIR" && -n "$(find "$OUT_DIR" ! -user "$(id -un)" -print -quit 2>/dev/null)" ]]; then
+  sudo chown -R "$(id -un):$(id -gn)" "$OUT_DIR" 2>/dev/null || true
+fi
+mkdir -p "$OUT_DIR"
+rm -rf "$OUT_DIR/globular-${VERSION}-linux-amd64" \
+       "$OUT_DIR/globular-${VERSION}-linux-amd64.tar.gz" \
+       "$OUT_DIR/globular-${VERSION}-linux-amd64.tar.gz.sha256" \
+       "$OUT_DIR/.staging"
+cp "$OUT_TGZ" "$OUT_DIR/"
+cp "${OUT_TGZ}.sha256" "$OUT_DIR/"
+cp -a "$DIST_DIR" "$OUT_DIR/globular-${VERSION}-linux-amd64"
+# Keep the sha256 file's path relative so `sha256sum -c` works from $OUT_DIR.
+( cd "$OUT_DIR" && sha256sum "globular-${VERSION}-linux-amd64.tar.gz" > "globular-${VERSION}-linux-amd64.tar.gz.sha256" )
+
+SIZE=$(du -sh "$OUT_DIR/globular-${VERSION}-linux-amd64.tar.gz" | awk '{print $1}')
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║  ✓ LOCAL RELEASE BUILT                                         ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
-echo "  Bundle : $OUT_TGZ  ($SIZE)"
-echo "  SHA256 : $(cat "${OUT_TGZ}.sha256" | awk '{print $1}')"
-echo "  Dir    : $DIST_DIR"
+echo "  Bundle : $OUT_DIR/globular-${VERSION}-linux-amd64.tar.gz  ($SIZE)"
+echo "  SHA256 : $(awk '{print $1}' "$OUT_DIR/globular-${VERSION}-linux-amd64.tar.gz.sha256")"
+echo "  Dir    : $OUT_DIR/globular-${VERSION}-linux-amd64"
 echo ""
 echo "  To install:"
-echo "    sudo bash $DIST_DIR/scripts/install-day0.sh 2>&1 | tee /tmp/day0-test.log"
+echo "    cd $OUT_DIR/globular-${VERSION}-linux-amd64 && sudo bash install.sh 2>&1 | tee /tmp/day0-test.log"
 echo "    echo \"EXIT: \$?\""
