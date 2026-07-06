@@ -540,7 +540,15 @@ func validatePermissions(pf *PermissionsFile) []string {
 			if r.Field == "" {
 				errs = append(errs, rprefix+": missing field")
 			}
-			if !validPermissionVerbs[r.Permission] {
+			// Permission verb is optional per-resource — scope-anchor resources
+			// (e.g. {"field":"publisher_id","kind":"namespace","scope_anchor":true})
+			// carry no verb; the verb lives at the top-level permission field
+			// (itself optional above). Requiring a verb here rejected every
+			// service's generated permissions.generated.json, silently dropping
+			// the fine-grained method→action mappings and forcing coarse compiled
+			// fallbacks that diverged from the cluster-role grants — producing
+			// cluster-wide role_binding_denied (repository, reconciler).
+			if r.Permission != "" && !validPermissionVerbs[r.Permission] {
 				errs = append(errs, fmt.Sprintf("%s: invalid permission verb %q", rprefix, r.Permission))
 			}
 			if r.Index < 0 {

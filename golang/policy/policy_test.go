@@ -56,6 +56,54 @@ func TestLoadPermissions_V2Format(t *testing.T) {
 	}
 }
 
+// TestLoadPermissions_VerblessScopeAnchorResource is a regression test for the
+// validator that rejected every service's permissions.generated.json. Generated
+// files carry a top-level permission verb plus verb-less scope-anchor resources
+// (e.g. {"field":"publisher_id","scope_anchor":true}). validatePermissions used
+// to require a verb on EVERY resource, so it rejected the whole file, LoadPermissions
+// returned fromFile=false, the fine-grained method→action mappings never registered,
+// and services fell back to coarse compiled action keys that diverged from the
+// cluster-role grants — producing cluster-wide role_binding_denied (repository,
+// reconciler). The file must validate and load.
+func TestLoadPermissions_VerblessScopeAnchorResource(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	svcDir := filepath.Join(PackageRoot, "services", "repository")
+	if err := os.MkdirAll(svcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := `{
+		"version": "1.0",
+		"service": "repository.PackageRepository",
+		"permissions": [
+			{
+				"method": "/repository.PackageRepository/GetArtifactManifest",
+				"action": "repository.artifact.read",
+				"permission": "read",
+				"resources": [
+					{"index": 0, "field": "publisher_id", "scope_anchor": true}
+				]
+			}
+		]
+	}`
+	if err := os.WriteFile(filepath.Join(svcDir, "permissions.json"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	perms, fromFile, err := LoadPermissions("repository")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !fromFile {
+		t.Fatal("verb-less scope-anchor resource must validate and load (fromFile=true); got false — validator regression")
+	}
+	if len(perms) != 1 {
+		t.Fatalf("expected 1 permission, got %d", len(perms))
+	}
+}
+
 func TestLoadPermissions_V1Format(t *testing.T) {
 	dir := t.TempDir()
 	AdminRoot = filepath.Join(dir, "etc")
