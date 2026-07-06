@@ -179,20 +179,53 @@ func outboundIP() string {
 // using the Globular domain as the cluster name.
 // This runs in background at startup — failures are non-fatal.
 func (srv *server) ensureScyllaRegistered() {
-	// Wait a bit for scylla-manager to be ready
-	time.Sleep(5 * time.Second)
+	// Retry with backoff: a single miss at startup (Scylla REST API not yet
+	// serving, the manager HTTPS listener still coming up, a transient sctool
+	// error) must NOT leave the cluster permanently unregistered — that is how a
+	// Day-0 reinstall ended up with cluster_count=0. Bounded so a node with no
+	// local ScyllaDB does not loop forever.
+	for attempt := 0; attempt < 30; attempt++ {
+		wait := 60
+		switch {
+		case attempt == 0:
+			wait = 5
+		case attempt < 4:
+			wait = 15
+		case attempt < 8:
+			wait = 30
+		}
+		time.Sleep(time.Duration(wait) * time.Second)
+		if srv.tryRegisterScylla() {
+			return
+		}
+	}
+	slog.Warn("scylla auto-registration still incomplete after retries — " +
+		"run `sctool cluster add` or restart backup_manager once ScyllaDB is reachable")
+}
 
+// tryRegisterScylla performs one registration attempt using the CORRECT
+// parameters — the manager's HTTPS + LAN-IP API URL (never sctool's dead
+// http://127.0.0.1:5080 default) and the node's routable IP for the Scylla REST
+// probe. Returns true when the cluster is registered or nothing more can be
+// done; false to retry.
+func (srv *server) tryRegisterScylla() bool {
 	// Check if sctool is available
 	if _, err := exec.LookPath("sctool"); err != nil {
-		return
+		return true // sctool absent — retrying will not help
 	}
 
-	// Auto-detect API URL from scylla-manager config if not set
-	if srv.ScyllaManagerAPI == "" {
-		if detected := detectScyllaManagerAPIURL(); detected != "" {
-			srv.ScyllaManagerAPI = detected
-			slog.Info("auto-detected scylla-manager API URL", "url", srv.ScyllaManagerAPI)
+	// Resolve the manager API URL: HTTPS + LAN IP. sctool's built-in default is
+	// http://127.0.0.1:5080 — wrong protocol AND wrong address wherever the
+	// manager binds a LAN IP. Never proceed without the real URL, or every
+	// sctool call below silently hits the dead loopback default; retry instead.
+	if srv.ScyllaManagerAPI == "" || isLegacyScyllaManagerDefault(srv.ScyllaManagerAPI) {
+		detected := detectScyllaManagerAPIURL()
+		if detected == "" {
+			slog.Info("scylla auto-registration: waiting for scylla-manager API URL (HTTPS/LAN) to resolve")
+			return false
 		}
+		srv.ScyllaManagerAPI = detected
+		slog.Info("auto-detected scylla-manager API URL", "url", srv.ScyllaManagerAPI)
 	}
 
 	// Clean up duplicate cluster entries (accumulate across wipe+Day0 cycles).
@@ -251,19 +284,17 @@ func (srv *server) ensureScyllaRegistered() {
 				}
 			}
 		}
-		return
+		return true
 	}
 
 	// No clusters registered — check if ScyllaDB is actually running
 	scyllaHost, nativeName := detectNativeScyllaDB()
 	if nativeName == "" {
-		// ScyllaDB not reachable — nothing to register yet. Log it: this is a
-		// legitimate transient state at Day-1 (Scylla still starting), but a
-		// persistent one silently blocks auto-registration, which used to be
-		// impossible to diagnose from the logs.
-		slog.Info("scylla auto-registration deferred: local ScyllaDB not yet detectable",
+		// ScyllaDB not reachable yet — retry. Transient at Day-1 (Scylla still
+		// starting); logged so a persistent block is diagnosable.
+		slog.Info("scylla auto-registration: local ScyllaDB not yet reachable on its LAN REST API — will retry",
 			"api_url", srv.ScyllaManagerAPI)
-		return
+		return false
 	}
 
 	// Use Globular domain as the scylla-manager cluster name
@@ -285,7 +316,7 @@ func (srv *server) ensureScyllaRegistered() {
 				"/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml",
 				"/etc/scylla-manager-agent/scylla-manager-agent.yaml",
 			})
-		return
+		return false
 	}
 	args = append(args, agentArgs...)
 
@@ -300,11 +331,11 @@ func (srv *server) ensureScyllaRegistered() {
 		// Check if it failed because it's already registered (race condition)
 		if strings.Contains(output, "already exists") || strings.Contains(output, "conflict") {
 			slog.Info("ScyllaDB cluster already registered", "output", output)
-		} else {
-			slog.Warn("failed to auto-register ScyllaDB in scylla-manager",
-				"error", err, "output", output)
+			return true
 		}
-		return
+		slog.Warn("failed to auto-register ScyllaDB in scylla-manager",
+			"error", err, "output", output)
+		return false
 	}
 
 	slog.Info("ScyllaDB auto-registered in scylla-manager",
@@ -317,6 +348,7 @@ func (srv *server) ensureScyllaRegistered() {
 	// Persist the freshly-registered cluster to etcd so it survives restarts
 	// and is visible to the configured backup path.
 	srv.persistScyllaConfig()
+	return true
 }
 
 // PreflightCheck verifies that required CLI tools are available.
@@ -522,8 +554,14 @@ func (srv *server) detectScyllaClusters(apiURL string) []string {
 // all local interface IPs. It tries port 56093 (Globular default) first, then
 // falls back to 10000 (ScyllaDB default). Returns the reachable host and cluster name.
 func detectNativeScyllaDB() (host, clusterName string) {
-	// Build list of addresses to try: localhost first, then all local IPs
-	candidates := []string{"127.0.0.1"}
+	// ScyllaDB's REST API binds the node's routable LAN IP (scylla.yaml
+	// api_address), NEVER loopback — day-0 and node-agent enforce this. Probe
+	// only the routable LAN IPs. Deliberately no 127.0.0.1 fallback: if it
+	// somehow answered we would register the node with host=127.0.0.1, which
+	// scylla-manager cannot use to reach the agent — a broken registration that
+	// is worse than none. No LAN IP answering => return "" and let the caller
+	// retry (Scylla not up yet, or misconfigured).
+	var candidates []string
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok {
