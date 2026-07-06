@@ -170,7 +170,7 @@
     "kind": "service"
   },
   "globular-cli": {
-    "binary": "globularcli",
+    "binary": "globular",
     "go_target": "globularcli",
     "kind": "command"
   },
