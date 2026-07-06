@@ -299,9 +299,8 @@ func protoToJoinAuthRequest(req *cluster_controllerpb.JoinAuthorizationRequest) 
 		Labels:            copyLabels(req.GetLabels()),
 		Nonce:             req.GetNonce(),
 		InstallerVersion:  req.GetInstallerVersion(),
-		ClusterID:         strings.TrimSpace(req.GetClusterId()),
-		ClusterUID:        strings.TrimSpace(req.GetClusterUid()),
-		RequestedProfiles: append([]string(nil), req.GetRequestedProfiles()...),
+		ClusterID:        strings.TrimSpace(req.GetClusterId()),
+		ClusterUID:       strings.TrimSpace(req.GetClusterUid()),
 	}
 	if caps != nil {
 		r.CPUCount = caps.GetCpuCount()
