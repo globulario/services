@@ -165,7 +165,7 @@
     "kind": "infrastructure"
   },
   "mcp": {
-    "binary": "mcp",
+    "binary": "mcp_server",
     "go_target": "mcp",
     "kind": "service"
   },

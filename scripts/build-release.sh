@@ -1064,6 +1064,17 @@ elif [[ -n "${EXTRACTED_SOURCE_RELEASE_DIR}" && -d "${EXTRACTED_SOURCE_RELEASE_D
   cp -a "${EXTRACTED_SOURCE_RELEASE_DIR}/webroot" "${RELEASE_DIR}/webroot"
 fi
 
+# docs/operational-knowledge is the ops-knowledge corpus that seeds ai-memory on
+# the installed node. It ships in the bundle (matching prior releases) so the
+# target can (re)generate ai-memory from the authored source, not a stale copy.
+if [[ -d "${SERVICES_ROOT}/docs/operational-knowledge" ]]; then
+  mkdir -p "${RELEASE_DIR}/docs"
+  cp -a "${SERVICES_ROOT}/docs/operational-knowledge" "${RELEASE_DIR}/docs/operational-knowledge"
+elif [[ -n "${EXTRACTED_SOURCE_RELEASE_DIR}" && -d "${EXTRACTED_SOURCE_RELEASE_DIR}/docs/operational-knowledge" ]]; then
+  mkdir -p "${RELEASE_DIR}/docs"
+  cp -a "${EXTRACTED_SOURCE_RELEASE_DIR}/docs/operational-knowledge" "${RELEASE_DIR}/docs/operational-knowledge"
+fi
+
 generate_release_index "${RELEASE_DIR}/packages" "${RELEASE_DIR}/release-index.json" "${PROVENANCE_FILE}"
 (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
 validate_release_bundle_dir "${RELEASE_DIR}"
