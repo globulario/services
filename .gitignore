@@ -77,3 +77,7 @@ scripts/__pycache__/
 # golang/*_server[...] file is a `go build`/`go build -o` output, never source.
 /golang/*_server
 /golang/*_server_new
+
+# Runtime tool noise (behavioral-memory import error dumps, awg local state)
+import_behavioral_memory_signals.err*
+.awg/
