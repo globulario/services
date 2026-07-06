@@ -368,6 +368,11 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	// this auto-derivation is skipped.
 	if len(node.Profiles) == 0 && len(installedVersions) > 0 {
 		derived := deriveProfilesFromInstalled(installedVersions)
+		// Merge the operator's controller-owned default_profiles into the
+		// installed-derived set so an explicitly requested workload profile
+		// (e.g. media-server) is honored on a founding/cold-boot node. See
+		// mergeDefaultProfilesIntoDerived for the full rationale.
+		derived = mergeDefaultProfilesIntoDerived(derived, srv.cfg.DefaultProfiles)
 		if len(derived) > 0 {
 			log.Printf("ReportNodeStatus: auto-derived profiles for %s: %v (from %d installed packages)",
 				nodeID, derived, len(installedVersions))
@@ -1073,4 +1078,27 @@ func deriveProfilesFromInstalled(installed map[string]string) []string {
 		result = append(result, p)
 	}
 	return result
+}
+
+// mergeDefaultProfilesIntoDerived unions the operator's controller-owned
+// default_profiles into the profile set auto-derived from installed services.
+//
+// deriveProfilesFromInstalled only sees what is ALREADY installed, which can
+// never include a not-yet-authorized workload profile (e.g. media-server): a
+// fresh founding node derives [core,control-plane,storage], media is never
+// authorized → never installed → never derived — a chicken-and-egg that
+// silently drops the operator's explicitly requested workload profile. Because
+// default_profiles is the controller-owned placement intent
+// (profile.intent_is_controller_owned_placement_contract), applying it here is
+// the sanctioned application of intent, not a silencing of the orphaned-install
+// warning. Founding quorum is preserved: `derived` already carries the
+// core/control-plane/storage trio when those services are installed, and
+// normalizeProfiles dedupes the union. Returns derived unchanged when no
+// default_profiles are configured.
+func mergeDefaultProfilesIntoDerived(derived, defaults []string) []string {
+	if len(defaults) == 0 {
+		return derived
+	}
+	merged := append(append([]string{}, derived...), defaults...)
+	return normalizeProfiles(merged)
 }

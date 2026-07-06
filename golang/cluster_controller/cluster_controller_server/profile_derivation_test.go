@@ -57,6 +57,78 @@ func TestDeriveProfilesFromInstalled(t *testing.T) {
 	}
 }
 
+// TestMergeDefaultProfilesIntoDerived guards the fix for the founding-node
+// media-server drop: a fresh founder derives only [core,control-plane,storage]
+// from its installed core services, and the operator-seeded default_profiles
+// (core,media-server) must be merged in so the media stack is authorized and
+// installed — otherwise media never installs (chicken-and-egg) and its packages
+// orphan. Founding quorum (control-plane, storage) must survive the merge.
+func TestMergeDefaultProfilesIntoDerived(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		derived  []string
+		defaults []string
+		want     []string
+	}{
+		{
+			name:     "founding node: seeded media-server merged onto derived trio",
+			derived:  []string{"control-plane", "core", "storage"},
+			defaults: []string{"core", "media-server"},
+			want:     []string{"control-plane", "core", "storage", "media-server"},
+		},
+		{
+			name:     "no default_profiles: derived unchanged",
+			derived:  []string{"control-plane", "core", "storage"},
+			defaults: nil,
+			want:     []string{"control-plane", "core", "storage"},
+		},
+		{
+			name:     "duplicates deduped, quorum preserved",
+			derived:  []string{"core", "control-plane", "storage"},
+			defaults: []string{"core", "storage", "media-server"},
+			want:     []string{"core", "control-plane", "storage", "media-server"},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := mergeDefaultProfilesIntoDerived(tc.derived, tc.defaults)
+			if !sameStrings(got, tc.want) {
+				t.Fatalf("mergeDefaultProfilesIntoDerived(%v, %v) = %v, want %v",
+					tc.derived, tc.defaults, got, tc.want)
+			}
+			// Founding-quorum invariant: control-plane + storage must never be
+			// dropped by the merge when present in the derived set.
+			for _, q := range []string{"control-plane", "storage"} {
+				inDerived := false
+				for _, p := range tc.derived {
+					if p == q {
+						inDerived = true
+					}
+				}
+				if inDerived && !sameStrings(filterHas(got, q), []string{q}) {
+					t.Errorf("founding-quorum profile %q dropped by merge: got %v", q, got)
+				}
+			}
+		})
+	}
+}
+
+// filterHas returns [p] if p is in xs, else empty — a tiny helper for the
+// quorum-preservation assertion above.
+func filterHas(xs []string, p string) []string {
+	for _, x := range xs {
+		if x == p {
+			return []string{p}
+		}
+	}
+	return nil
+}
+
 func sameStrings(got, want []string) bool {
 	if len(got) != len(want) {
 		return false
