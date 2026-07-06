@@ -249,6 +249,8 @@ github.com/glendc/go-external-ip v0.1.0 h1:iX3xQ2Q26atAmLTbd++nUce2P5ht5P4uD4V7c
 github.com/glendc/go-external-ip v0.1.0/go.mod h1:CNx312s2FLAJoWNdJWZ2Fpf5O4oLsMFwuYviHjS4uJE=
 github.com/globulario/globular-installer v0.0.0-20260629010219-cdedae875719 h1:dIIycGYYV9/BNsRcJ3UuFwZQz3iR7i7GPwHKiLSn+2s=
 github.com/globulario/globular-installer v0.0.0-20260629010219-cdedae875719/go.mod h1:n8tkQBstO03f6ZHc6Q3poBy0KWEI0tq89dQRWYC3mTY=
+github.com/globulario/globular-installer v0.0.0-20260706000119-b8b19c8e0680 h1:47xM7gnGUGx+9iToW9CSmC/77w6/uzN8qHhJdTYxLvE=
+github.com/globulario/globular-installer v0.0.0-20260706000119-b8b19c8e0680/go.mod h1:n8tkQBstO03f6ZHc6Q3poBy0KWEI0tq89dQRWYC3mTY=
 github.com/globulario/utility v0.1.9 h1:gGaBd7HXMKpqj3uH7a2Kqv3Ikm5rtOMiVdhT6+riTl4=
 github.com/globulario/utility v0.1.9/go.mod h1:qq9tQpmAgQYKBJkISigebTd3WOst7XJfEad+6d0kU6A=
 github.com/glycerine/go-unsnap-stream v0.0.0-20180323001048-9f0cb55181dd/go.mod h1:/20jfyN9Y5QPEAprSgKAUr+glWDY39ZiUEAYOEv5dsE=
