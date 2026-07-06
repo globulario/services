@@ -953,7 +953,7 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		// No args: auto-generate ID and allocate port
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
+		srv.Id = globular.ServiceInstanceID(srv.Name, srv.Mac)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			logger.Error("fail to create port allocator", "error", err)

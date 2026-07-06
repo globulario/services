@@ -410,7 +410,7 @@ func main() {
 		}
 		srv.Address = fmt.Sprintf("%s:%d", host, srv.Port)
 		if srv.Id == "" {
-			srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
+			srv.Id = globular.ServiceInstanceID(srv.Name, srv.Mac)
 		}
 		b, err := globular.DescribeJSON(srv)
 		if err != nil {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
-	Utility "github.com/globulario/utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -96,11 +94,8 @@ func ensureDescribeID(s Service) {
 	if s.GetId() != "" {
 		return
 	}
-	name := strings.TrimSpace(s.GetName())
-	version := strings.TrimSpace(s.GetVersion())
-	mac := strings.TrimSpace(s.GetMac())
-	seed := fmt.Sprintf("%s:%s:%s", name, version, mac)
-	s.SetId(Utility.GenerateUUID(seed))
+	// Single authority: deterministic, version-independent, node-stable id.
+	s.SetId(ServiceInstanceID(s.GetName(), s.GetMac()))
 }
 
 /* ---------- Health probing ---------- */

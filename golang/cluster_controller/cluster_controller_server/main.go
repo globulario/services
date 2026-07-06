@@ -717,14 +717,16 @@ func printVersion() {
 // and the release workflow dies at apply_per_node.
 func printDescribe() {
 	// Deterministic ID: UUID5 from "Name:Version:MAC" — same scheme as all
-	// Globular services. Each node gets a unique Id (different MAC).
-	// Version includes build number so the Id changes on upgrade.
+	// Globular services. The instance Id is deterministic and node-stable: derived
+	// from the service name + the node's canonical identity (via the single
+	// ServiceInstanceID authority), NOT from the version — so it does NOT change on
+	// upgrade (which would orphan /globular/services/{id}).
 	mac, _ := config.GetMacAddress()
 	fullVersion := Version
 	if BuildNumberStr != "" && BuildNumberStr != "0" {
 		fullVersion = Version + "-b" + BuildNumberStr
 	}
-	id := Utility.GenerateUUID("cluster_controller.ClusterControllerService:" + fullVersion + ":" + mac)
+	id := globular_service.ServiceInstanceID("cluster_controller.ClusterControllerService", mac)
 
 	// Resolve port from etcd (source of truth), fall back to config file.
 	port := 0

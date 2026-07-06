@@ -602,7 +602,7 @@ func main() {
 
 	// Custom port allocation if no positional args
 	if len(args) == 0 {
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Version + ":" + s.Mac)
+		s.Id = globular.ServiceInstanceID(s.Name, s.Mac)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			logger.Error("fail to create port allocator", "error", err)

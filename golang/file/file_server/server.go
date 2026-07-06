@@ -764,7 +764,7 @@ func main() {
 			s.Address = "localhost:" + Utility.ToString(s.Port)
 		}
 		if s.Id == "" {
-			s.Id = Utility.GenerateUUID(s.Name + ":" + s.Version + ":" + s.Mac)
+			s.Id = globular.ServiceInstanceID(s.Name, s.Mac)
 		}
 		b, err := globular.DescribeJSON(s)
 		if err != nil {
@@ -796,7 +796,7 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		// No args: auto-generate ID and allocate port
-		s.Id = Utility.GenerateUUID(s.Name + ":" + s.Version + ":" + s.Mac)
+		s.Id = globular.ServiceInstanceID(s.Name, s.Mac)
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			logger.Error("fail to create port allocator", "error", err)
