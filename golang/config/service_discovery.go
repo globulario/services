@@ -569,6 +569,39 @@ func ResolveServiceAddrs(serviceName string) []string {
 	return nil
 }
 
+// ResolveServiceDirectAddr returns a single direct gRPC address (host:port)
+// for the named service straight from etcd, WITHOUT routing through the Envoy
+// service mesh — unlike ResolveServiceAddr/ResolveServiceAddrs, which rewrite
+// the target to host:443 so Envoy terminates TLS.
+//
+// Use this when the CALLER's mTLS client identity must reach the backend
+// directly. Example: cluster-doctor calling the auth-gated
+// repository.VerifyArtifact. Through the mesh, Envoy terminates the doctor's
+// client cert and the backend sees an empty Subject, so the auth-required RPC
+// is rejected Unauthenticated; a direct dial preserves the peer certificate.
+// Mirrors ResolveControllerDirectAddr, generalized to any service.
+//
+// Returns "" if no instance is registered in etcd.
+func ResolveServiceDirectAddr(serviceName string) string {
+	svcs, err := GetServicesConfigurationsByName(serviceName)
+	if err != nil || len(svcs) == 0 {
+		return ""
+	}
+	var addrs []string
+	for _, s := range svcs {
+		port := svcPort(s)
+		host := svcHost(s)
+		if port == 0 || host == "" {
+			continue
+		}
+		addrs = append(addrs, fmt.Sprintf("%s:%d", host, port))
+	}
+	if len(addrs) == 0 {
+		return ""
+	}
+	return addrs[rand.Intn(len(addrs))]
+}
+
 // ResolveLocalServiceAddr resolves the local instance of a service from etcd.
 // Returns the address exactly as registered — the source of truth for both
 // the hostname and the port. No hardcoded fallbacks.
