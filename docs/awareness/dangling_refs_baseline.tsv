@@ -593,6 +593,8 @@ https://globular.io/awareness#Test	../awareness-graph/golang/extractor/importgra
 https://globular.io/awareness#Test	../awareness-graph/golang/extractor/importgraph/typescript_test.go::TestScan_TS_AliasAndExternals
 https://globular.io/awareness#Test	../awareness-graph/golang/server/graph_freshness_runtime_marker_test.go::TestMetadata_RuntimeMarkerFileMissingMarksUnknown
 https://globular.io/awareness#Test	../awareness-graph/golang/server/preflight_test.go::TestPreflight_StoreUnavailableReturnsDegradedUnknownImpact
+https://globular.io/awareness#Test	../globular-installer:make check-specs
+https://globular.io/awareness#Test	.github/workflows/release.yml
 https://globular.io/awareness#Test	TestAbsentRecord_ClassifiedAsUnknown_NotKnownBad
 https://globular.io/awareness#Test	TestApproveAction_DispatchErrorIsNotResolved
 https://globular.io/awareness#Test	TestApproveAction_ExecutionFailureIsNotResolved
@@ -629,13 +631,15 @@ https://globular.io/awareness#Test	TestStatusRollup_UnknownSubsystem_NotGreen
 https://globular.io/awareness#Test	TestVIPHolder_DerivedFromRuntimeStatus_NotProfile
 https://globular.io/awareness#Test	TestVIPHolder_ReflectsActualMaster
 https://globular.io/awareness#Test	TestWorkflowDispatch_ReturnsAccepted_NotSuccess
-https://globular.io/awareness#Test	golang/cluster_controller/cluster_controller_server/package_kind_registry_consistency_test.go::TestComponentCatalogKindMatchesRegistry
-https://globular.io/awareness#Test	golang/echo/echo_server/server_test.go::TestEchoHandler
-https://globular.io/awareness#Test	golang/extractor/intent_yaml_import_test.go:TestPhaseC_Intent_IntegrationSelfAwareness
 https://globular.io/awareness#Test	golang/mcp:TestMCPExecSurfacesAreExplicitlyAllowlisted
-https://globular.io/awareness#Test	golang/repository/repository_server/release_authority_test.go::TestReleaseAllocationRequiresNamespacePermission
+https://globular.io/awareness#Test	golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_AllowsEqualTo2xPriorRelease
+https://globular.io/awareness#Test	golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_RejectsGreaterThan2xPriorRelease
+https://globular.io/awareness#Test	golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_SkipsWhenNoPriorReleaseSize
 https://globular.io/awareness#Test	golang/workflow/engine:TestParallelSteps
 https://globular.io/awareness#Test	golang/workflow/engine:TestReconcile_MixedDrift
 https://globular.io/awareness#Test	make check-no-misplaced-pb
 https://globular.io/awareness#Test	make check-no-tracked-binaries
 https://globular.io/awareness#Test	make check-package-kinds
+https://globular.io/awareness#Test	make check-services
+https://globular.io/awareness#Test	python3 scripts/validate-package-authority.py
+https://globular.io/awareness#Test	scripts/validate-package-authority.py
