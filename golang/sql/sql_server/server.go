@@ -108,7 +108,7 @@ func main() {
 	globular.LoadRuntimeConfig(srv)
 
 	if srv.Id == "" {
-		srv.Id = Utility.GenerateUUID(srv.Name + ":" + srv.Version + ":" + srv.Mac)
+		srv.Id = globular.ServiceInstanceID(srv.Name, srv.Mac)
 	}
 
 	if srv.Domain == "" || srv.Address == "" {

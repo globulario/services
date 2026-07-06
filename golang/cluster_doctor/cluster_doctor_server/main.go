@@ -20,7 +20,6 @@ import (
 	globular_service "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/workflow/workflowpb"
-	Utility "github.com/globulario/utility"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -273,13 +272,14 @@ func printVersion() {
 }
 
 func printDescribe() {
-	// Use the same deterministic ID generation as all Globular services:
-	// UUID5 from "Name:Version:MAC". Each node gets a unique Id (different MAC),
-	// and upgrading produces a new Id (different Version).
+	// Use the same deterministic ID generation as all Globular services, via the
+	// single ServiceInstanceID authority: derived from the service name + the node's
+	// canonical identity. Each node gets a unique Id, and the Id is version-independent
+	// so upgrading does NOT change it (a version-derived Id would orphan the etcd key).
 	serviceName := "cluster_doctor.ClusterDoctorService"
 	address := config.GetRoutableIPv4()
 	mac, _ := config.GetMacAddress()
-	id := Utility.GenerateUUID(serviceName + ":" + Version + ":" + mac)
+	id := globular_service.ServiceInstanceID(serviceName, mac)
 
 	metadata := map[string]interface{}{
 		"Id":          id,

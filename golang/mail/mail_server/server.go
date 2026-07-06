@@ -173,7 +173,7 @@ func main() {
 	if *showDescribe {
 		// Ensure Id is set before describe — node-agent requires a non-empty Id.
 		if srv.GetId() == "" {
-			srv.SetId(Utility.GenerateUUID(srv.GetName() + ":" + srv.GetVersion() + ":" + srv.GetMac()))
+			srv.SetId(globular.ServiceInstanceID(srv.GetName(), srv.GetMac()))
 		}
 		data, _ := json.MarshalIndent(srv, "", "  ")
 		fmt.Println(string(data))

@@ -96,25 +96,15 @@ func classifyIdentityLine(line string) idClass {
 // a migration phase removes. Keyed by repo-relative path so line churn doesn't
 // break the gate; a file drops out the moment its last deviation is fixed.
 var identityDeviationBaseline = map[string]string{
-	// Phase 4 — service-instance id = GenerateUUID(name:version:mac) (churns on upgrade/NIC change):
-	"golang/authentication/authentication_server/server.go":     "service_instance_id_churn (Phase 4)",
-	"golang/cluster_controller/cluster_controller_server/main.go": "service_instance_id_churn (Phase 4)",
-	"golang/cluster_doctor/cluster_doctor_server/main.go":        "service_instance_id_churn (Phase 4)",
-	"golang/conversation/conversation_server/server.go":          "service_instance_id_churn (Phase 4)",
-	"golang/event/event_server/server.go":                        "service_instance_id_churn (Phase 4)",
-	"golang/file/file_server/server.go":                          "service_instance_id_churn (Phase 4)",
-	"golang/globular_service/cli_helpers.go":                     "service_instance_id_churn (Phase 4)",
-	"golang/log/log_server/server.go":                            "service_instance_id_churn (Phase 4)",
-	"golang/mail/mail_server/server.go":                          "service_instance_id_churn (Phase 4)",
-	"golang/media/media_server/server.go":                        "service_instance_id_churn (Phase 4)",
-	"golang/monitoring/monitoring_server/server.go":              "service_instance_id_churn (Phase 4)",
-	"golang/persistence/persistence_server/server.go":            "service_instance_id_churn (Phase 4)",
-	"golang/rbac/rbac_server/server.go":                          "service_instance_id_churn (Phase 4)",
-	"golang/search/search_server/server.go":                      "service_instance_id_churn (Phase 4)",
-	"golang/sql/sql_server/server.go":                            "service_instance_id_churn (Phase 4)",
-	"golang/storage/storage_server/server.go":                    "service_instance_id_churn (Phase 4)",
-	"golang/title/title_server/server.go":                        "service_instance_id_churn (Phase 4)",
-	"golang/torrent/torrent_server/server.go":                    "service_instance_id_churn (Phase 4)",
+	// Phase 4 — service-instance id churn: COMPLETE. The name:version:mac seed
+	// (version churned the id on every upgrade, mac on every NIC change, orphaning
+	// /globular/services/{id}) is gone. All ~22 genesis sites now route through the
+	// single globular_service.ServiceInstanceID authority: a deterministic,
+	// version-independent id = GenerateUUID(name + ":" + nodeid.FromMAC(mac)). The
+	// node part derives through the nodeid authority, so service id is a *reader* of
+	// node identity, not an independent deviation — it inherits the future
+	// mint-random-node_id fix for free. No Phase-4 baseline files remain.
+	//
 	// Phase 2 — node_id derivation: the DIVERGENCE is FIXED. resource/peers.go no
 	// longer fabricates a v3/MD5 id; the controller (deterministicNodeID), the node
 	// agent (StableNodeID) and the resource store all derive through the single

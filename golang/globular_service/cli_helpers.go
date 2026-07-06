@@ -9,8 +9,29 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/netutil"
+	"github.com/globulario/services/golang/nodeid"
 	Utility "github.com/globulario/utility"
 )
+
+// ServiceInstanceID is the SINGLE authority for a service's stable instance id.
+//
+// The id is deterministic and self-computable (recomputable at any startup from
+// the service name and the node's MAC, so /globular/services/{id}/config can be
+// found without a persisted lookup key), and — unlike the historical
+// name:version:mac seed — it does NOT change on version upgrade or NIC/hostname
+// churn:
+//   - version is DROPPED: it churned the id on every upgrade, orphaning the
+//     per-service etcd config/instance keys.
+//   - the node part is derived through the nodeid package (the single node-identity
+//     authority), NOT a hand-rolled MAC hash. Service id thus becomes a *reader* of
+//     node identity instead of an independent deviation, so when node_id later
+//     becomes an opaque minted read-through token, service ids inherit that fix.
+//
+// The result is unique per (service-name, node) — the granularity the etcd
+// service schema already assumes (/globular/services/{id}/instances/{node}).
+func ServiceInstanceID(name, mac string) string {
+	return Utility.GenerateUUID(strings.TrimSpace(name) + ":" + nodeid.FromMAC(strings.TrimSpace(mac)))
+}
 
 // CLI Helper Functions - Phase 2 Step 1
 //
@@ -112,7 +133,7 @@ func ParsePositionalArgs(srv Service, args []string) {
 // Generates a UUID for the service ID and allocates the next available port.
 func AllocatePortIfNeeded(srv Service, args []string) error {
 	if len(args) == 0 {
-		srv.SetId(Utility.GenerateUUID(srv.GetName() + ":" + srv.GetVersion() + ":" + srv.GetMac()))
+		srv.SetId(ServiceInstanceID(srv.GetName(), srv.GetMac()))
 		allocator, err := config.NewDefaultPortAllocator()
 		if err != nil {
 			return fmt.Errorf("port allocator creation failed: %w", err)
