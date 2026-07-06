@@ -9,9 +9,14 @@ import "google/protobuf/empty.proto";
 import "globular_auth.proto";
 
 message ClusterInfo {
-  string cluster_id = 1;
-  string cluster_domain = 2;
+  string cluster_id = 1;      // legacy: equals cluster_domain (DNS/namespace value, NOT identity)
+  string cluster_domain = 2;  // DNS/storage/workflow namespace
   google.protobuf.Timestamp created_at = 3;
+  // cluster_uid is the opaque cluster MEMBERSHIP identity — minted once at Day-0,
+  // immutable, never derived from the domain. This is the authoritative cluster
+  // identity; cluster_id/cluster_domain are namespace values. Empty before the
+  // cluster is initialized.
+  string cluster_uid = 4;
 }
 
 message ClusterNetworkSpec {
@@ -105,6 +110,10 @@ message CreateJoinTokenRequest {
 message CreateJoinTokenResponse {
   string join_token = 1;
   google.protobuf.Timestamp expires_at = 2;
+  // cluster_uid is the cluster MEMBERSHIP identity this token is bound to. The
+  // installer forwards it on the join authorization request so the controller can
+  // require it after initialization. Token-bound distribution — not operator free text.
+  string cluster_uid = 3;
 }
 
 message RequestJoinRequest {
@@ -141,7 +150,13 @@ message JoinAuthorizationRequest {
   NodeCapabilities capabilities = 4;
   string nonce = 5;
   string installer_version = 6;
-  string cluster_id = 7;
+  string cluster_id = 7; // DNS/namespace value (not identity)
+  // field 8 (requested_profiles) is non-identity branch work, not part of this
+  // identity migration — reserved to keep cluster_uid's field number stable.
+  // cluster_uid is the opaque cluster MEMBERSHIP identity the installer forwards
+  // (received via the join token / prior JoinPlan). Validated against the minted
+  // UUID; the domain is never a valid identity here.
+  string cluster_uid = 9;
 }
 
 // JoinAuthorizationResponse carries the signed JoinPlan on success.

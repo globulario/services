@@ -107,12 +107,57 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 	}
 
 	// Cluster identity gate: if the installer knows the cluster_id, it must match.
+	//
+	// Still namespace-based (state.ClusterId) BY DESIGN until A6: the installer
+	// learns the membership UUID only FROM the signed JoinPlan (issued after this
+	// authorization), so it cannot present the UUID here yet. A5 distributes the
+	// UUID via the JoinPlan; A6 then flips this gate to state.ClusterUID. The
+	// primary membership enforcement (the gRPC interceptor) is already UUID-only.
 	if callerClusterID := strings.TrimSpace(req.ClusterID); callerClusterID != "" {
 		if srv.state.ClusterId != "" && callerClusterID != srv.state.ClusterId {
 			srv.unlock()
 			return &JoinAuthorizationResponse{
 				Allowed:      false,
 				DeniedReason: fmt.Sprintf("cluster_id mismatch: request=%q cluster=%q", callerClusterID, srv.state.ClusterId),
+			}, nil
+		}
+	}
+
+	// Membership identity gate (A6-final): the cluster identity is the minted UUID
+	// (state.ClusterUID), never the domain. Once the cluster is INITIALIZED
+	// (ClusterUID set), EVERY join token must be bound to it:
+	//   - unbound token (jt.ClusterUID == "") is REJECTED — no legitimate token is
+	//     unbound after init. The config token is bound at seed/reconcile and
+	//     backfilled atomically at mint (ensureClusterMembershipID), so an unbound
+	//     token here is stale or forged.
+	//   - a token bound to a DIFFERENT cluster is REJECTED (jt.ClusterUID is
+	//     server-side / unspoofable).
+	//   - a FORWARDED value that doesn't match (e.g. the domain) is REJECTED.
+	// BEFORE init (ClusterUID == "") the token secret + the gRPC interceptor are
+	// the gates and unbound is expected — the Day-0 bootstrap window is not
+	// steady-state auth (intent:bootstrap.window_is_not_steady_state_auth). This
+	// does not weaken founding-quorum join: the mint backfill binds the founding
+	// config token atomically with ClusterUID, so nodes 2/3 present a bound token.
+	if srv.state.ClusterUID != "" {
+		if strings.TrimSpace(jt.ClusterUID) == "" {
+			srv.unlock()
+			return &JoinAuthorizationResponse{
+				Allowed:      false,
+				DeniedReason: "join token is not bound to the cluster membership identity",
+			}, nil
+		}
+		if jt.ClusterUID != srv.state.ClusterUID {
+			srv.unlock()
+			return &JoinAuthorizationResponse{
+				Allowed:      false,
+				DeniedReason: fmt.Sprintf("join token bound to a different cluster: token=%q cluster=%q", jt.ClusterUID, srv.state.ClusterUID),
+			}, nil
+		}
+		if callerUID := strings.TrimSpace(req.ClusterUID); callerUID != "" && callerUID != srv.state.ClusterUID {
+			srv.unlock()
+			return &JoinAuthorizationResponse{
+				Allowed:      false,
+				DeniedReason: fmt.Sprintf("cluster_uid mismatch: request=%q cluster=%q", callerUID, srv.state.ClusterUID),
 			}, nil
 		}
 	}
@@ -205,7 +250,8 @@ func (srv *server) buildJoinPlan(jr *joinRequestRecord) (*JoinPlan, error) {
 
 	plan := &JoinPlan{
 		JoinID:               jr.RequestID,
-		ClusterID:            clusterID,
+		ClusterID:            clusterID,           // namespace (domain)
+		ClusterUID:           srv.state.ClusterUID, // membership identity (signed)
 		ControllerGeneration: generation,
 		IssuedAt:             time.Now(),
 		ExpiresAt:            time.Now().Add(joinPlanTTL),
@@ -248,12 +294,13 @@ func protoToJoinAuthRequest(req *cluster_controllerpb.JoinAuthorizationRequest) 
 	}
 	caps := req.GetCapabilities()
 	r := &JoinAuthorizationRequest{
-		JoinToken:        strings.TrimSpace(req.GetJoinToken()),
-		Identity:         id,
-		Labels:           copyLabels(req.GetLabels()),
-		Nonce:            req.GetNonce(),
-		InstallerVersion: req.GetInstallerVersion(),
+		JoinToken:         strings.TrimSpace(req.GetJoinToken()),
+		Identity:          id,
+		Labels:            copyLabels(req.GetLabels()),
+		Nonce:             req.GetNonce(),
+		InstallerVersion:  req.GetInstallerVersion(),
 		ClusterID:        strings.TrimSpace(req.GetClusterId()),
+		ClusterUID:       strings.TrimSpace(req.GetClusterUid()),
 	}
 	if caps != nil {
 		r.CPUCount = caps.GetCpuCount()

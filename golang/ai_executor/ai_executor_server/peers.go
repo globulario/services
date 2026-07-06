@@ -176,6 +176,9 @@ func peerAuthContext(ctx context.Context) context.Context {
 	if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
 		md.Set("cluster_id", clusterID)
 	}
+	if uid, uerr := security.GetLocalClusterUID(); uerr == nil && uid != "" {
+		md.Set("cluster_uid", uid) // opaque membership identity, not just the namespace
+	}
 	// Best-effort: include the local service token if available. Peers accept
 	// loopback/mesh calls without tokens, but real mesh calls need one.
 	if mac, err := config.GetMacAddress(); err == nil && mac != "" {

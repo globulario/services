@@ -272,6 +272,7 @@
       "repository.artifact.read",
       "repository.artifact.list",
       "repository.artifact.search",
+      "repository.artifact.verify",
       "repository.bundle.read",
       "repository.bundle.list",
       "repository.namespace.read",

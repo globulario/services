@@ -269,9 +269,13 @@ func TestNodeExecutorCanCallDNSDuringPlanExecution(t *testing.T) {
 func TestNodeExecutorCanDownloadArtifacts(t *testing.T) {
 	// Node-agent downloads service artifacts from repository during installation.
 	// DownloadArtifact and GetArtifactManifest both map to repository.artifact.read.
+	// repository.artifact.verify is the read-only integrity probe the cluster-doctor
+	// release-boundary canary (VerifyArtifact) needs — without it the doctor's A0
+	// assertion is denied and reports a false INDETERMINATE every sweep.
 	repoActions := []string{
 		"repository.artifact.read",
 		"repository.artifact.list",
+		"repository.artifact.verify",
 	}
 	for _, action := range repoActions {
 		if !HasRolePermission([]string{RoleNodeExecutor}, action) {

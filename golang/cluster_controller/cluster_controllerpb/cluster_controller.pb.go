@@ -417,9 +417,14 @@ func (ValidationIssue_Severity) EnumDescriptor() ([]byte, []int) {
 
 type ClusterInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
-	ClusterDomain string                 `protobuf:"bytes,2,opt,name=cluster_domain,json=clusterDomain,proto3" json:"cluster_domain,omitempty"`
+	ClusterId     string                 `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`             // legacy: equals cluster_domain (DNS/namespace value, NOT identity)
+	ClusterDomain string                 `protobuf:"bytes,2,opt,name=cluster_domain,json=clusterDomain,proto3" json:"cluster_domain,omitempty"` // DNS/storage/workflow namespace
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// cluster_uid is the opaque cluster MEMBERSHIP identity — minted once at Day-0,
+	// immutable, never derived from the domain. This is the authoritative cluster
+	// identity; cluster_id/cluster_domain are namespace values. Empty before the
+	// cluster is initialized.
+	ClusterUid    string `protobuf:"bytes,4,opt,name=cluster_uid,json=clusterUid,proto3" json:"cluster_uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -473,6 +478,13 @@ func (x *ClusterInfo) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *ClusterInfo) GetClusterUid() string {
+	if x != nil {
+		return x.ClusterUid
+	}
+	return ""
 }
 
 type ClusterNetworkSpec struct {
@@ -1136,9 +1148,13 @@ func (x *CreateJoinTokenRequest) GetExpiresAt() *timestamppb.Timestamp {
 }
 
 type CreateJoinTokenResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	JoinToken     string                 `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	JoinToken string                 `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
+	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	// cluster_uid is the cluster MEMBERSHIP identity this token is bound to. The
+	// installer forwards it on the join authorization request so the controller can
+	// require it after initialization. Token-bound distribution — not operator free text.
+	ClusterUid    string `protobuf:"bytes,3,opt,name=cluster_uid,json=clusterUid,proto3" json:"cluster_uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1185,6 +1201,13 @@ func (x *CreateJoinTokenResponse) GetExpiresAt() *timestamppb.Timestamp {
 		return x.ExpiresAt
 	}
 	return nil
+}
+
+func (x *CreateJoinTokenResponse) GetClusterUid() string {
+	if x != nil {
+		return x.ClusterUid
+	}
+	return ""
 }
 
 type RequestJoinRequest struct {
@@ -1461,9 +1484,15 @@ type JoinAuthorizationRequest struct {
 	Capabilities     *NodeCapabilities      `protobuf:"bytes,4,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
 	Nonce            string                 `protobuf:"bytes,5,opt,name=nonce,proto3" json:"nonce,omitempty"`
 	InstallerVersion string                 `protobuf:"bytes,6,opt,name=installer_version,json=installerVersion,proto3" json:"installer_version,omitempty"`
-	ClusterId        string                 `protobuf:"bytes,7,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	ClusterId        string                 `protobuf:"bytes,7,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"` // DNS/namespace value (not identity)
+	// field 8 (requested_profiles) is non-identity branch work, not part of this
+	// identity migration — reserved to keep cluster_uid's field number stable.
+	// cluster_uid is the opaque cluster MEMBERSHIP identity the installer forwards
+	// (received via the join token / prior JoinPlan). Validated against the minted
+	// UUID; the domain is never a valid identity here.
+	ClusterUid    string `protobuf:"bytes,9,opt,name=cluster_uid,json=clusterUid,proto3" json:"cluster_uid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *JoinAuthorizationRequest) Reset() {
@@ -1541,6 +1570,13 @@ func (x *JoinAuthorizationRequest) GetInstallerVersion() string {
 func (x *JoinAuthorizationRequest) GetClusterId() string {
 	if x != nil {
 		return x.ClusterId
+	}
+	return ""
+}
+
+func (x *JoinAuthorizationRequest) GetClusterUid() string {
+	if x != nil {
+		return x.ClusterUid
 	}
 	return ""
 }
@@ -9323,13 +9359,15 @@ var File_cluster_controller_proto protoreflect.FileDescriptor
 
 const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
-	"\x18cluster_controller.proto\x12\x12cluster_controller\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x13globular_auth.proto\"\x8e\x01\n" +
+	"\x18cluster_controller.proto\x12\x12cluster_controller\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x13globular_auth.proto\"\xaf\x01\n" +
 	"\vClusterInfo\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12%\n" +
 	"\x0ecluster_domain\x18\x02 \x01(\tR\rclusterDomain\x129\n" +
 	"\n" +
-	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xa6\x04\n" +
+	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1f\n" +
+	"\vcluster_uid\x18\x04 \x01(\tR\n" +
+	"clusterUid\"\xa6\x04\n" +
 	"\x12ClusterNetworkSpec\x12%\n" +
 	"\x0ecluster_domain\x18\x01 \x01(\tR\rclusterDomain\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x1b\n" +
@@ -9405,12 +9443,14 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"S\n" +
 	"\x16CreateJoinTokenRequest\x129\n" +
 	"\n" +
-	"expires_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"s\n" +
+	"expires_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\x94\x01\n" +
 	"\x17CreateJoinTokenResponse\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\x01 \x01(\tR\tjoinToken\x129\n" +
 	"\n" +
-	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"\xc2\x02\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1f\n" +
+	"\vcluster_uid\x18\x03 \x01(\tR\n" +
+	"clusterUid\"\xc2\x02\n" +
 	"\x12RequestJoinRequest\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\x01 \x01(\tR\tjoinToken\x12<\n" +
@@ -9437,7 +9477,7 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
 	"node_token\x18\x05 \x01(\tR\tnodeToken\x12%\n" +
 	"\x0enode_principal\x18\x06 \x01(\tR\rnodePrincipal\x12\x1b\n" +
-	"\tplan_json\x18\a \x01(\fR\bplanJson\"\xb0\x03\n" +
+	"\tplan_json\x18\a \x01(\fR\bplanJson\"\xd1\x03\n" +
 	"\x18JoinAuthorizationRequest\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\x01 \x01(\tR\tjoinToken\x12<\n" +
@@ -9447,7 +9487,9 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x05nonce\x18\x05 \x01(\tR\x05nonce\x12+\n" +
 	"\x11installer_version\x18\x06 \x01(\tR\x10installerVersion\x12\x1d\n" +
 	"\n" +
-	"cluster_id\x18\a \x01(\tR\tclusterId\x1a9\n" +
+	"cluster_id\x18\a \x01(\tR\tclusterId\x12\x1f\n" +
+	"\vcluster_uid\x18\t \x01(\tR\n" +
+	"clusterUid\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc5\x01\n" +

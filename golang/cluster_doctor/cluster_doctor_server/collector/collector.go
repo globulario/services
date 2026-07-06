@@ -1248,6 +1248,8 @@ func clusterIDInjectingUnaryInterceptor() grpc.UnaryClientInterceptor {
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", cid)
 			}
 		}
+		// Also carry the opaque membership UUID (identity), not just the namespace.
+		ctx = security.AppendClusterUIDMetadata(ctx)
 		return invoker(ctx, method, req, reply, cc, opts...)
 	}
 }
@@ -1261,6 +1263,8 @@ func clusterIDInjectingStreamInterceptor() grpc.StreamClientInterceptor {
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", cid)
 			}
 		}
+		// Also carry the opaque membership UUID (identity), not just the namespace.
+		ctx = security.AppendClusterUIDMetadata(ctx)
 		return streamer(ctx, desc, cc, method, opts...)
 	}
 }

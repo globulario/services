@@ -47,16 +47,174 @@ func signedPlan(t *testing.T, priv ed25519.PrivateKey, kid string) *JoinPlan {
 func newJoinAuthServer(t *testing.T) *server {
 	t.Helper()
 	state := newControllerState()
+	state.ClusterId = "cluster-abc"                           // namespace (legacy overloaded field)
+	state.ClusterUID = "abcdef01-2345-6789-abcd-ef0123456789" // minted membership UUID (identity)
 	state.JoinTokens["tok-v2"] = &joinTokenRecord{
 		Token:     "tok-v2",
 		ExpiresAt: time.Now().Add(time.Hour),
 		MaxUses:   10,
+		// Bound to the cluster membership UUID — mirrors production, where the
+		// config token is bound at seed/reconcile and backfilled atomically at
+		// mint (ensureClusterMembershipID). Once initialized, an unbound token is
+		// rejected by the join gate, so a realistic fixture must be bound.
+		ClusterUID: state.ClusterUID,
 	}
-	state.ClusterId = "cluster-abc"
 	state.ClusterNetworkSpec = &cluster_controllerpb.ClusterNetworkSpec{
 		ClusterDomain: "globular.internal",
 	}
 	return newTestServer(t, state)
+}
+
+// TestJoinPlan_CarriesClusterUID (A5): the issued plan carries the minted
+// membership UUID as its identity, distinct from the namespace ClusterID.
+func TestJoinPlan_CarriesClusterUID(t *testing.T) {
+	srv := newJoinAuthServer(t)
+	resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+		JoinToken: "tok-v2",
+		Identity:  NodePlanIdentity{Hostname: "node-01", IPs: []string{"10.0.0.1"}},
+		Nonce:     "nonce-carry-uid",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.Allowed || resp.Plan == nil {
+		t.Fatalf("expected an allowed plan, denied=%q", resp.DeniedReason)
+	}
+	if resp.Plan.ClusterUID != srv.state.ClusterUID {
+		t.Errorf("plan.ClusterUID = %q, want the minted membership UUID %q", resp.Plan.ClusterUID, srv.state.ClusterUID)
+	}
+	if resp.Plan.ClusterUID == resp.Plan.ClusterID {
+		t.Errorf("plan must carry a distinct identity (ClusterUID) and namespace (ClusterID)")
+	}
+}
+
+// TestJoinPlan_ClusterUID_IsSigned (A5): the membership UUID is covered by the
+// Ed25519 signature — tampering it must invalidate the plan.
+func TestJoinPlan_ClusterUID_IsSigned(t *testing.T) {
+	pub, priv, kid := generateTestKeyPair(t)
+	plan := &JoinPlan{
+		JoinID:               "j-uid",
+		ClusterID:            "globular.internal", // namespace
+		ClusterUID:           "abcdef01-2345-6789-abcd-ef0123456789",
+		IssuedAt:             time.Now(),
+		ExpiresAt:            time.Now().Add(time.Hour),
+		AssignedProfiles:     []string{"core"},
+		AssignedNodeID:       "node-x",
+		ExpectedNodeIdentity: NodePlanIdentity{Hostname: "node-01", IPs: []string{"10.0.0.1"}},
+	}
+	if err := signJoinPlanWithKey(plan, priv, kid); err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if err := verifyJoinPlanWithKey(plan, pub); err != nil {
+		t.Fatalf("verify (untampered): %v", err)
+	}
+	plan.ClusterUID = "00000000-0000-0000-0000-000000000000" // tamper
+	if err := verifyJoinPlanWithKey(plan, pub); err == nil {
+		t.Error("tampering ClusterUID must break the signature — the membership UUID must be signed")
+	}
+}
+
+// TestJoinAuthorization_ClusterUIDValidatedWhenPresent (A6-final): with a
+// correctly-bound token, a FORWARDED cluster_uid (req.ClusterUID) must still
+// equal the minted UUID — the domain and any wrong value are rejected as
+// identity. This is the defense-in-depth check layered on top of the token
+// binding (unbound tokens are handled separately by the strict gate).
+func TestJoinAuthorization_ClusterUIDValidatedWhenPresent(t *testing.T) {
+	srv := newJoinAuthServer(t)
+	for _, badUID := range []string{"wrong-uuid", "globular.internal", "cluster-abc"} {
+		resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+			JoinToken:  "tok-v2",
+			Identity:   NodePlanIdentity{Hostname: "node-01", IPs: []string{"10.0.0.1"}},
+			Nonce:      "nonce-" + badUID,
+			ClusterUID: badUID,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resp.Allowed || !strings.Contains(resp.DeniedReason, "cluster_uid mismatch") {
+			t.Errorf("cluster_uid %q must be denied as a mismatch (domain/wrong is not identity); got allowed=%v reason=%q",
+				badUID, resp.Allowed, resp.DeniedReason)
+		}
+	}
+	// The matching minted UUID passes the identity gate.
+	resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+		JoinToken:  "tok-v2",
+		Identity:   NodePlanIdentity{Hostname: "node-02", IPs: []string{"10.0.0.2"}},
+		Nonce:      "nonce-good-uid",
+		ClusterUID: srv.state.ClusterUID,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(resp.DeniedReason, "cluster_uid mismatch") {
+		t.Errorf("matching cluster_uid must pass the identity gate, got: %s", resp.DeniedReason)
+	}
+}
+
+// TestJoinAuthorization_UnboundTokenDeniedAfterInit (A6-final): once the cluster
+// is initialized (state.ClusterUID set), a join token with NO membership binding
+// is rejected. In production no legitimate token is unbound after init (config
+// token bound at seed/reconcile + backfilled atomically at mint), so an unbound
+// token reaching the gate is stale or forged.
+func TestJoinAuthorization_UnboundTokenDeniedAfterInit(t *testing.T) {
+	srv := newJoinAuthServer(t)
+	srv.state.JoinTokens["tok-v2"].ClusterUID = "" // stale/pre-mint unbound token
+
+	resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+		JoinToken: "tok-v2",
+		Identity:  NodePlanIdentity{Hostname: "n", IPs: []string{"10.0.0.1"}},
+		Nonce:     "nonce-unbound",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Allowed || !strings.Contains(resp.DeniedReason, "not bound") {
+		t.Errorf("an unbound token must be denied after init; got allowed=%v reason=%q", resp.Allowed, resp.DeniedReason)
+	}
+}
+
+// TestJoinAuthorization_UnboundTokenAllowedBeforeInit (A6-final): before the
+// cluster is initialized (state.ClusterUID == ""), an unbound token is allowed —
+// the Day-0 bootstrap window is not steady-state auth
+// (intent:bootstrap.window_is_not_steady_state_auth). The token secret and the
+// gRPC interceptor remain the gates until the identity is minted. This is what
+// lets founding nodes 2/3 join before the UUID exists.
+func TestJoinAuthorization_UnboundTokenAllowedBeforeInit(t *testing.T) {
+	srv := newJoinAuthServer(t)
+	srv.state.ClusterUID = ""                      // pre-init: identity not yet minted
+	srv.state.JoinTokens["tok-v2"].ClusterUID = "" // unbound
+
+	resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+		JoinToken: "tok-v2",
+		Identity:  NodePlanIdentity{Hostname: "n", IPs: []string{"10.0.0.1"}},
+		Nonce:     "nonce-preinit",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.Allowed {
+		t.Errorf("an unbound token must be allowed before init (bootstrap window); got denied=%q", resp.DeniedReason)
+	}
+}
+
+// TestJoinAuthorization_TokenBoundToDifferentClusterDenied (A6): a join token
+// bound (at creation) to a DIFFERENT cluster's membership UUID is rejected — the
+// token-bound identity is verified server-side and cannot be replayed cross-cluster.
+func TestJoinAuthorization_TokenBoundToDifferentClusterDenied(t *testing.T) {
+	srv := newJoinAuthServer(t) // state.ClusterUID = abcdef01-...
+	srv.state.JoinTokens["tok-v2"].ClusterUID = "99999999-9999-9999-9999-999999999999"
+
+	resp, err := srv.requestJoinAuthorizationCore(&JoinAuthorizationRequest{
+		JoinToken: "tok-v2",
+		Identity:  NodePlanIdentity{Hostname: "n", IPs: []string{"10.0.0.1"}},
+		Nonce:     "nonce-crosscluster",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Allowed || !strings.Contains(resp.DeniedReason, "different cluster") {
+		t.Errorf("a token bound to a different cluster must be denied; got allowed=%v reason=%q", resp.Allowed, resp.DeniedReason)
+	}
 }
 
 // TestJoinAuthorization_FoundingNodeReceivesPlan verifies the happy path:

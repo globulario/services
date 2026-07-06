@@ -1111,24 +1111,26 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// - Loopback calls (inter-service on same host — trusted by network isolation)
 	// - Unauthenticated/public endpoints (login, health)
 	if !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && authCtx.AuthMethod != "jwt" && !authCtx.IsLoopback && !isUnauthenticated(method) {
-		// Check if cluster is initialized (has local cluster_id)
-		localClusterID, err := security.GetLocalClusterID()
-		if err == nil && localClusterID != "" {
-			// Cluster is initialized - enforce cluster_id matching
-			if authCtx.ClusterID == "" {
-				// Missing cluster_id after initialization
-				LogAuthzDecisionSimple(authCtx, false, "cluster_id_missing")
+		// Enforcement activates on the STABLE cluster-initialized signal (Day-0
+		// complete, secured mode) — NOT on whether a per-request UUID read happens
+		// to succeed. Once initialized, failure to read/verify the membership UUID
+		// is a DENY (ValidateClusterMembership fails closed), never a silent skip:
+		// an infrastructure read error must not behave like policy relaxation.
+		// Membership identity is the opaque minted UUID (/globular/system/cluster/id),
+		// never the domain.
+		if initialized, _ := security.IsClusterInitialized(ctx); initialized {
+			if authCtx.ClusterUID == "" {
+				LogAuthzDecisionSimple(authCtx, false, "cluster_uid_missing")
 				return nil, status.Errorf(codes.Unauthenticated,
-					"cluster_id required after cluster initialization")
+					"cluster_uid required after cluster initialization")
 			}
-			// Validate cluster_id matches local cluster
-			if err := security.ValidateClusterID(ctx, authCtx.ClusterID); err != nil {
-				LogAuthzDecisionSimple(authCtx, false, "cluster_id_mismatch")
+			if err := security.ValidateClusterMembership(authCtx.ClusterUID); err != nil {
+				LogAuthzDecisionSimple(authCtx, false, "cluster_uid_mismatch")
 				return nil, status.Errorf(codes.Unauthenticated,
-					"cluster_id validation failed: %v", err)
+					"cluster membership validation failed: %v", err)
 			}
 		}
-		// Cluster not initialized yet OR cluster_id valid - continue
+		// Not initialized (bootstrap) OR cluster_uid valid - continue
 	}
 
 	// 2) Bypass for allowlisted infra/public methods.
@@ -1624,22 +1626,21 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	streamInitialized := false
 	if authCtx != nil && !authCtx.IsBootstrap && authCtx.AuthMethod != "mtls" && authCtx.AuthMethod != "jwt" && !authCtx.IsLoopback && !isUnauthenticated(method) {
 		// Check if cluster is initialized (has local cluster ID)
-		if localClusterID, err := security.GetLocalClusterID(); err == nil && localClusterID != "" {
+		if initialized, _ := security.IsClusterInitialized(ctx); initialized {
 			streamInitialized = true
-			// Cluster initialized - enforce cluster_id matching
-			if authCtx.ClusterID == "" {
-				LogAuthzDecisionSimple(authCtx, false, "cluster_id_missing")
+			// Fail-closed once initialized: read/verify failure is a DENY, not a skip.
+			if authCtx.ClusterUID == "" {
+				LogAuthzDecisionSimple(authCtx, false, "cluster_uid_missing")
 				return status.Errorf(codes.Unauthenticated,
-					"cluster_id required after cluster initialization")
+					"cluster_uid required after cluster initialization")
 			}
-			// Validate cluster_id matches local cluster
-			if err := security.ValidateClusterID(ctx, authCtx.ClusterID); err != nil {
-				LogAuthzDecisionSimple(authCtx, false, "cluster_id_mismatch")
+			if err := security.ValidateClusterMembership(authCtx.ClusterUID); err != nil {
+				LogAuthzDecisionSimple(authCtx, false, "cluster_uid_mismatch")
 				return status.Errorf(codes.Unauthenticated,
-					"cluster_id validation failed: %v", err)
+					"cluster membership validation failed: %v", err)
 			}
 		}
-		// Cluster not initialized yet OR cluster_id valid - continue
+		// Not initialized (bootstrap) OR cluster_uid valid - continue
 	}
 
 	// Post-Day-0: mutating streaming RPCs must be authenticated.

@@ -129,6 +129,8 @@ func (client *Dns_Client) SetTokenCtx(token string) {
 		"cluster_id":    clusterID,
 	})
 	client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+	// Carry the opaque membership UUID (identity) alongside cluster_id (namespace).
+	client.ctx = security.AppendClusterUIDMetadata(client.ctx)
 }
 
 // Return the domain

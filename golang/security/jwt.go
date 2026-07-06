@@ -66,7 +66,18 @@ func (a *Authentication) RequireTransportSecurity() bool { return true }
 type Claims struct {
 	// Core identity (opaque, stable, domain-independent)
 	PrincipalID string `json:"principal_id"` // Opaque user ID (e.g., "usr_7f9a3b2c")
-	ClusterID   string `json:"cluster_id"`   // Blocker Fix #8: Cluster identifier for cross-cluster validation
+	// AccountUUID is the account's opaque, immutable membership identity (the
+	// minted Account.uuid). Additive during the identity migration: carried in the
+	// token so readers can migrate to it, but authorization still uses PrincipalID/
+	// Subject (the mutable account id) until RBAC and storage dual-read. Empty for
+	// service principals and pre-migration tokens.
+	AccountUUID string `json:"account_uuid,omitempty"`
+	ClusterID   string `json:"cluster_id"` // Blocker Fix #8: Cluster identifier for cross-cluster validation
+	// ClusterUID is the opaque MEMBERSHIP UUID (minted, immutable). Additive
+	// dual-claim: emitted alongside ClusterID=domain during the identity migration
+	// (docs/design/cluster-id-minted-uuid-migration.md). NOT yet validated —
+	// validators still key off ClusterID until the Phase-2 dual-accept airlock.
+	ClusterUID string `json:"cluster_uid,omitempty"`
 
 	// Display/contact information (NOT used for identity)
 	ID       string `json:"id"`       // Legacy username, kept for compatibility
@@ -152,6 +163,19 @@ func readSessionTimeout() (int, error) {
 // GenerateToken creates a v1-conformant JWT token with opaque principal identity.
 // v1 Breaking Change: Removed userDomain parameter - identity MUST NOT include domain.
 func GenerateToken(timeout int, mac, userId, userName, email string) (string, error) {
+	return generateTokenWithUUID(timeout, mac, userId, userName, email, "")
+}
+
+// GenerateTokenWithAccountUUID is GenerateToken plus the account's opaque
+// membership uuid (Account.uuid), carried as the additive account_uuid claim.
+// Used on the user-login path where the account object is available; it shares
+// GenerateToken's single signing implementation (single-issuance-point invariant).
+// Service/sa tokens use GenerateToken and carry no account uuid.
+func GenerateTokenWithAccountUUID(timeout int, mac, userId, userName, email, accountUUID string) (string, error) {
+	return generateTokenWithUUID(timeout, mac, userId, userName, email, accountUUID)
+}
+
+func generateTokenWithUUID(timeout int, mac, userId, userName, email, accountUUID string) (string, error) {
 	// Normalize/secure timeout
 	if timeout <= 0 {
 		if cfgTimeout, err := readSessionTimeout(); err == nil && cfgTimeout > 0 {
@@ -192,9 +216,18 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 		return "", fmt.Errorf("generate token: get cluster id: %w", err)
 	}
 
+	// Additive dual-claim: also emit the opaque membership UUID when it has been
+	// minted. Best-effort — a not-yet-minted cluster (or transient etcd error)
+	// still issues tokens with the UUID claim simply omitted. No validation
+	// depends on ClusterUID yet; this only makes the true identity visible on the
+	// wire ahead of the Phase-2 dual-accept flip.
+	clusterUID, _ := GetLocalClusterUID()
+
 	claims := &Claims{
 		PrincipalID: principalID, // v1: Opaque identity
+		AccountUUID: accountUUID, // additive opaque account identity (not yet used for authz)
 		ClusterID:   clusterID,   // v1: Cluster identifier (domain)
+		ClusterUID:  clusterUID,  // additive: opaque membership UUID (may be empty pre-mint)
 		ID:          userId,      // Legacy field, kept for compatibility
 		Username:    userName,    // Display name only
 		Email:       email,       // Contact only

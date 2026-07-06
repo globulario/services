@@ -297,6 +297,7 @@ func resolveArtifactDigest(ctx context.Context, repoAddr, publisherID, service, 
 		md := metadata.Pairs("cluster_id", clusterID)
 		authCtx = metadata.NewOutgoingContext(ctx, md)
 	}
+	authCtx = security.AppendClusterUIDMetadata(authCtx)
 
 	kind := repositorypb.ArtifactKind_SERVICE
 	switch strings.ToUpper(kindStr) {
@@ -354,6 +355,7 @@ func resolveArtifactEntrypointDigest(ctx context.Context, repoAddr, publisherID,
 		md := metadata.Pairs("cluster_id", clusterID)
 		authCtx = metadata.NewOutgoingContext(ctx, md)
 	}
+	authCtx = security.AppendClusterUIDMetadata(authCtx)
 
 	kind := repositorypb.ArtifactKind_SERVICE
 	switch strings.ToUpper(kindStr) {
@@ -476,6 +478,7 @@ func resolveArtifactByBuildID(ctx context.Context, repoAddr, buildID, service, p
 		md := metadata.Pairs("cluster_id", clusterID)
 		authCtx = metadata.NewOutgoingContext(ctx, md)
 	}
+	authCtx = security.AppendClusterUIDMetadata(authCtx)
 
 	client := repositorypb.NewPackageRepositoryClient(conn)
 	resp, err := client.ResolveArtifact(authCtx, &repositorypb.ResolveArtifactRequest{
@@ -964,6 +967,7 @@ func CheckArtifactPublished(ctx context.Context, repoAddr, publisherID, name, ve
 		md := metadata.Pairs("cluster_id", clusterID)
 		authCtx = metadata.NewOutgoingContext(ctx, md)
 	}
+	authCtx = security.AppendClusterUIDMetadata(authCtx)
 
 	artifactKind := repositorypb.ArtifactKind_SERVICE
 	switch strings.ToUpper(kind) {
@@ -1131,6 +1135,7 @@ func downloadArtifactFromRepository(ctx context.Context, addr string, ref *repos
 		md := metadata.Pairs("cluster_id", clusterID)
 		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
+	ctx = security.AppendClusterUIDMetadata(ctx)
 
 	client := repositorypb.NewPackageRepositoryClient(conn)
 	stream, err := client.DownloadArtifact(ctx, &repositorypb.DownloadArtifactRequest{Ref: ref, BuildNumber: buildNumber})

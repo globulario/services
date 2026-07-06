@@ -88,7 +88,15 @@ type controllerState struct {
 	JoinTokens           map[string]*joinTokenRecord             `json:"join_tokens"`
 	JoinRequests         map[string]*joinRequestRecord           `json:"join_requests"`
 	Nodes                map[string]*nodeState                   `json:"nodes"`
-	ClusterId            string                                  `json:"cluster_id"`
+	// ClusterId is the cluster DNS/storage NAMESPACE (the domain). It is NOT a
+	// membership identity — see ClusterUID. (Historically overloaded; the identity
+	// program splits the two. Kept for the namespace/scoping role.)
+	ClusterId string `json:"cluster_id"`
+	// ClusterUID is the opaque cluster MEMBERSHIP identity — the minted UUID from
+	// /globular/system/cluster/id (config.ClusterMembershipIDKey). Populated by the
+	// Day-0 seed. This is what identity readers (join gate, membership records,
+	// GetClusterInfo) use; the domain is never a membership credential.
+	ClusterUID           string                                  `json:"cluster_uid,omitempty"`
 	CreatedAt            time.Time                               `json:"created_at"`
 	ClusterNetworkSpec   *cluster_controllerpb.ClusterNetworkSpec `json:"cluster_network_spec,omitempty"`
 	NetworkingGeneration uint64                                  `json:"networking_generation"`
@@ -148,6 +156,12 @@ type joinTokenRecord struct {
 	ExpiresAt time.Time `json:"expires_at"`
 	MaxUses   int       `json:"max_uses"`
 	Uses      int       `json:"uses"`
+	// ClusterUID binds this token to the cluster MEMBERSHIP identity (the minted
+	// UUID at creation time). Token-bound distribution (A6): the join carries the
+	// identity via the secret token, so it cannot be spoofed and the installer need
+	// not know the UUID out-of-band. Empty for legacy / bootstrap-seed tokens minted
+	// before the UUID existed.
+	ClusterUID string `json:"cluster_uid,omitempty"`
 }
 
 type joinRequestRecord struct {
@@ -633,11 +647,14 @@ func loadControllerState(path string) (*controllerState, error) {
 	if state.CreatedAt.IsZero() {
 		state.CreatedAt = time.Now()
 	}
-	// Cluster ID must match what the node agent uses (the domain).
-	// Migrate any legacy UUID-based cluster IDs to the domain.
-	domain := netutil.DefaultClusterDomain()
-	if state.ClusterId == "" || !isDomainLike(state.ClusterId) {
-		state.ClusterId = domain
+	// state.ClusterId defaults to the domain ONLY when unset. It is NOT coerced to
+	// a domain shape. The previous `!isDomainLike(...)` guard force-rewrote any
+	// opaque (UUID) cluster id back to the domain on every load — the identity
+	// program's "dragon's nostril": with it in place, a minted membership UUID
+	// could never survive a restart. See docs/design/cluster-id-minted-uuid-
+	// migration.md. Empty-default only; never rewrite an already-set value.
+	if state.ClusterId == "" {
+		state.ClusterId = netutil.DefaultClusterDomain()
 	}
 	// Day-0 Security: Ensure internal domain is always set
 	if state.ClusterNetworkSpec == nil {
@@ -681,16 +698,6 @@ func loadControllerState(path string) (*controllerState, error) {
 	return state, nil
 }
 
-// isDomainLike returns true if s looks like a domain (contains a dot),
-// as opposed to a bare UUID.
-func isDomainLike(s string) bool {
-	for _, c := range s {
-		if c == '.' {
-			return true
-		}
-	}
-	return false
-}
 
 func (s *controllerState) save(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_service"
+	"github.com/google/uuid"
 )
 
 const (
@@ -64,6 +66,7 @@ func (srv *server) seedDay0CriticalState(ctx context.Context) {
 	defer cancel()
 
 	srv.ensureSystemConfigKey(wctx, kv)
+	srv.ensureClusterMembershipID(wctx, kv)
 	srv.ensureCriticalPrefixMarkers(wctx, kv)
 
 	// Seed ingress/objectstore/CA via existing canonical publishers.
@@ -101,6 +104,65 @@ func (srv *server) ensureSystemConfigKey(ctx context.Context, kv kvClient) {
 		return
 	}
 	log.Printf("day0-seed: seeded %s", systemConfigKey)
+}
+
+// ensureClusterMembershipID mints the cluster's opaque MEMBERSHIP UUID exactly
+// once, into the controller-owned key /globular/system/cluster/id. This is the
+// canonical membership identity, deliberately distinct from the cluster domain
+// (the domain remains the DNS/storage/workflow namespace). See
+// config.ClusterMembershipIDKey and docs/design/cluster-id-minted-uuid-migration.md.
+//
+// Mint-once + immutable: if a non-empty value already exists it is left
+// untouched (never overwritten). Idempotent — safe to run on every Day-0 seed
+// pass (day0_day1_are_repeatable_ceremonies). Leader-only (caller-gated).
+//
+// The minted UUID is the authoritative membership credential: the gRPC
+// interceptor validates it UUID-only (fail-closed), and once it exists the join
+// gate requires every token to be bound to it (see the token backfill below).
+func (srv *server) ensureClusterMembershipID(ctx context.Context, kv kvClient) {
+	resp, err := kv.Get(ctx, config.ClusterMembershipIDKey)
+	if err != nil {
+		log.Printf("day0-seed: cannot read %s: %v", config.ClusterMembershipIDKey, err)
+		return
+	}
+	id := ""
+	if len(resp.Kvs) > 0 {
+		id = strings.TrimSpace(string(resp.Kvs[0].Value))
+	}
+	if id == "" {
+		// Absent — mint once. (An existing non-empty value is immutable: never
+		// overwritten, only cached below.)
+		id = uuid.NewString()
+		if _, err := kv.Put(ctx, config.ClusterMembershipIDKey, id); err != nil {
+			log.Printf("day0-seed: failed to mint %s: %v", config.ClusterMembershipIDKey, err)
+			return
+		}
+		log.Printf("day0-seed: minted cluster membership id %s at %s", id, config.ClusterMembershipIDKey)
+	}
+	// Cache the authoritative membership UUID into controller state so identity
+	// readers (join gate, membership records, GetClusterInfo) use it without a
+	// per-read etcd call. The domain is never a membership credential.
+	//
+	// In the SAME lock hold, backfill any join token that was seeded before the
+	// identity existed (the config token is seeded at startup/reconcile, which on
+	// true Day-0 runs before this mint). Binding those tokens to the minted UUID
+	// here — atomically with setting state.ClusterUID — guarantees the join gate
+	// never observes an initialized cluster (ClusterUID set) holding an unbound
+	// token. This is what makes the gate's strict "unbound denied after init"
+	// safe: there is no window where ClusterUID is set but a legitimate token is
+	// still unbound. Mint-once identity → bind-once here; idempotent.
+	srv.lock("ensureClusterMembershipID")
+	if srv.state != nil {
+		if srv.state.ClusterUID != id {
+			srv.state.ClusterUID = id
+		}
+		for _, jt := range srv.state.JoinTokens {
+			if jt != nil && strings.TrimSpace(jt.ClusterUID) == "" {
+				jt.ClusterUID = id
+			}
+		}
+	}
+	srv.unlock()
 }
 
 func (srv *server) ensureCriticalPrefixMarkers(ctx context.Context, kv kvClient) {

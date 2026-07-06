@@ -619,10 +619,18 @@ func internalStreamClientInterceptor() grpc.StreamClientInterceptor {
 func ensureInternalMetadata(ctx context.Context) context.Context {
 	var pairs []string
 
-	// Cluster ID
+	// Cluster ID (domain — namespace/scoping)
 	if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_id")) == 0 {
 		if clusterID, err := security.GetLocalClusterID(); err == nil && clusterID != "" {
 			pairs = append(pairs, "cluster_id", clusterID)
+		}
+	}
+
+	// Cluster membership UUID (opaque identity) — carried alongside cluster_id so
+	// the membership boundary never depends on the transport (mTLS) exemption.
+	if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_uid")) == 0 {
+		if uid, err := security.GetLocalClusterUID(); err == nil && uid != "" {
+			pairs = append(pairs, "cluster_uid", uid)
 		}
 	}
 

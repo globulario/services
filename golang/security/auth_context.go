@@ -33,7 +33,9 @@ import (
 type AuthContext struct {
 	// Core identity (extracted from JWT claims)
 	ClusterID     string // Cluster identifier for cross-cluster validation
+	ClusterUID    string // Opaque membership UUID (additive: readable, NOT yet used for validation)
 	Subject       string // Identity: user/app/node (domain-independent, e.g. "dave", not "dave@localhost")
+	AccountUUID   string // Opaque account membership identity (Account.uuid) — additive; not yet used for authz. Empty for non-account/pre-migration principals.
 	PrincipalType string // "user", "application", "node", "anonymous"
 	AuthMethod    string // "jwt", "mtls", "apikey", "anonymous"
 
@@ -175,6 +177,14 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 			// ClusterID is set to domain by token generator (same as GetLocalClusterID())
 			// Issuer is MAC address, which creates mismatch with cluster validation
 			authCtx.ClusterID = claims.ClusterID
+			// Additive dual-read: surface the opaque membership UUID for visibility.
+			// NOT used for any authorization decision yet (validators key off
+			// ClusterID until the Phase-2 dual-accept airlock).
+			authCtx.ClusterUID = claims.ClusterUID
+
+			// Additive: expose the opaque account membership identity. Does NOT
+			// change Subject or any authorization decision (readers migrate later).
+			authCtx.AccountUUID = claims.AccountUUID
 		}
 	}
 
@@ -244,6 +254,18 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 						"method", grpcMethod,
 					)
 				}
+			}
+		}
+	}
+
+	// Additive dual-read: surface the opaque membership UUID from gRPC metadata on
+	// the proxy-fronted / metadata path (same UNVERIFIED trust caveat as cluster_id
+	// above — it is only a badge to match, never a grant of trust by itself). The
+	// membership interceptor's dual-accept verifies it against the local minted UUID.
+	if authCtx.ClusterUID == "" {
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			if vals := md["cluster_uid"]; len(vals) > 0 && vals[0] != "" {
+				authCtx.ClusterUID = vals[0]
 			}
 		}
 	}
