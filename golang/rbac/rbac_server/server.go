@@ -490,6 +490,11 @@ func (srv *server) groupExist(id string) (bool, string) {
 	if err != nil || g == nil {
 		return false, ""
 	}
+	// Subject flip (Phase 3): canonical RBAC key is the group's opaque uuid.
+	// Fall back to the id for any pre-migration group without a uuid.
+	if g.Uuid != "" {
+		return true, g.Uuid
+	}
 	return true, g.Id
 }
 
@@ -525,6 +530,10 @@ func (srv *server) applicationExist(id string) (bool, string) {
 	app, err := srv.getApplication(id)
 	if err != nil || app == nil {
 		return false, ""
+	}
+	// Subject flip (Phase 3): canonical RBAC key is the application's opaque uuid.
+	if app.Uuid != "" {
+		return true, app.Uuid
 	}
 	return true, app.Id
 }
@@ -577,6 +586,10 @@ func (srv *server) organizationExist(id string) (bool, string) {
 	o, err := srv.getOrganization(id)
 	if err != nil || o == nil {
 		return false, ""
+	}
+	// Subject flip (Phase 3): canonical RBAC key is the organization's opaque uuid.
+	if o.Uuid != "" {
+		return true, o.Uuid
 	}
 	return true, o.Id
 }

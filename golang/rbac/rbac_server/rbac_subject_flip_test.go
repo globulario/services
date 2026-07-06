@@ -98,3 +98,46 @@ func TestSubjectFlip_GrantByNameMatchedByUUID(t *testing.T) {
 		t.Errorf("deny must override for the uuid subject: has=%v denied=%v", has, denied)
 	}
 }
+
+// TestSubjectFlip_GroupCanonicalizesToUUID extends the flip to group principals:
+// groupExist canonicalizes a group to its uuid (resolvable by name or uuid), and
+// a permission granted by group NAME is stored uuid-canonical so a group-uuid
+// subject matches. Organizations and applications use the identical resolver.
+func TestSubjectFlip_GroupCanonicalizesToUUID(t *testing.T) {
+	srv := newDenyTestServer(t)
+	const guid = "cccccccc-1111-2222-3333-444444444444"
+	g := &resourcepb.Group{Id: "admins", Uuid: guid}
+	data, err := protojson.Marshal(g)
+	if err != nil {
+		t.Fatalf("marshal group: %v", err)
+	}
+	// seed under both id and uuid so getGroup resolves either way
+	_ = srv.cache.SetItem("admins", data)
+	_ = srv.cache.SetItem(guid, data)
+
+	if exist, k := srv.groupExist("admins"); !exist || k != guid {
+		t.Errorf("groupExist(name) = (%v,%q), want (true, uuid)", exist, k)
+	}
+	if exist, k := srv.groupExist(guid); !exist || k != guid {
+		t.Errorf("groupExist(uuid) = (%v,%q), want (true, uuid)", exist, k)
+	}
+
+	// grant read to the group BY NAME → stored uuid-canonical → group-uuid matches
+	if err := srv.setResourcePermissions("/g/x", "file", &rbacpb.Permissions{
+		Allowed: []*rbacpb.Permission{{Name: "read", Accounts: []string{}, Groups: []string{"admins"}}},
+	}); err != nil {
+		t.Fatalf("setResourcePermissions: %v", err)
+	}
+	has, denied, err := srv.validateAccess(guid, rbacpb.SubjectType_GROUP, "read", "/g/x")
+	if err != nil {
+		t.Fatalf("validateAccess: %v", err)
+	}
+	if !has || denied {
+		t.Errorf("group-uuid subject must match name-granted allow: has=%v denied=%v", has, denied)
+	}
+	if perms, _ := srv.getResourcePermissions("/g/x"); perms == nil ||
+		len(perms.GetAllowed()) == 0 || len(perms.GetAllowed()[0].GetGroups()) == 0 ||
+		perms.GetAllowed()[0].GetGroups()[0] != guid {
+		t.Errorf("stored Allowed.Groups must be uuid, got %v", perms.GetAllowed())
+	}
+}
