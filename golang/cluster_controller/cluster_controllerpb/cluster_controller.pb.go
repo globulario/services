@@ -1485,8 +1485,12 @@ type JoinAuthorizationRequest struct {
 	Nonce            string                 `protobuf:"bytes,5,opt,name=nonce,proto3" json:"nonce,omitempty"`
 	InstallerVersion string                 `protobuf:"bytes,6,opt,name=installer_version,json=installerVersion,proto3" json:"installer_version,omitempty"`
 	ClusterId        string                 `protobuf:"bytes,7,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"` // DNS/namespace value (not identity)
-	// field 8 (requested_profiles) is non-identity branch work, not part of this
-	// identity migration — reserved to keep cluster_uid's field number stable.
+	// requested_profiles is an operator preference (e.g. from `join --profiles`),
+	// forwarded verbatim by the gateway. The controller — never the gateway — decides
+	// the final profile set: requested profiles take precedence over hardware-deduced
+	// suggestions, but founding-quorum enforcement (core/control-plane/storage +
+	// media-server) still applies. The gateway is a courier and never assigns.
+	RequestedProfiles []string `protobuf:"bytes,8,rep,name=requested_profiles,json=requestedProfiles,proto3" json:"requested_profiles,omitempty"`
 	// cluster_uid is the opaque cluster MEMBERSHIP identity the installer forwards
 	// (received via the join token / prior JoinPlan). Validated against the minted
 	// UUID; the domain is never a valid identity here.
@@ -1572,6 +1576,13 @@ func (x *JoinAuthorizationRequest) GetClusterId() string {
 		return x.ClusterId
 	}
 	return ""
+}
+
+func (x *JoinAuthorizationRequest) GetRequestedProfiles() []string {
+	if x != nil {
+		return x.RequestedProfiles
+	}
+	return nil
 }
 
 func (x *JoinAuthorizationRequest) GetClusterUid() string {
@@ -9477,7 +9488,7 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
 	"node_token\x18\x05 \x01(\tR\tnodeToken\x12%\n" +
 	"\x0enode_principal\x18\x06 \x01(\tR\rnodePrincipal\x12\x1b\n" +
-	"\tplan_json\x18\a \x01(\fR\bplanJson\"\xd1\x03\n" +
+	"\tplan_json\x18\a \x01(\fR\bplanJson\"\x80\x04\n" +
 	"\x18JoinAuthorizationRequest\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\x01 \x01(\tR\tjoinToken\x12<\n" +
@@ -9487,7 +9498,8 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\x05nonce\x18\x05 \x01(\tR\x05nonce\x12+\n" +
 	"\x11installer_version\x18\x06 \x01(\tR\x10installerVersion\x12\x1d\n" +
 	"\n" +
-	"cluster_id\x18\a \x01(\tR\tclusterId\x12\x1f\n" +
+	"cluster_id\x18\a \x01(\tR\tclusterId\x12-\n" +
+	"\x12requested_profiles\x18\b \x03(\tR\x11requestedProfiles\x12\x1f\n" +
 	"\vcluster_uid\x18\t \x01(\tR\n" +
 	"clusterUid\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
