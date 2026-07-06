@@ -235,7 +235,13 @@ func (srv *server) tryRegisterScylla() bool {
 	existing := srv.detectScyllaClusters(srv.ScyllaManagerAPI)
 	managed := 0
 	for _, c := range existing {
-		if !strings.HasPrefix(c, "native:") {
+		// Count only REAL registered scylla-manager clusters. detectScyllaClusters
+		// emits "native:<name>" and "scylla_host:<host>" HINTS when nothing is
+		// registered yet (local REST-API detection). Counting "scylla_host:" as
+		// managed made this branch fire with an empty clusterName, so registration
+		// was silently skipped and the cluster stayed cluster_count=0 forever.
+		// Exclude both hint prefixes — must match the clusterName filter below.
+		if !strings.HasPrefix(c, "native:") && !strings.HasPrefix(c, "scylla_host:") {
 			managed++
 		}
 	}
