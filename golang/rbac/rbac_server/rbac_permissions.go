@@ -54,6 +54,12 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 			for j := 0; j < len(allowed[i].Accounts); j++ {
 				exist, a := srv.accountExist(allowed[i].Accounts[j])
 				if exist {
+					// Subject flip (Phase 3): canonicalize the STORED account
+					// subject to acc.Uuid so the persisted Allowed.Accounts list
+					// matches the now-uuid incoming subject in matchID. Without
+					// this write-back the grant silently stops matching (the
+					// index key and share were canonical but the list was raw).
+					allowed[i].Accounts[j] = a
 
 					err := srv.setSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+a, path)
 					if err != nil {
@@ -143,9 +149,13 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		// Acccounts
 		if denied[i].Accounts != nil {
 			for j := range denied[i].Accounts {
-				exist, _ := srv.accountExist(denied[i].Accounts[j])
+				exist, a := srv.accountExist(denied[i].Accounts[j])
 				if exist {
-					// Do not index denied subjects under allowed index space
+					// Subject flip (Phase 3): canonicalize the stored DENIED account
+					// subject to acc.Uuid so deny still matches the now-uuid incoming
+					// subject — deny_overrides_allow MUST NOT silently weaken. Do not
+					// index denied subjects under the allowed index space.
+					denied[i].Accounts[j] = a
 					has_denied = true
 				}
 			}

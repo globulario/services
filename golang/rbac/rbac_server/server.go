@@ -421,23 +421,34 @@ func (srv *server) getAccount(accountId string) (*resourcepb.Account, error) {
 }
 
 func (srv *server) accountExist(id string) (bool, string) {
+	// Service-principal carve-out (Phase 3, Path B): the built-in superadmin is
+	// ALWAYS keyed by its name "sa", never its minted uuid — so the interceptor's
+	// "== sa" bypass, the name-keyed seed bindings, and the sa@-string checks stay
+	// consistent. Checked FIRST (before getAccount, which would otherwise resolve
+	// sa's minted uuid). One recognizer (isBuiltinSuperadmin) — this predicate must
+	// not drift (see failure_mode rbac.authority_recognition_predicate_drift). It
+	// also keeps sa resolvable when the resource service is unreachable at startup.
+	if isBuiltinSuperadmin(id) {
+		return true, "sa"
+	}
+
 	acc, err := srv.getAccount(id)
 	if err != nil {
-		// The built-in superadmin account "sa" always exists even when the
-		// resource service is temporarily unreachable (e.g. during startup
-		// or when inter-service routing is not yet configured).
-		if isBuiltinSuperadmin(id) {
-			return true, "sa"
-		}
 		slog.Warn("accountExist: getAccount failed", "id", id, "err", err)
 		return false, ""
 	}
 	if acc == nil {
-		if isBuiltinSuperadmin(id) {
-			return true, "sa"
-		}
 		slog.Warn("accountExist: getAccount returned nil", "id", id)
 		return false, ""
+	}
+
+	// Subject flip (Phase 3, Path B): the opaque, immutable account uuid is the
+	// canonical RBAC subject key for real accounts — ownership, the subject→path
+	// index, and shares all route through accountExist, so returning acc.Uuid here
+	// makes them uuid-keyed. Fall back to the id for any pre-migration account that
+	// predates the uuid mint (empty uuid).
+	if acc.Uuid != "" {
+		return true, acc.Uuid
 	}
 	return true, acc.Id
 }
