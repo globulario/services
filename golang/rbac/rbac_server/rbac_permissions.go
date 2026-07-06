@@ -77,6 +77,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 
 				exist, g := srv.groupExist(allowed[i].Groups[j])
 				if exist {
+					allowed[i].Groups[j] = g // canonicalize stored subject to uuid (subject flip)
 
 					err := srv.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+g, path)
 					if err != nil {
@@ -93,6 +94,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 			for j := range allowed[i].Organizations {
 				exist, o := srv.organizationExist(allowed[i].Organizations[j])
 				if exist {
+					allowed[i].Organizations[j] = o // canonicalize stored subject to uuid (subject flip)
 
 					err := srv.setSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+o, path)
 					if err != nil {
@@ -109,6 +111,7 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 			for j := range allowed[i].Applications {
 				exist, a := srv.applicationExist(allowed[i].Applications[j])
 				if exist {
+					allowed[i].Applications[j] = a // canonicalize stored subject to uuid (subject flip)
 
 					err := srv.setSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+a, path)
 					if err != nil {
@@ -164,8 +167,9 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		// Applications
 		if denied[i].Applications != nil {
 			for j := range denied[i].Applications {
-				exist, _ := srv.applicationExist(denied[i].Applications[j])
+				exist, a := srv.applicationExist(denied[i].Applications[j])
 				if exist {
+					denied[i].Applications[j] = a // canonicalize stored deny subject to uuid (deny must not weaken)
 					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
@@ -185,8 +189,9 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		// Groups
 		if denied[i].Groups != nil {
 			for j := range denied[i].Groups {
-				exist, _ := srv.groupExist(denied[i].Groups[j])
+				exist, g := srv.groupExist(denied[i].Groups[j])
 				if exist {
+					denied[i].Groups[j] = g // canonicalize stored deny subject to uuid (deny must not weaken)
 					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
@@ -196,8 +201,9 @@ func (srv *server) setResourcePermissions(path, resource_type string, permission
 		// Organizations
 		if denied[i].Organizations != nil {
 			for j := range denied[i].Organizations {
-				exist, _ := srv.organizationExist(denied[i].Organizations[j])
+				exist, o := srv.organizationExist(denied[i].Organizations[j])
 				if exist {
+					denied[i].Organizations[j] = o // canonicalize stored deny subject to uuid (deny must not weaken)
 					// Do not index denied subjects under allowed index space
 					has_denied = true
 				}
