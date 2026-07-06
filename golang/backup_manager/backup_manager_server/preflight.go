@@ -257,7 +257,12 @@ func (srv *server) ensureScyllaRegistered() {
 	// No clusters registered — check if ScyllaDB is actually running
 	scyllaHost, nativeName := detectNativeScyllaDB()
 	if nativeName == "" {
-		// ScyllaDB not reachable, nothing to register
+		// ScyllaDB not reachable — nothing to register yet. Log it: this is a
+		// legitimate transient state at Day-1 (Scylla still starting), but a
+		// persistent one silently blocks auto-registration, which used to be
+		// impossible to diagnose from the logs.
+		slog.Info("scylla auto-registration deferred: local ScyllaDB not yet detectable",
+			"api_url", srv.ScyllaManagerAPI)
 		return
 	}
 
