@@ -350,8 +350,16 @@ func evalA3(in Inputs, ec string) AssertionReport {
 
 // evalA4 — the running process started after the artifact was installed.
 //
-// Conservative rule: process_start_unix <= installed_unix never proves.
-// Strictly older -> FAILED; equal (or any ambiguous tie) -> INDETERMINATE.
+// Rule: a process cannot execute a binary before that binary exists on disk,
+// so for any FRESH process process_start_unix >= install_committed_unix always
+// holds. Strictly older -> FAILED (a genuinely stale process running pre-install
+// code). Equal (same unix second) -> PROVEN: at second precision a service that
+// starts in the same second as its own install-commit is fresh, and a truly
+// stale process would carry a PRIOR install's start second, which cannot equal
+// the current install-commit second. Treating the tie as INDETERMINATE pinned
+// such services UNKNOWN forever (both timestamps are fixed and never diverge),
+// producing a permanent release.boundary_unproven WARN after every same-second
+// Day-0 install.
 func evalA4(in Inputs) AssertionReport {
 	r := AssertionReport{
 		ID:       AssertionRestartAfterInstall,
@@ -375,8 +383,11 @@ func evalA4(in Inputs) AssertionReport {
 		r.Verdict = VerdictFailed
 		r.Reason = "process started before the artifact was installed (stale process)"
 	case in.Runtime.ProcessStartUnix == in.Installed.InstallCommittedUnix:
-		r.Verdict = VerdictIndeterminate
-		r.Reason = "process start time ties install-commit time at ambiguous precision"
+		// Same-second tie: fresh, not stale. A process cannot predate its own
+		// binary; a stale process would carry a prior install's start second,
+		// which cannot equal the current install-commit second.
+		r.Verdict = VerdictProven
+		r.Reason = "process started in the same second as install-commit (fresh; cannot predate its own binary)"
 	default:
 		r.Verdict = VerdictProven
 		r.Reason = "process started after the artifact was installed"

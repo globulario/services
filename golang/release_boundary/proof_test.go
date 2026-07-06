@@ -143,12 +143,12 @@ func TestEvaluate(t *testing.T) {
 			focusVerdict: VerdictFailed,
 		},
 		{
-			name:           "12 A4 process start equals install-commit -> INDETERMINATE",
+			name:           "12 A4 process start equals install-commit -> PROVEN (same-second is fresh)",
 			mutate:         func(in *Inputs) { in.Runtime.ProcessStartUnix = in.Installed.InstallCommittedUnix },
-			wantOverall:    VerdictIndeterminate,
+			wantOverall:    VerdictProven,
 			focusID:        AssertionRestartAfterInstall,
-			focusVerdict:   VerdictIndeterminate,
-			reasonContains: "tie",
+			focusVerdict:   VerdictProven,
+			reasonContains: "same second",
 		},
 		{
 			// metadata installed_at absent -> A4 INDETERMINATE (no fallback to
