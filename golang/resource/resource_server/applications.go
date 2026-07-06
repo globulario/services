@@ -164,7 +164,7 @@ func (srv *server) deleteApplication(ctx context.Context, applicationId string) 
 
 	// I will remove all the access to the application, before removing the application.
 	srv.deleteAllAccess(token, applicationId, rbacpb.SubjectType_APPLICATION)
-	srv.deleteResourcePermissions(token, applicationId)
+	_ = srv.deleteResourcePermissions(token, applicationId) // best-effort cleanup
 
 	application := values.(map[string]interface{})
 

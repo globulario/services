@@ -38,7 +38,7 @@ func TestFromHostAndIPs_GoldenAndOrderStable(t *testing.T) {
 
 // TestFromMAC_DoesNotMutateAndIsDeterministic sanity-checks purity.
 func TestFromMAC_Deterministic(t *testing.T) {
-	if FromMAC("aa:bb:cc:dd:ee:ff") != FromMAC("aa:bb:cc:dd:ee:ff") {
+	if a, b := FromMAC("aa:bb:cc:dd:ee:ff"), FromMAC("aa:bb:cc:dd:ee:ff"); a != b {
 		t.Error("FromMAC must be deterministic")
 	}
 	if FromMAC("aa:bb:cc:dd:ee:ff") == FromMAC("00:11:22:33:44:55") {
