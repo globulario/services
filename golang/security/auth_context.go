@@ -153,10 +153,18 @@ func NewAuthContext(ctx context.Context, grpcMethod string) (*AuthContext, error
 			authCtx.rawClaims = claims
 			authCtx.AuthMethod = "jwt"
 
-			// Blocker Fix #7: Use canonical PrincipalID for AuthContext.Subject
-			// This ensures AuthContext identity matches the identity used by interceptor
-			// Fallback chain: PrincipalID → RegisteredClaims.Subject → legacy ID
-			authCtx.Subject = claims.PrincipalID
+			// Subject flip (Phase 3, Path B): the opaque, immutable account UUID is
+			// the canonical principal identity for real user accounts. A user token
+			// carries account_uuid, so Subject becomes the uuid — and RBAC keys
+			// grants/role-bindings on it. Service principals (sa, globule-*-sa) and
+			// pre-migration tokens carry NO account_uuid, so they fall through to
+			// PrincipalID and stay name-keyed (the permanent carve-out — their
+			// "== sa" bypasses and name-keyed seed bindings keep working).
+			// Fallback chain: AccountUUID → PrincipalID → RegisteredClaims.Subject → legacy ID
+			authCtx.Subject = claims.AccountUUID
+			if authCtx.Subject == "" {
+				authCtx.Subject = claims.PrincipalID
+			}
 			if authCtx.Subject == "" {
 				authCtx.Subject = claims.Subject // Standard JWT subject
 			}
