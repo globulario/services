@@ -151,8 +151,12 @@ message JoinAuthorizationRequest {
   string nonce = 5;
   string installer_version = 6;
   string cluster_id = 7; // DNS/namespace value (not identity)
-  // field 8 (requested_profiles) is non-identity branch work, not part of this
-  // identity migration — reserved to keep cluster_uid's field number stable.
+  // requested_profiles is an operator preference (e.g. from `join --profiles`),
+  // forwarded verbatim by the gateway. The controller — never the gateway — decides
+  // the final profile set: requested profiles take precedence over hardware-deduced
+  // suggestions, but founding-quorum enforcement (core/control-plane/storage +
+  // media-server) still applies. The gateway is a courier and never assigns.
+  repeated string requested_profiles = 8;
   // cluster_uid is the opaque cluster MEMBERSHIP identity the installer forwards
   // (received via the join token / prior JoinPlan). Validated against the minted
   // UUID; the domain is never a valid identity here.
