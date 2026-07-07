@@ -224,9 +224,10 @@ func ValidateSpec(spec *PackageSpec, path string) []error {
 		}
 	case "infrastructure":
 		// Infrastructure specs should also have install_package_payload unless
-		// they're OS-managed (entrypoint: noop / install_bins: false).
-		if !hasInstallPayload && spec.Metadata.Entrypoint != "noop" {
-			add("infrastructure spec must have an install_package_payload step (or set entrypoint: noop)")
+		// they're binary-less (entrypoint: none — OS-daemon/.deb wrappers).
+		// "noop" is accepted as a deprecated alias for "none".
+		if !hasInstallPayload && spec.Metadata.Entrypoint != "none" && spec.Metadata.Entrypoint != "noop" {
+			add("infrastructure spec must have an install_package_payload step (or set entrypoint: none)")
 		}
 	}
 

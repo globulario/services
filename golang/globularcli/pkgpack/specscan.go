@@ -74,6 +74,7 @@ type SpecInfo struct {
 	ServiceName   string
 	ExecName      string
 	ExecPath      string
+	NoEntrypoint  bool // package declares entrypoint: none — no Globular binary is bundled or hash-verified
 	ExtraBinaries []ExtraBinary
 	ConfigDirs    []string
 	Systemd       []SystemdFile
@@ -134,10 +135,17 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 	metaEntrypoint := lookupString(doc, "metadata", "entrypoint")
 
 	var execName string
+	noEntrypoint := false
 	switch {
-	case metaEntrypoint == "noop":
-		// OS-managed package — use noop binary from bin root.
-		execName = "noop"
+	case metaEntrypoint == "none" || metaEntrypoint == "noop":
+		// Binary-less package: an OS-daemon wrapper (keepalived), a .deb wrapper
+		// (scylladb), or a fetch-at-install command (claude/codex). No Globular
+		// entrypoint binary is bundled — the manifest carries entrypoint "none"
+		// and an EMPTY entrypoint_checksum, and the node-agent verifier returns
+		// BinaryNotApplicable. This replaces the "noop" sentinel-binary hack;
+		// "noop" is accepted as a deprecated alias so in-flight specs keep building.
+		noEntrypoint = true
+		execName = ""
 	case metaEntrypoint != "":
 		// Metadata entrypoint override (bare name or bin/name).
 		execName = strings.TrimPrefix(metaEntrypoint, "bin/")
@@ -152,7 +160,10 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 			return nil, fmt.Errorf("spec %s: %w", specPath, discoverErr)
 		}
 	}
-	execPath := filepath.Join(roots.BinRoot, execName)
+	execPath := ""
+	if !noEntrypoint {
+		execPath = filepath.Join(roots.BinRoot, execName)
+	}
 
 	configDirs, err := discoverConfigDirs(doc, roots, serviceName, opts.SkipMissingConfig)
 	if err != nil {
@@ -195,6 +206,7 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 		ServiceName:   serviceName,
 		ExecName:      execName,
 		ExecPath:      execPath,
+		NoEntrypoint:  noEntrypoint,
 		ExtraBinaries: extraBins,
 		ConfigDirs:    configDirs,
 		Systemd:       systemdFiles,

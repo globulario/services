@@ -54,9 +54,7 @@ echo ""
 # staging boundary so stale aliases or orphaned build artifacts cannot survive.
 rm -rf "${PACKAGES_ROOT}/bin"
 mkdir -p "${PACKAGES_ROOT}/bin"
-printf '#!/bin/sh\nexit 0\n' > "${PACKAGES_ROOT}/bin/noop"
-chmod +x "${PACKAGES_ROOT}/bin/noop"
-echo "  ✓ Reset packages/bin staging and recreated shared noop sentinel"
+echo "  ✓ Reset packages/bin staging"
 
 # Helper: copy a Go binary from the Globular build output.
 copy_go_bin() {

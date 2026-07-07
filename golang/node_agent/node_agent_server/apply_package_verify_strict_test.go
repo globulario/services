@@ -44,7 +44,7 @@ func TestVerifyStrict_RunningServiceMatchingChecksum_ReturnsVerified(t *testing.
 	withBinDir(t, dir)
 	hash := placeBinary(t, "repository_server", []byte("real-v1.2.116-bytes"))
 
-	actual, verdict, err := verifyInstalledBinaryHashStrict("repository", "SERVICE", hash, "build-1", "op-1")
+	actual, verdict, err := verifyInstalledBinaryHashStrict("repository", "SERVICE", hash, "build-1", "op-1", "repository_server")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestVerifyStrict_RunningServiceMismatchingChecksum_ReturnsMismatch(t *testi
 	_ = placeBinary(t, "repository_server", []byte("v1.2.110-content"))
 	wrongExpected := strings.Repeat("a", 64) // 64 hex chars, but won't match the file's hash
 
-	actual, verdict, err := verifyInstalledBinaryHashStrict("repository", "SERVICE", wrongExpected, "build-1", "op-1")
+	actual, verdict, err := verifyInstalledBinaryHashStrict("repository", "SERVICE", wrongExpected, "build-1", "op-1", "repository_server")
 	if err == nil {
 		t.Fatalf("expected error for hash mismatch")
 	}
@@ -90,7 +90,7 @@ func TestVerifyStrict_MissingBinary_ReturnsMissing(t *testing.T) {
 	// No binary placed at all.
 	expected := strings.Repeat("b", 64)
 
-	_, verdict, err := verifyInstalledBinaryHashStrict("ghost", "SERVICE", expected, "build-g", "op-g")
+	_, verdict, err := verifyInstalledBinaryHashStrict("ghost", "SERVICE", expected, "build-g", "op-g", "ghost_server")
 	if err == nil {
 		t.Fatalf("expected error for missing binary")
 	}
@@ -112,7 +112,7 @@ func TestVerifyStrict_MissingExpectedChecksum_ReturnsUnverified(t *testing.T) {
 	withBinDir(t, dir)
 	_ = placeBinary(t, "legacy_server", []byte("some-bytes"))
 
-	actual, verdict, err := verifyInstalledBinaryHashStrict("legacy", "SERVICE", "", "", "")
+	actual, verdict, err := verifyInstalledBinaryHashStrict("legacy", "SERVICE", "", "", "", "legacy_server")
 	if err != nil {
 		t.Fatalf("unverified path must not return an error: %v", err)
 	}
@@ -141,12 +141,72 @@ func TestVerifyStrict_OldBinaryMustNotSatisfyNewExpectedHash(t *testing.T) {
 		t.Fatal("test setup error: old and new content hashed identically")
 	}
 
-	_, verdict, err := verifyInstalledBinaryHashStrict("repository", "SERVICE", newExpected, "build-new", "op-upgrade")
+	_, verdict, err := verifyInstalledBinaryHashStrict("repository", "SERVICE", newExpected, "build-new", "op-upgrade", "repository_server")
 	if err == nil {
 		t.Fatalf("expected error: old v1.2.110 binary must not satisfy v1.2.116 expected hash")
 	}
 	if verdict != BinaryMismatch {
 		t.Errorf("verdict = %q, want %q", verdict, BinaryMismatch)
+	}
+}
+
+// TestVerifyStrict_NoEntrypointDeclared_ReturnsNotApplicable — a package that
+// explicitly declares entrypoint: none (keepalived, scylladb, …) has no binary
+// to hash-verify. The gate is NOT APPLICABLE → clean SUCCESS, no error, even
+// with no binary on disk and no expected checksum. This is the noop-sentinel
+// replacement: the package no longer ships a fake binary to satisfy the gate.
+func TestVerifyStrict_NoEntrypointDeclared_ReturnsNotApplicable(t *testing.T) {
+	dir := t.TempDir()
+	withBinDir(t, dir)
+	// No binary placed — a binary-less wrapper package.
+
+	actual, verdict, err := verifyInstalledBinaryHashStrict("keepalived", "INFRASTRUCTURE", "", "build-k", "op-k", "none")
+	if err != nil {
+		t.Fatalf("no-entrypoint package must not error: %v", err)
+	}
+	if verdict != BinaryNotApplicable {
+		t.Errorf("verdict = %q, want %q — entrypoint:none must be NOT_APPLICABLE", verdict, BinaryNotApplicable)
+	}
+	if actual != "" {
+		t.Errorf("no-entrypoint package must have empty actual hash, got %q", actual)
+	}
+}
+
+// TestVerifyStrict_NoEntrypoint_ShortCircuitsExpectedAndMissingBinary — the
+// explicit entrypoint:none declaration is trusted and wins even if an expected
+// checksum was somehow supplied and the binary is absent. none is the authority,
+// not a fallback that a present-expected could override into a REJECT.
+func TestVerifyStrict_NoEntrypoint_ShortCircuitsExpectedAndMissingBinary(t *testing.T) {
+	dir := t.TempDir()
+	withBinDir(t, dir)
+	expected := strings.Repeat("c", 64)
+
+	_, verdict, err := verifyInstalledBinaryHashStrict("scylladb", "INFRASTRUCTURE", expected, "build-s", "op-s", "NONE")
+	if err != nil {
+		t.Fatalf("entrypoint:none must short-circuit, not REJECT: %v", err)
+	}
+	if verdict != BinaryNotApplicable {
+		t.Errorf("verdict = %q, want %q — case-insensitive 'NONE' must be NOT_APPLICABLE", verdict, BinaryNotApplicable)
+	}
+}
+
+// TestVerifyStrict_EmptyEntrypoint_StaysUnverified — the contract boundary: an
+// EMPTY declared entrypoint is NOT the same as "none". It is the ambiguous
+// legacy/degraded case and must remain UNVERIFIED, never silently upgraded to
+// NOT_APPLICABLE. This is what stops a real, entrypoint-bearing service from
+// skipping proof just because its sidecar/checksum was absent.
+func TestVerifyStrict_EmptyEntrypoint_StaysUnverified(t *testing.T) {
+	dir := t.TempDir()
+	withBinDir(t, dir)
+	_ = placeBinary(t, "legacy_server", []byte("legacy-bytes"))
+
+	_, verdict, err := verifyInstalledBinaryHashStrict("legacy", "SERVICE", "", "", "", "")
+	if err != nil {
+		t.Fatalf("empty-entrypoint unverified path must not error: %v", err)
+	}
+	if verdict != BinaryUnverified {
+		t.Errorf("verdict = %q, want %q — empty entrypoint must stay UNVERIFIED, not NOT_APPLICABLE",
+			verdict, BinaryUnverified)
 	}
 }
 

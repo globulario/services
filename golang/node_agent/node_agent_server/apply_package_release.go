@@ -513,7 +513,12 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// declare it "installed", verify the bytes on disk hash to the
 		// expected artifact-manifest digest. Mismatch / missing → fail apply
 		// and write structured evidence to installed_state.
-		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
+		// declaredEntrypoint is the package's own manifest-declared entrypoint
+		// (versionutil sidecar). "none" marks a binary-less package (keepalived,
+		// scylladb, …) → BinaryNotApplicable, which falls through to the success
+		// path below (empty checksum, no entrypoint_checksum) rather than the
+		// Unverified branch. Replaces the noop sentinel binary.
+		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID, versionutil.ReadEntrypoint(name))
 		if verr != nil {
 			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
 		}
@@ -718,7 +723,12 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// Phase 1 proof gate: see COMMAND branch above. Same contract for
 		// binary-only packages — disk hash must match the manifest before
 		// we mark installed.
-		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
+		// declaredEntrypoint is the package's own manifest-declared entrypoint
+		// (versionutil sidecar). "none" marks a binary-less package (keepalived,
+		// scylladb, …) → BinaryNotApplicable, which falls through to the success
+		// path below (empty checksum, no entrypoint_checksum) rather than the
+		// Unverified branch. Replaces the noop sentinel binary.
+		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID, versionutil.ReadEntrypoint(name))
 		if verr != nil {
 			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
 		}
@@ -829,8 +839,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// not proof. The bytes on disk at the deployed binary path must hash
 	// to the expected artifact-manifest digest before we declare installed.
 	// Mismatch / missing → fail apply and write structured evidence; do NOT
-	// mark installed.
-	actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
+	// mark installed. declaredEntrypoint "none" → BinaryNotApplicable (binary-less
+	// package like keepalived/scylladb), which falls through to success below.
+	actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID, versionutil.ReadEntrypoint(name))
 	if verr != nil {
 		return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
 	}

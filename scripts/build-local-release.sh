@@ -222,7 +222,7 @@ log "Previous version: $PREV_VERSION"
 step "Extract infra binaries from previous bundle"
 INFRA_PKGS=(etcd etcdctl envoy minio mc prometheus alertmanager node_exporter
             sidekick restic rclone sha256sum yt-dlp ffmpeg
-            scylla_manager scylla_manager_agent sctool noop)
+            scylla_manager scylla_manager_agent sctool)
 
 for tgz in "$PREV_DIR/packages/"*.tgz; do
   [[ -f "$tgz" ]] || continue
@@ -402,7 +402,17 @@ d=json.load(open('$PKG_MAP'))
 print(d.get('$pkg_name',{}).get('binary',''))
 " 2>/dev/null)
   [[ -z "$binary" ]] && { log "SKIP $pkg_name: not in pkg-map"; continue; }
-  [[ -f "$BIN_DIR/$binary" ]] || { log "SKIP $pkg_name: binary $binary not found"; continue; }
+  # Binary-less packages (registry binary: none — OS-daemon/.deb wrappers such as
+  # keepalived/scylladb, fetch-at-install commands claude/codex) bundle no
+  # Globular executable. "noop" is a deprecated alias. No binary is required or
+  # copied; package.json carries entrypoint: none with an empty entrypoint_checksum
+  # (node-agent verifier returns BinaryNotApplicable). Replaces the noop sentinel.
+  no_entrypoint=0
+  if [[ "$binary" == "none" || "$binary" == "noop" ]]; then
+    no_entrypoint=1
+  elif [[ ! -f "$BIN_DIR/$binary" ]]; then
+    log "SKIP $pkg_name: binary $binary not found"; continue
+  fi
 
   # Determine version
   platform_version=$(python3 -c "
@@ -427,8 +437,10 @@ print(d.get('version','0.0.0'))
   rm -rf "$TMPROOT"
   cp -a "$meta_dir" "$TMPROOT"
   mkdir -p "$TMPROOT/bin" "$TMPROOT/specs"
-  cp "$BIN_DIR/$binary" "$TMPROOT/bin/$binary"
-  chmod +x "$TMPROOT/bin/$binary"
+  if [[ "$no_entrypoint" -eq 0 ]]; then
+    cp "$BIN_DIR/$binary" "$TMPROOT/bin/$binary"
+    chmod +x "$TMPROOT/bin/$binary"
+  fi
   cp "$spec_file" "$TMPROOT/specs/$(basename "$spec_file")"
 
   # Bundle the generated authz policy (mirrors pkggen). Policy dirs are keyed by
@@ -442,16 +454,26 @@ print(d.get('version','0.0.0'))
     done
   fi
 
-  # Stamp package.json
-  checksum=$(sha256sum "$TMPROOT/bin/$binary" | awk '{print $1}')
-  python3 - "$TMPROOT/package.json" "$pkg_version" "$per_pkg_build_id" "$BUILD_NUMBER" "sha256:$checksum" <<'PYEOF'
+  # Stamp package.json. Binary-less packages (no_entrypoint) carry entrypoint
+  # "none" and an EMPTY entrypoint_checksum; the node-agent verifier returns
+  # BinaryNotApplicable rather than requiring a binary hash.
+  if [[ "$no_entrypoint" -eq 1 ]]; then
+    checksum_arg=""
+  else
+    checksum_arg="sha256:$(sha256sum "$TMPROOT/bin/$binary" | awk '{print $1}')"
+  fi
+  python3 - "$TMPROOT/package.json" "$pkg_version" "$per_pkg_build_id" "$BUILD_NUMBER" "$checksum_arg" <<'PYEOF'
 import json, sys
 path, version, build_id, build_number, checksum = sys.argv[1:]
 d = json.load(open(path))
 d['version'] = version
 d['build_id'] = build_id
 d['build_number'] = int(build_number)
-d['entrypoint_checksum'] = checksum
+if checksum:
+    d['entrypoint_checksum'] = checksum
+else:
+    d['entrypoint'] = 'none'
+    d['entrypoint_checksum'] = ''
 json.dump(d, open(path, 'w'), indent=2)
 PYEOF
 

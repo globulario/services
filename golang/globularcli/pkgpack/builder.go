@@ -224,12 +224,18 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		return nil, err
 	}
 
-	execDest := filepath.Join(stagingDir, "bin", info.ExecName)
-	if err := copyFile(info.ExecPath, execDest); err != nil {
-		return nil, err
-	}
-	if err := os.Chmod(execDest, 0755); err != nil {
-		return nil, err
+	// Binary-less packages (entrypoint: none) bundle no Globular executable — skip
+	// the entrypoint copy entirely. Their install is proven by other means
+	// (OS package / .deb / fetch-at-install), not a Go binary hash.
+	execDest := ""
+	if !info.NoEntrypoint {
+		execDest = filepath.Join(stagingDir, "bin", info.ExecName)
+		if err := copyFile(info.ExecPath, execDest); err != nil {
+			return nil, err
+		}
+		if err := os.Chmod(execDest, 0755); err != nil {
+			return nil, err
+		}
 	}
 
 	// Copy extra binaries (e.g. helper tools bundled with the package).
@@ -356,10 +362,18 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		healthCheckUnit = systemdUnit
 	}
 
-	// Compute SHA256 of the entrypoint binary for reverse-lookup.
-	entrypointChecksum, err := sha256File(execDest)
-	if err != nil {
-		return nil, fmt.Errorf("checksum entrypoint binary: %w", err)
+	// Compute SHA256 of the entrypoint binary for reverse-lookup. Binary-less
+	// packages (entrypoint: none) carry entrypoint "none" and an EMPTY checksum;
+	// the node-agent verifier reads "none" and returns BinaryNotApplicable.
+	manifestEntrypoint := "none"
+	manifestEntrypointChecksum := ""
+	if !info.NoEntrypoint {
+		entrypointChecksum, err := sha256File(execDest)
+		if err != nil {
+			return nil, fmt.Errorf("checksum entrypoint binary: %w", err)
+		}
+		manifestEntrypoint = path.Join("bin", info.ExecName)
+		manifestEntrypointChecksum = "sha256:" + entrypointChecksum
 	}
 
 	manifest := Manifest{
@@ -369,8 +383,8 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		BuildNumber:        opts.BuildNumber,
 		Platform:           fmt.Sprintf("%s_%s", goos, goarch),
 		Publisher:          opts.Publisher,
-		Entrypoint:         path.Join("bin", info.ExecName),
-		EntrypointChecksum: "sha256:" + entrypointChecksum,
+		Entrypoint:         manifestEntrypoint,
+		EntrypointChecksum: manifestEntrypointChecksum,
 		Defaults: ManifestDefault{
 			ConfigDir: "",
 			Spec:      path.Join("specs", info.SpecFile),
@@ -417,12 +431,15 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 
 // assertPackageGuards ensures critical payloads are present to prevent broken packages.
 func assertPackageGuards(pkgPath string, info *SpecInfo) error {
-	// 1) binary present
-	wantBin := filepath.ToSlash(filepath.Join("bin", info.ExecName))
-	if ok, err := tgzContains(pkgPath, wantBin); err != nil {
-		return err
-	} else if !ok {
-		return fmt.Errorf("package %s missing binary %s", pkgPath, wantBin)
+	// 1) binary present — skipped for binary-less packages (entrypoint: none),
+	// which intentionally bundle no Globular executable.
+	if !info.NoEntrypoint {
+		wantBin := filepath.ToSlash(filepath.Join("bin", info.ExecName))
+		if ok, err := tgzContains(pkgPath, wantBin); err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("package %s missing binary %s", pkgPath, wantBin)
+		}
 	}
 
 	// 2) spec present and contains install_package_payload
