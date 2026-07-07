@@ -11,6 +11,24 @@ Mark Mothersbaugh wrote a convergence loop in 1980 and put an energy dome on it.
 Every line maps to a principle this codebase already enforces. Keep it near — it's
 the whole operating ethos in one chorus.
 
+## Verse by verse
+
+> **When a problem comes along / You must whip it** — the incident fires; you don't observe-and-record it into a drawer, you fix it.
+>
+> **Before the cream sits out too long / You must whip it** — this is the whole thesis. Invariants rot one "simple fix" at a time; scars go stale; drift spoils the milk. Whip it while it's fresh or it curdles into an outage you can't trace.
+>
+> **When something's going wrong / You must whip it** — wrong-out-loud. `analysis_available=false` next to `backend_ready=true`. Surface it, don't mask it green.
+>
+> **Now whip it / Into shape / Shape it up / Get straight** — contract-first. Bring the code back into conformance with the invariant. That's convergence — desired == installed == running.
+>
+> **Go forward / Move ahead** — forward-only. The promotion ladder only climbs; versions advance, never regress (`--allow-regression` is the DANGER flag for a reason).
+>
+> **Try to detect it** — the gate, the doctor, the schema guard, the tests. Detection is half the game; tonight the bug was whipped into the light the instant it shipped.
+>
+> **It's not too late** — the safety net. Because all four layers agree and rollback candidates exist, it's never too late. That's the floor you reached.
+
+## Where each line is enforced
+
 | Lyric | Principle | Where it lives |
 |-------|-----------|----------------|
 | **When a problem comes along / You must whip it** | Diagnose then act — don't observe-and-record an incident into a drawer. AI rule: OBSERVE → DIAGNOSE → RECOMMEND → EXECUTE → VERIFY. | `docs/ai/ai-rules.md`, `CLAUDE.md` |
