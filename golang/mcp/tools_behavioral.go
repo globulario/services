@@ -164,6 +164,11 @@ func registerBehavioralTools(s *server) {
 	registerRevokePrincipleTool(s)
 	registerRunContradictionCheckTool(s)
 	registerRegisterConditionTool(s)
+	// Governance legibility (P4 discovery + P6 amend).
+	registerListAuthoritiesTool(s)
+	registerListConditionsTool(s)
+	registerResolveRefTool(s)
+	registerAmendProposalTool(s)
 }
 
 // ── behavioral_resolve_context ────────────────────────────────────────────────
@@ -797,7 +802,10 @@ func registerPromotePrincipleTool(s *server) {
 		Description: "Run the promotion GATE for a candidate principle. Requires actor and reason; " +
 			"high/irreversible-risk principles additionally require approved_by. Returns the promotion " +
 			"decision (ALLOWED | BLOCKED | REVIEW_REQUIRED) with the full verdict — BLOCKED decisions " +
-			"are returned, never hidden, and the gate is never bypassed. The underlying RPC enforces " +
+			"are returned, never hidden, and the gate is never bypassed. A blocked/review decision also " +
+			"returns 'satisfaction_summary' and 'satisfaction_steps' — the complete recipe (each " +
+			"unsatisfied requirement + the exact next_operations to fix it), so you never discover the " +
+			"contract by repeated rejection. The underlying RPC enforces " +
 			"the ai.behavioral.promote (admin) permission, stricter than read/check tools.",
 		InputSchema: inputSchema{
 			Type: "object",
@@ -836,11 +844,32 @@ func registerPromotePrincipleTool(s *server) {
 			"verdict":                 rec.GetVerdict(),
 			"missing_evidence":        rec.GetMissingEvidence(),
 			"unresolved_authority":    rec.GetUnresolvedAuthority(),
+			"unresolved_conditions":   rec.GetUnresolvedConditions(),
 			"blocking_contradictions": rec.GetBlockingContradictions(),
 			"review_required":         rec.GetReviewRequired(),
 			"decision_id":             rec.GetId(),
+			// P3: the complete satisfaction recipe — what is unsatisfied and the
+			// exact next operations to fix it. Empty when the decision is ALLOWED.
+			"satisfaction_summary": rec.GetSatisfactionSummary(),
+			"satisfaction_steps":   satisfactionStepsToMap(rec.GetSatisfactionSteps()),
 		}, nil
 	})
+}
+
+// satisfactionStepsToMap renders the promotion satisfaction recipe for the MCP
+// tool response.
+func satisfactionStepsToMap(steps []*behavioralpb.SatisfactionStep) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(steps))
+	for _, s := range steps {
+		out = append(out, map[string]interface{}{
+			"requirement":     s.GetRequirement(),
+			"satisfied":       s.GetSatisfied(),
+			"detail":          s.GetDetail(),
+			"how_to_satisfy":  s.GetHowToSatisfy(),
+			"next_operations": s.GetNextOperations(),
+		})
+	}
+	return out
 }
 
 // ── behavioral_revoke_principle (gated) ───────────────────────────────────────
@@ -1010,4 +1039,162 @@ func authorityIDs(es []*behavioralpb.Authority) []string {
 		out[i] = e.GetId()
 	}
 	return out
+}
+
+// ── behavioral_list_authorities / list_conditions / resolve_ref (P4 discovery) ─
+
+func registerListAuthoritiesTool(s *server) {
+	s.register(toolDef{
+		Name: "behavioral_list_authorities",
+		Description: "List the authority catalog for a domain so you can discover resolvable " +
+			"authority refs through the API instead of grepping seed files. Read-only. " +
+			"Use before proposing/amending a principle that needs a mapped authority.",
+		InputSchema: inputSchema{Type: "object", Properties: map[string]propSchema{
+			"project": {Type: "string", Description: "Project, e.g. 'globular-services'"},
+			"domain":  {Type: "string", Description: "Domain, e.g. 'cluster_operator'"},
+			"limit":   {Type: "integer", Description: "Max rows (0 = all)"},
+		}, Required: []string{"project", "domain"}},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		client, err := behavioralClient(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+		rsp, err := client.ListAuthorities(callCtx, &behavioralpb.ListAuthoritiesRequest{
+			Project: strArg(args, "project"), Domain: strArg(args, "domain"), Limit: int32Arg(args, "limit"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("behavioral_list_authorities: %w", err)
+		}
+		out := make([]map[string]interface{}, 0, len(rsp.GetAuthorities()))
+		for _, a := range rsp.GetAuthorities() {
+			out = append(out, map[string]interface{}{
+				"id": a.GetId(), "title": a.GetTitle(), "owner_kind": a.GetOwnerKind(),
+				"governs": a.GetGoverns(), "status": a.GetStatus().String(),
+			})
+		}
+		return map[string]interface{}{"authorities": out, "count": len(out)}, nil
+	})
+}
+
+func registerListConditionsTool(s *server) {
+	s.register(toolDef{
+		Name: "behavioral_list_conditions",
+		Description: "List the condition catalog for a domain so you can discover resolvable " +
+			"applies_when condition refs through the API instead of grepping seed files. Read-only.",
+		InputSchema: inputSchema{Type: "object", Properties: map[string]propSchema{
+			"project": {Type: "string", Description: "Project, e.g. 'globular-services'"},
+			"domain":  {Type: "string", Description: "Domain, e.g. 'cluster_operator'"},
+			"limit":   {Type: "integer", Description: "Max rows (0 = all)"},
+		}, Required: []string{"project", "domain"}},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		client, err := behavioralClient(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+		rsp, err := client.ListConditions(callCtx, &behavioralpb.ListConditionsRequest{
+			Project: strArg(args, "project"), Domain: strArg(args, "domain"), Limit: int32Arg(args, "limit"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("behavioral_list_conditions: %w", err)
+		}
+		out := make([]map[string]interface{}, 0, len(rsp.GetConditions()))
+		for _, c := range rsp.GetConditions() {
+			out = append(out, map[string]interface{}{
+				"id": c.GetId(), "title": c.GetTitle(), "detect_spec": c.GetDetectSpec(),
+				"severity": c.GetSeverity(), "status": c.GetStatus().String(),
+			})
+		}
+		return map[string]interface{}{"conditions": out, "count": len(out)}, nil
+	})
+}
+
+func registerResolveRefTool(s *server) {
+	s.register(toolDef{
+		Name: "behavioral_resolve_ref",
+		Description: "Resolve a single canonical ref within a domain: reports whether it resolves " +
+			"and to what kind (authority|condition). Read-only. Use to validate a ref before " +
+			"proposing/amending, instead of discovering by rejection.",
+		InputSchema: inputSchema{Type: "object", Properties: map[string]propSchema{
+			"project": {Type: "string", Description: "Project, e.g. 'globular-services'"},
+			"domain":  {Type: "string", Description: "Domain, e.g. 'cluster_operator'"},
+			"ref":     {Type: "string", Description: "Canonical ref id to resolve"},
+		}, Required: []string{"project", "domain", "ref"}},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		client, err := behavioralClient(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+		rsp, err := client.ResolveRef(callCtx, &behavioralpb.ResolveRefRequest{
+			Project: strArg(args, "project"), Domain: strArg(args, "domain"), Ref: strArg(args, "ref"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("behavioral_resolve_ref: %w", err)
+		}
+		out := map[string]interface{}{"resolved": rsp.GetResolved(), "kind": rsp.GetKind()}
+		if a := rsp.GetAuthority(); a != nil {
+			out["authority"] = map[string]interface{}{"id": a.GetId(), "title": a.GetTitle()}
+		}
+		if c := rsp.GetCondition(); c != nil {
+			out["condition"] = map[string]interface{}{"id": c.GetId(), "title": c.GetTitle()}
+		}
+		return out, nil
+	})
+}
+
+// ── behavioral_amend_proposal (P6, gated write) ───────────────────────────────
+
+func registerAmendProposalTool(s *server) {
+	s.register(toolDef{
+		Name: "behavioral_amend_proposal",
+		Description: "Amend a PROPOSED principle in place (add/remove authority/condition/evidence " +
+			"refs, set risk_level/revocation_rule/promotion_reason) instead of re-proposing and " +
+			"superseding. Only PROPOSED principles may be amended; a promoted principle requires a " +
+			"new proposal. Amended refs are re-validated, and the edit INVALIDATES any prior " +
+			"contradiction check (re-run behavioral_run_contradiction_check before promoting).",
+		InputSchema: inputSchema{Type: "object", Properties: map[string]propSchema{
+			"project":               {Type: "string", Description: "Project, e.g. 'globular-services'"},
+			"domain":                {Type: "string", Description: "Domain, e.g. 'cluster_operator'"},
+			"id":                    {Type: "string", Description: "PROPOSED principle id to amend"},
+			"actor":                 {Type: "string", Description: "Who is amending (audited)"},
+			"add_authority_refs":    {Type: "string", Description: "Comma-separated authority refs to add"},
+			"remove_authority_refs": {Type: "string", Description: "Comma-separated authority refs to remove"},
+			"add_condition_refs":    {Type: "string", Description: "Comma-separated condition (applies_when) refs to add"},
+			"remove_condition_refs": {Type: "string", Description: "Comma-separated condition refs to remove"},
+			"add_evidence_refs":     {Type: "string", Description: "Comma-separated required_evidence refs to add"},
+			"remove_evidence_refs":  {Type: "string", Description: "Comma-separated required_evidence refs to remove"},
+			"risk_level":            {Type: "string", Description: "Set risk level (info|low|high|irreversible); empty = unchanged"},
+			"revocation_rule":       {Type: "string", Description: "Set revocation rule; empty = unchanged"},
+			"promotion_reason":      {Type: "string", Description: "Set promotion reason; empty = unchanged"},
+		}, Required: []string{"project", "domain", "id", "actor"}},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		if strArg(args, "actor") == "" {
+			return nil, fmt.Errorf("behavioral_amend_proposal: actor is required")
+		}
+		client, err := behavioralClient(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 10*time.Second)
+		defer cancel()
+		rsp, err := client.AmendProposal(callCtx, &behavioralpb.AmendProposalRequest{
+			Project: strArg(args, "project"), Domain: strArg(args, "domain"), Id: strArg(args, "id"), Actor: strArg(args, "actor"),
+			AddAuthorityRefs: csvArg(args, "add_authority_refs"), RemoveAuthorityRefs: csvArg(args, "remove_authority_refs"),
+			AddConditionRefs: csvArg(args, "add_condition_refs"), RemoveConditionRefs: csvArg(args, "remove_condition_refs"),
+			AddEvidenceRefs: csvArg(args, "add_evidence_refs"), RemoveEvidenceRefs: csvArg(args, "remove_evidence_refs"),
+			RiskLevel: strArg(args, "risk_level"), RevocationRule: strArg(args, "revocation_rule"), PromotionReason: strArg(args, "promotion_reason"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("behavioral_amend_proposal: %w", err)
+		}
+		return map[string]interface{}{
+			"principle_id": rsp.GetPrincipleId(), "status": rsp.GetStatus().String(),
+			"version": rsp.GetVersion(), "contradiction_reset": rsp.GetContradictionReset(),
+		}, nil
+	})
 }

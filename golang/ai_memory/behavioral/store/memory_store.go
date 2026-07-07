@@ -160,6 +160,22 @@ func (m *MemoryStore) GetAuthority(_ context.Context, project, domain, id string
 	return &cp, nil
 }
 
+func (m *MemoryStore) ListAuthorities(_ context.Context, project, domain string, limit int32) ([]api.Authority, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var out []api.Authority
+	for _, a := range m.authorities {
+		if a.Project != project || string(a.Domain) != domain {
+			continue
+		}
+		out = append(out, *a)
+		if limit > 0 && int32(len(out)) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
 func (m *MemoryStore) AddAuthorityGoverns(_ context.Context, project, domain, authorityID, targetRef string, updatedAt int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -195,6 +211,22 @@ func (m *MemoryStore) GetCondition(_ context.Context, project, domain, id string
 	}
 	cp := *c
 	return &cp, nil
+}
+
+func (m *MemoryStore) ListConditions(_ context.Context, project, domain string, limit int32) ([]api.Condition, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var out []api.Condition
+	for _, c := range m.conditions {
+		if c.Project != project || string(c.Domain) != domain {
+			continue
+		}
+		out = append(out, *c)
+		if limit > 0 && int32(len(out)) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 
 func (m *MemoryStore) PutContradiction(_ context.Context, c *api.Contradiction) error {

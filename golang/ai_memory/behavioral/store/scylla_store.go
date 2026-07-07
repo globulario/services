@@ -183,6 +183,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("put authority: %w", err)
 	}
+	// Maintain the single-partition discovery index (P4 ListAuthorities).
+	const idx = `INSERT INTO behavioral_memory.authorities_by_scope (project, domain, id) VALUES (?, ?, ?)`
+	if err := s.session.Query(idx, a.Project, string(a.Domain), a.ID).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("put authority scope index: %w", err)
+	}
 	return nil
 }
 
@@ -210,7 +215,38 @@ WHERE project = ? AND domain = ? AND id = ?`
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("add authority governs: %w", err)
 	}
+	// Keep the discovery index in sync for runtime-created authorities.
+	const idx = `INSERT INTO behavioral_memory.authorities_by_scope (project, domain, id) VALUES (?, ?, ?)`
+	if err := s.session.Query(idx, project, domain, authorityID).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("add authority governs scope index: %w", err)
+	}
 	return nil
+}
+
+// ListAuthorities returns the authority catalog for a project/domain. The base
+// table has a composite ((project,domain,id)) partition key, so a direct
+// (project,domain) enumeration would require ALLOW FILTERING. Instead we read ids
+// from the single-partition authorities_by_scope index, then fetch each row by
+// full key — the same pattern as ListPromotionCandidates.
+func (s *ScyllaStore) ListAuthorities(ctx context.Context, project, domain string, limit int32) ([]api.Authority, error) {
+	const q = `SELECT id FROM behavioral_memory.authorities_by_scope WHERE project = ? AND domain = ?`
+	iter := s.session.Query(q, project, domain).WithContext(ctx).Iter()
+	var id string
+	var out []api.Authority
+	for iter.Scan(&id) {
+		a, err := s.GetAuthority(ctx, project, domain, id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *a)
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list authorities: %w", err)
+	}
+	if limit > 0 && int(limit) < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
 }
 
 // ── Conditions ────────────────────────────────────────────────────────────────
@@ -223,6 +259,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		c.Project, string(c.Domain), c.ID, c.Title, c.DetectSpec, c.Severity, string(c.Status), int64(0), int64(0), c.Metadata,
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("put condition: %w", err)
+	}
+	// Maintain the single-partition discovery index (P4 ListConditions).
+	const idx = `INSERT INTO behavioral_memory.conditions_by_scope (project, domain, id) VALUES (?, ?, ?)`
+	if err := s.session.Query(idx, c.Project, string(c.Domain), c.ID).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("put condition scope index: %w", err)
 	}
 	return nil
 }
@@ -239,6 +280,31 @@ FROM behavioral_memory.conditions WHERE project = ? AND domain = ? AND id = ?`
 	}
 	c.Status = api.GovernanceStatus(status)
 	return c, nil
+}
+
+// ListConditions returns the condition catalog for a project/domain. Like
+// ListAuthorities, it reads ids from the single-partition conditions_by_scope
+// index (the base table has a composite ((project,domain,id)) partition key), then
+// fetches each row by full key.
+func (s *ScyllaStore) ListConditions(ctx context.Context, project, domain string, limit int32) ([]api.Condition, error) {
+	const q = `SELECT id FROM behavioral_memory.conditions_by_scope WHERE project = ? AND domain = ?`
+	iter := s.session.Query(q, project, domain).WithContext(ctx).Iter()
+	var id string
+	var out []api.Condition
+	for iter.Scan(&id) {
+		c, err := s.GetCondition(ctx, project, domain, id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *c)
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list conditions: %w", err)
+	}
+	if limit > 0 && int(limit) < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
 }
 
 // ── Contradictions ────────────────────────────────────────────────────────────

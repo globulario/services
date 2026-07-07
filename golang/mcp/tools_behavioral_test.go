@@ -66,6 +66,18 @@ func (f *fakeBehavioralServer) PromotePrinciple(context.Context, *behavioralpb.P
 func (f *fakeBehavioralServer) RevokePrinciple(context.Context, *behavioralpb.RevokePrincipleRequest) (*behavioralpb.RevokePrincipleResponse, error) {
 	return &behavioralpb.RevokePrincipleResponse{Status: behavioralpb.GovernanceStatus_REVOKED}, nil
 }
+func (f *fakeBehavioralServer) ListAuthorities(context.Context, *behavioralpb.ListAuthoritiesRequest) (*behavioralpb.ListAuthoritiesResponse, error) {
+	return &behavioralpb.ListAuthoritiesResponse{Authorities: []*behavioralpb.Authority{{Id: "authority.cluster.etcd.member_health", Title: "etcd member health"}}}, nil
+}
+func (f *fakeBehavioralServer) ListConditions(context.Context, *behavioralpb.ListConditionsRequest) (*behavioralpb.ListConditionsResponse, error) {
+	return &behavioralpb.ListConditionsResponse{Conditions: []*behavioralpb.Condition{{Id: "condition.cluster.etcd.nospace_alarm", Title: "etcd nospace alarm"}}}, nil
+}
+func (f *fakeBehavioralServer) ResolveRef(_ context.Context, r *behavioralpb.ResolveRefRequest) (*behavioralpb.ResolveRefResponse, error) {
+	return &behavioralpb.ResolveRefResponse{Resolved: true, Kind: "authority", Authority: &behavioralpb.Authority{Id: r.GetRef()}}, nil
+}
+func (f *fakeBehavioralServer) AmendProposal(_ context.Context, r *behavioralpb.AmendProposalRequest) (*behavioralpb.AmendProposalResponse, error) {
+	return &behavioralpb.AmendProposalResponse{PrincipleId: r.GetId(), Status: behavioralpb.GovernanceStatus_PROPOSED_PRINCIPLE, Version: 2, ContradictionReset: true}, nil
+}
 func (f *fakeBehavioralServer) ExplainPrinciple(_ context.Context, r *behavioralpb.ExplainPrincipleRequest) (*behavioralpb.ExplainPrincipleResponse, error) {
 	return &behavioralpb.ExplainPrincipleResponse{
 		Principle: &behavioralpb.Principle{

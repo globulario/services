@@ -58,4 +58,12 @@ type Core interface {
 	// applicable promoted principle existed) vs ungoverned (default-allow), so the
 	// gate's reach is measurable. Read-only.
 	GetGovernanceCoverage(ctx context.Context, req *GetGovernanceCoverageRequest) (*GetGovernanceCoverageResponse, error)
+
+	// Governance legibility (P4 discovery + P6 amend). Discovery is read-only so
+	// an agent finds resolvable refs through the API instead of grepping seed
+	// files; AmendProposal edits a PROPOSED principle in place.
+	ListAuthorities(ctx context.Context, req *ListAuthoritiesRequest) (*ListAuthoritiesResponse, error)
+	ListConditions(ctx context.Context, req *ListConditionsRequest) (*ListConditionsResponse, error)
+	ResolveRef(ctx context.Context, req *ResolveRefRequest) (*ResolveRefResponse, error)
+	AmendProposal(ctx context.Context, req *AmendProposalRequest) (*AmendProposalResponse, error)
 }

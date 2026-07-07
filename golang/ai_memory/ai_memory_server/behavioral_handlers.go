@@ -68,13 +68,41 @@ func registerBehavioralService(gs *grpc.Server, st store.Store) {
 }
 
 // behavioralErr maps a kernel error to a gRPC status. ErrUnimplemented →
-// Unimplemented (dark RPCs); validation/store errors → Internal.
+// Unimplemented (dark RPCs); a structured GovernanceError → its taxonomy-mapped
+// code carrying the COMPLETE self-describing message (Priority 8/1 legibility);
+// everything else → Internal.
 func behavioralErr(op string, err error) error {
 	if errors.Is(err, api.ErrUnimplemented) {
 		return status.Errorf(codes.Unimplemented,
 			"BehavioralMemoryService.%s: not implemented yet (lands in a later PR)", op)
 	}
+	var ge *api.GovernanceError
+	if errors.As(err, &ge) {
+		return status.Errorf(govCodeToGRPC(ge.Code),
+			"BehavioralMemoryService.%s: %s", op, ge.Error())
+	}
 	return status.Errorf(codes.Internal, "BehavioralMemoryService.%s: %v", op, err)
+}
+
+// govCodeToGRPC maps the transport-agnostic governance ErrorCode taxonomy to gRPC
+// status codes. This mapping lives in the handler (not the kernel) so the kernel
+// stays free of grpc dependencies and cleanly extractable.
+func govCodeToGRPC(c api.ErrorCode) codes.Code {
+	switch c {
+	case api.CodeMissingRequiredFields, api.CodeUnknownField, api.CodeInvalidFieldType,
+		api.CodeInvalidEnumValue, api.CodeInvalidReferenceFormat:
+		return codes.InvalidArgument
+	case api.CodeReferenceNotFound:
+		return codes.NotFound
+	case api.CodeAuthorityNotMapped, api.CodeEvidenceNotObservable, api.CodeEvidencePostHoc,
+		api.CodeEvidenceStale, api.CodeContradictionDetected, api.CodeRequiredTestsMissing,
+		api.CodeApproverRequired, api.CodePromotionContractUnsatisfied:
+		return codes.FailedPrecondition
+	case api.CodeUnsafeOperationRefused:
+		return codes.PermissionDenied
+	default:
+		return codes.Internal
+	}
 }
 
 // ── Implemented (PR-2): ingestion half ────────────────────────────────────────
@@ -634,6 +662,70 @@ func principleToPB(p *api.Principle) *bpb.Principle {
 	}
 }
 
+// ── Implemented: governance legibility (P4 discovery + P6 amend) ──────────────
+
+func (h *behavioralHandler) ListAuthorities(ctx context.Context, req *bpb.ListAuthoritiesRequest) (*bpb.ListAuthoritiesResponse, error) {
+	resp, err := h.core.ListAuthorities(ctx, &api.ListAuthoritiesRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()), Limit: req.GetLimit(),
+	})
+	if err != nil {
+		return nil, behavioralErr("ListAuthorities", err)
+	}
+	out := make([]*bpb.Authority, 0, len(resp.Authorities))
+	for i := range resp.Authorities {
+		out = append(out, authorityToPB(&resp.Authorities[i]))
+	}
+	return &bpb.ListAuthoritiesResponse{Authorities: out}, nil
+}
+
+func (h *behavioralHandler) ListConditions(ctx context.Context, req *bpb.ListConditionsRequest) (*bpb.ListConditionsResponse, error) {
+	resp, err := h.core.ListConditions(ctx, &api.ListConditionsRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()), Limit: req.GetLimit(),
+	})
+	if err != nil {
+		return nil, behavioralErr("ListConditions", err)
+	}
+	out := make([]*bpb.Condition, 0, len(resp.Conditions))
+	for i := range resp.Conditions {
+		out = append(out, conditionToPB(&resp.Conditions[i]))
+	}
+	return &bpb.ListConditionsResponse{Conditions: out}, nil
+}
+
+func (h *behavioralHandler) ResolveRef(ctx context.Context, req *bpb.ResolveRefRequest) (*bpb.ResolveRefResponse, error) {
+	resp, err := h.core.ResolveRef(ctx, &api.ResolveRefRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()), Ref: req.GetRef(),
+	})
+	if err != nil {
+		return nil, behavioralErr("ResolveRef", err)
+	}
+	out := &bpb.ResolveRefResponse{Resolved: resp.Resolved, Kind: resp.Kind}
+	if resp.Authority != nil {
+		out.Authority = authorityToPB(resp.Authority)
+	}
+	if resp.Condition != nil {
+		out.Condition = conditionToPB(resp.Condition)
+	}
+	return out, nil
+}
+
+func (h *behavioralHandler) AmendProposal(ctx context.Context, req *bpb.AmendProposalRequest) (*bpb.AmendProposalResponse, error) {
+	resp, err := h.core.AmendProposal(ctx, &api.AmendProposalRequest{
+		Project: req.GetProject(), Domain: api.DomainRef(req.GetDomain()), ID: req.GetId(), Actor: req.GetActor(),
+		AddAuthorityRefs: req.GetAddAuthorityRefs(), RemoveAuthorityRefs: req.GetRemoveAuthorityRefs(),
+		AddConditionRefs: req.GetAddConditionRefs(), RemoveConditionRefs: req.GetRemoveConditionRefs(),
+		AddEvidenceRefs: req.GetAddEvidenceRefs(), RemoveEvidenceRefs: req.GetRemoveEvidenceRefs(),
+		RiskLevel: req.GetRiskLevel(), RevocationRule: req.GetRevocationRule(), PromotionReason: req.GetPromotionReason(),
+	})
+	if err != nil {
+		return nil, behavioralErr("AmendProposal", err)
+	}
+	return &bpb.AmendProposalResponse{
+		PrincipleId: resp.PrincipleID, Status: apiGovStatusToPB(resp.Status),
+		Version: resp.Version, ContradictionReset: resp.ContradictionReset,
+	}, nil
+}
+
 func promotionDecisionToPB(d *api.PromotionDecisionRecord) *bpb.PromotionDecisionRecord {
 	return &bpb.PromotionDecisionRecord{
 		Id:                     d.ID,
@@ -656,7 +748,27 @@ func promotionDecisionToPB(d *api.PromotionDecisionRecord) *bpb.PromotionDecisio
 		PromotionReason:        d.PromotionReason,
 		Actor:                  d.Actor,
 		Metadata:               d.Metadata,
+		SatisfactionSteps:      apiSatisfactionStepsToPB(d.SatisfactionSteps),
+		SatisfactionSummary:    d.SatisfactionSummary,
 	}
+}
+
+// apiSatisfactionStepsToPB maps the kernel's satisfaction recipe to protobuf.
+func apiSatisfactionStepsToPB(steps []api.SatisfactionStep) []*bpb.SatisfactionStep {
+	if len(steps) == 0 {
+		return nil
+	}
+	out := make([]*bpb.SatisfactionStep, 0, len(steps))
+	for _, s := range steps {
+		out = append(out, &bpb.SatisfactionStep{
+			Requirement:    s.Requirement,
+			Satisfied:      s.Satisfied,
+			Detail:         s.Detail,
+			HowToSatisfy:   s.HowToSatisfy,
+			NextOperations: s.NextOperations,
+		})
+	}
+	return out
 }
 
 func revocationRuleToPB(r *api.RevocationRule) *bpb.RevocationRule {

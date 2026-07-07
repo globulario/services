@@ -200,6 +200,27 @@ func TestScyllaStoreIngestionIntegration(t *testing.T) {
 		t.Fatalf("seed condition not loaded: %v", err)
 	}
 
+	// P4 discovery (the schema-accurate guard). list_authorities / list_conditions
+	// must enumerate the seeded catalog via the single-partition by-scope index —
+	// NOT a (project,domain) prefix scan on the composite ((project,domain,id))
+	// partition key, which Scylla rejects without ALLOW FILTERING. The in-memory
+	// store cannot catch this class (it filters a map); only a real-Scylla list can.
+	// This is the test whose absence let the ALLOW-FILTERING bug ship in v1.2.270.
+	auths, err := st.ListAuthorities(ctx, seedProj, cdom, 0)
+	if err != nil {
+		t.Fatalf("ListAuthorities must not require ALLOW FILTERING: %v", err)
+	}
+	if !containsAuthorityID(auths, "authority.cluster.etcd.member_health") {
+		t.Fatalf("ListAuthorities missing seeded authority (got %d rows)", len(auths))
+	}
+	conds, err := st.ListConditions(ctx, seedProj, cdom, 0)
+	if err != nil {
+		t.Fatalf("ListConditions must not require ALLOW FILTERING: %v", err)
+	}
+	if !containsConditionID(conds, "condition.cluster.etcd.nospace_alarm") {
+		t.Fatalf("ListConditions missing seeded condition (got %d rows)", len(conds))
+	}
+
 	const pid = "principle.cluster.preserve_quorum_before_restart_under_etcd_pressure"
 	seedP, err := st.GetPrinciple(ctx, seedProj, cdom, pid)
 	if err != nil || seedP.Status != api.StatusProposedPrinciple {
@@ -283,4 +304,22 @@ func TestScyllaStoreIngestionIntegration(t *testing.T) {
 	if rdf.Project(bundle) == nil || string(rdf.Project(bundle)) != doc {
 		t.Error("RDF projection is not deterministic")
 	}
+}
+
+func containsAuthorityID(list []api.Authority, id string) bool {
+	for _, a := range list {
+		if a.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func containsConditionID(list []api.Condition, id string) bool {
+	for _, c := range list {
+		if c.ID == id {
+			return true
+		}
+	}
+	return false
 }
