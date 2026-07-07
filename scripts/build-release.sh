@@ -447,6 +447,13 @@ validate_input_built_artifact() {
   entry_bin="$(basename "${entrypoint}")"
   [[ "${entry_bin}" == "${expected_bin}" ]] || die "package ${src_pkg} entrypoint ${entrypoint} does not match registry binary ${expected_bin}"
 
+  # Binary-less packages (registry binary: none / entrypoint: none — the noop
+  # replacement wrappers: keepalived, scylladb, claude, codex) bundle no staged
+  # binary and no entrypoint payload; carry the dist artifact forward as-is.
+  if [[ "${expected_bin}" == "none" || "${expected_bin}" == "noop" ]]; then
+    return 0
+  fi
+
   staged_bin="${PACKAGES_ROOT}/bin/${expected_bin}"
   [[ -f "${staged_bin}" ]] || die "package ${name} has dist artifact ${src_pkg} but current staged input ${staged_bin} is missing; explicit carry-forward classification required"
   if elf_needs_release_strip "${staged_bin}"; then
