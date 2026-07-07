@@ -170,6 +170,18 @@ func installedBinaryPath(name, kind string) string {
 	return filepath.Join(globularBinDir, name)
 }
 
+// servicePolicyDirPresent reports whether the per-service RBAC policy directory
+// (ActionPolicyDir/{name}/) exists. install_payload creates this directory on
+// every full install as a deployment marker, so its presence proves that the
+// node-agent install path — the SOLE deployer of permissions.generated.json —
+// has run for this service. Absence means the service was installed out-of-band
+// (Day-0 globular-installer) and its RBAC policy was never deployed, so the
+// build_id-skip must NOT short-circuit. See the v1.2.267 empty-resolver incident.
+func servicePolicyDirPresent(name string) bool {
+	fi, err := os.Stat(filepath.Join(actions.ActionPolicyDir, name))
+	return err == nil && fi.IsDir()
+}
+
 // ApplyPackageRelease fetches a package from the repository, installs it,
 // restarts the targeted service, and updates the installed-state registry.
 // This is the reusable primitive for leader-aware control-plane deployments.
@@ -270,17 +282,39 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 								log.Printf("apply-package: %s/%s@%s Checksum repair write failed: %v (non-fatal)", kind, name, version, werr)
 							}
 						}
-						log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
-							kind, name, version, req.GetBuildNumber(), buildID)
-						return &node_agentpb.ApplyPackageReleaseResponse{
-							Ok:          true,
-							Message:     "already installed at requested version",
-							PackageName: name,
-							Version:     version,
-							Status:      "skipped",
-							OperationId: operationID,
-							BuildId:     existing.GetBuildId(),
-						}, nil
+						// Policy-presence precondition for the skip. The RBAC resolver
+						// denies every role-based RPC unless this service's
+						// permissions.generated.json is deployed under
+						// ActionPolicyDir/{name}/. That deployment happens ONLY in
+						// install_payload, which is BELOW this early return. A SERVICE
+						// installed out-of-band by the Day-0 globular-installer (matching
+						// build_id, but install_payload never ran) has no policy directory
+						// — skipping here would leave it with zero permission mappings
+						// (the v1.2.267 empty-resolver incident: repository
+						// GetRepositoryStatus / ListRepositoryFindings and every other
+						// role-mapped RPC PermissionDenied, degrading cluster-doctor). If
+						// the marker directory is absent for a SERVICE, do NOT skip — fall
+						// through to a full reinstall so install_payload (re)deploys policy.
+						// install_payload creates the marker dir unconditionally, so a
+						// policy-less SERVICE gets an empty dir on the first reinstall and
+						// never loops.
+						if kind == "SERVICE" && !servicePolicyDirPresent(name) {
+							log.Printf("apply-package: %s/%s@%s build_id matches but RBAC policy dir %s absent (installed out-of-band, policy never deployed) — reinstalling to deploy policy",
+								kind, name, version, filepath.Join(actions.ActionPolicyDir, name))
+							// fall through to full reinstall (do NOT return skipped)
+						} else {
+							log.Printf("apply-package: %s/%s@%s (build %d, build_id=%s) already installed, skipping",
+								kind, name, version, req.GetBuildNumber(), buildID)
+							return &node_agentpb.ApplyPackageReleaseResponse{
+								Ok:          true,
+								Message:     "already installed at requested version",
+								PackageName: name,
+								Version:     version,
+								Status:      "skipped",
+								OperationId: operationID,
+								BuildId:     existing.GetBuildId(),
+							}, nil
+						}
 					}
 				}
 

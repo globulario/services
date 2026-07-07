@@ -823,6 +823,23 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		}
 	}
 
+	// Policy-deployment marker. The RBAC resolver loads each service's
+	// permissions.generated.json from ActionPolicyDir/{service}/ (deployed
+	// above from the package's policy/ entries). install_payload is the SOLE
+	// code path that deploys policy — the ApplyPackageRelease build_id-skip
+	// short-circuits BEFORE reaching it. Create this directory unconditionally
+	// (even when the package ships no policy/ files) so the skip path can tell
+	// "install_payload has run for this service" (dir present) from "installed
+	// out-of-band by the Day-0 globular-installer, policy never deployed" (dir
+	// absent), and fall through to a single reinstall instead of denying every
+	// role-based RPC forever. A policy-less package leaves an empty dir, which
+	// prevents a reinstall loop. See failure_mode:
+	// node_agent.apply_package_release_buildid_skip_ignores_checksum and the
+	// v1.2.267 empty-resolver incident.
+	if err := os.MkdirAll(filepath.Join(ActionPolicyDir, service), 0o755); err != nil {
+		log.Printf("install_payload: ensure policy dir for %s failed: %v (non-fatal)", service, err)
+	}
+
 	return fmt.Sprintf("service payload installed version=%s", version), nil
 }
 
