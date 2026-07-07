@@ -2099,7 +2099,7 @@ EOF
     elif [[ -d "docs/operational-knowledge" ]]; then
       OPS_KNOWLEDGE_DIR="$(pwd)/docs/operational-knowledge"
     else
-      log_warn "operational-knowledge directory not found — skipping ops-knowledge seed (ai-memory will be seeded at day-1)"
+      log_warn "operational-knowledge dir not found — skipping the disk ops-knowledge overlay (NON-FATAL: ai-memory self-seeds the recall corpus from its embedded copy at startup; this disk step is only a refresh overlay)"
       OPS_KNOWLEDGE_DIR=""
     fi
   fi
@@ -2171,7 +2171,7 @@ for kv in resp.get("kvs", []):
   done
 
   if [[ -z "$_OPS_MEM_PORT" ]]; then
-    log_warn "ai-memory did not register a port in etcd after 60s — ops-knowledge seed deferred to day-1 retry"
+    log_warn "ai-memory did not register a port in etcd after 60s — disk ops-knowledge overlay deferred to day-1 (NON-FATAL: the embedded self-seed already loaded the recall corpus at ai-memory startup; the corpus is present regardless of this overlay)"
     _OPS_SKIP_SEED=1
   else
     log_substep "ai-memory registered at port ${_OPS_MEM_PORT} (etcd)"
@@ -2194,7 +2194,7 @@ for kv in resp.get("kvs", []):
       sleep 2
     done
     if [[ -z "$_OPS_TOKEN" ]]; then
-      log_warn "Failed to get auth token for ops-knowledge seed — authentication not ready. Seed deferred to day-1."
+      log_warn "Failed to get auth token for the disk ops-knowledge overlay — authentication not ready; deferred to day-1 (NON-FATAL: the embedded self-seed already loaded the recall corpus at ai-memory startup; the corpus is present regardless of this overlay)"
       _OPS_SKIP_SEED=1
     fi
   fi
