@@ -23,9 +23,9 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 )
 
@@ -37,7 +37,6 @@ import (
 //
 // Returns a degraded response (Ok=false, Status=installed_unverified). Callers
 // must NOT treat this as a SUCCESS path even though no error is set.
-//
 func (srv *NodeAgentServer) writeBinaryUnverifiedInstalledState(
 	ctx context.Context,
 	req *node_agentpb.ApplyPackageReleaseRequest,
@@ -189,7 +188,6 @@ func servicePolicyDirPresent(name string) bool {
 // Authorization: gated by globular.auth.authz with permission="admin" on
 // resource "/node_agent/packages/{package_name}". Only controller workflow
 // execution (sa principal) or cluster admins can invoke this RPC.
-//
 func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_agentpb.ApplyPackageReleaseRequest) (*node_agentpb.ApplyPackageReleaseResponse, error) {
 	name := strings.TrimSpace(req.GetPackageName())
 	kind := strings.ToUpper(strings.TrimSpace(req.GetPackageKind()))
@@ -539,9 +537,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildId:     buildID,
 			Platform:    platform,
 			// InstalledPackage.Checksum is the installed entrypoint/artifact binary
-		// SHA, not the release identity hash. actualHash comes from
-		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
-		Checksum: actualHash,
+			// SHA, not the release identity hash. actualHash comes from
+			// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+			Checksum: actualHash,
 		}
 		if actualHash != "" {
 			if pkg.Metadata == nil {
@@ -749,9 +747,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildId:     buildID,
 			Platform:    platform,
 			// InstalledPackage.Checksum is the installed entrypoint/artifact binary
-		// SHA, not the release identity hash. actualHash comes from
-		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
-		Checksum: actualHash,
+			// SHA, not the release identity hash. actualHash comes from
+			// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+			Checksum: actualHash,
 		}
 		if actualHash != "" {
 			if binaryOnlyPkg.Metadata == nil {
@@ -898,14 +896,15 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	}
 
 	// Tombstone any stale INFRASTRUCTURE record when the package is installed as
-	// SERVICE. Services that were originally deployed via Day-0 bootstrap carry a
-	// legacy INFRASTRUCTURE record that never gets updated by the release pipeline.
-	// If left in place it silently overrides the correct SERVICE version in the
-	// heartbeat Phase 2 etcd scan (INFRA ran after SERVICE in the old loop order).
-	if kind == "SERVICE" {
+	// SERVICE or COMMAND. These legacy rows come from older Day-0/bootstrap
+	// paths that classified the package as INFRASTRUCTURE before the canonical
+	// kind registry existed. If left in place they shadow the correct record and
+	// resurrect false positives like runtime_identity_unproven for COMMAND
+	// packages (e.g. sctool).
+	if kind == "SERVICE" || kind == "COMMAND" {
 		if staleInfra, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); staleInfra != nil {
 			if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); err == nil {
-				log.Printf("apply-package: removed stale INFRASTRUCTURE record for SERVICE %s (was %s)", name, staleInfra.GetVersion())
+				log.Printf("apply-package: removed stale INFRASTRUCTURE record for %s %s (was %s)", kind, name, staleInfra.GetVersion())
 			}
 		}
 	}

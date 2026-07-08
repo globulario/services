@@ -216,6 +216,61 @@ func TestBuildPackage_NoScriptsDir(t *testing.T) {
 	}
 }
 
+func TestBuildPackage_IncludesPolicyDirFromRoot(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "bin")
+	specDir := filepath.Join(root, "specs")
+	policyDir := filepath.Join(root, "policy")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(specDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(policyDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "svc"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(policyDir, "permissions.generated.json"), []byte(`{"schema_version":"2","permissions":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(policyDir, "roles.generated.json"), []byte(`{"schema_version":"2","roles":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	specPath := filepath.Join(specDir, "svc_service.yaml")
+	spec := "metadata:\n  name: svc\nsteps:\n  - id: install\n    type: install_package_payload\n    install_bins: true\n"
+	if err := os.WriteFile(specPath, []byte(spec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := BuildPackages(BuildOptions{
+		Root:              root,
+		SpecPath:          specPath,
+		Version:           "0.0.1",
+		Platform:          runtime.GOOS + "_" + runtime.GOARCH,
+		OutDir:            t.TempDir(),
+		SkipMissingConfig: true,
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("result error: %+v", results)
+	}
+
+	pkg := results[0].OutputPath
+	for _, name := range []string{"policy/permissions.generated.json", "policy/roles.generated.json"} {
+		if ok, err := tgzContains(pkg, name); err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			t.Fatalf("package missing %s", name)
+		}
+	}
+}
+
 // TestBuildPackage_ScriptsAutoDiscoverFromRoot verifies scripts are discovered
 // from root/scripts/<service>/ when --scripts-dir is not set.
 func TestBuildPackage_ScriptsAutoDiscoverFromRoot(t *testing.T) {

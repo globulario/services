@@ -4,7 +4,7 @@ set -euo pipefail
 # Globular Day-0 Installation Script
 #
 # Environment Variables:
-#   PKG_DIR                  - Package directory (default: internal/assets/packages)
+#   PKG_DIR                  - Package directory (default: bundle-root/packages)
 #   INSTALLER_BIN            - Installer binary path (auto-detected)
 #   TOLERATE_ALREADY_INSTALLED - Allow already-installed packages (default: 1)
 #   FORCE_REINSTALL          - Force overwrite existing binaries even if unchanged (default: 0)
@@ -23,7 +23,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STATE_DIR="/var/lib/globular"
-PKG_DIR="$INSTALLER_ROOT/internal/assets/packages"
+PKG_DIR="${PKG_DIR:-$INSTALLER_ROOT/packages}"
 
 # Respect INSTALLER_BIN if already set by a parent script (e.g. install.sh in the
 # release tarball places globular-installer at the tarball root, not in bin/).
@@ -336,10 +336,6 @@ if [[ -x "$SCRIPT_DIR/generate-user-client-cert.sh" ]]; then
 
   if [[ -n "$ORIGINAL_USER" ]]; then
     if "$SCRIPT_DIR/generate-user-client-cert.sh" "$ORIGINAL_USER" 2>&1 | tee "/tmp/client-cert-$ORIGINAL_USER.log"; then
-      # Fix ownership of generated certificates
-      if [[ -x "$SCRIPT_DIR/fix-client-cert-ownership.sh" ]]; then
-        "$SCRIPT_DIR/fix-client-cert-ownership.sh" "$ORIGINAL_USER" 2>&1 | tee "/tmp/client-cert-fix-$ORIGINAL_USER.log" || true
-      fi
       log_success "User ($ORIGINAL_USER) client certificates generated"
     else
       die "User ($ORIGINAL_USER) client certificate generation failed (check /tmp/client-cert-$ORIGINAL_USER.log) - CLI will not work without this"
@@ -1823,7 +1819,6 @@ fi
 # Without it, these paths fall back to legacy (latest published) behavior.
 for _ri in \
     "$INSTALLER_ROOT/release-index.json" \
-    "$INSTALLER_ROOT/internal/assets/release-index.json" \
     "$PKG_DIR/../release-index.json"; do
   if [[ -f "$_ri" ]]; then
     cp "$_ri" "${STATE_DIR}/release-index.json"
@@ -2132,17 +2127,19 @@ EOF
   _OPS_KEY="/var/lib/globular/pki/issued/services/service.key"
   _OPS_ETCD="${ETCD_ENDPOINTS:-https://${_OPS_IP}:2379}"
 
-  _ops_find_ai_memory_port() {
-    # Echoes the port for the registered ai_memory.AiMemoryService config,
+  _ops_find_service_port() {
+    # Echoes the port for the registered service config named by $1,
     # or nothing if not yet registered. Uses etcdctl -w json so the
     # service-list scan is robust to pretty-printed multi-line values
     # (the text-mode output of `etcdctl get --prefix` interleaves keys
     # with formatted JSON across many lines and is not line-parseable).
+    local _service_name="$1"
     etcdctl --endpoints="$_OPS_ETCD" \
       --cacert="$_OPS_CA" --cert="$_OPS_CERT" --key="$_OPS_KEY" \
       get /globular/services/ --prefix -w json 2>/dev/null \
       | python3 -c '
 import sys, json, base64
+service_name = sys.argv[1]
 try:
     resp = json.load(sys.stdin)
 except Exception:
@@ -2155,15 +2152,15 @@ for kv in resp.get("kvs", []):
         cfg = json.loads(base64.b64decode(kv.get("value","")).decode("utf-8", "replace"))
     except Exception:
         continue
-    if cfg.get("Name") == "ai_memory.AiMemoryService" and cfg.get("Port"):
+    if cfg.get("Name") == service_name and cfg.get("Port"):
         print(cfg["Port"])
         break
-'
+' "$_service_name"
   }
 
   _OPS_MEM_PORT=""
   for _ops_port_try in $(seq 1 30); do
-    _OPS_MEM_PORT="$(_ops_find_ai_memory_port 2>/dev/null || true)"
+    _OPS_MEM_PORT="$(_ops_find_service_port "ai_memory.AiMemoryService" 2>/dev/null || true)"
     if [[ -n "$_OPS_MEM_PORT" ]]; then
       break
     fi
@@ -2179,10 +2176,27 @@ for kv in resp.get("kvs", []):
 
   # Auth is only needed when ai-memory is reachable.
   _OPS_TOKEN=""
+  _OPS_AUTH_PORT=""
   if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
+    for _ops_port_try in $(seq 1 30); do
+      _OPS_AUTH_PORT="$(_ops_find_service_port "authentication.AuthenticationService" 2>/dev/null || true)"
+      if [[ -n "$_OPS_AUTH_PORT" ]]; then
+        break
+      fi
+      sleep 2
+    done
+    if [[ -z "$_OPS_AUTH_PORT" ]]; then
+      log_warn "authentication did not register a port in etcd after 60s — disk ops-knowledge overlay deferred to day-1 (NON-FATAL: the embedded self-seed already loaded the recall corpus at ai-memory startup; the corpus is present regardless of this overlay)"
+      _OPS_SKIP_SEED=1
+    else
+      log_substep "authentication registered at port ${_OPS_AUTH_PORT} (etcd)"
+    fi
+  fi
+  if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
+    _OPS_AUTH="${_OPS_IP}:${_OPS_AUTH_PORT}"
     log_substep "Authenticating as bootstrap SA user for ops-knowledge seed..."
     for _ops_auth_try in $(seq 1 5); do
-      _LOGIN_OUT="$("$GLOBULAR_CLI" --ca "$_OPS_CA" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
+      _LOGIN_OUT="$("$GLOBULAR_CLI" --ca "$_OPS_CA" --auth "$_OPS_AUTH" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
       _OPS_TOKEN="$(echo "$_LOGIN_OUT" | sed -n 's/^Token: //p' | head -n1 || true)"
       if [[ -z "$_OPS_TOKEN" && -f /root/.config/globular/token ]]; then
         _OPS_TOKEN="$(cat /root/.config/globular/token 2>/dev/null || true)"
@@ -2409,9 +2423,65 @@ trace_finish "ok" "Day-0 installation complete"
 # so the controller can reach back. Never hardcode the port — read it from the unit.
 _BOOTSTRAP_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
 _BOOTSTRAP_IP="${_BOOTSTRAP_IP:-$(hostname -I | awk '{print $1}')}"
-_NA_UNIT_PORT=$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-node-agent.service 2>/dev/null | head -1 || true)
+_NA_UNIT_PORT=""
+
+# 1. Ask etcd for the authoritative node-agent service record.
+_NA_UNIT_PORT="$(etcdctl \
+  --endpoints="https://${_BOOTSTRAP_IP}:2379" \
+  --cacert="${STATE_DIR}/pki/ca.crt" \
+  --cert="${STATE_DIR}/pki/issued/services/service.crt" \
+  --key="${STATE_DIR}/pki/issued/services/service.key" \
+  get /globular/services/ --prefix --print-value-only 2>/dev/null \
+  | python3 -c "
+import json, sys
+dec = json.JSONDecoder()
+buf = sys.stdin.read()
+pos = 0
+while pos < len(buf):
+    while pos < len(buf) and buf[pos] in ' \t\r\n':
+        pos += 1
+    if pos >= len(buf):
+        break
+    try:
+        d, end = dec.raw_decode(buf, pos)
+        pos = end
+        if d.get('Name') != 'node_agent.NodeAgentService':
+            continue
+        port = int(d.get('Port', 0) or 0)
+        if port > 0:
+            print(port)
+            break
+    except Exception:
+        pos += 1
+" 2>/dev/null | head -1 || true)"
+
+# 2. Fallback to explicit unit overrides when present.
+_NA_UNIT_PORT="${_NA_UNIT_PORT:-$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-node-agent.service 2>/dev/null | head -1 || true)}"
 _NA_UNIT_PORT="${_NA_UNIT_PORT:-$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-node-agent.service.d/*.conf 2>/dev/null | head -1 || true)}"
-_NA_UNIT_PORT="${_NA_UNIT_PORT:-$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p; exit}}' || true)}"
+
+# 3. Final fallback: inspect listening sockets. Prefer the gRPC service port
+# over the metrics endpoint when both are present.
+if [[ -z "$_NA_UNIT_PORT" ]]; then
+  _NA_UNIT_PORT="$(ss -ltnp 2>/dev/null | awk '
+    /node_agent_serv/ {
+      split($4, a, ":")
+      p = a[length(a)]
+      if (p ~ /^[0-9]+$/) {
+        if (p == "11000") {
+          print p
+          exit
+        }
+        if (first == "") {
+          first = p
+        }
+      }
+    }
+    END {
+      if (first != "") {
+        print first
+      }
+    }' | head -1 || true)"
+fi
 if [[ -z "$_NA_UNIT_PORT" ]]; then
   log_warn "Could not determine node-agent port from unit file or ss — replace <node-agent-port> in the command below"
   _NA_UNIT_PORT="<node-agent-port>"

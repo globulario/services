@@ -19,7 +19,7 @@ ok() { echo "  ✓ $*"; }
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/regenerate-release-inputs.sh [--version X.Y.Z]
+  bash scripts/regenerate-release-inputs.sh [--version X.Y.Z] [--bin-dir /path/to/bin]
 
 This is the explicit regeneration boundary for services/generated release inputs.
 It wipes only known generated release-input subtrees/files, regenerates policy
@@ -37,6 +37,11 @@ while [[ $# -gt 0 ]]; do
     --version)
       [[ $# -ge 2 ]] || die "--version requires a value"
       VERSION="${2#v}"
+      shift 2
+      ;;
+    --bin-dir)
+      [[ $# -ge 2 ]] || die "--bin-dir requires a value"
+      STAGE_BIN="$2"
       shift 2
       ;;
     *)

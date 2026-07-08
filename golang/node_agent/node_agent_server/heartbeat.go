@@ -864,22 +864,22 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			staleService, _ = installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
 		}
 
-		// Mirror: when the repo says SERVICE, check for a stale INFRASTRUCTURE
-		// record left behind by the Day-0 bootstrap or an old isDay0JoinInfra list.
-		// This is the background-cleanup counterpart to the install-time cleanup
-		// in apply_package_release.go.
+		// Mirror: when the repo says SERVICE or COMMAND, check for a stale
+		// INFRASTRUCTURE record left behind by the Day-0 bootstrap or an old
+		// isDay0JoinInfra list. This is the background-cleanup counterpart to
+		// the install-time cleanup in apply_package_release.go.
 		var staleInfra *node_agentpb.InstalledPackage
-		if kind == "SERVICE" {
+		if kind == "SERVICE" || kind == "COMMAND" {
 			staleInfra, _ = installed_state.GetInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name)
 		}
 
 		if existing != nil && existing.GetVersion() != "" {
 			// Already has a real version with correct kind — skip install.
 			// But still purge any stale INFRASTRUCTURE record so it can no
-			// longer shadow the correct SERVICE version in heartbeat Phase 2.
+			// longer shadow the correct SERVICE/COMMAND version in heartbeat Phase 2.
 			if staleInfra != nil {
 				if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); err == nil {
-					log.Printf("nodeagent: removed stale INFRASTRUCTURE record for SERVICE %s (was %s)", name, staleInfra.GetVersion())
+					log.Printf("nodeagent: removed stale INFRASTRUCTURE record for %s %s (was %s)", kind, name, staleInfra.GetVersion())
 				}
 			}
 			continue
@@ -929,10 +929,10 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 		}
 
 		// Clean up stale INFRASTRUCTURE record when we are about to write
-		// (or have already confirmed) a SERVICE record for this package.
+		// (or have already confirmed) a SERVICE/COMMAND record for this package.
 		if staleInfra != nil {
 			if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); err == nil {
-				log.Printf("nodeagent: removed stale INFRASTRUCTURE record for SERVICE %s (was %s)", name, staleInfra.GetVersion())
+				log.Printf("nodeagent: removed stale INFRASTRUCTURE record for %s %s (was %s)", kind, name, staleInfra.GetVersion())
 			}
 			if existing == nil {
 				existing = staleInfra // preserve original install timestamp

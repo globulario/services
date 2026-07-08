@@ -40,8 +40,16 @@
 set -euo pipefail
 
 SERVICES_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PACKAGES_ROOT="$(cd "$SERVICES_ROOT/../packages" 2>/dev/null && pwd)" || { echo "ERROR: ../packages not found"; exit 1; }
+PACKAGES_ROOT_DEFAULT="$SERVICES_ROOT/../packages"
+PACKAGES_ROOT="${PACKAGES_ROOT_OVERRIDE:-$PACKAGES_ROOT_DEFAULT}"
+PACKAGES_ROOT="$(cd "$PACKAGES_ROOT" 2>/dev/null && pwd)" || { echo "ERROR: packages root not found (${PACKAGES_ROOT_OVERRIDE:-$PACKAGES_ROOT_DEFAULT})"; exit 1; }
 GLOBULAR_ROOT="$(cd "$SERVICES_ROOT/../Globular" 2>/dev/null && pwd)" || GLOBULAR_ROOT=""
+# Stage bin dir consumed by specgen/pkggen (via regenerate-release-inputs.sh) to
+# produce the generated per-service package templates. gRPC-service metadata is no
+# longer hand-authored in the packages repo — it is generated into services/generated
+# from each binary's --describe (spec) + proto AuthzRule annotations (policy). We
+# refresh this dir with freshly-built binaries so generated specs reflect current source.
+STAGE_BIN="$SERVICES_ROOT/golang/tools/stage/linux-amd64/usr/local/bin"
 
 # ── Args ──────────────────────────────────────────────────────────────────────
 VERSION=""
@@ -321,6 +329,13 @@ step "Build changed Go services"
 LDFLAGS="-s -w"
 PKG_MAP="$SERVICES_ROOT/golang/build/pkg-map.json"
 
+# A prior `sudo install` (or privileged stage build) can leave root-owned binaries
+# in the shared stage bin, which blocks refreshing them below. Reclaim ownership
+# best-effort (mirrors the OUT_DIR reclaim at publish time).
+if [[ -d "$STAGE_BIN" ]] && find "$STAGE_BIN" ! -user "$(id -un)" -print -quit 2>/dev/null | grep -q .; then
+  sudo chown -R "$(id -un):$(id -gn)" "$STAGE_BIN" 2>/dev/null || true
+fi
+
 for pkg_name in "${CHANGED_NAMES[@]}"; do
   go_target=$(python3 -c "
 import json
@@ -339,11 +354,16 @@ print(d.get('$pkg_name',{}).get('binary',''))
 
   log "Building $binary ($pkg_name)..."
   go build -trimpath -ldflags "$LDFLAGS" -o "$BIN_DIR/$binary" "./$go_target"
+  # Mirror the fresh binary into the stage bin so specgen/pkggen (below) derive the
+  # generated template's spec from CURRENT source, not a stale staged binary.
+  [[ -d "$STAGE_BIN" ]] && cp "$BIN_DIR/$binary" "$STAGE_BIN/$binary"
 done
 
 # Also build globular CLI if cli changed
 if printf '%s\n' "${CHANGED_NAMES[@]}" | grep -q "globular-cli"; then
   cp "$BIN_DIR/globularcli" "$BIN_DIR/globular" 2>/dev/null || true
+  # pkggen/build_extra_template drive `globular pkg build` via STAGE_BIN/globularcli.
+  [[ -d "$STAGE_BIN" ]] && cp "$BIN_DIR/globularcli" "$STAGE_BIN/globularcli" 2>/dev/null || true
 fi
 
 # Rebuild xds/gateway if Globular repo changed
@@ -353,68 +373,135 @@ if [[ -n "$GLOBULAR_ROOT" ]]; then
       log "Building $gname..."
       GLDFLAGS="-X main.Version=${VERSION} -X main.BuildVersion=${VERSION} -s -w"
       go build -trimpath -ldflags "$GLDFLAGS" -o "$BIN_DIR/$gname" "$GLOBULAR_ROOT/cmd/$gname"
+      [[ -d "$STAGE_BIN" ]] && cp "$BIN_DIR/$gname" "$STAGE_BIN/$gname"
     fi
   done
 fi
 
-# ── Regenerate authz policy (permissions/roles per service) ───────────────────
-# Each service package must ship its generated RBAC policy (permissions.generated
-# .json + roles.generated.json), which install-day0 lays down at
-# /var/lib/globular/policy/services/{svc}/ for the interceptor chain. authzgen
-# derives it from proto AuthzRule annotations. Regenerate here so packages are
-# never built without current policy (build-release does this via
-# regenerate-release-inputs; build-local-release must not skip it).
-step "Regenerate authz policy"
-POLICY_ROOT="$SERVICES_ROOT/generated/policy"
-if command -v protoc >/dev/null 2>&1; then
-  mkdir -p "$POLICY_ROOT"
-  protoc -I "$SERVICES_ROOT/proto" \
-    --descriptor_set_out="$POLICY_ROOT/descriptor.pb" --include_imports \
-    "$SERVICES_ROOT/proto"/*.proto
-  ( cd "$SERVICES_ROOT/golang" && GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" \
-      go run ./globularcli/tools/authzgen -descriptor "$POLICY_ROOT/descriptor.pb" -out "$POLICY_ROOT" )
-  log "authz policy regenerated under $POLICY_ROOT ($(ls -d "$POLICY_ROOT"/*/ 2>/dev/null | wc -l) services)"
-elif [[ -d "$POLICY_ROOT" ]]; then
-  log "WARN: protoc unavailable — reusing existing generated/policy ($(ls -d "$POLICY_ROOT"/*/ 2>/dev/null | wc -l) services)"
-else
-  echo "ERROR: no protoc and no generated/policy — packages would ship without RBAC policy. Run generateCode.sh first." >&2
+# ── Regenerate service package templates (services/generated) ─────────────────
+# gRPC-service package metadata is NO LONGER hand-authored in the packages repo
+# (packages commit "remove gRPC-service metadata (generated, not hand-authored
+# here)"). It is derived from source: spec from each binary's --describe (specgen)
+# and RBAC policy from proto AuthzRule annotations (authzgen). regenerate-release-
+# inputs.sh is the sanctioned regeneration boundary — it (re)builds generated/policy,
+# generated/specs, and generated/<name>_<version>_linux_amd64.tgz templates from the
+# stage bin we just refreshed. build-release.sh (CI) uses the exact same boundary.
+# We then consume those templates below, swapping in our freshly-built binaries.
+step "Regenerate service package templates (services/generated)"
+GENERATED_ROOT="$SERVICES_ROOT/generated"
+POLICY_ROOT="$GENERATED_ROOT/policy"
+if [[ ! -x "$STAGE_BIN/globularcli" ]]; then
+  echo "ERROR: stage bin not populated at $STAGE_BIN (needs globularcli + service binaries)." >&2
+  echo "       Build the stage set first (e.g. 'make stage' / build-release stage step) then re-run." >&2
   exit 1
 fi
+command -v protoc >/dev/null 2>&1 || { echo "ERROR: protoc required to regenerate service package templates. Run generateCode.sh / install protoc first." >&2; exit 1; }
+bash "$SERVICES_ROOT/scripts/regenerate-release-inputs.sh" --version "$VERSION"
+log "generated $(ls "$GENERATED_ROOT"/*.tgz 2>/dev/null | wc -l) service package templates under $GENERATED_ROOT"
 
 # ── Build changed packages ────────────────────────────────────────────────────
 step "Build changed packages"
 BUILD_NUMBER=$(date +%s)   # local builds use unix timestamp as build_number
 BUILD_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
 
+# Re-stamp a package.json in place with this build's identity. Always sets
+# version/build_id/build_number. entrypoint_checksum is set only when a checksum is
+# supplied (fresh binary swapped in); an empty checksum leaves the template's own
+# entrypoint/entrypoint_checksum untouched (staged binary kept as-is).
+restamp_package_json() {
+  python3 - "$1" "$2" "$3" "$4" "$5" <<'PYEOF'
+import json, sys
+path, version, build_id, build_number, checksum = sys.argv[1:]
+d = json.load(open(path))
+d['version'] = version
+d['build_id'] = build_id
+d['build_number'] = int(build_number)
+if checksum:
+    d['entrypoint_checksum'] = checksum
+json.dump(d, open(path, 'w'), indent=2)
+PYEOF
+}
+
+# consume_generated_template <tpl> <pkg_name> <binary>: assemble the shipped package
+# from a generated template — extract package.json/specs/policy/config/data, drop in
+# our freshly-built binary (falling back to the staged one), re-stamp identity. Mirrors
+# build-release.sh's generated-current-release path.
+consume_generated_template() {
+  local tpl="$1" pkg_name="$2" binary="$3"
+  local per_pkg_build_id fresh_bin="" checksum_arg="" TMPROOT="$WORK/root-${pkg_name}"
+  per_pkg_build_id=$(python3 -c "import uuid; print(uuid.uuid4())")
+  if [[ -n "$binary" && "$binary" != "none" && "$binary" != "noop" ]]; then
+    if [[ -f "$BIN_DIR/$binary" ]]; then fresh_bin="$BIN_DIR/$binary"
+    elif [[ -f "$STAGE_BIN/$binary" ]]; then fresh_bin="$STAGE_BIN/$binary"; fi
+  fi
+  rm -rf "$TMPROOT"; mkdir -p "$TMPROOT"
+  if [[ -n "$fresh_bin" ]]; then
+    # keep everything but the (stale, staged) binary; swap in our fresh build
+    tar -C "$TMPROOT" -xf "$tpl" --exclude='bin/*'
+    mkdir -p "$TMPROOT/bin"
+    cp "$fresh_bin" "$TMPROOT/bin/$binary"
+    chmod +x "$TMPROOT/bin/$binary"
+    checksum_arg="sha256:$(sha256sum "$TMPROOT/bin/$binary" | awk '{print $1}')"
+  else
+    # no rebuildable binary (e.g. gateway/xds not in this rebuild set) — ship the
+    # template's staged binary + its checksum verbatim; only re-stamp identity.
+    tar -C "$TMPROOT" -xf "$tpl"
+  fi
+  restamp_package_json "$TMPROOT/package.json" "$VERSION" "$per_pkg_build_id" "$BUILD_NUMBER" "$checksum_arg"
+  tar -C "$TMPROOT" -czf "$PKG_OUT/${pkg_name}_${VERSION}_linux_amd64.tgz" .
+  rm -rf "$TMPROOT"
+  log "Packaged $pkg_name v${VERSION} (from generated template)"
+}
+
 for pkg_name in "${CHANGED_NAMES[@]}"; do
-  meta_dir="$(resolve_meta_dir "$pkg_name")"
-  # Spec source: <meta_dir>/specs/<name>_service.yaml (or _cmd.yaml). Works for
-  # both the metadata/<name>/ and flattened <name>/ layouts via resolve_meta_dir.
-  spec_file="$meta_dir/specs/${pkg_name//-/_}_service.yaml"
-  [[ -f "$spec_file" ]] || spec_file="$meta_dir/specs/${pkg_name//-/_}_cmd.yaml"
-
-  [[ -n "$meta_dir" && -d "$meta_dir" ]] || { log "SKIP $pkg_name: no metadata dir"; continue; }
-  [[ -f "$spec_file" ]] || { log "SKIP $pkg_name: no spec yaml"; continue; }
-
+  go_target=$(python3 -c "
+import json
+d=json.load(open('$PKG_MAP'))
+print(d.get('$pkg_name',{}).get('go_target',''))
+" 2>/dev/null)
   binary=$(python3 -c "
 import json
 d=json.load(open('$PKG_MAP'))
 print(d.get('$pkg_name',{}).get('binary',''))
 " 2>/dev/null)
+  gen_tpl="$GENERATED_ROOT/${pkg_name}_${VERSION}_linux_amd64.tgz"
+
+  # Preferred path: a generated template (Go services + globular-cli/mcp/gateway/xds).
+  # gRPC-service metadata is generated, never carried in the packages repo, so a
+  # locally-built Go service MUST have a template — a missing one is a regeneration
+  # bug, not a package to silently skip.
+  if [[ -f "$gen_tpl" ]]; then
+    if [[ -n "$go_target" && ( -z "$binary" || ( "$binary" != "none" && "$binary" != "noop" && ! -f "$BIN_DIR/$binary" ) ) ]]; then
+      echo "ERROR: $pkg_name has go_target but freshly-built binary '$binary' is missing in $BIN_DIR." >&2
+      exit 1
+    fi
+    consume_generated_template "$gen_tpl" "$pkg_name" "$binary"
+    continue
+  fi
+
+  if [[ -n "$go_target" ]]; then
+    echo "ERROR: no generated template for Go service '$pkg_name' at $gen_tpl." >&2
+    echo "       regenerate-release-inputs.sh must produce one; refusing to ship a bundle missing a service." >&2
+    exit 1
+  fi
+
+  # ── Legacy fallback: static/infra packages whose metadata is still hand-authored
+  #    in the packages repo (etcd, keepalived, scylladb, …). Used when an infra spec
+  #    changes; the binary comes from the base-bundle carry-forward (BIN_DIR).
+  meta_dir="$(resolve_meta_dir "$pkg_name")"
+  spec_file="$meta_dir/specs/${pkg_name//-/_}_service.yaml"
+  [[ -f "$spec_file" ]] || spec_file="$meta_dir/specs/${pkg_name//-/_}_cmd.yaml"
+  [[ -n "$meta_dir" && -d "$meta_dir" ]] || { log "SKIP $pkg_name: no generated template and no metadata dir (carried forward from base bundle)"; continue; }
+  [[ -f "$spec_file" ]] || { log "SKIP $pkg_name: no spec yaml"; continue; }
   [[ -z "$binary" ]] && { log "SKIP $pkg_name: not in pkg-map"; continue; }
-  # Binary-less packages (registry binary: none — OS-daemon/.deb wrappers such as
-  # keepalived/scylladb, fetch-at-install commands claude/codex) bundle no
-  # Globular executable. "noop" is a deprecated alias. No binary is required or
-  # copied; package.json carries entrypoint: none with an empty entrypoint_checksum
-  # (node-agent verifier returns BinaryNotApplicable). Replaces the noop sentinel.
+
   no_entrypoint=0
   if [[ "$binary" == "none" || "$binary" == "noop" ]]; then
     no_entrypoint=1
   elif [[ ! -f "$BIN_DIR/$binary" ]]; then
-    log "SKIP $pkg_name: binary $binary not found"; continue
+    log "SKIP $pkg_name: binary $binary not found (carried forward from base bundle)"; continue
   fi
 
-  # Determine version
   platform_version=$(python3 -c "
 import json
 d=json.load(open('$PKG_MAP'))
@@ -443,9 +530,6 @@ print(d.get('version','0.0.0'))
   fi
   cp "$spec_file" "$TMPROOT/specs/$(basename "$spec_file")"
 
-  # Bundle the generated authz policy (mirrors pkggen). Policy dirs are keyed by
-  # the underscore service name (ai-executor -> ai_executor). Lands at
-  # /var/lib/globular/policy/services/{svc}/ on install for the RBAC resolver.
   policy_src="$POLICY_ROOT/${pkg_name//-/_}"
   if [[ -d "$policy_src" ]]; then
     mkdir -p "$TMPROOT/policy"
@@ -454,9 +538,6 @@ print(d.get('version','0.0.0'))
     done
   fi
 
-  # Stamp package.json. Binary-less packages (no_entrypoint) carry entrypoint
-  # "none" and an EMPTY entrypoint_checksum; the node-agent verifier returns
-  # BinaryNotApplicable rather than requiring a binary hash.
   if [[ "$no_entrypoint" -eq 1 ]]; then
     checksum_arg=""
   else
@@ -480,7 +561,7 @@ PYEOF
   out_tgz="$PKG_OUT/${pkg_name}_${pkg_version}_linux_amd64.tgz"
   tar -C "$TMPROOT" -czf "$out_tgz" .
   rm -rf "$TMPROOT"
-  log "Packaged $pkg_name v${pkg_version}"
+  log "Packaged $pkg_name v${pkg_version} (legacy metadata)"
 done
 
 # ── Copy unchanged packages from previous bundle ──────────────────────────────

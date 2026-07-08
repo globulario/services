@@ -34,6 +34,7 @@ VERSION=""
 BUMP_KIND="patch"
 EXPLICIT_VERSION=0
 FULL_REGENERATE=0
+REUSE_GENERATED_RELEASE_INPUTS=0
 ALLOW_EXTRACTED_BUNDLE_SOURCES=0
 declare -a EXTRACTED_BUNDLE_SOURCE_DIRS=()
 
@@ -180,11 +181,6 @@ else
 fi
 validate_release_version "${VERSION}"
 
-if (( FULL_REGENERATE )); then
-  info "Running full regeneration for services/generated release inputs..."
-  bash "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh" --version "${VERSION}"
-fi
-
 elf_needs_release_strip() {
   local bin="$1"
   [[ -f "${bin}" ]] || return 1
@@ -319,6 +315,25 @@ collect_source_package_dirs() {
   printf '%s\n' "${dirs[@]}"
 }
 
+list_external_registry_packages() {
+  python3 - "${REGISTRY_YAML}" <<'PYEOF'
+import sys, yaml
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    reg = yaml.safe_load(f) or {}
+
+generated = {"globular-cli", "gateway", "xds"}
+for pkg in reg.get("packages", []):
+    name = str(pkg.get("name") or "").strip()
+    go_target = str(pkg.get("go_target") or "").strip()
+    if not name:
+        continue
+    if go_target or name in generated:
+        continue
+    print(name)
+PYEOF
+}
+
 find_source_package() {
   local pkg_name="$1"
   shift
@@ -432,7 +447,7 @@ classify_source_dir() {
 
 validate_input_built_artifact() {
   local src_pkg="$1"
-  local name entrypoint entry_bin checksum staged_bin expected_bin go_target tmpdir extracted_bin
+  local name entrypoint entry_bin checksum staged_bin expected_bin go_target tmpdir extracted_bin metadata_bin current_input
 
   name="$(extract_package_field "${src_pkg}" name)"
   entrypoint="$(extract_package_field "${src_pkg}" entrypoint)"
@@ -444,20 +459,25 @@ validate_input_built_artifact() {
   [[ -n "${expected_bin}" ]] || die "package ${src_pkg} (${name}) is not in registry.yaml"
   [[ -z "${go_target}" ]] || die "release build must not source ${name} from packages/dist; it is generated from current service source"
 
-  entry_bin="$(basename "${entrypoint}")"
-  [[ "${entry_bin}" == "${expected_bin}" ]] || die "package ${src_pkg} entrypoint ${entrypoint} does not match registry binary ${expected_bin}"
-
-  # Binary-less packages (registry binary: none / entrypoint: none — the noop
-  # replacement wrappers: keepalived, scylladb, claude, codex) bundle no staged
-  # binary and no entrypoint payload; carry the dist artifact forward as-is.
-  if [[ "${expected_bin}" == "none" || "${expected_bin}" == "noop" ]]; then
+  # Binary-less packages intentionally carry manifest entrypoint "none" even
+  # when the registry binary names the runtime executable that will be installed
+  # later by dpkg or fetch-at-install logic (e.g. sctool, scylladb wrappers).
+  if [[ "${entrypoint}" == "none" || "${entrypoint}" == "noop" || "${expected_bin}" == "none" || "${expected_bin}" == "noop" ]]; then
     return 0
   fi
 
+  entry_bin="$(basename "${entrypoint}")"
+  [[ "${entry_bin}" == "${expected_bin}" ]] || die "package ${src_pkg} entrypoint ${entrypoint} does not match registry binary ${expected_bin}"
+
   staged_bin="${PACKAGES_ROOT}/bin/${expected_bin}"
-  [[ -f "${staged_bin}" ]] || die "package ${name} has dist artifact ${src_pkg} but current staged input ${staged_bin} is missing; explicit carry-forward classification required"
-  if elf_needs_release_strip "${staged_bin}"; then
-    die "package ${name} has stripped dist artifact ${src_pkg} but current staged input ${staged_bin} still carries forbidden debug sections; refusing stale-output carry-forward"
+  metadata_bin="${PACKAGES_ROOT}/metadata/${name}/bin/${expected_bin}"
+  current_input="${staged_bin}"
+  if [[ ! -f "${current_input}" ]]; then
+    current_input="${metadata_bin}"
+  fi
+  [[ -f "${current_input}" ]] || die "package ${name} has dist artifact ${src_pkg} but neither current staged input ${staged_bin} nor package-local wrapper ${metadata_bin} exists; explicit carry-forward classification required"
+  if elf_needs_release_strip "${current_input}"; then
+    die "package ${name} has stripped dist artifact ${src_pkg} but current input ${current_input} still carries forbidden debug sections; refusing stale-output carry-forward"
   fi
 
   tmpdir=$(mktemp -d)
@@ -469,11 +489,11 @@ validate_input_built_artifact() {
     die "package ${src_pkg} still carries release-forbidden debug sections"
   fi
 
-  local staged_sha artifact_sha
-  staged_sha="$(sha256sum "${staged_bin}" | awk '{print $1}')"
+  local input_sha artifact_sha
+  input_sha="$(sha256sum "${current_input}" | awk '{print $1}')"
   artifact_sha="$(sha256sum "${extracted_bin}" | awk '{print $1}')"
   [[ "sha256:${artifact_sha}" == "${checksum}" ]] || die "package ${src_pkg} has package.json entrypoint_checksum=${checksum}, but packaged entrypoint hashes to sha256:${artifact_sha}"
-  [[ "${staged_sha}" == "${artifact_sha}" ]] || die "package ${src_pkg} entrypoint does not match current staged input ${staged_bin}; stale dist artifact detected"
+  [[ "${input_sha}" == "${artifact_sha}" ]] || die "package ${src_pkg} entrypoint does not match current input ${current_input}; stale dist artifact detected"
   rm -rf "${tmpdir}"
 }
 
@@ -791,57 +811,65 @@ for name in targets:
 PYEOF
 }
 
+stage_release_binaries() {
+  section "Building Go Services"
+
+  LDFLAGS="-X main.Version=${VERSION} -s -w"
+  cd "${SERVICES_ROOT}/golang"
+
+  while IFS='|' read -r target output; do
+    target="${target%%#*}"; target="${target// /}"
+    output="${output// /}"
+    [[ -z "${target}" ]] && continue
+
+    bin_name=$(basename "${output}")
+    info "Building ${bin_name}..."
+    go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/${bin_name}" "${target}"
+  done < build/services.list
+
+  cp "${BIN_STAGE_DIR}/globularcli" "${BIN_STAGE_DIR}/globular" 2>/dev/null || true
+  cp "${BIN_STAGE_DIR}/mcp" "${BIN_STAGE_DIR}/mcp_server" 2>/dev/null || true
+
+  [[ -d "${GLOBULAR_ROOT}" ]] || die "Globular repo not found at ${GLOBULAR_ROOT} — required to build xds and gateway"
+  info "Building xds and gateway from sibling Globular repo..."
+  (
+    cd "${GLOBULAR_ROOT}"
+    go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/xds" ./cmd/xds
+    go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/gateway" ./cmd/gateway
+  )
+
+  [[ -d "${INSTALLER_ROOT}" ]] || die "globular-installer repo not found at ${INSTALLER_ROOT}"
+  info "Validating installer mirrors before building installer binary..."
+  make -C "${INSTALLER_ROOT}" check-specs >/dev/null
+  info "Building globular-installer from sibling source repo..."
+  (
+    cd "${INSTALLER_ROOT}"
+    installer_cache_dir="$(mktemp -d)"
+    trap 'rm -rf "${installer_cache_dir}"' EXIT
+    GOCACHE="${installer_cache_dir}" go build -buildvcs=false -trimpath -o "${INSTALLER_STAGE_BIN}" ./cmd/globular-installer
+  )
+
+  ok "$(ls "${BIN_STAGE_DIR}/" | wc -l) staged release binaries built"
+  rm -f "${BIN_STAGE_DIR}/compute_server" "${BIN_STAGE_DIR}/discovery_server"
+  cd "${SERVICES_ROOT}"
+}
+
 section "Building Release ${VERSION}"
 
 rm -rf "${DIST_DIR}"
 mkdir -p "${BIN_STAGE_DIR}" "${PKG_STAGE_DIR}"
 
+if (( FULL_REGENERATE )); then
+  stage_release_binaries
+  info "Running full regeneration for services/generated release inputs..."
+  bash "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh" --version "${VERSION}" --bin-dir "${BIN_STAGE_DIR}"
+  REUSE_GENERATED_RELEASE_INPUTS=1
+fi
+
 # ── Build Go binaries into release staging ───────────────────────────────────
-section "Building Go Services"
-
-LDFLAGS="-X main.Version=${VERSION} -s -w"
-cd "${SERVICES_ROOT}/golang"
-
-while IFS='|' read -r target output; do
-  target="${target%%#*}"; target="${target// /}"
-  output="${output// /}"
-  [[ -z "${target}" ]] && continue
-
-  bin_name=$(basename "${output}")
-  info "Building ${bin_name}..."
-  go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/${bin_name}" "${target}"
-done < build/services.list
-
-cp "${BIN_STAGE_DIR}/globularcli" "${BIN_STAGE_DIR}/globular" 2>/dev/null || true
-cp "${BIN_STAGE_DIR}/mcp" "${BIN_STAGE_DIR}/mcp_server" 2>/dev/null || true
-
-# xds and gateway are built from the sibling Globular repo, matching the CI
-# release workflow. They are current-release binaries, not carry-forward assets.
-[[ -d "${GLOBULAR_ROOT}" ]] || die "Globular repo not found at ${GLOBULAR_ROOT} — required to build xds and gateway"
-info "Building xds and gateway from sibling Globular repo..."
-(
-  cd "${GLOBULAR_ROOT}"
-  go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/xds" ./cmd/xds
-  go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/gateway" ./cmd/gateway
-)
-
-# The installer binary is install execution authority. Always build it from the
-# current sibling source tree into release staging so fresh specs cannot be
-# bundled with a stale installer executable.
-[[ -d "${INSTALLER_ROOT}" ]] || die "globular-installer repo not found at ${INSTALLER_ROOT}"
-info "Validating installer mirrors before building installer binary..."
-make -C "${INSTALLER_ROOT}" check-specs >/dev/null
-info "Building globular-installer from sibling source repo..."
-(
-  cd "${INSTALLER_ROOT}"
-  installer_cache_dir="$(mktemp -d)"
-  trap 'rm -rf "${installer_cache_dir}"' EXIT
-  GOCACHE="${installer_cache_dir}" go build -buildvcs=false -trimpath -o "${INSTALLER_STAGE_BIN}" ./cmd/globular-installer
-)
-
-ok "$(ls "${BIN_STAGE_DIR}/" | wc -l) staged release binaries built"
-rm -f "${BIN_STAGE_DIR}/compute_server" "${BIN_STAGE_DIR}/discovery_server"
-cd "${SERVICES_ROOT}"
+if (( ! REUSE_GENERATED_RELEASE_INPUTS )); then
+  stage_release_binaries
+fi
 
 # ── Create service packages ──────────────────────────────────────────────────
 section "Creating Service Packages"
@@ -908,6 +936,7 @@ stamp_package_identity() {
   local tmpdir build_id
   tmpdir="$(mktemp -d)"
   tar -xzf "${src_pkg}" -C "${tmpdir}"
+  sync_policy_payload "${tmpdir}" "$(extract_package_field "${src_pkg}" name)"
   build_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
   python3 - "${tmpdir}/package.json" "${BUILD_NUMBER}" "${build_id}" "${version_override}" <<'PYEOF'
 import json, sys
@@ -923,6 +952,20 @@ with open(path, "w", encoding="utf-8") as f:
 PYEOF
   tar -C "${tmpdir}" -czf "${out_pkg}" .
   rm -rf "${tmpdir}"
+}
+
+sync_policy_payload() {
+  local pkg_root="$1" pkg_name="$2"
+  local policy_dir
+  [[ -n "${pkg_name}" ]] || return 0
+  policy_dir="${SERVICES_ROOT}/generated/policy/${pkg_name//-/_}"
+  [[ -d "${policy_dir}" ]] || return 0
+  mkdir -p "${pkg_root}/policy"
+  for policy_file in permissions.generated.json roles.generated.json; do
+    if [[ -f "${policy_dir}/${policy_file}" ]]; then
+      cp -a "${policy_dir}/${policy_file}" "${pkg_root}/policy/${policy_file}"
+    fi
+  done
 }
 
 copied_external=0
@@ -978,26 +1021,51 @@ PYEOF
     copied_external=$((copied_external + 1))
   done
 done
+
+mapfile -t EXPECTED_EXTERNAL_PACKAGES < <(list_external_registry_packages)
+missing_external=()
+for pkg_name in "${EXPECTED_EXTERNAL_PACKAGES[@]}"; do
+  [[ -n "${seen_external[${pkg_name}]+x}" ]] && continue
+  missing_external+=("${pkg_name}")
+done
+if (( ${#missing_external[@]} > 0 )); then
+  die "missing source package(s) for external registry packages: ${missing_external[*]} — rebuild packages/dist (for wrapper packages like sctool, ensure packages/build.sh runs after metadata changes)"
+fi
 ok "${copied_external} external/unchanged packages copied"
 
 pkg_count=0
 for pkg_name in "${!BIN_MAP[@]}"; do
   bin_name="${BIN_MAP[${pkg_name}]}"
-  bin_path="${BIN_STAGE_DIR}/${bin_name}"
-
-  [[ -f "${bin_path}" ]] || die "missing built binary for ${pkg_name}: expected ${bin_path}"
 
   src_pkg="$(find_source_package "${pkg_name}" "${GENERATED_PKG_DIR}" || true)"
   if [[ -z "${src_pkg}" ]]; then
+    if (( REUSE_GENERATED_RELEASE_INPUTS )); then
+      die "missing generated source package template for ${pkg_name} in ${GENERATED_PKG_DIR}; full regeneration should have produced it"
+    fi
+    bin_path="${BIN_STAGE_DIR}/${bin_name}"
+    [[ -f "${bin_path}" ]] || die "missing built binary for ${pkg_name}: expected ${bin_path}"
     info "Synthesizing package template for ${pkg_name} from canonical metadata..."
     src_pkg="$(ensure_generated_source_package_template "${pkg_name}" "${bin_name}")"
   fi
   [[ -n "${src_pkg}" ]] || die "missing generated source package template for ${pkg_name} in ${GENERATED_PKG_DIR}"
 
   info "Packaging ${pkg_name} v${VERSION}..."
+  out_file="${PKG_STAGE_DIR}/${pkg_name}_${VERSION}_linux_amd64.tgz"
+
+  if (( REUSE_GENERATED_RELEASE_INPUTS )); then
+    stamp_package_identity "${src_pkg}" "${out_file}"
+    validate_package_systemd_units "${out_file}" || die "unsafe systemd unit content detected in $(basename "${out_file}")"
+    printf '%s\t%s\t%s\t%s\n' "${pkg_name}" "generated-current-release" "v${VERSION}" "${src_pkg}" >> "${PROVENANCE_FILE}"
+    pkg_count=$((pkg_count + 1))
+    continue
+  fi
+
+  bin_path="${BIN_STAGE_DIR}/${bin_name}"
+  [[ -f "${bin_path}" ]] || die "missing built binary for ${pkg_name}: expected ${bin_path}"
 
   tmpdir=$(mktemp -d)
   tar -C "${tmpdir}" -xf "${src_pkg}" --exclude='bin/*'
+  sync_policy_payload "${tmpdir}" "${pkg_name}"
   mkdir -p "${tmpdir}/bin"
   cp "${bin_path}" "${tmpdir}/bin/${bin_name}"
   chmod 755 "${tmpdir}/bin/${bin_name}"
@@ -1017,8 +1085,6 @@ d['entrypoint_checksum'] = checksum
 with open(path, 'w') as f:
     json.dump(d, f, indent=2)
 PYEOF
-
-  out_file="${PKG_STAGE_DIR}/${pkg_name}_${VERSION}_linux_amd64.tgz"
   tar -C "${tmpdir}" -czf "${out_file}" .
   rm -rf "${tmpdir}"
   validate_package_systemd_units "${out_file}" || die "unsafe systemd unit content detected in $(basename "${out_file}")"

@@ -94,6 +94,7 @@ type AssetRoots struct {
 	BinRoot     string
 	ConfigRoot  string
 	ScriptsRoot string
+	DebsRoot    string
 }
 
 type ScanOptions struct {
@@ -178,6 +179,10 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 	meta := extractMetadata(doc, specPath)
 
 	scripts := discoverScripts(roots, serviceName)
+	debPaths, err := discoverBundledDebs(roots)
+	if err != nil {
+		return nil, fmt.Errorf("spec %s: %w", specPath, err)
+	}
 
 	// Discover extra binaries from metadata.
 	var extraBins []ExtraBinary
@@ -210,11 +215,39 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 		ExtraBinaries: extraBins,
 		ConfigDirs:    configDirs,
 		Systemd:       systemdFiles,
-		Scripts:        scripts,
-		DebPaths:      nil,
+		Scripts:       scripts,
+		DebPaths:      debPaths,
 		DataDir:       dataDir,
 		Metadata:      meta,
 	}, nil
+}
+
+func discoverBundledDebs(roots AssetRoots) ([]string, error) {
+	if roots.DebsRoot == "" {
+		return nil, nil
+	}
+	info, err := os.Stat(roots.DebsRoot)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("debs root %s is not a directory", roots.DebsRoot)
+	}
+	entries, err := os.ReadDir(roots.DebsRoot)
+	if err != nil {
+		return nil, err
+	}
+	var debPaths []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".deb") {
+			continue
+		}
+		debPaths = append(debPaths, filepath.Join(roots.DebsRoot, entry.Name()))
+	}
+	return debPaths, nil
 }
 
 // extractMetadata reads the optional metadata: section from the spec YAML.

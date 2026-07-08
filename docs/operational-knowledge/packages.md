@@ -102,6 +102,9 @@ When the package is built (`globular pkg build` → `BuildPackages` in `golang/g
 │   └── globular-<name>.service
 ├── scripts/               # optional — pre/post-install scripts
 │   └── *.sh
+├── policy/                # optional — generated RBAC policy shipped with the package
+│   ├── permissions.generated.json
+│   └── roles.generated.json
 ├── debs/                  # optional — bundled .deb files
 │   └── *.deb
 └── data/                  # optional — service data files (e.g. workflow definitions)
@@ -113,6 +116,7 @@ Build guarantees enforced by `assertPackageGuards`:
 - `bin/<exec>` MUST exist.
 - `specs/<name>_*.yaml` MUST exist.
 - `specs/<name>_*.yaml` MUST contain an `install_package_payload` step (the recipe must say where the binary goes).
+- If `generated/policy/<name-or-underscore-alias>/` exists for the package, the built archive MUST carry those files at `policy/`.
 
 If any guard fails, the build aborts. There is no override.
 

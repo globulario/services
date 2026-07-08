@@ -88,8 +88,13 @@ entries:
       ```
 
       The built `.tgz` adds a stamped `package.json` at the root and re-shapes the
-      payload under `bin/`, `specs/`, `config/`, `systemd/`, `scripts/`, `debs/`,
-      `data/`.
+      payload under `bin/`, `specs/`, `config/`, `systemd/`, `scripts/`, `policy/`,
+      `debs/`, `data/`.
+
+      When generated authorization policy exists for a package under
+      `generated/policy/<service>/`, the archive MUST ship it at `policy/`
+      (`permissions.generated.json`, `roles.generated.json`) so node-agent
+      can install it under `/var/lib/globular/policy/services/<service>/`.
 
       `package.json` MUST agree on `type` with `spec.metadata.kind` AND with
       `registry.yaml.kind` AND with `component_catalog.go`. The validator

@@ -33,6 +33,8 @@ import (
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
+const envoyLDSWarmupGrace = 90 * time.Second
+
 // envoyLDSWedge classifies the (CDS-progresses, LDS-zero) state as a
 // critical data-plane failure.
 type envoyLDSWedge struct{}
@@ -43,8 +45,11 @@ func (envoyLDSWedge) Scope() string    { return "cluster" }
 
 // Evaluate consumes the Prometheus-fed snapshot. It is a no-op when
 // the required metrics are absent (cluster has no Prometheus, or the
-// scrape window hasn't captured Envoy yet) and when CDS has not yet
-// progressed (Envoy is still in cold init — too early to tell).
+// scrape window hasn't captured Envoy yet), when CDS has not yet
+// progressed (Envoy is still in cold init — too early to tell), and for
+// a short grace window after a fresh xDS apply. Day-0 bootstrap commonly
+// lands in "CDS>0, LDS=0" briefly while Envoy is still warming clusters;
+// that is not yet the anchored wedge.
 func (envoyLDSWedge) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	if snap.PromMetrics == nil {
 		return nil
@@ -64,6 +69,18 @@ func (envoyLDSWedge) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	// Reporting now would just be noise during the normal startup window.
 	if cdsSuccess == 0 {
 		return nil
+	}
+
+	// Fresh xDS apply + CDS progress + LDS still zero is expected during the
+	// normal warm-up window: Envoy requests/applies CDS first, then may need
+	// tens of seconds before LDS attempts begin on a cold Day-0 start. Do not
+	// classify that transient as the anchored wedge unless it persists past a
+	// bounded grace period.
+	if xdsLastAppliedUnix, ok := snap.PromMetrics["xds_last_applied_unix"]; ok && xdsLastAppliedUnix > 0 && !snap.PromTS.IsZero() {
+		age := snap.PromTS.Sub(time.Unix(int64(xdsLastAppliedUnix), 0))
+		if age >= 0 && age < envoyLDSWarmupGrace {
+			return nil
+		}
 	}
 
 	// LDS handshake has been attempted at least once — the wedge condition
@@ -113,17 +130,17 @@ func (envoyLDSWedge) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 			"Envoy mesh WEDGED — CDS has applied %.0f update(s) but LDS update_attempt is 0; port 443 will not bind, HTTP mesh is down",
 			cdsSuccess),
 		Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "envoy_lds_wedge", map[string]string{
-			"cds_update_success":   fmt.Sprintf("%.0f", cdsSuccess),
-			"lds_update_attempt":   fmt.Sprintf("%.0f", ldsAttempt),
-			"lds_update_success":   fmt.Sprintf("%.0f", ldsSuccess),
-			"lds_update_rejected":  fmt.Sprintf("%.0f", ldsRejected),
-			"prom_query_cds":       "max(envoy_cluster_manager_cds_update_success)",
-			"prom_query_lds":       "max(envoy_listener_manager_lds_update_attempt)",
-			"timestamp":            snap.PromTS.UTC().Format(time.RFC3339),
-			"failure_mode_anchor":  "envoy.lds_update_attempt_zero_despite_cds_progress",
-			"invariant_anchor":     "envoy.lds_progress_required_for_http_mesh_readiness",
-			"see_also":             "docs/awareness/reports/envoy_lds_cds_wedge.md",
-			"auto_clear_condition": "lds_update_attempt > 0",
+			"cds_update_success":    fmt.Sprintf("%.0f", cdsSuccess),
+			"lds_update_attempt":    fmt.Sprintf("%.0f", ldsAttempt),
+			"lds_update_success":    fmt.Sprintf("%.0f", ldsSuccess),
+			"lds_update_rejected":   fmt.Sprintf("%.0f", ldsRejected),
+			"prom_query_cds":        "max(envoy_cluster_manager_cds_update_success)",
+			"prom_query_lds":        "max(envoy_listener_manager_lds_update_attempt)",
+			"timestamp":             snap.PromTS.UTC().Format(time.RFC3339),
+			"failure_mode_anchor":   "envoy.lds_update_attempt_zero_despite_cds_progress",
+			"invariant_anchor":      "envoy.lds_progress_required_for_http_mesh_readiness",
+			"see_also":              "docs/awareness/reports/envoy_lds_cds_wedge.md",
+			"auto_clear_condition":  "lds_update_attempt > 0",
 			"do_not_auto_remediate": "true — this is a diagnostic-only rule; restart loops can deepen the wedge",
 		})},
 		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
