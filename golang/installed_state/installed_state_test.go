@@ -68,6 +68,47 @@ func TestUnmarshalPackage_Invalid(t *testing.T) {
 	}
 }
 
+func TestParseInstalledPackageKey(t *testing.T) {
+	tests := []struct {
+		key        string
+		wantNodeID string
+		wantKind   string
+		wantName   string
+		wantOK     bool
+	}{
+		{
+			key:        "/globular/nodes/node-1/packages/SERVICE/gateway",
+			wantNodeID: "node-1",
+			wantKind:   "SERVICE",
+			wantName:   "gateway",
+			wantOK:     true,
+		},
+		{
+			key:    "/globular/nodes/bootstrap_marker",
+			wantOK: false,
+		},
+		{
+			key:    "/globular/nodes/node-1/node_agent_metrics_port",
+			wantOK: false,
+		},
+		{
+			key:    "/globular/nodes/node-1/objectstore/rendered_generation",
+			wantOK: false,
+		},
+		{
+			key:    "/globular/nodes/node-1/suspended/scylla-manager-agent",
+			wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		nodeID, kind, name, ok := parseInstalledPackageKey(tt.key)
+		if ok != tt.wantOK || nodeID != tt.wantNodeID || kind != tt.wantKind || name != tt.wantName {
+			t.Fatalf("parseInstalledPackageKey(%q) = (%q, %q, %q, %v), want (%q, %q, %q, %v)",
+				tt.key, nodeID, kind, name, ok, tt.wantNodeID, tt.wantKind, tt.wantName, tt.wantOK)
+		}
+	}
+}
+
 // Constants for the disk-truth cleanup tests below.
 const (
 	diskShaCurrent = "2662722de60816248feb9896d9543b58aed4f8b36214e9e6bfb41eb5fe18c67c" // what's on disk now

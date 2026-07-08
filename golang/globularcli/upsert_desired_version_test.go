@@ -31,7 +31,7 @@ func TestUpsertServiceDesiredVersion_RoutesThroughOwnerRPC(t *testing.T) {
 	fc := &fakeDesiredServiceClient{}
 	desiredServiceClientFactory = func(grpc.ClientConnInterface) desiredServiceClient { return fc }
 
-	if err := upsertServiceDesiredVersion("echo", "1.2.3", 7, "bid-xyz"); err != nil {
+	if err := upsertServiceDesiredVersion("echo", "1.2.3", 7, "bid-xyz", ""); err != nil {
 		t.Fatalf("upsertServiceDesiredVersion: %v", err)
 	}
 	if fc.lastReq == nil {
@@ -42,5 +42,25 @@ func TestUpsertServiceDesiredVersion_RoutesThroughOwnerRPC(t *testing.T) {
 		svc.GetBuildNumber() != 7 || svc.GetBuildId() != "bid-xyz" {
 		t.Errorf("DesiredService wrong: id=%q ver=%q build=%d bid=%q",
 			svc.GetServiceId(), svc.GetVersion(), svc.GetBuildNumber(), svc.GetBuildId())
+	}
+}
+
+func TestUpsertServiceDesiredVersion_CarriesPublisherInServiceID(t *testing.T) {
+	oldConn := controllerConnFactory
+	oldFactory := desiredServiceClientFactory
+	defer func() { controllerConnFactory = oldConn; desiredServiceClientFactory = oldFactory }()
+	controllerConnFactory = func() (grpc.ClientConnInterface, error) { return nil, nil }
+
+	fc := &fakeDesiredServiceClient{}
+	desiredServiceClientFactory = func(grpc.ClientConnInterface) desiredServiceClient { return fc }
+
+	if err := upsertServiceDesiredVersion("event", "1.2.270+local.globule-ryzen.1", 1, "bid-local", "local@globule-ryzen"); err != nil {
+		t.Fatalf("upsertServiceDesiredVersion: %v", err)
+	}
+	if fc.lastReq == nil {
+		t.Fatal("expected UpsertDesiredService request")
+	}
+	if got := fc.lastReq.GetService().GetServiceId(); got != "local@globule-ryzen/event" {
+		t.Fatalf("service_id = %q, want local@globule-ryzen/event", got)
 	}
 }

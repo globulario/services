@@ -25,6 +25,7 @@ import (
 	"time"
 
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // stubDeps returns deps wired against a small in-memory file table + fake
@@ -39,8 +40,10 @@ func newStubDeps(t *testing.T) (runtimeProofDeps, *stubState) {
 		files:     make(map[string]fakeFile),
 		exeLinks:  make(map[int]string),
 		procStart: make(map[int]time.Time),
-		showFn:    func(_ context.Context, _ string, _ ...string) (map[string]string, error) { return map[string]string{}, nil },
-		nowVal:    time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC),
+		showFn: func(_ context.Context, _ string, _ ...string) (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+		nowVal: time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC),
 	}
 	deps := runtimeProofDeps{
 		ShowProperties: func(ctx context.Context, unit string, props ...string) (map[string]string, error) {
@@ -114,13 +117,13 @@ func TestCollectServiceRuntimeProof_HappyPath(t *testing.T) {
 			t.Errorf("unexpected unit: %s", unit)
 		}
 		return map[string]string{
-			"ActiveState":             "active",
-			"SubState":                "running",
-			"Type":                    "simple",
-			"ExecStart":               "{ path=/usr/lib/globular/bin/dns_server ; ... }",
-			"FragmentPath":            unitPath,
-			"MainPID":                 fmt.Sprintf("%d", pid),
-			"ExecMainStartTimestamp":  "Mon 2026-05-20 11:00:00 UTC",
+			"ActiveState":            "active",
+			"SubState":               "running",
+			"Type":                   "simple",
+			"ExecStart":              "{ path=/usr/lib/globular/bin/dns_server ; ... }",
+			"FragmentPath":           unitPath,
+			"MainPID":                fmt.Sprintf("%d", pid),
+			"ExecMainStartTimestamp": "Mon 2026-05-20 11:00:00 UTC",
 		}, nil
 	}
 	_ = dir
@@ -317,6 +320,47 @@ func TestInstalledBinaryPath_FallsBackToPlainName(t *testing.T) {
 	TestCollectServiceRuntimeProof_ExecStartFallback_NonConventionalBinary(t)
 }
 
+func TestCollectServiceRuntimeProof_UpstreamWrapper_PublishesRealBinary(t *testing.T) {
+	_ = withTempBinDir(t)
+	deps, s := newStubDeps(t)
+
+	pkg := &node_agentpb.InstalledPackage{
+		NodeId: "node-1", Name: "scylla-manager", Kind: "INFRASTRUCTURE",
+		Version: "3.11.1", BuildId: "build-sm",
+	}
+
+	wrapperPath := filepath.Join(globularBinDir, "scylla_manager")
+	wrapperHash := s.writeFile(wrapperPath, []byte("#!/bin/sh\nexec /usr/bin/scylla-manager \"$@\"\n"))
+	realBin := "/usr/bin/scylla-manager"
+	realHash := s.writeFile(realBin, []byte("real-upstream-scylla-manager-elf"))
+
+	const pid = 2160128
+	s.exeLinks[pid] = realBin
+	s.writeFile("/etc/systemd/system/globular-scylla-manager.service", []byte("stub"))
+
+	s.showFn = func(_ context.Context, _ string, _ ...string) (map[string]string, error) {
+		return map[string]string{
+			"ActiveState":  "active",
+			"SubState":     "running",
+			"Type":         "simple",
+			"FragmentPath": "/etc/systemd/system/globular-scylla-manager.service",
+			"ExecStart":    "{ path=" + wrapperPath + " ; argv[]=" + wrapperPath + " ; ... }",
+			"MainPID":      fmt.Sprintf("%d", pid),
+		}, nil
+	}
+
+	p := collectServiceRuntimeProof(context.Background(), "node-1", pkg, deps)
+	if p.GetInstalledPath() != realBin {
+		t.Fatalf("InstalledPath = %q, want upstream runtime binary %q", p.GetInstalledPath(), realBin)
+	}
+	if p.GetInstalledSha256() != realHash {
+		t.Fatalf("InstalledSha256 = %q, want upstream binary hash %q", p.GetInstalledSha256(), realHash)
+	}
+	if p.GetInstalledSha256() == wrapperHash {
+		t.Fatalf("InstalledSha256 stayed on wrapper hash %q; should pivot to upstream binary", wrapperHash)
+	}
+}
+
 // /proc/<pid> mtime gives nanosecond-precision process start time. The
 // verifier compares it against the controller's millisecond-precision
 // ApplyTime; without finer-grained input from node-agent, systemd's
@@ -443,10 +487,9 @@ func TestCollectServiceRuntimeProof_NoMainPID_NoRunningExe(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// COMMAND kind — no systemd unit; the proof returns the disk hash + a
-// marker error explaining why systemd was skipped. This guards against
-// accidentally trying to systemctl show globular-etcdctl.service (which
-// would error and pollute the proof).
+// COMMAND kind — no systemd unit; the proof returns install evidence only
+// and must NOT synthesize an error. A command package has no daemon to
+// prove, so "no systemd unit" is expected rather than degraded.
 // ─────────────────────────────────────────────────────────────────────────
 
 func TestCollectServiceRuntimeProof_CommandKindSkipsSystemd(t *testing.T) {
@@ -468,8 +511,50 @@ func TestCollectServiceRuntimeProof_CommandKindSkipsSystemd(t *testing.T) {
 	if p.GetInstalledSha256() != hash {
 		t.Errorf("disk hash still required for COMMAND: got=%s want=%s", p.GetInstalledSha256(), hash)
 	}
-	if !containsErrorContaining(p.GetErrors(), "kind=COMMAND") {
-		t.Errorf("expected COMMAND skip marker: %v", p.GetErrors())
+	if len(p.GetErrors()) != 0 {
+		t.Errorf("COMMAND kind must not synthesize proof errors: %v", p.GetErrors())
+	}
+}
+
+// Regression for the live sctool false positive: the package declares
+// entrypoint=none (OS-supplied binary), so installedBinaryPath resolves to
+// /usr/lib/globular/bin/none and cannot be hashed locally. The command's
+// installed_state already carries the binary checksum claim, and because
+// COMMAND has no unit we must return that claim cleanly rather than
+// degrading to runtime_identity_unproven.
+func TestCollectServiceRuntimeProof_CommandKindEntrypointNone_UsesInstalledClaimWithoutError(t *testing.T) {
+	_, restore := withInstalledBinaryPathSetup(t)
+	defer restore()
+
+	if err := versionutil.WriteEntrypoint("sctool", "none"); err != nil {
+		t.Fatal(err)
+	}
+
+	deps, s := newStubDeps(t)
+	called := false
+	s.showFn = func(_ context.Context, _ string, _ ...string) (map[string]string, error) {
+		called = true
+		return map[string]string{}, nil
+	}
+
+	pkg := &node_agentpb.InstalledPackage{
+		Name:     "sctool",
+		Kind:     "COMMAND",
+		Checksum: "c148af9ee1f48edf8cac65aaf229f66387b8aaf7e3163ab62ca41c7fe02aebc2",
+	}
+
+	p := collectServiceRuntimeProof(context.Background(), "node-1", pkg, deps)
+	if called {
+		t.Error("COMMAND kind must not call systemctl show")
+	}
+	if got := p.GetInstalledPath(); got != filepath.Join(globularBinDir, "none") {
+		t.Errorf("installed path = %q, want %q", got, filepath.Join(globularBinDir, "none"))
+	}
+	if p.GetInstalledSha256() != pkg.GetChecksum() {
+		t.Errorf("installed checksum claim should be preserved when no local hash is available: got=%s want=%s", p.GetInstalledSha256(), pkg.GetChecksum())
+	}
+	if len(p.GetErrors()) != 0 {
+		t.Errorf("entrypoint:none COMMAND proof must stay clean: %v", p.GetErrors())
 	}
 }
 

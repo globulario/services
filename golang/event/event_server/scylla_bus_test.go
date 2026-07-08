@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -216,6 +217,35 @@ func TestPollAdvancesPastOldEmptyBuckets(t *testing.T) {
 			bus.lastSeq.Time(), twoHoursAgo)
 	}
 	t.Logf("catch-up works: cursor advanced from %v to %v", twoHoursAgo, bus.lastSeq.Time())
+}
+
+func TestIsLegacyQueryEventsSeqError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "legacy unsupported uuid version",
+			err:  errors.New("Exception while binding column seq: marshaling error: Unsupported UUID version (0)"),
+			want: true,
+		},
+		{
+			name: "invalid timeuuid",
+			err:  errors.New("invalid timeuuid"),
+			want: true,
+		},
+		{
+			name: "other close error",
+			err:  errors.New("context deadline exceeded"),
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		if got := isLegacyQueryEventsSeqError(tt.err); got != tt.want {
+			t.Fatalf("%s: got %v want %v", tt.name, got, tt.want)
+		}
+	}
 }
 
 // TestMatchesChannel verifies wildcard pattern matching.

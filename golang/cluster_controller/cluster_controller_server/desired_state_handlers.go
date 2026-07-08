@@ -358,7 +358,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	if svc == nil {
 		return fmt.Errorf("nil service")
 	}
-	canon := canonicalServiceName(svc.ServiceId)
+	publisherID, canon := splitDesiredServiceIdentity(svc.ServiceId)
 	if canon == "" {
 		return fmt.Errorf("invalid service_id %q", svc.ServiceId)
 	}
@@ -392,7 +392,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	// audited allow_regression override) — enforced per write path: the SERVICE
 	// floor below, and the infrastructure floor inside routeInfrastructureDesired.
 	// No more version mutation here, so no auto-correct fallback is needed.
-	buildID, err := srv.validateArtifactInRepo(ctx, canon, version, svc.BuildNumber)
+	buildID, err := srv.validateArtifactInRepo(ctx, publisherID, canon, version, svc.BuildNumber)
 	if err != nil {
 		return err
 	}
@@ -440,6 +440,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 			Version:     version,
 			BuildNumber: svc.BuildNumber,
 			BuildID:     buildID,
+			PublisherID: publisherID,
 		},
 	}
 	if _, err = srv.resources.Apply(ctx, "ServiceDesiredVersion", obj); err != nil {
@@ -456,7 +457,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 
 	// Ensure a corresponding ServiceRelease exists so the release reconciler can
 	// track per-service lifecycle phases.
-	srv.ensureServiceRelease(ctx, canon, "", version, svc.BuildNumber)
+	srv.ensureServiceRelease(ctx, canon, publisherID, version, svc.BuildNumber)
 
 	return nil
 }
@@ -581,7 +582,7 @@ func (srv *server) highestHealthyInstalledVersion(serviceName string) (string, b
 // validateArtifactInRepo verifies the artifact exists in the repository and
 // returns its build_id. Phase 2: the build_id is persisted into desired-state
 // so convergence can use exact identity.
-func (srv *server) validateArtifactInRepo(ctx context.Context, serviceName, version string, buildNumber int64) (string, error) {
+func (srv *server) validateArtifactInRepo(ctx context.Context, publisherID, serviceName, version string, buildNumber int64) (string, error) {
 	// Resolve repository address — same path used by the release resolver.
 	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
 	if addr == "" {
@@ -591,7 +592,10 @@ func (srv *server) validateArtifactInRepo(ctx context.Context, serviceName, vers
 
 	// Use the system default publisher — same as ensureServiceRelease,
 	// RemoveDesiredService, and the reconciler.
-	publisher := defaultPublisherID()
+	publisher := strings.TrimSpace(publisherID)
+	if publisher == "" {
+		publisher = defaultPublisherID()
+	}
 
 	// Default platform — same as release_resolver.go:120-124.
 	platform := "linux_amd64"
@@ -787,10 +791,10 @@ func (srv *server) ListDesiredBuildIDs(ctx context.Context, _ *cluster_controlle
 	wg.Wait()
 
 	for kind, res := range map[string]listResult{
-		"ServiceDesiredVersion":  sdvRes,
-		"ServiceRelease":         svcRelRes,
-		"InfrastructureRelease":  infraRelRes,
-		"ApplicationRelease":     appRelRes,
+		"ServiceDesiredVersion": sdvRes,
+		"ServiceRelease":        svcRelRes,
+		"InfrastructureRelease": infraRelRes,
+		"ApplicationRelease":    appRelRes,
 	} {
 		if res.err != nil {
 			return nil, status.Errorf(codes.Unavailable,

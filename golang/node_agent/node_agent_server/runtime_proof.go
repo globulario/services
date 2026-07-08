@@ -28,14 +28,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/installed_state"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -99,7 +100,6 @@ var runtimeProofSystemdProperties = []string{
 // reply — the consumer can still surface what IS verifiable.
 //
 // This function does no I/O directly; everything goes through deps.
-//
 func collectServiceRuntimeProof(
 	ctx context.Context,
 	nodeID string,
@@ -114,14 +114,14 @@ func collectServiceRuntimeProof(
 	installedPath := installedBinaryPath(name, kind)
 
 	p := &node_agentpb.ServiceRuntimeProof{
-		ServiceName:      canonicalServiceName(name),
-		ServiceId:        name,
-		NodeId:           nodeID,
-		ExpectedBuildId:  strings.TrimSpace(pkg.GetBuildId()),
-		ExpectedVersion:  strings.TrimSpace(pkg.GetVersion()),
-		InstalledPath:    installedPath,
-		InstalledSha256:  normalizeHash(pkg.GetMetadata()["entrypoint_checksum"]),
-		CheckedAt:        timestamppb.New(deps.Now()),
+		ServiceName:     canonicalServiceName(name),
+		ServiceId:       name,
+		NodeId:          nodeID,
+		ExpectedBuildId: strings.TrimSpace(pkg.GetBuildId()),
+		ExpectedVersion: strings.TrimSpace(pkg.GetVersion()),
+		InstalledPath:   installedPath,
+		InstalledSha256: normalizeHash(pkg.GetMetadata()["entrypoint_checksum"]),
+		CheckedAt:       timestamppb.New(deps.Now()),
 	}
 	// Fall back to the package Checksum field when metadata is empty (legacy
 	// records). normalizeHash strips "sha256:" prefix + lowercases.
@@ -153,10 +153,11 @@ func collectServiceRuntimeProof(
 	}
 
 	// ── Systemd effective unit + MainPID ───────────────────────────────
-	// COMMAND packages have no service; mark unproven and return what we
-	// have (on-disk hash above).
+	// COMMAND packages intentionally have no systemd unit and no long-running
+	// process. Return the binary/install proof we already have without
+	// synthesizing an error; otherwise the verifier's generic "errors only"
+	// path upgrades an expected CLI package into runtime_identity_unproven.
 	if kind == "COMMAND" || name == "" {
-		p.Errors = append(p.Errors, "no systemd unit for package (kind=COMMAND)")
 		return p
 	}
 	// Derive the systemd unit name from the identity registry when
@@ -238,6 +239,26 @@ func collectServiceRuntimeProof(
 		}
 	}
 
+	// Wrapper packages (notably scylla-manager and scylla-manager-agent)
+	// intentionally launch a small Globular-managed shell wrapper from
+	// /usr/lib/globular/bin that execs the real upstream binary in /usr/bin
+	// or /opt. The verifier's binary-identity contract is about the real
+	// long-lived executable, not the trampoline script. If we leave
+	// InstalledPath/InstalledSha256 pointing at the wrapper, doctor emits a
+	// false running_binary_hash_mismatch on every healthy node because
+	// /proc/<pid>/exe resolves to the upstream ELF. When the installed path is
+	// a Globular wrapper but the running exe is an upstream path, pivot the
+	// installed proof to the running binary so the verifier can apply its
+	// built-in wraps_upstream_binary semantics.
+	if p.GetRunningExePath() != "" &&
+		verifierInstalledPathIsGlobularWrapper(p.GetInstalledPath()) &&
+		runtimeProofInstalledPathIsUpstream(p.GetRunningExePath()) {
+		if h, err := deps.HashFile(p.GetRunningExePath()); err == nil {
+			p.InstalledPath = p.GetRunningExePath()
+			p.InstalledSha256 = h
+		}
+	}
+
 	// Process start time — prefer the /proc/<pid> mtime (nanosecond
 	// precision) over systemd's ExecMainStartTimestamp (whole seconds).
 	// The verifier compares this against the controller's millisecond-
@@ -287,6 +308,30 @@ func collectServiceRuntimeProof(
 	p.RuntimeBuildId = ""
 
 	return p
+}
+
+func verifierInstalledPathIsGlobularWrapper(path string) bool {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" {
+		return false
+	}
+	return strings.HasPrefix(path, filepath.Clean(globularBinDir)+string(os.PathSeparator))
+}
+
+func runtimeProofInstalledPathIsUpstream(path string) bool {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" {
+		return false
+	}
+	switch {
+	case strings.HasPrefix(path, "/usr/bin/"),
+		strings.HasPrefix(path, "/usr/sbin/"),
+		strings.HasPrefix(path, "/usr/libexec/"),
+		strings.HasPrefix(path, "/opt/"):
+		return true
+	default:
+		return false
+	}
 }
 
 // firstExecStartPath returns the absolute path of the executable referenced by
@@ -343,7 +388,6 @@ func parseSystemdTimestamp(s string) (time.Time, error) {
 // GetServiceRuntimeProof is the RPC handler. Lists installed packages on
 // this node and returns one proof per package (optionally filtered to a
 // single service).
-//
 func (srv *NodeAgentServer) GetServiceRuntimeProof(
 	ctx context.Context,
 	req *node_agentpb.GetServiceRuntimeProofRequest,

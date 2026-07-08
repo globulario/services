@@ -85,8 +85,10 @@ type Collector struct {
 	cfg                 CollectorConfig
 	controllerClient    cluster_controllerpb.ClusterControllerServiceClient
 	workflowClient      workflowpb.WorkflowServiceClient
-	repoClient          repopb.PackageRepositoryClient    // optional; nil until WithRepositoryClient
-	repoEndpointMissing bool                              // true when etcd has no entry for repository.PackageRepository
+	repoClient          repopb.PackageRepositoryClient // optional; nil until WithRepositoryClient/Resolver
+	repoEndpointMissing bool                           // true when etcd currently has no entry for repository.PackageRepository
+	repoResolver        func() (repopb.PackageRepositoryClient, bool)
+	repoMu              sync.RWMutex
 	aiMemoryClient      ai_memorypb.AiMemoryServiceClient // optional; nil until WithAiMemoryClient
 	clusterID           string
 	cache               *SnapshotCache
@@ -131,7 +133,22 @@ func (c *Collector) WithWorkflowClient(wf workflowpb.WorkflowServiceClient, clus
 // can pull ListRepositoryFindings and GetRepositoryStatus into the snapshot.
 // Optional — if nil, repository invariants produce no findings.
 func (c *Collector) WithRepositoryClient(repo repopb.PackageRepositoryClient) *Collector {
+	c.repoMu.Lock()
 	c.repoClient = repo
+	if repo != nil {
+		c.repoEndpointMissing = false
+	}
+	c.repoMu.Unlock()
+	return c
+}
+
+// WithRepositoryClientResolver attaches a dynamic repository resolver so each
+// snapshot can reflect the CURRENT etcd registration state instead of the
+// startup state. The resolver returns (client, endpointMissing).
+func (c *Collector) WithRepositoryClientResolver(resolve func() (repopb.PackageRepositoryClient, bool)) *Collector {
+	c.repoMu.Lock()
+	c.repoResolver = resolve
+	c.repoMu.Unlock()
 	return c
 }
 
@@ -151,7 +168,10 @@ func (c *Collector) WithAiMemoryClient(mem ai_memorypb.AiMemoryServiceClient) *C
 // so the repositoryOperationalMode invariant can emit a repository.endpoint_missing
 // finding once the cluster is past bootstrap (nodes visible in controller).
 func (c *Collector) SetRepositoryEndpointMissing() {
+	c.repoMu.Lock()
 	c.repoEndpointMissing = true
+	c.repoClient = nil
+	c.repoMu.Unlock()
 }
 
 // SnapshotResult carries the snapshot plus provenance telemetry the
@@ -227,8 +247,11 @@ func (c *Collector) GetSnapshotWithFreshness(ctx context.Context, forceFresh boo
 
 // fetch does the actual upstream calls.
 func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
+	c.refreshRepositoryClient()
+
 	snap := newSnapshot(uuid.New().String())
-	snap.RepositoryEndpointMissing = c.repoEndpointMissing
+	repoClient, repoEndpointMissing := c.repositoryState()
+	snap.RepositoryEndpointMissing = repoEndpointMissing
 
 	// ── 1. ListNodes ──────────────────────────────────────────────────────────
 	listCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
@@ -591,8 +614,8 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	}
 
 	// ── 6. Repository findings + operational status (optional) ───────────────
-	if c.repoClient != nil {
-		c.fetchRepositoryData(ctx, snap)
+	if repoClient != nil {
+		c.fetchRepositoryData(ctx, snap, repoClient)
 	}
 
 	// ── 7. Prometheus control-plane signals (best-effort) ───────────────────
@@ -619,6 +642,34 @@ func (c *Collector) fetch(ctx context.Context) (*Snapshot, error) {
 	c.fetchGatewayBackendDivergence(ctx, snap)
 
 	return snap, nil
+}
+
+func (c *Collector) refreshRepositoryClient() {
+	c.repoMu.RLock()
+	resolve := c.repoResolver
+	c.repoMu.RUnlock()
+	if resolve == nil {
+		return
+	}
+
+	repoClient, endpointMissing := resolve()
+
+	c.repoMu.Lock()
+	defer c.repoMu.Unlock()
+	c.repoEndpointMissing = endpointMissing
+	if repoClient != nil {
+		c.repoClient = repoClient
+		return
+	}
+	if endpointMissing {
+		c.repoClient = nil
+	}
+}
+
+func (c *Collector) repositoryState() (repopb.PackageRepositoryClient, bool) {
+	c.repoMu.RLock()
+	defer c.repoMu.RUnlock()
+	return c.repoClient, c.repoEndpointMissing
 }
 
 // fetchOpsKnowledgeMemoryEntries pulls every operational-knowledge seed
@@ -982,7 +1033,7 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 // the repository service. Both are best-effort: a failure populates the
 // RepositoryOperationalStatus.ReachError so the invariant can emit a
 // "repository.unreachable" finding without marking the whole snapshot incomplete.
-func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
+func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot, repoClient repopb.PackageRepositoryClient) {
 	repoCtx, cancel := context.WithTimeout(ctx, c.cfg.ListTimeout)
 	defer cancel()
 	if c.clusterID != "" {
@@ -991,7 +1042,7 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 	}
 
 	// GetRepositoryStatus — must answer even when Scylla is down.
-	statusResp, statusErr := c.repoClient.GetRepositoryStatus(repoCtx, &repopb.GetRepositoryStatusRequest{})
+	statusResp, statusErr := repoClient.GetRepositoryStatus(repoCtx, &repopb.GetRepositoryStatusRequest{})
 	opStatus := &RepositoryOperationalStatus{ReachError: statusErr}
 	if statusErr == nil && statusResp != nil {
 		opStatus.Service = statusResp.GetService()
@@ -1031,7 +1082,7 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 		findCtx = metadata.NewOutgoingContext(findCtx, md)
 	}
 
-	findResp, findErr := c.repoClient.ListRepositoryFindings(findCtx, &repopb.ListRepositoryFindingsRequest{})
+	findResp, findErr := repoClient.ListRepositoryFindings(findCtx, &repopb.ListRepositoryFindingsRequest{})
 	if findErr != nil {
 		snap.addError("repository", "ListRepositoryFindings", findErr)
 		return
@@ -1091,7 +1142,7 @@ func (c *Collector) fetchRepositoryData(ctx context.Context, snap *Snapshot) {
 		listCtx = metadata.NewOutgoingContext(listCtx, md)
 	}
 
-	listResp, listErr := c.repoClient.ListArtifacts(listCtx, &repopb.ListArtifactsRequest{})
+	listResp, listErr := repoClient.ListArtifacts(listCtx, &repopb.ListArtifactsRequest{})
 	if listErr != nil {
 		snap.addError("repository", "ListArtifacts", listErr)
 		return

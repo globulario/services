@@ -245,19 +245,39 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	// certificate — same pattern as the per-node agent dials. dialOptionsFor-
 	// InternalService still attaches the cluster_id-injecting interceptor, so
 	// this does NOT trip forbidden_fix bypass_shared_client_for_internal_dials.
-	repoEndpoint := config.ResolveServiceDirectAddr("repository.PackageRepository")
-	if repoEndpoint != "" {
-		repoTarget := config.ResolveDialTarget(repoEndpoint)
-		if repoConn, repoErr := grpc.NewClient(repoTarget.Address,
-			dialOptionsForInternalService(repoTarget.ServerName)...); repoErr == nil {
-			col.WithRepositoryClient(repopb.NewPackageRepositoryClient(repoConn))
-		} else {
-			logger.Warn("repository client init failed — repository invariants disabled", "err", repoErr)
+	var repoMu sync.Mutex
+	var repoConn *grpc.ClientConn
+	var repoEndpoint string
+	col.WithRepositoryClientResolver(func() (repopb.PackageRepositoryClient, bool) {
+		endpoint := config.ResolveServiceDirectAddr("repository.PackageRepository")
+		if endpoint == "" {
+			return nil, true
 		}
-	} else {
-		logger.Info("repository endpoint not in etcd — repository invariants disabled (pre-bootstrap)")
-		col.SetRepositoryEndpointMissing()
-	}
+
+		repoMu.Lock()
+		defer repoMu.Unlock()
+
+		if repoConn != nil && repoEndpoint == endpoint {
+			return repopb.NewPackageRepositoryClient(repoConn), false
+		}
+
+		repoTarget := config.ResolveDialTarget(endpoint)
+		conn, repoErr := grpc.NewClient(repoTarget.Address,
+			dialOptionsForInternalService(repoTarget.ServerName)...)
+		if repoErr != nil {
+			logger.Warn("repository client refresh failed — repository invariants degraded", "endpoint", endpoint, "err", repoErr)
+			if repoConn != nil {
+				return repopb.NewPackageRepositoryClient(repoConn), false
+			}
+			return nil, false
+		}
+		if repoConn != nil && repoConn != conn {
+			_ = repoConn.Close()
+		}
+		repoConn = conn
+		repoEndpoint = endpoint
+		return repopb.NewPackageRepositoryClient(repoConn), false
+	})
 
 	// Attach ai-memory client so the seed-integrity rule can detect drift
 	// between what the active awareness bundle declares and what's actually

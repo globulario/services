@@ -148,7 +148,7 @@ func applyCommandKindPolicyToTargets(snap *Snapshot) {
 	commandPackages := make(map[string]bool)
 	for _, kinds := range snap.NodePackageKinds {
 		for name, kind := range kinds {
-			if kind == "COMMAND" {
+			if collectorPackageIsCommand(name, kind) {
 				commandPackages[name] = true
 			}
 		}
@@ -161,6 +161,19 @@ func applyCommandKindPolicyToTargets(snap *Snapshot) {
 			tgt.RuntimeNeeded = false
 		}
 	}
+}
+
+// collectorPackageIsCommand classifies CLI-only packages that have no
+// long-running runtime identity to prove. The static list is authoritative for
+// legacy/day-0 installs that were historically recorded under INFRASTRUCTURE;
+// newer installs can rely on kind=COMMAND directly.
+func collectorPackageIsCommand(name, kind string) bool {
+	switch strings.TrimSpace(strings.ToLower(name)) {
+	case "rclone", "restic", "mc", "sctool", "etcdctl", "ffmpeg",
+		"globular-cli", "cli", "sha256sum", "yt-dlp", "claude":
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(kind), "COMMAND")
 }
 
 // ingressDisabledFromSnapshot returns true when the ingress spec parsed
@@ -301,19 +314,24 @@ func newEntrypointCache() *entrypointCache {
 	return &entrypointCache{m: make(map[string]manifestInfo)}
 }
 
-// manifestEntrypointsAreNoopOnly returns true when the manifest declares a
-// single entrypoint and that entrypoint is the well-known no-op sentinel
-// (bin/noop) used by wrapper packages like keepalived and scylladb. The
-// sentinel signals that the package ships no real binary — the cluster
-// runs an OS-installed binary instead — and the verifier must therefore
-// not enforce desired-vs-installed or installed-vs-running binary hashes
-// for this package.
+// manifestEntrypointsAreNoopOnly returns true when the manifest declares no
+// Globular-managed entrypoint binary. Two encodings exist in the wild:
+//   - the older no-op sentinel "bin/noop"
+//   - the newer explicit declaration "none"
+//
+// Both mean the package is a wrapper: the cluster runs an OS-installed
+// binary (or a thin launcher that execs into one), so the verifier must not
+// enforce desired-vs-installed or installed-vs-running binary hashes for
+// this package.
 func manifestEntrypointsAreNoopOnly(entrypoints []string) bool {
 	if len(entrypoints) == 0 {
 		return false
 	}
 	for _, e := range entrypoints {
-		if strings.TrimSpace(e) != "bin/noop" {
+		switch strings.TrimSpace(strings.ToLower(e)) {
+		case "bin/noop", "none":
+			continue
+		default:
 			return false
 		}
 	}

@@ -338,6 +338,9 @@ func ListAllNodes(ctx context.Context, kind, name string) ([]*node_agentpb.Insta
 	nameLower := strings.ToLower(strings.TrimSpace(name))
 	pkgs := make([]*node_agentpb.InstalledPackage, 0, len(resp.Kvs))
 	for _, kv := range resp.Kvs {
+		if _, _, _, ok := parseInstalledPackageKey(string(kv.Key)); !ok {
+			continue
+		}
 		pkg, err := unmarshalPackage(kv.Value)
 		if err != nil {
 			log.Printf("installed_state: WARNING ListAllNodes corrupt record at key %q: %v", string(kv.Key), err)
@@ -388,11 +391,9 @@ func ListNodeIDs(ctx context.Context) ([]string, error) {
 	}
 	seen := make(map[string]bool)
 	for _, kv := range resp.Kvs {
-		// Key format: /globular/nodes/{node_id}/packages/...
-		key := string(kv.Key)
-		rest := strings.TrimPrefix(key, keyPrefix)
-		if idx := strings.Index(rest, "/"); idx > 0 {
-			seen[rest[:idx]] = true
+		nodeID, _, _, ok := parseInstalledPackageKey(string(kv.Key))
+		if ok {
+			seen[nodeID] = true
 		}
 	}
 	ids := make([]string, 0, len(seen))
@@ -408,4 +409,21 @@ func unmarshalPackage(data []byte) (*node_agentpb.InstalledPackage, error) {
 		return nil, fmt.Errorf("installed_state: unmarshal: %w", err)
 	}
 	return pkg, nil
+}
+
+// parseInstalledPackageKey validates the installed-state package key shape:
+// /globular/nodes/{node_id}/packages/{kind}/{name}
+func parseInstalledPackageKey(key string) (nodeID, kind, name string, ok bool) {
+	rest := strings.TrimPrefix(key, keyPrefix)
+	if rest == key {
+		return "", "", "", false
+	}
+	parts := strings.Split(rest, "/")
+	if len(parts) != 4 || parts[1] != "packages" {
+		return "", "", "", false
+	}
+	if parts[0] == "" || parts[2] == "" || parts[3] == "" {
+		return "", "", "", false
+	}
+	return parts[0], parts[2], parts[3], true
 }
