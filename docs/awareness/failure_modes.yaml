@@ -7059,3 +7059,198 @@ failure_modes:
         - cluster-controller
         - repository
       required_tests: []
+    - id: cluster.teardown.nodetool_unreachable_misread_as_single_node
+      title: clean-node.sh reads an unreachable nodetool as single-node and hard-kills a live ring voter (group0 quorum loss)
+      severity: critical
+      root_cause: |
+        2026-07-09 scar: clean-node.sh ran on globule-nuc whose local Scylla CQL/API was
+        down, so `nodetool status` returned empty/nonzero. count_scylla_up_nodes
+        collapses this to 0 (`|| echo "0"` in the services copy; empty -> printf '0' in
+        the gateway copy count_scylla_up_nodes()). The `-gt 1` guard is then false,
+        decommission is SKIPPED, and hard_stop_scylla kills a live voter. In the 2-node
+        ring this left a dead Raft voter -> group0 has no quorum for topology ops
+        (removenode/add/schema fail with raft_operation_timeout_error). The local
+        nodetool is exactly the probe most likely to be dead when the node is unhealthy,
+        yet it is the SOLE signal used; controller/gateway node registry, etcd member
+        list, a peer's nodetool status, and local scylla.yaml remote seeds are all
+        available but unconsulted. Fail-OPEN on unknown for a destructive, irreversible op.
+      symptoms:
+        - "log: 'nodetool status unavailable — treating ScyllaDB peer count as 0' then 'Single-node ScyllaDB — skipping decommission'"
+        - remaining peer reports a dead voter and refuses topology changes with a raft quorum error after the cleaned node was wiped
+        - later rejoin blocked because group0 topology ops require the lost quorum
+      forbidden_fixes:
+        - "pipe a failed/empty nodetool status through `|| echo 0` into a skip-decommission branch"
+        - "let --force imply the single-node / last-node data-safety assertion"
+      resolution: |
+        count_scylla_up_nodes must return a distinguishable UNKNOWN sentinel on an
+        unreachable/empty probe (never 0); the caller die()s (fail-closed) on UNKNOWN
+        unless an explicit --last-node assertion is passed; only a confirmed count of
+        exactly 1 legitimately skips decommission. Both copies must be fixed:
+        scripts/clean-node.sh and Globular/internal/gateway/handlers/cluster/clean-node.sh
+        (the latter embedded into the gateway binary at build). Recovery from an
+        already-occurred incident: from a healthy peer `nodetool removenode <host-id>`,
+        then ScyllaDB manual Raft group0 recovery, restore RF + repair.
+      related_invariants:
+        - cluster.teardown.membership_must_be_confirmed_before_destructive_stop
+        - meta.silence_is_not_valid_for_unexpected
+      required_tests:
+        - scripts/clean-node.bats:fail_closed_on_unknown_scylla_topology
+    - id: repository.cas_index_split_blocks_install
+      title: CAS blob present but repository index state UNKNOWN blocks installs; no owner reindex-from-blobs API exists
+      severity: high
+      root_cause: |
+        2026-07-09 scar: after Scylla disruption (group0 recovery / node wipe / RF
+        change), repository index rows for platform artifacts were UNKNOWN / missing /
+        skeleton while the CAS blobs (artifacts/{key}.bin + .manifest.json sidecar) were
+        intact on disk. isRowInstallable requires publish_state==PUBLISHED AND
+        artifact_state in {PUBLISHED,""} AND manifest_json present, so the download gate
+        ("artifact <name> is in pipeline state UNKNOWN — not installable") fail-closes and
+        the controller emits repeated DesiredBuildIdOrphaned. The per-artifact reconstruct
+        primitive exists (Project D in artifact_verify_rpc.go) and a reverse reconciler
+        exists (repository_reconciler.go) but it is startup-only, omitted from the hourly
+        ticker, and walks only receipt.json (download-path blobs) — publish-pipeline blobs
+        at artifacts/{key}.manifest.json are invisible to it. There is NO bulk,
+        owner-triggered, dry-run/commit reindex-from-CAS API; cluster-doctor even advises
+        `repository repair-index` — a command that does not exist.
+      symptoms:
+        - 'install fails: artifact "<name>" is in pipeline state UNKNOWN — not installable'
+        - repeated DesiredBuildIdOrphaned findings while the blob is present in /var/lib/globular/packages CAS
+        - '`globular services apply-desired` reports N failed with pipeline state UNKNOWN'
+      forbidden_fixes:
+        - roll desired state forward to a different build to dodge the UNKNOWN index
+        - manually UPSERT publish_state / mint a build_id / publisher / checksum
+        - promote a blob to PUBLISHED without verifying its sidecar manifest + checksum
+      resolution: |
+        Add an owner RepairIndex RPC + `globular repository repair-index --dry-run/--commit`
+        + MCP tool that walks CAS artifacts/*.manifest.json sidecars, verifies size+sha256,
+        and reconstructs the index row (UNKNOWN/skeleton/missing -> PUBLISHED) via the
+        existing Project-D reconstruct — identity from the sidecar/blob only, never minted;
+        refuse on checksum mismatch or missing/contradictory identity; never touch desired
+        state; never auto-elevate REVOKED/QUARANTINED. Also add the reverse reconciler to
+        the periodic ticker, sourced from CAS sidecars (not only receipt.json).
+      related_invariants:
+        - repository.cas_present_index_unknown_is_owner_repairable
+        - repository.published_requires_verified_manifest
+        - meta.storage_is_not_semantic_authority
+      related_services:
+        - repository
+        - cluster-controller
+      required_tests:
+        - golang/repository/repository_server/repair_index_test.go:TestRepairIndex_ReconstructsFromCasEvidenceOnly
+    - id: reconcile.noop_success_masks_undispatched_install
+      title: reconcile logs missing_package remediation SUCCEEDED every 30s but the package is never installed on the node
+      severity: high
+      root_cause: |
+        2026-07-09 scar (globule-nuc rejoin): reconcileMarkItemTerminal cleared the drift
+        observation on child_status==SUCCEEDED WITHOUT re-reading installed_state, so a
+        remediation that never actually installed the package was treated as success and
+        the observation cleared; the next 30s scan re-detected the same missing_package,
+        producing an unbounded SUCCEEDED loop with zero installs and no FAILED escalation.
+        Upstream cause: release.apply.package's short_circuit_if_no_targets finalizes
+        AVAILABLE (=> workflow SUCCEEDED) whenever selectReleaseTargets returns 0 targets;
+        selectReleaseTargets drops a genuinely-missing package's node for non-convergence
+        reasons (bootstrap phase / profile / isActiveInfraMember) that the drift scanner
+        does not apply — so the scanner keeps emitting missing_package while the workflow
+        keeps returning SUCCEEDED with no node contact. rbac/authentication/etc. looped
+        every 30s, installed nothing; apply-desired run directly on the node installed them.
+      symptoms:
+        - "reconcile-workflow: item terminal ... child_status=SUCCEEDED repeating every ~30s for the same node/pkg"
+        - workflow_list_runs shows only reconcile:* runs, no release.apply.package with node targets
+        - node-agent installed set for the pkg never changes
+      forbidden_fixes:
+        - clear the drift observation on child_status==SUCCEEDED without re-reading installed_state
+        - treat len(selected_targets)==0 as unconditional convergence / AVAILABLE
+        - silence the loop by suppressing the missing_package emission instead of installing or escalating
+      resolution: |
+        Gate observation-clear + terminal-SUCCEEDED on observed installed_state convergence
+        for missing_package/version_drift (reconcileMarkItemTerminal); add a
+        per-(node,pkg,drift_type) no-progress counter that escalates to FAILED +
+        cluster.reconcile.item_failed(reason=remediation_no_progress) after a small bound.
+        Complementary root-cause fix (companion): distinguish converged-skip from
+        ineligible-skip in selectReleaseTargets so 0 targets on a genuinely-absent package
+        finalizes DEFERRED/BLOCKED, not AVAILABLE; make scanner/selector eligibility filters symmetric.
+      related_invariants:
+        - reconcile.terminal_success_requires_observed_convergence
+        - convergence.no_infinite_retry
+        - meta.silence_is_not_valid_for_unexpected
+      related_services:
+        - cluster-controller
+        - workflow
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go:TestReconcileMarkItemTerminal_RequiresObservedConvergence
+    - id: doctor.perpetual_drift_from_cluster_wide_desired_hash
+      title: cluster.services.drift fires permanently for a node whose profiles cannot host part of the cluster-wide desired set
+      severity: high
+      root_cause: |
+        filterVersionsForNode (cluster_controller_server/server.go) copies the ENTIRE
+        cluster-wide desired map without intersecting node.Profiles, so the per-node
+        desired hash (stableServiceDesiredHash) is identical on every node. The node-agent
+        applied hash (computeAppliedServicesHash) is node-scoped over the installed set.
+        A node lacking media-server/ai can never install media/title/ffmpeg, so its applied
+        hash never matches the all-profile desired hash -> cluster.services.drift fires and
+        escalates to ERROR after 5 min, unresolvably. Observed 2026-07-09: globule-nuc
+        (control-plane/core/gateway/storage, no media-server/ai) reported the same
+        desired_hash string as ryzen (all profiles) but a different applied_hash.
+      symptoms:
+        - two nodes report the SAME desired_hash string but different applied_hash
+        - the node with fewer profiles (no media-server / no ai) never converges (perpetual ERROR after 5m)
+        - media/title/ffmpeg-class services also flagged as placement orphans on that node (double-haunt)
+      forbidden_fixes:
+        - add media-server/ai profile to a node just to make the hash match (grants unintended placement authority)
+        - suppress cluster.services.drift globally or special-case node IDs
+        - loosen the drift rule to ignore mismatches when applied is a subset
+      resolution: |
+        Scope the DESIRED hash to the node's authorized subset in filterVersionsForNode via
+        the existing placement law book (isOrphanedInstall/placementAllows) — catalog-unknown
+        services kept. A node running exactly its authorized set then has desired==applied ->
+        no drift. Unauthorized-but-installed packages surface via
+        placement.installed_package_orphaned (already implemented), not generic drift.
+        Companion (for orphan-laden nodes to also de-drift): authorization-scope the node-agent
+        computeAppliedServicesHash with the identical shared predicate, or remove the orphans
+        via a lawful node-local uninstall (SCAR-5).
+      related_invariants:
+        - controller.desired_services_hash_must_be_profile_scoped
+        - meta.absence_scope_must_be_explicit
+      related_services:
+        - cluster-controller
+        - cluster-doctor
+        - node-agent
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/component_resolve_test.go:TestFilterVersionsForNode_ExcludesUnauthorizedServices
+    - id: placement.orphan_has_no_lawful_node_local_removal_path
+      title: A placement orphan (installed on a wrong-profile node) has no lawful node-scoped uninstall — only cluster-wide desired-remove or blocked manual rm
+      severity: warning
+      root_cause: |
+        2026-07-09 scar: globule-nuc (no media-server) ended up with yt-dlp/torrent
+        installed (orphans — the catalog forbids them on its profiles). The doctor flags
+        placement.installed_package_orphaned "operator action required", but the ONLY
+        removal levers were `globular services desired remove <name>` (cluster-wide — would
+        strip the service from media-server nodes that legitimately host it) or manual
+        `systemctl`/`rm` (correctly blocked by the deploy/convergence hook). The node-agent
+        DOES have a lawful node-scoped uninstall primitive (runUninstallPackage /
+        "uninstall-package" workflow, supervisor-mediated), but NO operator MCP tool or CLI
+        reaches it — so the orphan sits unremovable, and the node also cannot fully clear
+        cluster.services.drift (SCAR-4 companion).
+      symptoms:
+        - placement.installed_package_orphaned finding with no lawful remediation lever
+        - operator forced to choose cluster-wide desired-remove (wrong blast radius) or blocked manual rm
+        - a profile-scoped node still shows drift because its applied set includes the un-removable orphan
+      forbidden_fixes:
+        - remove a single node's orphan via cluster-wide `services desired remove` (retires it everywhere)
+        - manual systemctl stop/disable + rm of the binary/unit (bypasses supervisor + installed-state stamping)
+        - auto-remove orphans in the controller convergence loop (data-safety: orphan removal is operator-gated)
+      resolution: |
+        Add a lawful node-scoped operator entry (MCP tool nodeagent_uninstall_package + CLI
+        `globular node uninstall-package --package <name> --node <ep> [--kind]`) that invokes the
+        existing node-agent "uninstall-package" workflow on ONE node — supervisor-mediated, clears
+        installed-state, never touches cluster desired. Same operator surface pattern as
+        nodeagent_control_service (start/stop/restart).
+      related_invariants:
+        - placement.orphan_removal_needs_a_lawful_node_scoped_path
+        - controller.desired_services_hash_must_be_profile_scoped
+      related_services:
+        - node-agent
+        - mcp
+        - cluster-doctor
+      required_tests:
+        - golang/globularcli/node_ops_cmds_test.go:TestBuildUninstallPackageWorkflow_NodeScoped

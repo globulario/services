@@ -11267,3 +11267,194 @@ invariants:
     ServiceRelease+InfrastructureRelease into one PackageRelease (Slice 6) and the full
     orthogonal-axis decomposition (form/role/provenance/criticality as first-class
     fields). See ai-memory architecture/b3ae1cce and architecture/83b8f143.
+- id: cluster.teardown.membership_must_be_confirmed_before_destructive_stop
+  severity: critical
+  status: active
+  title: Node teardown must fail closed on unknown Scylla/ring topology — an unreachable nodetool is UNKNOWN, not zero live nodes
+  summary: >
+    During node removal/teardown, a stateful ring member (ScyllaDB / etcd) MUST NOT be
+    hard-stopped until membership evidence POSITIVELY confirms the node is not a live
+    voter in a multi-node ring. Unknown Scylla topology evidence must fail closed. An
+    absent or unreachable `nodetool status` (empty output / nonzero exit) is UNKNOWN,
+    NOT a live-node count of zero, and must never be read as "single node -> safe to
+    kill". Killing a live 2-node ring member without decommission drops group0 to
+    1-of-2 live voters -> loss of Raft quorum for all topology ops (removenode / add /
+    schema fail with raft_operation_timeout_error). Force / non-interactive flags
+    (--force) must NOT override data-safety uncertainty; only an explicit last-node
+    destruction assertion (--last-node) may permit last-node Scylla removal. --force
+    (suppress prompts) and --last-node (data-safety assertion) are distinct authorities.
+    count_scylla_up_nodes MUST return a distinguishable UNKNOWN sentinel on an
+    unreachable probe, never 0. Independent membership signals (controller/gateway node
+    registry, etcd member list, a peer's nodetool status, local scylla.yaml remote
+    seeds) exist and should corroborate before any decommission-skip decision.
+  protects:
+    files:
+    - scripts/clean-node.sh
+    - Globular/internal/gateway/handlers/cluster/clean-node.sh
+    symbols:
+    - count_scylla_up_nodes
+  related_invariants:
+  - meta.silence_is_not_valid_for_unexpected
+  forbidden_fixes:
+  - cluster.teardown.do_not_treat_probe_failure_as_empty_ring
+  required_tests:
+  - scripts/clean-node.bats:fail_closed_on_unknown_scylla_topology
+- id: repository.cas_present_index_unknown_is_owner_repairable
+  severity: critical
+  status: active
+  title: A verified CAS blob with UNKNOWN/missing index state is owner-repairable — reconstitute index from existing repository-owned evidence; never mint identity, change desired, or roll forward
+  summary: >
+    When an artifact blob exists in the repository-owned local POSIX CAS
+    (artifacts/{key}.bin) with a matching manifest sidecar (artifacts/{key}.manifest.json)
+    whose size and sha256 the blob satisfies, a repository index row that is UNKNOWN,
+    missing, skeleton, or otherwise non-PUBLISHED is a REPAIRABLE divergence, not a
+    terminal condition. The split MUST be repaired ONLY through the repository owner via
+    an explicit, auditable RepairIndex operation (repository.repair_is_explicit), which
+    reconstitutes publish_state / artifact_state / manifest_json from the EXISTING
+    repository-owned evidence (blob digest + sidecar manifest) and:
+    (a) MUST NOT mint a new build_id / publisher / checksum / build_number — identity
+    comes only from the sidecar manifest and blob digest (repository.repair_selects_existing_build);
+    (b) MUST NOT modify desired state or roll any package forward to a different build;
+    (c) MUST verify manifest presence + checksum before promoting to PUBLISHED
+    (repository.published_requires_verified_manifest) — a blob whose digest does not match
+    its sidecar, or whose identity evidence is missing/contradictory, is NOT repairable and
+    MUST be refused, never promoted; (d) MUST NOT auto-elevate terminal/policy states
+    (REVOKED, QUARANTINED). Repository metadata remains the identity authority; the CAS
+    blob is EVIDENCE that supports repair, never the identity authority
+    (meta.storage_is_not_semantic_authority, intent repository.metadata_is_authority).
+    Repair must reconstitute a genuinely-complete row, never leave or promote a skeleton
+    that reads installable (meta.half_done_must_not_look_done). Four-layer model holds:
+    repository owns repository repair; a CAS/index split must never be papered over by
+    desired-state roll-forward.
+  protects:
+    files:
+    - golang/repository/repository_server/artifact_state.go
+    - golang/repository/repository_server/artifact_verify_rpc.go
+    - golang/repository/repository_server/repository_reconciler.go
+    - proto/repository.proto
+  related_invariants:
+  - repository.published_requires_verified_manifest
+  - repository.repair_selects_existing_build
+  - repository.artifact.state_transitions_are_forward_only
+  - repository.artifact.installable_compound_predicate
+  - meta.storage_is_not_semantic_authority
+  - meta.half_done_must_not_look_done
+  forbidden_fixes:
+  - repository.roll_desired_forward_instead_of_repairing_index
+  required_tests:
+  - golang/repository/repository_server/repair_index_test.go:TestRepairIndex_ReconstructsFromCasEvidenceOnly
+- id: reconcile.terminal_success_requires_observed_convergence
+  severity: critical
+  status: active
+  title: A reconcile remediation is terminal-SUCCEEDED (and its drift observation cleared) only when observed installed_state matches desired — child-workflow SUCCEEDED is dispatch ack, not install proof
+  summary: >
+    The controller reconcile loop MUST NOT mark a remediation item terminal-SUCCEEDED,
+    nor clear its drift observation, based solely on the child workflow's reported
+    status. For a missing_package / version_drift item, terminal success requires that,
+    AFTER the child returns, the observed installed_state for (node_id, package_name)
+    matches the desired build identity (installed AND version == desired). Child-workflow
+    SUCCEEDED is a dispatch / finalize acknowledgement, NOT proof the package was
+    installed on the node — installed_state is L3, owned and reported by the node-agent
+    (four_layer.layer_has_single_writing_actor); the controller reads it. If the child
+    reports SUCCEEDED but installed_state still shows the package missing or
+    version-mismatched, the observation MUST NOT be cleared; repeated no-progress
+    "successes" for the same (node,pkg,drift_type) MUST escalate to FAILED with an
+    operator-visible reason (remediation_no_progress) after a small bound — never an
+    unbounded silent 30s SUCCEEDED loop (convergence.no_infinite_retry). Zero selected
+    install targets must not be read as "converged" unless every candidate was dropped
+    for a convergence reason; an ineligible-drop (bootstrap-phase / profile /
+    active-infra-member) with the package genuinely absent is a DEFERRED/BLOCKED outcome,
+    not AVAILABLE (meta.absence_scope_must_be_explicit — "no eligible target here" is not
+    "converged everywhere").
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+    - golang/cluster_controller/cluster_controller_server/workflow_release.go
+    - golang/workflow/definitions/release.apply.package.yaml
+    symbols:
+    - reconcileMarkItemTerminal
+    - selectReleaseTargets
+  related_invariants:
+  - convergence.no_infinite_retry
+  - meta.silence_is_not_valid_for_unexpected
+  - meta.absence_scope_must_be_explicit
+  - workflow.every_state_mutation_belongs_to_a_workflow_instance
+  - four_layer.layer_has_single_writing_actor
+  forbidden_fixes:
+  - reconcile.clear_drift_on_dispatch_ack_without_observation
+  required_tests:
+  - golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go:TestReconcileMarkItemTerminal_RequiresObservedConvergence
+- id: controller.desired_services_hash_must_be_profile_scoped
+  severity: high
+  status: active
+  title: The per-node desired services hash must be computed over the node's profile-authorized subset, not the cluster-wide desired set
+  summary: >
+    The per-node desired services hash MUST be computed over the node's
+    profile-AUTHORIZED desired subset — via the single placement law book
+    (isOrphanedInstall / placementAllows / CatalogByName), NOT the cluster-wide
+    desired set. It is compared for equality against the node-scoped applied hash
+    (node-agent computeAppliedServicesHash, over the installed set — installed_state is
+    L3, owned and reported by the node-agent, four_layer.layer_has_single_writing_actor).
+    Comparing an all-profile cluster-wide desired truth against a node-scoped applied
+    truth makes any capability-restricted node (e.g. no media-server / no ai) perpetually
+    and unresolvably "drifted" for services it can NEVER host. A catalog-unauthorized
+    service on this node is a correct-for-profile ABSENCE (meta.absence_scope_must_be_explicit
+    — "not authorized here" is not "missing/drifted"), and an unauthorized-but-INSTALLED
+    package is a distinct, actionable placement.installed_package_orphaned finding
+    (doctor.layout_drift_must_reflect_real_risk — real risk vs noise), never generic hash
+    drift. Catalog-UNKNOWN services are kept in the desired hash ("unknown to the catalog"
+    is not "unauthorized"). Full symmetry note: a node that has unauthorized packages
+    actually installed still mismatches until the applied hash is likewise
+    authorization-scoped or the orphans are lawfully removed — the desired side is fixed
+    here; the applied-side scoping is the tracked companion.
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/server.go
+    - golang/cluster_controller/cluster_controller_server/handlers_health.go
+    - golang/cluster_doctor/cluster_doctor_server/rules/cluster_services_drift.go
+    symbols:
+    - filterVersionsForNode
+  related_invariants:
+  - doctor.layout_drift_must_reflect_real_risk
+  - meta.absence_scope_must_be_explicit
+  - four_layer.layer_has_single_writing_actor
+  forbidden_fixes:
+  - controller.silence_drift_by_adding_profile_or_suppressing_rule
+  required_tests:
+  - golang/cluster_controller/cluster_controller_server/component_resolve_test.go:TestFilterVersionsForNode_ExcludesUnauthorizedServices
+- id: placement.orphan_removal_needs_a_lawful_node_scoped_path
+  severity: high
+  status: active
+  title: A placement orphan must have a lawful node-scoped removal path — never cluster-wide desired-remove or manual systemctl/rm
+  summary: >
+    A package installed on a node whose profiles do not authorize it (a placement
+    orphan, isOrphanedInstall) MUST have a lawful, NODE-SCOPED removal path: an operator
+    surface (MCP tool / CLI) that invokes the node-agent's existing supervisor-mediated
+    uninstall (the "uninstall-package" workflow / package.uninstall action — stop+disable
+    via internal/supervisor, remove binary/unit/config, daemon-reload, delete
+    installed-state, clean service config, sync) for ONE node, WITHOUT mutating
+    cluster desired-state and WITHOUT manual systemctl/rm (which the deploy hook correctly
+    blocks). Cluster-wide `globular services desired remove <name>` is the WRONG blast
+    radius — it retires the service on every node, including ones that legitimately host
+    it (four_layer.layer_has_single_writing_actor: the node-agent owns L3 uninstall on its
+    own node; desired is a separate authority). The execution primitive already exists and
+    is lawful; the requirement is the node-scoped operator ENTRY (the same surface pattern
+    as nodeagent_control_service start/stop/restart). Semantics are self-correcting:
+    node-scoped uninstall of an AUTHORIZED-desired package is transient (reconcile
+    reinstalls it); uninstall of an ORPHAN retires it (reconcile will not reinstall —
+    isOrphanedInstall suppresses re-dispatch). This is the companion that lets a
+    profile-scoped node (controller.desired_services_hash_must_be_profile_scoped) fully
+    read non-drifted once its orphans are retired.
+  protects:
+    files:
+    - golang/node_agent/node_agent_server/grpc_workflow.go
+    - golang/node_agent/node_agent_server/internal/actions/package_actions.go
+    symbols:
+    - runUninstallPackage
+  related_invariants:
+  - controller.desired_services_hash_must_be_profile_scoped
+  - four_layer.layer_has_single_writing_actor
+  forbidden_fixes:
+  - placement.remove_orphan_via_cluster_wide_desired_or_manual_rm
+  required_tests:
+  - golang/globularcli/node_ops_cmds_test.go:TestBuildUninstallPackageWorkflow_NodeScoped

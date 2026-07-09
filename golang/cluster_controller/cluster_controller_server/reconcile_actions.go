@@ -10,6 +10,7 @@ import (
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
@@ -623,7 +624,103 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 	}
 }
 
+// reconcileNoProgressThreshold bounds how many consecutive child-SUCCEEDED
+// remediations may be observed WITHOUT installed_state convergence before the
+// item is escalated to FAILED — preventing the silent 30s "SUCCEEDED but never
+// installed" loop (convergence.no_infinite_retry / SCAR-2).
+const reconcileNoProgressThreshold = 3
+
+// observeInstalledPackage reads the L3 installed_state for (nodeID, name),
+// trying SERVICE then INFRASTRUCTURE — the same lookup the drift scanner uses.
+// installed_state is package-global, so the srv.observeInstalledPkg seam
+// overrides it in tests.
+func (srv *server) observeInstalledPackage(ctx context.Context, nodeID, name string) (*node_agentpb.InstalledPackage, error) {
+	if srv.observeInstalledPkg != nil {
+		return srv.observeInstalledPkg(ctx, nodeID, name)
+	}
+	pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, "SERVICE", name)
+	if err != nil || pkg == nil {
+		pkg, err = installed_state.GetInstalledPackage(ctx, nodeID, "INFRASTRUCTURE", name)
+	}
+	return pkg, err
+}
+
+// reconcileItemConverged re-reads installed_state AFTER a child remediation
+// returns and reports whether the observed L3 state now matches desired.
+// checkable is false for drift types that have no installed-state convergence
+// predicate (e.g. unmanaged_package, whose success may legitimately be a
+// removal-disabled noop) — those preserve the legacy clear-on-SUCCEEDED path.
+// Enforces reconcile.terminal_success_requires_observed_convergence: a child
+// workflow reporting SUCCEEDED is a dispatch acknowledgement, not proof the
+// node installed the package.
+func (srv *server) reconcileItemConverged(ctx context.Context, item map[string]any) (converged, checkable bool) {
+	dType := fmt.Sprint(item["type"])
+	switch dType {
+	case "missing_package", "version_drift":
+		nodeID := fmt.Sprint(item["node_id"])
+		name := fmt.Sprint(item["package_name"])
+		desiredVer := fmt.Sprint(item["desired_version"])
+		pkg, err := srv.observeInstalledPackage(ctx, nodeID, name)
+		if err != nil || pkg == nil {
+			return false, true
+		}
+		if dType == "missing_package" {
+			// Installed at all; when a desired version is known, require the match.
+			return desiredVer == "" || pkg.GetVersion() == desiredVer, true
+		}
+		return pkg.GetVersion() == desiredVer, true // version_drift
+	default:
+		return false, false
+	}
+}
+
+// clearDriftObservation clears a recorded drift observation. The srv.clearDriftObsFn
+// seam overrides the real (concrete, nil-safe) recorder in tests.
+func (srv *server) clearDriftObservation(ctx context.Context, driftType, entityRef string) {
+	if srv.clearDriftObsFn != nil {
+		srv.clearDriftObsFn(ctx, driftType, entityRef)
+		return
+	}
+	if srv.workflowRec != nil {
+		srv.workflowRec.ClearDriftObservation(ctx, driftType, entityRef)
+	}
+}
+
+func (srv *server) reconcileBumpNoProgress(key string) int {
+	srv.reconcileNoProgMu.Lock()
+	defer srv.reconcileNoProgMu.Unlock()
+	if srv.reconcileNoProgress == nil {
+		srv.reconcileNoProgress = make(map[string]int)
+	}
+	srv.reconcileNoProgress[key]++
+	return srv.reconcileNoProgress[key]
+}
+
+func (srv *server) reconcileResetNoProgress(key string) {
+	srv.reconcileNoProgMu.Lock()
+	defer srv.reconcileNoProgMu.Unlock()
+	if srv.reconcileNoProgress != nil {
+		delete(srv.reconcileNoProgress, key)
+	}
+}
+
 // reconcileMarkItemTerminal records the outcome of a child remediation.
+//
+// SCAR-2 (reconcile.terminal_success_requires_observed_convergence): a child
+// workflow reporting SUCCEEDED is a dispatch/finalize acknowledgement, NOT proof
+// the node installed the package (installed_state is L3, owned and reported by
+// the node-agent). For missing_package/version_drift we therefore re-read
+// installed_state before clearing the drift observation; a SUCCEEDED that did not
+// produce observed convergence does NOT clear the observation and, after
+// reconcileNoProgressThreshold consecutive no-progress passes, escalates to
+// FAILED (reason=remediation_no_progress) — never an unbounded silent loop.
+//
+// Companion follow-up (deliberately OUT of SCAR-2 scope): the upstream cause of
+// the false SUCCEEDED is release.apply.package's short_circuit_if_no_targets
+// finalizing AVAILABLE when selectReleaseTargets returns 0 targets for a
+// NON-convergence reason (bootstrap-phase / profile / active-infra-member); that
+// should finalize DEFERRED/BLOCKED, not AVAILABLE (workflow_release.go). The
+// observation-gate here defends regardless of that leak.
 func (srv *server) reconcileMarkItemTerminal(ctx context.Context, item, childResult map[string]any) error {
 	status := "unknown"
 	if childResult != nil {
@@ -631,29 +728,80 @@ func (srv *server) reconcileMarkItemTerminal(ctx context.Context, item, childRes
 	}
 	log.Printf("reconcile-workflow: item terminal: type=%s node=%s pkg=%s child_status=%s",
 		item["type"], item["node_id"], item["package_name"], status)
-	// Clear the drift observation if remediation succeeded — the next scan
-	// will re-observe it if it's still there.
-	if status == "SUCCEEDED" && srv.workflowRec != nil {
-		dType := fmt.Sprint(item["type"])
-		eRef := driftEntityRef(item)
+
+	if status != "SUCCEEDED" {
+		return nil
+	}
+
+	dType := fmt.Sprint(item["type"])
+	eRef := driftEntityRef(item)
+	key := dType + "|" + eRef
+
+	converged, checkable := srv.reconcileItemConverged(ctx, item)
+
+	// Observed convergence proven (or the drift type has no observation predicate):
+	// clear the drift observation and reset the no-progress counter.
+	if !checkable || converged {
 		if dType != "" && eRef != "" {
-			srv.workflowRec.ClearDriftObservation(ctx, dType, eRef)
+			srv.clearDriftObservation(ctx, dType, eRef)
 		}
+		srv.reconcileResetNoProgress(key)
+		if checkable {
+			log.Printf("reconcile-workflow: observed convergence confirmed for %s (%s) — drift cleared", eRef, dType)
+		}
+		return nil
+	}
+
+	// Child reported SUCCEEDED but installed_state does NOT reflect it: do NOT
+	// clear the observation. Count the no-progress pass; escalate to FAILED once
+	// it crosses the bound so the stuck node becomes operator-visible instead of
+	// looping SUCCEEDED forever.
+	n := srv.reconcileBumpNoProgress(key)
+	log.Printf("reconcile-workflow: child SUCCEEDED but installed_state NOT converged for %s (%s) — drift NOT cleared (no-progress %d/%d)",
+		eRef, dType, n, reconcileNoProgressThreshold)
+	if n >= reconcileNoProgressThreshold {
+		failItem := make(map[string]any, len(item)+1)
+		for k, v := range item {
+			failItem[k] = v
+		}
+		failItem["reason"] = "remediation_no_progress"
+		_ = srv.reconcileMarkItemFailed(ctx, failItem)
+		srv.reconcileResetNoProgress(key) // re-arm: emit a periodic signal, not every tick
 	}
 	return nil
 }
 
-// reconcileMarkItemFailed records a failed remediation item.
+// reconcileMarkItemFailed records a failed remediation item. An optional
+// item["reason"] is surfaced in the emitted event (used by the SCAR-2
+// no-progress escalation); when absent the event shape is unchanged.
 func (srv *server) reconcileMarkItemFailed(ctx context.Context, item map[string]any) error {
-	log.Printf("reconcile-workflow: item FAILED: type=%s node=%s pkg=%s",
-		item["type"], item["node_id"], item["package_name"])
-	srv.emitClusterEvent("cluster.reconcile.item_failed", map[string]interface{}{
+	reason := ""
+	if r, ok := item["reason"]; ok {
+		reason = fmt.Sprint(r)
+	}
+	log.Printf("reconcile-workflow: item FAILED: type=%s node=%s pkg=%s reason=%s",
+		item["type"], item["node_id"], item["package_name"], reason)
+	payload := map[string]interface{}{
 		"severity":     "WARN",
 		"node_id":      fmt.Sprint(item["node_id"]),
 		"package_name": fmt.Sprint(item["package_name"]),
 		"drift_type":   fmt.Sprint(item["type"]),
-	})
+	}
+	if reason != "" {
+		payload["reason"] = reason
+	}
+	srv.emitEvent("cluster.reconcile.item_failed", payload)
 	return nil
+}
+
+// emitEvent emits a cluster event. The srv.emitEventFn seam captures events in
+// tests; production falls through to emitClusterEvent.
+func (srv *server) emitEvent(name string, payload map[string]interface{}) {
+	if srv.emitEventFn != nil {
+		srv.emitEventFn(name, payload)
+		return
+	}
+	srv.emitClusterEvent(name, payload)
 }
 
 // reconcileAggregateResults aggregates all remediation outcomes.

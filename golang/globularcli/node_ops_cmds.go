@@ -234,6 +234,79 @@ func normalizeUnit(name string) string {
 	return name
 }
 
+// ─── node uninstall-package ────────────────────────────────────────────────────
+//
+// SCAR-5 (placement.orphan_removal_needs_a_lawful_node_scoped_path): a lawful,
+// NODE-SCOPED uninstall — invokes the Node Agent's existing supervisor-mediated
+// "uninstall-package" workflow on ONE node (stop+disable, remove files, clear
+// installed-state) WITHOUT touching cluster desired-state. The correct lever for a
+// placement orphan; `services desired remove` would retire the service cluster-wide.
+
+var (
+	nodeUninstallPkg  string
+	nodeUninstallKind string
+)
+
+var nodeUninstallCmd = &cobra.Command{
+	Use:   "uninstall-package",
+	Short: "Uninstall a package from ONE node (node-scoped), clearing its installed-state",
+	Long: `Uninstall a package from a single node via the Node Agent's supervisor-mediated
+uninstall-package workflow: stops+disables the unit, removes files, and clears
+installed-state — WITHOUT touching cluster desired-state.
+
+Use to retire a placement orphan (a package installed on a node whose profiles do
+not authorize it). To retire a service across the whole cluster use
+'globular services desired remove' instead. Removing an authorized package this way
+is self-healing — the reconciler reinstalls it.
+
+Examples:
+  globular node uninstall-package --package torrent --node 10.0.0.8:11000
+  globular node uninstall-package --package yt-dlp --kind COMMAND --node 10.0.0.8:11000
+`,
+	RunE: runNodeUninstall,
+}
+
+// buildUninstallPackageWorkflow builds the node-agent RunWorkflow request that drives
+// the existing supervisor-mediated "uninstall-package" workflow on ONE node. It carries
+// only the package identity — it never references or mutates cluster desired-state.
+func buildUninstallPackageWorkflow(pkg, kind string) *node_agentpb.RunWorkflowRequest {
+	if kind == "" {
+		kind = "SERVICE"
+	}
+	return &node_agentpb.RunWorkflowRequest{
+		WorkflowName: "uninstall-package",
+		Inputs: map[string]string{
+			"package_name": pkg,
+			"kind":         strings.ToUpper(kind),
+		},
+	}
+}
+
+func runNodeUninstall(cmd *cobra.Command, args []string) error {
+	if nodeUninstallPkg == "" {
+		return fmt.Errorf("--package is required")
+	}
+	cc, err := dialGRPC(rootCfg.nodeAddr)
+	if err != nil {
+		return fmt.Errorf("connect to node agent %s: %w", rootCfg.nodeAddr, err)
+	}
+	defer cc.Close()
+
+	client := node_agentpb.NewNodeAgentServiceClient(cc)
+	resp, err := client.RunWorkflow(ctxWithTimeout(), buildUninstallPackageWorkflow(nodeUninstallPkg, nodeUninstallKind))
+	if err != nil {
+		return fmt.Errorf("uninstall-package: %w", err)
+	}
+
+	if resp.GetStatus() == "SUCCEEDED" {
+		fmt.Printf("uninstalled %s: %s (%d/%d steps)\n",
+			nodeUninstallPkg, resp.GetStatus(), resp.GetStepsSucceeded(), resp.GetStepsTotal())
+	} else {
+		fmt.Printf("uninstall %s: %s — %s\n", nodeUninstallPkg, resp.GetStatus(), resp.GetError())
+	}
+	return nil
+}
+
 func init() {
 	nodeLogsCmd.Flags().StringVar(&nodeLogsUnit, "unit", "", "Systemd unit name (required)")
 	nodeLogsCmd.Flags().Int32Var(&nodeLogsLines, "lines", 50, "Number of log lines")
@@ -253,8 +326,13 @@ func init() {
 	nodeControlCmd.MarkFlagRequired("unit")
 	nodeControlCmd.MarkFlagRequired("action")
 
+	nodeUninstallCmd.Flags().StringVar(&nodeUninstallPkg, "package", "", "Package/service name to uninstall (required)")
+	nodeUninstallCmd.Flags().StringVar(&nodeUninstallKind, "kind", "SERVICE", "Package kind: SERVICE, INFRASTRUCTURE, COMMAND")
+	nodeUninstallCmd.MarkFlagRequired("package")
+
 	nodeCmd.AddCommand(nodeLogsCmd)
 	nodeCmd.AddCommand(nodeSearchLogsCmd)
 	nodeCmd.AddCommand(nodeCertStatusCmd)
 	nodeCmd.AddCommand(nodeControlCmd)
+	nodeCmd.AddCommand(nodeUninstallCmd)
 }

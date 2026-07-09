@@ -194,42 +194,16 @@ func (srv *server) RepairArtifact(ctx context.Context, req *repopb.RepairArtifac
 	}
 	_ = subject // recorded in transition reason via the helper
 
-	// Project D: probe whether the CAS files are self-healing.
-	//
-	// When a Scylla row exists with NULL manifest_json (skeleton from a
-	// pre-d2ef80ee partial write), readManifestAndStateByKey returns an
-	// error and verifyArtifactIntegrity reports BROKEN_MANIFEST_MISSING.
-	// But the CAS .manifest.json file may still be intact on local POSIX
-	// storage. Probe the local file directly, bypassing the Scylla read.
-	// Returns (manifest, true) when the local manifest + blob both validate.
+	// Project D: probe whether the CAS files are self-healing. When a Scylla row
+	// exists with NULL manifest_json (skeleton from a pre-d2ef80ee partial write),
+	// readManifestAndStateByKey returns an error and verifyArtifactIntegrity
+	// reports BROKEN_MANIFEST_MISSING — but the CAS .manifest.json file may still
+	// be intact on local POSIX storage. The identity-safe probe is extracted to
+	// srv.probeLocalCASArtifact (shared with RepairIndex / SCAR-3); this thin alias
+	// preserves the (manifest, ok) shape the two call sites below expect.
 	probeLocalManifestAndBlob := func() (*repopb.ArtifactManifest, bool) {
-		if srv.localStorage == nil {
-			return nil, false
-		}
-		mKey := manifestStorageKey(key)
-		mData, mErr := srv.localStorage.ReadFile(ctx, mKey)
-		if mErr != nil || len(mData) == 0 {
-			return nil, false
-		}
-		manifest, _, parseErr := unmarshalManifestWithState(mData)
-		if parseErr != nil || manifest == nil {
-			return nil, false
-		}
-		binKey := binaryStorageKey(key)
-		fi, statErr := srv.localStorage.Stat(ctx, binKey)
-		if statErr != nil {
-			return nil, false
-		}
-		if declared := manifest.GetSizeBytes(); declared > 0 && fi.Size() != declared {
-			return nil, false
-		}
-		if expected := manifest.GetChecksum(); expected != "" {
-			actual, readErr := checksumLocalFile(srv.localStorage.LocalPath(binKey))
-			if readErr != nil || !digestEqual(actual, expected) {
-				return nil, false
-			}
-		}
-		return manifest, true
+		m, _, ok := srv.probeLocalCASArtifact(ctx, key)
+		return m, ok
 	}
 
 	// Dry-run path: probe and return what would happen.
@@ -328,55 +302,18 @@ func (srv *server) RepairArtifact(ctx context.Context, req *repopb.RepairArtifac
 		}
 	}
 	if needsBackfill {
-		manifest, ok := probeLocalManifestAndBlob()
-		if ok {
-			mKey := manifestStorageKey(key)
-			mData, mErr := srv.localStorage.ReadFile(ctx, mKey)
-			if mErr == nil && len(mData) > 0 {
-				// Step 1: write the full row (manifest_json + initial publish_state).
-				// syncManifestToScylla → PutManifest is the canonical repository-owned
-				// path that publish writes use; never a raw INSERT.
-				srv.syncManifestToScylla(ctx, key, manifest, repopb.PublishState_PUBLISHED, mData)
-
-				// Step 2: ensure publish_state column is PUBLISHED. Idempotent.
-				if srv.scylla != nil {
-					if updErr := srv.scylla.UpdatePublishState(ctx, key, repopb.PublishState_PUBLISHED.String()); updErr != nil {
-						slog.Warn("repair: UpdatePublishState failed during backfill",
-							"artifact_key", key, "err", updErr)
-					}
-				}
-
-				// Step 3: best-effort transition of artifact_state. The state
-				// machine may reject (DOWNLOADING → PUBLISHED is not a legal
-				// edge); that's acceptable for backfill — the row is now
-				// PUBLISHED in the SOLE authoritative column.
-				ref := manifest.GetRef()
-				stateFields := ArtifactStateFields{
-					BlobKey:     binaryStorageKey(key),
-					Checksum:    manifest.GetChecksum(),
-					SizeBytes:   manifest.GetSizeBytes(),
-					BuildID:     manifest.GetBuildId(),
-					BuildNumber: manifest.GetBuildNumber(),
-					PublisherID: ref.GetPublisherId(),
-					Name:        ref.GetName(),
-					Version:     ref.GetVersion(),
-					Platform:    ref.GetPlatform(),
-				}
-				if transErr := srv.transitionArtifactState(ctx, key, PipelinePublished,
-					"project_d_backfill", "", stateFields); transErr != nil {
-					slog.Info("repair: artifact_state transition not legal from this state — publish_state column authority is sufficient",
-						"artifact_key", key, "state_before", resp.ArtifactStateBefore, "err", transErr)
-				}
-
-				resp.ArtifactStateAfter = string(srv.readArtifactState(ctx, key))
-				resp.Action = "repair_publish_index"
-				resp.Detail = "Scylla manifest_json + publish_state column backfilled from local CAS via repository-owned primitives"
-				slog.Info("repair: publish-index backfilled from local CAS",
-					"artifact_key", key,
-					"state_before", resp.ArtifactStateBefore,
-					"state_after", resp.ArtifactStateAfter)
-				return resp, nil
-			}
+		// Reuse the shared identity-safe probe + repository-owned backfill (SCAR-3):
+		// probeLocalCASArtifact verifies the CAS blob+sidecar; backfillPublishIndexFromCAS
+		// re-establishes PUBLISHED index authority from that evidence, minting nothing.
+		if manifest, mData, ok := srv.probeLocalCASArtifact(ctx, key); ok {
+			resp.ArtifactStateAfter = srv.backfillPublishIndexFromCAS(ctx, key, manifest, mData)
+			resp.Action = "repair_publish_index"
+			resp.Detail = "Scylla manifest_json + publish_state column backfilled from local CAS via repository-owned primitives"
+			slog.Info("repair: publish-index backfilled from local CAS",
+				"artifact_key", key,
+				"state_before", resp.ArtifactStateBefore,
+				"state_after", resp.ArtifactStateAfter)
+			return resp, nil
 		}
 	}
 

@@ -773,6 +773,22 @@ service PackageRepository {
     };
   };
 
+  // RepairIndex reconstitutes PUBLISHED index authority for artifacts whose local
+  // CAS blob + manifest sidecar are intact but whose repository index row is
+  // UNKNOWN / missing / skeleton / non-PUBLISHED — a bulk, owner-driven,
+  // dry-run-by-default sweep. Identity comes only from the on-disk manifest (never
+  // minted); refuses when CAS evidence is missing/contradictory; never touches
+  // desired state; never elevates REVOKED/QUARANTINED. SCAR-3. Used by
+  // `globular repository repair-index`.
+  rpc RepairIndex(RepairIndexRequest) returns(RepairIndexResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.index.repair"
+      permission: "admin"
+      resource_template: "/repository/index"
+      default_role_hint: "admin"
+    };
+  };
+
   // ExplainArtifact composes manifest, ledger, blob, signature, and pipeline
   // state into a single operator-readable answer. Read-only. Used by
   // `globular repository explain` — the AI/operator cockpit command.
@@ -997,6 +1013,38 @@ message RepairArtifactResponse {
   string artifact_state_before = 5;
   string artifact_state_after  = 6;
   string workflow_run_id = 7;  // when repair started a workflow run; empty otherwise
+}
+
+// RepairIndexRequest drives the bulk CAS->index reconstitution (SCAR-3). The safe
+// default is NO-MUTATION: an omitted/false `commit` is a dry-run (report only).
+message RepairIndexRequest {
+  bool   commit           = 1;  // false (default) = dry-run report; true = apply
+  string publisher_filter = 2;  // optional: restrict to one publisher id
+  string name_filter      = 3;  // optional: restrict to one package name
+  string operator_subject = 4;  // for audit; usually filled by the server from auth context
+}
+
+message RepairIndexItem {
+  string artifact_key  = 1;
+  string name          = 2;
+  string version       = 3;
+  string platform      = 4;
+  string build_id      = 5;  // echoed from the on-disk manifest evidence, never minted
+  string state_before  = 6;
+  string state_after   = 7;
+  string action        = 8;  // would_repair_publish_index | repair_publish_index | refused | skipped_ok | skipped_policy
+  string detail        = 9;
+}
+
+message RepairIndexResponse {
+  bool   dry_run        = 1;
+  int32  scanned        = 2;
+  int32  repairable     = 3;
+  int32  repaired       = 4;
+  int32  refused        = 5;
+  int32  skipped_ok     = 6;
+  int32  skipped_policy = 7;
+  repeated RepairIndexItem items = 8;
 }
 
 // ExplainArtifactRequest asks for one operator-readable answer about an artifact.
