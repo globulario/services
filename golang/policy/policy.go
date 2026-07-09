@@ -437,10 +437,18 @@ func permissionsToInterface(perms []Permission) []interface{} {
 	for _, p := range perms {
 		resources := make([]interface{}, 0, len(p.Resources))
 		for _, r := range p.Resources {
+			// A resource entry is a scope anchor for the permission; authzgen
+			// emits it with field+kind but no per-resource verb (the verb lives
+			// at the entry's top level). Inherit the top-level permission so the
+			// resource check always enforces a real verb, never an empty one.
+			resourcePerm := r.Permission
+			if resourcePerm == "" {
+				resourcePerm = p.Permission
+			}
 			resources = append(resources, map[string]interface{}{
 				"index":      r.Index,
 				"field":      r.Field,
-				"permission": r.Permission,
+				"permission": resourcePerm,
 			})
 		}
 		entry := map[string]interface{}{
@@ -464,8 +472,16 @@ func permissionsToInterface(perms []Permission) []interface{} {
 
 // ── Validation ──────────────────────────────────────────────────────────────
 
+// validPermissionVerbs is the set of permission verbs authzgen may emit. It MUST
+// stay in sync with the generator's verb vocabulary — a verb authzgen produces
+// but this set omits fails validation, so the whole service policy silently
+// fails to load and every role-based call falls back to a coarse action key and
+// is denied post-bootstrap. "execute" was missing here: node_agent's RunWorkflow
+// carries permission "execute" (action node_agent.workflow.execute), so the
+// executor's policy never loaded and its workflow methods were denied during
+// convergence. Invariant: rbac.enforced_service_requires_packaged_policy_vocabulary.
 var validPermissionVerbs = map[string]bool{
-	"read": true, "write": true, "delete": true, "admin": true,
+	"read": true, "write": true, "delete": true, "admin": true, "execute": true,
 }
 
 // actionKeyRe matches stable action keys: lowercase dotted identifiers, segments may
@@ -540,8 +556,18 @@ func validatePermissions(pf *PermissionsFile) []string {
 			if r.Field == "" {
 				errs = append(errs, rprefix+": missing field")
 			}
-			if !validPermissionVerbs[r.Permission] {
-				errs = append(errs, fmt.Sprintf("%s: invalid permission verb %q", rprefix, r.Permission))
+			// A resource is a scope anchor that inherits the entry's top-level
+			// permission verb when it carries none (authzgen emits field+kind
+			// only). Validate the EFFECTIVE verb: empty resource verb is fine as
+			// long as the entry has a top-level verb to inherit; a truly verbless
+			// entry (both empty) is still rejected.
+			effectiveVerb := r.Permission
+			if effectiveVerb == "" {
+				effectiveVerb = p.Permission
+			}
+			if !validPermissionVerbs[effectiveVerb] {
+				errs = append(errs, fmt.Sprintf("%s: invalid permission verb %q (resource=%q, entry=%q)",
+					rprefix, effectiveVerb, r.Permission, p.Permission))
 			}
 			if r.Index < 0 {
 				errs = append(errs, rprefix+": index must be >= 0")

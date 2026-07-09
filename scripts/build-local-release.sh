@@ -357,6 +357,30 @@ if [[ -n "$GLOBULAR_ROOT" ]]; then
   done
 fi
 
+# ── Regenerate authz policy (permissions/roles per service) ───────────────────
+# Each service package must ship its generated RBAC policy (permissions.generated
+# .json + roles.generated.json), which install-day0 lays down at
+# /var/lib/globular/policy/services/{svc}/ for the interceptor chain. authzgen
+# derives it from proto AuthzRule annotations. Regenerate here so packages are
+# never built without current policy (build-release does this via
+# regenerate-release-inputs; build-local-release must not skip it).
+step "Regenerate authz policy"
+POLICY_ROOT="$SERVICES_ROOT/generated/policy"
+if command -v protoc >/dev/null 2>&1; then
+  mkdir -p "$POLICY_ROOT"
+  protoc -I "$SERVICES_ROOT/proto" \
+    --descriptor_set_out="$POLICY_ROOT/descriptor.pb" --include_imports \
+    "$SERVICES_ROOT/proto"/*.proto
+  ( cd "$SERVICES_ROOT/golang" && GOCACHE="${GOCACHE:-/tmp/.cache/go-build}" \
+      go run ./globularcli/tools/authzgen -descriptor "$POLICY_ROOT/descriptor.pb" -out "$POLICY_ROOT" )
+  log "authz policy regenerated under $POLICY_ROOT ($(ls -d "$POLICY_ROOT"/*/ 2>/dev/null | wc -l) services)"
+elif [[ -d "$POLICY_ROOT" ]]; then
+  log "WARN: protoc unavailable — reusing existing generated/policy ($(ls -d "$POLICY_ROOT"/*/ 2>/dev/null | wc -l) services)"
+else
+  echo "ERROR: no protoc and no generated/policy — packages would ship without RBAC policy. Run generateCode.sh first." >&2
+  exit 1
+fi
+
 # ── Build changed packages ────────────────────────────────────────────────────
 step "Build changed packages"
 BUILD_NUMBER=$(date +%s)   # local builds use unix timestamp as build_number
@@ -406,6 +430,17 @@ print(d.get('version','0.0.0'))
   cp "$BIN_DIR/$binary" "$TMPROOT/bin/$binary"
   chmod +x "$TMPROOT/bin/$binary"
   cp "$spec_file" "$TMPROOT/specs/$(basename "$spec_file")"
+
+  # Bundle the generated authz policy (mirrors pkggen). Policy dirs are keyed by
+  # the underscore service name (ai-executor -> ai_executor). Lands at
+  # /var/lib/globular/policy/services/{svc}/ on install for the RBAC resolver.
+  policy_src="$POLICY_ROOT/${pkg_name//-/_}"
+  if [[ -d "$policy_src" ]]; then
+    mkdir -p "$TMPROOT/policy"
+    for pf in permissions.generated.json roles.generated.json; do
+      [[ -f "$policy_src/$pf" ]] && cp -a "$policy_src/$pf" "$TMPROOT/policy/$pf"
+    done
+  fi
 
   # Stamp package.json
   checksum=$(sha256sum "$TMPROOT/bin/$binary" | awk '{print $1}')

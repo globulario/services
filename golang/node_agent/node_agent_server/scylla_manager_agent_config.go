@@ -80,6 +80,11 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	hasURL := hasScyllaAPIURL(content, nodeIP)
 	hasPorts := hasScyllaAgentPorts(content, nodeIP)
 	if tokenMatches && hasURL && hasPorts {
+		// Content is already correct, but ownership can drift (the agent package
+		// or an earlier reconcile may have left it scylla:scylla). Re-assert it
+		// every reconcile so backup_manager can always read the auth_token to
+		// register the cluster in scylla-manager.
+		ensureScyllaAgentConfigOwnership(cfgPath)
 		return
 	}
 
@@ -108,10 +113,10 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 		log.Printf("nodeagent: scylla-manager-agent config write failed (%s): %v", cfgPath, err)
 		return
 	}
-	// scylla-manager-agent.service runs as User=scylla; without chgrp the
-	// scylla user can't read this file and the unit crash-loops with
-	// "permission denied". Mode 0640 only helps if the group is scylla.
-	chgrpScyllaAgentConfig(cfgPath)
+	// Ownership: the agent (User=scylla) reads via the file owner; backup_manager
+	// (User=globular) reads the auth_token via the group. See
+	// ensureScyllaAgentConfigOwnership for why owner=scylla, group=globular.
+	ensureScyllaAgentConfigOwnership(cfgPath)
 	log.Printf("nodeagent: ensured scylla-manager-agent config in %s (token=%v api_url=%v ports=%v)",
 		cfgPath, !tokenMatches, !hasURL, !hasPorts)
 
@@ -128,22 +133,45 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	log.Printf("nodeagent: restarted globular-scylla-manager-agent.service after config change")
 }
 
-// chgrpScyllaAgentConfig sets the file's group to "scylla" so the
-// scylla-manager-agent unit (User=scylla, Group=scylla) can read its config.
-// Per CLAUDE.md: never hardcode UIDs/GIDs — always resolve via user.Lookup.
-func chgrpScyllaAgentConfig(path string) {
-	u, err := user.Lookup("scylla")
+// ensureScyllaAgentConfigOwnership sets the agent config to owner=scylla,
+// group=globular (mode stays 0640) so BOTH readers can access the auth_token
+// without ever exposing it world-readable:
+//   - scylla-manager-agent.service (User=scylla) reads via the file OWNER bits;
+//   - backup_manager (User=globular) reads the auth_token via the GROUP bits to
+//     run `sctool cluster add` in ensureScyllaRegistered.
+//
+// The previous implementation set group=scylla for the agent, which silently
+// locked backup_manager out and left the Scylla cluster unregistered (backup /
+// repair / restore unavailable). Using group=globular is robust: globular is
+// backup_manager's PRIMARY group, so it is always present in the process
+// credentials — unlike a supplementary scylla-group membership, which races
+// with process start during Day-0/Day-1 provisioning. node_agent runs as root,
+// so it can set the owner freely.
+//
+// Per CLAUDE.md: never hardcode UIDs/GIDs — always resolve via lookup.
+func ensureScyllaAgentConfigOwnership(path string) {
+	su, err := user.Lookup("scylla")
 	if err != nil {
-		log.Printf("nodeagent: scylla user not found — cannot chgrp %s: %v", path, err)
+		log.Printf("nodeagent: scylla user not found — cannot set owner on %s: %v", path, err)
 		return
 	}
-	gid, err := strconv.Atoi(u.Gid)
+	uid, err := strconv.Atoi(su.Uid)
 	if err != nil {
-		log.Printf("nodeagent: invalid scylla GID %q: %v", u.Gid, err)
+		log.Printf("nodeagent: invalid scylla UID %q: %v", su.Uid, err)
 		return
 	}
-	if err := os.Chown(path, -1, gid); err != nil {
-		log.Printf("nodeagent: cannot chgrp scylla group on %s: %v", path, err)
+	g, err := user.LookupGroup("globular")
+	if err != nil {
+		log.Printf("nodeagent: globular group not found — cannot chgrp %s: %v", path, err)
+		return
+	}
+	gid, err := strconv.Atoi(g.Gid)
+	if err != nil {
+		log.Printf("nodeagent: invalid globular GID %q: %v", g.Gid, err)
+		return
+	}
+	if err := os.Chown(path, uid, gid); err != nil {
+		log.Printf("nodeagent: cannot set scylla:globular ownership on %s: %v", path, err)
 	}
 }
 

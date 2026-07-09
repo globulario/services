@@ -193,7 +193,14 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 	pressureSustainedThreshold := 5.0 // rejections in 15m before we call it "sustained"
 
 	if rate5mOK && rate15mOK && (rate5m > 0 || rate15m > 0) {
-		sustained := rate15m > pressureSustainedThreshold
+		// "Sustained" means rejections are STILL happening — not that a lot
+		// happened at some point in the last 15m. A bring-up burst (e.g. the
+		// workflow health-gate correctly rejecting dispatches while the backend
+		// warms up) inflates rate_15m but stops; once rate_5m hits 0 the
+		// pressure has resolved and is auto-clearing, so it must NOT be reported
+		// as SUSTAINED (WARN). Require ongoing rejections (rate_5m > 0) before
+		// escalating; a high rate_15m with rate_5m == 0 is transient (INFO).
+		sustained := rate15m > pressureSustainedThreshold && rate5m > 0
 		sev := cluster_doctorpb.Severity_SEVERITY_INFO
 		status := cluster_doctorpb.InvariantStatus_INVARIANT_PASS
 		summary := fmt.Sprintf("Workflow dispatch pressure transient — %.0f rejection(s) in last 5m, %.0f in last 15m (auto-clear when both rates hit 0)",

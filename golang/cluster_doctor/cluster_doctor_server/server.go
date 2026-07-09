@@ -233,9 +233,19 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		}
 	}
 
-	// Attach repository-service client for ListRepositoryFindings + GetRepositoryStatus.
+	// Attach repository-service client for ListRepositoryFindings + GetRepositoryStatus
+	// + the release-boundary VerifyArtifact probe.
 	// Resolved from etcd; optional — if unreachable, repository invariants degrade gracefully.
-	repoEndpoint := config.ResolveServiceAddr("repository.PackageRepository", "")
+	//
+	// DIRECT dial (not the Envoy mesh :443): auth-gated repo RPCs like
+	// VerifyArtifact require the caller's identity. Through the mesh, Envoy
+	// terminates the doctor's mTLS and the backend sees an empty Subject, so
+	// VerifyArtifact is rejected Unauthenticated (release.boundary_unproven A0
+	// INDETERMINATE). Dialling the repo's direct host:port preserves the peer
+	// certificate — same pattern as the per-node agent dials. dialOptionsFor-
+	// InternalService still attaches the cluster_id-injecting interceptor, so
+	// this does NOT trip forbidden_fix bypass_shared_client_for_internal_dials.
+	repoEndpoint := config.ResolveServiceDirectAddr("repository.PackageRepository")
 	if repoEndpoint != "" {
 		repoTarget := config.ResolveDialTarget(repoEndpoint)
 		if repoConn, repoErr := grpc.NewClient(repoTarget.Address,
