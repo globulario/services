@@ -77,8 +77,12 @@ const (
 	// v10 adds promotion_candidates_by_scope / reconciliation_reports_by_scope —
 	// single-partition list indexes that fix the ListPromotionCandidates /
 	// ListReconciliationReports ALLOW FILTERING failure (a (project,domain) prefix
-	// query against a composite ((project,domain,id)) partition key).
-	behavioralSchemaVersion = 10
+	// query against a composite ((project,domain,id)) partition key); v11 adds
+	// authorities_by_scope / conditions_by_scope — the same single-partition index
+	// fix for ListAuthorities / ListConditions (P4 discovery). The bump forces
+	// re-application on clusters already marked complete at v10, so the new tables
+	// are created before the seed writes to them.
+	behavioralSchemaVersion = 11
 )
 
 // runBehavioralSchemaWithCoordination applies the behavioral_memory schema under

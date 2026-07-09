@@ -293,6 +293,22 @@ type PromotionDecisionRecord struct {
 	PromotionReason        string
 	Actor                  string
 	Metadata               map[string]string
+	// P3 (governance legibility): the complete satisfaction recipe for a
+	// blocked/review-required decision — what is unsatisfied and the exact next
+	// operations to fix it. Empty when the decision was ALLOWED.
+	SatisfactionSteps   []SatisfactionStep
+	SatisfactionSummary string
+}
+
+// SatisfactionStep is one requirement in the promotion contract and, when the
+// gate blocks, exactly how to satisfy it. See
+// docs/design/governance-tools-legibility.md (Priority 3).
+type SatisfactionStep struct {
+	Requirement    string   // machine key, e.g. "mapped_authority"
+	Satisfied      bool     // false for emitted steps (they are the blockers)
+	Detail         string   // why it matters / current state
+	HowToSatisfy   string   // human-readable instruction
+	NextOperations []string // exact tool calls that make progress
 }
 
 // RevocationRule expresses when/how a principle should be revoked or narrowed.

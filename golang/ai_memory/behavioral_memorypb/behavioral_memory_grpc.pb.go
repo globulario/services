@@ -38,6 +38,10 @@ const (
 	BehavioralMemoryService_GenerateReconciliationReport_FullMethodName = "/behavioral_memory.BehavioralMemoryService/GenerateReconciliationReport"
 	BehavioralMemoryService_ListReconciliationReports_FullMethodName    = "/behavioral_memory.BehavioralMemoryService/ListReconciliationReports"
 	BehavioralMemoryService_GetGovernanceCoverage_FullMethodName        = "/behavioral_memory.BehavioralMemoryService/GetGovernanceCoverage"
+	BehavioralMemoryService_ListAuthorities_FullMethodName              = "/behavioral_memory.BehavioralMemoryService/ListAuthorities"
+	BehavioralMemoryService_ListConditions_FullMethodName               = "/behavioral_memory.BehavioralMemoryService/ListConditions"
+	BehavioralMemoryService_ResolveRef_FullMethodName                   = "/behavioral_memory.BehavioralMemoryService/ResolveRef"
+	BehavioralMemoryService_AmendProposal_FullMethodName                = "/behavioral_memory.BehavioralMemoryService/AmendProposal"
 )
 
 // BehavioralMemoryServiceClient is the client API for BehavioralMemoryService service.
@@ -125,6 +129,20 @@ type BehavioralMemoryServiceClient interface {
 	// no applicable principle) for a project/domain — so the gate's actual reach
 	// is measurable, not assumed. Read-only; never mutates governance.
 	GetGovernanceCoverage(ctx context.Context, in *GetGovernanceCoverageRequest, opts ...grpc.CallOption) (*GetGovernanceCoverageResponse, error)
+	// ListAuthorities returns the authority catalog for a domain so an agent can
+	// discover resolvable authority refs through the API instead of grepping seed
+	// files. Read-only.
+	ListAuthorities(ctx context.Context, in *ListAuthoritiesRequest, opts ...grpc.CallOption) (*ListAuthoritiesResponse, error)
+	// ListConditions returns the condition catalog for a domain. Read-only.
+	ListConditions(ctx context.Context, in *ListConditionsRequest, opts ...grpc.CallOption) (*ListConditionsResponse, error)
+	// ResolveRef reports whether a single canonical ref resolves in this domain
+	// and to what kind (authority/condition). Read-only.
+	ResolveRef(ctx context.Context, in *ResolveRefRequest, opts ...grpc.CallOption) (*ResolveRefResponse, error)
+	// AmendProposal edits a PROPOSED principle in place (add/remove refs, set
+	// scalar gate inputs) instead of forcing re-propose + supersede. Only
+	// PROPOSED principles may be amended; a content change invalidates any prior
+	// contradiction check. Amended refs are re-validated (same rules as propose).
+	AmendProposal(ctx context.Context, in *AmendProposalRequest, opts ...grpc.CallOption) (*AmendProposalResponse, error)
 }
 
 type behavioralMemoryServiceClient struct {
@@ -325,6 +343,46 @@ func (c *behavioralMemoryServiceClient) GetGovernanceCoverage(ctx context.Contex
 	return out, nil
 }
 
+func (c *behavioralMemoryServiceClient) ListAuthorities(ctx context.Context, in *ListAuthoritiesRequest, opts ...grpc.CallOption) (*ListAuthoritiesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAuthoritiesResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_ListAuthorities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *behavioralMemoryServiceClient) ListConditions(ctx context.Context, in *ListConditionsRequest, opts ...grpc.CallOption) (*ListConditionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConditionsResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_ListConditions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *behavioralMemoryServiceClient) ResolveRef(ctx context.Context, in *ResolveRefRequest, opts ...grpc.CallOption) (*ResolveRefResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveRefResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_ResolveRef_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *behavioralMemoryServiceClient) AmendProposal(ctx context.Context, in *AmendProposalRequest, opts ...grpc.CallOption) (*AmendProposalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AmendProposalResponse)
+	err := c.cc.Invoke(ctx, BehavioralMemoryService_AmendProposal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BehavioralMemoryServiceServer is the server API for BehavioralMemoryService service.
 // All implementations should embed UnimplementedBehavioralMemoryServiceServer
 // for forward compatibility.
@@ -410,6 +468,20 @@ type BehavioralMemoryServiceServer interface {
 	// no applicable principle) for a project/domain — so the gate's actual reach
 	// is measurable, not assumed. Read-only; never mutates governance.
 	GetGovernanceCoverage(context.Context, *GetGovernanceCoverageRequest) (*GetGovernanceCoverageResponse, error)
+	// ListAuthorities returns the authority catalog for a domain so an agent can
+	// discover resolvable authority refs through the API instead of grepping seed
+	// files. Read-only.
+	ListAuthorities(context.Context, *ListAuthoritiesRequest) (*ListAuthoritiesResponse, error)
+	// ListConditions returns the condition catalog for a domain. Read-only.
+	ListConditions(context.Context, *ListConditionsRequest) (*ListConditionsResponse, error)
+	// ResolveRef reports whether a single canonical ref resolves in this domain
+	// and to what kind (authority/condition). Read-only.
+	ResolveRef(context.Context, *ResolveRefRequest) (*ResolveRefResponse, error)
+	// AmendProposal edits a PROPOSED principle in place (add/remove refs, set
+	// scalar gate inputs) instead of forcing re-propose + supersede. Only
+	// PROPOSED principles may be amended; a content change invalidates any prior
+	// contradiction check. Amended refs are re-validated (same rules as propose).
+	AmendProposal(context.Context, *AmendProposalRequest) (*AmendProposalResponse, error)
 }
 
 // UnimplementedBehavioralMemoryServiceServer should be embedded to have
@@ -475,6 +547,18 @@ func (UnimplementedBehavioralMemoryServiceServer) ListReconciliationReports(cont
 }
 func (UnimplementedBehavioralMemoryServiceServer) GetGovernanceCoverage(context.Context, *GetGovernanceCoverageRequest) (*GetGovernanceCoverageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetGovernanceCoverage not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) ListAuthorities(context.Context, *ListAuthoritiesRequest) (*ListAuthoritiesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAuthorities not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) ListConditions(context.Context, *ListConditionsRequest) (*ListConditionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConditions not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) ResolveRef(context.Context, *ResolveRefRequest) (*ResolveRefResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveRef not implemented")
+}
+func (UnimplementedBehavioralMemoryServiceServer) AmendProposal(context.Context, *AmendProposalRequest) (*AmendProposalResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AmendProposal not implemented")
 }
 func (UnimplementedBehavioralMemoryServiceServer) testEmbeddedByValue() {}
 
@@ -838,6 +922,78 @@ func _BehavioralMemoryService_GetGovernanceCoverage_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BehavioralMemoryService_ListAuthorities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAuthoritiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).ListAuthorities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_ListAuthorities_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).ListAuthorities(ctx, req.(*ListAuthoritiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BehavioralMemoryService_ListConditions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConditionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).ListConditions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_ListConditions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).ListConditions(ctx, req.(*ListConditionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BehavioralMemoryService_ResolveRef_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveRefRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).ResolveRef(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_ResolveRef_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).ResolveRef(ctx, req.(*ResolveRefRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BehavioralMemoryService_AmendProposal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AmendProposalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BehavioralMemoryServiceServer).AmendProposal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BehavioralMemoryService_AmendProposal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BehavioralMemoryServiceServer).AmendProposal(ctx, req.(*AmendProposalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BehavioralMemoryService_ServiceDesc is the grpc.ServiceDesc for BehavioralMemoryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -920,6 +1076,22 @@ var BehavioralMemoryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGovernanceCoverage",
 			Handler:    _BehavioralMemoryService_GetGovernanceCoverage_Handler,
+		},
+		{
+			MethodName: "ListAuthorities",
+			Handler:    _BehavioralMemoryService_ListAuthorities_Handler,
+		},
+		{
+			MethodName: "ListConditions",
+			Handler:    _BehavioralMemoryService_ListConditions_Handler,
+		},
+		{
+			MethodName: "ResolveRef",
+			Handler:    _BehavioralMemoryService_ResolveRef_Handler,
+		},
+		{
+			MethodName: "AmendProposal",
+			Handler:    _BehavioralMemoryService_AmendProposal_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

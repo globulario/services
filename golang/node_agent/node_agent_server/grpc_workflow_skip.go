@@ -94,6 +94,11 @@ var commandBinaryExistsFunc = commandBinaryExists
 var commandBinaryPathFunc = commandBinaryPath
 var binaryChecksumFunc = cachedSha256
 
+// servicePolicyDirPresentFunc is the injection seam for the RBAC policy-marker
+// check in canSkipInstallPackage (overridden in tests). Production uses the real
+// filesystem probe.
+var servicePolicyDirPresentFunc = servicePolicyDirPresent
+
 // isCommandPackage reports whether pkgName is a binary-only (no unit) package.
 func isCommandPackage(pkgName string) bool {
 	return commandPackages[pkgName]
@@ -200,6 +205,22 @@ func canSkipInstallPackage(
 		if existing.GetMetadata()["entrypoint_checksum"] == "" {
 			return installSkipDeniedVersion, fmt.Sprintf(
 				"install-package %s: %s active at %s but entrypoint_checksum missing — reapplying to register proof",
+				pkgName, unit, desiredVersion)
+		}
+		// Policy-presence precondition: registered RBAC permission mappings are
+		// runtime proof too (invariant node_agent.install_skip_must_refresh_
+		// runtime_proof). A SERVICE whose ActionPolicyDir/{name}/ marker is
+		// absent was installed out-of-band by the Day-0 globular-installer —
+		// install_payload (the SOLE deployer of permissions.generated.json)
+		// never ran, so its authz resolver has zero mappings and denies every
+		// role-based RPC (v1.2.267 empty-resolver incident: repository
+		// GetRepositoryStatus / ListRepositoryFindings PermissionDenied,
+		// degrading cluster-doctor). Deny the skip so the install path runs and
+		// deploys policy. install_payload creates the marker unconditionally, so
+		// this denies at most once per out-of-band install (no reinstall loop).
+		if strings.EqualFold(pkgKind, "SERVICE") && !servicePolicyDirPresentFunc(pkgName) {
+			return installSkipDeniedVersion, fmt.Sprintf(
+				"install-package %s: %s active at %s but RBAC policy dir absent (installed out-of-band) — reinstalling to deploy policy",
 				pkgName, unit, desiredVersion)
 		}
 		return installSkipAllowed, fmt.Sprintf(

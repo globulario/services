@@ -30,9 +30,21 @@ func alwaysInactive(_ context.Context, _ string) (bool, error) { return false, n
 func alwaysLoaded(_ context.Context, _ string) (bool, error)   { return true, nil }
 func alwaysUnloaded(_ context.Context, _ string) (bool, error) { return false, nil }
 
+// stubServicePolicyDir overrides the RBAC policy-marker probe for the duration
+// of a test, restoring it on cleanup. A converged service has its policy dir;
+// an out-of-band Day-0 install does not.
+func stubServicePolicyDir(t *testing.T, present bool) {
+	t.Helper()
+	prev := servicePolicyDirPresentFunc
+	servicePolicyDirPresentFunc = func(string) bool { return present }
+	t.Cleanup(func() { servicePolicyDirPresentFunc = prev })
+}
+
 // TestInstallPackageSkipsOnlyWhenRuntimeActive — happy path: version matches,
-// unit is active, entrypoint_checksum present → skip is allowed.
+// unit is active, entrypoint_checksum present, RBAC policy deployed → skip is
+// allowed.
 func TestInstallPackageSkipsOnlyWhenRuntimeActive(t *testing.T) {
+	stubServicePolicyDir(t, true)
 	result, reason := canSkipInstallPackage(
 		context.Background(),
 		"myservice", "SERVICE", "1.2.3", "", "",
@@ -42,6 +54,27 @@ func TestInstallPackageSkipsOnlyWhenRuntimeActive(t *testing.T) {
 	)
 	if result != installSkipAllowed {
 		t.Fatalf("expected installSkipAllowed, got %d (%s)", result, reason)
+	}
+}
+
+// TestInstallPackageDoesNotSkipWhenPolicyDirAbsent — a SERVICE whose RBAC policy
+// directory was never deployed (installed out-of-band by the Day-0 installer;
+// install_payload never ran) must NOT be skipped even when version, build_id,
+// checksum, and an active unit all match. Skipping would leave the authz
+// resolver with zero permission mappings and deny every role-based RPC (the
+// v1.2.267 empty-resolver incident: repository GetRepositoryStatus /
+// ListRepositoryFindings PermissionDenied, degrading cluster-doctor).
+func TestInstallPackageDoesNotSkipWhenPolicyDirAbsent(t *testing.T) {
+	stubServicePolicyDir(t, false)
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"myservice", "SERVICE", "1.2.3", "", "",
+		installedPkg("1.2.3", ""),
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedVersion {
+		t.Fatalf("expected installSkipDeniedVersion when policy dir absent, got %d (%s)", result, reason)
 	}
 }
 

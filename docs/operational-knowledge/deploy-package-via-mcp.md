@@ -21,6 +21,35 @@ The reconciler, verifier, and cluster-doctor all watch these four layers continu
 
 ---
 
+## Versioning rule — bump the BUILD NUMBER, never the version
+
+**This is the most common mistake. Read it before you build.**
+
+For a local / manual redeploy of an *already-released* service (a hotfix, a debug build, an unreleased fix), you MUST keep the service at its **current version** and increment the **build number** — never invent a higher version.
+
+```
+CORRECT:   ai-memory 1.2.269+b1  →  1.2.269+b2  →  1.2.269+b3   (version fixed, build bumped)
+WRONG:     ai-memory 1.2.269     →  1.2.270      →  1.2.271       (version raced ahead of the platform)
+```
+
+**Why:** package versions are allocated by the release pipeline and recorded in the BOM (`release-index.json`). If you publish a service at a version *ahead* of the platform, then when the platform is officially released on GitHub at that version, your service is already "ahead" of it — the version-immutability and convergence checks reject it (e.g. *"ai-memory 1.2.271 — want 1.2.270"*), and the cluster-doctor raises `VERSION_MISMATCH` drift. The build number is exactly the escape hatch for "same version, new binary": it distinguishes rebuilds without advancing the release line.
+
+**Get the service's current version from the authoritative source (never guess, never use a stale file):**
+
+```
+mcp__globular__repository_active_release()   # read the version for your <service> from the BOM
+```
+
+Then reuse **that** version for `--version`, and set `--build-number` to (current build + 1).
+
+## Release-channel builds MUST be stripped
+
+The repository rejects a release-channel artifact that carries debug sections:
+`release artifact carries debug section ".debug_aranges" — release-channel builds must be stripped`.
+Always build with `-trimpath -ldflags "… -s -w"` (`-s` strips the symbol table, `-w` strips DWARF).
+
+---
+
 ## The forbidden pattern — never do this
 
 ```bash
@@ -67,15 +96,17 @@ sudo chown -R globular:globular /var/lib/globular/.config
 
 ### Step 2 — Build the binary with ldflags
 
-`go build` without ldflags produces a binary with `Version=""` and a different SHA256 than the CI artifact. Always inject the version:
+`go build` without ldflags produces a binary with `Version=""` and a different SHA256 than the CI artifact. Inject the service's **current** version (from `repository_active_release` — do NOT bump it) and strip the binary (`-s -w`, required by the release channel):
 
 ```bash
 go build \
-  -ldflags "-X main.Version=<new-version>" \
   -trimpath \
+  -ldflags "-X main.Version=<current-version> -s -w" \
   -o /tmp/<service>_server \
   ./<service>/<service>_server/
 ```
+
+`<current-version>` is the version already recorded for this service in the BOM — the same one it is running now. You are shipping a new **build** of that version, not a new version.
 
 Then move the binary to a location the MCP server (running as `globular`) can read:
 
@@ -93,13 +124,16 @@ Use the `mcp__globular__package_build` tool (or `globular pkg build`):
 
 ```
 mcp__globular__package_build(
-  spec   = "/var/lib/globular/packages/out/<service>-build/<service>_service.yaml",
-  root   = "/var/lib/globular/packages/out/<service>-build",
-  version = "<new-version>",
-  publisher = "core@globular.io",
-  out    = "/var/lib/globular/packages/out"
+  spec         = "/var/lib/globular/packages/out/<service>-build/<service>_service.yaml",
+  root         = "/var/lib/globular/packages/out/<service>-build",
+  version      = "<current-version>",   # SAME version the service already runs — do NOT bump
+  build_number = <current-build + 1>,   # THIS is what you increment (1.2.269+b1 → +b2)
+  publisher    = "core@globular.io",
+  out          = "/var/lib/globular/packages/out"
 )
 ```
+
+The version stays fixed; the build number advances. If publish returns `AlreadyExists`, bump the build number again — never `--force` (a forced re-publish of the same version+build mints a new `build_id` for identical bytes and causes build_id drift across the 4 layers).
 
 The spec YAML can be extracted from the currently installed package:
 
@@ -141,10 +175,12 @@ Update Layer 2 (Desired) via:
 
 ```
 mcp__globular__globular_cli_execute(
-  command = "globular services desired set <service> <new-version>",
+  command = "globular services desired set <service> <current-version> --build-number <new-build>",
   approved = true
 )
 ```
+
+Note the **same `<current-version>`** and the `--build-number` pointing at the build you just published. `services desired set` accepts `--build-number` precisely so you can move desired state to a new build of the same version. (`--build-number 0` = latest.) Do not raise the version here.
 
 Then trigger the reconciler:
 
@@ -224,9 +260,9 @@ Then publish the extracted binary as a new version using the 5-step flow above. 
 
 | Step | Tool | What it satisfies |
 |---|---|---|
-| Build binary | `go build -ldflags "-X main.Version=<v>" -trimpath` | Correct checksum |
-| Build artifact | `mcp__globular__package_build` | Immutable `.tgz` with manifest |
+| Build binary | `go build -trimpath -ldflags "-X main.Version=<current-v> -s -w"` | Correct checksum, stripped |
+| Build artifact | `mcp__globular__package_build(version=<current-v>, build_number=<n+1>)` | Immutable `.tgz`; **build bumped, version fixed** |
 | Publish | `mcp__globular__package_publish` | Layer 1 — Repository |
-| Set desired | `globular services desired set <svc> <v>` | Layer 2 — Desired |
+| Set desired | `globular services desired set <svc> <current-v> --build-number <n+1>` | Layer 2 — Desired |
 | Reconcile | `globular services repair` | Layer 3 + 4 — Installed + Runtime |
 | Verify | `mcp__globular__cluster_get_doctor_report` | All 4 layers agree |

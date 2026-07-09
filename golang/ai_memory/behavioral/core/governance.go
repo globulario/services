@@ -40,6 +40,13 @@ func (s *Service) ProposePrinciple(ctx context.Context, req *api.ProposePrincipl
 	if p.Status != api.StatusUnspecified && p.Status != api.StatusProposedPrinciple {
 		return nil, fmt.Errorf("ProposePrinciple may only create PROPOSED_PRINCIPLE, got %q", p.Status)
 	}
+	// P5: reject malformed catalog references at write time — a comma inside
+	// prose gets split into mangled refs upstream ("incident(foo", " bar)") and
+	// would otherwise silently poison the graph. Purely SYNTACTIC (the kernel
+	// still never interprets a ref's meaning). All offenders are reported at once.
+	if err := validateProposalRefs(&p); err != nil {
+		return nil, err
+	}
 	if p.ID == "" {
 		p.ID = newID()
 	}
@@ -59,6 +66,41 @@ func (s *Service) ProposePrinciple(ctx context.Context, req *api.ProposePrincipl
 		return nil, fmt.Errorf("propose principle: %w", err)
 	}
 	return &api.ProposePrincipleResponse{PrincipleID: p.ID, Status: p.Status}, nil
+}
+
+// validateProposalRefs checks every catalog-reference field of a proposed
+// principle for syntactic well-formedness and returns a single
+// INVALID_REFERENCE_FORMAT error listing ALL offenders (the complete-contract
+// principle: never make the caller discover problems one rejection at a time).
+// Free-text lineage fields (SourceRefs, GeneratedFrom) are intentionally NOT
+// checked — they are provenance prose, not canonical catalog ids.
+func validateProposalRefs(p *api.Principle) error {
+	var offenders []api.FieldOffense
+	add := func(field, v string) {
+		if !api.IsWellFormedRef(v) {
+			offenders = append(offenders, api.FieldOffense{
+				Field:          field,
+				OffendingValue: v,
+				Reason:         api.RefFormatReason(v),
+			})
+		}
+	}
+	for _, r := range p.AppliesWhen {
+		add("applies_when", string(r))
+	}
+	for _, r := range p.Authorities {
+		add("authorities", string(r))
+	}
+	for _, r := range p.RequiredEvidence {
+		add("required_evidence", string(r))
+	}
+	for _, r := range p.ForbiddenMoves {
+		add("forbidden_moves", string(r))
+	}
+	if len(offenders) > 0 {
+		return api.NewInvalidReferenceFormatError(offenders)
+	}
+	return nil
 }
 
 // gateResult is the outcome of evaluating the promotion gate.
@@ -228,6 +270,18 @@ func (s *Service) PromotePrinciple(ctx context.Context, req *api.PromotePrincipl
 	if g.decision == api.PromotionAllowed && len(g.reasons) == 0 {
 		rec.Verdict = "all gate checks passed"
 	}
+	// P3 (governance legibility): a blocked/review-required decision carries the
+	// COMPLETE satisfaction recipe — every unsatisfied requirement plus the exact
+	// next operations to fix it — so an agent never discovers the contract one
+	// rejection at a time. The gate itself is unchanged; only its explanation grows.
+	if g.decision != api.PromotionAllowed {
+		steps := make([]api.SatisfactionStep, 0, len(g.reasons))
+		for _, r := range g.reasons {
+			steps = append(steps, satisfactionStep(r, p))
+		}
+		rec.SatisfactionSteps = steps
+		rec.SatisfactionSummary = satisfactionSummary(steps)
+	}
 	// Every attempt is memory — record before mutating the principle.
 	if err := s.store.RecordPromotionDecision(ctx, &rec); err != nil {
 		return nil, fmt.Errorf("promote principle: record decision: %w", err)
@@ -254,6 +308,141 @@ func (s *Service) PromotePrinciple(ctx context.Context, req *api.PromotePrincipl
 	}
 
 	return &api.PromotePrincipleResponse{Decision: g.decision, Status: p.Status, Record: rec}, nil
+}
+
+// satisfactionSummary renders a one-line summary of the requirements still to
+// satisfy, e.g. "2 requirement(s) to satisfy: mapped_authority, observable_evidence".
+func satisfactionSummary(steps []api.SatisfactionStep) string {
+	if len(steps) == 0 {
+		return ""
+	}
+	reqs := make([]string, 0, len(steps))
+	for _, s := range steps {
+		reqs = append(reqs, s.Requirement)
+	}
+	return fmt.Sprintf("%d requirement(s) to satisfy: %s", len(steps), strings.Join(reqs, ", "))
+}
+
+// satisfactionStep translates a single promotion-gate block reason into a
+// complete, actionable step: which requirement failed and the exact operations
+// that satisfy it. The reason strings MUST match those emitted by evaluateGate
+// (kept adjacent so they stay in sync). An unknown reason degrades to a generic
+// step that still surfaces the blocker rather than hiding it.
+func satisfactionStep(reason string, p *api.Principle) api.SatisfactionStep {
+	proj, dom, id := p.Project, string(p.Domain), p.ID
+	switch reason {
+	case "no evidence":
+		return api.SatisfactionStep{
+			Requirement:  "observable_evidence",
+			Detail:       "no evidence rows target this principle; required_evidence must be satisfied by real, observable evidence",
+			HowToSatisfy: "record at least one evidence row satisfying the principle's required_evidence refs",
+			NextOperations: []string{
+				fmt.Sprintf("behavioral_record_evidence(project='%s', domain='%s', target_kind='principle', target_id='%s', satisfies='<required_evidence ref>', ...)", proj, dom, id),
+			},
+		}
+	case "no provenance":
+		return api.SatisfactionStep{
+			Requirement:    "provenance",
+			Detail:         "the principle has no proposing actor / provenance agent",
+			HowToSatisfy:   "re-propose with provenance (actor / agent id) set",
+			NextOperations: []string{"behavioral_propose_principle(..., actor='<agent id>')"},
+		}
+	case "no authority mapped":
+		return api.SatisfactionStep{
+			Requirement:  "mapped_authority",
+			Detail:       "no governing authority is declared for this principle",
+			HowToSatisfy: "discover a resolvable authority ref, then attach it to this PROPOSED principle",
+			NextOperations: []string{
+				fmt.Sprintf("behavioral_list_authorities(project='%s', domain='%s')", proj, dom),
+				fmt.Sprintf("behavioral_amend_proposal(project='%s', domain='%s', id='%s', actor='<agent id>', add_authority_refs='<authority ref>')", proj, dom, id),
+			},
+		}
+	case "unresolved authority":
+		return api.SatisfactionStep{
+			Requirement:  "resolvable_authority",
+			Detail:       "one or more declared authority refs do not resolve in this domain's catalog",
+			HowToSatisfy: "find the canonical refs and swap them in on this PROPOSED principle",
+			NextOperations: []string{
+				fmt.Sprintf("behavioral_list_authorities(project='%s', domain='%s')", proj, dom),
+				fmt.Sprintf("behavioral_amend_proposal(project='%s', domain='%s', id='%s', actor='<agent id>', add_authority_refs='<canonical ref>', remove_authority_refs='<bad ref>')", proj, dom, id),
+			},
+		}
+	case "no conditions":
+		return api.SatisfactionStep{
+			Requirement:  "observable_condition",
+			Detail:       "the principle has no applies_when condition; it must scope to at least one observable condition",
+			HowToSatisfy: "discover or register a condition, then attach it to this PROPOSED principle",
+			NextOperations: []string{
+				fmt.Sprintf("behavioral_list_conditions(project='%s', domain='%s')", proj, dom),
+				fmt.Sprintf("behavioral_amend_proposal(project='%s', domain='%s', id='%s', actor='<agent id>', add_condition_refs='<condition ref>')", proj, dom, id),
+			},
+		}
+	case "unresolved conditions":
+		return api.SatisfactionStep{
+			Requirement:  "resolvable_condition",
+			Detail:       "one or more applies_when condition refs do not resolve in this domain's catalog",
+			HowToSatisfy: "register the missing condition, or swap in canonical condition refs on this PROPOSED principle",
+			NextOperations: []string{
+				fmt.Sprintf("behavioral_list_conditions(project='%s', domain='%s')", proj, dom),
+				fmt.Sprintf("behavioral_register_condition(project='%s', domain='%s', id='<condition ref>', title='...', detect_spec='...')", proj, dom),
+				fmt.Sprintf("behavioral_amend_proposal(project='%s', domain='%s', id='%s', actor='<agent id>', add_condition_refs='<condition ref>')", proj, dom, id),
+			},
+		}
+	case "contradiction check not performed":
+		return api.SatisfactionStep{
+			Requirement:  "contradiction_check",
+			Detail:       "a contradiction check has not been run since this principle was (re)proposed",
+			HowToSatisfy: "run the contradiction check before promoting",
+			NextOperations: []string{
+				fmt.Sprintf("behavioral_run_contradiction_check(project='%s', domain='%s', principle_id='%s', actor='<agent id>')", proj, dom, id),
+			},
+		}
+	case "open contradiction blocks principle":
+		return api.SatisfactionStep{
+			Requirement:  "no_open_contradiction",
+			Detail:       "an unresolved contradiction with existing law blocks this principle",
+			HowToSatisfy: "resolve or supersede the conflicting principle(s), then re-run the contradiction check",
+			NextOperations: []string{
+				fmt.Sprintf("behavioral_run_contradiction_check(project='%s', domain='%s', principle_id='%s', actor='<agent id>')", proj, dom, id),
+			},
+		}
+	case "no revocation rule":
+		return api.SatisfactionStep{
+			Requirement:    "revocation_rule",
+			Detail:         "no revocation rule (when this principle should be narrowed/revoked) is set",
+			HowToSatisfy:   "re-propose with a revocation_rule describing when the principle should be revoked",
+			NextOperations: []string{"behavioral_propose_principle(..., revocation_rule='<when to revoke>')"},
+		}
+	case "no promotion reason":
+		return api.SatisfactionStep{
+			Requirement:    "promotion_reason",
+			Detail:         "no promotion reason is set",
+			HowToSatisfy:   "re-propose with a promotion_reason",
+			NextOperations: []string{"behavioral_propose_principle(..., promotion_reason='<why promote now>')"},
+		}
+	case "risk level not classified":
+		return api.SatisfactionStep{
+			Requirement:    "risk_level",
+			Detail:         "risk_level is not one of info|low|high|irreversible",
+			HowToSatisfy:   "re-propose with a valid risk_level",
+			NextOperations: []string{"behavioral_propose_principle(..., risk_level='info|low|high|irreversible')"},
+		}
+	case "high-risk principle requires explicit human approval":
+		return api.SatisfactionStep{
+			Requirement:  "human_approval",
+			Detail:       "high/irreversible-risk principles require an explicit human approver",
+			HowToSatisfy: "re-run promotion with approved_by set to a human approver",
+			NextOperations: []string{
+				fmt.Sprintf("behavioral_promote_principle(project='%s', domain='%s', principle_id='%s', actor='<agent id>', reason='...', approved_by='<human>')", proj, dom, id),
+			},
+		}
+	default:
+		return api.SatisfactionStep{
+			Requirement:  "unsatisfied",
+			Detail:       reason,
+			HowToSatisfy: "address the stated blocker",
+		}
+	}
 }
 
 func actionToStatus(action string) (api.GovernanceStatus, error) {

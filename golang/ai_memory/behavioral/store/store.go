@@ -59,6 +59,9 @@ type Store interface {
 	// ResolveAuthorityRefs returns the subset of refs that do NOT resolve to an
 	// authority row (used by the promotion gate).
 	ResolveAuthorityRefs(ctx context.Context, project, domain string, refs []string) (unresolved []string, err error)
+	// ListAuthorities returns the authority catalog rows for a project/domain
+	// (single-partition scan; no ALLOW FILTERING). limit<=0 means unbounded.
+	ListAuthorities(ctx context.Context, project, domain string, limit int32) ([]api.Authority, error)
 
 	// Conditions (catalog table; written by the domain pack in a later PR — the
 	// store methods exist now so the schema is exercised).
@@ -67,6 +70,9 @@ type Store interface {
 	// ResolveConditionRefs returns the subset of refs that do NOT resolve to a
 	// condition row (used by the promotion gate).
 	ResolveConditionRefs(ctx context.Context, project, domain string, refs []string) (unresolved []string, err error)
+	// ListConditions returns the condition catalog rows for a project/domain
+	// (single-partition scan; no ALLOW FILTERING). limit<=0 means unbounded.
+	ListConditions(ctx context.Context, project, domain string, limit int32) ([]api.Condition, error)
 
 	// Contradictions. PutContradiction also maintains contradictions_by_target.
 	PutContradiction(ctx context.Context, c *api.Contradiction) error
@@ -167,6 +173,12 @@ func (Unconfigured) GetCondition(context.Context, string, string, string) (*api.
 	return nil, ErrUnconfigured
 }
 func (Unconfigured) ResolveConditionRefs(context.Context, string, string, []string) ([]string, error) {
+	return nil, ErrUnconfigured
+}
+func (Unconfigured) ListAuthorities(context.Context, string, string, int32) ([]api.Authority, error) {
+	return nil, ErrUnconfigured
+}
+func (Unconfigured) ListConditions(context.Context, string, string, int32) ([]api.Condition, error) {
 	return nil, ErrUnconfigured
 }
 func (Unconfigured) PutContradiction(context.Context, *api.Contradiction) error {

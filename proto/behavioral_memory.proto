@@ -245,6 +245,105 @@ service BehavioralMemoryService {
             default_role_hint: "viewer"
         };
     };
+
+    // ── P4/P6 governance legibility (discovery + amend) ──────────────────────
+
+    // ListAuthorities returns the authority catalog for a domain so an agent can
+    // discover resolvable authority refs through the API instead of grepping seed
+    // files. Read-only.
+    rpc ListAuthorities(ListAuthoritiesRequest) returns (ListAuthoritiesResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            collection_template: "/ai/behavioral/authorities"
+            default_role_hint: "viewer"
+        };
+    };
+
+    // ListConditions returns the condition catalog for a domain. Read-only.
+    rpc ListConditions(ListConditionsRequest) returns (ListConditionsResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            collection_template: "/ai/behavioral/conditions"
+            default_role_hint: "viewer"
+        };
+    };
+
+    // ResolveRef reports whether a single canonical ref resolves in this domain
+    // and to what kind (authority/condition). Read-only.
+    rpc ResolveRef(ResolveRefRequest) returns (ResolveRefResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.read"
+            permission: "read"
+            collection_template: "/ai/behavioral/refs"
+            default_role_hint: "viewer"
+        };
+    };
+
+    // AmendProposal edits a PROPOSED principle in place (add/remove refs, set
+    // scalar gate inputs) instead of forcing re-propose + supersede. Only
+    // PROPOSED principles may be amended; a content change invalidates any prior
+    // contradiction check. Amended refs are re-validated (same rules as propose).
+    rpc AmendProposal(AmendProposalRequest) returns (AmendProposalResponse) {
+        option (globular.auth.authz) = {
+            action: "ai.behavioral.write"
+            permission: "write"
+            collection_template: "/ai/behavioral/principles"
+            default_role_hint: "operator"
+        };
+    };
+}
+
+// ── P4/P6 governance-legibility messages (discovery + amend) ─────────────────
+
+message ListAuthoritiesRequest {
+    string project = 1;
+    string domain  = 2;
+    int32  limit   = 3; // 0 = server default
+}
+message ListAuthoritiesResponse { repeated Authority authorities = 1; }
+
+message ListConditionsRequest {
+    string project = 1;
+    string domain  = 2;
+    int32  limit   = 3; // 0 = server default
+}
+message ListConditionsResponse { repeated Condition conditions = 1; }
+
+message ResolveRefRequest {
+    string project = 1;
+    string domain  = 2;
+    string ref     = 3; // canonical id to resolve
+}
+message ResolveRefResponse {
+    bool      resolved  = 1;
+    string    kind      = 2; // "authority" | "condition" | ""
+    Authority authority = 3; // set when kind == "authority"
+    Condition condition = 4; // set when kind == "condition"
+}
+
+message AmendProposalRequest {
+    string          project               = 1;
+    string          domain                = 2;
+    string          id                    = 3; // PROPOSED principle id
+    string          actor                 = 4;
+    repeated string add_authority_refs    = 5;
+    repeated string remove_authority_refs = 6;
+    repeated string add_condition_refs    = 7;
+    repeated string remove_condition_refs = 8;
+    repeated string add_evidence_refs     = 9;
+    repeated string remove_evidence_refs  = 10;
+    // Optional scalar gate inputs; empty string = leave unchanged.
+    string          risk_level            = 11;
+    string          revocation_rule       = 12;
+    string          promotion_reason      = 13;
+}
+message AmendProposalResponse {
+    string           principle_id        = 1;
+    GovernanceStatus status              = 2;
+    int32            version             = 3;
+    bool             contradiction_reset = 4; // a prior contradiction check was invalidated
 }
 
 // ── Enums (names/semantics aligned with awareness-graph) ─────────────────────
@@ -580,6 +679,18 @@ message ReconciliationReport {
     map<string, string> metadata                     = 21;
 }
 
+// SatisfactionStep is one requirement in the promotion contract and — when the
+// gate blocks — exactly how to satisfy it. Priority 3 (governance legibility):
+// a refusal must carry the COMPLETE recipe for becoming valid, so an agent never
+// discovers the contract one rejection at a time.
+message SatisfactionStep {
+    string          requirement     = 1; // machine key, e.g. "mapped_authority"
+    bool            satisfied       = 2;
+    string          detail          = 3; // why it matters / current state
+    string          how_to_satisfy  = 4; // human-readable instruction
+    repeated string next_operations = 5; // exact tool calls that make progress
+}
+
 // PromotionDecisionRecord is the audit record of a promotion gate evaluation.
 message PromotionDecisionRecord {
     string              id                   = 1;
@@ -603,6 +714,10 @@ message PromotionDecisionRecord {
     string              approved_by             = 18;
     string              promotion_reason        = 19;
     string              actor                   = 20; // who attempted the promotion
+    // Priority 3: the complete satisfaction recipe for a blocked/review-required
+    // decision — what is unsatisfied and the exact next operations to fix it.
+    repeated SatisfactionStep satisfaction_steps   = 21;
+    string                    satisfaction_summary = 22;
 }
 
 // RevocationRule expresses when/how a principle should be revoked or narrowed.

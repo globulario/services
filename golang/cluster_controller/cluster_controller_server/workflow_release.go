@@ -856,6 +856,38 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 	}
 	srv.unlock()
 
+	// Resolve the desired build_id ONCE for this package's convergence check.
+	//
+	// The release-pipeline actor callbacks (SelectInfraTargets / SelectPackageTargets
+	// in buildReleaseControllerConfig*) invoke selectReleaseTargets WITHOUT the
+	// resolved build_id, so the variadic is empty on that path. classifyPackageConvergence
+	// is called below with requireBuildID=true, so an empty desired build_id is (by
+	// contract) treated as "missing desired build identity" → RepairRequired on EVERY
+	// reconcile tick — even when installed_checksum already equals desired_hash and the
+	// installed package carries a build_id. That false drift re-dispatches
+	// release.apply.package each tick and restarts the service every pass. Observed live
+	// on day-0 (2026-07-06): globular-workflow restarted every ~2min, dropping :10220
+	// during each restart, so the controller's own workflow dispatches hit connection-
+	// refused and tripped the dispatch circuit breaker (workflow.dispatch_circuit_open
+	// CRITICAL + workflow.backend_pressure SUSTAINED).
+	//
+	// The sibling drift path (reconcileChooseWorkflow) already resolves this from the
+	// pinned, immutable release Status via lookupServiceReleaseBuildID; the entrypoint
+	// checksum is resolved the same self-lookup way below. Do the same here so the
+	// release-pipeline path gets the convergence target it needs. This PRESERVES the
+	// fail-closed requireBuildID contract — an explicitly-passed build_id still wins,
+	// and a genuinely unresolved Status still yields empty (no regression, same as today).
+	// See intent:desired.build_id_immutable_after_resolution.
+	wantBuildID := ""
+	if len(resolvedBuildID) > 0 {
+		wantBuildID = strings.TrimSpace(resolvedBuildID[0])
+	}
+	if wantBuildID == "" {
+		if rbid, _ := srv.lookupServiceReleaseBuildID(ctx, pkgName); strings.TrimSpace(rbid) != "" {
+			wantBuildID = strings.TrimSpace(rbid)
+		}
+	}
+
 	// Phase 2: check installed state via etcd WITHOUT holding srv.mu.
 	// Initialize to empty slice (not nil) so that len(selected_targets)==0
 	// evaluates correctly in the workflow engine's condition evaluator,
@@ -877,10 +909,8 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 				ec.installedKind, pkgName, ec.nodeID, err)
 			continue
 		}
-		wantBuildID := ""
-		if len(resolvedBuildID) > 0 {
-			wantBuildID = resolvedBuildID[0]
-		}
+		// wantBuildID is resolved once above (from the explicit variadic arg or,
+		// on the actor-callback path, the pinned release Status).
 		// Phase 38: look up the resolved entrypoint checksum so the
 		// convergence check can detect "buildId matches but the binary
 		// on disk is wrong" — the lying-installed_state pattern caught

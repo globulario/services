@@ -514,6 +514,27 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.reconciliation_reports_by_scope (
     PRIMARY KEY ((project, domain), id)
 ) WITH CLUSTERING ORDER BY (id ASC)`
 
+// P4 governance-legibility discovery indexes. authorities/conditions have a
+// composite ((project,domain,id)) partition key, so ListAuthorities/ListConditions
+// (a (project,domain) enumeration) would require ALLOW FILTERING. These
+// single-partition ((project,domain)) indexes hold the ids; the list reads ids
+// here, then fetches each row by full key. Same trick as *_by_scope above.
+const createAuthoritiesByScopeTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.authorities_by_scope (
+    project text,
+    domain  text,
+    id      text,
+    PRIMARY KEY ((project, domain), id)
+) WITH CLUSTERING ORDER BY (id ASC)`
+
+const createConditionsByScopeTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.conditions_by_scope (
+    project text,
+    domain  text,
+    id      text,
+    PRIMARY KEY ((project, domain), id)
+) WITH CLUSTERING ORDER BY (id ASC)`
+
 // behavioralSchemaStatements is the ordered list of table DDL (keyspace created
 // separately). All use IF NOT EXISTS and are safe to re-run.
 var behavioralSchemaStatements = []string{
@@ -542,6 +563,9 @@ var behavioralSchemaStatements = []string{
 	// of (project,domain)-prefix scans on a composite partition key (ALLOW FILTERING).
 	createPromotionCandidatesByScopeTableCQL,
 	createReconciliationReportsByScopeTableCQL,
+	// P4 discovery indexes for list_authorities / list_conditions.
+	createAuthoritiesByScopeTableCQL,
+	createConditionsByScopeTableCQL,
 	// PR-13 governance-coverage counters.
 	createGovernanceCoverageTableCQL,
 	// v8 backfill: PR-9 columns that shipped only in CREATE TABLE, so pre-PR-9
