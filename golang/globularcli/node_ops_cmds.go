@@ -290,7 +290,7 @@ func runNodeUninstall(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("connect to node agent %s: %w", rootCfg.nodeAddr, err)
 	}
-	defer cc.Close()
+	defer func() { _ = cc.Close() }()
 
 	client := node_agentpb.NewNodeAgentServiceClient(cc)
 	resp, err := client.RunWorkflow(ctxWithTimeout(), buildUninstallPackageWorkflow(nodeUninstallPkg, nodeUninstallKind))
@@ -328,7 +328,7 @@ func init() {
 
 	nodeUninstallCmd.Flags().StringVar(&nodeUninstallPkg, "package", "", "Package/service name to uninstall (required)")
 	nodeUninstallCmd.Flags().StringVar(&nodeUninstallKind, "kind", "SERVICE", "Package kind: SERVICE, INFRASTRUCTURE, COMMAND")
-	nodeUninstallCmd.MarkFlagRequired("package")
+	_ = nodeUninstallCmd.MarkFlagRequired("package")
 
 	nodeCmd.AddCommand(nodeLogsCmd)
 	nodeCmd.AddCommand(nodeSearchLogsCmd)
