@@ -467,6 +467,72 @@ func registerNodeAgentTools(s *server) {
 		}, nil
 	})
 
+	// ── nodeagent_uninstall_package ────────────────────────────────────────
+	// SCAR-5 (placement.orphan_removal_needs_a_lawful_node_scoped_path): a lawful,
+	// NODE-SCOPED operator entry to the node-agent's existing supervisor-mediated
+	// "uninstall-package" workflow (stop+disable via internal/supervisor, remove
+	// files, clear installed-state, sync). Retires a package from ONE node WITHOUT
+	// touching cluster desired-state — the correct lever for a placement orphan,
+	// unlike the cluster-wide `services desired remove`.
+	s.register(toolDef{
+		Name:        "nodeagent_uninstall_package",
+		Description: "Uninstall a package from ONE node (node-scoped): stops+disables the unit via the supervisor, removes files, and clears installed-state — without touching cluster desired-state. Use to retire a placement orphan (a package installed on a node whose profiles do not authorize it). Removing an authorized package is self-healing (the reconciler reinstalls it); use 'services desired remove' to retire a service cluster-wide instead. Requires admin permission.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"package_name": {Type: "string", Description: "Package/service name to uninstall (e.g. 'torrent', 'yt-dlp')"},
+				"kind":         {Type: "string", Description: "Package kind (default SERVICE)", Enum: []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"}},
+				"node_id":      {Type: "string", Description: "Optional: target a specific node by node ID. If omitted, targets the local node-agent."},
+			},
+			Required: []string{"package_name"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		pkgName := getStr(args, "package_name")
+		if pkgName == "" {
+			return nil, fmt.Errorf("package_name is required")
+		}
+		kind := strings.ToUpper(getStr(args, "kind"))
+		if kind == "" {
+			kind = "SERVICE"
+		}
+		nodeID := getStr(args, "node_id")
+
+		endpoint, err := s.resolveNodeAgentEndpoint(ctx, nodeID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve node agent: %w", err)
+		}
+		conn, err := s.clients.get(ctx, endpoint)
+		if err != nil {
+			return nil, err
+		}
+		client := node_agentpb.NewNodeAgentServiceClient(conn)
+
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 120*time.Second)
+		defer cancel()
+
+		// Invoke the EXISTING node-agent uninstall primitive; never mutate desired-state.
+		resp, err := client.RunWorkflow(callCtx, &node_agentpb.RunWorkflowRequest{
+			WorkflowName: "uninstall-package",
+			Inputs: map[string]string{
+				"package_name": pkgName,
+				"kind":         kind,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("RunWorkflow(uninstall-package): %w", err)
+		}
+		return map[string]interface{}{
+			"package_name":    pkgName,
+			"kind":            kind,
+			"status":          resp.GetStatus(),
+			"steps_succeeded": resp.GetStepsSucceeded(),
+			"steps_failed":    resp.GetStepsFailed(),
+			"steps_total":     resp.GetStepsTotal(),
+			"error":           resp.GetError(),
+			"duration_ms":     resp.GetDurationMs(),
+		}, nil
+	})
+
 	// ── nodeagent_get_service_logs ─────────────────────────────────────────
 	s.register(toolDef{
 		Name:        "nodeagent_get_service_logs",

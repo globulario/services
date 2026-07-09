@@ -4025,3 +4025,91 @@ forbidden_fixes:
     survivability as risk posture. Gate ONLY component-specific DESTRUCTIVE storage
     operations behind explicit safety checks and operator approval; that is data-safety
     gating, not a global quorum admission floor.
+- id: cluster.teardown.do_not_treat_probe_failure_as_empty_ring
+  summary: >-
+    Piping a failed/empty `nodetool status` (or any ring-membership probe) through
+    `|| echo 0` / `|| true -> 0` and feeding it into a branch that SKIPS the safe
+    teardown step (decommission) and proceeds to hard-stop Scylla. Also forbidden:
+    letting --force (suppress interactive prompts) imply the single-node / last-node
+    data-safety assertion. Unknown is not zero; interactivity is not data-safety.
+  related_invariants:
+  - cluster.teardown.membership_must_be_confirmed_before_destructive_stop
+  - meta.silence_is_not_valid_for_unexpected
+  safe_alternative: >-
+    count_scylla_up_nodes returns an UNKNOWN sentinel on an unreachable probe; the
+    caller fails closed (die with operator guidance) unless --last-node is explicitly
+    passed; a confirmed count of exactly 1 (probe succeeded, one live member) is the
+    only path that legitimately skips decommission. Corroborate with
+    controller/etcd/peer signals when available.
+- id: repository.roll_desired_forward_instead_of_repairing_index
+  summary: >-
+    Resolving a CAS-present / index-UNKNOWN divergence by rolling desired state forward
+    to a different build, by manually UPSERTing publish_state, or by minting a
+    build_id / publisher / checksum — instead of repairing the index row from the
+    on-disk blob + sidecar manifest through the repository owner. Also forbidden:
+    promoting a blob to PUBLISHED without verifying its sidecar manifest and checksum,
+    or auto-elevating REVOKED / QUARANTINED rows.
+  related_invariants:
+  - repository.cas_present_index_unknown_is_owner_repairable
+  - repository.published_requires_verified_manifest
+  - repository.repair_selects_existing_build
+  - meta.storage_is_not_semantic_authority
+  safe_alternative: >-
+    Run the owner RepairIndex operation (dry-run by default; explicit --commit to apply).
+    It reconstitutes the index row from the existing repository-owned evidence (blob
+    digest + sidecar manifest), verifies checksum before PUBLISHED, refuses on
+    missing/contradictory identity, and never touches desired state. Identity and
+    checksum come from the blob/manifest, never minted; the split is repaired at the
+    index layer, from the blob, or not at all.
+- id: reconcile.clear_drift_on_dispatch_ack_without_observation
+  summary: >-
+    Clearing a reconcile drift observation / marking a missing_package or version_drift
+    remediation terminal-SUCCEEDED based on the child workflow's reported status
+    (dispatch acknowledgement or a 0-target noop finalize) rather than a fresh read of
+    installed_state proving the package's build identity now matches desired on that node.
+    Also forbidden: treating len(selected_targets)==0 as unconditional convergence, and
+    silencing the re-detection loop by suppressing the missing_package emission instead of
+    installing or escalating.
+  related_invariants:
+  - reconcile.terminal_success_requires_observed_convergence
+  - convergence.no_infinite_retry
+  - meta.silence_is_not_valid_for_unexpected
+  safe_alternative: >-
+    After the child returns, re-read installed_state for (node_id, package_name). Clear the
+    observation and mark SUCCEEDED only on a match; on repeated no-progress success, escalate
+    to FAILED with reason=remediation_no_progress — never a silent SUCCEEDED loop. Distinguish
+    converged-skip from ineligible-skip so 0 targets on a genuinely-absent package is
+    DEFERRED/BLOCKED, not AVAILABLE.
+- id: controller.silence_drift_by_adding_profile_or_suppressing_rule
+  summary: >-
+    "Fixing" perpetual cluster.services.drift on a capability-restricted node by adding a
+    media-server/ai profile to the node just to make the all-profile desired hash match
+    (grants unintended placement authority and corrupts desired state), by suppressing the
+    cluster.services.drift rule globally or special-casing node IDs, or by loosening the
+    drift rule to ignore mismatches whenever applied is a subset of desired.
+  related_invariants:
+  - controller.desired_services_hash_must_be_profile_scoped
+  - doctor.layout_drift_must_reflect_real_risk
+  - meta.absence_scope_must_be_explicit
+  safe_alternative: >-
+    Scope the DESIRED hash to the node's authorized subset in filterVersionsForNode via the
+    existing placement law book (isOrphanedInstall / placementAllows) — catalog-unknown
+    services kept. Unauthorized-but-installed packages surface via
+    placement.installed_package_orphaned, never generic drift.
+- id: placement.remove_orphan_via_cluster_wide_desired_or_manual_rm
+  summary: >-
+    Removing a placement orphan from ONE node by (a) `globular services desired remove
+    <name>` — cluster-wide, which retires the service on every node including those that
+    legitimately host it — or (b) manual `systemctl stop/disable` + `rm` of the
+    binary/unit, which bypasses the supervisor and leaves installed-state stamped, or
+    (c) auto-removing orphans in the controller convergence loop (orphan removal is
+    deliberately operator-gated for data safety).
+  related_invariants:
+  - placement.orphan_removal_needs_a_lawful_node_scoped_path
+  - four_layer.layer_has_single_writing_actor
+  safe_alternative: >-
+    Use a node-scoped operator entry (MCP nodeagent_uninstall_package / CLI
+    `globular node uninstall-package --package <name> --node <ep>`) that invokes the node-agent's
+    supervisor-mediated "uninstall-package" workflow on that ONE node — clears
+    installed-state, never touches cluster desired-state. Removing an authorized package
+    this way is self-healing (reconcile reinstalls); removing an orphan retires it.

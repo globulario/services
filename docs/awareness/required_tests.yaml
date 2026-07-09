@@ -6301,3 +6301,72 @@ required_tests:
     - python3 scripts/validate-package-authority.py
     - make check-services
     - cd ../globular-installer && make check-specs
+- id: scripts/clean-node.bats:fail_closed_on_unknown_scylla_topology
+  title: clean-node fails closed on UNKNOWN Scylla topology; --last-node is the only destructive last-node path
+  protects:
+    invariants:
+    - cluster.teardown.membership_must_be_confirmed_before_destructive_stop
+    failure_modes:
+    - cluster.teardown.nodetool_unreachable_misread_as_single_node
+    files:
+    - scripts/clean-node.sh
+    - Globular/internal/gateway/handlers/cluster/clean-node.sh
+    - scripts/clean-node.bats
+  run:
+    commands:
+    - bats scripts/clean-node.bats
+- id: golang/repository/repository_server/repair_index_test.go:TestRepairIndex_ReconstructsFromCasEvidenceOnly
+  title: RepairIndex detects CAS-present/index-UNKNOWN, dry-run is side-effect-free, commit reconstitutes from blob/sidecar identity only, refuses on missing/contradictory evidence, never mutates desired
+  protects:
+    invariants:
+    - repository.cas_present_index_unknown_is_owner_repairable
+    - repository.published_requires_verified_manifest
+    failure_modes:
+    - repository.cas_index_split_blocks_install
+    files:
+    - golang/repository/repository_server/artifact_verify_rpc.go
+    - golang/repository/repository_server/artifact_state.go
+    - golang/repository/repository_server/repair_index_test.go
+  run:
+    commands:
+    - go test ./golang/repository/repository_server/ -run TestRepairIndex
+- id: golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go:TestReconcileMarkItemTerminal_RequiresObservedConvergence
+  title: reconcileMarkItemTerminal clears drift only on observed installed_state convergence; child SUCCEEDED without install does not clear and escalates to FAILED after N no-progress passes
+  protects:
+    invariants:
+    - reconcile.terminal_success_requires_observed_convergence
+    failure_modes:
+    - reconcile.noop_success_masks_undispatched_install
+    files:
+    - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+    - golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go
+  run:
+    commands:
+    - go test ./golang/cluster_controller/cluster_controller_server/ -run TestReconcileMarkItemTerminal
+- id: golang/cluster_controller/cluster_controller_server/component_resolve_test.go:TestFilterVersionsForNode_ExcludesUnauthorizedServices
+  title: filterVersionsForNode excludes catalog-unauthorized services for the node's profiles (media/title dropped on a non-media-server node), keeps authorized and catalog-unknown services
+  protects:
+    invariants:
+    - controller.desired_services_hash_must_be_profile_scoped
+    failure_modes:
+    - doctor.perpetual_drift_from_cluster_wide_desired_hash
+    files:
+    - golang/cluster_controller/cluster_controller_server/server.go
+    - golang/cluster_controller/cluster_controller_server/component_resolve_test.go
+  run:
+    commands:
+    - go test ./golang/cluster_controller/cluster_controller_server/ -run TestFilterVersionsForNode
+- id: golang/globularcli/node_ops_cmds_test.go:TestBuildUninstallPackageWorkflow_NodeScoped
+  title: the node-scoped uninstall operator entry builds a RunWorkflow("uninstall-package") request carrying only {package_name, kind} — never a cluster-desired mutation
+  protects:
+    invariants:
+    - placement.orphan_removal_needs_a_lawful_node_scoped_path
+    failure_modes:
+    - placement.orphan_has_no_lawful_node_local_removal_path
+    files:
+    - golang/mcp/tools_nodeagent.go
+    - golang/globularcli/node_ops_cmds.go
+    - golang/globularcli/node_ops_cmds_test.go
+  run:
+    commands:
+    - go test ./golang/globularcli/ -run TestBuildUninstallPackageWorkflow

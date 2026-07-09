@@ -67,9 +67,21 @@ const (
 
 const heartbeatStaleThreshold = 5 * time.Minute
 
-// filterVersionsForNode returns all desired services with canonical names.
-// It includes services whose unit does not yet exist on the node so that
-// desired-hash computation and health counts reflect the full desired state.
+// filterVersionsForNode returns the desired services AUTHORIZED for this node's
+// profiles, with canonical names. It includes authorized services whose unit does
+// not yet exist on the node (so desired-hash computation and health counts reflect
+// the full authorized desired state), but EXCLUDES services the catalog forbids on
+// this node's profiles.
+//
+// SCAR-4 (controller.desired_services_hash_must_be_profile_scoped): the per-node
+// desired hash is compared for equality against the node-scoped applied hash
+// (node-agent computeAppliedServicesHash, over the installed set). Copying the whole
+// cluster-wide desired map here made a capability-restricted node (e.g. no
+// media-server / no ai) perpetually and unresolvably "drifted" for services it can
+// never host. isOrphanedInstall is the single shared placement predicate; a
+// catalog-UNKNOWN service returns false (kept) — "unknown to the catalog" is not
+// "unauthorized". Unauthorized-but-installed packages surface via the distinct
+// placement.installed_package_orphaned finding, never as generic hash drift.
 func filterVersionsForNode(desired map[string]string, node *nodeState) map[string]string {
 	out := make(map[string]string)
 	if len(desired) == 0 || node == nil {
@@ -77,6 +89,9 @@ func filterVersionsForNode(desired map[string]string, node *nodeState) map[strin
 	}
 	for svc, ver := range desired {
 		norm := canonicalServiceName(svc)
+		if isOrphanedInstall(norm, node.Profiles) {
+			continue // catalog forbids this component on the node's profiles
+		}
 		out[norm] = ver
 	}
 	return out
@@ -254,6 +269,20 @@ type server struct {
 
 	// workflow trace recorder (fire-and-forget, nil-safe if unavailable)
 	workflowRec *workflow.Recorder
+
+	// SCAR-2 (reconcile.terminal_success_requires_observed_convergence): test
+	// seams — nil in production (each falls back to the real impl). They exist
+	// because installed_state is package-global (config.GetEtcdClient) and
+	// workflowRec is a concrete type, so the observation-gated reconcile path is
+	// otherwise not unit-testable.
+	observeInstalledPkg func(ctx context.Context, nodeID, name string) (*node_agentpb.InstalledPackage, error)
+	clearDriftObsFn     func(ctx context.Context, driftType, entityRef string)
+	emitEventFn         func(name string, payload map[string]interface{})
+	// reconcileNoProgress counts consecutive child-SUCCEEDED remediations that did
+	// NOT produce observed installed_state convergence, keyed by driftType|entityRef;
+	// escalates to FAILED past reconcileNoProgressThreshold (no silent retry loop).
+	reconcileNoProgMu   sync.Mutex
+	reconcileNoProgress map[string]int
 
 	// workflowClient is used to delegate workflow execution to the
 	// centralized WorkflowService. Lazily connected via the same

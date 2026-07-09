@@ -1078,3 +1078,41 @@ func contains(slice []string, s string) bool {
 	}
 	return false
 }
+
+// TestFilterVersionsForNode_ExcludesUnauthorizedServices locks SCAR-4
+// (controller.desired_services_hash_must_be_profile_scoped): the per-node desired
+// hash set must be scoped to what the node's profiles AUTHORIZE (via the shared
+// placement law book), so it is comparable to the node-scoped applied hash. A
+// service the catalog forbids on the node's profiles must be excluded; authorized
+// services and catalog-UNKNOWN services must be kept.
+func TestFilterVersionsForNode_ExcludesUnauthorizedServices(t *testing.T) {
+	// Node with no media-server / compute / ai profile (globule-nuc's shape).
+	node := &nodeState{Profiles: []string{"control-plane", "core", "gateway", "storage"}}
+	desired := map[string]string{
+		"rbac":               "1.2.272", // catalog [core,compute] -> authorized via core -> kept
+		"media":              "1.2.272", // catalog [media-server] -> unauthorized here -> excluded
+		"title":              "1.2.272", // catalog [media-server] -> excluded
+		"torrent":            "1.2.272", // catalog [media-server] -> excluded
+		"zzz-unknown-widget": "9.9.9",   // no catalog entry -> unknown != unauthorized -> kept
+	}
+	got := filterVersionsForNode(desired, node)
+
+	for _, kept := range []string{"rbac", "zzz-unknown-widget"} {
+		if _, ok := got[canonicalServiceName(kept)]; !ok {
+			t.Errorf("authorized/unknown service %q must be kept in the per-node desired set; got %v", kept, got)
+		}
+	}
+	for _, dropped := range []string{"media", "title", "torrent"} {
+		if _, ok := got[canonicalServiceName(dropped)]; ok {
+			t.Errorf("media-server-only service %q must be excluded on a non-media-server node; got %v", dropped, got)
+		}
+	}
+
+	// The SAME services ARE authorized (kept) on a node that carries media-server —
+	// the exclusion is profile-driven, not a blanket drop.
+	mediaNode := &nodeState{Profiles: []string{"control-plane", "core", "media-server", "storage"}}
+	got2 := filterVersionsForNode(map[string]string{"media": "1", "rbac": "1"}, mediaNode)
+	if _, ok := got2[canonicalServiceName("media")]; !ok {
+		t.Errorf("media must be kept on a media-server node; got %v", got2)
+	}
+}
