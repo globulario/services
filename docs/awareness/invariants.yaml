@@ -1153,54 +1153,64 @@ invariants:
   title: Desired state must never be deleted based on installed-state observations
   required_tests:
   - golang/cluster_controller/cluster_controller_server/service_projection_test.go::TestComputeServiceProjection_DesiredNotInstalled
-- description: 'The founding 3 nodes must always carry core, control-plane, and storage profiles. This ensures etcd, ScyllaDB,
-    and MinIO each have their minimum quorum. The cluster will not converge without it.
+- description: 'Quorum is an observed quality/capacity posture of the current distributed system size, not a hidden admission
+    floor. A one-node cluster has one-node survivability, two nodes have two-node survivability, and larger clusters can
+    provide better fault tolerance. The controller must not manufacture quorum by rewriting placement intent.
 
     '
+  enforcement: "- Join RPC validates controller-signed placement intent without adding hidden quorum profiles.\n- SetNodeProfiles\
+    \ validates profile names and persistence without enforcing a global storage-count floor.\n- Day-1 readiness reports\
+    \ observed capacity; it does not block unrelated rollout only because fewer than a preferred number of storage nodes\
+    \ are present.\n"
   forbidden_fixes:
-  - weakening enforceFoundingProfiles to allow fewer than 3 storage nodes
-  - allowing the first 3 nodes to skip any of core/control-plane/storage
-  - making the quorum threshold configurable below 3
-  id: cluster.founding_profiles_quorum_immutable
+  - auto_promote_profiles_to_satisfy_quorum_floor
+  - block_join_or_rollout_on_global_storage_count_floor
+  id: meta.quorum_is_quality_not_constraint
   protects:
     files:
     - golang/cluster_controller/cluster_controller_server/profiles_normalize.go
     - golang/cluster_controller/cluster_controller_server/handlers_node.go
-  rationale: 'Discovered via // INVARIANT comment in profiles_normalize.go and enforced in handlers_node.go enforceFoundingProfiles().
-    If the founding constraint is relaxed, MinIO erasure coding collapses, ScyllaDB loses Raft quorum, and workflows cannot
-    persist state — a full cluster failure.
+    - golang/cluster_controller/cluster_controller_server/topology_safety.go
+    - golang/cluster_controller/cluster_controller_server/server.go
+    state:
+    - /globular/nodes/<id> with profiles list
+    - /globular/cluster_controller/state.Nodes profiles per node
+    symbols:
+    - SetNodeProfiles
+  rationale: 'Promoted from operational intent after removing the artificial quorum/profile floor. Component-specific
+    destructive storage operations may still gate on their own safety contract, but observed quorum/capacity is report
+    data for bootstrap, join, rollout, and profile assignment.
 
     '
   related_invariants:
-  - meta.identity_computation_must_be_invariant
+  - profile.intent_is_controller_owned_placement_contract
   required_tests:
-  - TestEnforceFoundingProfiles_RequiresAllThreeProfiles
-  - TestSetNodeProfiles_CannotDropStorageBelow3
+  - TestJoinAuthorization_DefaultProfilesAreNotQuorumCoerced
+  - TestTopologyPreflightDoesNotEnforceStorageCountFloor
   severity: critical
   status: active
-  title: First 3 nodes must have core + control-plane + storage profiles for quorum
-- description: 'SetNodeProfiles must refuse to remove core, control-plane, or storage from a node when doing so would drop
-    the cluster below MinQuorumNodes storage members.
+  title: Quorum is capacity posture, not a controller admission floor
+- description: 'SetNodeProfiles preserves explicit controller-owned placement intent. It validates profile names and
+    persistence, but it must not add or refuse valid profiles solely to satisfy a global storage-count floor.
 
     '
   forbidden_fixes:
-  - bypassing MinQuorumNodes check for "administrative convenience"
-  - deferring the quorum check to after the profile is written
-  id: cluster.profile_removal_guards_storage_quorum
+  - reintroducing storage-count coercion in SetNodeProfiles
+  - treating profile assignment as runtime quorum repair
+  id: cluster.profile_changes_preserve_operator_placement_intent
   protects:
     files:
     - golang/cluster_controller/cluster_controller_server/handlers_node.go
-  rationale: 'Discovered via // INVARIANT comment in handlers_node.go:116. Removing storage from a node below quorum silently
-    degrades MinIO and ScyllaDB before any alert fires — the cluster appears healthy until a second node fails.
+  rationale: 'Profiles are placement intent. Runtime quorum/capacity is reported separately from profile assignment.
 
     '
   related_invariants:
-  - meta.state_mutations_must_be_durably_committed_before_side_effects
+  - meta.quorum_is_quality_not_constraint
   required_tests:
-  - TestSetNodeProfiles_CannotDropStorageBelow3
+  - TestTopologyPreflightDoesNotEnforceStorageCountFloor
   severity: critical
   status: active
-  title: Removing foundational profiles is blocked if it drops storage below MinQuorumNodes
+  title: Profile changes preserve operator placement intent without quorum coercion
 - enforcement: 'Cross-layer health verdicts (e.g. "this service is degraded because
 
     L3 says installed but L4 says inactive") originate in cluster-doctor''s
@@ -3840,50 +3850,6 @@ invariants:
 
     '
   title: Override audit must explicitly name the bypassed policy
-- enforcement: "- Join RPC rejects a new node whose proposed profiles, when added to the existing\n  cluster, would leave\
-    \ fewer than 3 nodes carrying core+control-plane+storage.\n- SetNodeProfiles applies the same check before persisting\
-    \ a profile change.\n- Day-1 phase classifier remains at `infra_installing` until 3 fully-profiled nodes\n  are present\
-    \ and verified.\n"
-  forbidden_fixes:
-  - allow_join_without_storage_profile_when_quorum_below_three
-  - bypass_founding_check_for_special_node_kinds
-  id: founding.quorum.three_nodes_required
-  protects:
-    files:
-    - golang/cluster_controller/cluster_controller_server/server.go
-    state:
-    - /globular/nodes/<id> with profiles list
-    - /globular/cluster_controller/state.Nodes profiles per node
-    symbols:
-    - enforceFoundingProfiles
-    - SetNodeProfiles
-  required_tests:
-  - TestJoinRefusedBelowFoundingQuorum
-  - TestSetNodeProfilesRefusesStorageRemovalBelowQuorum
-  severity: critical
-  status: active
-  summary: 'Globular''s three core stateful services (etcd, ScyllaDB, MinIO) all require a minimum
-
-    of 3 nodes to operate without single-point-of-failure. The first three nodes of any
-
-    cluster MUST therefore carry the `core`, `control-plane`, AND `storage` profiles.
-
-
-    Enforced at join in `enforceFoundingProfiles()` in cluster_controller and CANNOT be
-
-    bypassed. Also enforced on profile change: SetNodeProfiles refuses to remove `storage`
-
-    from a node if the cluster would drop below 3 storage-profile nodes.
-
-
-    Until founding quorum is met, the cluster is operating in degraded day-0 mode: etcd
-
-    single-node, no ScyllaDB quorum, MinIO standalone. Day-1 is not complete until all
-
-    three founding nodes are joined and verified.
-
-    '
-  title: First 3 nodes of any cluster MUST have profiles core+control-plane+storage to satisfy etcd / ScyllaDB / MinIO quorum
 - enforcement: 'The actor_layer_mapping is the binding table. Any code that writes
 
     to etcd outside the actor named in this table for its target prefix
@@ -4303,7 +4269,7 @@ invariants:
     file: cluster_controller/cluster_controller_server/drift_action_planner.go
     reason: 'Four sites (:149, :157, :163, :168) map package names to
 
-      topology-gate categories (storage_quorum, ingress_participant,
+      topology-gate categories (objectstore_topology_mismatch, ingress_participant,
 
       controller_placement). The gate categories are internal drift
 

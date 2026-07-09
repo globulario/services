@@ -32,7 +32,6 @@ https://globular.io/awareness#ForbiddenFix	allow_absolute_paths_when_under_local
 https://globular.io/awareness#ForbiddenFix	allow_delete_of_virtual_root
 https://globular.io/awareness#ForbiddenFix	allow_digest_change_on_republish
 https://globular.io/awareness#ForbiddenFix	allow_file_scheme_in_upload_url
-https://globular.io/awareness#ForbiddenFix	allow_join_without_storage_profile_when_quorum_below_three
 https://globular.io/awareness#ForbiddenFix	allow_mcp_to_write_awareness_yaml_files
 https://globular.io/awareness#ForbiddenFix	allow_metadata_ip_upload_target
 https://globular.io/awareness#ForbiddenFix	allow_node_agent_to_read_other_nodes_plans
@@ -80,7 +79,6 @@ https://globular.io/awareness#ForbiddenFix	bypass_cluster_public_directory_regis
 https://globular.io/awareness#ForbiddenFix	bypass_dep_block_dispatch_gate_to_unstall_a_specific_node
 https://globular.io/awareness#ForbiddenFix	bypass_file_service_for_files_under_a_safelist_of_paths
 https://globular.io/awareness#ForbiddenFix	bypass_filter_public_ips_in_a_specific_provider_for_testing
-https://globular.io/awareness#ForbiddenFix	bypass_founding_check_for_special_node_kinds
 https://globular.io/awareness#ForbiddenFix	bypass_repository_authority_with_runtime_observation
 https://globular.io/awareness#ForbiddenFix	bypass_safety_check_with_unconditional_force_true
 https://globular.io/awareness#ForbiddenFix	bypass_scope_gate_for_bootstrap_convenience
@@ -631,15 +629,16 @@ https://globular.io/awareness#Test	TestStatusRollup_UnknownSubsystem_NotGreen
 https://globular.io/awareness#Test	TestVIPHolder_DerivedFromRuntimeStatus_NotProfile
 https://globular.io/awareness#Test	TestVIPHolder_ReflectsActualMaster
 https://globular.io/awareness#Test	TestWorkflowDispatch_ReturnsAccepted_NotSuccess
+https://globular.io/awareness#Test	golang/deploy/specgen_unit_validator_test.go:TestGenerateSpec_ScyllaGateIsTopologyAware
 https://globular.io/awareness#Test	golang/mcp:TestMCPExecSurfacesAreExplicitlyAllowlisted
-https://globular.io/awareness#Test	golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_AllowsEqualTo2xPriorRelease
-https://globular.io/awareness#Test	golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_RejectsGreaterThan2xPriorRelease
-https://globular.io/awareness#Test	golang/repository/repository_server/release_artifact_shape_test.go::TestReleaseArtifactSizeEnvelope_SkipsWhenNoPriorReleaseSize
 https://globular.io/awareness#Test	golang/workflow/engine:TestParallelSteps
 https://globular.io/awareness#Test	golang/workflow/engine:TestReconcile_MixedDrift
+https://globular.io/awareness#Test	internal/gateway/handlers/cluster/join_bundle_test.go:TestJoinBundleHandler_NoPerRequestReassembly
+https://globular.io/awareness#Test	internal/gateway/handlers/cluster/join_bundle_test.go:TestJoinBundleHandler_ServedBytesMatchStoredArtifact
 https://globular.io/awareness#Test	make check-no-misplaced-pb
 https://globular.io/awareness#Test	make check-no-tracked-binaries
 https://globular.io/awareness#Test	make check-package-kinds
 https://globular.io/awareness#Test	make check-services
 https://globular.io/awareness#Test	python3 scripts/validate-package-authority.py
+https://globular.io/awareness#Test	scripts/check-identity-authority.sh
 https://globular.io/awareness#Test	scripts/validate-package-authority.py

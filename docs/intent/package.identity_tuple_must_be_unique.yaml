@@ -35,7 +35,7 @@ zooms_out_to:
 - state.repository_desired_installed_runtime
 zooms_in_to:
 - repository.build_number_collision_is_corruption
-- repository.desired_build_ids_resolve
+- repository.desired_build_id_must_resolve
 related_to:
 - installed_state.owned_by_node_agent
 - runtime.identity_requires_verification

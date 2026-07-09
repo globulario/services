@@ -1,0 +1,41 @@
+id: repository.minio_independence
+level: contract
+title: MinIO/mirror unavailability must never block a repository publish
+intent: |
+  Repository publish depends only on the local POSIX CAS (/var/lib/globular/packages/) and
+  the Scylla metadata index. MinIO is a best-effort durability MIRROR, not a publish
+  dependency. When the mirror is unconfigured or unreachable, promoteToPublished must still
+  declare PUBLISHED after local verification and log a deferred-durability warning — it must
+  NOT block or fail the publish. ensureMirrorDurability re-pushes locally-verified bytes when
+  the mirror is reachable but the blob is absent; the mirror-unreachable-at-publish window is
+  closed asynchronously by a local->mirror reconciler, never by coupling publish to mirror health.
+  This keeps publish availability independent of MinIO availability (HARD RULE 8: MinIO is
+  secondary user data only).
+agent_guidance: |
+  When a publish stalls or fails, do not assume the mirror is on the critical path. Blocking
+  PUBLISHED on a mirror write is a forbidden fix — the local CAS + Scylla metadata are the sole
+  publish authorities. Diagnose local blob presence (artifactBlobStatus) and metadata state
+  first; treat mirror absence as a deferred-durability warning, not a publish error.
+bad_smells:
+  - blocking or failing publish when the MinIO mirror is unconfigured or unreachable
+  - making promoteToPublished's completion gate read mirror state
+  - treating mirror write success as a precondition for PUBLISHED
+  - coupling publish availability to MinIO availability
+activation_triggers:
+  - promoteToPublished
+  - ensureMirrorDurability
+  - minio mirror
+  - deferred durability
+  - publish
+expressed_by:
+  - golang/repository/repository_server/publish_workflow.go
+zooms_out_to:
+  - repository.metadata_is_authority
+zooms_in_to: []
+related_invariants: []
+related_to:
+  - repository.local_cas_is_installability_authority
+  - repository.publish_pipeline_is_ordered
+required_tests:
+  - golang/repository/repository_server/minio_independence_test.go:TestPublish_MissingLocalBlobBlocksPromote
+status: active

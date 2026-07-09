@@ -1537,7 +1537,7 @@ forbidden_fixes:
     masks crashes in the day-1 finalize path.
   related_invariants:
     - meta.silence_is_not_valid_for_unexpected
-    - founding.quorum.three_nodes_required
+    - meta.quorum_is_quality_not_constraint
   safe_alternative: |
     Day-1 finalize atomically clears the flag as its LAST step. On controller
     startup, if day1_phase == ready AND flag present: log critical, refuse
@@ -1550,7 +1550,7 @@ forbidden_fixes:
     doesn't get re-created during slow joins. Trades a real-time security
     boundary for cosmetic convenience.
   related_invariants:
-    - founding.quorum.three_nodes_required
+    - meta.quorum_is_quality_not_constraint
   safe_alternative: |
     The TTL is intentionally tight — bootstrap mode authorises unauthenticated
     loopback RPCs and must close fast. Fix the slow path that recreates the
@@ -3999,3 +3999,29 @@ forbidden_fixes:
     Route desired writes through routeInfrastructureDesired; prune cross-kind records
     (pruneCrossKindServiceReleases / deleteCrossKindServiceRelease) with the component
     catalog as oracle; block stale converged persistence (isStaleResolvedGhost). One id → one kind.
+- id: auto_promote_profiles_to_satisfy_quorum_floor
+  summary: >-
+    Automatically assign or promote storage (or other) profiles onto the first-N nodes to
+    manufacture a preferred quorum size, turning an abstract preferred quorum into a hidden
+    admission action that mutates controller-owned placement intent without an explicit request.
+  related_invariants:
+  - meta.quorum_is_quality_not_constraint
+  - profile.intent_is_controller_owned_placement_contract
+  safe_alternative: >-
+    Treat profiles as controller-owned placement intent set only from explicit requests.
+    Report observed capacity and survivability posture as evidence; never coerce profiles
+    onto nodes to satisfy a global quorum floor. Destructive storage/topology changes still
+    gate on their component-specific safety contracts and operator approval.
+- id: block_join_or_rollout_on_global_storage_count_floor
+  summary: >-
+    Refuse node join, Day-1 workload rollout, profile assignment, or non-destructive
+    convergence solely because the observed storage-node count is below a preferred or
+    global floor — reusing a capacity/quorum report field as an enforcement predicate.
+  related_invariants:
+  - meta.quorum_is_quality_not_constraint
+  - quorum_safety_before_storage_mutation
+  safe_alternative: >-
+    Allow join, rollout, and profile assignment to proceed while reporting capacity and
+    survivability as risk posture. Gate ONLY component-specific DESTRUCTIVE storage
+    operations behind explicit safety checks and operator approval; that is data-safety
+    gating, not a global quorum admission floor.
