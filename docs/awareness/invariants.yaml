@@ -11424,3 +11424,33 @@ invariants:
   - placement.remove_orphan_via_cluster_wide_desired_or_manual_rm
   required_tests:
   - golang/globularcli/node_ops_cmds_test.go:TestBuildUninstallPackageWorkflow_NodeScoped
+- id: behavioral.promotion_must_survive_rebuild_or_be_flagged
+  severity: high
+  status: active
+  title: A promoted behavioral principle must survive a behavioral-store rebuild/reset, or boot/check tooling must flag any doc-claimed PROMOTED principle missing from the live store
+  summary: >
+    Behavioral-memory promotion is authority state. Once a principle is PROMOTED through the
+    governed surface (propose + record_evidence + RunContradictionCheck + PromotePrinciple gate),
+    the enforcement it provides (behavioral_check_action returning blocked/governed for its
+    forbidden_moves) is part of the cluster's LIVE governance and must not silently evaporate.
+    Promoted principles and their promotion_decisions are runtime-written rows that are NOT part
+    of the immutable behavioral seed (golang/ai_memory/behavioral seeds authorities + the
+    conditions catalog, never runtime promotions), so a behavioral-store rebuild/reset restores
+    the seeded catalog but DROPS every promotion — leaving check_action at ungoverned
+    default-allow while docs and operators still believe the rule is enforced (success-by-assertion,
+    the same class as awareness.empty_graph_silently_treated_as_no_awareness). REQUIRED: EITHER
+    (a) promotion state is persisted durably so it survives a store rebuild/reset (promotion_decisions
+    are reconstructable/retained, not seed-derived), OR (b) boot/check reconciliation is run as a
+    GATE — behavioral_generate_reconciliation_report already surfaces
+    AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE — that flags any runtime-relevant AWG failure
+    mode or doc-claimed PROMOTED principle with no matching live promoted principle, turning silent
+    evaporation into a loud, tracked finding. Corollary: a check_action that returns governed=false
+    is UNGOVERNED (absence of a rule), never a safety endorsement — code and docs must not read
+    allowed=true as "permitted by policy" when governed=false.
+  protects:
+    files:
+    - golang/ai_memory/behavioral
+    - docs/awareness/failure_modes.yaml
+    symbols:
+    - PromotePrinciple
+    - GenerateReconciliationReport

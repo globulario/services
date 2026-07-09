@@ -33,16 +33,44 @@ failure_modes:
         .claude/hooks/enforce-deploy-contract.sh (PreToolUse Bash) hard-denies writes
         INTO /usr/lib/globular/bin and manual systemctl lifecycle of globular-* units —
         making the runtime-op gate SYMMETRIC with the code-edit gate (enforce-briefing).
-        A governed behavioral principle is now the SECOND enforcement surface: principle
-        8a1cdef8-67e9-40ba-9208-78f45edd854e ("Service binaries change only through the
-        package deploy pipeline, never direct replacement") was PROMOTED 2026-06-23
-        through behavioral-memory's own governed surface (RegisterCondition x3 +
+        A governed behavioral principle was INTENDED as the SECOND enforcement surface:
+        principle 8a1cdef8-67e9-40ba-9208-78f45edd854e ("Service binaries change only
+        through the package deploy pipeline, never direct replacement") was PROMOTED
+        2026-06-23 through behavioral-memory's own governed surface (RegisterCondition x3 +
         RunContradictionCheck + PromotePrinciple with approved_by=dave; ai-memory 1.2.234,
-        PR #64) — no back-channel writes, no fixture bits. behavioral_check_action now
-        hard-blocks its 6 forbidden_moves (cp/mv/install_binary_into_usr_lib_globular_bin,
-        deploy_service_via_binary_copy, direct_binary_replacement_bypassing_pipeline,
-        manual_systemctl_restart_globular_unit) under the applies_when conditions, making
-        the policy kernel SYMMETRIC with both the runtime-op hook and the code-edit gate.
+        PR #64) — no back-channel writes, no fixture bits.
+
+        DRIFT CORRECTION 2026-07-09: the original behavioral promotion evaporated and was
+        RE-PROMOTED under a new id. Promoted principles and their promotion_decisions are
+        runtime-written state that is NOT part of the immutable behavioral seed; a
+        behavioral-store rebuild/reset restored the seeded authorities (incl.
+        authority.cluster.release_pipeline.deployed_identity) and seeded conditions but
+        dropped the promotion, and nothing re-promoted it — so between the reset and
+        2026-07-09 the behavioral kernel did NOT block this lane. Reproduced:
+        behavioral_explain_principle(8a1cdef8) => not found (cluster_operator and
+        programming); behavioral_check_action(cp_binary_into_usr_lib_globular_bin) =>
+        allowed=true, governed=false ("ungoverned default-allow", audit 6ba12377);
+        reconciliation report 7b0d34da => AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE.
+        The lane was never fully open: the runtime-op PreToolUse hook
+        (.claude/hooks/enforce-deploy-contract.sh) kept hard-denying writes into
+        /usr/lib/globular/bin and manual systemctl lifecycle of globular-* units throughout.
+        RESTORED 2026-07-09 via the governed surface only (propose + record_evidence
+        d46b2fcd + RunContradictionCheck + PromotePrinciple approved_by=dave, gate decision
+        4883b83e). The exact original UUID 8a1cdef8-67e9-40ba-9208-78f45edd854e was
+        UNRECOVERABLE (the store had lost the row), so the semantically-identical
+        replacement is principle 34db74ee-eb62-4e57-8d21-91d9eaaccf44, re-scoped to the
+        SEEDED durable condition condition.cluster.service.binary_update_intended (the
+        original ad-hoc conditions were also lost in the reset). Verified live:
+        behavioral_check_action(cp_binary_into_usr_lib_globular_bin |
+        manual_systemctl_restart_globular_unit,
+        conditions=[condition.cluster.service.binary_update_intended]) => allowed=false,
+        status=blocked, governed=true, violated_principles=[34db74ee] (audits dfd4908a,
+        569db853) — kernel symmetry with the runtime-op hook and the code-edit gate is
+        restored. RESIDUAL DURABILITY GAP: promotion is still not seed-durable, so a future
+        store reset could evaporate 34db74ee the same way; tracked as its own contract (a
+        promotion must survive store rebuild/reset, OR boot/check tooling must flag any
+        doc-claimed PROMOTED principle missing from the live store) and by ai-memory incident
+        aab023cb-7bc8-11f1-bcbf-001fc69cd334.
       no_test_yet_reason: |
         The guard is a Claude Code PreToolUse hook
         (.claude/hooks/enforce-deploy-contract.sh), not a Go regression test — a hook is
@@ -7254,3 +7282,56 @@ failure_modes:
         - cluster-doctor
       required_tests:
         - golang/globularcli/node_ops_cmds_test.go:TestBuildUninstallPackageWorkflow_NodeScoped
+    - id: behavioral.runtime_promotion_evaporates_on_store_reset
+      title: A governed behavioral promotion silently evaporated on a behavioral-store rebuild/reset, leaving a doc-claimed-enforcing rule at ungoverned default-allow
+      severity: high
+      root_cause: |
+        2026-07-09 finding (ai-memory incident aab023cb-7bc8-11f1-bcbf-001fc69cd334):
+        docs/awareness/failure_modes.yaml asserted principle
+        8a1cdef8-67e9-40ba-9208-78f45edd854e ("Service binaries change only through the
+        package deploy pipeline") was PROMOTED and that behavioral_check_action hard-blocks
+        its 6 forbidden_moves. The live behavioral store disagreed: explain_principle =>
+        not found, check_action(cp_binary_into_usr_lib_globular_bin) => allowed=true,
+        governed=false (audit 6ba12377), 0 promotion candidates. Root cause: promoted
+        principles + promotion_decisions are runtime-written rows that are NOT part of the
+        immutable behavioral seed; a behavioral-store (ScyllaDB) rebuild/reset restores the
+        seeded authorities + conditions catalog but drops every runtime promotion, and
+        nothing re-promotes or reconciles it. GOVERNANCE class: success-by-assertion —
+        the documentation asserted a live enforcement surface that the live surface did not
+        provide, silently degrading defense-in-depth from two surfaces to one with no signal.
+      symptoms:
+        - behavioral_check_action returns allowed=true, governed=false for an action a promoted principle should block
+        - behavioral_explain_principle => "not found" for a principle the corpus/docs describe as PROMOTED
+        - list_promotion_candidates / promoted-principle count is 0 while seeded authorities + conditions are intact
+        - behavioral_generate_reconciliation_report => AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE for a runtime-relevant AWG failure mode
+      forbidden_fixes:
+        - re-register the original ad-hoc conditions (they are also lost on reset) instead of scoping to a SEEDED durable condition
+        - hand-write the promotion back into the store outside the governed surface (propose + evidence + contradiction-check + gate)
+        - read behavioral_check_action allowed=true as "policy-permitted" when governed=false (ungoverned default-allow is absence of a rule, not endorsement)
+        - assert PROMOTED/enforcing state in docs/awareness without verifying explain_principle + check_action against the live store
+      resolution: |
+        Restored 2026-07-09 via the governed surface only (propose 34db74ee + record_evidence
+        d46b2fcd + RunContradictionCheck + PromotePrinciple approved_by=dave, gate 4883b83e),
+        re-scoped to the SEEDED durable condition condition.cluster.service.binary_update_intended;
+        verified check_action => blocked/governed (audits dfd4908a, 569db853). See the
+        deploy.binary_copy_bypasses_package_pipeline_and_splits_cluster resolution for the
+        full instance narrative. STRUCTURAL fix is the governing invariant
+        behavioral.promotion_must_survive_rebuild_or_be_flagged: EITHER persist promotion
+        state durably across a store rebuild/reset, OR run boot/check reconciliation
+        (behavioral_generate_reconciliation_report) as a GATE that flags any runtime-relevant
+        AWG failure mode / doc-claimed PROMOTED principle missing from the live store. Design +
+        proposed test: docs/design/behavioral-promotion-durability.md.
+      no_test_yet_reason: |
+        The durability guard is not yet mechanized: it is a behavioral-memory service
+        capability (persist-or-reconcile) plus a CI/boot GATE, not a services-local Go unit
+        test that exists today. behavioral_generate_reconciliation_report ALREADY detects the
+        condition (it returned AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE for this very
+        case), so the remaining work is to run it as a blocking check and/or make promotion
+        state survive a rebuild. The proposed enforcement and its test are specified in
+        docs/design/behavioral-promotion-durability.md and gated on operator approval before
+        implementation; this entry is PROPOSED, not yet mechanized.
+      related_invariants:
+        - behavioral.promotion_must_survive_rebuild_or_be_flagged
+      related_services:
+        - ai-memory
+        - awareness-graph
