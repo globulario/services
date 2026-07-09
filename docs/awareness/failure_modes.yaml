@@ -33,16 +33,44 @@ failure_modes:
         .claude/hooks/enforce-deploy-contract.sh (PreToolUse Bash) hard-denies writes
         INTO /usr/lib/globular/bin and manual systemctl lifecycle of globular-* units —
         making the runtime-op gate SYMMETRIC with the code-edit gate (enforce-briefing).
-        A governed behavioral principle is now the SECOND enforcement surface: principle
-        8a1cdef8-67e9-40ba-9208-78f45edd854e ("Service binaries change only through the
-        package deploy pipeline, never direct replacement") was PROMOTED 2026-06-23
-        through behavioral-memory's own governed surface (RegisterCondition x3 +
+        A governed behavioral principle was INTENDED as the SECOND enforcement surface:
+        principle 8a1cdef8-67e9-40ba-9208-78f45edd854e ("Service binaries change only
+        through the package deploy pipeline, never direct replacement") was PROMOTED
+        2026-06-23 through behavioral-memory's own governed surface (RegisterCondition x3 +
         RunContradictionCheck + PromotePrinciple with approved_by=dave; ai-memory 1.2.234,
-        PR #64) — no back-channel writes, no fixture bits. behavioral_check_action now
-        hard-blocks its 6 forbidden_moves (cp/mv/install_binary_into_usr_lib_globular_bin,
-        deploy_service_via_binary_copy, direct_binary_replacement_bypassing_pipeline,
-        manual_systemctl_restart_globular_unit) under the applies_when conditions, making
-        the policy kernel SYMMETRIC with both the runtime-op hook and the code-edit gate.
+        PR #64) — no back-channel writes, no fixture bits.
+
+        DRIFT CORRECTION 2026-07-09: the original behavioral promotion evaporated and was
+        RE-PROMOTED under a new id. Promoted principles and their promotion_decisions are
+        runtime-written state that is NOT part of the immutable behavioral seed; a
+        behavioral-store rebuild/reset restored the seeded authorities (incl.
+        authority.cluster.release_pipeline.deployed_identity) and seeded conditions but
+        dropped the promotion, and nothing re-promoted it — so between the reset and
+        2026-07-09 the behavioral kernel did NOT block this lane. Reproduced:
+        behavioral_explain_principle(8a1cdef8) => not found (cluster_operator and
+        programming); behavioral_check_action(cp_binary_into_usr_lib_globular_bin) =>
+        allowed=true, governed=false ("ungoverned default-allow", audit 6ba12377);
+        reconciliation report 7b0d34da => AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE.
+        The lane was never fully open: the runtime-op PreToolUse hook
+        (.claude/hooks/enforce-deploy-contract.sh) kept hard-denying writes into
+        /usr/lib/globular/bin and manual systemctl lifecycle of globular-* units throughout.
+        RESTORED 2026-07-09 via the governed surface only (propose + record_evidence
+        d46b2fcd + RunContradictionCheck + PromotePrinciple approved_by=dave, gate decision
+        4883b83e). The exact original UUID 8a1cdef8-67e9-40ba-9208-78f45edd854e was
+        UNRECOVERABLE (the store had lost the row), so the semantically-identical
+        replacement is principle 34db74ee-eb62-4e57-8d21-91d9eaaccf44, re-scoped to the
+        SEEDED durable condition condition.cluster.service.binary_update_intended (the
+        original ad-hoc conditions were also lost in the reset). Verified live:
+        behavioral_check_action(cp_binary_into_usr_lib_globular_bin |
+        manual_systemctl_restart_globular_unit,
+        conditions=[condition.cluster.service.binary_update_intended]) => allowed=false,
+        status=blocked, governed=true, violated_principles=[34db74ee] (audits dfd4908a,
+        569db853) — kernel symmetry with the runtime-op hook and the code-edit gate is
+        restored. RESIDUAL DURABILITY GAP: promotion is still not seed-durable, so a future
+        store reset could evaporate 34db74ee the same way; tracked as its own contract (a
+        promotion must survive store rebuild/reset, OR boot/check tooling must flag any
+        doc-claimed PROMOTED principle missing from the live store) and by ai-memory incident
+        aab023cb-7bc8-11f1-bcbf-001fc69cd334.
       no_test_yet_reason: |
         The guard is a Claude Code PreToolUse hook
         (.claude/hooks/enforce-deploy-contract.sh), not a Go regression test — a hook is
@@ -7059,3 +7087,251 @@ failure_modes:
         - cluster-controller
         - repository
       required_tests: []
+    - id: cluster.teardown.nodetool_unreachable_misread_as_single_node
+      title: clean-node.sh reads an unreachable nodetool as single-node and hard-kills a live ring voter (group0 quorum loss)
+      severity: critical
+      root_cause: |
+        2026-07-09 scar: clean-node.sh ran on globule-nuc whose local Scylla CQL/API was
+        down, so `nodetool status` returned empty/nonzero. count_scylla_up_nodes
+        collapses this to 0 (`|| echo "0"` in the services copy; empty -> printf '0' in
+        the gateway copy count_scylla_up_nodes()). The `-gt 1` guard is then false,
+        decommission is SKIPPED, and hard_stop_scylla kills a live voter. In the 2-node
+        ring this left a dead Raft voter -> group0 has no quorum for topology ops
+        (removenode/add/schema fail with raft_operation_timeout_error). The local
+        nodetool is exactly the probe most likely to be dead when the node is unhealthy,
+        yet it is the SOLE signal used; controller/gateway node registry, etcd member
+        list, a peer's nodetool status, and local scylla.yaml remote seeds are all
+        available but unconsulted. Fail-OPEN on unknown for a destructive, irreversible op.
+      symptoms:
+        - "log: 'nodetool status unavailable — treating ScyllaDB peer count as 0' then 'Single-node ScyllaDB — skipping decommission'"
+        - remaining peer reports a dead voter and refuses topology changes with a raft quorum error after the cleaned node was wiped
+        - later rejoin blocked because group0 topology ops require the lost quorum
+      forbidden_fixes:
+        - "pipe a failed/empty nodetool status through `|| echo 0` into a skip-decommission branch"
+        - "let --force imply the single-node / last-node data-safety assertion"
+      resolution: |
+        count_scylla_up_nodes must return a distinguishable UNKNOWN sentinel on an
+        unreachable/empty probe (never 0); the caller die()s (fail-closed) on UNKNOWN
+        unless an explicit --last-node assertion is passed; only a confirmed count of
+        exactly 1 legitimately skips decommission. Both copies must be fixed:
+        scripts/clean-node.sh and Globular/internal/gateway/handlers/cluster/clean-node.sh
+        (the latter embedded into the gateway binary at build). Recovery from an
+        already-occurred incident: from a healthy peer `nodetool removenode <host-id>`,
+        then ScyllaDB manual Raft group0 recovery, restore RF + repair.
+      related_invariants:
+        - cluster.teardown.membership_must_be_confirmed_before_destructive_stop
+        - meta.silence_is_not_valid_for_unexpected
+      required_tests:
+        - scripts/clean-node.bats:fail_closed_on_unknown_scylla_topology
+    - id: repository.cas_index_split_blocks_install
+      title: CAS blob present but repository index state UNKNOWN blocks installs; no owner reindex-from-blobs API exists
+      severity: high
+      root_cause: |
+        2026-07-09 scar: after Scylla disruption (group0 recovery / node wipe / RF
+        change), repository index rows for platform artifacts were UNKNOWN / missing /
+        skeleton while the CAS blobs (artifacts/{key}.bin + .manifest.json sidecar) were
+        intact on disk. isRowInstallable requires publish_state==PUBLISHED AND
+        artifact_state in {PUBLISHED,""} AND manifest_json present, so the download gate
+        ("artifact <name> is in pipeline state UNKNOWN — not installable") fail-closes and
+        the controller emits repeated DesiredBuildIdOrphaned. The per-artifact reconstruct
+        primitive exists (Project D in artifact_verify_rpc.go) and a reverse reconciler
+        exists (repository_reconciler.go) but it is startup-only, omitted from the hourly
+        ticker, and walks only receipt.json (download-path blobs) — publish-pipeline blobs
+        at artifacts/{key}.manifest.json are invisible to it. There is NO bulk,
+        owner-triggered, dry-run/commit reindex-from-CAS API; cluster-doctor even advises
+        `repository repair-index` — a command that does not exist.
+      symptoms:
+        - 'install fails: artifact "<name>" is in pipeline state UNKNOWN — not installable'
+        - repeated DesiredBuildIdOrphaned findings while the blob is present in /var/lib/globular/packages CAS
+        - '`globular services apply-desired` reports N failed with pipeline state UNKNOWN'
+      forbidden_fixes:
+        - roll desired state forward to a different build to dodge the UNKNOWN index
+        - manually UPSERT publish_state / mint a build_id / publisher / checksum
+        - promote a blob to PUBLISHED without verifying its sidecar manifest + checksum
+      resolution: |
+        Add an owner RepairIndex RPC + `globular repository repair-index --dry-run/--commit`
+        + MCP tool that walks CAS artifacts/*.manifest.json sidecars, verifies size+sha256,
+        and reconstructs the index row (UNKNOWN/skeleton/missing -> PUBLISHED) via the
+        existing Project-D reconstruct — identity from the sidecar/blob only, never minted;
+        refuse on checksum mismatch or missing/contradictory identity; never touch desired
+        state; never auto-elevate REVOKED/QUARANTINED. Also add the reverse reconciler to
+        the periodic ticker, sourced from CAS sidecars (not only receipt.json).
+      related_invariants:
+        - repository.cas_present_index_unknown_is_owner_repairable
+        - repository.published_requires_verified_manifest
+        - meta.storage_is_not_semantic_authority
+      related_services:
+        - repository
+        - cluster-controller
+      required_tests:
+        - golang/repository/repository_server/repair_index_test.go:TestRepairIndex_ReconstructsFromCasEvidenceOnly
+    - id: reconcile.noop_success_masks_undispatched_install
+      title: reconcile logs missing_package remediation SUCCEEDED every 30s but the package is never installed on the node
+      severity: high
+      root_cause: |
+        2026-07-09 scar (globule-nuc rejoin): reconcileMarkItemTerminal cleared the drift
+        observation on child_status==SUCCEEDED WITHOUT re-reading installed_state, so a
+        remediation that never actually installed the package was treated as success and
+        the observation cleared; the next 30s scan re-detected the same missing_package,
+        producing an unbounded SUCCEEDED loop with zero installs and no FAILED escalation.
+        Upstream cause: release.apply.package's short_circuit_if_no_targets finalizes
+        AVAILABLE (=> workflow SUCCEEDED) whenever selectReleaseTargets returns 0 targets;
+        selectReleaseTargets drops a genuinely-missing package's node for non-convergence
+        reasons (bootstrap phase / profile / isActiveInfraMember) that the drift scanner
+        does not apply — so the scanner keeps emitting missing_package while the workflow
+        keeps returning SUCCEEDED with no node contact. rbac/authentication/etc. looped
+        every 30s, installed nothing; apply-desired run directly on the node installed them.
+      symptoms:
+        - "reconcile-workflow: item terminal ... child_status=SUCCEEDED repeating every ~30s for the same node/pkg"
+        - workflow_list_runs shows only reconcile:* runs, no release.apply.package with node targets
+        - node-agent installed set for the pkg never changes
+      forbidden_fixes:
+        - clear the drift observation on child_status==SUCCEEDED without re-reading installed_state
+        - treat len(selected_targets)==0 as unconditional convergence / AVAILABLE
+        - silence the loop by suppressing the missing_package emission instead of installing or escalating
+      resolution: |
+        Gate observation-clear + terminal-SUCCEEDED on observed installed_state convergence
+        for missing_package/version_drift (reconcileMarkItemTerminal); add a
+        per-(node,pkg,drift_type) no-progress counter that escalates to FAILED +
+        cluster.reconcile.item_failed(reason=remediation_no_progress) after a small bound.
+        Complementary root-cause fix (companion): distinguish converged-skip from
+        ineligible-skip in selectReleaseTargets so 0 targets on a genuinely-absent package
+        finalizes DEFERRED/BLOCKED, not AVAILABLE; make scanner/selector eligibility filters symmetric.
+      related_invariants:
+        - reconcile.terminal_success_requires_observed_convergence
+        - convergence.no_infinite_retry
+        - meta.silence_is_not_valid_for_unexpected
+      related_services:
+        - cluster-controller
+        - workflow
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go:TestReconcileMarkItemTerminal_RequiresObservedConvergence
+    - id: doctor.perpetual_drift_from_cluster_wide_desired_hash
+      title: cluster.services.drift fires permanently for a node whose profiles cannot host part of the cluster-wide desired set
+      severity: high
+      root_cause: |
+        filterVersionsForNode (cluster_controller_server/server.go) copies the ENTIRE
+        cluster-wide desired map without intersecting node.Profiles, so the per-node
+        desired hash (stableServiceDesiredHash) is identical on every node. The node-agent
+        applied hash (computeAppliedServicesHash) is node-scoped over the installed set.
+        A node lacking media-server/ai can never install media/title/ffmpeg, so its applied
+        hash never matches the all-profile desired hash -> cluster.services.drift fires and
+        escalates to ERROR after 5 min, unresolvably. Observed 2026-07-09: globule-nuc
+        (control-plane/core/gateway/storage, no media-server/ai) reported the same
+        desired_hash string as ryzen (all profiles) but a different applied_hash.
+      symptoms:
+        - two nodes report the SAME desired_hash string but different applied_hash
+        - the node with fewer profiles (no media-server / no ai) never converges (perpetual ERROR after 5m)
+        - media/title/ffmpeg-class services also flagged as placement orphans on that node (double-haunt)
+      forbidden_fixes:
+        - add media-server/ai profile to a node just to make the hash match (grants unintended placement authority)
+        - suppress cluster.services.drift globally or special-case node IDs
+        - loosen the drift rule to ignore mismatches when applied is a subset
+      resolution: |
+        Scope the DESIRED hash to the node's authorized subset in filterVersionsForNode via
+        the existing placement law book (isOrphanedInstall/placementAllows) — catalog-unknown
+        services kept. A node running exactly its authorized set then has desired==applied ->
+        no drift. Unauthorized-but-installed packages surface via
+        placement.installed_package_orphaned (already implemented), not generic drift.
+        Companion (for orphan-laden nodes to also de-drift): authorization-scope the node-agent
+        computeAppliedServicesHash with the identical shared predicate, or remove the orphans
+        via a lawful node-local uninstall (SCAR-5).
+      related_invariants:
+        - controller.desired_services_hash_must_be_profile_scoped
+        - meta.absence_scope_must_be_explicit
+      related_services:
+        - cluster-controller
+        - cluster-doctor
+        - node-agent
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/component_resolve_test.go:TestFilterVersionsForNode_ExcludesUnauthorizedServices
+    - id: placement.orphan_has_no_lawful_node_local_removal_path
+      title: A placement orphan (installed on a wrong-profile node) has no lawful node-scoped uninstall — only cluster-wide desired-remove or blocked manual rm
+      severity: warning
+      root_cause: |
+        2026-07-09 scar: globule-nuc (no media-server) ended up with yt-dlp/torrent
+        installed (orphans — the catalog forbids them on its profiles). The doctor flags
+        placement.installed_package_orphaned "operator action required", but the ONLY
+        removal levers were `globular services desired remove <name>` (cluster-wide — would
+        strip the service from media-server nodes that legitimately host it) or manual
+        `systemctl`/`rm` (correctly blocked by the deploy/convergence hook). The node-agent
+        DOES have a lawful node-scoped uninstall primitive (runUninstallPackage /
+        "uninstall-package" workflow, supervisor-mediated), but NO operator MCP tool or CLI
+        reaches it — so the orphan sits unremovable, and the node also cannot fully clear
+        cluster.services.drift (SCAR-4 companion).
+      symptoms:
+        - placement.installed_package_orphaned finding with no lawful remediation lever
+        - operator forced to choose cluster-wide desired-remove (wrong blast radius) or blocked manual rm
+        - a profile-scoped node still shows drift because its applied set includes the un-removable orphan
+      forbidden_fixes:
+        - remove a single node's orphan via cluster-wide `services desired remove` (retires it everywhere)
+        - manual systemctl stop/disable + rm of the binary/unit (bypasses supervisor + installed-state stamping)
+        - auto-remove orphans in the controller convergence loop (data-safety: orphan removal is operator-gated)
+      resolution: |
+        Add a lawful node-scoped operator entry (MCP tool nodeagent_uninstall_package + CLI
+        `globular node uninstall-package --package <name> --node <ep> [--kind]`) that invokes the
+        existing node-agent "uninstall-package" workflow on ONE node — supervisor-mediated, clears
+        installed-state, never touches cluster desired. Same operator surface pattern as
+        nodeagent_control_service (start/stop/restart).
+      related_invariants:
+        - placement.orphan_removal_needs_a_lawful_node_scoped_path
+        - controller.desired_services_hash_must_be_profile_scoped
+      related_services:
+        - node-agent
+        - mcp
+        - cluster-doctor
+      required_tests:
+        - golang/globularcli/node_ops_cmds_test.go:TestBuildUninstallPackageWorkflow_NodeScoped
+    - id: behavioral.runtime_promotion_evaporates_on_store_reset
+      title: A governed behavioral promotion silently evaporated on a behavioral-store rebuild/reset, leaving a doc-claimed-enforcing rule at ungoverned default-allow
+      severity: high
+      root_cause: |
+        2026-07-09 finding (ai-memory incident aab023cb-7bc8-11f1-bcbf-001fc69cd334):
+        docs/awareness/failure_modes.yaml asserted principle
+        8a1cdef8-67e9-40ba-9208-78f45edd854e ("Service binaries change only through the
+        package deploy pipeline") was PROMOTED and that behavioral_check_action hard-blocks
+        its 6 forbidden_moves. The live behavioral store disagreed: explain_principle =>
+        not found, check_action(cp_binary_into_usr_lib_globular_bin) => allowed=true,
+        governed=false (audit 6ba12377), 0 promotion candidates. Root cause: promoted
+        principles + promotion_decisions are runtime-written rows that are NOT part of the
+        immutable behavioral seed; a behavioral-store (ScyllaDB) rebuild/reset restores the
+        seeded authorities + conditions catalog but drops every runtime promotion, and
+        nothing re-promotes or reconciles it. GOVERNANCE class: success-by-assertion —
+        the documentation asserted a live enforcement surface that the live surface did not
+        provide, silently degrading defense-in-depth from two surfaces to one with no signal.
+      symptoms:
+        - behavioral_check_action returns allowed=true, governed=false for an action a promoted principle should block
+        - behavioral_explain_principle => "not found" for a principle the corpus/docs describe as PROMOTED
+        - list_promotion_candidates / promoted-principle count is 0 while seeded authorities + conditions are intact
+        - behavioral_generate_reconciliation_report => AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE for a runtime-relevant AWG failure mode
+      forbidden_fixes:
+        - re-register the original ad-hoc conditions (they are also lost on reset) instead of scoping to a SEEDED durable condition
+        - hand-write the promotion back into the store outside the governed surface (propose + evidence + contradiction-check + gate)
+        - read behavioral_check_action allowed=true as "policy-permitted" when governed=false (ungoverned default-allow is absence of a rule, not endorsement)
+        - assert PROMOTED/enforcing state in docs/awareness without verifying explain_principle + check_action against the live store
+      resolution: |
+        Restored 2026-07-09 via the governed surface only (propose 34db74ee + record_evidence
+        d46b2fcd + RunContradictionCheck + PromotePrinciple approved_by=dave, gate 4883b83e),
+        re-scoped to the SEEDED durable condition condition.cluster.service.binary_update_intended;
+        verified check_action => blocked/governed (audits dfd4908a, 569db853). See the
+        deploy.binary_copy_bypasses_package_pipeline_and_splits_cluster resolution for the
+        full instance narrative. STRUCTURAL fix is the governing invariant
+        behavioral.promotion_must_survive_rebuild_or_be_flagged: EITHER persist promotion
+        state durably across a store rebuild/reset, OR run boot/check reconciliation
+        (behavioral_generate_reconciliation_report) as a GATE that flags any runtime-relevant
+        AWG failure mode / doc-claimed PROMOTED principle missing from the live store. Design +
+        proposed test: docs/design/behavioral-promotion-durability.md.
+      no_test_yet_reason: |
+        The durability guard is not yet mechanized: it is a behavioral-memory service
+        capability (persist-or-reconcile) plus a CI/boot GATE, not a services-local Go unit
+        test that exists today. behavioral_generate_reconciliation_report ALREADY detects the
+        condition (it returned AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE for this very
+        case), so the remaining work is to run it as a blocking check and/or make promotion
+        state survive a rebuild. The proposed enforcement and its test are specified in
+        docs/design/behavioral-promotion-durability.md and gated on operator approval before
+        implementation; this entry is PROPOSED, not yet mechanized.
+      related_invariants:
+        - behavioral.promotion_must_survive_rebuild_or_be_flagged
+      related_services:
+        - ai-memory
+        - awareness-graph
