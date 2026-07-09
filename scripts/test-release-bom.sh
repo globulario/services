@@ -74,25 +74,30 @@ for name, pkg in idx_by_name.items():
         errors += 1
 
 # 7. Strict v2 install checks.
+#
+# Single-authority identity model (docs/design/package-identity-single-authority.md):
+# build_id / build_number are REPOSITORY-ADMISSION identity. A freshly built
+# BOM must NOT carry them (pre-minting is the violation the old check
+# accidentally demanded); admission derives deterministic pins from
+# artifact_sha256, which IS required here. A legacy BOM that still carries a
+# well-formed non-numeric build_id is tolerated (already-published indexes are
+# immutable); numeric-only build_ids remain rejected.
 schema = index.get("schema_version")
 if schema == "globular.repository.index/v2":
     for name, pkg in idx_by_name.items():
         bid = str(pkg.get("build_id", "")).strip()
-        if not bid:
-            print(f"FAIL: '{name}' missing build_id (v2 strict install)")
-            errors += 1
-        elif bid.isdigit():
+        if bid.isdigit() and bid != "":
             print(f"FAIL: '{name}' has numeric-only build_id '{bid}' (v2 strict install)")
             errors += 1
 
         bn = pkg.get("build_number", 0)
-        if not isinstance(bn, int) or bn <= 0:
-            print(f"FAIL: '{name}' has invalid build_number={bn} (must be > 0)")
+        if not isinstance(bn, int) or bn < 0:
+            print(f"FAIL: '{name}' has invalid build_number={bn} (must be an int >= 0; identity is assigned at repository admission)")
             errors += 1
 
         art = str(pkg.get("artifact_sha256", "")).strip()
         if not art:
-            print(f"FAIL: '{name}' missing artifact_sha256 (v2 strict install)")
+            print(f"FAIL: '{name}' missing artifact_sha256 (v2 strict install — the content digest is the non-negotiable pin)")
             errors += 1
 
     # Reject duplicate artifact bytes with conflicting identity tuple.

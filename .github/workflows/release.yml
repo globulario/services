@@ -250,6 +250,12 @@ jobs:
           set -euo pipefail
           mkdir -p ../../dist/.staging/bin
 
+          # Materialize the committed per-package version authority BEFORE the
+          # sentinel overwrite touches the checked-out zz files (CI workspace
+          # only — the committed files remain the authority; see
+          # docs/design/package-identity-single-authority.md).
+          bash ../scripts/gen-package-versions-from-source.sh --out ../../dist/package-versions.txt
+
           bash build/gen-version.sh "${SENTINEL_VERSION}"
 
           LDFLAGS="-s -w"
@@ -493,6 +499,7 @@ jobs:
             --output-manifest dist/change-manifest.json \
             --origin-indices-dir dist/origin-indices \
             --force-changed-packages-file dist/forced-packages.txt \
+            --package-versions-file dist/package-versions.txt \
             "${EXTRA_ARGS[@]}"
 
           bash services/scripts/release/cluster-controller-release-guard.sh verify \

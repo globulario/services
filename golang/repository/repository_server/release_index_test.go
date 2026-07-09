@@ -587,20 +587,53 @@ func TestForceFullRebuildV2_Valid(t *testing.T) {
 	}
 }
 
-func TestReleaseIndexV2InstallRejectsMissingBuildID(t *testing.T) {
+// Single-authority identity model (docs/design/package-identity-single-authority.md):
+// release bundles ship WITHOUT pre-minted build identity. Admission derives
+// deterministic repository-owned pins from the artifact digest instead of
+// rejecting. The digest itself remains the fail-closed pin (see
+// TestReleaseIndexV2InstallRejectsMissingAllDigestFields).
+func TestReleaseIndexV2InstallDerivesMissingBuildID(t *testing.T) {
 	idx := validV2Index()
 	idx.Packages[0].BuildID = ""
-	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "repository.identity.release_index_missing_pins") || !strings.Contains(err.Error(), "build_id") {
-		t.Fatalf("expected missing build_id rejection, got: %v", err)
+	idx.Packages[0].BuildNumber = 0
+	if err := ValidateReleaseIndexForInstall(idx); err != nil {
+		t.Fatalf("empty build identity with digest present must be derived at admission, got: %v", err)
+	}
+	got := idx.Packages[0].BuildID
+	if !strings.HasPrefix(got, "upstream:") {
+		t.Fatalf("expected derived upstream build_id, got %q", got)
+	}
+	if idx.Packages[0].BuildNumber <= 0 {
+		t.Fatalf("expected derived build_number >= 1, got %d", idx.Packages[0].BuildNumber)
+	}
+	// Determinism: re-validating the same published entry must complete to
+	// the identical identity (release_index.entries_immutable_after_publish).
+	idx2 := validV2Index()
+	idx2.Packages[0].BuildID = ""
+	idx2.Packages[0].BuildNumber = 0
+	if err := ValidateReleaseIndexForInstall(idx2); err != nil {
+		t.Fatalf("re-validation failed: %v", err)
+	}
+	if idx2.Packages[0].BuildID != got || idx2.Packages[0].BuildNumber != idx.Packages[0].BuildNumber {
+		t.Fatalf("derived identity not deterministic: %q/%d vs %q/%d",
+			got, idx.Packages[0].BuildNumber, idx2.Packages[0].BuildID, idx2.Packages[0].BuildNumber)
 	}
 }
 
-func TestReleaseIndexV2InstallRejectsNumericBuildID(t *testing.T) {
+// Numeric-only build_ids are unsafe (often mirror build_number, collide across
+// packages). Admission canonicalizes them to derived upstream identity — same
+// semantics as normalizeReleaseEntry on the sync path.
+func TestReleaseIndexV2InstallCanonicalizesNumericBuildID(t *testing.T) {
 	idx := validV2Index()
 	idx.Packages[0].BuildID = "204"
 	idx.Packages[1].BuildID = "205"
-	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "numeric-only build_id") {
-		t.Fatalf("expected numeric build_id rejection, got: %v", err)
+	if err := ValidateReleaseIndexForInstall(idx); err != nil {
+		t.Fatalf("numeric build_id must be canonicalized at admission, got: %v", err)
+	}
+	for i, p := range idx.Packages[:2] {
+		if !strings.HasPrefix(p.BuildID, "upstream:") {
+			t.Fatalf("packages[%d]: expected canonicalized upstream build_id, got %q", i, p.BuildID)
+		}
 	}
 }
 
@@ -665,15 +698,21 @@ func TestReleaseIndexV2InstallRejectsMissingPinsSet(t *testing.T) {
 	}
 }
 
-func TestReleaseIndexV2InstallRejectsBuildNumberZero(t *testing.T) {
+// build_number 0 with a digest present is completed at admission (derived,
+// display-only). The hard >0 check remains as defense-in-depth for entries
+// that somehow bypass derivation.
+func TestReleaseIndexV2InstallDerivesBuildNumberZero(t *testing.T) {
 	idx := validV2Index()
 	for i, p := range idx.Packages {
 		p.BuildID = fmt.Sprintf("upstream-abc%d", i+1)
 		p.ArtifactSha256 = p.PackageDigest
 	}
 	idx.Packages[0].BuildNumber = 0
-	if err := ValidateReleaseIndexForInstall(idx); err == nil || !strings.Contains(err.Error(), "build_number must be > 0") {
-		t.Fatalf("expected build_number rejection, got: %v", err)
+	if err := ValidateReleaseIndexForInstall(idx); err != nil {
+		t.Fatalf("zero build_number with digest present must be derived at admission, got: %v", err)
+	}
+	if idx.Packages[0].BuildNumber <= 0 {
+		t.Fatalf("expected derived build_number >= 1, got %d", idx.Packages[0].BuildNumber)
 	}
 }
 

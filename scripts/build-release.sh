@@ -14,6 +14,20 @@
 # staging lives under services/dist/.staging/ and must not be treated as source
 # authority.
 #
+# IDENTITY MODEL (docs/design/package-identity-single-authority.md):
+#   - [version] argument is the PLATFORM release version (bundle name,
+#     release-index platform_release). It is NEVER a package version.
+#   - Service package versions come from committed zz_version_generated.go
+#     files, materialized via scripts/gen-package-versions-from-source.sh.
+#     This script does not override them (no -X main.Version in the normal
+#     lane) and does not rewrite package.json versions.
+#   - Infra/external package versions are owned by the packages repo and
+#     pass through byte-identical.
+#   - build_id / build_number are repository-admission identity. This script
+#     MUST NOT mint them; bundle package.json ships without them and the
+#     repository assigns identity at Day-0 admission (deterministic
+#     content-derived pins).
+#
 # Requires: go, python3, tar, sha256sum
 
 set -euo pipefail
@@ -181,6 +195,38 @@ else
 fi
 validate_release_version "${VERSION}"
 
+PACKAGE_PUBLISHER="${GLOBULAR_PACKAGE_PUBLISHER:-core@globular.io}"
+PACKAGE_VERSION_SUFFIX="${GLOBULAR_PACKAGE_VERSION_SUFFIX:-}"
+if [[ "${PACKAGE_PUBLISHER}" != "core@globular.io" && -z "${PACKAGE_VERSION_SUFFIX}" ]]; then
+  die "GLOBULAR_PACKAGE_PUBLISHER=${PACKAGE_PUBLISHER} requires GLOBULAR_PACKAGE_VERSION_SUFFIX (e.g. +local.$(hostname -s).1)"
+fi
+if [[ -n "${PACKAGE_VERSION_SUFFIX}" && ! "${PACKAGE_VERSION_SUFFIX}" =~ ^[+-][A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  die "invalid GLOBULAR_PACKAGE_VERSION_SUFFIX=${PACKAGE_VERSION_SUFFIX}; expected +local.name.1 or -hotfix.name.1"
+fi
+if [[ -n "${PACKAGE_VERSION_SUFFIX}" || "${PACKAGE_PUBLISHER}" != "core@globular.io" ]]; then
+  info "Package identity lane: publisher=${PACKAGE_PUBLISHER} suffix=${PACKAGE_VERSION_SUFFIX} (platform_release=${VERSION})"
+fi
+
+# ── Per-package version authority ────────────────────────────────────────────
+# Committed zz_version_generated.go files are the per-package version
+# authority. Materialize them once; every packaging/validation step below
+# consumes this map. The platform VERSION is never a package version.
+PACKAGE_VERSIONS_FILE="${SERVICES_ROOT}/golang/build/package-versions.txt"
+bash "${SCRIPT_DIR}/gen-package-versions-from-source.sh" --out "${PACKAGE_VERSIONS_FILE}"
+declare -A PKG_VERSIONS=()
+while IFS='=' read -r pv_name pv_ver; do
+  [[ -z "${pv_name}" || "${pv_name}" == \#* ]] && continue
+  PKG_VERSIONS["${pv_name}"]="${pv_ver}"
+done < "${PACKAGE_VERSIONS_FILE}"
+
+# pkg_version_of <registry-name> — committed source version + optional
+# hotfix/local suffix lane. Dies for unknown packages (fail-safe).
+pkg_version_of() {
+  local name="$1"
+  [[ -n "${PKG_VERSIONS[${name}]+x}" ]] || die "no committed version for package '${name}' — run golang/build/gen-version.sh and commit zz_version_generated.go"
+  printf '%s%s\n' "${PKG_VERSIONS[${name}]}" "${PACKAGE_VERSION_SUFFIX}"
+}
+
 elf_needs_release_strip() {
   local bin="$1"
   [[ -f "${bin}" ]] || return 1
@@ -235,11 +281,21 @@ normalize_bundle_packages_dir() {
 
 validate_generated_release_inputs() {
   local manifest_path="${SERVICES_ROOT}/generated/release-inputs.manifest.json"
-  python3 - "${SERVICES_ROOT}/generated" "${manifest_path}" "${REGISTRY_YAML}" "${VERSION}" <<'PYEOF'
+  python3 - "${SERVICES_ROOT}/generated" "${manifest_path}" "${REGISTRY_YAML}" "${VERSION}" "${PACKAGE_VERSIONS_FILE}" <<'PYEOF'
 import glob, json, os, sys, tarfile
 import yaml
 
-generated_root, manifest_path, registry_path, version = sys.argv[1:]
+generated_root, manifest_path, registry_path, version, versions_file = sys.argv[1:]
+
+# Per-package version authority (committed zz files, materialized).
+pkg_versions = {}
+with open(versions_file, "r", encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        k, _, v = line.partition("=")
+        pkg_versions[k.strip()] = v.strip()
 files = sorted(glob.glob(os.path.join(generated_root, "*.tgz")))
 if not files:
     sys.exit(0)
@@ -283,8 +339,11 @@ for path in files:
     file_version = str(pkg.get("version") or "").strip()
     if not name or name not in registry:
         raise SystemExit(f"{base}: generated package template is not registry-backed")
-    if file_version != version:
-        raise SystemExit(f"{base}: generated package template version {file_version!r} does not match release version {version!r}; rerun --full-regenerate")
+    expected = pkg_versions.get(name)
+    if expected is None:
+        raise SystemExit(f"{base}: no committed version authority for {name!r} — run gen-version.sh and commit zz_version_generated.go")
+    if file_version != expected:
+        raise SystemExit(f"{base}: generated package template version {file_version!r} does not match committed package version {expected!r}; rerun --full-regenerate")
 PYEOF
 }
 
@@ -402,8 +461,8 @@ ensure_generated_source_package_template() {
     --spec "${tmpdir}/specs/$(basename "${spec_src}")" \
     --root "${tmpdir}" \
     "${scripts_args[@]}" \
-    --version "${VERSION}" \
-    --publisher "core@globular.io" \
+    --version "$(pkg_version_of "${pkg_name}")" \
+    --publisher "${PACKAGE_PUBLISHER}" \
     --platform "linux_amd64" \
     --out "${GENERATED_PKG_DIR}" \
     --skip-missing-config=true \
@@ -544,69 +603,45 @@ PYEOF
   rm -rf "${tmpdir}"
 }
 
-sanitize_package_payload() {
+# validate_package_payload_sanity — READ-ONLY payload checks. The old
+# sanitize_package_payload silently PATCHED payloads (scylla-manager
+# ExecStartPre) and re-compressed every external package. Payload fixes belong
+# in the authority source (packages repo); the release build only refuses
+# known-bad content. No extraction, no rewrite, no re-compression.
+validate_package_payload_sanity() {
   local pkg_path="$1"
-  local tmpdir spec_path unit_path
-
-  tmpdir="$(mktemp -d)"
-  tar -xzf "${pkg_path}" -C "${tmpdir}"
-
   case "$(basename "${pkg_path}")" in
     scylla-manager_*.tgz)
-      spec_path="${tmpdir}/specs/scylla_manager_service.yaml"
-      unit_path="${tmpdir}/systemd/globular-scylla-manager.service"
-      if [[ -f "${spec_path}" ]]; then
-        python3 - "${spec_path}" <<'PYEOF'
-import sys
-from pathlib import Path
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-needle = "ExecStartPre=/bin/sh -c 'if [ -x \"{{.Prefix}}/bin/scylla-manager-configure\" ]"
-replacement = "          ExecStartPre={{.Prefix}}/bin/scylla-manager-configure"
-lines = text.splitlines()
-for idx, line in enumerate(lines):
-    if needle in line:
-        lines[idx] = replacement
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        break
-else:
-    if replacement.strip() not in text:
-        raise SystemExit(f"{path}: expected legacy or fixed scylla-manager ExecStartPre not found")
-if "path: \"{{.Prefix}}/bin/scylla-manager-register-cluster\"" not in text:
-    raise SystemExit(f"{path}: missing scylla-manager-register-cluster helper install step")
-if "ExecStartPost=-+{{.Prefix}}/bin/scylla-manager-register-cluster" not in text:
-    raise SystemExit(f"{path}: missing scylla-manager ExecStartPost registration hook")
+      python3 - "${pkg_path}" <<'PYEOF'
+import sys, tarfile
+pkg_path = sys.argv[1]
+legacy = "ExecStartPre=/bin/sh -c 'if [ -x"
+spec_fixed = "ExecStartPre={{.Prefix}}/bin/scylla-manager-configure"
+unit_fixed_a = "ExecStartPre=/usr/lib/globular/bin/scylla-manager-configure"
+hook_spec = "ExecStartPost=-+{{.Prefix}}/bin/scylla-manager-register-cluster"
+hook_unit = "ExecStartPost=-+/usr/lib/globular/bin/scylla-manager-register-cluster"
+with tarfile.open(pkg_path, "r:gz") as tf:
+    for member in tf.getmembers():
+        name = member.name.lstrip("./")
+        if name == "specs/scylla_manager_service.yaml":
+            text = tf.extractfile(member).read().decode("utf-8")
+            if legacy in text:
+                raise SystemExit(f"{pkg_path}: {name} carries the legacy scylla-manager ExecStartPre — fix it in the packages repo source (packages/metadata/scylla-manager/), not at bundle time")
+            if spec_fixed not in text:
+                raise SystemExit(f"{pkg_path}: {name} missing fixed scylla-manager ExecStartPre")
+            if hook_spec not in text:
+                raise SystemExit(f"{pkg_path}: {name} missing scylla-manager ExecStartPost registration hook")
+        elif name == "systemd/globular-scylla-manager.service":
+            text = tf.extractfile(member).read().decode("utf-8")
+            if legacy in text:
+                raise SystemExit(f"{pkg_path}: {name} carries the legacy scylla-manager ExecStartPre — fix it in the packages repo source, not at bundle time")
+            if unit_fixed_a not in text and spec_fixed not in text:
+                raise SystemExit(f"{pkg_path}: {name} missing fixed scylla-manager ExecStartPre")
+            if hook_unit not in text and hook_spec not in text:
+                raise SystemExit(f"{pkg_path}: {name} missing scylla-manager ExecStartPost registration hook")
 PYEOF
-      fi
-      if [[ -f "${unit_path}" ]]; then
-        python3 - "${unit_path}" <<'PYEOF'
-import sys
-from pathlib import Path
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-needle = 'ExecStartPre=/bin/sh -c \'if [ -x "{{.Prefix}}/bin/scylla-manager-configure" ]'
-alt = 'ExecStartPre=/bin/sh -c \'if [ -x "/usr/lib/globular/bin/scylla-manager-configure" ]'
-replacement = "ExecStartPre=/usr/lib/globular/bin/scylla-manager-configure"
-templated_replacement = 'ExecStartPre={{.Prefix}}/bin/scylla-manager-configure'
-lines = text.splitlines()
-for idx, line in enumerate(lines):
-    if needle in line or alt in line:
-        lines[idx] = replacement
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        break
-else:
-    if replacement not in text and templated_replacement not in text:
-        raise SystemExit(f"{path}: expected legacy or fixed scylla-manager ExecStartPre not found")
-if "ExecStartPost=-+/usr/lib/globular/bin/scylla-manager-register-cluster" not in text and \
-   "ExecStartPost=-+{{.Prefix}}/bin/scylla-manager-register-cluster" not in text:
-    raise SystemExit(f"{path}: missing scylla-manager ExecStartPost registration hook")
-PYEOF
-      fi
       ;;
   esac
-
-  tar -C "${tmpdir}" -czf "${pkg_path}" .
-  rm -rf "${tmpdir}"
 }
 
 validate_package_systemd_units() {
@@ -688,12 +723,12 @@ PYEOF
 
 generate_release_index() {
   local pkg_dir="$1" out="$2" provenance_file="$3"
-  python3 - "${pkg_dir}" "${out}" "${VERSION}" "${REGISTRY_YAML}" "${provenance_file}" <<'PYEOF'
+  python3 - "${pkg_dir}" "${out}" "${VERSION}" "${REGISTRY_YAML}" "${provenance_file}" "${PACKAGE_PUBLISHER}" <<'PYEOF'
 import glob, hashlib, json, os, sys, tarfile
 from datetime import datetime, timezone
 import yaml
 
-pkg_dir, out_path, version, registry_path, provenance_path = sys.argv[1:]
+pkg_dir, out_path, version, registry_path, provenance_path, publisher = sys.argv[1:]
 with open(registry_path, "r", encoding="utf-8") as f:
     registry = yaml.safe_load(f) or {}
 reg_by_name = {pkg["name"]: pkg for pkg in registry.get("packages", [])}
@@ -737,8 +772,11 @@ for tgz_path in sorted(glob.glob(os.path.join(pkg_dir, "*.tgz"))):
         "name": name,
         "kind": str(reg.get("kind", pkg_json.get("type", ""))).lower(),
         "version": pkg_json.get("version", ""),
-        "build_number": int(pkg_json.get("build_number", 0) or 0),
-        "build_id": pkg_json.get("build_id", ""),
+        # Repository-admission identity is NEVER pre-filled by the release
+        # build. Admission derives deterministic pins from artifact_sha256
+        # (docs/design/package-identity-single-authority.md).
+        "build_number": 0,
+        "build_id": "",
         "platform": pkg_json.get("platform", "linux_amd64"),
         "publisher": pkg_json.get("publisher", reg.get("publisher_id", "core@globular.io")),
         "publisher_id": pkg_json.get("publisher", reg.get("publisher_id", "core@globular.io")),
@@ -759,13 +797,73 @@ idx = {
     "schema_version": "globular.repository.index/v2",
     "platform_release": version,
     "release_tag": f"v{version}",
-    "publisher": "core@globular.io",
+    "publisher": publisher,
     "generated_at": datetime.now(timezone.utc).isoformat(),
     "package_digest_algorithm": "sha256",
     "packages": entries,
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(idx, f, indent=2)
+PYEOF
+}
+
+# validate_release_identity_gate <release_dir> — the single-authority gate:
+# no pre-admission repository identity anywhere in the bundle index; current-
+# release package versions match the committed source authority.
+validate_release_identity_gate() {
+  local release_dir="$1"
+  python3 - "${release_dir}/release-index.json" "${release_dir}/packages" "${PACKAGE_VERSIONS_FILE}" "${PACKAGE_VERSION_SUFFIX}" <<'PYEOF'
+import json, os, sys, tarfile
+
+index_path, pkg_dir, versions_file, suffix = sys.argv[1:]
+with open(index_path, "r", encoding="utf-8") as f:
+    idx = json.load(f)
+
+pkg_versions = {}
+with open(versions_file, "r", encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        k, _, v = line.partition("=")
+        pkg_versions[k.strip()] = v.strip()
+
+errors = []
+for pkg in idx.get("packages", []):
+    name = pkg.get("name", "?")
+    # 1) Index never carries pre-admission repository identity.
+    if str(pkg.get("build_id") or "").strip():
+        errors.append(f"{name}: release-index carries pre-admission build_id")
+    if int(pkg.get("build_number") or 0) > 0:
+        errors.append(f"{name}: release-index carries pre-admission build_number")
+    carry_forward = pkg.get("provenance_class") == "explicit-carry-forward"
+    # 2) Current-release service packages: version equals committed authority.
+    if name in pkg_versions and not carry_forward:
+        expected = pkg_versions[name] + suffix
+        if str(pkg.get("version") or "") != expected:
+            errors.append(f"{name}: version {pkg.get('version')!r} != committed source version {expected!r}")
+    # 3) package.json inside current-release artifacts carries no identity.
+    if not carry_forward:
+        tgz = os.path.join(pkg_dir, pkg.get("filename") or "")
+        if os.path.isfile(tgz):
+            with tarfile.open(tgz, "r:gz") as tf:
+                member = None
+                for cand in ("package.json", "./package.json"):
+                    try:
+                        member = tf.getmember(cand)
+                        break
+                    except KeyError:
+                        continue
+                if member is not None:
+                    pj = json.loads(tf.extractfile(member).read())
+                    if str(pj.get("build_id") or "").strip():
+                        errors.append(f"{name}: package.json carries pre-admission build_id")
+                    if int(pj.get("build_number") or 0) > 0:
+                        errors.append(f"{name}: package.json carries pre-admission build_number")
+
+if errors:
+    raise SystemExit("identity gate FAILED:\n  " + "\n  ".join(errors))
+print(f"  → identity gate: {len(idx.get('packages', []))} packages clean (no pre-admission identity; versions match committed source)")
 PYEOF
 }
 
@@ -782,6 +880,7 @@ validate_release_bundle_dir() {
     "${release_dir}/scripts/install-day0.sh" "${REGISTRY_YAML}" >/dev/null
 
   validate_release_index_against_packages "${release_dir}"
+  validate_release_identity_gate "${release_dir}"
   bash "${SERVICES_ROOT}/scripts/test-release-bom.sh" "${release_dir}/release-index.json" "${REGISTRY_YAML}" >/dev/null
 
   while IFS= read -r tgz; do
@@ -811,10 +910,32 @@ for name in targets:
 PYEOF
 }
 
+# registry_name_for_target_dir <golang-subdir> — registry package name for a
+# services.list target's top-level directory (mirrors gen-package-versions).
+registry_name_for_target_dir() {
+  local dir="$1"
+  case "${dir}" in
+    globularcli) echo "globular-cli" ;;
+    *) echo "${dir//_/-}" ;;
+  esac
+}
+
+# ldflags_for <registry-name> — normal lane: NO version injection (the
+# committed zz_version_generated.go is the version authority baked at
+# compile). Hotfix/local lane (suffix set): the SANCTIONED ldflags escape so
+# the binary reports version+suffix.
+ldflags_for() {
+  local name="$1"
+  if [[ -n "${PACKAGE_VERSION_SUFFIX}" ]]; then
+    printf '%s\n' "-X main.Version=$(pkg_version_of "${name}") -s -w"
+  else
+    printf '%s\n' "-s -w"
+  fi
+}
+
 stage_release_binaries() {
   section "Building Go Services"
 
-  LDFLAGS="-X main.Version=${VERSION} -s -w"
   cd "${SERVICES_ROOT}/golang"
 
   while IFS='|' read -r target output; do
@@ -823,8 +944,10 @@ stage_release_binaries() {
     [[ -z "${target}" ]] && continue
 
     bin_name=$(basename "${output}")
-    info "Building ${bin_name}..."
-    go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/${bin_name}" "${target}"
+    svc_dir="${target#./}"; svc_dir="${svc_dir%%/*}"
+    pkg_reg_name="$(registry_name_for_target_dir "${svc_dir}")"
+    info "Building ${bin_name} (version $(pkg_version_of "${pkg_reg_name}") from committed source)..."
+    go build -trimpath -ldflags "$(ldflags_for "${pkg_reg_name}")" -o "${BIN_STAGE_DIR}/${bin_name}" "${target}"
   done < build/services.list
 
   cp "${BIN_STAGE_DIR}/globularcli" "${BIN_STAGE_DIR}/globular" 2>/dev/null || true
@@ -834,8 +957,8 @@ stage_release_binaries() {
   info "Building xds and gateway from sibling Globular repo..."
   (
     cd "${GLOBULAR_ROOT}"
-    go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/xds" ./cmd/xds
-    go build -trimpath -ldflags "${LDFLAGS}" -o "${BIN_STAGE_DIR}/gateway" ./cmd/gateway
+    go build -trimpath -ldflags "$(ldflags_for xds)" -o "${BIN_STAGE_DIR}/xds" ./cmd/xds
+    go build -trimpath -ldflags "$(ldflags_for gateway)" -o "${BIN_STAGE_DIR}/gateway" ./cmd/gateway
   )
 
   [[ -d "${INSTALLER_ROOT}" ]] || die "globular-installer repo not found at ${INSTALLER_ROOT}"
@@ -929,29 +1052,40 @@ for dir in "${SOURCE_PACKAGE_DIRS[@]}"; do
 done
 PROVENANCE_FILE="$(mktemp)"
 trap 'rm -f "${PROVENANCE_FILE}"' EXIT
-BUILD_NUMBER="$(date +%s)"
 
-stamp_package_identity() {
-  local src_pkg="$1" out_pkg="$2" version_override="${3:-}"
-  local tmpdir build_id
-  tmpdir="$(mktemp -d)"
-  tar -xzf "${src_pkg}" -C "${tmpdir}"
-  sync_policy_payload "${tmpdir}" "$(extract_package_field "${src_pkg}" name)"
-  build_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
-  python3 - "${tmpdir}/package.json" "${BUILD_NUMBER}" "${build_id}" "${version_override}" <<'PYEOF'
-import json, sys
-path, build_number, build_id, version_override = sys.argv[1:]
-with open(path, "r", encoding="utf-8") as f:
-    data = json.load(f)
-data["build_number"] = int(build_number)
-data["build_id"] = build_id
-if version_override:
-    data["version"] = version_override
-with open(path, "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=2)
+# NO local identity minting. build_id and build_number are repository-admission
+# identity (assigned at Day-0 seed / steady-state upload). The release build
+# ships packages exactly as their authority produced them:
+#   - external/infra packages: byte-identical copies from packages/dist
+#   - service packages: built ONCE by pkg build with the committed version
+# There is no stamp_package_identity step — deleting compensation, not
+# improving it (see docs/design/package-identity-single-authority.md).
+
+# assert_no_local_identity <pkg.tgz> — release gate: bundle packages must not
+# carry pre-admission repository identity.
+assert_no_local_identity() {
+  local pkg="$1"
+  python3 - "${pkg}" <<'PYEOF'
+import json, sys, tarfile
+pkg = sys.argv[1]
+with tarfile.open(pkg, "r:gz") as tf:
+    member = None
+    for cand in ("package.json", "./package.json"):
+        try:
+            member = tf.getmember(cand)
+            break
+        except KeyError:
+            continue
+    if member is None:
+        raise SystemExit(f"{pkg}: package.json not found")
+    data = json.loads(tf.extractfile(member).read())
+build_id = str(data.get("build_id") or "").strip()
+build_number = int(data.get("build_number") or 0)
+if build_id:
+    raise SystemExit(f"{pkg}: carries pre-admission build_id={build_id!r} — repository admission is the only build_id authority")
+if build_number > 0:
+    raise SystemExit(f"{pkg}: carries pre-admission build_number={build_number} — repository admission is the only build_number authority")
 PYEOF
-  tar -C "${tmpdir}" -czf "${out_pkg}" .
-  rm -rf "${tmpdir}"
 }
 
 sync_policy_payload() {
@@ -996,10 +1130,16 @@ for dir in "${SOURCE_PACKAGE_DIRS[@]}"; do
         die "unexpected external package source class ${source_class} for ${src_pkg}"
         ;;
     esac
-    stamped_pkg="${PKG_STAGE_DIR}/$(basename "${src_pkg}")"
-    stamp_package_identity "${src_pkg}" "${stamped_pkg}"
-    sanitize_package_payload "${stamped_pkg}"
-    validate_package_systemd_units "${stamped_pkg}" || die "unsafe systemd unit content detected in $(basename "${stamped_pkg}")"
+    # External/infra packages pass through BYTE-IDENTICAL — their version is
+    # externally owned (packages repo) and identity is repository-admission
+    # business. No restamping, no re-compression.
+    staged_pkg="${PKG_STAGE_DIR}/${pkg_name}_$(extract_package_field "${src_pkg}" version)_linux_amd64.tgz"
+    cp "${src_pkg}" "${staged_pkg}"
+    validate_package_payload_sanity "${staged_pkg}"
+    validate_package_systemd_units "${staged_pkg}" || die "unsafe systemd unit content detected in $(basename "${staged_pkg}")"
+    if [[ "${source_class}" != "explicit-carry-forward" ]]; then
+      assert_no_local_identity "${staged_pkg}"
+    fi
     if [[ "${source_class}" == "explicit-carry-forward" ]]; then
       origin_release="$(python3 - "${dir}/../release-index.json" "${pkg_name}" <<'PYEOF'
 import json, sys
@@ -1016,7 +1156,7 @@ PYEOF
     else
       origin_release="v${VERSION}"
     fi
-    printf '%s\t%s\t%s\t%s\n' "${pkg_name}" "${source_class}" "${origin_release}" "${stamped_pkg}" >> "${PROVENANCE_FILE}"
+    printf '%s\t%s\t%s\t%s\n' "${pkg_name}" "${source_class}" "${origin_release}" "${staged_pkg}" >> "${PROVENANCE_FILE}"
     seen_external["${pkg_name}"]="${src_pkg}"
     copied_external=$((copied_external + 1))
   done
@@ -1049,12 +1189,17 @@ for pkg_name in "${!BIN_MAP[@]}"; do
   fi
   [[ -n "${src_pkg}" ]] || die "missing generated source package template for ${pkg_name} in ${GENERATED_PKG_DIR}"
 
-  info "Packaging ${pkg_name} v${VERSION}..."
-  out_file="${PKG_STAGE_DIR}/${pkg_name}_${VERSION}_linux_amd64.tgz"
+  pkg_ver="$(pkg_version_of "${pkg_name}")"
+  info "Packaging ${pkg_name} v${pkg_ver} (committed source version)..."
+  out_file="${PKG_STAGE_DIR}/${pkg_name}_${pkg_ver}_linux_amd64.tgz"
 
   if (( REUSE_GENERATED_RELEASE_INPUTS )); then
-    stamp_package_identity "${src_pkg}" "${out_file}"
+    # Regenerated templates are already complete (built by pkg build with the
+    # committed version, policy payload, and entrypoint checksum). Pure copy —
+    # no identity mutation, no re-compression.
+    cp "${src_pkg}" "${out_file}"
     validate_package_systemd_units "${out_file}" || die "unsafe systemd unit content detected in $(basename "${out_file}")"
+    assert_no_local_identity "${out_file}"
     printf '%s\t%s\t%s\t%s\n' "${pkg_name}" "generated-current-release" "v${VERSION}" "${src_pkg}" >> "${PROVENANCE_FILE}"
     pkg_count=$((pkg_count + 1))
     continue
@@ -1072,22 +1217,27 @@ for pkg_name in "${!BIN_MAP[@]}"; do
 
   CHECKSUM="sha256:$(sha256sum "${bin_path}" | awk '{print $1}')"
 
-  build_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
-  python3 - "${tmpdir}/package.json" "${VERSION}" "${CHECKSUM}" "${BUILD_NUMBER}" "${build_id}" <<'PYEOF'
+  # Packaging writes package.json ONCE, before the single compression:
+  # version copied from committed source authority, entrypoint_checksum is
+  # payload truth computed here. Repository-admission identity (build_id /
+  # build_number) is actively stripped — never minted locally.
+  python3 - "${tmpdir}/package.json" "${pkg_ver}" "${CHECKSUM}" "${PACKAGE_PUBLISHER}" <<'PYEOF'
 import json, sys
-path, version, checksum, build_number, build_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+path, version, checksum, publisher = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 with open(path) as f:
     d = json.load(f)
 d['version'] = version
-d['build_number'] = int(build_number)
-d['build_id'] = build_id
+d['publisher'] = publisher
 d['entrypoint_checksum'] = checksum
+d.pop('build_number', None)
+d.pop('build_id', None)
 with open(path, 'w') as f:
     json.dump(d, f, indent=2)
 PYEOF
   tar -C "${tmpdir}" -czf "${out_file}" .
   rm -rf "${tmpdir}"
   validate_package_systemd_units "${out_file}" || die "unsafe systemd unit content detected in $(basename "${out_file}")"
+  assert_no_local_identity "${out_file}"
   printf '%s\t%s\t%s\t%s\n' "${pkg_name}" "generated-current-release" "v${VERSION}" "${src_pkg}" >> "${PROVENANCE_FILE}"
   pkg_count=$((pkg_count + 1))
 done

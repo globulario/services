@@ -142,6 +142,13 @@ check-package-authority:
 check-day0-package-contract:
 	@python3 scripts/validate-day0-package-contract.py
 
+# check-identity-authority: single-authority package identity gate — no local
+# build_id/build_number minting, no platform-version stamping of service
+# packages, committed zz_version_generated.go contract holds.
+# See docs/design/package-identity-single-authority.md.
+check-identity-authority:
+	@bash scripts/check-identity-authority.sh
+
 # ── Generated protobuf placement ─────────────────────────────────────────────
 #
 # check-no-misplaced-pb: protobuf-generated Go files must live ONLY under their
@@ -184,7 +191,7 @@ check-no-tracked-binaries:
 
 # ── Aggregate check target ───────────────────────────────────────────────────
 
-check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract
+check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract check-identity-authority
 
 # ── Test targets ─────────────────────────────────────────────────────────────
 

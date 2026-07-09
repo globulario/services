@@ -328,29 +328,17 @@ func (packageVerifyIntegrityAction) Apply(ctx context.Context, args *structpb.St
 					},
 				})
 				report.Invariants["artifact.desired_version_mismatch"]++
-			} else if d.Build > 0 && inst.build > 0 && d.Build != inst.build {
-				// inst.build == 0 means installed_state was written before
-				// build_number tracking was rigorous (or by a code path
-				// that left it unset). The convergence-committer stamps
-				// buildNumber from desired on the next convergence pass,
-				// so this is a "will catch up" state — not a real drift.
-				// Without this guard, every fresh cluster shows ~10–15
-				// WARN findings (one per service where installed_state
-				// predates build_number) that operators can't act on.
-				report.Findings = append(report.Findings, integrityFinding{
-					Invariant: "artifact.desired_build_mismatch",
-					Severity:  "WARN",
-					Package:   inst.ref.GetName(),
-					Kind:      inst.kind,
-					Summary: fmt.Sprintf("installed build %d but desired build %d",
-						inst.build, d.Build),
-					Evidence: map[string]string{
-						"installed_build": fmt.Sprintf("%d", inst.build),
-						"desired_build":   fmt.Sprintf("%d", d.Build),
-					},
-				})
-				report.Invariants["artifact.desired_build_mismatch"]++
 			}
+			// NOTE: build_number is intentionally NOT compared here.
+			// Per ops.always.package.identity-rules, build_number is
+			// DISPLAY-ONLY and never a convergence/drift dimension —
+			// convergence identity is build_id (enforced in
+			// release_runtime_convergence.go) and content identity is
+			// sha256. The removed artifact.desired_build_mismatch finding
+			// was structurally false-positive under the dual-mint history
+			// (bundle-stamped timestamps vs repository counters; scar:
+			// installed build 1783560972 vs desired build 1, 2026-07-08).
+			// See docs/design/package-identity-single-authority.md.
 		}
 
 		// I1: cached artifact checksum vs manifest digest

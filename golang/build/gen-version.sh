@@ -1,21 +1,30 @@
 #!/usr/bin/env bash
-# gen-version.sh — Write a zz_version_generated.go file into every service package before build.
+# gen-version.sh — THE single writer of zz_version_generated.go files.
 #
 # Usage: bash build/gen-version.sh <default-version> [version-overrides-file]
 #
-# IMPORTANT: For official releases, ALWAYS pass a version-overrides-file derived from
-# the BOM (release-index.json). Using the platform release as the default version
-# stamps ALL packages with the platform version, which violates the BOM invariant:
+# AUTHORITY MODEL (docs/design/package-identity-single-authority.md):
 #
-#   Platform release 1.2.52 != every package is version 1.2.52.
+#   Committed zz_version_generated.go files ARE the per-package version
+#   authority materialized into source. They are COMMITTED and CI-gated —
+#   this script is the only tool that writes them. The one-way flow:
 #
-# The overrides file maps each package to its own version as declared in the BOM.
-# Packages not listed in the overrides file fall back to <default-version>.
-# For release builds, the default should be 0.0.0-dev (fail-safe) or a clearly
-# labelled fallback, NOT the platform release version.
+#     version allocation (deploy pipeline / explicit bump)
+#       → this script materializes it into zz_version_generated.go (committed)
+#         → binary --version reports it
+#           → packaging copies it ONCE into package.json.version
+#             → release-index.json (BOM) RECORDS what shipped
 #
-# Canonical overrides source: golang/build/package-versions.txt
-# (auto-generated from release-index.json by build-all-packages.sh)
+#   Release builds (scripts/build-release.sh) do NOT call this script and do
+#   NOT override versions: they consume the committed zz values via
+#   scripts/gen-package-versions-from-source.sh. NEVER stamp the platform
+#   release version into package versions:
+#
+#     Platform release 1.2.52 != every package is version 1.2.52.
+#
+# Run this script when ALLOCATING a new version for one or more packages
+# (deploy pipeline bump, or manual bump before a release), then COMMIT the
+# regenerated files.
 #
 # Override file format (one "key=version" per line):
 #   Accepts EITHER of these key formats:
@@ -23,11 +32,11 @@
 #     go_target=version                     (e.g. authentication/authentication_server=1.2.43)
 #   Lines starting with # are comments.
 #
-# This writes the version as a var (not const) so -X main.Version=<ver> ldflags
-# can still override it when needed (e.g. hotfix builds). The init() sentinel
-# catches accidental empty-string builds at runtime.
-#
-# Run this BEFORE `go build ./...`. The generated files are .gitignored — do NOT commit them.
+# The version is written as a var (not const) so -X main.Version=<ver> ldflags
+# can override it — that escape is SANCTIONED ONLY for the hotfix/local lane
+# (GLOBULAR_PACKAGE_VERSION_SUFFIX set, non-core publisher); normal release
+# builds must not pass -X main.Version. The init() sentinel catches
+# accidental empty-string builds at runtime.
 
 set -euo pipefail
 

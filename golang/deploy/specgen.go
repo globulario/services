@@ -236,7 +236,14 @@ steps:
           ExecStartPre=+/bin/sh -c 'mkdir -p {{.StateDir}}/<<% .RuntimeDir %>> && chown <<% .User %>>:<<% .Group %>> {{.StateDir}}/<<% .RuntimeDir %>>'
           ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -f /var/lib/globular/pki/issued/services/service.crt ] && exit 0; sleep 1; done; echo "TLS cert not ready after 60s"; ls -la /var/lib/globular/pki/issued/services/ 2>&1 || echo "cert dir missing"; exit 1'
 <<%- if .NeedsScylla %>>
-          ExecStartPre=/bin/sh -c 'for i in $(seq 1 90); do ss -lnt | grep -q ":9042 " && exit 0; sleep 1; done; echo "scylla 9042 not ready after 90s"; ss -lnt 2>&1; systemctl status scylla-server.service --no-pager -l 2>&1 | tail -5; exit 1'
+          # Scylla readiness gate — topology-aware. On STORAGE nodes scylla is local, so wait for
+          # the local CQL listener (:9042) and hard-fail if it never appears (a real storage-node
+          # fault). On NON-STORAGE nodes (e.g. core-only) scylla is REMOTE: the service binary
+          # discovers hosts from etcd (/globular/cluster/scylla/hosts) and self-gates startup via its
+          # own readiness check with Restart=always. This gate MUST NOT hard-fail on a missing LOCAL
+          # listener there, or the unit deadlocks forever. Discriminator: presence of the local
+          # scylla-server.service unit (node-agent installs it only on storage nodes).
+          ExecStartPre=/bin/sh -c 'if ! systemctl cat scylla-server.service >/dev/null 2>&1; then echo "no local scylla-server unit on this node — remote scylla topology; deferring to service-level readiness gate"; exit 0; fi; for i in $(seq 1 90); do ss -lnt | grep -q ":9042 " && exit 0; sleep 1; done; echo "local scylla 9042 not ready after 90s"; ss -lnt 2>&1; systemctl status scylla-server.service --no-pager -l 2>&1 | tail -5; exit 1'
 <<%- end %>>
 <<%- if .HasCapNetBind %>>
           AmbientCapabilities=CAP_NET_BIND_SERVICE

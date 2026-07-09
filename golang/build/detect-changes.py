@@ -272,7 +272,26 @@ def main():
              "Source of truth for entrypoint_checksum + provenance fields on "
              "unchanged carry-forwards — prev_index is NOT trusted for those "
              "fields (see load_origin_index docstring).")
+    ap.add_argument("--package-versions-file", default="",
+        help="Committed per-package version authority (name=version lines, "
+             "materialized from zz_version_generated.go by "
+             "scripts/gen-package-versions-from-source.sh). When provided, "
+             "CHANGED packages are assigned their committed version — never "
+             "the platform release — and a changed package whose committed "
+             "version equals its previously released version is a hard error "
+             "(version reuse). See docs/design/package-identity-single-authority.md.")
     args = ap.parse_args()
+
+    committed_versions = None
+    if args.package_versions_file:
+        committed_versions = {}
+        with open(args.package_versions_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                k, _, v = line.partition("=")
+                committed_versions[k.strip()] = v.strip()
 
     prev = load_prev_index(args.prev_index)
     # Cache of {origin_release_tag: {name: entry}} loaded lazily.
@@ -448,9 +467,24 @@ def main():
                 "publisher":               manifest.get("publisher", ""),
             })
         else:
-            # ── Changed: assign version based on version_source ──
-            if plat_ver:
-                pkg_version = args.version  # platform version
+            # ── Changed: assign version from the version authority ──
+            if committed_versions is not None and name in committed_versions:
+                # Single-authority model: committed zz_version_generated.go is
+                # the per-package version. A changed package MUST carry a
+                # version different from its last released one — version
+                # reuse for different bytes is an identity violation.
+                pkg_version = committed_versions[name]
+                prev_released = str(p.get("version") or "").strip()
+                if prev_released and pkg_version == prev_released:
+                    print(f"ERROR: {name}: package changed but committed version "
+                          f"{pkg_version!r} equals its previously released version. "
+                          f"Bump it (golang/build/gen-version.sh) and commit "
+                          f"zz_version_generated.go.",
+                          file=sys.stderr)
+                    sys.exit(1)
+            elif plat_ver:
+                # Legacy lane (no --package-versions-file): platform version.
+                pkg_version = args.version
             else:
                 pkg_version = manifest.get("version", "")  # upstream (from metadata)
 

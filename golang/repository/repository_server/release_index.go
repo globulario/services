@@ -342,6 +342,17 @@ func ValidateReleaseIndex(idx *releaseIndex) error {
 
 // ValidateReleaseIndexForInstall applies stricter requirements for official
 // Day-0/Day-1 install flows where release-index mistakes must fail closed.
+//
+// Identity pins: since the single-authority identity model
+// (docs/design/package-identity-single-authority.md), release bundles ship
+// WITHOUT pre-minted build_id/build_number — the repository is the sole
+// identity authority and assigns them at admission. For entries that carry an
+// artifact digest (the real content pin) but no build identity, admission
+// derives the same deterministic, repository-owned identity that
+// normalizeReleaseEntry derives for upstream syncs. Determinism from the
+// published digest preserves release_index.entries_immutable_after_publish:
+// re-validating the same published entry always completes to identical pins.
+// A missing DIGEST still fails closed — content identity is non-negotiable.
 func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 	if idx != nil {
 		v, _ := parseSchemaVersion(idx.SchemaVersion)
@@ -350,6 +361,7 @@ func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 		}
 		if v == SchemaVersionV2 {
 			for i, e := range idx.Packages {
+				deriveInstallIdentityPins(e)
 				if missing := missingInstallPinFields(e); len(missing) > 0 {
 					return fmt.Errorf("packages[%d] (%s): repository.identity.release_index_missing_pins: missing required fields: %s",
 						i, e.Name, strings.Join(missing, ","))
@@ -390,6 +402,41 @@ func ValidateReleaseIndexForInstall(idx *releaseIndex) error {
 			}
 	}
 	return nil
+}
+
+// deriveInstallIdentityPins completes missing repository-owned identity on a
+// v2 install entry from its content digest, in place. It derives ONLY when
+// the entry carries no build identity (empty/derivable build_id, zero
+// build_number) AND has the fields the deterministic derivation needs. It
+// never overwrites an explicit, well-formed build_id — repository-published
+// identity stays immutable.
+func deriveInstallIdentityPins(e *releaseIndexEntry) {
+	if e == nil {
+		return
+	}
+	digest := strings.TrimSpace(e.ArtifactSha256)
+	if digest == "" {
+		digest = strings.TrimSpace(e.PackageDigest)
+	}
+	if digest == "" {
+		digest = strings.TrimSpace(e.Checksum)
+	}
+	if digest == "" {
+		// No content pin — nothing safe to derive from; the missing-pins
+		// check will fail closed on artifact_sha256.
+		return
+	}
+	buildID := strings.TrimSpace(e.BuildID)
+	if shouldDeriveUpstreamBuildID(buildID) {
+		publisher := strings.TrimSpace(e.Publisher)
+		if publisher == "" {
+			publisher = "core@globular.io"
+		}
+		e.BuildID = deriveUpstreamBuildID(publisher, e.Name, e.Version, e.Platform, digest)
+	}
+	if e.BuildNumber <= 0 {
+		e.BuildNumber = deriveBuildNumber(strings.TrimSpace(e.BuildID), digest)
+	}
 }
 
 func missingInstallPinFields(e *releaseIndexEntry) []string {

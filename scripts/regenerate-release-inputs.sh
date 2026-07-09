@@ -12,6 +12,11 @@ WORKFLOW_DEFS="${GOLANG_ROOT}/workflow/definitions"
 MANIFEST_PATH="${GENERATED_ROOT}/release-inputs.manifest.json"
 VERSION="0.0.0-dev"
 
+# Per-package version authority: committed zz_version_generated.go files,
+# materialized to an overrides file consumed by pkggen. The --version flag is
+# the PLATFORM release (manifest freshness), never a package version.
+PACKAGE_VERSIONS_FILE="${GOLANG_ROOT}/build/package-versions.txt"
+
 die() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "  → $*"; }
 ok() { echo "  ✓ $*"; }
@@ -54,6 +59,15 @@ done
 [[ -d "${STAGE_BIN}" ]] || die "stage binary directory not found at ${STAGE_BIN}"
 [[ -x "${STAGE_BIN}/globularcli" ]] || die "globularcli not found at ${STAGE_BIN}/globularcli"
 command -v protoc >/dev/null 2>&1 || die "protoc is required to regenerate generated/policy"
+
+# Materialize committed per-package versions for pkggen.
+bash "${SCRIPT_DIR}/gen-package-versions-from-source.sh" --out "${PACKAGE_VERSIONS_FILE}"
+pkg_version_from_file() {
+  local name="$1" line
+  line="$(grep -E "^${name}=" "${PACKAGE_VERSIONS_FILE}" | head -1)"
+  [[ -n "${line}" ]] || die "no committed version for package '${name}' in ${PACKAGE_VERSIONS_FILE}"
+  printf '%s\n' "${line#*=}"
+}
 
 registry_field() {
   local name="$1" field="$2"
@@ -147,28 +161,31 @@ build_extra_template() {
     scripts_arg=(--scripts-dir "${metadata_dir}/scripts")
   fi
 
+  local pkg_ver
+  pkg_ver="$(pkg_version_from_file "${pkg_name}")"
   "${STAGE_BIN}/globularcli" pkg build \
     --spec "${tmpdir}/specs/$(basename "${spec_src}")" \
     --root "${tmpdir}" \
     "${scripts_arg[@]}" \
-    --version "${VERSION}" \
+    --version "${pkg_ver}" \
     --publisher "core@globular.io" \
     --platform "linux_amd64" \
     --out "${GENERATED_ROOT}" \
     --skip-missing-config=true \
     --skip-missing-systemd=true >/dev/null
   rm -rf "${tmpdir}"
-  ok "regenerated template ${pkg_name}_${VERSION}_linux_amd64.tgz"
+  ok "regenerated template ${pkg_name}_${pkg_ver}_linux_amd64.tgz"
 }
 
 regenerate_service_templates() {
-  info "Generating service package templates..."
+  info "Generating service package templates (versions from committed source authority)..."
   bash "${GOLANG_ROOT}/globularcli/tools/pkggen/pkggen.sh" \
     --globular "${STAGE_BIN}/globularcli" \
     --bin-dir "${STAGE_BIN}" \
     --gen-root "${GENERATED_ROOT}" \
     --out "${GENERATED_ROOT}" \
-    --version "${VERSION}" \
+    --version "0.0.0-dev" \
+    --versions-file "${PACKAGE_VERSIONS_FILE}" \
     --publisher "core@globular.io" \
     --platform "linux_amd64"
 
@@ -180,18 +197,29 @@ regenerate_service_templates() {
 
 validate_generated_inputs() {
   echo "  → Validating regenerated release inputs..." >&2
-  python3 - "${PACKAGES_ROOT}/registry.yaml" "${GENERATED_ROOT}" "${VERSION}" <<'PYEOF'
+  python3 - "${PACKAGES_ROOT}/registry.yaml" "${GENERATED_ROOT}" "${PACKAGE_VERSIONS_FILE}" <<'PYEOF'
 import glob, json, os, sys
 from pathlib import Path
 import yaml
 
-registry_path, generated_root, version = sys.argv[1:]
+registry_path, generated_root, versions_file = sys.argv[1:]
 with open(registry_path, "r", encoding="utf-8") as f:
     reg = yaml.safe_load(f) or {}
 registry = {str(pkg.get("name") or "").strip(): pkg for pkg in reg.get("packages", []) if str(pkg.get("name") or "").strip()}
+
+# Committed per-package version authority.
+pkg_versions = {}
+with open(versions_file, "r", encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        k, _, v = line.partition("=")
+        pkg_versions[k.strip()] = v.strip()
+
 required = set()
 for name, pkg in registry.items():
-    if str(pkg.get("version_source") or "").strip() != "platform":
+    if str(pkg.get("version_source") or "").strip() not in {"code", "platform"}:
         continue
     go_target = str(pkg.get("go_target") or "").strip()
     if go_target or name in {"globular-cli", "mcp", "gateway", "xds"}:
@@ -209,8 +237,11 @@ for path in sorted(glob.glob(os.path.join(generated_root, "*.tgz"))):
         raise SystemExit(f"unexpected generated template naming format: {base}")
     if name not in registry:
         raise SystemExit(f"generated template {base} is not registry-backed")
-    if file_version != version:
-        raise SystemExit(f"generated template {base} has version {file_version}, expected {version}")
+    expected = pkg_versions.get(name)
+    if expected is None:
+        raise SystemExit(f"generated template {base}: no committed version authority for {name!r}")
+    if file_version != expected:
+        raise SystemExit(f"generated template {base} has version {file_version}, expected committed source version {expected}")
     actual.add(name)
 
 missing = sorted(required - actual)
