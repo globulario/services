@@ -94,6 +94,28 @@ func (h *SubsystemHandle) TickError(err error) {
 	h.mu.Unlock()
 }
 
+// TickWaiting records an iteration that could not complete because a transient
+// external dependency is unavailable (e.g. the cluster controller has no
+// elected leader yet), as distinct from a failure of this subsystem itself.
+//
+// It refreshes the freshness clock (so the subsystem is not reported stale) and
+// records the reason, but — unlike TickError — it does NOT increment the
+// consecutive-error count, and — unlike Tick — it does NOT clear a prior error
+// count or force the state to Healthy. The subsystem's own health is left
+// unchanged: it is waiting on another layer, not broken.
+//
+// Callers must bound how long they keep calling TickWaiting; once a transient
+// dependency stays down long enough to be a genuine problem, fall through to
+// TickError so the condition surfaces.
+func (h *SubsystemHandle) TickWaiting(reason string) {
+	h.mu.Lock()
+	h.lastTick = time.Now()
+	if reason != "" {
+		h.lastError = reason
+	}
+	h.mu.Unlock()
+}
+
 // SetState overrides the computed state. Use for subsystems that manage
 // their own state machine (e.g., leader election: STARTING → HEALTHY).
 func (h *SubsystemHandle) SetState(s SubsystemState) {

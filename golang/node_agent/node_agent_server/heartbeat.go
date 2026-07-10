@@ -125,6 +125,17 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	// avoid repeating the same message every 30 seconds.
 	loggedMissingEndpoint := false
 
+	// Bounded grace for controller leadership gaps. When the controller has no
+	// elected leader yet (e.g. it is restarting), ReportNodeStatus returns
+	// "not leader (leader_addr=, epoch=0)". That is a transient controller-side
+	// condition, not a failure of this node's heartbeat subsystem, so it must
+	// not flip the subsystem to DEGRADED. We tolerate it for a bounded window;
+	// if the controller stays leaderless beyond that, it is a genuine problem
+	// and we fall through to real error counting so it surfaces.
+	// electionGapGraceCycles * heartbeatDelay ≈ 3 minutes.
+	const electionGapGraceCycles = 6
+	electionGapGraceCount := 0
+
 	runHeartbeat := func() {
 		now := time.Now()
 		withOpTimeout(15*time.Second, srv.ensureRuntimeTLSConvergence)
@@ -160,13 +171,26 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 				log.Printf("node heartbeat failed (state=%s): %v", srv.controllerConnState, err)
 				loggedMissingEndpoint = false
 			}
-			hb.TickError(err)
+			// A controller leadership gap ("not leader" with empty leader_addr) is
+			// a transient condition of another layer, not a failure of this node's
+			// heartbeat subsystem. Keep the subsystem's own health intact for a
+			// bounded grace window (transport bookkeeping above still retries and
+			// rediscovers). Beyond the window, treat it as a real error so a
+			// persistently leaderless controller surfaces as DEGRADED.
+			if isControllerElectionGap(err) && electionGapGraceCount < electionGapGraceCycles {
+				electionGapGraceCount++
+				hb.TickWaiting(fmt.Sprintf("controller has no elected leader (grace %d/%d): %v",
+					electionGapGraceCount, electionGapGraceCycles, err))
+			} else {
+				hb.TickError(err)
+			}
 		} else {
 			srv.controllerConnState = ConnStateConnected
 			srv.lastControllerContact = now
 			srv.consecutiveHeartbeatFail = 0
 			recordHeartbeatSuccess(now)
 			loggedMissingEndpoint = false
+			electionGapGraceCount = 0
 			hb.Tick()
 		}
 		setControllerStateGauge(srv.controllerConnState)
@@ -1613,6 +1637,28 @@ func leaderAddrFromError(err error) string {
 	}
 	log.Printf("node-agent: leader redirect → %s", addr)
 	return addr
+}
+
+// isControllerElectionGap reports whether err is the controller's
+// "no elected leader yet" signal: a FailedPrecondition "not leader" with an
+// EMPTY leader_addr (the "not leader (leader_addr=, epoch=0)" shape). An empty
+// redirect target means there is currently no leader to redirect to — a
+// transient controller-side election gap (e.g. the controller is restarting) —
+// as opposed to a populated leader_addr, which means "retry against that
+// leader". This is NOT a failure of the node-agent's own heartbeat subsystem;
+// per invariant infra.heartbeat_observer_only_not_authority a node's self-health
+// must reflect its own liveness, not a peer's leadership transient.
+func isControllerElectionGap(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.FailedPrecondition {
+		return false
+	}
+	if !strings.Contains(st.Message(), "not leader") {
+		return false
+	}
+	// Empty redirect target ⇒ no leader currently exists (election in progress).
+	// A populated leader_addr is handled by sendStatusWithRetry's redirect retry.
+	return leaderAddrFromError(err) == ""
 }
 
 func (srv *NodeAgentServer) resetControllerClient() {
