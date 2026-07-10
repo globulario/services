@@ -17,6 +17,7 @@ func TestHasUnservedNodes_SkipsStaleHeartbeatNode(t *testing.T) {
 	liveNode := &nodeState{
 		NodeID:         "live",
 		Status:         "ready",
+		Profiles:       []string{"core"},
 		BootstrapPhase: BootstrapWorkloadReady,
 		LastSeen:       time.Now(),
 		InstalledVersions: map[string]string{
@@ -26,6 +27,7 @@ func TestHasUnservedNodes_SkipsStaleHeartbeatNode(t *testing.T) {
 	deadNode := &nodeState{
 		NodeID:         "dead",
 		Status:         "ready",
+		Profiles:       []string{"core"},
 		BootstrapPhase: BootstrapWorkloadReady,
 		// Stale: last seen > heartbeatStaleThreshold ago.
 		LastSeen: time.Now().Add(-(heartbeatStaleThreshold + time.Minute)),
@@ -65,6 +67,7 @@ func TestHasUnservedNodes_DetectsLiveUnservedNode(t *testing.T) {
 	liveServed := &nodeState{
 		NodeID:         "n1",
 		Status:         "ready",
+		Profiles:       []string{"core"},
 		BootstrapPhase: BootstrapWorkloadReady,
 		LastSeen:       time.Now(),
 		InstalledVersions: map[string]string{
@@ -74,6 +77,7 @@ func TestHasUnservedNodes_DetectsLiveUnservedNode(t *testing.T) {
 	liveUnserved := &nodeState{
 		NodeID:         "n2",
 		Status:         "ready",
+		Profiles:       []string{"core"},
 		BootstrapPhase: BootstrapWorkloadReady,
 		LastSeen:       time.Now(), // fresh heartbeat
 	}

@@ -158,7 +158,7 @@ The repository is not a passive store. It enforces invariants at write time and 
 | **Publisher identity** | The JWT token must match the `publisher` field in the package manifest. You cannot impersonate another publisher. |
 | **Build ID sovereignty** | The client never provides a `build_id`. The repository generates it. Any client-supplied value is ignored. |
 | **State machine** | Transitions are validated server-side. You cannot jump from YANKED directly to DEPRECATED — invalid transitions are rejected. |
-| **Founding quorum** | The first three nodes of any cluster must have core+control-plane+storage profiles. The repository enforces this at join time. Without three MinIO nodes, the artifact store itself is a single point of failure. |
+| **Capacity posture** | Quorum is observed survivability quality, not a repository admission floor. Smaller clusters are valid with lower fault tolerance; destructive storage/topology changes still require component-specific safety checks. |
 | **Artifact laws** | Three formal laws are checked at `completePublish()` time — see below. A violation blocks promotion to PUBLISHED. |
 
 ### Artifact Laws

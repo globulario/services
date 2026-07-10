@@ -49,8 +49,8 @@ auto-repair is in scope for this track.
     directly — group0 truth is owned by the infra-probe truth plane, and a second
     querier would be a competing source of truth (a forbidden authority bypass).
   - Detects quorum loss two ways: (1) an explicit `group0`/`raft`/`quorum`
-    truth-plane violation, and (2) membership-based majority math, only trusted at
-    or above the ScyllaDB founding quorum (≥3) to avoid dev/single-node false
+    truth-plane violation, and (2) membership-based majority math when membership
+    is large enough for that math to be meaningful, avoiding dev/single-node false
     positives.
   - Tool-acquire failure becomes an **indeterminate warning** finding — a tool
     failure is evidence, not silence.

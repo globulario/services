@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,6 +58,36 @@ func TestNodeJoinWorkflowIncludesRepoInstallableProfilePackages(t *testing.T) {
 		if !got[comp.Name] {
 			t.Errorf("node.join workflow missing package %q", comp.Name)
 		}
+	}
+}
+
+func TestJoinWorkflowInputsCarriesAssignedProfiles(t *testing.T) {
+	state := newControllerState()
+	state.Nodes["node-1"] = &nodeState{
+		NodeID:   "node-1",
+		Profiles: []string{"control-plane", "gateway"},
+	}
+	srv := newServer(defaultClusterControllerConfig(), "", "", state, nil)
+
+	inputs, profiles, err := srv.joinWorkflowInputs("node-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(inputs["node_profiles"]) == "" {
+		t.Fatal("node_profiles input must be sent to node-agent")
+	}
+	for _, want := range []string{"control-plane", "core", "gateway"} {
+		if !contains(profiles, want) {
+			t.Fatalf("profiles = %v, missing %q", profiles, want)
+		}
+		if !strings.Contains(inputs["node_profiles"], want) {
+			t.Fatalf("node_profiles input %q missing %q", inputs["node_profiles"], want)
+		}
+	}
+
+	state.Nodes["node-empty"] = &nodeState{NodeID: "node-empty"}
+	if _, _, err := srv.joinWorkflowInputs("node-empty"); err == nil {
+		t.Fatal("join workflow must not start without assigned profiles")
 	}
 }
 

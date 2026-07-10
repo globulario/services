@@ -3,7 +3,6 @@
 // @awareness file_role=etcd_member_add_remove_with_quorum_safe_rollback_and_bounded_join_timeout
 // @awareness implements=globular.platform:intent.etcd.is_source_of_truth
 // @awareness implements=globular.platform:intent.infrastructure.etcd.quorum_backed_config_authority
-// @awareness enforces=globular.platform:invariant.founding.quorum.three_nodes_required
 // @awareness risk=critical
 package main
 
@@ -37,6 +36,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -193,6 +193,30 @@ func nodeAnyIPIsEtcdMember(node *nodeState, existingURLs map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+func memberForNodeFromList(node *nodeState, members []*etcdserverpb.Member) (*etcdserverpb.Member, bool) {
+	if node == nil {
+		return nil, false
+	}
+	peerURLs := make(map[string]struct{}, len(node.Identity.Ips))
+	for _, ip := range node.Identity.Ips {
+		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+			continue
+		}
+		peerURLs[fmt.Sprintf("https://%s:2380", ip)] = struct{}{}
+	}
+	for _, member := range members {
+		if member == nil {
+			continue
+		}
+		for _, purl := range member.PeerURLs {
+			if _, ok := peerURLs[purl]; ok {
+				return member, true
+			}
+		}
+	}
+	return nil, false
 }
 
 // resolveEtcdLeaderNode maps a reported etcd leader member id to a node id and
@@ -395,6 +419,45 @@ func (m *etcdMemberManager) memberRemove(ctx context.Context, memberID uint64) e
 	return nil
 }
 
+func (m *etcdMemberManager) promoteLearnerForNode(ctx context.Context, node *nodeState) (promoted bool, voter bool, err error) {
+	if m == nil || m.client == nil || node == nil {
+		return false, false, fmt.Errorf("etcd client or node not available")
+	}
+	listCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := m.client.MemberList(listCtx)
+	if err != nil {
+		return false, false, fmt.Errorf("etcd member list: %w", err)
+	}
+	member, ok := memberForNodeFromList(node, resp.Members)
+	if !ok {
+		return false, false, nil
+	}
+	if !member.IsLearner {
+		return false, true, nil
+	}
+	promoteCtx, promoteCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer promoteCancel()
+	if _, err := m.client.MemberPromote(promoteCtx, member.ID); err != nil {
+		return false, false, fmt.Errorf("promote learner member %x for node %s: %w", member.ID, node.NodeID, err)
+	}
+	log.Printf("etcd join: promoted learner member %x for node %s (%s) to voter",
+		member.ID, node.NodeID, node.Identity.Hostname)
+	return true, true, nil
+}
+
+func (m *etcdMemberManager) ensureNodeEtcdVoter(ctx context.Context, node *nodeState) (promoted bool, voter bool, err error) {
+	promoted, voter, err = m.promoteLearnerForNode(ctx, node)
+	if err != nil {
+		return false, false, err
+	}
+	if voter {
+		return promoted, true, nil
+	}
+	return false, false, nil
+}
+
 // reconcileEtcdJoinPhases drives the etcd join state machine for all nodes.
 // It is called once per reconciliation cycle.
 //
@@ -447,6 +510,21 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			// controller-initiated MemberAdd calls, especially during 1→2 expansion
 			// where quorum requires 2/2 members immediately.
 			if nodeAnyIPIsEtcdMember(node, namedURLs) {
+				_, voter, err := m.ensureNodeEtcdVoter(ctx, node)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s (%s) learner promotion pending: %v",
+						node.NodeID, node.Identity.Hostname, err)
+					continue
+				}
+				if !voter {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "etcd member is still a learner; waiting for voter promotion"
+					dirty = true
+					continue
+				}
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				dirty = true
@@ -476,6 +554,21 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			// Operator repair needed. Detect if the node has manually recovered
 			// (e.g., by running the gateway join script directly).
 			if nodeAnyIPIsEtcdMember(node, namedURLs) {
+				_, voter, err := m.ensureNodeEtcdVoter(ctx, node)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s (%s) learner promotion pending after rejoin_required: %v",
+						node.NodeID, node.Identity.Hostname, err)
+					continue
+				}
+				if !voter {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "etcd member is still a learner; waiting for voter promotion"
+					dirty = true
+					continue
+				}
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				dirty = true
@@ -488,6 +581,21 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 		case EtcdJoinRejoinInProgress:
 			// A repair workflow is running — check for completion.
 			if nodeAnyIPIsEtcdMember(node, namedURLs) && nodeHasEtcdRunning(node) {
+				_, voter, err := m.ensureNodeEtcdVoter(ctx, node)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s (%s) learner promotion pending after rejoin: %v",
+						node.NodeID, node.Identity.Hostname, err)
+					continue
+				}
+				if !voter {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "etcd member is still a learner; waiting for voter promotion"
+					dirty = true
+					continue
+				}
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				dirty = true
@@ -529,6 +637,20 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 				}
 			}
 			if healthy {
+				_, voter, err := m.ensureNodeEtcdVoter(ctx, node)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s learner promotion pending: %v", node.NodeID, err)
+					continue
+				}
+				if !voter {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "etcd member is still a learner; waiting for voter promotion"
+					dirty = true
+					continue
+				}
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				node.EtcdMemberID = 0 // no longer needed for rollback
@@ -543,8 +665,56 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 				dirty = true
 			}
 
+		case EtcdJoinLearnerPromoting:
+			if !nodeAnyIPIsEtcdMember(node, namedURLs) {
+				continue
+			}
+			_, voter, err := m.ensureNodeEtcdVoter(ctx, node)
+			if err != nil {
+				if node.EtcdJoinError != err.Error() {
+					node.EtcdJoinError = err.Error()
+					dirty = true
+				}
+				log.Printf("etcd join: node %s (%s) learner promotion still pending: %v",
+					node.NodeID, node.Identity.Hostname, err)
+				continue
+			}
+			if !voter {
+				if node.EtcdJoinError == "" {
+					node.EtcdJoinError = "etcd member is still a learner; waiting for voter promotion"
+					dirty = true
+				}
+				continue
+			}
+			node.EtcdJoinPhase = EtcdJoinVerified
+			node.EtcdJoinError = ""
+			node.EtcdMemberID = 0
+			dirty = true
+			log.Printf("etcd join: node %s (%s) promoted to voter and verified",
+				node.NodeID, node.Identity.Hostname)
+
 		case EtcdJoinVerified:
-			// Nothing to do — node is a healthy etcd member.
+			// A previously verified node may still be a learner after an upgrade
+			// from the join-script MemberAdd path. Promote before treating it as
+			// fully participating, but let the existing disappearance handling
+			// below run when the member is no longer present.
+			if nodeAnyIPIsEtcdMember(node, existingURLs) {
+				_, voter, err := m.ensureNodeEtcdVoter(ctx, node)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s (%s) learner promotion pending from verified: %v",
+						node.NodeID, node.Identity.Hostname, err)
+					continue
+				}
+				if !voter {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "etcd member is still a learner; waiting for voter promotion"
+					dirty = true
+					continue
+				}
+			}
 			// Detect if the member has disappeared (node removal).
 			// Must check ALL IPs to avoid false resets on multi-IP nodes.
 			if !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node) {

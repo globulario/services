@@ -141,6 +141,7 @@ func TestHasUnservedNodes_EnvoyReady_ControlPlaneCritical_IsUnserved(t *testing.
 			"n1": {
 				NodeID:         "n1",
 				Status:         "ready",
+				Profiles:       []string{"control-plane"},
 				LastSeen:       time.Now(),
 				BootstrapPhase: BootstrapEnvoyReady,
 			},
@@ -188,6 +189,7 @@ func TestHasUnservedNodes_WorkloadReady_BothServed(t *testing.T) {
 			"n1": {
 				NodeID:         "n1",
 				Status:         "ready",
+				Profiles:       []string{"control-plane"},
 				LastSeen:       time.Now(),
 				BootstrapPhase: BootstrapWorkloadReady,
 			},
@@ -221,6 +223,7 @@ func TestHasUnservedNodes_EtcdReady_NeitherServed(t *testing.T) {
 			"n1": {
 				NodeID:         "n1",
 				Status:         "ready",
+				Profiles:       []string{"control-plane"},
 				LastSeen:       time.Now(),
 				BootstrapPhase: BootstrapEtcdReady,
 			},

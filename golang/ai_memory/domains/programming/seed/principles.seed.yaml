@@ -1,0 +1,76 @@
+# programming seed principles — authored as PROPOSED, never auto-promoted.
+# Each is generative (recommended_action) and pairs forbidden moves with the safe
+# behavior to prefer. Every ref below must resolve within this pack's catalogs.
+- id: principle.prog.no_deploy_without_passing_tests
+  title: No deploy to a shared environment without passing tests
+  applies_when:
+    - condition.prog.deploy_to_production
+  authorities:
+    - authority.prog.test.passing_suite
+  required_evidence:
+    - evidence.prog.tests_pass
+  forbidden_moves:
+    - forbidden.prog.merge_without_passing_tests
+    - forbidden.prog.suppress_failing_test_to_go_green
+  recommended_action: >-
+    Before deploying to a shared environment, require the change's covering tests to be
+    green; if a path is genuinely untestable, record explicit maintainer authority instead.
+  risk_level: high
+  revocation_rule: narrow if the deploy target is a throwaway/isolated sandbox no one depends on
+  promotion_reason: repeated breakage from changes merged red or without covering tests
+  source_refs:
+    - seed:programming/ci-incidents
+- id: principle.prog.preserve_public_contract
+  title: Preserve the published contract or bump the version
+  applies_when:
+    - condition.prog.public_api_change
+  authorities:
+    - authority.prog.contract.api_spec
+  required_evidence:
+    - evidence.prog.contract_compat_checked
+  forbidden_moves:
+    - forbidden.prog.break_public_contract_without_version_bump
+  recommended_action: >-
+    Treat the published spec as the authority: keep changes backward-compatible, or bump
+    the version and record the migration path for downstream consumers.
+  risk_level: high
+  revocation_rule: narrow if the interface has no consumers and is explicitly marked internal/unstable
+  promotion_reason: downstream breakage caused by silent contract changes without a version bump
+  source_refs:
+    - seed:programming/contract-breakage
+- id: principle.prog.backup_before_destructive_migration
+  title: Verify a backup before any destructive data migration
+  applies_when:
+    - condition.prog.schema_migration
+    - condition.prog.destructive_data_op
+  authorities:
+    - authority.prog.runtime.truth_plane
+  required_evidence:
+    - evidence.prog.backup_verified
+  forbidden_moves:
+    - forbidden.prog.destructive_migration_without_backup
+  recommended_action: >-
+    Before a destructive migration, verify a restorable backup exists; prefer additive
+    expand-then-contract migrations over in-place destructive rewrites.
+  risk_level: irreversible
+  revocation_rule: revoke only if the store is provably reconstructible from an authoritative upstream
+  promotion_reason: unrecoverable data loss from destructive migrations run without a verified backup
+  source_refs:
+    - seed:programming/migration-incidents
+- id: principle.prog.spec_over_forum
+  title: Trust the spec and the runtime over community lore
+  applies_when:
+    - condition.prog.public_api_change
+  authorities:
+    - authority.prog.contract.api_spec
+  required_evidence: []
+  forbidden_moves:
+    - forbidden.prog.trust_forum_over_spec
+  recommended_action: >-
+    When a forum/blog answer conflicts with the authoritative spec or the observed runtime,
+    verify against the spec, the tests, or the running system before acting.
+  risk_level: low
+  revocation_rule: narrow if no authoritative spec exists and the community answer is the only reference
+  promotion_reason: plausible-but-wrong behavior propagated by trusting forum answers over the contract
+  source_refs:
+    - seed:programming/authority-inversion

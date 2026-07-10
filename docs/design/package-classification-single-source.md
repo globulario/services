@@ -218,7 +218,7 @@ unit and registry profiles/CPC divergence are tracked as a separate cleanup.
 
 `control_plane_critical` (a single bool) cannot distinguish:
 - **control-plane-required** (xds, gateway) — workloads can't route without it;
-- **data-durability-required** (scylladb = package index; minio founding-quorum, CLAUDE.md rule 5) — cluster degrades/loses durability;
+- **data-durability-required** (scylladb = package index; minio capacity posture, CLAUDE.md rule 5) — cluster degrades/loses durability;
 - **workload-optional** (blog, catalog).
 
 The doc proposes a `criticality` field (`required | degradable | optional`) plus retaining

@@ -516,6 +516,18 @@ func TestCollectServiceRuntimeProof_CommandKindSkipsSystemd(t *testing.T) {
 	}
 }
 
+func TestAuthoritativeInstalledPackageKinds_CoverRuntimeProofKinds(t *testing.T) {
+	got := map[string]bool{}
+	for _, kind := range authoritativeInstalledPackageKinds {
+		got[kind] = true
+	}
+	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "APPLICATION", "COMMAND"} {
+		if !got[kind] {
+			t.Fatalf("runtime proof installed kinds missing %s: %v", kind, authoritativeInstalledPackageKinds)
+		}
+	}
+}
+
 // Regression for the live sctool false positive: the package declares
 // entrypoint=none (OS-supplied binary), so installedBinaryPath resolves to
 // /usr/lib/globular/bin/none and cannot be hashed locally. The command's

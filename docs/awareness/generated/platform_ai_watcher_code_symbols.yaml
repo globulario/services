@@ -10,11 +10,55 @@ code_symbols:
         - globular.platform:intent.ai.watcher_to_executor_causal_chain
         - globular.platform:intent.event.pub_sub_connects_observability_to_action
 test_symbols:
+  - id: golang/ai_watcher/ai_watcher_server/approve_action_test.go:TestApproveAction_DispatchErrorIsNotResolved
+    file: golang/ai_watcher/ai_watcher_server/approve_action_test.go
+    symbol: TestApproveAction_DispatchErrorIsNotResolved
+    package: main
+    language: go
+    doc: "The sibling failure mode: a dispatch/connection error must NOT be absorbed\ninto a success state (failure_mode ai_watcher.connection_error_marked_resolved)."
+  - id: golang/ai_watcher/ai_watcher_server/approve_action_test.go:TestApproveAction_ExecutionFailureIsNotResolved
+    file: golang/ai_watcher/ai_watcher_server/approve_action_test.go
+    symbol: TestApproveAction_ExecutionFailureIsNotResolved
+    package: main
+    language: go
+  - id: golang/ai_watcher/ai_watcher_server/approve_action_test.go:TestApproveAction_InFlightJobStaysRemediating
+    file: golang/ai_watcher/ai_watcher_server/approve_action_test.go
+    symbol: TestApproveAction_InFlightJobStaysRemediating
+    package: main
+    language: go
+    doc: "#4: an in-flight (non-terminal) executor job state must keep the incident\nREMEDIATING — never collapse to FAILED, never claim RESOLVED."
+  - id: golang/ai_watcher/ai_watcher_server/approve_action_test.go:TestApproveAction_RejectsNonAwaitingIncidentWithoutDispatch
+    file: golang/ai_watcher/ai_watcher_server/approve_action_test.go
+    symbol: TestApproveAction_RejectsNonAwaitingIncidentWithoutDispatch
+    package: main
+    language: go
+  - id: golang/ai_watcher/ai_watcher_server/approve_action_test.go:TestApproveAction_SuccessResolvesOnlyAfterExecution
+    file: golang/ai_watcher/ai_watcher_server/approve_action_test.go
+    symbol: TestApproveAction_SuccessResolvesOnlyAfterExecution
+    package: main
+    language: go
+  - id: golang/ai_watcher/ai_watcher_server/approve_action_test.go:TestClassifyApprovalOutcome
+    file: golang/ai_watcher/ai_watcher_server/approve_action_test.go
+    symbol: TestClassifyApprovalOutcome
+    package: main
+    language: go
   - id: golang/ai_watcher/ai_watcher_server/behavioral_observation_test.go:TestFireBatchEmitsBehavioralWatcherIncident
     file: golang/ai_watcher/ai_watcher_server/behavioral_observation_test.go
     symbol: TestFireBatchEmitsBehavioralWatcherIncident
     package: main
     language: go
+  - id: golang/ai_watcher/ai_watcher_server/event_contract_test.go:TestEventTopicContract
+    file: golang/ai_watcher/ai_watcher_server/event_contract_test.go
+    symbol: TestEventTopicContract
+    package: main
+    language: go
+    doc: "TestEventTopicContract is the drift gate: every controller-emitted operational\ntopic must be consumable (subscription + rule) or explicitly allow-listed."
+  - id: golang/ai_watcher/ai_watcher_server/event_contract_test.go:TestKeyDecisionEventsReachTimeline
+    file: golang/ai_watcher/ai_watcher_server/event_contract_test.go
+    symbol: TestKeyDecisionEventsReachTimeline
+    package: main
+    language: go
+    doc: "TestKeyDecisionEventsReachTimeline pins the specific signals this slice exists\nto recover: a node stuck on a topology gate, a blocked service, a quorum\nenforcement — these must become timeline incidents, not be silently dropped."
   - id: golang/ai_watcher/ai_watcher_server/probes_test.go:TestScyllaGroup0Probe_AcquireFailureIsIndeterminate
     file: golang/ai_watcher/ai_watcher_server/probes_test.go
     symbol: TestScyllaGroup0Probe_AcquireFailureIsIndeterminate

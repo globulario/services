@@ -542,6 +542,11 @@ test_symbols:
     package: main
     language: go
     doc: "Existing ai-memory MCP tools still register unchanged alongside behavioral tools."
+  - id: golang/mcp/tools_exec_allowlist_test.go:TestMCPExecSurfacesAreExplicitlyAllowlisted
+    file: golang/mcp/tools_exec_allowlist_test.go
+    symbol: TestMCPExecSurfacesAreExplicitlyAllowlisted
+    package: main
+    language: go
   - id: golang/mcp/tools_infra_test.go:TestInfraDiff_DesiredVsRendered
     file: golang/mcp/tools_infra_test.go
     symbol: TestInfraDiff_DesiredVsRendered

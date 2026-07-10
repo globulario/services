@@ -29,7 +29,7 @@ entries:
     links:
       awareness_invariants:
         - objectstore.topology_contract
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
       awareness_failure_modes:
         - objectstore.local_membership_inference
         - vip_contamination.node_routable_ip_returns_vip

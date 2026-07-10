@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // helpers for building test fixtures
@@ -25,10 +26,20 @@ func installedPkgNoChecksum(version, buildID string) *node_agentpb.InstalledPack
 	}
 }
 
-func alwaysActive(_ context.Context, _ string) (bool, error)  { return true, nil }
+func alwaysActive(_ context.Context, _ string) (bool, error)   { return true, nil }
 func alwaysInactive(_ context.Context, _ string) (bool, error) { return false, nil }
 func alwaysLoaded(_ context.Context, _ string) (bool, error)   { return true, nil }
 func alwaysUnloaded(_ context.Context, _ string) (bool, error) { return false, nil }
+
+func stubEntrypoint(t *testing.T, name, entrypoint string) {
+	t.Helper()
+	oldBase := versionutil.BaseDir()
+	versionutil.SetBaseDir(t.TempDir())
+	t.Cleanup(func() { versionutil.SetBaseDir(oldBase) })
+	if err := versionutil.WriteEntrypoint(name, entrypoint); err != nil {
+		t.Fatalf("write entrypoint sidecar: %v", err)
+	}
+}
 
 // stubServicePolicyDir overrides the RBAC policy-marker probe for the duration
 // of a test, restoring it on cleanup. A converged service has its policy dir;
@@ -47,7 +58,7 @@ func TestInstallPackageSkipsOnlyWhenRuntimeActive(t *testing.T) {
 	stubServicePolicyDir(t, true)
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "", "",
+		"myservice", "SERVICE", "1.2.3", "", "", "",
 		installedPkg("1.2.3", ""),
 		alwaysActive,
 		alwaysLoaded,
@@ -68,7 +79,7 @@ func TestInstallPackageDoesNotSkipWhenPolicyDirAbsent(t *testing.T) {
 	stubServicePolicyDir(t, false)
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "", "",
+		"myservice", "SERVICE", "1.2.3", "", "", "",
 		installedPkg("1.2.3", ""),
 		alwaysActive,
 		alwaysLoaded,
@@ -83,7 +94,7 @@ func TestInstallPackageDoesNotSkipWhenPolicyDirAbsent(t *testing.T) {
 func TestInstallPackageDoesNotSkipWhenChecksumMissing(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "", "",
+		"myservice", "SERVICE", "1.2.3", "", "", "",
 		installedPkgNoChecksum("1.2.3", ""),
 		alwaysActive,
 		alwaysLoaded,
@@ -98,7 +109,7 @@ func TestInstallPackageDoesNotSkipWhenChecksumMissing(t *testing.T) {
 func TestInstallPackageDoesNotSkipWhenUnitInactive(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "", "",
+		"myservice", "SERVICE", "1.2.3", "", "", "",
 		installedPkg("1.2.3", ""),
 		alwaysInactive,
 		alwaysLoaded,
@@ -113,7 +124,7 @@ func TestInstallPackageDoesNotSkipWhenUnitInactive(t *testing.T) {
 func TestInstallPackageDoesNotSkipWhenUnitMissing(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "", "",
+		"myservice", "SERVICE", "1.2.3", "", "", "",
 		installedPkg("1.2.3", ""),
 		alwaysInactive,
 		alwaysUnloaded,
@@ -130,7 +141,7 @@ func TestInstallPackageDoesNotCrossKindSkip(t *testing.T) {
 	// was recorded under SERVICE.  Caller queries only INFRASTRUCTURE → nil.
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"scylladb", "INFRASTRUCTURE", "5.4.0", "", "",
+		"scylladb", "INFRASTRUCTURE", "5.4.0", "", "", "",
 		nil, // exact-kind lookup returned nothing
 		alwaysActive,
 		alwaysLoaded,
@@ -157,7 +168,7 @@ func TestCommandPackageSkipUsesBinaryProofOnly(t *testing.T) {
 
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"restic", "COMMAND", "0.16.0", "", "",
+		"restic", "COMMAND", "0.16.0", "", "", "",
 		installedPkg("0.16.0", ""),
 		// isActive/isLoaded should never be called for command packages,
 		// but pass always-inactive to prove we don't care about their output.
@@ -178,7 +189,7 @@ func TestCommandPackageWithNoUnitProducesNoFinding(t *testing.T) {
 func TestScyllaInactiveDoesNotReturnSuccess(t *testing.T) {
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"scylladb", "INFRASTRUCTURE", "5.4.0", "", "",
+		"scylladb", "INFRASTRUCTURE", "5.4.0", "", "", "",
 		installedPkg("5.4.0", ""),
 		alwaysInactive,
 		alwaysLoaded,
@@ -195,7 +206,7 @@ func TestScyllaInactiveDoesNotReturnSuccess(t *testing.T) {
 func TestInstallPackageDoesNotSkipWhenBuildIDMissing(t *testing.T) {
 	result, _ := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "", "build-123",
+		"myservice", "SERVICE", "1.2.3", "", "", "build-123",
 		installedPkg("1.2.3", ""),
 		alwaysActive,
 		alwaysLoaded,
@@ -210,13 +221,83 @@ func TestInstallPackageDoesNotSkipWhenChecksumMismatch(t *testing.T) {
 	pkg.Checksum = "sha256:aaaa"
 	result, _ := canSkipInstallPackage(
 		context.Background(),
-		"myservice", "SERVICE", "1.2.3", "sha256:bbbb", "",
+		"myservice", "SERVICE", "1.2.3", "sha256:bbbb", "", "",
 		pkg,
 		alwaysActive,
 		alwaysLoaded,
 	)
 	if result != installSkipDeniedVersion {
 		t.Fatalf("expected installSkipDeniedVersion for checksum mismatch, got %d", result)
+	}
+}
+
+func TestInstallPackageSkipsChecksumOnlyDriftWhenBuildIDAndEntrypointMatch(t *testing.T) {
+	const (
+		binarySHA       = "241c1702f0ed1c0dba31339abaab422906a4295cc92640f5b832c131ee385767"
+		convergenceHash = "cfd6de59b3ecdb00f5b8430d1d8cc5cc6c00e8e88468dfb96d47f2fbe9425212"
+		buildID         = "019f0000-1111-7222-8333-444455556666"
+	)
+	pkg := installedPkg("1.35.3", buildID)
+	pkg.Checksum = binarySHA
+	pkg.Metadata["entrypoint_checksum"] = binarySHA
+
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"envoy", "INFRASTRUCTURE", "1.35.3", convergenceHash, binarySHA, buildID,
+		pkg,
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipAllowed {
+		t.Fatalf("expected installSkipAllowed for checksum-only drift with matching build_id+entrypoint, got %d (%s)", result, reason)
+	}
+}
+
+func TestInstallPackageDoesNotSkipWhenEntrypointChecksumMismatches(t *testing.T) {
+	const (
+		oldBinarySHA = "241c1702f0ed1c0dba31339abaab422906a4295cc92640f5b832c131ee385767"
+		newBinarySHA = "cfd6de59b3ecdb00f5b8430d1d8cc5cc6c00e8e88468dfb96d47f2fbe9425212"
+		buildID      = "019f0000-1111-7222-8333-444455556666"
+	)
+	pkg := installedPkg("1.35.3", buildID)
+	pkg.Checksum = oldBinarySHA
+	pkg.Metadata["entrypoint_checksum"] = oldBinarySHA
+
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"envoy", "INFRASTRUCTURE", "1.35.3", newBinarySHA, newBinarySHA, buildID,
+		pkg,
+		alwaysActive,
+		alwaysLoaded,
+	)
+	if result != installSkipDeniedVersion {
+		t.Fatalf("expected installSkipDeniedVersion for entrypoint checksum mismatch, got %d (%s)", result, reason)
+	}
+}
+
+func TestPackageUnitKeepalivedUsesOSUnit(t *testing.T) {
+	if got := packageUnit("keepalived"); got != "keepalived.service" {
+		t.Fatalf("packageUnit(keepalived) = %q, want keepalived.service", got)
+	}
+}
+
+func TestInstallPackageSkipsKeepalivedWhenIngressOwnsRuntime(t *testing.T) {
+	stubEntrypoint(t, "keepalived", "none")
+	const (
+		convergenceHash = "9a18c1b5b8f7a4d3c2e1f00112233445566778899aabbccddeeff0011223344"
+		buildID         = "019f0000-aaaa-7bbb-8ccc-111122223333"
+	)
+	pkg := installedPkgNoChecksum("2.2.8", buildID)
+
+	result, reason := canSkipInstallPackage(
+		context.Background(),
+		"keepalived", "INFRASTRUCTURE", "2.2.8", convergenceHash, "", buildID,
+		pkg,
+		alwaysInactive,
+		alwaysLoaded,
+	)
+	if result != installSkipAllowed {
+		t.Fatalf("expected keepalived install skip when package identity matches and ingress owns runtime, got %d (%s)", result, reason)
 	}
 }
 
@@ -227,7 +308,7 @@ func TestCommandPackageDoesNotSkipWhenBinaryMissing(t *testing.T) {
 
 	result, _ := canSkipInstallPackage(
 		context.Background(),
-		"restic", "COMMAND", "0.16.0", "", "",
+		"restic", "COMMAND", "0.16.0", "", "", "",
 		installedPkg("0.16.0", ""),
 		alwaysInactive,
 		alwaysUnloaded,
@@ -252,7 +333,7 @@ func TestCommandPackageDoesNotSkipWhenBinaryChecksumMismatch(t *testing.T) {
 
 	result, _ := canSkipInstallPackage(
 		context.Background(),
-		"restic", "COMMAND", "0.16.0", "sha256:bbbbbbbb", "",
+		"restic", "COMMAND", "0.16.0", "", "sha256:bbbbbbbb", "",
 		installedPkg("0.16.0", ""),
 		alwaysInactive,
 		alwaysUnloaded,
@@ -277,7 +358,7 @@ func TestCommandPackageSkipWhenBinaryChecksumMatches(t *testing.T) {
 
 	result, reason := canSkipInstallPackage(
 		context.Background(),
-		"restic", "COMMAND", "0.16.0", "sha256:abc123", "",
+		"restic", "COMMAND", "0.16.0", "", "sha256:abc123", "",
 		installedPkg("0.16.0", ""),
 		alwaysInactive,
 		alwaysUnloaded,
@@ -302,7 +383,7 @@ func TestCommandPackageDoesNotSkipWhenChecksumReadFails(t *testing.T) {
 
 	result, _ := canSkipInstallPackage(
 		context.Background(),
-		"restic", "COMMAND", "0.16.0", "sha256:abc123", "",
+		"restic", "COMMAND", "0.16.0", "", "sha256:abc123", "",
 		installedPkg("0.16.0", ""),
 		alwaysInactive,
 		alwaysUnloaded,
@@ -340,6 +421,18 @@ func TestBuildIDSkipChecksumOK(t *testing.T) {
 					tc.installed, tc.expected, got, tc.wantOK)
 			}
 		})
+	}
+}
+
+func TestInstalledBinaryChecksumForSkipPrefersEntrypointMetadata(t *testing.T) {
+	pkg := &node_agentpb.InstalledPackage{
+		Checksum: "convergence-hash",
+		Metadata: map[string]string{
+			"entrypoint_checksum": "binary-hash",
+		},
+	}
+	if got := installedBinaryChecksumForSkip(pkg); got != "binary-hash" {
+		t.Fatalf("installedBinaryChecksumForSkip = %q, want metadata entrypoint checksum", got)
 	}
 }
 

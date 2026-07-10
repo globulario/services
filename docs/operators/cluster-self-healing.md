@@ -67,19 +67,19 @@ invariant: quorum_report violation: scylladb_quorum — need 3 storage nodes, ha
 
 ---
 
-### 3. Founding Node Profiles
+### 3. Profile Capacity Posture
 
-**What it checks**: The first 3 nodes that joined the cluster must permanently carry `core`, `control-plane`, and `storage` profiles. These profiles cannot be removed even as the cluster grows. Losing them drops etcd, ScyllaDB, or MinIO below quorum.
+**What it checks**: Reports how many nodes carry placement profiles such as `core`, `control-plane`, and `storage`. These profiles are controller-owned placement intent, not a quorum floor.
 
-**How it detects**: Invariant workflow evaluates founding node set on every enforcement cycle.
+**How it detects**: Invariant workflow evaluates observed node profile capacity on every enforcement cycle.
 
-**What it does automatically**: Reports violations. Does **not** auto-remove profiles from nodes (profile removal requires explicit operator intent). Blocks profile-removal requests that would violate this invariant at the API level — `SetNodeProfiles` returns an error.
+**What it does automatically**: Reports capacity posture. It does **not** auto-add profiles to manufacture quorum and does not block unrelated rollout only because storage count is below a preferred size.
 
-**What it cannot do**: Restore profiles that were removed by bypassing the API (direct etcd writes). If you manually remove a founding profile via `etcdctl`, the next reconcile will detect the violation and report it, but will not add the profile back automatically.
+**What it cannot do**: Create new machines or guarantee distributed fault tolerance from a smaller cluster. Component-specific destructive storage/topology operations may still require explicit safety checks.
 
 **Operator signal**:
 ```
-invariant: profile_report violation: node globule-dell missing profiles [storage]
+capacity: storage_nodes=2 control_plane_nodes=1 total_nodes=2
 ```
 
 **Recovery**:

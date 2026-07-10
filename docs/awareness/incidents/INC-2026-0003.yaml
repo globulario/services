@@ -97,4 +97,4 @@ invariants_touched:
   - convergence.no_infinite_retry
   - bootstrap.infra_before_workload
   - objectstore.topology_gate
-  - founding_quorum.three_storage_nodes
+  - meta.quorum_is_quality_not_constraint

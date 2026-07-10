@@ -90,7 +90,7 @@ globular awareness nearest --node SetNodeProfiles --type failure_mode --dimensio
 Find the lowest-cost semantic path between two nodes.
 
 ```bash
-globular awareness path --from SetNodeProfiles --to cluster.founding_quorum
+globular awareness path --from SetNodeProfiles --to meta.quorum_is_quality_not_constraint
 globular awareness path --from DesiredHash --to TestBuildNodeContext --dimension test
 ```
 
@@ -99,7 +99,7 @@ globular awareness path --from DesiredHash --to TestBuildNodeContext --dimension
 Explain why two nodes are semantically related, with edit warnings and risks.
 
 ```bash
-globular awareness why-related --from cluster_controller --to founding_quorum_invariant
+globular awareness why-related --from cluster_controller --to meta.quorum_is_quality_not_constraint
 globular awareness why-related --from SetNodeProfiles --to do_not_wipe_storage_node
 ```
 
@@ -133,7 +133,7 @@ This is the primary tool for pre-edit safety checks when the connection between 
   "tool": "awareness.why_related",
   "arguments": {
     "from": "SetNodeProfiles",
-    "to":   "founding_quorum_invariant",
+    "to":   "meta.quorum_is_quality_not_constraint",
     "dimension": "architecture"
   }
 }
@@ -181,7 +181,7 @@ Before editing `SetNodeProfiles`, run:
 ```bash
 globular awareness why-related \
   --from SetNodeProfiles \
-  --to founding_quorum_invariant \
+  --to meta.quorum_is_quality_not_constraint \
   --dimension architecture \
   --format agent
 ```

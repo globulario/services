@@ -71,6 +71,64 @@ code_symbols:
         - globular.platform:intent.ai.decision_tier.gates_execution
         - globular.platform:intent.ai.high_risk_diagnosis_always_escalates_to_notify_admin
 test_symbols:
+  - id: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go:TestCredentialPrecedence_ApiKeyIsFallbackWhenNoMax
+    file: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go
+    symbol: TestCredentialPrecedence_ApiKeyIsFallbackWhenNoMax
+    package: main
+    language: go
+    doc: "The API key works, but only as a fallback when no Max credential exists."
+  - id: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go:TestCredentialPrecedence_EtcdMaxBeatsApiKey
+    file: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go
+    symbol: TestCredentialPrecedence_EtcdMaxBeatsApiKey
+    package: main
+    language: go
+    doc: "The core cost-safety assertion: even with an API key configured, an available\nMax credential from etcd must be the one actually used."
+  - id: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go:TestCredentialPrecedence_FileMaxBeatsApiKey
+    file: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go
+    symbol: TestCredentialPrecedence_FileMaxBeatsApiKey
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go:TestCredentialPrecedence_NoCredentialsReturnsNil
+    file: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go
+    symbol: TestCredentialPrecedence_NoCredentialsReturnsNil
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go:TestCredentialPrecedence_StaleMaxFallsBackToApiKey
+    file: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go
+    symbol: TestCredentialPrecedence_StaleMaxFallsBackToApiKey
+    package: main
+    language: go
+    doc: "#1 regression: a stale/unusable Max credential (expired, unrefreshable) must\nNOT shadow a valid configured API key. Presence is not usability — the gate\nfalls through to the fallback so AI stays available."
+  - id: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go:TestMaxCredUsable_NoNetworkBranches
+    file: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go
+    symbol: TestMaxCredUsable_NoNetworkBranches
+    package: main
+    language: go
+    doc: "The usability gate itself, covering the branches reachable without a network\nrefresh. (The expired-but-refreshes-OK branch needs a live refresh and is\nexercised at runtime, not here.)"
+  - id: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go:TestRefreshRace_CASSafety
+    file: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go
+    symbol: TestRefreshRace_CASSafety
+    package: main
+    language: go
+    doc: "TestRefreshRace_CASSafety verifies that if the CAS write to etcd fails (a peer node\nalready refreshed and bumped the revision), saveCredentials reloads the peer's valid\ncredentials rather than holding a spent token.\nThis is the core of the C2 fix: a single-use refresh_token must never be overwritten\nby a losing node's duplicate refresh result."
+  - id: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go:TestRefreshRace_PlainPutOnInitialSeed
+    file: golang/ai_executor/ai_executor_server/anthropic_precedence_test.go
+    symbol: TestRefreshRace_PlainPutOnInitialSeed
+    package: main
+    language: go
+    doc: "TestRefreshRace_PlainPutOnInitialSeed verifies that saveCredentials uses a plain\nPut (not CAS) when etcdModRev==0, i.e. credentials are being seeded from a local\nfile for the first time. CAS with rev=0 would incorrectly fail if the key exists."
+  - id: golang/ai_executor/ai_executor_server/backend_readiness_test.go:TestAiReady_IgnoresClaudeBinary
+    file: golang/ai_executor/ai_executor_server/backend_readiness_test.go
+    symbol: TestAiReady_IgnoresClaudeBinary
+    package: main
+    language: go
+    doc: "TestAiReady_IgnoresClaudeBinary pins the core honesty fix: a claude CLI binary\non disk must NOT make the autonomous backend \"ready\" (it is excluded from the\nautonomous diagnose path; see repeat_diagnosis_drains_personal_subscription)."
+  - id: golang/ai_executor/ai_executor_server/backend_readiness_test.go:TestBackendReadiness_FourStates
+    file: golang/ai_executor/ai_executor_server/backend_readiness_test.go
+    symbol: TestBackendReadiness_FourStates
+    package: main
+    language: go
+    doc: "TestBackendReadiness_FourStates pins the honest four-state model and the\nderived operating mode. It is the regression guard for the live-cluster bug\nwhere ai_available reported true purely because a claude binary existed."
   - id: golang/ai_executor/ai_executor_server/behavioral_feed_test.go:TestBehavioralActionVerb
     file: golang/ai_executor/ai_executor_server/behavioral_feed_test.go
     symbol: TestBehavioralActionVerb
@@ -79,6 +137,16 @@ test_symbols:
   - id: golang/ai_executor/ai_executor_server/behavioral_feed_test.go:TestBehavioralOutcomeStatus
     file: golang/ai_executor/ai_executor_server/behavioral_feed_test.go
     symbol: TestBehavioralOutcomeStatus
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/behavioral_feed_test.go:TestNewBehavioralTraceAction
+    file: golang/ai_executor/ai_executor_server/behavioral_feed_test.go
+    symbol: TestNewBehavioralTraceAction
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/behavioral_feed_test.go:TestObserveAndPendingEmitBehavioralExperience
+    file: golang/ai_executor/ai_executor_server/behavioral_feed_test.go
+    symbol: TestObserveAndPendingEmitBehavioralExperience
     package: main
     language: go
   - id: golang/ai_executor/ai_executor_server/behavioral_feed_test.go:TestRecordBehavioralExperienceNonFatal
@@ -105,6 +173,11 @@ test_symbols:
   - id: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go:TestRecordBehavioralSelfOperationNonFatal
     file: golang/ai_executor/ai_executor_server/behavioral_self_operation_test.go
     symbol: TestRecordBehavioralSelfOperationNonFatal
+    package: main
+    language: go
+  - id: golang/ai_executor/ai_executor_server/codex_test.go:TestCodexEffectiveModel
+    file: golang/ai_executor/ai_executor_server/codex_test.go
+    symbol: TestCodexEffectiveModel
     package: main
     language: go
   - id: golang/ai_executor/ai_executor_server/dedup_test.go:TestIncidentFingerprint_DistinguishesSignatures

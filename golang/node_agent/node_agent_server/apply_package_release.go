@@ -246,10 +246,10 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 				// without going through the official apply path — it MUST be
 				// re-applied to restore consistency (binary + state + marker).
 				if buildID != "" && existing.GetBuildId() == buildID && !isPartialApply {
-					if !buildIDSkipChecksumOK(existing.GetChecksum(), req.GetExpectedSha256()) {
+					if !buildIDSkipChecksumOK(installedBinaryChecksumForSkip(existing), req.GetExpectedSha256()) {
 						log.Printf("apply-package: %s/%s@%s build_id matches but binary checksum %s != expected %s — binary replaced out-of-band, reapplying",
 							kind, name, version,
-							normalizedHash(existing.GetChecksum()),
+							normalizedHash(installedBinaryChecksumForSkip(existing)),
 							normalizedHash(req.GetExpectedSha256()))
 						// fall through to reinstall
 					} else {

@@ -719,13 +719,17 @@ for f in "$PREV_DIR/scripts/"*; do
   fi
 done
 
-# install.sh at root
-[[ -f "$PREV_DIR/install.sh" ]] && cp "$PREV_DIR/install.sh" "$DIST_DIR/install.sh"
+# install.sh at root must come from current source. Copying it from the previous
+# bundle reintroduces stale bootstrap policy text and behavior.
+cp "$SERVICES_ROOT/scripts/install.sh" "$DIST_DIR/install.sh"
+chmod +x "$DIST_DIR/install.sh"
 
-# webroot, workflows, docs from previous bundle
-for d in webroot workflows docs; do
+# webroot and docs from previous bundle; workflows come from current source.
+for d in webroot docs; do
   [[ -d "$PREV_DIR/$d" ]] && cp -r "$PREV_DIR/$d" "$DIST_DIR/$d"
 done
+mkdir -p "$DIST_DIR/workflows"
+cp "$SERVICES_ROOT/golang/workflow/definitions/"*.yaml "$DIST_DIR/workflows/"
 
 # Ship the CURRENT ops-knowledge corpus (seeds ai-memory on the installed node),
 # not the prev bundle's stale copy. Authored source is docs/operational-knowledge.

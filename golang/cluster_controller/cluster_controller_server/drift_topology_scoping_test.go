@@ -5,20 +5,11 @@ package main
 // Pins the topology gate's per-package scoping behaviour:
 // driftActionSafe must block ONLY packages whose subsystem owns the
 // violating topology dimension. Blanket-blocking all INFRASTRUCTURE
-// on any violation is the bug Phase 35 fixes — it was caught live on
-// globule-ryzen 2026-06-03 where storage_quorum (legitimately failing
-// on a single-node cluster) was blocking node-agent rollouts that
-// have nothing to do with MinIO erasure coding.
+// on any violation is the bug Phase 35 fixes.
 
 import (
 	"testing"
 )
-
-// storageQuorum is the canonical "MinIO needs ≥3 nodes" violation —
-// the exact condition observed live during Phase 35 onset.
-var storageQuorum = []topologySafetyViolation{
-	{Kind: "storage_quorum", Message: "only 1 active storage node — minimum 3 required"},
-}
 
 var ingressParticipant = []topologySafetyViolation{
 	{Kind: "ingress_participant", Message: "fewer than required ingress participants healthy"},
@@ -42,39 +33,10 @@ func infraAction(name string) driftAction {
 	}
 }
 
-func TestTopologyScoping_StorageQuorum_BlocksMinIO(t *testing.T) {
-	// Regression of the original intent: MinIO upgrade MUST stay blocked
-	// when MinIO's own storage_quorum is violated. Upgrading the storage
-	// provider while erasure coding is degraded is dangerous.
-	if driftActionSafe(infraAction("minio"), storageQuorum) {
-		t.Fatal("expected MinIO to be blocked by storage_quorum")
-	}
-}
-
-func TestTopologyScoping_StorageQuorum_BlocksScylla(t *testing.T) {
-	// Scylla and backup-manager touch storage durability — block them
-	// too. (The conservative side of the Phase 35 narrowing.)
-	for _, name := range []string{"scylladb", "scylla", "scylla-manager", "backup-manager"} {
-		if driftActionSafe(infraAction(name), storageQuorum) {
-			t.Errorf("expected %s to be blocked by storage_quorum", name)
-		}
-	}
-}
-
-func TestTopologyScoping_StorageQuorum_DoesNotBlockNodeAgent(t *testing.T) {
-	// THE Phase 35 fix: node-agent upgrade has nothing to do with MinIO
-	// erasure coding. A storage_quorum violation on a single-node cluster
-	// must NOT permanently block node-agent rollouts. This was the exact
-	// live blocker before this commit.
-	if !driftActionSafe(infraAction("node-agent"), storageQuorum) {
-		t.Fatal("node-agent must NOT be blocked by storage_quorum (Phase 35 regression)")
-	}
-}
-
-func TestTopologyScoping_StorageQuorum_DoesNotBlockControlPlaneServices(t *testing.T) {
-	// Sweep across control-plane / observability / AI / service packages.
-	// None of these mutate storage topology; storage_quorum must not
-	// block their upgrades.
+func TestTopologyScoping_ObjectstoreCapacityDoesNotBlockControlPlaneServices(t *testing.T) {
+	// Sweep across control-plane / observability / AI / service packages. None
+	// of these own objectstore topology, so objectstore mismatch must not block
+	// their upgrades.
 	for _, name := range []string{
 		"node-agent", "cluster-controller", "repository", "authentication",
 		"rbac", "resource", "event", "log", "monitoring", "prometheus",
@@ -84,8 +46,8 @@ func TestTopologyScoping_StorageQuorum_DoesNotBlockControlPlaneServices(t *testi
 		"globular-cli", "node-exporter", "scylla-manager-agent",
 		"cluster-doctor", "etcd",
 	} {
-		if !driftActionSafe(infraAction(name), storageQuorum) {
-			t.Errorf("package %q must NOT be blocked by storage_quorum (it does not touch storage topology)", name)
+		if !driftActionSafe(infraAction(name), objectstoreTopology) {
+			t.Errorf("package %q must NOT be blocked by objectstore topology mismatch", name)
 		}
 	}
 }
@@ -128,13 +90,18 @@ func TestTopologyScoping_ControllerPlacement_DoesNotBlockOthers(t *testing.T) {
 }
 
 func TestTopologyScoping_ObjectstoreMismatch_BlocksMinIO(t *testing.T) {
-	// objectstore_topology_mismatch is a MinIO-specific failure mode.
+	// objectstore_topology_mismatch is a MinIO-specific topology failure mode.
 	if driftActionSafe(infraAction("minio"), objectstoreTopology) {
 		t.Fatal("MinIO must be blocked by objectstore_topology_mismatch")
 	}
-	// And does not block non-storage packages.
+	// And does not block non-objectstore packages.
 	if !driftActionSafe(infraAction("node-agent"), objectstoreTopology) {
 		t.Error("node-agent must NOT be blocked by objectstore_topology_mismatch")
+	}
+	for _, name := range []string{"scylladb", "scylla", "scylla-manager", "backup-manager"} {
+		if !driftActionSafe(infraAction(name), objectstoreTopology) {
+			t.Errorf("%s must not be blocked by objectstore_topology_mismatch", name)
+		}
 	}
 }
 
@@ -142,7 +109,7 @@ func TestTopologyScoping_UnknownPackage_DefaultsConservative(t *testing.T) {
 	// New, unclassified package names must default to "any violation
 	// blocks" — the conservative branch. This catches misnames and
 	// new packages that haven't been classified yet.
-	if driftActionSafe(infraAction("brand-new-package-name"), storageQuorum) {
+	if driftActionSafe(infraAction("brand-new-package-name"), objectstoreTopology) {
 		t.Fatal("unknown package must default conservative (any violation blocks) — got allowed")
 	}
 }
@@ -151,8 +118,7 @@ func TestTopologyScoping_KnownControlPlane_AllowedThroughAnyViolation(t *testing
 	// A known control-plane package (sensitivities=nil) is allowed
 	// through regardless of which violation kind fired.
 	for _, kind := range []string{
-		"storage_quorum", "ingress_participant",
-		"controller_placement", "objectstore_topology_mismatch",
+		"ingress_participant", "controller_placement", "objectstore_topology_mismatch",
 	} {
 		v := []topologySafetyViolation{{Kind: kind, Message: "test"}}
 		if !driftActionSafe(infraAction("node-agent"), v) {
@@ -164,16 +130,16 @@ func TestTopologyScoping_KnownControlPlane_AllowedThroughAnyViolation(t *testing
 func TestTopologyScoping_KnownControlPlane_AllowedThroughMultipleViolations(t *testing.T) {
 	// Multiple simultaneous violations — control-plane stays allowed.
 	v := []topologySafetyViolation{
-		{Kind: "storage_quorum", Message: "test"},
 		{Kind: "ingress_participant", Message: "test"},
 		{Kind: "controller_placement", Message: "test"},
+		{Kind: "objectstore_topology_mismatch", Message: "test"},
 	}
 	if !driftActionSafe(infraAction("node-agent"), v) {
 		t.Fatal("node-agent must remain allowed even under multiple violations")
 	}
 }
 
-func TestTopologyScoping_StorageSensitive_OnlyBlockedByOwnViolation(t *testing.T) {
+func TestTopologyScoping_ObjectstoreSensitive_OnlyBlockedByOwnViolation(t *testing.T) {
 	// MinIO must NOT be blocked by ingress_participant — it doesn't
 	// participate in mesh routing. Symmetry check for the per-violation
 	// scoping.
@@ -190,7 +156,7 @@ func TestTopologyScoping_SafeKindIgnoresAllViolations(t *testing.T) {
 	// gate entirely — this is the pre-Phase-35 invariant Phase 32
 	// already pinned, re-asserted here for completeness.
 	v := []topologySafetyViolation{
-		{Kind: "storage_quorum", Message: "x"},
+		{Kind: "objectstore_topology_mismatch", Message: "x"},
 		{Kind: "ingress_participant", Message: "y"},
 	}
 	for _, kind := range []string{"SERVICE", "COMMAND"} {
@@ -215,8 +181,8 @@ func TestPackageTopologySensitivities_CaseInsensitive(t *testing.T) {
 		if !known {
 			t.Errorf("packageTopologySensitivities(%q) reported unknown", name)
 		}
-		if !s["storage_quorum"] {
-			t.Errorf("packageTopologySensitivities(%q) did not include storage_quorum", name)
+		if !s["objectstore_topology_mismatch"] {
+			t.Errorf("packageTopologySensitivities(%q) did not include objectstore_topology_mismatch", name)
 		}
 	}
 }
@@ -224,17 +190,18 @@ func TestPackageTopologySensitivities_CaseInsensitive(t *testing.T) {
 func TestPackageTopologySensitivities_UnknownKnownStateMatrix(t *testing.T) {
 	// Pin the (known, sensitivities) tri-state contract.
 	cases := []struct {
-		name      string
-		known     bool
-		hasGate   bool
-		hasKind   string
+		name    string
+		known   bool
+		hasGate bool
+		hasKind string
 	}{
-		{"minio", true, true, "storage_quorum"},
+		{"minio", true, true, "objectstore_topology_mismatch"},
 		{"envoy", true, true, "ingress_participant"},
 		{"cluster-controller", true, true, "controller_placement"},
-		{"node-agent", true, false, ""}, // control-plane, no gates
-		{"repository", true, false, ""}, // control-plane, no gates
-		{"etcd", true, false, ""},       // own quorum, no storage_quorum
+		{"node-agent", true, false, ""},                // control-plane, no gates
+		{"repository", true, false, ""},                // control-plane, no gates
+		{"scylladb", true, false, ""},                  // component-local safety, no platform topology gate
+		{"etcd", true, false, ""},                      // own quorum, no platform topology gate
 		{"definitely-not-a-package", false, false, ""}, // unknown
 	}
 	for _, tc := range cases {

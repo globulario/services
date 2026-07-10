@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/globulario/services/golang/component_catalog"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
@@ -215,4 +216,75 @@ func TestInstalledState_NotDerivedFromCatalog(t *testing.T) {
 
 func TestBuildIDNotResolvedAtNodeAgent(t *testing.T) {
 	TestResolveLatestManifestFuncCalledForFirstInstall(t)
+}
+
+func TestNodeJoinProfilesRequiredAndNormalized(t *testing.T) {
+	srv := &NodeAgentServer{}
+	inputs := map[string]any{"node_profiles": "control-plane, gateway"}
+
+	profiles, err := srv.ensureWorkflowNodeProfiles("node.join", inputs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"control-plane", "core", "gateway"}
+	for i, profile := range want {
+		if i >= len(profiles) || profiles[i] != profile {
+			t.Fatalf("profiles = %v, want %v", profiles, want)
+		}
+	}
+	if _, ok := inputs["node_profiles"].([]any); !ok {
+		t.Fatalf("node_profiles input was not normalized for workflow conditions: %T", inputs["node_profiles"])
+	}
+
+	if _, err := srv.ensureWorkflowNodeProfiles("node.join", map[string]any{}); err == nil {
+		t.Fatal("node.join without profiles must fail closed")
+	}
+}
+
+func TestNodeJoinProfilePlacementSkipsUnauthorizedPackages(t *testing.T) {
+	coreProfiles := component_catalog.NormalizeProfiles([]string{"core"})
+	allowed := []string{"event", "alertmanager", "ai-router", "globular-cli"}
+	for _, name := range allowed {
+		if !workflowPackageAllowedForProfiles(name, coreProfiles) {
+			t.Fatalf("core package %q should be allowed", name)
+		}
+	}
+
+	disallowed := []string{
+		"scylladb",
+		"scylla-manager",
+		"scylla-manager-agent",
+		"envoy",
+		"gateway",
+		"xds",
+		"keepalived",
+		"sctool",
+		"yt-dlp",
+		"ai-memory",
+		"ai-executor",
+		"ai-watcher",
+		"workflow",
+	}
+	for _, name := range disallowed {
+		if workflowPackageAllowedForProfiles(name, coreProfiles) {
+			t.Fatalf("core package %q should be rejected by placement filter", name)
+		}
+	}
+}
+
+func TestNodeJoinProfilePlacementForControlPlaneGatewayStorage(t *testing.T) {
+	profiles := component_catalog.NormalizeProfiles([]string{"control-plane", "core", "gateway", "storage"})
+	allowed := []string{"mcp", "codex", "sctool", "scylladb", "gateway"}
+	for _, name := range allowed {
+		if !workflowPackageAllowedForProfiles(name, profiles) {
+			t.Fatalf("package %q should be allowed for profiles %v", name, profiles)
+		}
+	}
+	disallowed := []string{"yt-dlp", "ffmpeg", "media", "title"}
+	for _, name := range disallowed {
+		if workflowPackageAllowedForProfiles(name, profiles) {
+			t.Fatalf("package %q should be rejected for profiles %v", name, profiles)
+		}
+	}
 }

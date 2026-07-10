@@ -2004,6 +2004,21 @@ test_symbols:
     package: main
     language: go
     doc: "(policy) The section-name policy flags a symbol table / DWARF and clears a\nstripped section set."
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactSizeEnvelope_AllowsEqualTo2xPriorRelease
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactSizeEnvelope_AllowsEqualTo2xPriorRelease
+    package: main
+    language: go
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactSizeEnvelope_RejectsGreaterThan2xPriorRelease
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactSizeEnvelope_RejectsGreaterThan2xPriorRelease
+    package: main
+    language: go
+  - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactSizeEnvelope_SkipsWhenNoPriorReleaseSize
+    file: golang/repository/repository_server/release_artifact_shape_test.go
+    symbol: TestReleaseArtifactSizeEnvelope_SkipsWhenNoPriorReleaseSize
+    package: main
+    language: go
   - id: golang/repository/repository_server/release_artifact_shape_test.go:TestReleaseArtifactStripped_AcceptsStrippedELF
     file: golang/repository/repository_server/release_artifact_shape_test.go
     symbol: TestReleaseArtifactStripped_AcceptsStrippedELF
@@ -2225,29 +2240,32 @@ test_symbols:
     symbol: TestReleaseIndexV2InstallAllowsPackageDigestFallback
     package: main
     language: go
-  - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallRejectsBuildNumberZero
+  - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallCanonicalizesNumericBuildID
     file: golang/repository/repository_server/release_index_test.go
-    symbol: TestReleaseIndexV2InstallRejectsBuildNumberZero
+    symbol: TestReleaseIndexV2InstallCanonicalizesNumericBuildID
     package: main
     language: go
+    doc: "Numeric-only build_ids are unsafe (often mirror build_number, collide across\npackages). Admission canonicalizes them to derived upstream identity — same\nsemantics as normalizeReleaseEntry on the sync path."
+  - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallDerivesBuildNumberZero
+    file: golang/repository/repository_server/release_index_test.go
+    symbol: TestReleaseIndexV2InstallDerivesBuildNumberZero
+    package: main
+    language: go
+    doc: "build_number 0 with a digest present is completed at admission (derived,\ndisplay-only). The hard >0 check remains as defense-in-depth for entries\nthat somehow bypass derivation."
+  - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallDerivesMissingBuildID
+    file: golang/repository/repository_server/release_index_test.go
+    symbol: TestReleaseIndexV2InstallDerivesMissingBuildID
+    package: main
+    language: go
+    doc: "Single-authority identity model (docs/design/package-identity-single-authority.md):\nrelease bundles ship WITHOUT pre-minted build identity. Admission derives\ndeterministic repository-owned pins from the artifact digest instead of\nrejecting. The digest itself remains the fail-closed pin (see\nTestReleaseIndexV2InstallRejectsMissingAllDigestFields)."
   - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallRejectsMissingAllDigestFields
     file: golang/repository/repository_server/release_index_test.go
     symbol: TestReleaseIndexV2InstallRejectsMissingAllDigestFields
     package: main
     language: go
-  - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallRejectsMissingBuildID
-    file: golang/repository/repository_server/release_index_test.go
-    symbol: TestReleaseIndexV2InstallRejectsMissingBuildID
-    package: main
-    language: go
   - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallRejectsMissingPinsSet
     file: golang/repository/repository_server/release_index_test.go
     symbol: TestReleaseIndexV2InstallRejectsMissingPinsSet
-    package: main
-    language: go
-  - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallRejectsNumericBuildID
-    file: golang/repository/repository_server/release_index_test.go
-    symbol: TestReleaseIndexV2InstallRejectsNumericBuildID
     package: main
     language: go
   - id: golang/repository/repository_server/release_index_test.go:TestReleaseIndexV2InstallRejectsUnknownKind
@@ -2437,6 +2455,23 @@ test_symbols:
   - id: golang/repository/repository_server/repair_authorization_test.go:TestRepair_RequestedWithoutReason_RejectedInvalidArgument
     file: golang/repository/repository_server/repair_authorization_test.go
     symbol: TestRepair_RequestedWithoutReason_RejectedInvalidArgument
+    package: main
+    language: go
+  - id: golang/repository/repository_server/repair_index_test.go:TestRepairIndex_ClassifyState
+    file: golang/repository/repository_server/repair_index_test.go
+    symbol: TestRepairIndex_ClassifyState
+    package: main
+    language: go
+    doc: "Requirement 1 (literal sentinel): the UNKNOWN store-unreachable sentinel is a\nrepair CANDIDATE (a divergence, not terminal); PUBLISHED is ok; policy states\nare skip. Pure classifier — no store needed."
+  - id: golang/repository/repository_server/repair_index_test.go:TestRepairIndex_DoesNotTouchDesiredState
+    file: golang/repository/repository_server/repair_index_test.go
+    symbol: TestRepairIndex_DoesNotTouchDesiredState
+    package: main
+    language: go
+    doc: "Requirement 5 (structural): RepairIndex must not read or write the controller's\ndesired state — repository owns repository repair. Guard against a future edit\nwiring in a desired/controller dependency."
+  - id: golang/repository/repository_server/repair_index_test.go:TestRepairIndex_ReconstructsFromCasEvidenceOnly
+    file: golang/repository/repository_server/repair_index_test.go
+    symbol: TestRepairIndex_ReconstructsFromCasEvidenceOnly
     package: main
     language: go
   - id: golang/repository/repository_server/repository_findings_test.go:TestConfigReceipts_ConflictFilterReturnsOnlyConflicts

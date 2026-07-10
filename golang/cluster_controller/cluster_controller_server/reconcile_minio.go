@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	minioReconcileOutcomeKey        = "/globular/objectstore/reconcile/last"
-	minioLegacyTopologyGeneration   = "/globular/objectstore/topology/generation"
-	minioInactiveDriftAfter         = 10 * time.Minute
-	minioTopologyReconcileInterval  = 5 * time.Minute
+	minioReconcileOutcomeKey       = "/globular/objectstore/reconcile/last"
+	minioLegacyTopologyGeneration  = "/globular/objectstore/topology/generation"
+	minioInactiveDriftAfter        = 10 * time.Minute
+	minioTopologyReconcileInterval = 5 * time.Minute
 )
 
 type minioReconcileOutcome struct {
@@ -39,9 +39,8 @@ type minioNodeHealth struct {
 
 // minioTopologyReconciler drives controller-side MinIO topology convergence.
 // It compares desired generation against applied generation and dispatches the
-// topology workflow when drift is detected. The quorum guard (storageCount <
-// MinQuorumNodes) prevents workflow dispatch against a degraded storage layer.
-//
+// topology workflow when drift is detected. Storage node count is recorded as
+// capacity context; it is not used as a global admission floor.
 type minioTopologyReconciler struct {
 	srv      *server
 	interval time.Duration
@@ -121,17 +120,6 @@ func (r *minioTopologyReconciler) runOnce(ctx context.Context) {
 			}
 		}
 	}
-	if storageCount < MinQuorumNodes {
-		r.recordOutcome(ctx, minioReconcileOutcome{
-			TimestampUnix: now.Unix(),
-			Outcome:       "SKIP_NO_QUORUM",
-			Reason:        fmt.Sprintf("storage_nodes_below_quorum:%d", storageCount),
-			DesiredGen:    desired.Generation,
-			StorageNodes:  storageCount,
-		})
-		return
-	}
-
 	appliedGen, err := r.loadAppliedGen(ctx)
 	if err != nil {
 		r.recordOutcome(ctx, minioReconcileOutcome{

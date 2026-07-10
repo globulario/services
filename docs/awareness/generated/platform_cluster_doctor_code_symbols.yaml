@@ -720,6 +720,16 @@ test_symbols:
     symbol: TestBuildIDIndex_OnlyInstallableStatesAdmitted
     package: collector
     language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/repository_endpoint_refresh_test.go:TestRefreshRepositoryClientClearsStartupEndpointMissing
+    file: golang/cluster_doctor/cluster_doctor_server/collector/repository_endpoint_refresh_test.go
+    symbol: TestRefreshRepositoryClientClearsStartupEndpointMissing
+    package: collector
+    language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/repository_endpoint_refresh_test.go:TestRefreshRepositoryClientPreservesExistingClientOnTransientResolverFailure
+    file: golang/cluster_doctor/cluster_doctor_server/collector/repository_endpoint_refresh_test.go
+    symbol: TestRefreshRepositoryClientPreservesExistingClientOnTransientResolverFailure
+    package: collector
+    language: go
   - id: golang/cluster_doctor/cluster_doctor_server/collector/snapshot_adderror_test.go:TestAddError_RecordsAndLogs
     file: golang/cluster_doctor/cluster_doctor_server/collector/snapshot_adderror_test.go
     symbol: TestAddError_RecordsAndLogs
@@ -744,6 +754,11 @@ test_symbols:
     package: collector
     language: go
     doc: "COMMAND-kind packages: RuntimeNeeded must be cleared so the verifier does\nnot emit runtime_identity_unproven for CLI binaries (mc, restic, etc.)."
+  - id: golang/cluster_doctor/cluster_doctor_server/collector/verification_ingress_test.go:TestApplyCommandKindPolicyToTargets_LegacyInfraCommandPackages
+    file: golang/cluster_doctor/cluster_doctor_server/collector/verification_ingress_test.go
+    symbol: TestApplyCommandKindPolicyToTargets_LegacyInfraCommandPackages
+    package: collector
+    language: go
   - id: golang/cluster_doctor/cluster_doctor_server/collector/verification_ingress_test.go:TestApplyCommandKindPolicyToTargets_MultipleNodes
     file: golang/cluster_doctor/cluster_doctor_server/collector/verification_ingress_test.go
     symbol: TestApplyCommandKindPolicyToTargets_MultipleNodes
@@ -1206,6 +1221,30 @@ test_symbols:
     package: rules
     language: go
     doc: "Predicate test: CanonicalRuntimeDir handles unknown names sanely."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go:TestLayoutDrift_CatalogKnownInstalledDir_Silent
+    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go
+    symbol: TestLayoutDrift_CatalogKnownInstalledDir_Silent
+    package: rules
+    language: go
+    doc: "Installed catalog service runtime dir → silent (caught by installed-state, not 5b)."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go:TestLayoutDrift_CatalogKnownUninstalledDir_NotFlaggedWhenPinned
+    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go
+    symbol: TestLayoutDrift_CatalogKnownUninstalledDir_NotFlaggedWhenPinned
+    package: rules
+    language: go
+    doc: "Reference-safety: a catalog-known uninstalled dir actively pinned by a systemd\nunit must NOT be flagged (deletion would be undone; fix the unit instead)."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go:TestLayoutDrift_CatalogKnownUninstalledEmptyDir_IsCleanupNotUnknown
+    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go
+    symbol: TestLayoutDrift_CatalogKnownUninstalledEmptyDir_IsCleanupNotUnknown
+    package: rules
+    language: go
+    doc: "Empty catalog-known dir for an uninstalled service → INFO cleanup, not unknown WARN."
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go:TestLayoutDrift_CatalogKnownUninstalledNonEmptyDir_IsOrphanDataWarn
+    file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go
+    symbol: TestLayoutDrift_CatalogKnownUninstalledNonEmptyDir_IsOrphanDataWarn
+    package: rules
+    language: go
+    doc: "Non-empty catalog-known dir for an uninstalled service → WARN orphan-data with\nan accurate message (not \"unknown\"). Data-bearing orphans must not be\nauto-classified as safe cleanup."
   - id: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go:TestLayoutDrift_ClusterDoctorAliasesAreDeterministic
     file: golang/cluster_doctor/cluster_doctor_server/rules/artifact_layout_drift_local_test.go
     symbol: TestLayoutDrift_ClusterDoctorAliasesAreDeterministic
@@ -1510,6 +1549,11 @@ test_symbols:
   - id: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go:TestEnvoyLDSWedge_ColdInit_NoFinding
     file: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go
     symbol: TestEnvoyLDSWedge_ColdInit_NoFinding
+    package: rules
+    language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go:TestEnvoyLDSWedge_FreshXDSApply_GraceSuppressesTransient
+    file: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go
+    symbol: TestEnvoyLDSWedge_FreshXDSApply_GraceSuppressesTransient
     package: rules
     language: go
   - id: golang/cluster_doctor/cluster_doctor_server/rules/envoy_lds_wedge_test.go:TestEnvoyLDSWedge_LDSAttemptedButNotSucceeded_NoFire
@@ -2111,6 +2155,21 @@ test_symbols:
   - id: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running_ingress_test.go:TestNodeUnitsRunning_OtherUnitsStillFire
     file: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running_ingress_test.go
     symbol: TestNodeUnitsRunning_OtherUnitsStillFire
+    package: rules
+    language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running_profile_test.go:TestNodeUnitsRunning_NonStorageSuppressionIsNarrow
+    file: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running_profile_test.go
+    symbol: TestNodeUnitsRunning_NonStorageSuppressionIsNarrow
+    package: rules
+    language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running_profile_test.go:TestNodeUnitsRunning_ScyllaFiresOnStorageNode
+    file: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running_profile_test.go
+    symbol: TestNodeUnitsRunning_ScyllaFiresOnStorageNode
+    package: rules
+    language: go
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running_profile_test.go:TestNodeUnitsRunning_ScyllaSilentOnNonStorageNode
+    file: golang/cluster_doctor/cluster_doctor_server/rules/node_units_running_profile_test.go
+    symbol: TestNodeUnitsRunning_ScyllaSilentOnNonStorageNode
     package: rules
     language: go
   - id: golang/cluster_doctor/cluster_doctor_server/rules/objectstore_admission_test.go:TestExistingDataGuard_ExistingDataForceAcknowledged_OK
@@ -2752,12 +2811,12 @@ test_symbols:
     package: rules
     language: go
     doc: "Reduced-harvest honesty: if installed-state for the node could not be observed\n(NodeHealths absent), the rule emits nothing rather than fabricating a verdict."
-  - id: golang/cluster_doctor/cluster_doctor_server/rules/placement_orphaned_install_test.go:TestDoctorRule_OrphanedInstall_TorrentOnComputeNode_NoFinding
+  - id: golang/cluster_doctor/cluster_doctor_server/rules/placement_orphaned_install_test.go:TestDoctorRule_OrphanedInstall_TorrentOnMediaServerNode_NoFinding
     file: golang/cluster_doctor/cluster_doctor_server/rules/placement_orphaned_install_test.go
-    symbol: TestDoctorRule_OrphanedInstall_TorrentOnComputeNode_NoFinding
+    symbol: TestDoctorRule_OrphanedInstall_TorrentOnMediaServerNode_NoFinding
     package: rules
     language: go
-    doc: "torrent installed on a compute node → legitimately placed, no finding."
+    doc: "torrent installed on a media-server node → legitimately placed, no finding."
   - id: golang/cluster_doctor/cluster_doctor_server/rules/placement_orphaned_install_test.go:TestDoctorRule_OrphanedInstall_TorrentOnNonComputeNode
     file: golang/cluster_doctor/cluster_doctor_server/rules/placement_orphaned_install_test.go
     symbol: TestDoctorRule_OrphanedInstall_TorrentOnNonComputeNode

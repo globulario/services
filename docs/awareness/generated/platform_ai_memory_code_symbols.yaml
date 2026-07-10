@@ -414,6 +414,12 @@ test_symbols:
     package: main
     language: go
     doc: "TestMigrationVersionGating verifies that only status==complete AND\nversion >= schemaVersion satisfies the completion check."
+  - id: golang/ai_memory/ai_memory_server/ops_knowledge_recall_seed_integration_test.go:TestOpsKnowledgeRecallSeedConvergesDuplicates
+    file: golang/ai_memory/ai_memory_server/ops_knowledge_recall_seed_integration_test.go
+    symbol: TestOpsKnowledgeRecallSeedConvergesDuplicates
+    package: main
+    language: go
+    doc: "Integration test for the ops-knowledge recall self-seed convergence\n(loadOpsKnowledgeRecallSeed) against a REAL ScyllaDB.\n\nIt enforces the seed-idempotency invariant (ai-memory decision 45f7fc31):\nre-running the embedded self-seed must leave EXACTLY ONE canonical row per\nsemantic key (project, id), and it must self-heal duplicates an older seeder\nleft behind. The live store held 162 ids × 3 rows (created_at/escaped-content\ndrift) precisely because the previous LIMIT-1 replace logic converged one row\nper run instead of all of them.\n\nSkipped unless BEHAVIORAL_SCYLLA_HOSTS is set (no Scylla container in the\ndefault dev/CI environment here); the deterministic content-normalization half\nof the invariant is covered by TestRecallSeedContentNormalized in the\ncluster_operator package, which runs everywhere."
   - id: golang/ai_memory/ai_memory_server/text_search_test.go:TestMemoryMatchesAllTerms
     file: golang/ai_memory/ai_memory_server/text_search_test.go
     symbol: TestMemoryMatchesAllTerms
@@ -450,6 +456,36 @@ test_symbols:
     package: api
     language: go
     doc: "Every first-class entity must carry a stable canonical id and project/domain\nscope — the prerequisites for becoming an RDF URI with a scope."
+  - id: golang/ai_memory/behavioral/core/discovery_test.go:TestAmendProposal
+    file: golang/ai_memory/behavioral/core/discovery_test.go
+    symbol: TestAmendProposal
+    package: core
+    language: go
+    doc: "TestAmendProposal is the Priority-6 golden test: a PROPOSED principle can be\namended in place (set-merge refs), the edit resets a prior contradiction check,\nmalformed refs are rejected (P5 still applies), and a promoted principle cannot\nbe amended."
+  - id: golang/ai_memory/behavioral/core/discovery_test.go:TestListAndResolve_Discovery
+    file: golang/ai_memory/behavioral/core/discovery_test.go
+    symbol: TestListAndResolve_Discovery
+    package: core
+    language: go
+    doc: "TestListAndResolve_Discovery is the Priority-4 golden test: authorities and\nconditions are discoverable through the API (no grep), and ResolveRef reports\nresolution + kind."
+  - id: golang/ai_memory/behavioral/core/governance_recipe_test.go:TestPromotePrinciple_BlockedReturnsSatisfactionRecipe
+    file: golang/ai_memory/behavioral/core/governance_recipe_test.go
+    symbol: TestPromotePrinciple_BlockedReturnsSatisfactionRecipe
+    package: core
+    language: go
+    doc: "TestPromotePrinciple_BlockedReturnsSatisfactionRecipe is the Priority-3 golden\ntest: a blocked promotion must return the COMPLETE satisfaction recipe — a\nsummary plus a step per unsatisfied requirement, each carrying actionable\nnext_operations — so an agent never discovers the contract one rejection at a\ntime. The gate must still refuse (enforcement unchanged)."
+  - id: golang/ai_memory/behavioral/core/governance_refs_test.go:TestProposePrinciple_AcceptsCanonicalRefs
+    file: golang/ai_memory/behavioral/core/governance_refs_test.go
+    symbol: TestProposePrinciple_AcceptsCanonicalRefs
+    package: core
+    language: go
+    doc: "TestProposePrinciple_AcceptsCanonicalRefs guards against over-rejection: clean\ncanonical catalog ids (dots, underscores, digits) must pass unharmed."
+  - id: golang/ai_memory/behavioral/core/governance_refs_test.go:TestProposePrinciple_RejectsMalformedRefs
+    file: golang/ai_memory/behavioral/core/governance_refs_test.go
+    symbol: TestProposePrinciple_RejectsMalformedRefs
+    package: core
+    language: go
+    doc: "TestProposePrinciple_RejectsMalformedRefs is the Priority-5 + Priority-1 golden\ntest: a proposal whose refs look like comma-split prose is rejected at write\ntime with a single structured GovernanceError that lists EVERY offender (never\none-rejection-at-a-time) and never flags the valid ref."
   - id: golang/ai_memory/behavioral/core/raw_owner_write_ratchet_test.go:TestRawOwnerStateWritePromotedBlocksRawWrite
     file: golang/ai_memory/behavioral/core/raw_owner_write_ratchet_test.go
     symbol: TestRawOwnerStateWritePromotedBlocksRawWrite
@@ -675,9 +711,21 @@ test_symbols:
     package: cluster_operator
     language: go
     doc: "A malformed seed (dangling ref) is rejected by validate()."
+  - id: golang/ai_memory/domains/cluster_operator/recall_test.go:TestRecallSeedContentNormalized
+    file: golang/ai_memory/domains/cluster_operator/recall_test.go
+    symbol: TestRecallSeedContentNormalized
+    package: cluster_operator
+    language: go
+    doc: "TestRecallSeedContentNormalized guards the seed-normalization half of the\nidempotency invariant (ai-memory decision 45f7fc31): the compiled recall\ncontent must use REAL newlines, never escaped-content drift. Duplicate seed\nrows in the live store originated from re-imports whose content flipped between\nreal newlines and literal \"\\n\" / \"\\\\n\"; each representation hashes differently,\nre-triggering an upsert. If the embedded artifact ever regressed to escaped\ncontent, that drift would return. The block-scalar corpus has zero backslash-n\ntoday, so any occurrence is a compile-step regression, not legitimate content."
   - id: golang/ai_memory/domains/cluster_operator/recall_test.go:TestRecallSeedEntries
     file: golang/ai_memory/domains/cluster_operator/recall_test.go
     symbol: TestRecallSeedEntries
     package: cluster_operator
     language: go
     doc: "TestRecallSeedEntries asserts the embedded operational-knowledge recall\nartifact is present, parses, and every entry is well-formed — so ai-memory's\nstartup self-seed has real, valid content to load."
+  - id: golang/ai_memory/domains/programming/pack_test.go:TestNewLoadsAndValidates
+    file: golang/ai_memory/domains/programming/pack_test.go
+    symbol: TestNewLoadsAndValidates
+    package: programming
+    language: go
+    doc: "TestNewLoadsAndValidates asserts the embedded seed parses, every principle ref\nresolves within the pack's catalogs, and the generative-pairing rule holds."

@@ -115,6 +115,12 @@ code_symbols:
       implements:
         - globular.platform:intent.security.path_canonicalization_prevents_traversal
 test_symbols:
+  - id: golang/security/account_uuid_claim_test.go:TestClaims_AccountUUID_RoundTripsAndOmitsWhenEmpty
+    file: golang/security/account_uuid_claim_test.go
+    symbol: TestClaims_AccountUUID_RoundTripsAndOmitsWhenEmpty
+    package: security
+    language: go
+    doc: "TestClaims_AccountUUID_RoundTripsAndOmitsWhenEmpty guards the additive account\nmembership-identity claim (Phase 3). The uuid must survive a JWT-claims JSON\nround-trip so token readers can migrate to it, and it must be OMITTED when\nempty (service/sa and pre-migration tokens carry no account_uuid). Critically,\nit does NOT become the Subject/PrincipalID — authorization is unchanged until\nRBAC and storage dual-read."
   - id: golang/security/approval_token_test.go:TestApprovalTokenBindsActionTargetAndGeneration
     file: golang/security/approval_token_test.go
     symbol: TestApprovalTokenBindsActionTargetAndGeneration
@@ -588,6 +594,16 @@ test_symbols:
     package: security
     language: go
     doc: "TestPurgeNodeTrust_RemovesSystemCA verifies the PKI trust purge invariant:\nafter a node trust purge, all Globular CA artifacts are absent and\nNeedsCertRegeneration correctly reports missing cert (not a silent no-op).\nThis mirrors the behavior of purge-node-trust.sh but in pure Go so it can\nrun in CI without root access or system directories."
+  - id: golang/security/tls_resolver_test.go:TestResolveCAAuthorityRejectsEmptyAddress
+    file: golang/security/tls_resolver_test.go
+    symbol: TestResolveCAAuthorityRejectsEmptyAddress
+    package: security
+    language: go
+  - id: golang/security/tls_resolver_test.go:TestResolveCAAuthorityUsesEmbeddedPort
+    file: golang/security/tls_resolver_test.go
+    symbol: TestResolveCAAuthorityUsesEmbeddedPort
+    package: security
+    language: go
   - id: golang/security/zz_awareness_required_test_aliases_test.go:TestPermissionDenied_RenderedDistinctlyFromNetworkError
     file: golang/security/zz_awareness_required_test_aliases_test.go
     symbol: TestPermissionDenied_RenderedDistinctlyFromNetworkError

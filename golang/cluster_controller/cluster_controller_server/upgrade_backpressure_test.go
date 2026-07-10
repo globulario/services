@@ -51,6 +51,7 @@ func TestUpgradeLoopSuppression(t *testing.T) {
 			"n1": {
 				NodeID:            "n1",
 				Status:            "ready",
+				Profiles:          []string{"core"},
 				LastSeen:          time.Now(),
 				BootstrapPhase:    BootstrapWorkloadReady,
 				InstalledVersions: map[string]string{"rbac": "1.1.0"},
@@ -61,12 +62,14 @@ func TestUpgradeLoopSuppression(t *testing.T) {
 			"n2": {
 				NodeID:         "n2",
 				Status:         "ready",
+				Profiles:       []string{"core"},
 				LastSeen:       time.Now(),
 				BootstrapPhase: BootstrapWorkloadReady,
 			},
 			"n3": {
 				NodeID:         "n3",
 				Status:         "ready",
+				Profiles:       []string{"core"},
 				LastSeen:       time.Now(),
 				BootstrapPhase: BootstrapWorkloadReady,
 			},
@@ -164,11 +167,11 @@ func TestRuntimeDepBlockStopsSpinLoop(t *testing.T) {
 	state := &controllerState{
 		Nodes: map[string]*nodeState{
 			// n1: sidekick already installed (served).
-			"n1": {NodeID: "n1", Status: "ready", LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady,
+			"n1": {NodeID: "n1", Status: "ready", Profiles: []string{"core"}, LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady,
 				InstalledVersions: map[string]string{"sidekick": "7.0.0"}},
 			// n2, n3: sidekick NOT installed, minio (dep) not yet active.
-			"n2": {NodeID: "n2", Status: "ready", LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady},
-			"n3": {NodeID: "n3", Status: "ready", LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady},
+			"n2": {NodeID: "n2", Status: "ready", Profiles: []string{"core"}, LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady},
+			"n3": {NodeID: "n3", Status: "ready", Profiles: []string{"core"}, LastSeen: time.Now(), BootstrapPhase: BootstrapWorkloadReady},
 		},
 	}
 	srv := newTestServer(t, state)

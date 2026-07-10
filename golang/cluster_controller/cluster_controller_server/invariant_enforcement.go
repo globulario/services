@@ -1,7 +1,6 @@
 // @awareness namespace=globular.platform
 // @awareness component=platform_cluster_controller.invariant_enforcement
 // @awareness file_role=last_line_invariant_enforcement_running_without_minio_or_workflow_service
-// @awareness enforces=globular.platform:invariant.founding.quorum.three_nodes_required
 // @awareness risk=critical
 package main
 
@@ -30,9 +29,8 @@ package main
 // same checks for auditability when the workflow service is healthy.
 //
 // Invariants enforced:
-//   1. Infrastructure quorum: etcd (all nodes), ScyllaDB (≥3), MinIO (≥3)
-//   2. Founding profiles: first 3 nodes MUST have core+control-plane+storage
-//   3. Workflow completeness: all required definitions exist in MinIO
+//   1. Infrastructure capacity is reported from current membership
+//   2. Workflow completeness: all required definitions exist in etcd
 //
 // These run under srv.lock() during the reconcile snapshot phase.
 
@@ -50,27 +48,20 @@ import (
 // enforceAllInvariantsLocked runs all cluster invariants during the reconcile
 // snapshot phase. MUST be called under srv.lock(). Returns true if state was modified.
 func (srv *server) enforceAllInvariantsLocked() bool {
-	modified := false
-
-	// 1. Infrastructure quorum — auto-promote nodes if needed.
-	if srv.enforceStorageQuorumLocked() {
-		modified = true
-	}
-
-	// 2. Workflow completeness — throttled to avoid hammering MinIO.
+	// Workflow completeness — throttled to avoid hammering etcd.
 	//    We just flag it here; the actual repair happens after unlock.
 	if time.Since(lastWorkflowCheck) >= workflowCheckInterval {
 		lastWorkflowCheck = time.Now()
 		srv.workflowRepairNeeded = srv.checkWorkflowCompleteness()
 	}
 
-	// 3. Disk health — log WARN/CRITICAL based on heartbeat capabilities.
+	// Disk health — log WARN/CRITICAL based on heartbeat capabilities.
 	//    Best-effort: no state modification, just structured logging so
 	//    operators see disk pressure in logs even when the workflow service
 	//    is down and invariantValidateDiskHealth cannot run.
 	srv.checkDiskHealthLocked()
 
-	return modified
+	return false
 }
 
 const (
@@ -201,6 +192,7 @@ func loadCoreWorkflowsFromDisk() map[string][]byte {
 // lastWorkflowCheck tracks when we last checked workflow completeness
 // to avoid hitting MinIO every reconcile cycle.
 var lastWorkflowCheck time.Time
+
 const workflowCheckInterval = 5 * time.Minute
 
 // readFileIfExists reads a file or returns empty if it doesn't exist.

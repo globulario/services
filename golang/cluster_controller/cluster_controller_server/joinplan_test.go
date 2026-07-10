@@ -248,15 +248,16 @@ func TestJoinAuthorization_FoundingNodeReceivesPlan(t *testing.T) {
 	}
 }
 
-// TestJoinAuthorization_FirstThreeNodesGetFoundingProfiles verifies that
-// founding quorum enforcement runs: the first node in a fresh cluster must
-// receive core+control-plane+storage regardless of what it requests.
-func TestJoinAuthorization_FirstThreeNodesGetFoundingProfiles(t *testing.T) {
+func TestJoinAuthorization_HardwareDeductionAssignsControlPlaneAndStorage(t *testing.T) {
 	srv := newJoinAuthServer(t)
 	req := &JoinAuthorizationRequest{
-		JoinToken: "tok-v2",
-		Identity:  NodePlanIdentity{Hostname: "node-founding", IPs: []string{"10.0.0.5"}},
-		Nonce:     "nonce-founding",
+		JoinToken:     "tok-v2",
+		Identity:      NodePlanIdentity{Hostname: "node-hw", IPs: []string{"10.0.0.5"}},
+		Nonce:         "nonce-hw",
+		CPUCount:      8,
+		RAMBytes:      32 * _GB,
+		DiskBytes:     512 * _GB,
+		DiskFreeBytes: 480 * _GB,
 	}
 	resp, err := srv.requestJoinAuthorizationCore(req)
 	if err != nil {
@@ -269,9 +270,110 @@ func TestJoinAuthorization_FirstThreeNodesGetFoundingProfiles(t *testing.T) {
 	for _, p := range resp.Plan.AssignedProfiles {
 		profileSet[p] = true
 	}
-	for _, required := range []string{"core", "control-plane", "storage"} {
-		if !profileSet[required] {
-			t.Errorf("founding node missing profile %q; got %v", required, resp.Plan.AssignedProfiles)
+	for _, want := range []string{"core", "control-plane", "storage"} {
+		if !profileSet[want] {
+			t.Fatalf("deduced profile %q missing: got %v", want, resp.Plan.AssignedProfiles)
+		}
+	}
+	jr := srv.state.JoinRequests[resp.JoinID]
+	if jr == nil || jr.Capabilities == nil {
+		t.Fatal("join request should retain hardware capabilities")
+	}
+	if jr.Capabilities.DiskFreeBytes != req.DiskFreeBytes {
+		t.Fatalf("disk_free_bytes = %d, want %d", jr.Capabilities.DiskFreeBytes, req.DiskFreeBytes)
+	}
+}
+
+func TestJoinAuthorizationProtoPreservesDiskFreeForProfileDeduction(t *testing.T) {
+	req := &cluster_controllerpb.JoinAuthorizationRequest{
+		JoinToken: "tok-v2",
+		Identity:  &cluster_controllerpb.NodeIdentity{Hostname: "node-hw"},
+		Capabilities: &cluster_controllerpb.NodeCapabilities{
+			CpuCount:      8,
+			RamBytes:      32 * _GB,
+			DiskBytes:     512 * _GB,
+			DiskFreeBytes: 480 * _GB,
+		},
+	}
+	got := protoToJoinAuthRequest(req)
+	if got.DiskFreeBytes != req.GetCapabilities().GetDiskFreeBytes() {
+		t.Fatalf("DiskFreeBytes dropped during proto conversion: got %d want %d",
+			got.DiskFreeBytes, req.GetCapabilities().GetDiskFreeBytes())
+	}
+}
+
+func TestJoinAuthorizationProtoPreservesRequestedProfiles(t *testing.T) {
+	req := &cluster_controllerpb.JoinAuthorizationRequest{
+		JoinToken:         "tok-v2",
+		Identity:          &cluster_controllerpb.NodeIdentity{Hostname: "node-requested"},
+		RequestedProfiles: []string{"control-plane", "storage"},
+	}
+	got := protoToJoinAuthRequest(req)
+	if !sameStrings(got.RequestedProfiles, req.GetRequestedProfiles()) {
+		t.Fatalf("RequestedProfiles dropped during proto conversion: got %v want %v",
+			got.RequestedProfiles, req.GetRequestedProfiles())
+	}
+}
+
+func TestJoinAuthorizationRequestedProfilesAreControllerValidatedAssignment(t *testing.T) {
+	srv := newJoinAuthServer(t)
+	req := &JoinAuthorizationRequest{
+		JoinToken:         "tok-v2",
+		Identity:          NodePlanIdentity{Hostname: "node-requested", IPs: []string{"10.0.0.9"}},
+		Nonce:             "nonce-requested",
+		RequestedProfiles: []string{"control-plane", "storage"},
+	}
+	resp, err := srv.requestJoinAuthorizationCore(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.Allowed {
+		t.Fatalf("expected allowed, denied: %q", resp.DeniedReason)
+	}
+	for _, want := range []string{"core", "control-plane", "storage"} {
+		if !hasProfile(resp.Plan.AssignedProfiles, want) {
+			t.Fatalf("requested profile %q missing from signed plan: got %v", want, resp.Plan.AssignedProfiles)
+		}
+	}
+	node := srv.state.Nodes[resp.Plan.AssignedNodeID]
+	if node == nil {
+		t.Fatalf("assigned node %s not found", resp.Plan.AssignedNodeID)
+	}
+	if node.Metadata[nodeProfileSourceMetadataKey] != nodeProfileSourceRequested {
+		t.Fatalf("profile source = %q, want %q",
+			node.Metadata[nodeProfileSourceMetadataKey], nodeProfileSourceRequested)
+	}
+}
+
+// TestJoinAuthorization_DefaultProfilesAreNotQuorumCoerced verifies that
+// control-plane/storage assignment comes from controller-owned default_profiles,
+// not a hidden quorum admission rule. If an operator configures core-only
+// defaults, implicit join remains core-only.
+func TestJoinAuthorization_DefaultProfilesAreNotQuorumCoerced(t *testing.T) {
+	srv := newJoinAuthServer(t)
+	srv.cfg.DefaultProfiles = []string{"core"}
+	req := &JoinAuthorizationRequest{
+		JoinToken: "tok-v2",
+		Identity:  NodePlanIdentity{Hostname: "node-default", IPs: []string{"10.0.0.5"}},
+		Nonce:     "nonce-default",
+	}
+	resp, err := srv.requestJoinAuthorizationCore(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.Allowed {
+		t.Fatalf("expected allowed, denied: %q", resp.DeniedReason)
+	}
+	profileSet := map[string]bool{}
+	for _, p := range resp.Plan.AssignedProfiles {
+		profileSet[p] = true
+	}
+	if !profileSet["core"] {
+		t.Fatalf("default profile core missing: got %v", resp.Plan.AssignedProfiles)
+	}
+	for _, unexpected := range []string{"control-plane", "storage"} {
+		if profileSet[unexpected] {
+			t.Fatalf("profile %q was quorum-coerced into assignment: got %v", unexpected, resp.Plan.AssignedProfiles)
 		}
 	}
 }

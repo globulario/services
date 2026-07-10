@@ -536,8 +536,7 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 		// Skip day0_join and topology_workflow infrastructure — these are managed
 		// by dedicated state machines, not the artifact pipeline.
 		// day0_join: managed by bootstrap/join logic (e.g. etcd member-add).
-		// topology_workflow: requires quorum precondition (e.g. MinIO needs 3
-		// storage nodes) and is driven by a dedicated topology workflow.
+		// topology_workflow: driven by a dedicated topology workflow.
 		// Creating InfrastructureRelease for either would cause the node-agent
 		// to attempt an artifact-based install at the wrong time.
 		if comp.Kind == KindInfrastructure &&
@@ -1624,9 +1623,15 @@ func (srv *server) recoverStuckBootstrapWorkflows(nodes []*nodeState, now time.T
 		// xds_ready is explicitly excluded here because a join workflow can
 		// fail after installing xDS but before installing Envoy, leaving the
 		// node stuck waiting for a service that will never start on its own.
+		// awareness_ready is also excluded: the phase machine owns that phase
+		// and advances it on its own 90s graceful timeout — but only while
+		// BootstrapWorkflowActive is false. A join re-trigger here suppresses
+		// that timeout for the workflow's whole (up to 30m) run, deadlocking
+		// the node in awareness_ready (observed 2026-07-10 on globule-nuc).
 		if node.BootstrapPhase == BootstrapStorageJoining ||
 			node.BootstrapPhase == BootstrapEtcdReady ||
-			node.BootstrapPhase == BootstrapEnvoyReady {
+			node.BootstrapPhase == BootstrapEnvoyReady ||
+			node.BootstrapPhase == BootstrapAwarenessReady {
 			log.Printf("bootstrap-recovery: node %s (%s) at phase %s — skipping join re-trigger (storage data may exist)",
 				node.NodeID, node.Identity.Hostname, node.BootstrapPhase)
 			continue

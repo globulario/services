@@ -14,9 +14,9 @@
 #   cd "globular-${VERSION}-linux-amd64"
 #   sudo bash install.sh
 #
-# Optional — set the founding node's profiles (comma-separated). The quorum
-# profiles (control-plane,core,storage) are always enforced; this adds workload
-# profiles from day-0. Example, to also run media services on this node:
+# Optional — set the founding node's profiles (comma-separated). These are
+# operator placement defaults, not a quorum/admission floor. Example, to also
+# run media services on this node:
 #   sudo FOUNDING_PROFILES=core,media-server bash install.sh
 #
 # After installation, the installer prints the exact bootstrap command with the
@@ -67,29 +67,41 @@ MINIO_DATA_DIR="/var/lib/globular/minio/data"
 STATE_DIR="/var/lib/globular"
 GLOBULAR_DOMAIN="globular.internal"
 
-# Founding-node profiles, forwarded to install-day0.sh (comma-separated). The
-# controller always enforces the quorum trio (control-plane,core,storage); this
-# default also enables the media workload profile on the bootstrap node.
+# Founding-node profiles, forwarded to install-day0.sh (comma-separated). These
+# are operator placement defaults; quorum/capacity is reported separately and is
+# not manufactured by coercing profiles.
 # Override via the environment, e.g.:
 #   sudo FOUNDING_PROFILES=core,media-server,gateway bash install.sh
 export FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
 
-mkdir -p "${SCRIPT_DIR}/bin" "${SCRIPT_DIR}/internal/assets"
+mkdir -p "${SCRIPT_DIR}/bin"
 ln -sf "${INSTALLER_BIN}" "${SCRIPT_DIR}/bin/globular-installer"
-ln -sfn "${PKG_DIR}" "${SCRIPT_DIR}/internal/assets/packages"
 
 # ── Install CLI ───────────────────────────────────────────────────────────────
 info "Installing globular CLI..."
 install -m 755 "${SCRIPT_DIR}/globular" /usr/local/bin/globular
 ok "globular → /usr/local/bin/globular"
 
-VERSION=$("${SCRIPT_DIR}/globular" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+info "Installing globular-installer..."
+install -d -m 755 /usr/lib/globular/bin
+install -m 755 "${INSTALLER_BIN}" /usr/lib/globular/bin/globular-installer
+export INSTALLER_BIN="/usr/lib/globular/bin/globular-installer"
+ok "globular-installer → /usr/lib/globular/bin/globular-installer"
+
+VERSION=""
+if [[ -f "${SCRIPT_DIR}/release-index.json" ]]; then
+  VERSION="$(python3 -c "import json; d=json.load(open('${SCRIPT_DIR}/release-index.json')); print((d.get('platform_release') or d.get('release_tag','').lstrip('v')).strip())" 2>/dev/null || true)"
+fi
+if [[ -z "${VERSION}" ]]; then
+  VERSION=$("${SCRIPT_DIR}/globular" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+fi
+VERSION="${VERSION:-local}"
 info "Release version: ${VERSION}"
 
 # ── Run Day-0 installation ────────────────────────────────────────────────────
 echo ""
 info "Starting Day-0 installation..."
-info "Founding profiles: ${FOUNDING_PROFILES} (quorum control-plane,core,storage always enforced)"
+info "Default profiles: ${FOUNDING_PROFILES} (operator placement defaults; quorum is reported capacity)"
 echo ""
 
 "${SCRIPT_DIR}/scripts/install-day0.sh"

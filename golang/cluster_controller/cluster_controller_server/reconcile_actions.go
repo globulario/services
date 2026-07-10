@@ -176,8 +176,12 @@ func shouldPruneEtcdStaleMembers(now time.Time, nodes []*nodeState) (bool, strin
 func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope string, includeNodes []any) ([]any, error) {
 	srv.lock("reconcileScanDrift:snapshot")
 	nodes := make([]*nodeState, 0, len(srv.state.Nodes))
+	activeJoinNodes := make(map[string]bool)
 	for _, node := range srv.state.Nodes {
 		nodes = append(nodes, node)
+		if activeDay1JoinNode(node) {
+			activeJoinNodes[node.NodeID] = true
+		}
 	}
 	srv.unlock()
 
@@ -197,6 +201,10 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 			continue
 		}
 		if len(includeSet) > 0 && !includeSet[node.NodeID] {
+			continue
+		}
+		if len(includeSet) == 0 && len(activeJoinNodes) > 0 && !activeJoinNodes[node.NodeID] {
+			log.Printf("reconcile-workflow: scan_drift: skipping node %s while Day-1 join active (join isolation)", node.NodeID)
 			continue
 		}
 		// Only scan nodes that are past bootstrap.
@@ -265,11 +273,13 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 		desiredCanon = FilterDesiredByIntent(desiredCanon, intent)
 
 		for svc, desiredVer := range desiredCanon {
-			// Check installed state from etcd — try SERVICE first, then INFRASTRUCTURE.
-			pkg, err := installed_state.GetInstalledPackage(ctx, node.NodeID, "SERVICE", svc)
-			if err != nil || pkg == nil {
-				pkg, err = installed_state.GetInstalledPackage(ctx, node.NodeID, "INFRASTRUCTURE", svc)
-			}
+			// Check installed state from etcd across ALL legal kinds. The
+			// installed_state schema permits SERVICE|INFRASTRUCTURE|COMMAND;
+			// a kind this scanner cannot see becomes a permanent
+			// missing_package remediation loop (COMMAND packages were
+			// invisible here until 2026-07-10 — mc/etcdctl/restic/… cycled
+			// as workflow.drift_stuck while installed the whole time).
+			pkg, err := installedPackageAnyKind(ctx, node.NodeID, svc)
 			if err != nil || pkg == nil {
 				// If the node is an active infrastructure member for this package
 				// (joined via the Day-0/join flow), the release workflow will
@@ -329,7 +339,12 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 		}
 	}
 
-	log.Printf("reconcile-workflow: scan_drift found %d drift items across %d nodes", len(driftItems), len(nodes))
+	if len(includeSet) == 0 && len(activeJoinNodes) > 0 {
+		log.Printf("reconcile-workflow: scan_drift found %d drift items across %d nodes (Day-1 join isolation active: %d join node(s))",
+			len(driftItems), len(nodes), len(activeJoinNodes))
+	} else {
+		log.Printf("reconcile-workflow: scan_drift found %d drift items across %d nodes", len(driftItems), len(nodes))
+	}
 	return driftItems, nil
 }
 
@@ -405,7 +420,11 @@ func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any
 			}
 			currentRefs[dType][eRef] = true
 			if srv.workflowRec != nil {
-				srv.workflowRec.RecordDriftObservation(ctx, dType, eRef, "", "")
+				// Stamp the workflow this drift type resolves to. The upsert
+				// overwrites chosen_workflow each cycle, so passing "" here
+				// kept doctor's workflow.drift_stuck findings permanently
+				// blank (chosen_workflow=), hiding which remediation looped.
+				srv.workflowRec.RecordDriftObservation(ctx, dType, eRef, srv.driftChosenWorkflowName(dType), "")
 			}
 		}
 	}
@@ -501,28 +520,45 @@ func (srv *server) reconcileMarkItemStarted(ctx context.Context, item map[string
 	return nil
 }
 
-// lookupServiceReleaseBuildID returns the resolved_build_id and the
-// DesiredHash (computed convergence hash, NOT the artifact digest) for the
-// given package.  The DesiredHash is what the drift reconciler passes as
-// desired_hash to node-agent workflows, and what the convergence-committer
-// stamps into pkg.Checksum.  Using ResolvedArtifactDigest here caused a
-// permanent mismatch: InfrastructureRelease checks pkg.Checksum against
-// its own DesiredHash (computed), but the drift path was stamping the raw
+type releaseConvergenceIdentity struct {
+	resolvedBuildID            string
+	desiredHash                string
+	resolvedEntrypointChecksum string
+	resolvedBuildNumber        int64
+}
+
+// lookupServiceReleaseConvergenceIdentity returns the resolved build identity,
+// DesiredHash (computed convergence hash, NOT the artifact digest), manifest
+// entrypoint checksum, and build number for the given package. DesiredHash is
+// what the drift reconciler passes as desired_hash to node-agent workflows, and
+// what the convergence-committer stamps into pkg.Checksum. Using artifact digest
+// here caused a permanent mismatch: InfrastructureRelease checks pkg.Checksum
+// against its own DesiredHash (computed), but the drift path was stamping the raw
 // artifact digest — so the two never agreed and the loop never terminated.
 //
 //globular:enforces infra.desired_hash_consistency
+//globular:enforces controller.apply_package_release_requires_manifest_checksum
 //globular:expects_hash_schema infra_desired_hash
 //globular:expects_hash_schema service_desired_hash
 //globular:reads /globular/resources/ServiceRelease
 //globular:reads /globular/resources/InfrastructureRelease
 //globular:risk convergence.hash_mismatch_loop
-func (srv *server) lookupServiceReleaseBuildID(ctx context.Context, pkgName string) (resolvedBuildID, resolvedHash string) {
+func (srv *server) lookupServiceReleaseConvergenceIdentity(ctx context.Context, pkgName string) releaseConvergenceIdentity {
 	relKey := defaultPublisherID() + "/" + canonicalServiceName(pkgName)
 	// Try ServiceRelease first.
 	if obj, _, err := srv.resources.Get(ctx, "ServiceRelease", relKey); err == nil && obj != nil {
 		if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok {
 			if rel.Status != nil {
-				return rel.Status.ResolvedBuildID, rel.Status.DesiredHash
+				var specBuildNumber int64
+				if rel.Spec != nil {
+					specBuildNumber = rel.Spec.BuildNumber
+				}
+				return releaseConvergenceIdentity{
+					resolvedBuildID:            rel.Status.ResolvedBuildID,
+					desiredHash:                rel.Status.DesiredHash,
+					resolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
+					resolvedBuildNumber:        pickBuildNumber(rel.Status.ResolvedBuildNumber, specBuildNumber),
+				}
 			}
 		}
 	}
@@ -530,11 +566,44 @@ func (srv *server) lookupServiceReleaseBuildID(ctx context.Context, pkgName stri
 	if obj, _, err := srv.resources.Get(ctx, "InfrastructureRelease", relKey); err == nil && obj != nil {
 		if rel, ok := obj.(*cluster_controllerpb.InfrastructureRelease); ok {
 			if rel.Status != nil {
-				return rel.Status.ResolvedBuildID, rel.Status.DesiredHash
+				var specBuildNumber int64
+				if rel.Spec != nil {
+					specBuildNumber = rel.Spec.BuildNumber
+				}
+				return releaseConvergenceIdentity{
+					resolvedBuildID:            rel.Status.ResolvedBuildID,
+					desiredHash:                rel.Status.DesiredHash,
+					resolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
+					resolvedBuildNumber:        pickBuildNumber(rel.Status.ResolvedBuildNumber, specBuildNumber),
+				}
 			}
 		}
 	}
-	return "", ""
+	return releaseConvergenceIdentity{}
+}
+
+// lookupServiceReleaseBuildID preserves the legacy two-value helper for callers
+// that only need build_id + convergence hash.
+func (srv *server) lookupServiceReleaseBuildID(ctx context.Context, pkgName string) (resolvedBuildID, resolvedHash string) {
+	identity := srv.lookupServiceReleaseConvergenceIdentity(ctx, pkgName)
+	return identity.resolvedBuildID, identity.desiredHash
+}
+
+// driftChosenWorkflowName mirrors reconcileChooseWorkflow's selection for
+// telemetry: classify stamps this on the drift observation so doctor's
+// workflow.drift_stuck findings name the looping remediation.
+func (srv *server) driftChosenWorkflowName(driftType string) string {
+	switch driftType {
+	case "missing_package", "version_drift":
+		return "release.apply.package"
+	case "unmanaged_package":
+		if srv.enableServiceRemoval {
+			return "release.remove.package"
+		}
+		return "noop"
+	default:
+		return "noop"
+	}
 }
 
 // reconcileChooseWorkflow selects the appropriate child workflow for a drift item.
@@ -559,22 +628,24 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 				kind = "COMMAND"
 			}
 		}
-		// Look up the resolved build_id and artifact digest from the ServiceRelease
-		// or InfrastructureRelease resource. This threads the exact artifact identity
-		// through the drift-dispatch path so node-agents fetch the correct build.
-		resolvedBuildID, resolvedHash := srv.lookupServiceReleaseBuildID(ctx, pkgName)
+		// Look up the release identity from ServiceRelease/InfrastructureRelease.
+		// This threads exact artifact identity and manifest entrypoint proof through
+		// the drift-dispatch path so node-agents fetch and verify the correct build.
+		identity := srv.lookupServiceReleaseConvergenceIdentity(ctx, pkgName)
 		return map[string]any{
 			"workflow_name": "release.apply.package",
 			"inputs": map[string]any{
-				"cluster_id":        srv.cfg.ClusterDomain,
-				"release_id":        fmt.Sprintf("reconcile-%s-%s-%d", nodeID, pkgName, time.Now().Unix()),
-				"release_name":      fmt.Sprintf("reconcile-%s", pkgName),
-				"package_name":      pkgName,
-				"package_kind":      kind,
-				"resolved_version":  desiredVersion,
-				"desired_hash":      resolvedHash,
-				"resolved_build_id": resolvedBuildID,
-				"candidate_nodes":   []any{nodeID},
+				"cluster_id":                   srv.cfg.ClusterDomain,
+				"release_id":                   fmt.Sprintf("reconcile-%s-%s-%d", nodeID, pkgName, time.Now().Unix()),
+				"release_name":                 fmt.Sprintf("reconcile-%s", pkgName),
+				"package_name":                 pkgName,
+				"package_kind":                 kind,
+				"resolved_version":             desiredVersion,
+				"desired_hash":                 identity.desiredHash,
+				"resolved_build_id":            identity.resolvedBuildID,
+				"resolved_build_number":        identity.resolvedBuildNumber,
+				"resolved_entrypoint_checksum": identity.resolvedEntrypointChecksum,
+				"candidate_nodes":              []any{nodeID},
 			},
 		}, nil
 
@@ -630,20 +701,48 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 // installed" loop (convergence.no_infinite_retry / SCAR-2).
 const reconcileNoProgressThreshold = 3
 
-// observeInstalledPackage reads the L3 installed_state for (nodeID, name),
-// trying SERVICE then INFRASTRUCTURE — the same lookup the drift scanner uses.
-// installed_state is package-global, so the srv.observeInstalledPkg seam
-// overrides it in tests.
+// observeInstalledPackage reads the L3 installed_state for (nodeID, name) —
+// the same any-kind lookup the drift scanner uses. installed_state is
+// package-global, so the srv.observeInstalledPkg seam overrides it in tests.
 func (srv *server) observeInstalledPackage(ctx context.Context, nodeID, name string) (*node_agentpb.InstalledPackage, error) {
 	if srv.observeInstalledPkg != nil {
 		return srv.observeInstalledPkg(ctx, nodeID, name)
 	}
-	pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, "SERVICE", name)
-	if err != nil || pkg == nil {
-		pkg, err = installed_state.GetInstalledPackage(ctx, nodeID, "INFRASTRUCTURE", name)
-	}
-	return pkg, err
+	return installedPackageAnyKind(ctx, nodeID, name)
 }
+
+// installedPackageAnyKind reads the L3 installed record for (nodeID, name)
+// across every kind the installed_state schema permits (SERVICE,
+// INFRASTRUCTURE, COMMAND). The component catalog's kind, when known, is
+// tried first. The drift scanner and the convergence observer MUST share
+// this lookup: any kind one of them cannot see either produces phantom
+// missing_package drift or blocks SCAR-2 convergence observation forever.
+func installedPackageAnyKind(ctx context.Context, nodeID, name string) (*node_agentpb.InstalledPackage, error) {
+	kinds := []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"}
+	if c := CatalogByName(name); c != nil {
+		switch c.Kind {
+		case KindInfrastructure:
+			kinds = []string{"INFRASTRUCTURE", "SERVICE", "COMMAND"}
+		case KindCommand:
+			kinds = []string{"COMMAND", "INFRASTRUCTURE", "SERVICE"}
+		}
+	}
+	var lastErr error
+	for _, kind := range kinds {
+		pkg, err := getInstalledPackageFn(ctx, nodeID, kind, name)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if pkg != nil {
+			return pkg, nil
+		}
+	}
+	return nil, lastErr
+}
+
+// getInstalledPackageFn is a test seam over the etcd-backed read.
+var getInstalledPackageFn = installed_state.GetInstalledPackage
 
 // reconcileItemConverged re-reads installed_state AFTER a child remediation
 // returns and reports whether the observed L3 state now matches desired.

@@ -127,11 +127,11 @@ This order is computed deterministically. Two runs with the same snapshot produc
 
 Before dispatching the workflow the controller runs cluster safety checks:
 
-- **Storage quorum**: If the node has the `storage` profile and removing it would drop below 3 storage nodes (MinIO / ScyllaDB quorum), the request is rejected with an error listing the risk. Override with `--force`.
+- **Storage capacity**: If the node has the `storage` profile, removal reports the remaining storage capacity and any component-specific MinIO/Scylla risk. Destructive topology changes require explicit operator intent.
 - **Control-plane quorum**: If the node has the `control-plane` profile and removing it would leave fewer than 2 control-plane nodes, a warning is added to the response (not a hard block, since the controller itself is running).
 - **Active recovery**: If the node is already under an active recovery workflow, the request is rejected.
 
-`--force` skips the quorum safety check. Use it only when you have already verified the impact (e.g., you are recovering the last storage node and have taken a backup).
+`--force` skips safety checks. Use it only when you have already verified the impact (e.g., you are recovering the last storage node and have taken a backup).
 
 ---
 

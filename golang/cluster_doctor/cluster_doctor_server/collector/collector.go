@@ -961,7 +961,7 @@ func (c *Collector) fetchPerNode(ctx context.Context, snap *Snapshot) {
 
 			// Phase 9 wire-up: independent runtime evidence per service on
 			// this node. GetServiceRuntimeProof returns one proof per
-			// installed SERVICE/INFRASTRUCTURE/APPLICATION package —
+			// installed SERVICE/INFRASTRUCTURE/APPLICATION/COMMAND package —
 			// /proc/<pid>/exe hash, on-disk binary hash, systemd effective
 			// unit, runtime version. Unimplemented (older node-agent
 			// binaries) is silently tolerated so a partial rollout doesn't

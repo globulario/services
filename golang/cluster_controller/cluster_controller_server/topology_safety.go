@@ -29,7 +29,7 @@ import (
 // is currently violated. Violations block the specific action they guard but
 // do not stop unrelated reconcile lanes.
 type topologySafetyViolation struct {
-	Kind    string // "storage_quorum" | "ingress_participant" | "controller_placement"
+	Kind    string // "objectstore_topology_mismatch" | "ingress_participant" | "controller_placement"
 	NodeID  string // node relevant to the violation (empty = cluster-wide)
 	Message string
 }
@@ -39,41 +39,6 @@ func (v topologySafetyViolation) Error() string {
 		return fmt.Sprintf("topology safety [%s] node=%s: %s", v.Kind, v.NodeID, v.Message)
 	}
 	return fmt.Sprintf("topology safety [%s]: %s", v.Kind, v.Message)
-}
-
-// checkStorageQuorumSafe returns a violation if removing nodeID from the
-// cluster would drop active storage nodes below 3 (the minimum for ScyllaDB
-// and MinIO redundancy). Must be called under srv.lock().
-func (srv *server) checkStorageQuorumSafe(nodeID string) *topologySafetyViolation {
-	if srv.state == nil {
-		return nil
-	}
-	active := 0
-	for id, n := range srv.state.Nodes {
-		if n == nil || id == nodeID {
-			continue
-		}
-		if n.Status == "removed" || n.Status == "blocked" || n.Status == "unreachable" {
-			continue
-		}
-		for _, p := range n.Profiles {
-			if p == "storage" {
-				active++
-				break
-			}
-		}
-	}
-	if active < 3 {
-		return &topologySafetyViolation{
-			Kind:   "storage_quorum",
-			NodeID: nodeID,
-			Message: fmt.Sprintf(
-				"removing node would leave %d active storage node(s) — minimum 3 required for ScyllaDB/MinIO redundancy",
-				active,
-			),
-		}
-	}
-	return nil
 }
 
 // checkIngressParticipantSafe returns a violation if removing nodeID from the
@@ -129,8 +94,8 @@ func (srv *server) checkControllerPlacementSafe(nodeID string) *topologySafetyVi
 	}
 	if eligible == 0 {
 		return &topologySafetyViolation{
-			Kind:   "controller_placement",
-			NodeID: nodeID,
+			Kind:    "controller_placement",
+			NodeID:  nodeID,
 			Message: "removing node would leave no eligible controller leaders",
 		}
 	}
@@ -142,9 +107,6 @@ func (srv *server) checkControllerPlacementSafe(nodeID string) *topologySafetyVi
 // srv.lock().
 func (srv *server) topologyPreflightForRemove(nodeID string) []topologySafetyViolation {
 	var violations []topologySafetyViolation
-	if v := srv.checkStorageQuorumSafe(nodeID); v != nil {
-		violations = append(violations, *v)
-	}
 	if v := srv.checkIngressParticipantSafe(nodeID); v != nil {
 		violations = append(violations, *v)
 	}
@@ -177,14 +139,11 @@ func (srv *server) driftTopologyPreflight(ctx context.Context) []topologySafetyV
 	var violations []topologySafetyViolation
 
 	srv.lock("drift-topology-preflight")
-	var storageCount, controlPlaneCount int
+	var controlPlaneCount int
 	pool := append([]string(nil), srv.state.MinioPoolNodes...)
 	for _, n := range srv.state.Nodes {
 		if n == nil || n.Status == "removed" || n.Status == "blocked" || n.Status == "unreachable" {
 			continue
-		}
-		if nodeHasProfile(&memberNode{Profiles: n.Profiles}, []string{"storage"}) {
-			storageCount++
 		}
 		if nodeHasProfile(&memberNode{Profiles: n.Profiles}, []string{"control-plane"}) {
 			controlPlaneCount++
@@ -192,12 +151,6 @@ func (srv *server) driftTopologyPreflight(ctx context.Context) []topologySafetyV
 	}
 	srv.unlock()
 
-	if storageCount < 3 {
-		violations = append(violations, topologySafetyViolation{
-			Kind:    "storage_quorum",
-			Message: fmt.Sprintf("drift preflight: only %d active storage node(s), minimum 3 required", storageCount),
-		})
-	}
 	if controlPlaneCount < 1 {
 		violations = append(violations, topologySafetyViolation{
 			Kind:    "controller_placement",

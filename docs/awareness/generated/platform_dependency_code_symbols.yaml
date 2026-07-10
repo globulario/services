@@ -6,12 +6,12 @@ test_symbols:
     package: dependency
     language: go
     doc: "TestCriticalDependencyDeclaresDegradationMode — contract test. Every\nservice the registry knows about declares at least one dependency, and\nevery declared dependency has a known mode. A service may not register a\nhalf-formed contract that ignores the dependency-mode discipline."
-  - id: golang/dependency/modes_test.go:TestRepositoryMinioIsDegradedNotReadOnly
+  - id: golang/dependency/modes_test.go:TestRepositoryHasNoMinioDependency
     file: golang/dependency/modes_test.go
-    symbol: TestRepositoryMinioIsDegradedNotReadOnly
+    symbol: TestRepositoryHasNoMinioDependency
     package: dependency
     language: go
-    doc: "TestRepositoryMinioIsDegradedNotReadOnly — contract test. The\nrepository's MinIO dependency is a SECONDARY (mirror) authority, not a\nprimary one — the local POSIX CAS is the installability authority.\nWhen MinIO is down, the repository degrades (mirror writes skipped)\nbut continues to accept writes against the local POSIX CAS. This is\ndistinct from the ScyllaDB dependency, where unavailability does\ndrop the service to read_only. See\ndocs/operators/remediation-contracts.md §6 and dep_health.go."
+    doc: "TestRepositoryHasNoMinioDependency — contract test. Packages never live in\nMinIO; the local POSIX CAS is the sole blob authority (operator decision\n2026-06-12). The repository must therefore declare NO minio/mirror\ndependency. The ScyllaDB dependency (package index) is the one that drops the\nrepository to read_only. See dep_health.go."
   - id: golang/dependency/modes_test.go:TestUnknownModeIsRejected
     file: golang/dependency/modes_test.go
     symbol: TestUnknownModeIsRejected

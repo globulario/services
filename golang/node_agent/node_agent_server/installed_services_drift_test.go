@@ -55,17 +55,10 @@ func TestCommandAndSkipUnitListsMatchSpecs(t *testing.T) {
 	assertSetEquals(t, "commandPackages", commandPackages, expectedCommand)
 
 	// skipSystemdUnits must contain every infrastructure *_service.yaml
-	// bare name AND every *_cmd.yaml with a "-cmd" suffix appended.
-	// Documented carve-outs (packages whose spec.kind disagrees with how
-	// node-agent classifies them) are added explicitly so the test fails
-	// loudly when someone changes the spec OR removes the carve-out.
-	expectedSkip := map[string]bool{
-		// mcp is kind=service in its spec but is one of the 4 services
-		// outside the release pipeline (CLAUDE.md). node-agent treats it
-		// as infrastructure-like for the phantom-mask reason documented
-		// in installed_services.go. Spec change tracked separately.
-		"mcp": true,
-	}
+	// bare name AND every *_cmd.yaml with a "-cmd" suffix appended. SERVICE
+	// packages such as mcp must not appear here: otherwise loadSystemdUnits
+	// skips the real unit and heartbeat never reports the service installed.
+	expectedSkip := map[string]bool{}
 	for _, n := range cmdNames {
 		expectedSkip[strings.ReplaceAll(n, "_", "-")+"-cmd"] = true
 	}

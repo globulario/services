@@ -504,7 +504,7 @@ code_symbols:
     risk: critical
     annotations:
       enforces:
-        - globular.platform:invariant.founding.quorum.three_nodes_required
+        - globular.platform:invariant.meta.quorum_is_quality_not_constraint
       implements:
         - globular.platform:intent.etcd.is_source_of_truth
         - globular.platform:intent.infrastructure.etcd.quorum_backed_config_authority
@@ -544,7 +544,7 @@ code_symbols:
     risk: critical
     annotations:
       enforces:
-        - globular.platform:invariant.founding.quorum.three_nodes_required
+        - globular.platform:invariant.meta.quorum_is_quality_not_constraint
       implements:
         - globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
   - id: globular.platform:code.go.platform_cluster_controller.handlers_node
@@ -606,7 +606,7 @@ code_symbols:
     risk: critical
     annotations:
       enforces:
-        - globular.platform:invariant.founding.quorum.three_nodes_required
+        - globular.platform:invariant.meta.quorum_is_quality_not_constraint
   - id: globular.platform:code.go.platform_cluster_controller.joinplan_validate
     namespace: globular.platform
     language: go
@@ -4246,7 +4246,7 @@ test_symbols:
     symbol: TestScyllaGroup0Probe_BelowFoundingQuorumNoMembershipFalsePositive
     package: main
     language: go
-    doc: "Below founding quorum (dev / single-node), membership math must not fire — only\nan explicit violation should. Guards against false positives."
+    doc: "Below preferred capacity posture (dev / single-node), membership math must not fire — only\nan explicit violation should. Guards against false positives."
   - id: golang/ai_watcher/ai_watcher_server/probes_test.go:TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
     file: golang/ai_watcher/ai_watcher_server/probes_test.go
     symbol: TestScyllaGroup0Probe_EmitsStructuredFindingOnQuorumLoss
@@ -6984,7 +6984,7 @@ test_symbols:
     symbol: TestJoinAuthorization_FirstThreeNodesGetFoundingProfiles
     package: main
     language: go
-    doc: "TestJoinAuthorization_FirstThreeNodesGetFoundingProfiles verifies that\nfounding quorum enforcement runs: the first node in a fresh cluster must\nreceive core+control-plane+storage regardless of what it requests."
+    doc: "TestJoinAuthorization_FirstThreeNodesGetFoundingProfiles verifies that\ncapacity posture enforcement runs: the first node in a fresh cluster must\nreceive core+control-plane+storage regardless of what it requests."
   - id: golang/cluster_controller/cluster_controller_server/joinplan_test.go:TestJoinAuthorization_FoundingNodeReceivesPlan
     file: golang/cluster_controller/cluster_controller_server/joinplan_test.go
     symbol: TestJoinAuthorization_FoundingNodeReceivesPlan

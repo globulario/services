@@ -79,13 +79,18 @@ var localPackageDirs = []string{
 func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repositoryAddr, desiredVersion string, buildID string, expectedSHA256 string) error {
 	platform := runtime.GOOS + "_" + runtime.GOARCH
 	version := strings.TrimSpace(desiredVersion)
+	releaseIndexErr := "not attempted"
 	if version == "" {
 		if bomVersion, bomErr := resolveVersionFromReleaseIndexFunc(name); bomErr == nil && strings.TrimSpace(bomVersion) != "" {
 			version = strings.TrimSpace(bomVersion)
 			log.Printf("installer-api: resolved %s version from release-index: %s", name, version)
-		}
-		if version == "" {
-			return fmt.Errorf("resolve package version for %s (%s): no desired version provided and release-index lookup failed", name, kind)
+		} else {
+			if bomErr != nil {
+				releaseIndexErr = bomErr.Error()
+			} else {
+				releaseIndexErr = "empty version"
+			}
+			log.Printf("installer-api: release-index version unavailable for %s (%v); trying staged local package", name, releaseIndexErr)
 		}
 	}
 
@@ -94,6 +99,9 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	// the operator to manually stage every package on every node.
 	localPath := srv.findLocalPackage(name, version, platform)
 	if localPath == "" {
+		if version == "" {
+			return fmt.Errorf("resolve package version for %s (%s): no desired version provided, release-index lookup failed (%s), and no staged local package found in %v", name, kind, releaseIndexErr, localPackageDirs)
+		}
 		repoAddr := srv.discoverRepositoryAddr()
 		if repoAddr == "" {
 			return fmt.Errorf("install %s: package not found in local dirs %v (version=%s) and repository address unavailable", name, localPackageDirs, version)
@@ -130,9 +138,18 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	if manifestVer := readArtifactManifestVersion(artifactPath); manifestVer != "" {
 		if version == "" || version == resolvePackageVersion(name) {
 			// Only override if we're using the hardcoded fallback.
-			log.Printf("installer-api: resolved %s version from manifest: %s → %s", name, version, manifestVer)
+			log.Printf("installer-api: resolved %s version from manifest: %s -> %s", name, version, manifestVer)
 			version = manifestVer
 		}
+	}
+	if version == "" {
+		if filenameVer := versionFromLocalPackageFilename(localPath, name); filenameVer != "" {
+			version = filenameVer
+			log.Printf("installer-api: resolved %s version from local package filename: %s", name, version)
+		}
+	}
+	if version == "" {
+		return fmt.Errorf("resolve package version for %s (%s): staged local package %s did not prove a version", name, kind, localPath)
 	}
 
 	// Pin the artifact locally before installing. This is the resilience cache:
@@ -169,6 +186,9 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	}
 	if installErr != nil {
 		return installErr
+	}
+	if err := versionutil.WriteKind(name, strings.ToUpper(kind)); err != nil {
+		log.Printf("installer-api: warn write kind sidecar for %s: %v", name, err)
 	}
 
 	// Write entrypoint_checksum to the etcd installed-state record. Without
@@ -467,6 +487,17 @@ func parsePinnedArtifactName(filename string) (name, version string) {
 	return name, version
 }
 
+func versionFromLocalPackageFilename(path, packageName string) string {
+	parsedName, version := parsePinnedArtifactName(filepath.Base(path))
+	if parsedName == "" || version == "" {
+		return ""
+	}
+	if parsedName == strings.TrimSpace(packageName) {
+		return version
+	}
+	return ""
+}
+
 // readVersionMarker returns the installed version recorded in the canonical
 // version marker for name, or "" if absent. The marker is the single canonical
 // source of the installed version; this reads it, it does NOT recompute identity
@@ -748,6 +779,77 @@ func readArtifactManifestVersion(artifactPath string) string {
 			}
 			return strings.TrimSpace(manifest.Version)
 		}
+	}
+}
+
+type artifactManifestIdentity struct {
+	Type               string `json:"type"`
+	Name               string `json:"name"`
+	Version            string `json:"version"`
+	Platform           string `json:"platform"`
+	Publisher          string `json:"publisher"`
+	Entrypoint         string `json:"entrypoint"`
+	EntrypointChecksum string `json:"entrypoint_checksum"`
+	BuildNumber        int64  `json:"build_number"`
+	BuildID            string `json:"build_id"`
+	Kind               string
+}
+
+func readArtifactManifestIdentity(artifactPath string) artifactManifestIdentity {
+	f, err := os.Open(artifactPath)
+	if err != nil {
+		return artifactManifestIdentity{}
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return artifactManifestIdentity{}
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			return artifactManifestIdentity{}
+		}
+		name := filepath.Clean(hdr.Name)
+		if name != "package.json" && name != "./package.json" {
+			continue
+		}
+		data, err := io.ReadAll(io.LimitReader(tr, 32*1024))
+		if err != nil {
+			return artifactManifestIdentity{}
+		}
+		var manifest artifactManifestIdentity
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			return artifactManifestIdentity{}
+		}
+		manifest.Name = strings.TrimSpace(manifest.Name)
+		manifest.Version = strings.TrimSpace(manifest.Version)
+		manifest.Platform = strings.TrimSpace(manifest.Platform)
+		manifest.Publisher = strings.TrimSpace(manifest.Publisher)
+		manifest.Entrypoint = strings.TrimSpace(manifest.Entrypoint)
+		manifest.EntrypointChecksum = strings.TrimSpace(manifest.EntrypointChecksum)
+		manifest.BuildID = strings.TrimSpace(manifest.BuildID)
+		manifest.Kind = packageTypeToInstalledKind(manifest.Type)
+		return manifest
+	}
+}
+
+func packageTypeToInstalledKind(t string) string {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case "service":
+		return "SERVICE"
+	case "infrastructure":
+		return "INFRASTRUCTURE"
+	case "application", "agent", "subsystem":
+		return "APPLICATION"
+	case "command":
+		return "COMMAND"
+	default:
+		return ""
 	}
 }
 

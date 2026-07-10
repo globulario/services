@@ -24,10 +24,10 @@ func admissionState(jr *joinRequestRecord, objectStoreGen int64) *controllerStat
 // The plan is not signed (signature verification is only in node-agent).
 func v2JoinRequest(nodeID, hostname string, profiles []string) *joinRequestRecord {
 	plan := JoinPlan{
-		JoinID:    "jid-" + nodeID,
-		ClusterID: "cluster-test",
-		IssuedAt:  time.Now().Add(-1 * time.Minute),
-		ExpiresAt: time.Now().Add(30 * time.Minute),
+		JoinID:               "jid-" + nodeID,
+		ClusterID:            "cluster-test",
+		IssuedAt:             time.Now().Add(-1 * time.Minute),
+		ExpiresAt:            time.Now().Add(30 * time.Minute),
 		ExpectedNodeIdentity: NodePlanIdentity{Hostname: hostname},
 		AssignedProfiles:     append([]string(nil), profiles...),
 		AssignedNodeID:       nodeID,
@@ -441,6 +441,63 @@ func TestAdmissionProof_ResultInclearsOperatorReason(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdmissionProof_UsesNewestJoinPlanForRetriedAuthorization(t *testing.T) {
+	nodeID := "n13"
+	hostname := "node-13"
+	oldProfiles := []string{"core"}
+	newProfiles := []string{"control-plane", "core", "gateway", "storage"}
+
+	older := v2JoinRequest(nodeID, hostname, oldProfiles)
+	older.RequestID = "old-join"
+	older.RequestedAt = time.Date(2026, 7, 9, 2, 44, 0, 0, time.UTC)
+	setJoinRequestPlan(t, older, oldProfiles)
+
+	newer := v2JoinRequest(nodeID, hostname, newProfiles)
+	newer.RequestID = "new-join"
+	newer.RequestedAt = older.RequestedAt.Add(7 * time.Hour)
+	setJoinRequestPlan(t, newer, newProfiles)
+
+	state := &controllerState{
+		JoinRequests: map[string]*joinRequestRecord{
+			older.RequestID: older,
+			newer.RequestID: newer,
+		},
+	}
+	node := baseNode(nodeID, hostname, newProfiles)
+
+	selected := latestJoinRequestForNode(state, nodeID)
+	if selected == nil || selected.RequestID != newer.RequestID {
+		t.Fatalf("expected newest join request %q, got %#v", newer.RequestID, selected)
+	}
+
+	result := EvaluateNodeAdmissionProof(state, node)
+	if !result.OK {
+		t.Fatalf("latest matching JoinPlan should admit node: reason=%q details=%v", result.Reason, result.Details)
+	}
+	if !result.Proof.ProfilesConsistent {
+		t.Fatalf("profiles should be checked against newest JoinPlan, details=%v", result.Details)
+	}
+}
+
+func setJoinRequestPlan(t *testing.T, jr *joinRequestRecord, profiles []string) {
+	t.Helper()
+	plan := JoinPlan{
+		JoinID:               jr.RequestID,
+		ClusterID:            "cluster-test",
+		IssuedAt:             jr.RequestedAt,
+		ExpiresAt:            jr.RequestedAt.Add(30 * time.Minute),
+		ExpectedNodeIdentity: NodePlanIdentity{Hostname: jr.Identity.Hostname},
+		AssignedProfiles:     append([]string(nil), profiles...),
+		AssignedNodeID:       jr.AssignedNodeID,
+	}
+	planJSON, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatalf("marshal JoinPlan: %v", err)
+	}
+	jr.Profiles = append([]string(nil), profiles...)
+	jr.JoinPlanJSON = planJSON
 }
 
 func proofContains(s, sub string) bool {

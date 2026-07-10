@@ -26,7 +26,7 @@ optional layer behind a flag/endpoint — never required, always degrades cleanl
 
 | `explain <arg>` | Detected as | Query |
 |---|---|---|
-| `convergence`, `founding quorum` | topic (free text) | `memory_query(tags/text)` over the corpus + runtime memories |
+| `convergence`, `capacity posture` | topic (free text) | `memory_query(tags/text)` over the corpus + runtime memories |
 | `cluster-doctor`, `node-agent`, `mcp` | service/component | `memory_get(ops.role.<svc>*)` + related ids + (opt) live status |
 | `golang/node_agent/heartbeat.go` | file path | memory by file/component tag; (v2) AWG `briefing(file=)` |
 | `ops.always.doctor.reduced-harvest-honesty` | id | `memory_get(id)` + `related_ids` expansion |

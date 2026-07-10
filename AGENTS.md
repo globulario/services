@@ -176,14 +176,17 @@ respect them.
 - Rollback = explicit `Force=true` via CLI only
 - Never generate code that rolls back automatically on error
 
-### 8. Founding quorum is enforced
+### 8. Quorum is capacity, not an admission floor
 
 - etcd on ALL nodes — no exceptions
-- ScyllaDB minimum 3 nodes
-- MinIO minimum 3 nodes
-- First 3 nodes MUST have profiles: `core`, `control-plane`, `storage`
-- Without three MinIO/storage nodes, workflow publication and artifact
-  convergence can cascade-fail.
+- Quorum describes observed survival/write-safety quality of the current
+  distributed system size; it is not a hidden controller admission constraint.
+- A one-node cluster has one-node survivability, two nodes have two-node
+  survivability, and larger clusters can provide better fault tolerance.
+- Do not auto-promote profiles, block Day-1 rollout, or refuse bootstrap/join
+  only because ScyllaDB/MinIO/storage count is below a preferred size.
+- Destructive storage/topology operations still require explicit component
+  safety checks and operator approval when data safety is at risk.
 
 ### 9. Repository artifacts are POSIX CAS + Scylla, not MinIO
 

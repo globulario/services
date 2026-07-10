@@ -90,6 +90,47 @@ func TestClassifyPackageConvergence_EntrypointChecksumMatches_Converged(t *testi
 	}
 }
 
+func TestClassifyPackageConvergence_ChecksumOnlyDriftWithBuildIDAndEntrypointDoesNotRepair(t *testing.T) {
+	node := &nodeState{
+		LastSeen: time.Now(),
+		Units: []unitStatusRecord{
+			{Name: "globular-envoy.service", State: "active"},
+		},
+	}
+	const (
+		binarySHA       = "241c1702f0ed1c0dba31339abaab422906a4295cc92640f5b832c131ee385767"
+		convergenceHash = "cfd6de59b3ecdb00f5b8430d1d8cc5cc6c00e8e88468dfb96d47f2fbe9425212"
+		buildID         = "019f0000-1111-7222-8333-444455556666"
+	)
+	installed := &node_agentpb.InstalledPackage{
+		Version:  "1.35.3",
+		Checksum: binarySHA,
+		BuildId:  buildID,
+		Metadata: map[string]string{
+			"entrypoint_checksum": binarySHA,
+		},
+	}
+	pc := classifyPackageConvergence(
+		node,
+		"envoy",
+		"INFRASTRUCTURE",
+		"1.35.3",
+		convergenceHash,
+		buildID,
+		binarySHA,
+		true,
+		installed,
+		time.Now(),
+	)
+	if pc.RepairRequired {
+		t.Fatalf("checksum-only drift with matching build_id+entrypoint must not repair; reason=%q", pc.Reason)
+	}
+	if !pc.HashOK || !pc.BuildIDOK || !pc.RuntimeOK {
+		t.Fatalf("expected converged despite overloaded Checksum field; hash=%v build=%v runtime=%v reason=%q",
+			pc.HashOK, pc.BuildIDOK, pc.RuntimeOK, pc.Reason)
+	}
+}
+
 func TestClassifyPackageConvergence_DesiredEntrypointEmpty_NoOpinion(t *testing.T) {
 	// Legacy artifact with no recorded proof on the desired side —
 	// classifyPackageConvergence should NOT speculate. The verifier

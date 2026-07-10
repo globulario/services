@@ -47,10 +47,7 @@ var ProfileInheritance = map[string][]string{
 // will print the expected table.
 var ProfilePackages = map[string][]string{
 	"compute": {
-		"ai-executor",
-		"ai-memory",
 		"ai-router",
-		"ai-watcher",
 		"alertmanager",
 		"authentication",
 		"blog",
@@ -79,14 +76,10 @@ var ProfilePackages = map[string][]string{
 		"rclone",
 		"repository",
 		"restic",
-		"sctool",
-		"scylla-manager",
-		"scylla-manager-agent",
 		"search",
 		"sha256sum",
 		"sidekick",
 		"sql",
-		"workflow",
 	},
 	"control-plane": {
 		"ai-executor",
@@ -116,10 +109,7 @@ var ProfilePackages = map[string][]string{
 		"xds",
 	},
 	"core": {
-		"ai-executor",
-		"ai-memory",
 		"ai-router",
-		"ai-watcher",
 		"alertmanager",
 		"authentication",
 		"claude",
@@ -142,13 +132,9 @@ var ProfilePackages = map[string][]string{
 		"rclone",
 		"repository",
 		"restic",
-		"sctool",
-		"scylla-manager",
-		"scylla-manager-agent",
 		"search",
 		"sha256sum",
 		"sidekick",
-		"workflow",
 	},
 	"database": {
 		"ai-executor",

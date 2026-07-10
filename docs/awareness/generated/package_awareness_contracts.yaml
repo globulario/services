@@ -126,11 +126,11 @@ contracts:
     summary: "Central control plane service running on port 12000. The controller DECIDES desired state,\
       \ the Workflow Service COORDINATES, and Node Agents EXECUTE. It runs leader election, reconciliation,\
       \ and BOM release management. Profiles: control-plane. MUST NOT use os/exec, syscall, or systemctl\
-      \ \u2014 all cluster mutations flow through workflows. Enforces founding quorum: first 3 nodes must\
-      \ have core+control-plane+storage profiles. package_kind=service; depends_on=etcd@bootstrap required=true,\
+      \ \u2014 all cluster mutations flow through workflows. Reports quorum/capacity posture without a hidden\
+      \ join/profile admission floor. package_kind=service; depends_on=etcd@bootstrap required=true,\
       \ scylladb@day0 required=true, minio@day0 required=true, workflow@day1 required=true; owns_etcd=4;\
       \ writes_etcd=3; reads_etcd=4; invariants=controller.no_exec_syscall_systemctl, controller.all_mutations_via_workflow,\
-      \ controller.workflows_idempotent, controller.founding_quorum_enforced, controller.leader_only_domain_reconciler,\
+      \ controller.workflows_idempotent, meta.quorum_is_quality_not_constraint, controller.leader_only_domain_reconciler,\
       \ controller.leader_only_dns_reconciler; forbidden_fixes=use_os_exec_in_controller, inline_state_change_bypassing_workflow,\
       \ remove_etcd_from_any_node, auto_rollback_on_crash, hardcode_service_ports; required_tests=TestNoExecInController,\
       \ TestAllMutationsViaWorkflow, TestFoundingQuorumEnforced, TestLeaderOnlyDomainReconciler; source=metadata/cluster-controller/awareness.yaml"
@@ -366,7 +366,7 @@ contracts:
       \ file uploads, media assets, and backups. Minimum 3 nodes for erasure coding and redundancy. MinIO\
       \ is a CACHE for packages \u2014 ScyllaDB and local POSIX CAS are the authoritative stores. NOT dependent\
       \ on ScyllaDB. Health port: 9000. Binary replacement requires a service restart to avoid running a\
-      \ deleted binary inode (hash_drift). Quorum requirement: minimum 3 nodes. package_kind=infrastructure;\
+      \ deleted binary inode (hash_drift). Capacity posture: observed node count. package_kind=infrastructure;\
       \ depends_on=none; owns_etcd=0; writes_etcd=0; reads_etcd=2; invariants=minio.minimum_3_nodes_for_erasure_coding,\
       \ minio.not_sole_artifact_authority, minio.independent_of_scylladb, runtime.binary_hash_must_match_installed,\
       \ install.requires_service_restart; forbidden_fixes=treat_minio_as_package_authority, use_minio_as_sole_truth,\
@@ -527,7 +527,7 @@ contracts:
       \ reads_etcd=1; invariants=scylladb.minimum_3_nodes_for_replication, scylladb.independent_of_minio,\
       \ scylladb.raft_joins_are_sequential, scylladb.uid_never_hardcoded, runtime.binary_hash_must_match_installed,\
       \ install.requires_service_restart; forbidden_fixes=create_scylladb_minio_dependency, parallel_scylladb_raft_join,\
-      \ hardcode_uid_110_as_scylla, remove_scylladb_from_founding_quorum_node, auto_rollback_on_crash, replace_binary_without_restart;\
+      \ hardcode_uid_110_as_scylla, remove_scylladb_from_capacity_node_without_repair_plan, auto_rollback_on_crash, replace_binary_without_restart;\
       \ required_tests=TestScyllaDBMinimum3Nodes, TestScyllaDBIndependentOfMinIO, TestRaftJoinsSequential,\
       \ TestUidNeverHardcoded; source=metadata/scylladb/awareness.yaml"
   - id: contract.package.search.awareness

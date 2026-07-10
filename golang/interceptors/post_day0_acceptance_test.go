@@ -60,10 +60,10 @@ func TestAcceptance_AnonymousMutatingPostDay0_Unauthenticated(t *testing.T) {
 	for _, method := range mutatingMethods {
 		t.Run(method, func(t *testing.T) {
 			denied, code, reason := simulatePostDay0Check(
-				true,   // cluster initialized
+				true, // cluster initialized
 				method,
-				"",     // anonymous — no identity
-				false,  // no RBAC mapping (would be checked next)
+				"",    // anonymous — no identity
+				false, // no RBAC mapping (would be checked next)
 			)
 			if !denied {
 				t.Errorf("expected DENIED for anonymous mutating RPC, got ALLOWED")
@@ -207,7 +207,7 @@ func TestAcceptance_WithRoleBinding_Operator_CanApplyRelease(t *testing.T) {
 // user with NO roles is denied access to role-based methods.
 func TestAcceptance_WithoutRoleBinding_GetsDenied(t *testing.T) {
 	method := "cluster_controller.join_request.approve" // stable action key
-	roles := []string{} // no roles assigned
+	roles := []string{}                                 // no roles assigned
 
 	denied, reason := simulateRoleBindingCheck(true, method, "alice@example.com", roles)
 	if !denied {
@@ -299,6 +299,18 @@ func TestAcceptance_RBAC_Methods_NotRoleBased(t *testing.T) {
 	}
 }
 
+// TestAcceptance_RBAC_ActionKeys_StillRoleBased documents the split that the
+// interceptor must preserve: raw RBAC service methods are excluded from
+// role-binding checks to avoid self-recursion, but stable RBAC action keys
+// remain managed permissions for non-RBAC callers and admin roles.
+func TestAcceptance_RBAC_ActionKeys_StillRoleBased(t *testing.T) {
+	for _, action := range []string{"rbac.validate", "rbac.write"} {
+		if !security.IsRoleBasedMethod(action) {
+			t.Errorf("IsRoleBasedMethod(%q) = false, expected true", action)
+		}
+	}
+}
+
 // --- Test D -------------------------------------------------------------------
 
 // TestAcceptance_ReadOnlyRPCsNotBlockedByPostDay0Gate verifies that read-only
@@ -321,7 +333,7 @@ func TestAcceptance_ReadOnlyRPCsNotBlockedByPostDay0Gate(t *testing.T) {
 			}
 			// Post-Day-0 gate only fires for mutating RPCs; read-only methods pass through.
 			denied, _, reason := simulatePostDay0Check(
-				true,  // cluster initialized
+				true, // cluster initialized
 				method,
 				"",    // anonymous
 				false, // no mapping
@@ -394,6 +406,12 @@ func TestAcceptance_ServiceAccountScopes(t *testing.T) {
 		t.Errorf("ControllerSA MUST have %s permission (reads node status)", reportStatus)
 	}
 	t.Log("✓ ControllerSA can read node status")
+
+	for _, action := range []string{"resource.session.read", "resource.session.write"} {
+		if !security.HasRolePermission(controllerRoles, action) {
+			t.Errorf("ControllerSA MUST have %s permission for auth/session plumbing", action)
+		}
+	}
 }
 
 func containsExact(perms []string, target string) bool {

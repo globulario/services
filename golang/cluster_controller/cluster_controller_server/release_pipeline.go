@@ -852,6 +852,17 @@ func (srv *server) hasUnservedNodes(h *releaseHandle, blockedNodes map[string]st
 				continue
 			}
 		}
+		// Profile filter — MUST mirror selectReleaseTargets. The dispatch path
+		// excludes profile-ineligible nodes, so counting one as "unserved" here
+		// cycles the release PENDING → dispatch → AVAILABLE → PENDING forever:
+		// the dispatch can never serve the node this check keeps waiting for.
+		// (Observed 2026-07-10: title/media/torrent re-dispatched every tick
+		// after a non-media-server node reached workload_ready.)
+		if catalogEntry != nil && len(catalogEntry.Profiles) > 0 {
+			if !profilesOverlap(catalogEntry.Profiles, normalizeProfiles(node.Profiles)) {
+				continue
+			}
+		}
 		if node.Status == "unreachable" || node.Status == "removed" ||
 			node.Status == "blocked" || node.Status == "draining" {
 			continue
@@ -883,6 +894,15 @@ func (srv *server) hasUnservedNodes(h *releaseHandle, blockedNodes map[string]st
 				}
 			}
 			if installedV == h.ResolvedVersion {
+				// Optional components (e.g. keepalived) have a separately
+				// reconciled runtime: whether the unit runs depends on
+				// operator-configured state (VIP spec), not on the release.
+				// Installed at the resolved version IS served — gating on
+				// unit-active here re-dispatches forever on nodes where the
+				// unit is legitimately inactive.
+				if catalogEntry != nil && catalogEntry.Optional {
+					continue
+				}
 				// Phase 38: this synthetic InstalledPackage carries no
 				// entrypoint_checksum, so passing the desired entrypoint
 				// would force RepairRequired here. Pass "" to fall back

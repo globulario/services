@@ -46,8 +46,8 @@ const (
 // reconciler is considering dispatching.
 type driftAction struct {
 	NodeID     string
-	PackageKey string         // "KIND/name"
-	Kind       string         // SERVICE | COMMAND | INFRASTRUCTURE | ...
+	PackageKey string // "KIND/name"
+	Kind       string // SERVICE | COMMAND | INFRASTRUCTURE | ...
 	ActionKind driftActionKind
 }
 
@@ -73,26 +73,10 @@ func classifyDriftAction(kind string) driftActionKind {
 // driftActionSafe reports whether the action is safe to dispatch given the
 // current topology violations. Safe-classified actions always return true.
 //
-// Topology-classified actions (INFRASTRUCTURE kind) are now NARROWED to the
-// violation kinds the specific package's subsystem actually owns:
-//
-//   - MinIO/objectstore upgrade is gated by storage_quorum (correct: an
-//     upgrade that survives only because erasure-coding is degraded would
-//     be incorrect).
-//   - cluster-controller upgrade is gated by controller_placement.
-//   - Envoy/xds/keepalived/dns upgrades are gated by ingress_participant.
-//   - node-agent / repository / authentication / observability / AI services
-//     are control-plane infrastructure that does NOT mutate storage,
-//     ingress, or controller topology. Blocking these on storage_quorum
-//     was an over-application of the gate documented in the Phase 30+
-//     incident chain (see docs/awareness/reports/envoy_lds_cds_wedge.md
-//     and Phase 35 commit).
-//   - Unknown packages default conservative: any violation blocks.
-//
-// Phase 35: this scoping prevents the live cluster's storage_quorum
-// violation (single-node cluster, MinIO needs ≥3) from indefinitely
-// blocking node-agent rollouts whose binary identity has nothing to do
-// with MinIO erasure-coding state.
+// Topology-classified actions (INFRASTRUCTURE kind) are narrowed to concrete
+// violation kinds the specific package's subsystem owns: objectstore topology
+// mismatch, controller placement, or ingress participant placement. Observed
+// quorum/capacity is report data, not a global drift admission floor.
 func driftActionSafe(action driftAction, violations []topologySafetyViolation) bool {
 	if action.ActionKind == driftActionKindSafe {
 		return true
@@ -129,11 +113,11 @@ func driftActionSafe(action driftAction, violations []topologySafetyViolation) b
 // block dispatch for the named package.
 //
 //   - (nil, true)        — known control-plane / service package; no
-//                          topology dimension blocks it.
+//     topology dimension blocks it.
 //   - (map[k]bool, true) — known topology-sensitive package; blocked
-//                          only on listed violation kinds.
+//     only on listed violation kinds.
 //   - (nil, false)       — unknown package; caller treats as conservative
-//                          (any violation blocks).
+//     (any violation blocks).
 //
 // The classification is explicit (not based on name substrings) so new
 // packages cannot slip through unclassified — the unknown branch surfaces
@@ -141,20 +125,16 @@ func driftActionSafe(action driftAction, violations []topologySafetyViolation) b
 func packageTopologySensitivities(packageName string) (map[string]bool, bool) {
 	name := strings.ToLower(strings.TrimSpace(packageName))
 	switch name {
-	// ── Storage-topology-affecting packages ─────────────────────────────
-	// MinIO directly: erasure-coding depends on storage_quorum; an upgrade
-	// could reformat or change drive count, so must wait for healthy
-	// topology. sidekick = MinIO sidekick (drive-count health checks).
+	// ── Objectstore-topology-affecting packages ─────────────────────────
+	// These are gated only by concrete objectstore topology mismatch, not
+	// by a preferred storage node count.
 	case "minio", "objectstore", "sidekick":
-		return map[string]bool{
-			"storage_quorum":                true,
-			"objectstore_topology_mismatch": true,
-		}, true
-	// Scylla and backup-manager touch on storage durability assumptions
-	// (Scylla has its own quorum but its operational guarantees overlap
-	// with the storage tier; backup-manager depends on object store).
+		return map[string]bool{"objectstore_topology_mismatch": true}, true
+
+	// Scylla and backup-manager have component-local safety checks; do not
+	// block them on a platform-wide storage count floor.
 	case "scylladb", "scylla", "scylla-manager", "backup-manager":
-		return map[string]bool{"storage_quorum": true}, true
+		return nil, true
 
 	// ── Ingress-participating packages ──────────────────────────────────
 	// Envoy and xds are the mesh; keepalived is the VIP; DNS publishes
@@ -169,9 +149,7 @@ func packageTopologySensitivities(packageName string) (map[string]bool, bool) {
 
 	// ── Control-plane / service / observability — no topology gates ────
 	// These packages do NOT mutate storage, ingress, or controller
-	// topology. Blocking them on storage_quorum (the over-application
-	// observed in the live INC) is incorrect — their bytes are
-	// independent of the storage subsystem's health.
+	// topology.
 	case "node-agent", "repository", "authentication", "rbac", "resource",
 		"event", "log", "monitoring", "prometheus", "alertmanager",
 		"ai-executor", "ai-memory", "ai-router", "ai-watcher",

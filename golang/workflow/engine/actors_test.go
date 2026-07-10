@@ -91,6 +91,7 @@ func TestNodeJoinWorkflow(t *testing.T) {
 		"node_id":       "node-1",
 		"node_hostname": "test-node",
 		"node_ip":       "10.0.0.20",
+		"node_profiles": []any{"core", "control-plane", "gateway", "storage"},
 	})
 	elapsed := time.Since(start)
 
@@ -185,6 +186,7 @@ func TestNodeJoinWithInstallFailure(t *testing.T) {
 		"node_id":       "n1",
 		"node_hostname": "h1",
 		"node_ip":       "10.0.0.20",
+		"node_profiles": []any{"core", "control-plane", "storage"},
 	})
 
 	// Should fail because ScyllaDB install fails.

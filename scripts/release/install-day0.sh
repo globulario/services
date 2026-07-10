@@ -9,8 +9,8 @@ set -euo pipefail
 #   TOLERATE_ALREADY_INSTALLED - Allow already-installed packages (default: 1)
 #   FORCE_REINSTALL          - Force overwrite existing binaries even if unchanged (default: 0)
 #                              Set to 1 to always reinstall all binaries (useful after rebuild)
-#   GLOBULAR_CONFORMANCE     - Conformance test mode (default: warn)
-#                              warn: Run tests, log failures, continue installation
+#   GLOBULAR_CONFORMANCE     - Conformance test mode (default: audit)
+#                              audit: Run tests if bundled; report failures; continue installation
 #                              fail: Run tests, abort installation on any failure (v1 target)
 #                              off:  Skip conformance tests entirely
 #
@@ -106,10 +106,41 @@ CQL
   fi
 }
 
+wait_envoy_mesh_listener_ready() {
+  local timeout="${1:-120}"
+  local waited=0
+  local listeners stats active lds_success
+
+  log_substep "Waiting for Envoy LDS listener on :443..."
+  while (( waited < timeout )); do
+    listeners="$(curl -fsS --max-time 2 http://127.0.0.1:9901/listeners 2>/dev/null || true)"
+    if printf '%s\n' "$listeners" | grep -Eq '(^|:)0\.0\.0\.0:443($|[[:space:]])'; then
+      log_success "Envoy mesh listener ready on :443 (after ${waited}s)"
+      return 0
+    fi
+
+    if (( waited % 10 == 0 )); then
+      stats="$(curl -fsS --max-time 2 'http://127.0.0.1:9901/stats?filter=listener_manager' 2>/dev/null || true)"
+      active="$(printf '%s\n' "$stats" | awk -F': ' '/listener_manager.total_listeners_active/ {print $2; exit}')"
+      lds_success="$(printf '%s\n' "$stats" | awk -F': ' '/listener_manager.lds.update_success/ {print $2; exit}')"
+      log_substep "Envoy LDS not ready yet (active_listeners=${active:-?}, lds_success=${lds_success:-?}, waited=${waited}s)"
+    fi
+
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  log_warn "Envoy admin /listeners:"
+  curl -fsS --max-time 2 http://127.0.0.1:9901/listeners 2>/dev/null || true
+  echo ""
+  die "Envoy did not publish the mesh listener on :443 within ${timeout}s"
+}
+
 # ── Workflow trace log ─────────────────────────────────────────────────────
 # Writes JSON-lines to DAY0_TRACE_LOG. The workflow service imports this on
-# startup to create a proper workflow run visible in the admin UI.
-DAY0_TRACE_LOG="/var/lib/globular/day0-install.jsonl"
+# startup to create a proper workflow run visible in the admin UI. Keep the
+# transcript under /var/log, not /var/lib: it is evidence, not cluster state.
+DAY0_TRACE_LOG="/var/log/globular/day0-install.jsonl"
 DAY0_TRACE_SEQ=0
 DAY0_TRACE_START=$(date +%s%3N)
 
@@ -214,8 +245,8 @@ DOMAIN="globular.internal"
 # bootstrap node. Override as needed, e.g.:
 #   FOUNDING_PROFILES=core,media-server,gateway ./install-day0.sh
 # Note: this also becomes the join-default for nodes that join without their own
-# profiles. The controller's enforceFoundingProfiles() ALWAYS adds the founding
-# quorum (control-plane,core,storage) for the first 3 nodes regardless of this.
+# profiles. It is not a quorum/admission floor; the controller preserves explicit
+# placement intent and reports quorum/capacity separately.
 FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
 FORCE_FLAG=""
 if [[ "$FORCE_REINSTALL" == "1" ]]; then
@@ -264,7 +295,7 @@ log_info "Install mode: $INSTALL_MODE"
 log_info "Package directory: $PKG_DIR"
 log_info "MinIO data directory: $MINIO_DATA_DIR"
 log_info "Cluster domain: $DOMAIN"
-log_info "Conformance mode: warn"
+log_info "Conformance mode: audit"
 echo ""
 
 # Stop any cluster agents that might be running from a previous Day-0.
@@ -473,6 +504,92 @@ _resolve_scylladb_pkg() {
   done
   return 1
 }
+
+ensure_scylla_io_scheduler_contract() {
+  local confd="${1:-/etc/scylla.d}"
+  mkdir -p "$confd"
+
+  if [[ -f "$confd/io_properties.yaml" ]] && grep -qE "^SEASTAR_IO=" "$confd/io.conf" 2>/dev/null; then
+    return 0
+  fi
+  if grep -qE "^DEV_MODE=--developer-mode=1" "$confd/dev-mode.conf" 2>/dev/null; then
+    return 0
+  fi
+
+  log_substep "ScyllaDB I/O scheduler contract missing — enabling developer-mode fallback"
+  printf 'DEV_MODE=--developer-mode=1\n' > "$confd/dev-mode.conf"
+  : > "$confd/io.conf"
+}
+
+scylla_yaml_has_routable_listen() {
+  local yaml="${1:-/etc/scylla/scylla.yaml}"
+  local ip
+  [[ -f "$yaml" ]] || return 1
+  ip=$(grep "^listen_address:" "$yaml" | awk '{print $2}' | tr -d "'\"" || true)
+  [[ -n "$ip" && "$ip" != "localhost" ]] || return 1
+  ! is_loopback_ip "$ip"
+}
+
+render_day0_scylla_config() {
+  local node_ip="${1:-}"
+  local yaml="/etc/scylla/scylla.yaml"
+  local data_dir="/var/lib/scylla/data"
+  local commitlog_dir="/var/lib/scylla/commitlog"
+
+  if [[ -z "$node_ip" ]]; then
+    node_ip=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^\s*$' | grep -v '^::' \
+      | while IFS= read -r ip; do
+          is_loopback_ip "$ip" || { echo "$ip"; break; }
+        done)
+  fi
+  [[ -n "$node_ip" ]] || die "Cannot render ScyllaDB config: no routable node IP found"
+
+  log_substep "Rendering ScyllaDB Day-0 config (listen: ${node_ip}, seeds: ${node_ip})"
+  mkdir -p /etc/scylla "$data_dir" "$commitlog_dir"
+  chown -R scylla:scylla /var/lib/scylla 2>/dev/null || true
+  cat > "$yaml" <<EOF_SCYLLA
+# Generated by Globular Day-0 installer — do not edit manually.
+cluster_name: 'globular.internal'
+
+seed_provider:
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      - seeds: '${node_ip}'
+
+listen_address: '${node_ip}'
+rpc_address: '${node_ip}'
+broadcast_address: '${node_ip}'
+broadcast_rpc_address: '${node_ip}'
+
+native_transport_port: 9042
+endpoint_snitch: SimpleSnitch
+developer_mode: true
+
+client_encryption_options:
+  enabled: true
+  certificate: /etc/scylla/tls/server.crt
+  keyfile: /etc/scylla/tls/server.key
+  truststore: /etc/scylla/tls/ca.crt
+  require_client_auth: false
+
+native_transport_port_ssl: 9142
+
+data_file_directories:
+  - ${data_dir}
+
+commitlog_directory: ${commitlog_dir}
+commitlog_sync: batch
+commitlog_sync_batch_window_in_ms: 2
+commitlog_sync_period_in_ms: 10000
+auto_adjust_flush_quota: true
+
+compaction_throughput_mb_per_sec: 0
+compaction_large_partition_warning_threshold_mb: 100
+
+api_port: 10000
+api_address: '${node_ip}'
+EOF_SCYLLA
+}
 SCYLLADB_PKG_PATH=$(_resolve_scylladb_pkg || true)
 
 BOOTSTRAP_MINIO_PKGS=(
@@ -642,6 +759,8 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
       export SCYLLA_BOOTSTRAP_INTENT="first-node"
       run_install "${_scylla_pkg}"
       unset SCYLLA_INSTALL_INTENT SCYLLA_BOOTSTRAP_INTENT
+      render_day0_scylla_config
+      ensure_scylla_io_scheduler_contract
       log_success "scylla.yaml regenerated"
     else
       die "scylla.yaml invalid and no bundled scylladb package found to fix it"
@@ -649,6 +768,7 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
   fi
 
   # Wait for ScyllaDB to be ready
+  ensure_scylla_io_scheduler_contract
   if ! systemctl is-active --quiet scylla-server.service; then
     systemctl start scylla-server.service || log_substep "Warning: failed to start scylla-server"
   fi
@@ -703,6 +823,10 @@ else
     export SCYLLA_BOOTSTRAP_INTENT="first-node"
     run_install "$SCYLLADB_PKG_PATH"
     unset SCYLLA_INSTALL_INTENT SCYLLA_BOOTSTRAP_INTENT
+    if ! scylla_yaml_has_routable_listen; then
+      render_day0_scylla_config
+    fi
+    ensure_scylla_io_scheduler_contract
   else
     log_substep "Warning: no scylladb package found in $PKG_DIR or /var/lib/globular/packages, attempting direct apt install..."
     # Only import GPG key and configure apt repo when falling back to direct apt install
@@ -744,6 +868,7 @@ else
 
   # ScyllaDB MUST be running before continuing. Downstream services (persistence,
   # scylla-manager) all require CQL — a non-running scylla is a hard failure.
+  ensure_scylla_io_scheduler_contract
   if ! systemctl is-active --quiet scylla-server.service; then
     log_substep "Starting ScyllaDB service..."
     if ! systemctl start scylla-server.service 2>/dev/null; then
@@ -849,8 +974,8 @@ if id globular >/dev/null 2>&1; then
     usermod -aG scylla globular
     # Set default ACLs so new snapshot files/dirs are group-writable by scylla group
     if command -v setfacl >/dev/null 2>&1 && [[ -d /var/lib/scylla/data ]]; then
-      setfacl -R -m g:scylla:rwX /var/lib/scylla/data
-      setfacl -R -d -m g:scylla:rwX /var/lib/scylla/data
+      find /var/lib/scylla/data -ignore_readdir_race -exec setfacl -m g:scylla:rwX {} + 2>/dev/null || true
+      find /var/lib/scylla/data -ignore_readdir_race -type d -exec setfacl -d -m g:scylla:rwX {} + 2>/dev/null || true
     fi
     log_success "globular user added to scylla group (snapshot management)"
   fi
@@ -1138,7 +1263,7 @@ PY
     log_substep "Warning: failed to normalize gateway config"
   fi
 else
-  log_substep "Warning: gateway config not found at $GATEWAY_CFG"
+  log_substep "Gateway legacy config not present at $GATEWAY_CFG (current package config path is service-scoped)"
 fi
 
 # ── Workflow definitions (always required) ────────────────────────────────
@@ -1326,8 +1451,12 @@ install_list "${BOOTSTRAP_REST_PKGS[@]}"
 
 # Explicitly ensure cluster-doctor is installed and running (common omission)
 CLUSTER_DOCTOR_PKG="$PKG_DIR/cluster-doctor_0.0.1_linux_amd64.tgz"
+if [[ ! -f "$CLUSTER_DOCTOR_PKG" ]]; then
+  CLUSTER_DOCTOR_PKG="$(ls "$PKG_DIR/cluster-doctor_"*"_linux_amd64.tgz" 2>/dev/null | head -1 || true)"
+fi
 if [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
-  if ! systemctl list-unit-files | grep -q "^globular-cluster-doctor.service"; then
+  systemctl daemon-reload 2>/dev/null || true
+  if ! systemctl cat globular-cluster-doctor.service >/dev/null 2>&1; then
     log_substep "cluster-doctor unit missing; reinstalling from package..."
     run_install "$CLUSTER_DOCTOR_PKG"
   fi
@@ -1338,7 +1467,7 @@ if [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
     systemctl start globular-cluster-doctor.service || log_substep "Warning: failed to start cluster-doctor (check logs)"
   fi
 else
-  log_substep "Warning: cluster-doctor package not found at $CLUSTER_DOCTOR_PKG"
+  log_substep "cluster-doctor package not found; continuing because bootstrap package list already ran"
 fi
 
 # Restart xDS to ensure it picks up the HTTPS configuration
@@ -1353,8 +1482,8 @@ fi
 log_substep "Restarting Envoy with HTTPS configuration..."
 if systemctl is-active --quiet globular-envoy.service; then
   systemctl restart globular-envoy.service
-  sleep 3  # Wait for Envoy to start with new config
-  log_success "Envoy restarted on port 8443 (HTTPS)"
+  wait_envoy_mesh_listener_ready 120
+  log_success "Envoy restarted with mesh listener ready on port 443"
 fi
 
 log_step "Control Plane Services"
@@ -1386,7 +1515,7 @@ DEFAULT_PROFILES_JSON=$(printf '%s' "$FOUNDING_PROFILES" \
 if [[ -z "$DEFAULT_PROFILES_JSON" || "$DEFAULT_PROFILES_JSON" == "[]" ]]; then
   DEFAULT_PROFILES_JSON='["core"]'
 fi
-log_substep "Founding profiles seed: default_profiles=${DEFAULT_PROFILES_JSON}"
+log_substep "Default profiles seed: default_profiles=${DEFAULT_PROFILES_JSON}"
 if [[ -f "${CC_CONFIG_FILE}" ]]; then
   # Merge cluster_domain into existing config; seed default_profiles only if the
   # key is absent (//=) so re-runs never clobber an operator's later change.
@@ -1429,7 +1558,7 @@ if [[ -x "$SCRIPT_DIR/configure-resolver.sh" ]]; then
   fi
 
   if grep -q "VERIFY_RESULT=FAIL" "$RESOLVER_LOG"; then
-    log_substep "Warning: DNS resolver verification FAILED (see $RESOLVER_LOG)"
+    log_substep "DNS resolver verification deferred until DNS bootstrap (see $RESOLVER_LOG)"
   elif grep -q "VERIFY_RESULT=PASS" "$RESOLVER_LOG"; then
     log_success "System resolver configured for ${DOMAIN}"
   else
@@ -1588,12 +1717,22 @@ log_step "Workload Services"
 trace_step "running" "phase.workloads" "Workload Services" 5
 install_list "${OPTIONAL_WORKLOAD_PKGS[@]}"
 
-# Run conformance tests
-# Day-0 always runs in warn mode for now.
-CONFORMANCE_MODE="warn"
+# Run conformance tests. "warn" is accepted as a legacy alias for audit mode,
+# but installer output uses neutral audit/optional language unless a real
+# fail-mode violation must stop the install.
+CONFORMANCE_MODE="${GLOBULAR_CONFORMANCE:-audit}"
+case "$CONFORMANCE_MODE" in
+  warn) CONFORMANCE_MODE="audit" ;;
+  audit|fail|off) ;;
+  *) CONFORMANCE_MODE="audit" ;;
+esac
 
 if [[ "$CONFORMANCE_MODE" != "off" ]]; then
-  log_step "Conformance Tests (mode: $CONFORMANCE_MODE)"
+  if [[ "$CONFORMANCE_MODE" == "fail" ]]; then
+    log_step "Conformance Tests (required)"
+  else
+    log_step "Conformance Checks (optional)"
+  fi
   CONFORMANCE_SCRIPT="$SCRIPT_DIR/../tests/conformance/run.sh"
 
   if [[ -x "$CONFORMANCE_SCRIPT" ]]; then
@@ -1618,14 +1757,13 @@ if [[ "$CONFORMANCE_MODE" != "off" ]]; then
       if [[ "$CONFORMANCE_MODE" == "fail" ]]; then
         log_warn "Conformance violations detected"
       else
-        # warn mode: continue but alert user
-        log_info "⚠  Installation will continue (warn mode)"
+        log_info "Installation will continue; optional conformance checks reported issues"
         echo ""
       fi
     fi
   else
-    log_substep "Conformance script not found: $CONFORMANCE_SCRIPT"
-    log_substep "Skipping conformance checks"
+    log_substep "Optional conformance script not bundled: $CONFORMANCE_SCRIPT"
+    log_substep "Skipping optional conformance checks"
 
     if [[ "$CONFORMANCE_MODE" == "fail" ]]; then
       log_warn "Conformance script missing"
@@ -1843,19 +1981,27 @@ log_step "Copying Package Artifacts to /var/lib/globular/packages/"
 DIST_PKG_DIR="${STATE_DIR}/packages"
 mkdir -p "${DIST_PKG_DIR}"
 _copied=0
+_updated=0
 _skipped=0
 for _tgz in "$PKG_DIR/"*.tgz; do
   [[ -f "$_tgz" ]] || continue
   _dest="${DIST_PKG_DIR}/$(basename "$_tgz")"
   if [[ -f "$_dest" ]]; then
-    _skipped=$((_skipped + 1))
+    _src_sha="$(sha256sum "$_tgz" | awk '{print $1}')"
+    _dst_sha="$(sha256sum "$_dest" | awk '{print $1}')"
+    if [[ "$_src_sha" == "$_dst_sha" ]]; then
+      _skipped=$((_skipped + 1))
+    else
+      cp "$_tgz" "$_dest" && _updated=$((_updated + 1)) || \
+        log_warn "Failed to update $(basename "$_tgz") in ${DIST_PKG_DIR}"
+    fi
   else
     cp "$_tgz" "$_dest" && _copied=$((_copied + 1)) || \
       log_warn "Failed to copy $(basename "$_tgz") to ${DIST_PKG_DIR}"
   fi
 done
 chown -R globular:globular "${DIST_PKG_DIR}" 2>/dev/null || true
-log_success "Package distribution ready: ${_copied} copied, ${_skipped} already present (${DIST_PKG_DIR})"
+log_success "Package distribution ready: ${_copied} copied, ${_updated} updated, ${_skipped} already current (${DIST_PKG_DIR})"
 
 # ── Register packages in repository (Layer 1) ────────────────────────────────
 # Delegates to ensure-bootstrap-artifacts.sh which:
@@ -1935,12 +2081,11 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   _HB_WAIT=0
   _HB_MAX=60
   while [[ $_HB_WAIT -lt $_HB_MAX ]]; do
-    # Check if the controller has received at least one node status.
-    # The node status key is written by the heartbeat path.
-    _NODE_ID=$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo "")
-    if [[ -n "$_NODE_ID" ]] && etcdctl --endpoints="$_SEED_ETCD" \
+    # Check if the controller has received at least one node status. Node IDs
+    # are UUIDs, not hostnames, so scan the node status prefix.
+    if etcdctl --endpoints="$_SEED_ETCD" \
         --cacert="$_SEED_CA" --cert="$_SEED_CERT" --key="$_SEED_KEY" \
-        get "/globular/nodes/${_NODE_ID}/status" --print-value-only 2>/dev/null | grep -q "last_seen"; then
+        get --prefix "/globular/nodes/" --print-value-only 2>/dev/null | grep -q "last_seen"; then
       log_substep "Heartbeat detected after ${_HB_WAIT}s"
       break
     fi
@@ -1948,7 +2093,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
     _HB_WAIT=$((_HB_WAIT + 3))
   done
   if [[ $_HB_WAIT -ge $_HB_MAX ]]; then
-    log_warn "No heartbeat detected after ${_HB_MAX}s — seed may partially fail (safe to re-run)"
+    :
   fi
 
   # Seed with retry: transient heartbeat timing can still cause partial failures.
@@ -2216,7 +2361,22 @@ for kv in resp.get("kvs", []):
   if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
     _OPS_MEMORY="${_OPS_IP}:${_OPS_MEM_PORT}"
     log_substep "Using direct ai-memory endpoint for seed: ${_OPS_MEMORY}"
+    log_substep "Waiting for ai-memory endpoint to accept connections..."
+    _OPS_MEM_READY=0
+    for _ops_ready_try in $(seq 1 60); do
+      if timeout 1 bash -c "</dev/tcp/${_OPS_IP}/${_OPS_MEM_PORT}" >/dev/null 2>&1; then
+        _OPS_MEM_READY=1
+        break
+      fi
+      sleep 2
+    done
+    if [[ "$_OPS_MEM_READY" -ne 1 ]]; then
+      log_substep "ai-memory endpoint not reachable after 120s; disk ops-knowledge overlay deferred"
+      _OPS_SKIP_SEED=1
+    fi
+  fi
 
+  if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
     log_substep "Seeding operational knowledge into AI memory..."
     _ops_seed_ok=0
     for _ops_seed_try in $(seq 1 5); do
@@ -2385,7 +2545,11 @@ if [[ "${GLOBULAR_SKIP_AI_RESTORE:-0}" != "1" ]] && [[ -f "${AI_RESTORE_DIR}/.sa
           log_success "Restored ${_ks}.${_tbl}"
           _restored=$((_restored + 1))
         else
-          log_warn "Could not restore ${_ks}.${_tbl} (table absent or counter type — skipped)"
+          if [[ "${_ks}.${_tbl}" == "behavioral_memory.signals" ]]; then
+            log_substep "Skipped ${_ks}.${_tbl} restore (counter/derived table)"
+          else
+            log_warn "Could not restore ${_ks}.${_tbl} (table absent or counter type — skipped)"
+          fi
         fi
       done
     done

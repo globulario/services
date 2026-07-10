@@ -28,7 +28,7 @@ entries:
     content: |
       After the Day-0 install script (`install-day0.sh`) completes on the founding node, the cluster has:
 
-      - **One node** (the founding node), with profiles `core`, `control-plane`, `storage`.
+      - **One node**, with operator-selected/default profiles.
       - **etcd**: single-node, listening on this node only (no quorum yet).
       - **cluster-controller**: leader of itself, port 12000.
       - **node-agent**: port 11000, supervises systemd units on this node.
@@ -37,8 +37,7 @@ entries:
       - **A bootstrap flag file** at `/var/lib/globular/bootstrap.enabled` with a 30-min TTL.
 
       What does NOT yet exist:
-      - ScyllaDB quorum (needs 3 storage nodes)
-      - MinIO distributed pool (needs 3 storage nodes admitted)
+      - Multi-node ScyllaDB/MinIO fault tolerance
       - keepalived VIP (manual enable on day-1)
       - ai-memory, ai-watcher, ai-executor, ai-router (depend on ScyllaDB)
       - Any user-data buckets in MinIO
@@ -47,7 +46,7 @@ entries:
       they are not running. Use the on-disk operational knowledge bundle directly.
     links:
       awareness_invariants:
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
       cli_commands:
         - "sudo bash scripts/release/install-day0.sh"
         - "globular cluster nodes list"
@@ -112,14 +111,15 @@ entries:
       The day-0 etcd is **single-node**. There is no quorum, no replication, no failover.
       Power-loss on the founding node before day-1 means losing the entire cluster state.
 
-      This is intentional and brief — day-1 join completes the transition to 3-node quorum.
+      This is intentional and explicit. Day-1 join increases capacity and survival posture
+      as nodes are added.
 
-      Implication: do NOT promise "production-ready" or "highly available" until day-1 is complete
-      and three storage nodes are visible in `globular cluster nodes list`. The founding-quorum
-      invariant is enforced at join time and cannot be bypassed.
+      Implication: describe the current capacity honestly. Do not promise high availability
+      until the observed topology actually provides it, and do not block non-destructive
+      convergence only because a preferred node count is absent.
     links:
       awareness_invariants:
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
         - etcd.endpoint_reachability
 
   - id: ops.day-0.config.etcd-only

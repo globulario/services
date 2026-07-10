@@ -373,6 +373,12 @@ test_symbols:
     package: interceptors
     language: go
     doc: "TestAcceptance_IsRoleBasedMethod_DNSWildcard verifies that DNS methods\nare correctly identified as role-based (via service wildcard)."
+  - id: golang/interceptors/post_day0_acceptance_test.go:TestAcceptance_RBAC_ActionKeys_StillRoleBased
+    file: golang/interceptors/post_day0_acceptance_test.go
+    symbol: TestAcceptance_RBAC_ActionKeys_StillRoleBased
+    package: interceptors
+    language: go
+    doc: "TestAcceptance_RBAC_ActionKeys_StillRoleBased documents the split that the\ninterceptor must preserve: raw RBAC service methods are excluded from\nrole-binding checks to avoid self-recursion, but stable RBAC action keys\nremain managed permissions for non-RBAC callers and admin roles."
   - id: golang/interceptors/post_day0_acceptance_test.go:TestAcceptance_RBAC_Methods_NotRoleBased
     file: golang/interceptors/post_day0_acceptance_test.go
     symbol: TestAcceptance_RBAC_Methods_NotRoleBased

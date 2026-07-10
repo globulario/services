@@ -52,7 +52,7 @@ entries:
       the repository will surface those as findings.
     links:
       awareness_invariants:
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
       runbooks:
         - runbooks/add-node-to-minio-pool.yaml
     procedure:

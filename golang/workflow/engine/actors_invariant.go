@@ -28,19 +28,12 @@ type InvariantConfig struct {
 	// to etcd. Returns count of repaired workflows.
 	RepairWorkflows func(ctx context.Context, missing []string) (int, error)
 
-	// ValidateInfraQuorum checks that infrastructure quorum requirements are
-	// met: etcd on all nodes, ScyllaDB ≥ minScylla, MinIO ≥ minMinio.
-	// Returns a quorum report with violations and promotion candidates.
+	// ValidateInfraQuorum reports infrastructure capacity. minScylla/minMinio
+	// are optional policy inputs; zero means no global floor.
 	ValidateInfraQuorum func(ctx context.Context, minScylla, minMinio int, etcdAllNodes bool) (map[string]any, error)
 
-	// EnforceQuorum auto-promotes nodes to restore infrastructure quorum.
-	EnforceQuorum func(ctx context.Context, quorumReport map[string]any) error
-
-	// VerifyQuorum re-checks quorum after enforcement to confirm resolution.
-	VerifyQuorum func(ctx context.Context, minScylla, minMinio int) (bool, error)
-
-	// ValidateFoundingProfiles checks that founding nodes (first 3 by join
-	// order) have the required profiles: core + control-plane + storage.
+	// ValidateFoundingProfiles reports nodes with the traditional
+	// core/control-plane/storage trio.
 	ValidateFoundingProfiles func(ctx context.Context) (map[string]any, error)
 
 	// ValidateMinioStorage checks MinIO distributed storage health:
@@ -103,8 +96,6 @@ func RegisterInvariantActions(router *Router, cfg InvariantConfig) {
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.validate_workflows", invariantValidateWorkflows(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.repair_workflows", invariantRepairWorkflows(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.validate_infra_quorum", invariantValidateInfraQuorum(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.invariant.enforce_quorum", invariantEnforceQuorum(cfg))
-	router.Register(v1alpha1.ActorClusterController, "controller.invariant.verify_quorum", invariantVerifyQuorum(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.validate_founding_profiles", invariantValidateFoundingProfiles(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.validate_minio_storage", invariantValidateMinioStorage(cfg))
 	router.Register(v1alpha1.ActorClusterController, "controller.invariant.repair_minio_storage", invariantRepairMinioStorage(cfg))
@@ -186,8 +177,8 @@ func invariantRepairWorkflows(cfg InvariantConfig) ActionHandler {
 
 func invariantValidateInfraQuorum(cfg InvariantConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		minScylla := intFromWith(req.With, "min_scylla_nodes", 3)
-		minMinio := intFromWith(req.With, "min_minio_nodes", 3)
+		minScylla := intFromWith(req.With, "min_scylla_nodes", 0)
+		minMinio := intFromWith(req.With, "min_minio_nodes", 0)
 		etcdAll, _ := req.With["etcd_all_nodes"].(bool)
 
 		if cfg.ValidateInfraQuorum == nil {
@@ -210,60 +201,7 @@ func invariantValidateInfraQuorum(cfg InvariantConfig) ActionHandler {
 }
 
 // --------------------------------------------------------------------------
-// Step 4: enforce_quorum
-// --------------------------------------------------------------------------
-
-func invariantEnforceQuorum(cfg InvariantConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		quorumReport, _ := req.With["quorum_report"].(map[string]any)
-		if quorumReport == nil {
-			// Try outputs from previous step.
-			quorumReport, _ = req.Outputs["quorum_report"].(map[string]any)
-		}
-		if quorumReport == nil {
-			return nil, fmt.Errorf("quorum_report not available")
-		}
-
-		if cfg.EnforceQuorum == nil {
-			return &ActionResult{OK: true, Message: "enforce_quorum not configured"}, nil
-		}
-
-		if err := cfg.EnforceQuorum(ctx, quorumReport); err != nil {
-			return nil, fmt.Errorf("enforce quorum: %w", err)
-		}
-
-		log.Printf("actor[invariant]: quorum enforcement applied")
-		return &ActionResult{OK: true, Message: "quorum enforced"}, nil
-	}
-}
-
-// --------------------------------------------------------------------------
-// Step 4 verification: verify_quorum
-// --------------------------------------------------------------------------
-
-func invariantVerifyQuorum(cfg InvariantConfig) ActionHandler {
-	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		minScylla := intFromWith(req.With, "min_scylla_nodes", 3)
-		minMinio := intFromWith(req.With, "min_minio_nodes", 3)
-
-		if cfg.VerifyQuorum == nil {
-			return &ActionResult{OK: true}, nil
-		}
-
-		ok, err := cfg.VerifyQuorum(ctx, minScylla, minMinio)
-		if err != nil {
-			return nil, fmt.Errorf("verify quorum: %w", err)
-		}
-		if !ok {
-			return nil, fmt.Errorf("quorum verification failed: insufficient nodes after enforcement")
-		}
-
-		return &ActionResult{OK: true, Message: "quorum verified"}, nil
-	}
-}
-
-// --------------------------------------------------------------------------
-// Step 5: validate_founding_profiles
+// Step 4: validate_founding_profiles
 // --------------------------------------------------------------------------
 
 func invariantValidateFoundingProfiles(cfg InvariantConfig) ActionHandler {
@@ -403,7 +341,7 @@ func invariantRepairDiskSpace(cfg InvariantConfig) ActionHandler {
 
 func invariantValidateNodeReachability(cfg InvariantConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
-		warnAfter := 300    // 5 min default
+		warnAfter := 300     // 5 min default
 		criticalAfter := 900 // 15 min default
 		if v, ok := req.With["warn_after_seconds"].(float64); ok && v > 0 {
 			warnAfter = int(v)

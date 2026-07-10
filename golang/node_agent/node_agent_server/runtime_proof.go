@@ -400,7 +400,7 @@ func (srv *NodeAgentServer) GetServiceRuntimeProof(
 	wantSvc := canonicalServiceName(strings.TrimSpace(req.GetServiceName()))
 
 	var pkgs []*node_agentpb.InstalledPackage
-	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "APPLICATION"} {
+	for _, kind := range authoritativeInstalledPackageKinds {
 		ps, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
 		if err != nil {
 			// Soft-fail: a single kind's listing failure should not blank

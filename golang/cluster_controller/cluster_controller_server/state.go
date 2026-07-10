@@ -85,9 +85,9 @@ const legacyClusterStatePath = "/var/lib/globular/clustercontroller/state.json"
 // +globular:schema:description="Authoritative cluster state: nodes, join tokens, MinIO pool, network spec."
 // +globular:schema:invariants="Single-writer; local disk copy is a backup only; persistStateLocked is the ONLY write path."
 type controllerState struct {
-	JoinTokens           map[string]*joinTokenRecord             `json:"join_tokens"`
-	JoinRequests         map[string]*joinRequestRecord           `json:"join_requests"`
-	Nodes                map[string]*nodeState                   `json:"nodes"`
+	JoinTokens   map[string]*joinTokenRecord   `json:"join_tokens"`
+	JoinRequests map[string]*joinRequestRecord `json:"join_requests"`
+	Nodes        map[string]*nodeState         `json:"nodes"`
 	// ClusterId is the cluster DNS/storage NAMESPACE (the domain). It is NOT a
 	// membership identity — see ClusterUID. (Historically overloaded; the identity
 	// program splits the two. Kept for the namespace/scoping role.)
@@ -96,17 +96,17 @@ type controllerState struct {
 	// /globular/system/cluster/id (config.ClusterMembershipIDKey). Populated by the
 	// Day-0 seed. This is what identity readers (join gate, membership records,
 	// GetClusterInfo) use; the domain is never a membership credential.
-	ClusterUID           string                                  `json:"cluster_uid,omitempty"`
-	CreatedAt            time.Time                               `json:"created_at"`
+	ClusterUID           string                                   `json:"cluster_uid,omitempty"`
+	CreatedAt            time.Time                                `json:"created_at"`
 	ClusterNetworkSpec   *cluster_controllerpb.ClusterNetworkSpec `json:"cluster_network_spec,omitempty"`
-	NetworkingGeneration uint64                                  `json:"networking_generation"`
+	NetworkingGeneration uint64                                   `json:"networking_generation"`
 	// MinIO pool membership — ordered, append-only list of node IPs.
 	// New nodes are appended; existing entries never change order.
 	// This preserves erasure set boundaries across pool expansion.
-	MinioPoolNodes       []string          `json:"minio_pool_nodes,omitempty"`
-	MinioCredentials     *minioCredentials `json:"minio_credentials,omitempty"`
-	MinioNodePaths       map[string]string `json:"minio_node_paths,omitempty"`      // IP → base data path (default: /var/lib/globular/minio)
-	MinioDrivesPerNode   int               `json:"minio_drives_per_node,omitempty"` // drives per node (0/1 = single, 2+ = multi-drive)
+	MinioPoolNodes     []string          `json:"minio_pool_nodes,omitempty"`
+	MinioCredentials   *minioCredentials `json:"minio_credentials,omitempty"`
+	MinioNodePaths     map[string]string `json:"minio_node_paths,omitempty"`      // IP → base data path (default: /var/lib/globular/minio)
+	MinioDrivesPerNode int               `json:"minio_drives_per_node,omitempty"` // drives per node (0/1 = single, 2+ = multi-drive)
 	// ObjectStoreGeneration is incremented each time the MinIO pool topology changes.
 	// Monotonically increasing. Node agents compare their observed generation to detect drift.
 	ObjectStoreGeneration int64 `json:"objectstore_generation,omitempty"`
@@ -165,11 +165,11 @@ type joinTokenRecord struct {
 }
 
 type joinRequestRecord struct {
-	RequestID         string              `json:"request_id"`
-	Token             string              `json:"token"`
-	Identity          storedIdentity      `json:"identity"`
-	Labels            map[string]string   `json:"labels"`
-	RequestedAt       time.Time           `json:"requested_at"`
+	RequestID   string            `json:"request_id"`
+	Token       string            `json:"token"`
+	Identity    storedIdentity    `json:"identity"`
+	Labels      map[string]string `json:"labels"`
+	RequestedAt time.Time         `json:"requested_at"`
 	// Status is the legacy string status. New code must prefer LifecyclePhase.
 	// Kept for backward compatibility with persisted state and v1 API consumers.
 	Status            string              `json:"status"`
@@ -184,7 +184,7 @@ type joinRequestRecord struct {
 	// LifecyclePhase is the typed v2 lifecycle state. When set, it takes precedence
 	// over the legacy Status field for admission and eligibility decisions.
 	// Migration: empty → derive from Status via normalizeJoinLifecyclePhase.
-	LifecyclePhase    JoinLifecyclePhase  `json:"lifecycle_phase,omitempty"`
+	LifecyclePhase JoinLifecyclePhase `json:"lifecycle_phase,omitempty"`
 }
 
 func (jr *joinRequestRecord) statusMessage() string {
@@ -244,9 +244,9 @@ const (
 	BootstrapEtcdReady      BootstrapPhase = "etcd_ready"      // Phase 3: etcd verified, discovery live
 	BootstrapXdsReady       BootstrapPhase = "xds_ready"       // Phase 4: xDS connected to etcd
 	BootstrapEnvoyReady     BootstrapPhase = "envoy_ready"     // Phase 5: Envoy healthy
-	BootstrapAwarenessReady BootstrapPhase = "awareness_ready"  // Phase 6: awareness bundle installed and verified
-	BootstrapWorkloadReady  BootstrapPhase = "workload_ready"   // Phase 7: normal service reconcile
-	BootstrapStorageJoining BootstrapPhase = "storage_joining"  // Phase 8: optional storage join
+	BootstrapAwarenessReady BootstrapPhase = "awareness_ready" // Phase 6: awareness bundle installed and verified
+	BootstrapWorkloadReady  BootstrapPhase = "workload_ready"  // Phase 7: normal service reconcile
+	BootstrapStorageJoining BootstrapPhase = "storage_joining" // Phase 8: optional storage join
 	BootstrapFailed         BootstrapPhase = "bootstrap_failed"
 )
 
@@ -284,21 +284,21 @@ func bootstrapInfraReady(phase BootstrapPhase) bool {
 type Day1Phase string
 
 const (
-	Day1Joined              Day1Phase = "joined"               // Node registered, trust established
-	Day1IdentityReady       Day1Phase = "identity_ready"       // Certs, hostname, domain configured
+	Day1Joined              Day1Phase = "joined"                // Node registered, trust established
+	Day1IdentityReady       Day1Phase = "identity_ready"        // Certs, hostname, domain configured
 	Day1ClusterConfigSynced Day1Phase = "cluster_config_synced" // etcd joined, cluster config available
-	Day1ProfileResolved     Day1Phase = "profile_resolved"     // Profiles resolved to capabilities/components
-	Day1InfraPlanned        Day1Phase = "infra_planned"        // Infra install plan generated
-	Day1InfraInstalled      Day1Phase = "infra_installed"      // All required infra packages installed
-	Day1InfraHealthy        Day1Phase = "infra_healthy"        // All required infra verified healthy
-	Day1WorkloadsPlanned    Day1Phase = "workloads_planned"    // Workload install plans generated
-	Day1WorkloadsInstalled  Day1Phase = "workloads_installed"  // All desired workloads installed
-	Day1Ready               Day1Phase = "ready"                // Node fully converged
+	Day1ProfileResolved     Day1Phase = "profile_resolved"      // Profiles resolved to capabilities/components
+	Day1InfraPlanned        Day1Phase = "infra_planned"         // Infra install plan generated
+	Day1InfraInstalled      Day1Phase = "infra_installed"       // All required infra packages installed
+	Day1InfraHealthy        Day1Phase = "infra_healthy"         // All required infra verified healthy
+	Day1WorkloadsPlanned    Day1Phase = "workloads_planned"     // Workload install plans generated
+	Day1WorkloadsInstalled  Day1Phase = "workloads_installed"   // All desired workloads installed
+	Day1Ready               Day1Phase = "ready"                 // Node fully converged
 
 	// Degraded/blocking states
-	Day1InfraBlocked          Day1Phase = "infra_blocked"           // Infra install blocked (package missing, failed)
-	Day1WorkloadBlocked       Day1Phase = "workload_blocked"        // Workload blocked on unhealthy deps
-	Day1DependencyMissing     Day1Phase = "dependency_missing"      // Required dep not in catalog/specs
+	Day1InfraBlocked           Day1Phase = "infra_blocked"            // Infra install blocked (package missing, failed)
+	Day1WorkloadBlocked        Day1Phase = "workload_blocked"         // Workload blocked on unhealthy deps
+	Day1DependencyMissing      Day1Phase = "dependency_missing"       // Required dep not in catalog/specs
 	Day1PackageMetadataInvalid Day1Phase = "package_metadata_invalid" // Spec metadata incomplete/invalid
 )
 
@@ -314,12 +314,12 @@ func day1PhaseReady(phase Day1Phase) bool {
 type ScyllaJoinPhase string
 
 const (
-	ScyllaJoinNone       ScyllaJoinPhase = ""            // not a scylla node
-	ScyllaJoinPrepared   ScyllaJoinPhase = "prepared"    // package installed, unit exists
-	ScyllaJoinConfigured ScyllaJoinPhase = "configured"  // scylla.yaml rendered with seeds
-	ScyllaJoinStarted    ScyllaJoinPhase = "started"     // scylla-server running
-	ScyllaJoinVerified   ScyllaJoinPhase = "verified"    // node in gossip ring
-	ScyllaJoinFailed     ScyllaJoinPhase = "failed"      // join failed
+	ScyllaJoinNone       ScyllaJoinPhase = ""           // not a scylla node
+	ScyllaJoinPrepared   ScyllaJoinPhase = "prepared"   // package installed, unit exists
+	ScyllaJoinConfigured ScyllaJoinPhase = "configured" // scylla.yaml rendered with seeds
+	ScyllaJoinStarted    ScyllaJoinPhase = "started"    // scylla-server running
+	ScyllaJoinVerified   ScyllaJoinPhase = "verified"   // node in gossip ring
+	ScyllaJoinFailed     ScyllaJoinPhase = "failed"     // join failed
 )
 
 // MinioJoinPhase tracks where a node is in the MinIO pool join sequence.
@@ -341,12 +341,13 @@ const (
 type EtcdJoinPhase string
 
 const (
-	EtcdJoinNone        EtcdJoinPhase = ""               // not joining / not an etcd node
-	EtcdJoinPrepared    EtcdJoinPhase = "prepared"       // package installed, unit exists, ready for MemberAdd
-	EtcdJoinMemberAdded EtcdJoinPhase = "member_added"   // MemberAdd called, config rendered, awaiting service start
-	EtcdJoinStarted     EtcdJoinPhase = "started"        // etcd service started, awaiting health verification
-	EtcdJoinVerified    EtcdJoinPhase = "verified"       // etcd member healthy and participating
-	EtcdJoinFailed      EtcdJoinPhase = "failed"         // join failed, rollback performed or needed
+	EtcdJoinNone             EtcdJoinPhase = ""                  // not joining / not an etcd node
+	EtcdJoinPrepared         EtcdJoinPhase = "prepared"          // package installed, unit exists, ready for MemberAdd
+	EtcdJoinMemberAdded      EtcdJoinPhase = "member_added"      // MemberAdd called, config rendered, awaiting service start
+	EtcdJoinStarted          EtcdJoinPhase = "started"           // etcd service started, awaiting health verification
+	EtcdJoinLearnerPromoting EtcdJoinPhase = "learner_promoting" // learner is healthy; awaiting voter promotion
+	EtcdJoinVerified         EtcdJoinPhase = "verified"          // etcd member healthy and participating
+	EtcdJoinFailed           EtcdJoinPhase = "failed"            // join failed, rollback performed or needed
 
 	// Rejoin states — set when a node is permanently stuck in etcd_joining
 	// (e.g. WAL records its own removal, or ghost member left from prior attempt).
@@ -378,11 +379,11 @@ type nodeState struct {
 	RecoveryAttempts     int       `json:"recovery_attempts,omitempty"`
 	MarkedUnhealthySince time.Time `json:"marked_unhealthy_since,omitempty"`
 	// etcd join state machine (Phase-based expansion)
-	EtcdJoinPhase      EtcdJoinPhase `json:"etcd_join_phase,omitempty"`
-	EtcdJoinStartedAt  time.Time     `json:"etcd_join_started_at,omitempty"`
-	EtcdJoinError      string        `json:"etcd_join_error,omitempty"`
-	EtcdMemberID       uint64        `json:"etcd_member_id,omitempty"`        // for rollback via MemberRemove
-	EtcdMissingCycles  int           `json:"etcd_missing_cycles,omitempty"`   // consecutive cycles where member missing + etcd not running
+	EtcdJoinPhase     EtcdJoinPhase `json:"etcd_join_phase,omitempty"`
+	EtcdJoinStartedAt time.Time     `json:"etcd_join_started_at,omitempty"`
+	EtcdJoinError     string        `json:"etcd_join_error,omitempty"`
+	EtcdMemberID      uint64        `json:"etcd_member_id,omitempty"`      // for rollback via MemberRemove
+	EtcdMissingCycles int           `json:"etcd_missing_cycles,omitempty"` // consecutive cycles where member missing + etcd not running
 	// MinIO pool join state machine (erasure-coded expansion)
 	MinioJoinPhase     MinioJoinPhase `json:"minio_join_phase,omitempty"`
 	MinioJoinStartedAt time.Time      `json:"minio_join_started_at,omitempty"`
@@ -393,16 +394,16 @@ type nodeState struct {
 	// Empty until the node's ScyllaDB has fully started and reported at least one heartbeat.
 	ScyllaHostID string `json:"scylla_host_id,omitempty"`
 	// ScyllaDB join state machine (gossip-based cluster expansion)
-	ScyllaJoinPhase        ScyllaJoinPhase `json:"scylla_join_phase,omitempty"`
-	ScyllaJoinStartedAt    time.Time       `json:"scylla_join_started_at,omitempty"`
-	ScyllaJoinError        string          `json:"scylla_join_error,omitempty"`
-	ScyllaJoinRestarts     int             `json:"scylla_join_restarts,omitempty"`
+	ScyllaJoinPhase     ScyllaJoinPhase `json:"scylla_join_phase,omitempty"`
+	ScyllaJoinStartedAt time.Time       `json:"scylla_join_started_at,omitempty"`
+	ScyllaJoinError     string          `json:"scylla_join_error,omitempty"`
+	ScyllaJoinRestarts  int             `json:"scylla_join_restarts,omitempty"`
 	// ScyllaWasEverVerified is set once a node reaches ScyllaJoinVerified. It gates
 	// the wipe escalation in the restart/wipe pipeline: we must never wipe an
 	// existing cluster member that is only experiencing a temporary probe regression
 	// (e.g. because a peer was removed). The wipe is only safe for nodes that have
 	// never successfully joined the ring.
-	ScyllaWasEverVerified  bool            `json:"scylla_was_ever_verified,omitempty"`
+	ScyllaWasEverVerified bool `json:"scylla_was_ever_verified,omitempty"`
 	// ScyllaReplaceAddress is set when a node rejoins after being removed without
 	// decommissioning (its IP is still DN in the gossip ring). The rendered
 	// scylla.yaml will include replace_address_first_boot so ScyllaDB can claim
@@ -415,19 +416,19 @@ type nodeState struct {
 	// admission_pending → admitted → converging → active.
 	JoinLifecyclePhase JoinLifecyclePhase `json:"join_lifecycle_phase,omitempty"`
 	// Bootstrap phase state machine (phased node initialization)
-	BootstrapPhase     BootstrapPhase `json:"bootstrap_phase,omitempty"`
-	BootstrapStartedAt time.Time      `json:"bootstrap_started_at,omitempty"`
-	BootstrapError     string         `json:"bootstrap_error,omitempty"`
-	BootstrapRunID             string `json:"bootstrap_run_id,omitempty"`
-	BootstrapWorkflowActive    bool   `json:"-"` // in-memory only: true while bootstrap workflow engine is driving this node
+	BootstrapPhase          BootstrapPhase `json:"bootstrap_phase,omitempty"`
+	BootstrapStartedAt      time.Time      `json:"bootstrap_started_at,omitempty"`
+	BootstrapError          string         `json:"bootstrap_error,omitempty"`
+	BootstrapRunID          string         `json:"bootstrap_run_id,omitempty"`
+	BootstrapWorkflowActive bool           `json:"-"` // in-memory only: true while bootstrap workflow engine is driving this node
 	// DNS-first naming field (PR2)
 	AdvertiseFqdn string `json:"advertise_fqdn,omitempty"`
 	// Structured blocked reason (Phase 7)
 	BlockedReason  string `json:"blocked_reason,omitempty"`  // e.g. "unknown_profile" | "missing_units" | "apply_failed"
 	BlockedDetails string `json:"blocked_details,omitempty"` // human-readable details
 	// Day 1 lifecycle tracking
-	Day1Phase       Day1Phase  `json:"day1_phase,omitempty"`        // Current Day 1 lifecycle phase
-	Day1PhaseReason string     `json:"day1_phase_reason,omitempty"` // Human-readable reason for current phase
+	Day1Phase       Day1Phase `json:"day1_phase,omitempty"`        // Current Day 1 lifecycle phase
+	Day1PhaseReason string    `json:"day1_phase_reason,omitempty"` // Human-readable reason for current phase
 	// Day 1 resolved intent (populated during reconcile from profile + catalog resolution).
 	ResolvedIntent *NodeIntent `json:"resolved_intent,omitempty"`
 
@@ -495,12 +496,12 @@ const (
 
 // storedCapabilities is the JSON-serializable form of NodeCapabilities.
 type storedCapabilities struct {
-	CPUCount            uint32 `json:"cpu_count"`
-	RAMBytes            uint64 `json:"ram_bytes"`
-	DiskBytes           uint64 `json:"disk_bytes"`
-	DiskFreeBytes       uint64 `json:"disk_free_bytes"`
-	CanApplyPrivileged  bool   `json:"can_apply_privileged,omitempty"`
-	PrivilegeReason     string `json:"privilege_reason,omitempty"`
+	CPUCount           uint32 `json:"cpu_count"`
+	RAMBytes           uint64 `json:"ram_bytes"`
+	DiskBytes          uint64 `json:"disk_bytes"`
+	DiskFreeBytes      uint64 `json:"disk_free_bytes"`
+	CanApplyPrivileged bool   `json:"can_apply_privileged,omitempty"`
+	PrivilegeReason    string `json:"privilege_reason,omitempty"`
 }
 
 type unitStatusRecord struct {
@@ -697,7 +698,6 @@ func loadControllerState(path string) (*controllerState, error) {
 	}
 	return state, nil
 }
-
 
 func (s *controllerState) save(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

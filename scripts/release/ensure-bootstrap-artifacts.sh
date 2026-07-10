@@ -391,8 +391,9 @@ TOTAL=0
 FAILED_LIST=""
 
 # Local state file: maps entrypoint_checksum → 1 for each successfully published binary.
-# This is the idempotency key — the repository assigns its own version counter (0.0.x)
-# and has no dedup by content. Without this, every run creates a new version entry.
+# The repository is the authority; by default this cache is only diagnostic.
+# Set BOOTSTRAP_ARTIFACT_TRUST_CACHE=1 for an offline/debug run that explicitly
+# wants to skip publish attempts based on local history.
 PUBLISHED_CHECKSUMS_FILE="${STATE_DIR}/.bootstrap-artifacts-checksums"
 declare -A PUBLISHED_CHECKSUMS
 if [[ -f "$PUBLISHED_CHECKSUMS_FILE" ]]; then
@@ -422,12 +423,14 @@ for pattern in "${CORE_PACKAGES[@]}"; do
     [[ -n "$_fresh" ]] && GLOBULAR_TOKEN="$_fresh"
   fi
 
-  # Idempotency: extract the entrypoint_checksum from the package and skip
-  # if we've already successfully published this exact binary.
+  # Extract the entrypoint_checksum from the package. This is used for local
+  # diagnostics only unless BOOTSTRAP_ARTIFACT_TRUST_CACHE=1 is explicitly set;
+  # normal Day-0 runs must ask the repository because same-version local rebuilds
+  # can otherwise leave the catalog stale while the installer replaces binaries.
   PKG_CHECKSUM=$(tar xOf "$PACKAGE" ./package.json 2>/dev/null \
     | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('entrypoint_checksum',''))" 2>/dev/null || true)
 
-  if [[ -n "$PKG_CHECKSUM" && -n "${PUBLISHED_CHECKSUMS[$PKG_CHECKSUM]+x}" ]]; then
+  if [[ "${BOOTSTRAP_ARTIFACT_TRUST_CACHE:-0}" == "1" && -n "$PKG_CHECKSUM" && -n "${PUBLISHED_CHECKSUMS[$PKG_CHECKSUM]+x}" ]]; then
     log_success "$(printf '%-28s %s (already present)' "$SVC_NAME" "$SVC_VER")"
     SKIPPED=$((SKIPPED + 1))
     continue
@@ -500,8 +503,10 @@ except:
       echo "$PKG_CHECKSUM" >> "$PUBLISHED_CHECKSUMS_FILE"
     fi
   else
-    # Check for "already exists" style errors in the raw output
-    if echo "$PUBLISH_JSON $DESC_ACTION" | grep -qiE "already exists|duplicate|conflict|unchanged|skipped"; then
+    # Exact idempotent duplicate is OK; conflicts are not. A same-version
+    # different-digest rejection is a real identity collision and must fail
+    # loudly instead of being recorded as "already present".
+    if echo "$PUBLISH_JSON $DESC_ACTION" | grep -qiE "unchanged|skipped|already exists.*same|duplicate.*same"; then
       log_success "$(printf '%-28s %s (already present)' "$SVC_NAME" "$SVC_VER")"
       SKIPPED=$((SKIPPED + 1))
     else
@@ -557,7 +562,6 @@ UPSTREAM_KEY="/globular/repository/upstreams/${UPSTREAM_NAME}"
 # register-upstream requires a {tag} placeholder for URL-based providers.
 if [[ "$UPSTREAM_TYPE" == "github" || "$UPSTREAM_TYPE" == "http" ]]; then
   if [[ "$UPSTREAM_URL" != *"{tag}"* ]]; then
-    log_warn "Upstream URL missing {tag} placeholder; normalizing automatically"
     if [[ "$UPSTREAM_TYPE" == "github" ]] && [[ "$UPSTREAM_URL" =~ ^https://github\.com/([^/]+)/([^/]+)/releases/download/ ]]; then
       _gh_owner="${BASH_REMATCH[1]}"
       _gh_repo="${BASH_REMATCH[2]}"
@@ -568,7 +572,6 @@ if [[ "$UPSTREAM_TYPE" == "github" || "$UPSTREAM_TYPE" == "http" ]]; then
     else
       UPSTREAM_URL="${UPSTREAM_URL%/}/{tag}"
     fi
-    log_info "Normalized upstream URL: ${UPSTREAM_URL}"
   fi
 fi
 

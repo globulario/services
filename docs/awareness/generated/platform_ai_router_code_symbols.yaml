@@ -19,3 +19,28 @@ code_symbols:
       implements:
         - globular.platform:intent.ai.router_safety_validator_overrides_scoring_engine
 test_symbols:
+  - id: golang/ai_router/ai_router_server/collector_test.go:TestNewCollectorUsesPrometheusEndpoint
+    file: golang/ai_router/ai_router_server/collector_test.go
+    symbol: TestNewCollectorUsesPrometheusEndpoint
+    package: main
+    language: go
+  - id: golang/ai_router/ai_router_server/collector_test.go:TestPrometheusEndpointDefault
+    file: golang/ai_router/ai_router_server/collector_test.go
+    symbol: TestPrometheusEndpointDefault
+    package: main
+    language: go
+  - id: golang/ai_router/ai_router_server/collector_test.go:TestPrometheusEndpointIgnoresWhitespace
+    file: golang/ai_router/ai_router_server/collector_test.go
+    symbol: TestPrometheusEndpointIgnoresWhitespace
+    package: main
+    language: go
+  - id: golang/ai_router/ai_router_server/collector_test.go:TestPrometheusEndpointOverride
+    file: golang/ai_router/ai_router_server/collector_test.go
+    symbol: TestPrometheusEndpointOverride
+    package: main
+    language: go
+  - id: golang/ai_router/ai_router_server/collector_test.go:TestPrometheusEndpointUsesProcessEnv
+    file: golang/ai_router/ai_router_server/collector_test.go
+    symbol: TestPrometheusEndpointUsesProcessEnv
+    package: main
+    language: go

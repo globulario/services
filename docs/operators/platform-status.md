@@ -65,7 +65,7 @@ This page is the honest inventory. It separates what works from what is partial,
 |-----------|--------|-------|
 | Node bootstrap (Day-0) | ✅ | `node.bootstrap` workflow with full phase progression. |
 | Node join approval | ✅ | Join request + token + profile assignment. |
-| Founding quorum enforcement | ✅ | First 3 nodes must have core+control-plane+storage. Enforced at join and profile change. |
+| Capacity posture reporting | ✅ | Quorum/capacity is reported, not enforced as a hidden join/profile floor. |
 | Node repair (targeted, no wipe) | ✅ | `node.repair` workflow. Three modes: from_repository, from_reference, full local reseed. |
 | Node full-reseed recovery (wipe + rebuild) | ✅ | `node.recover.full_reseed` workflow. Snapshot → fence → human reprovision → reseed → verify. |
 | Node removal | ✅ | Removes from registry, etcd membership, MinIO pool. |
@@ -79,8 +79,8 @@ This page is the honest inventory. It separates what works from what is partial,
 
 | Invariant | Status | Notes |
 |-----------|--------|-------|
-| Founding quorum (etcd/ScyllaDB/MinIO on 3 nodes) | ✅ | Checked at join, profile change, and reconciliation. |
-| Storage node count (≥3 for distributed MinIO/Scylla) | ✅ | Enforced by invariant workflow. |
+| Quorum/capacity posture | ✅ | Reported by invariant workflow without blocking unrelated rollout. |
+| Storage destructive-operation safety | ✅ | Component-specific checks guard topology/data-risk operations. |
 | Desired-state convergence (drift detection) | ✅ | Convergence hash comparison. |
 | Version gate (no downgrades) | ✅ | Per-artifact, per-node. |
 | TLS cert validity (SAN completeness, expiry) | ✅ | Doctor invariant. Checked per node. |

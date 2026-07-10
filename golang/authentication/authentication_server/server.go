@@ -12,10 +12,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
@@ -573,16 +571,4 @@ func main() {
 		logger.Error("service start failed", "err", err)
 		os.Exit(1)
 	}
-
-	// wait for termination
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	<-sigChan
-
-	logger.Info("shutdown signal received, initiating graceful shutdown")
-	if err := lifecycle.GracefulShutdown(30 * time.Second); err != nil {
-		logger.Error("graceful shutdown failed", "err", err)
-		os.Exit(1)
-	}
-	logger.Info("service stopped gracefully")
 }

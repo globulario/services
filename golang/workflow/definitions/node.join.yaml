@@ -16,11 +16,15 @@ spec:
       - node_id
       - node_hostname
       - node_ip
+      - node_profiles
     properties:
       cluster_id: { type: string }
       node_id: { type: string }
       node_hostname: { type: string }
       node_ip: { type: string }
+      node_profiles:
+        type: array
+        items: { type: string }
       repository_address: { type: string, default: "" }
       install_timeout: { type: string, default: 5m }
   defaults:
@@ -89,6 +93,10 @@ spec:
 
     - id: install_envoy
       title: Install Envoy proxy
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'control-plane')
+          - expr: contains(inputs.node_profiles, 'gateway')
       dependsOn: [install_mesh]
       actor: node-agent
       action: node.install_packages
@@ -112,6 +120,10 @@ spec:
 
     - id: install_gateway
       title: Install gateway
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'control-plane')
+          - expr: contains(inputs.node_profiles, 'gateway')
       dependsOn: [install_envoy]
       actor: node-agent
       action: node.install_packages
@@ -136,6 +148,12 @@ spec:
     # ── Tier 2: Storage (ScyllaDB needs Envoy for cluster comms) ──────────
     - id: install_scylladb
       title: Install ScyllaDB
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'control-plane')
+          - expr: contains(inputs.node_profiles, 'storage')
+          - expr: contains(inputs.node_profiles, 'scylla')
+          - expr: contains(inputs.node_profiles, 'database')
       dependsOn: [install_envoy]
       actor: node-agent
       action: node.install_packages
@@ -162,6 +180,12 @@ spec:
 
     - id: wait_scylladb_ready
       title: Wait for ScyllaDB to accept CQL connections
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'control-plane')
+          - expr: contains(inputs.node_profiles, 'storage')
+          - expr: contains(inputs.node_profiles, 'scylla')
+          - expr: contains(inputs.node_profiles, 'database')
       dependsOn: [install_scylladb]
       actor: node-agent
       action: node.probe_infra_health
@@ -188,6 +212,12 @@ spec:
 
     - id: install_scylla_tools
       title: Install ScyllaDB manager and agent
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'control-plane')
+          - expr: contains(inputs.node_profiles, 'storage')
+          - expr: contains(inputs.node_profiles, 'scylla')
+          - expr: contains(inputs.node_profiles, 'database')
       dependsOn: [wait_scylladb_ready]
       actor: node-agent
       action: node.install_packages

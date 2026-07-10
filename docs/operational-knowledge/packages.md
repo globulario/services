@@ -495,7 +495,7 @@ Every script MUST:
 
 | Context | Caller | Behavior |
 |---|---|---|
-| **Day-0** | `globular bootstrap` (installer binary, runs once per cluster) | Reads `release-index.json` directly. Installs the founding-quorum packages in tier order: foundation → core_control → supporting → workload. |
+| **Day-0** | `globular bootstrap` (installer binary, runs once per cluster) | Reads `release-index.json` directly. Installs bootstrap packages in tier order: foundation → core_control → supporting → workload. |
 | **Day-1** | Node-agent on a joining node (curl gateway script) | Joins via the active BOM. Each package install is a workflow run. |
 | **Day-2** | Cluster controller release reconciler | Watches the repository for new versions. Dispatches per-node workflows when a `DesiredService` changes. |
 

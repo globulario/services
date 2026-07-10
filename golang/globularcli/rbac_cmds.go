@@ -211,6 +211,7 @@ var (
 
   1. Service-account role bindings:
      globular-controller  → [globular-controller-sa]
+     sa                   → [globular-controller-sa] (legacy inter-service token)
      globular-node-agent  → [globular-node-agent-sa]
      globular-gateway     → [globular-admin]
 
@@ -227,6 +228,7 @@ Flags:
 				roles   []string
 			}{
 				{"globular-controller", []string{"globular-controller-sa"}},
+				{"sa", []string{"globular-controller-sa"}},
 				{"globular-node-agent", []string{"globular-node-agent-sa"}},
 				{"globular-gateway", []string{"globular-admin"}},
 			}

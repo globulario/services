@@ -12,7 +12,7 @@ set -euo pipefail
 #     --controller  10.0.0.63:12000 \
 #     --join-token  0ce240e0-a8fa-460a-8175-2b97bee66b94 \
 #     [--domain     globular.internal] \
-#     [--profiles   core,control-plane,storage] \
+#     [--profiles   DEPRECATED; controller now deduces profiles from node hardware] \
 #     [--etcd-peer   https://10.0.0.63:2379] \
 #     [--minio-addr  10.0.0.63:9000] \
 #     [--minio-data-dir /var/lib/globular/minio/data]
@@ -74,7 +74,7 @@ ETCD_PEER=""             # https://HOST:2379 of an existing etcd peer
 MINIO_ADDR=""            # HOST:PORT of existing MinIO (port 9000)
 JOIN_TOKEN=""
 DOMAIN="globular.internal"
-PROFILES="core,control-plane,storage"
+PROFILES=""
 MINIO_DATA_DIR="/var/lib/globular/minio/data"
 FORCE_REINSTALL="0"
 MINIO_ACCESS=""
@@ -566,21 +566,17 @@ GLOBULAR_CLI="/usr/local/bin/globular"
 log_substep "Running: globular cluster join"
 log_substep "  Controller: $CONTROLLER_ADDR"
 log_substep "  Node-agent: ${NODE_IP}:11000"
-log_substep "  Profiles:   $PROFILES"
-
-# Convert comma-separated profiles to repeated --profile flags
-PROFILE_FLAGS=""
-IFS=',' read -ra PROFILE_ARRAY <<< "$PROFILES"
-for p in "${PROFILE_ARRAY[@]}"; do
-  PROFILE_FLAGS="$PROFILE_FLAGS --profile $p"
-done
+if [[ -n "$PROFILES" ]]; then
+  log_substep "  Profiles:   controller hardware-deduced (--profiles is deprecated, ignored: $PROFILES)"
+else
+  log_substep "  Profiles:   controller hardware-deduced"
+fi
 
 set +e
 JOIN_OUTPUT="$("$GLOBULAR_CLI" cluster join \
   --controller "$CONTROLLER_ADDR" \
   --node "${NODE_IP}:11000" \
   --join-token "$JOIN_TOKEN" \
-  $PROFILE_FLAGS \
   2>&1)"
 JOIN_RC=$?
 set -e

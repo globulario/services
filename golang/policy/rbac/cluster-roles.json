@@ -220,6 +220,8 @@
       "repository.bundle.read",
       "repository.bundle.list",
       "repository.namespace.read",
+      "resource.session.read",
+      "resource.session.write",
       "dns.*",
       "event.*",
       "cluster_doctor.cluster_report.read",

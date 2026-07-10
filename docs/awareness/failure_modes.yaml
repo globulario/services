@@ -649,7 +649,7 @@ failure_modes:
       title: A linter/scanner reporting "0 findings" cannot be trusted as "clean" unless the rule is proven able to fire — a broken, mis-scoped, or dead rule reports zero exactly like clean code
     - architecture_fix: |
         Day-1 finalize MUST atomically clear the bootstrap flag as the LAST step (after
-        founding quorum verified, after sa password changed, after CA rotated). On controller
+        membership identity is bound, after sa password changed, after CA rotated). On controller
         startup, if day1_phase == ready AND bootstrap.enabled present, controller logs a
         critical warning, refuses to accept loopback RPCs, and emits the doctor finding.
       forbidden_fixes:
@@ -658,7 +658,7 @@ failure_modes:
       id: bootstrap.flag_persists_post_day_1
       related_invariants:
         - meta.silence_is_not_valid_for_unexpected
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
       related_services:
         - cluster-controller
         - node-agent
@@ -667,14 +667,14 @@ failure_modes:
         - TestControllerRefusesLoopbackWhenFlagPersistsPostDay1
       root_cause: |
         Bootstrap mode is gated by a flag file with a 30-min TTL. The day-1 join flow is
-        responsible for removing the flag once the cluster reaches founding quorum. If the
+        responsible for removing the flag once the node reaches authenticated cluster membership. If the
         join completed but the flag wasn't cleaned up, the cluster is in a permanent
         bootstrap-mode state — any localhost connection can perform unauthenticated mutations.
 
         Causes observed:
         - Crash in the day-1 finalize step before the cleanup ran
         - Manual operator intervention that re-created the flag without intent
-        - Bug in the founding-quorum classifier that left day-1 in a partial state
+        - Bug in the day-1 readiness classifier that left day-1 in a partial state
       severity: critical
       symptoms:
         - ls /var/lib/globular/bootstrap.enabled returns a file on a post-day-1 cluster
@@ -5474,7 +5474,7 @@ failure_modes:
       symptoms:
         - storage node removed below quorum by drift reconciler
         - MinIO erasure-coding pool loses redundancy without operator approval
-        - controller profile changed on node below founding quorum
+        - controller profile changed on node with reduced capacity posture
       title: Topology drift reconciler applies unsafe topology change
     - architecture_fix: |
         Three patterns work:

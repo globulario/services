@@ -57,12 +57,12 @@ func TestDeriveProfilesFromInstalled(t *testing.T) {
 	}
 }
 
-// TestMergeDefaultProfilesIntoDerived guards the fix for the founding-node
-// media-server drop: a fresh founder derives only [core,control-plane,storage]
+// TestMergeDefaultProfilesIntoDerived guards the fix for the bootstrap-node
+// media-server drop: a fresh node derives only [core,control-plane,storage]
 // from its installed core services, and the operator-seeded default_profiles
 // (core,media-server) must be merged in so the media stack is authorized and
 // installed — otherwise media never installs (chicken-and-egg) and its packages
-// orphan. Founding quorum (control-plane, storage) must survive the merge.
+// orphan. Derived placement intent must survive the merge.
 func TestMergeDefaultProfilesIntoDerived(t *testing.T) {
 	t.Parallel()
 
@@ -73,7 +73,7 @@ func TestMergeDefaultProfilesIntoDerived(t *testing.T) {
 		want     []string
 	}{
 		{
-			name:     "founding node: seeded media-server merged onto derived trio",
+			name:     "bootstrap node: seeded media-server merged onto derived profiles",
 			derived:  []string{"control-plane", "core", "storage"},
 			defaults: []string{"core", "media-server"},
 			want:     []string{"control-plane", "core", "storage", "media-server"},
@@ -85,7 +85,7 @@ func TestMergeDefaultProfilesIntoDerived(t *testing.T) {
 			want:     []string{"control-plane", "core", "storage"},
 		},
 		{
-			name:     "duplicates deduped, quorum preserved",
+			name:     "duplicates deduped, derived profiles preserved",
 			derived:  []string{"core", "control-plane", "storage"},
 			defaults: []string{"core", "storage", "media-server"},
 			want:     []string{"core", "control-plane", "storage", "media-server"},
@@ -101,8 +101,8 @@ func TestMergeDefaultProfilesIntoDerived(t *testing.T) {
 				t.Fatalf("mergeDefaultProfilesIntoDerived(%v, %v) = %v, want %v",
 					tc.derived, tc.defaults, got, tc.want)
 			}
-			// Founding-quorum invariant: control-plane + storage must never be
-			// dropped by the merge when present in the derived set.
+			// Derived placement profiles must never be dropped by the merge when
+			// present in the derived set.
 			for _, q := range []string{"control-plane", "storage"} {
 				inDerived := false
 				for _, p := range tc.derived {
@@ -111,7 +111,7 @@ func TestMergeDefaultProfilesIntoDerived(t *testing.T) {
 					}
 				}
 				if inDerived && !sameStrings(filterHas(got, q), []string{q}) {
-					t.Errorf("founding-quorum profile %q dropped by merge: got %v", q, got)
+					t.Errorf("derived profile %q dropped by merge: got %v", q, got)
 				}
 			}
 		})
@@ -119,7 +119,7 @@ func TestMergeDefaultProfilesIntoDerived(t *testing.T) {
 }
 
 // filterHas returns [p] if p is in xs, else empty — a tiny helper for the
-// quorum-preservation assertion above.
+// placement-preservation assertion above.
 func filterHas(xs []string, p string) []string {
 	for _, x := range xs {
 		if x == p {

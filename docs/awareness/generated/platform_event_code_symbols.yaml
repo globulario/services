@@ -60,6 +60,11 @@ test_symbols:
     package: main
     language: go
     doc: "TestBucketsFrom verifies the replay window calculation."
+  - id: golang/event/event_server/scylla_bus_test.go:TestIsLegacyQueryEventsSeqError
+    file: golang/event/event_server/scylla_bus_test.go
+    symbol: TestIsLegacyQueryEventsSeqError
+    package: main
+    language: go
   - id: golang/event/event_server/scylla_bus_test.go:TestMatchesChannel
     file: golang/event/event_server/scylla_bus_test.go
     symbol: TestMatchesChannel

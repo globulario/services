@@ -312,22 +312,34 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 			// but cannot distinguish SERVICE from INFRASTRUCTURE without the
 			// repository. To avoid creating a record under the wrong kind
 			// (which Phase 2 then cleans up, wiping build_id each cycle):
-			//   1. Check all kinds for an existing record — use that kind.
-			//   2. Fall back to the isDay0JoinInfra list for first-boot.
-			//   3. Default to SERVICE only if nothing else matches.
-			kind := ""
+			//   1. Use marker/registry kind when known.
+			//   2. Check all kinds for an existing record — use that kind.
+			//   3. Fall back to the isDay0JoinInfra list for first-boot.
+			//   4. Default to SERVICE only if nothing else matches.
+			kind := normalizeInstalledKind(info.Kind)
 			var existing *node_agentpb.InstalledPackage
-			for _, k := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
-				if rec, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, k, name); rec != nil {
-					existing = rec
-					kind = k
-					break
+			if kind != "" {
+				existing, _ = installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
+			} else {
+				for _, k := range authoritativeInstalledPackageKinds {
+					if rec, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, k, name); rec != nil {
+						existing = rec
+						kind = k
+						break
+					}
 				}
 			}
 			if kind == "" {
 				kind = "SERVICE"
 				if isDay0JoinInfra(name) {
 					kind = "INFRASTRUCTURE"
+				}
+			}
+			if kind != "SERVICE" {
+				if stale, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", name); stale != nil {
+					if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "SERVICE", name); err == nil {
+						log.Printf("nodeagent: removed stale SERVICE record for %s %s (was %s)", kind, name, stale.GetVersion())
+					}
 				}
 			}
 			if existing != nil {
@@ -394,12 +406,20 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 		}
 	}
 
+	// Phase 1.45: Reconstruct missing installed-state from the local package
+	// cache when the package manifest's entrypoint_checksum matches the
+	// installed binary. This covers Day-0/Day-1 installs that staged artifacts
+	// locally before repository RPC/auth was available and before kind/version
+	// marker sidecars existed.
+	srv.syncInstalledStateFromLocalPackageCache(ctx, now, platform, &synced)
+
 	// Phase 1.5: Detect partial-apply (binary replaced without state update).
 	// If a binary's SHA256 differs from the entrypoint_checksum in etcd but the
 	// version/build_id is unchanged, the binary was replaced out-of-band (e.g.
 	// manual scp or sudo install) without going through ApplyPackageRelease.
 	// Mark the record as PARTIAL_APPLY so the controller doesn't silently
 	// treat it as healthy.
+	srv.repairInstalledStateFromLocalPackageCache(ctx, now, platform)
 	srv.detectPartialApply(ctx, now)
 
 	// Phase 1.75 (Project B): Post-restart self-hosted runtime proof.
@@ -461,7 +481,7 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	// the marker, loadMarkers() won't discover them on the next heartbeat,
 	// causing the package to appear as "not installed" in health checks.
 	if srv.nodeID != "" {
-		for _, kind := range []string{"SERVICE", "COMMAND", "INFRASTRUCTURE"} {
+		for _, kind := range authoritativeInstalledPackageKinds {
 			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
 			if err != nil {
 				continue
@@ -1014,21 +1034,312 @@ func runtimeChecksumFromManifest(m *repositorypb.ArtifactManifest) string {
 	return digest.CanonicalSHA256(m.GetChecksum())
 }
 
+// repairInstalledStateFromLocalPackageCache handles the Day-0 direct-installer
+// path: the installer can replace binaries before the controller workflow path
+// exists. Repair is allowed only when the active local package manifest's
+// entrypoint_checksum exactly matches the on-disk binary. That keeps the
+// node-agent as installed-state writer without trusting a stale etcd record.
+func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx context.Context, now int64, platform string) {
+	if srv.nodeID == "" {
+		return
+	}
+	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+		pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
+		if err != nil {
+			continue
+		}
+		for _, pkg := range pkgs {
+			name := pkg.GetName()
+			version := pkg.GetVersion()
+			if name == "" || version == "" {
+				continue
+			}
+			manifestPath := localDistributionPackagePath(name, version, platform)
+			if manifestPath == "" {
+				continue
+			}
+			manifest := readArtifactManifestIdentity(manifestPath)
+			manifestEntry := digest.CanonicalSHA256(manifest.EntrypointChecksum)
+			if manifestEntry == "" || manifest.Name != name || manifest.Version != version {
+				continue
+			}
+			if manifest.Platform != "" && manifest.Platform != platform {
+				continue
+			}
+			if manifest.Kind != "" && manifest.Kind != kind {
+				continue
+			}
+			entryPath := binhash.EntrypointPath(manifest.Entrypoint)
+			if entryPath == "" {
+				entryPath = binhash.ResolveServiceBinaryPath(name, pkg.GetMetadata()["proof_binary_path"])
+			}
+			diskEntry := binhash.HashOrEmpty(entryPath)
+			if diskEntry == "" || !binhash.Equal(manifestEntry, diskEntry) {
+				continue
+			}
+			storedEntry := digest.CanonicalSHA256(pkg.GetMetadata()["entrypoint_checksum"])
+			if pkg.GetStatus() == "installed" &&
+				binhash.Equal(storedEntry, manifestEntry) &&
+				pkg.GetBuildId() == manifest.BuildID &&
+				pkg.GetBuildNumber() == manifest.BuildNumber {
+				continue
+			}
+
+			pkg.Status = "installed"
+			pkg.UpdatedUnix = now
+			pkg.Platform = platform
+			pkg.Checksum = manifestEntry
+			if manifest.Publisher != "" {
+				pkg.PublisherId = manifest.Publisher
+			}
+			if manifest.BuildID != "" {
+				pkg.BuildId = manifest.BuildID
+			}
+			if manifest.BuildNumber > 0 {
+				pkg.BuildNumber = manifest.BuildNumber
+			}
+			assignEntrypointChecksumMetadata(pkg, manifestEntry, diskEntry)
+			if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+				log.Printf("nodeagent: repair local package installed-state %s/%s: %v", kind, name, err)
+				continue
+			}
+			log.Printf("nodeagent: repaired installed-state %s/%s from local package cache %s (build_id=%s)",
+				kind, name, filepath.Base(manifestPath), manifest.BuildID)
+		}
+	}
+}
+
+// syncInstalledStateFromLocalPackageCache creates missing installed-state
+// records from locally staged packages only when package identity is proven by
+// an entrypoint checksum match against the on-disk binary. Cache presence alone
+// is not proof: this path must not turn arbitrary staged artifacts into
+// installed-state.
+func (srv *NodeAgentServer) syncInstalledStateFromLocalPackageCache(ctx context.Context, now int64, platform string, synced *int) {
+	if srv.nodeID == "" {
+		return
+	}
+	proofs := localPackageCacheProofs(platform)
+	for _, proof := range proofs {
+		if proof.Name == "" || proof.Version == "" || proof.Kind == "" {
+			continue
+		}
+		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, proof.Kind, proof.Name)
+		if existing != nil && existing.GetVersion() != "" {
+			if existing.GetBuildId() != "" {
+				continue
+			}
+			// Existing non-controller record is repaired by
+			// repairInstalledStateFromLocalPackageCache; this phase is for
+			// missing records.
+			continue
+		}
+
+		var stale *node_agentpb.InstalledPackage
+		for _, staleKind := range authoritativeInstalledPackageKinds {
+			if staleKind == proof.Kind {
+				continue
+			}
+			rec, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, staleKind, proof.Name)
+			if rec == nil {
+				continue
+			}
+			if rec.GetBuildId() != "" {
+				stale = nil
+				break
+			}
+			stale = rec
+			if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, staleKind, proof.Name); err == nil {
+				log.Printf("nodeagent: removed stale %s record for %s %s (was %s)",
+					staleKind, proof.Kind, proof.Name, rec.GetVersion())
+			}
+		}
+		if stale == nil {
+			stale = existing
+		}
+
+		pkg := &node_agentpb.InstalledPackage{
+			NodeId:        srv.nodeID,
+			Name:          proof.Name,
+			Version:       proof.Version,
+			PublisherId:   proof.PublisherID,
+			Platform:      platform,
+			Kind:          proof.Kind,
+			Checksum:      proof.ManifestEntrypointChecksum,
+			InstalledUnix: now,
+			UpdatedUnix:   now,
+			Status:        "installed",
+			BuildNumber:   proof.BuildNumber,
+			BuildId:       proof.BuildID,
+		}
+		if stale != nil && stale.GetInstalledUnix() > 0 {
+			pkg.InstalledUnix = stale.GetInstalledUnix()
+		}
+		assignEntrypointChecksumMetadata(pkg, proof.ManifestEntrypointChecksum, proof.DiskEntrypointChecksum)
+		if pkg.Metadata == nil {
+			pkg.Metadata = make(map[string]string)
+		}
+		pkg.Metadata["proof_source"] = "local_package_cache"
+		if proof.EntrypointPath != "" {
+			pkg.Metadata["proof_binary_path"] = proof.EntrypointPath
+		}
+		PreserveInstallReceiptMetadata(stale, pkg)
+		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+			log.Printf("nodeagent: sync installed-state from local package cache %s/%s: %v", proof.Kind, proof.Name, err)
+			continue
+		}
+		log.Printf("nodeagent: synced installed-state %s/%s from local package cache %s",
+			proof.Kind, proof.Name, filepath.Base(proof.ArtifactPath))
+		if synced != nil {
+			*synced++
+		}
+	}
+}
+
+type localPackageCacheProof struct {
+	ArtifactPath               string
+	Name                       string
+	Version                    string
+	Kind                       string
+	PublisherID                string
+	BuildID                    string
+	BuildNumber                int64
+	EntrypointPath             string
+	ManifestEntrypointChecksum string
+	DiskEntrypointChecksum     string
+}
+
+func localPackageCacheProofs(platform string) []localPackageCacheProof {
+	selected := make(map[string]localPackageCacheProof)
+	for _, dir := range localPackageDirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".tgz") {
+				continue
+			}
+			names = append(names, entry.Name())
+		}
+		sort.Strings(names)
+		for _, fileName := range names {
+			artifactPath := filepath.Join(dir, fileName)
+			manifest := readArtifactManifestIdentity(artifactPath)
+			proof := localPackageProofFromManifest(artifactPath, manifest, platform)
+			if proof.Name == "" {
+				continue
+			}
+			key := proof.Kind + "/" + proof.Name
+			if cur, ok := selected[key]; !ok || preferLocalPackageProof(proof, cur) {
+				selected[key] = proof
+			}
+		}
+	}
+	out := make([]localPackageCacheProof, 0, len(selected))
+	for _, proof := range selected {
+		out = append(out, proof)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func localPackageProofFromManifest(artifactPath string, manifest artifactManifestIdentity, platform string) localPackageCacheProof {
+	name := canonicalServiceName(manifest.Name)
+	if name == "" || manifest.Version == "" {
+		return localPackageCacheProof{}
+	}
+	if manifest.Platform != "" && platform != "" && manifest.Platform != platform {
+		return localPackageCacheProof{}
+	}
+	kind := normalizeInstalledKind(manifest.Kind)
+	if kind == "" {
+		kind = installedKindFromRegistry(name)
+	}
+	if kind == "" {
+		return localPackageCacheProof{}
+	}
+	manifestEntry := digest.CanonicalSHA256(manifest.EntrypointChecksum)
+	if manifestEntry == "" {
+		return localPackageCacheProof{}
+	}
+	entryPath := installedEntrypointPath(manifest.Entrypoint)
+	diskEntry := ""
+	if entryPath != "" {
+		diskEntry = binhash.HashOrEmpty(entryPath)
+	}
+	if !binhash.Equal(manifestEntry, diskEntry) && kind == "COMMAND" {
+		entryPath = commandBinaryPath(name)
+		if entryPath != "" {
+			diskEntry = binhash.HashOrEmpty(entryPath)
+		}
+	}
+	if !binhash.Equal(manifestEntry, diskEntry) {
+		return localPackageCacheProof{}
+	}
+	return localPackageCacheProof{
+		ArtifactPath:               artifactPath,
+		Name:                       name,
+		Version:                    manifest.Version,
+		Kind:                       kind,
+		PublisherID:                manifest.Publisher,
+		BuildID:                    manifest.BuildID,
+		BuildNumber:                manifest.BuildNumber,
+		EntrypointPath:             entryPath,
+		ManifestEntrypointChecksum: manifestEntry,
+		DiskEntrypointChecksum:     diskEntry,
+	}
+}
+
+func installedEntrypointPath(entrypoint string) string {
+	e := strings.TrimSpace(entrypoint)
+	if e == "" || e == "none" {
+		return ""
+	}
+	base := filepath.Base(e)
+	if base == "." || base == string(filepath.Separator) {
+		return ""
+	}
+	return filepath.Join(globularBinDir, base)
+}
+
+func preferLocalPackageProof(next, cur localPackageCacheProof) bool {
+	cmp, err := versionutil.Compare(next.Version, cur.Version)
+	if err == nil && cmp != 0 {
+		return cmp > 0
+	}
+	if err != nil && next.Version != cur.Version {
+		return next.Version > cur.Version
+	}
+	if next.BuildNumber != cur.BuildNumber {
+		return next.BuildNumber > cur.BuildNumber
+	}
+	return next.ArtifactPath < cur.ArtifactPath
+}
+
+func localDistributionPackagePath(name, version, platform string) string {
+	if name == "" || version == "" || platform == "" {
+		return ""
+	}
+	for _, dir := range localPackageDirs {
+		path := filepath.Join(dir, fmt.Sprintf("%s_%s_%s.tgz", name, version, platform))
+		if st, err := os.Stat(path); err == nil && !st.IsDir() {
+			return path
+		}
+	}
+	return ""
+}
+
 // commandBinaryExists checks whether a COMMAND package's binary is installed
 // on disk. It strips the "-cmd" suffix (used in artifact names) and probes
 // the standard binary locations.
 func commandBinaryExists(name string) bool {
-	bin := strings.TrimSuffix(name, "-cmd")
-	for _, dir := range []string{"/usr/local/bin", "/usr/lib/globular/bin"} {
-		if _, err := os.Stat(filepath.Join(dir, bin)); err == nil {
-			return true
-		}
-	}
-	// Also check PATH as a fallback
-	if _, err := exec.LookPath(bin); err == nil {
-		return true
-	}
-	return false
+	return commandBinaryPath(name) != ""
 }
 
 // detectPartialApply checks for binary replacement without state update.

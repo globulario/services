@@ -1,0 +1,20 @@
+# programming required-evidence catalog — the evidence slots principles demand.
+# Generic shape: id + title + opaque fields. `lane` marks trust provenance:
+# `recorded` = an authoritative result row must back it; `self_asserted` = the
+# caller's bare claim, kept visible but weaker. The kernel never conflates the two.
+- id: evidence.prog.tests_pass
+  title: Covering tests pass for the change
+  lane: recorded
+  predicate: CI reports the change's covering tests green
+- id: evidence.prog.contract_compat_checked
+  title: Backward-compatibility of the interface was checked
+  lane: recorded
+  predicate: a compatibility check confirms no breaking change vs the published spec
+- id: evidence.prog.backup_verified
+  title: A restorable backup exists and was verified
+  lane: recorded
+  predicate: a backup for the affected store was taken and its restore was verified
+- id: evidence.prog.codeowner_approval
+  title: The owning maintainer approved the change
+  lane: recorded
+  predicate: a CODEOWNERS-designated maintainer approved the change

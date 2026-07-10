@@ -85,12 +85,11 @@ const (
 	// these — they are managed by dedicated bootstrap/join logic.
 	InstallModeDay0Join = "day0_join"
 
-	// InstallModeTopologyWorkflow means the component requires a quorum
-	// precondition (e.g. MinIO needs 3 storage nodes) and is installed by
-	// a dedicated topology workflow, NOT the node.join workflow. Including
-	// these in install_mesh would cause the join workflow to fail immediately
-	// on a freshly admitted node. The join workflow intentionally omits them;
-	// the topology workflow installs them once quorum is achievable.
+	// InstallModeTopologyWorkflow means the component is installed by a
+	// dedicated topology workflow, NOT the node.join workflow. Including these
+	// in install_mesh would cause the join workflow to run the wrong installer.
+	// The join workflow intentionally omits them; the topology workflow owns
+	// their component-specific convergence.
 	InstallModeTopologyWorkflow = "topology_workflow"
 )
 
@@ -485,7 +484,7 @@ func buildCatalog() []*Component {
 			Name:                     "ai-memory",
 			Unit:                     "globular-ai-memory.service",
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
+			Profiles:                 []string{"control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"scylladb", "event"},
 			PlatformDefault:          true,
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-ai-memory.service", Port: 10200},
@@ -494,7 +493,7 @@ func buildCatalog() []*Component {
 			Name:                     "ai-executor",
 			Unit:                     "globular-ai-executor.service",
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
+			Profiles:                 []string{"control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"ai-memory", "event"},
 			PlatformDefault:          true,
 		},
@@ -510,7 +509,7 @@ func buildCatalog() []*Component {
 			Name:                     "ai-watcher",
 			Unit:                     "globular-ai-watcher.service",
 			Priority:                 1000,
-			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
+			Profiles:                 []string{"control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"ai-executor", "event"},
 			PlatformDefault:          true,
 		},
@@ -518,7 +517,7 @@ func buildCatalog() []*Component {
 			Name:                     "workflow",
 			Unit:                     "globular-workflow.service",
 			Priority:                 900, // before other AI services that may record to it
-			Profiles:                 []string{"core", "compute", "control-plane", "scylla", "database"},
+			Profiles:                 []string{"control-plane", "scylla", "database"},
 			RuntimeLocalDependencies: []string{"scylladb", "event"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-workflow.service", Port: 10220},
 			ControlPlaneCritical:     true,
@@ -560,7 +559,7 @@ func buildCatalog() []*Component {
 		{
 			Name:                     "sctool",
 			Priority:                 900,
-			Profiles:                 []string{"core", "compute", "control-plane"},
+			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"scylla-manager"},
 		},
 		{
@@ -642,7 +641,7 @@ func buildCatalog() []*Component {
 			Name:                     "scylla-manager",
 			Unit:                     "globular-scylla-manager.service",
 			Priority:                 12,
-			Profiles:                 []string{"core", "compute", "control-plane"},
+			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager.service", Port: 5080},
 		},
@@ -650,7 +649,7 @@ func buildCatalog() []*Component {
 			Name:                     "scylla-manager-agent",
 			Unit:                     "globular-scylla-manager-agent.service",
 			Priority:                 12,
-			Profiles:                 []string{"core", "compute", "control-plane"},
+			Profiles:                 []string{"control-plane"},
 			RuntimeLocalDependencies: []string{"scylladb"},
 			HealthCheck:              &HealthCheckHintC{Unit: "globular-scylla-manager-agent.service", Port: 10001},
 		},

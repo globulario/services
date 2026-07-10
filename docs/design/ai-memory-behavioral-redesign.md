@@ -448,7 +448,7 @@ spelled out: `authorities`, `conditions`, `forbidden_moves`, `required_evidence`
 - **Forbidden moves** (`forbidden_moves.yaml`): `forbidden.cluster.restart_before_quorum_check`,
   `forbidden.cluster.minio_drive_count_change_without_mirror`,
   `forbidden.cluster.claim_recovery_without_authoritative_evidence`. These map to existing
-  hard-won lessons already in MEMORY.md (the MinIO `format.json` blast radius, founding quorum,
+  hard-won lessons already in MEMORY.md (the MinIO `format.json` blast radius, capacity posture,
   "no recovery claim without evidence").
 - **Required evidence + probes** (`evidence_probes.go`): maps a `RequiredEvidenceRef` to a typed
   runtime call (the existing `infra_probe_*` / `cluster_get_*` MCP/gRPC surface). This is the

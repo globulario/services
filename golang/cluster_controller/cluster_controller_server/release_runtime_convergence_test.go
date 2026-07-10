@@ -128,6 +128,7 @@ func TestHasUnservedNodes_VersionMatchButRuntimeInactive(t *testing.T) {
 				"n1": {
 					NodeID:            "n1",
 					BootstrapPhase:    BootstrapWorkloadReady,
+					Profiles:          []string{"core"},
 					InstalledVersions: map[string]string{"rbac": "1.2.3"},
 					Units: []unitStatusRecord{
 						{Name: "globular-rbac.service", State: "inactive"},
@@ -161,6 +162,7 @@ func TestHasUnservedNodes_VersionMatchAndRuntimeActive(t *testing.T) {
 				"n1": {
 					NodeID:            "n1",
 					BootstrapPhase:    BootstrapWorkloadReady,
+					Profiles:          []string{"core"},
 					InstalledVersions: map[string]string{"rbac": "1.2.3"},
 					Units: []unitStatusRecord{
 						{Name: "globular-rbac.service", State: "active"},
@@ -198,6 +200,7 @@ func TestHasUnservedNodes_MissingBuildIDIsUnserved(t *testing.T) {
 				"n1": {
 					NodeID:            "n1",
 					BootstrapPhase:    BootstrapWorkloadReady,
+					Profiles:          []string{"core"},
 					InstalledVersions: map[string]string{"rbac": "1.2.3"},
 					Units: []unitStatusRecord{
 						{Name: "globular-rbac.service", State: "active"},
@@ -222,5 +225,78 @@ func TestHasUnservedNodes_MissingBuildIDIsUnserved(t *testing.T) {
 
 	if !srv.hasUnservedNodes(h, map[string]struct{}{}) {
 		t.Fatal("expected unserved=true when the build-backed release has no resolved build_id (missing build identity)")
+	}
+}
+
+// Regression (2026-07-10): hasUnservedNodes counted profile-ineligible nodes
+// as unserved while selectReleaseTargets excluded them from dispatch, so
+// media-server releases (title/media/torrent) cycled PENDING → dispatch →
+// AVAILABLE → PENDING forever once a non-media-server node reached
+// workload_ready. The two layers MUST share the same profile eligibility.
+func TestHasUnservedNodes_ProfileIneligibleNodeIsNotUnserved(t *testing.T) {
+	srv := &server{
+		state: &controllerState{
+			Nodes: map[string]*nodeState{
+				// workload_ready, healthy, heartbeating — but no media-server
+				// profile, so the dispatch path will never target it.
+				"nuc": {
+					NodeID:         "nuc",
+					Status:         "ready",
+					Profiles:       []string{"control-plane", "core", "gateway", "storage"},
+					BootstrapPhase: BootstrapWorkloadReady,
+					LastSeen:       time.Now(),
+				},
+			},
+		},
+	}
+
+	h := &releaseHandle{
+		Name:               "core@globular.io/title",
+		ResourceType:       "ServiceRelease",
+		InstalledStateKind: "SERVICE",
+		InstalledStateName: "title",
+		ResolvedVersion:    "1.2.272",
+		Nodes:              []*cluster_controllerpb.NodeReleaseStatus{},
+	}
+
+	if srv.hasUnservedNodes(h, map[string]struct{}{}) {
+		t.Fatal("a node whose profiles do not authorize the component must not count as unserved (dispatch will never target it)")
+	}
+}
+
+// Regression (2026-07-10): keepalived (Optional, runtime reconciled by the
+// ingress/VRRP path, not the release pipeline) was counted unserved because
+// its unit was inactive even though the installed version matched — endless
+// re-dispatch on nodes where the unit is legitimately not running.
+func TestHasUnservedNodes_OptionalComponentServedOnVersionMatch(t *testing.T) {
+	srv := &server{
+		state: &controllerState{
+			Nodes: map[string]*nodeState{
+				"n1": {
+					NodeID:            "n1",
+					Status:            "ready",
+					Profiles:          []string{"control-plane"},
+					BootstrapPhase:    BootstrapWorkloadReady,
+					InstalledVersions: map[string]string{"keepalived": "2.2.8"},
+					Units: []unitStatusRecord{
+						{Name: "keepalived.service", State: "inactive"},
+					},
+					LastSeen: time.Now(),
+				},
+			},
+		},
+	}
+
+	h := &releaseHandle{
+		Name:               "core@globular.io/keepalived",
+		ResourceType:       "InfrastructureRelease",
+		InstalledStateKind: "INFRASTRUCTURE",
+		InstalledStateName: "keepalived",
+		ResolvedVersion:    "2.2.8",
+		Nodes:              []*cluster_controllerpb.NodeReleaseStatus{},
+	}
+
+	if srv.hasUnservedNodes(h, map[string]struct{}{}) {
+		t.Fatal("an Optional component installed at the resolved version must count as served even when its unit is inactive")
 	}
 }

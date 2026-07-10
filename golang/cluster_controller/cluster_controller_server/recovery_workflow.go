@@ -127,14 +127,7 @@ func (srv *server) recoveryCheckClusterSafety(ctx context.Context, nodeID string
 	for _, p := range target.Profiles {
 		switch p {
 		case "storage":
-			if storageCount <= 3 && !force {
-				return nil, fmt.Errorf(
-					"node %s is one of only %d storage nodes — removing it risks MinIO/ScyllaDB quorum loss. Use --force to override",
-					nodeID, storageCount)
-			}
-			if storageCount <= 3 {
-				warnings = append(warnings, fmt.Sprintf("storage quorum marginal: only %d storage nodes remaining", storageCount-1))
-			}
+			warnings = append(warnings, fmt.Sprintf("removing storage-profile node leaves %d storage node(s)", storageCount-1))
 		case "control-plane":
 			if controlPlaneCount <= 1 && !force {
 				return nil, fmt.Errorf(
@@ -431,19 +424,19 @@ func (srv *server) recoveryReseed(ctx context.Context, nodeID string, exactRequi
 		// Record start.
 		startedAt := time.Now().UTC()
 		result := &cluster_controllerpb.NodeRecoveryArtifactResult{
-			WorkflowID:       st.WorkflowID,
-			SnapshotID:       st.SnapshotID,
-			NodeID:           nodeID,
-			PublisherID:      art.PublisherID,
-			Name:             art.Name,
-			Kind:             art.Kind,
-			RequestedVersion: art.Version,
-			RequestedBuildID: art.BuildID,
+			WorkflowID:        st.WorkflowID,
+			SnapshotID:        st.SnapshotID,
+			NodeID:            nodeID,
+			PublisherID:       art.PublisherID,
+			Name:              art.Name,
+			Kind:              art.Kind,
+			RequestedVersion:  art.Version,
+			RequestedBuildID:  art.BuildID,
 			RequestedChecksum: art.Checksum,
-			Order:            int32(i),
-			Source:           "SNAPSHOT_EXACT",
-			Status:           cluster_controllerpb.RecoveryArtifactStatusInstalling,
-			StartedAt:        startedAt,
+			Order:             int32(i),
+			Source:            "SNAPSHOT_EXACT",
+			Status:            cluster_controllerpb.RecoveryArtifactStatusInstalling,
+			StartedAt:         startedAt,
 		}
 		if art.BuildID == "" {
 			result.Source = "REPOSITORY_RESOLVED"
@@ -569,7 +562,7 @@ func (srv *server) recoveryVerifyRuntime(ctx context.Context, nodeID string) err
 	}
 
 	// Check for stuck packages.
-	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+	for _, kind := range authoritativeInstalledPackageKinds {
 		pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, kind)
 		if err != nil {
 			continue

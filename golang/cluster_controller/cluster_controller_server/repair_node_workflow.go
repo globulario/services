@@ -61,17 +61,17 @@ const (
 
 // PackageRepairIntent describes what action to take for a single package.
 type PackageRepairIntent struct {
-	Name             string `json:"name"`
-	Kind             string `json:"kind"`              // SERVICE, INFRASTRUCTURE, COMMAND
-	Action           string `json:"action"`             // reinstall, restart, verify_only, skip
-	ExpectedVersion  string `json:"expected_version"`
-	ExpectedBuildNum int64  `json:"expected_build_number"`
-	ExpectedBuildID  string `json:"expected_build_id"`
-	ExpectedChecksum string `json:"expected_checksum"`   // from repo manifest
+	Name              string `json:"name"`
+	Kind              string `json:"kind"`   // SERVICE, INFRASTRUCTURE, COMMAND
+	Action            string `json:"action"` // reinstall, restart, verify_only, skip
+	ExpectedVersion   string `json:"expected_version"`
+	ExpectedBuildNum  int64  `json:"expected_build_number"`
+	ExpectedBuildID   string `json:"expected_build_id"`
+	ExpectedChecksum  string `json:"expected_checksum"`  // from repo manifest
 	ReferenceChecksum string `json:"reference_checksum"` // from reference node (validation)
-	CurrentVersion   string `json:"current_version"`     // what broken node has
-	CurrentChecksum  string `json:"current_checksum"`    // what broken node binary is
-	DriftReason      string `json:"drift_reason"`        // version_mismatch, checksum_mismatch, partial_apply, missing, not_installed
+	CurrentVersion    string `json:"current_version"`    // what broken node has
+	CurrentChecksum   string `json:"current_checksum"`   // what broken node binary is
+	DriftReason       string `json:"drift_reason"`       // version_mismatch, checksum_mismatch, partial_apply, missing, not_installed
 }
 
 // RepairPlan is the structured output of the classify step.
@@ -111,10 +111,11 @@ func ValidateRepairPlan(plan map[string]any) error {
 // Lower number = repaired first.
 //
 // Default priority:
-//   0: controller (must be safe before anything else)
-//   1: node-agent (must be safe before it can apply other packages)
-//   2: infrastructure (etcd, envoy, xds, gateway, minio, etc.)
-//   3: services (everything else)
+//
+//	0: controller (must be safe before anything else)
+//	1: node-agent (must be safe before it can apply other packages)
+//	2: infrastructure (etcd, envoy, xds, gateway, minio, etc.)
+//	3: services (everything else)
 //
 // The classifier may refine intra-class ordering dynamically from
 // dependency/runtime facts collected from the reference node.
@@ -187,7 +188,7 @@ func (srv *server) buildNodeRepairAgentConfig() engine.NodeRepairAgentConfig {
 func (srv *server) repairCollectFactsFromEtcd(ctx context.Context, nodeID string) (map[string]any, error) {
 	var packageFacts []map[string]any
 
-	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+	for _, kind := range authoritativeInstalledPackageKinds {
 		pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, kind)
 		if err != nil {
 			continue
@@ -368,7 +369,7 @@ func (srv *server) resolveManifestEntrypointChecksumForRepair(ctx context.Contex
 // the controller's view of the node (etcd installed-state + heartbeat data).
 func (srv *server) repairVerifyRuntimeFromController(ctx context.Context, nodeID string) error {
 	// Check all packages are in "installed" state.
-	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+	for _, kind := range authoritativeInstalledPackageKinds {
 		pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, kind)
 		if err != nil {
 			continue
@@ -446,7 +447,7 @@ func (srv *server) repairClassify(ctx context.Context, nodeID string, diagnosis 
 	var packages []PackageRepairIntent
 	controllerRepairRequired := false
 
-	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+	for _, kind := range authoritativeInstalledPackageKinds {
 		pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, kind)
 		if err != nil {
 			continue
@@ -518,13 +519,13 @@ func (srv *server) repairClassify(ctx context.Context, nodeID string, diagnosis 
 		}
 		kind, name := parts[0], parts[1]
 		packages = append(packages, PackageRepairIntent{
-			Name:            name,
-			Kind:            kind,
-			Action:          "reinstall",
-			ExpectedVersion: dv.version,
+			Name:             name,
+			Kind:             kind,
+			Action:           "reinstall",
+			ExpectedVersion:  dv.version,
 			ExpectedBuildNum: dv.buildNumber,
-			ExpectedBuildID: dv.buildID,
-			DriftReason:     "not_installed",
+			ExpectedBuildID:  dv.buildID,
+			DriftReason:      "not_installed",
 		})
 		if name == "cluster-controller" {
 			controllerRepairRequired = true
@@ -582,12 +583,12 @@ func (srv *server) repairClassify(ctx context.Context, nodeID string, diagnosis 
 	// Convert to map for workflow output.
 	result := map[string]any{
 		"repair_mode":                string(plan.RepairMode),
-		"node_id":                   plan.NodeID,
-		"reference_node_id":         plan.ReferenceNodeID,
-		"packages":                  plan.Packages,
+		"node_id":                    plan.NodeID,
+		"reference_node_id":          plan.ReferenceNodeID,
+		"packages":                   plan.Packages,
 		"controller_repair_required": plan.ControllerRepairRequired,
-		"identity_action":           plan.IdentityAction,
-		"priority_order":            plan.PriorityOrder,
+		"identity_action":            plan.IdentityAction,
+		"priority_order":             plan.PriorityOrder,
 	}
 
 	log.Printf("node-repair: classified %s — %d packages to repair, controller_repair=%v, identity=%s",
@@ -638,6 +639,7 @@ func (srv *server) repairEmitRecovered(ctx context.Context, nodeID string) error
 // validateReferenceNode checks that the reference node is healthy, converged,
 // and running a safe controller version. Returns an error if the reference
 // is not suitable for repair planning.
+//
 //globular:expects_hash_schema installed_services_hash
 func (srv *server) validateReferenceNode(ctx context.Context, referenceNodeID string) error {
 	srv.lock("validateReferenceNode")

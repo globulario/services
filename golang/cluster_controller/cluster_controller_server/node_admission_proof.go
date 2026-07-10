@@ -161,17 +161,9 @@ func EvaluateNodeAdmissionProof(state *controllerState, node *nodeState) NodeAdm
 	}
 
 	// ── JoinPlan correlation ───────────────────────────────────────────────────
-	// Find the join request whose AssignedNodeID matches this node. This is the
-	// O(n) lookup path; clusters rarely have more than a few hundred join records.
-	var joinReq *joinRequestRecord
-	if state != nil {
-		for _, jr := range state.JoinRequests {
-			if jr != nil && jr.AssignedNodeID == node.NodeID {
-				joinReq = jr
-				break
-			}
-		}
-	}
+	// Find the current join request for this node. A node can have stale records
+	// from failed or retried authorizations, so selection must be deterministic.
+	joinReq := latestJoinRequestForNode(state, node.NodeID)
 
 	proof.HasJoinPlan = joinReq != nil && len(joinReq.JoinPlanJSON) > 0
 
@@ -356,6 +348,26 @@ func EvaluateNodeAdmissionProof(state *controllerState, node *nodeState) NodeAdm
 		Details:   details,
 		CheckedAt: now,
 	}
+}
+
+func latestJoinRequestForNode(state *controllerState, nodeID string) *joinRequestRecord {
+	if state == nil || nodeID == "" {
+		return nil
+	}
+	var latest *joinRequestRecord
+	for _, jr := range state.JoinRequests {
+		if jr == nil || jr.AssignedNodeID != nodeID {
+			continue
+		}
+		if latest == nil || jr.RequestedAt.After(latest.RequestedAt) {
+			latest = jr
+			continue
+		}
+		if jr.RequestedAt.Equal(latest.RequestedAt) && jr.RequestID > latest.RequestID {
+			latest = jr
+		}
+	}
+	return latest
 }
 
 // profilesConsistent reports whether nodeProfiles and planProfiles contain

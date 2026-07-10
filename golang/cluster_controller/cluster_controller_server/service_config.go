@@ -41,12 +41,12 @@ type etcdMemberState struct {
 
 // serviceConfigContext contains everything needed to render a service config for a specific node.
 type serviceConfigContext struct {
-	Membership       *clusterMembership
-	CurrentNode      *memberNode
-	ClusterID        string
-	Domain           string
-	ExternalDomain   string // Public external domain (e.g., "globular.cloud") for ingress routing
-	EtcdState        *etcdMemberState
+	Membership         *clusterMembership
+	CurrentNode        *memberNode
+	ClusterID          string
+	Domain             string
+	ExternalDomain     string // Public external domain (e.g., "globular.cloud") for ingress routing
+	EtcdState          *etcdMemberState
 	MinioPoolNodes     []string          // ordered, append-only list of MinIO node IPs
 	MinioCredentials   *minioCredentials // cluster-scoped MinIO root credentials
 	MinioNodePaths     map[string]string // IP → base data path (default: /var/lib/globular/minio)
@@ -72,12 +72,9 @@ var profilesForXDS = []string{"control-plane", "gateway"}
 var profilesForDNS = []string{"core", "compute", "control-plane", "dns"}
 
 // profilesForScyllaDB lists the profiles that run ScyllaDB.
-// Includes "core" because the ScyllaDB infrastructure release installs on core
-// nodes (see scylladb_service.yaml profiles), so the controller must also render
-// config for those nodes. Without this, core nodes get ScyllaDB installed but
-// no controller-rendered scylla.yaml, forcing the post-install to generate a
-// self-only fallback that breaks cluster join.
-var profilesForScyllaDB = []string{"core", "compute", "control-plane", "scylla", "database"}
+// Core is intentionally excluded; local-db placement belongs to
+// control-plane/storage/scylla/database.
+var profilesForScyllaDB = []string{"control-plane", "storage", "scylla", "database"}
 
 // nodeHasProfile returns true if the node has at least one of the given profiles.
 func nodeHasProfile(node *memberNode, profiles []string) bool {
@@ -676,10 +673,10 @@ func renderJSON(data map[string]interface{}) (string, error) {
 // rendererSpec describes a single service configuration renderer.
 type rendererSpec struct {
 	name         string
-	profiles     []string                                     // profiles that activate this renderer
-	outputs      []string                                     // file paths this renderer writes
-	restartUnits []string                                     // units to restart when output changes
-	render       func(*serviceConfigContext) (string, bool)   // rendering function
+	profiles     []string                                   // profiles that activate this renderer
+	outputs      []string                                   // file paths this renderer writes
+	restartUnits []string                                   // units to restart when output changes
+	render       func(*serviceConfigContext) (string, bool) // rendering function
 }
 
 // profilesForEtcdEndpoints — every profile needs to know where etcd is.

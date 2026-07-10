@@ -1,8 +1,7 @@
 // @awareness namespace=globular.platform
 // @awareness component=platform_cluster_controller.handlers_join_authorization
-// @awareness file_role=v2_join_signed_joinplan_issuer_with_founding_quorum_and_profile_policy
+// @awareness file_role=v2_join_signed_joinplan_issuer_with_profile_policy
 // @awareness implements=globular.platform:intent.controller.join_lifecycle_fsm_gates_cluster_decisions
-// @awareness enforces=globular.platform:invariant.founding.quorum.three_nodes_required
 // @awareness risk=critical
 package main
 
@@ -11,16 +10,14 @@ package main
 // stable identity; this handler:
 //
 //   - verifies the token
-//   - enforces cluster policy (founding quorum: first 3 nodes MUST
-//     carry core+control-plane+storage; profile assignment per
-//     enforceFoundingProfiles())
+//   - applies controller-owned profile assignment policy
 //   - issues a signed JoinPlan (TTL 2 h)
 //
 // The installer MUST validate the plan signature before any
 // cluster-affecting step. Bypassing signature validation collapses
 // the join trust model into "whoever can reach the controller can
-// join" — anchoring this handler to controller.join_lifecycle_fsm
-// and the founding.quorum invariant makes that boundary explicit.
+// join" — anchoring this handler to controller.join_lifecycle_fsm makes that
+// boundary explicit.
 
 import (
 	"context"
@@ -31,6 +28,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/component_catalog"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,9 +39,8 @@ const joinPlanTTL = 2 * time.Hour
 
 // RequestJoinAuthorization is the v2 join path. The installer calls this RPC
 // with a join token and its stable identity; the controller verifies the token,
-// enforces cluster policy (founding quorum, profile assignment), and returns a
-// signed JoinPlan. The installer must validate the plan before executing any
-// cluster-affecting step.
+// applies profile assignment policy, and returns a signed JoinPlan. The installer
+// must validate the plan before executing any cluster-affecting step.
 //
 // The gateway MUST NOT invent profiles, etcd intent, or release identity. It
 // is only a courier — it forwards this request and returns the response.
@@ -136,8 +133,8 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 	// BEFORE init (ClusterUID == "") the token secret + the gRPC interceptor are
 	// the gates and unbound is expected — the Day-0 bootstrap window is not
 	// steady-state auth (intent:bootstrap.window_is_not_steady_state_auth). This
-	// does not weaken founding-quorum join: the mint backfill binds the founding
-	// config token atomically with ClusterUID, so nodes 2/3 present a bound token.
+	// does not weaken membership identity: the mint backfill binds the bootstrap
+	// config token atomically with ClusterUID, so later nodes present a bound token.
 	if srv.state.ClusterUID != "" {
 		if strings.TrimSpace(jt.ClusterUID) == "" {
 			srv.unlock()
@@ -171,9 +168,29 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 	}
 
 	caps := &cluster_controllerpb.NodeCapabilities{
-		CpuCount:  req.CPUCount,
-		RamBytes:  req.RAMBytes,
-		DiskBytes: req.DiskBytes,
+		CpuCount:      req.CPUCount,
+		RamBytes:      req.RAMBytes,
+		DiskBytes:     req.DiskBytes,
+		DiskFreeBytes: req.DiskFreeBytes,
+	}
+	requestedProfiles := component_catalog.NormalizeProfiles(req.RequestedProfiles)
+	if len(req.RequestedProfiles) > 0 {
+		if unknown := component_catalog.UnknownProfiles(req.RequestedProfiles); len(unknown) > 0 {
+			srv.unlock()
+			return &JoinAuthorizationResponse{
+				Allowed:      false,
+				DeniedReason: fmt.Sprintf("unknown requested_profiles %v (known profiles: %v)", unknown, component_catalog.ProfileNames()),
+				JoinID:       joinID,
+			}, nil
+		}
+		if len(requestedProfiles) == 0 {
+			srv.unlock()
+			return &JoinAuthorizationResponse{
+				Allowed:      false,
+				DeniedReason: "requested_profiles resolved to no installable profiles",
+				JoinID:       joinID,
+			}, nil
+		}
 	}
 
 	jr := &joinRequestRecord{
@@ -184,6 +201,7 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 		RequestedAt:       time.Now(),
 		Status:            "pending",
 		LifecyclePhase:    JoinPhaseRequested,
+		Capabilities:      capsToStored(caps),
 		SuggestedProfiles: deduceProfiles(caps, countNodesWithProfile(srv.state.Nodes, "storage")),
 	}
 	srv.state.JoinRequests[joinID] = jr
@@ -200,8 +218,8 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 		}, nil
 	}
 
-	// Approve: assign profiles (enforcing founding quorum), assign node_id.
-	srv.approveJoinRecordLocked(jr, nil)
+	// Approve: assign profiles and node_id.
+	srv.approveJoinRecordLocked(jr, requestedProfiles)
 
 	// Build and sign the JoinPlan now that profiles and node_id are determined.
 	plan, err := srv.buildJoinPlan(jr)
@@ -250,7 +268,7 @@ func (srv *server) buildJoinPlan(jr *joinRequestRecord) (*JoinPlan, error) {
 
 	plan := &JoinPlan{
 		JoinID:               jr.RequestID,
-		ClusterID:            clusterID,           // namespace (domain)
+		ClusterID:            clusterID,            // namespace (domain)
 		ClusterUID:           srv.state.ClusterUID, // membership identity (signed)
 		ControllerGeneration: generation,
 		IssuedAt:             time.Now(),
@@ -294,18 +312,21 @@ func protoToJoinAuthRequest(req *cluster_controllerpb.JoinAuthorizationRequest) 
 	}
 	caps := req.GetCapabilities()
 	r := &JoinAuthorizationRequest{
-		JoinToken:         strings.TrimSpace(req.GetJoinToken()),
-		Identity:          id,
-		Labels:            copyLabels(req.GetLabels()),
-		Nonce:             req.GetNonce(),
-		InstallerVersion:  req.GetInstallerVersion(),
+		JoinToken:        strings.TrimSpace(req.GetJoinToken()),
+		Identity:         id,
+		Labels:           copyLabels(req.GetLabels()),
+		Nonce:            req.GetNonce(),
+		InstallerVersion: req.GetInstallerVersion(),
 		ClusterID:        strings.TrimSpace(req.GetClusterId()),
 		ClusterUID:       strings.TrimSpace(req.GetClusterUid()),
+		RequestedProfiles: append([]string(nil),
+			req.GetRequestedProfiles()...),
 	}
 	if caps != nil {
 		r.CPUCount = caps.GetCpuCount()
 		r.RAMBytes = caps.GetRamBytes()
 		r.DiskBytes = caps.GetDiskBytes()
+		r.DiskFreeBytes = caps.GetDiskFreeBytes()
 	}
 	return r
 }
