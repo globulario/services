@@ -1161,16 +1161,33 @@ func (srv *server) enqueueReleasesForConvergingNodes(ctx context.Context) {
 		return
 	}
 	count := 0
+	skipped := 0
 	for _, obj := range items {
 		rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
-		if !ok || rel.Meta == nil {
+		if !ok || rel.Meta == nil || rel.Spec == nil || rel.Status == nil {
+			continue
+		}
+		// Only re-enqueue releases that actually have an unserved eligible node.
+		// The unconditional sweep re-listed every ServiceRelease every 120s for as
+		// long as any node was converging (i.e. the whole Day-0/Day-1 window),
+		// keeping the dispatch pipeline saturated against already-served releases
+		// and feeding the workflow-backend pressure that trips the dispatch circuit
+		// breaker. hasUnservedNodes is the same predicate retryFailedInfraReleases
+		// uses; it returns true precisely for the rollout.partial_not_converged
+		// case this sweep exists to catch (a ready node the release does not yet
+		// track), so gating on it preserves the safety net while dropping the
+		// wasted churn. convergenceBlockedNodes MUST be computed here — outside
+		// hasUnservedNodes' internal server lock — because it performs etcd I/O.
+		h := srv.svcReleaseHandle(rel)
+		if !srv.hasUnservedNodes(h, srv.convergenceBlockedNodes(ctx, h.InstalledStateName)) {
+			skipped++
 			continue
 		}
 		srv.releaseEnqueue(rel.Meta.Name)
 		count++
 	}
-	if count > 0 {
-		log.Printf("enqueueReleasesForConvergingNodes: enqueued %d service releases for converging node check", count)
+	if count > 0 || skipped > 0 {
+		log.Printf("enqueueReleasesForConvergingNodes: enqueued %d service releases (skipped %d already-served) for converging node check", count, skipped)
 	}
 }
 
