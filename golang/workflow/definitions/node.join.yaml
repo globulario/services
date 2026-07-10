@@ -4,8 +4,9 @@ metadata:
   name: node.join
   displayName: Day-1 node join and converge
   description: >-
-    Full Day-1 flow: after a node is admitted, install all packages in
-    dependency order with parallelism within each tier. Replaces the
+    Full Day-1 flow: after a node is admitted, install the packages its
+    profiles claim (placement authority: component_catalog/profilemap.go)
+    in dependency order with parallelism within each tier. Replaces the
     one-plan-per-30s-cycle reconciler with a single workflow run that
     completes in minutes, not tens of minutes.
 spec:
@@ -26,9 +27,15 @@ spec:
         type: array
         items: { type: string }
       repository_address: { type: string, default: "" }
-      install_timeout: { type: string, default: 5m }
+      # 15m (was 5m): a cold Day-1 join installs workload tiers serially per
+      # step; the old single 24-package step took ~8m, so 5m failed the last
+      # package (mcp, priority 1000) on "context deadline exceeded" and the
+      # whole join with it. Tier 4 is now profile-gated and split into small
+      # per-group steps, so each step's budget covers far fewer packages —
+      # 15m is generous headroom, not a bigger bucket for the same leak.
+      install_timeout: { type: string, default: 15m }
   defaults:
-    install_timeout: 5m
+    install_timeout: 15m
   strategy:
     mode: single
   steps:
@@ -277,43 +284,67 @@ spec:
         success:
           expr: all_installed == true
 
-    # ── Tier 4: All remaining workloads (parallel) ────────────────────────
-    - id: install_workloads
-      title: Install workload services
+    # ── Tier 4: Workload services (profile-gated, parallel) ───────────────
+    # Placement authority: component_catalog/profilemap.go (ProfilePackages).
+    # Each step installs only packages eligible under the profiles named in
+    # its `when` gate, grouped by EXACT catalog profile set so a step never
+    # fires on a node whose profiles don't claim its packages. The regression
+    # test nodejoin_profile_gating_test.go validates every list against the
+    # catalog — change profilemap.go first, then mirror the change here.
+    # (Scar 2026-07-10: a hardcoded 24-package list installed ~10 profile-
+    # orphan packages on every joiner and pushed the serial install past its
+    # 5m timeout, failing the whole join on the final package.)
+    - id: install_workloads_core
+      title: Install core workload services
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'core')
+          - expr: contains(inputs.node_profiles, 'compute')
+      dependsOn: [install_foundational]
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: log, kind: SERVICE }
+          - { name: search, kind: SERVICE }
+          - { name: persistence, kind: SERVICE }
+          - { name: ai-router, kind: SERVICE }
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_workloads_core
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: log, kind: SERVICE }
+            - { name: search, kind: SERVICE }
+            - { name: persistence, kind: SERVICE }
+            - { name: ai-router, kind: SERVICE }
+        success:
+          expr: all_installed == true
+
+    - id: install_workloads_file
+      title: Install file service
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'core')
+          - expr: contains(inputs.node_profiles, 'compute')
+          - expr: contains(inputs.node_profiles, 'storage')
       dependsOn: [install_foundational]
       actor: node-agent
       action: node.install_packages
       with:
         packages:
           - { name: file, kind: SERVICE }
-          - { name: log, kind: SERVICE }
-          - { name: sql, kind: SERVICE }
-          - { name: storage, kind: SERVICE }
-          - { name: catalog, kind: SERVICE }
-          - { name: search, kind: SERVICE }
-          - { name: ldap, kind: SERVICE }
-          - { name: mail, kind: SERVICE }
-          - { name: blog, kind: SERVICE }
-          - { name: conversation, kind: SERVICE }
-          - { name: title, kind: SERVICE }
-          - { name: media, kind: SERVICE }
-          - { name: torrent, kind: SERVICE }
-          - { name: echo, kind: SERVICE }
-          - { name: persistence, kind: SERVICE }
-          - { name: backup-manager, kind: SERVICE }
-          - { name: workflow, kind: SERVICE }
-          - { name: cluster-controller, kind: SERVICE }
-          - { name: cluster-doctor, kind: SERVICE }
-          - { name: mcp, kind: SERVICE }
-          - { name: ai-memory, kind: SERVICE }
-          - { name: ai-executor, kind: SERVICE }
-          - { name: ai-watcher, kind: SERVICE }
-          - { name: ai-router, kind: SERVICE }
       timeout: $.install_timeout
       execution:
         idempotency: verify_then_continue
         resume_policy: verify_effect
-        receipt_key: install_workloads
+        receipt_key: install_workloads_file
       verification:
         actor: node-agent
         action: node.verify_packages_installed
@@ -321,29 +352,166 @@ spec:
           node_id: $.node_id
           packages:
             - { name: file, kind: SERVICE }
-            - { name: log, kind: SERVICE }
+        success:
+          expr: all_installed == true
+
+    - id: install_workloads_compute
+      title: Install compute workload services
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'compute')
+      dependsOn: [install_foundational]
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: sql, kind: SERVICE }
+          - { name: catalog, kind: SERVICE }
+          - { name: ldap, kind: SERVICE }
+          - { name: mail, kind: SERVICE }
+          - { name: blog, kind: SERVICE }
+          - { name: conversation, kind: SERVICE }
+          - { name: echo, kind: SERVICE }
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_workloads_compute
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
             - { name: sql, kind: SERVICE }
-            - { name: storage, kind: SERVICE }
             - { name: catalog, kind: SERVICE }
-            - { name: search, kind: SERVICE }
             - { name: ldap, kind: SERVICE }
             - { name: mail, kind: SERVICE }
             - { name: blog, kind: SERVICE }
             - { name: conversation, kind: SERVICE }
+            - { name: echo, kind: SERVICE }
+        success:
+          expr: all_installed == true
+
+    - id: install_workloads_storage
+      title: Install storage workload service
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'storage')
+      dependsOn: [install_foundational]
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: storage, kind: SERVICE }
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_workloads_storage
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: storage, kind: SERVICE }
+        success:
+          expr: all_installed == true
+
+    - id: install_workloads_media
+      title: Install media-server workload services
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'media-server')
+      dependsOn: [install_foundational]
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: title, kind: SERVICE }
+          - { name: media, kind: SERVICE }
+          - { name: torrent, kind: SERVICE }
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_workloads_media
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
             - { name: title, kind: SERVICE }
             - { name: media, kind: SERVICE }
             - { name: torrent, kind: SERVICE }
-            - { name: echo, kind: SERVICE }
-            - { name: persistence, kind: SERVICE }
+        success:
+          expr: all_installed == true
+
+    - id: install_workloads_control_plane
+      title: Install control-plane workload services
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'control-plane')
+      dependsOn: [install_foundational]
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: backup-manager, kind: SERVICE }
+          - { name: cluster-controller, kind: SERVICE }
+          - { name: cluster-doctor, kind: SERVICE }
+          - { name: mcp, kind: SERVICE }
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_workloads_control_plane
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
             - { name: backup-manager, kind: SERVICE }
-            - { name: workflow, kind: SERVICE }
             - { name: cluster-controller, kind: SERVICE }
             - { name: cluster-doctor, kind: SERVICE }
             - { name: mcp, kind: SERVICE }
+        success:
+          expr: all_installed == true
+
+    - id: install_workloads_data_ai
+      title: Install data-plane AI workload services
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'control-plane')
+          - expr: contains(inputs.node_profiles, 'database')
+          - expr: contains(inputs.node_profiles, 'scylla')
+      dependsOn: [install_foundational]
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: workflow, kind: SERVICE }
+          - { name: ai-memory, kind: SERVICE }
+          - { name: ai-executor, kind: SERVICE }
+          - { name: ai-watcher, kind: SERVICE }
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_workloads_data_ai
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: workflow, kind: SERVICE }
             - { name: ai-memory, kind: SERVICE }
             - { name: ai-executor, kind: SERVICE }
             - { name: ai-watcher, kind: SERVICE }
-            - { name: ai-router, kind: SERVICE }
         success:
           expr: all_installed == true
 
@@ -394,7 +562,16 @@ spec:
     # ── Final: Report convergence ─────────────────────────────────────────
     - id: report_installed
       title: Sync installed state to etcd
-      dependsOn: [install_workloads, install_scylla_tools, install_commands]
+      dependsOn:
+        - install_workloads_core
+        - install_workloads_file
+        - install_workloads_compute
+        - install_workloads_storage
+        - install_workloads_media
+        - install_workloads_control_plane
+        - install_workloads_data_ai
+        - install_scylla_tools
+        - install_commands
       actor: node-agent
       action: node.sync_installed_state
       execution:

@@ -109,20 +109,54 @@ func TestNodeJoinWorkflow(t *testing.T) {
 
 	// Count results.
 	succeeded := 0
+	skipped := 0
 	for _, st := range run.Steps {
-		if st.Status == StepSucceeded {
+		switch st.Status {
+		case StepSucceeded:
 			succeeded++
+		case StepSkipped:
+			skipped++
 		}
 	}
 
 	t.Logf("Workflow completed in %s", elapsed.Round(time.Millisecond))
-	t.Logf("Steps: %d succeeded out of %d total", succeeded, len(run.Steps))
+	t.Logf("Steps: %d succeeded, %d skipped out of %d total", succeeded, skipped, len(run.Steps))
 	t.Logf("Packages installed: %d", len(installLog))
 	t.Logf("Max concurrent installs: %d", maxConcurrent)
 
-	// Verify all steps succeeded.
-	if succeeded != len(run.Steps) {
-		t.Errorf("expected all %d steps to succeed, got %d", len(run.Steps), succeeded)
+	// Every step must terminate as SUCCEEDED or SKIPPED (profile gates skip
+	// the workload groups the node's profiles don't claim).
+	if succeeded+skipped != len(run.Steps) {
+		t.Errorf("expected all %d steps to succeed or skip, got %d succeeded + %d skipped",
+			len(run.Steps), succeeded, skipped)
+	}
+
+	// Profile gating (scar 2026-07-10): this node has core/control-plane/
+	// gateway/storage — the compute and media-server workload groups must be
+	// SKIPPED, not installed as profile orphans.
+	for _, id := range []string{"install_workloads_compute", "install_workloads_media"} {
+		st, ok := run.Steps[id]
+		if !ok {
+			t.Errorf("step %s missing from run", id)
+			continue
+		}
+		if st.Status != StepSkipped {
+			t.Errorf("step %s: expected SKIPPED for non-matching profiles, got %s", id, st.Status)
+		}
+	}
+	installed := map[string]bool{}
+	for _, name := range installLog {
+		installed[name] = true
+	}
+	for _, orphan := range []string{"sql", "catalog", "ldap", "mail", "blog", "conversation", "echo", "title", "media", "torrent"} {
+		if installed[orphan] {
+			t.Errorf("profile-orphan package %q was installed — Tier-4 gating regressed", orphan)
+		}
+	}
+	for _, want := range []string{"log", "file", "storage", "mcp", "cluster-controller", "workflow", "ai-memory"} {
+		if !installed[want] {
+			t.Errorf("expected package %q to install for profiles core/control-plane/gateway/storage", want)
+		}
 	}
 
 	// Verify parallelism happened (tier 3 has 8 foundational services).
@@ -201,8 +235,12 @@ func TestNodeJoinWithInstallFailure(t *testing.T) {
 	}
 
 	// Steps after scylladb should not have run.
-	for _, id := range []string{"install_foundational", "install_workloads", "mark_converged"} {
-		st := run.Steps[id]
+	for _, id := range []string{"install_foundational", "install_workloads_core", "install_workloads_control_plane", "mark_converged"} {
+		st, ok := run.Steps[id]
+		if !ok {
+			t.Errorf("step %s missing from run", id)
+			continue
+		}
 		if st.Status != StepPending {
 			t.Errorf("step %s should be PENDING (blocked by scylladb), got %s", id, st.Status)
 		}
