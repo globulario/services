@@ -300,11 +300,17 @@ fi
 # Skip when this is the only ScyllaDB node (nothing to stream to).
 if systemctl is-active --quiet scylla-server.service 2>/dev/null; then
   if command -v nodetool >/dev/null 2>&1; then
-    # An unreachable/empty `nodetool status` is UNKNOWN ring topology, NOT zero live
-    # nodes. Fail closed rather than hard-kill a possibly-live ring voter (which would
-    # destroy group0 Raft quorum). awk always exits 0 and prints the count.
+    # ScyllaDB's admin REST API binds to api_address = this node's cluster IP — the SAME
+    # routable address the node registers in etcd and that we use for _ETCD_ENDPOINT
+    # above (never loopback; this is a cluster). nodetool defaults to 127.0.0.1:10000,
+    # which nothing serves, so a plain `nodetool status` reads "connection refused" on a
+    # perfectly healthy node and would SPURIOUSLY read UNKNOWN → fail-close (forcing
+    # --last-node on every teardown). Target the resolved node address, NOT localhost.
+    # An unreachable/empty result is UNKNOWN ring topology, NOT zero live nodes — fail
+    # closed rather than hard-kill a possibly-live ring voter (destroys group0 Raft
+    # quorum). awk always exits 0 and prints the count.
     # Contract: cluster.teardown.membership_must_be_confirmed_before_destructive_stop
-    _NT_OUT="$(nodetool status 2>/dev/null || true)"
+    _NT_OUT="$(nodetool -h "$_NODE_IP" status 2>/dev/null || true)"
     if [[ -z "$_NT_OUT" ]]; then
       _SCYLLA_UP="UNKNOWN"
     else
@@ -312,9 +318,9 @@ if systemctl is-active --quiet scylla-server.service 2>/dev/null; then
     fi
     if [[ "$_SCYLLA_UP" == "UNKNOWN" ]]; then
       if [[ $LAST_NODE -eq 1 ]]; then
-        log_warn "nodetool status unreachable, but --last-node asserted — skipping decommission (operator override)"
+        log_warn "nodetool status unreachable at ${_NODE_IP}:10000, but --last-node asserted — skipping decommission (operator override)"
       else
-        die "nodetool status is UNREACHABLE — cannot confirm this node is NOT a live ScyllaDB ring member.
+        die "nodetool status is UNREACHABLE at ${_NODE_IP}:10000 — cannot confirm this node is NOT a live ScyllaDB ring member.
   Hard-stopping a live multi-node ring member without decommission destroys group0 quorum.
   FAIL-CLOSED: refusing to proceed with ScyllaDB teardown.
     • If ScyllaDB is genuinely the last/only node here, rerun with: --last-node
@@ -323,7 +329,7 @@ if systemctl is-active --quiet scylla-server.service 2>/dev/null; then
       fi
     elif [[ "$_SCYLLA_UP" -gt 1 ]]; then
       log_info "Decommissioning ScyllaDB node (streaming data to peers — this may take a few minutes)..."
-      if nodetool decommission 2>/dev/null; then
+      if nodetool -h "$_NODE_IP" decommission 2>/dev/null; then
         log_success "ScyllaDB node decommissioned cleanly"
       else
         log_warn "ScyllaDB decommission failed — data may be under-replicated."

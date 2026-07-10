@@ -96,41 +96,62 @@ _set_nodetool() { printf '#!/usr/bin/env bash\n%s\n' "$1" >"$STUB/nodetool"; chm
   [[ "$output" != *"UNREACHABLE"* ]]
 }
 
-# ── Requirement 1 (unit): unreachable nodetool -> UNKNOWN, not 0 — in BOTH copies ─
-# Extracts and exercises ONLY the topology-count logic from each copy (no main flow,
-# no destructive commands), so it is safe to run anywhere.
-@test "gateway copy: count_scylla_up_nodes returns UNKNOWN on unreachable, counts otherwise" {
+# ── Requirement 1 (unit): probe targets the node IP, UNKNOWN on unreachable — BOTH copies ─
+# The ScyllaDB admin REST API binds to api_address = the node's cluster IP (never
+# localhost — this is a cluster). nodetool defaults to 127.0.0.1:10000, which nothing
+# serves, so the probe MUST target the resolved node address via `-h`. These tests
+# extract ONLY the topology-count logic (no main flow, no destructive commands).
+@test "gateway copy: count_scylla_up_nodes probes the node IP via -h, UNKNOWN on unreachable, counts otherwise" {
   local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
-  # pull in the helper log_warn (no-op) + the function body, then call it
+  # pull in the helper log_warn (no-op) + the function body, then call it with a node IP
   run bash -c '
     log_warn() { :; }
     '"$(sed -n "/^count_scylla_up_nodes()/,/^}/p" "$gw")"'
-    nodetool() { return 1; }         ; [[ "$(count_scylla_up_nodes)" == "UNKNOWN" ]] || { echo "unreachable!=UNKNOWN"; exit 1; }
-    nodetool() { printf "UN a\nUN b\n"; }; [[ "$(count_scylla_up_nodes)" == "2" ]] || { echo "2-node count wrong"; exit 1; }
-    nodetool() { printf "UN a\n"; }   ; [[ "$(count_scylla_up_nodes)" == "1" ]] || { echo "1-node count wrong"; exit 1; }
+    # nodetool answers ONLY when targeted at the node IP via -h; the localhost default fails.
+    nodetool() { [[ "$1" == "-h" && "$2" == "10.0.0.63" ]] && printf "UN a\nUN b\n"; return 0; }
+    [[ "$(count_scylla_up_nodes 10.0.0.63)" == "2" ]] || { echo "node-IP probe not counted"; exit 1; }
+    # A target the API is not served on (e.g. localhost) -> unreachable -> UNKNOWN, never 0.
+    [[ "$(count_scylla_up_nodes 127.0.0.1)" == "UNKNOWN" ]] || { echo "unreachable!=UNKNOWN"; exit 1; }
+    nodetool() { [[ "$1" == "-h" && "$2" == "10.0.0.63" ]] && printf "UN a\n"; return 0; }
+    [[ "$(count_scylla_up_nodes 10.0.0.63)" == "1" ]] || { echo "1-node count wrong"; exit 1; }
     echo OK'
   [ "$status" -eq 0 ]
   [[ "$output" == *"OK"* ]]
 }
 
-@test "services copy: inline topology logic yields UNKNOWN on unreachable, not 0" {
+@test "services copy: inline probe targets the node IP via -h, UNKNOWN on unreachable, never 0" {
   local svc="$BATS_TEST_DIRNAME/clean-node.sh"
-  # The services copy computes _SCYLLA_UP inline; replicate the exact probe->classify
-  # snippet by extracting the `_NT_OUT=...`/awk lines and asserting the UNKNOWN sentinel.
-  grep -q 'printf .UNKNOWN' "$svc" || grep -q '_SCYLLA_UP="UNKNOWN"' "$svc"
+  # The services copy computes _SCYLLA_UP inline. Assert it probes via `nodetool -h "$_NODE_IP"`
+  # (the resolved node address) and replicate the probe->classify snippet.
+  grep -q 'nodetool -h "\$_NODE_IP" status' "$svc"
+  grep -q '_SCYLLA_UP="UNKNOWN"' "$svc"
   run bash -c '
+    _NODE_IP=10.0.0.63
+    # nodetool answers only at the node IP; the localhost default would fail.
+    nodetool() { [[ "$1" == "-h" && "$2" == "10.0.0.63" ]] && printf "UN a\nUN b\n"; return 0; }
+    _NT_OUT="$(nodetool -h "$_NODE_IP" status 2>/dev/null || true)"
+    if [[ -z "$_NT_OUT" ]]; then _SCYLLA_UP="UNKNOWN"; else _SCYLLA_UP=$(printf "%s\n" "$_NT_OUT" | awk "/^U[NL] / {n++} END {print n+0}"); fi
+    [[ "$_SCYLLA_UP" == "2" ]] || { echo "node-IP probe not counted"; exit 1; }
+    # Unreachable target -> UNKNOWN, never 0.
     nodetool() { return 1; }
-    _NT_OUT="$(nodetool status 2>/dev/null || true)"
+    _NT_OUT="$(nodetool -h "$_NODE_IP" status 2>/dev/null || true)"
     if [[ -z "$_NT_OUT" ]]; then _SCYLLA_UP="UNKNOWN"; else _SCYLLA_UP=$(printf "%s\n" "$_NT_OUT" | awk "/^U[NL] / {n++} END {print n+0}"); fi
     [[ "$_SCYLLA_UP" == "UNKNOWN" ]] && echo OK'
   [ "$status" -eq 0 ]
   [[ "$output" == *"OK"* ]]
 }
 
-# ── Guard: neither copy collapses a failed probe to 0 (forbidden_fix regression) ─
-@test "neither copy pipes a failed nodetool status to echo 0 / printf 0" {
+# ── Guard: neither copy probes scylla on localhost, nor collapses a failed probe to 0 ─
+@test "both copies probe via nodetool -h (node IP); no bare localhost probe, no fail-open to 0" {
   local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
   local svc="$BATS_TEST_DIRNAME/clean-node.sh"
-  run grep -nE 'nodetool status[^|]*\|\|[[:space:]]*(echo|printf)[[:space:]]+.?0' "$gw" "$svc"
-  [ "$status" -ne 0 ]   # grep finds nothing -> the fail-open pattern is gone
+  # Every real probe must go through -h (the resolved node address).
+  grep -q 'nodetool -h' "$gw"
+  grep -q 'nodetool -h' "$svc"
+  # No command-position bare `nodetool status|decommission` (would hit the 127.0.0.1 default).
+  run grep -nE '(\$\(|if |;[[:space:]]*)nodetool (status|decommission)' "$gw" "$svc"
+  [ "$status" -ne 0 ]
+  # No fail-open: a failed probe must never be collapsed to 0.
+  run grep -nE 'nodetool[^|]*status[^|]*\|\|[[:space:]]*(echo|printf)[[:space:]]+.?0' "$gw" "$svc"
+  [ "$status" -ne 0 ]
 }
