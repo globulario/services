@@ -89,6 +89,51 @@ func TestClusterReportPassFindingsNotInOutput(t *testing.T) {
 	}
 }
 
+// TestClusterReport_PlacementOrphanVisibleButHealthy is the D2 regression at the
+// rollup: a placement orphan (SEVERITY_WARN + INVARIANT_PENDING) is a
+// NON-BLOCKING warning, so it must (1) REMAIN VISIBLE in ClusterReport.Findings
+// (PENDING is not dropped like PASS) and (2) NOT degrade the cluster verdict —
+// the report stays CLUSTER_HEALTHY. The overallStatus control proves the fix is
+// load-bearing: the SAME finding as INVARIANT_FAIL would degrade to
+// CLUSTER_DEGRADED (the pre-D2 behavior we corrected).
+func TestClusterReport_PlacementOrphanVisibleButHealthy(t *testing.T) {
+	snap := &collector.Snapshot{SnapshotID: "test", GeneratedAt: time.Now()}
+	orphan := rules.Finding{
+		FindingID:       "placement.installed_package_orphaned:node-a:torrent",
+		InvariantID:     "placement.installed_package_orphaned",
+		Severity:        cluster_doctorpb.Severity_SEVERITY_WARN,
+		Category:        "placement",
+		Summary:         "orphaned install (test)",
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_PENDING,
+	}
+
+	report := ClusterReport(snap, []rules.Finding{orphan}, "v0.0.0-test", Freshness{})
+
+	// (1) VISIBLE: a PENDING orphan is not filtered like PASS.
+	if got := len(report.GetFindings()); got != 1 {
+		t.Fatalf("placement orphan (INVARIANT_PENDING) must remain visible in the report: got %d findings, want 1", got)
+	}
+	if st := report.GetFindings()[0].GetInvariantStatus(); st != cluster_doctorpb.InvariantStatus_INVARIANT_PENDING {
+		t.Fatalf("visible orphan must carry INVARIANT_PENDING, got %v", st)
+	}
+
+	// (2) HEALTHY: a non-blocking orphan must not degrade the cluster verdict.
+	if got := report.GetOverallStatus(); got != cluster_doctorpb.ClusterStatus_CLUSTER_HEALTHY {
+		t.Fatalf("placement orphan must not degrade the cluster verdict: got %v, want CLUSTER_HEALTHY", got)
+	}
+
+	// Control: the SAME WARN finding as INVARIANT_FAIL WOULD degrade — proving
+	// the INVARIANT_PENDING classification is precisely what keeps it healthy.
+	failing := []*cluster_doctorpb.Finding{{
+		InvariantId:     "placement.installed_package_orphaned",
+		Severity:        cluster_doctorpb.Severity_SEVERITY_WARN,
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+	}}
+	if got := overallStatus(failing, false); got != cluster_doctorpb.ClusterStatus_CLUSTER_DEGRADED {
+		t.Fatalf("control: an INVARIANT_FAIL WARN finding must degrade: got %v, want CLUSTER_DEGRADED", got)
+	}
+}
+
 // TestOverallStatus_DataIncompleteDegrades pins
 // meta.fallback_must_degrade_semantics for the cluster status rollup. When
 // the snapshot is marked DataIncomplete (collectors couldn't reach every
