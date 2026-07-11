@@ -303,17 +303,81 @@ semantic is consumed end-to-end — never before.
   canonical validation at the `applyServiceRelease` choke point, and TOTAL
   rejection of any non-empty `NodeAssignments`. Two commits (schema+grant-reject,
   then structure-wide reject + choke point).
-- **D1b** (the resolver): the single grant-aware predicate
-  `authorized() = profile ∪ grant` and the grant-delivery plumbing, migrated
-  across controller / node-agent / doctor, plus permanent `node_id` validation.
-  **Lifts NOTHING** — the write reject stays; the resolver is proven with
-  SYNTHETIC grants in tests (§0.6: the reject is lifted only when consumption is
-  proven end-to-end). Convergence/hashing integration (desired-hash membership,
-  removal→orphan hash-drop, dispatch) is explicitly **D1c**, not D1b.
-- **D1c**: convergence, desired hashing, orphan detection, and lifecycle
-  integration (granted service kept in the desired hash, not an orphan; removal
-  of a grant converts to a non-blocking orphan; missing-target state per §6).
-- **D1d**: enable persistence and mutation of grants (the CLI/RPC mutation path,
-  §5) — the point at which grants become operator-settable end-to-end.
+- **D1b** (the resolver; DONE, checkpoint `54bd3602`): ONLY the single
+  grant-aware predicate `authorized() = profile ∪ grant` and its helpers
+  (`hasGrantIn`, `grantedServicesForNode`, `authorizedForNode`,
+  `isOrphanedInstallForNode`). **Lifts NOTHING** and touches **no consumer** — the
+  resolver merely *computes* the decision, proven with SYNTHETIC grants in tests.
+  Delivery + every consumer is D1c.
+- **D1c** — one invariant: **every placement-sensitive consumer uses the same
+  resolved authorization predicate**. All behavior-changing consumers cross the
+  bridge together (a law, not a filing cabinet). Approved sequence:
+  1. Grant delivery to node-agent (§11 delivery contract).
+  2. Doctor snapshot contract + orphan suppression (§12 NodeHealth contract).
+  3. Desired hash, release pipeline, and reconciler integration.
+  4. Removal and missing-target lifecycle (§6).
+  5. Cross-surface tests proving all consumers agree.
+- **D1d**: lift the reject to accept GRANT assignments (version override stays
+  rejected, §0.4) in the acceptance order of §13; enable the CLI/RPC mutation path
+  (§5) — grants become operator-settable end-to-end.
 
 D1a/D1b/D1c/D1d are separate commits/PRs, and all separate from D2.
+
+---
+
+## 11. Node-agent delivery contract (D1c step 1)
+
+The controller MAY inject grants into the join workflow, but the payload is
+**derived evidence, never another authority**:
+
+- Send the **canonical package identities** the resolver returns — NOT raw
+  `NodeAssignment` objects (no versions, node selectors, or mutation semantics):
+  ```
+  node_grants: [ canonical_package_identity, … ]
+  placement_generation: <owner generation>
+  ```
+- **`placement_generation` reuses an existing signed workflow / desired-state
+  generation** that already proves freshness. Do NOT invent a parallel counter.
+- Node-agent rule (execution authorization):
+  ```
+  package_allowed = package ∈ PackagesForProfiles(node.profiles)
+                    OR package ∈ workflow.node_grants
+  ```
+  The node-agent MUST NOT persist, infer, expand, or mutate grants — it is an
+  executor, not the cluster brain.
+- **Staleness is a hard constraint:** a stale workflow carrying a *revoked* grant
+  must not remain an authorization coupon forever. If the workflow contract
+  already invalidates stale generations, placement grants inherit that
+  protection — and a test MUST prove it.
+
+## 12. NodeHealth grant-snapshot contract (D1c step 2) — APPROVED
+
+- Add a **derived canonical-identity list** named **`placement_grants`** to the
+  per-node health snapshot the doctor consumes (not the broader
+  `granted_services`). Controller is the **sole producer**; doctor is a
+  **read-only consumer**. No raw assignments, versions, node selectors, or
+  mutation semantics.
+- **Couple `placement_grants` to the snapshot's existing generation/freshness
+  evidence.** If `NodeHealth` has no generation proving the grants are current,
+  ADD one — or **refuse stale grant-based suppression** outright. A stale grant
+  snapshot MUST NOT hide an actual orphan after revocation.
+- Doctor computes:
+  ```
+  authorized_install = profile_authorized OR canonical_package ∈ placement_grants
+  ```
+
+## 13. Acceptance order (D1d — when the reject is lifted)
+
+Grants become operator-settable only when accepted in this order:
+
+```
+schema valid
+  → placement kind supported
+  → canonical package resolvable
+  → immutable node_id valid
+  → owner-generation mutation
+  → persist
+```
+
+Version overrides remain rejected independently, even when GRANT placement is
+enabled.
