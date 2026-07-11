@@ -89,10 +89,11 @@ func refineNodeProfilesFromCapabilities(node *nodeState, caps *cluster_controlle
 		return false
 	}
 	deduced := deduceProfiles(caps)
-	if profilesSameSet(node.Profiles, deduced) {
+	// D1c 1a: single owner mutation — no-op (and no generation bump) when the
+	// effective profile set is unchanged; otherwise sets profiles + bumps.
+	if !applyNodePlacementProfilesLocked(node, deduced) {
 		return false
 	}
-	node.Profiles = deduced
 	if node.Metadata == nil {
 		node.Metadata = make(map[string]string, 1)
 	}

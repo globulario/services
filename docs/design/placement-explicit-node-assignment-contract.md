@@ -327,6 +327,13 @@ D1a/D1b/D1c/D1d are separate commits/PRs, and all separate from D2.
 
 ## 11. Node-agent delivery contract (D1c step 1)
 
+**`PlacementGeneration` versions the effective per-node placement intent. It is
+NOT a workflow generation and NOT a join identity.** It is controller-owned,
+bumped only on a real placement change through the single owner mutation
+(`applyNodePlacementProfilesLocked`), persisted atomically with profiles, and
+initialized to 1 for a new node (0 = unestablished; a 0 generation can never
+authorize grants). Implemented in D1c step **1a** (`placement_generation.go`).
+
 The controller MAY inject grants into the join workflow, but the payload is
 **derived evidence, never another authority**:
 

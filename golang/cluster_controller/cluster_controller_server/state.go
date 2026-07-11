@@ -359,9 +359,17 @@ const (
 )
 
 type nodeState struct {
-	NodeID                string             `json:"node_id"`
-	Identity              storedIdentity     `json:"identity"`
-	Profiles              []string           `json:"profiles"`
+	NodeID   string         `json:"node_id"`
+	Identity storedIdentity `json:"identity"`
+	Profiles []string       `json:"profiles"`
+	// PlacementGeneration versions the EFFECTIVE per-node placement intent
+	// (profiles now; grant add/revoke/retarget at D1d). It is controller-owned,
+	// bumped ONLY through applyNodePlacementProfilesLocked on a real (set-level)
+	// placement change, and persisted atomically with Profiles. It is NOT a
+	// workflow generation and NOT a join identity. Zero = placement freshness
+	// UNESTABLISHED (legacy nodes loaded before this field, or never-established
+	// placement) — a zero generation can never authorize explicit grants.
+	PlacementGeneration   uint64             `json:"placement_generation,omitempty"`
 	LastSeen              time.Time          `json:"last_seen"`
 	Status                string             `json:"status"`
 	Metadata              map[string]string  `json:"metadata,omitempty"`

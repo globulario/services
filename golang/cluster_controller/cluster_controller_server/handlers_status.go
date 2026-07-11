@@ -388,7 +388,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		if len(derived) > 0 {
 			log.Printf("ReportNodeStatus: auto-derived profiles for %s: %v (from %d installed packages)",
 				nodeID, derived, len(installedVersions))
-			node.Profiles = derived
+			// D1c 1a: canonical placement mutation — bumps PlacementGeneration on real change.
+			applyNodePlacementProfilesLocked(node, derived)
 			// Set advertise FQDN from hostname + cluster domain
 			if node.Identity.Hostname != "" {
 				domain := "globular.internal"

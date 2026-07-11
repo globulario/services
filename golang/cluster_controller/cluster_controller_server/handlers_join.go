@@ -304,6 +304,7 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 		NodeID:                nodeID,
 		Identity:              jr.Identity,
 		Profiles:              profiles,
+		PlacementGeneration:   1, // D1c 1a: new node — established placement (bumped on later changes)
 		LastSeen:              time.Now(),
 		Status:                "converging",
 		Metadata:              profileSourceMetadata(jr.Labels, profileSource),
