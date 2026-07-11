@@ -516,7 +516,7 @@ func (srv *server) cleanNodeFromServiceReleases(ctx context.Context, nodeID stri
 		}
 		rel.Status.Nodes = filtered
 		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
-		if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+		if _, err := srv.applyServiceRelease(ctx, rel); err != nil {
 			log.Printf("remove-node: apply ServiceRelease %s after purge: %v", rel.Meta.Name, err)
 			continue
 		}

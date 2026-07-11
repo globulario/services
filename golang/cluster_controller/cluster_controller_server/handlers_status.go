@@ -732,25 +732,41 @@ func (srv *server) ListServiceDesiredVersions(ctx context.Context, _ *cluster_co
 	return out, nil
 }
 
-// rejectUnconsumedGrants enforces the D1a interim contract: an explicit
-// per-node placement GRANT is desired operator intent, but until the placement
-// resolver incorporates grants (D1b: authorized = profile ∪ explicit_grant),
-// NOTHING consumes it. Accepted-but-ignored intent is the dangerous state, so a
-// spec carrying a GRANT is HARD-REJECTED at the write gate — not persisted, not
-// warned, not kept "for future use". This rejection is removed only in the
-// change that proves grants are consumed end-to-end.
-func rejectUnconsumedGrants(spec *cluster_controllerpb.ServiceReleaseSpec) error {
+// validateServiceReleaseSpec enforces the D1a interim contract: NO
+// NodeAssignment may be accepted until EVERY semantic in that structure is
+// consumed by the resolver. Both the dormant explicit-placement grant
+// (Placement=="GRANT") and the dormant per-node version override are unconsumed
+// today, so ANY non-empty NodeAssignments is rejected — accepted-but-ignored
+// operator intent is the dangerous state. The invariant is not "reject grants";
+// it is "reject unconsumed NodeAssignments", one honest structure-wide boundary.
+//
+// Scope: D1 implements additive placement GRANTs only. Version override is
+// explicitly OUT OF SCOPE and stays rejected even after grants are enabled
+// (D1b), unless it later receives its own contract and consuming resolver — so
+// D1b must not blanket-lift this rejection for the whole structure.
+func validateServiceReleaseSpec(spec *cluster_controllerpb.ServiceReleaseSpec) error {
 	if spec == nil {
 		return nil
 	}
-	for _, a := range spec.NodeAssignments {
-		if a != nil && a.Placement == cluster_controllerpb.NodeAssignmentPlacementGrant {
-			return status.Errorf(codes.InvalidArgument,
-				"explicit per-node placement (node_assignments[].placement=%q, node_id=%q) is not yet enabled: the placement resolver does not consume grants (D1b) — the request is rejected rather than silently ignored",
-				cluster_controllerpb.NodeAssignmentPlacementGrant, strings.TrimSpace(a.NodeID))
-		}
+	if len(spec.NodeAssignments) != 0 {
+		return status.Error(codes.InvalidArgument,
+			"node_assignments are not yet supported and are rejected rather than silently ignored")
 	}
 	return nil
+}
+
+// applyServiceRelease is the CANONICAL ServiceRelease persistence choke point.
+// EVERY write of a ServiceRelease MUST route through here so validation cannot
+// be bypassed by any writer, present or future — making silent acceptance
+// structurally impossible (not a fence with a politely labeled gap). It
+// validates the spec, then delegates to the generic resource store.
+func (srv *server) applyServiceRelease(ctx context.Context, rel *cluster_controllerpb.ServiceRelease) (interface{}, error) {
+	if rel != nil {
+		if err := validateServiceReleaseSpec(rel.Spec); err != nil {
+			return nil, err
+		}
+	}
+	return srv.resources.Apply(ctx, "ServiceRelease", rel)
 }
 
 func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest) (*cluster_controllerpb.ServiceRelease, error) {
@@ -771,11 +787,6 @@ func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_control
 	if strings.TrimSpace(obj.Spec.PublisherID) == "" || strings.TrimSpace(obj.Spec.ServiceName) == "" {
 		return nil, status.Error(codes.InvalidArgument, "spec.publisher_id and spec.service_name are required")
 	}
-	// D1a: reject explicit per-node placement grants until the resolver consumes
-	// them (D1b). Refuse at the write gate rather than persist accepted-but-ignored intent.
-	if err := rejectUnconsumedGrants(obj.Spec); err != nil {
-		return nil, err
-	}
 	if obj.Meta == nil {
 		obj.Meta = &cluster_controllerpb.ObjectMeta{}
 	}
@@ -783,8 +794,11 @@ func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_control
 	if obj.Meta.Name == "" {
 		obj.Meta.Name = obj.Spec.PublisherID + "/" + canonicalServiceName(obj.Spec.ServiceName)
 	}
-	applied, err := srv.resources.Apply(ctx, "ServiceRelease", obj)
+	applied, err := srv.applyServiceRelease(ctx, obj)
 	if err != nil {
+		if status.Code(err) == codes.InvalidArgument {
+			return nil, err // validation rejection — surface the precise code
+		}
 		return nil, status.Errorf(codes.Internal, "apply service release: %v", err)
 	}
 	return applied.(*cluster_controllerpb.ServiceRelease), nil

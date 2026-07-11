@@ -1,9 +1,12 @@
 package main
 
-// D1a — explicit per-node placement grants are HARD-REJECTED until the resolver
-// consumes them (D1b). Accepted-but-ignored operator intent is the dangerous
-// state, so a ServiceReleaseSpec carrying a placement=GRANT node_assignment must
-// be refused at the write gate — not persisted, not warned, not kept for later.
+// D1a — no NodeAssignment may be accepted until EVERY semantic in that structure
+// is consumed by the resolver. Both the dormant explicit-placement GRANT and the
+// dormant per-node version override are unconsumed today, so ANY non-empty
+// NodeAssignments is HARD-REJECTED at the write gate (the canonical
+// applyServiceRelease choke point) — accepted-but-ignored operator intent is the
+// dangerous state. Version override is explicitly out of D1 scope and stays
+// rejected even after grants are enabled.
 
 import (
 	"testing"
@@ -13,43 +16,47 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestRejectUnconsumedGrants_RejectsGrant(t *testing.T) {
-	spec := &cluster_controllerpb.ServiceReleaseSpec{
-		PublisherID: "core@globular.io",
-		ServiceName: "media",
-		NodeAssignments: []*cluster_controllerpb.NodeAssignment{
-			{
-				NodeID:    "681710ee-6966-5df3-b155-3cef8b4e1a96",
-				Placement: cluster_controllerpb.NodeAssignmentPlacementGrant,
+func TestValidateServiceReleaseSpec_RejectsAnyNodeAssignment(t *testing.T) {
+	const nid = "681710ee-6966-5df3-b155-3cef8b4e1a96"
+	cases := map[string]*cluster_controllerpb.ServiceReleaseSpec{
+		"explicit placement grant": {
+			PublisherID: "core@globular.io", ServiceName: "media",
+			NodeAssignments: []*cluster_controllerpb.NodeAssignment{
+				{NodeID: nid, Placement: cluster_controllerpb.NodeAssignmentPlacementGrant},
 			},
 		},
-	}
-	err := rejectUnconsumedGrants(spec)
-	if err == nil {
-		t.Fatal("a GRANT node_assignment must be rejected (accepted-but-ignored intent is the dangerous state)")
-	}
-	if status.Code(err) != codes.InvalidArgument {
-		t.Fatalf("grant rejection must be InvalidArgument, got %v (%v)", status.Code(err), err)
-	}
-}
-
-func TestRejectUnconsumedGrants_AcceptsNonGrant(t *testing.T) {
-	cases := map[string]*cluster_controllerpb.ServiceReleaseSpec{
-		"nil spec":   nil,
-		"empty spec": {PublisherID: "core@globular.io", ServiceName: "media"},
-		"bare version override (no grant)": {
-			PublisherID: "core@globular.io",
-			ServiceName: "media",
+		"bare version override (out of D1 scope, still rejected)": {
+			PublisherID: "core@globular.io", ServiceName: "media",
 			NodeAssignments: []*cluster_controllerpb.NodeAssignment{
-				// Placement == "" — a legacy per-node version override, NOT an
-				// explicit placement grant. D1a rejects only GRANT.
-				{NodeID: "681710ee-6966-5df3-b155-3cef8b4e1a96", Version: "1.2.272"},
+				{NodeID: nid, Version: "1.2.272"},
 			},
+		},
+		"nil-only entry": {
+			PublisherID: "core@globular.io", ServiceName: "media",
+			NodeAssignments: []*cluster_controllerpb.NodeAssignment{nil},
 		},
 	}
 	for name, spec := range cases {
-		if err := rejectUnconsumedGrants(spec); err != nil {
-			t.Errorf("%s: must be accepted (no grant present), got %v", name, err)
+		err := validateServiceReleaseSpec(spec)
+		if err == nil {
+			t.Errorf("%s: any non-empty node_assignments must be rejected (accepted-but-ignored intent is the dangerous state)", name)
+			continue
+		}
+		if status.Code(err) != codes.InvalidArgument {
+			t.Errorf("%s: rejection must be InvalidArgument, got %v", name, status.Code(err))
+		}
+	}
+}
+
+func TestValidateServiceReleaseSpec_AcceptsNoAssignments(t *testing.T) {
+	cases := map[string]*cluster_controllerpb.ServiceReleaseSpec{
+		"nil spec":          nil,
+		"empty spec":        {PublisherID: "core@globular.io", ServiceName: "media"},
+		"empty assignments": {PublisherID: "core@globular.io", ServiceName: "media", NodeAssignments: []*cluster_controllerpb.NodeAssignment{}},
+	}
+	for name, spec := range cases {
+		if err := validateServiceReleaseSpec(spec); err != nil {
+			t.Errorf("%s: must be accepted (no node_assignments present), got %v", name, err)
 		}
 	}
 }
