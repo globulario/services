@@ -357,6 +357,41 @@ The controller MAY inject grants into the join workflow, but the payload is
   already invalidates stale generations, placement grants inherit that
   protection — and a test MUST prove it.
 
+### 11.1 D1c 1b — first task is investigation, not code
+
+`PlacementGeneration` is owner-versioned (1a). 1b makes it a real lock: the
+node-agent must learn its CURRENT generation through an authenticated channel
+**independent of the workflow being validated** (a node holding gen 5 must reject
+a replay carrying gen 5 after the owner advanced to 6 — so the reference value
+cannot be a monotonic local "last seen").
+
+**Before writing any code, trace the existing objectstore generation
+synchronization end to end and answer:**
+
+1. Who writes the node-agent's independently-persisted generation?
+2. Through which authenticated RPC or state channel?
+3. What proves the update came from the controller owner?
+4. Can generation advancement reach the node-agent WITHOUT a workflow dispatch?
+5. What happens when synchronization is unavailable or arrives out of order?
+6. Does the channel already carry general node intent, or is it
+   objectstore-specific?
+
+**Decision rule (in order):**
+- Prefer an existing GENERAL controller→node desired-intent channel.
+- Reuse the objectstore channel only if its authority and schema are genuinely
+  extensible, not merely convenient.
+- Add a dedicated placement-intent RPC only if no existing owner channel
+  satisfies independence, authentication, persistence, monotonicity, and restart
+  survival.
+- Do NOT put `PlacementGeneration` in heartbeat or `NodeHealth` (observed runtime
+  truth, not desired-intent authority).
+- Do NOT let the workflow write the generation it later asks the node-agent to
+  validate.
+
+**Next checkpoint = one of:** (A) proven existing channel + implementation, or
+(B) a precise design fork showing why existing channels cannot satisfy the
+contract. No painted keyholes, no ceremonial generations, no new branch.
+
 ## 12. NodeHealth grant-snapshot contract (D1c step 2) — APPROVED
 
 - Add a **derived canonical-identity list** named **`placement_grants`** to the
