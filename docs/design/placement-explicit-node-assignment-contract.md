@@ -303,10 +303,13 @@ semantic is consumed end-to-end — never before.
   canonical validation at the `applyServiceRelease` choke point, and TOTAL
   rejection of any non-empty `NodeAssignments`. Two commits (schema+grant-reject,
   then structure-wide reject + choke point).
-- **D1b** (the model change): resolver computes `authorized() = profile ∪ grant`
-  through the single predicate, migrated across controller / node-agent / doctor.
-  Adds real `node_id` validation in the SAME change that starts consuming grants.
-  Lifts the grant rejection only — NOT the version-override rejection (§0.4).
+- **D1b** (the resolver): the single grant-aware predicate
+  `authorized() = profile ∪ grant` and the grant-delivery plumbing, migrated
+  across controller / node-agent / doctor, plus permanent `node_id` validation.
+  **Lifts NOTHING** — the write reject stays; the resolver is proven with
+  SYNTHETIC grants in tests (§0.6: the reject is lifted only when consumption is
+  proven end-to-end). Convergence/hashing integration (desired-hash membership,
+  removal→orphan hash-drop, dispatch) is explicitly **D1c**, not D1b.
 - **D1c**: convergence, desired hashing, orphan detection, and lifecycle
   integration (granted service kept in the desired hash, not an orphan; removal
   of a grant converts to a non-blocking orphan; missing-target state per §6).
