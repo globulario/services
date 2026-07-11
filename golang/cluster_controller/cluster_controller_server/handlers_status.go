@@ -732,6 +732,27 @@ func (srv *server) ListServiceDesiredVersions(ctx context.Context, _ *cluster_co
 	return out, nil
 }
 
+// rejectUnconsumedGrants enforces the D1a interim contract: an explicit
+// per-node placement GRANT is desired operator intent, but until the placement
+// resolver incorporates grants (D1b: authorized = profile ∪ explicit_grant),
+// NOTHING consumes it. Accepted-but-ignored intent is the dangerous state, so a
+// spec carrying a GRANT is HARD-REJECTED at the write gate — not persisted, not
+// warned, not kept "for future use". This rejection is removed only in the
+// change that proves grants are consumed end-to-end.
+func rejectUnconsumedGrants(spec *cluster_controllerpb.ServiceReleaseSpec) error {
+	if spec == nil {
+		return nil
+	}
+	for _, a := range spec.NodeAssignments {
+		if a != nil && a.Placement == cluster_controllerpb.NodeAssignmentPlacementGrant {
+			return status.Errorf(codes.InvalidArgument,
+				"explicit per-node placement (node_assignments[].placement=%q, node_id=%q) is not yet enabled: the placement resolver does not consume grants (D1b) — the request is rejected rather than silently ignored",
+				cluster_controllerpb.NodeAssignmentPlacementGrant, strings.TrimSpace(a.NodeID))
+		}
+	}
+	return nil
+}
+
 func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest) (*cluster_controllerpb.ServiceRelease, error) {
 	if !srv.isLeader() {
 		resp := &cluster_controllerpb.ServiceRelease{}
@@ -749,6 +770,11 @@ func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_control
 	}
 	if strings.TrimSpace(obj.Spec.PublisherID) == "" || strings.TrimSpace(obj.Spec.ServiceName) == "" {
 		return nil, status.Error(codes.InvalidArgument, "spec.publisher_id and spec.service_name are required")
+	}
+	// D1a: reject explicit per-node placement grants until the resolver consumes
+	// them (D1b). Refuse at the write gate rather than persist accepted-but-ignored intent.
+	if err := rejectUnconsumedGrants(obj.Spec); err != nil {
+		return nil, err
 	}
 	if obj.Meta == nil {
 		obj.Meta = &cluster_controllerpb.ObjectMeta{}
