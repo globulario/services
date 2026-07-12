@@ -8,6 +8,16 @@ import (
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
+// maxPlausibleHeartbeatAgeSeconds upper-bounds a real heartbeat "age". Anything
+// larger is the unset-timestamp artifact — `time() - 0` ≈ the full Unix epoch
+// (~1.78e9s ≈ 56 years) — not a stale heartbeat: the cluster has not existed for
+// years, and a node dead that long would have been removed. This is
+// defense-in-depth behind the PromQL `> 0` filter in collector/prometheus.go, so
+// a false CRITICAL cannot reach an operator even if some other path feeds a
+// zero-based age. 30 days is far beyond any real staleness worth CRITICAL.
+// (repair.runtime_evidence_stale_or_conflicting — don't raise on unset evidence.)
+const maxPlausibleHeartbeatAgeSeconds = 30 * 24 * 3600 // 30 days
+
 // promRuntime checks Prometheus-fed control plane signals (if present).
 // Scope: cluster.
 type promRuntime struct{}
@@ -23,7 +33,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 
 	var findings []Finding
 
-	if age, ok := snap.PromMetrics["controller_loop_heartbeat_age"]; ok && age > 180 {
+	if age, ok := snap.PromMetrics["controller_loop_heartbeat_age"]; ok && age > 180 && age < maxPlausibleHeartbeatAgeSeconds {
 		// Suppress when Prometheus only scrapes a non-leader controller instance.
 		// Non-leaders never update loop_heartbeat_unix (the heartbeat loop is
 		// gated on holding the leader lease), so their heartbeat age is always
@@ -85,7 +95,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
-	if age, ok := snap.PromMetrics["node_heartbeat_age_max"]; ok && age > 120 {
+	if age, ok := snap.PromMetrics["node_heartbeat_age_max"]; ok && age > 120 && age < maxPlausibleHeartbeatAgeSeconds {
 		findings = append(findings, Finding{
 			FindingID:   FindingID("prom.node_heartbeats_stale", "cluster", "nodes"),
 			InvariantID: "prometheus.node_heartbeats_stale",

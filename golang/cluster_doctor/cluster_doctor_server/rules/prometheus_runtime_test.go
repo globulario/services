@@ -331,3 +331,38 @@ func TestPromRuntime_ReleaseBlocked_HighValueElevates(t *testing.T) {
 		t.Errorf("high stuck count must be INVARIANT_FAIL; got %v", got.InvariantStatus)
 	}
 }
+
+// A heartbeat "age" ≈ the current Unix epoch is the unset-timestamp artifact
+// (time() - 0 on a just-joined, not-yet-scraped node), NOT a stale node — it must
+// NOT fire the CRITICAL node_heartbeats_stale finding.
+func TestPromRuntime_ZeroTimestampHeartbeatArtifact_NoFinding(t *testing.T) {
+	snap := &collector.Snapshot{
+		PromMetrics: map[string]float64{
+			"node_heartbeat_age_max":        1783873516, // ≈ now - 0
+			"controller_loop_heartbeat_age": 1783873516,
+		},
+		PromTS: time.Now(),
+	}
+	for _, f := range (promRuntime{}).Evaluate(snap, Config{}) {
+		if f.InvariantID == "prometheus.node_heartbeats_stale" || f.InvariantID == "prometheus.controller_stalled" {
+			t.Fatalf("epoch-sized age (unset timestamp) must not fire %s", f.InvariantID)
+		}
+	}
+}
+
+// A real staleness (just over threshold, well under the sanity cap) must still fire.
+func TestPromRuntime_RealHeartbeatStaleness_Fires(t *testing.T) {
+	snap := &collector.Snapshot{
+		PromMetrics: map[string]float64{"node_heartbeat_age_max": 300}, // 5 min stale — real
+		PromTS:      time.Now(),
+	}
+	var found bool
+	for _, f := range (promRuntime{}).Evaluate(snap, Config{}) {
+		if f.InvariantID == "prometheus.node_heartbeats_stale" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("a real 300s heartbeat staleness must still fire node_heartbeats_stale")
+	}
+}
