@@ -522,6 +522,12 @@ spec:
       actor: node-agent
       action: node.install_packages
       with:
+        # Base command tools installed on every node. Media-server-only commands
+        # (ffmpeg, yt-dlp) are intentionally NOT here — they are installed by the
+        # media-server-gated install_commands_media step below. Installing them
+        # unconditionally orphans them on non-media nodes
+        # (placement.installed_package_orphaned). rclone/restic/mc are storage
+        # tools but every node in this topology carries the storage profile.
         packages:
           - { name: globular-cli, kind: COMMAND }
           - { name: etcdctl, kind: COMMAND }
@@ -529,9 +535,7 @@ spec:
           - { name: restic, kind: COMMAND }
           - { name: mc, kind: COMMAND }
           - { name: sctool, kind: COMMAND }
-          - { name: ffmpeg, kind: COMMAND }
           - { name: sha256sum, kind: COMMAND }
-          - { name: yt-dlp, kind: COMMAND }
           - { name: claude, kind: COMMAND }
           - { name: codex, kind: COMMAND }
       timeout: 2m
@@ -551,11 +555,45 @@ spec:
             - { name: restic, kind: COMMAND }
             - { name: mc, kind: COMMAND }
             - { name: sctool, kind: COMMAND }
-            - { name: ffmpeg, kind: COMMAND }
             - { name: sha256sum, kind: COMMAND }
-            - { name: yt-dlp, kind: COMMAND }
             - { name: claude, kind: COMMAND }
             - { name: codex, kind: COMMAND }
+        success:
+          expr: all_installed == true
+
+    # ── Tier 5b: Media-server command tools (profile-gated) ───────────────
+    # ffmpeg and yt-dlp are media-server-only COMMAND packages
+    # (component_catalog/profilemap.go: media-server → ffmpeg, yt-dlp). They are
+    # installed ONLY on nodes carrying the media-server profile — never in the
+    # unconditional install_commands step above, which would orphan them on
+    # non-media nodes (placement.installed_package_orphaned). Kept separate from
+    # the Tier-4 install_workloads_media step, which installs SERVICE workloads
+    # only.
+    - id: install_commands_media
+      title: Install media-server CLI tools
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'media-server')
+      dependsOn: [install_foundational]
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: ffmpeg, kind: COMMAND }
+          - { name: yt-dlp, kind: COMMAND }
+      timeout: 2m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_commands_media
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: ffmpeg, kind: COMMAND }
+            - { name: yt-dlp, kind: COMMAND }
         success:
           expr: all_installed == true
 
@@ -572,6 +610,7 @@ spec:
         - install_workloads_data_ai
         - install_scylla_tools
         - install_commands
+        - install_commands_media
       actor: node-agent
       action: node.sync_installed_state
       execution:

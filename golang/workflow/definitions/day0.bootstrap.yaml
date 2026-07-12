@@ -245,8 +245,11 @@ spec:
           - restic
           - sctool
           - sha256sum
-          - yt-dlp
-          - ffmpeg
+          # ffmpeg/yt-dlp are media-server-only (component_catalog/profilemap.go).
+          # They are installed by the profile-driven backstop below
+          # (verify_profile_install_set → install_profile_sets) only when the
+          # bootstrap node carries the media-server profile — never
+          # unconditionally, which would orphan them on a non-media founding node.
       timeout: $.install_timeout
       execution:
         idempotency: verify_then_continue

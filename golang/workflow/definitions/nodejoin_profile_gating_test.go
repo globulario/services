@@ -149,6 +149,43 @@ func TestNodeJoin_WorkloadStepsGateMatchesCatalog(t *testing.T) {
 	}
 }
 
+// TestNodeJoin_MediaServerOnlyCommandsAreProfileGated guards the scar
+// (2026-07-12): ffmpeg and yt-dlp are media-server-only COMMAND packages
+// (component_catalog: media-server → ffmpeg, yt-dlp) but were installed by the
+// UNCONDITIONAL install_commands step on every joining node, orphaning them on
+// non-media nodes (placement.installed_package_orphaned fired every join).
+//
+// The invariant, for EVERY install step (command or workload): if it installs a
+// package whose catalog placement is exactly {media-server}, the step MUST be
+// gated and its gate profiles must be exactly {media-server} — otherwise the
+// package lands on a node whose profiles do not authorize it.
+func TestNodeJoin_MediaServerOnlyCommandsAreProfileGated(t *testing.T) {
+	for _, s := range loadNodeJoin(t) {
+		if len(s.With.Packages) == 0 {
+			continue
+		}
+		// Collect this step's gate profile set (empty = ungated).
+		var gate []string
+		if s.When != nil {
+			for _, e := range s.When.AnyOf {
+				if m := gateExprRe.FindStringSubmatch(strings.TrimSpace(e.Expr)); m != nil {
+					gate = append(gate, m[1])
+				}
+			}
+		}
+		sort.Strings(gate)
+		gatedExactlyMedia := strings.Join(gate, ",") == "media-server"
+
+		for _, p := range s.With.Packages {
+			profs := component_catalog.ProfilesForPackage(p.Name)
+			if len(profs) == 1 && profs[0] == "media-server" && !gatedExactlyMedia {
+				t.Errorf("step %s installs media-server-only package %q but its gate is %v (want exactly [media-server]) — "+
+					"it would orphan on non-media nodes (placement.installed_package_orphaned)", s.ID, p.Name, gate)
+			}
+		}
+	}
+}
+
 // TestNodeJoin_WorkloadCoverageCompleteAndDisjoint verifies the union of all
 // Tier-4 package lists equals the frozen workload set exactly, and that no
 // package appears in two steps (parallel steps installing the same package
