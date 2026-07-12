@@ -183,6 +183,21 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 			activeJoinNodes[node.NodeID] = true
 		}
 	}
+	// Snapshot objectstore-membership admission under the same lock. A held
+	// minio/sidekick on a node that carries the storage profile
+	// (ObjectStoreIntent.Member) but has NOT been admitted to
+	// DesiredObjectStoreMembers is not "missing" — it is unadmitted/held
+	// (meta.absence_scope_must_be_explicit). The release workflow short-circuits
+	// with 0 targets for such a package, so emitting missing_package here scopes a
+	// held package as absent and spins a permanent remediation loop
+	// (workflow.drift_stuck CRITICAL). nil is meaningful (legacy mode) — preserve
+	// it so the predicate's legacy branch governs. Copied, not aliased, to keep
+	// the scan lock-free.
+	var desiredObjectStoreMembers []ObjectStoreMember
+	if srv.state.DesiredObjectStoreMembers != nil {
+		desiredObjectStoreMembers = make([]ObjectStoreMember, len(srv.state.DesiredObjectStoreMembers))
+		copy(desiredObjectStoreMembers, srv.state.DesiredObjectStoreMembers)
+	}
 	srv.unlock()
 
 	// Build the set of nodes to include (empty = all).
@@ -286,6 +301,18 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 				// short-circuit with 0 targets. Emitting missing_package here
 				// creates a permanent remediation loop with no effect.
 				if isActiveInfraMember(node, svc) {
+					continue
+				}
+				// objectstore-topology-gated packages (minio/sidekick) are placed
+				// by the objectstore admission plane, not by profile-derived desired
+				// state. A node can carry the storage profile (ObjectStoreIntent.Member)
+				// yet be held out of DesiredObjectStoreMembers; its minio/sidekick is
+				// unadmitted/held, not absent. Reporting missing_package there spins a
+				// permanent remediation loop the release workflow can never satisfy
+				// (0 targets). Scoped narrowly (meta.silence_is_not_valid_for_unexpected):
+				// only these gated packages, and only when NOT an admitted member — a
+				// genuinely-missing minio on an admitted member still drifts below.
+				if isObjectStoreTopologyGated(svc) && !nodeIsExplicitObjectStoreMember(node, desiredObjectStoreMembers) {
 					continue
 				}
 				driftItems = append(driftItems, map[string]any{

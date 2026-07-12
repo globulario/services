@@ -94,6 +94,22 @@ func nodeIsExplicitObjectStoreMember(node *nodeState, desiredMembers []ObjectSto
 	return status == "explicit_desired_state" || status == "legacy_profile_derived"
 }
 
+// isObjectStoreTopologyGated reports whether a package's placement on a node is
+// governed by the objectstore admission plane (DesiredObjectStoreMembers) rather
+// than by profile-derived desired state alone. minio and its sidekick load
+// balancer are pooled by explicit topology admission: the "storage" profile makes
+// a node eligible (ObjectStoreIntent.Member) but the controller must still admit
+// it to the pool. Until then their packages are held/unadmitted, not missing —
+// callers must not treat their absence as drift on an unadmitted node.
+func isObjectStoreTopologyGated(pkg string) bool {
+	switch pkg {
+	case "minio", "sidekick":
+		return true
+	default:
+		return false
+	}
+}
+
 // nodeIsObjectStoreMemberAdmitted returns true when the node is in a lifecycle
 // state that allows it to render active MinIO topology config.
 //
