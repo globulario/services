@@ -42,6 +42,63 @@ mcp__globular__repository_active_release()   # read the version for your <servic
 
 Then reuse **that** version for `--version`, and set `--build-number` to (current build + 1).
 
+## Use the ACTUAL publisherID + a bumped build number — never a local publisher/channel
+
+**This is THE correct way to publish a local rebuild. Everything else is a trap.**
+
+The publish identity is exactly three fields:
+
+| Field | Value | Rule |
+|-------|-------|------|
+| `--publisher` | `core@globular.io` | the **actual** publisher the package ships under (read it from the package's own `package.json` / the BOM). **Never invent a local publisher.** |
+| `--version` | `<current>` | the version already in the BOM — **unchanged**. |
+| `--build-number` | `<current + 1>` | the **only** field that advances. |
+
+That triple `(core@globular.io, <version>, <build+1>)` is a **new, distinct build identity** — and that is precisely why it works with sealing:
+
+> Official stable artifacts are **sealed**: a specific `(publisher, name, version, build)` at a specific digest is immutable. Re-uploading the **same build** with different bytes is rejected — `official identity conflict … is SEALED … incoming artifact has a different digest`. `--force` does **NOT** bypass the seal.
+
+A **build-number bump sidesteps the seal cleanly**: build `N+1` is an identity nothing has sealed yet, so it publishes normally on the STABLE channel. You therefore **never** need `--force`, `--unseal-official`, `--channel local/dev`, or a `+local.<host>.N` version suffix.
+
+Those are the WRONG tools (each was tried and failed 2026-07-12):
+
+- ❌ `--channel local` / `--publisher local@<cluster>` / `1.2.272+local.host.1` suffix → creates a **DEV-lane** artifact that the cluster's STABLE desired-state never resolves, and it lands `CHANNEL_UNSET` — invisible to `explain-package`/desired resolution.
+- ❌ `--force` on the same build → hits the seal.
+- ✅ `--publisher core@globular.io` + `--build-number <current+1>` → clean new build on STABLE, no seal conflict, no version race.
+
+**Note:** `--build-number` is a **`pkg build`** flag (it is baked into the `.tgz` at build time). `pkg publish` has **no** `--build-number` flag. Set it when you BUILD the package, then publish the resulting tgz.
+
+## Publish as root (or the `globular` user) — or you create a PHANTOM
+
+The publish uploads the blob to the repository's **local POSIX CAS** over an authenticated mesh RPC. That RPC needs a **service token**, minted from `/var/lib/globular/keys/…_private`, which only `root`/`globular` can read. Publish as an ordinary user (e.g. `dave`) and you get a split failure:
+
+- the **manifest upsert** (authenticated by your `sa` JWT) **succeeds**, but
+- the **blob upload** (needs the unreadable service-token key) **fails silently**,
+
+leaving a **published manifest with no blob — a phantom**. Nodes resolve the manifest, try to fetch the blob, it is missing → `repository.published_missing_blob` → `missing_package` → the release workflow retries forever → CRITICAL `workflow.drift_stuck`. (This is exactly what happened 2026-07-12; re-publishing **as root** put the blob in the CAS and cleared it.)
+
+Correct CLI flow (when MCP tools are unavailable), run the publish as root:
+
+```bash
+# 1. Build the package with the bumped build number and the real publisher.
+globular pkg build --spec <spec.yaml> --root <payload-dir> \
+  --publisher core@globular.io --version <current> --build-number <current+1> \
+  --platform linux_amd64 --out /tmp/out
+#    (Go services: build the stripped binary first — see "stripped" below — into <payload-dir>/bin/.)
+
+# 2. Publish AS ROOT so the service token mints and the blob lands in the CAS.
+TOKEN=$(globular auth login --user sa --password <pw> 2>/dev/null | grep '^Token:' | sed 's/^Token: //')
+echo "$TOKEN" | sudo tee /tmp/sa.tok >/dev/null
+sudo bash -c 'globular pkg publish --file /tmp/out/<name>_<version>_linux_amd64.tgz \
+  --token "$(cat /tmp/sa.tok)" --repository 127.0.0.1:10007 --ca /var/lib/globular/pki/ca.crt --output json'
+
+# 3. Point desired state at the new build, then reconcile.
+globular services desired set <name> <current> --build-number <current+1> --token "$TOKEN"
+globular services repair
+```
+
+> **Storage model:** package blobs live in each repository instance's **local POSIX CAS — never MinIO**. A joined node materializes a PUBLISHED blob into its own CAS from its **staged join packages**, digest-verified against the manifest (`blob_seed.go`). Consequence: a rebuild changes the checksum, so its blob must actually be published to the instance the nodes resolve from — it will **not** materialize from an older staged package whose digest differs. Do not re-publish an already-healthy external package "for cleanliness"; a checksum change with no matching staged blob re-introduces `published_missing_blob`.
+
 ## Release-channel builds MUST be stripped
 
 The repository rejects a release-channel artifact that carries debug sections:
