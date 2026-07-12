@@ -395,6 +395,19 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		}
 		manifestEntrypoint = path.Join("bin", info.ExecName)
 		manifestEntrypointChecksum = "sha256:" + entrypointChecksum
+	} else if id := info.Metadata.Identity; id != nil && id.Proof == "binary_sha256" {
+		// Noop package (curl/wrapper, .deb, OS-repo) that DECLARES a binary_sha256
+		// identity: the build never sees the installed binary, so the manifest
+		// carries the package's DECLARED pinned checksum verbatim. The node-agent
+		// re-hashes the installed binary at identity.installed_path and compares it
+		// against this value — a single declared canonical identity, never one
+		// recovered by hashing whatever happens to be on disk
+		// (forbidden_fix:recompute_identity_from_secondary_source).
+		c := strings.TrimSpace(id.Checksum)
+		if c != "" && !strings.HasPrefix(c, "sha256:") {
+			c = "sha256:" + c
+		}
+		manifestEntrypointChecksum = c
 	}
 
 	manifest := Manifest{
