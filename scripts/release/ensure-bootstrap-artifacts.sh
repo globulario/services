@@ -110,6 +110,7 @@ CORE_PACKAGES=(
   "node-exporter_*_linux_amd64.tgz"
   "prometheus_*_linux_amd64.tgz"
   "monitoring_*_linux_amd64.tgz"
+  "alertmanager_*_linux_amd64.tgz"
   "event_*_linux_amd64.tgz"
   "log_*_linux_amd64.tgz"
   "backup-manager_*_linux_amd64.tgz"
@@ -145,6 +146,16 @@ CORE_PACKAGES=(
   "sha256sum_*_linux_amd64.tgz"
   "restic_*_linux_amd64.tgz"
   "rclone_*_linux_amd64.tgz"
+  # ── AI CLI tools ───────────────────────────────────────────────────
+  # claude and codex are COMMAND packages (external AI CLIs). They are in
+  # the desired workload set (component_catalog: core+compute → every node
+  # carries core, so they install cluster-wide) but were absent
+  # from this publish list, so nodes were told to install claude@2.1.177 /
+  # codex@0.142.3 while the repository had no such artifact — a version-
+  # authority violation (desired references an unpublished version). The
+  # artifacts ship in the bundle (dist/.../packages/); publish them here.
+  "claude_*_linux_amd64.tgz"
+  "codex_*_linux_amd64.tgz"
 )
 
 # ── Step 1: Discover repository endpoint ─────────────────────────────────────
