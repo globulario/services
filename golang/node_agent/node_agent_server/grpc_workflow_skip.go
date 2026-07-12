@@ -261,9 +261,29 @@ func canSkipInstallPackage(
 		pkgName, unit)
 }
 
+// entrypointProofOptional reports whether a package's convergence proof does NOT
+// require re-hashing an installed binary against a declared checksum. It is driven
+// by the package's DECLARED identity proof mode (persisted at install by
+// versionutil.WriteIdentityProof) — an explicit, declared signal, not one inferred
+// from entrypoint=="none":
+//   - "version": the identity IS the package version (vendor tree/symlink, .deb,
+//     or OS-repo binary whose bytes vary) → optional; no binary sha to verify.
+//   - "binary_sha256": a pinned binary sha IS the identity → NOT optional, even
+//     when entrypoint=="none" (e.g. claude): the installed binary MUST be hashed
+//     against the declared checksum. This is the case the old entrypoint=="none"
+//     inference wrongly exempted.
+// Legacy packages predate the proof sidecar (empty) → fall back to the entrypoint
+// sidecar (none/noop → optional).
 func entrypointProofOptional(pkgName string) bool {
-	entrypoint := strings.ToLower(strings.TrimSpace(versionutil.ReadEntrypoint(pkgName)))
-	return entrypoint == "none" || entrypoint == "noop"
+	switch versionutil.ReadIdentityProof(pkgName) {
+	case "version":
+		return true
+	case "binary_sha256":
+		return false
+	default:
+		entrypoint := strings.ToLower(strings.TrimSpace(versionutil.ReadEntrypoint(pkgName)))
+		return entrypoint == "none" || entrypoint == "noop"
+	}
 }
 
 func runtimeManagedOutsideInstall(pkgName string) bool {

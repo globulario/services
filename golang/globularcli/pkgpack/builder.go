@@ -388,6 +388,14 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 	// the node-agent verifier reads "none" and returns BinaryNotApplicable.
 	manifestEntrypoint := "none"
 	manifestEntrypointChecksum := ""
+	manifestIdentityProof := ""
+	if info.Metadata.Identity != nil {
+		manifestIdentityProof = strings.ToLower(strings.TrimSpace(info.Metadata.Identity.Proof))
+	} else if !info.NoEntrypoint {
+		// Shipped-binary packages are binary_sha256 by construction even without an
+		// explicit identity block (the checksum below is the proof).
+		manifestIdentityProof = "binary_sha256"
+	}
 	if !info.NoEntrypoint {
 		entrypointChecksum, err := sha256File(execDest)
 		if err != nil {
@@ -419,6 +427,7 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		Publisher:          opts.Publisher,
 		Entrypoint:         manifestEntrypoint,
 		EntrypointChecksum: manifestEntrypointChecksum,
+		IdentityProof:      manifestIdentityProof,
 		Defaults: ManifestDefault{
 			ConfigDir: "",
 			Spec:      path.Join("specs", info.SpecFile),

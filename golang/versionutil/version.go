@@ -114,6 +114,50 @@ func ReadEntrypoint(serviceName string) string {
 	return strings.TrimSpace(string(data))
 }
 
+// IdentityProofPath returns the path to the identity-proof sidecar for a
+// package. It holds the manifest-declared identity proof MODE ("binary_sha256"
+// or "version"), so the node-agent's convergence check knows how a package's
+// identity is verified WITHOUT inferring it from entrypoint=="none". A
+// binary_sha256 package must have its installed binary hashed against the
+// declared checksum; a version package is proved by its live version. This makes
+// the meaning explicit and declared (identity.has_single_canonical_source_and_is_immutable)
+// rather than guessed from a secondary signal.
+//
+// Format: /var/lib/globular/services/<name>/identity_proof
+func IdentityProofPath(serviceName string) string {
+	name := sanitize(serviceName)
+	if name == "" {
+		name = "unknown"
+	}
+	return filepath.Join(baseDir, name, "identity_proof")
+}
+
+// WriteIdentityProof persists the manifest-declared identity proof mode. Safe to
+// call repeatedly; last write wins. Writes nothing when proof is empty (legacy
+// packages that predate declared identity — readers fall back to the entrypoint
+// sidecar).
+func WriteIdentityProof(serviceName, proof string) error {
+	proof = strings.ToLower(strings.TrimSpace(proof))
+	if proof == "" {
+		return nil
+	}
+	path := IdentityProofPath(serviceName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(proof+"\n"), 0o644)
+}
+
+// ReadIdentityProof returns the persisted identity proof mode, or "" when no
+// sidecar exists (legacy install — caller falls back to entrypoint inference).
+func ReadIdentityProof(serviceName string) string {
+	data, err := os.ReadFile(IdentityProofPath(serviceName))
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(string(data)))
+}
+
 // WriteKind persists the package kind ("SERVICE", "INFRASTRUCTURE", "COMMAND",
 // "APPLICATION") alongside the version marker so offline/Phase-1 reads know the
 // kind without an etcd query. Safe to call multiple times; last write wins.

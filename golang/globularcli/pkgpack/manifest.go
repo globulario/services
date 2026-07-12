@@ -50,6 +50,14 @@ type Manifest struct {
 	// binary on disk → checksum → repository version.
 	EntrypointChecksum string `json:"entrypoint_checksum,omitempty"`
 
+	// IdentityProof is the DECLARED verification mode for this package's identity:
+	// "binary_sha256" (re-hash the installed binary against EntrypointChecksum) or
+	// "version" (a vendor-tree/symlink or OS/deb package proved by its live
+	// version). Empty for legacy packages that predate declared identity. Lets the
+	// node-agent verify per an explicit, declared mode instead of inferring it from
+	// entrypoint=="none" (identity.has_single_canonical_source_and_is_immutable).
+	IdentityProof string `json:"identity_proof,omitempty"`
+
 	// Channel declares which release channel this artifact belongs to.
 	// Valid values: "stable", "candidate", "canary", "dev", "bootstrap".
 	// Empty or omitted defaults to "stable" on the repository side.
