@@ -88,6 +88,21 @@ func (srv *NodeAgentServer) StartHeartbeat(ctx context.Context) {
 	go eh.run(ctx)
 }
 
+// installedStateSyncTimeout bounds a full syncInstalledStateToEtcd pass. This
+// pass writes an L3 installed-state record for EVERY installed package (Get +
+// Write per package, plus the local-package-cache reconstruction pass). On a
+// freshly-joined node etcd and the repository are under convergence load, so a
+// 30s budget was routinely exhausted by the first phase — every later
+// WriteInstalledPackage then failed with "context done before first attempt:
+// context deadline exceeded", NO installed-state was written, applied_hash
+// stayed "", and the controller saw the whole desired set as missing_package →
+// a wall of CRITICAL workflow.drift_stuck. The installed-state (L3) is
+// convergence-critical evidence the node-agent owns; it must not be starved by
+// an under-provisioned shared budget. 3 minutes comfortably covers a ~50-package
+// sync under join-time etcd latency; steady-state passes finish in well under a
+// second and the timer never fires.
+const installedStateSyncTimeout = 3 * time.Minute
+
 func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	hb := globular_service.RegisterSubsystem("heartbeat", 30*time.Second)
 	withOpTimeout := func(d time.Duration, fn func(context.Context)) {
@@ -97,7 +112,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	}
 	// Initial sync: populate installed-state etcd records for packages
 	// installed by the Day-0 installer (which doesn't go through plan execution).
-	withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
+	withOpTimeout(installedStateSyncTimeout, srv.syncInstalledStateToEtcd)
 	withOpTimeout(15*time.Second, srv.syncEtcHosts)
 	// Heal /var/lib/globular/objectstore/minio.json if it was clobbered
 	// out-of-band; etcd is authoritative. See minio_contract_reconcile.go.
@@ -204,7 +219,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			runHeartbeat()
 			heartbeatTimer.Reset(heartbeatDelay)
 		case <-syncTicker.C:
-			withOpTimeout(30*time.Second, srv.syncInstalledStateToEtcd)
+			withOpTimeout(installedStateSyncTimeout, srv.syncInstalledStateToEtcd)
 			withOpTimeout(15*time.Second, srv.syncEtcHosts)
 			withOpTimeout(15*time.Second, srv.reconcileMinioContract)
 			withOpTimeout(15*time.Second, srv.reconcileMinioSystemdConfig)
