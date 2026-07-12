@@ -173,12 +173,27 @@ func TestInstalledStateRuntimeMismatch_NoInventory_NoFinding(t *testing.T) {
 func TestPackageIsCommand_FallbackList(t *testing.T) {
 	known := []string{
 		"rclone", "restic", "mc", "sctool", "etcdctl", "ffmpeg", "globular-cli",
-		"cli", "sha256sum", "yt-dlp", "claude",
+		"cli", "sha256sum", "yt-dlp", "claude", "codex",
 	}
 	for _, name := range known {
 		if !packageIsCommand(name, nil) {
 			t.Errorf("expected %q to be classified as a command package via fallback", name)
 		}
+	}
+}
+
+// Regression: codex is a command sibling of claude with no systemd unit. On a
+// node whose codex etcd record is still the pre-kind-sidecar INFRASTRUCTURE kind
+// (dynamic fallback returns false), the static list must still classify it as a
+// command so installed_state_runtime_mismatch does not fire for a non-existent
+// globular-codex.service.
+func TestPackageIsCommand_CodexStaleInfraKind(t *testing.T) {
+	if !packageIsCommand("codex", nil) {
+		t.Error("codex must be a command package via the static list")
+	}
+	staleKind := map[string]string{"codex": "INFRASTRUCTURE"}
+	if !packageIsCommand("codex", staleKind) {
+		t.Error("static list must win over a stale INFRASTRUCTURE etcd kind for codex")
 	}
 }
 
