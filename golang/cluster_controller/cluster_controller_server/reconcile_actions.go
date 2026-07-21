@@ -492,10 +492,44 @@ func driftEntityRef(item map[string]any) string {
 // clearResolvedDrift removes drift_unresolved rows for entities that no longer
 // appear in the current drift scan. Runs in background on each classify_drift.
 func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]map[string]bool) {
-	// Not currently read-capable from the recorder (no ListDriftUnresolved
-	// client helper). Defer full implementation — stale rows will age out via
-	// operator action or explicit ClearDriftObservation from remediation.
-	_ = current
+	if srv.workflowClient == nil {
+		return
+	}
+	clusterID := strings.TrimSpace(srv.cfg.ClusterDomain)
+	if clusterID == "" {
+		return
+	}
+	resp, err := srv.workflowClient.ListDriftUnresolved(ctx, &workflowpb.ListDriftUnresolvedRequest{
+		ClusterId: clusterID,
+		MinCycles: 1,
+	})
+	if err != nil || resp == nil {
+		return
+	}
+	clearResolvedDriftItems(current, resp.GetItems(), func(driftType, entityRef string) {
+		srv.clearDriftObservation(ctx, driftType, entityRef)
+	})
+}
+
+// clearResolvedDriftItems clears persisted observations that the current scan
+// deliberately did not emit. This includes topology-withheld packages: their
+// absence is policy, not missing_package drift, so stale generic remediation
+// rows must not survive after the scanner learns that eligibility verdict.
+func clearResolvedDriftItems(current map[string]map[string]bool, items []*workflowpb.DriftUnresolved, clear func(driftType, entityRef string)) {
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		driftType := strings.TrimSpace(item.GetDriftType())
+		entityRef := strings.TrimSpace(item.GetEntityRef())
+		if driftType == "" || entityRef == "" {
+			continue
+		}
+		if current[driftType][entityRef] {
+			continue
+		}
+		clear(driftType, entityRef)
+	}
 }
 
 // clearUnmanagedDriftObservations clears all unresolved unmanaged_package rows.

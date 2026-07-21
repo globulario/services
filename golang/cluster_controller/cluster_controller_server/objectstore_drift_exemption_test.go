@@ -15,7 +15,11 @@ package main
 // (meta.silence_is_not_valid_for_unexpected): it must never swallow a genuinely
 // missing package on an admitted member, nor a non-gated package.
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/globulario/services/golang/workflow/workflowpb"
+)
 
 // driftExempt mirrors the exact guard inserted in reconcileScanDrift's
 // missing_package emission block.
@@ -95,5 +99,29 @@ func TestDriftExemption_LegacyModeStillDrifts(t *testing.T) {
 	}
 	if driftExempt("minio", node, nil) {
 		t.Error("legacy mode (nil desiredMembers) treats storage nodes as members — must NOT be exempt")
+	}
+}
+
+func TestClearResolvedDriftItemsClearsWithheldTopologyRows(t *testing.T) {
+	current := map[string]map[string]bool{
+		"missing_package": {
+			"dns@node-a": true,
+		},
+	}
+	items := []*workflowpb.DriftUnresolved{
+		{DriftType: "missing_package", EntityRef: "dns@node-a"},
+		{DriftType: "missing_package", EntityRef: "minio@node-b"},
+		{DriftType: "missing_package", EntityRef: "sidekick@node-b"},
+	}
+	var cleared []string
+	clearResolvedDriftItems(current, items, func(driftType, entityRef string) {
+		cleared = append(cleared, driftType+"/"+entityRef)
+	})
+
+	if len(cleared) != 2 {
+		t.Fatalf("cleared %d rows, want 2: %v", len(cleared), cleared)
+	}
+	if cleared[0] != "missing_package/minio@node-b" || cleared[1] != "missing_package/sidekick@node-b" {
+		t.Errorf("cleared=%v, want withheld minio and sidekick rows", cleared)
 	}
 }
