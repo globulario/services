@@ -466,6 +466,9 @@ for dropin in /etc/systemd/system/globular-*.service.d; do
 done
 
 systemctl daemon-reload 2>/dev/null || true
+systemctl reset-failed 'globular-*' 2>/dev/null || true
+systemctl reset-failed 2>/dev/null || true
+log_success "Reset failed systemd unit state"
 
 # ── Phase 4: Wipe state ─────────────────────────────────────────────────────
 

@@ -229,7 +229,6 @@ func (srv *server) startReleaseReconciler(ctx context.Context, queue *workQueue)
 // reconcileRelease drives the phase state machine for one ServiceRelease
 // using the shared release pipeline.
 // Called from the worker goroutine when the queue key has the "release/" prefix.
-//
 func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 	if !srv.mustBeLeader() {
 		return
@@ -274,6 +273,18 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 		// Backoff: artifact was not found in the repository. Retry after
 		// releaseWaitingBackoff to avoid hammering the repository on every
 		// reconcile cycle while the artifact is being published.
+		if h.LastTransitionUnixMs > 0 {
+			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
+			if elapsed < releaseWaitingBackoff {
+				return
+			}
+		}
+		srv.reconcilePending(ctx, h)
+	case cluster_controllerpb.ReleasePhaseDeferred:
+		// Backoff: target selection found no dispatchable nodes because
+		// readiness/applicability/installed-state evidence was incomplete. This
+		// is not AVAILABLE and not terminal; retry after a bounded wait so node
+		// admission or evidence refresh can make the release dispatchable.
 		if h.LastTransitionUnixMs > 0 {
 			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
 			if elapsed < releaseWaitingBackoff {
@@ -711,6 +722,14 @@ func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) 
 			}
 		}
 		srv.reconcilePending(ctx, h)
+	case cluster_controllerpb.ReleasePhaseDeferred:
+		if h.LastTransitionUnixMs > 0 {
+			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
+			if elapsed < releaseWaitingBackoff {
+				return
+			}
+		}
+		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
@@ -834,6 +853,14 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 	case "", cluster_controllerpb.ReleasePhasePending:
 		srv.reconcilePending(ctx, h)
 	case cluster_controllerpb.ReleasePhaseWaiting:
+		if h.LastTransitionUnixMs > 0 {
+			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
+			if elapsed < releaseWaitingBackoff {
+				return
+			}
+		}
+		srv.reconcilePending(ctx, h)
+	case cluster_controllerpb.ReleasePhaseDeferred:
 		if h.LastTransitionUnixMs > 0 {
 			elapsed := time.Since(time.UnixMilli(h.LastTransitionUnixMs))
 			if elapsed < releaseWaitingBackoff {

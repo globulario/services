@@ -40,6 +40,26 @@ import (
 )
 
 func main() {
+	// Informational flags MUST be handled before any server startup. The
+	// node-agent port-config preflight execs "mcp_server --describe" during
+	// Day-1 install; falling through to start the HTTP server here made it
+	// block forever in serve and burn the entire per-package install budget,
+	// looping the join (2026-07 nuc Day-1). mcp does not implement the
+	// --describe port protocol — its port is resolved from etcd — so exit
+	// cleanly without serving. --version/--help must likewise never serve.
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "--describe":
+			return
+		case "--version":
+			fmt.Println(Version)
+			return
+		case "--help", "-h":
+			fmt.Println("globular-mcp-server — Globular MCP server (JSON-RPC 2.0 over stdio or HTTP)")
+			return
+		}
+	}
+
 	// Suppress log output to stderr (MCP uses stdout for JSON-RPC).
 	log.SetOutput(os.Stderr)
 	log.SetFlags(log.Ltime | log.Lshortfile)

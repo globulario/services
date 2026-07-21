@@ -42,6 +42,7 @@ var validPhaseTransitions = map[string]map[string]bool{
 	cluster_controllerpb.ReleasePhaseResolved: {
 		cluster_controllerpb.ReleasePhaseAvailable:  true, // workflow finished: all nodes converged
 		cluster_controllerpb.ReleasePhaseDegraded:   true, // workflow finished: some nodes failed
+		cluster_controllerpb.ReleasePhaseDeferred:   true, // workflow found no dispatchable targets; retry later
 		cluster_controllerpb.ReleasePhaseFailed:     true, // workflow finished: failure
 		cluster_controllerpb.ReleasePhaseRolledBack: true,
 		ReleasePhaseRemoving:                        true,
@@ -52,10 +53,16 @@ var validPhaseTransitions = map[string]map[string]bool{
 	cluster_controllerpb.ReleasePhaseApplying: {
 		cluster_controllerpb.ReleasePhaseAvailable:  true,
 		cluster_controllerpb.ReleasePhaseDegraded:   true,
+		cluster_controllerpb.ReleasePhaseDeferred:   true,
 		cluster_controllerpb.ReleasePhaseFailed:     true,
 		cluster_controllerpb.ReleasePhaseRolledBack: true,
 		cluster_controllerpb.ReleasePhaseResolved:   true,
 		ReleasePhaseRemoving:                        true,
+	},
+	cluster_controllerpb.ReleasePhaseDeferred: {
+		cluster_controllerpb.ReleasePhasePending: true, // retry target selection after backoff
+		cluster_controllerpb.ReleasePhaseFailed:  true,
+		ReleasePhaseRemoving:                     true,
 	},
 	cluster_controllerpb.ReleasePhaseAvailable: {
 		cluster_controllerpb.ReleasePhasePending:  true, // drift re-resolve
@@ -117,7 +124,7 @@ func (srv *server) emitPhaseTransition(releaseName, from, to, reason string) err
 	switch to {
 	case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
 		severity = "ERROR"
-	case cluster_controllerpb.ReleasePhaseDegraded:
+	case cluster_controllerpb.ReleasePhaseDegraded, cluster_controllerpb.ReleasePhaseDeferred:
 		severity = "WARN"
 	case ReleasePhaseRemoving:
 		severity = "WARN"

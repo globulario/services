@@ -102,15 +102,14 @@ CORE_PACKAGES=(
   "resource_*_linux_amd64.tgz"
   "rbac_*_linux_amd64.tgz"
   "authentication_*_linux_amd64.tgz"
-  "discovery_*_linux_amd64.tgz"
   "dns_*_linux_amd64.tgz"
   "repository_*_linux_amd64.tgz"
   # ── Operations ─────────────────────────────────────────────────────
   "sidekick_*_linux_amd64.tgz"
   "node-exporter_*_linux_amd64.tgz"
   "prometheus_*_linux_amd64.tgz"
+  "alertmanager_*_linux_amd64.tgz"  # registry day0_required: true — omitted here caused day-0 NotFound
   "monitoring_*_linux_amd64.tgz"
-  "alertmanager_*_linux_amd64.tgz"
   "event_*_linux_amd64.tgz"
   "log_*_linux_amd64.tgz"
   "backup-manager_*_linux_amd64.tgz"
@@ -147,13 +146,14 @@ CORE_PACKAGES=(
   "restic_*_linux_amd64.tgz"
   "rclone_*_linux_amd64.tgz"
   # ── AI CLI tools ───────────────────────────────────────────────────
-  # claude and codex are COMMAND packages (external AI CLIs). They are in
-  # the desired workload set (component_catalog: core+compute → every node
-  # carries core, so they install cluster-wide) but were absent
-  # from this publish list, so nodes were told to install claude@2.1.177 /
-  # codex@0.142.3 while the repository had no such artifact — a version-
-  # authority violation (desired references an unpublished version). The
-  # artifacts ship in the bundle (dist/.../packages/); publish them here.
+  # claude and codex are external AI CLI COMMAND packages, requested at
+  # convergence via the core profile (component_catalog/profilemap.go:
+  # core+compute → every node carries core) and the registry (codex
+  # day0_required: true). They were absent from this publish list, so nodes
+  # were told to install claude@2.1.177 / codex@0.142.3 while the repository
+  # had no such manifest — a version-authority violation producing recurring
+  # "resolve latest manifest ... NotFound". The artifacts ship in the bundle
+  # (dist/.../packages/); publish them here.
   "claude_*_linux_amd64.tgz"
   "codex_*_linux_amd64.tgz"
 )

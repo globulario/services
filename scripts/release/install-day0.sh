@@ -248,6 +248,32 @@ DOMAIN="globular.internal"
 # profiles. It is not a quorum/admission floor; the controller preserves explicit
 # placement intent and reports quorum/capacity separately.
 FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
+
+# Validate FOUNDING_PROFILES against the canonical profile catalog
+# (golang/component_catalog/profilemap.go). Non-catalog labels (e.g. a typo or a
+# vestigial "ai") authorize zero packages and only add noise to the node's
+# profile set — the controller tolerates unknown profiles, so a bogus label
+# silently sticks forever. Drop unknowns here with a warning so the founding
+# node's seed profiles are always catalog-valid. Keep this list in sync with
+# ProfilePackages in profilemap.go.
+_CANONICAL_PROFILES="compute control-plane core database dns gateway media-server scylla storage"
+_kept=""; _dropped=""
+IFS=',' read -ra _fp <<< "$FOUNDING_PROFILES"
+for _p in "${_fp[@]}"; do
+  _p="$(printf '%s' "$_p" | tr -d '[:space:]')"
+  [[ -z "$_p" ]] && continue
+  if [[ " $_CANONICAL_PROFILES " == *" $_p "* ]]; then
+    _kept="${_kept:+$_kept,}$_p"
+  else
+    _dropped="${_dropped:+$_dropped,}$_p"
+  fi
+done
+if [[ -n "$_dropped" ]]; then
+  log_warn "Dropping non-catalog founding profile(s): ${_dropped} (not in canonical profile catalog; authorizes no packages)"
+fi
+FOUNDING_PROFILES="${_kept:-core}"
+unset _CANONICAL_PROFILES _kept _dropped _fp _p
+
 FORCE_FLAG=""
 if [[ "$FORCE_REINSTALL" == "1" ]]; then
   FORCE_FLAG="--force"

@@ -1,1 +1,115 @@
-candidates: []
+# Session-discovered awareness candidates — human/CI review before promotion.
+# Written directly because the awareness-graph propose write-path was
+# unreachable (server started without -awareness-dir). To accept an entry, move
+# it under the appropriate class dir (docs/awareness/invariants or
+# docs/awareness/failure_modes), set status: active, and rebuild embeddata so
+# the live graph picks it up.
+candidates:
+  - id: candidate.invariant.package.day0_publish_set_must_cover_registry_day0_required
+    class: Invariant
+    label: The day-0 repository publish set must cover every registry day0_required package (+ hard_deps)
+    status: candidate
+    confidence: candidate
+    severity: high
+    domain: globular-services
+    discovered: 2026-07-11
+    description: >-
+      "Day-0 required" is declared in packages/registry.yaml (packages[].day0_required: true),
+      but the artifacts actually REGISTERED into the repository at day-0 are chosen by a separate
+      hardcoded allowlist — CORE_PACKAGES in scripts/release/ensure-bootstrap-artifacts.sh. These
+      are two independent declarations of the same intent and MUST NOT drift: every registry
+      package with day0_required: true (and its hard_deps) MUST be matched by a CORE_PACKAGES glob,
+      or its built .tgz (present in packages/dist/) is never published — nodes then resolve
+      "latest manifest" and get NotFound. install-day0.sh referencing a tarball is NOT sufficient:
+      install (local CAS) and publish (repository registration) are different steps.
+    contract: >-
+      For all p in registry.packages where p.day0_required is true: p.name (and transitively
+      p.hard_deps) MUST be matched by a CORE_PACKAGES glob in
+      scripts/release/ensure-bootstrap-artifacts.sh. Conversely every CORE_PACKAGES entry MUST
+      correspond to a real registry package (no dead patterns, e.g. the removed "discovery_*").
+    source_files:
+      - scripts/release/ensure-bootstrap-artifacts.sh
+      - packages/registry.yaml
+      - scripts/release/install-day0.sh
+    required_tests:
+      - scripts/validate-day0-package-contract.py
+    forbidden_fixes:
+      - >-
+        Adding the missing package to CORE_PACKAGES by hand without also extending
+        validate-day0-package-contract.py — fixes the instance, leaves the drift class open.
+      - >-
+        Treating install-day0.sh referencing the .tgz as proof of day-0 availability — install
+        (local CAS) and publish (repository registration) are distinct layers.
+      - >-
+        Inferring day-0 availability from a non-empty installed_version in convergence detail —
+        status=missing_in_repo can coexist with an installed version (half_done_must_not_look_done).
+    related_invariants:
+      - invariant:package.entrypoint_binary_identity_single_source_of_truth
+      - invariant:meta.competing_writers_must_converge_or_be_fenced
+      - invariant:meta.half_done_must_not_look_done
+    evidence:
+      - >-
+        2026-07-11: codex and alertmanager (registry day0_required: true) were built to
+        packages/dist/ but omitted from CORE_PACKAGES, so the repository had no manifest for them;
+        node-agent workflow-runner logged "resolve latest manifest ... NotFound". Fixed by adding
+        alertmanager/claude/codex to CORE_PACKAGES, removing a dead "discovery_*" pattern, and
+        extending validate-day0-package-contract.py to gate the publish set against registry.
+
+  - id: candidate.failure_mode.install.describe_preflight_unbounded_hangs_join
+    class: FailureMode
+    label: Install --describe preflight inherits the full install context; a binary that serves instead of honoring --describe hangs the per-package budget and loops the join
+    status: candidate
+    confidence: candidate
+    severity: high
+    domain: globular-services
+    discovered: 2026-07-11
+    description: >-
+      During SERVICE install, node-agent resolves the service port with a best-effort last-resort
+      exec of "<binary> --describe" (serviceports.EnsureServicePortConfig -> runDescribe). runDescribe
+      passed the caller's raw context straight to exec.CommandContext, and the caller is the join's
+      per-package install context (joinPerPackageInstallTimeout = 8m, actors.go). A binary that does
+      NOT honor --describe and instead starts serving (mcp_server had no flag parsing at all, fell
+      through to http serve, bound :10260 and blocked forever) consumes the entire 8-minute budget.
+      The required post-install step then fails on the already-dead context, the SERVICE install
+      fails, installed_state is never stamped, node.join FAILS at install_workloads_control_plane,
+      and the drift-reconciler re-dispatches the package every ~30s forever. Symptom: an 8-minute
+      silent gap between pin-artifact and post-install, an EMPTY globular-<svc>.service journal (the
+      describe exec is a stray process, not the systemd unit), and FAILED after exactly 8m0.008s.
+    contract: >-
+      A best-effort install preflight (e.g. --describe) MUST be independently time-bounded and MUST
+      NEVER inherit-and-consume the caller's install budget. Every service binary MUST honor
+      --describe (answer and exit, or fail-fast) and MUST NOT start serving on an unrecognized flag.
+    source_files:
+      - golang/node_agent/node_agent_server/internal/actions/serviceports/config.go
+      - golang/mcp/main.go
+      - golang/workflow/engine/actors.go
+      - golang/node_agent/node_agent_server/internal/actions/artifact.go
+    required_tests:
+      - golang/node_agent/node_agent_server/internal/actions/serviceports/describe_bound_test.go:TestRunDescribeBoundedWhenBinaryHangs
+    forbidden_fixes:
+      - >-
+        Only fixing mcp's --describe handling without bounding runDescribe: a future binary that
+        regresses into serve-on-describe would hang the join again — the node-agent must defend
+        regardless of binary behavior. Both fixes shipped (5s bound + mcp flag handling).
+      - >-
+        Raising joinPerPackageInstallTimeout to "give mcp more time": the install does not need more
+        time, the preflight must not consume it (the 8m cap was already a mitigation of a 30m stall).
+      - >-
+        Broadly applying --describe handling to cluster_controller/cluster_doctor/node_agent on the
+        assumption they share the bug — VERIFIED they do NOT (see verified_negative below).
+    verified_negative: >-
+      SIBLING SCOPE, verified by building and running each with --describe (do not re-flag): the
+      other hand-written service mains fast-exit — cluster_controller and cluster_doctor emit
+      describe JSON (rc=0); node_agent fails-fast via flag.Parse (rc=2, "flag provided but not
+      defined"). mcp was the UNIQUE hang because it had no flag parsing and no describe handling.
+      Standard services have no hand-written main (generated with HandleInformationalFlags) and are
+      safe. A grep heuristic ("serves + no HandleInformationalFlags") over-flags these three; only a
+      run confirms the truth.
+    related_invariants:
+      - invariant:install.result.atomic_commit
+      - invariant:convergence.no_infinite_retry
+      - invariant:meta.half_done_must_not_look_done
+      - invariant:package.install.installed_state_requires_runtime_artifact_integrity
+    related_failures:
+      - failure_mode:mcp.day1_install_no_start
+      - failure_mode:package.install.service_unit_missing_classified_binary_only

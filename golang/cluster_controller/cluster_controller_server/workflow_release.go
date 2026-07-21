@@ -19,6 +19,8 @@ import (
 	"github.com/google/uuid"
 )
 
+var getInstalledPackageForReleaseTarget = installed_state.GetInstalledPackage
+
 const (
 	waveStatePending   = "WAVE_PENDING"
 	waveStateRunning   = "WAVE_RUNNING"
@@ -51,18 +53,18 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	}
 
 	inputs := map[string]any{
-		"cluster_id":                  srv.cfg.ClusterDomain,
-		"release_id":                  releaseID,
-		"release_name":                releaseName,
-		"package_name":                pkgName,
-		"package_kind":                pkgKind,
-		"resolved_version":            version,
-		"desired_hash":                desiredHash,
-		"resolved_build_id":           resolvedBuildID,            // Phase 2: exact artifact identity
-		"resolved_build_number":       resolvedBuildNumber,        // build_number passed to install_package step
+		"cluster_id":                   srv.cfg.ClusterDomain,
+		"release_id":                   releaseID,
+		"release_name":                 releaseName,
+		"package_name":                 pkgName,
+		"package_kind":                 pkgKind,
+		"resolved_version":             version,
+		"desired_hash":                 desiredHash,
+		"resolved_build_id":            resolvedBuildID,            // Phase 2: exact artifact identity
+		"resolved_build_number":        resolvedBuildNumber,        // build_number passed to install_package step
 		"resolved_entrypoint_checksum": resolvedEntrypointChecksum, // v1.2.119: BINARY sha256 for ExpectedSha256
-		"candidate_nodes":             nodesAny,
-		"max_parallel_nodes":          maxParallelNodesForKind(pkgKind),
+		"candidate_nodes":              nodesAny,
+		"max_parallel_nodes":           maxParallelNodesForKind(pkgKind),
 	}
 
 	correlationID := releaseID
@@ -549,15 +551,16 @@ func (srv *server) buildReleaseControllerConfigWithGen(releaseName, pkgKind stri
 			}
 			return nil
 		},
-		SelectInfraTargets: func(ctx context.Context, candidates []any, pkgName, desiredHash string) ([]any, error) {
+		SelectInfraTargets: func(ctx context.Context, candidates []any, pkgName, desiredHash string) (engine.ReleaseTargetSelection, error) {
 			return srv.selectReleaseTargets(ctx, candidates, pkgName, "", desiredHash)
 		},
-		SelectPackageTargets: func(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string) ([]any, error) {
+		SelectPackageTargets: func(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string) (engine.ReleaseTargetSelection, error) {
 			return srv.selectReleaseTargets(ctx, candidates, pkgName, pkgKind, desiredHash)
 		},
-		FinalizeNoop: func(ctx context.Context, releaseID string) error {
-			log.Printf("release-workflow: %s finalized AVAILABLE (no-op)", releaseName)
-			return srv.patchReleasePhase(ctx, resourceType, releaseName, cluster_controllerpb.ReleasePhaseAvailable, "no targets required update")
+		FinalizeNoop: func(ctx context.Context, releaseID, status string) error {
+			finalPhase, reason := normalizeNoopFinalizePhase(status)
+			log.Printf("release-workflow: %s finalized %s (no targets)", releaseName, finalPhase)
+			return srv.patchReleasePhase(ctx, resourceType, releaseName, finalPhase, reason)
 		},
 		MarkNodeStarted: func(ctx context.Context, releaseID, nodeID string) error {
 			log.Printf("release-workflow: node %s started for %s", nodeID, releaseName)
@@ -656,15 +659,16 @@ func (srv *server) buildGenericReleaseControllerConfig() engine.ReleaseControlle
 			}
 			return nil
 		},
-		SelectInfraTargets: func(ctx context.Context, candidates []any, pkgName, desiredHash string) ([]any, error) {
+		SelectInfraTargets: func(ctx context.Context, candidates []any, pkgName, desiredHash string) (engine.ReleaseTargetSelection, error) {
 			return srv.selectReleaseTargets(ctx, candidates, pkgName, "", desiredHash)
 		},
-		SelectPackageTargets: func(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string) ([]any, error) {
+		SelectPackageTargets: func(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string) (engine.ReleaseTargetSelection, error) {
 			return srv.selectReleaseTargets(ctx, candidates, pkgName, pkgKind, desiredHash)
 		},
-		FinalizeNoop: func(ctx context.Context, relID string) error {
+		FinalizeNoop: func(ctx context.Context, relID, status string) error {
 			rt := srv.inferReleaseResourceType(ctx, relID)
-			return srv.patchReleasePhase(ctx, rt, relID, cluster_controllerpb.ReleasePhaseAvailable, "no targets required update")
+			finalPhase, reason := normalizeNoopFinalizePhase(status)
+			return srv.patchReleasePhase(ctx, rt, relID, finalPhase, reason)
 		},
 		MarkNodeStarted: func(ctx context.Context, relID, nodeID string) error {
 			rt := srv.inferReleaseResourceType(ctx, relID)
@@ -791,9 +795,30 @@ type releaseTargetCandidate struct {
 // classifyPackageConvergence call site, rather than threaded through every
 // caller. This keeps the existing closure signatures stable while still
 // catching the false-converged pattern at the workflow level.
-func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string, resolvedBuildID ...string) ([]any, error) {
+func normalizeNoopFinalizePhase(status string) (string, string) {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case cluster_controllerpb.ReleasePhaseDeferred:
+		return cluster_controllerpb.ReleasePhaseDeferred, "no dispatchable targets; selector deferred"
+	case ReleasePhaseRemoved:
+		return ReleasePhaseRemoved, "no targets required removal"
+	case "", cluster_controllerpb.ReleasePhaseAvailable:
+		return cluster_controllerpb.ReleasePhaseAvailable, "no targets required update"
+	default:
+		return cluster_controllerpb.ReleasePhaseDeferred, "selector returned non-available no-target status: " + strings.TrimSpace(status)
+	}
+}
+
+func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, pkgName, pkgKind, desiredHash string, resolvedBuildID ...string) (engine.ReleaseTargetSelection, error) {
 	isInfra := strings.EqualFold(pkgKind, "INFRASTRUCTURE")
 	catalogEntry := CatalogByName(pkgName)
+	deferred := false
+	deferReason := ""
+	markDeferred := func(reason string) {
+		if !deferred {
+			deferred = true
+			deferReason = reason
+		}
+	}
 
 	// Phase 1: snapshot node state under the lock — no I/O here.
 	srv.lock("selectReleaseTargets")
@@ -802,12 +827,14 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 		nodeID := fmt.Sprint(c)
 		node := srv.state.Nodes[nodeID]
 		if node == nil {
+			markDeferred("node_state_missing")
 			continue
 		}
 
 		// Skip nodes not yet approved — nothing deploys until join workflow starts.
 		if node.BootstrapPhase == BootstrapAdmitted || node.BootstrapPhase == "" {
 			log.Printf("release-workflow: skip node %s (bootstrap_phase=%s, not yet approved)", nodeID, node.BootstrapPhase)
+			markDeferred("bootstrap_not_ready")
 			continue
 		}
 		// Workload/service releases skip nodes not yet bootstrap-ready.
@@ -816,9 +843,11 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			isControlPlaneCritical := catalogEntry != nil && catalogEntry.ControlPlaneCritical
 			if isControlPlaneCritical && !bootstrapInfraReady(node.BootstrapPhase) {
 				log.Printf("release-workflow: skip node %s (bootstrap_phase=%s, infra not ready for control-plane-critical)", nodeID, node.BootstrapPhase)
+				markDeferred("bootstrap_infra_not_ready")
 				continue
 			} else if !isControlPlaneCritical && !bootstrapPhaseReady(node.BootstrapPhase) {
 				log.Printf("release-workflow: skip node %s (bootstrap_phase=%s)", nodeID, node.BootstrapPhase)
+				markDeferred("bootstrap_not_ready")
 				continue
 			}
 		}
@@ -828,6 +857,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			expanded := normalizeProfiles(node.Profiles)
 			if !profilesOverlap(catalogEntry.Profiles, expanded) {
 				log.Printf("release-workflow: skip node %s (profiles %v don't match %v)", nodeID, expanded, catalogEntry.Profiles)
+				markDeferred("profile_not_applicable")
 				continue
 			}
 		}
@@ -835,6 +865,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 		// Skip nodes that are active infrastructure members for this package.
 		if isActiveInfraMember(node, pkgName) {
 			log.Printf("release-workflow: SKIP node %s — active %s member (protected)", nodeID, pkgName)
+			markDeferred("active_infra_member_protected")
 			continue
 		}
 
@@ -894,7 +925,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 	// which treats nil as -1 (fail-closed) rather than 0.
 	targets := []any{}
 	for _, ec := range eligible {
-		pkg, err := installed_state.GetInstalledPackage(ctx, ec.nodeID, ec.installedKind, pkgName)
+		pkg, err := getInstalledPackageForReleaseTarget(ctx, ec.nodeID, ec.installedKind, pkgName)
 		if err != nil {
 			// Transient etcd read failure — we have no authoritative
 			// view of this node's installed state. Skipping is the
@@ -907,6 +938,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			// meta.absence_scope_must_be_explicit).
 			log.Printf("release-workflow: installed check %s/%s on %s: %v — skipping node this tick (will re-check)",
 				ec.installedKind, pkgName, ec.nodeID, err)
+			markDeferred("installed_state_unknown")
 			continue
 		}
 		// wantBuildID is resolved once above (from the explicit variadic arg or,
@@ -944,6 +976,7 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 				if ok, wait := shouldDispatchRuntimeRepair(cdKey, time.Now()); !ok {
 					log.Printf("release-workflow: skip runtime repair for node=%s package=%s (%s), cooldown %s remaining",
 						ec.nodeID, pkgName, convergence.Reason, wait.Round(time.Second))
+					markDeferred("runtime_repair_cooldown")
 					continue
 				}
 			}
@@ -960,7 +993,15 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			"agent_endpoint": ec.agentEndpoint,
 		})
 	}
-	return targets, nil
+	finalizeStatus := cluster_controllerpb.ReleasePhaseAvailable
+	if len(targets) == 0 && deferred {
+		finalizeStatus = cluster_controllerpb.ReleasePhaseDeferred
+	}
+	return engine.ReleaseTargetSelection{
+		Targets:        targets,
+		FinalizeStatus: finalizeStatus,
+		Reason:         deferReason,
+	}, nil
 }
 
 // --------------------------------------------------------------------------

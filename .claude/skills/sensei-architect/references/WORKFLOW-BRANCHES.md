@@ -32,7 +32,7 @@ Stop conditions:
 Steps:
 
 1. Define scope.
-2. Run metadata, repo-eval, audit, and relevant typed queries.
+2. Run metadata, repo-eval, `sensei audit --check --domain <repo-domain>`, and relevant typed queries with the same repo/domain scope.
 3. Inspect source and tests where the graph is thin.
 4. Report evidenced findings only.
 5. Rank repairs by root authority/contract impact.
@@ -41,6 +41,7 @@ Completion criteria:
 
 - findings have evidence, consequence, contract, recommended move, and proof
 - awareness gaps are separated from code defects
+- domain scope is explicit, and zero scoped results are reported as degraded awareness
 
 Stop conditions:
 
@@ -199,11 +200,11 @@ Completion criteria:
 
 - proposed entry has contract, evidence, affected files, related nodes, and required proof where applicable
 
-## Sparse or Degraded Coverage
+## Sparse, Unscoped, or Degraded Coverage
 
 Steps:
 
-1. State the degraded awareness condition.
+1. State the degraded awareness condition, including missing or unknown domain scope.
 2. Read source, tests, local awareness YAML, ADRs, history, and runtime evidence.
 3. Treat high-risk unknowns as high-risk.
 4. Propose a coverage gap or contract unknown when the gap is load-bearing.
