@@ -330,10 +330,19 @@ func installedBinaryChecksumForSkip(pkg *node_agentpb.InstalledPackage) string {
 	return pkg.GetChecksum()
 }
 
-func commandBinaryPath(name string) string {
+var commandBinaryDirs = []string{globularBinDir, "/usr/local/bin"}
+
+func commandBinaryPaths(name string) []string {
 	bin := strings.TrimSuffix(name, "-cmd")
-	for _, dir := range []string{globularBinDir, "/usr/local/bin"} {
-		path := filepath.Join(dir, bin)
+	paths := make([]string, 0, len(commandBinaryDirs))
+	for _, dir := range commandBinaryDirs {
+		paths = append(paths, filepath.Join(dir, bin))
+	}
+	return paths
+}
+
+func commandBinaryPath(name string) string {
+	for _, path := range commandBinaryPaths(name) {
 		if st, err := os.Stat(path); err == nil && !st.IsDir() {
 			return path
 		}

@@ -43,6 +43,15 @@ import (
 
 var writeConvergenceResult = installed_state.WriteConvergenceResult
 
+func removeCommandBinaries(name string) error {
+	for _, binPath := range commandBinaryPaths(name) {
+		if err := os.Remove(binPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove command binary %s: %w", binPath, err)
+		}
+	}
+	return nil
+}
+
 func defaultClusterID() string {
 	if d, err := config.GetDomain(); err == nil && strings.TrimSpace(d) != "" {
 		return strings.TrimSpace(d)
@@ -679,10 +688,13 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 			}
 		}
 	case "COMMAND":
-		// Commands have no systemd unit — just remove the binary and markers.
-		binDir := "/usr/lib/globular/bin"
-		binPath := filepath.Join(binDir, pkgName)
-		_ = os.Remove(binPath)
+		// Commands have no systemd unit. Remove every location considered by
+		// commandBinaryPath; otherwise cache-based installed-state repair can
+		// immediately resurrect an explicitly uninstalled command.
+		uninstallErr = removeCommandBinaries(pkgName)
+		if uninstallErr != nil {
+			break
+		}
 
 		// Remove version marker.
 		markerPath := versionutil.MarkerPath(pkgName)
