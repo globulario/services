@@ -272,6 +272,7 @@ func canSkipInstallPackage(
 //     when entrypoint=="none" (e.g. claude): the installed binary MUST be hashed
 //     against the declared checksum. This is the case the old entrypoint=="none"
 //     inference wrongly exempted.
+//
 // Legacy packages predate the proof sidecar (empty) → fall back to the entrypoint
 // sidecar (none/noop → optional).
 func entrypointProofOptional(pkgName string) bool {
@@ -342,6 +343,7 @@ func commandBinaryPaths(name string) []string {
 }
 
 func commandBinaryPath(name string) string {
+	bin := strings.TrimSuffix(name, "-cmd")
 	for _, path := range commandBinaryPaths(name) {
 		if st, err := os.Stat(path); err == nil && !st.IsDir() {
 			return path
