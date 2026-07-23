@@ -27,6 +27,7 @@ import (
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
+	"google.golang.org/protobuf/proto"
 )
 
 // writeBinaryUnverifiedInstalledState records an apply that completed without
@@ -268,15 +269,15 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 								kind, name, version,
 								normalizedHash(existing.GetChecksum()),
 								normalizedHash(diskHash))
-							repaired := *existing
+							repaired := proto.Clone(existing).(*node_agentpb.InstalledPackage)
 							repaired.Checksum = diskHash
 							repaired.UpdatedUnix = time.Now().Unix()
 							if repaired.Metadata == nil {
 								repaired.Metadata = make(map[string]string)
 							}
 							repaired.Metadata["entrypoint_checksum"] = diskHash
-							stampReceiptForInstalledPackage(&repaired, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
-							if werr := installed_state.WriteInstalledPackage(ctx, &repaired); werr != nil {
+							stampReceiptForInstalledPackage(repaired, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
+							if werr := installed_state.WriteInstalledPackage(ctx, repaired); werr != nil {
 								log.Printf("apply-package: %s/%s@%s Checksum repair write failed: %v (non-fatal)", kind, name, version, werr)
 							}
 						}

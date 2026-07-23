@@ -1211,6 +1211,39 @@ invariants:
   severity: critical
   status: active
   title: Profile changes preserve operator placement intent without quorum coercion
+- description: 'Assigned node profiles are placement intent owned exclusively by the controller. A gateway or
+    installer surface may courier a controller-signed JoinPlan and render scripts from it, but it must never
+    invent, default, or persist profile assignment on its own; a node agent executes the controller-assigned
+    profiles it receives and must never substitute observed/runtime state for that intent.
+
+    '
+  forbidden_fixes:
+  - gateway or installer assigns or defaults node profiles without a controller-signed JoinPlan
+  - node agent treats heartbeat-observed or runtime-discovered profiles as authoritative over controller-assigned intent
+  id: profile.intent_is_controller_owned_placement_contract
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/profiles_normalize.go
+    - golang/cluster_controller/cluster_controller_server/handlers_node.go
+    - golang/cluster_controller/cluster_controller_server/topology_safety.go
+    - golang/cluster_controller/cluster_controller_server/server.go
+    state:
+    - /globular/nodes/<id> with profiles list
+    - /globular/cluster_controller/state.Nodes profiles per node
+  rationale: 'The controller is the single writer of node-profile placement intent; every other actor in the join
+    and convergence path (gateway, installer, node agent) is a reader or courier of that intent, never a second
+    writer. Splitting write authority across the join path is how profile assignment and runtime observation get
+    silently confused with each other.
+
+    '
+  related_invariants:
+  - meta.quorum_is_quality_not_constraint
+  - cluster.profile_changes_preserve_operator_placement_intent
+  required_tests:
+  - TestJoinAuthorization_DefaultProfilesAreNotQuorumCoerced
+  severity: critical
+  status: active
+  title: Node profile placement intent is controller-owned, never gateway- or agent-assigned
 - enforcement: 'Cross-layer health verdicts (e.g. "this service is degraded because
 
     L3 says installed but L4 says inactive") originate in cluster-doctor''s

@@ -18,10 +18,13 @@ import (
 func withBrokenDNS(t *testing.T, fn func()) {
 	t.Helper()
 	orig := clusterResolver
-	origOnce := clusterResolverOnce
 	t.Cleanup(func() {
 		clusterResolver = orig
-		clusterResolverOnce = origOnce
+		// Reset to a fresh Once (rather than copying the old one, which vet
+		// flags as an unsafe lock copy) so the next real ClusterResolver()
+		// call re-runs its deterministic, live-state-based init instead of
+		// reusing this test's stub.
+		clusterResolverOnce = sync.Once{}
 	})
 
 	// Replace the singleton with a resolver whose Dial always fails.

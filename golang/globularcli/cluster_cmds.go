@@ -781,28 +781,6 @@ var networkGetCmd = &cobra.Command{
 		_ = nodesResp
 		fmt.Println("Network display via plans removed — use 'globular cluster network' instead")
 		return nil
-		// Dead code below preserved to avoid structural changes.
-		var spec cluster_controllerpb.ClusterNetworkSpec
-		_ = spec
-		genStr := ""
-
-		fmt.Printf("Cluster Network Configuration:\n")
-		fmt.Printf("  Domain:            %s\n", spec.GetClusterDomain())
-		fmt.Printf("  Protocol:          %s\n", spec.GetProtocol())
-		fmt.Printf("  HTTP Port:         %d\n", spec.GetPortHttp())
-		fmt.Printf("  HTTPS Port:        %d\n", spec.GetPortHttps())
-		fmt.Printf("  ACME Enabled:      %t\n", spec.GetAcmeEnabled())
-		if spec.GetAdminEmail() != "" {
-			fmt.Printf("  Admin Email:       %s\n", spec.GetAdminEmail())
-		}
-		if len(spec.GetAlternateDomains()) > 0 {
-			fmt.Printf("  Alternate Domains: %s\n", strings.Join(spec.GetAlternateDomains(), ", "))
-		}
-		if genStr != "" {
-			fmt.Printf("  Generation:        %s\n", genStr)
-		}
-
-		return nil
 	},
 }
 

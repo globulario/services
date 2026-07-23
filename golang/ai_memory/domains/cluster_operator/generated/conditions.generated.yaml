@@ -24,7 +24,7 @@
   id: condition.cluster.lifecycle.day_1_join
   severity: info
   source: opsknowledge:stage.day_1_join
-  title: Day-1 — Multi-node join and founding quorum
+  title: Day-1 — Multi-node join and capacity posture
 - detect_spec: cluster is operating in lifecycle stage day_1_keepalived
   id: condition.cluster.lifecycle.day_1_keepalived
   severity: info

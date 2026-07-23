@@ -196,7 +196,7 @@ func TestLocalAuthority_LA3_UploadBundle_RequiresLocalBlob(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(bundle); err != nil {
+	if err := gob.NewEncoder(&buf).Encode(&bundle); err != nil {
 		t.Fatalf("encode bundle: %v", err)
 	}
 

@@ -1454,7 +1454,8 @@ func applyCachedIMDBMetadata(dst, src *titlepb.Title) {
 	}
 	if cloned, ok := proto.Clone(src).(*titlepb.Title); ok {
 		id := dst.ID
-		*dst = *cloned
+		proto.Reset(dst)
+		proto.Merge(dst, cloned)
 		if id != "" {
 			dst.ID = id
 		}

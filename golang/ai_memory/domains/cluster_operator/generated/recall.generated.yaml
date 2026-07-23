@@ -14,7 +14,7 @@
 
     The apply step is **destructive on existing MinIO data** — the artifact bucket, webroot,
     and users data on the OLD pool become inaccessible. Plan for a re-publish.
-  seed_sha256: f112052cbf37f1517cb458ae43cf1a791b5e2347925299b12313ac4ba77867eb
+  seed_sha256: 9f72ccbff780c6ae638a8d9911193cbddfbd4d63f3b90bc2442355f686e05b1b
 - id: ops.runbook.clean-ghost-loop-devices
   type: SKILL
   title: Clean ghost loop devices left behind by deleted backing files
@@ -862,7 +862,7 @@
     - ops.day-1.minio.apply-flow
     - ops.role.repository
     - ops.role.repository.dependencies
-  seed_sha256: faafbc9c1d3adacecd8fc225b360e635b5f3f7d3fe616dfc3a084d87376c5802
+  seed_sha256: ad4322a645539f39c12be336c1902959db35a0649c61aa6a59a37bbe2a181ac9
 - id: ops.runbook.restore-from-backup
   type: SKILL
   title: Restore cluster state from backup (etcd / ScyllaDB / MinIO)
@@ -872,7 +872,7 @@
     - runbook
   content: |
     Use this runbook when you have lost one or more of:
-      - etcd (cluster config + service registry, founding-quorum dependency)
+      - etcd (cluster config + service registry, cluster membership authority)
       - ScyllaDB (ai-memory, workflow correlation state, repository index)
       - MinIO (artifact blobs and any user-data buckets)
 
@@ -899,8 +899,8 @@
 
     Mental model: walk the four truth layers bottom-up.
       Layer 0 (PKI + bootstrap) is on local disk under /var/lib/globular/pki/
-        — restore from filesystem backup or re-bootstrap if first 3 nodes
-        come up clean.
+        — restore from filesystem backup or re-bootstrap a clean control
+        plane when local bootstrap material cannot be trusted.
       Layer 1 (etcd) — restore from etcd snapshot, then start exactly one
         node, verify, expand the cluster.
       Layer 2 (ScyllaDB) — restore via scylla-manager from the matching
@@ -912,10 +912,10 @@
         release reconciler will reconcile from the active BOM.
   related_ids:
     - ops.day-0.cluster.what-exists
-    - ops.day-1.join.founding-quorum-invariant
+    - ops.day-1.join.quorum-capacity-posture
     - ops.day-2.audit-and-event-stream
     - ops.role.repository.dependencies
-  seed_sha256: 62634eb27d227155803a476df30b5614ef05738097a600d451d3189cc5b67fa0
+  seed_sha256: a168680bfd1da417844a640a2c1412e6688cc6a7c27060533d28779009cf0b35
 - id: ops.runbook.rotate-pki-certificates
   type: SKILL
   title: Rotate PKI certificates — service certs and the cluster CA
@@ -3016,7 +3016,7 @@
   content: |
     After the Day-0 install script (`install-day0.sh`) completes on the founding node, the cluster has:
 
-    - **One node** (the founding node), with profiles `core`, `control-plane`, `storage`.
+    - **One node**, with operator-selected/default profiles.
     - **etcd**: single-node, listening on this node only (no quorum yet).
     - **cluster-controller**: leader of itself, port 12000.
     - **node-agent**: port 11000, supervises systemd units on this node.
@@ -3025,15 +3025,14 @@
     - **A bootstrap flag file** at `/var/lib/globular/bootstrap.enabled` with a 30-min TTL.
 
     What does NOT yet exist:
-    - ScyllaDB quorum (needs 3 storage nodes)
-    - MinIO distributed pool (needs 3 storage nodes admitted)
+    - Multi-node ScyllaDB/MinIO fault tolerance
     - keepalived VIP (manual enable on day-1)
     - ai-memory, ai-watcher, ai-executor, ai-router (depend on ScyllaDB)
     - Any user-data buckets in MinIO
 
     Implication for AI sessions: do NOT query `ai-memory` or `cluster-doctor` at this stage —
     they are not running. Use the on-disk operational knowledge bundle directly.
-  seed_sha256: 4078400e3e9f12617b039f8f2eb96fa2aeb3aabfa04ddc12e558227708fba7c1
+  seed_sha256: b4b07e2fb0e3363f7186f51822e42d42a819b462583e5a6dd572be0f94a908ac
 - id: ops.day-0.bootstrap.flag-and-ttl
   type: REFERENCE
   title: Bootstrap mode flag and its TTL
@@ -3086,12 +3085,13 @@
     The day-0 etcd is **single-node**. There is no quorum, no replication, no failover.
     Power-loss on the founding node before day-1 means losing the entire cluster state.
 
-    This is intentional and brief — day-1 join completes the transition to 3-node quorum.
+    This is intentional and explicit. Day-1 join increases capacity and survival posture
+    as nodes are added.
 
-    Implication: do NOT promise "production-ready" or "highly available" until day-1 is complete
-    and three storage nodes are visible in `globular cluster nodes list`. The founding-quorum
-    invariant is enforced at join time and cannot be bypassed.
-  seed_sha256: 99bcef25f1c875b15e4c75a8f1cd32018f62c6e571469a9d523956434f13c2d5
+    Implication: describe the current capacity honestly. Do not promise high availability
+    until the observed topology actually provides it, and do not block non-destructive
+    convergence only because a preferred node count is absent.
+  seed_sha256: 90d6e47e04966131c6c1b175c5f685f2053ac3506bcd02bd11cea47e598797c1
 - id: ops.day-0.config.etcd-only
   type: ARCHITECTURE
   title: etcd is the sole source of truth — even on day-0
@@ -3363,33 +3363,30 @@
     Always log all four when troubleshooting. Always verify build_id AND sha256 before
     install — neither alone is sufficient.
   seed_sha256: 67199c878cbdae3e533b2f4df78ff48c77211f2576404496c23289bfc0e77fb6
-- id: ops.day-1.join.founding-quorum-invariant
+- id: ops.day-1.join.quorum-is-capacity
   type: ARCHITECTURE
-  title: Founding quorum — first 3 nodes MUST be core+control-plane+storage
+  title: Quorum is capacity posture, not a join admission floor
   tags:
     - day-1
     - join
-    - founding-quorum
+    - quorum
+    - capacity
     - etcd
     - scylla
     - minio
   content: |
-    Globular's founding-quorum invariant is non-negotiable: the FIRST THREE nodes of any
-    cluster MUST carry profiles `core`, `control-plane`, AND `storage`. Why:
+    Quorum describes the current survival/write-safety quality of the observed cluster,
+    not a hidden controller admission floor. One node has one-node survivability, two
+    nodes have two-node survivability, and larger clusters can improve fault tolerance.
 
-    - **etcd**: needs 3 voting members for quorum (loses 1 = still operational)
-    - **ScyllaDB**: needs 3 nodes for the default replication factor of 3 (RF=3 with QUORUM
-      consistency = lose 1 = still operational)
-    - **MinIO**: needs 3 drives for distributed mode with EC:1 (lose 1 = degraded but readable)
+    Profiles are placement intent. The controller must preserve explicit/default profiles
+    and report capacity separately; it must not coerce the first N nodes into
+    `core+control-plane+storage` just to manufacture a preferred topology.
 
-    Without all three, you have no real high availability. The founding-quorum invariant is
-    enforced in `enforceFoundingProfiles()` and CANNOT be bypassed at join time. Even later,
-    `SetNodeProfiles` will refuse to remove `storage` from a node if it would drop below 3
-    storage nodes.
-
-    Implication: don't add `compute`-only nodes (analytics workers, GPU nodes, etc.) until
-    the founding quorum is solid. They can join freely AFTER.
-  seed_sha256: 5c331558cb201a1c864f35c42259c042cb85faa9bc55dc6c02d3fc960d9f1bb1
+    Component-local destructive operations may still require explicit safety checks.
+    Non-destructive join, profile assignment, and service rollout must not be blocked only
+    because a preferred node count is absent.
+  seed_sha256: 6fa1785b600d1bae55646cfa41fa11d0ad577f2ac4329e9bbc571541abf2c073
 - id: ops.day-1.join.curl-script-not-tarball
   type: SKILL
   title: Day-1 join is `curl gateway-script | bash`, NOT a tarball copy
@@ -3889,27 +3886,28 @@
     fix recipe: replace `node.PrimaryIP()` / `node.Identity.Ips[0]` / `nodeRoutableIP(node)`
     with `node.StableIP(clusterVIP)` OR a `nodeAny<X>Has<Y>` helper that matches against all IPs.
   seed_sha256: 61a22d1635ae9153303e5b340c449b0defcecbff76b7c0253cc7c4cac0b156bb
-- id: ops.day-1.minio.minimum-3-storage-nodes
+- id: ops.day-1.minio.capacity-posture
   type: DECISION
-  title: MinIO requires 3 storage nodes for distributed mode
+  title: MinIO storage count is capacity posture, not platform admission
   tags:
     - day-1
     - objectstore
     - minio
-    - founding-quorum
+    - quorum
+    - capacity
   content: |
-    Distributed MinIO requires a minimum of 3 nodes with the `storage` profile. EC:1 with 3
-    drives can lose 1 node. With fewer than 3 storage nodes, the cluster operates standalone
-    (single point of failure) — this is the day-0 baseline.
+    MinIO/objectstore topology determines durability posture. More storage nodes improve
+    survival characteristics, but the controller must not convert a preferred storage-node
+    count into a platform-wide bootstrap, join, rollout, or profile-assignment blocker.
 
-    The first 3 nodes of any cluster MUST have profiles `core`, `control-plane`, `storage`.
-    This is enforced at join in `enforceFoundingProfiles()` and cannot be bypassed. If a storage
-    node leaves, another must replace it before MinIO topology can be modified.
+    Objectstore topology changes are component-local operations and may still require
+    explicit safety checks. Ordinary service convergence continues while capacity is reported
+    as risk/posture.
 
     Loop-device-backed `/mnt/data` (a file mounted as a fake block device) is technically
     possible but NOT recommended for production — the backing file lives on root fs and a
     reboot can lose data if the file was deleted while held open.
-  seed_sha256: 0819b1ddfed0b134b8435a1216b319d2a8daa037e0c6f3e71f1ecd2845114d95
+  seed_sha256: 33738a4b51c8deef0542a9c526cb72193f06260d6cd69466c20c85a32fab9247
 - id: ops.day-1.minio.path-recommendation
   type: REFERENCE
   title: MinIO data disk recommendations
@@ -4998,14 +4996,19 @@
     ```
 
     The built `.tgz` adds a stamped `package.json` at the root and re-shapes the
-    payload under `bin/`, `specs/`, `config/`, `systemd/`, `scripts/`, `debs/`,
-    `data/`.
+    payload under `bin/`, `specs/`, `config/`, `systemd/`, `scripts/`, `policy/`,
+    `debs/`, `data/`.
+
+    When generated authorization policy exists for a package under
+    `generated/policy/<service>/`, the archive MUST ship it at `policy/`
+    (`permissions.generated.json`, `roles.generated.json`) so node-agent
+    can install it under `/var/lib/globular/policy/services/<service>/`.
 
     `package.json` MUST agree on `type` with `spec.metadata.kind` AND with
     `registry.yaml.kind` AND with `component_catalog.go`. The validator
     `packages/scripts/validate-package-metadata.sh` enforces this cross-source
     agreement. There is ONE source of truth for kind: the spec.
-  seed_sha256: d95cf1bd5f35ad13901d02575d21f2daa95dfa02d7957fa8dfd9a165e35e398c
+  seed_sha256: 726351724f967fbaae251366309f86eb8bd071b0aefb19bb1f890e44b24906e5
 - id: ops.always.package.identity-rules
   type: ARCHITECTURE
   title: version vs build_number vs build_id — never confused
@@ -5343,7 +5346,7 @@
     - Installer MUST validate signature, expiry, identity, and profile validity before join actions.
 
     A node joining without a valid controller-signed profile set is a hard policy violation.
-  seed_sha256: e1638768d43a655e130dc61eac7cd77f23be6d7ac8a4c94a8c0406bc050fcbcd
+  seed_sha256: f6d35fb3121c9d7684254b5d5c1d1fab1535d1ec2542614b95ebee6fbebbbad1
 - id: ops.always.profile.canonicalization
   type: REFERENCE
   title: Canonical profile normalization
@@ -5367,26 +5370,27 @@
     Unknown profiles are invalid in controller-issued JoinPlan and in node-agent join gate.
     They are rejected with explicit errors (never silently accepted during join/bootstrap).
   seed_sha256: 5623ba02e6db45483613240c04599362961527b9be965f12b7be2e5935d0baf0
-- id: ops.always.profile.founding-quorum
+- id: ops.always.profile.quorum-is-not-profile-coercion
   type: ARCHITECTURE
-  title: Founding quorum profile invariant
+  title: Profiles are placement intent, not quorum coercion
   tags:
     - always
     - profile
-    - founding-quorum
-    - invariant
+    - quorum
+    - capacity
   content: |
-    Founding quorum is non-negotiable:
-    the first 3 nodes MUST include `core`, `control-plane`, and `storage`.
+    Profiles encode controller-owned placement intent. They must not be rewritten to
+    manufacture a preferred quorum shape.
 
-    Why:
-    - etcd quorum safety
-    - Scylla replication safety
-    - MinIO distributed durability safety
+    Quorum/capacity is reported from observed membership:
+    - one node = one-node survivability
+    - two nodes = two-node survivability
+    - larger clusters may provide better fault tolerance
 
-    Day-0 bootstrap default profiles must satisfy this invariant. Any fallback/default profile set
-    that omits `storage` is unsafe and must be treated as a defect.
-  seed_sha256: f3b074a2fcedd06925a0d99902e3579f91548afc81e47f3168fbe35dcc9295db
+    Default profiles are operator placement defaults. Unknown profiles are still invalid,
+    but a valid profile set is not automatically expanded to `core+control-plane+storage`
+    because of node count.
+  seed_sha256: ac7b274ce26a4658526e4496b1e116a6c2f64a54ca46ef8edad6e4bfd3f27116
 - id: ops.always.profile.catalog-resolution
   type: REFERENCE
   title: Profile → package resolution contract
@@ -5463,13 +5467,13 @@
 
     - Gateway or installer inventing profiles when controller did not assign them.
     - Accepting unknown profile names during JoinPlan validation.
-    - Using profile defaults that violate founding quorum (`core+control-plane+storage`).
+    - Using profile defaults to manufacture a preferred quorum shape.
     - Keeping separate normalization rules in controller and node-agent.
     - Treating profiles as runtime health evidence (they are intent).
 
     Corrective principle: one canonical profile policy surface, enforced at join and bootstrap,
     then propagated through package resolution and reconciliation.
-  seed_sha256: 9df6c48a11f5a8bba210e6527a215ffb1415719635da79a23e786a17a0cf7d92
+  seed_sha256: c2da725259d87261fd2c89ff74b7e06ca66268b075ddc6439fa6c26f65ad2255
 - id: ops.security.credential-separation
   type: ARCHITECTURE
   title: 'Credential separation: token vs certificate vs key'

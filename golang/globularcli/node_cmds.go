@@ -81,9 +81,6 @@ func runNodeReconcileDryRun() error {
 	// Plan display removed.
 	_ = client
 	return fmt.Errorf("plan system removed — use workflow-native release pipeline")
-	fmt.Println("Run without --dry-run to execute the plan.")
-
-	return nil
 }
 
 func runNodeReconcileApply() error {
