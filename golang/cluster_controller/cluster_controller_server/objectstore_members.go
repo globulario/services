@@ -160,10 +160,26 @@ func objectStoreMemberBlockedReason(node *nodeState) string {
 }
 
 // objectStoreDesiredMembersFromIntents builds the initial DesiredObjectStoreMembers
-// list from all nodes that have ObjectStoreIntent.Member=true and a known routable
-// IP. Used as the migration path when upgrading a cluster to Phase E-lite: the
-// controller populates DesiredObjectStoreMembers from existing node intents so that
-// the v2 gate does not lock out already-admitted nodes on the first boot after upgrade.
+// list from nodes that are ALREADY admitted MinIO pool members. Used as the
+// migration path when upgrading a cluster to Phase E-lite: the controller
+// populates DesiredObjectStoreMembers from existing node intents so that the
+// v2 gate does not lock out already-admitted nodes on the first boot after
+// upgrade.
+//
+// ObjectStoreIntent.Member=true alone is NOT sufficient here — it is set the
+// moment a node is assigned the "storage" profile, well before any real MinIO
+// join happens (see initialObjectStoreIntentForProfiles). Migrating on intent
+// alone violates invariant objectstore.membership_requires_explicit_desired_state
+// and reintroduces the failure class this file's header warns about (commit
+// 9598b8f7): a Day-1 node mid-join, with intent=true but MinioJoinPhase still
+// NonMember, gets swept into DesiredObjectStoreMembers by this migration on
+// any controller restart. That flips nodeIsExplicitObjectStoreMember to true
+// for it, which disables the topology-gated drift exemption in
+// reconcileScanDrift and reports its (correctly still-absent) minio/sidekick
+// as genuine missing_package drift — which release.apply.package can never
+// resolve (0 targets for a topology-gated package), producing a permanent
+// workflow.drift_stuck CRITICAL loop. Require MinioJoinVerified so only nodes
+// that have actually completed a real MinIO join are migrated.
 func objectStoreDesiredMembersFromIntents(nodes map[string]*nodeState, generation uint64) []ObjectStoreMember {
 	var result []ObjectStoreMember
 	for _, n := range nodes {
@@ -171,6 +187,9 @@ func objectStoreDesiredMembersFromIntents(nodes map[string]*nodeState, generatio
 			continue
 		}
 		if n.ObjectStoreIntent == nil || !n.ObjectStoreIntent.Member {
+			continue
+		}
+		if n.MinioJoinPhase != MinioJoinVerified {
 			continue
 		}
 		ip := nodeRoutableIP(n)

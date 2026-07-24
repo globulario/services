@@ -186,21 +186,38 @@ func TestObjectStoreMember_FromIntentsBuildsCorrectly(t *testing.T) {
 			},
 			Profiles:          []string{"storage"},
 			ObjectStoreIntent: &ObjectStoreIntent{Member: true},
+			MinioJoinPhase:    MinioJoinVerified, // already an admitted, verified member
 		},
 		"node-b": {
 			NodeID:            "node-b",
 			ObjectStoreIntent: &ObjectStoreIntent{Member: false}, // excluded
+			MinioJoinPhase:    MinioJoinVerified,
 		},
 		"node-c": {
 			NodeID:            "node-c",
 			ObjectStoreIntent: nil, // no intent → not migrated
+			MinioJoinPhase:    MinioJoinVerified,
+		},
+		"node-d": {
+			NodeID: "node-d",
+			Identity: storedIdentity{
+				Hostname: "delta",
+				Ips:      []string{"10.1.0.4"},
+			},
+			// Mid-join node: storage profile assigned intent=true immediately
+			// (initialObjectStoreIntentForProfiles), but MinIO join has not
+			// completed. Must NOT be migrated — this is the exact bug this
+			// function must not reintroduce (see the function's doc comment).
+			Profiles:          []string{"storage"},
+			ObjectStoreIntent: &ObjectStoreIntent{Member: true},
+			MinioJoinPhase:    MinioJoinNonMember,
 		},
 	}
 
 	result := objectStoreDesiredMembersFromIntents(nodes, 5)
 
 	if len(result) != 1 {
-		t.Fatalf("expected 1 member (node-a only), got %d", len(result))
+		t.Fatalf("expected 1 member (node-a only, node-d must be excluded as unverified), got %d", len(result))
 	}
 	if result[0].NodeID != "node-a" {
 		t.Errorf("expected node-a, got %q", result[0].NodeID)
