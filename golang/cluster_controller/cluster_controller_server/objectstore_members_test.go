@@ -260,3 +260,62 @@ func TestObjectStoreMember_SerializationRoundTrip(t *testing.T) {
 		t.Errorf("AddedAt not preserved: got %v, want %v", got.AddedAt, ts)
 	}
 }
+
+// ── Test 11: nodeMinioPlacementIsHeld reflects MinioJoinPhase, not list membership ──
+//
+// Regression coverage for the drift-scan false positive: on a fresh/standalone
+// cluster (DesiredObjectStoreMembers == nil), nodeIsExplicitObjectStoreMember's
+// legacy branch returns true unconditionally, which made reconcileScanDrift's
+// topology-gated exemption a no-op — a storage-profile node correctly held at
+// MinioJoinNonMember still had minio/sidekick reported as missing_package,
+// producing a permanent workflow.drift_stuck loop (release.apply.package can
+// never place a topology-gated package). nodeMinioPlacementIsHeld fixes this by
+// keying off the node's actual join-phase ground truth instead.
+
+func TestNodeMinioPlacementIsHeld_NilNodeIsHeld(t *testing.T) {
+	if !nodeMinioPlacementIsHeld(nil) {
+		t.Error("nil node must be treated as held")
+	}
+}
+
+func TestNodeMinioPlacementIsHeld_FreshClusterLegacyModeHeldNotFalsePositive(t *testing.T) {
+	// Reproduces the exact bug scenario: a storage-profile Day-1 node whose
+	// MinIO join has never advanced past None, on a cluster that has never run
+	// a topology transition (the caller passes no desired-members list at all
+	// now — this predicate doesn't take one, by design).
+	node := makeMinioNode("nuc")
+	if node.MinioJoinPhase != MinioJoinNone {
+		t.Fatalf("test setup: expected zero-value MinioJoinPhase, got %q", node.MinioJoinPhase)
+	}
+	if !nodeMinioPlacementIsHeld(node) {
+		t.Error("node at MinioJoinNone must be held — minio/sidekick absence is not drift")
+	}
+}
+
+func TestNodeMinioPlacementIsHeld_NonMemberIsHeld(t *testing.T) {
+	node := makeMinioNode("nuc")
+	node.MinioJoinPhase = MinioJoinNonMember
+	if !nodeMinioPlacementIsHeld(node) {
+		t.Error("MinioJoinNonMember must be held")
+	}
+}
+
+func TestNodeMinioPlacementIsHeld_MidJoinIsHeld(t *testing.T) {
+	for _, phase := range []MinioJoinPhase{MinioJoinPrepared, MinioJoinPoolUpdated, MinioJoinFailed} {
+		node := makeMinioNode("nuc")
+		node.MinioJoinPhase = phase
+		if !nodeMinioPlacementIsHeld(node) {
+			t.Errorf("phase %q must still be held (not yet active)", phase)
+		}
+	}
+}
+
+func TestNodeMinioPlacementIsHeld_ActiveMemberIsNotHeld(t *testing.T) {
+	for _, phase := range []MinioJoinPhase{MinioJoinStarted, MinioJoinVerified} {
+		node := makeMinioNode("ryzen")
+		node.MinioJoinPhase = phase
+		if nodeMinioPlacementIsHeld(node) {
+			t.Errorf("phase %q must not be held — a genuinely-missing package here is real drift", phase)
+		}
+	}
+}

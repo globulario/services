@@ -110,6 +110,45 @@ func isObjectStoreTopologyGated(pkg string) bool {
 	}
 }
 
+// nodeMinioPlacementIsHeld reports whether minio/sidekick placement on node is
+// still governed by MinIO pool-topology admission rather than the release
+// pipeline — i.e. the package's absence from installed_state must NOT be
+// scored as missing_package drift.
+//
+// nodeIsExplicitObjectStoreMember cannot answer this on its own: its
+// legacy-mode branch (DesiredObjectStoreMembers == nil) returns true
+// unconditionally, documented as safe only because "the caller's profile
+// guard is the effective gate in legacy mode." But a storage-profile node is
+// still correctly held at MinioJoinNonMember until an explicit apply-topology
+// call grows the pool to include it (see reconcileMinioJoinPhases and
+// failure_mode objectstore.minio.standalone_to_distributed_grow_deadlock).
+// Gating the drift-scan's exemption on profile alone reproduces exactly the
+// false-positive missing_package / workflow.drift_stuck loop this predicate
+// exists to prevent: on any cluster where no topology transition has ever run
+// (a fresh Day-0 install, or any cluster still standalone),
+// DesiredObjectStoreMembers stays nil forever and every storage-profile Day-1
+// node's minio/sidekick reads as "missing" even though release.apply.package
+// can never place it — placement is topology-gated, not profile-gated.
+//
+// The correct signal is ground truth: has this node's MinIO join actually
+// reached an active state. MinioJoinPhase only reaches Started/Verified once
+// reconcileMinioJoinPhases has driven a real join, which itself only happens
+// for nodes objectStoreMembershipStatus already authorizes — so keying off
+// MinioJoinPhase subsumes both the v2 explicit-list check and the legacy
+// profile check in one signal that reports "not held" only once minio/sidekick
+// are genuinely supposed to be present.
+func nodeMinioPlacementIsHeld(node *nodeState) bool {
+	if node == nil {
+		return true
+	}
+	switch node.MinioJoinPhase {
+	case MinioJoinVerified, MinioJoinStarted:
+		return false
+	default:
+		return true
+	}
+}
+
 // nodeIsObjectStoreMemberAdmitted returns true when the node is in a lifecycle
 // state that allows it to render active MinIO topology config.
 //
