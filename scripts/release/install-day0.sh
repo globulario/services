@@ -796,6 +796,12 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
   # Wait for ScyllaDB to be ready
   ensure_scylla_io_scheduler_contract
   if ! systemctl is-active --quiet scylla-server.service; then
+    # Clear any lingering rate-limit state from an earlier start attempt (e.g.
+    # a prior failed Day-0 run, or systemd auto-restart activity that raced
+    # ahead of ensure_scylla_io_scheduler_contract above). Without this, a
+    # well-sequenced start here — config is now known-correct — can still be
+    # refused with "Start request repeated too quickly" from stale history.
+    systemctl reset-failed scylla-server.service 2>/dev/null || true
     systemctl start scylla-server.service || log_substep "Warning: failed to start scylla-server"
   fi
   SCYLLA_CQL_HOST=$(scylla_cql_host)
@@ -897,6 +903,11 @@ else
   ensure_scylla_io_scheduler_contract
   if ! systemctl is-active --quiet scylla-server.service; then
     log_substep "Starting ScyllaDB service..."
+    # See matching comment in the "already installed" branch above: clear
+    # stale rate-limit state so this well-sequenced start isn't refused
+    # because of an earlier attempt that raced ahead of the config being
+    # ready.
+    systemctl reset-failed scylla-server.service 2>/dev/null || true
     if ! systemctl start scylla-server.service 2>/dev/null; then
       echo "" >&2
       echo "━━━ scylla-server journal (last 40 lines) ━━━" >&2
