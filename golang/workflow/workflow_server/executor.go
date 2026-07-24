@@ -50,6 +50,23 @@ var startRunFn = func(srv *server, ctx context.Context, req *workflowpb.StartRun
 	return srv.StartRun(ctx, req)
 }
 
+// legacyRunStatusString maps the full RunStatus enum onto
+// ExecuteWorkflowResponse.Status's documented contract ("terminal: "SUCCEEDED"
+// or "FAILED""). Using RunStatus.String() directly (as every construction
+// site in ExecuteWorkflow previously did) produces "RUN_STATUS_SUCCEEDED"
+// instead — silently breaking every caller that compares
+// resp.Status == "SUCCEEDED" (e.g. RunBootstrapWorkflow), which always read
+// as failed even on success. Only RUN_STATUS_SUCCEEDED maps to "SUCCEEDED";
+// every other terminal or non-terminal state (FAILED, BLOCKED, DEFERRED, ...)
+// maps to "FAILED" — callers of this legacy string field only ever branch on
+// succeeded-or-not.
+func legacyRunStatusString(status workflowpb.RunStatus) string {
+	if status == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED {
+		return "SUCCEEDED"
+	}
+	return "FAILED"
+}
+
 // ExecuteWorkflow loads a workflow definition from etcd, builds a remote-
 // dispatch router for actor callbacks, runs the engine, and auto-records
 // the entire run to ScyllaDB.
@@ -122,7 +139,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 			)
 			return &workflowpb.ExecuteWorkflowResponse{
 				RunId:  req.CorrelationId,
-				Status: workflowpb.RunStatus_RUN_STATUS_FAILED.String(),
+				Status: legacyRunStatusString(workflowpb.RunStatus_RUN_STATUS_FAILED),
 				Error: fmt.Sprintf("ABANDONED after %d/%d defers on step %s: %s — operator must clear with `globular workflow defer-state clear --correlation-id %s`",
 					state.DeferCount, state.MaxDefers, state.LastStepID, state.LastReason, req.CorrelationId),
 			}, nil
@@ -144,7 +161,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 			)
 			return &workflowpb.ExecuteWorkflowResponse{
 				RunId:  dr.GetId(),
-				Status: dr.GetStatus().String(),
+				Status: legacyRunStatusString(dr.GetStatus()),
 				Error: fmt.Sprintf("dispatch skipped: prior run %s deferred until %d (defer_count=%d): %s",
 					dr.GetId(), dr.GetBackoffUntilMs(), dr.GetRetryAttempt(), dr.GetErrorMessage()),
 			}, nil
@@ -470,7 +487,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	// ── 8. Build response ────────────────────────────────────────────────
 	resp := &workflowpb.ExecuteWorkflowResponse{
 		RunId:  runID,
-		Status: status.String(),
+		Status: legacyRunStatusString(status),
 		Error:  errMsg,
 	}
 	if run != nil && run.Outputs != nil {
