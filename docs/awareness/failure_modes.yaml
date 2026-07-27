@@ -7335,3 +7335,14 @@ failure_modes:
       related_services:
         - ai-memory
         - awareness-graph
+  - id: failure.drift_reconciliation_retried_a_permanently_failing_package_r
+    title: Drift reconciliation retried a permanently-failing package remediation forever with no terminal state
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+    related_invariants:
+      - meta.silence_is_not_valid_for_unexpected
+    required_tests:
+      - TestReconcileMarkItemTerminal_RequiresObservedConvergence/repeated_failure_escalates_and_arms_backoff
+    evidence:
+      - 'libnss-resolve@eb9a2dac-05b0-52ac-9002-99d8ffd35902: workflow.drift_stuck missing_package, 38+ consecutive reconcile cycles, last_remediation_id empty. reconcileMarkItemTerminal silently dropped non-SUCCEEDED child results (if status != SUCCEEDED { return nil }), and release_id was re-minted every cycle so WF-DEFER max_defers/abandoned never accumulated across cycles — no cap on redispatch at all.'

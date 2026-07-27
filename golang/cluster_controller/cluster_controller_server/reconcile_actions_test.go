@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
@@ -121,15 +122,77 @@ func TestReconcileMarkItemTerminal_RequiresObservedConvergence(t *testing.T) {
 		}
 	})
 
-	// (6) non-SUCCEEDED child -> no clear, no counter change.
-	t.Run("non_succeeded_no_clear_no_counter", func(t *testing.T) {
+	// (6) non-SUCCEEDED child -> never clears, but DOES count toward escalation
+	// (previously this silently no-opped: meta.silence_is_not_valid_for_unexpected
+	// — a permanently-failing dispatch, e.g. missing_package with no repository
+	// build, was re-dispatched every reconcile cycle forever with no terminal
+	// state at all).
+	t.Run("failed_child_never_clears_but_counts", func(t *testing.T) {
 		srv, clears, _ := newSrv(func(_, _ string) *node_agentpb.InstalledPackage { return nil })
 		_ = srv.reconcileMarkItemTerminal(ctx, missing, map[string]any{"status": "FAILED"})
 		if *clears != 0 {
-			t.Fatalf("non-SUCCEEDED must not clear, clears=%d", *clears)
+			t.Fatalf("FAILED must not clear, clears=%d", *clears)
 		}
-		if len(srv.reconcileNoProgress) != 0 {
-			t.Fatal("non-SUCCEEDED must not touch the no-progress counter")
+		if got := srv.reconcileNoProgress[missKey]; got != 1 {
+			t.Fatalf("FAILED must bump the no-progress counter, got=%d want=1", got)
+		}
+	})
+
+	// (7) N consecutive FAILED children -> escalate to FAILED with a distinct
+	// reason AND arm a dispatch backoff, so reconcileChooseWorkflow stops
+	// re-dispatching this item instead of hammering it every cycle.
+	t.Run("repeated_failure_escalates_and_arms_backoff", func(t *testing.T) {
+		srv, clears, events := newSrv(func(_, _ string) *node_agentpb.InstalledPackage { return nil })
+		for i := 0; i < reconcileNoProgressThreshold; i++ {
+			_ = srv.reconcileMarkItemTerminal(ctx, missing, map[string]any{"status": "FAILED"})
+		}
+		if *clears != 0 {
+			t.Fatalf("must never clear on repeated FAILED, clears=%d", *clears)
+		}
+		found := false
+		for _, ev := range *events {
+			if ev["name"] == "cluster.reconcile.item_failed" && ev["reason"] == "remediation_dispatch_failed: child_status=FAILED" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("expected cluster.reconcile.item_failed reason=remediation_dispatch_failed:..., events=%v", *events)
+		}
+		if inBackoff, _ := srv.reconcileInBackoff(missKey); !inBackoff {
+			t.Fatal("expected key to be armed for backoff after escalation")
+		}
+	})
+
+	// (8) reconcileChooseWorkflow skips dispatch (returns noop) while a key is
+	// backed off, instead of hammering release.apply.package every cycle.
+	t.Run("choose_workflow_skips_dispatch_during_backoff", func(t *testing.T) {
+		srv := &server{}
+		srv.reconcileArmBackoff(missKey)
+		out, err := srv.reconcileChooseWorkflow(ctx, missing)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out["workflow_name"] != "noop" {
+			t.Fatalf("expected noop dispatch during backoff, got %v", out["workflow_name"])
+		}
+	})
+
+	// (9) the cooldown is bounded, not permanent: once the deadline has passed,
+	// reconcileInBackoff reports the key as no longer backed off (and clears the
+	// stale entry), so dispatch is free to resume — self-healing without operator
+	// intervention if the underlying cause (e.g. a missing repository build) is
+	// fixed in the meantime.
+	t.Run("backoff_expires_after_cooldown", func(t *testing.T) {
+		srv := &server{}
+		srv.reconcileArmBackoff(missKey)
+		srv.reconcileNoProgMu.Lock()
+		srv.reconcileBackoffUntil[missKey] = time.Now().Add(-time.Second) // force-expire
+		srv.reconcileNoProgMu.Unlock()
+		if inBackoff, _ := srv.reconcileInBackoff(missKey); inBackoff {
+			t.Fatal("expected backoff to have expired")
+		}
+		if _, ok := srv.reconcileBackoffUntil[missKey]; ok {
+			t.Fatal("expired backoff entry should be cleared, not left stale")
 		}
 	})
 }
