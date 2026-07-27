@@ -252,6 +252,42 @@ func TestCorrectKindFromRepoAndCatalog_RepoKindNeverPopulated(t *testing.T) {
 	}
 }
 
+// TestReleaseResourceType_CommandMapsToInfrastructureRelease is the
+// enforcement ratchet for the third bug in the libnss-resolve incident chain:
+// once correctKindFromRepoAndCatalog correctly relabels a package's dispatch
+// kind as COMMAND, releaseResourceType(COMMAND) must return
+// "InfrastructureRelease" — NOT "ServiceRelease" — because
+// materializeMissingInfraDesired (gated by nameIsNonServiceCatalogKind)
+// ALWAYS creates an InfrastructureRelease object for both KindInfrastructure
+// and KindCommand catalog entries; nothing ever creates a ServiceRelease for
+// a COMMAND package. Getting this wrong makes mark_resolved look up a
+// ServiceRelease that was never created — "get ServiceRelease
+// core@globular.io/libnss-resolve: not found" on every single dispatch
+// attempt, forever, even after the dispatch-kind correction itself works
+// correctly (confirmed live: the log showed the correct
+// "corrected dispatch kind INFRASTRUCTURE→COMMAND" line immediately followed
+// by mark_resolved failing on the wrong resource type).
+func TestReleaseResourceType_CommandMapsToInfrastructureRelease(t *testing.T) {
+	cases := []struct {
+		kind string
+		want string
+	}{
+		{"INFRASTRUCTURE", "InfrastructureRelease"},
+		{"COMMAND", "InfrastructureRelease"},
+		{"SERVICE", "ServiceRelease"},
+		{"WORKLOAD", "ServiceRelease"},
+		{"APPLICATION", "ServiceRelease"},
+		{"", "ServiceRelease"},
+	}
+	for _, c := range cases {
+		t.Run(c.kind, func(t *testing.T) {
+			if got := releaseResourceType(c.kind); got != c.want {
+				t.Errorf("releaseResourceType(%q) = %q, want %q", c.kind, got, c.want)
+			}
+		})
+	}
+}
+
 // ── C1: detectInfraDrift ─────────────────────────────────────────────────────
 
 // TestDetectInfraDrift_UnitInactive_DowngradesToDegraded verifies that a node

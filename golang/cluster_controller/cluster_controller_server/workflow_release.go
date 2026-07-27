@@ -272,10 +272,24 @@ func mergeSyncInstalledPackage(existing *node_agentpb.InstalledPackage, nodeID, 
 }
 
 // releaseResourceType returns the resource type for the release based on pkgKind.
-// SERVICE/WORKLOAD/APPLICATION/COMMAND → ServiceRelease
-// INFRASTRUCTURE → InfrastructureRelease
+// SERVICE/WORKLOAD/APPLICATION → ServiceRelease
+// INFRASTRUCTURE/COMMAND → InfrastructureRelease
+//
+// COMMAND must map to InfrastructureRelease, not ServiceRelease: the actual
+// write path (materializeMissingInfraDesired, gated by
+// nameIsNonServiceCatalogKind) ALWAYS creates an InfrastructureRelease object
+// for both KindInfrastructure and KindCommand catalog entries — there is no
+// separate resource type for COMMAND, and nothing ever creates a
+// ServiceRelease for one. The stale comment this replaced ("COMMAND →
+// ServiceRelease") never matched that write path. Confirmed live: once
+// correctKindFromRepoAndCatalog corrects pkgKind to COMMAND for
+// libnss-resolve, the OLD version of this function sent mark_resolved
+// looking up "ServiceRelease core@globular.io/libnss-resolve", which was
+// never created — "get ServiceRelease ...: not found" on every dispatch
+// attempt, forever.
 func releaseResourceType(pkgKind string) string {
-	if strings.ToUpper(pkgKind) == "INFRASTRUCTURE" {
+	switch strings.ToUpper(pkgKind) {
+	case "INFRASTRUCTURE", "COMMAND":
 		return "InfrastructureRelease"
 	}
 	return "ServiceRelease"
