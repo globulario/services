@@ -42,6 +42,7 @@ import (
 )
 
 var writeConvergenceResult = installed_state.WriteConvergenceResult
+var deleteInstalledPackage = installed_state.DeleteInstalledPackage
 
 func removeCommandBinaries(name string) error {
 	for _, binPath := range commandBinaryPaths(name) {
@@ -718,18 +719,56 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 	}
 
 	// Step 2: Clear installed state from etcd.
-	if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName); err != nil {
-		log.Printf("grpc-workflow: uninstall-package %s: warning: failed to clear installed state: %v", pkgName, err)
-		// Non-fatal — the package files are already removed.
+	//
+	// Step 1 already made an irreversible change (files/binary removed from
+	// disk) — per the file-level rule above, that write creates a completion
+	// obligation that must not be abandoned just because the caller's RPC
+	// context is gone. If we used the incoming ctx here and the caller timed
+	// out or disconnected while Step 1 was still running (uninstall-package
+	// can take tens of seconds when it lands during a busy node-agent restart
+	// resync), this delete would be born already-canceled and fail silently —
+	// leaving etcd still reporting the package "installed" even though the
+	// binary is gone. Use a context detached from the caller, with its own
+	// bounded timeout, and retry: a transient etcd/context failure here must
+	// not be swallowed as non-fatal (that is exactly the failure this file's
+	// header forbids — reporting SUCCEEDED for a step that didn't converge).
+	var deleteErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		dctx, dcancel := context.WithTimeout(context.Background(), 10*time.Second)
+		deleteErr = deleteInstalledPackage(dctx, srv.nodeID, pkgKind, pkgName)
+		dcancel()
+		if deleteErr == nil {
+			break
+		}
+		log.Printf("grpc-workflow: uninstall-package %s: attempt %d/3: failed to clear installed state: %v", pkgName, attempt, deleteErr)
+		if attempt < 3 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if deleteErr != nil {
+		elapsed := time.Since(start)
+		log.Printf("grpc-workflow: uninstall-package %s FAILED (%v): package files removed but installed-state was not cleared: %v", pkgName, elapsed, deleteErr)
+		return &node_agentpb.RunWorkflowResponse{
+			Status:         "FAILED",
+			Error:          fmt.Sprintf("files removed but failed to clear installed state after 3 attempts: %v", deleteErr),
+			DurationMs:     elapsed.Milliseconds(),
+			StepsTotal:     totalSteps,
+			StepsSucceeded: 1,
+			StepsFailed:    1,
+		}, nil
 	}
 
 	// Also clean up service config from etcd so it no longer appears in admin catalog.
+	// Best-effort and non-authoritative for the orphaned-package check, so it
+	// stays on the (possibly already-canceled) caller context.
 	if err := config.DeleteServiceConfigurationByName(pkgName); err != nil {
 		log.Printf("grpc-workflow: uninstall-package %s: warning: failed to clean service config: %v", pkgName, err)
 	}
 
 	// Step 3: Sync installed state so the controller sees the change immediately.
-	srv.syncInstalledStateToEtcd(ctx)
+	syncCtx, syncCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	srv.syncInstalledStateToEtcd(syncCtx)
+	syncCancel()
 
 	elapsed := time.Since(start)
 	log.Printf("grpc-workflow: uninstall-package %s SUCCEEDED (%v)", pkgName, elapsed)
