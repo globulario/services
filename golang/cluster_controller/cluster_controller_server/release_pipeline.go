@@ -179,8 +179,8 @@ type releaseHandle struct {
 	Paused       bool
 
 	// Current status (read from the typed status)
-	Phase                  string
-	ObservedGeneration     int64
+	Phase                      string
+	ObservedGeneration         int64
 	ResolvedVersion            string
 	ResolvedBuildID            string // Phase 2: exact artifact identity
 	ResolvedBuildNumber        int64  // build_number from release spec — passed to install_package step
@@ -229,13 +229,13 @@ type statusPatch struct {
 	ResolvedArtifactDigest     string // PACKAGE TARBALL sha256
 	ResolvedEntrypointChecksum string // BINARY sha256 (from artifact manifest)
 	DesiredHash                string
-	ObservedGeneration     int64
-	Message                string
-	Nodes                  []*cluster_controllerpb.NodeReleaseStatus
-	LastTransitionUnixMs   int64
-	WorkflowKind           string
-	StartedAtUnixMs        int64
-	TransitionReason       string
+	ObservedGeneration         int64
+	Message                    string
+	Nodes                      []*cluster_controllerpb.NodeReleaseStatus
+	LastTransitionUnixMs       int64
+	WorkflowKind               string
+	StartedAtUnixMs            int64
+	TransitionReason           string
 	// BlockedReason is a structured slug set by the "retry" path:
 	// workflow_unavailable, workflow_circuit_open, workflow_deadline, etc.
 	BlockedReason string
@@ -410,17 +410,14 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	}
 
 	// Store the repository's authoritative kind so reconcileResolved can
-	// correct the dispatch kind for SERVICE releases whose artifact is
-	// actually COMMAND (e.g. etcdctl, sha256sum, yt-dlp).
+	// correct the dispatch kind for SERVICE/INFRASTRUCTURE releases whose
+	// artifact is actually COMMAND (e.g. etcdctl, sha256sum, yt-dlp,
+	// libnss-resolve). Also correct InstalledStateKind so hasUnservedNodes
+	// checks the right etcd key — see correctKindFromRepo for why both
+	// SERVICE and INFRASTRUCTURE need this correction.
 	if resolved.RepoKind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
 		h.RepoKind = strings.ToUpper(resolved.RepoKind.String())
-		// Also correct InstalledStateKind so hasUnservedNodes checks the right
-		// etcd key. Without this, hasUnservedNodes looks up SERVICE/yt-dlp but
-		// nodes report the package as COMMAND/yt-dlp — node always appears
-		// unserved and the pipeline cycles RESOLVED without dispatching.
-		if h.InstalledStateKind == "SERVICE" && h.RepoKind == "COMMAND" {
-			h.InstalledStateKind = "COMMAND"
-		}
+		h.InstalledStateKind = correctKindFromRepo(h.InstalledStateKind, h.RepoKind)
 	}
 
 	desiredHash := h.ComputeHash(resolved.Version, resolved.BuildNumber)
@@ -432,19 +429,18 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 		ResolvedArtifactDigest:     resolved.Digest,
 		ResolvedEntrypointChecksum: resolved.EntrypointChecksum,
 		DesiredHash:                desiredHash,
-		ObservedGeneration:     h.Generation,
-		Message:                "",
-		LastTransitionUnixMs:   nowMs,
-		TransitionReason:       "resolved",
-		WorkflowKind:           wfKind,
-		StartedAtUnixMs:        nowMs,
-		SetFields:              "resolve",
+		ObservedGeneration:         h.Generation,
+		Message:                    "",
+		LastTransitionUnixMs:       nowMs,
+		TransitionReason:           "resolved",
+		WorkflowKind:               wfKind,
+		StartedAtUnixMs:            nowMs,
+		SetFields:                  "resolve",
 	})
 }
 
 // reconcileResolved is the shared RESOLVED phase: execute the release
 // workflow to install the package across all eligible nodes.
-//
 //
 // This replaces the old plan compilation/dispatch pipeline with direct
 // workflow execution. The workflow handles per-node install/verify/restart/
@@ -457,9 +453,9 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	// Collect eligible nodes — same filtering as before.
 	isWorkload := h.ResourceType == "ServiceRelease" || h.ResourceType == "ApplicationRelease"
 	nodeIDs := make([]string, 0, len(srv.state.Nodes))
-	var depBlockedNodeIDs []string  // nodes skipped due to unmet RuntimeLocalDependencies
-	var depBlockedMissing []string  // the missing deps (last set wins; used for logging)
-	var depClearedNodeIDs []string  // nodes whose deps were previously blocked but are now satisfied
+	var depBlockedNodeIDs []string // nodes skipped due to unmet RuntimeLocalDependencies
+	var depBlockedMissing []string // the missing deps (last set wins; used for logging)
+	var depClearedNodeIDs []string // nodes whose deps were previously blocked but are now satisfied
 	serviceName := h.Name
 	if idx := strings.LastIndex(serviceName, "/"); idx >= 0 {
 		serviceName = serviceName[idx+1:]
@@ -560,13 +556,11 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	if len(nodeIDs) == 0 {
 		return
 	}
-	// Auto-correct SERVICE→COMMAND when the repository's authoritative kind
-	// is COMMAND. ServiceDesiredVersion always labels entries as SERVICE
-	// regardless of actual artifact kind, but COMMAND packages (etcdctl,
-	// sha256sum, yt-dlp) must be installed without a systemd unit.
-	if pkgKind == "SERVICE" && h.RepoKind == "COMMAND" {
-		log.Printf("%s %s: corrected dispatch kind SERVICE→COMMAND (repo authoritative)", h.ResourceType, h.Name)
-		pkgKind = "COMMAND"
+	// Auto-correct SERVICE/INFRASTRUCTURE→COMMAND when the repository's
+	// authoritative kind is COMMAND — see correctKindFromRepo.
+	if corrected := correctKindFromRepo(pkgKind, h.RepoKind); corrected != pkgKind {
+		log.Printf("%s %s: corrected dispatch kind %s→%s (repo authoritative)", h.ResourceType, h.Name, pkgKind, corrected)
+		pkgKind = corrected
 	}
 
 	// Critical key preflight: if required key is missing OR key check fails,
@@ -960,15 +954,15 @@ func (srv *server) convergenceBlockedNodes(ctx context.Context, pkgName string) 
 		if err != nil || r == nil {
 			continue
 		}
-	switch r.Outcome {
-	case installed_state.OutcomeBlockedMissingNativeDep,
-		installed_state.OutcomeBlockedCriticalKeyMissing,
-		installed_state.OutcomeBlockedNodeUnreachable,
-		installed_state.OutcomeFailedPermanent,
-		installed_state.OutcomeSuccessLocalPendingSync,
-		installed_state.OutcomeStaleInstalledState:
-		blocked[nodeID] = struct{}{}
-	}
+		switch r.Outcome {
+		case installed_state.OutcomeBlockedMissingNativeDep,
+			installed_state.OutcomeBlockedCriticalKeyMissing,
+			installed_state.OutcomeBlockedNodeUnreachable,
+			installed_state.OutcomeFailedPermanent,
+			installed_state.OutcomeSuccessLocalPendingSync,
+			installed_state.OutcomeStaleInstalledState:
+			blocked[nodeID] = struct{}{}
+		}
 	}
 	return blocked
 }
@@ -1041,6 +1035,33 @@ func isStaleResolvedGhost(phase, specVersion, resolvedVersion string) bool {
 // and log-scrapers reference one canonical token.
 const staleResolvedGhostReason = "stale_resolved_ghost_blocked"
 
+// correctKindFromRepo returns the dispatch/installed-state kind that should be
+// used, correcting it to COMMAND when the repository's authoritative kind
+// (repoKind) says so and the caller-supplied kind disagrees. Returns kind
+// unchanged when repoKind is not "COMMAND" or already matches.
+//
+// Both SERVICE and INFRASTRUCTURE need this correction, for different
+// reasons:
+//   - SERVICE: ServiceDesiredVersion always labels entries as SERVICE
+//     regardless of actual artifact kind (etcdctl, sha256sum, yt-dlp).
+//   - INFRASTRUCTURE: nameIsNonServiceCatalogKind routes BOTH true
+//     infrastructure and COMMAND-kind packages into the InfrastructureRelease
+//     resource type — there is no separate resource type for COMMAND — so a
+//     COMMAND package published under an InfrastructureRelease starts
+//     labeled INFRASTRUCTURE just like a real daemon (observed:
+//     libnss-resolve installed-state written under kind INFRASTRUCTURE,
+//     producing a false installed_state_runtime_mismatch doctor finding
+//     since no systemd unit exists for a COMMAND package by design).
+func correctKindFromRepo(kind, repoKind string) string {
+	if repoKind != "COMMAND" {
+		return kind
+	}
+	if kind == "SERVICE" || kind == "INFRASTRUCTURE" {
+		return "COMMAND"
+	}
+	return kind
+}
+
 // ── Adapters: build releaseHandle from typed releases ────────────────────────
 
 func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease) *releaseHandle {
@@ -1057,11 +1078,11 @@ func (srv *server) appReleaseHandle(rel *cluster_controllerpb.ApplicationRelease
 		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
 		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
 		DesiredHash:                rel.Status.DesiredHash,
-		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
-		Nodes:                  rel.Status.Nodes,
-		RepositoryAddr:         appRepoAddr(rel.Spec),
-		InstalledStateKind:     "APPLICATION",
-		InstalledStateName:     rel.Spec.AppName,
+		LastTransitionUnixMs:       rel.Status.LastTransitionUnixMs,
+		Nodes:                      rel.Status.Nodes,
+		RepositoryAddr:             appRepoAddr(rel.Spec),
+		InstalledStateKind:         "APPLICATION",
+		InstalledStateName:         rel.Spec.AppName,
 		ResolverSpec: &cluster_controllerpb.ServiceReleaseSpec{
 			PublisherID:  rel.Spec.PublisherID,
 			ServiceName:  rel.Spec.AppName,
@@ -1094,11 +1115,11 @@ func (srv *server) infraReleaseHandle(rel *cluster_controllerpb.InfrastructureRe
 		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
 		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
 		DesiredHash:                rel.Status.DesiredHash,
-		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
-		Nodes:                  rel.Status.Nodes,
-		RepositoryAddr:         infraRepoAddr(rel.Spec),
-		InstalledStateKind:     "INFRASTRUCTURE",
-		InstalledStateName:     rel.Spec.Component,
+		LastTransitionUnixMs:       rel.Status.LastTransitionUnixMs,
+		Nodes:                      rel.Status.Nodes,
+		RepositoryAddr:             infraRepoAddr(rel.Spec),
+		InstalledStateKind:         "INFRASTRUCTURE",
+		InstalledStateName:         rel.Spec.Component,
 		ResolverSpec: &cluster_controllerpb.ServiceReleaseSpec{
 			PublisherID:  rel.Spec.PublisherID,
 			ServiceName:  rel.Spec.Component,
@@ -1254,12 +1275,12 @@ func (srv *server) svcReleaseHandle(rel *cluster_controllerpb.ServiceRelease) *r
 		ResolvedArtifactDigest:     rel.Status.ResolvedArtifactDigest,
 		ResolvedEntrypointChecksum: rel.Status.ResolvedEntrypointChecksum,
 		DesiredHash:                rel.Status.DesiredHash,
-		LastTransitionUnixMs:   rel.Status.LastTransitionUnixMs,
-		Nodes:                  rel.Status.Nodes,
-		RepositoryAddr:         repositoryAddrForSpec(rel.Spec),
-		InstalledStateKind:     "SERVICE",
-		InstalledStateName:     canon,
-		ResolverSpec:           rel.Spec,
+		LastTransitionUnixMs:       rel.Status.LastTransitionUnixMs,
+		Nodes:                      rel.Status.Nodes,
+		RepositoryAddr:             repositoryAddrForSpec(rel.Spec),
+		InstalledStateKind:         "SERVICE",
+		InstalledStateName:         canon,
+		ResolverSpec:               rel.Spec,
 		ComputeHash: func(resolvedVersion string, buildNumber int64) string {
 			return ComputeReleaseDesiredHash(rel.Spec.PublisherID, rel.Spec.ServiceName, resolvedVersion, buildNumber, rel.Spec.Config)
 		},

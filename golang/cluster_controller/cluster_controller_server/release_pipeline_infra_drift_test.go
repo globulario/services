@@ -182,6 +182,40 @@ func TestIsStaleResolvedGhost(t *testing.T) {
 	}
 }
 
+// TestCorrectKindFromRepo is the enforcement ratchet for the libnss-resolve
+// incident: a COMMAND-kind package published under an InfrastructureRelease
+// (nameIsNonServiceCatalogKind routes both true infrastructure and COMMAND
+// there — there is no separate resource type for COMMAND) was dispatched
+// with PackageKind=INFRASTRUCTURE and its installed-state written under the
+// wrong etcd kind, producing a permanent false
+// installed_state_runtime_mismatch doctor finding (no systemd unit exists
+// for a COMMAND package by design). The existing SERVICE→COMMAND correction
+// (added earlier for etcdctl/sha256sum/yt-dlp) only checked kind=="SERVICE";
+// INFRASTRUCTURE needs the identical correction.
+func TestCorrectKindFromRepo(t *testing.T) {
+	cases := []struct {
+		name string
+		kind string
+		repo string
+		want string
+	}{
+		{"service_corrected_to_command", "SERVICE", "COMMAND", "COMMAND"},
+		{"infrastructure_corrected_to_command", "INFRASTRUCTURE", "COMMAND", "COMMAND"},
+		{"service_unchanged_when_repo_service", "SERVICE", "SERVICE", "SERVICE"},
+		{"infrastructure_unchanged_when_repo_infrastructure", "INFRASTRUCTURE", "INFRASTRUCTURE", "INFRASTRUCTURE"},
+		{"command_unchanged_when_already_command", "COMMAND", "COMMAND", "COMMAND"},
+		{"application_unaffected", "APPLICATION", "COMMAND", "APPLICATION"},
+		{"empty_repo_kind_no_correction", "INFRASTRUCTURE", "", "INFRASTRUCTURE"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := correctKindFromRepo(c.kind, c.repo); got != c.want {
+				t.Errorf("correctKindFromRepo(%q, %q) = %q, want %q", c.kind, c.repo, got, c.want)
+			}
+		})
+	}
+}
+
 // ── C1: detectInfraDrift ─────────────────────────────────────────────────────
 
 // TestDetectInfraDrift_UnitInactive_DowngradesToDegraded verifies that a node
@@ -378,10 +412,10 @@ func TestDetectInfraDrift_ServiceLikeComponents_InactiveIsDrift(t *testing.T) {
 		{"alertmanager", "globular-alertmanager.service"},
 		{"cluster-controller", "globular-cluster-controller.service"},
 		{"cluster-doctor", "globular-cluster-doctor.service"},
-		{"scylladb", "scylla-server.service"},             // packageUnitOverrides
-		{"xds", "globular-xds.service"},                  // control-plane mesh layer
-		{"sidekick", "globular-sidekick.service"},         // MinIO metrics proxy
-		{"node-exporter", "globular-node-exporter.service"}, // host metrics
+		{"scylladb", "scylla-server.service"},                             // packageUnitOverrides
+		{"xds", "globular-xds.service"},                                   // control-plane mesh layer
+		{"sidekick", "globular-sidekick.service"},                         // MinIO metrics proxy
+		{"node-exporter", "globular-node-exporter.service"},               // host metrics
 		{"scylla-manager", "globular-scylla-manager.service"},             // packageUnitOverrides
 		{"scylla-manager-agent", "globular-scylla-manager-agent.service"}, // packageUnitOverrides
 	}
