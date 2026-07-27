@@ -538,6 +538,7 @@ spec:
           - { name: sha256sum, kind: COMMAND }
           - { name: claude, kind: COMMAND }
           - { name: codex, kind: COMMAND }
+          - { name: libnss-resolve, kind: COMMAND }
       timeout: 2m
       execution:
         idempotency: verify_then_continue
@@ -558,6 +559,7 @@ spec:
             - { name: sha256sum, kind: COMMAND }
             - { name: claude, kind: COMMAND }
             - { name: codex, kind: COMMAND }
+            - { name: libnss-resolve, kind: COMMAND }
         success:
           expr: all_installed == true
 

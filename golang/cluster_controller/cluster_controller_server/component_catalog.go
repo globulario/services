@@ -602,6 +602,16 @@ func buildCatalog() []*Component {
 			Priority: 900,
 			Profiles: []string{"core", "compute"},
 		},
+		{
+			// libnss-resolve: systemd-resolved NSS bridge, bundled via
+			// bundle_debs/install_local_debs (no live apt-get at install
+			// time). Every node needs *.globular.internal resolution to
+			// work reliably, same as the other universal COMMAND tools
+			// above — not profile-gated.
+			Name:     "libnss-resolve",
+			Priority: 900,
+			Profiles: []string{"core", "compute"},
+		},
 
 		// ---------------------------------------------------------------
 		// Infrastructure components — monitoring, VIP, database management
