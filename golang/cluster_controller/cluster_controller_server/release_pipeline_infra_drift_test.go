@@ -216,6 +216,42 @@ func TestCorrectKindFromRepo(t *testing.T) {
 	}
 }
 
+// TestCorrectKindFromRepoAndCatalog_RepoKindNeverPopulated is the enforcement
+// ratchet for the ACTUAL live failure: h.RepoKind is set by reconcilePending
+// onto a releaseHandle instance that reconcileResolved never reuses — the
+// reconcile loop rebuilds releaseHandle fresh from etcd via
+// infraReleaseHandle/serviceReleaseHandle between phases, and those adapters
+// hardcode InstalledStateKind and never persist RepoKind — so
+// correctKindFromRepo(kind, h.RepoKind) was silently inert for libnss-resolve
+// (repoKind arrived as "", the zero value) despite the repository's manifest
+// genuinely being published with kind=COMMAND. correctKindFromRepoAndCatalog
+// must correct via the packagekind registry (a local, always-available,
+// build-time source) even when repoKind is completely empty.
+func TestCorrectKindFromRepoAndCatalog_RepoKindNeverPopulated(t *testing.T) {
+	cases := []struct {
+		name        string
+		kind        string
+		repoKind    string
+		packageName string
+		want        string
+	}{
+		{"infra_corrected_via_packagekind_despite_empty_repo_kind", "INFRASTRUCTURE", "", "libnss-resolve", "COMMAND"},
+		{"infra_corrected_via_packagekind_for_other_known_commands", "INFRASTRUCTURE", "", "sha256sum", "COMMAND"},
+		{"service_corrected_via_packagekind_despite_empty_repo_kind", "SERVICE", "", "yt-dlp", "COMMAND"},
+		{"repo_kind_still_honored_when_packagekind_unknown", "INFRASTRUCTURE", "COMMAND", "totally-unregistered-name", "COMMAND"},
+		{"unrelated_infra_package_not_corrected", "INFRASTRUCTURE", "", "etcd", "INFRASTRUCTURE"},
+		{"empty_package_name_falls_back_to_repo_kind_only", "INFRASTRUCTURE", "", "", "INFRASTRUCTURE"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := correctKindFromRepoAndCatalog(c.kind, c.repoKind, c.packageName); got != c.want {
+				t.Errorf("correctKindFromRepoAndCatalog(%q, %q, %q) = %q, want %q",
+					c.kind, c.repoKind, c.packageName, got, c.want)
+			}
+		})
+	}
+}
+
 // ── C1: detectInfraDrift ─────────────────────────────────────────────────────
 
 // TestDetectInfraDrift_UnitInactive_DowngradesToDegraded verifies that a node

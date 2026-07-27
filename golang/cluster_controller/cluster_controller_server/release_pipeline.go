@@ -18,6 +18,7 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/packagekind"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
 )
@@ -417,8 +418,8 @@ func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	// SERVICE and INFRASTRUCTURE need this correction.
 	if resolved.RepoKind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
 		h.RepoKind = strings.ToUpper(resolved.RepoKind.String())
-		h.InstalledStateKind = correctKindFromRepo(h.InstalledStateKind, h.RepoKind)
 	}
+	h.InstalledStateKind = correctKindFromRepoAndCatalog(h.InstalledStateKind, h.RepoKind, h.InstalledStateName)
 
 	desiredHash := h.ComputeHash(resolved.Version, resolved.BuildNumber)
 	h.PatchStatus(ctx, statusPatch{
@@ -556,10 +557,13 @@ func (srv *server) reconcileResolved(ctx context.Context, h *releaseHandle) {
 	if len(nodeIDs) == 0 {
 		return
 	}
-	// Auto-correct SERVICE/INFRASTRUCTURE→COMMAND when the repository's
-	// authoritative kind is COMMAND — see correctKindFromRepo.
-	if corrected := correctKindFromRepo(pkgKind, h.RepoKind); corrected != pkgKind {
-		log.Printf("%s %s: corrected dispatch kind %s→%s (repo authoritative)", h.ResourceType, h.Name, pkgKind, corrected)
+	// Auto-correct SERVICE/INFRASTRUCTURE→COMMAND when either the repository's
+	// authoritative kind or the packagekind registry says COMMAND — see
+	// correctKindFromRepoAndCatalog. packagekind is checked here (not just
+	// h.RepoKind) because h is rebuilt fresh from etcd between reconcile
+	// phases and never carries a persisted RepoKind forward.
+	if corrected := correctKindFromRepoAndCatalog(pkgKind, h.RepoKind, h.InstalledStateName); corrected != pkgKind {
+		log.Printf("%s %s: corrected dispatch kind %s→%s (packagekind/repo authoritative)", h.ResourceType, h.Name, pkgKind, corrected)
 		pkgKind = corrected
 	}
 
@@ -1036,9 +1040,22 @@ func isStaleResolvedGhost(phase, specVersion, resolvedVersion string) bool {
 const staleResolvedGhostReason = "stale_resolved_ghost_blocked"
 
 // correctKindFromRepo returns the dispatch/installed-state kind that should be
-// used, correcting it to COMMAND when the repository's authoritative kind
-// (repoKind) says so and the caller-supplied kind disagrees. Returns kind
-// unchanged when repoKind is not "COMMAND" or already matches.
+// used, correcting it to COMMAND when either the repository's authoritative
+// kind (repoKind) or the build-time packagekind registry projection
+// (packages/registry.yaml, the single-author package-kind source) says so.
+// Returns kind unchanged when neither signal says COMMAND, or kind already
+// matches.
+//
+// packagekind is checked FIRST and is the primary signal: it is a local,
+// always-available, build-time-generated map with no dependency on runtime
+// state. repoKind is a secondary/defensive signal only — it is populated by
+// reconcilePending onto a releaseHandle that reconcileResolved does NOT
+// reuse (the reconcile loop rebuilds releaseHandle fresh from etcd via
+// infraReleaseHandle/serviceReleaseHandle between phases, and those adapters
+// hardcode InstalledStateKind/never persist RepoKind) — so relying on
+// repoKind alone left this correction silently inert for any release whose
+// PENDING→RESOLVED transition and dispatch don't happen to share the same
+// in-memory releaseHandle. packagekind has no such gap.
 //
 // Both SERVICE and INFRASTRUCTURE need this correction, for different
 // reasons:
@@ -1053,7 +1070,19 @@ const staleResolvedGhostReason = "stale_resolved_ghost_blocked"
 //     producing a false installed_state_runtime_mismatch doctor finding
 //     since no systemd unit exists for a COMMAND package by design).
 func correctKindFromRepo(kind, repoKind string) string {
-	if repoKind != "COMMAND" {
+	return correctKindFromRepoAndCatalog(kind, repoKind, "")
+}
+
+// correctKindFromRepoAndCatalog is correctKindFromRepo plus the packagekind
+// registry check. packageName may be empty (falls back to repoKind only,
+// preserving correctKindFromRepo's behavior for callers/tests that don't
+// have a name handy).
+func correctKindFromRepoAndCatalog(kind, repoKind, packageName string) string {
+	isCommand := repoKind == "COMMAND"
+	if packageName != "" && packagekind.IsCommand(packageName) {
+		isCommand = true
+	}
+	if !isCommand {
 		return kind
 	}
 	if kind == "SERVICE" || kind == "INFRASTRUCTURE" {
