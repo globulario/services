@@ -377,10 +377,20 @@ entries:
       9. Local build:
          `globular pkg build --spec packages/specs/<name>_service.yaml --version 0.0.1 --out /tmp/pkgs --root <build-root>`
          `globular pkg inspect /tmp/pkgs/<name>_0.0.1_linux_amd64.tgz`
-      10. Publish via deploy:
+      10. **PUBLISH — NOT OPTIONAL, even though Day-0 will "work" without it:**
          `globular --controller <leader>.globular.internal deploy <name> --bump patch --comment "initial release"`
-      11. Verify convergence across profile-matching nodes:
+         (or `globular pkg publish --file <tgz> --repository <repo> --channel stable`)
+         See `ops.always.package.new-package-must-be-published` — a package that is only
+         ever installed via the Day-0 bundle path and never runs through this step will
+         install fine ONCE and then loop forever as `workflow.drift_stuck`
+         (`missing_package`) on every future wipe/rebuild. Do this step in the SAME
+         session you add the package, before declaring it done — do not defer it.
+      11. Verify convergence AND repository admission across profile-matching nodes:
          `globular cluster nodes list && globular pkg status <name>`
+         `globular repository explain <publisher>/<name> <version> --kind <kind>`
+         → must return a real build, not `NotFound: no builds for ...`. A green Day-0
+         install is NOT evidence this step succeeded — it proves nothing about the
+         repository (see anti-pattern below).
     procedure:
       - phase: observe
         description: "Confirm the package doesn't already exist and the kind is unambiguous"
@@ -449,3 +459,51 @@ entries:
         serve metadata without MinIO.
     links:
       awareness_failure_modes: []
+
+  - id: ops.always.package.new-package-must-be-published
+    type: DEBUG
+    title: "A new package that only ever installed via Day-0 bundling will never converge — publish is mandatory"
+    tags: [always, package, authoring, debug, day-0, repository]
+    applies_when:
+      cluster_phases: [day-0, day-1, day-2]
+      services_present: []
+    content: |
+      Recurring incident (hit 3+ times across libnss-resolve and prior packages — this
+      entry exists specifically so it stops recurring).
+
+      Root cause: `install-day0.sh`'s "Seeding Desired State from Installed Packages"
+      step runs `globular services seed`, which populates DesiredService/DesiredPackage
+      directly from the LOCALLY INSTALLED inventory (Layer 3 → Layer 2). This is a
+      deliberate Day-0 bootstrap shortcut — there is no repository to publish to yet
+      the very first time Day-0 ever runs on a cluster. It NEVER touches the repository
+      (Layer 1). A brand-new package installed only through the Day-0/join bundle path
+      (`packages/dist/<name>_<ver>_linux_amd64.tgz` embedded in the release tarball)
+      looks completely fine: it installs, the service/command runs, Day-0 reports
+      success. But the repository's CAS has zero builds for it
+      (`globular repository explain <pub>/<name> <ver>` → `NotFound: no builds for
+      ...`). The cluster-controller's `release.apply.package` reconciler later tries to
+      verify/re-admit the installed package against a real repository build, can't find
+      one, and the drift NEVER resolves — `workflow.drift_stuck` (`missing_package`),
+      climbing consecutive_cycles forever, `last_remediation_id` stays empty because
+      there is nothing to remediate against.
+
+      This is NOT a bug in node-agent, the workflow engine, or cluster-controller. It is
+      a missing operational step: authoring-checklist step 10 (`globular deploy` /
+      `globular pkg publish`) was skipped because the Day-0 install already looked done.
+
+      A ONE-TIME manual `globular pkg publish` on a live node's local repository
+      instance does NOT fix this durably — that blob lives only in that one
+      repository instance's local POSIX CAS. The next full node wipe + Day-0 re-run (or
+      any fresh cluster built from this release) starts from an empty repository again
+      and hits the exact same drift. The fix must happen as part of authoring the
+      package / cutting the release, not as a live-cluster patch.
+
+      **Rule: any time a package is added to `packages/registry.yaml`, run
+      authoring-checklist step 10 (publish) in the SAME work session, before moving on.
+      Verify with `globular repository explain` — NOT with "Day-0 installed it
+      successfully", which proves nothing about repository admission.** If you only
+      have local access (no live cluster to publish against yet), flag the package as
+      unpublished/incomplete explicitly rather than treating Day-0 success as done.
+    links:
+      awareness_failure_modes: []
+      related_invariants: []
