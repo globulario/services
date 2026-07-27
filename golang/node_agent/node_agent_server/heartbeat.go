@@ -957,8 +957,14 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			}
 			if kind == "COMMAND" {
 				// COMMAND packages are standalone binaries — check if the
-				// binary exists on disk rather than looking for a systemd unit.
-				if !commandBinaryExists(name) {
+				// binary exists under Globular's own managed directories AND
+				// its checksum matches this manifest (commandBinaryVerified),
+				// not just whether some like-named binary exists anywhere on
+				// $PATH (commandBinaryExists) — a same-named unrelated OS
+				// package would otherwise make this loop mint a fresh, false
+				// installed_state record stamped with the repo manifest's own
+				// version/checksum for a binary that was never verified.
+				if !commandBinaryVerified(name, m) {
 					continue
 				}
 			} else {
@@ -972,7 +978,7 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 				if out, err := exec.CommandContext(ctx, "systemctl", "list-unit-files", unitName, "--no-legend", "--no-pager").Output(); err == nil {
 					unitFileInstalled = strings.TrimSpace(string(out)) != ""
 				}
-				if !unitFileInstalled && !commandBinaryExists(name) {
+				if !unitFileInstalled && !commandBinaryVerified(name, m) {
 					continue
 				}
 			}
@@ -1379,6 +1385,34 @@ func localDistributionPackagePath(name, version, platform string) string {
 // the standard binary locations.
 func commandBinaryExists(name string) bool {
 	return commandBinaryPath(name) != ""
+}
+
+// commandBinaryVerified reports whether a COMMAND package is genuinely
+// installed under Globular's own managed binary directories, proven by an
+// entrypoint checksum match against the repository manifest.
+//
+// This intentionally does NOT use commandBinaryPath()'s exec.LookPath($PATH)
+// fallback: that fallback exists for the already-checksum-gated proof path in
+// localPackageProofFromManifest, where a mismatch is caught immediately after.
+// Here, existence alone was being treated as installed-state proof — any
+// same-named binary anywhere on $PATH (e.g. an unrelated OS/apt package) was
+// enough to make syncRepoArtifactsToEtcd mint a fresh installed_state record
+// stamped with the repository manifest's version/checksum, regardless of
+// whether that binary had anything to do with Globular's own package. This
+// produced a permanent, self-reinstating placement.installed_package_orphaned
+// finding on nodes that happen to have a like-named system tool on $PATH,
+// completely independent of node profile authorization.
+func commandBinaryVerified(name string, m *repositorypb.ArtifactManifest) bool {
+	manifestEntry := runtimeChecksumFromManifest(m)
+	if manifestEntry == "" {
+		return false
+	}
+	for _, path := range commandBinaryPaths(name) {
+		if diskEntry := binhash.HashOrEmpty(path); diskEntry != "" && binhash.Equal(manifestEntry, diskEntry) {
+			return true
+		}
+	}
+	return false
 }
 
 // detectPartialApply checks for binary replacement without state update.
