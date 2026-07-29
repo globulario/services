@@ -196,240 +196,250 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 		// is unambiguous. See meta.write_creates_completion_obligation.
 		for desiredKey, dv := range desired {
 			func() {
-			pkg, found := installedMap[desiredKey]
+				pkg, found := installedMap[desiredKey]
 
-			// Already aligned by (version, build_number) — and binary
-			// proof on disk matches the artifact's resolved entrypoint
-			// checksum. Phase 37: (version, build_number) match alone is
-			// NOT sufficient proof of convergence — the installed_state
-			// can claim a buildId/buildNumber via the convergence
-			// committer while the binary on disk is still old. The
-			// entrypoint checksum is the hard binary identity proof: if
-			// desired carries it and installed carries it, both must
-			// match. Mismatch = drift reason
-			// "installed_state_buildid_matches_but_binary_checksum_differs".
-			if found && versionutil.EqualFull(dv.version, dv.buildNumber, pkg.version, pkg.buildNumber) {
-				if !entrypointChecksumDriftPresent(dv.entrypointChecksum, pkg.entrypointChecksum) {
+				// Already aligned by (version, build_number) — and binary
+				// proof on disk matches the artifact's resolved entrypoint
+				// checksum. Phase 37: (version, build_number) match alone is
+				// NOT sufficient proof of convergence — the installed_state
+				// can claim a buildId/buildNumber via the convergence
+				// committer while the binary on disk is still old. The
+				// entrypoint checksum is the hard binary identity proof: if
+				// desired carries it and installed carries it, both must
+				// match. Mismatch = drift reason
+				// "installed_state_buildid_matches_but_binary_checksum_differs".
+				if found && versionutil.EqualFull(dv.version, dv.buildNumber, pkg.version, pkg.buildNumber) {
+					if !entrypointChecksumDriftPresent(dv.entrypointChecksum, pkg.entrypointChecksum) {
+						return
+					}
+					log.Printf(
+						"drift-reconciler: node=%s pkg=%s installed_state_buildid_matches_but_binary_checksum_differs "+
+							"desired_entry_chk=%s installed_entry_chk=%s — dispatching reinstall",
+						nodeID, desiredKey,
+						shortChecksum(dv.entrypointChecksum), shortChecksum(pkg.entrypointChecksum),
+					)
+					// Fall through to dispatch — the existing dispatch
+					// machinery below treats any non-continue as drift.
+				}
+				// Transition-era installs: if the installed record has no build_id (0 = not tracked),
+				// version equality is sufficient. We cannot determine which specific build was
+				// installed, so we do not report drift against a known version match.
+				if found && pkg.buildNumber == 0 && versionutil.Equal(dv.version, pkg.version) {
 					return
 				}
-				log.Printf(
-					"drift-reconciler: node=%s pkg=%s installed_state_buildid_matches_but_binary_checksum_differs "+
-						"desired_entry_chk=%s installed_entry_chk=%s — dispatching reinstall",
-					nodeID, desiredKey,
-					shortChecksum(dv.entrypointChecksum), shortChecksum(pkg.entrypointChecksum),
-				)
-				// Fall through to dispatch — the existing dispatch
-				// machinery below treats any non-continue as drift.
-			}
-			// Transition-era installs: if the installed record has no build_id (0 = not tracked),
-			// version equality is sufficient. We cannot determine which specific build was
-			// installed, so we do not report drift against a known version match.
-			if found && pkg.buildNumber == 0 && versionutil.Equal(dv.version, pkg.version) {
-				return
-			}
-			// Node-agent is already applying this package.
-			if found && pkg.status == "updating" {
-				return
-			}
-
-			// Skip services suspended by crash-loop suppression.
-			parts0 := strings.SplitN(desiredKey, "/", 2)
-			if len(parts0) == 2 && suspendedSet[parts0[1]] {
-				log.Printf("drift-reconciler: skipping %s on node %s (crash-loop suspended)", parts0[1], nodeID)
-				return
-			}
-
-			// Block-aware: suppress drift event if the package has a non-retryable
-			// or backoff-gated convergence outcome.
-			if driftSuppressed(convergenceMap, parts0[len(parts0)-1], node.Identity.Hostname, nodeID) {
-				return
-			}
-
-			inflightKey := nodeID + "/" + desiredKey
-			if r.isInflight(inflightKey) {
-				return
-			}
-			// Apply-loop detection: skip if this package/node is quarantined
-			// due to repeated applies without convergence.
-			if r.srv.applyLoopDet != nil && r.srv.applyLoopDet.IsQuarantined(inflightKey) {
-				log.Printf("drift-reconciler: skipped %s — quarantined (apply loop detected)", inflightKey)
-				return
-			}
-			// Cross-path dedup: check if the release pipeline already
-			// has an active workflow for this package on this node.
-			if r.srv.dispatchReg != nil && !r.srv.dispatchReg.TryAcquire(inflightKey, "drift-reconciler") {
-				return
-			}
-			// The drift-reconciler is observation-only — it emits events
-			// but does not dispatch workflows. Release the dispatch slot
-			// when done so the release pipeline can dispatch corrections.
-			// Without this, slots are held until 15m TTL, permanently
-			// blocking convergence.
-			releaseDedupSlot := func() {
-				if r.srv.dispatchReg != nil {
-					r.srv.dispatchReg.Release(inflightKey)
-				}
-			}
-			defer releaseDedupSlot()
-
-			parts := strings.SplitN(desiredKey, "/", 2)
-			if len(parts) != 2 {
-				return
-			}
-			kind, name := parts[0], parts[1]
-
-			// Per-action topology safety gate. Topology-affecting actions
-			// (INFRASTRUCTURE) are blocked when preflight violations are present.
-			// Safe actions (SERVICE, COMMAND) always proceed regardless of topology
-			// state — a version bump must not stall because objectstore config drifted.
-			action := driftAction{
-				NodeID:     nodeID,
-				PackageKey: desiredKey,
-				Kind:       kind,
-				ActionKind: classifyDriftAction(kind),
-			}
-			if !driftActionSafe(action, topoViolations) {
-				kinds := make([]string, 0, len(topoViolations))
-				for _, v := range topoViolations {
-					kinds = append(kinds, v.Kind)
-				}
-				log.Printf("drift-reconciler: topology gate blocked %s on node=%s violations=%s",
-					desiredKey, nodeID, strings.Join(kinds, ","))
-				reconcileBlockedPhase.WithLabelValues("drift_reconcile").Set(1)
-				r.srv.publishReconcileLaneStatus(ctx, "drift_reconcile", reconcileLaneStatus{
-					Phase:     "DEGRADED",
-					Running:   false,
-					LastError: fmt.Sprintf("topology gate blocked %s: %s", desiredKey, strings.Join(kinds, ",")),
-				})
-				r.srv.emitClusterEvent("cluster.reconcile.topology_blocked", map[string]interface{}{
-					"lane":       "drift_reconcile",
-					"package":    desiredKey,
-					"violations": kinds,
-				})
-				return
-			}
-
-			// Only reconcile SERVICE packages; infrastructure is managed by bootstrap.
-			if kind != "SERVICE" {
-				return
-			}
-
-			// Orphaned-install guard (E2): if this package can never be placed on
-			// this node under the catalog placement authority (the same predicate
-			// E1 gave platform-upgrade evaluate and the release reconciler), it is
-			// an orphaned install, not convergeable drift. Emitting drift_detected
-			// here re-fires every cycle forever — the torrent-orphan hamster wheel
-			// (INC 2026-06-24). Suppress the dispatch. The operator-facing verdict
-			// is cluster-doctor's placement.installed_package_orphaned finding; the
-			// controller decides not to dispatch but does NOT compute the health
-			// verdict (cluster_doctor.is_the_authority_for_health_state_queries).
-			if isOrphanedInstall(name, node.Profiles) {
-				log.Printf("drift-reconciler: node=%s pkg=%s — orphaned install; node profiles %v do not satisfy catalog placement; non-dispatchable (see cluster-doctor placement.installed_package_orphaned)",
-					node.Identity.Hostname, name, node.Profiles)
-				return
-			}
-
-			// Resolve the desired artifact. If the desired state is fully
-			// pinned (version + build_number both set), use the persisted
-			// values directly — do not re-resolve from the repository.
-			// This implements desired.build_id_immutable_after_resolution:
-			// once a desired version resolves to a build_id, the
-			// convergence target is immutable until an explicit
-			// desired-state update changes it.
-			var resolved *ResolvedArtifact
-			if dv.version != "" && dv.buildNumber > 0 {
-				// Desired state is fully resolved — skip repository re-resolution.
-				resolved = &ResolvedArtifact{
-					Version:     dv.version,
-					BuildNumber: dv.buildNumber,
-					BuildID:     dv.buildID,
-				}
-			} else {
-				// First resolution or unresolved desired state — resolve
-				// from the repository to pick the latest published artifact.
-				resolver := &ReleaseResolver{
-					RepositoryAddr: repo.Address,
-					ArtifactKind:   repositorypb.ArtifactKind_SERVICE,
-				}
-				var err error
-				resolved, err = resolver.Resolve(ctx, &cluster_controllerpb.ServiceReleaseSpec{
-					PublisherID: defaultPublisherID(),
-					ServiceName: name,
-					Version:     dv.version,
-					BuildNumber: dv.buildNumber,
-					Platform:    r.srv.getNodePlatform(nodeID),
-				})
-				if err != nil {
-					log.Printf("drift-reconciler: skipping node=%s pkg=%s@%s-b%d — resolve failed: %v",
-						nodeID, name, dv.version, dv.buildNumber, err)
+				// Node-agent is already applying this package.
+				if found && pkg.status == "updating" {
 					return
 				}
-			}
-			// Part 3: Validate desired kind matches repository manifest kind.
-			// A mismatch (e.g. INFRASTRUCTURE in repo but SERVICE in desired)
-			// creates an infinite apply loop — block dispatch and emit a finding.
-			// Exception: SERVICE→COMMAND mismatches are auto-corrected using the
-			// repo kind, because collectDesiredVersions always labels ServiceDesiredVersion
-			// entries as SERVICE regardless of actual artifact kind. COMMAND packages
-			// are safely installable via the standard install workflow; they just
-			// don't require a systemd unit.
-			if resolved.RepoKind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
-				repoKindStr := strings.ToUpper(resolved.RepoKind.String())
-				if repoKindStr != kind {
-					if kind == "SERVICE" && repoKindStr == "COMMAND" {
-						// Auto-correct: use the repository's authoritative kind.
-						log.Printf("drift-reconciler: corrected kind for node=%s pkg=%s: SERVICE→COMMAND (repo authoritative)",
-							node.Identity.Hostname, name)
-						kind = "COMMAND"
-					} else {
-						log.Printf("drift-reconciler: BLOCKED node=%s pkg=%s — desired kind mismatch: %s (desired) vs %s (repo); dispatch suppressed",
-							node.Identity.Hostname, name, kind, repoKindStr)
-						driftKindMismatchTotal.Inc()
-						r.srv.emitClusterEvent("desired.kind_mismatch", map[string]interface{}{
-							"severity":     "WARNING",
-							"node_id":      nodeID,
-							"package":      name,
-							"desired_kind": kind,
-							"repo_kind":    repoKindStr,
-							"message":      fmt.Sprintf("desired kind %s does not match repo artifact kind %s — dispatch blocked", kind, repoKindStr),
-						})
-						writeKindMismatchRecord(ctx, nodeID, name, kind, repoKindStr)
+
+				// Skip services suspended by crash-loop suppression.
+				parts0 := strings.SplitN(desiredKey, "/", 2)
+				if len(parts0) == 2 && suspendedSet[parts0[1]] {
+					log.Printf("drift-reconciler: skipping %s on node %s (crash-loop suspended)", parts0[1], nodeID)
+					return
+				}
+
+				// Block-aware: suppress drift event if the package has a non-retryable
+				// or backoff-gated convergence outcome.
+				if driftSuppressed(convergenceMap, parts0[len(parts0)-1], node.Identity.Hostname, nodeID) {
+					return
+				}
+
+				inflightKey := nodeID + "/" + desiredKey
+				if r.isInflight(inflightKey) {
+					return
+				}
+				// Apply-loop detection: skip if this package/node is quarantined
+				// due to repeated applies without convergence.
+				if r.srv.applyLoopDet != nil && r.srv.applyLoopDet.IsQuarantined(inflightKey) {
+					log.Printf("drift-reconciler: skipped %s — quarantined (apply loop detected)", inflightKey)
+					return
+				}
+				// Cross-path dedup: check if the release pipeline already
+				// has an active workflow for this package on this node.
+				if r.srv.dispatchReg != nil && !r.srv.dispatchReg.TryAcquire(inflightKey, "drift-reconciler") {
+					return
+				}
+				// The drift-reconciler is observation-only — it emits events
+				// but does not dispatch workflows. Release the dispatch slot
+				// when done so the release pipeline can dispatch corrections.
+				// Without this, slots are held until 15m TTL, permanently
+				// blocking convergence.
+				releaseDedupSlot := func() {
+					if r.srv.dispatchReg != nil {
+						r.srv.dispatchReg.Release(inflightKey)
+					}
+				}
+				defer releaseDedupSlot()
+
+				parts := strings.SplitN(desiredKey, "/", 2)
+				if len(parts) != 2 {
+					return
+				}
+				kind, name := parts[0], parts[1]
+
+				// Per-action topology safety gate. Topology-affecting actions
+				// (INFRASTRUCTURE) are blocked when preflight violations are present.
+				// Safe actions (SERVICE, COMMAND) always proceed regardless of topology
+				// state — a version bump must not stall because objectstore config drifted.
+				action := driftAction{
+					NodeID:     nodeID,
+					PackageKey: desiredKey,
+					Kind:       kind,
+					ActionKind: classifyDriftAction(kind),
+				}
+				if !driftActionSafe(action, topoViolations) {
+					kinds := make([]string, 0, len(topoViolations))
+					for _, v := range topoViolations {
+						kinds = append(kinds, v.Kind)
+					}
+					log.Printf("drift-reconciler: topology gate blocked %s on node=%s violations=%s",
+						desiredKey, nodeID, strings.Join(kinds, ","))
+					reconcileBlockedPhase.WithLabelValues("drift_reconcile").Set(1)
+					r.srv.publishReconcileLaneStatus(ctx, "drift_reconcile", reconcileLaneStatus{
+						Phase:     "DEGRADED",
+						Running:   false,
+						LastError: fmt.Sprintf("topology gate blocked %s: %s", desiredKey, strings.Join(kinds, ",")),
+					})
+					r.srv.emitClusterEvent("cluster.reconcile.topology_blocked", map[string]interface{}{
+						"lane":       "drift_reconcile",
+						"package":    desiredKey,
+						"violations": kinds,
+					})
+					return
+				}
+
+				// Only reconcile SERVICE packages; infrastructure is managed by bootstrap.
+				// This guard runs BEFORE the SERVICE->COMMAND kind-mismatch auto-correction
+				// further down (~line 380): by the time that block executes, kind is always
+				// the literal "SERVICE" — collectDesiredVersions also indexes
+				// InfrastructureRelease entries as "INFRASTRUCTURE/<name>", but any such
+				// item is filtered out right here and never reaches the mismatch check.
+				// Do NOT mistake the correction block's SERVICE-only condition for a bug
+				// needing an INFRASTRUCTURE/COMMAND case — that combination is provably
+				// unreachable in this function. COMMAND packages routed via
+				// InfrastructureRelease (e.g. libnss-resolve) go through
+				// release_pipeline.go's correctKindFromRepoAndCatalog instead.
+				if kind != "SERVICE" {
+					return
+				}
+
+				// Orphaned-install guard (E2): if this package can never be placed on
+				// this node under the catalog placement authority (the same predicate
+				// E1 gave platform-upgrade evaluate and the release reconciler), it is
+				// an orphaned install, not convergeable drift. Emitting drift_detected
+				// here re-fires every cycle forever — the torrent-orphan hamster wheel
+				// (INC 2026-06-24). Suppress the dispatch. The operator-facing verdict
+				// is cluster-doctor's placement.installed_package_orphaned finding; the
+				// controller decides not to dispatch but does NOT compute the health
+				// verdict (cluster_doctor.is_the_authority_for_health_state_queries).
+				if isOrphanedInstall(name, node.Profiles) {
+					log.Printf("drift-reconciler: node=%s pkg=%s — orphaned install; node profiles %v do not satisfy catalog placement; non-dispatchable (see cluster-doctor placement.installed_package_orphaned)",
+						node.Identity.Hostname, name, node.Profiles)
+					return
+				}
+
+				// Resolve the desired artifact. If the desired state is fully
+				// pinned (version + build_number both set), use the persisted
+				// values directly — do not re-resolve from the repository.
+				// This implements desired.build_id_immutable_after_resolution:
+				// once a desired version resolves to a build_id, the
+				// convergence target is immutable until an explicit
+				// desired-state update changes it.
+				var resolved *ResolvedArtifact
+				if dv.version != "" && dv.buildNumber > 0 {
+					// Desired state is fully resolved — skip repository re-resolution.
+					resolved = &ResolvedArtifact{
+						Version:     dv.version,
+						BuildNumber: dv.buildNumber,
+						BuildID:     dv.buildID,
+					}
+				} else {
+					// First resolution or unresolved desired state — resolve
+					// from the repository to pick the latest published artifact.
+					resolver := &ReleaseResolver{
+						RepositoryAddr: repo.Address,
+						ArtifactKind:   repositorypb.ArtifactKind_SERVICE,
+					}
+					var err error
+					resolved, err = resolver.Resolve(ctx, &cluster_controllerpb.ServiceReleaseSpec{
+						PublisherID: defaultPublisherID(),
+						ServiceName: name,
+						Version:     dv.version,
+						BuildNumber: dv.buildNumber,
+						Platform:    r.srv.getNodePlatform(nodeID),
+					})
+					if err != nil {
+						log.Printf("drift-reconciler: skipping node=%s pkg=%s@%s-b%d — resolve failed: %v",
+							nodeID, name, dv.version, dv.buildNumber, err)
 						return
 					}
 				}
-			}
+				// Part 3: Validate desired kind matches repository manifest kind.
+				// A mismatch (e.g. INFRASTRUCTURE in repo but SERVICE in desired)
+				// creates an infinite apply loop — block dispatch and emit a finding.
+				// Exception: SERVICE→COMMAND mismatches are auto-corrected using the
+				// repo kind, because collectDesiredVersions always labels ServiceDesiredVersion
+				// entries as SERVICE regardless of actual artifact kind. COMMAND packages
+				// are safely installable via the standard install workflow; they just
+				// don't require a systemd unit.
+				if resolved.RepoKind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
+					repoKindStr := strings.ToUpper(resolved.RepoKind.String())
+					if repoKindStr != kind {
+						if kind == "SERVICE" && repoKindStr == "COMMAND" {
+							// Auto-correct: use the repository's authoritative kind.
+							log.Printf("drift-reconciler: corrected kind for node=%s pkg=%s: SERVICE→COMMAND (repo authoritative)",
+								node.Identity.Hostname, name)
+							kind = "COMMAND"
+						} else {
+							log.Printf("drift-reconciler: BLOCKED node=%s pkg=%s — desired kind mismatch: %s (desired) vs %s (repo); dispatch suppressed",
+								node.Identity.Hostname, name, kind, repoKindStr)
+							driftKindMismatchTotal.Inc()
+							r.srv.emitClusterEvent("desired.kind_mismatch", map[string]interface{}{
+								"severity":     "WARNING",
+								"node_id":      nodeID,
+								"package":      name,
+								"desired_kind": kind,
+								"repo_kind":    repoKindStr,
+								"message":      fmt.Sprintf("desired kind %s does not match repo artifact kind %s — dispatch blocked", kind, repoKindStr),
+							})
+							writeKindMismatchRecord(ctx, nodeID, name, kind, repoKindStr)
+							return
+						}
+					}
+				}
 
-			resolvedBuild := resolved.BuildNumber
-			if resolvedBuild == 0 {
-				resolvedBuild = dv.buildNumber
-			}
+				resolvedBuild := resolved.BuildNumber
+				if resolvedBuild == 0 {
+					resolvedBuild = dv.buildNumber
+				}
 
-			// Checksum-based convergence: if the installed artifact content matches
-			// the desired artifact digest, suppress the drift event even if build_id
-			// metadata is stale. This handles transition-era installs that lack a
-			// build_id record but are otherwise identical to the desired artifact.
-			if found && resolved.Digest != "" && pkg.checksum == resolved.Digest {
-				return
-			}
+				// Checksum-based convergence: if the installed artifact content matches
+				// the desired artifact digest, suppress the drift event even if build_id
+				// metadata is stale. This handles transition-era installs that lack a
+				// build_id record but are otherwise identical to the desired artifact.
+				if found && resolved.Digest != "" && pkg.checksum == resolved.Digest {
+					return
+				}
 
-			installedVer := "<none>"
-			if found {
-				installedVer = fmt.Sprintf("%s-b%d", pkg.version, pkg.buildNumber)
-			}
-			log.Printf("drift-reconciler: node=%s pkg=%s desired=%s-b%d (resolved build=%d) installed=%s — dispatching",
-				node.Identity.Hostname, name, dv.version, dv.buildNumber, resolvedBuild, installedVer)
+				installedVer := "<none>"
+				if found {
+					installedVer = fmt.Sprintf("%s-b%d", pkg.version, pkg.buildNumber)
+				}
+				log.Printf("drift-reconciler: node=%s pkg=%s desired=%s-b%d (resolved build=%d) installed=%s — dispatching",
+					node.Identity.Hostname, name, dv.version, dv.buildNumber, resolvedBuild, installedVer)
 
-			// Drift detected — emit event for observability. Actual remediation
-			// is handled by the cluster.reconcile workflow (scan_drift →
-			// classify_drift → dispatch_remediations). No direct apply here.
-			r.srv.emitClusterEvent("cluster.drift_detected", map[string]interface{}{
-				"node_id":           nodeID,
-				"hostname":          node.Identity.Hostname,
-				"package":           name,
-				"kind":              kind,
-				"desired_version":   fmt.Sprintf("%s-b%d", dv.version, resolvedBuild),
-				"installed_version": installedVer,
-			})
+				// Drift detected — emit event for observability. Actual remediation
+				// is handled by the cluster.reconcile workflow (scan_drift →
+				// classify_drift → dispatch_remediations). No direct apply here.
+				r.srv.emitClusterEvent("cluster.drift_detected", map[string]interface{}{
+					"node_id":           nodeID,
+					"hostname":          node.Identity.Hostname,
+					"package":           name,
+					"kind":              kind,
+					"desired_version":   fmt.Sprintf("%s-b%d", dv.version, resolvedBuild),
+					"installed_version": installedVer,
+				})
 			}()
 		}
 	}
@@ -551,7 +561,7 @@ func driftSuppressed(conv map[string]*installed_state.ConvergenceResultV1, pkgNa
 		elapsed := time.Since(time.Unix(r.LastAttemptAt, 0))
 		if elapsed < 5*time.Minute {
 			log.Printf("drift-reconciler: critical-key-block node=%s pkg=%s (re-check in %v)",
-				hostname, pkgName, (5*time.Minute-elapsed).Round(time.Second))
+				hostname, pkgName, (5*time.Minute - elapsed).Round(time.Second))
 			return true
 		}
 	case installed_state.OutcomeFailedTransient, installed_state.OutcomeDegradedRetrying:
