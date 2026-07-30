@@ -290,11 +290,14 @@ fi
 # its own controller auth — no user token is required on the cleaning node.
 # Fallback: globular CLI (needs a cached token at ~/.config/globular/token).
 
-if [[ -n "$_NODE_ID" ]]; then
-  # Derive gateway host from controller_endpoint in state.json (strip scheme/port).
-  _GATEWAY_HOST="globular.internal"
-  if [[ -f "$_STATE_FILE" ]] && command -v python3 >/dev/null 2>&1; then
-    _GH=$(python3 -c "
+# Derive the controller/bootstrap host from controller_endpoint in state.json
+# (strip scheme/port). Hoisted out of the node-id block below because step 0.3
+# also needs it: it is the etcd PEER this node asks to remove it from the
+# cluster when its own etcd is already stopped.
+_GATEWAY_HOST="globular.internal"
+_PEER_HOST=""
+if [[ -f "$_STATE_FILE" ]] && command -v python3 >/dev/null 2>&1; then
+  _GH=$(python3 -c "
 import json, re
 try:
     d = json.load(open('$_STATE_FILE'))
@@ -304,9 +307,13 @@ try:
     if ep: print(ep)
 except Exception: pass
 " 2>/dev/null || true)
-    [[ -n "$_GH" ]] && _GATEWAY_HOST="$_GH"
+  if [[ -n "$_GH" ]]; then
+    _GATEWAY_HOST="$_GH"
+    _PEER_HOST="$_GH"
   fi
+fi
 
+if [[ -n "$_NODE_ID" ]]; then
   log_info "Removing node ${_NODE_ID} from cluster via gateway API (${_GATEWAY_HOST}:8443)..."
   _HTTP_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
     -X DELETE "https://${_GATEWAY_HOST}:8443/api/cluster/nodes/${_NODE_ID}" \
@@ -386,12 +393,35 @@ fi
 # ── 0.3 etcd: remove member before data wipe ─────────────────────────────────
 # Without this the remaining peers still count this node toward quorum and will
 # stall on the next leader election or write if it stays missing.
-if systemctl is-active --quiet globular-etcd.service 2>/dev/null \
-    && [[ -n "$_ETCDCTL_BIN" ]] \
+#
+# This step must NOT be gated on the local globular-etcd being active, and must
+# NOT talk only to the local endpoint. Removing yourself from an etcd cluster is
+# a request served by ANY reachable member — it does not need your own etcd.
+#
+# Gating on local etcd made this block dead code in exactly the case it exists
+# for. A node is normally wiped after a join failed, and the join script's own
+# preflight stops globular-etcd ("[0.1] Stopping globular-etcd and
+# globular-node-agent if running"). So local etcd is down, the block is skipped,
+# and the member survives the wipe as a phantom voter.
+#
+# Observed 2026-07-30: a Day-1 join of globule-nuc was promoted to voter at
+# 17:51:44, failed at the ScyllaDB phase, and was then wiped. The bootstrap node
+# was left with 2 voters and 1 of them dead — quorum 2-of-2 unreachable,
+# "etcdserver: no leader", every write hanging, whole control plane crawling.
+# Recovery required etcd --force-new-cluster.
+#
+# Try the local endpoint first (authoritative and fastest when etcd IS up), then
+# fall back to the bootstrap/controller peer.
+_ETCD_ENDPOINTS="$_ETCD_ENDPOINT"
+if [[ -n "${_PEER_HOST:-}" ]]; then
+  _ETCD_ENDPOINTS="${_ETCD_ENDPOINTS},https://${_PEER_HOST}:2379"
+fi
+
+if [[ -n "$_ETCDCTL_BIN" ]] \
     && [[ -f "$_ETCD_CACERT" ]] && [[ -f "$_ETCD_CERT" ]] && [[ -f "$_ETCD_KEY" ]]; then
 
   _MEMBER_ID=$(ETCDCTL_API=3 "$_ETCDCTL_BIN" \
-    --endpoints="$_ETCD_ENDPOINT" \
+    --endpoints="$_ETCD_ENDPOINTS" --command-timeout=15s \
     --cacert="$_ETCD_CACERT" --cert="$_ETCD_CERT" --key="$_ETCD_KEY" \
     member list --write-out=json 2>/dev/null | \
     python3 -c "
@@ -411,20 +441,28 @@ except Exception:
   if [[ -n "$_MEMBER_ID" ]]; then
     log_info "Removing etcd member ${_MEMBER_ID} (${_NODE_IP}) from cluster..."
     if ETCDCTL_API=3 "$_ETCDCTL_BIN" \
-        --endpoints="$_ETCD_ENDPOINT" \
+        --endpoints="$_ETCD_ENDPOINTS" --command-timeout=15s \
         --cacert="$_ETCD_CACERT" --cert="$_ETCD_CERT" --key="$_ETCD_KEY" \
         member remove "$_MEMBER_ID" 2>/dev/null; then
       log_success "etcd member removed — remaining peers updated"
     else
-      log_warn "etcd member remove failed — remaining peers may have a ghost member."
-      log_warn "  From another etcd member: etcdctl member remove ${_MEMBER_ID}"
+      # Loud, not a footnote: leaving this member behind is what strands the
+      # surviving peers below quorum after the wipe completes.
+      log_warn "etcd member remove FAILED — the remaining peers will still count"
+      log_warn "  this node toward quorum. If they are now stuck with"
+      log_warn "  'etcdserver: no leader', fix it from a surviving member:"
+      log_warn "    etcdctl member remove ${_MEMBER_ID}"
+      log_warn "  or, if that member cannot reach quorum to serve the removal,"
+      log_warn "  restart its etcd once with --force-new-cluster."
     fi
   else
     log_warn "This node not found in etcd member list — may already be removed"
   fi
-elif systemctl is-active --quiet globular-etcd.service 2>/dev/null; then
-  log_warn "etcdctl or TLS certs missing — skipping etcd member removal"
-  log_warn "  Manual fix: etcdctl member list → etcdctl member remove <id>"
+else
+  log_warn "etcdctl or TLS certs missing — CANNOT remove this node's etcd member"
+  log_warn "  If this node was an etcd member, the surviving peers will lose"
+  log_warn "  quorum once it is wiped. From a surviving member, run:"
+  log_warn "    etcdctl member list → etcdctl member remove <id>"
 fi
 
 # ── Phase 1: Stop services ────────────────────────────────────────────────────

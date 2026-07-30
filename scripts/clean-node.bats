@@ -134,3 +134,41 @@ _set_nodetool() { printf '#!/usr/bin/env bash\n%s\n' "$1" >"$STUB/nodetool"; chm
   run grep -nE 'nodetool status[^|]*\|\|[[:space:]]*(echo|printf)[[:space:]]+.?0' "$gw" "$svc"
   [ "$status" -ne 0 ]   # grep finds nothing -> the fail-open pattern is gone
 }
+
+# ── SCAR-2 (INCIDENT 2026-07-30): etcd member removal must not depend on the
+# local etcd being up ─────────────────────────────────────────────────────────
+#
+# Contract:  a node being wiped must detach itself from the etcd cluster first,
+#            or the surviving peers keep counting it toward quorum.
+# Failure:   etcd member removal was gated on `systemctl is-active globular-etcd`,
+#            which is false in exactly the case the step exists for — a node is
+#            wiped after a FAILED join, and the join script's own preflight stops
+#            globular-etcd. The block was skipped, the member survived the wipe,
+#            and the bootstrap node was stranded at 2 voters with 1 dead:
+#            "etcdserver: no leader", every write hanging. Recovery needed
+#            etcd --force-new-cluster.
+# Forbidden: gating self-removal on local etcd liveness; addressing only the
+#            local endpoint (a dead local etcd cannot serve its own removal).
+
+@test "neither copy gates etcd member removal on the local etcd being active" {
+  local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
+  local svc="$BATS_TEST_DIRNAME/clean-node.sh"
+  # The guard for step 0.3 must not test globular-etcd liveness. Look for the
+  # is-active check appearing as a condition of the member-removal block.
+  run grep -nE 'is-active[^\n]*globular-etcd\.service[[:space:]]*2>/dev/null[[:space:]]*\\' "$gw" "$svc"
+  [ "$status" -ne 0 ]   # nothing found -> the liveness gate is gone
+}
+
+@test "both copies address a peer endpoint, not just the local one, for member removal" {
+  local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
+  local svc="$BATS_TEST_DIRNAME/clean-node.sh"
+  for f in "$gw" "$svc"; do
+    # A peer endpoint must be appended when known...
+    run grep -qE '_ETCD_ENDPOINTS="\$\{?_ETCD_ENDPOINTS\}?,https://\$\{_PEER_HOST\}:2379"' "$f"
+    [ "$status" -eq 0 ]
+    # ...and the member list/remove calls must use the multi-endpoint variable,
+    # never the single local one.
+    run grep -nE -- '--endpoints="\$_ETCD_ENDPOINT"' "$f"
+    [ "$status" -ne 0 ]
+  done
+}
