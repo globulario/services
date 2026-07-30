@@ -1084,6 +1084,34 @@ func runtimeChecksumFromManifest(m *repositorypb.ArtifactManifest) string {
 // exists. Repair is allowed only when the active local package manifest's
 // entrypoint_checksum exactly matches the on-disk binary. That keeps the
 // node-agent as installed-state writer without trusting a stale etcd record.
+// localCacheMayAdoptBuildID reports whether the local-package-cache repair path
+// may write manifestBuildID as the record's build identity.
+//
+// Backfill only: build_id has exactly one canonical source — the repository that
+// published the artifact (identity.has_single_canonical_source_and_is_immutable).
+// A locally staged tarball carries whatever id the bundle build minted, which for
+// a locally-built release is a DIFFERENT uuid for byte-identical content. Adopting
+// it would make this path a second writer of that identity
+// (identity.field_semantic_drift_across_writers).
+func localCacheMayAdoptBuildID(existingBuildID, manifestBuildID string) bool {
+	return manifestBuildID != "" && existingBuildID == ""
+}
+
+// localCacheRecordSettled reports whether an installed-state record needs no
+// repair from the local package cache.
+//
+// A record whose entrypoint checksum already matches the on-disk binary is
+// settled once it carries ANY build identity — even one that differs from this
+// tarball's manifest. Treating a differing id as "needs repair" is what made the
+// repair path fight apply-package: install wrote the desired repository id, this
+// path rewrote it to the cache id ~49s later, convergence saw a mismatch and
+// reinstalled, looping on the 5-minute sync ticker and restarting the service
+// every pass.
+func localCacheRecordSettled(status string, checksumMatches bool, existingBuildID, manifestBuildID string) bool {
+	identitySettled := existingBuildID != "" || manifestBuildID == ""
+	return status == "installed" && checksumMatches && identitySettled
+}
+
 func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx context.Context, now int64, platform string) {
 	if srv.nodeID == "" {
 		return
@@ -1123,10 +1151,35 @@ func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx contex
 				continue
 			}
 			storedEntry := digest.CanonicalSHA256(pkg.GetMetadata()["entrypoint_checksum"])
-			if pkg.GetStatus() == "installed" &&
-				binhash.Equal(storedEntry, manifestEntry) &&
-				pkg.GetBuildId() == manifest.BuildID &&
-				pkg.GetBuildNumber() == manifest.BuildNumber {
+			// A record whose entrypoint checksum already matches the on-disk
+			// binary is SETTLED once it carries a build identity — even if that
+			// identity differs from this local tarball's manifest.
+			//
+			// build_id has exactly one canonical source: the repository that
+			// published the artifact (identity.has_single_canonical_source_and_
+			// is_immutable). A locally staged tarball carries whatever id the
+			// bundle build minted, which for a locally-built release is a
+			// different UUID for byte-identical content. Treating a mismatch as
+			// "needs repair" made this path a SECOND writer of that identity
+			// (identity.field_semantic_drift_across_writers), and the two
+			// writers then fought forever:
+			//
+			//   12:04:06  apply-package installs workflow with the desired
+			//             repository build_id 019fb141… (v7), verifies, restarts
+			//   12:04:55  this repair rewrites it to the cache manifest's
+			//             3989bbee… (v4)
+			//   next pass convergence sees a mismatch → reinstall → restart
+			//
+			// Observed live 2026-07-30 as a reinstall+restart loop on the 5-min
+			// sync ticker (11:22, 11:28, 11:34, 11:40, 11:46, 11:52, 11:58,
+			// 12:04) across workflow, monitoring, mcp, log, event, ai-watcher and
+			// ai-executor. Each restart dropped the service's listener, so
+			// cluster-doctor intermittently reported
+			// workflow.service_unavailable / connection refused and went
+			// reduced-harvest.
+			if localCacheRecordSettled(pkg.GetStatus(),
+				binhash.Equal(storedEntry, manifestEntry),
+				pkg.GetBuildId(), manifest.BuildID) {
 				continue
 			}
 
@@ -1137,10 +1190,13 @@ func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx contex
 			if manifest.Publisher != "" {
 				pkg.PublisherId = manifest.Publisher
 			}
-			if manifest.BuildID != "" {
+			// BACKFILL ONLY — never redefine an existing build identity from the
+			// local cache. This path repairs records that are missing identity;
+			// it is not an authority on what the identity should be.
+			if localCacheMayAdoptBuildID(pkg.GetBuildId(), manifest.BuildID) {
 				pkg.BuildId = manifest.BuildID
 			}
-			if manifest.BuildNumber > 0 {
+			if manifest.BuildNumber > 0 && pkg.GetBuildNumber() == 0 {
 				pkg.BuildNumber = manifest.BuildNumber
 			}
 			assignEntrypointChecksumMetadata(pkg, manifestEntry, diskEntry)
