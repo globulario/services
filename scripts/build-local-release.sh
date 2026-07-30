@@ -622,8 +622,25 @@ for tgz_path in sorted(glob.glob(f"{pkg_out}/*.tgz")):
     parts = fname.rsplit('_', 3)
     name = parts[0]
 
+    # Member lookup must tolerate BOTH tar conventions. Packages produced by
+    # this build are "./"-prefixed, but third-party packages carried forward
+    # from the base bundle (e.g. libnss-resolve, built in the packages repo)
+    # store bare members. Hardcoding './package.json' aborted the whole build
+    # with KeyError: "filename './package.json' not found" the moment such a
+    # package was carried forward — after 57 packages had already been staged.
     with tarfile.open(tgz_path) as tf:
-        pj = json.loads(tf.extractfile('./package.json').read())
+        member = None
+        for cand in ('./package.json', 'package.json'):
+            try:
+                member = tf.getmember(cand)
+                break
+            except KeyError:
+                continue
+        if member is None:
+            raise SystemExit(
+                f"ERROR: {fname} contains no package.json "
+                f"(looked for './package.json' and 'package.json')")
+        pj = json.loads(tf.extractfile(member).read())
     if pj.get('name'):
         name = pj['name']
 
