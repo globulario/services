@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
@@ -97,8 +99,8 @@ func TestStamp_ClearsMigrationSource(t *testing.T) {
 	pkg := &node_agentpb.InstalledPackage{
 		Name: "x",
 		Metadata: map[string]string{
-			KeyMigrationSource:  MigrationSourceLegacySidecar,
-			KeyUnitFileSha256:   "seeded",
+			KeyMigrationSource: MigrationSourceLegacySidecar,
+			KeyUnitFileSha256:  "seeded",
 		},
 	}
 	if err := Stamp(pkg, ReceiptOpts{UnitFilePath: unitPath}); err != nil {
@@ -267,9 +269,9 @@ func TestPreserve_NoExistingMetadataIsNoOp(t *testing.T) {
 func TestPreserve_DoesNotTouchNonReceiptKeys(t *testing.T) {
 	existing := &node_agentpb.InstalledPackage{
 		Metadata: map[string]string{
-			KeyUnitFileSha256:        "abc",
-			"entrypoint_checksum":    "EC-OLD",
-			"proof_on_disk_sha256":   "POD-OLD",
+			KeyUnitFileSha256:      "abc",
+			"entrypoint_checksum":  "EC-OLD",
+			"proof_on_disk_sha256": "POD-OLD",
 		},
 	}
 	next := &node_agentpb.InstalledPackage{
@@ -297,6 +299,63 @@ func TestStampMigrationFromLegacySidecar_Basic(t *testing.T) {
 	}
 	if pkg.Metadata[KeyMigrationSource] != MigrationSourceLegacySidecar {
 		t.Error("migration_source")
+	}
+}
+
+// TestStampMigrationFromLegacySidecar_InstalledAtIsArtifactAnchoredNotWallClock
+// pins the contract that migration — an ADOPTION path that installs nothing —
+// must not mint installed_at from the observer's clock.
+//
+// Regression: Day-0 wrote the binary and unit at T, systemd started the
+// service at T+2s, then node-agent adopted the unit at T+170s and stamped
+// installed_at=now. release_boundary evalA4 ("process started after the
+// artifact was installed") then read process_start(T+2) < install_commit(T+170)
+// and reported FAILED "stale process" for all 24 services on a node that was
+// installed perfectly. The anchor must come from the artifact, not the clock.
+func TestStampMigrationFromLegacySidecar_InstalledAtIsArtifactAnchoredNotWallClock(t *testing.T) {
+	dir := t.TempDir()
+	unit := writeTmpFile(t, dir, "foo.service", []byte("[Unit]\n"))
+
+	// Backdate the unit to simulate "installed a while ago, already running".
+	past := time.Now().Add(-90 * time.Minute)
+	if err := os.Chtimes(unit, past, past); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	pkg := &node_agentpb.InstalledPackage{Name: "foo"}
+	before := time.Now().Unix()
+	StampMigrationFromLegacySidecar(pkg, unit, "ABCDEF")
+
+	got := pkg.Metadata[KeyInstalledAt]
+	if got == "" {
+		t.Fatal("installed_at absent: the unit mtime was readable, so it must be used as the anchor")
+	}
+	gotUnix, err := strconv.ParseInt(got, 10, 64)
+	if err != nil {
+		t.Fatalf("installed_at %q not an int: %v", got, err)
+	}
+	if gotUnix != past.Unix() {
+		t.Errorf("installed_at = %d, want unit mtime %d (delta %ds)", gotUnix, past.Unix(), gotUnix-past.Unix())
+	}
+	// The real defect: a wall-clock stamp. Anything at/after the call is one.
+	if gotUnix >= before {
+		t.Errorf("installed_at = %d is wall-clock (>= call time %d) — "+
+			"adoption must not mint an install-commit timestamp", gotUnix, before)
+	}
+}
+
+// A missing/unreadable unit file must leave installed_at ABSENT so A4 reports
+// INDETERMINATE (honest unknown) rather than a fabricated verdict.
+func TestStampMigrationFromLegacySidecar_UnreadableUnitLeavesInstalledAtAbsent(t *testing.T) {
+	pkg := &node_agentpb.InstalledPackage{Name: "foo"}
+	StampMigrationFromLegacySidecar(pkg, filepath.Join(t.TempDir(), "nope.service"), "ABCDEF")
+
+	if v, ok := pkg.Metadata[KeyInstalledAt]; ok {
+		t.Errorf("installed_at = %q, want absent when the artifact anchor is unavailable", v)
+	}
+	// The migration marker itself must still be recorded.
+	if pkg.Metadata[KeyMigrationSource] != MigrationSourceLegacySidecar {
+		t.Error("migration_source must still be stamped")
 	}
 }
 

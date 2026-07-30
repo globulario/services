@@ -232,7 +232,42 @@ func StampMigrationFromLegacySidecar(pkg *node_agentpb.InstalledPackage, unitPat
 	pkg.Metadata[KeyUnitFilePath] = unitPath
 	pkg.Metadata[KeyUnitFileSha256] = normalize(sidecarSha)
 	pkg.Metadata[KeyMigrationSource] = MigrationSourceLegacySidecar
-	pkg.Metadata[KeyInstalledAt] = strconv.FormatInt(time.Now().Unix(), 10)
+	// installed_at is the artifact's install-commit time and is owned by the
+	// install path. Migration installs nothing — it adopts a unit that was
+	// already on disk — so stamping time.Now() here mints an install-commit
+	// that is ALWAYS later than the start of the process already running that
+	// artifact. release_boundary evalA4 ("process started after the artifact
+	// was installed") then reports FAILED "stale process" for every adopted
+	// service, permanently, on a correctly-installed node.
+	// forbidden_fix:use_wall_clock_for_installed_unix_timestamp.
+	//
+	// Anchor to the unit file's mtime instead: a real observation of when the
+	// installer materialized this package, not the observer's clock. This
+	// preserves the genuine stale-process signal — a unit rewritten by a later
+	// install without a restart still yields mtime > process start → FAILED.
+	//
+	// When the mtime is unreadable, leave installed_at ABSENT so A4 reports
+	// INDETERMINATE (honest unknown) rather than a fabricated verdict. An
+	// installed_at already stamped by the canonical install path is never
+	// overwritten with a fabricated value here.
+	if mtime, err := fileMTimeUnix(unitPath); err == nil {
+		pkg.Metadata[KeyInstalledAt] = strconv.FormatInt(mtime, 10)
+	}
+}
+
+// fileMTimeUnix returns the file's modification time in Unix seconds. It is
+// the artifact-derived anchor used in place of wall-clock time by adoption
+// (non-installing) writers, which must not mint an install-commit timestamp
+// for work they did not perform.
+func fileMTimeUnix(path string) (int64, error) {
+	if strings.TrimSpace(path) == "" {
+		return 0, fmt.Errorf("installreceipt: empty unit path")
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return fi.ModTime().Unix(), nil
 }
 
 // Preserve copies install-receipt fields from `existing` into
