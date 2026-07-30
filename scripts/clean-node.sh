@@ -41,6 +41,31 @@ log_success() { echo "  ✓ $*"; }
 log_warn() { echo "  ⚠ $*"; }
 log_step() { echo ""; echo "━━━ $* ━━━"; echo ""; }
 
+# Scylla process names as they appear in the kernel comm field. Both spellings
+# exist on a Globular node: the distro packages use hyphens, the Globular-shipped
+# binaries under /usr/lib/globular/bin use underscores.
+SCYLLA_PROC_NAMES=(scylla scylla-manager scylla-manager-agent scylla_manager scylla_manager_agent)
+
+# scylla_procs_alive — true when a real Scylla-family process is running.
+# Exact comm match only; never a cmdline substring (see the wait loop below).
+scylla_procs_alive() {
+    local n
+    for n in "${SCYLLA_PROC_NAMES[@]}"; do
+        if pgrep -x "$n" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# scylla_procs_list — diagnostic listing of the same set scylla_procs_alive checks.
+scylla_procs_list() {
+    local n
+    for n in "${SCYLLA_PROC_NAMES[@]}"; do
+        pgrep -x -a "$n" 2>/dev/null || true
+    done
+}
+
 # hard_stop_scylla — kills ScyllaDB completely before any wipe.
 # Fails closed (exits non-zero) if Scylla cannot be killed within 10s, because
 # a live Scylla process can recreate /var/lib/scylla state during the wipe.
@@ -66,8 +91,22 @@ hard_stop_scylla() {
     pkill -9 -x scylla-manager-agent 2>/dev/null || true
 
     # Wait up to 10 s for all Scylla processes to exit.
+    #
+    # Liveness MUST be checked against the same process set the kills above
+    # target: exact process names (comm), never a substring across full command
+    # lines. `pgrep -af 'scylla'` matches ANY process whose cmdline merely
+    # mentions the word — a grep, an editor, a log tail, a CI step, or even the
+    # shell invoking this script. That made the check fail closed against
+    # phantoms and the wipe became impossible: observed 2026-07-30 with ZERO
+    # real Scylla processes running while `pgrep -af scylla` matched 3 unrelated
+    # shells, aborting with "Refusing to wipe /var/lib/scylla". Because this is a
+    # die(), a false positive here blocks node teardown entirely.
+    #
+    # Fail-closed on genuinely-alive Scylla is correct and is preserved
+    # (cluster.teardown.membership_must_be_confirmed_before_destructive_stop);
+    # what is fixed is WHAT counts as alive.
     for i in $(seq 1 10); do
-        if ! pgrep -af 'scylla' >/dev/null 2>&1; then
+        if ! scylla_procs_alive; then
             log_success "No ScyllaDB process remains"
             return 0
         fi
@@ -75,7 +114,7 @@ hard_stop_scylla() {
     done
 
     log_warn "ScyllaDB processes still alive after hard stop:"
-    pgrep -af 'scylla' || true
+    scylla_procs_list || true
     die "Refusing to wipe /var/lib/scylla while ScyllaDB may still be running. Kill the process manually and rerun."
 }
 
