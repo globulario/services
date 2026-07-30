@@ -648,14 +648,26 @@ for tgz_path in sorted(glob.glob(f"{pkg_out}/*.tgz")):
     pkg_digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
 
     prev_entry = prev_by_name.get(name, {})
-    changed = (pj['build_id'] != prev_entry.get('build_id', ''))
+
+    # Identity fields are OPTIONAL in a package.json. Packages built here always
+    # carry build_id/build_number, but third-party packages carried forward from
+    # the base bundle need not: libnss-resolve (packages repo) ships only
+    # name/version/platform/publisher/entrypoint, and the base bundle's own
+    # release-index already represents it as build_id "" / build_number 0 /
+    # kind "command". Indexing it with pj['build_id'] raised
+    # KeyError: 'build_id' and aborted the build after all 57 packages were
+    # staged. Fall back to the previous index entry, then to the empty identity
+    # that entry itself uses — never invent one.
+    pkg_build_id     = pj.get('build_id',     prev_entry.get('build_id', ''))
+    pkg_build_number = pj.get('build_number', prev_entry.get('build_number', 0))
+    changed = (pkg_build_id != prev_entry.get('build_id', ''))
 
     entry = {
         'name':                    name,
         'kind':                    pj.get('kind', prev_entry.get('kind', 'service')),
         'version':                 pj['version'],
-        'build_number':            pj['build_number'],
-        'build_id':                pj['build_id'],
+        'build_number':            pkg_build_number,
+        'build_id':                pkg_build_id,
         'platform':                pj.get('platform', 'linux_amd64'),
         'publisher':               pj.get('publisher', 'core@globular.io'),
         'channel':                 pj.get('channel', prev_entry.get('channel', 'stable')),
