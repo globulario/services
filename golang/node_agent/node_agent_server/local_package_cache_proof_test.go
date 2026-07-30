@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -193,4 +194,39 @@ func TestLocalPackageCacheMustNotRedefineBuildIdentity(t *testing.T) {
 			t.Fatal("a record whose on-disk bytes do not match the manifest must not be treated as settled")
 		}
 	})
+}
+
+// TestRepairMustNotMoveTheApplyAnchor pins that the local-package-cache REPAIR
+// path never rewrites UpdatedUnix.
+//
+// UpdatedUnix is the apply anchor: cluster-doctor reads it as last_apply_time
+// (apply_time_source=installed_package.updated_unix) and reports
+// service.old_pid_after_upgrade for any process that started before it. The
+// repair path only ever touches records that already exist (it iterates
+// ListInstalledPackages) and installs nothing, so moving the anchor there is
+// forbidden_fix:bump_immutable_timestamp_on_observe.
+//
+// It manufactured exactly that false positive on a clean Day-0 2026-07-30:
+// etcd and persistence were both flagged old_pid_after_upgrade while the
+// finding's own evidence said running_matches_installed=true — correct
+// binaries, but a repair write had moved the anchor to 13:23:42 while the
+// processes had legitimately started at 13:18:52.
+func TestRepairMustNotMoveTheApplyAnchor(t *testing.T) {
+	src, err := os.ReadFile("heartbeat.go")
+	if err != nil {
+		t.Fatalf("read heartbeat.go: %v", err)
+	}
+	const fn = "func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache"
+	i := strings.Index(string(src), fn)
+	if i < 0 {
+		t.Fatalf("repair function not found — rename? update this test")
+	}
+	// Bound the scan to this function: next top-level func declaration.
+	rest := string(src)[i+len(fn):]
+	if j := strings.Index(rest, "\nfunc "); j >= 0 {
+		rest = rest[:j]
+	}
+	if strings.Contains(rest, "UpdatedUnix = now") {
+		t.Fatal("repair path must NOT bump UpdatedUnix — it is the apply anchor doctor reads as last_apply_time, and moving it on a metadata-only refresh fabricates service.old_pid_after_upgrade")
+	}
 }

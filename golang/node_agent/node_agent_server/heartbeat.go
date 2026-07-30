@@ -1184,7 +1184,26 @@ func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx contex
 			}
 
 			pkg.Status = "installed"
-			pkg.UpdatedUnix = now
+			// UpdatedUnix is deliberately NOT bumped here.
+			//
+			// This function only ever REPAIRS records that already exist (it
+			// iterates ListInstalledPackages); it never installs anything. The
+			// field is the apply anchor: cluster-doctor reads it as
+			// last_apply_time (apply_time_source=installed_package.updated_unix)
+			// and flags any process that started before it as
+			// service.old_pid_after_upgrade — "restart did not take effect".
+			//
+			// Bumping it on a metadata-only refresh is
+			// forbidden_fix:bump_immutable_timestamp_on_observe, and it
+			// manufactured exactly that false positive: on a clean Day-0,
+			// etcd and persistence were both reported old_pid_after_upgrade
+			// while the evidence itself said running_matches_installed=true —
+			// the binaries were correct, but a repair write had moved the
+			// anchor to 13:23:42 while the processes had legitimately started
+			// at 13:18:52.
+			//
+			// Only a real (re)install may move this anchor; that is
+			// apply_package_release's job.
 			pkg.Platform = platform
 			pkg.Checksum = manifestEntry
 			if manifest.Publisher != "" {
