@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,4 +196,81 @@ func TestReconcileMarkItemTerminal_RequiresObservedConvergence(t *testing.T) {
 			t.Fatal("expired backoff entry should be cleared, not left stale")
 		}
 	})
+}
+
+// TestInfraUnhealthy_DispatchesRestartNotNoop is the regression coverage for
+// the bug where a cleanly-stopped infra service (etcd/scylladb/minio) never
+// came back: reconcileChooseWorkflow's "infra_unhealthy" case only logged
+// "remediation deferred" and returned a noop dispatch, so nothing ever called
+// node-agent's ControlService to restart it. Live symptom: an operator's
+// `systemctl stop globular-minio.service` left MinIO down indefinitely,
+// cascading into CRITICAL objectstore.endpoint_unreachable /
+// installed_state_runtime_mismatch findings cluster-wide with no auto-heal.
+// Contract: infra_unhealthy must dispatch node.restart_infra_unit (not noop)
+// with the node/component/endpoint needed to call ControlService.
+func TestInfraUnhealthy_DispatchesRestartNotNoop(t *testing.T) {
+	ctx := context.Background()
+	srv := &server{}
+	item := map[string]any{
+		"type":      "infra_unhealthy",
+		"node_id":   "n1",
+		"component": "minio",
+		"endpoint":  "10.0.0.63:11000",
+		"hostname":  "globule-ryzen",
+	}
+	out, err := srv.reconcileChooseWorkflow(ctx, item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["workflow_name"] != "node.restart_infra_unit" {
+		t.Fatalf("expected node.restart_infra_unit dispatch, got %v (infra_unhealthy must not silently no-op)", out["workflow_name"])
+	}
+	inputs, _ := out["inputs"].(map[string]any)
+	if inputs["node_id"] != "n1" || inputs["component"] != "minio" || inputs["endpoint"] != "10.0.0.63:11000" {
+		t.Fatalf("restart dispatch missing required inputs, got %v", inputs)
+	}
+}
+
+// TestInfraUnhealthy_BackoffKeyIsPerComponent is the regression for a second
+// bug the restart fix would otherwise have inherited: driftEntityRef keyed
+// only on package_name+node_id, which is absent on infra_unhealthy items — so
+// fmt.Sprint(item["package_name"]) on the missing key produced the literal
+// string "<nil>", collapsing EVERY infra component on a node onto the same
+// no-progress/backoff key. Two genuinely independent failures (e.g. etcd down
+// AND minio down on the same node) would then share one counter: minio
+// escalating to FAILED/backoff would incorrectly reset or gate etcd's
+// tracking too.
+func TestInfraUnhealthy_BackoffKeyIsPerComponent(t *testing.T) {
+	minioItem := map[string]any{"type": "infra_unhealthy", "node_id": "n1", "component": "minio"}
+	etcdItem := map[string]any{"type": "infra_unhealthy", "node_id": "n1", "component": "etcd"}
+	minioRef := driftEntityRef(minioItem)
+	etcdRef := driftEntityRef(etcdItem)
+	if minioRef == "" || etcdRef == "" {
+		t.Fatalf("expected non-empty entity refs, got minio=%q etcd=%q", minioRef, etcdRef)
+	}
+	if strings.Contains(minioRef, "<nil>") || strings.Contains(etcdRef, "<nil>") {
+		t.Fatalf("entity ref leaked the missing-key sentinel: minio=%q etcd=%q", minioRef, etcdRef)
+	}
+	if minioRef == etcdRef {
+		t.Fatalf("minio and etcd infra_unhealthy items on the same node must not collide onto one entity ref, both got %q", minioRef)
+	}
+}
+
+// TestInfraUnhealthy_ConvergenceRequiresReprobe verifies reconcileItemConverged
+// treats infra_unhealthy as checkable and gates convergence on a fresh health
+// probe rather than trusting the restart RPC's dispatch ack — the same
+// SCAR-2 discipline already applied to missing_package/version_drift. Since
+// srv.probeMinioHealth dials a real node-agent (nil endpoint here), the probe
+// must fail closed (converged=false), not silently report converged=true.
+func TestInfraUnhealthy_ConvergenceRequiresReprobe(t *testing.T) {
+	ctx := context.Background()
+	srv := &server{}
+	item := map[string]any{"type": "infra_unhealthy", "node_id": "n1", "component": "minio", "endpoint": ""}
+	converged, checkable := srv.reconcileItemConverged(ctx, item)
+	if !checkable {
+		t.Fatal("infra_unhealthy must be checkable, not silently treated as unverifiable")
+	}
+	if converged {
+		t.Fatal("must not report converged from a dispatch ack alone — an unreachable probe endpoint must fail closed")
+	}
 }
