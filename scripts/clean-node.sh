@@ -260,8 +260,22 @@ _STATE_DIR="/var/lib/globular"
 _PKI_DIR="${_STATE_DIR}/pki"
 _STATE_FILE="${_STATE_DIR}/nodeagent/state.json"
 _ETCD_CACERT="${_PKI_DIR}/ca.crt"
+# Prefer the dedicated etcd client cert, but fall back to the node's service
+# cert. A node that is being wiped usually failed PARTWAY through a join, and
+# pki/issued/etcd/ is materialised later than the phase-2 service cert — so on
+# exactly the nodes that need self-removal most, the etcd client cert does not
+# exist yet. Without this fallback step 0.3 hits "TLS certs missing", skips the
+# member removal, and the wipe strands the surviving peers below quorum.
+# The service cert is signed by the same cluster CA and is accepted by etcd for
+# client auth.
 _ETCD_CERT="${_PKI_DIR}/issued/etcd/client.crt"
 _ETCD_KEY="${_PKI_DIR}/issued/etcd/client.key"
+if [[ ! -f "$_ETCD_CERT" || ! -f "$_ETCD_KEY" ]]; then
+  if [[ -f "${_PKI_DIR}/issued/services/service.crt" && -f "${_PKI_DIR}/issued/services/service.key" ]]; then
+    _ETCD_CERT="${_PKI_DIR}/issued/services/service.crt"
+    _ETCD_KEY="${_PKI_DIR}/issued/services/service.key"
+  fi
+fi
 _NODE_IP=$(hostname -I | awk '{print $1}')
 _ETCD_ENDPOINT="https://${_NODE_IP}:2379"
 
@@ -270,7 +284,15 @@ _GLOBULAR_BIN=$(command -v globular 2>/dev/null || true)
 [[ -z "$_GLOBULAR_BIN" ]] && [[ -x "${_STATE_DIR}/bin/globularcli" ]] && _GLOBULAR_BIN="${_STATE_DIR}/bin/globularcli"
 # Locate etcdctl
 _ETCDCTL_BIN=$(command -v etcdctl 2>/dev/null || true)
-[[ -z "$_ETCDCTL_BIN" ]] && [[ -x "${_STATE_DIR}/bin/etcdctl" ]] && _ETCDCTL_BIN="${_STATE_DIR}/bin/etcdctl"
+if [[ -z "$_ETCDCTL_BIN" ]]; then
+  # Search every location the installer may have placed it. A partially-joined
+  # node may have etcdctl staged but not yet linked onto PATH, and losing the
+  # member removal over a lookup miss costs the surviving peers their quorum.
+  for _c in "${_STATE_DIR}/bin/etcdctl" /usr/local/bin/etcdctl \
+            /usr/lib/globular/bin/etcdctl /usr/bin/etcdctl; do
+    if [[ -x "$_c" ]]; then _ETCDCTL_BIN="$_c"; break; fi
+  done
+fi
 
 # Read node ID from node-agent state file
 _NODE_ID=""

@@ -172,3 +172,27 @@ _set_nodetool() { printf '#!/usr/bin/env bash\n%s\n' "$1" >"$STUB/nodetool"; chm
     [ "$status" -ne 0 ]
   done
 }
+
+@test "both copies fall back to the service cert when the etcd client cert is absent" {
+  local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
+  local svc="$BATS_TEST_DIRNAME/clean-node.sh"
+  # A node wiped after a PARTIAL join has no pki/issued/etcd/ yet (it is
+  # materialised later than the phase-2 service cert). Without a fallback the
+  # member removal is skipped on exactly the nodes that need it, and the wipe
+  # strands the surviving peers below quorum.
+  for f in "$gw" "$svc"; do
+    run grep -qE '_ETCD_CERT="\$\{_PKI_DIR\}/issued/services/service\.crt"' "$f"
+    [ "$status" -eq 0 ]
+    run grep -qE '_ETCD_KEY="\$\{_PKI_DIR\}/issued/services/service\.key"' "$f"
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "both copies search more than one path for etcdctl" {
+  local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
+  local svc="$BATS_TEST_DIRNAME/clean-node.sh"
+  for f in "$gw" "$svc"; do
+    run grep -qE '/usr/local/bin/etcdctl' "$f"
+    [ "$status" -eq 0 ]
+  done
+}
