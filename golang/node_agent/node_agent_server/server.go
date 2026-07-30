@@ -1046,28 +1046,57 @@ func detectUnits(ctx context.Context, nodeID string, skipMinioService bool) []*n
 	// Both absent → fail closed (installed_state_missing_or_unproven).
 	unitToPkg := buildUnitToPackageMap(ctx, nodeID)
 
-	// Query rich state for each unit.
-	statuses := make([]*node_agentpb.UnitStatus, 0, len(unitList))
-	for _, unit := range unitList {
-		activeState, subState, loadState := queryUnitState(ctx, unit)
-		details := subState
-		if loadState != "" {
-			details += " (load=" + loadState + ")"
-		}
-		// Unit definition drift detection. installed_state is authoritative.
-		// Sidecar is consulted only as a one-time legacy migration input;
-		// after migration, sidecar is never read again for this unit.
-		state := activeState
-		if d := checkUnitHashDrift(ctx, unit, unitToPkg[unit]); d != "" {
-			details += " [" + d + "]"
-			state = d
-		}
-		statuses = append(statuses, &node_agentpb.UnitStatus{
-			Name:    unit,
-			State:   state,
-			Details: details,
-		})
+	// Query rich state for each unit, in parallel with bounded concurrency.
+	//
+	// queryUnitState spawns a "systemctl show" subprocess (up to 2s) and
+	// checkUnitHashDrift can round-trip etcd on its Authority-2 (no-receipt-
+	// yet) path — per unit. At 40+ units per node (the norm once workload
+	// services are installed), running these sequentially routinely took
+	// well over a minute under load (subprocess fork/exec contention, busy
+	// etcd), starving THIS SAME heartbeat cycle: detectUnits runs inside
+	// reportStatus, called synchronously and single-threaded from
+	// heartbeatLoop, so a slow gather delayed the subsystem monitor's own
+	// Tick() past its staleness window and the controller's node.reachable
+	// threshold — a healthy node reporting itself unreachable because
+	// gathering its OWN status took too long. Observed live 2026-07-29:
+	// globule-lenovo and globule-dell both hit "no contact for ~2m" /
+	// "subsystem heartbeat ... stale: no tick received (consecutive
+	// errors: 0)" — zero errors because nothing failed, the gather was just
+	// slow. Concurrency bounds worst case to ceil(len(unitList)/N) slow
+	// calls instead of len(unitList) of them; each goroutine only touches
+	// its own statuses[i] slot and read-only unitToPkg, so no locking needed.
+	statuses := make([]*node_agentpb.UnitStatus, len(unitList))
+	const detectUnitsConcurrency = 8
+	sem := make(chan struct{}, detectUnitsConcurrency)
+	var wg sync.WaitGroup
+	for i, unit := range unitList {
+		i, unit := i, unit
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			activeState, subState, loadState := queryUnitState(ctx, unit)
+			details := subState
+			if loadState != "" {
+				details += " (load=" + loadState + ")"
+			}
+			// Unit definition drift detection. installed_state is authoritative.
+			// Sidecar is consulted only as a one-time legacy migration input;
+			// after migration, sidecar is never read again for this unit.
+			state := activeState
+			if d := checkUnitHashDrift(ctx, unit, unitToPkg[unit]); d != "" {
+				details += " [" + d + "]"
+				state = d
+			}
+			statuses[i] = &node_agentpb.UnitStatus{
+				Name:    unit,
+				State:   state,
+				Details: details,
+			}
+		}()
 	}
+	wg.Wait()
 	return statuses
 }
 
