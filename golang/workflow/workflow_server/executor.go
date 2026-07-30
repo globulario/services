@@ -181,14 +181,26 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	defer dispatcher.close()
 
 	router := engine.NewRouter()
-	// Register workflow-service as a local actor (self-dispatch for child
-	// workflows and drift tracking). Uses a no-op config for now — these
-	// actions are only used by cluster.reconcile which is Phase E.
-	engine.RegisterWorkflowServiceActions(router, engine.WorkflowServiceConfig{})
 
 	// Register fallback handlers for all remote actors. The fallback is
 	// transport-only: it marshals the ActionRequest to gRPC and calls the
 	// actor's WorkflowActorService.ExecuteAction endpoint.
+	//
+	// workflow-service (workflow.start_child / workflow.wait_child_terminal)
+	// is deliberately NOT given a local no-op handler here. Router.Resolve
+	// checks exact (actor, action) handlers before falling back, so a local
+	// registration with an empty WorkflowServiceConfig would silently shadow
+	// this fallback: workflowStartChild/workflowWaitChildTerminal return a
+	// hardcoded {"run_id":"mock-run"} / {"status":"SUCCEEDED"} when their
+	// config funcs are nil, making every workflow.start_child call for any
+	// caller that (like cluster-controller) DOES supply a real
+	// "workflow-service" actor endpoint a silent no-op — child workflows
+	// (e.g. release.apply.package dispatched from cluster.reconcile) never
+	// actually run, but report SUCCEEDED. Route it through the fallback like
+	// every other actor so the caller's real endpoint is invoked; a caller
+	// that omits "workflow-service" from ActorEndpoints now fails closed
+	// ("no handler for workflow-service::workflow.start_child") instead of
+	// fabricating success.
 	for actorType := range req.ActorEndpoints {
 		at := actorType // capture
 		router.RegisterFallback(v1alpha1.ActorType(at), dispatcher.makeHandler(at))

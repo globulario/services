@@ -183,7 +183,10 @@ func (srv *server) ResumeRun(ctx context.Context, clusterID, runID string, actor
 	defer dispatcher.close()
 
 	router := engine.NewRouter()
-	engine.RegisterWorkflowServiceActions(router, engine.WorkflowServiceConfig{})
+	// See executor.go's ExecuteWorkflow for why workflow-service must NOT get
+	// a local no-op registration here: it would shadow this fallback and
+	// silently mock-succeed workflow.start_child/wait_child_terminal instead
+	// of routing to the caller's real actor endpoint.
 	for actorType := range actorEndpoints {
 		at := actorType
 		router.RegisterFallback(v1alpha1.ActorType(at), dispatcher.makeHandler(at))
