@@ -1154,10 +1154,33 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 		// allowRegression=false: seeding desired from observed install must never
 		// pull an existing desired record backward
 		// (forbidden_fix:materialize_desired_from_unverified_local_install).
+		// BuildNumber is deliberately NOT carried over from the installed
+		// observation. It is a display-only monotonic counter (see
+		// pkgpack/manifest.go: "NOT used in convergence") and the two sides
+		// number it independently: a locally-built bundle stamps a
+		// timestamp-style value (e.g. 1785443290) while the repository
+		// allocates its own sequence (1, 2, ...) at publish. Feeding the
+		// installed value into upsertOne makes validateArtifactInRepo perform
+		// an EXACT-key manifest lookup that can never match, so every service
+		// is rejected NotFound and desired state stays permanently empty —
+		// which leaves release_boundary A0..A3 INDETERMINATE for every service
+		// (observed on a clean Day-0 of 1.2.279: 24/24 services skipped).
+		//
+		// Leaving it 0 selects readManifestWithFallback's documented path,
+		// "resolve to the latest (highest) PUBLISHED build number first".
+		// Repository validation still runs, so
+		// forbidden_fix:materialize_desired_from_unverified_local_install
+		// remains enforced: an install with no published artifact is still
+		// rejected. upsertOne then persists the repository's authoritative
+		// build_id, which is the real convergence identity.
+		//
+		// invariant:desired.keyed_by_kind_and_name — desired records are keyed
+		// by (kind, name), not by build number.
+		// invariant:meta.identity_computation_must_be_invariant — identity must
+		// not vary by which writer observed it.
 		if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
-			ServiceId:   name,
-			Version:     inst.version,
-			BuildNumber: inst.buildNumber,
+			ServiceId: name,
+			Version:   inst.version,
 		}, false); err != nil {
 			if status.Code(err) == codes.NotFound {
 				stats.Skipped++
