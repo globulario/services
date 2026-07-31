@@ -544,6 +544,8 @@ func (m *etcdMemberManager) ensureNodeEtcdVoter(ctx context.Context, node *nodeS
 	if node.EtcdMemberID == 0 {
 		node.EtcdMemberID = status.ID
 	}
+	// Mirror voting status so consumers can count voters rather than members.
+	node.EtcdIsLearner = status.IsLearner
 	if !status.IsLearner {
 		return false, true, nil
 	}
