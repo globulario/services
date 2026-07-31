@@ -523,6 +523,30 @@ print(d.get('version','0.0.0'))
   TMPROOT="$WORK/root-${pkg_name}"
   rm -rf "$TMPROOT"
   cp -a "$meta_dir" "$TMPROOT"
+
+  # Drop foreign-architecture .debs. Debian multiarch requires libfoo:i386 and
+  # libfoo:amd64 to be at the EXACT same version, so a bundled, pinned i386 copy
+  # only installs while the target's amd64 copy has not moved. Any node that has
+  # applied a security update since the bundle was built fails with
+  #
+  #   package libcap2:i386 ... cannot be configured because libcap2:amd64 is at
+  #   a different version
+  #
+  # which aborts install-local-debs and therefore the whole Day-1 join. The
+  # scylladb metadata dir carries 12 i386 debs (they get picked up whenever the
+  # BUILD host has i386 multiarch enabled); ScyllaDB is amd64-only and never
+  # needed them. Mirrors pkgpack.filterDebsForArch, which covers the Go builder
+  # path — this legacy metadata path copies meta_dir wholesale and bypasses it.
+  if [[ -d "$TMPROOT/debs" ]]; then
+    _foreign=$(find "$TMPROOT/debs" -maxdepth 1 -name '*.deb' \
+                 ! -name '*_amd64.deb' ! -name '*_all.deb' -printf '%f ' 2>/dev/null || true)
+    if [[ -n "${_foreign// /}" ]]; then
+      find "$TMPROOT/debs" -maxdepth 1 -name '*.deb' \
+        ! -name '*_amd64.deb' ! -name '*_all.deb' -delete 2>/dev/null || true
+      log "  dropped foreign-arch .deb(s) from ${pkg_name}: ${_foreign}"
+    fi
+  fi
+
   mkdir -p "$TMPROOT/bin" "$TMPROOT/specs"
   if [[ "$no_entrypoint" -eq 0 ]]; then
     cp "$BIN_DIR/$binary" "$TMPROOT/bin/$binary"

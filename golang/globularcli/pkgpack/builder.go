@@ -192,6 +192,15 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 			}
 		}
 
+		// Single choke point for the architecture filter. Applied here rather
+		// than only inside the collectors because a package-local root/debs
+		// directory (the scylladb layout) is scanned by specscan and arrives
+		// with DebPaths already populated, which skips both collectors
+		// entirely — that is how 12 i386 .debs kept shipping after the
+		// collectors were filtered. Whatever the source, nothing foreign-arch
+		// reaches the artifact.
+		info.DebPaths = filterDebsForArch(info.DebPaths, goarch)
+
 		archiveName := buildArchiveName(info.ServiceName, opts.Version, goos, goarch)
 		outputPath := filepath.Join(opts.OutDir, archiveName)
 		summary, err := BuildPackage(info, opts, outputPath, goos, goarch)
