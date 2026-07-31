@@ -160,7 +160,7 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		if len(info.Metadata.BundleDebs) > 0 && len(info.DebPaths) == 0 {
 			if opts.DebsDir != "" {
 				// Use pre-downloaded debs; skip apt-get download.
-				debPaths, err := collectPrebuiltDebs(opts.DebsDir)
+				debPaths, err := collectPrebuiltDebs(opts.DebsDir, goarch)
 				if err != nil {
 					res.Err = fmt.Errorf("collect prebuilt debs from %s: %w", opts.DebsDir, err)
 					results = append(results, res)
@@ -187,7 +187,7 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 					hadErr = true
 					continue
 				}
-				info.DebPaths = debPaths
+				info.DebPaths = filterDebsForArch(debPaths, goarch)
 				defer os.RemoveAll(debDir)
 			}
 		}
