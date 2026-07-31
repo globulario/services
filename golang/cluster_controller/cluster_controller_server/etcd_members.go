@@ -442,19 +442,49 @@ func (m *etcdMemberManager) memberRemove(ctx context.Context, memberID uint64) e
 // Promotion is deliberately a BATCH decision, not per-node: going 1 → 3 requires
 // promoting two learners together. Promoting them one at a time would pass
 // through 2, which is exactly the state being avoided.
+// WHY THIS IS NOT THE ODD-COUNT RULE IT LOOKS LIKE IT SHOULD BE.
+//
+// The ideal is to promote only onto an odd voter count (1→3→5) and never sit at
+// 2 or 4, because Raft tolerates floor((n-1)/2) failures and an even count adds
+// a member without adding tolerance:
+//
+//	voters:      1    2    3    4    5
+//	tolerates:   0    0    1    1    2
+//
+// That was implemented and it DEADLOCKED the cluster. etcd 3.5.14 hard-codes a
+// limit of ONE learner at a time — there is no max-learners flag on this version
+// (it only became configurable in 3.6; `etcd --experimental-max-learners` is
+// rejected as an unknown flag here). Reaching 3 voters from 1 requires two
+// simultaneous learners, so the second node parked as a learner could never be
+// promoted, and the third node's MemberAdd was refused with
+//
+//	etcdserver: too many learner members in cluster
+//
+// leaving the cluster permanently stuck at two nodes. Observed on 10.0.0.20's
+// join, 2026-07-30.
+//
+// With a one-learner ceiling the growth sequence is forced:
+//
+//	1 voter → add learner → promote (2 voters) → add learner → promote (3)
+//
+// The 2-voter state is unavoidable transit, not a choice. So promote whatever
+// learner is ready and free the single slot for the next joiner.
+//
+// The 2-voter window is instead made SURVIVABLE rather than avoided:
+//   - clean-node detaches the member before wiping, even when the local etcd is
+//     down and even when only the service cert is available (b82bcbf9), so a
+//     failed join no longer strands the survivor below quorum
+//   - rollbackJoin can finally act, because ensureNodeEtcdVoter now records
+//     node.EtcdMemberID on the script-initiated MemberAdd path
+//
+// Revisit if etcd is upgraded to 3.6+: with max-learners raised, restore the
+// odd-count batching — the arithmetic and its tests are in git history at
+// d045d083.
 func learnersToPromote(voters, readyLearners int) int {
-	if voters < 0 || readyLearners < 0 {
+	if readyLearners < 0 {
 		return 0
 	}
-	total := voters + readyLearners
-	target := total
-	if target%2 == 0 {
-		target-- // largest odd count <= total
-	}
-	if target <= voters {
-		return 0
-	}
-	return target - voters
+	return readyLearners
 }
 
 // countVotersAndLearners reads the live member list and counts voting members

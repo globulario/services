@@ -754,20 +754,19 @@ func reconcileJoinWithFake(fm *fakeEtcdMemberManager, nodes []*nodeState) bool {
 	return dirty
 }
 
-// ── SCAR (INCIDENT 2026-07-30): promotion to voter must land on an odd count ──
+// ── SCAR (INCIDENT 2026-07-30): the one-learner ceiling forces 2-voter transit ──
 //
-// A Day-1 join added globule-nuc as a learner and the controller promoted it to
-// voter the moment it caught up. The cluster went from 1 voter (quorum 1) to
-// 2 voters (quorum 2). The join then failed at the ScyllaDB phase, the node was
-// wiped, and the survivor was 1-of-2: no leader could be elected, every etcd
-// write hung, and the entire control plane stalled (13.7s page loads, doctor
-// timing out). Recovery required etcd --force-new-cluster.
+// The odd-count promotion rule (never sit at 2 or 4 voters) was implemented and
+// had to be reverted: etcd 3.5.14 hard-codes max-learners=1, so 1 voter + 2
+// learners is impossible and the third node's join was refused with
+// "etcdserver: too many learner members in cluster", deadlocking the cluster at
+// two nodes. See the comment on learnersToPromote.
 //
-// Raft tolerates floor((n-1)/2) failures, so an even voter count buys nothing:
-// 1 and 2 both tolerate 0; 3 and 4 both tolerate 1. Promoting into an even count
-// adds a failure point and no resilience.
-// invariant:meta.ha_requires_failure_tolerance_not_member_count
-func TestLearnersToPromote_OnlyEverReachesAnOddVoterCount(t *testing.T) {
+// What must hold now: promotion frees the single learner slot, so cluster growth
+// never stalls. The 2-voter window is survivable rather than avoided — the
+// wipe-path detach (b82bcbf9) and rollbackJoin's now-recorded EtcdMemberID are
+// what keep a failed join from stranding quorum.
+func TestLearnersToPromote_FreesTheSingleLearnerSlot(t *testing.T) {
 	cases := []struct {
 		name     string
 		voters   int
@@ -775,51 +774,37 @@ func TestLearnersToPromote_OnlyEverReachesAnOddVoterCount(t *testing.T) {
 		want     int
 		why      string
 	}{
-		{"the incident: 1 voter + 1 learner stays at 1", 1, 1, 0,
-			"promoting here yields 2 voters — quorum 2, still tolerates 0 failures, " +
-				"and wiping the new node strands the survivor. This is the bug."},
-		{"1 voter + 2 learners promotes both to reach 3", 1, 2, 2,
-			"3 voters tolerate 1 failure; promoting only one would pass through 2"},
-		{"3 voters + 1 learner stays at 3", 3, 1, 0, "4 tolerates the same as 3"},
-		{"3 voters + 2 learners promotes both to reach 5", 3, 2, 2, "5 tolerates 2"},
-		{"single node alone", 1, 0, 0, "nothing to promote"},
+		{"1 voter + 1 learner promotes it", 1, 1, 1,
+			"parking it would block the next joiner: etcd allows only one learner at a time"},
+		{"2 voters + 1 learner promotes to 3", 2, 1, 1, "reaches real fault tolerance"},
+		{"no learners, nothing to do", 3, 0, 0, ""},
 		{"bootstrap: 0 voters, 1 learner", 0, 1, 1, "reach 1 voter"},
-		{"0 voters, 2 learners", 0, 2, 1, "largest odd count <= 2 is 1"},
-		{"already odd with no learners", 5, 0, 0, "nothing to do"},
-		{"large fleet 3 + 4 reaches 7", 3, 4, 4, "7 tolerates 3"},
-		{"negative input is not a promotion licence", -1, 5, 0, "defensive"},
+		{"negative input is not a promotion licence", 1, -1, 0, "defensive"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := learnersToPromote(tc.voters, tc.learners)
-			if got != tc.want {
-				t.Errorf("learnersToPromote(voters=%d, learners=%d) = %d, want %d\n  %s",
+			if got := learnersToPromote(tc.voters, tc.learners); got != tc.want {
+				t.Errorf("learnersToPromote(voters=%d, learners=%d) = %d, want %d  %s",
 					tc.voters, tc.learners, got, tc.want, tc.why)
-			}
-			// The invariant behind every case: the resulting voter count is
-			// never even (0 voters total is the only exception — an empty
-			// cluster has nothing to elect).
-			if result := tc.voters + got; result > 0 && result%2 == 0 {
-				t.Errorf("resulting voter count %d is EVEN — adds a failure point "+
-					"without adding failure tolerance", result)
 			}
 		})
 	}
 }
 
-// Promotion must never step through an even count on the way to an odd one.
-// Growing a cluster one node at a time must never leave it at 2 or 4 voters.
-func TestLearnersToPromote_NeverStepsThroughAnEvenCount(t *testing.T) {
-	voters := 1 // day-0 bootstrap node
-	for joined := 1; joined <= 6; joined++ {
-		learners := joined - (voters - 1) // every joined node not yet a voter
-		if learners < 0 {
-			learners = 0
+// Growth must never stall: after every join the single learner slot is free
+// again, so the next node can always be added.
+func TestLearnersToPromote_GrowthNeverStalls(t *testing.T) {
+	voters := 1
+	for join := 1; join <= 5; join++ {
+		// etcd permits exactly one learner at a time.
+		promoted := learnersToPromote(voters, 1)
+		if promoted == 0 {
+			t.Fatalf("join %d: learner not promoted — the single learner slot stays "+
+				"occupied and the next node cannot be added (this is the deadlock)", join)
 		}
-		voters += learnersToPromote(voters, learners)
-		if voters%2 == 0 {
-			t.Fatalf("after %d joins the cluster sits at %d voters (even) — "+
-				"quorum grew without failure tolerance growing", joined, voters)
-		}
+		voters += promoted
+	}
+	if voters != 6 {
+		t.Errorf("after 5 joins expected 6 voters, got %d", voters)
 	}
 }
