@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/render"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
@@ -124,7 +125,7 @@ func (s *ClusterDoctorServer) startHealerLoop(ctx context.Context) {
 
 func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, maxActions int) {
 	// Take a fresh snapshot.
-	snap, _, err := s.takeSnapshot(ctx, cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH)
+	snap, fresh, err := s.takeSnapshot(ctx, cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH)
 	if err != nil && snap == nil {
 		log.Printf("healer: cycle skipped — snapshot failed: %v", err)
 		return
@@ -138,6 +139,34 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 	// when ExecuteRemediation looks them up. Cluster-wide=true is correct
 	// because EvaluateAll evaluates every registered invariant.
 	s.cacheFindings(findings, true)
+
+	// Offer these findings to behavioral memory BEFORE anything is dispatched.
+	//
+	// The governed gate (behavioral_governance.go) authorizes a remediation only
+	// when qualifying evidence exists for the finding — sat.doctor.finding_observed
+	// requires an evidence row of kind cluster_doctor_evidence naming the same
+	// invariant and entity. The only producer of that row was
+	// emitBehavioralClusterReport, called from the GetClusterReport RPC. The
+	// consumer is this loop. So an autonomous healer gated on evidence it never
+	// emitted: the check returned needs_evidence and the repair never happened,
+	// while an operator who happened to pull a report first made the same action
+	// succeed. Producer and consumer must live on the same path.
+	//
+	// Reduced-harvest snapshots are deliberately EXCLUDED. The gate below already
+	// downgrades enforce→observe on a partial snapshot because findings may be
+	// false positives (doctor.healer_auto_remediation_on_reduced_harvest). If a
+	// cycle is not trusted enough to act on, it is not trusted enough to mint the
+	// evidence that authorizes acting later — recording it would launder a
+	// possibly-false finding into standing authorization for a future cycle.
+	//
+	// Delivery stays best-effort: Enqueue is non-blocking by contract, so this
+	// cannot delay or fail the cycle. The consequence is that evidence for a
+	// newly-observed finding may land after this cycle's gate check, and the
+	// repair happens on a subsequent cycle. Emitting here rather than after
+	// Evaluate gives the recorder the whole dispatch window to drain.
+	if !snap.DataIncomplete {
+		s.emitBehavioralClusterReport(render.ClusterReport(snap, findings, s.version, fresh))
+	}
 
 	// SAFETY GATE: when the snapshot has reduced harvest (some collector
 	// sources errored), findings may be false positives — a rule that sees
