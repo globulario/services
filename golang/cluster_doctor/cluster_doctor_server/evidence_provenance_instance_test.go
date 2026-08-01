@@ -64,3 +64,36 @@ func TestFindingEvidenceTrust_RejectsCompromisedReducedHarvest(t *testing.T) {
 		t.Fatalf("trust = %q, want UNTRUSTED when target evidence closure failed", got)
 	}
 }
+
+func TestFindingEvidenceTrust_RejectsFullHarvestUnknownVerdict(t *testing.T) {
+	now := time.Now()
+	f := rules.Finding{
+		InvariantID:     "node.systemd.units_running",
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN,
+		Evidence: []*cluster_doctorpb.Evidence{{
+			SourceService: "node_agent@n1",
+			SourceRpc:     "GetInventory",
+			Timestamp:     timestamppb.New(now),
+		}},
+	}
+	if got := findingEvidenceTrust(f, now); got != evidence.TrustUntrusted {
+		t.Fatalf("trust = %q, want UNTRUSTED: fresh evidence cannot turn UNKNOWN into mutation authority", got)
+	}
+}
+
+func TestFindingEvidenceTrust_RejectsFailWithCheckError(t *testing.T) {
+	now := time.Now()
+	f := rules.Finding{
+		InvariantID:     "node.systemd.units_running",
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		CheckError:      "inventory response was incomplete",
+		Evidence: []*cluster_doctorpb.Evidence{{
+			SourceService: "node_agent@n1",
+			SourceRpc:     "GetInventory",
+			Timestamp:     timestamppb.New(now),
+		}},
+	}
+	if got := findingEvidenceTrust(f, now); got != evidence.TrustUntrusted {
+		t.Fatalf("trust = %q, want UNTRUSTED: CheckError must override a nominal FAIL", got)
+	}
+}
