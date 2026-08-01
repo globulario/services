@@ -7367,15 +7367,25 @@ failure_modes:
       evidence:
         - 'Clean Day-0 install of release 1.2.288 on globular-quickstart (real installer, not simulated bootstrap): 31 INVARIANT VIOLATION lines between 20:50:56 and 20:53:13 on 2026-07-31, all naming MinioPoolNodes[0]=node-1.globular.internal. node-1 is the founding node and never executes the join flow, so the message''s own remediation text (''fix by ensuring join flow writes IPs not hostnames'') points at the wrong subsystem. Violations ceased after restart, confirming repair-on-load rather than prevention-at-write.'
       contract: MinioPoolNodes must contain only bare routable IPs at every write site
-  - id: failure.satisfaction_catalog_authored_from_imagined_producer_output
-    title: Satisfaction catalog authored from imagined producer output, validated circularly
-    severity: high
-    description: 'A catalog mapping evidence kinds to governance requirements was written from an imagined producer shape rather than transcribed from the emitting code. Every field of the doctor rule was wrong against observation.FromDoctorFinding (kind, source, result, and authority floor), and a second rule described evidence no code constructs. It survived 15 passing tests because those tests seeded fixtures built from the same invention: catalog and fixtures agreed with each other while neither agreed with the runtime producer. Circular validation — the lock and the fake key drawn from one sketch. Had the governor been wired on top, real evidence would never have qualified and repairs would have appeared evidence-starved, with blame falling on missing evidence rather than on an unmatchable rule.'
-    protects:
-      files:
-        - golang/ai_memory/domains/cluster_operator/satisfaction.go
-    required_tests:
-      - golang/ai_memory/domains/cluster_operator/satisfaction_test.go:TestQualify_FullPositiveTrace
-    evidence:
-      - Found 2026-08-01 wiring producer population for the cluster-learning loop. Correction required transcription from ingest.go; three tests then failed correctly, revealing real doctor evidence carries no action or workflow binding and so cannot satisfy a remediation-verification requirement.
-    contract: A satisfaction rule must be transcribed from its production producer and proven by a lineage test, never authored alongside its own fixtures
+    - id: failure.satisfaction_catalog_authored_from_imagined_producer_output
+      title: Satisfaction catalog authored from imagined producer output, validated circularly
+      severity: high
+      description: 'A catalog mapping evidence kinds to governance requirements was written from an imagined producer shape rather than transcribed from the emitting code. Every field of the doctor rule was wrong against observation.FromDoctorFinding (kind, source, result, and authority floor), and a second rule described evidence no code constructs. It survived 15 passing tests because those tests seeded fixtures built from the same invention: catalog and fixtures agreed with each other while neither agreed with the runtime producer. Circular validation — the lock and the fake key drawn from one sketch. Had the governor been wired on top, real evidence would never have qualified and repairs would have appeared evidence-starved, with blame falling on missing evidence rather than on an unmatchable rule.'
+      protects:
+        files:
+          - golang/ai_memory/domains/cluster_operator/satisfaction.go
+      required_tests:
+        - golang/ai_memory/domains/cluster_operator/satisfaction_test.go:TestQualify_FullPositiveTrace
+      evidence:
+        - Found 2026-08-01 wiring producer population for the cluster-learning loop. Correction required transcription from ingest.go; three tests then failed correctly, revealing real doctor evidence carries no action or workflow binding and so cannot satisfy a remediation-verification requirement.
+      contract: A satisfaction rule must be transcribed from its production producer and proven by a lineage test, never authored alongside its own fixtures
+    - id: failure.registerupstream_required_index_url_for_every_provider_makin
+      title: RegisterUpstream required index_url for every provider, making LOCAL_DIR registration impossible
+      protects:
+        files:
+          - golang/repository/repository_server/sync_from_upstream.go
+      required_tests:
+        - golang/repository/repository_server/sync_from_upstream_test.go:TestRegisterUpstream_LocalDirDoesNotRequireIndexURL
+      evidence:
+        - globular repo register-upstream --type local-dir returned InvalidArgument 'source.index_url is required' against repository 1.2.288 on 2026-08-01. SyncFromUpstream and upstream/local_source.go handle LOCAL_DIR correctly, so only the admission gate was wrong. Presented as an auth failure and cost a session chasing client certificates.
+      contract: The upstream registry must not assume every provider addresses its release index by URL; where the index lives is provider-specific (intent.upstream_release_streams.must_be_provider_neutral). LOCAL_DIR resolves it from local_root + index_path_template and carries no URL.
