@@ -2,46 +2,66 @@
 
 ## Decision
 
-A remediation may execute only when every observation required by that finding, target, and action is complete and sufficiently trustworthy.
+A remediation may execute only when the evidence supporting that finding and target remains conclusive and sufficiently trustworthy.
 
-A failed collector that is unrelated to the finding must remain visible in snapshot diagnostics, but must not downgrade the entire healer cycle from `enforce` to `observe`.
+A failed collector that is unrelated to the finding remains visible in snapshot diagnostics, but does not downgrade the entire healer cycle from `enforce` to `observe`.
 
 ## Root cause
 
-The snapshot currently exposes a cluster-wide `DataIncomplete` boolean. Any collector error sets it. The periodic healer then treats that aggregate signal as execution authority and converts the whole cycle to observe-only.
+The snapshot exposes a cluster-wide `DataIncomplete` boolean. Any collector error sets it. The periodic healer treated that aggregate diagnostic signal as execution authority and converted the whole cycle to observe-only before individual findings reached the gated dispatcher.
 
-This safely prevents action on false-positive findings produced by incomplete data, but it also lets an unrelated collector failure veto independently proven remediation. On a settling or loaded multi-node cluster, the complete-harvest window can be too narrow for reliable autonomous enforcement.
+The invariant registry already implements the more precise rule:
 
-## Required behavior
+- if a finding's own evidence source failed, the finding is downgraded to `INVARIANT_UNKNOWN` with `CheckError`;
+- if only unrelated sources failed, the finding keeps its conclusive verdict and receives a `[reduced-harvest]` annotation.
 
-1. Keep aggregate snapshot incompleteness as operator-visible diagnostic truth.
-2. Record harvest failures with structured scope, including service, RPC, node, and entity where available.
-3. Attach explicit evidence requirements to auto-remediable findings.
-4. Resolve those requirements before privileged execution through the single remediation gate.
-5. Refuse when a required observation is failed, absent, stale, or untrusted.
-6. Allow when all required observations are usable, even if unrelated collectors failed.
-7. Preserve cluster-wide fail-closed behavior for actions whose requirements genuinely span the cluster or a complete member set.
+The healer discarded that precision by applying a second cluster-wide veto.
 
-## Initial bounded slice
+## Bounded implementation
 
-The first implementation covers `node.systemd.units_running`:
+This PR removes only that redundant global veto and makes the existing registry verdict authoritative for dispatch eligibility:
 
-- required observation: `node_agent/GetInventory`
-- scope: the finding's target node
-- positive proof: the named Globular-managed unit is present and observed inactive or failed
+1. `DataIncomplete` remains operator-visible diagnostic truth.
+2. `enforce`, `dry_run`, and `observe` retain their configured meaning during reduced harvest.
+3. A reduced-harvest auto-action may execute only when its finding remains `INVARIANT_FAIL` with no `CheckError`.
+4. A reduced-harvest finding downgraded to `INVARIANT_UNKNOWN` is refused before mutation.
+5. The same closure participates in the shared evidence-trust gate, so direct and background non-dry-run execution have parity.
+6. Dry-runs still traverse the central gate for rehearsal and audit.
 
-Failures in workflow telemetry, package-integrity verification, Envoy probing, or a different node's collection do not invalidate that observation.
+## Target scope for systemd findings
+
+The first target-specific slice is `node.systemd.units_running`.
+
+Collector failures are already recorded as `node_agent@<node_id>/<RPC>`. The rule now stamps its `GetInventory` evidence with the same instance-qualified writer identity:
+
+- node 1 evidence: `node_agent@node-1 / GetInventory`
+- node 2 failure: `node_agent@node-2 / GetInventory`
+
+`Snapshot.HadError` treats instance-qualified queries exactly. Therefore a node 2 inventory failure cannot downgrade node 1's stopped-unit finding, while a node 1 inventory failure does downgrade it and blocks execution.
+
+The existing provenance classifier recognizes instance-qualified node-agent writers as node-agent service observations, preserving the normal freshness gate.
 
 ## Safety boundary
 
-Removing the aggregate veto without adding scoped requirements is forbidden. The existing evidence-provenance trust gate, hard blocklist, approval policy, cooldown, failure-rate policy, workflow routing, and audit trail remain mandatory.
+This change does not act on arbitrary partial data. It preserves all existing protections:
 
-## Proof obligations
+- registry reduced-harvest downgrade
+- evidence provenance and freshness
+- single gated remediation path
+- behavioral-governance decision
+- action hard blocklist and unit allowlist
+- approval, cooldown, and failure-rate policy
+- workflow routing and audit
 
-- unrelated harvest failure permits the target restart
-- target inventory failure blocks the restart with an exact reason
-- another node's missing endpoint does not block the target node
-- stale or untrusted target evidence remains blocked
-- genuinely cluster-scoped requirements remain fail-closed
-- operator and background paths produce the same eligibility verdict
-- audit records distinguish blocking requirements from unrelated harvest errors
+A future generic evidence-requirement declaration may be useful for actions depending on complete member sets or multiple heterogeneous sources, but it is outside this bounded PR. Such actions remain governed by their existing rule-level source guards and registry downgrade behavior.
+
+## Proof obligations in this PR
+
+- reduced harvest no longer changes configured `enforce` into `observe`
+- an unrelated collector failure permits a conclusive target finding to dispatch
+- another node's `GetInventory` failure does not veto the target node
+- the target node's `GetInventory` failure downgrades the finding to `UNKNOWN`
+- compromised reduced-harvest findings do not dispatch for execution
+- compromised findings may still traverse dry-run rehearsal
+- instance-qualified node-agent evidence retains normal trust classification
+- the shared trust gate rejects failed reduced-harvest closure for direct execution
