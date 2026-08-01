@@ -105,33 +105,23 @@ type Healer struct {
 	PolicyLookup func(invariantID string) HealRule
 }
 
-// ReducedHarvestEvidenceClosure verifies the registry's finding-scoped harvest
-// verdict before privileged execution. applyReducedHarvestPolicy adds
-// cluster_doctor/reduced_harvest evidence to every finding produced from an
-// incomplete snapshot. It preserves a conclusive FAIL when only unrelated
-// collectors failed, and downgrades the finding to UNKNOWN with CheckError when
-// the finding's own evidence source failed.
+// RemediationEvidenceClosure is the minimum verdict contract for privileged
+// remediation. Mutation is justified only by a conclusive invariant failure;
+// UNKNOWN, PENDING, PASS, and any finding carrying CheckError are diagnostic
+// states, never execution authority.
 //
-// Complete-harvest findings are unchanged here and continue through the normal
-// ExecuteRemediation evidence-trust and governance gates. This function is
-// exported so the background healer and the shared execution gate use one
-// closure rule rather than two subtly different interpretations.
-func ReducedHarvestEvidenceClosure(f Finding) (bool, string) {
-	reducedHarvest := false
-	for _, ev := range f.Evidence {
-		if ev != nil && ev.GetSourceService() == "cluster_doctor" && ev.GetSourceRpc() == "reduced_harvest" {
-			reducedHarvest = true
-			break
-		}
-	}
-	if !reducedHarvest {
-		return true, ""
-	}
+// applyReducedHarvestPolicy fits this universal rule by preserving FAIL when
+// only unrelated collectors failed and downgrading to UNKNOWN with CheckError
+// when the finding's own evidence source failed. The same closure is consumed
+// by the background healer and by the shared ExecuteRemediation trust gate, so
+// full-harvest and reduced-harvest findings cannot acquire different mutation
+// semantics.
+func RemediationEvidenceClosure(f Finding) (bool, string) {
 	if f.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
-		return false, "reduced-harvest evidence closure refused: invariant_status=" + f.InvariantStatus.String()
+		return false, "remediation evidence closure refused: invariant_status=" + f.InvariantStatus.String()
 	}
 	if f.CheckError != "" {
-		return false, "reduced-harvest evidence closure refused: " + f.CheckError
+		return false, "remediation evidence closure refused: " + f.CheckError
 	}
 	return true, ""
 }
@@ -171,12 +161,12 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 				// auto-verified.
 				result.Verified = true
 				report.Observed++
-			} else if eligible, reason := ReducedHarvestEvidenceClosure(f); !eligible && !h.DryRun {
-				// Finding-scoped fail-closed behavior. An unrelated collector
-				// failure does not veto this action, but a finding downgraded by
-				// the registry because its own evidence failed never reaches the
-				// dispatcher for execution. Dry-runs still traverse the central
-				// gate so operators get the same rehearsal and audit surface.
+			} else if eligible, reason := RemediationEvidenceClosure(f); !eligible && !h.DryRun {
+				// Findings that are not conclusive FAILs never reach the
+				// dispatcher for execution. Under reduced harvest, unrelated
+				// failures leave a target-backed FAIL eligible while a target
+				// source failure is downgraded to UNKNOWN and refused. Dry-runs
+				// still traverse the central gate for rehearsal and audit.
 				result.Error = reason
 				report.Observed++
 				log.Printf("healer: [evidence-closure] HealAuto finding %s on %s refused: %s",
