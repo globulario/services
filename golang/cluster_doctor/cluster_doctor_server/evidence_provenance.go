@@ -50,7 +50,12 @@ func inferEvidenceSource(service, rpc string) evidence.Source {
 		return evidence.SourceVerifierAttestation
 	case s == "cluster_controller" || s == "cluster-controller":
 		return evidence.SourceControllerSnapshot
-	case s == "node_agent" || s == "node-agent":
+	case s == "node_agent" || s == "node-agent" ||
+		strings.HasPrefix(s, "node_agent@") || strings.HasPrefix(s, "node-agent@"):
+		// Per-node collector evidence preserves the writer instance as
+		// node_agent@<node_id>. It is still a node-agent service observation,
+		// not inferred evidence; retaining the instance is what lets harvest
+		// completeness be scoped to the remediation target.
 		return evidence.SourceServiceLog
 	case strings.Contains(s, "prometheus") || strings.Contains(s, "telemetry") || strings.Contains(s, "metric"):
 		return evidence.SourceTelemetry
