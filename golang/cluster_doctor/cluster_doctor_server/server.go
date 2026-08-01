@@ -78,6 +78,12 @@ type ClusterDoctorServer struct {
 	// retry, and worker concurrency so the report path stays synchronous.
 	behavioralRecorder behavioralObservationRecorder
 
+	// behavioralGovernor answers whether a remediation may be dispatched, and
+	// records what it achieved. SYNCHRONOUS, unlike the recorder: its answer
+	// decides whether an action happens. OPTIONAL — nil means no governor is
+	// wired and the doctor's own executor gates decide alone.
+	behavioralGovernor behavioralGovernor
+
 	// naDialer resolves node_agent endpoints via the cluster controller
 	// and dials them with TLS. Used by the ActionExecutor for typed
 	// remediation actions (SYSTEMCTL_*, FILE_DELETE on node agents).
@@ -337,6 +343,12 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	// does not need to be reachable at doctor startup — a cluster must be
 	// diagnosable before its learning subsystem is available, not after.
 	s.behavioralRecorder = observation.NewRecorder(observation.RecorderOptions{})
+
+	// The governance client shares the recorder's lazy-connection posture for
+	// the same reason: a cluster must be diagnosable before its governor is
+	// reachable. Unreachability is a refusal at dispatch time, never a silent
+	// allow — see gateRemediation.
+	s.behavioralGovernor = observation.NewGovernor("", 0)
 
 	// Event client for publishing finding deltas to ai-watcher (optional).
 	if cfg.EmitAuditEvents {

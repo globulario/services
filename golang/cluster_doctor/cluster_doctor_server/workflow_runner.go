@@ -196,9 +196,16 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 		// rather than inside the engine so the workflow engine stays free of
 		// behavioral-memory types and this service keeps ownership of what it
 		// records — it already owns the bounded recorder for the finding path.
-		ObserveOutcome: func(_ context.Context, o remediation.Outcome) {
-			s.emitBehavioralRemediationOutcome(o)
+		ObserveOutcome: func(ctx context.Context, o remediation.Outcome) {
+			evidenceID := s.emitBehavioralRemediationOutcome(o)
+			// Link the verified result to the decision that allowed it. Only
+			// after verification: an outcome written at dispatch would record an
+			// intention as a result.
+			s.recordGovernedOutcome(ctx, o, evidenceID)
 		},
+
+		// The governed gate, consulted immediately before dispatch.
+		GateAction: s.gateRemediation,
 
 		MarkFailed: func(ctx context.Context, findingID string) error {
 			slog.Warn("remediate.doctor.finding workflow failed",

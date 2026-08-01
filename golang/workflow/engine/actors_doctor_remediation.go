@@ -144,6 +144,52 @@ type DoctorRemediationConfig struct {
 	//
 	// Implementations MUST NOT block: this runs inside the verify step.
 	ObserveOutcome func(ctx context.Context, o remediation.Outcome)
+
+	// GateAction asks the behavioral governor whether this remediation may be
+	// dispatched. Called immediately before the executor, so a refusal stops the
+	// action rather than annotating one that already happened.
+	//
+	// Expressed in engine terms rather than behavioral-memory types for the same
+	// reason as ObserveOutcome: the workflow engine coordinates, it does not
+	// import the governor. Whoever supplies the hook owns that translation.
+	//
+	// An error means the gate could not decide. The handler treats that as a
+	// refusal — see doctorExecuteRemediation. Nil means no governor is wired and
+	// the existing safety gates decide alone.
+	GateAction func(ctx context.Context, req GateRequest) (GateVerdict, error)
+}
+
+// GateRequest is the real action context a governed check is made against. Every
+// field is read from workflow state, never invented: a gate asked about the
+// wrong subject returns a confident answer to a question nobody posed.
+type GateRequest struct {
+	FindingID     string
+	ClusterID     string
+	InvariantID   string
+	EntityRef     string
+	NodeID        string
+	ActionKind    string
+	WorkflowRunID string
+	StepIndex     uint32
+	// ApprovalToken is the doctor's existing operator approval. Passed through
+	// so the governor can see approval was obtained; it does NOT replace the
+	// executor's own approval gate, which still runs.
+	ApprovalToken string
+}
+
+// GateVerdict is the governor's answer.
+//
+// Governed and Allowed are separate on purpose. An ungoverned allow ("no
+// applicable principle") and a governed allow ("principles satisfied") are
+// different facts, and collapsing them would make the gate's reach unmeasurable
+// — every unreviewed action would look approved.
+type GateVerdict struct {
+	ActionCheckID string
+	Governed      bool
+	Allowed       bool
+	Status        string // allowed|blocked|needs_evidence|needs_authority|needs_human_approval
+	Reason        string
+	PrincipleIDs  []string
 }
 
 func (c DoctorRemediationConfig) now() time.Time {
@@ -299,6 +345,31 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 			return nil, fmt.Errorf("execute_remediation: no ExecuteRemediation handler configured")
 		}
 		ctx = withRemediationCorrelation(ctx, req)
+
+		// ── the governed gate ───────────────────────────────────────────────
+		//
+		// Placed HERE, before the executor call, because a governor consulted
+		// after dispatch annotates history instead of deciding. Everything the
+		// check is about is read from the resolved finding this run already
+		// produced — the gate must judge the action actually about to happen.
+		verdict, gateErr := runRemediationGate(ctx, cfg, req, findingID, stepIndex, approvalToken)
+		if gateErr != nil {
+			// Do NOT fabricate an allow. A governor that could not decide has
+			// not decided in favour; treating an unreachable gate as consent
+			// would make governance strongest exactly when it is working and
+			// absent exactly when it is not.
+			return nil, fmt.Errorf("execute_remediation: governance check unavailable, refusing to dispatch: %w", gateErr)
+		}
+		if verdict != nil {
+			// Recorded whatever the verdict, so a blocked action leaves the same
+			// audit trail as an allowed one.
+			req.Outputs["governance"] = gateVerdictAsMap(*verdict)
+			if !verdict.Allowed {
+				return nil, fmt.Errorf("execute_remediation: blocked by governance (status=%s check=%s): %s",
+					verdict.Status, verdict.ActionCheckID, verdict.Reason)
+			}
+		}
+
 		res, err := cfg.ExecuteRemediation(ctx, findingID, stepIndex, approvalToken, dryRun)
 		if err != nil {
 			return nil, fmt.Errorf("execute_remediation: %w", err)
@@ -321,6 +392,12 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 		// never-dispatched remediation later look verified.
 		if res.Executed {
 			out["dispatched_at"] = cfg.now().UTC().Format(time.RFC3339Nano)
+		}
+		// The check that authorized this dispatch travels with it, so the later
+		// verification can be tied back to the decision rather than merely
+		// co-occurring with it.
+		if verdict != nil && verdict.ActionCheckID != "" {
+			out["action_check_id"] = verdict.ActionCheckID
 		}
 		req.Outputs["execution_result"] = out
 		// Rejections from the RPC are reflected as step failure so the
@@ -391,6 +468,67 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 	}
 }
 
+// runRemediationGate consults the governor about the action about to be
+// dispatched. Returns (nil, nil) when no governor is wired.
+//
+// The action context is read from the RESOLVED FINDING this run already
+// produced. Nothing here is defaulted or reconstructed: a gate asked about a
+// subject the workflow did not resolve would answer a different question, and
+// answer it confidently.
+func runRemediationGate(ctx context.Context, cfg DoctorRemediationConfig, req ActionRequest,
+	findingID string, stepIndex uint32, approvalToken string) (*GateVerdict, error) {
+
+	if cfg.GateAction == nil {
+		return nil, nil
+	}
+	resolved, _ := req.Outputs["resolved_finding"].(map[string]any)
+	if resolved == nil {
+		// The gate cannot be asked truthfully without the subject. Refusing is
+		// the only safe answer: inventing a scope would produce a verdict about
+		// nothing, and skipping the gate would dispatch ungoverned while the
+		// operator believes governance is on.
+		return nil, fmt.Errorf("no resolved_finding in run outputs — cannot build a truthful action context")
+	}
+
+	v, err := cfg.GateAction(ctx, GateRequest{
+		FindingID:   findingID,
+		ClusterID:   toStr(resolved["cluster_id"]),
+		InvariantID: toStr(resolved["invariant_id"]),
+		// entity_ref is read from its own key and never defaulted to node_id:
+		// they coincide for node-scoped findings and diverge for service- and
+		// cluster-scoped ones.
+		EntityRef:     toStr(resolved["entity_ref"]),
+		NodeID:        toStr(resolved["node_id"]),
+		ActionKind:    toStr(resolved["action_type"]),
+		WorkflowRunID: req.RunID,
+		StepIndex:     stepIndex,
+		ApprovalToken: approvalToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
+// gateVerdictAsMap projects the verdict into the run's receipt shape. Recorded
+// for blocked and allowed alike — a governed refusal is as much a fact about the
+// run as a governed dispatch.
+func gateVerdictAsMap(v GateVerdict) map[string]any {
+	m := map[string]any{
+		"action_check_id": v.ActionCheckID,
+		"governed":        v.Governed,
+		"allowed":         v.Allowed,
+		"status":          v.Status,
+	}
+	if v.Reason != "" {
+		m["reason"] = v.Reason
+	}
+	if len(v.PrincipleIDs) > 0 {
+		m["principle_ids"] = v.PrincipleIDs
+	}
+	return m
+}
+
 // outcomeAsMap projects a remediation.Outcome into the workflow's
 // generic step-output shape. Tests should assert against the canonical
 // Outcome methods (Status / IsSuccess / Reason); this map is for
@@ -428,6 +566,9 @@ func outcomeAsMap(o remediation.Outcome) map[string]any {
 		"node_id":      o.NodeID,
 
 		"lineage_complete": o.LineageComplete(),
+		// Empty when the action was ungoverned — a real state, and one an
+		// out-of-process reader must be able to tell from "governed".
+		"action_check_id": o.ActionCheckID,
 	}
 	// Timestamps are RFC3339Nano, matching what the execute step stamps, and
 	// are OMITTED when zero rather than emitted as a zero-value date. A
@@ -492,6 +633,12 @@ func buildRemediationOutcome(req ActionRequest, findingID string, v *Verificatio
 			if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
 				out.DispatchedAt = parsed
 			}
+		}
+		// The governance decision that authorized this dispatch, carried from
+		// the execute step so the later verification ties back to the decision
+		// rather than merely following it in time.
+		if id, ok := exec["action_check_id"].(string); ok {
+			out.ActionCheckID = id
 		}
 	}
 	return out

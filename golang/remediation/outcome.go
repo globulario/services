@@ -59,6 +59,17 @@ type Outcome struct {
 	// nothing was dispatched. Never derived from VerifiedAt — verification
 	// that cannot be placed after the action proves nothing about it.
 	DispatchedAt time.Time
+
+	// ActionCheckID is the governance decision that authorized this dispatch.
+	// Empty when the action was ungoverned (no applicable principle) or no
+	// governor was wired — which is a real and reportable state, distinct from
+	// "governed and approved".
+	//
+	// Deliberately NOT part of LineageDefects: an ungoverned remediation can
+	// still be perfectly attributable to its subject. Governance coverage and
+	// provenance completeness are different questions, and folding them together
+	// would make every pre-governance outcome look defective.
+	ActionCheckID string
 }
 
 // LineageDefect names a way an outcome's provenance is incomplete or

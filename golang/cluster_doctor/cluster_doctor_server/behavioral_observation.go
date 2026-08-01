@@ -155,10 +155,13 @@ func (s *ClusterDoctorServer) emitBehavioralClusterReport(report *cluster_doctor
 //     and the recorder holds one connection with a bounded queue.
 //   - A drop is counted and logged, so degraded learning stays visible rather
 //     than silent.
-func (s *ClusterDoctorServer) emitBehavioralRemediationOutcome(o remediation.Outcome) {
+//
+// Returns the id of the evidence row offered for delivery, so the caller can
+// cite it from the governed outcome. Empty when nothing was recordable.
+func (s *ClusterDoctorServer) emitBehavioralRemediationOutcome(o remediation.Outcome) string {
 	if s.behavioralRecorder == nil {
 		s.recordBehavioralUnavailable()
-		return
+		return ""
 	}
 	bundle, qualifies := observation.FromRemediationOutcome(
 		behavioralProject, api.DomainRef(behavioralDomain), o,
@@ -167,11 +170,12 @@ func (s *ClusterDoctorServer) emitBehavioralRemediationOutcome(o remediation.Out
 		// An outcome with no identity at all. Nothing to key a stable record
 		// on; recording it under a hash of nothing would collide with every
 		// other such row.
-		return
+		return ""
 	}
 	observation.BindRemediationEvidence(&bundle)
 
 	if !s.behavioralRecorder.Enqueue(bundle) {
 		behavioralOutcomeDropNotify(o, qualifies, s.behavioralRecorder.Stats())
 	}
+	return bundle.Evidence[0].ID
 }
