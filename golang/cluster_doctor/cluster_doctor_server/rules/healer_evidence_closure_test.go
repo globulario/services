@@ -9,11 +9,13 @@ import (
 )
 
 type evidenceClosureDispatcher struct {
-	calls int
+	calls   int
+	dryRuns []bool
 }
 
-func (d *evidenceClosureDispatcher) Dispatch(_ context.Context, _ Finding, _ string, _ bool) (bool, string, error) {
+func (d *evidenceClosureDispatcher) Dispatch(_ context.Context, _ Finding, _ string, dryRun bool) (bool, string, error) {
 	d.calls++
+	d.dryRuns = append(d.dryRuns, dryRun)
 	return true, "rem-evidence-closure", nil
 }
 
@@ -92,5 +94,30 @@ func TestHealerReducedHarvest_CompromisedFindingIsRefusedBeforeDispatch(t *testi
 	}
 	if !strings.Contains(report.Results[0].Error, "evidence closure refused") {
 		t.Fatalf("error = %q, want explicit evidence-closure refusal", report.Results[0].Error)
+	}
+}
+
+func TestHealerReducedHarvest_CompromisedFindingDryRunReachesCentralGate(t *testing.T) {
+	dispatcher := &evidenceClosureDispatcher{}
+	h := &Healer{
+		DryRun:      true,
+		Dispatcher:  dispatcher,
+		PolicyLookup: autoPolicy,
+	}
+
+	h.Evaluate(context.Background(), []Finding{{
+		FindingID:       "finding-unknown-dry-run",
+		InvariantID:     "node.systemd.units_running",
+		EntityRef:       "node-1/globular-torrent.service",
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN,
+		CheckError:      "target inventory unavailable",
+		Evidence:        []*cluster_doctorpb.Evidence{reducedHarvestEvidence()},
+	}})
+
+	if dispatcher.calls != 1 {
+		t.Fatalf("dispatcher calls = %d, want 1: dry-run must traverse the central gate for rehearsal and audit", dispatcher.calls)
+	}
+	if len(dispatcher.dryRuns) != 1 || !dispatcher.dryRuns[0] {
+		t.Fatalf("dispatcher dry-run flags = %v, want [true]", dispatcher.dryRuns)
 	}
 }
