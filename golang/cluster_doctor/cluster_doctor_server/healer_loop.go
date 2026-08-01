@@ -175,20 +175,42 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 	// mode on full-harvest snapshots only; reduced-harvest cycles run as
 	// observe-only regardless of the configured mode.
 	// See meta.fallback_must_degrade_semantics.
-	effectiveMode := mode
+	// Reduced harvest suppresses auto-remediation PER FINDING, not per cycle.
+	//
+	// The safety property is unchanged: never auto-remediate a finding derived
+	// from data that could not be collected. What changed is the granularity.
+	// DataIncomplete is set by any collector failure anywhere, so the old
+	// cycle-wide downgrade let one unreachable service veto every repair in the
+	// cluster — including repairs on fully-harvested nodes that never read it.
+	// Observed on four consecutive bring-ups, each blocked by a different
+	// unrelated source, while a drifted unit elsewhere went unrepaired. The
+	// healer stood down hardest exactly when the cluster was degraded.
+	// See harvest_gate.go for the per-finding rule and its conservative default.
+	gate := newHarvestGate(snap)
 	if snap.DataIncomplete && mode == "enforce" {
-		effectiveMode = "observe"
-		log.Printf("healer: reduced-harvest snapshot (DataIncomplete=true) — downgrading from enforce to observe for this cycle to avoid auto-remediation on potentially false-positive findings")
+		log.Printf("healer: reduced-harvest snapshot (DataIncomplete=true) — enforcement suppressed "+
+			"per finding for the affected sources, not cluster-wide (%d source error(s))",
+			len(snap.DataErrors))
 	}
 
-	// Determine healer mode. dryRun is true unless the operator has
-	// explicitly opted into "enforce" AND the snapshot is full-harvest.
-	dryRun := effectiveMode != "enforce"
+	// dryRun is true unless the operator explicitly opted into "enforce".
+	// Harvest is then applied per finding on top of that.
+	dryRun := mode != "enforce"
 	healer := &rules.Healer{
 		DryRun:      dryRun,
 		Dispatcher:  s.gatedDispatcher(),
 		MaxActions:  maxActions,
 		MaxFailures: 3,
+		DryRunFor: func(f rules.Finding) bool {
+			if dryRun {
+				return true // operator never opted in; harvest is irrelevant
+			}
+			ok, why := gate.enforceable(f)
+			if !ok {
+				harvestSuppressedNotify(f, why)
+			}
+			return !ok
+		},
 	}
 
 	report := healer.Evaluate(ctx, findings)
