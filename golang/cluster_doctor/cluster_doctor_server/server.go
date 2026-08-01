@@ -22,6 +22,7 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -674,6 +675,29 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 			"auto_action", autoAction)
 		return false, "", nil
 	}
+
+	// Ask behavioral governance BEFORE the executor runs.
+	//
+	// The gate was wired into the WORKFLOW path only (workflow_runner.go
+	// GateAction), and this — the autonomous healer's path — reached
+	// executeRemediationForFinding without ever consulting it. Verified live on
+	// 2026-08-01: with principle.cluster.restart_drifted_unit_with_observed_finding
+	// promoted specifically to govern SYSTEMCTL_RESTART on
+	// node.systemd.units_running, the healer performed exactly that action and
+	// behavioral_memory.action_checks recorded zero rows from cluster_doctor. The
+	// operator path was governed; the unattended one was not, which is the wrong
+	// way round.
+	//
+	// Placed here rather than inside executeRemediationForFinding because the
+	// public ExecuteRemediation RPC also routes there, and the workflow actor has
+	// already gated by that point — gating again would mint a second decision for
+	// one action. gatedDispatcher.Dispatch is the healer's exclusive entry, which
+	// makes it the mirror of the engine's own placement: immediately before the
+	// executor call.
+	if !g.server.dispatchAllowedByGovernance(ctx, f, stepIndex, autoAction) {
+		return false, "", nil
+	}
+
 	// The healer already holds the resolved Finding — execute against it
 	// directly instead of clobbering the shared lastFindings cache with a
 	// one-element slice and round-tripping through finding_id resolution. A
@@ -690,6 +714,76 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 		return false, "", err
 	}
 	return resp.GetExecuted(), resp.GetAuditId(), nil
+}
+
+// dispatchAllowedByGovernance answers whether behavioral governance permits this
+// auto-heal, and reports false for every answer that is not a clear yes.
+//
+// A refusal is returned as "do not execute" rather than as an error: the healer
+// records a non-executed dispatch as a proposal, which is what a governed
+// refusal IS — the gate did its job and the finding stays open for an operator.
+// Returning an error would instead count toward the cycle's MaxFailures circuit
+// breaker, so a governor that is merely strict would look like an executor that
+// is broken and would halt healing for unrelated findings.
+//
+// An unreachable governor is also a refusal, never consent
+// (observation.Governor.CheckAction is explicit that a caller must not be able to
+// mistake the two). This does pause auto-healing while behavioral memory is down.
+// That is deliberate and bounded: the cluster's deterministic convergence — the
+// controller reconciling desired state — is untouched, so "AI is supplementary,
+// never required" still holds for the mechanism that guarantees the cluster
+// converges. What pauses is the doctor's autonomy, which is the part that
+// depends on being authorized.
+func (s *ClusterDoctorServer) dispatchAllowedByGovernance(ctx context.Context, f rules.Finding, stepIndex int, autoAction string) bool {
+	action := f.Remediation[stepIndex].GetAction()
+	verdict, err := s.gateRemediation(ctx, engine.GateRequest{
+		FindingID:   f.FindingID,
+		ClusterID:   s.clusterID,
+		InvariantID: f.InvariantID,
+		EntityRef:   f.EntityRef,
+		NodeID:      action.GetParams()["node_id"],
+		ActionKind:  action.GetActionType().String(),
+		StepIndex:   uint32(stepIndex),
+		// No WorkflowRunID and no ApprovalToken: this dispatch belongs to no
+		// workflow run and carries no operator approval. Both are stated by
+		// omission rather than filled with a plausible value — a fabricated run
+		// id would forge lineage, and a fabricated token would tell the governor
+		// a human approved something no human saw.
+	})
+	if err != nil {
+		logger.Warn("gated-dispatcher: REFUSED — behavioral governor unavailable; auto-heal paused for this finding",
+			"invariant_id", f.InvariantID,
+			"entity_ref", f.EntityRef,
+			"auto_action", autoAction,
+			"err", err,
+		)
+		return false
+	}
+	if !verdict.Allowed {
+		logger.Info("gated-dispatcher: REFUSED by behavioral governance",
+			"invariant_id", f.InvariantID,
+			"entity_ref", f.EntityRef,
+			"auto_action", autoAction,
+			"action_check_id", verdict.ActionCheckID,
+			"status", verdict.Status,
+			"reason", verdict.Reason,
+			"principles", verdict.PrincipleIDs,
+		)
+		return false
+	}
+	if verdict.Governed {
+		logger.Info("gated-dispatcher: allowed by behavioral governance",
+			"invariant_id", f.InvariantID,
+			"entity_ref", f.EntityRef,
+			"action_check_id", verdict.ActionCheckID,
+			"principles", verdict.PrincipleIDs,
+		)
+	}
+	// Ungoverned-and-allowed proceeds: no promoted principle applies, so the
+	// action keeps exactly the protection it had before governance existed (the
+	// executor's leader, risk-class, approval, unit-allowlist and cooldown
+	// gates). gateRemediation has already counted the coverage gap.
+	return true
 }
 
 // GetHealHistory returns recent heal action records from the persistent audit trail.

@@ -16,6 +16,8 @@ import (
 	"time"
 
 	observation "github.com/globulario/services/golang/ai_memory/domains/cluster_operator/observation"
+	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -546,5 +548,109 @@ func TestGoverned_OutcomeRecordFailureDoesNotAffectRemediation(t *testing.T) {
 	}
 	if r.outcome == nil || !r.outcome.IsSuccess() {
 		t.Error("the remediation verdict must be unaffected by a behavioral write failure")
+	}
+}
+
+// TestGatedDispatcher_ConsultsGovernanceBeforeExecuting is the guard for the
+// asymmetry found on 2026-08-01.
+//
+// The behavioral gate was wired into the WORKFLOW path only. The autonomous
+// healer reached executeRemediationForFinding through gatedDispatcher.Dispatch
+// and never consulted it. Live evidence: a principle promoted specifically to
+// govern SYSTEMCTL_RESTART on node.systemd.units_running was in force, the
+// healer performed exactly that action, and behavioral_memory.action_checks
+// held zero rows from cluster_doctor. The operator-driven path was governed;
+// the unattended one was not — the wrong way round, since the unattended path
+// is the one with no human watching.
+func TestGatedDispatcher_ConsultsGovernanceBeforeExecuting(t *testing.T) {
+	resetGateMemo() // the memo is keyed run|finding|step; these tests share one key
+	gov := &fakeGovernor{decision: allowDecision()}
+	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
+
+	f := findingWithRestartAction()
+	if !srv.dispatchAllowedByGovernance(context.Background(), f, 0, "restart_drifted_unit") {
+		t.Fatal("an allowed verdict must permit dispatch")
+	}
+	if len(gov.asked) != 1 {
+		t.Fatalf("governance consulted %d time(s), want exactly 1 — the autonomous "+
+			"healer must ask before it mutates", len(gov.asked))
+	}
+	a := gov.asked[0]
+	if a.InvariantID != f.InvariantID || a.EntityRef != f.EntityRef {
+		t.Errorf("gate asked about the wrong subject: invariant=%q entity=%q, want %q/%q\n"+
+			"a verdict about the wrong subject is worse than no verdict",
+			a.InvariantID, a.EntityRef, f.InvariantID, f.EntityRef)
+	}
+	if a.WorkflowRunID != "" || a.HumanApproval != "" {
+		t.Errorf("healer dispatch must not claim a workflow run (%q) or human approval (%q):\n"+
+			"it has neither, and inventing them forges lineage the governor would trust",
+			a.WorkflowRunID, a.HumanApproval)
+	}
+}
+
+// TestGatedDispatcher_RefusalBlocksExecution verifies a governed refusal stops
+// the mutation.
+func TestGatedDispatcher_RefusalBlocksExecution(t *testing.T) {
+	resetGateMemo() // the memo is keyed run|finding|step; these tests share one key
+	gov := &fakeGovernor{decision: observation.GateDecision{
+		ActionCheckID: "chk-1", Governed: true, Allowed: false,
+		Status: "needs_evidence", Reason: "required evidence does not qualify",
+	}}
+	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
+
+	if srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+		t.Error("a governed refusal must block the dispatch")
+	}
+}
+
+// TestGatedDispatcher_UnreachableGovernorRefuses verifies an unreachable
+// governor is treated as refusal, never as consent.
+//
+// This pauses auto-healing while behavioral memory is down. Deliberate: the
+// cluster's deterministic convergence is untouched, so what pauses is the
+// doctor's autonomy — the part that depends on being authorized.
+func TestGatedDispatcher_UnreachableGovernorRefuses(t *testing.T) {
+	resetGateMemo() // the memo is keyed run|finding|step; these tests share one key
+	gov := &fakeGovernor{checkErr: errors.New("governor unavailable")}
+	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
+
+	if srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+		t.Error("an unreachable governor must be a refusal, never consent —\n" +
+			"otherwise governance is strongest when it works and absent when it does not")
+	}
+}
+
+// TestGatedDispatcher_UngovernedStillProceeds verifies the no-principle case is
+// unchanged: the action keeps exactly the protection it had before governance
+// existed. Refusing here would make promoting the FIRST principle a
+// cluster-wide outage of auto-healing.
+func TestGatedDispatcher_UngovernedStillProceeds(t *testing.T) {
+	resetGateMemo() // the memo is keyed run|finding|step; these tests share one key
+	gov := &fakeGovernor{decision: observation.GateDecision{
+		Governed: false, Allowed: true, Status: "ungoverned",
+	}}
+	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
+
+	if !srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+		t.Error("an ungoverned action must still proceed under the executor's own gates")
+	}
+}
+
+func findingWithRestartAction() rules.Finding {
+	return rules.Finding{
+		FindingID:   "f-1",
+		InvariantID: "node.systemd.units_running",
+		EntityRef:   "node-1/globular-torrent.service",
+		Remediation: []*cluster_doctorpb.RemediationStep{
+			{
+				Order: 1,
+				Action: &cluster_doctorpb.RemediationAction{
+					ActionType: cluster_doctorpb.ActionType_SYSTEMCTL_RESTART,
+					Risk:       cluster_doctorpb.ActionRisk_RISK_LOW,
+					Idempotent: true,
+					Params:     map[string]string{"node_id": "node-1", "unit": "globular-torrent.service"},
+				},
+			},
+		},
 	}
 }
