@@ -135,35 +135,60 @@ type SatisfactionRule struct {
 // a producer cannot, the gap is recorded rather than papered over with a
 // permissive rule — a lenient catalog entry is indistinguishable from no
 // governance at all, but looks like governance.
+// CORRECTION (commit 4B): the first version of this catalog was written against
+// producers that did not exist. Every field of the doctor rule was wrong —
+// kind "doctor_finding" vs the emitted "cluster_doctor_evidence", source
+// "doctor" vs "cluster_doctor_evidence", result "observed" vs "claim", floor
+// DIAGNOSTIC_CLAIM vs the emitted DERIVED_EVIDENCE — and the remediation rule
+// described an evidence shape no code produces.
+//
+// It passed its tests because those tests seeded evidence matching the invented
+// shape: catalog and tests agreed with each other and neither agreed with
+// production. That is the same semantic guessing this catalog exists to forbid,
+// so the rules below are now transcribed from the emitting code, not imagined.
 var satisfactionCatalog = []SatisfactionRule{
 	{
-		ID:               "sat.doctor.finding_observed",
-		RequirementID:    "evidence.doctor.finding_observed",
-		EvidenceKind:     "doctor_finding",
-		SourceKind:       "doctor",
-		SubjectMatch:     SubjectInvariantAndEntity,
-		MinimumAuthority: api.ObservationAuthorityDiagnostic,
-		AcceptedResults:  []string{"observed"},
-		Freshness:        FreshnessMaxAge,
-		MaxAge:           15 * time.Minute,
-	},
-	{
-		ID:            "sat.remediation.fresh_convergence_verified",
-		RequirementID: "evidence.remediation.fresh_convergence_verification",
-		EvidenceKind:  "remediation_verification",
-		SourceKind:    "workflow",
+		// Producer: observation.FromDoctorFinding (cluster_operator/observation
+		// /ingest.go). Every field below is read off that constructor.
+		ID:            "sat.doctor.finding_observed",
+		RequirementID: "evidence.doctor.finding_observed",
+		EvidenceKind:  "cluster_doctor_evidence", // observation.SourceKindClusterDoctorEvidence
+		SourceKind:    "cluster_doctor_evidence", // literal, not the const: observation imports THIS package for the mapper, so importing it back would cycle
 		SubjectMatch:  SubjectInvariantAndEntity,
-		// DERIVED_EVIDENCE floor: this must be computed from observed cluster
-		// state after the action. A DIAGNOSTIC_CLAIM would let the actor's own
-		// report of success satisfy the requirement to prove success.
+		// The producer stamps DERIVED_EVIDENCE: a doctor finding is computed
+		// from collected cluster state, not asserted by the actor. The floor
+		// matches what is actually emitted rather than a level chosen in the
+		// abstract — a floor no producer can reach is an unsatisfiable rule.
 		MinimumAuthority: api.ObservationAuthorityDerived,
-		AcceptedResults:  []string{"finding_resolved"},
-		// Both bindings: after the action, and from this run. Either alone is
-		// insufficient — a fresh verification from an unrelated remediation
-		// would otherwise qualify.
-		Freshness: FreshnessNewerThanAction,
-		MaxAge:    10 * time.Minute,
+		// "claim" is the producer's result for a finding's evidence rows. It is
+		// honest for THIS requirement, which asks only that a finding was
+		// observed — not that anything was verified. A requirement about
+		// verification must never accept it.
+		AcceptedResults: []string{"claim"},
+		Freshness:       FreshnessMaxAge,
+		MaxAge:          15 * time.Minute,
 	},
+
+	// GAP — evidence.remediation.fresh_convergence_verification has NO RULE.
+	//
+	// Deliberately absent, not forgotten. The workflow computes
+	// remediation.Outcome with a FindingResolved field (remediation/override.go)
+	// and surfaces "finding_resolved" in its output map, but no behavioral
+	// Evidence is constructed from it — nothing emits a verification evidence
+	// row for the index to hold.
+	//
+	// Adding a permissive rule here would be worse than having none: it would
+	// look like governance while qualifying nothing, or worse, qualify some
+	// unrelated evidence that happened to fit. Per the catalog contract, a
+	// producer that cannot honestly supply the required fields gets a recorded
+	// gap, not a lenient entry.
+	//
+	// To close it, a producer must emit evidence carrying: an evidence kind and
+	// source distinct from doctor findings, a result that means verified-resolved
+	// (never dispatch_accepted or verification_started), DERIVED_EVIDENCE or
+	// higher authority computed from post-action cluster state, observed_at
+	// after dispatch, and the workflow run id in metadata. Only then can a rule
+	// with FreshnessNewerThanAction be written truthfully.
 }
 
 // ── query and result ────────────────────────────────────────────────────────

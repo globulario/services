@@ -14,7 +14,7 @@ const (
 	sProject = "globular-services"
 	sDomain  = "cluster_operator"
 	sCluster = "cluster-a"
-	sReq     = "evidence.remediation.fresh_convergence_verification"
+	sReq     = "evidence.doctor.finding_observed"
 	sEntity  = "node-4"
 	sCond    = "cluster.desired_state.absent"
 	sRun     = "run-123"
@@ -29,20 +29,20 @@ var (
 	preActionAt = dispatchAt.Add(-1 * time.Minute)
 )
 
-// verification builds evidence that qualifies under
-// sat.remediation.fresh_convergence_verified unless mutated.
+// doctorEvidence builds evidence matching what observation.FromDoctorFinding
+// actually emits, so it qualifies under sat.doctor.finding_observed unless mutated.
 func verification(id string, mut ...func(*api.Evidence)) *api.Evidence {
 	e := &api.Evidence{
 		ID:             id,
 		Project:        sProject,
 		Domain:         api.DomainRef(sDomain),
-		Kind:           "remediation_verification",
-		SourceKind:     "workflow",
+		Kind:           "cluster_doctor_evidence",
+		SourceKind:     "cluster_doctor_evidence",
 		ClusterID:      sCluster,
 		EntityRef:      sEntity,
 		ConditionRef:   sCond,
 		AuthorityLevel: api.ObservationAuthorityDerived,
-		Result:         "finding_resolved",
+		Result:         "claim",
 		ObservedAt:     verifiedAt.Unix(),
 		Satisfies:      []api.RequiredEvidenceRef{api.RequiredEvidenceRef(sReq)},
 		Metadata:       map[string]string{"workflow_run_id": sRun},
@@ -103,7 +103,7 @@ func TestQualify_FullPositiveTrace(t *testing.T) {
 	if len(res.Qualified) != 1 || res.Qualified[0].ID != "ev-good" {
 		t.Fatalf("want [ev-good], got %+v", res.Qualified)
 	}
-	if len(res.RuleIDs) == 0 || res.RuleIDs[0] != "sat.remediation.fresh_convergence_verified" {
+	if len(res.RuleIDs) == 0 || res.RuleIDs[0] != "sat.doctor.finding_observed" {
 		t.Errorf("result must name the rule that governed it, got %v", res.RuleIDs)
 	}
 }
@@ -213,7 +213,7 @@ func TestQualify_ResultMustBeAccepted(t *testing.T) {
 	}
 	s := seedStore(t, verification("ev"))
 	if !qualify(t, s, satQuery()).Satisfied() {
-		t.Error("finding_resolved must satisfy")
+		t.Error("the producer's own result must satisfy")
 	}
 }
 
@@ -228,8 +228,6 @@ func TestQualify_Freshness(t *testing.T) {
 		{"stale", func(e *api.Evidence) { e.ObservedAt = tooOldAt.Unix() }, RejectEvidenceStale},
 		{"missing timestamp", func(e *api.Evidence) { e.ObservedAt = 0 }, RejectTimestampMissing},
 		{"future timestamp", func(e *api.Evidence) { e.ObservedAt = evalAt.Add(time.Hour).Unix() }, RejectTimestampInFuture},
-		{"predates action", func(e *api.Evidence) { e.ObservedAt = preActionAt.Unix() }, RejectNotBoundToAction},
-		{"other workflow run", func(e *api.Evidence) { e.Metadata = map[string]string{"workflow_run_id": "run-other"} }, RejectNotBoundToAction},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -245,15 +243,33 @@ func TestQualify_Freshness(t *testing.T) {
 	}
 }
 
-// A fresh timestamp alone is not enough: verification from an unrelated
-// remediation must not satisfy a requirement about this one.
-func TestQualify_FreshButUnrelatedRemediationRejected(t *testing.T) {
-	s := seedStore(t, verification("ev-unrelated", func(e *api.Evidence) {
+// The action-binding policies are implemented but currently used by NO catalog
+// rule — the verification producer they were written for does not exist yet
+// (see the recorded gap in satisfaction.go). They are exercised directly so the
+// semantics stay covered and cannot rot before that producer arrives.
+func TestFreshness_ActionBindingPolicies(t *testing.T) {
+	base := SatisfactionRule{Freshness: FreshnessNewerThanAction, MaxAge: 10 * time.Minute}
+	q := satQuery()
+
+	if rej := evaluateFreshness(base, *verification("ok"), q); rej != nil {
+		t.Fatalf("evidence after dispatch, same run must pass: %+v", rej)
+	}
+	// Evidence gathered BEFORE the action cannot show the action worked.
+	pre := verification("pre", func(e *api.Evidence) { e.ObservedAt = preActionAt.Unix() })
+	if rej := evaluateFreshness(base, *pre, q); rej == nil || rej.Reason != RejectNotBoundToAction {
+		t.Errorf("pre-action evidence must be rejected, got %+v", rej)
+	}
+	// A fresh timestamp from an UNRELATED remediation must not qualify.
+	other := verification("other", func(e *api.Evidence) {
 		e.Metadata = map[string]string{"workflow_run_id": "run-somebody-else"}
-	}))
-	res := qualify(t, s, satQuery())
-	if res.Satisfied() {
-		t.Fatal("fresh evidence from another run must not satisfy")
+	})
+	if rej := evaluateFreshness(base, *other, q); rej == nil || rej.Reason != RejectNotBoundToAction {
+		t.Errorf("evidence from another run must be rejected, got %+v", rej)
+	}
+	// same_workflow_run binds without requiring an ordering relative to dispatch.
+	runOnly := SatisfactionRule{Freshness: FreshnessSameWorkflowRun, MaxAge: 10 * time.Minute}
+	if rej := evaluateFreshness(runOnly, *other, q); rej == nil || rej.Reason != RejectNotBoundToAction {
+		t.Errorf("same_workflow_run must reject a foreign run, got %+v", rej)
 	}
 }
 
