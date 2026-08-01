@@ -163,10 +163,38 @@ func PolicyV1() []HealRule {
 			Rationale:   "Cluster-level hash drift can have many causes. The healer cannot safely determine the correct resolution without operator context.",
 		},
 		{
-			InvariantID: "node.units.not_running",
-			Disposition: HealPropose,
+			// Milestone 3: the first rule re-promoted to HealAuto.
+			//
+			// The id was "node.units.not_running" until 2026-08-01, and no
+			// invariant has ever emitted that. nodeUnitsRunning emits
+			// "node.systemd.units_running", so LookupPolicy missed and fell
+			// through to the HealObserve default — this rule's stated intent
+			// never applied to anything, silently, for its whole existence.
+			// A finding with a structured SYSTEMCTL_RESTART action was being
+			// classified "Unknown invariant — no policy defined."
+			//
+			// The prior rationale was "auto-restarting a service that crashed
+			// may mask the root cause; propose the restart and let the operator
+			// review logs first". That concern is real but is now answered by
+			// something stronger than a disposition: the dispatch traverses
+			// ExecuteRemediation, where behavioral governance requires
+			// principle.cluster.restart_drifted_unit_with_observed_finding and
+			// its evidence.doctor.finding_observed BEFORE the action may run.
+			// The restart can no longer happen on a hunch — it happens only
+			// when the finding that names the unit has been observed and a
+			// promoted principle authorizes it. That is the guarantee the
+			// propose-only stance was standing in for.
+			//
+			// Blast radius stays narrow by construction: the finding only
+			// carries a structured action for globular-* units (non-managed
+			// units are text-only and the executor refuses them anyway), the
+			// action is idempotent, and the healer's MaxActions/MaxFailures
+			// circuit breaker still bounds a cycle.
+			InvariantID: "node.systemd.units_running",
+			Disposition: HealAuto,
 			Action:      "Restart the failed systemd unit.",
-			Rationale:   "Auto-restarting a service that crashed may mask the root cause. Propose the restart and let the operator review logs first.",
+			AutoAction:  "restart_drifted_unit",
+			Rationale:   "Restarting a drifted globular-* unit is deterministic and idempotent, and the dispatch is gated on a promoted principle requiring the observed finding as evidence. Auto-execution is safe only because that gate exists; if the principle is revoked the gate refuses and this rule degrades to a proposal.",
 		},
 
 		// ── C. Observe-only (no action) ──────────────────────────────
