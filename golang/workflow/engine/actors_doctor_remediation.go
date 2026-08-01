@@ -55,6 +55,22 @@ type ResolvedFinding struct {
 	Idempotent  bool   `json:"idempotent"`
 	Description string `json:"description"`
 	HasAction   bool   `json:"has_action"`
+
+	// Identity of the thing being remediated. Carried so post-action
+	// verification can be bound to the SAME subject rather than merely to a
+	// finding id.
+	//
+	// EntityRef is NOT NodeID. They coincide for node-scoped findings and
+	// diverge for service- or cluster-scoped ones, so deriving one from the
+	// other would silently attribute a verification to the wrong subject.
+	//
+	// ClusterID matters beyond bookkeeping: downstream evidence is indexed by
+	// cluster, so verification carrying an empty cluster would be written to
+	// the cluster-less partition and become unfindable by any cluster-scoped
+	// query — present in the store, invisible to the reader.
+	ClusterID   string `json:"cluster_id"`
+	InvariantID string `json:"invariant_id"`
+	EntityRef   string `json:"entity_ref"`
 }
 
 // ExecutionResult mirrors cluster_doctorpb.ExecuteRemediationResponse in a
@@ -80,9 +96,9 @@ type RiskAssessment struct {
 // Verification is the output of verify_convergence. A finding is converged
 // iff it is no longer present in the doctor's latest snapshot.
 type Verification struct {
-	Converged            bool `json:"converged"`
-	FindingStillPresent  bool `json:"finding_still_present"`
-	RemainingRelated     int  `json:"remaining_related"`
+	Converged           bool `json:"converged"`
+	FindingStillPresent bool `json:"finding_still_present"`
+	RemainingRelated    int  `json:"remaining_related"`
 }
 
 // DoctorRemediationConfig provides dependencies for doctor remediation
@@ -104,6 +120,19 @@ type DoctorRemediationConfig struct {
 	// MarkFailed is called via onFailure hook when the workflow ends
 	// in a non-terminal-success state.
 	MarkFailed func(ctx context.Context, findingID string) error
+
+	// Now supplies the clock for dispatch timestamping. Injected rather than
+	// calling time.Now directly so lineage tests can assert an exact
+	// dispatched_at instead of a wall-clock approximation. Defaults to
+	// time.Now when nil.
+	Now func() time.Time
+}
+
+func (c DoctorRemediationConfig) now() time.Time {
+	if c.Now != nil {
+		return c.Now()
+	}
+	return time.Now()
 }
 
 // RegisterDoctorRemediationActions registers the controller-side handlers
@@ -148,6 +177,12 @@ func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {
 			"idempotent":  rf.Idempotent,
 			"description": rf.Description,
 			"has_action":  rf.HasAction,
+			// Subject identity, exported so the verify step can bind the
+			// verification to the same subject the action was resolved against.
+			// entity_ref is its own key and is never folded into node_id.
+			"cluster_id":   rf.ClusterID,
+			"invariant_id": rf.InvariantID,
+			"entity_ref":   rf.EntityRef,
 		}
 		req.Outputs["resolved_finding"] = out
 		return &ActionResult{OK: true, Output: out}, nil
@@ -257,6 +292,18 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 			"output":   res.Output,
 			"reason":   res.Reason,
 		}
+		// DispatchedAt is stamped HERE — the instant the executor accepted the
+		// governed request — and nowhere else. It must not be approval time,
+		// workflow start, or anything derived from verification: post-action
+		// verification is only meaningful relative to when the action actually
+		// went out.
+		//
+		// Absent when dispatch did not occur. A missing timestamp is the honest
+		// record of "nothing was dispatched"; synthesising one would let a
+		// never-dispatched remediation later look verified.
+		if res.Executed {
+			out["dispatched_at"] = cfg.now().UTC().Format(time.RFC3339Nano)
+		}
 		req.Outputs["execution_result"] = out
 		// Rejections from the RPC are reflected as step failure so the
 		// workflow terminates and onFailure runs.
@@ -303,7 +350,7 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 		// dashboards) can read the verdict without re-deriving it from
 		// step-level errors. See
 		// docs/intent/workflow.remediation_truth_consistency.yaml.
-		outcome := buildRemediationOutcome(req, findingID, v)
+		outcome := buildRemediationOutcome(req, findingID, v, cfg.now)
 		req.Outputs["remediation_outcome"] = outcomeAsMap(outcome)
 
 		if !v.Converged {
@@ -340,12 +387,24 @@ func outcomeAsMap(o remediation.Outcome) map[string]any {
 // view of run state. It reads back the execute_remediation output that
 // the prior step wrote into req.Outputs so the verdict reflects the full
 // resolve → execute → verify chain in one place.
-func buildRemediationOutcome(req ActionRequest, findingID string, v *Verification) remediation.Outcome {
+func buildRemediationOutcome(req ActionRequest, findingID string, v *Verification, now func() time.Time) remediation.Outcome {
 	out := remediation.Outcome{
 		FindingID:     findingID,
 		WorkflowRunID: req.RunID,
 		Verified:      true,
-		VerifiedAt:    time.Now(),
+		VerifiedAt:    now(),
+		// Subject identity travels through the verify step's `with:` block,
+		// sourced from the resolved finding. Read here rather than looked up
+		// later so the outcome reflects the identity the workflow actually
+		// acted on, not whatever the doctor cache holds at report time.
+		//
+		// EntityRef is read from its own key. It is NOT defaulted to NodeID:
+		// they diverge for service- and cluster-scoped findings, and silently
+		// substituting one would attribute a verification to the wrong subject.
+		ClusterID:   toStr(req.With["cluster_id"]),
+		InvariantID: toStr(req.With["invariant_id"]),
+		EntityRef:   toStr(req.With["entity_ref"]),
+		NodeID:      toStr(req.With["node_id"]),
 	}
 	if v != nil {
 		out.FindingResolved = v.Converged
@@ -356,6 +415,15 @@ func buildRemediationOutcome(req ActionRequest, findingID string, v *Verificatio
 		}
 		if reason, ok := exec["reason"].(string); ok && reason != "" {
 			out.DispatchError = reason
+		}
+		// Parsed, never synthesised. An unparseable or absent value leaves
+		// DispatchedAt zero, which LineageDefects reports as
+		// missing_dispatched_at_after_dispatch when dispatch was claimed —
+		// visible rather than papered over with VerifiedAt.
+		if ts, ok := exec["dispatched_at"].(string); ok && ts != "" {
+			if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+				out.DispatchedAt = parsed
+			}
 		}
 	}
 	return out

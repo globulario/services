@@ -106,6 +106,26 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				}, nil
 			}
 			params := action.GetParams()
+			// Subject identity comes from the FINDING and the local cluster,
+			// never from the action params. EntityRef is taken from the finding
+			// rather than defaulted to params["node_id"]: the two coincide for
+			// node-scoped findings and diverge for service- or cluster-scoped
+			// ones, and substituting one would attribute a later verification to
+			// the wrong subject.
+			//
+			// Fail rather than invent. Downstream evidence is indexed by
+			// cluster, so a remediation resolved without one would produce
+			// verification that lands in the cluster-less partition and is
+			// invisible to every cluster-scoped reader — worse than refusing,
+			// because it looks recorded.
+			if s.clusterID == "" {
+				return nil, fmt.Errorf("resolve_finding: cluster id unknown — refusing to resolve %s "+
+					"without cluster identity (verification evidence would be unattributable)", findingID)
+			}
+			if f.InvariantID == "" || f.EntityRef == "" {
+				return nil, fmt.Errorf("resolve_finding: finding %s lacks identity (invariant_id=%q entity_ref=%q) — "+
+					"refusing to resolve with incomplete lineage", findingID, f.InvariantID, f.EntityRef)
+			}
 			return &engine.ResolvedFinding{
 				FindingID:   findingID,
 				StepIndex:   stepIndex,
@@ -115,6 +135,9 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				Idempotent:  action.GetIdempotent(),
 				Description: action.GetDescription(),
 				HasAction:   true,
+				ClusterID:   s.clusterID,
+				InvariantID: f.InvariantID,
+				EntityRef:   f.EntityRef,
 			}, nil
 		},
 
