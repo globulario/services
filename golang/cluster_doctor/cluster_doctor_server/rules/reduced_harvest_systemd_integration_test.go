@@ -20,11 +20,11 @@ func systemdFinding(findings []Finding) (Finding, bool) {
 	return Finding{}, false
 }
 
-func TestReducedHarvestSystemd_OtherNodeDialFailureDoesNotVetoTarget(t *testing.T) {
+func TestReducedHarvestSystemd_OtherNodeInventoryFailureDoesNotVetoTarget(t *testing.T) {
 	snap := &collector.Snapshot{
 		DataIncomplete: true,
 		DataErrors: []collector.DataError{
-			{Service: "node_agent@n2", RPC: "dial", Err: errors.New("node n2 has no agent_endpoint")},
+			{Service: "node_agent@n2", RPC: "GetInventory", Err: errors.New("context deadline exceeded")},
 		},
 		Nodes: []*cluster_controllerpb.NodeRecord{
 			{NodeId: "n1"},
@@ -43,10 +43,13 @@ func TestReducedHarvestSystemd_OtherNodeDialFailureDoesNotVetoTarget(t *testing.
 		t.Fatal("expected node.systemd.units_running finding for n1")
 	}
 	if finding.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
-		t.Fatalf("status = %s, want FAIL: n2 dial failure is unrelated to n1 GetInventory evidence", finding.InvariantStatus)
+		t.Fatalf("status = %s, want FAIL: n2 GetInventory failure is unrelated to n1 instance-qualified evidence", finding.InvariantStatus)
 	}
 	if finding.CheckError != "" {
 		t.Fatalf("CheckError = %q, want empty", finding.CheckError)
+	}
+	if len(finding.Evidence) == 0 || finding.Evidence[0].GetSourceService() != "node_agent@n1" {
+		t.Fatalf("target evidence source = %q, want node_agent@n1", finding.Evidence[0].GetSourceService())
 	}
 
 	dispatcher := &evidenceClosureDispatcher{}
