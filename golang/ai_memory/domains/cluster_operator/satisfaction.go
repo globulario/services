@@ -363,8 +363,52 @@ func QualifyEvidence(ctx context.Context, s store.Store, q SatisfactionQuery) (S
 	// Newest first, stable ID tie-break — identical across stores and repeatable
 	// for the same state and clock.
 	sortEvidence(res.Qualified)
-	sort.Slice(res.Rejected, func(i, j int) bool { return res.Rejected[i].EvidenceID < res.Rejected[j].EvidenceID })
+	// Most informative first, evidence id as the deterministic tie-break.
+	//
+	// This used to sort by evidence id alone. Deterministic, but the id is a
+	// UUID, so which rejection got reported was effectively arbitrary — and only
+	// the first one is surfaced to the operator. On 2026-08-01 a refused
+	// remediation reported
+	//
+	//   subject_mismatch: entity: want ".../globular-torrent.service"
+	//                      got  ".../sha256sum"
+	//
+	// which says nothing except that some unrelated row exists. The rejection
+	// that mattered — evidence about the RIGHT subject that failed a later
+	// discriminator — was somewhere further down the slice, unread. Hours went
+	// into chasing the wrong subject.
+	//
+	// A subject mismatch is the least informative rejection there is: it means
+	// "this evidence is about something else", which is true of most rows in a
+	// shared partition and tells the operator nothing about their action. A
+	// rejection that got PAST the subject and failed on authority, freshness,
+	// result or action-binding is a near miss, and a near miss is the one thing
+	// worth reporting.
+	sort.Slice(res.Rejected, func(i, j int) bool {
+		ri, rj := rejectionRank(res.Rejected[i].Reason), rejectionRank(res.Rejected[j].Reason)
+		if ri != rj {
+			return ri < rj
+		}
+		return res.Rejected[i].EvidenceID < res.Rejected[j].EvidenceID
+	})
 	return res, nil
+}
+
+// rejectionRank orders rejections by how much they tell an operator about the
+// action they asked about. Lower is more informative.
+//
+// Deliberately coarse: two buckets, not a per-reason ranking. The distinction
+// that matters is "this evidence was about your subject and still did not
+// count" versus "this evidence was about something else entirely". Finer
+// ordering between the near-miss reasons would be a preference dressed up as a
+// rule, and would have to be re-litigated every time a reason is added.
+func rejectionRank(r RejectionReason) int {
+	switch r {
+	case RejectSubjectMismatch, RejectClusterMismatch:
+		return 1 // about a different subject — says nothing about this action
+	default:
+		return 0 // right subject, failed a real discriminator
+	}
 }
 
 // evaluate returns nil when the evidence qualifies under the rule, else the

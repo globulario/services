@@ -81,8 +81,11 @@ func (p *Pack) QualifyRequirement(ctx context.Context, s store.Store, q domain.R
 
 	v := domain.RequirementVerdict{Satisfied: false}
 	if len(res.Rejected) > 0 {
-		// Rejections are already sorted by evidence id, so the reported reason is
-		// deterministic for the same stored state.
+		// Rejections are sorted most-informative first (see rejectionRank), with
+		// evidence id as a tie-break, so this is both deterministic for the same
+		// stored state AND the near miss rather than an arbitrary wrong-subject
+		// row. Only one reason reaches the operator, so which one it is decides
+		// whether the message helps or misleads.
 		v.Reason, v.Detail = string(res.Rejected[0].Reason), res.Rejected[0].Detail
 	}
 	return v, nil
