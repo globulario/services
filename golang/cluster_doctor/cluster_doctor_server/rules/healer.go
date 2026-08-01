@@ -105,16 +105,18 @@ type Healer struct {
 	PolicyLookup func(invariantID string) HealRule
 }
 
-// reducedHarvestEvidenceClosure verifies the registry's finding-scoped harvest
-// verdict before an auto-action is dispatched. applyReducedHarvestPolicy adds
+// ReducedHarvestEvidenceClosure verifies the registry's finding-scoped harvest
+// verdict before privileged execution. applyReducedHarvestPolicy adds
 // cluster_doctor/reduced_harvest evidence to every finding produced from an
 // incomplete snapshot. It preserves a conclusive FAIL when only unrelated
 // collectors failed, and downgrades the finding to UNKNOWN with CheckError when
 // the finding's own evidence source failed.
 //
 // Complete-harvest findings are unchanged here and continue through the normal
-// ExecuteRemediation evidence-trust and governance gates.
-func reducedHarvestEvidenceClosure(f Finding) (bool, string) {
+// ExecuteRemediation evidence-trust and governance gates. This function is
+// exported so the background healer and the shared execution gate use one
+// closure rule rather than two subtly different interpretations.
+func ReducedHarvestEvidenceClosure(f Finding) (bool, string) {
 	reducedHarvest := false
 	for _, ev := range f.Evidence {
 		if ev != nil && ev.GetSourceService() == "cluster_doctor" && ev.GetSourceRpc() == "reduced_harvest" {
@@ -169,11 +171,12 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 				// auto-verified.
 				result.Verified = true
 				report.Observed++
-			} else if eligible, reason := reducedHarvestEvidenceClosure(f); !eligible {
+			} else if eligible, reason := ReducedHarvestEvidenceClosure(f); !eligible && !h.DryRun {
 				// Finding-scoped fail-closed behavior. An unrelated collector
 				// failure does not veto this action, but a finding downgraded by
 				// the registry because its own evidence failed never reaches the
-				// dispatcher.
+				// dispatcher for execution. Dry-runs still traverse the central
+				// gate so operators get the same rehearsal and audit surface.
 				result.Error = reason
 				report.Observed++
 				log.Printf("healer: [evidence-closure] HealAuto finding %s on %s refused: %s",
