@@ -12,6 +12,7 @@ import (
 	"time"
 
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
+	observation "github.com/globulario/services/golang/ai_memory/domains/cluster_operator/observation"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/render"
@@ -69,6 +70,13 @@ type ClusterDoctorServer struct {
 	// WorkflowEndpoint is configured.
 	workflowClient workflowpb.WorkflowServiceClient
 	clusterID      string
+
+	// behavioralRecorder delivers doctor findings to behavioral-memory as
+	// governed observations. OPTIONAL: nil means behavioral learning is
+	// unavailable, which degrades learning only — never report generation.
+	// Delivery is bounded and non-blocking; the recorder owns queueing,
+	// retry, and worker concurrency so the report path stays synchronous.
+	behavioralRecorder behavioralObservationRecorder
 
 	// naDialer resolves node_agent endpoints via the cluster controller
 	// and dials them with TLS. Used by the ActionExecutor for typed
@@ -324,6 +332,11 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 		naDialer:       naDialer,
 		auditStore:     rules.NewHealAuditStore(""),
 	}
+
+	// One recorder per server process. The connection is lazy, so ai-memory
+	// does not need to be reachable at doctor startup — a cluster must be
+	// diagnosable before its learning subsystem is available, not after.
+	s.behavioralRecorder = observation.NewRecorder(observation.RecorderOptions{})
 
 	// Event client for publishing finding deltas to ai-watcher (optional).
 	if cfg.EmitAuditEvents {
