@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.evidence (
     condition_ref text,
     severity      text,
     authority_level text,
+    action_ref    text,
     PRIMARY KEY ((project, domain, id))
 )`
 
@@ -157,6 +158,11 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.evidence_by_target (
 //     clustering columns would force every caller to supply them or fall back to
 //     ALLOW FILTERING; the partition is already narrow, so filtering after the
 //     range read is both cheaper and honest about the query shape.
+//   - action_ref is denormalized here because a satisfaction rule may require
+//     evidence bound to a specific governed action. This table's projection is
+//     the ONLY thing a governance lookup reads — metadata is not carried — so a
+//     binding that lives anywhere else is enforceable in memory and silently
+//     unenforceable against Scylla.
 //
 // Rows are written by PutEvidence, one per entry in the evidence's satisfies
 // set, inside the same logged batch as the evidence row itself.
@@ -176,6 +182,7 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.evidence_by_satisfaction (
     result                text,
     source_kind           text,
     authority_level       text,
+    action_ref            text,
     created_at            bigint,
     PRIMARY KEY ((project, domain, required_evidence_ref, cluster_id), observed_at, id)
 ) WITH CLUSTERING ORDER BY (observed_at DESC, id ASC)`
@@ -412,6 +419,15 @@ const (
 	alterEvidenceAddSourceKind = `ALTER TABLE behavioral_memory.evidence ADD source_kind text`
 	alterEvidenceAddSourceRef  = `ALTER TABLE behavioral_memory.evidence ADD source_ref text`
 	alterEvidenceAddEntityRef  = `ALTER TABLE behavioral_memory.evidence ADD entity_ref text`
+
+	// 4C added action_ref — the governed action a piece of evidence is bound to
+	// — to BOTH the evidence table and the satisfaction index. The index column
+	// is the load-bearing one: satisfaction lookups read only that projection,
+	// so without the backfill a deployment's pre-4C index cannot carry the
+	// binding and every action-bound rule rejects for a reason that is a schema
+	// gap, not a governance fact.
+	alterEvidenceAddActionRef               = `ALTER TABLE behavioral_memory.evidence ADD action_ref text`
+	alterEvidenceBySatisfactionAddActionRef = `ALTER TABLE behavioral_memory.evidence_by_satisfaction ADD action_ref text`
 )
 
 // governance_coverage counts CheckAction verdicts that were governed (an
@@ -632,4 +648,7 @@ var behavioralSchemaStatements = []string{
 	alterEvidenceAddSourceKind,
 	alterEvidenceAddSourceRef,
 	alterEvidenceAddEntityRef,
+	// 4C backfill: action binding for post-action verification evidence.
+	alterEvidenceAddActionRef,
+	alterEvidenceBySatisfactionAddActionRef,
 }

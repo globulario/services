@@ -45,7 +45,10 @@ func verification(id string, mut ...func(*api.Evidence)) *api.Evidence {
 		Result:         "claim",
 		ObservedAt:     verifiedAt.Unix(),
 		Satisfies:      []api.RequiredEvidenceRef{api.RequiredEvidenceRef(sReq)},
-		Metadata:       map[string]string{"workflow_run_id": sRun},
+		// The action binding is a first-class relation, not a metadata key: the
+		// satisfaction index projects a fixed column set, so a binding held in
+		// Metadata is enforceable in memory and gone after a Scylla round trip.
+		ActionRef: sRun,
 	}
 	for _, f := range mut {
 		f(e)
@@ -243,10 +246,9 @@ func TestQualify_Freshness(t *testing.T) {
 	}
 }
 
-// The action-binding policies are implemented but currently used by NO catalog
-// rule — the verification producer they were written for does not exist yet
-// (see the recorded gap in satisfaction.go). They are exercised directly so the
-// semantics stay covered and cannot rot before that producer arrives.
+// The three action-binding policies, exercised directly at the freshness layer.
+// FreshnessBoundToAction is the one sat.remediation.fresh_convergence_verified
+// uses; the other two remain covered so their semantics cannot rot.
 func TestFreshness_ActionBindingPolicies(t *testing.T) {
 	base := SatisfactionRule{Freshness: FreshnessNewerThanAction, MaxAge: 10 * time.Minute}
 	q := satQuery()
@@ -260,9 +262,7 @@ func TestFreshness_ActionBindingPolicies(t *testing.T) {
 		t.Errorf("pre-action evidence must be rejected, got %+v", rej)
 	}
 	// A fresh timestamp from an UNRELATED remediation must not qualify.
-	other := verification("other", func(e *api.Evidence) {
-		e.Metadata = map[string]string{"workflow_run_id": "run-somebody-else"}
-	})
+	other := verification("other", func(e *api.Evidence) { e.ActionRef = "run-somebody-else" })
 	if rej := evaluateFreshness(base, *other, q); rej == nil || rej.Reason != RejectNotBoundToAction {
 		t.Errorf("evidence from another run must be rejected, got %+v", rej)
 	}
@@ -270,6 +270,28 @@ func TestFreshness_ActionBindingPolicies(t *testing.T) {
 	runOnly := SatisfactionRule{Freshness: FreshnessSameWorkflowRun, MaxAge: 10 * time.Minute}
 	if rej := evaluateFreshness(runOnly, *other, q); rej == nil || rej.Reason != RejectNotBoundToAction {
 		t.Errorf("same_workflow_run must reject a foreign run, got %+v", rej)
+	}
+
+	// bound_to_action: both halves mandatory.
+	bound := SatisfactionRule{Freshness: FreshnessBoundToAction, MaxAge: 10 * time.Minute}
+	if rej := evaluateFreshness(bound, *verification("ok"), q); rej != nil {
+		t.Errorf("matching run observed after dispatch must pass: %+v", rej)
+	}
+	if rej := evaluateFreshness(bound, *other, q); rej == nil || rej.Reason != RejectNotBoundToAction {
+		t.Errorf("bound_to_action must reject a foreign run, got %+v", rej)
+	}
+	if rej := evaluateFreshness(bound, *pre, q); rej == nil || rej.Reason != RejectNotBoundToAction {
+		t.Errorf("bound_to_action must reject pre-action evidence, got %+v", rej)
+	}
+	// The difference from newer_than_action: a query with no run identity is
+	// REJECTED rather than quietly evaluated on time alone. Failing open here
+	// would let any fresh verification in the cluster authorize any action.
+	noRun := satQuery(func(sq *SatisfactionQuery) { sq.WorkflowRunID = "" })
+	if rej := evaluateFreshness(bound, *verification("ok"), noRun); rej == nil || rej.Reason != RejectNotBoundToAction {
+		t.Errorf("bound_to_action must reject a query with no action identity, got %+v", rej)
+	}
+	if rej := evaluateFreshness(base, *verification("ok"), noRun); rej != nil {
+		t.Errorf("newer_than_action is the relaxed policy and must still pass here: %+v", rej)
 	}
 }
 

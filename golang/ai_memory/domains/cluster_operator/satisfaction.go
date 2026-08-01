@@ -80,6 +80,17 @@ const (
 	// post-remediation verification meaningful: evidence gathered BEFORE the
 	// action cannot show the action worked.
 	FreshnessNewerThanAction FreshnessPolicy = "newer_than_action"
+	// FreshnessBoundToAction requires BOTH: the evidence carries the evaluating
+	// action's ref, AND it was observed after that action was dispatched.
+	//
+	// Distinct from FreshnessNewerThanAction, which relaxes the run check when
+	// the caller omits a run id. That relaxation is acceptable for a rule whose
+	// discrimination rests elsewhere; it is not acceptable for a rule whose
+	// entire claim is "this action worked". Here a query without an action
+	// identity is REJECTED rather than quietly evaluated on time alone —
+	// otherwise a caller who forgets the binding gets the more permissive
+	// answer, which is the wrong direction to fail in.
+	FreshnessBoundToAction FreshnessPolicy = "bound_to_action"
 )
 
 // SubjectMatch states how tightly evidence must be bound to the thing being
@@ -169,26 +180,59 @@ var satisfactionCatalog = []SatisfactionRule{
 		MaxAge:          15 * time.Minute,
 	},
 
-	// GAP — evidence.remediation.fresh_convergence_verification has NO RULE.
-	//
-	// Deliberately absent, not forgotten. The workflow computes
-	// remediation.Outcome with a FindingResolved field (remediation/override.go)
-	// and surfaces "finding_resolved" in its output map, but no behavioral
-	// Evidence is constructed from it — nothing emits a verification evidence
-	// row for the index to hold.
-	//
-	// Adding a permissive rule here would be worse than having none: it would
-	// look like governance while qualifying nothing, or worse, qualify some
-	// unrelated evidence that happened to fit. Per the catalog contract, a
-	// producer that cannot honestly supply the required fields gets a recorded
-	// gap, not a lenient entry.
-	//
-	// To close it, a producer must emit evidence carrying: an evidence kind and
-	// source distinct from doctor findings, a result that means verified-resolved
-	// (never dispatch_accepted or verification_started), DERIVED_EVIDENCE or
-	// higher authority computed from post-action cluster state, observed_at
-	// after dispatch, and the workflow run id in metadata. Only then can a rule
-	// with FreshnessNewerThanAction be written truthfully.
+	{
+		// GAP CLOSED (commit 4C). The producer is
+		// observation.FromRemediationOutcome (cluster_operator/observation
+		// /remediation.go), fed by the real remediate.doctor.finding chain:
+		// resolve → execute (stamps dispatched_at) → verify →
+		// buildRemediationOutcome. Every field below is transcribed from that
+		// constructor, not chosen in the abstract — the 4A failure was a rule
+		// whose fields described an imagined producer and whose tests were
+		// built from the same imagination.
+		ID:            "sat.remediation.fresh_convergence_verified",
+		RequirementID: "evidence.remediation.fresh_convergence_verification",
+		// The producer emits this kind ONLY when the outcome both succeeded and
+		// carries complete lineage. Every other outcome is emitted under
+		// KindRemediationDiagnostic, which no rule describes — so an ineligible
+		// remediation is not merely rejected here, it can never become a
+		// candidate.
+		EvidenceKind: "remediation_verification_evidence", // observation.KindRemediationVerification
+		SourceKind:   "doctor_remediation_workflow",       // observation.SourceKindDoctorRemediationWorkflow
+		// A verification for one subject must not satisfy a requirement about
+		// another merely because they share an invariant or a cluster.
+		SubjectMatch: SubjectInvariantAndEntity,
+		// Computed by a post-action doctor sweep over collected cluster state.
+		// Not TRUTH_PLANE: the doctor interprets collected state, it does not
+		// own it. Not DIAGNOSTIC_CLAIM either — that is what the executor's
+		// report of its own success would be, and this floor exists to keep
+		// such a report from ever qualifying.
+		MinimumAuthority: api.ObservationAuthorityDerived,
+		// Exhaustive and exact. "succeeded", "dispatched" and
+		// "verification_started" describe a status or an attempt; only
+		// "finding_resolved" states that the post-action sweep found the
+		// original finding gone.
+		AcceptedResults: []string{"finding_resolved"}, // observation.ResultFindingResolved
+		// Both halves are mandatory: the evidence must carry THIS workflow
+		// run's ref, and must have been observed after the action was
+		// dispatched. Time alone would let a stale verification of an earlier
+		// repair authorize a later one; the run binding alone would let a
+		// verification stamped before dispatch count as proof the action
+		// worked.
+		Freshness: FreshnessBoundToAction,
+		// A verification more than 15 minutes old is history, not current
+		// convergence state — matched to the doctor rule so the two halves of
+		// the loop age out together.
+		MaxAge: 15 * time.Minute,
+	},
+
+	// REMAINING GAP — finding-id lineage is producer-guaranteed, not
+	// qualifier-verified. The satisfaction index projects a fixed column set
+	// (cluster, entity, condition, kind, source, result, authority, action_ref,
+	// observed_at); source_ref is not among them, so a rule cannot re-check the
+	// finding id at qualification time. The producer refuses to emit the
+	// qualifying kind for an outcome missing it, which covers evidence this
+	// pipeline writes — but not a row some other writer could place directly in
+	// the index. Closing it means promoting source_ref into the projection.
 }
 
 // ── query and result ────────────────────────────────────────────────────────
@@ -396,26 +440,55 @@ func evaluateFreshness(rule SatisfactionRule, ev api.Evidence, q SatisfactionQue
 		}
 	}
 
+	// The action binding is read from the first-class ActionRef, never from
+	// Metadata. The satisfaction index projects a fixed column set and does not
+	// carry Metadata, so a binding kept there would hold in memory and vanish
+	// across a Scylla round trip — enforcement that passes every unit test and
+	// silently never fires in production.
 	switch rule.Freshness {
 	case FreshnessSameWorkflowRun:
-		if q.WorkflowRunID == "" || ev.Metadata["workflow_run_id"] != q.WorkflowRunID {
+		if q.WorkflowRunID == "" || ev.ActionRef != q.WorkflowRunID {
 			return &RejectedEvidence{Reason: RejectNotBoundToAction,
-				Detail: fmt.Sprintf("workflow_run_id: want %q got %q", q.WorkflowRunID, ev.Metadata["workflow_run_id"])}
+				Detail: fmt.Sprintf("action_ref: want %q got %q", q.WorkflowRunID, ev.ActionRef)}
 		}
 	case FreshnessNewerThanAction:
-		if q.ActionDispatchedAt.IsZero() {
-			return &RejectedEvidence{Reason: RejectNotBoundToAction,
-				Detail: "rule requires evidence newer than the action, but ActionDispatchedAt was not supplied"}
+		if rej := requireObservedAfterDispatch(observed, q); rej != nil {
+			return rej
 		}
-		// Evidence gathered before the action cannot show the action worked.
-		if !observed.After(q.ActionDispatchedAt) {
+		if q.WorkflowRunID != "" && ev.ActionRef != q.WorkflowRunID {
 			return &RejectedEvidence{Reason: RejectNotBoundToAction,
-				Detail: fmt.Sprintf("observed_at %s predates action dispatch %s", observed, q.ActionDispatchedAt)}
+				Detail: fmt.Sprintf("action_ref: want %q got %q", q.WorkflowRunID, ev.ActionRef)}
 		}
-		if q.WorkflowRunID != "" && ev.Metadata["workflow_run_id"] != q.WorkflowRunID {
+	case FreshnessBoundToAction:
+		// Mandatory, not best-effort: an unidentified action cannot be the one
+		// this evidence supposedly verified.
+		if q.WorkflowRunID == "" {
 			return &RejectedEvidence{Reason: RejectNotBoundToAction,
-				Detail: fmt.Sprintf("workflow_run_id: want %q got %q", q.WorkflowRunID, ev.Metadata["workflow_run_id"])}
+				Detail: "rule requires an action binding, but the query supplied no workflow run id"}
 		}
+		if ev.ActionRef != q.WorkflowRunID {
+			return &RejectedEvidence{Reason: RejectNotBoundToAction,
+				Detail: fmt.Sprintf("action_ref: want %q got %q", q.WorkflowRunID, ev.ActionRef)}
+		}
+		if rej := requireObservedAfterDispatch(observed, q); rej != nil {
+			return rej
+		}
+	}
+	return nil
+}
+
+// requireObservedAfterDispatch enforces that the observation postdates the
+// action. Evidence gathered before the action cannot show the action worked, and
+// a missing dispatch time makes the comparison unanswerable — which is a
+// rejection, not a pass.
+func requireObservedAfterDispatch(observed time.Time, q SatisfactionQuery) *RejectedEvidence {
+	if q.ActionDispatchedAt.IsZero() {
+		return &RejectedEvidence{Reason: RejectNotBoundToAction,
+			Detail: "rule requires evidence newer than the action, but ActionDispatchedAt was not supplied"}
+	}
+	if !observed.After(q.ActionDispatchedAt) {
+		return &RejectedEvidence{Reason: RejectNotBoundToAction,
+			Detail: fmt.Sprintf("observed_at %s predates action dispatch %s", observed, q.ActionDispatchedAt)}
 	}
 	return nil
 }
