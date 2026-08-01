@@ -902,6 +902,27 @@ message CheckActionRequest {
     // it never runs a probe.
     repeated string provided_evidence_refs = 8;
     string          human_approval         = 9; // approver, satisfies needs_human_approval
+    // The concrete subject and action this check is about. A domain qualifier
+    // needs it to tell evidence about THIS subject from evidence about another
+    // that happens to share a requirement. An empty field is a failure to
+    // qualify, never a wildcard.
+    ActionScope     action_scope           = 10;
+    // Injected clock, unix seconds. Zero means "now" — acceptable for a live
+    // gate, required by tests so a verdict does not depend on wall-clock timing.
+    int64           evaluated_at           = 11;
+}
+
+// ActionScope identifies what a governed check is about.
+message ActionScope {
+    string cluster_id    = 1;
+    string entity_ref    = 2;
+    string condition_ref = 3; // the invariant/condition the action addresses
+    string source_ref    = 4; // the originating finding
+    string action_ref    = 5; // the governed action, e.g. the workflow run id
+    // Set only for a POST-action check. A pre-action gate leaves it zero, and a
+    // rule requiring evidence newer than dispatch correctly cannot be satisfied
+    // at that point, because the action has not run.
+    int64  action_dispatched_at = 6;
 }
 message CheckActionResponse { ActionCheck result = 1; }
 

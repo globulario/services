@@ -39,6 +39,9 @@ import (
 type RejectionReason string
 
 const (
+	// Must equal domain.ReasonRequirementNotDeclared: the kernel reads this one
+	// code to decide whether caller self-assertion may still cover the
+	// requirement. Asserted by TestQualifyRequirement_NotDeclaredMatchesKernelContract.
 	RejectRequirementNotDeclared RejectionReason = "requirement_not_declared"
 	RejectClusterMismatch        RejectionReason = "cluster_mismatch"
 	RejectSubjectMismatch        RejectionReason = "subject_mismatch"

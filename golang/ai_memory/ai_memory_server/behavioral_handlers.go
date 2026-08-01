@@ -268,6 +268,11 @@ func (h *behavioralHandler) CheckAction(ctx context.Context, req *bpb.CheckActio
 		ActionType: req.GetActionType(), Target: req.GetTarget(),
 		CurrentConditions: toConditionRefs(req.GetCurrentConditions()), Scope: req.GetScope(), AgentID: req.GetAgentId(),
 		ProvidedEvidenceRefs: req.GetProvidedEvidenceRefs(), HumanApproval: req.GetHumanApproval(),
+		// The subject the check is about. Dropped here, a domain qualifier would
+		// receive an empty scope and — correctly, but uselessly — refuse
+		// everything, making a wiring bug look like a governance verdict.
+		ActionScope: pbToActionScope(req.GetActionScope()),
+		EvaluatedAt: req.GetEvaluatedAt(),
 	})
 	if err != nil {
 		return nil, behavioralErr("CheckAction", err)
@@ -403,6 +408,20 @@ func pbToClaim(c *bpb.Claim) api.Claim {
 		SourceID:      c.GetSourceId(),
 		Provenance:    api.Provenance{CreatedAt: c.GetCreatedAt(), UpdatedAt: c.GetUpdatedAt()},
 		Metadata:      c.GetMetadata(),
+	}
+}
+
+func pbToActionScope(s *bpb.ActionScope) api.ActionScope {
+	if s == nil {
+		return api.ActionScope{}
+	}
+	return api.ActionScope{
+		ClusterID:          s.GetClusterId(),
+		EntityRef:          s.GetEntityRef(),
+		ConditionRef:       s.GetConditionRef(),
+		SourceRef:          s.GetSourceRef(),
+		ActionRef:          s.GetActionRef(),
+		ActionDispatchedAt: s.GetActionDispatchedAt(),
 	}
 }
 
