@@ -3,6 +3,8 @@ package rules
 import (
 	"context"
 	"testing"
+
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // TestLookupPolicy_KnownInvariant — post Patch C Milestone 3,
@@ -59,21 +61,15 @@ func TestPolicyV1_NoDuplicateInvariants(t *testing.T) {
 
 // TestHealer_DryRun_NoMutations verifies the fundamental safety contract:
 // in dry-run mode, the Healer forwards DryRun=true to every Dispatch call
-// AND no Executed=true result lands in the report — regardless of how the
-// Dispatcher reports back. Post-M3 the Dispatcher does see one call (for
-// the re-enabled cache_digest_mismatch HealAuto rule), but with dryRun=true.
-//
-// The recording fake here returns (false, "", nil) for every Dispatch,
-// which mirrors the production gatedDispatcher behaviour when DryRun=true
-// flows through to ExecuteRemediation: no node-agent mutation, no
-// executed=true verdict.
+// AND no Executed=true result lands in the report.
 func TestHealer_DryRun_NoMutations(t *testing.T) {
 	dispatcher := &recordingDispatcher{}
 	healer := &Healer{DryRun: true, Dispatcher: dispatcher}
 	findings := []Finding{
 		{
-			InvariantID: "artifact.cache_digest_mismatch", // HealAuto (M3 re-enable)
-			EntityRef:   "node1/event",
+			InvariantID:     "artifact.cache_digest_mismatch", // HealAuto (M3 re-enable)
+			EntityRef:       "node1/event",
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		},
 		{
 			InvariantID: "artifact.installed_digest_mismatch", // HealPropose
@@ -122,14 +118,7 @@ func TestHealer_CacheMissing_NoOp(t *testing.T) {
 }
 
 // TestPolicy_ReleaseStuckResolved_IsPropose locks Patch B: the
-// release.stuck_resolved invariant must NOT be auto-executed. Its concrete
-// repair (patch_release_available) is a direct etcd write against the
-// ServiceRelease object, which the action executor hard-blocks for Path A
-// (executor.go hardBlocked()) — until Path B routes through the same gate,
-// the policy disposition is propose-only and the AutoAction field is empty.
-//
-// Regression guard: a future change that flips this rule back to HealAuto
-// without unifying the remediation path must fail this test.
+// release.stuck_resolved invariant must NOT be auto-executed.
 func TestPolicy_ReleaseStuckResolved_IsPropose(t *testing.T) {
 	r := LookupPolicy("release.stuck_resolved")
 	if r.Disposition != HealPropose {
@@ -142,8 +131,7 @@ func TestPolicy_ReleaseStuckResolved_IsPropose(t *testing.T) {
 
 // recordingDispatcher captures every Dispatch invocation so a test can
 // assert which auto-actions the healer attempted to route through the
-// gated path. Returning (false, "", nil) mirrors the production
-// gatedDispatcher's "no RemediationAction representation" branch.
+// gated path.
 type recordingDispatcher struct {
 	calls []dispatchCall
 }
@@ -167,11 +155,7 @@ func (r *recordingDispatcher) Dispatch(_ context.Context, f Finding, autoAction 
 
 // TestHealer_PatchReleaseAvailable_IsNotInvoked enforces Patch B's
 // invariant: release.stuck_resolved is HealPropose with no AutoAction, so
-// the healer never asks the Dispatcher to handle it. Combined with Patch
-// C Milestone 2 (delete_stale_cache, seed_ops_knowledge, and
-// workflow.drift_stuck also demoted to HealPropose), the Dispatcher
-// receives zero calls — the legacy direct-mutation path is closed and
-// no replacement auto-route is wired yet.
+// the healer never asks the Dispatcher to handle it.
 func TestHealer_PatchReleaseAvailable_IsNotInvoked(t *testing.T) {
 	dispatcher := &recordingDispatcher{}
 	healer := &Healer{
@@ -185,16 +169,14 @@ func TestHealer_PatchReleaseAvailable_IsNotInvoked(t *testing.T) {
 			EntityRef:   "core@globular.io/event",
 		},
 		{
-			FindingID:   "f-cache-digest",
-			InvariantID: "artifact.cache_digest_mismatch",
-			EntityRef:   "eb9a2dac-05b0-52ac-9002-99d8ffd35902/event",
+			FindingID:       "f-cache-digest",
+			InvariantID:     "artifact.cache_digest_mismatch",
+			EntityRef:       "eb9a2dac-05b0-52ac-9002-99d8ffd35902/event",
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		},
 	}
 	report := healer.Evaluate(context.Background(), findings)
 
-	// Filter for any patch_release_available dispatch (defence in depth —
-	// even if the auto-action surface grew, this specific action class
-	// must never reach the Dispatcher through release.stuck_resolved).
 	for _, c := range dispatcher.calls {
 		if c.AutoAction == "patch_release_available" {
 			t.Fatalf("patch_release_available must NOT be dispatched (Patch B); got %+v", c)
@@ -203,12 +185,13 @@ func TestHealer_PatchReleaseAvailable_IsNotInvoked(t *testing.T) {
 			t.Fatalf("release.stuck_resolved must NOT reach the Dispatcher (HealPropose only); got %+v", c)
 		}
 	}
-	// Both findings are demoted to HealPropose in Milestones 1+2, so
-	// Proposed=2 and AutoFixed=0.
+	// release.stuck_resolved is proposed by policy. The conclusive cache failure
+	// reaches the dispatcher, whose recording fake returns executed=false, so it
+	// is also represented as a proposal.
 	if report.Proposed != 2 {
-		t.Fatalf("expected 2 proposed (release.stuck_resolved + cache_digest_mismatch), got Proposed=%d", report.Proposed)
+		t.Fatalf("expected 2 proposed (release.stuck_resolved + gated cache action), got Proposed=%d", report.Proposed)
 	}
 	if report.AutoFixed != 0 {
-		t.Fatalf("expected 0 auto-fixed (no HealAuto with AutoAction remains), got AutoFixed=%d", report.AutoFixed)
+		t.Fatalf("expected 0 auto-fixed (dispatcher returned executed=false), got AutoFixed=%d", report.AutoFixed)
 	}
 }
