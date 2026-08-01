@@ -72,14 +72,15 @@ func inferEvidenceSource(service, rpc string) evidence.Source {
 // returns the worst trust level across all entries. A finding with no
 // evidence is Untrusted (silence is not freshness).
 //
-// Reduced-harvest closure is part of the same central trust decision used by
-// both operator-driven ExecuteRemediation and background healer dispatch. A
-// finding downgraded to UNKNOWN because its own source failed is untrusted for
-// privileged execution, even when some surviving evidence rows are recent.
-// Dry-run requests remain inspectable because ExecuteRemediation intentionally
-// allows dry-runs through the trust refusal.
+// Verdict closure is part of the same central trust decision used by both
+// operator-driven ExecuteRemediation and background healer dispatch. Only a
+// conclusive FAIL with no CheckError can authorize privileged execution, even
+// when every individual evidence row is recent. Under reduced harvest the
+// registry preserves such a FAIL only when the missing collectors are
+// unrelated to the finding. Dry-run requests remain inspectable because
+// ExecuteRemediation intentionally allows dry-runs through the trust refusal.
 func findingEvidenceTrust(f rules.Finding, now time.Time) evidence.TrustLevel {
-	if eligible, _ := rules.ReducedHarvestEvidenceClosure(f); !eligible {
+	if eligible, _ := rules.RemediationEvidenceClosure(f); !eligible {
 		return evidence.TrustUntrusted
 	}
 	if len(f.Evidence) == 0 {
