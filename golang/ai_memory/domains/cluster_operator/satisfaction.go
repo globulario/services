@@ -432,3 +432,59 @@ func sortEvidence(evs []api.Evidence) {
 		return evs[i].ID < evs[j].ID
 	})
 }
+
+// ── producer-side binding ───────────────────────────────────────────────────
+
+// BindSatisfies stamps an evidence row with the requirement IDs the catalog says
+// its shape can satisfy. Producers call this BEFORE persistence, so the
+// satisfaction index is fed from the same declaration the qualifier later reads.
+//
+// Without it the index holds nothing for a requirement and the evidence is not
+// rejected — it is never a CANDIDATE. That distinction matters: a governor
+// looking at an unfed index reports "no evidence" for evidence that plainly
+// exists, and sends an operator to gather what is already there.
+//
+// Deliberately narrow:
+//
+//   - Deterministic. Matching is exact on kind and source; nothing is inferred
+//     from similarity, prefixes, descriptions or tags.
+//   - Idempotent. Applying it twice cannot duplicate a binding, so a producer
+//     that maps defensively and a caller that maps again stay consistent.
+//   - Silent on unknown shapes. Evidence no rule describes stays recordable and
+//     unqualified rather than receiving an invented binding — an unknown shape
+//     that acquired a requirement ID would be worse than one carrying none.
+//   - Additive only. Existing bindings are preserved; this never removes a
+//     requirement another producer or a migration set deliberately.
+//
+// It does NOT reinterpret stored evidence. Historical rows without bindings stay
+// historical and unqualified until an explicit migration decides otherwise.
+func BindSatisfies(e *api.Evidence) {
+	if e == nil {
+		return
+	}
+	have := make(map[string]bool, len(e.Satisfies))
+	for _, r := range e.Satisfies {
+		have[string(r)] = true
+	}
+
+	var added []string
+	for _, rule := range satisfactionCatalog {
+		if rule.EvidenceKind != "" && e.Kind != rule.EvidenceKind {
+			continue
+		}
+		if rule.SourceKind != "" && e.SourceKind != rule.SourceKind {
+			continue
+		}
+		if have[rule.RequirementID] {
+			continue
+		}
+		have[rule.RequirementID] = true
+		added = append(added, rule.RequirementID)
+	}
+	// Sorted so the emitted set never depends on catalog iteration order — the
+	// stored row and its index entries must be reproducible.
+	sort.Strings(added)
+	for _, ref := range added {
+		e.Satisfies = append(e.Satisfies, api.RequiredEvidenceRef(ref))
+	}
+}
