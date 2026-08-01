@@ -17,16 +17,19 @@ The invariant registry already implements the more precise rule:
 
 The healer discarded that precision by applying a second cluster-wide veto.
 
+A second gap existed in the shared execution path: a full-harvest `INVARIANT_UNKNOWN` finding could still have fresh individual evidence rows. Freshness alone must never convert an indeterminate verdict into mutation authority.
+
 ## Bounded implementation
 
-This PR removes only that redundant global veto and makes the existing registry verdict authoritative for dispatch eligibility:
+This PR removes the redundant global veto and makes one universal remediation verdict closure authoritative across background and operator-driven execution:
 
 1. `DataIncomplete` remains operator-visible diagnostic truth.
 2. `enforce`, `dry_run`, and `observe` retain their configured meaning during reduced harvest.
-3. A reduced-harvest auto-action may execute only when its finding remains `INVARIANT_FAIL` with no `CheckError`.
-4. A reduced-harvest finding downgraded to `INVARIANT_UNKNOWN` is refused before mutation.
-5. The same closure participates in the shared evidence-trust gate, so direct and background non-dry-run execution have parity.
-6. Dry-runs still traverse the central gate for rehearsal and audit.
+3. Non-dry-run remediation requires `INVARIANT_FAIL` and an empty `CheckError`, regardless of harvest mode.
+4. A finding downgraded to `INVARIANT_UNKNOWN` is refused before mutation.
+5. `PASS`, `PENDING`, and full-harvest `UNKNOWN` findings are also diagnostic states, never execution authority.
+6. The closure participates in the shared evidence-trust gate, so direct and background non-dry-run execution have parity.
+7. Dry-runs still traverse the central gate for rehearsal and audit.
 
 ## Target scope for systemd findings
 
@@ -46,6 +49,7 @@ The existing provenance classifier recognizes instance-qualified node-agent writ
 This change does not act on arbitrary partial data. It preserves all existing protections:
 
 - registry reduced-harvest downgrade
+- universal conclusive-failure verdict closure
 - evidence provenance and freshness
 - single gated remediation path
 - behavioral-governance decision
@@ -62,6 +66,8 @@ A future generic evidence-requirement declaration may be useful for actions depe
 - another node's `GetInventory` failure does not veto the target node
 - the target node's `GetInventory` failure downgrades the finding to `UNKNOWN`
 - compromised reduced-harvest findings do not dispatch for execution
+- full-harvest `UNKNOWN` findings do not dispatch for execution
+- a nominal `FAIL` carrying `CheckError` does not dispatch for execution
 - compromised findings may still traverse dry-run rehearsal
 - instance-qualified node-agent evidence retains normal trust classification
-- the shared trust gate rejects failed reduced-harvest closure for direct execution
+- the shared trust gate enforces the same verdict closure for direct execution
