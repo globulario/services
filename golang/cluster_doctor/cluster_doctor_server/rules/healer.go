@@ -11,6 +11,8 @@ import (
 	"context"
 	"log"
 	"time"
+
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -28,12 +30,6 @@ import (
 // of a healer cycle, not of a single dispatch). MaxActions caps how many
 // dispatches fire per Evaluate call; MaxFailures stops execution after that
 // many Dispatcher errors.
-//
-// Today's PolicyV1 demotes every HealAuto rule with a non-empty AutoAction
-// (delete_stale_cache, seed_ops_knowledge, clear_resolved_drift,
-// patch_release_available) to HealPropose. The Dispatcher hook is still
-// wired so Milestone 3 can re-promote one rule by changing the policy file
-// alone — no infrastructure work needed.
 // ──────────────────────────────────────────────────────────────────────────────
 
 // HealResult records the outcome of one classification (and, for HealAuto
@@ -109,6 +105,35 @@ type Healer struct {
 	PolicyLookup func(invariantID string) HealRule
 }
 
+// reducedHarvestEvidenceClosure verifies the registry's finding-scoped harvest
+// verdict before an auto-action is dispatched. applyReducedHarvestPolicy adds
+// cluster_doctor/reduced_harvest evidence to every finding produced from an
+// incomplete snapshot. It preserves a conclusive FAIL when only unrelated
+// collectors failed, and downgrades the finding to UNKNOWN with CheckError when
+// the finding's own evidence source failed.
+//
+// Complete-harvest findings are unchanged here and continue through the normal
+// ExecuteRemediation evidence-trust and governance gates.
+func reducedHarvestEvidenceClosure(f Finding) (bool, string) {
+	reducedHarvest := false
+	for _, ev := range f.Evidence {
+		if ev != nil && ev.GetSourceService() == "cluster_doctor" && ev.GetSourceRpc() == "reduced_harvest" {
+			reducedHarvest = true
+			break
+		}
+	}
+	if !reducedHarvest {
+		return true, ""
+	}
+	if f.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
+		return false, "reduced-harvest evidence closure refused: invariant_status=" + f.InvariantStatus.String()
+	}
+	if f.CheckError != "" {
+		return false, "reduced-harvest evidence closure refused: " + f.CheckError
+	}
+	return true, ""
+}
+
 // Evaluate classifies findings against PolicyV1 and routes HealAuto
 // proposals through the Dispatcher.
 //
@@ -144,6 +169,15 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 				// auto-verified.
 				result.Verified = true
 				report.Observed++
+			} else if eligible, reason := reducedHarvestEvidenceClosure(f); !eligible {
+				// Finding-scoped fail-closed behavior. An unrelated collector
+				// failure does not veto this action, but a finding downgraded by
+				// the registry because its own evidence failed never reaches the
+				// dispatcher.
+				result.Error = reason
+				report.Observed++
+				log.Printf("healer: [evidence-closure] HealAuto finding %s on %s refused: %s",
+					f.InvariantID, f.EntityRef, reason)
 			} else if h.Dispatcher == nil {
 				// Fail-closed: no dispatcher means the gated path isn't
 				// wired. The healer never mutates directly.
