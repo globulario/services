@@ -171,7 +171,19 @@ func repoClient() (*repository_client.Repository_Service_Client, error) {
 	if addr == "" {
 		return nil, fmt.Errorf("repository service not found (checked etcd and mesh)")
 	}
-	return repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")
+	client, err := repository_client.NewRepositoryService_Client(addr, "repository.PackageRepository")
+	if err != nil {
+		return nil, err
+	}
+	// Attach the operator's token when one was supplied. Without this the client
+	// falls back to GetClientContext, which mints a *service* token from the node
+	// signing key — unreadable by an ordinary user, so every upstream RPC went out
+	// unauthenticated and failed with Unauthenticated. Same pattern as
+	// repo_scan_cmds.go / pkg_cmds.go.
+	if token := rootCfg.token; token != "" {
+		client.SetToken(token)
+	}
+	return client, nil
 }
 
 func runRepoRegisterUpstream(cmd *cobra.Command, args []string) error {
