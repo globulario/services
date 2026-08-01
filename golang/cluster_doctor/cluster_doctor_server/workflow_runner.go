@@ -8,6 +8,7 @@ import (
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
@@ -188,6 +189,15 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				FindingStillPresent: stillPresent,
 				RemainingRelated:    0,
 			}, nil
+		},
+
+		// Close the learning loop. The doctor observed the finding, the workflow
+		// acted, and this records whether the action worked. Supplied here
+		// rather than inside the engine so the workflow engine stays free of
+		// behavioral-memory types and this service keeps ownership of what it
+		// records — it already owns the bounded recorder for the finding path.
+		ObserveOutcome: func(_ context.Context, o remediation.Outcome) {
+			s.emitBehavioralRemediationOutcome(o)
 		},
 
 		MarkFailed: func(ctx context.Context, findingID string) error {

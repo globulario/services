@@ -1318,8 +1318,13 @@ type Evidence struct {
 	ConditionRef   string                    `protobuf:"bytes,21,opt,name=condition_ref,json=conditionRef,proto3" json:"condition_ref,omitempty"` // condition implicated by the observation, if known
 	Severity       string                    `protobuf:"bytes,22,opt,name=severity,proto3" json:"severity,omitempty"`                             // info|warning|error|critical|...
 	AuthorityLevel ObservationAuthorityLevel `protobuf:"varint,23,opt,name=authority_level,json=authorityLevel,proto3,enum=behavioral_memory.ObservationAuthorityLevel" json:"authority_level,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// → bm:verifies: the governed action (workflow run) this evidence is bound
+	// to. First-class, like the relations above, and for the same reason: a
+	// satisfaction rule may REQUIRE the binding, and anything carried only in
+	// metadata is dropped by the satisfaction index projection.
+	ActionRef     string `protobuf:"bytes,24,opt,name=action_ref,json=actionRef,proto3" json:"action_ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Evidence) Reset() {
@@ -1511,6 +1516,13 @@ func (x *Evidence) GetAuthorityLevel() ObservationAuthorityLevel {
 		return x.AuthorityLevel
 	}
 	return ObservationAuthorityLevel_OBSERVATION_AUTHORITY_LEVEL_UNSPECIFIED
+}
+
+func (x *Evidence) GetActionRef() string {
+	if x != nil {
+		return x.ActionRef
+	}
+	return ""
 }
 
 // Authority identifies the owner of a runtime truth (catalog entry).
@@ -6121,7 +6133,7 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"\bmetadata\x18\x0f \x03(\v2&.behavioral_memory.Claim.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf4\x06\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x93\a\n" +
 	"\bEvidence\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x16\n" +
@@ -6155,7 +6167,9 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"cluster_id\x18\x14 \x01(\tR\tclusterId\x12#\n" +
 	"\rcondition_ref\x18\x15 \x01(\tR\fconditionRef\x12\x1a\n" +
 	"\bseverity\x18\x16 \x01(\tR\bseverity\x12U\n" +
-	"\x0fauthority_level\x18\x17 \x01(\x0e2,.behavioral_memory.ObservationAuthorityLevelR\x0eauthorityLevel\x1a;\n" +
+	"\x0fauthority_level\x18\x17 \x01(\x0e2,.behavioral_memory.ObservationAuthorityLevelR\x0eauthorityLevel\x12\x1d\n" +
+	"\n" +
+	"action_ref\x18\x18 \x01(\tR\tactionRef\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe6\x03\n" +

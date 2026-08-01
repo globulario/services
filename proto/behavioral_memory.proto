@@ -495,6 +495,11 @@ message Evidence {
     string              condition_ref = 21; // condition implicated by the observation, if known
     string              severity      = 22; // info|warning|error|critical|...
     ObservationAuthorityLevel authority_level = 23;
+    // → bm:verifies: the governed action (workflow run) this evidence is bound
+    // to. First-class, like the relations above, and for the same reason: a
+    // satisfaction rule may REQUIRE the binding, and anything carried only in
+    // metadata is dropped by the satisfaction index projection.
+    string              action_ref    = 24;
 }
 
 // Authority identifies the owner of a runtime truth (catalog entry).

@@ -158,11 +158,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			continue
 		}
 		batch.Query(`INSERT INTO behavioral_memory.evidence_by_satisfaction
-(project, domain, required_evidence_ref, cluster_id, observed_at, id, condition_ref, entity_ref, target_kind, evidence_kind, lane, result, source_kind, authority_level, action_ref, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+(project, domain, required_evidence_ref, cluster_id, observed_at, id, condition_ref, entity_ref, target_kind, evidence_kind, lane, result, source_kind, authority_level, action_ref, source_ref, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			e.Project, string(e.Domain), ref, e.ClusterID, e.ObservedAt, e.ID,
 			e.ConditionRef, e.EntityRef, e.TargetKind, e.Kind, string(e.Lane), e.Result,
-			e.SourceKind, string(e.AuthorityLevel), e.ActionRef, e.Provenance.CreatedAt,
+			e.SourceKind, string(e.AuthorityLevel), e.ActionRef, e.SourceRef, e.Provenance.CreatedAt,
 		)
 	}
 	if err := s.session.ExecuteBatch(batch); err != nil {
@@ -186,7 +186,7 @@ func (s *ScyllaStore) ListEvidenceSatisfying(ctx context.Context, q EvidenceSati
 
 	// observed_at leads the clustering key, so the age bound is served by the
 	// range read itself rather than by discarding rows after the fact.
-	cql := `SELECT id, observed_at, condition_ref, entity_ref, target_kind, evidence_kind, lane, result, source_kind, authority_level, action_ref, created_at
+	cql := `SELECT id, observed_at, condition_ref, entity_ref, target_kind, evidence_kind, lane, result, source_kind, authority_level, action_ref, source_ref, created_at
 FROM behavioral_memory.evidence_by_satisfaction
 WHERE project = ? AND domain = ? AND required_evidence_ref = ? AND cluster_id = ?`
 	args := []interface{}{q.Project, q.Domain, q.RequiredEvidenceRef, q.ClusterID}
@@ -200,10 +200,11 @@ WHERE project = ? AND domain = ? AND required_evidence_ref = ? AND cluster_id = 
 	iter := s.session.Query(cql, args...).WithContext(ctx).Iter()
 	var out []api.Evidence
 	var (
-		id, conditionRef, entityRef, targetKind, kind, lane, result, sourceKind, authority, actionRef string
-		observedAt, createdAt                                                                         int64
+		id, conditionRef, entityRef, targetKind, kind, lane, result, sourceKind, authority string
+		actionRef, sourceRef                                                               string
+		observedAt, createdAt                                                              int64
 	)
-	for iter.Scan(&id, &observedAt, &conditionRef, &entityRef, &targetKind, &kind, &lane, &result, &sourceKind, &authority, &actionRef, &createdAt) {
+	for iter.Scan(&id, &observedAt, &conditionRef, &entityRef, &targetKind, &kind, &lane, &result, &sourceKind, &authority, &actionRef, &sourceRef, &createdAt) {
 		// Condition and entity are narrowed here rather than in the clustering
 		// key: promoting them would force every caller to supply both or fall
 		// back to ALLOW FILTERING. The partition is already scoped to one
@@ -229,10 +230,11 @@ WHERE project = ? AND domain = ? AND required_evidence_ref = ? AND cluster_id = 
 			ConditionRef:   conditionRef,
 			AuthorityLevel: api.ObservationAuthorityLevel(authority),
 			Satisfies:      []api.RequiredEvidenceRef{api.RequiredEvidenceRef(q.RequiredEvidenceRef)},
-			// The governed action this evidence is bound to. Projected here
-			// because a satisfaction rule may require the binding, and this
-			// projection is all a governance lookup ever sees.
+			// The governed action this evidence is bound to, and the finding it
+			// is about. Projected here because a satisfaction rule may require
+			// either, and this projection is all a governance lookup ever sees.
 			ActionRef:  actionRef,
+			SourceRef:  sourceRef,
 			Provenance: api.Provenance{CreatedAt: createdAt},
 		})
 	}

@@ -130,6 +130,9 @@ func remQuery(project, domain, cluster string, mut ...func(*cluster_operator.Sat
 	q := cluster_operator.SatisfactionQuery{
 		Project: project, Domain: api.DomainRef(domain), ClusterID: cluster,
 		RequirementID: remReq, EntityRef: remEntity, ConditionRef: remInvar,
+		// 4D: the rule now requires finding lineage, so the query must name the
+		// finding it is asking about.
+		SourceRef:     remFind,
 		WorkflowRunID: remRun, ActionDispatchedAt: remDispatchAt,
 		EvaluatedAt: remEvalAt,
 	}
@@ -251,6 +254,9 @@ func TestScyllaRemediation_ParityWithMemoryStore(t *testing.T) {
 			res, err := cluster_operator.QualifyEvidence(ctx, s, remQuery(p, d, c))
 			if err != nil {
 				t.Fatalf("err=%v", err)
+			}
+			if len(res.Qualified) == 0 {
+				t.Fatalf("nothing qualified; rejected=%+v", res.Rejected)
 			}
 			if res.Qualified[0].Result != observation.ResultFindingResolved {
 				t.Fatalf("qualified on result %q, want %q", res.Qualified[0].Result, observation.ResultFindingResolved)

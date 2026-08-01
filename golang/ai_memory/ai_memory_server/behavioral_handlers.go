@@ -433,6 +433,11 @@ func pbToEvidence(e *bpb.Evidence) api.Evidence {
 		Satisfies:      toRequiredEvidenceRefs(e.GetSatisfies()),
 		Provenance:     api.Provenance{SourceRef: e.GetProvenance(), CreatedAt: e.GetCreatedAt()},
 		Metadata:       e.GetMetadata(),
+		// The action binding must survive the wire in BOTH directions: the
+		// server writes the satisfaction index from this struct, so a dropped
+		// ActionRef here persists evidence that no action-bound rule can ever
+		// qualify.
+		ActionRef: e.GetActionRef(),
 	}
 }
 

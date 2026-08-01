@@ -108,6 +108,15 @@ const (
 	// entity to match. A verification for one service instance must not satisfy
 	// a requirement about another merely because they share an invariant.
 	SubjectInvariantAndEntity SubjectMatch = "same_invariant_and_entity"
+	// SubjectFindingLineage additionally requires the evidence to name the same
+	// originating finding (SourceRef).
+	//
+	// Invariant plus entity is not the same claim as "this finding". One entity
+	// can raise the same invariant repeatedly, and a verification of an earlier
+	// occurrence must not stand in for a later one. Checking it HERE rather than
+	// trusting the producer matters because a governor must be able to reject a
+	// row it did not write.
+	SubjectFindingLineage SubjectMatch = "same_invariant_entity_and_finding"
 )
 
 // ── catalog ─────────────────────────────────────────────────────────────────
@@ -199,8 +208,10 @@ var satisfactionCatalog = []SatisfactionRule{
 		EvidenceKind: "remediation_verification_evidence", // observation.KindRemediationVerification
 		SourceKind:   "doctor_remediation_workflow",       // observation.SourceKindDoctorRemediationWorkflow
 		// A verification for one subject must not satisfy a requirement about
-		// another merely because they share an invariant or a cluster.
-		SubjectMatch: SubjectInvariantAndEntity,
+		// another merely because they share an invariant or a cluster — nor may
+		// a verification of an EARLIER occurrence of the same invariant on the
+		// same entity stand in for the finding actually being governed.
+		SubjectMatch: SubjectFindingLineage,
 		// Computed by a post-action doctor sweep over collected cluster state.
 		// Not TRUTH_PLANE: the doctor interprets collected state, it does not
 		// own it. Not DIAGNOSTIC_CLAIM either — that is what the executor's
@@ -225,14 +236,10 @@ var satisfactionCatalog = []SatisfactionRule{
 		MaxAge: 15 * time.Minute,
 	},
 
-	// REMAINING GAP — finding-id lineage is producer-guaranteed, not
-	// qualifier-verified. The satisfaction index projects a fixed column set
-	// (cluster, entity, condition, kind, source, result, authority, action_ref,
-	// observed_at); source_ref is not among them, so a rule cannot re-check the
-	// finding id at qualification time. The producer refuses to emit the
-	// qualifying kind for an outcome missing it, which covers evidence this
-	// pipeline writes — but not a row some other writer could place directly in
-	// the index. Closing it means promoting source_ref into the projection.
+	// GAP CLOSED (commit 4D): finding lineage used to be producer-guaranteed
+	// only, because source_ref was absent from the index projection. It is now
+	// projected and required by SubjectFindingLineage, so a row this pipeline
+	// did not write is checked on the same terms as one it did.
 }
 
 // ── query and result ────────────────────────────────────────────────────────
@@ -246,6 +253,8 @@ type SatisfactionQuery struct {
 	// Subject narrows to the governed thing.
 	EntityRef    string
 	ConditionRef string
+	// SourceRef is the originating finding. Required by SubjectFindingLineage.
+	SourceRef string
 
 	// WorkflowRunID and ActionDispatchedAt bind evidence to THIS operation.
 	// Required by the binding freshness policies.
@@ -378,13 +387,23 @@ func evaluate(rule SatisfactionRule, ev api.Evidence, q SatisfactionQuery) *Reje
 				Detail: fmt.Sprintf("entity: want %q got %q", q.EntityRef, ev.EntityRef)}
 		}
 	case SubjectInvariantAndEntity:
-		if q.EntityRef == "" || ev.EntityRef != q.EntityRef {
-			return &RejectedEvidence{Reason: RejectSubjectMismatch,
-				Detail: fmt.Sprintf("entity: want %q got %q", q.EntityRef, ev.EntityRef)}
+		if rej := matchInvariantAndEntity(ev, q); rej != nil {
+			return rej
 		}
-		if q.ConditionRef == "" || ev.ConditionRef != q.ConditionRef {
+	case SubjectFindingLineage:
+		if rej := matchInvariantAndEntity(ev, q); rej != nil {
+			return rej
+		}
+		// Mandatory: a query that names no finding cannot be answered by
+		// evidence about one, and failing open here would let a verification of
+		// an earlier occurrence of the same invariant satisfy a later one.
+		if q.SourceRef == "" {
 			return &RejectedEvidence{Reason: RejectSubjectMismatch,
-				Detail: fmt.Sprintf("condition: want %q got %q", q.ConditionRef, ev.ConditionRef)}
+				Detail: "rule requires finding lineage, but the query supplied no source_ref"}
+		}
+		if ev.SourceRef != q.SourceRef {
+			return &RejectedEvidence{Reason: RejectSubjectMismatch,
+				Detail: fmt.Sprintf("finding: want %q got %q", q.SourceRef, ev.SourceRef)}
 		}
 	case SubjectCluster:
 		// cluster already checked above
@@ -473,6 +492,20 @@ func evaluateFreshness(rule SatisfactionRule, ev api.Evidence, q SatisfactionQue
 		if rej := requireObservedAfterDispatch(observed, q); rej != nil {
 			return rej
 		}
+	}
+	return nil
+}
+
+// matchInvariantAndEntity is the shared subject check. Both refs are mandatory
+// on the query side: an unspecified subject must not widen the match.
+func matchInvariantAndEntity(ev api.Evidence, q SatisfactionQuery) *RejectedEvidence {
+	if q.EntityRef == "" || ev.EntityRef != q.EntityRef {
+		return &RejectedEvidence{Reason: RejectSubjectMismatch,
+			Detail: fmt.Sprintf("entity: want %q got %q", q.EntityRef, ev.EntityRef)}
+	}
+	if q.ConditionRef == "" || ev.ConditionRef != q.ConditionRef {
+		return &RejectedEvidence{Reason: RejectSubjectMismatch,
+			Detail: fmt.Sprintf("condition: want %q got %q", q.ConditionRef, ev.ConditionRef)}
 	}
 	return nil
 }

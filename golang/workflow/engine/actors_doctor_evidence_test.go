@@ -76,6 +76,7 @@ func evQuery(mut ...func(*cluster_operator.SatisfactionQuery)) cluster_operator.
 		RequirementID:      evReq,
 		EntityRef:          lnEntity,
 		ConditionRef:       lnInvar,
+		SourceRef:          lnFinding,
 		WorkflowRunID:      lnRun,
 		ActionDispatchedAt: lnDispatchAt,
 		EvaluatedAt:        evEvalAt,
@@ -290,6 +291,11 @@ func TestEvidence_MutationMatrix(t *testing.T) {
 			wantReason: cluster_operator.RejectSubjectMismatch},
 		{field: "workflow_run", outcome: func(o *remediation.Outcome) { o.WorkflowRunID = "run-other" },
 			wantReason: cluster_operator.RejectNotBoundToAction},
+		// Persisted finding reference, as opposed to the eligibility case below:
+		// a verification of a DIFFERENT finding — same cluster, entity,
+		// invariant, run and recency — must not stand in for this one.
+		{field: "finding_reference", post: func(e *api.Evidence) { e.SourceRef = "finding-earlier" },
+			wantReason: cluster_operator.RejectSubjectMismatch},
 
 		// Eligibility failures: no finding id, or an impossible dispatch/verify
 		// ordering, leave the outcome unattributable.

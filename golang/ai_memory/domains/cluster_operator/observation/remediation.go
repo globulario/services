@@ -88,10 +88,16 @@ func FromRemediationOutcome(project string, domain api.DomainRef, o remediation.
 	// excluded on purpose: it is stable for a given outcome, and including it
 	// would let a re-record with a re-stamped clock create a second index row
 	// under a second observed_at for the same fact.
-	id := "evidence.remediation." + stableID(
+	//
+	// This is what makes replay safe. A workflow that is resumed, retried, or
+	// re-reported produces the same identity, so both the evidence row and its
+	// satisfaction-index row are upserts, not additions.
+	key := stableID(
 		project, string(domain), o.ClusterID, o.WorkflowRunID,
 		o.FindingID, o.InvariantID, o.EntityRef,
 	)
+	id := "evidence.remediation." + key
+	signalID := "signal.remediation." + key
 
 	meta := map[string]string{
 		"finding_id":         o.FindingID,
@@ -119,16 +125,43 @@ func FromRemediationOutcome(project string, domain api.DomainRef, o remediation.
 		meta["not_qualifying_reason"] = nonQualifyingReason(o)
 	}
 
+	// The Signal is the observation ("this remediation was verified against this
+	// subject"); the Evidence supports it. Both are required: the bounded
+	// recorder rejects a bundle without a Signal, and its delivery path uses the
+	// recorded signal id as the evidence target. An evidence-only bundle would
+	// be silently dropped at Enqueue as malformed.
+	sig := api.Signal{
+		ID:             signalID,
+		Project:        project,
+		Domain:         domain,
+		Kind:           api.SignalAutomatedHealth,
+		SourceKind:     SourceKindDoctorRemediationWorkflow,
+		SourceRef:      o.FindingID,
+		EntityRef:      o.EntityRef,
+		Scope:          o.ClusterID,
+		ClusterID:      o.ClusterID,
+		ConditionRef:   o.InvariantID,
+		Severity:       outcomeSeverity(o),
+		AuthorityLevel: api.ObservationAuthorityDerived,
+		ObservedAt:     observedAt(o),
+		Payload:        o.Reason(),
+		Status:         api.StatusRawSignal,
+		Metadata:       meta,
+	}
+
 	return Bundle{
+		Signal: sig,
 		Evidence: []api.Evidence{{
 			ID:      id,
 			Project: project,
 			Domain:  domain,
-			// TargetKind/TargetID are deliberately empty. Behavioral Signals and
-			// Claims for remediation outcomes do not exist yet, and pointing at
-			// an id nothing resolves would be worse than pointing at nothing:
-			// the evidence_by_target index would gain a dangling row that reads
-			// as a real relation.
+			// Bound to the signal above. The recorder overwrites these with the
+			// id the server actually assigned, so setting them keeps the
+			// in-process bundle self-consistent for callers that persist
+			// directly to a store without going through the recorder.
+			TargetKind:     "signal",
+			TargetID:       signalID,
+			ObservedFrom:   signalID,
 			Kind:           kind,
 			Lane:           api.LaneRuntimeRequired,
 			Result:         result,

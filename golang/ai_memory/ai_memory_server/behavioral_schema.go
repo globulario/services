@@ -158,10 +158,11 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.evidence_by_target (
 //     clustering columns would force every caller to supply them or fall back to
 //     ALLOW FILTERING; the partition is already narrow, so filtering after the
 //     range read is both cheaper and honest about the query shape.
-//   - action_ref is denormalized here because a satisfaction rule may require
-//     evidence bound to a specific governed action. This table's projection is
-//     the ONLY thing a governance lookup reads — metadata is not carried — so a
-//     binding that lives anywhere else is enforceable in memory and silently
+//   - action_ref and source_ref are denormalized here because a satisfaction
+//     rule may require evidence bound to a specific governed action and to the
+//     specific finding that occasioned it. This table's projection is the ONLY
+//     thing a governance lookup reads — metadata is not carried — so a binding
+//     that lives anywhere else is enforceable in memory and silently
 //     unenforceable against Scylla.
 //
 // Rows are written by PutEvidence, one per entry in the evidence's satisfies
@@ -183,6 +184,7 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.evidence_by_satisfaction (
     source_kind           text,
     authority_level       text,
     action_ref            text,
+    source_ref            text,
     created_at            bigint,
     PRIMARY KEY ((project, domain, required_evidence_ref, cluster_id), observed_at, id)
 ) WITH CLUSTERING ORDER BY (observed_at DESC, id ASC)`
@@ -428,6 +430,13 @@ const (
 	// gap, not a governance fact.
 	alterEvidenceAddActionRef               = `ALTER TABLE behavioral_memory.evidence ADD action_ref text`
 	alterEvidenceBySatisfactionAddActionRef = `ALTER TABLE behavioral_memory.evidence_by_satisfaction ADD action_ref text`
+
+	// 4D added source_ref to the satisfaction index — the finding a piece of
+	// verification evidence is about. It already existed on the evidence table;
+	// what was missing is the INDEX projection, which is all a governance lookup
+	// reads. Without it a rule could not re-check finding lineage at
+	// qualification time and had to trust the producer.
+	alterEvidenceBySatisfactionAddSourceRef = `ALTER TABLE behavioral_memory.evidence_by_satisfaction ADD source_ref text`
 )
 
 // governance_coverage counts CheckAction verdicts that were governed (an
@@ -651,4 +660,6 @@ var behavioralSchemaStatements = []string{
 	// 4C backfill: action binding for post-action verification evidence.
 	alterEvidenceAddActionRef,
 	alterEvidenceBySatisfactionAddActionRef,
+	// 4D backfill: finding lineage in the satisfaction projection.
+	alterEvidenceBySatisfactionAddSourceRef,
 }

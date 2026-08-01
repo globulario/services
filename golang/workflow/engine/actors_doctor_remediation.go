@@ -126,6 +126,24 @@ type DoctorRemediationConfig struct {
 	// dispatched_at instead of a wall-clock approximation. Defaults to
 	// time.Now when nil.
 	Now func() time.Time
+
+	// ObserveOutcome receives every assembled remediation.Outcome — successful
+	// or not — so the owning service can record what the repair achieved.
+	//
+	// Deliberately shaped as a fire-and-forget sink over the CANONICAL Outcome:
+	//
+	//   - No error return. Learning is subordinate to remediation. A behavioral
+	//     persistence failure must not turn a verified repair into a failed
+	//     workflow step, which is exactly what an error here would do.
+	//   - Outcome, not evidence. The engine stays a workflow engine; it does not
+	//     import behavioral-memory types or decide what is worth recording.
+	//     Whoever supplies the hook owns that policy.
+	//   - Called for every outcome, including unsuccessful ones. Filtering here
+	//     would hide failed repairs from the learning path, and a system that
+	//     only remembers its successes learns the wrong lesson.
+	//
+	// Implementations MUST NOT block: this runs inside the verify step.
+	ObserveOutcome func(ctx context.Context, o remediation.Outcome)
 }
 
 func (c DoctorRemediationConfig) now() time.Time {
@@ -353,6 +371,14 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 		outcome := buildRemediationOutcome(req, findingID, v, cfg.now)
 		req.Outputs["remediation_outcome"] = outcomeAsMap(outcome)
 
+		// Offer the outcome for learning BEFORE the convergence branch below,
+		// so a remediation that did not converge is recorded too. Placing this
+		// after the early return would mean the behavioral record only ever
+		// contained successes.
+		if cfg.ObserveOutcome != nil {
+			cfg.ObserveOutcome(ctx, outcome)
+		}
+
 		if !v.Converged {
 			// "Verified but invariant present" — the workflow MUST NOT
 			// report success. Failing the step here propagates to the
@@ -369,8 +395,20 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 // generic step-output shape. Tests should assert against the canonical
 // Outcome methods (Status / IsSuccess / Reason); this map is for
 // out-of-process consumers (CLI, MCP).
+//
+// 4C-pre added subject identity and dispatch time to the Outcome but did not
+// surface them here, so the receipt described a verdict whose subject could not
+// be recovered by anyone reading the run. Per
+// docs/intent/workflow.step_receipts_are_evidence, a receipt must carry the
+// identity metadata needed to reconstruct what happened — a status without a
+// subject is not reconstructable.
+//
+// Key names are the ones the workflow already established (resolved_finding's
+// cluster_id/invariant_id/entity_ref, execution_result's dispatched_at). A
+// second name for a field that already has one would make two spellings of the
+// same fact, and out-of-process readers would have to know which to trust.
 func outcomeAsMap(o remediation.Outcome) map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"finding_id":       o.FindingID,
 		"workflow_run_id":  o.WorkflowRunID,
 		"dispatched":       o.Dispatched,
@@ -380,7 +418,37 @@ func outcomeAsMap(o remediation.Outcome) map[string]any {
 		"status":           string(o.Status()),
 		"reason":           o.Reason(),
 		"is_success":       o.IsSuccess(),
+
+		// Subject identity. entity_ref is its own key and is never folded into
+		// node_id: they coincide for node-scoped findings and diverge for
+		// service- and cluster-scoped ones.
+		"cluster_id":   o.ClusterID,
+		"invariant_id": o.InvariantID,
+		"entity_ref":   o.EntityRef,
+		"node_id":      o.NodeID,
+
+		"lineage_complete": o.LineageComplete(),
 	}
+	// Timestamps are RFC3339Nano, matching what the execute step stamps, and
+	// are OMITTED when zero rather than emitted as a zero-value date. A
+	// remediation that never dispatched has no dispatch time, and
+	// "0001-01-01T00:00:00Z" would read as one.
+	if !o.DispatchedAt.IsZero() {
+		m["dispatched_at"] = o.DispatchedAt.UTC().Format(time.RFC3339Nano)
+	}
+	if !o.VerifiedAt.IsZero() {
+		m["verified_at"] = o.VerifiedAt.UTC().Format(time.RFC3339Nano)
+	}
+	// Named defects, so a consumer can tell an unattributable success from a
+	// failed repair without re-deriving the rule.
+	if defects := o.LineageDefects(); len(defects) > 0 {
+		names := make([]string, 0, len(defects))
+		for _, d := range defects {
+			names = append(names, string(d))
+		}
+		m["lineage_defects"] = names
+	}
+	return m
 }
 
 // buildRemediationOutcome assembles the verdict from the verify step's
