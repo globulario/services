@@ -97,6 +97,59 @@ func TestHealerReducedHarvest_CompromisedFindingIsRefusedBeforeDispatch(t *testi
 	}
 }
 
+func TestHealerFullHarvest_UnknownFindingIsRefusedBeforeDispatch(t *testing.T) {
+	dispatcher := &evidenceClosureDispatcher{}
+	h := &Healer{
+		Dispatcher:   dispatcher,
+		PolicyLookup: autoPolicy,
+	}
+
+	report := h.Evaluate(context.Background(), []Finding{{
+		FindingID:       "finding-full-harvest-unknown",
+		InvariantID:     "node.systemd.units_running",
+		EntityRef:       "node-1/globular-torrent.service",
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_UNKNOWN,
+		Evidence: []*cluster_doctorpb.Evidence{{
+			SourceService: "node_agent@node-1",
+			SourceRpc:     "GetInventory",
+		}},
+	}})
+
+	if dispatcher.calls != 0 {
+		t.Fatalf("dispatcher calls = %d, want 0: UNKNOWN is diagnostic truth, never mutation authority", dispatcher.calls)
+	}
+	if len(report.Results) != 1 || !strings.Contains(report.Results[0].Error, "invariant_status=INVARIANT_UNKNOWN") {
+		t.Fatalf("result = %+v, want explicit UNKNOWN verdict refusal", report.Results)
+	}
+}
+
+func TestHealerFailWithCheckErrorIsRefusedBeforeDispatch(t *testing.T) {
+	dispatcher := &evidenceClosureDispatcher{}
+	h := &Healer{
+		Dispatcher:   dispatcher,
+		PolicyLookup: autoPolicy,
+	}
+
+	report := h.Evaluate(context.Background(), []Finding{{
+		FindingID:       "finding-fail-check-error",
+		InvariantID:     "node.systemd.units_running",
+		EntityRef:       "node-1/globular-torrent.service",
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		CheckError:      "inventory response was incomplete",
+		Evidence: []*cluster_doctorpb.Evidence{{
+			SourceService: "node_agent@node-1",
+			SourceRpc:     "GetInventory",
+		}},
+	}})
+
+	if dispatcher.calls != 0 {
+		t.Fatalf("dispatcher calls = %d, want 0: CheckError must override a nominal FAIL", dispatcher.calls)
+	}
+	if len(report.Results) != 1 || !strings.Contains(report.Results[0].Error, "inventory response was incomplete") {
+		t.Fatalf("result = %+v, want explicit CheckError refusal", report.Results)
+	}
+}
+
 func TestHealerReducedHarvest_CompromisedFindingDryRunReachesCentralGate(t *testing.T) {
 	dispatcher := &evidenceClosureDispatcher{}
 	h := &Healer{
