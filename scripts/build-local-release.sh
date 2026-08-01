@@ -865,6 +865,38 @@ cp -a "$DIST_DIR" "$OUT_DIR/globular-${VERSION}-linux-amd64"
 # Keep the sha256 file's path relative so `sha256sum -c` works from $OUT_DIR.
 ( cd "$OUT_DIR" && sha256sum "globular-${VERSION}-linux-amd64.tar.gz" > "globular-${VERSION}-linux-amd64.tar.gz.sha256" )
 
+# ── Platform floor gate ──────────────────────────────────────────────────────
+# Every shipped binary must run on the oldest OS docs/operators/building-from-source.md
+# advertises. This build compiles with the HOST toolchain, so the builder's glibc
+# silently becomes a runtime requirement: release 1.2.288 shipped file_server
+# needing GLIBC_2.38 while its other 54 binaries needed at most 2.34, so Day-0
+# aborted at "Workload Services" on Ubuntu 22.04 (glibc 2.35) and Debian 12 (2.36).
+#
+# NOTE: this is a GATE, not the cure. The real fix is to compile inside a
+# container pinned to the support floor, so the floor is enforced by construction
+# rather than detected after the fact. Until then, refuse to publish a bundle
+# that cannot run where we promise it runs.
+# Use the ABSOLUTE path. This script cd's to $SERVICES_ROOT/golang before it gets
+# here, so a "$(dirname "$0")/..." relative reference resolves to a directory that
+# does not exist, an [[ -x ]] guard on it fails, and the gate is skipped in
+# silence — a safety check that fails OPEN because a path did not resolve. That is
+# the same "not found where != does not exist" defect this gate exists to catch.
+# Missing checker is a hard error, never a skip.
+GLIBC_CHECK="$SERVICES_ROOT/scripts/check-glibc-floor.sh"
+echo ""
+echo "── Verifying platform floor ──"
+[[ -x "$GLIBC_CHECK" ]] || {
+  echo "  ✗ RELEASE REJECTED — platform-floor checker missing or not executable: $GLIBC_CHECK" >&2
+  echo "    Refusing to publish an unverified bundle." >&2
+  exit 1
+}
+if ! "$GLIBC_CHECK" "$OUT_DIR/globular-${VERSION}-linux-amd64"; then
+  echo ""
+  echo "  ✗ RELEASE REJECTED — binaries exceed the supported glibc floor." >&2
+  echo "    The bundle is left in place for inspection but MUST NOT be published." >&2
+  exit 1
+fi
+
 SIZE=$(du -sh "$OUT_DIR/globular-${VERSION}-linux-amd64.tar.gz" | awk '{print $1}')
 echo ""
 echo "╔════════════════════════════════════════════════════════════════╗"

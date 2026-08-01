@@ -11487,3 +11487,15 @@ invariants:
     symbols:
     - PromotePrinciple
     - GenerateReconciliationReport
+  - id: invariant.miniopoolnodes_entries_must_be_routable_ips_enforced_at_the
+    title: MinioPoolNodes entries must be routable IPs, enforced at the writer not repaired on load
+    severity: high
+    status: active
+    description: 'Every write to controllerState.MinioPoolNodes must store a bare routable IP (nodeRoutableIP(node)), never a hostname or FQDN. Four sites already depend on this without any writer-side rule: resolveMinioEndpoint (cluster_controller/server.go:1236) refuses to publish the objectstore DNS endpoint for a non-IP entry; config/minio_config.go:199 and config/objectstore_config.go:257 reject DNS hostnames as endpoints; cluster_doctor/rules/objectstore_contract.go:219 raises a finding for exactly this condition. Enforcement belongs at the producer. migratePoolNodeHostnames (state.go:843) is a load-time repair and cannot uphold an invariant that a runtime writer violates — it converts existing entries but runs only from state load (state.go:699, state.go:835), leaving every runtime-appended hostname active until the next restart. A repair path that assumes the defect is historical, while its producer still runs, converts a one-time migration into permanent breakage.'
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/handlers_status.go
+        - golang/cluster_controller/cluster_controller_server/state.go
+    related_failure_modes:
+      - failure.runtime_writer_re_creates_the_hostname_condition_a_load_time
+    contract: MinioPoolNodes must contain only bare routable IPs at every write site

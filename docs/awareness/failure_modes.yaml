@@ -7357,3 +7357,13 @@ failure_modes:
         - TestCorrectKindFromRepo
       evidence:
         - 'libnss-resolve installed_state written under kind INFRASTRUCTURE on the founding Day-0 node instead of COMMAND, producing a permanent false installed_state_runtime_mismatch doctor finding (no systemd unit exists for a COMMAND package by design). Root cause: nameIsNonServiceCatalogKind routes both true-INFRASTRUCTURE and COMMAND-kind packages into the InfrastructureRelease resource type (no separate resource type exists for COMMAND); release_pipeline.go''s existing SERVICE-to-COMMAND repo-authoritative auto-correction (added earlier for etcdctl/sha256sum/yt-dlp) only checked kind==SERVICE, never kind==INFRASTRUCTURE, so a COMMAND package riding in an InfrastructureRelease was never corrected.'
+  - id: failure.runtime_writer_re_creates_the_hostname_condition_a_load_time
+    title: Runtime writer re-creates the hostname condition a load-time migration exists to erase
+    severity: high
+    description: 'cluster_controller/handlers_status.go:415 appends node.AdvertiseFqdn (a hostname such as node-1.globular.internal) to state.MinioPoolNodes on the first heartbeat of any node carrying the storage profile. The field''s consumers require bare routable IPs: resolveMinioEndpoint (server.go:1236) refuses to publish the objectstore DNS endpoint and logs INVARIANT VIOLATION, and config/minio_config.go:199 plus config/objectstore_config.go:257 reject DNS hostnames outright. migratePoolNodeHostnames (state.go:843) repairs such entries via nodeRoutableIP(), but is invoked only from state LOAD paths (state.go:699, state.go:835). A hostname appended at runtime therefore persists until the next restart or leadership change, during which the objectstore endpoint stays unresolved and publishes a degraded contract (endpoint_ready=false). The migration''s comment describes the producer as ''Older code'', but that code is live, so the defect regenerates on every new storage node rather than being historical.'
+    protects:
+      files:
+        - golang/cluster_controller/cluster_controller_server/handlers_status.go
+    evidence:
+      - 'Clean Day-0 install of release 1.2.288 on globular-quickstart (real installer, not simulated bootstrap): 31 INVARIANT VIOLATION lines between 20:50:56 and 20:53:13 on 2026-07-31, all naming MinioPoolNodes[0]=node-1.globular.internal. node-1 is the founding node and never executes the join flow, so the message''s own remediation text (''fix by ensuring join flow writes IPs not hostnames'') points at the wrong subsystem. Violations ceased after restart, confirming repair-on-load rather than prevention-at-write.'
+    contract: MinioPoolNodes must contain only bare routable IPs at every write site
