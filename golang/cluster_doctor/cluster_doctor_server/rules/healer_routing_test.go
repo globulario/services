@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // TestHealer_NoDirectRemoteOpsMutation pins the Milestone 2 architectural
@@ -62,17 +64,8 @@ func sortedKeys(m map[string]bool) []string {
 }
 
 // TestHealer_AutoActionsRouteThroughExecuteRemediation verifies the gated
-// path: when a HealAuto rule fires, the Healer asks its Dispatcher to
-// handle the action — it does NOT execute it itself. PolicyLookup is
-// overridden so the test can exercise the dispatch path without depending
-// on a real HealAuto policy entry (PolicyV1 has none with a non-empty
-// AutoAction after Milestone 2 demotions).
-//
-// In production the Dispatcher is the cluster-doctor server's
-// gatedDispatcher, which routes through ExecuteRemediation. This test
-// uses a recording fake to assert the wiring; the gatedDispatcher →
-// ExecuteRemediation hop is covered by TestHealer_EveryExecutedActionWritesEtcdAudit
-// and the existing TestExecuteRemediation_HardBlocksETCDPut_Always.
+// path: when a conclusive HealAuto failure fires, the Healer asks its
+// Dispatcher to handle the action. It does NOT execute it itself.
 func TestHealer_AutoActionsRouteThroughExecuteRemediation(t *testing.T) {
 	dispatcher := &recordingDispatcher{}
 	healer := &Healer{
@@ -94,9 +87,10 @@ func TestHealer_AutoActionsRouteThroughExecuteRemediation(t *testing.T) {
 
 	findings := []Finding{
 		{
-			FindingID:   "f-syn-1",
-			InvariantID: "synthetic.heal_auto",
-			EntityRef:   "test/synthetic",
+			FindingID:       "f-syn-1",
+			InvariantID:     "synthetic.heal_auto",
+			EntityRef:       "test/synthetic",
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		},
 	}
 	healer.Evaluate(context.Background(), findings)
@@ -133,13 +127,7 @@ func (d *executingDispatcher) Dispatch(_ context.Context, _ Finding, _ string, _
 
 // TestHealer_EveryExecutedActionWritesEtcdAudit verifies that when the
 // Dispatcher reports an executed mutation (with an audit_id from the
-// gated path), the HealReport carries that audit_id forward — the
-// single audit trail invariant is preserved end-to-end.
-//
-// The audit_id is the canonical link to /globular/cluster_doctor/audit/rem-*,
-// written by auditRemediation() in the cluster-doctor server when
-// ExecuteRemediation processes a dispatch. The Healer must not invent a
-// parallel audit; it must record exactly what the gate reports.
+// gated path), the HealReport carries that audit_id forward.
 func TestHealer_EveryExecutedActionWritesEtcdAudit(t *testing.T) {
 	const wantAuditID = "rem-1780431234"
 	dispatcher := &executingDispatcher{
@@ -160,7 +148,12 @@ func TestHealer_EveryExecutedActionWritesEtcdAudit(t *testing.T) {
 		},
 	}
 	findings := []Finding{
-		{FindingID: "f-audit", InvariantID: "synthetic.audit_trail", EntityRef: "test/audit"},
+		{
+			FindingID:       "f-audit",
+			InvariantID:     "synthetic.audit_trail",
+			EntityRef:       "test/audit",
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		},
 	}
 	report := healer.Evaluate(context.Background(), findings)
 
