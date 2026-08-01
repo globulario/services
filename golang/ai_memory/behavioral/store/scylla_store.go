@@ -744,22 +744,48 @@ FROM behavioral_memory.outcomes WHERE project = ? AND domain = ? AND id = ?`
 	return o, nil
 }
 
+// ListOutcomesByTheme returns the FULL outcomes for a theme, hydrated from the
+// base table.
+//
+// outcomes_by_theme is an id index, not a projection: it carries no
+// evidence_ids, principle_ids, supports/weakens, action_check_id or note. This
+// used to scan the index alone and return partial records, which made
+// GeneratePromotionCandidate structurally impossible on ScyllaDB — it derives a
+// candidate's supporting evidence from its outcomes, found none, and refused
+// every candidate with "explicit supporting evidence is required".
+//
+// The bug was invisible in tests because MemoryStore.ListOutcomesByTheme does
+// hydrate (index → id → full record). The test double was more capable than the
+// real store, so the whole promotion path passed unit tests and could never work
+// in a cluster. Observed 2026-08-01, the first time anything called it against
+// Scylla. Hydrate here so the two stores answer the same question the same way.
 func (s *ScyllaStore) ListOutcomesByTheme(ctx context.Context, project, domain, theme string) ([]api.Outcome, error) {
-	const q = `SELECT id, status, severe, human_marked, incident_id, created_at
-FROM behavioral_memory.outcomes_by_theme WHERE project = ? AND domain = ? AND theme = ?`
+	const q = `SELECT id FROM behavioral_memory.outcomes_by_theme
+WHERE project = ? AND domain = ? AND theme = ?`
 	iter := s.session.Query(q, project, domain, theme).WithContext(ctx).Iter()
-	var out []api.Outcome
-	var id, status, incident string
-	var severe, human bool
-	var createdAt int64
-	for iter.Scan(&id, &status, &severe, &human, &incident, &createdAt) {
-		out = append(out, api.Outcome{
-			ID: id, Project: project, Domain: api.DomainRef(domain), Status: status,
-			Severe: severe, HumanMarked: human, IncidentID: incident, Theme: theme, CreatedAt: createdAt,
-		})
+	var ids []string
+	var id string
+	for iter.Scan(&id) {
+		ids = append(ids, id)
 	}
 	if err := iter.Close(); err != nil {
 		return nil, fmt.Errorf("list outcomes by theme: %w", err)
+	}
+
+	out := make([]api.Outcome, 0, len(ids))
+	for _, oid := range ids {
+		o, err := s.GetOutcome(ctx, project, domain, oid)
+		if err != nil {
+			// A dangling index row is not a reason to fail the whole read: the
+			// caller is counting repeats, and one unreadable outcome should
+			// lower the count, not deny the pattern. Matches MemoryStore, which
+			// simply skips ids with no base record.
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return nil, fmt.Errorf("list outcomes by theme: hydrate %s: %w", oid, err)
+		}
+		out = append(out, *o)
 	}
 	return out, nil
 }

@@ -43,6 +43,19 @@ type fakeGovernor struct {
 	asked    []observation.ActionContext
 	outcomes []observation.OutcomeRecord
 	outErr   error
+
+	// learning-loop half
+	candidates []observation.CandidateRequest
+	candErr    error
+	candResult observation.CandidateResult
+}
+
+func (f *fakeGovernor) GeneratePromotionCandidate(_ context.Context, r observation.CandidateRequest) (observation.CandidateResult, error) {
+	f.candidates = append(f.candidates, r)
+	if f.candErr != nil {
+		return observation.CandidateResult{}, f.candErr
+	}
+	return f.candResult, nil
 }
 
 func (f *fakeGovernor) CheckAction(_ context.Context, a observation.ActionContext) (observation.GateDecision, error) {

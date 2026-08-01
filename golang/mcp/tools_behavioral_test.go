@@ -449,3 +449,73 @@ func containsStrT(ss []string, v string) bool {
 	}
 	return false
 }
+
+// TestLearningAssessment_NamesTheInertCase guards the report's headline.
+//
+// governed=0 with total>0 is the specific state this whole surface exists to
+// expose: the gate is wired, every check runs, and nothing is decided because no
+// principle is promoted. A ratio of 0.0 is technically the same information and
+// practically invisible — an operator reads "0.0" as a metric that has not
+// warmed up yet, not as "governance is off". So the words are the contract.
+func TestLearningAssessment_NamesTheInertCase(t *testing.T) {
+	got := learningAssessment(6, 0, 6, 2)
+	for _, want := range []string{"INERT", "no promoted principle applied", "await human review"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("assessment must contain %q so the inert case is unmissable.\ngot: %s", want, got)
+		}
+	}
+}
+
+// TestLearningAssessment_DistinguishesEmptyFromInert verifies "nothing asked" is
+// not reported as "governance is inert". They look alike in the numbers and mean
+// opposite things: one needs traffic, the other needs a promotion.
+func TestLearningAssessment_DistinguishesEmptyFromInert(t *testing.T) {
+	empty := learningAssessment(0, 0, 0, 0)
+	if strings.Contains(empty, "INERT") {
+		t.Errorf("a cluster with no action checks is not inert governance, it is an idle governor.\ngot: %s", empty)
+	}
+	if !strings.Contains(empty, "nothing has asked the governor") {
+		t.Errorf("the empty case must say nothing has been asked.\ngot: %s", empty)
+	}
+}
+
+// TestLearningAssessment_FullyGoverned reports the healthy end state without
+// mentioning candidates the operator does not need to act on.
+func TestLearningAssessment_FullyGoverned(t *testing.T) {
+	got := learningAssessment(4, 4, 0, 0)
+	if strings.Contains(got, "INERT") || strings.Contains(got, "await") {
+		t.Errorf("a fully governed cluster must not be described as inert or pending.\ngot: %s", got)
+	}
+}
+
+// TestPromoteCommandFor_IsTextNotAnAction verifies the report hands back a
+// command for a human rather than performing it. A report that could enact its
+// own suggestions would be a control plane wearing a report's clothes.
+func TestPromoteCommandFor_IsTextNotAnAction(t *testing.T) {
+	cmd := promoteCommandFor("globular-services", "cluster_operator", "promotion_candidate.abc")
+
+	// A candidate is not a principle: promoting its draft id directly fails with
+	// a bare "not found". The hint must therefore start with propose, not
+	// promote. Verified against a live cluster 2026-08-01.
+	if !strings.Contains(cmd, "behavioral_propose_principle") {
+		t.Errorf("promote hint must start by proposing the draft as a principle —\n"+
+			"a candidate draft id does not exist in the principle store.\ngot: %s", cmd)
+	}
+	if !strings.Contains(cmd, "behavioral_promote_principle") {
+		t.Errorf("promote hint must end at the human-invoked promotion.\ngot: %s", cmd)
+	}
+	// Promotion gates on qualifying evidence and a contradiction check; a hint
+	// that omits them sends the reader into a PROMOTION_BLOCKED wall.
+	for _, step := range []string{"behavioral_record_evidence", "behavioral_run_contradiction_check"} {
+		if !strings.Contains(cmd, step) {
+			t.Errorf("promote hint must include %s — promotion is gated on it.\ngot: %s", step, cmd)
+		}
+	}
+	if !strings.Contains(cmd, "<you>") {
+		t.Errorf("promote hint must leave the actor for a human to supply — an actor the "+
+			"report filled in would misattribute the decision.\ngot: %s", cmd)
+	}
+	if promoteCommandFor("p", "d", "") != "" {
+		t.Error("a candidate with no id must yield no promote command, not a broken one")
+	}
+}

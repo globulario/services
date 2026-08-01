@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,6 +62,104 @@ type OutcomeRecord struct {
 	SupportsPrinciples []string
 	WeakensPrinciples  []string
 	Metadata           map[string]string
+}
+
+// CandidateDraft is the explicit governance content a promotion candidate is
+// reviewed against. Every field is required by the behavioral service's draft
+// validation — there is deliberately no partial draft, because a candidate a
+// human cannot evaluate is worse than no candidate at all.
+type CandidateDraft struct {
+	Title             string
+	AppliesWhen       []string // condition refs
+	Authorities       []string // authority refs
+	RequiredEvidence  []string // required-evidence refs
+	RecommendedAction string
+	RiskLevel         string // info|low|high|irreversible
+	PromotionReason   string
+	RevocationRule    string
+}
+
+// CandidateRequest asks for one repeated theme to be queued for human review.
+type CandidateRequest struct {
+	Project    string
+	Domain     string
+	Theme      string
+	MinRepeats int32
+	Actor      string
+	Rationale  string
+	Draft      CandidateDraft
+}
+
+// CandidateResult reports what the queue now holds for this theme.
+type CandidateResult struct {
+	CandidateID  string
+	Status       string
+	RepeatCount  int32
+	OutcomeCount int32
+}
+
+// ErrInsufficientSupport reports that a theme has not repeated often enough to
+// justify a candidate yet.
+//
+// This is the COMMON case on a healthy cluster, not a failure: most themes never
+// repeat. It is a distinct error so a periodic caller can stay silent about it
+// while still surfacing real faults — a synthesizer that logged every
+// under-supported theme as an error would train operators to ignore its output.
+var ErrInsufficientSupport = errors.New("theme has not repeated enough to justify a candidate")
+
+// GeneratePromotionCandidate queues a repeated theme for HUMAN review.
+//
+// It never promotes and never creates a principle: the behavioral service
+// enforces that, and this client must not appear to offer more. The value here
+// is that the draft is assembled from the catalogs at the call site, so a
+// reviewer receives a complete proposal rather than a bare count.
+func (g *Governor) GeneratePromotionCandidate(ctx context.Context, r CandidateRequest) (CandidateResult, error) {
+	cc, err := g.conn()
+	if err != nil {
+		_ = g.Close()
+		return CandidateResult{}, err
+	}
+	client := behavioralpb.NewBehavioralMemoryServiceClient(cc)
+	cctx, cancel := context.WithTimeout(ctx, g.timeout)
+	defer cancel()
+
+	resp, err := client.GeneratePromotionCandidate(cctx, &behavioralpb.GeneratePromotionCandidateRequest{
+		Project:    r.Project,
+		Domain:     r.Domain,
+		Theme:      r.Theme,
+		MinRepeats: r.MinRepeats,
+		Actor:      r.Actor,
+		Rationale:  r.Rationale,
+		DraftPrinciple: &behavioralpb.Principle{
+			Title:             r.Draft.Title,
+			AppliesWhen:       r.Draft.AppliesWhen,
+			Authorities:       r.Draft.Authorities,
+			RequiredEvidence:  r.Draft.RequiredEvidence,
+			RecommendedAction: r.Draft.RecommendedAction,
+			RiskLevel:         r.Draft.RiskLevel,
+			PromotionReason:   r.Draft.PromotionReason,
+			RevocationRule:    r.Draft.RevocationRule,
+		},
+	})
+	if err != nil {
+		// "not enough repeats" is a verdict, not a transport failure — the
+		// connection is fine and must not be torn down for it.
+		if strings.Contains(err.Error(), "need at least") {
+			return CandidateResult{}, fmt.Errorf("%w: %s", ErrInsufficientSupport, r.Theme)
+		}
+		_ = g.Close()
+		return CandidateResult{}, fmt.Errorf("generate promotion candidate: %w", err)
+	}
+	c := resp.GetCandidate()
+	if c == nil {
+		return CandidateResult{}, errors.New("generate promotion candidate: empty candidate")
+	}
+	return CandidateResult{
+		CandidateID:  c.GetId(),
+		Status:       c.GetStatus().String(),
+		RepeatCount:  c.GetRepeatCount(),
+		OutcomeCount: resp.GetOutcomeCount(),
+	}, nil
 }
 
 // Governor is a lazily-connected client for the blocking governance calls.

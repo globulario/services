@@ -103,6 +103,20 @@ func (s *ClusterDoctorServer) startHealerLoop(ctx context.Context) {
 					continue // only leader runs
 				}
 				s.runHealerCycle(ctx, mode, maxActions)
+				// Read the accumulated outcomes back and queue any repeated
+				// theme for human review. After the cycle, so this tick's own
+				// outcomes are already recorded; inside the leader gate, so N
+				// doctors cannot multiply one observation into N review items.
+				//
+				// Deliberately NOT gated on snapshot harvest, unlike dispatch
+				// above (doctor.healer_auto_remediation_on_reduced_harvest).
+				// That gate exists because acting on a partial snapshot can be
+				// destructive. This call dispatches nothing: it queues a
+				// question for a human, whose worst case is one misleading hint
+				// that review discards. It also reads outcomes accumulated
+				// across many cycles, so gating it on the freshness of a single
+				// snapshot would suppress real patterns for an unrelated reason.
+				s.synthesizePromotionCandidates(ctx)
 			}
 		}
 	}()

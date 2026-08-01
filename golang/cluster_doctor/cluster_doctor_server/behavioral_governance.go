@@ -27,6 +27,9 @@ import (
 type behavioralGovernor interface {
 	CheckAction(context.Context, observation.ActionContext) (observation.GateDecision, error)
 	RecordOutcome(context.Context, observation.OutcomeRecord) (string, error)
+	// The learning loop's reader — see behavioral_learning.go. Queues a
+	// repeated theme for human review; never promotes.
+	GeneratePromotionCandidate(context.Context, observation.CandidateRequest) (observation.CandidateResult, error)
 }
 
 // conditionForInvariant maps a doctor invariant to the behavioral condition that
@@ -41,7 +44,8 @@ type behavioralGovernor interface {
 // rather than wrongly governed. That is the safe direction: an ungoverned action
 // keeps its existing safety gates and is counted as a coverage gap.
 var conditionForInvariant = map[string]string{
-	"node.systemd.units_running": "condition.cluster.node.systemd_unit_not_running",
+	"node.systemd.units_running":   "condition.cluster.node.systemd_unit_not_running",
+	"cluster.desired_state.absent": "condition.cluster.service.desired_observed_mismatch",
 }
 
 // gateRemediation answers whether one remediation may be dispatched.
@@ -209,7 +213,8 @@ func (s *ClusterDoctorServer) recordGovernedOutcome(ctx context.Context, o remed
 		ActionCheckID: o.ActionCheckID,
 		PrincipleIDs:  s.principlesForCheck(o.ActionCheckID),
 		Status:        status,
-		Theme:         "remediation." + o.InvariantID,
+		// Shared with the learning loop's reader — see behavioralThemeForInvariant.
+		Theme: behavioralThemeForInvariant(o.InvariantID),
 		Note:          o.Reason(),
 		Metadata: map[string]string{
 			"workflow_run_id": o.WorkflowRunID,
