@@ -253,14 +253,34 @@ func TestDecideNodeRolloutProof_NoHashNoBuild_InventoryClaim(t *testing.T) {
 
 // Hash normalization parity: sha256: prefix and case must be stripped on
 // both sides before comparison.
+//
+// The observable is that the two convergence hashes AGREE. If normalization
+// were broken, "SHA256:ABCD" and "sha256:abcd" would compare unequal and the
+// convergence-drift leg would fire a mismatch with
+// rollout.installed_hash_mismatch — so "no mismatch, no finding" is the strict
+// normalization signal.
+//
+// This case carries convergence agreement ONLY: no entrypoint_checksum and no
+// build_id, so nothing identifies the installed executable. It therefore
+// settles at inventory_claim, not installed_verified. Asserting
+// installed_verified here previously made this normalization test double as an
+// (incorrect) endorsement of convergence-only agreement as binary proof.
 func TestDecideNodeRolloutProof_HashNormalization(t *testing.T) {
 	v := decideNodeRolloutProof(
 		"1.2.0", "SHA256:ABCD", "", "",
 		ip("1.2.0", "sha256:abcd", ""),
 		false, false,
 	)
-	if v.ProofStatus != RolloutProofInstalledVerified {
-		t.Errorf("case+prefix normalization broken: ProofStatus=%q", v.ProofStatus)
+	if v.ProofStatus == RolloutProofMismatch || v.FindingID != "" {
+		t.Errorf("case+prefix normalization broken: ProofStatus=%q FindingID=%q",
+			v.ProofStatus, v.FindingID)
+	}
+	if v.ProofStatus != RolloutProofInventoryClaim {
+		t.Errorf("convergence-only agreement must settle at %q, got %q",
+			RolloutProofInventoryClaim, v.ProofStatus)
+	}
+	if !strings.Contains(v.Reason, "convergence") {
+		t.Errorf("reason should record that convergence agreed: %q", v.Reason)
 	}
 }
 

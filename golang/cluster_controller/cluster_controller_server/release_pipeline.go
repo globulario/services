@@ -1544,8 +1544,23 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		)
 		nCopy.ProofStatus = verdict.ProofStatus
 		nCopy.ProofFinding = verdict.FindingID
+		// InstalledHash is a BINARY-identity field — resources_types.go declares
+		// it "artifact sha256 verified at apply time", and the workflow_release
+		// writer assigns the binary SHA. installedPkg.Checksum is the
+		// CONVERGENCE hash (publisher+name+version+build_number+config), a
+		// different schema entirely.
+		//
+		// Writing it here published a non-binary hash as binary identity, so a
+		// package with no manifest entrypoint appeared to carry binary proof it
+		// never had, and any consumer comparing InstalledHash against a real
+		// entrypoint checksum compared incompatible schemas. The sibling
+		// MarkNodeSucceeded path already leaves this empty when no binary SHA
+		// is available; match it, and take the binary measurement the
+		// node-agent actually recorded when there is one.
 		if installedPkg != nil {
-			nCopy.InstalledHash = installedPkg.GetChecksum()
+			if md := installedPkg.GetMetadata(); md != nil {
+				nCopy.InstalledHash = strings.TrimSpace(md["entrypoint_checksum"])
+			}
 		}
 		proofVerdicts = append(proofVerdicts, verdict)
 
