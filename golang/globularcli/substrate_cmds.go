@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -170,11 +171,11 @@ func recoverRestartMembersRun() error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	for _, r := range reports {
 		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", r.Unit, r.Action, r.Detail); err != nil {
-			return fmt.Errorf("write restart report: %w", err)
+			return errors.Join(recoverErr, fmt.Errorf("write restart report: %w", err))
 		}
 	}
 	if err := w.Flush(); err != nil {
-		return fmt.Errorf("flush restart report: %w", err)
+		return errors.Join(recoverErr, fmt.Errorf("flush restart report: %w", err))
 	}
 	return recoverErr
 }
