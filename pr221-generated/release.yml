@@ -1,0 +1,1622 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version to build (e.g. 1.2.69) — required for manual runs'
+        type: string
+        default: ''
+      force_full_rebuild:
+        description: 'Force full rebuild — treat all packages as changed'
+        type: boolean
+        default: false
+      force_reason:
+        description: 'Reason for forced rebuild'
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+env:
+  GOWORK: "off"
+  GOOS: linux
+  GOARCH: amd64
+  CGO_ENABLED: "1"
+  # Fixed version used for change detection builds. Go services are compiled
+  # with this version first so that binary checksums are version-independent.
+  # Only changed services are rebuilt with the real platform version.
+  SENTINEL_VERSION: "0.0.0-detect"
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout services
+        uses: actions/checkout@v4
+        with:
+          path: services
+          # Release assembly consumes the checked-out tree at the triggering ref;
+          # it does not need the full services history on the runner.
+          fetch-depth: 1
+          # Manual dispatch may target a new version that does not yet have a git tag.
+          # Always checkout the triggering ref (branch for workflow_dispatch, tag for push tags).
+          ref: ${{ github.ref }}
+
+      - name: Resolve globular-installer ref
+        id: installer_ref
+        working-directory: services
+        run: |
+          line="$(grep -E '^[[:space:]]*github.com/globulario/globular-installer[[:space:]]+v0\.0\.0-' golang/go.mod | head -n1)"
+          if [[ -z "$line" ]]; then
+            echo "globular-installer dependency not found in services/golang/go.mod" >&2
+            exit 1
+          fi
+          version="$(awk '{print $2}' <<<"$line")"
+          ref="${version##*-}"
+          if [[ -z "$ref" ]]; then
+            echo "could not derive globular-installer ref from version: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Using globular-installer $version ($ref)"
+
+      - name: Checkout packages
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/packages
+          path: packages
+          # Package metadata/registry are consumed as source authority only; no
+          # release step depends on packages git history.
+          fetch-depth: 1
+
+      - name: Checkout Globular (xds + gateway)
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/Globular
+          path: Globular
+
+      - name: Checkout globular-installer
+        uses: actions/checkout@v4
+        with:
+          repository: globulario/globular-installer
+          path: globular-installer
+          fetch-depth: 0
+
+      - name: Pin globular-installer revision
+        working-directory: globular-installer
+        run: |
+          set -euo pipefail
+          ref="${{ steps.installer_ref.outputs.ref }}"
+          git checkout "$ref"
+          echo "Pinned globular-installer to $(git rev-parse HEAD)"
+
+      # ── Single-source gate: the installer's embedded Day-0 specs must carry the
+      # registry-authoritative kind. registry.yaml (../packages) is the single author;
+      # a wrong kind here would break fresh Day-0 installs. Runs here because this is
+      # the one pipeline that co-locates services + packages + globular-installer.
+      # See docs/design/package-classification-single-source.md. (We run check-spec-kinds,
+      # NOT check-specs: the latter's byte-identity check has pre-existing spec staleness
+      # tracked separately; kind correctness is the release-blocking invariant.)
+      - name: Gate — installer spec kinds match registry.yaml (single-source)
+        working-directory: globular-installer
+        run: |
+          set -euo pipefail
+          # Forward-compatible: the pinned installer ref (from services go.mod) may predate
+          # the check-spec-kinds target. Skip gracefully if absent rather than fail the release.
+          if ! make -n check-spec-kinds >/dev/null 2>&1; then
+            echo "SKIP: check-spec-kinds not in pinned globular-installer ref — bump the go.mod pin to enforce."
+            exit 0
+          fi
+          python3 -c 'import yaml' 2>/dev/null || pip3 install --quiet pyyaml || pip3 install --quiet --break-system-packages pyyaml
+          make check-spec-kinds   # REGISTRY defaults to ../packages/registry.yaml (checked out above)
+
+      - name: Gate — package authority layout is coherent
+        working-directory: services
+        run: |
+          set -euo pipefail
+          python3 scripts/validate-package-authority.py
+
+      # ── Free disk space (runner has ~14GB, large binaries fill it fast) ──
+      - name: Free disk space
+        run: |
+          sudo docker system prune -af 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      # ── System dependencies for CGO packages ─────────────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libsqlite3-dev libwebp-dev unixodbc-dev bzip2 unzip
+
+      # ── Go setup ─────────────────────────────────────────────────────────
+      # services/golang/go.mod requires go 1.25 (inherited via the
+      # github.com/globulario/awareness-graph module). The Globular sub-build
+      # (xds + gateway) uses a replace-directive against ../services/golang
+      # so the same toolchain version must be available there too.
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: services/golang/go.sum
+
+      # ── Version ──────────────────────────────────────────────────────────
+      - name: Extract version
+        id: version
+        run: |
+          EVENT="${{ github.event_name }}"
+          INPUT_VERSION="${{ inputs.version }}"
+          REF_NAME="${GITHUB_REF_NAME}"
+
+          if [[ "${EVENT}" == "workflow_dispatch" ]]; then
+            if [[ -z "${INPUT_VERSION}" ]]; then
+              echo "error: manual Release requires inputs.version (e.g. 1.2.110), got empty input on ref '${REF_NAME}'" >&2
+              exit 1
+            fi
+            VERSION="${INPUT_VERSION}"
+            TAG="v${VERSION}"
+          elif [[ -n "${INPUT_VERSION}" ]]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v${VERSION}"
+          else
+            VERSION="${REF_NAME#v}"
+            TAG="${REF_NAME}"
+          fi
+
+          if [[ ! "${VERSION}" =~ ^[0-9]+(\.[0-9]+){1,3}([.-][0-9A-Za-z._-]+)?$ ]]; then
+            echo "error: version '${VERSION}' is invalid; expected numeric SemVer-like value (example: 1.2.110)" >&2
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building platform release: ${VERSION} (${TAG})"
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Fetch previous release index for change detection
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Fetch previous release index
+        id: prev_index
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_FORCE: ${{ inputs.force_full_rebuild || 'false' }}
+          INPUT_REASON: ${{ inputs.force_reason || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          CURRENT_TAG="${{ steps.version.outputs.tag }}"
+          FORCE="${INPUT_FORCE}"
+          FORCE_REASON="${INPUT_REASON}"
+
+          # Find most recent non-draft release (excluding current tag)
+          PREV_TAG=$(gh release list --repo "${{ github.repository }}" \
+            --exclude-drafts --exclude-pre-releases --limit 5 \
+            --json tagName --jq "[.[] | select(.tagName != \"${CURRENT_TAG}\")][0].tagName // \"\"")
+
+          HAS_PREV="false"
+          if [[ -n "$PREV_TAG" ]]; then
+            echo "Previous release: ${PREV_TAG}"
+            if gh release download "$PREV_TAG" --repo "${{ github.repository }}" \
+                 --pattern "release-index.json" --dir dist/ 2>/dev/null; then
+              mv dist/release-index.json dist/prev-release-index.json
+              HAS_PREV="true"
+              echo "Downloaded previous release-index.json from ${PREV_TAG}"
+            else
+              echo "WARNING: ${PREV_TAG} has no release-index.json"
+            fi
+          else
+            echo "No previous release found"
+          fi
+
+          # Auto-force if no previous index (first BOM release / transitional)
+          if [[ "$HAS_PREV" != "true" && "$FORCE" != "true" ]]; then
+            FORCE="true"
+            FORCE_REASON="No previous release-index.json available (transitional release)"
+            echo "Auto-forcing full rebuild: no previous index"
+          fi
+
+          # Ensure file exists (empty JSON if no previous)
+          [[ ! -f dist/prev-release-index.json ]] && echo '{}' > dist/prev-release-index.json
+
+          echo "has_prev=${HAS_PREV}" >> "$GITHUB_OUTPUT"
+          echo "prev_tag=${PREV_TAG:-none}" >> "$GITHUB_OUTPUT"
+          echo "force_rebuild=${FORCE}" >> "$GITHUB_OUTPUT"
+          {
+            echo "force_reason<<EOFR"
+            echo "${FORCE_REASON}"
+            echo "EOFR"
+          } >> "$GITHUB_OUTPUT"
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # Phase 1: Sentinel build — compile everything with a fixed version
+      # so that binary checksums are version-independent for change detection.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Build all Go services (sentinel version for change detection)
+        working-directory: services/golang
+        run: |
+          set -euo pipefail
+          mkdir -p ../../dist/.staging/bin
+
+          # Materialize the committed per-package version authority BEFORE the
+          # sentinel overwrite touches the checked-out zz files (CI workspace
+          # only — the committed files remain the authority; see
+          # docs/design/package-identity-single-authority.md).
+          bash ../scripts/gen-package-versions-from-source.sh --out ../../dist/package-versions.txt
+
+          bash build/gen-version.sh "${SENTINEL_VERSION}"
+
+          LDFLAGS="-s -w"
+          while IFS='|' read -r target output; do
+            target="${target%%#*}"; target="${target// /}"
+            output="${output// /}"; [[ -z "${target}" ]] && continue
+            bin_name=$(basename "${output}")
+            [[ "${bin_name}" == "compute_server" ]] && continue
+            echo "  -> ${bin_name} (sentinel)"
+            go build -trimpath -ldflags "${LDFLAGS}" -o "../../dist/.staging/bin/${bin_name}" "${target}"
+          done < build/services.list
+
+          cp ../../dist/.staging/bin/globularcli ../../dist/.staging/bin/globular
+          echo "Sentinel build complete: $(ls ../../dist/.staging/bin/ | wc -l) binaries"
+
+      - name: Build xds and gateway (sentinel version)
+        working-directory: Globular
+        run: |
+          LDFLAGS="-X main.Version=${SENTINEL_VERSION} -X main.BuildVersion=${SENTINEL_VERSION} -s -w"
+          go build -trimpath -ldflags "${LDFLAGS}" -o ../dist/.staging/bin/xds ./cmd/xds
+          go build -trimpath -ldflags "${LDFLAGS}" -o ../dist/.staging/bin/gateway ./cmd/gateway
+          echo "xds + gateway sentinel build complete"
+
+      # ── Download third-party infra binaries ─────────────────────────────
+      - name: Download infra binaries
+        run: |
+          set -euo pipefail
+          cd dist/.staging/bin
+
+          ETCD_VERSION="3.5.14"
+          ENVOY_VERSION="1.35.3"
+          PROMETHEUS_VERSION="3.5.1"
+          ALERTMANAGER_VERSION="0.28.1"
+          NODE_EXPORTER_VERSION="1.10.2"
+          SIDEKICK_VERSION="7.0.0"
+          RESTIC_VERSION="0.18.1"
+          RCLONE_VERSION="1.73.1"
+          YTDLP_VERSION="2026.02.21"
+
+          echo "-> etcd ${ETCD_VERSION}..."
+          curl -fsSL "https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-amd64.tar.gz" \
+            | tar xzf - --strip-components=1 \
+                --wildcards "*/etcd" "*/etcdctl"
+          chmod +x etcd etcdctl
+
+          echo "-> envoy ${ENVOY_VERSION}..."
+          curl -fsSL "https://github.com/envoyproxy/envoy/releases/download/v${ENVOY_VERSION}/envoy-${ENVOY_VERSION}-linux-x86_64" -o envoy
+          chmod +x envoy
+
+          echo "-> minio (latest stable)..."
+          curl -fsSL "https://dl.min.io/server/minio/release/linux-amd64/minio" -o minio
+          chmod +x minio
+
+          echo "-> mc (latest stable)..."
+          curl -fsSL "https://dl.min.io/client/mc/release/linux-amd64/mc" -o mc
+          chmod +x mc
+
+          echo "-> prometheus ${PROMETHEUS_VERSION}..."
+          curl -fsSL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" \
+            | tar xzf - --strip-components=1 \
+                --wildcards "*/prometheus"
+          chmod +x prometheus
+
+          echo "-> alertmanager ${ALERTMANAGER_VERSION}..."
+          curl -fsSL "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz" \
+            | tar xzf - --strip-components=1 \
+                --wildcards "*/alertmanager"
+          chmod +x alertmanager
+
+          echo "-> node_exporter ${NODE_EXPORTER_VERSION}..."
+          curl -fsSL "https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz" \
+            | tar xzf - --strip-components=1 \
+                --wildcards "*/node_exporter"
+          chmod +x node_exporter
+
+          echo "-> sidekick ${SIDEKICK_VERSION}..."
+          curl -fsSL "https://github.com/minio/sidekick/releases/download/v${SIDEKICK_VERSION}/sidekick-linux-amd64" -o sidekick
+          chmod +x sidekick
+
+          echo "-> restic ${RESTIC_VERSION}..."
+          curl -fsSL "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2" \
+            | bunzip2 > restic
+          chmod +x restic
+
+          echo "-> rclone ${RCLONE_VERSION}..."
+          curl -fsSL "https://github.com/rclone/rclone/releases/download/v${RCLONE_VERSION}/rclone-v${RCLONE_VERSION}-linux-amd64.zip" \
+            -o /tmp/rclone.zip
+          unzip -j /tmp/rclone.zip "rclone-v${RCLONE_VERSION}-linux-amd64/rclone" -d .
+          chmod +x rclone
+
+          echo "-> sha256sum (coreutils, from system)..."
+          cp /usr/bin/sha256sum sha256sum
+          chmod +x sha256sum
+
+          echo "-> yt-dlp ${YTDLP_VERSION}..."
+          curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_linux" -o yt-dlp
+          chmod +x yt-dlp
+
+          echo "-> ffmpeg (stable static build via BtbN)..."
+          FFMPEG_URL="$(curl -fsSL \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            -H 'Authorization: Bearer ${{ github.token }}' \
+            "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assets=sorted(a['browser_download_url'] for a in d.get('assets', []) if 'linux64-gpl' in a.get('name','') and 'shared' not in a.get('name','') and a.get('name','').endswith('.tar.xz') and not a.get('name','').startswith('ffmpeg-N-')); print(assets[-1] if assets else '')" || true)"
+          if [[ -z "${FFMPEG_URL}" ]]; then
+            FFMPEG_URL="$(gh api repos/BtbN/FFmpeg-Builds/releases/latest --jq '.assets[] | select((.name | contains("linux64-gpl")) and (.name | endswith(".tar.xz")) and ((.name | contains("shared")) | not) and ((.name | startswith("ffmpeg-N-")) | not)) | .browser_download_url' | tail -n1 || true)"
+          fi
+          [[ -n "${FFMPEG_URL}" ]] || { echo "ERROR: could not resolve ffmpeg download URL"; exit 1; }
+          curl -fsSL "${FFMPEG_URL}" | tar xJf - --strip-components=2 --wildcards "*/bin/ffmpeg"
+          chmod +x ffmpeg
+
+          echo "-> scylla-manager + agent + sctool (latest stable from GitHub)..."
+          SCYLLA_MGR_VERSION=$(curl -fsSL \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            -H 'Authorization: Bearer ${{ github.token }}' \
+            "https://api.github.com/repos/scylladb/scylla-manager/releases?per_page=100" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); r=[x for x in d if not x.get('prerelease') and not x.get('draft') and x.get('assets')] or [x for x in d if not x.get('draft')]; sys.exit('no stable scylla-manager release') if not r else print(r[0]['tag_name'].lstrip('v'))")
+          echo "  version: ${SCYLLA_MGR_VERSION}"
+          echo "SCYLLA_MGR_VERSION=${SCYLLA_MGR_VERSION}" >> "$GITHUB_ENV"
+          curl -fsSL "https://github.com/scylladb/scylla-manager/releases/download/v${SCYLLA_MGR_VERSION}/scylla-manager_${SCYLLA_MGR_VERSION}_linux_x86_64.tar.gz" \
+            -o /tmp/scylla-manager.tar.gz
+          tmpd=$(mktemp -d)
+          tar xzf /tmp/scylla-manager.tar.gz -C "${tmpd}"
+          find "${tmpd}" -type f -name "scylla-manager" ! -name "*agent*" | head -1 | xargs -I{} cp {} scylla_manager
+          find "${tmpd}" -type f -name "scylla-manager-agent" | head -1 | xargs -I{} cp {} scylla_manager_agent
+          find "${tmpd}" -type f -name "sctool" | head -1 | xargs -I{} cp {} sctool
+          chmod +x scylla_manager scylla_manager_agent sctool
+          rm -rf "${tmpd}" /tmp/scylla-manager.tar.gz
+
+          echo "-> claude (Anthropic Claude Code CLI via npm)..."
+          CLAUDE_VERSION=$(python3 -c "import json; print(json.load(open('../../../packages/metadata/claude/package.json'))['version'])")
+          echo "  version: ${CLAUDE_VERSION}"
+          echo "CLAUDE_VERSION=${CLAUDE_VERSION}" >> "$GITHUB_ENV"
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}" --quiet
+          cp "$(which claude)" claude
+          chmod +x claude
+
+          # NOTE: oxigraph and awareness-graph are intentionally NOT fetched.
+          # AWG is a standalone dev-time sidecar (github.com/globulario/
+          # awareness-graph) since v1.2.211 — it is not a cluster package
+          # and ships no production binaries in the platform release.
+
+          echo ""
+          echo "Infra binaries downloaded:"
+          ls -lh etcd etcdctl envoy minio mc prometheus alertmanager node_exporter sidekick restic rclone noop \
+                 sha256sum yt-dlp ffmpeg scylla_manager scylla_manager_agent sctool claude 2>/dev/null || true
+
+      # ── Create noop binary for scylladb/keepalived ──────────────────────
+      - name: Create noop binary
+        run: |
+          printf '#!/bin/sh\n# Managed via OS packages, not a standalone binary.\nexit 0\n' > dist/.staging/bin/noop
+          chmod +x dist/.staging/bin/noop
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Change detection — compare binary checksums + package contracts
+      # against the previous release index. Unchanged packages keep their
+      # original version and are referenced from their origin release.
+      # ═══════════════════════════════════════════════════════════════════════
+      # Pre-fetch origin release-indices for every unique origin_release
+      # mentioned by the previous release-index. detect-changes.py uses
+      # these as the authoritative source for entrypoint_checksum + other
+      # provenance fields on carry-forward entries — preventing the
+      # v1.2.156 carry-forward pollution from propagating downstream
+      # through prev_index inheritance.
+      - name: Fetch origin release-indices for carry-forward authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/origin-indices
+
+          if [[ ! -f dist/prev-release-index.json ]]; then
+            echo "no prev-release-index.json — first release in lineage; nothing to fetch"
+            exit 0
+          fi
+
+          # Collect distinct origin_release tags from the previous BOM.
+          ORIGIN_TAGS=$(python3 -c "
+          import json
+          d = json.load(open('dist/prev-release-index.json'))
+          tags = set()
+          for p in d.get('packages', []):
+              t = p.get('origin_release') or p.get('release_tag')
+              if t:
+                  tags.add(t)
+          for t in sorted(tags):
+              print(t)
+          ")
+          for tag in ${ORIGIN_TAGS}; do
+            out="dist/origin-indices/${tag}.json"
+            if [[ -f "${out}" ]]; then
+              continue
+            fi
+            echo "  fetching ${tag}/release-index.json"
+            gh release download "${tag}" --repo "${{ github.repository }}" \
+              --pattern "release-index.json" --dir "dist/origin-indices/" || {
+                echo "ERROR: failed to download release-index.json from ${tag}"
+                exit 1
+              }
+            # The download lands as dist/origin-indices/release-index.json;
+            # rename to <tag>.json so detect-changes.py can find it.
+            mv "dist/origin-indices/release-index.json" "${out}"
+          done
+
+          echo "Fetched origin indices:"
+          ls -la dist/origin-indices/ || true
+
+      - name: Run BOM change detection
+        id: changes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          FORCE: ${{ steps.prev_index.outputs.force_rebuild }}
+          FORCE_REASON: ${{ steps.prev_index.outputs.force_reason }}
+        run: |
+          set -euo pipefail
+
+          bash services/scripts/release/cluster-controller-release-guard.sh detect \
+            --services-root services \
+            --packages-root packages \
+            --prev-tag "${{ steps.prev_index.outputs.prev_tag }}" \
+            --output dist/forced-packages.txt
+
+          EXTRA_ARGS=()
+          if [[ "${FORCE}" == "true" ]]; then
+            EXTRA_ARGS+=(--force-full-rebuild)
+            [[ -n "${FORCE_REASON}" ]] && EXTRA_ARGS+=(--force-reason "${FORCE_REASON}")
+          fi
+
+          python3 services/golang/build/detect-changes.py \
+            --prev-index dist/prev-release-index.json \
+            --metadata-dir packages/metadata \
+            --bin-dir dist/.staging/bin \
+            --pkg-map-json services/golang/build/pkg-map.json \
+            --go-src-dir services/golang \
+            --version "${VERSION}" \
+            --tag "${TAG}" \
+            --output-overrides dist/version-overrides.txt \
+            --output-manifest dist/change-manifest.json \
+            --origin-indices-dir dist/origin-indices \
+            --force-changed-packages-file dist/forced-packages.txt \
+            --package-versions-file dist/package-versions.txt \
+            "${EXTRA_ARGS[@]}"
+
+          bash services/scripts/release/cluster-controller-release-guard.sh verify \
+            --manifest dist/change-manifest.json \
+            --forced dist/forced-packages.txt
+
+          echo ""
+          echo "=== Version Overrides ==="
+          cat dist/version-overrides.txt
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # Phase 2: Rebuild only changed services with the real platform version.
+      # Unchanged services are NOT rebuilt — their packages are downloaded
+      # from the origin release for the offline bundle.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Rebuild changed Go services with committed package versions
+        working-directory: services/golang
+        run: |
+          set -euo pipefail
+
+          # Restore the committed per-package source authority after the
+          # sentinel build rewrote the workspace-only generated files.
+          bash build/gen-version.sh "0.0.0-dev" ../../dist/package-versions.txt
+
+          LDFLAGS="-s -w"
+
+          # Read changed Go services from manifest and rebuild only those.
+          python3 -c "
+          import json
+          m = json.load(open('../../dist/change-manifest.json'))
+          for p in m['packages']:
+              if p['changed'] and p.get('go_target'):
+                  print(f\"{p['go_target']}|{p['name']}\")
+          " | while IFS='|' read -r target pkg_name; do
+            bin_name=$(python3 -c "import json; print(json.load(open('build/pkg-map.json'))['${pkg_name}']['binary'])")
+            echo "  -> Rebuilding ${bin_name} from committed package version"
+            go build -trimpath -ldflags "${LDFLAGS}" -o "../../dist/.staging/bin/${bin_name}" "./${target}"
+          done
+
+          # Update globular CLI copy if it changed
+          python3 -c "
+          import json
+          m = json.load(open('../../dist/change-manifest.json'))
+          changed = [p['name'] for p in m['packages'] if p['changed']]
+          if 'globular-cli' in changed:
+              print('yes')
+          " | grep -q yes && cp ../../dist/.staging/bin/globularcli ../../dist/.staging/bin/globular || true
+
+      - name: Rebuild xds/gateway from committed versions if changed
+        working-directory: Globular
+        run: |
+          LDFLAGS="-s -w"
+
+          python3 -c "
+          import json
+          m = json.load(open('../dist/change-manifest.json'))
+          for p in m['packages']:
+              if p['changed'] and p['name'] in ('xds', 'gateway'):
+                  print(p['name'])
+          " | while read -r name; do
+            echo "  -> Rebuilding ${name} from committed source version"
+            go build -trimpath -ldflags "${LDFLAGS}" -o "../dist/.staging/bin/${name}" "./cmd/${name}"
+          done
+
+      # ── Run tests ────────────────────────────────────────────────────────
+      # Per-package timeout is 5m, not the Go default (10m). Tightening
+      # forces slow tests to be noticed, but 120s turned out to be too
+      # aggressive: awareness/preflight runs ~55s locally with -race and
+      # the same suite blew past 120s on a loaded CI runner on 2026-05-14
+      # (v1.2.45 release attempt). 300s leaves headroom for race-detector
+      # overhead and runner contention without softening the signal —
+      # anything over 5m is still a test to investigate.
+      - name: Run tests
+        working-directory: services/golang
+        run: go test ./... -race -short -timeout 300s
+
+      # ── Build globular-installer ─────────────────────────────────────────
+      - name: Build globular-installer
+        working-directory: globular-installer
+        env:
+          GOWORK: "off"
+          CGO_ENABLED: "0"
+        run: |
+          go build -trimpath -o ../dist/.staging/bin/globular-installer ./cmd/globular-installer
+          chmod +x ../dist/.staging/bin/globular-installer
+          echo "globular-installer: $(ls -lh ../dist/.staging/bin/globular-installer | awk '{print $5}')"
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Package only changed packages. Unchanged packages are NOT
+      # repackaged — they are referenced from their origin release.
+      # ═══════════════════════════════════════════════════════════════════════
+
+      - name: Package changed packages
+        run: |
+          set -euo pipefail
+          mkdir -p dist/packages
+
+          python3 <<'PYEOF'
+          import json, os, subprocess, sys, shutil, hashlib, tempfile, re
+
+          manifest = json.load(open("dist/change-manifest.json"))
+          pkg_map  = json.load(open("services/golang/build/pkg-map.json"))
+          package_versions = {}
+          with open("dist/package-versions.txt", encoding="utf-8") as versions_file:
+              for raw in versions_file:
+                  line = raw.strip()
+                  if not line or line.startswith("#"):
+                      continue
+                  name, sep, value = line.partition("=")
+                  if not sep or not name.strip() or not value.strip():
+                      raise RuntimeError(f"invalid package version row: {raw.rstrip()!r}")
+                  package_versions[name.strip()] = value.strip()
+
+          def readelf_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except Exception:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          def strip_release_binary(path, label):
+              forbidden = readelf_sections(path)
+              if not forbidden:
+                  return
+              subprocess.run(["strip", "--strip-debug", "--strip-unneeded", path], check=True)
+              forbidden = readelf_sections(path)
+              if forbidden:
+                  raise RuntimeError(f"{label} still contains forbidden sections after strip: {forbidden}")
+
+          def detect_infra_version(name, bin_path, meta_version):
+              """Resolve real version for infrastructure/command packages."""
+              v = meta_version
+              try:
+                  if name == "minio":
+                      out = subprocess.check_output([bin_path, "--version"],
+                                stderr=subprocess.DEVNULL, timeout=10).decode()
+                      for line in out.splitlines():
+                          if "minio version" in line:
+                              v = line.split()[2]; break
+                  elif name == "mc":
+                      out = subprocess.check_output([bin_path, "--version"],
+                                stderr=subprocess.DEVNULL, timeout=10).decode()
+                      for line in out.splitlines():
+                          if "mc version" in line:
+                              v = line.split()[2]; break
+                  elif name == "ffmpeg":
+                      out = subprocess.check_output([bin_path, "-version"],
+                                stderr=subprocess.DEVNULL, timeout=10).decode()
+                      parts = out.splitlines()[0].split()
+                      if len(parts) >= 3:
+                          v = parts[2]
+                  elif name in ("scylla-manager", "scylla-manager-agent", "sctool"):
+                      env_ver = os.environ.get("SCYLLA_MGR_VERSION", "")
+                      if env_ver: v = env_ver
+                  elif name == "claude":
+                      env_ver = os.environ.get("CLAUDE_VERSION", "")
+                      if env_ver: v = env_ver
+              except Exception:
+                  pass
+              return v
+
+          changed_count = 0
+
+          for pkg in manifest["packages"]:
+              if not pkg["changed"]:
+                  continue
+
+              name = pkg["name"]
+              info = pkg_map.get(name)
+              if not info:
+                  print(f"  SKIP {name}: not in pkg-map")
+                  continue
+
+              binary   = info["binary"]
+              plat_ver = info.get("platform_version", True)
+              bin_path = f"dist/.staging/bin/{binary}"
+              meta_dir = f"packages/metadata/{name}"
+
+              if not os.path.isfile(bin_path):
+                  print(f"  SKIP {name}: binary {binary} not found")
+                  continue
+              if not os.path.isdir(meta_dir):
+                  print(f"  SKIP {name}: no metadata dir")
+                  continue
+
+              # Load metadata
+              pj_path = f"{meta_dir}/package.json"
+              pj = json.load(open(pj_path))
+
+              # Determine version from the package's declared authority.
+              if plat_ver:
+                  pkg_version = package_versions.get(name, "")
+              else:
+                  pkg_version = detect_infra_version(name, bin_path, pj.get("version", ""))
+
+              if not pkg_version:
+                  print(f"  ERROR: {name} has empty version", file=sys.stderr)
+                  sys.exit(1)
+
+              # Determine entrypoint binary name
+              entrypoint = pj.get("entrypoint", "").split("/")[-1]
+              if not entrypoint:
+                  entrypoint = binary
+
+              # Assemble package directory first, then hash the file that
+              # is actually in the tarball — guarantees stored checksum
+              # matches what node-agent will find after extraction.
+              tmpdir = tempfile.mkdtemp()
+              shutil.copytree(meta_dir, tmpdir, dirs_exist_ok=True)
+              os.makedirs(f"{tmpdir}/bin", exist_ok=True)
+              shutil.copy2(bin_path, f"{tmpdir}/bin/{entrypoint}")
+              os.chmod(f"{tmpdir}/bin/{entrypoint}", 0o755)
+              strip_release_binary(f"{tmpdir}/bin/{entrypoint}", f"{name}:{entrypoint}")
+
+              # Normalize lifecycle script modes to 0o755 — the pkgpack
+              # validator rejects publish when any file under scripts/ lacks
+              # an execute bit. shutil.copytree preserves source modes
+              # verbatim, so a single 0o664 in a metadata source dir
+              # (observed for mcp on 2026-06-04) propagates into the tarball
+              # and breaks Day-0 publish. Force the mode here so the build
+              # pipeline is the authoritative source of script perms.
+              scripts_dir = f"{tmpdir}/scripts"
+              if os.path.isdir(scripts_dir):
+                  for entry in os.listdir(scripts_dir):
+                      fp = os.path.join(scripts_dir, entry)
+                      if os.path.isfile(fp):
+                          os.chmod(fp, 0o755)
+
+              # Compute SHA256 from the file inside the package, not the source.
+              h = hashlib.sha256()
+              with open(f"{tmpdir}/bin/{entrypoint}", "rb") as f:
+                  for chunk in iter(lambda: f.read(8192), b""):
+                      h.update(chunk)
+              checksum = f"sha256:{h.hexdigest()}"
+
+              # Stamp content facts only. build_id/build_number are allocated
+              # by repository admission and must not be minted by release assembly.
+              pj_out = json.load(open(f"{tmpdir}/package.json"))
+              pj_out["version"] = pkg_version
+              pj_out["entrypoint_checksum"] = checksum
+              pj_out.pop("build_id", None)
+              pj_out.pop("build_number", None)
+              with open(f"{tmpdir}/package.json", "w") as f:
+                  json.dump(pj_out, f, indent=2)
+
+              platform = pj.get("platform", "linux_amd64")
+              out_file = f"dist/packages/{name}_{pkg_version}_{platform}.tgz"
+              subprocess.run(["tar", "-C", tmpdir, "-czf", out_file, "."], check=True)
+              shutil.rmtree(tmpdir)
+
+              size = os.path.getsize(out_file)
+              size_str = f"{size / 1024 / 1024:.1f} MB" if size > 1024*1024 else f"{size / 1024:.0f} KB"
+              print(f"  + {name} v{pkg_version} ({size_str})")
+              changed_count += 1
+
+          print(f"\nPackaged {changed_count} changed packages")
+          PYEOF
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Download unchanged packages from their origin releases for the
+      # offline installer bundle. Verify SHA256 against the previous index.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Download unchanged packages from origin releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/unchanged
+          mkdir -p dist/packages
+
+          python3 -c "
+          import json
+          m = json.load(open('dist/change-manifest.json'))
+          for p in m['packages']:
+              if not p['changed'] and p.get('filename') and p.get('origin_release'):
+                  digest = p.get('package_digest', '')
+                  print(f\"{p['origin_release']}|{p['filename']}|{digest}\")
+          " | while IFS='|' read -r origin filename digest; do
+            [[ -z "$filename" || -z "$origin" ]] && continue
+            echo "  <- ${filename} (from ${origin})"
+            gh release download "${origin}" --repo "${{ github.repository }}" \
+              --pattern "${filename}" --dir dist/unchanged/ || {
+              echo "ERROR: Failed to download ${filename} from release ${origin}."
+              echo "Referenced origin releases must be preserved while part of the active BOM."
+              exit 1
+            }
+            # Verify SHA256 if digest is available
+            if [[ -n "$digest" && "$digest" != "" ]]; then
+              expected="${digest#sha256:}"
+              actual=$(sha256sum "dist/unchanged/${filename}" | awk '{print $1}')
+              if [[ "$expected" != "$actual" ]]; then
+                echo "ERROR: SHA256 mismatch for ${filename}"
+                echo "  Expected: ${expected}"
+                echo "  Got:      ${actual}"
+                exit 1
+              fi
+            fi
+          done
+
+          UNCHANGED_COUNT=$(ls dist/unchanged/*.tgz 2>/dev/null | wc -l || echo 0)
+          echo "Downloaded ${UNCHANGED_COUNT} unchanged packages from origin releases"
+
+          # Normalize build_number to int in all unchanged packages.
+          # Origin releases before v1.0.99 wrote build_number as a string.
+          # The repository rejects string build_number on publish.
+          FIXED=0
+          for pkg in dist/unchanged/*.tgz; do
+            [ -f "$pkg" ] || continue
+            tmpd=$(mktemp -d)
+            tar xzf "$pkg" -C "$tmpd" 2>/dev/null || { rm -rf "$tmpd"; continue; }
+            if [ -f "$tmpd/package.json" ]; then
+              if python3 -c "
+          import json, sys
+          d = json.load(open('$tmpd/package.json'))
+          bn = d.get('build_number')
+          if isinstance(bn, str) and bn.isdigit():
+              d['build_number'] = int(bn)
+              json.dump(d, open('$tmpd/package.json','w'), indent=2)
+              sys.exit(0)
+          sys.exit(1)
+          " 2>/dev/null; then
+                tar czf "$pkg" -C "$tmpd" .
+                FIXED=$((FIXED + 1))
+              fi
+            fi
+            rm -rf "$tmpd"
+          done
+          if [ "$FIXED" -gt 0 ]; then echo "Normalized build_number in ${FIXED} unchanged package(s)"; fi
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # Carry-forward packages MUST also satisfy the release-artifact shape
+      # contract. An old origin release may contain a debug/unstripped tarball
+      # that was valid enough to publish historically but is now rejected by the
+      # repository's stricter release-channel gate at Day-0 import time.
+      #
+      # Repair those artifacts into dist/packages so the current release bundle
+      # ships a valid authoritative tarball instead of a stale carried-forward one.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Repair unstripped carry-forward packages for this release
+        run: |
+          set -euo pipefail
+          python3 <<'PYEOF'
+          import json, os, re, subprocess, sys, tarfile, tempfile
+          import hashlib
+
+          manifest = json.load(open("dist/change-manifest.json"))
+          origins = {}
+          for pkg in manifest["packages"]:
+              if pkg.get("changed"):
+                  continue
+              filename = pkg.get("filename") or ""
+              if filename:
+                  origins[filename] = {
+                      "name": pkg["name"],
+                      "origin_release": pkg.get("origin_release", ""),
+                  }
+
+          def forbidden_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          repaired = []
+          for filename in sorted(os.listdir("dist/unchanged")):
+              if not filename.endswith(".tgz"):
+                  continue
+              tgz_path = os.path.join("dist/unchanged", filename)
+              with tempfile.TemporaryDirectory() as td:
+                  with tarfile.open(tgz_path, "r:gz") as tf:
+                      tf.extractall(td)
+                  pkg_json = os.path.join(td, "package.json")
+                  if not os.path.isfile(pkg_json):
+                      continue
+                  with open(pkg_json, "r", encoding="utf-8") as fh:
+                      pkg = json.load(fh)
+                  entry = (pkg.get("entrypoint") or "").split("/")[-1]
+                  if not entry:
+                      continue
+                  bin_path = os.path.join(td, "bin", entry)
+                  if not os.path.isfile(bin_path):
+                      continue
+                  bad = forbidden_sections(bin_path)
+                  if not bad:
+                      continue
+
+                  subprocess.run(["strip", "--strip-debug", "--strip-unneeded", bin_path], check=True)
+                  still_bad = forbidden_sections(bin_path)
+                  if still_bad:
+                      raise SystemExit(f"{filename} still contains forbidden sections after strip: {still_bad}")
+
+                  # Repaired bytes are re-admitted as a new repository build;
+                  # release assembly must not allocate repository-owned identity.
+                  pkg.pop("build_id", None)
+                  pkg.pop("build_number", None)
+                  with open(bin_path, "rb") as fh:
+                      pkg["entrypoint_checksum"] = "sha256:" + hashlib.sha256(fh.read()).hexdigest()
+                  with open(pkg_json, "w", encoding="utf-8") as fh:
+                      json.dump(pkg, fh, indent=2)
+
+                  repaired_path = os.path.join("dist/packages", filename)
+                  with tarfile.open(repaired_path, "w:gz") as tf:
+                      tf.add(td, arcname=".")
+                  os.remove(tgz_path)
+
+                  meta = origins.get(filename, {})
+                  repaired.append({
+                      "filename": filename,
+                      "name": meta.get("name", filename),
+                      "origin_release": meta.get("origin_release", ""),
+                      "entrypoint_checksum": pkg["entrypoint_checksum"],
+                  })
+
+          if repaired:
+              print("repaired carry-forward packages:")
+              for item in repaired:
+                  where = f" from {item['origin_release']}" if item["origin_release"] else ""
+                  print(f"  - {item['name']}: {item['filename']}{where} -> repository re-admission required")
+          else:
+              print("no carry-forward package repairs needed")
+          PYEOF
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # Verify carry-forward entrypoint_checksum against actual tarball binary.
+      #
+      # detect-changes.py pulls entrypoint_checksum from each origin release's
+      # release-index, which is the recorded value at origin packaging time.
+      # This step downloads the actually-referenced tarball and hashes the
+      # binary inside, comparing against the change-manifest. Catches:
+      #
+      #   - origin release-index lying (e.g. older bug poisoned ITS own write)
+      #   - tarball/index drift (replaced GitHub asset, edited release)
+      #   - any case where the BOM's claimed binary hash does not match reality
+      #
+      # Hard fail on mismatch — releasing a BOM with a wrong entrypoint_checksum
+      # makes repository sync reject the import, breaking deploys downstream
+      # (cf. v1.2.156 / v1.2.157 incidents).
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Validate carry-forward entrypoint_checksum against tarball binaries
+        run: |
+          set -euo pipefail
+          python3 <<'PYEOF'
+          import hashlib, json, os, sys, tarfile
+
+          m = json.load(open("dist/change-manifest.json"))
+          mismatches = []
+          checked = 0
+          skipped = 0
+
+          for pkg in m["packages"]:
+              # Only validate carry-forwards. Changed packages are re-hashed
+              # later in the "Generate release index" step from the actual
+              # tarball the packager just wrote — same source-of-truth path.
+              if pkg.get("changed"):
+                  skipped += 1
+                  continue
+
+              name     = pkg["name"]
+              filename = pkg.get("filename") or ""
+              claimed  = pkg.get("entrypoint_checksum") or ""
+
+              if not filename or not claimed:
+                  # Nothing to validate against — let the BOM-generation step
+                  # surface it if it's actually required.
+                  skipped += 1
+                  continue
+
+              tarball = os.path.join("dist/unchanged", filename)
+              was_repaired = False
+              if not os.path.isfile(tarball):
+                  # Repair step strips debug symbols and moves packages from
+                  # dist/unchanged to dist/packages, updating entrypoint_checksum
+                  # in the tarball's package.json. Use the repaired tarball's own
+                  # checksum as the authority — the BOM's claimed value is stale
+                  # (it was for the pre-strip binary).
+                  repaired = os.path.join("dist/packages", filename)
+                  if os.path.isfile(repaired):
+                      tarball = repaired
+                      was_repaired = True
+                  else:
+                      mismatches.append((name, f"tarball not downloaded: {tarball}"))
+                      continue
+
+              # Read the manifest entrypoint name from package.json inside the
+              # tarball. For repaired packages, also refresh `claimed` from the
+              # tarball's own package.json (repair updates the checksum after strip).
+              entrypoint_name = None
+              with tarfile.open(tarball, "r:gz") as tf:
+                  for member in tf.getmembers():
+                      base = member.name.lstrip("./")
+                      if base == "package.json":
+                          f = tf.extractfile(member)
+                          if f is None:
+                              continue
+                          try:
+                              pj = json.loads(f.read().decode())
+                              entrypoint_name = pj.get("entrypoint", "")
+                              if was_repaired:
+                                  claimed = pj.get("entrypoint_checksum", claimed)
+                          except Exception:
+                              pass
+                          break
+
+                  if not entrypoint_name:
+                      mismatches.append((name, "package.json missing entrypoint field"))
+                      continue
+
+                  # Find the entrypoint binary entry; tar paths may be prefixed
+                  # by ./ depending on how the tarball was produced.
+                  candidates = {entrypoint_name, "./" + entrypoint_name}
+                  target = None
+                  for member in tf.getmembers():
+                      base = member.name.lstrip("./")
+                      if base == entrypoint_name.lstrip("./"):
+                          target = member
+                          break
+
+                  if target is None:
+                      mismatches.append((name, f"entrypoint {entrypoint_name} not in tarball"))
+                      continue
+
+                  h = hashlib.sha256()
+                  f = tf.extractfile(target)
+                  if f is None:
+                      mismatches.append((name, f"could not open entrypoint {entrypoint_name}"))
+                      continue
+                  for chunk in iter(lambda: f.read(65536), b""):
+                      h.update(chunk)
+                  actual = f"sha256:{h.hexdigest()}"
+
+              if actual != claimed:
+                  mismatches.append((
+                      name,
+                      f"claimed entrypoint_checksum={claimed} "
+                      f"but tarball binary hashes to {actual} (filename={filename})",
+                  ))
+              checked += 1
+
+          print(f"validated {checked} carry-forward entry/entries against tarball binaries")
+          print(f"skipped   {skipped} (changed or missing data)")
+
+          if mismatches:
+              print("", file=sys.stderr)
+              print("FAIL: entrypoint_checksum mismatch on carry-forward entries:", file=sys.stderr)
+              for n, why in mismatches:
+                  print(f"  - {n}: {why}", file=sys.stderr)
+              print("", file=sys.stderr)
+              print("Either the origin release-index lied, the tarball asset was replaced, "
+                    "or the BOM is corrupted. Refusing to publish a release whose entries "
+                    "do not match their referenced artifacts.", file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+
+      # ── Clean intermediate build artifacts to reclaim disk space ─────────
+      - name: Clean build artifacts
+        run: |
+          mkdir -p dist/release-bin
+          [[ -f dist/.staging/bin/globular ]] && mv dist/.staging/bin/globular dist/release-bin/globular
+          [[ -f dist/.staging/bin/globular-installer ]] && mv dist/.staging/bin/globular-installer dist/release-bin/globular-installer
+          rm -rf dist/.staging/bin
+          df -h /
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM: Generate release-index.json v2
+      #
+      # The release index is the BOM / composition lockfile for this platform
+      # release. It is NOT a monolithic version stamp — each package keeps
+      # its own version independently:
+      #
+      #   - Changed code-owned packages keep their committed package version
+      #     and are uploaded to this GitHub release.
+      #   - Unchanged packages keep their PREVIOUS package version (e.g. 1.0.82)
+      #     and reference their origin_release asset_url. They are NOT uploaded
+      #     to this release — their .tgz lives in the origin release.
+      #   - The platform release version (e.g. v1.0.85) identifies the BOM
+      #     snapshot, not the individual package versions.
+      #
+      # This is intentional: a package version means "this content changed."
+      # If gateway hasn't changed since v1.0.82, it stays at v1.0.82 in every
+      # subsequent platform release until its content actually changes.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Generate release index (v2 BOM)
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          python3 <<'PYEOF'
+          import json, hashlib, tarfile, glob, os, re, sys
+          from datetime import datetime, timezone
+
+          version      = os.environ["RELEASE_VERSION"]
+          tag          = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"v\d+(\.\d+){1,3}([.-][0-9A-Za-z._-]+)?", tag):
+              print(f"ERROR: RELEASE_TAG={tag!r} is not a version tag (vX.Y.Z); refusing to author BOM", file=sys.stderr)
+              sys.exit(1)
+          repo         = os.environ["GITHUB_REPOSITORY"]
+          base_url = f"https://github.com/{repo}/releases/download/{tag}"
+          platform = "linux_amd64"
+
+          manifest = json.load(open("dist/change-manifest.json"))
+          entries  = []
+          errors   = []
+
+          for pkg in manifest["packages"]:
+              name = pkg["name"]
+              matches = sorted(glob.glob(f"dist/packages/{name}_*_{platform}.tgz"))
+
+              if matches:
+                  # ── Current-release artifact: changed package OR repaired carry-forward ──
+                  tgz_path = matches[-1]
+                  filename = os.path.basename(tgz_path)
+
+                  with tarfile.open(tgz_path) as tf:
+                      pj = json.loads(tf.extractfile("./package.json").read())
+
+                  raw = open(tgz_path, "rb").read()
+                  pkg_digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
+
+                  entries.append({
+                      "name":                     name,
+                      "kind":                     pj.get("kind", pj.get("type", pkg.get("kind", "service"))).lower(),
+                      "version":                  pj["version"],
+                      "platform":                 platform,
+                      "publisher":                pj.get("publisher", "core@globular.io"),
+                      "channel":                  "stable",
+                      "package_contract_digest":  pkg["package_contract_digest"],
+                      "package_digest":           pkg_digest,
+                      "artifact_sha256":          pkg_digest,
+                      "entrypoint_checksum":      pj.get("entrypoint_checksum", ""),
+                      "asset_url":                f"{base_url}/{filename}",
+                      "filename":                 filename,
+                      "origin_release":           tag,
+                      "changed_in_release":       True,
+                      "profiles":                 pj.get("profiles", []),
+                      "provides":                 pj.get("provides_capabilities", []),
+                      "requires":                 pj.get("requires", []),
+                      "hard_deps":                pj.get("hard_deps", []),
+                      "defaults":                 pj.get("defaults", {}),
+                  })
+              else:
+                  if pkg["changed"]:
+                      errors.append(f"{name}: changed but no .tgz found in dist/packages/")
+                      continue
+                  # ── Unchanged: reference from origin release ──
+                  entries.append({
+                      "name":                     name,
+                      "kind":                     pkg.get("kind", "service"),
+                      "version":                  pkg["version"],
+                      "build_number":             pkg.get("build_number", 0),
+                      "build_id":                 str(pkg.get("build_id", "")),
+                      "platform":                 platform,
+                      "publisher":                pkg.get("publisher", "core@globular.io"),
+                      "channel":                  "stable",
+                      "package_contract_digest":  pkg["package_contract_digest"],
+                      "package_digest":           pkg.get("package_digest", ""),
+                      "artifact_sha256":          pkg.get("artifact_sha256", pkg.get("package_digest", "")),
+                      "entrypoint_checksum":      pkg.get("entrypoint_checksum", ""),
+                      "asset_url":                pkg["asset_url"],
+                      "filename":                 pkg.get("filename", ""),
+                      "origin_release":           pkg["origin_release"],
+                      "changed_in_release":       False,
+                      "profiles":                 pkg.get("profiles", []),
+                  })
+
+          if errors:
+              for e in errors:
+                  print(f"ERROR: {e}", file=sys.stderr)
+              sys.exit(1)
+
+          # ── AWARENESS_BUNDLE BOM entry ───────────────────────────────────
+          # The awareness bundle is built in the previous step. Without an
+          # entry in release-index.json the Day-0 installer falls back to
+          # the filename token for build_id identity ("Awareness manifest
+          # build_id unavailable; not passing --build-id") and skips the
+          # release-index identity cross-check ("Skipping --release-index
+          # for awareness install"). That breaks the build_id propagation
+          # invariant that SERVICE/INFRASTRUCTURE packages already obey.
+          # Source: services issue #1 (AWARENESS_BUNDLE build_id propagation gaps).
+          aware_matches = glob.glob("dist/awareness/awareness-bundle-*.tar.gz")
+          if aware_matches:
+              aware_tgz = aware_matches[0]
+              aware_fname = os.path.basename(aware_tgz)
+              # The bundle's INNER manifest.json (packed by the bundle builder)
+              # carries the authoritative build_id, version, and ops_knowledge
+              # provenance. We read it once so the BOM entry's identity fields
+              # match what `globular awareness bundle inspect` reports.
+              with tarfile.open(aware_tgz) as tf:
+                  am = json.loads(tf.extractfile("manifest.json").read())
+              raw = open(aware_tgz, "rb").read()
+              aware_digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
+              entries.append({
+                  "name":                     am.get("name", "globular-awareness-bundle"),
+                  "kind":                     "awareness_bundle",
+                  "version":                  am["version"],
+                  "build_id":                 str(am["build_id"]),
+                  "platform":                 "noarch",
+                  "publisher":                "core@globular.io",
+                  "channel":                  "stable",
+                  "package_contract_digest":  aware_digest,
+                  "package_digest":           aware_digest,
+                  "entrypoint_checksum":      "",
+                  "asset_url":                f"{base_url}/{aware_fname}",
+                  "filename":                 aware_fname,
+                  "origin_release":           tag,
+                  "changed_in_release":       True,
+                  "profiles":                 [],
+                  "provides":                 [],
+                  "requires":                 [],
+                  "hard_deps":                [],
+                  "defaults":                 {},
+              })
+          else:
+              print("WARNING: no awareness bundle found in dist/awareness/ — BOM will not include AWARENESS_BUNDLE entry", file=sys.stderr)
+
+          index = {
+              "schema_version":            "globular.repository.index/v2",
+              "platform_release":          version,
+              "release_tag":               tag,
+              "publisher":                 "globulario",
+              "generated_at":              datetime.now(timezone.utc).isoformat(),
+              "package_digest_algorithm":  "sha256",
+              "referenced_releases":       manifest.get("referenced_releases", []),
+              "force_full_rebuild":        manifest.get("force_full_rebuild", False),
+              "force_full_rebuild_reason": manifest.get("force_full_rebuild_reason", ""),
+              "packages":                  entries,
+          }
+
+          with open("dist/release-index.json", "w") as f:
+              json.dump(index, f, indent=2)
+
+          changed_n = sum(1 for e in entries if e["changed_in_release"])
+          unchanged_n = len(entries) - changed_n
+          print(f"\nGenerated v2 release index: {len(entries)} packages")
+          print(f"  Changed:    {changed_n}")
+          print(f"  Unchanged:  {unchanged_n}")
+          print(f"  Referenced: {manifest.get('referenced_releases', [])}")
+          PYEOF
+
+      # ── Assemble offline release tarball ─────────────────────────────────
+      # The tarball materializes the FULL BOM: all packages needed by this
+      # platform release, regardless of whether they changed. Unchanged
+      # packages keep their original filenames (no renaming to current ver).
+      - name: Assemble release tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GIT_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_NAME="globular-${VERSION}-linux-amd64"
+          RELEASE_DIR="dist/${RELEASE_NAME}"
+
+          mkdir -p "${RELEASE_DIR}/packages"
+
+          # CLI binary (user-facing name)
+          cp dist/release-bin/globular "${RELEASE_DIR}/globular"
+          chmod 755 "${RELEASE_DIR}/globular"
+
+          # Day-0 installer binary
+          cp dist/release-bin/globular-installer "${RELEASE_DIR}/globular-installer"
+          chmod 755 "${RELEASE_DIR}/globular-installer"
+
+          # Scripts from globular-installer
+          cp -r globular-installer/scripts "${RELEASE_DIR}/scripts"
+          chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
+          # Overlay canonical release scripts from this repo to avoid drift
+          # with the external globular-installer checkout.
+          cp -f services/scripts/release/*.sh "${RELEASE_DIR}/scripts/"
+          chmod +x "${RELEASE_DIR}/scripts"/*.sh 2>/dev/null || true
+
+          # Workflow YAML definitions
+          mkdir -p "${RELEASE_DIR}/workflows"
+          cp services/golang/workflow/definitions/*.yaml "${RELEASE_DIR}/workflows/"
+
+          # Operational knowledge — seeded into ai-memory at day-0
+          if [[ -d services/docs/operational-knowledge ]]; then
+            mkdir -p "${RELEASE_DIR}/docs"
+            cp -r services/docs/operational-knowledge "${RELEASE_DIR}/docs/operational-knowledge"
+          fi
+
+          # Welcome page assets: services/webroot is the authored release source.
+          # The installer mirror exists only as a generated source-tree fallback.
+          if [[ -d services/webroot ]]; then
+            cp -r services/webroot "${RELEASE_DIR}/webroot"
+          elif [[ -d globular-installer/internal/assets/webroot ]]; then
+            cp -r globular-installer/internal/assets/webroot "${RELEASE_DIR}/webroot"
+          fi
+
+          # ALL packages: changed + unchanged (full BOM materialization)
+          # Filenames keep their original package versions — no renaming.
+          cp dist/unchanged/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
+          cp dist/packages/*.tgz "${RELEASE_DIR}/packages/" 2>/dev/null || true
+
+          # Release index (the BOM itself)
+          cp dist/release-index.json "${RELEASE_DIR}/release-index.json"
+
+          # Installer script
+          cp services/scripts/install.sh "${RELEASE_DIR}/install.sh"
+          chmod +x "${RELEASE_DIR}/install.sh"
+
+          # Checksums for all packages in the bundle
+          (cd "${RELEASE_DIR}/packages" && sha256sum *.tgz > SHA256SUMS)
+
+          python3 <<'PYEOF'
+          import hashlib, json, os, re, subprocess, sys, tarfile, tempfile
+
+          release_dir = os.path.join("dist", f"globular-{os.environ['VERSION']}-linux-amd64")
+          install_path = os.path.join(release_dir, "install.sh")
+          day0_path = os.path.join(release_dir, "scripts", "install-day0.sh")
+          index_path = os.path.join(release_dir, "release-index.json")
+          expected = 'FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"'
+
+          for path in (install_path, day0_path):
+              data = open(path, "r", encoding="utf-8").read()
+              if expected not in data:
+                  raise SystemExit(f"{path} does not default FOUNDING_PROFILES to core,media-server")
+
+          def forbidden_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          pkg_dir = os.path.join(release_dir, "packages")
+          idx = json.load(open(index_path, "r", encoding="utf-8"))
+          entries = {entry.get("filename", ""): entry for entry in idx.get("packages", []) if entry.get("filename")}
+
+          bundle_files = sorted(name for name in os.listdir(pkg_dir) if name.endswith(".tgz"))
+          if not bundle_files:
+              raise SystemExit(f"{pkg_dir} contains no package tarballs")
+
+          missing_entries = [name for name in bundle_files if name not in entries]
+          if missing_entries:
+              raise SystemExit(f"release-index.json missing entries for bundle tarballs: {missing_entries}")
+
+          missing_tarballs = []
+          for filename, entry in entries.items():
+              if entry.get("name") == "globular-awareness-bundle":
+                  continue
+              if filename.endswith(".tgz") and not os.path.exists(os.path.join(pkg_dir, filename)):
+                  missing_tarballs.append(filename)
+          if missing_tarballs:
+              raise SystemExit(f"bundle missing tarballs referenced by release-index.json: {missing_tarballs}")
+
+          for filename in bundle_files:
+              tgz_path = os.path.join(pkg_dir, filename)
+              entry = entries[filename]
+              actual_pkg_digest = "sha256:" + hashlib.sha256(open(tgz_path, "rb").read()).hexdigest()
+              expected_pkg_digest = entry.get("artifact_sha256") or entry.get("package_digest") or entry.get("checksum") or ""
+              if expected_pkg_digest and actual_pkg_digest != expected_pkg_digest:
+                  raise SystemExit(
+                      f"{filename} package digest mismatch: index={expected_pkg_digest} actual={actual_pkg_digest}"
+                  )
+              with tempfile.TemporaryDirectory() as td:
+                  with tarfile.open(tgz_path, "r:gz") as tf:
+                      tf.extractall(td)
+                  pkg_json = os.path.join(td, "package.json")
+                  with open(pkg_json, "r", encoding="utf-8") as fh:
+                      pkg = json.load(fh)
+                  if str(pkg.get("build_id", "")) != str(entry.get("build_id", "")):
+                      raise SystemExit(
+                          f"{filename} build_id mismatch: package.json={pkg.get('build_id')} index={entry.get('build_id')}"
+                      )
+                  entrypoint = (pkg.get("entrypoint") or "").split("/")[-1]
+                  if not entrypoint:
+                      continue
+                  bin_path = os.path.join(td, "bin", entrypoint)
+                  if not os.path.isfile(bin_path):
+                      raise SystemExit(f"{filename} missing entrypoint binary {entrypoint}")
+                  actual_entry_checksum = "sha256:" + hashlib.sha256(open(bin_path, "rb").read()).hexdigest()
+                  expected_entry_checksum = entry.get("entrypoint_checksum", "")
+                  declared_entry_checksum = pkg.get("entrypoint_checksum", "")
+                  if expected_entry_checksum and actual_entry_checksum != expected_entry_checksum:
+                      raise SystemExit(
+                          f"{filename} release-index entrypoint_checksum mismatch: index={expected_entry_checksum} actual={actual_entry_checksum}"
+                      )
+                  if declared_entry_checksum and actual_entry_checksum != declared_entry_checksum:
+                      raise SystemExit(
+                          f"{filename} package.json entrypoint_checksum mismatch: package.json={declared_entry_checksum} actual={actual_entry_checksum}"
+                      )
+                  bad = forbidden_sections(bin_path)
+                  if bad:
+                      raise SystemExit(f"{tgz_path} contains forbidden sections: {bad}")
+          PYEOF
+
+          # BOM summary
+          CHANGED_N=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['changed_count'])")
+          UNCHANGED_N=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['unchanged_count'])")
+          PKG_COUNT=$(ls "${RELEASE_DIR}/packages/"*.tgz | wc -l)
+
+          cat > "${RELEASE_DIR}/README.md" <<HEREDOC
+          # Globular ${VERSION}
+
+          An open-source microservices platform for self-hosted distributed systems.
+          No containers. No Kubernetes. No cloud required.
+
+          ## Install
+
+          \`\`\`bash
+          sudo bash install.sh
+          \`\`\`
+
+          The first node always comes up with the quorum profiles plus the media
+          workload profile (\`control-plane\`, \`core\`, \`storage\`,
+          \`media-server\`). To override or extend the day-0 workload profiles,
+          pass \`FOUNDING_PROFILES\` (comma-separated) through \`sudo\`:
+
+          \`\`\`bash
+          sudo FOUNDING_PROFILES=core,media-server bash install.sh
+          \`\`\`
+
+          ## What's Included
+
+          - \`globular\` — CLI tool
+          - \`globular-installer\` — Day-0 package installer
+          - \`scripts/\` — Bootstrap scripts (TLS, minio contract, DNS, etc.)
+          - \`packages/\` — ${PKG_COUNT} packages (${CHANGED_N} changed, ${UNCHANGED_N} unchanged)
+          - \`release-index.json\` — BOM (Bill of Materials) for this platform release
+          - \`install.sh\` — Installer entry point
+
+          ## BOM Release Model
+
+          This release is a **composition lockfile**. Each package keeps its own version.
+          Only packages whose content changed are rebuilt for this release. Unchanged
+          packages reference their origin release via release-index.json.
+
+          ## Built From
+
+          Repository: https://github.com/globulario/services
+          Tag:        ${GIT_TAG}
+          Commit:     ${GITHUB_SHA}
+          HEREDOC
+
+          # Create release tarball
+          cd dist
+          tar czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}/"
+          sha256sum "${RELEASE_NAME}.tar.gz" > "${RELEASE_NAME}.tar.gz.sha256"
+
+          echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
+
+      - name: Validate extracted release tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          TMPDIR="$(mktemp -d)"
+          trap 'rm -rf "$TMPDIR"' EXIT
+          TAR_PATH="dist/globular-${VERSION}-linux-amd64.tar.gz"
+          tar -xzf "$TAR_PATH" -C "$TMPDIR"
+          RELEASE_ROOT="$TMPDIR/globular-${VERSION}-linux-amd64"
+          PKG_DIR="$RELEASE_ROOT/packages"
+          INDEX_PATH="$RELEASE_ROOT/release-index.json"
+          RELEASE_ROOT="$RELEASE_ROOT" PKG_DIR="$PKG_DIR" INDEX_PATH="$INDEX_PATH" python3 <<'PYEOF'
+          import hashlib, json, os, re, subprocess, tarfile, tempfile
+
+          release_root = os.environ["RELEASE_ROOT"]
+          pkg_dir = os.environ["PKG_DIR"]
+          index_path = os.environ["INDEX_PATH"]
+          idx = json.load(open(index_path, "r", encoding="utf-8"))
+          entries = {entry.get("filename", ""): entry for entry in idx.get("packages", []) if entry.get("filename")}
+
+          def forbidden_sections(path):
+              try:
+                  out = subprocess.check_output(["readelf", "-S", path], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  return []
+              return sorted(set(re.findall(r'\.(?:debug_[A-Za-z0-9_]*|zdebug_[A-Za-z0-9_]*|symtab)\b', out)))
+
+          checked = 0
+          for filename in sorted(name for name in os.listdir(pkg_dir) if name.endswith(".tgz")):
+              if filename not in entries:
+                  raise SystemExit(f"missing release-index entry for extracted tarball package {filename}")
+              tgz_path = os.path.join(pkg_dir, filename)
+              entry = entries[filename]
+              actual_pkg_digest = "sha256:" + hashlib.sha256(open(tgz_path, "rb").read()).hexdigest()
+              expected_pkg_digest = entry.get("artifact_sha256") or entry.get("package_digest") or entry.get("checksum") or ""
+              if expected_pkg_digest and actual_pkg_digest != expected_pkg_digest:
+                  raise SystemExit(
+                      f"extracted tarball digest mismatch for {filename}: index={expected_pkg_digest} actual={actual_pkg_digest}"
+                  )
+              with tempfile.TemporaryDirectory() as td:
+                  with tarfile.open(tgz_path, "r:gz") as tf:
+                      tf.extractall(td)
+                  pkg = json.load(open(os.path.join(td, "package.json"), "r", encoding="utf-8"))
+                  entrypoint = (pkg.get("entrypoint") or "").split("/")[-1]
+                  if not entrypoint:
+                      continue
+                  bin_path = os.path.join(td, "bin", entrypoint)
+                  actual_entry = "sha256:" + hashlib.sha256(open(bin_path, "rb").read()).hexdigest()
+                  if actual_entry != entry.get("entrypoint_checksum", ""):
+                      raise SystemExit(f"extracted tarball entrypoint checksum mismatch for {filename}")
+                  bad = forbidden_sections(bin_path)
+                  if bad:
+                      raise SystemExit(f"extracted tarball still contains forbidden sections for {filename}: {bad}")
+              checked += 1
+          print(f"validated extracted release tarball {release_root} ({checked} packages checked)")
+          PYEOF
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # BOM Verification: ensure asset count matches changed_in_release count.
+      # Fail the release if unchanged packages are being uploaded.
+      # ═══════════════════════════════════════════════════════════════════════
+      - name: Verify BOM delta integrity
+        run: |
+          set -euo pipefail
+
+          CHANGED_COUNT=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['changed_count'])")
+          BUNDLE_CHANGED_COUNT=$(python3 -c "import json; print(sum(1 for p in json.load(open('dist/release-index.json'))['packages'] if p.get('changed_in_release')))")
+          # `find` not `ls *.tgz` — ls returns non-zero when the glob has no
+          # match, which combined with `set -e -o pipefail` aborts before the
+          # comparison fires. find returns 0 even on zero matches, so the
+          # 0-changed-packages case (release with shell-only changes) works.
+          ASSET_COUNT=$(find dist/packages -maxdepth 1 -name '*.tgz' 2>/dev/null | wc -l)
+          UNCHANGED_COUNT=$(python3 -c "import json; print(json.load(open('dist/change-manifest.json'))['unchanged_count'])")
+
+          echo "BOM Delta Verification"
+          echo "  Source changed packages:            ${CHANGED_COUNT}"
+          echo "  Bundled current-release assets:     ${BUNDLE_CHANGED_COUNT}"
+          echo "  Package assets to upload:           ${ASSET_COUNT}"
+          echo "  Unchanged packages (from origin):   ${UNCHANGED_COUNT}"
+
+          if [[ "${ASSET_COUNT}" -ne "${BUNDLE_CHANGED_COUNT}" ]]; then
+            echo ""
+            echo "ERROR: Asset count (${ASSET_COUNT}) != release-index changed_in_release count (${BUNDLE_CHANGED_COUNT})"
+            echo "Every uploaded package asset must have a current-release BOM entry, and vice versa."
+            echo ""
+            echo "Source-changed packages:"
+            python3 -c "
+          import json
+          m = json.load(open('dist/change-manifest.json'))
+          for p in m['packages']:
+              if p['changed']:
+                  print(f'  + {p[\"name\"]}')
+          "
+            echo ""
+            echo "BOM changed_in_release packages:"
+            python3 -c "
+          import json
+          for p in json.load(open('dist/release-index.json'))['packages']:
+              if p.get('changed_in_release'):
+                  print(f'  + {p[\"name\"]} ({p.get(\"filename\",\"\")})')
+          "
+            echo ""
+            echo "Uploaded assets:"
+            ls dist/packages/*.tgz | sed 's|dist/packages/|  |'
+            exit 1
+          fi
+
+          echo "✓ BOM delta integrity verified: ${BUNDLE_CHANGED_COUNT} bundle-changed = ${ASSET_COUNT} assets"
+
+      # ── Publish GitHub Release ───────────────────────────────────────────
+      # Upload current-release package assets only: source-changed packages plus
+      # any repaired carry-forward artifacts that had to be re-authored for this
+      # release. All other unchanged packages remain referenced from origin releases.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Globular ${{ steps.version.outputs.version }}"
+          files: |
+            dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
+            dist/globular-${{ steps.version.outputs.version }}-linux-amd64.tar.gz.sha256
+            dist/packages/*.tgz
+            dist/release-index.json
+          generate_release_notes: true
+          body: |
+            ## Globular ${{ steps.version.outputs.version }}
+
+            An open-source microservices platform for self-hosted distributed systems — native Linux binaries, systemd supervision, etcd as the single source of truth.
+
+            ### BOM Release
+
+            This release uses the **Bill of Materials** model:
+            - Source-**changed** packages are uploaded as individual assets
+            - Carry-forward packages are referenced from their origin release unless they had to be repaired and re-authored for this release
+            - `release-index.json` is the complete platform truth
+
+            ### Install (offline bundle)
+
+            ```bash
+            VERSION="${{ steps.version.outputs.version }}"
+
+            curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz"
+            curl -LO "https://github.com/globulario/services/releases/download/v${VERSION}/globular-${VERSION}-linux-amd64.tar.gz.sha256"
+            /usr/bin/sha256sum -c "globular-${VERSION}-linux-amd64.tar.gz.sha256"
+
+            tar xzf "globular-${VERSION}-linux-amd64.tar.gz"
+            cd "globular-${VERSION}-linux-amd64"
+            sudo bash install.sh
+            ```
+
+            The first node always comes up with the quorum profiles
+            (`control-plane`, `core`, `storage`). To add a workload profile from
+            day-0, pass `FOUNDING_PROFILES` (comma-separated) through `sudo` — for
+            example, to also run media services on this node:
+
+            ```bash
+            sudo FOUNDING_PROFILES=core,media-server bash install.sh
+            ```
+
+            ### Bootstrap
+
+            ```bash
+            sudo systemctl start globular-node-agent
+
+            globular cluster bootstrap \
+              --node localhost:11000 \
+              --domain <your-domain> \
+              --profile core \
+              --profile gateway
+            ```
+
+            ### Documentation
+
+            - [Getting Started](https://globular.io/docs/getting-started)
+            - [Installation Guide](https://globular.io/docs/operators/installation)
+            - [Architecture Overview](https://globular.io/docs/operators/architecture-overview)
+            - [Adding Nodes](https://globular.io/docs/operators/adding-nodes)

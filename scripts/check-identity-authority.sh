@@ -28,11 +28,12 @@ ok()  { echo "  ✓ $*"; }
 RELEASE_SCRIPTS=(
   "${SERVICES_ROOT}/scripts/build-release.sh"
   "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh"
+  "${SERVICES_ROOT}/.github/workflows/release.yml"
 )
 
 # 1. No local build_id minting.
 for f in "${RELEASE_SCRIPTS[@]}"; do
-  if grep -nE 'uuid\.uuid4|uuid\.uuid1|uuidgen' "$f" >/dev/null; then
+  if grep -nE 'uuid\.uuid[147]|_uuid\.uuid4|uuidgen|per_pkg_build_id' "$f" >/dev/null; then
     err "$(basename "$f") mints UUIDs — build_id is repository-admission identity only"
   fi
 done
@@ -40,17 +41,20 @@ ok "no local build_id minting in release scripts"
 
 # 2. No local build_number minting.
 for f in "${RELEASE_SCRIPTS[@]}"; do
-  if grep -nE 'BUILD_NUMBER=.*date \+%s|build_number.*date \+%s' "$f" >/dev/null; then
+  if grep -nE 'BUILD_NUMBER=.*date \+%s|build_number.*date \+%s|BUILD_NUMBER=.*github\.run_number' "$f" >/dev/null; then
     err "$(basename "$f") mints timestamp build_numbers — build_number is repository-admission identity only"
   fi
 done
 ok "no local build_number minting in release scripts"
 
-# 3. No platform-version override of package versions in the release build.
-if grep -nE -- '-X main\.Version=\$\{VERSION\}' "${SERVICES_ROOT}/scripts/build-release.sh" >/dev/null; then
-  err "build-release.sh injects the PLATFORM version into binaries — service versions come from committed zz files"
-else
-  ok "no platform-version ldflags override in build-release.sh"
+# 3. No platform-version override of package versions in any release path.
+for f in "${RELEASE_SCRIPTS[@]}"; do
+  if grep -nE -- '-X main\.Version=\$\{VERSION\}|pkg_version[[:space:]]*=[[:space:]]*version|gen-version\.sh "\$\{VERSION\}"' "$f" >/dev/null; then
+    err "$(basename "$f") stamps the platform version into package identity — package versions come from committed source authority"
+  fi
+done
+if (( ! FAIL )); then
+  ok "release paths preserve committed per-package versions"
 fi
 
 # 4. Committed per-package versions valid (zz contract).

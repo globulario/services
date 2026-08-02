@@ -66,9 +66,11 @@ dump file. Dumps contain operator secrets; files are created 0600.`,
                         Takes a dump, backs up the data dir, restarts etcd
                         once with force-new-cluster (single voter, all data
                         kept), then hands back to the normal unit.
-  --from-dump [file]    rung 3: import a classified dump into a fresh etcd.
+  --from-dump [file]    rung 3: inspect a classified dump for a fresh etcd.
                         Without a file, selects the best dump in --dir by
-                        desired epoch (not timestamp).
+                        desired epoch (not timestamp). Apply is fail-closed
+                        until controller/workflow marker enforcement exists;
+                        use --dry-run to inspect the restore plan.
 
 Rungs 2 and 3 write a RESTORED_UNVERIFIED marker: restored desired state is
 evidence, not authority, until reconciled against observation

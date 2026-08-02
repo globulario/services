@@ -37,6 +37,11 @@ type RestoreMarker struct {
 
 // RestoreOptions controls RestoreDump.
 type RestoreOptions struct {
+	// ControllerGateEstablished is intentionally not exposed by the CLI. It is
+	// used by internal tests until a controller/workflow reader enforces the
+	// RESTORED_UNVERIFIED marker before any convergence mutation. The default
+	// false value keeps non-dry-run dump restore fail-closed.
+	ControllerGateEstablished bool
 	// Force overrides the cluster-UID guard and overwrites keys that already
 	// exist live. Without it, live keys always win: restored state is
 	// evidence, not authority.
@@ -78,6 +83,9 @@ func RestoreDump(ctx context.Context, kv KV, d *Dump, opts RestoreOptions) (*Res
 			return nil, fmt.Errorf("REFUSED: dump is from cluster %s but the live store belongs to cluster %s — importing it would graft one cluster's desired state onto another (override requires --force)",
 				d.Manifest.ClusterUID, live)
 		}
+	}
+	if !opts.DryRun && !opts.ControllerGateEstablished {
+		return nil, fmt.Errorf("REFUSED: non-dry-run dump restore is locked until controller/workflow mutation paths enforce %s=%s; use --dry-run to inspect the plan", RestoreMarkerKey, StatusRestoredUnverified)
 	}
 
 	res := &RestoreResult{

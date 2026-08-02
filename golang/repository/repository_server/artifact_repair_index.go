@@ -17,30 +17,10 @@ package main
 //   - repairIndexFromCAS             — the bulk owner operation (dry-run default; commit to apply)
 //   - classifyRepairIndexState        — pure classifier (unit-testable for the UNKNOWN sentinel)
 //
-// ── POST-PROTO-REGEN WIRING (documentation only; not compiled here) ──────────
-// After adding RepairIndex to proto/repository.proto and running generateCode.sh,
-// wire the RPC + CLI + MCP tool as follows (identity/behaviour already proven by
-// repairIndexFromCAS + repair_index_test.go):
-//
-//   // server RPC handler (e.g. in artifact_verify_rpc.go, next to RepairArtifact):
-//   func (srv *server) RepairIndex(ctx context.Context, req *repopb.RepairIndexRequest) (*repopb.RepairIndexResponse, error) {
-//       // The safe default is NO-MUTATION: model the request as `bool commit` so the
-//       // zero value is dry-run, and set DryRun = !req.GetCommit().
-//       rep, err := srv.repairIndexFromCAS(ctx, RepairIndexOptions{
-//           DryRun:          !req.GetCommit(),
-//           PublisherFilter: req.GetPublisherFilter(),
-//           NameFilter:      req.GetNameFilter(),
-//       })
-//       if err != nil { return nil, status.Error(codes.Internal, err.Error()) }
-//       return rep.toProto(), nil // trivial field copy; identity fields echoed from evidence
-//   }
-//
-//   // CLI (golang/globularcli/repo_verify_cmds.go), under repoCmd:
-//   //   globular repository repair-index [--commit] [--publisher P] [--package N]
-//   //   default = dry-run (report only); --commit applies. Prints per-item action +
-//   //   the Scanned/Repairable/Repaired/Refused/SkippedOk/SkippedPolicy summary.
-//
-//   // MCP tool: repository_repair_index (dry-run default), mirroring repository_repair_artifact.
+// RepairIndex remains an owner-internal, test-proven operation. No RPC is
+// advertised until the source proto, generated bindings, server handler, CLI,
+// and MCP surface can land atomically. This prevents source/generated contract
+// drift from claiming an operation the running service cannot expose.
 //
 // Note on the repository_artifact_lifecycle_stuck repair plan's "confirm a
 // desired build still references the build id" precondition: that guards operator
