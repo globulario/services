@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -166,13 +167,17 @@ func recoverRestartMembersRun() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	reports, err := substrate.RestartMembers(ctx, 60*time.Second)
+	reports, recoverErr := substrate.RestartMembers(ctx, 60*time.Second)
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	for _, r := range reports {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", r.Unit, r.Action, r.Detail)
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", r.Unit, r.Action, r.Detail); err != nil {
+			return errors.Join(recoverErr, fmt.Errorf("write restart report: %w", err))
+		}
 	}
-	w.Flush()
-	return err
+	if err := w.Flush(); err != nil {
+		return errors.Join(recoverErr, fmt.Errorf("flush restart report: %w", err))
+	}
+	return recoverErr
 }
 
 func recoverFromSurvivorRun() error {
@@ -310,7 +315,7 @@ func probeEtcdLinearizable(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer cli.Close()
+	defer func() { _ = cli.Close() }()
 	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	_, err = cli.Get(probeCtx, substrate.ClusterIDKey) // linearizable by default
