@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"strings"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -59,41 +58,12 @@ func hasGrantIn(releases []*cluster_controllerpb.ServiceRelease, pkg, nodeID str
 	return false
 }
 
-// grantedServicesForNode returns the set of services explicitly GRANTed to
-// nodeID across all ServiceReleases. This is the controller-computed per-node
-// grant list delivered to the node-agent as a join input — the node-agent is an
-// executor, not the cluster brain, and does not read ServiceReleases itself
-// (node_agent.is_executor_not_cluster_brain). Returns an empty (non-nil) set
-// when there is no store or nodeID.
-func (srv *server) grantedServicesForNode(ctx context.Context, nodeID string) (map[string]bool, error) {
-	nodeID = strings.TrimSpace(nodeID)
-	out := map[string]bool{}
-	if srv.resources == nil || nodeID == "" {
-		return out, nil
-	}
-	items, _, err := srv.resources.List(ctx, "ServiceRelease", "")
-	if err != nil {
-		return nil, err
-	}
-	for _, obj := range items {
-		rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
-		if !ok || rel.Spec == nil {
-			continue
-		}
-		if grantsNode(rel.Spec.NodeAssignments, nodeID) {
-			out[canonicalServiceName(rel.Spec.ServiceName)] = true
-		}
-	}
-	return out, nil
-}
-
 // authorizedForNode is the SINGLE placement predicate (one law book): a package
 // is authorized on a node if the catalog authorizes it by profile OR an explicit
-// grant additively authorizes it. `grants` is the node's granted-service set
-// (grantedServicesForNode), snapshotted once per reconcile pass so this stays
-// pure and out of hot-loop I/O. Unknown-to-catalog packages are authorized by
-// the profile term (placementAllows returns true for an empty catalog profile
-// set), matching the existing isOrphanedInstall semantics.
+// grant additively authorizes it. `grants` is the node's granted-service set,
+// snapshotted once per reconcile pass so this stays pure and out of hot-loop I/O.
+// Unknown-to-catalog packages are authorized by the profile term, matching the
+// existing isOrphanedInstall semantics.
 func authorizedForNode(pkg string, nodeProfiles []string, grants map[string]bool) bool {
 	canonical := canonicalServiceName(pkg)
 	if canonical == "" {
