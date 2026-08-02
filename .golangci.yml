@@ -1,0 +1,15 @@
+version: "2"
+
+linters:
+  exclusions:
+    warn-unused: true
+    rules:
+      # These readers are opened only to inspect an immutable local archive.
+      # Their Close methods cannot change the parsed result, and the functions
+      # deliberately return a zero identity on every read/decode failure.
+      # Keep the exception source-scoped so other ignored close errors remain
+      # visible to errcheck.
+      - path: ^node_agent/node_agent_server/installer_api\.go$
+        source: '^\s*defer (f|gz)\.Close\(\)$'
+        linters:
+          - errcheck
