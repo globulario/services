@@ -22,7 +22,7 @@ jobs:
         with:
           path: services
           ref: split/1-package-identity-and-durability
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout packages authority
         uses: actions/checkout@v4
@@ -40,8 +40,8 @@ jobs:
         working-directory: services
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/pr221-review-fixes.py
-          python3 scripts/pr221-review-fixes.py
+          python3 -m py_compile scripts/pr221-review-fixes.py scripts/pr221-review-fixes-v2.py
+          python3 scripts/pr221-review-fixes-v2.py
           gofmt -w golang/substrate/restore.go golang/substrate/substrate_test.go golang/globularcli/substrate_cmds.go
 
       - name: Verify bounded fixes
@@ -56,7 +56,7 @@ jobs:
         working-directory: services
         run: |
           set -euo pipefail
-          rm -f scripts/pr221-review-fixes.py .github/workflows/pr221-review-fixes.yml
+          rm -f scripts/pr221-review-fixes.py scripts/pr221-review-fixes-v2.py .github/workflows/pr221-review-fixes.yml
           git config user.name "globulario-review-fix"
           git config user.email "noreply@globular.io"
           git add -A
