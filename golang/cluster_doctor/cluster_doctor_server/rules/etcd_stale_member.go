@@ -59,6 +59,7 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 		joinPhase string
 		lastSeen  time.Time
 		stale     bool
+		isLearner bool
 	}
 
 	var etcdNodes []etcdNode
@@ -76,11 +77,15 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 		if joinPhase == "" {
 			continue
 		}
+		// A learner replicates but does NOT vote, so it never counts toward
+		// quorum. Fault-tolerance arithmetic must use VOTERS, not members.
+		isLearner := meta["etcd_is_learner"] == "true"
 
 		lastSeen := node.GetLastSeen().AsTime()
 		stale := time.Since(lastSeen) > staleThreshold
 
 		etcdNodes = append(etcdNodes, etcdNode{
+			isLearner: isLearner,
 			nodeID:    node.GetNodeId(),
 			hostname:  node.GetIdentity().GetHostname(),
 			joinPhase: joinPhase,
@@ -143,19 +148,39 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 		})
 	}
 
-	// Warn about 2-member etcd cluster (no fault tolerance).
-	if len(etcdNodes) == 2 {
+	// Warn about an EVEN voter count (no added fault tolerance).
+	//
+	// Count VOTERS, not members. Learners replicate the full keyspace but do not
+	// vote, so a 1-voter + 1-learner cluster has quorum 1 and survives losing the
+	// learner entirely — the opposite of the danger this rule warns about. The
+	// controller deliberately parks the second node as a learner and promotes
+	// only onto an odd voter count, so counting members here reported "zero
+	// fault tolerance" for the exact arrangement that provides it, on every
+	// healthy 2-node cluster.
+	voters := 0
+	learners := 0
+	for _, n := range etcdNodes {
+		if n.isLearner {
+			learners++
+			continue
+		}
+		voters++
+	}
+	if voters == 2 {
 		findings = append(findings, Finding{
 			FindingID:   FindingID("etcd.stale_member", "cluster", "even_size_2"),
 			InvariantID: "etcd.stale_member",
 			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
 			Category:    "etcd",
 			EntityRef:   "cluster",
-			Summary: "etcd cluster has 2 members — both must be up for quorum (2/2). " +
-				"This has zero fault tolerance. Use 1 member (dev) or 3 members (production).",
+			Summary: fmt.Sprintf("etcd has 2 voting members — both must be up for quorum (2/2). "+
+				"This has zero fault tolerance, the same as a single voter. "+
+				"Use 1 voter (dev) or 3 (production).%s",
+				learnerSuffix(learners)),
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("cluster_doctor", "etcd.stale_member", map[string]string{
-					"etcd_members":  "2",
+					"etcd_voters":   "2",
+					"etcd_learners": fmt.Sprintf("%d", learners),
 					"quorum_needed": "2",
 				}),
 			},
@@ -167,4 +192,16 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 	}
 
 	return findings
+}
+
+// learnerSuffix renders the non-voting member count so an operator can see why
+// the voter total differs from the member total.
+func learnerSuffix(learners int) string {
+	if learners == 0 {
+		return ""
+	}
+	if learners == 1 {
+		return " (1 learner is present and does not vote)"
+	}
+	return fmt.Sprintf(" (%d learners are present and do not vote)", learners)
 }

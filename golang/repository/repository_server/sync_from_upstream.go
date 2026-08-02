@@ -106,24 +106,57 @@ func classifyUpstreamFetchError(fetchErr error, sourceName, releaseTag string) e
 
 // ── RegisterUpstream ─────────────────────────────────────────────────────────
 
+// validateUpstreamSource checks a proposed upstream source before it is written
+// to etcd. It is pure — no etcd, no filesystem — so the registry's admission
+// rules can be tested without a cluster.
+//
+// Where the release index lives is provider-specific: the registry must not
+// assume every provider addresses its index by URL
+// (intent.upstream_release_streams.must_be_provider_neutral). LOCAL_DIR resolves
+// the index from local_root + index_path_template and carries no URL at all.
+// An unconditional "index_url is required" check made air-gapped LOCAL_DIR
+// registration structurally impossible even though SyncFromUpstream and
+// upstream/local_source.go handle it correctly.
+func validateUpstreamSource(src *repopb.UpstreamSource) error {
+	if src == nil {
+		return status.Error(codes.InvalidArgument, "source is required")
+	}
+	if strings.TrimSpace(src.GetName()) == "" {
+		return status.Error(codes.InvalidArgument, "source.name is required")
+	}
+
+	if src.GetType() == repopb.UpstreamSourceType_LOCAL_DIR {
+		if strings.TrimSpace(src.GetLocalRoot()) == "" {
+			return status.Error(codes.InvalidArgument, "source.local_root is required for LOCAL_DIR sources")
+		}
+		// Refuse to let a LOCAL_DIR source carry a URL. upstream/local_source.go
+		// serves local files only; accepting a URL here would be the first step
+		// toward LOCAL_DIR becoming a back-door HTTP client.
+		if strings.TrimSpace(src.GetIndexUrl()) != "" {
+			return status.Error(codes.InvalidArgument,
+				"source.index_url must be empty for LOCAL_DIR sources (use local_root + index_path_template)")
+		}
+		return nil
+	}
+
+	if src.GetIndexUrl() == "" {
+		return status.Error(codes.InvalidArgument, "source.index_url is required")
+	}
+	if err := upstream.ValidateIndexURLTemplate(src.GetIndexUrl()); err != nil {
+		return status.Errorf(codes.InvalidArgument, "source.index_url invalid: %v", err)
+	}
+	return nil
+}
+
 func (srv *server) RegisterUpstream(ctx context.Context, req *repopb.RegisterUpstreamRequest) (*repopb.RegisterUpstreamResponse, error) {
 	if err := srv.requireCapability(CapRepoWrite); err != nil {
 		return nil, err
 	}
 	src := req.GetSource()
-	if src == nil {
-		return nil, status.Error(codes.InvalidArgument, "source is required")
+	if err := validateUpstreamSource(src); err != nil {
+		return nil, err
 	}
 	name := strings.TrimSpace(src.GetName())
-	if name == "" {
-		return nil, status.Error(codes.InvalidArgument, "source.name is required")
-	}
-	if src.GetIndexUrl() == "" {
-		return nil, status.Error(codes.InvalidArgument, "source.index_url is required")
-	}
-	if err := upstream.ValidateIndexURLTemplate(src.GetIndexUrl()); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "source.index_url invalid: %v", err)
-	}
 
 	cli, err := config.GetEtcdClient()
 	if err != nil {

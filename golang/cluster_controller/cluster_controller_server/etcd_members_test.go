@@ -753,3 +753,58 @@ func reconcileJoinWithFake(fm *fakeEtcdMemberManager, nodes []*nodeState) bool {
 	}
 	return dirty
 }
+
+// ── SCAR (INCIDENT 2026-07-30): the one-learner ceiling forces 2-voter transit ──
+//
+// The odd-count promotion rule (never sit at 2 or 4 voters) was implemented and
+// had to be reverted: etcd 3.5.14 hard-codes max-learners=1, so 1 voter + 2
+// learners is impossible and the third node's join was refused with
+// "etcdserver: too many learner members in cluster", deadlocking the cluster at
+// two nodes. See the comment on learnersToPromote.
+//
+// What must hold now: promotion frees the single learner slot, so cluster growth
+// never stalls. The 2-voter window is survivable rather than avoided — the
+// wipe-path detach (b82bcbf9) and rollbackJoin's now-recorded EtcdMemberID are
+// what keep a failed join from stranding quorum.
+func TestLearnersToPromote_FreesTheSingleLearnerSlot(t *testing.T) {
+	cases := []struct {
+		name     string
+		voters   int
+		learners int
+		want     int
+		why      string
+	}{
+		{"1 voter + 1 learner promotes it", 1, 1, 1,
+			"parking it would block the next joiner: etcd allows only one learner at a time"},
+		{"2 voters + 1 learner promotes to 3", 2, 1, 1, "reaches real fault tolerance"},
+		{"no learners, nothing to do", 3, 0, 0, ""},
+		{"bootstrap: 0 voters, 1 learner", 0, 1, 1, "reach 1 voter"},
+		{"negative input is not a promotion licence", 1, -1, 0, "defensive"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := learnersToPromote(tc.voters, tc.learners); got != tc.want {
+				t.Errorf("learnersToPromote(voters=%d, learners=%d) = %d, want %d  %s",
+					tc.voters, tc.learners, got, tc.want, tc.why)
+			}
+		})
+	}
+}
+
+// Growth must never stall: after every join the single learner slot is free
+// again, so the next node can always be added.
+func TestLearnersToPromote_GrowthNeverStalls(t *testing.T) {
+	voters := 1
+	for join := 1; join <= 5; join++ {
+		// etcd permits exactly one learner at a time.
+		promoted := learnersToPromote(voters, 1)
+		if promoted == 0 {
+			t.Fatalf("join %d: learner not promoted — the single learner slot stays "+
+				"occupied and the next node cannot be added (this is the deadlock)", join)
+		}
+		voters += promoted
+	}
+	if voters != 6 {
+		t.Errorf("after 5 joins expected 6 voters, got %d", voters)
+	}
+}

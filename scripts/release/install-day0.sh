@@ -796,6 +796,12 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
   # Wait for ScyllaDB to be ready
   ensure_scylla_io_scheduler_contract
   if ! systemctl is-active --quiet scylla-server.service; then
+    # Clear any lingering rate-limit state from an earlier start attempt (e.g.
+    # a prior failed Day-0 run, or systemd auto-restart activity that raced
+    # ahead of ensure_scylla_io_scheduler_contract above). Without this, a
+    # well-sequenced start here — config is now known-correct — can still be
+    # refused with "Start request repeated too quickly" from stale history.
+    systemctl reset-failed scylla-server.service 2>/dev/null || true
     systemctl start scylla-server.service || log_substep "Warning: failed to start scylla-server"
   fi
   SCYLLA_CQL_HOST=$(scylla_cql_host)
@@ -897,6 +903,11 @@ else
   ensure_scylla_io_scheduler_contract
   if ! systemctl is-active --quiet scylla-server.service; then
     log_substep "Starting ScyllaDB service..."
+    # See matching comment in the "already installed" branch above: clear
+    # stale rate-limit state so this well-sequenced start isn't refused
+    # because of an earlier attempt that raced ahead of the config being
+    # ready.
+    systemctl reset-failed scylla-server.service 2>/dev/null || true
     if ! systemctl start scylla-server.service 2>/dev/null; then
       echo "" >&2
       echo "━━━ scylla-server journal (last 40 lines) ━━━" >&2
@@ -1296,6 +1307,126 @@ fi
 # Copy workflow YAML files to /var/lib/globular/workflows/ unconditionally.
 # The cluster controller reads these at startup to seed etcd. Without them
 # the cluster cannot reconcile or deploy packages.
+# ── Policy directory ownership ───────────────────────────────────────────────
+# The rbac service runs as User=globular and, on startup, deploys its EMBEDDED
+# cluster-roles.json to /var/lib/globular/policy/rbac/. Creating that subdir
+# requires write permission on the policy/ parent — but policy/ is created
+# root:root 0755 while the per-service generated policies are written there as
+# root during package installs. So the rbac service could not mkdir its own
+# subdirectory:
+#
+#   failed to deploy embedded cluster-roles.json
+#     err="create policy dir: mkdir /var/lib/globular/policy/rbac: permission denied"
+#
+# Consequence (observed live 2026-07-29, clean Day-0): the 22 cluster roles were
+# never written to disk, so `rbac seed` logged "(no cluster-roles.json found,
+# skipping)", every authz decision carried policy_version=unknown, and the SA
+# bindings resolved to role NAMES with no definitions behind them — which is how
+# a seeded cluster still denied cluster_controller's workflow.admin call
+# (RecordPhaseTransition PermissionDenied) despite list-bindings showing the
+# binding present.
+#
+# Pre-create the directory owned by globular so the rbac service can deploy and
+# subsequently refresh its role definitions. Must run BEFORE the control-plane
+# phase starts the rbac service; the "Final permission hardening" block near the
+# end of this script is too late — rbac only attempts the deploy at startup.
+mkdir -p "${STATE_DIR}/policy/rbac"
+chown globular:globular "${STATE_DIR}/policy" "${STATE_DIR}/policy/rbac" 2>/dev/null || true
+
+# ── Deploy per-service RBAC policy files ────────────────────────────────────
+# Every gRPC service package ships policy/permissions.generated.json (the
+# gRPC-method → action-key map) and policy/roles.generated.json. The runtime
+# resolver loads them from /var/lib/globular/policy/services/<name>/ and
+# interceptors/ServerInterceptors.go derives the authz action via
+#   actionKey := policy.GlobalResolver().Resolve(method)
+#
+# Day-0 installs the packages but NEVER deploys those policy files: only
+# node-agent's install_payload does that (internal/actions/artifact.go, the
+# `case strings.HasPrefix(name, "policy/")` branch), and on a fresh Day-0 every
+# package is already at the desired version, so node-agent never reinstalls and
+# never backfills them. Result on a clean cluster: policy/services/ held only
+# the 9 infrastructure entries, Resolve() fell back to returning the RAW gRPC
+# method path, no role grants a raw path, and every inter-service call was
+# denied `role_binding_denied` — even though the binding existed AND the bound
+# role granted the correct dotted action.
+#
+# Live evidence 2026-07-29: subject=globule-ryzen (mtls) bound to
+# globular-node-executor, which grants repository.status.read and
+# repository.findings.list, was still denied
+# /repository.PackageRepository/GetRepositoryStatus 28 times/min. That surfaced
+# as CRITICAL repository.unreachable + 2 cluster_doctor.snapshot_source_unavailable
+# (doctor stuck in reduced-harvest) and workflow RecordOutcome /
+# RecordPhaseTransition failures on every reconcile pass. Deploying
+# repository's two policy files and restarting it took denials to 0 and dropped
+# the doctor from 5 findings to 2.
+#
+# ORDERING IS LOAD-BEARING — this must run BEFORE any service starts. Each
+# service loads its policy ONCE at startup (globular_service/lifecycle.go logs
+# the expected path), so deploying after the control-plane phase leaves every
+# already-running service with an empty resolver. Proven the hard way on
+# 1.2.276: the phase sat at the end of the install, reported "deployed for 31
+# package(s)", policy/services/ held all 40 entries — and repository still
+# denied 28 calls/45s, because it had started long before. Deploying here (right
+# after the policy dirs are created, before Workflow Definitions and the
+# control-plane phase) means every service reads a populated resolver on its
+# first start. The RBAC seed later in this script also benefits: its "Service
+# Roles" pass then finds the role definitions on disk.
+log_step "Deploying Per-Service RBAC Policy"
+_POLICY_SERVICES_DIR="${STATE_DIR}/policy/services"
+mkdir -p "$_POLICY_SERVICES_DIR"
+_POLICY_DEPLOYED=0
+_POLICY_SKIPPED=0
+_POLICY_FAILED=""
+if [[ -d "$PKG_DIR" ]]; then
+  for _pkg_tgz in "$PKG_DIR"/*.tgz; do
+    [[ -f "$_pkg_tgz" ]] || continue
+    _pkg_base="$(basename "$_pkg_tgz")"
+    # <name>_<version>_<os>_<arch>.tgz — the name is everything before the
+    # first underscore (package names use hyphens, never underscores).
+    _pkg_name="${_pkg_base%%_*}"
+    [[ -n "$_pkg_name" ]] || continue
+    # Does this package ship policy files at all? (commands/infra mostly don't)
+    if ! tar tzf "$_pkg_tgz" 2>/dev/null | grep -qE 'policy/.*\.json'; then
+      _POLICY_SKIPPED=$((_POLICY_SKIPPED + 1))
+      continue
+    fi
+    # Extract ONLY the policy JSON members straight into place.
+    #
+    # An earlier version extracted the WHOLE package to a mktemp dir and copied
+    # policy/*.json out, with 2>/dev/null and `|| true` on the copy. That is a
+    # 30-90 MB extraction per service just to obtain two small files, and every
+    # failure was swallowed: it reported "deployed for 31 package(s)" while only
+    # 18 actually landed. The 13 silently-missing ones included repository,
+    # cluster-controller and node-agent — so repository kept denying
+    # GetRepositoryStatus (414 denials/5min on each joined node) and the doctor
+    # went straight back to reduced-harvest with repository.unreachable plus two
+    # cluster_doctor.snapshot_source_unavailable findings. Targeted extraction
+    # deployed 31/31 with zero failures.
+    #
+    # --strip-components=2 drops the leading "./policy/" so the JSON lands
+    # directly in the service dir. Failures are recorded and reported, never
+    # swallowed (meta.silence_is_not_valid_for_unexpected).
+    mkdir -p "$_POLICY_SERVICES_DIR/$_pkg_name"
+    if tar xzf "$_pkg_tgz" -C "$_POLICY_SERVICES_DIR/$_pkg_name" \
+         --strip-components=2 --wildcards '*policy/*.json' 2>/dev/null; then
+      _POLICY_DEPLOYED=$((_POLICY_DEPLOYED + 1))
+    else
+      _POLICY_FAILED="$_POLICY_FAILED $_pkg_name"
+    fi
+  done
+fi
+if [[ -n "$_POLICY_FAILED" ]]; then
+  log_warn "policy extraction FAILED for:${_POLICY_FAILED}"
+  log_warn "Those services' gRPC methods will not resolve to action keys and their"
+  log_warn "inter-service calls will be DENIED (role_binding_denied)."
+fi
+if [[ "$_POLICY_DEPLOYED" -gt 0 ]]; then
+  log_success "Per-service RBAC policy deployed for ${_POLICY_DEPLOYED} package(s) (${_POLICY_SKIPPED} ship none)"
+else
+  log_warn "No per-service RBAC policy files deployed — inter-service authz will fall back to raw"
+  log_warn "gRPC method paths and be DENIED (repository.unreachable, workflow record failures)."
+fi
+
 log_step "Workflow Definitions"
 
 WORKFLOW_DEFS_SRC="${SCRIPT_DIR}/../workflows"
@@ -2588,6 +2719,182 @@ if [[ "${GLOBULAR_SKIP_AI_RESTORE:-0}" != "1" ]] && [[ -f "${AI_RESTORE_DIR}/.sa
   else
     log_warn "ScyllaDB CQL not reachable — skipping AI memory restore (snapshot kept at ${AI_RESTORE_DIR})"
   fi
+fi
+
+# ── Seed RBAC role bindings and cluster/service roles ───────────────────────
+# Day-0 installs the rbac service and ships the generated policy files, but
+# nothing bound the built-in service accounts to their roles — so once the
+# 30-minute bootstrap gate closes (BOOTSTRAP_FLAG removed earlier in this run),
+# RBAC is fully enforced against an EMPTY binding table. Everything that is not
+# the hardcoded "sa" superadmin bypass then fails PermissionDenied forever:
+#
+#   cluster-doctor     → repository.GetRepositoryStatus / ListRepositoryFindings
+#                        (doctor reports go permanently reduced-harvest)
+#   cluster-controller → workflow.RecordOutcome
+#                        (every reconcile pass logs a PermissionDenied)
+#
+# Observed live 2026-07-29 on a clean Day-0: `globular rbac list-bindings`
+# returned zero rows and the above calls were denied on every sweep. The seed
+# command already exists and is documented as the Day-0 step ("seeds built-in
+# SA bindings during Day-0", golang/globularcli/rbac_cmds.go) — it was simply
+# never wired into this script; only backup_manager's post-restore path
+# (reseedRBAC) ever called it.
+#
+# ORDERING IS LOAD-BEARING — this block must stay at the END of the install,
+# after every service phase. A first attempt placed it right before the
+# ops-knowledge seed and it silently failed: `rbac seed` reported
+# 'seeded "globular-controller" → [...]' for all four SAs, but
+# globular-persistence (RBAC's durable backing store) did not start until 56s
+# LATER, so nothing survived and list-bindings still returned zero rows. The
+# RPC ack is NOT proof of persistence — same class as
+# reconcile.terminal_success_requires_observed_convergence. Hence: wait for the
+# backing store, then seed, then VERIFY bindings are readable back, and retry
+# the whole seed (not just the auth) if they are not.
+#
+# Runs outside the bootstrap-gate window on purpose: the gate is loopback-only
+# while resolveRbacAddr() returns the node's routable LAN address, so the gate
+# would deny it regardless. Instead authenticate as the bootstrap SA — "sa"
+# carries the built-in superadmin bypass, so it can write the first bindings
+# even when the table is empty.
+# set -e DISCIPLINE FOR THIS BLOCK: the script runs under `set -euo pipefail`,
+# so `[[ cond ]] && cmd` is FORBIDDEN here — when cond is false the and-list
+# returns 1 and the installer dies on the spot. A first version of this block
+# used that shorthand twice and aborted Day-0 silently at this phase: the log
+# ended at the "Seeding RBAC Role Bindings" header with no result line and no
+# INSTALLATION COMPLETE banner, leaving the node half-installed (services up,
+# post-RBAC phases never run). Every conditional below is an explicit if/fi,
+# and every pipeline whose failure is tolerable ends in `|| true`.
+log_step "Seeding RBAC Role Bindings"
+if [[ -x "$GLOBULAR_CLI" ]]; then
+  # Wait for the durable backing store before writing anything.
+  _rbac_waited=0
+  for _rbac_dep_try in $(seq 1 30); do
+    if systemctl is-active --quiet globular-persistence.service 2>/dev/null; then
+      break
+    fi
+    if [[ "$_rbac_waited" -eq 0 ]]; then
+      log_substep "Waiting for globular-persistence (RBAC backing store)..."
+      _rbac_waited=1
+    fi
+    sleep 2
+  done
+  if ! systemctl is-active --quiet globular-persistence.service 2>/dev/null; then
+    log_warn "globular-persistence not active after 60s — RBAC bindings may not persist."
+  fi
+
+  # Wait for the MESH to be serving. `rbac seed` has no --rbac endpoint flag: it
+  # resolves the service via config.ResolveServiceAddr, which routes through the
+  # Envoy mesh on :443. A late-install envoy restart leaves :443 dead for ~60s
+  # while CDS/LDS re-converge, and the seed fails hard in that window —
+  # observed live 2026-07-29: envoy restarted at 22:53:20, the seed ran at
+  # 22:53:27 and got 'dial tcp 10.0.0.63:443: connect: connection refused',
+  # then envoy's 'ingress_listener_443' only appeared at 22:54:20. Being active
+  # in systemd is NOT the same as serving (failure_mode
+  # health_gate_trusts_systemd_active_blind_to_runtime), so probe the socket.
+  _RBAC_IP="${_OPS_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+  _rbac_mesh_waited=0
+  for _rbac_mesh_try in $(seq 1 60); do
+    if timeout 1 bash -c "</dev/tcp/${_RBAC_IP}/443" >/dev/null 2>&1; then
+      break
+    fi
+    if [[ "$_rbac_mesh_waited" -eq 0 ]]; then
+      log_substep "Waiting for Envoy mesh :443 to serve (rbac resolves through it)..."
+      _rbac_mesh_waited=1
+    fi
+    sleep 2
+  done
+  if ! timeout 1 bash -c "</dev/tcp/${_RBAC_IP}/443" >/dev/null 2>&1; then
+    log_warn "Envoy mesh :443 not accepting connections after 120s — RBAC seed may fail."
+  fi
+
+  _RBAC_SA_CRED="${BOOTSTRAP_SA_CRED:-/var/lib/globular/.bootstrap-sa-password}"
+  _RBAC_PASSWORD=""
+  if [[ -f "$_RBAC_SA_CRED" ]]; then
+    _RBAC_PASSWORD="$(cat "$_RBAC_SA_CRED" 2>/dev/null || true)"
+  fi
+  _RBAC_PASSWORD="${_RBAC_PASSWORD:-${BOOTSTRAP_PASSWORD:-adminadmin}}"
+
+  # Authenticate as the bootstrap SA. Echoes the token, or nothing.
+  #
+  # Must address the authentication service EXPLICITLY. On Day-0 the mesh/DNS
+  # path is not reliable yet, so a bare `auth login` (service discovery) returns
+  # no token at this stage — observed live 2026-07-29: all 4 attempts logged
+  # "Auth not ready for RBAC seed" and the seed never ran, even though the same
+  # bare command succeeded by hand minutes later. The ops-knowledge seed above
+  # already solved this: it discovers the authentication port from etcd and
+  # passes --ca/--auth. Reuse the endpoint it resolved (_OPS_AUTH/_OPS_CA) and
+  # fall back to discovery only if that section was skipped. Guarded with :- so
+  # `set -u` does not abort when the ops section never ran.
+  _rbac_login() {
+    local _flags=()
+    if [[ -n "${_OPS_AUTH:-}" ]]; then
+      _flags=(--ca "${_OPS_CA:-/var/lib/globular/pki/ca.crt}" --auth "${_OPS_AUTH}")
+    else
+      _flags=(--insecure)
+    fi
+    "$GLOBULAR_CLI" "${_flags[@]}" auth login \
+      --user sa --password "$_RBAC_PASSWORD" 2>/dev/null \
+      | sed -n 's/^Token: //p' | head -n1 || true
+  }
+
+  # Count seeded service-account bindings that are readable back.
+  #
+  # Queries each subject INDIVIDUALLY (--subject) rather than enumerating with a
+  # bare `rbac list-bindings`. The bare enumerate path returns only the
+  # "SUBJECT ROLES" header on a cluster whose bindings are in fact present and
+  # enforcing — verified live 2026-07-29: the bare list showed zero rows while
+  # `--subject sa`, `--subject globular-controller` and
+  # `--subject globular-node-agent` each returned their binding, and the
+  # controller's PermissionDenied errors stopped. Verifying through the bare
+  # enumerate therefore reports a false failure on a correctly-seeded cluster.
+  _rbac_count_bindings() {
+    local _tok="$1" _found=0 _s
+    for _s in sa globular-controller globular-node-agent globular-gateway; do
+      if "$GLOBULAR_CLI" --insecure --token "$_tok" \
+           rbac list-bindings --subject "$_s" 2>/dev/null \
+           | grep -qE "^${_s}[[:space:]]+[^[:space:]]"; then
+        _found=$((_found + 1))
+      fi
+    done
+    echo "$_found"
+  }
+
+  # Seed, then verify. The seed runs OUTSIDE command substitution so its output
+  # is visible in the install log (an earlier version captured the whole
+  # function, silently swallowing every [rbac-seed] line).
+  _RBAC_BINDINGS=0
+  for _rbac_try in $(seq 1 4); do
+    _RBAC_TOKEN="$(_rbac_login)"
+    if [[ -n "$_RBAC_TOKEN" ]]; then
+      "$GLOBULAR_CLI" --insecure --token "$_RBAC_TOKEN" rbac seed 2>&1 \
+        | sed 's/^/  [rbac-seed] /' || true
+      _RBAC_BINDINGS="$(_rbac_count_bindings "$_RBAC_TOKEN" || echo 0)"
+      _RBAC_BINDINGS="${_RBAC_BINDINGS:-0}"
+    else
+      log_substep "Auth not ready for RBAC seed (attempt ${_rbac_try}/4)..."
+    fi
+    if [[ "$_RBAC_BINDINGS" -gt 0 ]]; then
+      break
+    fi
+    if [[ "$_rbac_try" -lt 4 ]]; then
+      log_substep "RBAC bindings not readable back yet (attempt ${_rbac_try}/4) — retrying seed..."
+      sleep 5
+    fi
+  done
+
+  if [[ "$_RBAC_BINDINGS" -gt 0 ]]; then
+    log_success "RBAC seeded and verified: ${_RBAC_BINDINGS} service-account binding(s) readable"
+  else
+    log_warn "RBAC seed produced no readable role bindings after 4 attempts."
+    log_warn "cluster-doctor repository reads and controller workflow.RecordOutcome WILL be denied."
+    log_warn "Re-run manually once services are stable:"
+    log_warn "  TOKEN=\$(globular auth login --user sa --password <sa-password> | sed -n 's/^Token: //p')"
+    log_warn "  globular --insecure --token \"\$TOKEN\" rbac seed"
+    log_warn "  globular --insecure --token \"\$TOKEN\" rbac list-bindings   # must be non-empty"
+  fi
+else
+  log_warn "globular CLI not found at $GLOBULAR_CLI — skipping RBAC role-binding seed"
+  log_warn "Run manually after bootstrap: globular rbac seed --token <sa-token>"
 fi
 
 # ── Final permission hardening ───────────────────────────────────────────────

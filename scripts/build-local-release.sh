@@ -523,6 +523,30 @@ print(d.get('version','0.0.0'))
   TMPROOT="$WORK/root-${pkg_name}"
   rm -rf "$TMPROOT"
   cp -a "$meta_dir" "$TMPROOT"
+
+  # Drop foreign-architecture .debs. Debian multiarch requires libfoo:i386 and
+  # libfoo:amd64 to be at the EXACT same version, so a bundled, pinned i386 copy
+  # only installs while the target's amd64 copy has not moved. Any node that has
+  # applied a security update since the bundle was built fails with
+  #
+  #   package libcap2:i386 ... cannot be configured because libcap2:amd64 is at
+  #   a different version
+  #
+  # which aborts install-local-debs and therefore the whole Day-1 join. The
+  # scylladb metadata dir carries 12 i386 debs (they get picked up whenever the
+  # BUILD host has i386 multiarch enabled); ScyllaDB is amd64-only and never
+  # needed them. Mirrors pkgpack.filterDebsForArch, which covers the Go builder
+  # path — this legacy metadata path copies meta_dir wholesale and bypasses it.
+  if [[ -d "$TMPROOT/debs" ]]; then
+    _foreign=$(find "$TMPROOT/debs" -maxdepth 1 -name '*.deb' \
+                 ! -name '*_amd64.deb' ! -name '*_all.deb' -printf '%f ' 2>/dev/null || true)
+    if [[ -n "${_foreign// /}" ]]; then
+      find "$TMPROOT/debs" -maxdepth 1 -name '*.deb' \
+        ! -name '*_amd64.deb' ! -name '*_all.deb' -delete 2>/dev/null || true
+      log "  dropped foreign-arch .deb(s) from ${pkg_name}: ${_foreign}"
+    fi
+  fi
+
   mkdir -p "$TMPROOT/bin" "$TMPROOT/specs"
   if [[ "$no_entrypoint" -eq 0 ]]; then
     cp "$BIN_DIR/$binary" "$TMPROOT/bin/$binary"
@@ -622,8 +646,25 @@ for tgz_path in sorted(glob.glob(f"{pkg_out}/*.tgz")):
     parts = fname.rsplit('_', 3)
     name = parts[0]
 
+    # Member lookup must tolerate BOTH tar conventions. Packages produced by
+    # this build are "./"-prefixed, but third-party packages carried forward
+    # from the base bundle (e.g. libnss-resolve, built in the packages repo)
+    # store bare members. Hardcoding './package.json' aborted the whole build
+    # with KeyError: "filename './package.json' not found" the moment such a
+    # package was carried forward — after 57 packages had already been staged.
     with tarfile.open(tgz_path) as tf:
-        pj = json.loads(tf.extractfile('./package.json').read())
+        member = None
+        for cand in ('./package.json', 'package.json'):
+            try:
+                member = tf.getmember(cand)
+                break
+            except KeyError:
+                continue
+        if member is None:
+            raise SystemExit(
+                f"ERROR: {fname} contains no package.json "
+                f"(looked for './package.json' and 'package.json')")
+        pj = json.loads(tf.extractfile(member).read())
     if pj.get('name'):
         name = pj['name']
 
@@ -631,14 +672,26 @@ for tgz_path in sorted(glob.glob(f"{pkg_out}/*.tgz")):
     pkg_digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
 
     prev_entry = prev_by_name.get(name, {})
-    changed = (pj['build_id'] != prev_entry.get('build_id', ''))
+
+    # Identity fields are OPTIONAL in a package.json. Packages built here always
+    # carry build_id/build_number, but third-party packages carried forward from
+    # the base bundle need not: libnss-resolve (packages repo) ships only
+    # name/version/platform/publisher/entrypoint, and the base bundle's own
+    # release-index already represents it as build_id "" / build_number 0 /
+    # kind "command". Indexing it with pj['build_id'] raised
+    # KeyError: 'build_id' and aborted the build after all 57 packages were
+    # staged. Fall back to the previous index entry, then to the empty identity
+    # that entry itself uses — never invent one.
+    pkg_build_id     = pj.get('build_id',     prev_entry.get('build_id', ''))
+    pkg_build_number = pj.get('build_number', prev_entry.get('build_number', 0))
+    changed = (pkg_build_id != prev_entry.get('build_id', ''))
 
     entry = {
         'name':                    name,
         'kind':                    pj.get('kind', prev_entry.get('kind', 'service')),
         'version':                 pj['version'],
-        'build_number':            pj['build_number'],
-        'build_id':                pj['build_id'],
+        'build_number':            pkg_build_number,
+        'build_id':                pkg_build_id,
         'platform':                pj.get('platform', 'linux_amd64'),
         'publisher':               pj.get('publisher', 'core@globular.io'),
         'channel':                 pj.get('channel', prev_entry.get('channel', 'stable')),
@@ -811,6 +864,38 @@ cp "${OUT_TGZ}.sha256" "$OUT_DIR/"
 cp -a "$DIST_DIR" "$OUT_DIR/globular-${VERSION}-linux-amd64"
 # Keep the sha256 file's path relative so `sha256sum -c` works from $OUT_DIR.
 ( cd "$OUT_DIR" && sha256sum "globular-${VERSION}-linux-amd64.tar.gz" > "globular-${VERSION}-linux-amd64.tar.gz.sha256" )
+
+# ── Platform floor gate ──────────────────────────────────────────────────────
+# Every shipped binary must run on the oldest OS docs/operators/building-from-source.md
+# advertises. This build compiles with the HOST toolchain, so the builder's glibc
+# silently becomes a runtime requirement: release 1.2.288 shipped file_server
+# needing GLIBC_2.38 while its other 54 binaries needed at most 2.34, so Day-0
+# aborted at "Workload Services" on Ubuntu 22.04 (glibc 2.35) and Debian 12 (2.36).
+#
+# NOTE: this is a GATE, not the cure. The real fix is to compile inside a
+# container pinned to the support floor, so the floor is enforced by construction
+# rather than detected after the fact. Until then, refuse to publish a bundle
+# that cannot run where we promise it runs.
+# Use the ABSOLUTE path. This script cd's to $SERVICES_ROOT/golang before it gets
+# here, so a "$(dirname "$0")/..." relative reference resolves to a directory that
+# does not exist, an [[ -x ]] guard on it fails, and the gate is skipped in
+# silence — a safety check that fails OPEN because a path did not resolve. That is
+# the same "not found where != does not exist" defect this gate exists to catch.
+# Missing checker is a hard error, never a skip.
+GLIBC_CHECK="$SERVICES_ROOT/scripts/check-glibc-floor.sh"
+echo ""
+echo "── Verifying platform floor ──"
+[[ -x "$GLIBC_CHECK" ]] || {
+  echo "  ✗ RELEASE REJECTED — platform-floor checker missing or not executable: $GLIBC_CHECK" >&2
+  echo "    Refusing to publish an unverified bundle." >&2
+  exit 1
+}
+if ! "$GLIBC_CHECK" "$OUT_DIR/globular-${VERSION}-linux-amd64"; then
+  echo ""
+  echo "  ✗ RELEASE REJECTED — binaries exceed the supported glibc floor." >&2
+  echo "    The bundle is left in place for inspection but MUST NOT be published." >&2
+  exit 1
+fi
 
 SIZE=$(du -sh "$OUT_DIR/globular-${VERSION}-linux-amd64.tar.gz" | awk '{print $1}')
 echo ""

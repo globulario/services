@@ -48,6 +48,7 @@ import (
 	"github.com/globulario/services/golang/installed_state"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"google.golang.org/protobuf/proto"
 )
 
 // lookupSelfHostedExistingByDiskTruth scans every installed_state record
@@ -415,8 +416,7 @@ func applySelfHostedInstalledStateRefresh(existing *node_agentpb.InstalledPackag
 
 	var pkg *node_agentpb.InstalledPackage
 	if existing != nil {
-		cp := *existing
-		pkg = &cp
+		pkg = proto.Clone(existing).(*node_agentpb.InstalledPackage)
 		// Deep-copy metadata so we can mutate without aliasing.
 		md := make(map[string]string, len(existing.Metadata)+5)
 		for k, v := range existing.Metadata {

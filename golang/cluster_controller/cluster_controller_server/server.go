@@ -278,11 +278,19 @@ type server struct {
 	observeInstalledPkg func(ctx context.Context, nodeID, name string) (*node_agentpb.InstalledPackage, error)
 	clearDriftObsFn     func(ctx context.Context, driftType, entityRef string)
 	emitEventFn         func(name string, payload map[string]interface{})
-	// reconcileNoProgress counts consecutive child-SUCCEEDED remediations that did
-	// NOT produce observed installed_state convergence, keyed by driftType|entityRef;
+	// reconcileNoProgress counts consecutive terminal remediation attempts (child
+	// SUCCEEDED without observed installed_state convergence, OR child FAILED
+	// outright) that did NOT resolve the drift, keyed by driftType|entityRef;
 	// escalates to FAILED past reconcileNoProgressThreshold (no silent retry loop).
-	reconcileNoProgMu   sync.Mutex
-	reconcileNoProgress map[string]int
+	// reconcileBackoffUntil holds a cooldown deadline for entries that just
+	// escalated: reconcileChooseWorkflow skips re-dispatch until it elapses, so a
+	// permanently-undispatchable-to-completion drift (e.g. missing_package with no
+	// repository build) stops being re-attempted every reconcile cycle forever.
+	// Both maps are leader-local, in-memory, and reset on failover — same accepted
+	// tradeoff as the pre-existing no-progress counter.
+	reconcileNoProgMu     sync.Mutex
+	reconcileNoProgress   map[string]int
+	reconcileBackoffUntil map[string]time.Time
 
 	// workflowClient is used to delegate workflow execution to the
 	// centralized WorkflowService. Lazily connected via the same

@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/globularcli/pkgpack"
 	"github.com/globulario/services/golang/repository/repository_client"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
@@ -138,6 +139,7 @@ var (
 	pkgPublishFile       string
 	pkgPublishDir        string
 	pkgPublishRepository string
+	pkgPublishDirect     bool
 	pkgPublishPublisher  string
 	pkgPublishDryRun     bool
 	pkgPublishForce      bool
@@ -205,6 +207,7 @@ func init() {
 	pkgPublishCmd.Flags().StringVar(&pkgPublishFile, "file", "", "path to a package tgz to publish")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishDir, "dir", "", "directory containing package tgz files to publish")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishRepository, "repository", "", "repository service address (required)")
+	pkgPublishCmd.Flags().BoolVar(&pkgPublishDirect, "direct", false, "dial the --repository endpoint exactly: no mesh, no discovery, no fallback to another instance")
 	pkgPublishCmd.Flags().StringVar(&pkgPublishPublisher, "publisher", "", "override publisher from package manifest")
 	pkgPublishCmd.Flags().BoolVar(&pkgPublishDryRun, "dry-run", false, "validate packages without uploading")
 	pkgPublishCmd.Flags().BoolVar(&pkgPublishForce, "force", false, "overwrite an existing artifact whose checksum differs.\nNOTE: --force does NOT bypass the official-publisher seal (core@globular.io stable artifacts are immutable). To repair a proven-phantom sealed artifact, additionally pass --unseal-official with --reason and --prior-digest.")
@@ -642,6 +645,13 @@ func publishOne(file, token string) pkgPublishOne {
 
 	// Step 2: connect to repository.
 	client, err := repository_client.NewRepositoryService_Client(pkgPublishRepository, "repository.PackageRepository")
+	if err == nil && pkgPublishDirect {
+		// Pin to exactly this instance. Mesh-first routing would load-balance the
+		// supplied address across every repository behind the VIP, which is how
+		// node-local CAS blobs got scattered instead of placed.
+		globular_client.SetConnectionMode(client, globular_client.ConnectionModeDirect)
+		fmt.Fprintf(os.Stderr, "publishing direct to %s\n", globular_client.DirectTarget(client))
+	}
 	if err != nil {
 		r.err = fmt.Errorf("connect to repository: %w", err)
 		r.duration = time.Since(start)

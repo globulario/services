@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"google.golang.org/protobuf/proto"
 )
 
 // These regression tests pin the post-fix contract:
@@ -155,7 +156,7 @@ func TestApplyPackageRelease_SkipPath_Repairs_StaleChecksum(t *testing.T) {
 	// Apply the repair contract.
 	diskHash := binSha
 	if !strings.EqualFold(strings.TrimSpace(existing.GetChecksum()), diskHash) {
-		repaired := *existing
+		repaired := proto.Clone(existing).(*node_agentpb.InstalledPackage)
 		repaired.Checksum = diskHash
 		if repaired.Metadata == nil {
 			repaired.Metadata = make(map[string]string)

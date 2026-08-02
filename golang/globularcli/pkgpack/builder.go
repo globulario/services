@@ -160,7 +160,7 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		if len(info.Metadata.BundleDebs) > 0 && len(info.DebPaths) == 0 {
 			if opts.DebsDir != "" {
 				// Use pre-downloaded debs; skip apt-get download.
-				debPaths, err := collectPrebuiltDebs(opts.DebsDir)
+				debPaths, err := collectPrebuiltDebs(opts.DebsDir, goarch)
 				if err != nil {
 					res.Err = fmt.Errorf("collect prebuilt debs from %s: %w", opts.DebsDir, err)
 					results = append(results, res)
@@ -187,10 +187,19 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 					hadErr = true
 					continue
 				}
-				info.DebPaths = debPaths
+				info.DebPaths = filterDebsForArch(debPaths, goarch)
 				defer os.RemoveAll(debDir)
 			}
 		}
+
+		// Single choke point for the architecture filter. Applied here rather
+		// than only inside the collectors because a package-local root/debs
+		// directory (the scylladb layout) is scanned by specscan and arrives
+		// with DebPaths already populated, which skips both collectors
+		// entirely — that is how 12 i386 .debs kept shipping after the
+		// collectors were filtered. Whatever the source, nothing foreign-arch
+		// reaches the artifact.
+		info.DebPaths = filterDebsForArch(info.DebPaths, goarch)
 
 		archiveName := buildArchiveName(info.ServiceName, opts.Version, goos, goarch)
 		outputPath := filepath.Join(opts.OutDir, archiveName)

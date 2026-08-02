@@ -11,7 +11,68 @@ import (
 
 // collectPrebuiltDebs returns all .deb files found in dir.
 // Used when --debs-dir is provided to skip apt-get download.
-func collectPrebuiltDebs(dir string) ([]string, error) {
+// debArchForGoarch maps a Go GOARCH to the Debian architecture name used in
+// .deb filenames.
+func debArchForGoarch(goarch string) string {
+	switch goarch {
+	case "amd64":
+		return "amd64"
+	case "arm64":
+		return "arm64"
+	case "386":
+		return "i386"
+	default:
+		return goarch
+	}
+}
+
+// debMatchesArch reports whether a .deb filename belongs to the target
+// architecture. Debian names artifacts "<pkg>_<version>_<arch>.deb"; "all"
+// means architecture-independent and is always kept.
+//
+// FOREIGN-ARCH .debs MUST NOT BE BUNDLED. Debian multiarch requires that
+// libfoo:i386 and libfoo:amd64 be at the EXACT same version, so a pinned i386
+// copy only installs on a host whose amd64 copy has not moved. Any host that
+// has applied a security update since the bundle was built fails with
+//
+//	package libcap2:i386 1:2.66-5ubuntu2.2 cannot be configured because
+//	libcap2:amd64 is at a different version (1:2.66-5ubuntu2.4)
+//
+// and the whole install-local-debs step aborts. Observed 2026-07-30: the
+// scylladb package shipped 12 i386 debs alongside 7 amd64 ones (they get pulled
+// in whenever the BUILD host has i386 multiarch enabled) and every Day-1 join
+// failed at the ScyllaDB phase on nodes that had been updated. ScyllaDB is
+// amd64-only; those i386 copies were never needed.
+func debMatchesArch(name, goarch string) bool {
+	base := strings.TrimSuffix(filepath.Base(name), ".deb")
+	idx := strings.LastIndex(base, "_")
+	if idx < 0 {
+		// Unparseable name: keep it rather than silently dropping a payload.
+		return true
+	}
+	arch := base[idx+1:]
+	return arch == "all" || arch == debArchForGoarch(goarch)
+}
+
+// filterDebsForArch drops foreign-architecture .debs and reports what it removed.
+func filterDebsForArch(paths []string, goarch string) []string {
+	kept := make([]string, 0, len(paths))
+	var dropped []string
+	for _, p := range paths {
+		if debMatchesArch(p, goarch) {
+			kept = append(kept, p)
+			continue
+		}
+		dropped = append(dropped, filepath.Base(p))
+	}
+	if len(dropped) > 0 {
+		log.Printf("  dropped %d foreign-arch .deb file(s) not matching %s: %s",
+			len(dropped), debArchForGoarch(goarch), strings.Join(dropped, " "))
+	}
+	return kept
+}
+
+func collectPrebuiltDebs(dir string, goarch string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("read debs dir: %w", err)
@@ -22,8 +83,9 @@ func collectPrebuiltDebs(dir string) ([]string, error) {
 			paths = append(paths, filepath.Join(dir, e.Name()))
 		}
 	}
+	paths = filterDebsForArch(paths, goarch)
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("no .deb files found in %s", dir)
+		return nil, fmt.Errorf("no .deb files for arch %s found in %s", debArchForGoarch(goarch), dir)
 	}
 	return paths, nil
 }

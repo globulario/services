@@ -146,7 +146,18 @@ func reconcileChooseWorkflow(cfg ReconcileControllerConfig) ActionHandler {
 				return nil, fmt.Errorf("choose workflow: %w", err)
 			}
 			req.Outputs["workflow_choice"] = choice
-			return &ActionResult{OK: true, Output: choice}, nil
+			// Output MUST wrap the choice under "workflow_choice" — the engine
+			// merges result.Output into run.Outputs KEY BY KEY, so returning the
+			// bare choice would publish its inner fields (workflow_name, inputs)
+			// at top level and never define workflow_choice itself. The next step
+			// resolves `$.workflow_choice.workflow_name` (cluster.reconcile.yaml),
+			// which then stayed unresolved and was passed through as the LITERAL
+			// string, producing: "unknown child workflow:
+			// $.workflow_choice.workflow_name" — every remediation failing on
+			// dispatch. Same contract as scan_drift/classify_drift above: a
+			// remote actor's req.Outputs write is on a serialized copy and is
+			// lost, so the named key must come back through Output.
+			return &ActionResult{OK: true, Output: map[string]any{"workflow_choice": choice}}, nil
 		}
 		return &ActionResult{OK: true}, nil
 	}
@@ -262,11 +273,15 @@ func workflowStartChild(cfg WorkflowServiceConfig) ActionHandler {
 			}
 			result := map[string]any{"run_id": runID, "workflow_name": workflowName}
 			req.Outputs["child_run"] = result
-			return &ActionResult{OK: true, Output: result}, nil
+			// Wrap under "child_run": run.Outputs is merged key-by-key, and the
+			// next step resolves `$.child_run.run_id`. Returning the bare result
+			// would define run_id/workflow_name at top level, leaving child_run
+			// undefined. See reconcileChooseWorkflow for the full failure shape.
+			return &ActionResult{OK: true, Output: map[string]any{"child_run": result}}, nil
 		}
 		result := map[string]any{"run_id": "mock-run", "workflow_name": workflowName}
 		req.Outputs["child_run"] = result
-		return &ActionResult{OK: true, Output: result}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"child_run": result}}, nil
 	}
 }
 
@@ -284,11 +299,16 @@ func workflowWaitChildTerminal(cfg WorkflowServiceConfig) ActionHandler {
 				return nil, fmt.Errorf("wait child %s: %w", childRunID, err)
 			}
 			req.Outputs["child_result"] = result
-			return &ActionResult{OK: true, Output: result}, nil
+			// Wrap under "child_result": mark_item_terminal resolves
+			// `$.child_result` and gates the drift-observation clear on its
+			// status. Returning the bare result would publish status/run_id at
+			// top level, leaving child_result undefined — so mark_item_terminal
+			// would see a nil child_result and mis-read the child's outcome.
+			return &ActionResult{OK: true, Output: map[string]any{"child_result": result}}, nil
 		}
 		result := map[string]any{"status": "SUCCEEDED", "run_id": childRunID}
 		req.Outputs["child_result"] = result
-		return &ActionResult{OK: true, Output: result}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"child_result": result}}, nil
 	}
 }
 

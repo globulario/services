@@ -39,3 +39,7 @@
   title: A write to owner-owned desired/spec/status state is intended
   severity: high
   detect_spec: an agent intends to mutate owner-owned control-plane state (desired version, infra/xDS version, resolved_version, cache_digest, generation, placement, release/channel state) rather than read it
+- id: condition.cluster.node.systemd_unit_not_running
+  title: A Globular-managed systemd unit is not running on a node
+  severity: high
+  detect_spec: node_agent inventory reports a managed globular-* unit whose active state is not "active"

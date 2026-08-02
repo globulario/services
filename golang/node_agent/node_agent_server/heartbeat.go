@@ -957,8 +957,14 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			}
 			if kind == "COMMAND" {
 				// COMMAND packages are standalone binaries — check if the
-				// binary exists on disk rather than looking for a systemd unit.
-				if !commandBinaryExists(name) {
+				// binary exists under Globular's own managed directories AND
+				// its checksum matches this manifest (commandBinaryVerified),
+				// not just whether some like-named binary exists anywhere on
+				// $PATH (commandBinaryExists) — a same-named unrelated OS
+				// package would otherwise make this loop mint a fresh, false
+				// installed_state record stamped with the repo manifest's own
+				// version/checksum for a binary that was never verified.
+				if !commandBinaryVerified(name, m) {
 					continue
 				}
 			} else {
@@ -972,7 +978,7 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 				if out, err := exec.CommandContext(ctx, "systemctl", "list-unit-files", unitName, "--no-legend", "--no-pager").Output(); err == nil {
 					unitFileInstalled = strings.TrimSpace(string(out)) != ""
 				}
-				if !unitFileInstalled && !commandBinaryExists(name) {
+				if !unitFileInstalled && !commandBinaryVerified(name, m) {
 					continue
 				}
 			}
@@ -1078,6 +1084,34 @@ func runtimeChecksumFromManifest(m *repositorypb.ArtifactManifest) string {
 // exists. Repair is allowed only when the active local package manifest's
 // entrypoint_checksum exactly matches the on-disk binary. That keeps the
 // node-agent as installed-state writer without trusting a stale etcd record.
+// localCacheMayAdoptBuildID reports whether the local-package-cache repair path
+// may write manifestBuildID as the record's build identity.
+//
+// Backfill only: build_id has exactly one canonical source — the repository that
+// published the artifact (identity.has_single_canonical_source_and_is_immutable).
+// A locally staged tarball carries whatever id the bundle build minted, which for
+// a locally-built release is a DIFFERENT uuid for byte-identical content. Adopting
+// it would make this path a second writer of that identity
+// (identity.field_semantic_drift_across_writers).
+func localCacheMayAdoptBuildID(existingBuildID, manifestBuildID string) bool {
+	return manifestBuildID != "" && existingBuildID == ""
+}
+
+// localCacheRecordSettled reports whether an installed-state record needs no
+// repair from the local package cache.
+//
+// A record whose entrypoint checksum already matches the on-disk binary is
+// settled once it carries ANY build identity — even one that differs from this
+// tarball's manifest. Treating a differing id as "needs repair" is what made the
+// repair path fight apply-package: install wrote the desired repository id, this
+// path rewrote it to the cache id ~49s later, convergence saw a mismatch and
+// reinstalled, looping on the 5-minute sync ticker and restarting the service
+// every pass.
+func localCacheRecordSettled(status string, checksumMatches bool, existingBuildID, manifestBuildID string) bool {
+	identitySettled := existingBuildID != "" || manifestBuildID == ""
+	return status == "installed" && checksumMatches && identitySettled
+}
+
 func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx context.Context, now int64, platform string) {
 	if srv.nodeID == "" {
 		return
@@ -1117,24 +1151,71 @@ func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx contex
 				continue
 			}
 			storedEntry := digest.CanonicalSHA256(pkg.GetMetadata()["entrypoint_checksum"])
-			if pkg.GetStatus() == "installed" &&
-				binhash.Equal(storedEntry, manifestEntry) &&
-				pkg.GetBuildId() == manifest.BuildID &&
-				pkg.GetBuildNumber() == manifest.BuildNumber {
+			// A record whose entrypoint checksum already matches the on-disk
+			// binary is SETTLED once it carries a build identity — even if that
+			// identity differs from this local tarball's manifest.
+			//
+			// build_id has exactly one canonical source: the repository that
+			// published the artifact (identity.has_single_canonical_source_and_
+			// is_immutable). A locally staged tarball carries whatever id the
+			// bundle build minted, which for a locally-built release is a
+			// different UUID for byte-identical content. Treating a mismatch as
+			// "needs repair" made this path a SECOND writer of that identity
+			// (identity.field_semantic_drift_across_writers), and the two
+			// writers then fought forever:
+			//
+			//   12:04:06  apply-package installs workflow with the desired
+			//             repository build_id 019fb141… (v7), verifies, restarts
+			//   12:04:55  this repair rewrites it to the cache manifest's
+			//             3989bbee… (v4)
+			//   next pass convergence sees a mismatch → reinstall → restart
+			//
+			// Observed live 2026-07-30 as a reinstall+restart loop on the 5-min
+			// sync ticker (11:22, 11:28, 11:34, 11:40, 11:46, 11:52, 11:58,
+			// 12:04) across workflow, monitoring, mcp, log, event, ai-watcher and
+			// ai-executor. Each restart dropped the service's listener, so
+			// cluster-doctor intermittently reported
+			// workflow.service_unavailable / connection refused and went
+			// reduced-harvest.
+			if localCacheRecordSettled(pkg.GetStatus(),
+				binhash.Equal(storedEntry, manifestEntry),
+				pkg.GetBuildId(), manifest.BuildID) {
 				continue
 			}
 
 			pkg.Status = "installed"
-			pkg.UpdatedUnix = now
+			// UpdatedUnix is deliberately NOT bumped here.
+			//
+			// This function only ever REPAIRS records that already exist (it
+			// iterates ListInstalledPackages); it never installs anything. The
+			// field is the apply anchor: cluster-doctor reads it as
+			// last_apply_time (apply_time_source=installed_package.updated_unix)
+			// and flags any process that started before it as
+			// service.old_pid_after_upgrade — "restart did not take effect".
+			//
+			// Bumping it on a metadata-only refresh is
+			// forbidden_fix:bump_immutable_timestamp_on_observe, and it
+			// manufactured exactly that false positive: on a clean Day-0,
+			// etcd and persistence were both reported old_pid_after_upgrade
+			// while the evidence itself said running_matches_installed=true —
+			// the binaries were correct, but a repair write had moved the
+			// anchor to 13:23:42 while the processes had legitimately started
+			// at 13:18:52.
+			//
+			// Only a real (re)install may move this anchor; that is
+			// apply_package_release's job.
 			pkg.Platform = platform
 			pkg.Checksum = manifestEntry
 			if manifest.Publisher != "" {
 				pkg.PublisherId = manifest.Publisher
 			}
-			if manifest.BuildID != "" {
+			// BACKFILL ONLY — never redefine an existing build identity from the
+			// local cache. This path repairs records that are missing identity;
+			// it is not an authority on what the identity should be.
+			if localCacheMayAdoptBuildID(pkg.GetBuildId(), manifest.BuildID) {
 				pkg.BuildId = manifest.BuildID
 			}
-			if manifest.BuildNumber > 0 {
+			if manifest.BuildNumber > 0 && pkg.GetBuildNumber() == 0 {
 				pkg.BuildNumber = manifest.BuildNumber
 			}
 			assignEntrypointChecksumMetadata(pkg, manifestEntry, diskEntry)
@@ -1379,6 +1460,34 @@ func localDistributionPackagePath(name, version, platform string) string {
 // the standard binary locations.
 func commandBinaryExists(name string) bool {
 	return commandBinaryPath(name) != ""
+}
+
+// commandBinaryVerified reports whether a COMMAND package is genuinely
+// installed under Globular's own managed binary directories, proven by an
+// entrypoint checksum match against the repository manifest.
+//
+// This intentionally does NOT use commandBinaryPath()'s exec.LookPath($PATH)
+// fallback: that fallback exists for the already-checksum-gated proof path in
+// localPackageProofFromManifest, where a mismatch is caught immediately after.
+// Here, existence alone was being treated as installed-state proof — any
+// same-named binary anywhere on $PATH (e.g. an unrelated OS/apt package) was
+// enough to make syncRepoArtifactsToEtcd mint a fresh installed_state record
+// stamped with the repository manifest's version/checksum, regardless of
+// whether that binary had anything to do with Globular's own package. This
+// produced a permanent, self-reinstating placement.installed_package_orphaned
+// finding on nodes that happen to have a like-named system tool on $PATH,
+// completely independent of node profile authorization.
+func commandBinaryVerified(name string, m *repositorypb.ArtifactManifest) bool {
+	manifestEntry := runtimeChecksumFromManifest(m)
+	if manifestEntry == "" {
+		return false
+	}
+	for _, path := range commandBinaryPaths(name) {
+		if diskEntry := binhash.HashOrEmpty(path); diskEntry != "" && binhash.Equal(manifestEntry, diskEntry) {
+			return true
+		}
+	}
+	return false
 }
 
 // detectPartialApply checks for binary replacement without state update.

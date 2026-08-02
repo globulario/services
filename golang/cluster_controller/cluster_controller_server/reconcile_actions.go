@@ -183,21 +183,6 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 			activeJoinNodes[node.NodeID] = true
 		}
 	}
-	// Snapshot objectstore-membership admission under the same lock. A held
-	// minio/sidekick on a node that carries the storage profile
-	// (ObjectStoreIntent.Member) but has NOT been admitted to
-	// DesiredObjectStoreMembers is not "missing" — it is unadmitted/held
-	// (meta.absence_scope_must_be_explicit). The release workflow short-circuits
-	// with 0 targets for such a package, so emitting missing_package here scopes a
-	// held package as absent and spins a permanent remediation loop
-	// (workflow.drift_stuck CRITICAL). nil is meaningful (legacy mode) — preserve
-	// it so the predicate's legacy branch governs. Copied, not aliased, to keep
-	// the scan lock-free.
-	var desiredObjectStoreMembers []ObjectStoreMember
-	if srv.state.DesiredObjectStoreMembers != nil {
-		desiredObjectStoreMembers = make([]ObjectStoreMember, len(srv.state.DesiredObjectStoreMembers))
-		copy(desiredObjectStoreMembers, srv.state.DesiredObjectStoreMembers)
-	}
 	srv.unlock()
 
 	// Build the set of nodes to include (empty = all).
@@ -306,13 +291,21 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 				// objectstore-topology-gated packages (minio/sidekick) are placed
 				// by the objectstore admission plane, not by profile-derived desired
 				// state. A node can carry the storage profile (ObjectStoreIntent.Member)
-				// yet be held out of DesiredObjectStoreMembers; its minio/sidekick is
-				// unadmitted/held, not absent. Reporting missing_package there spins a
-				// permanent remediation loop the release workflow can never satisfy
-				// (0 targets). Scoped narrowly (meta.silence_is_not_valid_for_unexpected):
-				// only these gated packages, and only when NOT an admitted member — a
-				// genuinely-missing minio on an admitted member still drifts below.
-				if isObjectStoreTopologyGated(svc) && !nodeIsExplicitObjectStoreMember(node, desiredObjectStoreMembers) {
+				// yet be held pending pool-topology admission; its minio/sidekick is
+				// held, not absent. Reporting missing_package there spins a permanent
+				// remediation loop the release workflow can never satisfy (0 targets).
+				// Scoped narrowly (meta.silence_is_not_valid_for_unexpected): only
+				// these gated packages, and only while actually held — a
+				// genuinely-missing minio on an active member still drifts below.
+				//
+				// nodeMinioPlacementIsHeld (not nodeIsExplicitObjectStoreMember) is the
+				// gate here on purpose: nodeIsExplicitObjectStoreMember's legacy-mode
+				// branch (DesiredObjectStoreMembers == nil) returns true unconditionally,
+				// which made this exemption a no-op on any cluster where no topology
+				// transition has ever run — every storage-profile Day-1 node's
+				// minio/sidekick read as missing forever (failure_mode
+				// objectstore.minio.standalone_to_distributed_grow_deadlock).
+				if isObjectStoreTopologyGated(svc) && nodeMinioPlacementIsHeld(node) {
 					continue
 				}
 				driftItems = append(driftItems, map[string]any{
@@ -476,8 +469,18 @@ func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any
 // driftEntityRef builds a stable identifier for a drift item so the telemetry
 // layer can track its lifetime across reconcile cycles.
 func driftEntityRef(item map[string]any) string {
-	pkg := fmt.Sprint(item["package_name"])
-	node := fmt.Sprint(item["node_id"])
+	pkg, _ := item["package_name"].(string)
+	node, _ := item["node_id"].(string)
+	// infra_unhealthy items have no package_name — use component instead so
+	// etcd/scylladb/minio unhealthy on the SAME node don't collapse onto one
+	// no-progress/backoff key (they would otherwise share driftEntityRef and
+	// each restart attempt/failure would incorrectly reset or count against
+	// a sibling component's counter).
+	if pkg == "" {
+		if component, ok := item["component"].(string); ok && component != "" {
+			pkg = component
+		}
+	}
 	switch {
 	case pkg != "" && node != "":
 		return pkg + "@" + node
@@ -676,6 +679,26 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 
 	switch driftType {
 	case "missing_package", "version_drift":
+		// A drift item that just escalated to FAILED (reconcileNoProgressThreshold
+		// consecutive non-resolving remediation attempts) is in a cooldown window:
+		// skip dispatch entirely rather than hammering release.apply.package every
+		// reconcile cycle for a remediation that keeps not landing (e.g.
+		// missing_package with no repository build — see
+		// ops.always.package.new-package-must-be-published). The drift scan still
+		// runs and the doctor finding stays visible; only the dispatch is paused,
+		// and it resumes automatically once the cooldown elapses.
+		key := driftType + "|" + driftEntityRef(item)
+		if inBackoff, until := srv.reconcileInBackoff(key); inBackoff {
+			return map[string]any{
+				"workflow_name": "noop",
+				"inputs": map[string]any{
+					"reason":       fmt.Sprintf("backoff: %s exceeded %d consecutive failed remediation attempts, next attempt after %s", key, reconcileNoProgressThreshold, until.UTC().Format(time.RFC3339)),
+					"node_id":      nodeID,
+					"package_name": pkgName,
+				},
+			}, nil
+		}
+
 		// Determine the dispatch kind from the component catalog rather than
 		// a static name list. COMMAND packages (rclone, restic, sctool, mc,
 		// ffmpeg, …) must be tagged as such so the workflow engine skips
@@ -712,14 +735,25 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 
 	case "infra_unhealthy":
 		component := fmt.Sprint(item["component"])
-		log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s (remediation deferred)", component, nodeID)
-		// For now, just log. In the future this could trigger node.repair.
+		endpoint := fmt.Sprint(item["endpoint"])
+		key := driftType + "|" + driftEntityRef(item)
+		if inBackoff, until := srv.reconcileInBackoff(key); inBackoff {
+			return map[string]any{
+				"workflow_name": "noop",
+				"inputs": map[string]any{
+					"reason":    fmt.Sprintf("backoff: %s exceeded %d consecutive failed restart attempts, next attempt after %s", key, reconcileNoProgressThreshold, until.UTC().Format(time.RFC3339)),
+					"node_id":   nodeID,
+					"component": component,
+				},
+			}, nil
+		}
+		log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s: dispatching restart", component, nodeID)
 		return map[string]any{
-			"workflow_name": "noop",
+			"workflow_name": "node.restart_infra_unit",
 			"inputs": map[string]any{
-				"reason":    fmt.Sprintf("infra_unhealthy: %s on %s", component, nodeID),
 				"node_id":   nodeID,
 				"component": component,
+				"endpoint":  endpoint,
 			},
 		}, nil
 
@@ -756,11 +790,24 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 	}
 }
 
-// reconcileNoProgressThreshold bounds how many consecutive child-SUCCEEDED
-// remediations may be observed WITHOUT installed_state convergence before the
-// item is escalated to FAILED — preventing the silent 30s "SUCCEEDED but never
-// installed" loop (convergence.no_infinite_retry / SCAR-2).
+// reconcileNoProgressThreshold bounds how many consecutive non-resolving
+// terminal remediation attempts (child SUCCEEDED without observed
+// installed_state convergence, OR child FAILED outright) may be observed
+// before the item is escalated to FAILED and backed off — preventing the
+// silent 30s retry-forever loop (convergence.no_infinite_retry / SCAR-2, and
+// its FAILED-status counterpart: a permanently-undispatchable-to-completion
+// drift, e.g. missing_package with no repository build, was previously
+// re-dispatched every reconcile cycle with no terminal state at all —
+// meta.silence_is_not_valid_for_unexpected).
 const reconcileNoProgressThreshold = 3
+
+// reconcileBackoffCooldown bounds how long a drift item that just escalated to
+// FAILED is excluded from further dispatch by reconcileChooseWorkflow. Bounded
+// (not permanent) so a transient cause — repository outage, a publish still
+// propagating — resolves on its own once the window elapses; no operator
+// action required. meta.write_creates_completion_obligation: the dispatch
+// attempt now has an actual completion path instead of an unfinished promise.
+const reconcileBackoffCooldown = 10 * time.Minute
 
 // observeInstalledPackage reads the L3 installed_state for (nodeID, name) —
 // the same any-kind lookup the drift scanner uses. installed_state is
@@ -830,6 +877,24 @@ func (srv *server) reconcileItemConverged(ctx context.Context, item map[string]a
 			return desiredVer == "" || pkg.GetVersion() == desiredVer, true
 		}
 		return pkg.GetVersion() == desiredVer, true // version_drift
+	case "infra_unhealthy":
+		// Child SUCCEEDED means the restart RPC was dispatched and node-agent
+		// reported the systemd action itself succeeded — not proof the
+		// service is actually healthy again (same SCAR-2 discipline as
+		// missing_package/version_drift: dispatch ack is not install proof).
+		// Re-probe the same health check reconcileScanDrift used to raise
+		// this drift in the first place before clearing it.
+		endpoint := fmt.Sprint(item["endpoint"])
+		switch fmt.Sprint(item["component"]) {
+		case "etcd":
+			return srv.probeEtcdHealth(ctx, endpoint), true
+		case "scylladb":
+			return srv.probeScyllaHealth(ctx, endpoint), true
+		case "minio":
+			return srv.probeMinioHealth(ctx, endpoint), true
+		default:
+			return false, true
+		}
 	default:
 		return false, false
 	}
@@ -865,6 +930,35 @@ func (srv *server) reconcileResetNoProgress(key string) {
 	}
 }
 
+// reconcileArmBackoff starts a reconcileBackoffCooldown window for key, during
+// which reconcileChooseWorkflow will not dispatch a remediation workflow for
+// it. Called once an item crosses reconcileNoProgressThreshold.
+func (srv *server) reconcileArmBackoff(key string) {
+	srv.reconcileNoProgMu.Lock()
+	defer srv.reconcileNoProgMu.Unlock()
+	if srv.reconcileBackoffUntil == nil {
+		srv.reconcileBackoffUntil = make(map[string]time.Time)
+	}
+	srv.reconcileBackoffUntil[key] = time.Now().Add(reconcileBackoffCooldown)
+}
+
+// reconcileInBackoff reports whether key is still within its cooldown window.
+// Expired entries are cleared as a side effect so the map does not grow
+// unbounded with stale keys.
+func (srv *server) reconcileInBackoff(key string) (bool, time.Time) {
+	srv.reconcileNoProgMu.Lock()
+	defer srv.reconcileNoProgMu.Unlock()
+	until, ok := srv.reconcileBackoffUntil[key]
+	if !ok {
+		return false, time.Time{}
+	}
+	if !time.Now().Before(until) {
+		delete(srv.reconcileBackoffUntil, key)
+		return false, time.Time{}
+	}
+	return true, until
+}
+
 // reconcileMarkItemTerminal records the outcome of a child remediation.
 //
 // SCAR-2 (reconcile.terminal_success_requires_observed_convergence): a child
@@ -890,44 +984,53 @@ func (srv *server) reconcileMarkItemTerminal(ctx context.Context, item, childRes
 	log.Printf("reconcile-workflow: item terminal: type=%s node=%s pkg=%s child_status=%s",
 		item["type"], item["node_id"], item["package_name"], status)
 
-	if status != "SUCCEEDED" {
-		return nil
-	}
-
 	dType := fmt.Sprint(item["type"])
 	eRef := driftEntityRef(item)
 	key := dType + "|" + eRef
 
-	converged, checkable := srv.reconcileItemConverged(ctx, item)
+	if status == "SUCCEEDED" {
+		converged, checkable := srv.reconcileItemConverged(ctx, item)
 
-	// Observed convergence proven (or the drift type has no observation predicate):
-	// clear the drift observation and reset the no-progress counter.
-	if !checkable || converged {
-		if dType != "" && eRef != "" {
-			srv.clearDriftObservation(ctx, dType, eRef)
+		// Observed convergence proven (or the drift type has no observation
+		// predicate): clear the drift observation and reset the no-progress counter.
+		if !checkable || converged {
+			if dType != "" && eRef != "" {
+				srv.clearDriftObservation(ctx, dType, eRef)
+			}
+			srv.reconcileResetNoProgress(key)
+			if checkable {
+				log.Printf("reconcile-workflow: observed convergence confirmed for %s (%s) — drift cleared", eRef, dType)
+			}
+			return nil
 		}
-		srv.reconcileResetNoProgress(key)
-		if checkable {
-			log.Printf("reconcile-workflow: observed convergence confirmed for %s (%s) — drift cleared", eRef, dType)
-		}
-		return nil
+		// Child reported SUCCEEDED but installed_state does NOT reflect it — falls
+		// through to the shared no-progress counting below (SCAR-2).
 	}
+	// Any other terminal status (FAILED, ERROR, UNKNOWN, ...) also falls through:
+	// meta.silence_is_not_valid_for_unexpected. This used to `return nil` here,
+	// silently dropping a failed dispatch — a permanently-failing remediation
+	// (e.g. missing_package with no repository build) was then re-dispatched every
+	// reconcile cycle forever, with no counter, no terminal state, and no visible
+	// failure (workflow.drift_stuck climbing consecutive_cycles indefinitely).
 
-	// Child reported SUCCEEDED but installed_state does NOT reflect it: do NOT
-	// clear the observation. Count the no-progress pass; escalate to FAILED once
-	// it crosses the bound so the stuck node becomes operator-visible instead of
-	// looping SUCCEEDED forever.
 	n := srv.reconcileBumpNoProgress(key)
-	log.Printf("reconcile-workflow: child SUCCEEDED but installed_state NOT converged for %s (%s) — drift NOT cleared (no-progress %d/%d)",
-		eRef, dType, n, reconcileNoProgressThreshold)
+	log.Printf("reconcile-workflow: remediation not resolved for %s (%s) — child_status=%s, no-progress %d/%d",
+		eRef, dType, status, n, reconcileNoProgressThreshold)
 	if n >= reconcileNoProgressThreshold {
+		reason := "remediation_no_progress"
+		if status != "SUCCEEDED" {
+			reason = fmt.Sprintf("remediation_dispatch_failed: child_status=%s", status)
+		}
 		failItem := make(map[string]any, len(item)+1)
 		for k, v := range item {
 			failItem[k] = v
 		}
-		failItem["reason"] = "remediation_no_progress"
+		failItem["reason"] = reason
 		_ = srv.reconcileMarkItemFailed(ctx, failItem)
 		srv.reconcileResetNoProgress(key) // re-arm: emit a periodic signal, not every tick
+		if key != "|" {
+			srv.reconcileArmBackoff(key) // stop re-dispatching this item for a cooldown window
+		}
 	}
 	return nil
 }
@@ -1030,6 +1133,20 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 				log.Printf("reconcile-workflow: noop child: %s", reason)
 				childResults.Store("noop-run", map[string]any{"status": "SUCCEEDED", "run_id": "noop-run"})
 				return "noop-run", nil
+			}
+
+			if workflowName == "node.restart_infra_unit" {
+				nodeID := fmt.Sprint(inputs["node_id"])
+				component := fmt.Sprint(inputs["component"])
+				endpoint := fmt.Sprint(inputs["endpoint"])
+				ok, message := srv.restartInfraUnit(ctx, nodeID, endpoint, component)
+				runID := fmt.Sprintf("restart-%s-%s-%d", nodeID, component, time.Now().UnixNano())
+				st := "FAILED"
+				if ok {
+					st = "SUCCEEDED"
+				}
+				childResults.Store(runID, map[string]any{"status": st, "run_id": runID, "message": message})
+				return runID, nil
 			}
 
 			if workflowName == "release.apply.package" {

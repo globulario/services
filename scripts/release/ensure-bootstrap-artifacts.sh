@@ -156,6 +156,17 @@ CORE_PACKAGES=(
   # (dist/.../packages/); publish them here.
   "claude_*_linux_amd64.tgz"
   "codex_*_linux_amd64.tgz"
+  # ── OS-dependency bridge packages ──────────────────────────────────
+  # libnss-resolve is requested at convergence via the core/compute
+  # profile (component_catalog.go) but, like claude/codex above, was
+  # absent from this publish list — every new package added to the
+  # catalog must ALSO be added here, or Day-0's own reconcile path
+  # (release.apply.package) can never resolve its build identity and
+  # it's left unrecorded in installed_state, silently, with no drift
+  # ever firing (see docs/operational-knowledge/stages/package-system.yaml,
+  # ops.always.package.new-package-must-be-published). The artifact
+  # ships in the bundle (dist/.../packages/); publish it here.
+  "libnss-resolve_*_linux_amd64.tgz"
 )
 
 # ── Step 1: Discover repository endpoint ─────────────────────────────────────
