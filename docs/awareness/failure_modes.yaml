@@ -7343,7 +7343,7 @@ failure_modes:
       related_invariants:
         - meta.silence_is_not_valid_for_unexpected
       required_tests:
-        - TestReconcileMarkItemTerminal_RequiresObservedConvergence/repeated_failure_escalates_and_arms_backoff
+        - golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go:TestReconcileMarkItemTerminal_RequiresObservedConvergence/repeated_failure_escalates_and_arms_backoff
       evidence:
         - 'libnss-resolve@eb9a2dac-05b0-52ac-9002-99d8ffd35902: workflow.drift_stuck missing_package, 38+ consecutive reconcile cycles, last_remediation_id empty. reconcileMarkItemTerminal silently dropped non-SUCCEEDED child results (if status != SUCCEEDED { return nil }), and release_id was re-minted every cycle so WF-DEFER max_defers/abandoned never accumulated across cycles — no cap on redispatch at all.'
     - id: failure.command_package_published_under_infrastructurerelease_dispat
@@ -7354,7 +7354,7 @@ failure_modes:
       related_invariants:
         - four_layer.layer_has_single_writing_actor
       required_tests:
-        - TestCorrectKindFromRepo
+        - golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go:TestCorrectKindFromRepo
       evidence:
         - 'libnss-resolve installed_state written under kind INFRASTRUCTURE on the founding Day-0 node instead of COMMAND, producing a permanent false installed_state_runtime_mismatch doctor finding (no systemd unit exists for a COMMAND package by design). Root cause: nameIsNonServiceCatalogKind routes both true-INFRASTRUCTURE and COMMAND-kind packages into the InfrastructureRelease resource type (no separate resource type exists for COMMAND); release_pipeline.go''s existing SERVICE-to-COMMAND repo-authoritative auto-correction (added earlier for etcdctl/sha256sum/yt-dlp) only checked kind==SERVICE, never kind==INFRASTRUCTURE, so a COMMAND package riding in an InfrastructureRelease was never corrected.'
     - id: failure.runtime_writer_re_creates_the_hostname_condition_a_load_time

@@ -10,6 +10,23 @@ schema: "globular.awareness.service_contracts/v1"
 
 contracts:
 
+  - id: contract.workflow.foreach_guard_order
+    service: workflow
+    kind: execution_order
+    summary: >
+      A foreach step's `when` guard must be evaluated BEFORE the foreach
+      collection is resolved, matching the non-foreach dispatch path
+      (executeStep), which evaluates `when` before the step body runs. A step
+      explicitly gated off by `when: false` must never fail merely because its
+      collection reference happens to resolve to nil (e.g. an empty result
+      serialized to JSON null across an actor RPC boundary).
+    requires:
+      - when guard evaluated before foreach collection resolution
+      - a when:false gated step never fails due to nil/empty collection resolution
+      - foreach and non-foreach steps share the same guard-then-body ordering
+    classifications:
+      guard_evaluated_after_collection: WORKFLOW_FOREACH_GUARD_ORDER_VIOLATION
+
   - id: contract.workflow.scylla_dependency
     service: workflow
     kind: dependency
