@@ -52,10 +52,13 @@ jobs:
           cd golang
           go test ./substrate
 
-      - name: Commit fixes and remove one-shot automation
+      - name: Commit non-workflow fixes and stage generated workflow
         working-directory: services
         run: |
           set -euo pipefail
+          mkdir -p pr221-generated
+          cp .github/workflows/release.yml pr221-generated/release.yml
+          git checkout -- .github/workflows/release.yml
           rm -f scripts/pr221-review-fixes.py scripts/pr221-review-fixes-v2.py .github/workflows/pr221-review-fixes.yml
           git config user.name "globulario-review-fix"
           git config user.email "noreply@globular.io"
