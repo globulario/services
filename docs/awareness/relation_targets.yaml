@@ -1,0 +1,6 @@
+relation_targets:
+  runtime_roots:
+    - /var/lib/globular/etcd
+  sibling_repositories:
+    - globular-installer
+    - packages
