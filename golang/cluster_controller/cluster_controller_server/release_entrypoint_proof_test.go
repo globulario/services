@@ -12,14 +12,16 @@ import (
 //
 // Governing intent: service.installation_is_not_runtime_truth. Installation
 // succeeding and a SPECIFIC EXECUTABLE's identity being verified are two
-// different claims, and the second one requires evidence that names an
-// executable: the entrypoint checksum (a direct measurement of the binary on
-// disk) or the build id (which names the exact build that produced it).
+// different claims. The ONLY evidence that measures the executable on disk is
+// the manifest entrypoint checksum.
 //
-// The convergence hash is neither. It is sha256 over the controller-rendered
-// convergence inputs (publisher + name + version + build_number + config), so
-// agreement proves the node-agent applied what the controller asked for — not
-// which bytes landed on disk.
+// build_id and the convergence hash are metadata ABOUT the install. build_id
+// names the build that was supposed to produce the binary; the convergence hash
+// is sha256 over the controller-rendered inputs (publisher + name + version +
+// build_number + config), so agreement proves the node-agent applied what the
+// controller asked for. Neither measures which bytes landed on disk, so neither
+// can carry installed_verified — a verdict documented as proof of the installed
+// binary checksum.
 
 // pkgWith builds an installed-package record.
 func pkgWith(version, convergenceHash, buildID, entrypointChecksum string) *node_agentpb.InstalledPackage {
@@ -135,13 +137,18 @@ func TestF1_ArchiveDigestNeverComparedToBinary(t *testing.T) {
 	}
 }
 
-// 10. Build id is executable-identifying, but it is not a binary checksum: it
-// must never populate the binary-identity field.
+// 10. Build id is build METADATA, not a binary checksum. It names the build
+// that was supposed to produce the executable; it never measures the bytes that
+// actually landed on disk, so it cannot carry installed_verified.
 func TestF1_BuildIDIsNotABinaryChecksum(t *testing.T) {
 	v := decideNodeRolloutProof("1.2.0", "", "bid-1", "",
 		pkgWith("1.2.0", "", "bid-1", ""), true, true)
-	if v.ProofStatus != RolloutProofInstalledVerified {
-		t.Fatalf("build_id agreement is accepted evidence for legacy records; got %q", v.ProofStatus)
+	if v.ProofStatus != RolloutProofInventoryClaim {
+		t.Fatalf("build_id agreement reached %q; build metadata is not a binary measurement (reason=%q)",
+			v.ProofStatus, v.Reason)
+	}
+	if v.FindingID != "" {
+		t.Errorf("absent binary proof is not drift; got finding %q", v.FindingID)
 	}
 	if strings.Contains(v.Reason, "entrypoint_checksum verified") {
 		t.Errorf("build_id agreement must not be reported as binary verification: %q", v.Reason)
@@ -256,6 +263,172 @@ func releasePipelineSource(t *testing.T) string {
 	raw, err := os.ReadFile("release_pipeline.go")
 	if err != nil {
 		t.Fatalf("read release_pipeline.go: %v", err)
+	}
+	var b strings.Builder
+	for _, line := range strings.Split(string(raw), "\n") {
+		if idx := strings.Index(line, "//"); idx >= 0 {
+			line = line[:idx]
+		}
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// ── F1 closure: build metadata stays below binary proof ───────────────────
+//
+// build_id is inventory/convergence evidence. It names the build that was meant
+// to produce the executable, but it never measures the bytes on disk, so it
+// cannot carry a verdict documented as proof of the installed binary checksum.
+// The sibling MarkNodeSucceeded writers already keyed solely on the resolved
+// entrypoint checksum; these pin decideNodeRolloutProof at the same line.
+
+// 1. build-ID-only cannot become installed_verified.
+func TestF1_BuildIDOnly_CannotBecomeInstalledVerified(t *testing.T) {
+	v := decideNodeRolloutProof("1.2.0", "", "bid-1", "",
+		pkgWith("1.2.0", "", "bid-1", ""), true, true)
+	if v.ProofStatus == RolloutProofInstalledVerified {
+		t.Fatalf("a non-binary signal (build_id) reached installed_verified; "+
+			"build metadata is not a measurement of the executable (reason=%q)", v.Reason)
+	}
+	if v.ProofStatus != RolloutProofInventoryClaim || v.FindingID != "" {
+		t.Errorf("want %q/no finding, got %q/%q", RolloutProofInventoryClaim, v.ProofStatus, v.FindingID)
+	}
+}
+
+// 2. build ID PLUS convergence agreement still cannot become installed_verified.
+func TestF1_BuildIDPlusConvergence_CannotBecomeInstalledVerified(t *testing.T) {
+	v := decideNodeRolloutProof("1.2.0", convSHA, "bid-1", "",
+		pkgWith("1.2.0", convSHA, "bid-1", ""), true, true)
+	if v.ProofStatus == RolloutProofInstalledVerified {
+		t.Fatalf("a non-binary signal (build_id + convergence) reached installed_verified "+
+			"— stacking two kinds of metadata does not produce a binary measurement (reason=%q)",
+			v.Reason)
+	}
+	if v.ProofStatus != RolloutProofInventoryClaim || v.FindingID != "" {
+		t.Errorf("want %q/no finding, got %q/%q", RolloutProofInventoryClaim, v.ProofStatus, v.FindingID)
+	}
+}
+
+// 3. A genuine build-ID DISAGREEMENT is still drift and must keep firing.
+// Demoting build_id below binary proof must not silence it as a mismatch
+// signal when both sides actually declare one.
+func TestF1_BuildIDMismatch_StillFires(t *testing.T) {
+	v := decideNodeRolloutProof("1.2.0", convSHA, "bid-expected", "",
+		pkgWith("1.2.0", convSHA, "bid-actual", ""), true, true)
+	if v.ProofStatus != RolloutProofMismatch {
+		t.Fatalf("build_id disagreement must remain a mismatch; got %q (reason=%q)",
+			v.ProofStatus, v.Reason)
+	}
+	if v.FindingID != FindingRolloutInstalledBuildIdMismatch {
+		t.Errorf("FindingID=%q want=%q", v.FindingID, FindingRolloutInstalledBuildIdMismatch)
+	}
+}
+
+// 4. A matching entrypoint checksum still yields installed_verified — the
+// demotion must not swallow real binary proof.
+func TestF1_EntrypointStillYieldsVerified_AfterBuildIDDemotion(t *testing.T) {
+	// Even with NO build_id and NO convergence evidence, binary proof alone is
+	// sufficient: it is the only signal that measures the executable.
+	v := decideNodeRolloutProof("1.2.0", "", "", binSHA,
+		pkgWith("1.2.0", "", "", binSHA), true, true)
+	if v.ProofStatus != RolloutProofInstalledVerified {
+		t.Fatalf("entrypoint checksum match must yield %q; got %q (reason=%q)",
+			RolloutProofInstalledVerified, v.ProofStatus, v.Reason)
+	}
+	if v.FindingID != "" {
+		t.Errorf("verified proof carries no finding; got %q", v.FindingID)
+	}
+}
+
+// 6. InstalledHash stays EMPTY when only build_id is available — build metadata
+// must never populate the binary-identity field.
+func TestF1_InstalledHashEmptyWhenOnlyBuildIDAvailable(t *testing.T) {
+	src := releasePipelineSource(t)
+	i := strings.Index(src, "nCopy.InstalledHash =")
+	if i < 0 {
+		t.Fatal("no InstalledHash assignment in the rollout projection")
+	}
+	stmt := src[i:]
+	if j := strings.Index(stmt, "\n"); j > 0 {
+		stmt = stmt[:j]
+	}
+	for _, forbidden := range []string{"GetBuildId()", "BuildId", "GetChecksum()"} {
+		if strings.Contains(stmt, forbidden) {
+			t.Errorf("projection populates the binary-identity field from %s: %s",
+				forbidden, strings.TrimSpace(stmt))
+		}
+	}
+	// And the sibling writers gate solely on the resolved entrypoint checksum.
+	wr := workflowReleaseSource(t)
+	if strings.Contains(wr, "n.InstalledHash = buildID") || strings.Contains(wr, "n.InstalledHash = bid") {
+		t.Error("a MarkNodeSucceeded writer populates InstalledHash from a build id")
+	}
+}
+
+// 7. The reason identifies build_id as weaker metadata, not checksum proof.
+func TestF1_ReasonNamesBuildIDAsMetadataNotProof(t *testing.T) {
+	cases := []struct {
+		name           string
+		build, conv    string
+		wantSubstrings []string
+	}{
+		{"build only", "bid-1", "", []string{"build_id", "metadata", "unproven"}},
+		{"build + convergence", "bid-1", convSHA, []string{"build_id", "convergence", "metadata", "unproven"}},
+		{"convergence only", "", convSHA, []string{"convergence", "unproven"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			v := decideNodeRolloutProof("1.2.0", tc.conv, tc.build, "",
+				pkgWith("1.2.0", tc.conv, tc.build, ""), true, true)
+			for _, want := range tc.wantSubstrings {
+				if !strings.Contains(v.Reason, want) {
+					t.Errorf("reason %q does not mention %q", v.Reason, want)
+				}
+			}
+			if strings.Contains(v.Reason, "identity verified") {
+				t.Errorf("weaker evidence must not read as verification: %q", v.Reason)
+			}
+		})
+	}
+}
+
+// 5. Proof parity: a missing entrypoint checksum yields the SAME proof status in
+// decideNodeRolloutProof and in BOTH MarkNodeSucceeded writers. Divergence here
+// is what let one writer call a release verified while the other called the same
+// release an inventory claim.
+func TestF1_MissingEntrypointProofParityAcrossWriters(t *testing.T) {
+	// decideNodeRolloutProof, with the strongest non-binary evidence available.
+	v := decideNodeRolloutProof("1.2.0", convSHA, "bid-1", "",
+		pkgWith("1.2.0", convSHA, "bid-1", ""), true, true)
+	if v.ProofStatus != RolloutProofInventoryClaim {
+		t.Fatalf("decideNodeRolloutProof: %q want %q", v.ProofStatus, RolloutProofInventoryClaim)
+	}
+
+	// Both MarkNodeSucceeded writers gate solely on the resolved entrypoint
+	// checksum: empty → inventory_claim, InstalledHash untouched.
+	wr := workflowReleaseSource(t)
+	writers := strings.Count(wr, "MarkNodeSucceeded:")
+	if writers < 2 {
+		t.Fatalf("expected the guarded and generic MarkNodeSucceeded writers, found %d", writers)
+	}
+	// Each writer's demotion branch must key on binarySHA, never on a build id.
+	if n := strings.Count(wr, "if binarySHA != \"\" {"); n < writers {
+		t.Errorf("only %d of %d MarkNodeSucceeded writers gate on the resolved entrypoint checksum",
+			n, writers)
+	}
+	if n := strings.Count(wr, "ProofStatus = RolloutProofInventoryClaim"); n < writers {
+		t.Errorf("only %d of %d MarkNodeSucceeded writers demote to inventory_claim when it is absent",
+			n, writers)
+	}
+}
+
+// workflowReleaseSource reads workflow_release.go with // comments stripped.
+func workflowReleaseSource(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("workflow_release.go")
+	if err != nil {
+		t.Fatalf("read workflow_release.go: %v", err)
 	}
 	var b strings.Builder
 	for _, line := range strings.Split(string(raw), "\n") {

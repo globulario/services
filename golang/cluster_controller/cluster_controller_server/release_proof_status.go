@@ -237,37 +237,12 @@ func decideNodeRolloutProof(
 	buildMatched := wantBuild != "" && gotBuild != "" && gotBuild == wantBuild
 	convergenceMatched := wantConvergence != "" && gotConvergence != "" && gotConvergence == wantConvergence
 
-	// installed_verified is a claim about a SPECIFIC EXECUTABLE's identity, so
-	// it requires evidence that identifies an executable: the entrypoint
-	// checksum (direct binary proof) or the build id (which names the exact
-	// build that produced it). Convergence agreement is neither. It proves the
-	// node-agent applied the inputs the controller rendered — installation
-	// succeeded — but says nothing about which bytes ended up on disk.
-	//
-	// Treating convergence agreement as sufficient is how a package with NO
-	// manifest entrypoint reached installed_verified purely because its install
-	// completed. That collapses two separate claims:
-	//
-	//   installation succeeded  ≠  specific executable identity verified
-	//
-	// (intent: service.installation_is_not_runtime_truth)
-	//
-	// The sibling writer already draws this line — MarkNodeSucceeded demotes to
-	// inventory_claim when ResolvedEntrypointChecksum is empty — so without
-	// this the two writers disagreed about the same release.
-	if !entrypointMatched && !buildMatched {
-		reason := "version reported by node-agent; no entrypoint/build_id/convergence evidence"
-		if convergenceMatched {
-			reason = "convergence inputs agree (installation applied), but no entrypoint_checksum " +
-				"or build_id was carried — the installed executable's identity is unproven"
-		}
-		return NodeRolloutProofVerdict{
-			ProofStatus: RolloutProofInventoryClaim,
-			FindingID:   "",
-			Reason:      reason,
-		}
-	}
-
+	// Runtime posture is evaluated BEFORE proof strength: a unit that is down
+	// is a real, reportable condition regardless of how strongly the installed
+	// artifact's identity is evidenced. Ordering this after the evidence gate
+	// would silently drop rollout.partial_not_converged for every package whose
+	// binary identity is unproven — exactly the packages already carrying the
+	// least visibility.
 	if runtimeNeeded && !runtimeOK {
 		return NodeRolloutProofVerdict{
 			ProofStatus: RolloutProofMismatch,
@@ -276,17 +251,59 @@ func decideNodeRolloutProof(
 		}
 	}
 
-	reason := "installed identity verified; runtime unit active"
+	// installed_verified is a claim about a SPECIFIC EXECUTABLE's identity, and
+	// the ONLY evidence that measures the executable on disk is the entrypoint
+	// checksum. Everything else is metadata ABOUT the install:
+	//
+	//   build_id     names the build that was supposed to produce the binary,
+	//                but never measures the bytes that actually landed;
+	//   convergence  proves the node-agent applied the inputs the controller
+	//                rendered — installation succeeded, nothing more.
+	//
+	// Both are useful inventory/convergence evidence and neither is binary
+	// proof, so neither can carry a verdict documented as proof of the
+	// installed binary checksum. Collapsing them is how
+	//
+	//   installation succeeded  ≠  specific executable identity verified
+	//
+	// gets lost (intent: service.installation_is_not_runtime_truth).
+	//
+	// This is also what puts this writer at parity with the sibling
+	// MarkNodeSucceeded writers, which already demote to inventory_claim
+	// whenever ResolvedEntrypointChecksum is absent — without regard to
+	// build_id. Previously the two disagreed about the same release: one said
+	// installed_verified on build_id agreement, the other said inventory_claim.
 	if !entrypointMatched {
-		// build_id agreement, but no direct binary measurement. Accepted as
-		// executable-identifying evidence for legacy / pre-entrypoint records,
-		// but surfaced so operators see the weaker signal.
-		reason = "installed build_id verified; entrypoint_checksum not surfaced"
+		return NodeRolloutProofVerdict{
+			ProofStatus: RolloutProofInventoryClaim,
+			FindingID:   "",
+			Reason:      weakEvidenceReason(buildMatched, convergenceMatched),
+		}
 	}
+
 	return NodeRolloutProofVerdict{
 		ProofStatus: RolloutProofInstalledVerified,
 		FindingID:   "",
-		Reason:      reason,
+		Reason:      "installed identity verified; runtime unit active",
+	}
+}
+
+// weakEvidenceReason describes what agreed when no manifest entrypoint checksum
+// was available to measure the executable. It names the evidence as metadata
+// rather than checksum proof, so an operator reading a verdict can tell why the
+// identity is unproven instead of assuming evidence was simply missing.
+func weakEvidenceReason(buildMatched, convergenceMatched bool) string {
+	const tail = "; no manifest entrypoint checksum was available, so the installed " +
+		"executable's identity is unproven"
+	switch {
+	case buildMatched && convergenceMatched:
+		return "build_id and convergence inputs agree (build metadata, not a binary measurement)" + tail
+	case buildMatched:
+		return "build_id agrees (build metadata, not a binary measurement)" + tail
+	case convergenceMatched:
+		return "convergence inputs agree (installation applied, not a binary measurement)" + tail
+	default:
+		return "version reported by node-agent; no entrypoint/build_id/convergence evidence" + tail
 	}
 }
 

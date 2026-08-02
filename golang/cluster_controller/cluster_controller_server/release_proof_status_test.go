@@ -193,29 +193,39 @@ func TestDecideNodeRolloutProof_VersionMismatch_Mismatch(t *testing.T) {
 	}
 }
 
-func TestDecideNodeRolloutProof_HashAndBuildMatch_RuntimeActive_InstalledVerified(t *testing.T) {
+// Convergence AND build_id agree, runtime active — a clean, drift-free install.
+// It still cannot claim installed_verified: neither signal measures the binary
+// on disk, and no manifest entrypoint checksum was available to. The point this
+// test protects is that a clean install raises NO finding.
+func TestDecideNodeRolloutProof_HashAndBuildMatch_RuntimeActive_InventoryClaim(t *testing.T) {
 	v := decideNodeRolloutProof(
 		"1.2.0", "sha256:aaaa", "bid-a", "",
 		ip("1.2.0", "sha256:aaaa", "bid-a"),
 		true, true,
 	)
-	if v.ProofStatus != RolloutProofInstalledVerified {
-		t.Errorf("ProofStatus=%q want=%q", v.ProofStatus, RolloutProofInstalledVerified)
+	if v.ProofStatus != RolloutProofInventoryClaim {
+		t.Errorf("ProofStatus=%q want=%q", v.ProofStatus, RolloutProofInventoryClaim)
 	}
 	if v.FindingID != "" {
-		t.Errorf("FindingID=%q want empty for successful verification", v.FindingID)
+		t.Errorf("FindingID=%q want empty — build metadata below binary proof is not drift", v.FindingID)
 	}
 }
 
-func TestDecideNodeRolloutProof_BuildMatch_RuntimeNotNeeded_InstalledVerified(t *testing.T) {
+func TestDecideNodeRolloutProof_BuildMatch_RuntimeNotNeeded_InventoryClaim(t *testing.T) {
 	// COMMAND-kind packages (mc, restic, rclone) don't need a running unit.
+	// The property under test is that runtimeOK=false raises NO
+	// partial_not_converged when runtimeNeeded=false. build_id agreement alone
+	// still cannot reach installed_verified.
 	v := decideNodeRolloutProof(
 		"1.2.0", "", "bid-a", "",
 		ip("1.2.0", "", "bid-a"),
 		false, false,
 	)
-	if v.ProofStatus != RolloutProofInstalledVerified {
-		t.Errorf("runtime not needed: ProofStatus=%q want=%q", v.ProofStatus, RolloutProofInstalledVerified)
+	if v.ProofStatus != RolloutProofInventoryClaim {
+		t.Errorf("runtime not needed: ProofStatus=%q want=%q", v.ProofStatus, RolloutProofInventoryClaim)
+	}
+	if v.FindingID != "" {
+		t.Errorf("runtime not needed must raise no finding; got %q", v.FindingID)
 	}
 }
 
@@ -344,7 +354,7 @@ func TestDecideNodeRolloutProof_RealBinaryMismatch_StillFires(t *testing.T) {
 	if v.FindingID != FindingRolloutInstalledHashMismatch {
 		t.Errorf("FindingID=%q want=%q", v.FindingID, FindingRolloutInstalledHashMismatch)
 	}
-	if !strings.Contains(v.Reason,"entrypoint_checksum") {
+	if !strings.Contains(v.Reason, "entrypoint_checksum") {
 		t.Errorf("reason should name entrypoint_checksum drift; got %q", v.Reason)
 	}
 }
@@ -363,15 +373,18 @@ func TestDecideNodeRolloutProof_MissingEntrypointInMetadata_NoFalseMismatch(t *t
 		"1.2.59", convergence, "bid", desiredBinary,
 		pkg, true, true,
 	)
-	if v.ProofStatus != RolloutProofInstalledVerified {
-		t.Fatalf("convergence+build_id match (no entrypoint evidence) → installed_verified (weaker proof); got %q reason=%q",
-			v.ProofStatus, v.Reason)
+	// The property under test is the absence of a FALSE MISMATCH when the
+	// installed record carries no entrypoint_checksum to compare against.
+	if v.ProofStatus == RolloutProofMismatch || v.FindingID != "" {
+		t.Fatalf("false mismatch with no installed entrypoint measurement: status=%q finding=%q reason=%q",
+			v.ProofStatus, v.FindingID, v.Reason)
 	}
-	if v.FindingID != "" {
-		t.Errorf("FindingID=%q want empty (no drift, just weaker proof)", v.FindingID)
+	if v.ProofStatus != RolloutProofInventoryClaim {
+		t.Fatalf("convergence+build_id match with no entrypoint evidence must settle at %q; got %q reason=%q",
+			RolloutProofInventoryClaim, v.ProofStatus, v.Reason)
 	}
-	if !strings.Contains(v.Reason,"entrypoint_checksum not surfaced") {
-		t.Errorf("reason should call out the weaker proof; got %q", v.Reason)
+	if !strings.Contains(v.Reason, "unproven") {
+		t.Errorf("reason should call out the unproven identity; got %q", v.Reason)
 	}
 }
 
@@ -396,7 +409,7 @@ func TestDecideNodeRolloutProof_ConvergenceDrift_StillFires(t *testing.T) {
 	if v.FindingID != FindingRolloutInstalledHashMismatch {
 		t.Errorf("FindingID=%q want=%q", v.FindingID, FindingRolloutInstalledHashMismatch)
 	}
-	if !strings.Contains(v.Reason,"convergence_hash") {
+	if !strings.Contains(v.Reason, "convergence_hash") {
 		t.Errorf("reason should name convergence_hash drift; got %q", v.Reason)
 	}
 }
@@ -536,11 +549,11 @@ func TestRolloutProofMin_PicksWeaker(t *testing.T) {
 func TestApplyPatchToSvcStatus_NodesPath_PersistsProofStatusAndFindings(t *testing.T) {
 	s := &cluster_controllerpb.ServiceReleaseStatus{}
 	p := statusPatch{
-		SetFields:    "nodes",
-		Phase:        cluster_controllerpb.ReleasePhaseAvailable,
-		Nodes:        []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", ProofStatus: RolloutProofInventoryClaim}},
-		ProofStatus:  RolloutProofInventoryClaim,
-		Findings:     []string{FindingRolloutPartialNotConverged},
+		SetFields:            "nodes",
+		Phase:                cluster_controllerpb.ReleasePhaseAvailable,
+		Nodes:                []*cluster_controllerpb.NodeReleaseStatus{{NodeID: "n1", ProofStatus: RolloutProofInventoryClaim}},
+		ProofStatus:          RolloutProofInventoryClaim,
+		Findings:             []string{FindingRolloutPartialNotConverged},
 		LastTransitionUnixMs: 1,
 	}
 	if !applyPatchToSvcStatus(s, p) {
