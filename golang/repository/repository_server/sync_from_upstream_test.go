@@ -8,6 +8,8 @@ import (
 
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/repository/upstream"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // testProvider returns a no-op provider and empty opts for unit tests that
@@ -1696,5 +1698,79 @@ func TestImportIdempotentResumesFromLedgerWritten(t *testing.T) {
 
 	if got := srv.readArtifactState(ctx, key); got != PipelinePublished {
 		t.Errorf("artifact_state = %q after resume, want PUBLISHED", got)
+	}
+}
+
+// ── RegisterUpstream: provider-neutral index location ─────────────────────────
+//
+// The upstream registry must not assume every provider addresses its release
+// index by URL (intent.upstream_release_streams.must_be_provider_neutral).
+// LOCAL_DIR resolves its index from local_root + index_path_template and carries
+// no URL at all. An unconditional `index_url is required` check made air-gapped
+// LOCAL_DIR registration structurally impossible — the 5C-0 blocker.
+//
+// These tests target validateUpstreamSource, the pure admission check.
+// They deliberately do NOT call RegisterUpstream: that RPC continues into
+// config.GetEtcdClient(), which on a developer workstation resolves to the LIVE
+// cluster — a `go test` run must never write an upstream record to a real
+// cluster. (It did once, during development of this change; the stray record
+// had to be removed with `repo remove-upstream`.)
+
+func registerUpstreamCode(src *repopb.UpstreamSource) codes.Code {
+	return status.Code(validateUpstreamSource(src))
+}
+
+func TestRegisterUpstream_LocalDirDoesNotRequireIndexURL(t *testing.T) {
+	got := registerUpstreamCode(&repopb.UpstreamSource{
+		Name:              "bomtest-local",
+		Type:              repopb.UpstreamSourceType_LOCAL_DIR,
+		LocalRoot:         t.TempDir(),
+		IndexPathTemplate: "releases/{tag}/release-index.json",
+		Platform:          "linux_amd64",
+		Channel:           "stable",
+	})
+	if got != codes.OK {
+		t.Fatalf("LOCAL_DIR without index_url was rejected (%v); the registry must "+
+			"resolve LOCAL_DIR from local_root + index_path_template", got)
+	}
+}
+
+func TestRegisterUpstream_LocalDirRequiresLocalRoot(t *testing.T) {
+	got := registerUpstreamCode(&repopb.UpstreamSource{
+		Name:              "bomtest-local",
+		Type:              repopb.UpstreamSourceType_LOCAL_DIR,
+		IndexPathTemplate: "releases/{tag}/release-index.json",
+	})
+	if got != codes.InvalidArgument {
+		t.Fatalf("LOCAL_DIR without local_root: got %v, want InvalidArgument", got)
+	}
+}
+
+// A LOCAL_DIR source must never carry a URL: upstream/local_source.go serves
+// local files only, and accepting a URL here is the first step toward LOCAL_DIR
+// becoming a back-door HTTP client. This also forbids the tempting "fix" of
+// synthesising an index_url client-side to satisfy the old check.
+func TestRegisterUpstream_LocalDirRejectsIndexURL(t *testing.T) {
+	got := registerUpstreamCode(&repopb.UpstreamSource{
+		Name:      "bomtest-local",
+		Type:      repopb.UpstreamSourceType_LOCAL_DIR,
+		LocalRoot: t.TempDir(),
+		IndexUrl:  "https://example.invalid/releases/{tag}/release-index.json",
+	})
+	if got != codes.InvalidArgument {
+		t.Fatalf("LOCAL_DIR carrying an index_url: got %v, want InvalidArgument", got)
+	}
+}
+
+// Regression guard: URL-addressed providers keep the index_url requirement.
+func TestRegisterUpstream_URLProvidersStillRequireIndexURL(t *testing.T) {
+	for _, typ := range []repopb.UpstreamSourceType{
+		repopb.UpstreamSourceType_GITHUB_RELEASE,
+		repopb.UpstreamSourceType_HTTP_INDEX,
+	} {
+		got := registerUpstreamCode(&repopb.UpstreamSource{Name: "x", Type: typ})
+		if got != codes.InvalidArgument {
+			t.Errorf("%v without index_url: got %v, want InvalidArgument", typ, got)
+		}
 	}
 }

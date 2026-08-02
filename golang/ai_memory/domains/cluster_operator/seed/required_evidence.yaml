@@ -38,3 +38,24 @@
   title: Human approval for an irreversible operation
   lane: static_only
   probe_ref: human.irreversible_approval
+
+# PUSH-SOURCED REQUIREMENTS (no probe_ref)
+#
+# Every entry above is PULL-shaped: a probe the gate could in principle run to
+# gather the evidence. The two below are PUSH-shaped — the evidence is emitted
+# by a producer pipeline as a side effect of work the cluster was already
+# doing, and is then looked up from the satisfaction index.
+#
+# probe_ref is deliberately absent rather than filled with a plausible name.
+# There is no prober for these and inventing a ref would put a probe id in the
+# catalog that nothing can execute — a spec that reads as a capability the
+# system does not have. Their eligibility rules live in satisfaction.go, keyed
+# to the emitting producer.
+- id: evidence.doctor.finding_observed
+  title: Cluster-doctor observed a finding for this invariant and entity
+  lane: runtime_required
+  # Producer: observation.FromDoctorFinding → sat.doctor.finding_observed
+- id: evidence.remediation.fresh_convergence_verification
+  title: Post-action verification that the governed finding cleared
+  lane: runtime_required
+  # Producer: observation.FromRemediationOutcome → sat.remediation.fresh_convergence_verified

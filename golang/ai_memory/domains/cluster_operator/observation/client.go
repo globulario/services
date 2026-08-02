@@ -112,6 +112,10 @@ func evidenceToPB(e api.Evidence) *behavioralpb.Evidence {
 		ConditionRef:   e.ConditionRef,
 		Severity:       e.Severity,
 		AuthorityLevel: authorityLevelToPB(e.AuthorityLevel),
+		// Carried explicitly. A binding dropped on the wire is indistinguishable
+		// from one that was never set, and the receiving end would persist
+		// evidence that can never satisfy an action-bound rule.
+		ActionRef: e.ActionRef,
 	}
 }
 

@@ -268,6 +268,11 @@ func (h *behavioralHandler) CheckAction(ctx context.Context, req *bpb.CheckActio
 		ActionType: req.GetActionType(), Target: req.GetTarget(),
 		CurrentConditions: toConditionRefs(req.GetCurrentConditions()), Scope: req.GetScope(), AgentID: req.GetAgentId(),
 		ProvidedEvidenceRefs: req.GetProvidedEvidenceRefs(), HumanApproval: req.GetHumanApproval(),
+		// The subject the check is about. Dropped here, a domain qualifier would
+		// receive an empty scope and — correctly, but uselessly — refuse
+		// everything, making a wiring bug look like a governance verdict.
+		ActionScope: pbToActionScope(req.GetActionScope()),
+		EvaluatedAt: req.GetEvaluatedAt(),
 	})
 	if err != nil {
 		return nil, behavioralErr("CheckAction", err)
@@ -406,6 +411,20 @@ func pbToClaim(c *bpb.Claim) api.Claim {
 	}
 }
 
+func pbToActionScope(s *bpb.ActionScope) api.ActionScope {
+	if s == nil {
+		return api.ActionScope{}
+	}
+	return api.ActionScope{
+		ClusterID:          s.GetClusterId(),
+		EntityRef:          s.GetEntityRef(),
+		ConditionRef:       s.GetConditionRef(),
+		SourceRef:          s.GetSourceRef(),
+		ActionRef:          s.GetActionRef(),
+		ActionDispatchedAt: s.GetActionDispatchedAt(),
+	}
+}
+
 func pbToEvidence(e *bpb.Evidence) api.Evidence {
 	if e == nil {
 		return api.Evidence{}
@@ -433,6 +452,11 @@ func pbToEvidence(e *bpb.Evidence) api.Evidence {
 		Satisfies:      toRequiredEvidenceRefs(e.GetSatisfies()),
 		Provenance:     api.Provenance{SourceRef: e.GetProvenance(), CreatedAt: e.GetCreatedAt()},
 		Metadata:       e.GetMetadata(),
+		// The action binding must survive the wire in BOTH directions: the
+		// server writes the satisfaction index from this struct, so a dropped
+		// ActionRef here persists evidence that no action-bound rule can ever
+		// qualify.
+		ActionRef: e.GetActionRef(),
 	}
 }
 
