@@ -23,18 +23,18 @@ func loadReconcileDef(t *testing.T) *v1alpha1.WorkflowDefinition {
 
 func reconcileInputs() map[string]any {
 	return map[string]any{
-		"cluster_id":      "test-cluster",
-		"scope":           "cluster",
+		"cluster_id":       "test-cluster",
+		"scope":            "cluster",
 		"max_remediations": 50,
 	}
 }
 
 type reconcileTestOpts struct {
-	driftItems      []any
+	driftItems       []any
 	remediationItems []any
-	chooseWorkflow  func(ctx context.Context, item map[string]any) (map[string]any, error)
-	startChild      func(ctx context.Context, name string, inputs map[string]any) (string, error)
-	waitChild       func(ctx context.Context, runID string) (map[string]any, error)
+	chooseWorkflow   func(ctx context.Context, item map[string]any) (map[string]any, error)
+	startChild       func(ctx context.Context, name string, inputs map[string]any) (string, error)
+	waitChild        func(ctx context.Context, runID string) (map[string]any, error)
 }
 
 func newReconcileRouter(t *testing.T, opts reconcileTestOpts) *Router {
@@ -345,4 +345,100 @@ func TestReconcile_MixedDrift(t *testing.T) {
 	mu.Unlock()
 
 	t.Logf("Child workflows launched: %v", childWorkflows)
+}
+
+// TestReconcileActorOutputsAreWrappedUnderCanonicalKey is the regression test
+// for the remote-dispatch output-shape bug that broke every drift remediation.
+//
+// The engine merges ActionResult.Output into run.Outputs KEY BY KEY, and a
+// remote actor's writes to req.Outputs happen on a serialized copy that is
+// discarded. So any value a later step references by name (cluster.reconcile.yaml
+// resolves `$.workflow_choice.workflow_name`, `$.child_run.run_id` and
+// `$.child_result`) MUST be returned wrapped under that exact key.
+//
+// choose_workflow, start_child and wait_child_terminal each returned their value
+// UNWRAPPED, so run.Outputs got the inner fields at top level (workflow_name,
+// run_id, status) and the named keys were never defined. `$.workflow_choice
+// .workflow_name` then stayed unresolved and was forwarded as the LITERAL
+// string, which the controller rejected:
+//
+//	unknown child workflow: $.workflow_choice.workflow_name
+//
+// Observed live 2026-07-29 after the workflow-service no-op fix made these
+// actions dispatch for real: 115 remediations, 115 immediate item FAILED, zero
+// release.apply.package dispatches. Previously the local no-op swallowed the
+// unresolved string and reported fake success, hiding this entirely.
+func TestReconcileActorOutputsAreWrappedUnderCanonicalKey(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("choose_workflow wraps under workflow_choice", func(t *testing.T) {
+		h := reconcileChooseWorkflow(ReconcileControllerConfig{
+			ChooseWorkflow: func(context.Context, map[string]any) (map[string]any, error) {
+				return map[string]any{"workflow_name": "release.apply.package"}, nil
+			},
+		})
+		res, err := h(ctx, ActionRequest{With: map[string]any{}, Outputs: map[string]any{}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		choice, ok := res.Output["workflow_choice"].(map[string]any)
+		if !ok {
+			t.Fatalf("Output must define \"workflow_choice\"; got keys %v — $.workflow_choice.workflow_name cannot resolve", keysOf(res.Output))
+		}
+		if choice["workflow_name"] != "release.apply.package" {
+			t.Errorf("workflow_choice.workflow_name = %v", choice["workflow_name"])
+		}
+	})
+
+	t.Run("start_child wraps under child_run", func(t *testing.T) {
+		h := workflowStartChild(WorkflowServiceConfig{
+			StartChild: func(context.Context, string, map[string]any) (string, error) {
+				return "run-42", nil
+			},
+		})
+		res, err := h(ctx, ActionRequest{
+			With:    map[string]any{"workflow_name": "release.apply.package"},
+			Outputs: map[string]any{},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cr, ok := res.Output["child_run"].(map[string]any)
+		if !ok {
+			t.Fatalf("Output must define \"child_run\"; got keys %v — $.child_run.run_id cannot resolve", keysOf(res.Output))
+		}
+		if cr["run_id"] != "run-42" {
+			t.Errorf("child_run.run_id = %v", cr["run_id"])
+		}
+	})
+
+	t.Run("wait_child_terminal wraps under child_result", func(t *testing.T) {
+		h := workflowWaitChildTerminal(WorkflowServiceConfig{
+			WaitChildTerminal: func(context.Context, string) (map[string]any, error) {
+				return map[string]any{"status": "SUCCEEDED"}, nil
+			},
+		})
+		res, err := h(ctx, ActionRequest{
+			With:    map[string]any{"child_run_id": "run-42"},
+			Outputs: map[string]any{},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cr, ok := res.Output["child_result"].(map[string]any)
+		if !ok {
+			t.Fatalf("Output must define \"child_result\"; got keys %v — $.child_result cannot resolve", keysOf(res.Output))
+		}
+		if cr["status"] != "SUCCEEDED" {
+			t.Errorf("child_result.status = %v", cr["status"])
+		}
+	})
+}
+
+func keysOf(m map[string]any) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }

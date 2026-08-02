@@ -46,6 +46,11 @@ func NewRegistry(cfg Config) *Registry {
 		releaseBoundaryUnproven{},
 		nativeDependencyMissing{},
 		clusterServicesDrift{},
+		// clusterServicesDrift skips nodes whose desired hash is empty — correct
+		// for a drift check, but it makes an ABSENT Layer 2 look identical to a
+		// converged one (desired == applied == nothing → no finding). This asks
+		// the other question: is there any desired state at all.
+		desiredStateAbsent{},
 		// OT-3: flag when the doctor's own service-config mirror is stale (etcd
 		// config fetches failing → GetServicesConfigurations silently serving
 		// stale-if-error data), so diagnoses are not made against stale config.

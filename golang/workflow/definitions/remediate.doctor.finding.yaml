@@ -115,7 +115,12 @@ spec:
       #     status,
       #     executed,
       #     output,
-      #     reason
+      #     reason,
+      #     dispatched_at   # RFC3339Nano; PRESENT ONLY when executed == true.
+      #                     # Stamped when the executor accepted the request —
+      #                     # not approval, not workflow start, never derived
+      #                     # from verification. Absent means nothing was
+      #                     # dispatched, which must stay visible.
       #   }
       execution:
         idempotency: verify_then_continue
@@ -132,6 +137,13 @@ spec:
       with:
         finding_id: $.finding_id
         node_id: $.resolved_finding.node_id
+        # Subject identity, so the resulting outcome binds the verification to
+        # the thing that was remediated rather than to a finding id alone.
+        # entity_ref is carried separately from node_id: they coincide for
+        # node-scoped findings and diverge for service- or cluster-scoped ones.
+        cluster_id: $.resolved_finding.cluster_id
+        invariant_id: $.resolved_finding.invariant_id
+        entity_ref: $.resolved_finding.entity_ref
       timeout: $.verify_timeout
       # Expected run outputs written by handler:
       # verification:

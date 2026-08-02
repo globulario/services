@@ -469,8 +469,18 @@ func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any
 // driftEntityRef builds a stable identifier for a drift item so the telemetry
 // layer can track its lifetime across reconcile cycles.
 func driftEntityRef(item map[string]any) string {
-	pkg := fmt.Sprint(item["package_name"])
-	node := fmt.Sprint(item["node_id"])
+	pkg, _ := item["package_name"].(string)
+	node, _ := item["node_id"].(string)
+	// infra_unhealthy items have no package_name — use component instead so
+	// etcd/scylladb/minio unhealthy on the SAME node don't collapse onto one
+	// no-progress/backoff key (they would otherwise share driftEntityRef and
+	// each restart attempt/failure would incorrectly reset or count against
+	// a sibling component's counter).
+	if pkg == "" {
+		if component, ok := item["component"].(string); ok && component != "" {
+			pkg = component
+		}
+	}
 	switch {
 	case pkg != "" && node != "":
 		return pkg + "@" + node
@@ -725,14 +735,25 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 
 	case "infra_unhealthy":
 		component := fmt.Sprint(item["component"])
-		log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s (remediation deferred)", component, nodeID)
-		// For now, just log. In the future this could trigger node.repair.
+		endpoint := fmt.Sprint(item["endpoint"])
+		key := driftType + "|" + driftEntityRef(item)
+		if inBackoff, until := srv.reconcileInBackoff(key); inBackoff {
+			return map[string]any{
+				"workflow_name": "noop",
+				"inputs": map[string]any{
+					"reason":    fmt.Sprintf("backoff: %s exceeded %d consecutive failed restart attempts, next attempt after %s", key, reconcileNoProgressThreshold, until.UTC().Format(time.RFC3339)),
+					"node_id":   nodeID,
+					"component": component,
+				},
+			}, nil
+		}
+		log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s: dispatching restart", component, nodeID)
 		return map[string]any{
-			"workflow_name": "noop",
+			"workflow_name": "node.restart_infra_unit",
 			"inputs": map[string]any{
-				"reason":    fmt.Sprintf("infra_unhealthy: %s on %s", component, nodeID),
 				"node_id":   nodeID,
 				"component": component,
+				"endpoint":  endpoint,
 			},
 		}, nil
 
@@ -856,6 +877,24 @@ func (srv *server) reconcileItemConverged(ctx context.Context, item map[string]a
 			return desiredVer == "" || pkg.GetVersion() == desiredVer, true
 		}
 		return pkg.GetVersion() == desiredVer, true // version_drift
+	case "infra_unhealthy":
+		// Child SUCCEEDED means the restart RPC was dispatched and node-agent
+		// reported the systemd action itself succeeded — not proof the
+		// service is actually healthy again (same SCAR-2 discipline as
+		// missing_package/version_drift: dispatch ack is not install proof).
+		// Re-probe the same health check reconcileScanDrift used to raise
+		// this drift in the first place before clearing it.
+		endpoint := fmt.Sprint(item["endpoint"])
+		switch fmt.Sprint(item["component"]) {
+		case "etcd":
+			return srv.probeEtcdHealth(ctx, endpoint), true
+		case "scylladb":
+			return srv.probeScyllaHealth(ctx, endpoint), true
+		case "minio":
+			return srv.probeMinioHealth(ctx, endpoint), true
+		default:
+			return false, true
+		}
 	default:
 		return false, false
 	}
@@ -1094,6 +1133,20 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 				log.Printf("reconcile-workflow: noop child: %s", reason)
 				childResults.Store("noop-run", map[string]any{"status": "SUCCEEDED", "run_id": "noop-run"})
 				return "noop-run", nil
+			}
+
+			if workflowName == "node.restart_infra_unit" {
+				nodeID := fmt.Sprint(inputs["node_id"])
+				component := fmt.Sprint(inputs["component"])
+				endpoint := fmt.Sprint(inputs["endpoint"])
+				ok, message := srv.restartInfraUnit(ctx, nodeID, endpoint, component)
+				runID := fmt.Sprintf("restart-%s-%s-%d", nodeID, component, time.Now().UnixNano())
+				st := "FAILED"
+				if ok {
+					st = "SUCCEEDED"
+				}
+				childResults.Store(runID, map[string]any{"status": st, "run_id": runID, "message": message})
+				return runID, nil
 			}
 
 			if workflowName == "release.apply.package" {

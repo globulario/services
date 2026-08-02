@@ -169,6 +169,147 @@ func registerBehavioralTools(s *server) {
 	registerListConditionsTool(s)
 	registerResolveRefTool(s)
 	registerAmendProposalTool(s)
+	// The operator-facing summary of what the cluster has learned.
+	registerClusterLearningReportTool(s)
+}
+
+// ── cluster_learning_report ───────────────────────────────────────────────────
+
+// registerClusterLearningReportTool answers one question an operator actually
+// asks: "what has this cluster learned, and what should I do about it?"
+//
+// The underlying facts were always retrievable — coverage here, candidates
+// there, principles somewhere else — but assembling them required knowing the
+// governance model well enough to know what to ask. That is a poor contract for
+// a surface whose entire purpose is to tell you something you did not know.
+//
+// It is strictly read-only. It never promotes: the promote step is returned as a
+// COMMAND FOR A HUMAN TO RUN, because a report that could enact its own
+// suggestions would be a control plane wearing a report's clothes.
+func registerClusterLearningReportTool(s *server) {
+	s.register(toolDef{
+		Name: "cluster_learning_report",
+		Description: "What the cluster has learned and what to do about it: governance coverage " +
+			"(how many actions were actually governed vs allowed only because no principle applied), " +
+			"queued promotion candidates awaiting human review, and the exact command to promote one. " +
+			"Read-only — it never promotes. Cluster ops: project=globular-services, domain=cluster_operator.",
+		InputSchema: inputSchema{
+			Type: "object",
+			Properties: map[string]propSchema{
+				"project": {Type: "string", Description: "Project, e.g. 'globular-services'"},
+				"domain":  {Type: "string", Description: "Domain, e.g. 'cluster_operator'"},
+				"limit":   {Type: "integer", Description: "Optional max candidates to return"},
+			},
+			Required: []string{"project", "domain"},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		client, err := behavioralClient(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		project, domain := strArg(args, "project"), strArg(args, "domain")
+		callCtx, cancel := context.WithTimeout(authCtx(ctx), 15*time.Second)
+		defer cancel()
+
+		cov, err := client.GetGovernanceCoverage(callCtx, &behavioralpb.GetGovernanceCoverageRequest{
+			Project: project, Domain: domain,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cluster_learning_report: coverage: %w", err)
+		}
+		cands, err := client.ListPromotionCandidates(callCtx, &behavioralpb.ListPromotionCandidatesRequest{
+			Project: project, Domain: domain,
+			Status: behavioralpb.PromotionCandidateStatus_PROMOTION_CANDIDATE_STATUS_QUEUED,
+			Limit:  int32Arg(args, "limit"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cluster_learning_report: candidates: %w", err)
+		}
+
+		queued := make([]map[string]interface{}, 0, len(cands.GetCandidates()))
+		for _, c := range cands.GetCandidates() {
+			d := c.GetDraftPrinciple()
+			queued = append(queued, map[string]interface{}{
+				"candidate_id":   c.GetId(),
+				"theme":          c.GetTheme(),
+				"repeat_count":   c.GetRepeatCount(),
+				"proposed_rule":  d.GetTitle(),
+				"applies_when":   d.GetAppliesWhen(),
+				"risk_level":     d.GetRiskLevel(),
+				"why":            c.GetRationale(),
+				"generated_by":   c.GetGeneratedBy(),
+				// Keyed on the CANDIDATE id, not the draft principle id: the
+				// draft does not exist as a principle until step 1 creates it.
+				"promote_with": promoteCommandFor(project, domain, c.GetId()),
+			})
+		}
+
+		// The headline. A coverage ratio of 0 with a non-zero total is the
+		// specific, easily-missed state where governance LOOKS wired and decides
+		// nothing — every action allowed by default because no principle is
+		// promoted. Say it in words rather than leaving it to be inferred.
+		assessment := learningAssessment(cov.GetTotal(), cov.GetGoverned(), cov.GetUngoverned(), len(queued))
+
+		return map[string]interface{}{
+			"assessment": assessment,
+			"governance_coverage": map[string]interface{}{
+				"total_action_checks": cov.GetTotal(),
+				"governed":            cov.GetGoverned(),
+				"ungoverned":          cov.GetUngoverned(),
+				"coverage_ratio":      cov.GetCoverageRatio(),
+			},
+			"queued_candidates": queued,
+			"queued_count":      len(queued),
+		}, nil
+	})
+}
+
+// promoteCommandFor renders the human steps. Returned as text on purpose — see
+// registerClusterLearningReportTool.
+//
+// A candidate is NOT a principle. GeneratePromotionCandidate deliberately
+// "never creates a principle row", so the draft id it carries does not exist in
+// the principle store and behavioral_promote_principle on it fails with a bare
+// "not found" — which reads as a broken report rather than a misunderstanding of
+// the model. Verified 2026-08-01 by following this hint against a live cluster.
+//
+// The real path is propose (materialize the draft as a PROPOSED principle) then
+// promote it, and promotion additionally gates on qualifying evidence and a
+// contradiction check. All four steps are shown, because a hint that stops at
+// step one sends the reader into the same dead end.
+func promoteCommandFor(project, domain, candidateID string) string {
+	if candidateID == "" {
+		return ""
+	}
+	return fmt.Sprintf(
+		"1) behavioral_propose_principle(project=%q, domain=%q, ...draft fields from this candidate..., generated_from=%q, actor=\"<you>\") → returns <principle_id>; "+
+			"2) behavioral_record_evidence(project=%q, domain=%q, target_kind=\"principle\", target_id=\"<principle_id>\", satisfies=\"<required_evidence ref>\", ...); "+
+			"3) behavioral_run_contradiction_check(project=%q, domain=%q, principle_id=\"<principle_id>\", actor=\"<you>\"); "+
+			"4) behavioral_promote_principle(project=%q, domain=%q, principle_id=\"<principle_id>\", actor=\"<you>\", reason=\"<why you agree>\")",
+		project, domain, candidateID, project, domain, project, domain, project, domain)
+}
+
+// learningAssessment states the coverage situation in a sentence.
+//
+// The three cases are genuinely different and an operator acts differently on
+// each, so they are not collapsed into a ratio.
+func learningAssessment(total, governed, ungoverned int64, queued int) string {
+	switch {
+	case total == 0:
+		return "No action checks recorded yet — nothing has asked the governor anything, so there is nothing to learn from."
+	case governed == 0:
+		return fmt.Sprintf(
+			"Governance is INERT: %d action check(s), all %d allowed only because no promoted principle applied. "+
+				"The gate is wired but decides nothing. %d candidate(s) await human review — promoting one is what makes the gate start binding.",
+			total, ungoverned, queued)
+	case ungoverned == 0:
+		return fmt.Sprintf("All %d action check(s) were governed by at least one promoted principle.", total)
+	default:
+		return fmt.Sprintf(
+			"%d of %d action check(s) were governed; %d were allowed only because no promoted principle applied. "+
+				"%d candidate(s) await human review.",
+			governed, total, ungoverned, queued)
+	}
 }
 
 // ── behavioral_resolve_context ────────────────────────────────────────────────

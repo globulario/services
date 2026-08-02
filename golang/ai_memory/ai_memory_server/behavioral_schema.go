@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.evidence (
     condition_ref text,
     severity      text,
     authority_level text,
+    action_ref    text,
     PRIMARY KEY ((project, domain, id))
 )`
 
@@ -130,6 +131,63 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.evidence_by_target (
     created_at  bigint,
     PRIMARY KEY ((project, domain, target_id), id)
 ) WITH CLUSTERING ORDER BY (id ASC)`
+
+// evidence_by_satisfaction answers the question CheckAction actually asks:
+//
+//	"which stored evidence satisfies this required-evidence slot, for this
+//	 cluster, recently enough to count?"
+//
+// evidence_by_target cannot answer it. That index is keyed by the target a
+// piece of evidence supports (a claim or principle), whereas a required-evidence
+// slot is a REFERENCE that many unrelated evidence rows may satisfy. Without
+// this table the runtime would have to scan all evidence, so a principle whose
+// evidence exists would still be unfindable — the governor would block a lawful
+// action or, worse, be quietly waived.
+//
+// KEY DESIGN
+//
+//   - cluster_id is in the PARTITION key, not a filter. Evidence that matters
+//     for governance is cluster-scoped, and partitioning by it bounds partition
+//     growth instead of creating one hot partition per required_evidence_ref
+//     across every cluster.
+//   - observed_at DESC leads the clustering key because staleness is the
+//     dominant predicate (required-evidence slots carry a maximum age), so the
+//     rows a caller wants are the first ones read.
+//   - condition_ref and entity_ref are denormalized regular columns, filtered by
+//     the caller rather than promoted into the clustering key. Making them
+//     clustering columns would force every caller to supply them or fall back to
+//     ALLOW FILTERING; the partition is already narrow, so filtering after the
+//     range read is both cheaper and honest about the query shape.
+//   - action_ref and source_ref are denormalized here because a satisfaction
+//     rule may require evidence bound to a specific governed action and to the
+//     specific finding that occasioned it. This table's projection is the ONLY
+//     thing a governance lookup reads — metadata is not carried — so a binding
+//     that lives anywhere else is enforceable in memory and silently
+//     unenforceable against Scylla.
+//
+// Rows are written by PutEvidence, one per entry in the evidence's satisfies
+// set, inside the same logged batch as the evidence row itself.
+const createEvidenceBySatisfactionTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.evidence_by_satisfaction (
+    project               text,
+    domain                text,
+    required_evidence_ref text,
+    cluster_id            text,
+    observed_at           bigint,
+    id                    text,
+    condition_ref         text,
+    entity_ref            text,
+    target_kind           text,
+    evidence_kind         text,
+    lane                  text,
+    result                text,
+    source_kind           text,
+    authority_level       text,
+    action_ref            text,
+    source_ref            text,
+    created_at            bigint,
+    PRIMARY KEY ((project, domain, required_evidence_ref, cluster_id), observed_at, id)
+) WITH CLUSTERING ORDER BY (observed_at DESC, id ASC)`
 
 const createAuthoritiesTableCQL = `
 CREATE TABLE IF NOT EXISTS behavioral_memory.authorities (
@@ -363,6 +421,22 @@ const (
 	alterEvidenceAddSourceKind = `ALTER TABLE behavioral_memory.evidence ADD source_kind text`
 	alterEvidenceAddSourceRef  = `ALTER TABLE behavioral_memory.evidence ADD source_ref text`
 	alterEvidenceAddEntityRef  = `ALTER TABLE behavioral_memory.evidence ADD entity_ref text`
+
+	// 4C added action_ref — the governed action a piece of evidence is bound to
+	// — to BOTH the evidence table and the satisfaction index. The index column
+	// is the load-bearing one: satisfaction lookups read only that projection,
+	// so without the backfill a deployment's pre-4C index cannot carry the
+	// binding and every action-bound rule rejects for a reason that is a schema
+	// gap, not a governance fact.
+	alterEvidenceAddActionRef               = `ALTER TABLE behavioral_memory.evidence ADD action_ref text`
+	alterEvidenceBySatisfactionAddActionRef = `ALTER TABLE behavioral_memory.evidence_by_satisfaction ADD action_ref text`
+
+	// 4D added source_ref to the satisfaction index — the finding a piece of
+	// verification evidence is about. It already existed on the evidence table;
+	// what was missing is the INDEX projection, which is all a governance lookup
+	// reads. Without it a rule could not re-check finding lineage at
+	// qualification time and had to trust the producer.
+	alterEvidenceBySatisfactionAddSourceRef = `ALTER TABLE behavioral_memory.evidence_by_satisfaction ADD source_ref text`
 )
 
 // governance_coverage counts CheckAction verdicts that were governed (an
@@ -543,6 +617,7 @@ var behavioralSchemaStatements = []string{
 	createClaimsTableCQL,
 	createEvidenceTableCQL,
 	createEvidenceByTargetTableCQL,
+	createEvidenceBySatisfactionTableCQL,
 	createAuthoritiesTableCQL,
 	createConditionsTableCQL,
 	createContradictionsTableCQL,
@@ -582,4 +657,9 @@ var behavioralSchemaStatements = []string{
 	alterEvidenceAddSourceKind,
 	alterEvidenceAddSourceRef,
 	alterEvidenceAddEntityRef,
+	// 4C backfill: action binding for post-action verification evidence.
+	alterEvidenceAddActionRef,
+	alterEvidenceBySatisfactionAddActionRef,
+	// 4D backfill: finding lineage in the satisfaction projection.
+	alterEvidenceBySatisfactionAddSourceRef,
 }

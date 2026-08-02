@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/ai_memory/behavioral/api"
 	"github.com/globulario/services/golang/ai_memory/behavioral/store"
@@ -272,23 +273,52 @@ func TestCheckActionDistinguishesSelfAssertedEvidence(t *testing.T) {
 		t.Error("expected a self-asserted caveat in recommended_steps")
 	}
 
-	// Case B — same requirement satisfied by a RECORDED authoritative evidence row.
+	// Case B — same distinction, satisfied by a RECORDED authoritative row.
+	//
+	// Commit 5 note: this case now uses a requirement the cluster_operator
+	// catalog actually rules on, with evidence shaped the way the doctor
+	// producer emits it, and a scoped request. The previous fixture ("req.alarm"
+	// plus a bare row targeting the principle) passed only because CheckAction
+	// accepted any Satisfies match with no cluster, subject, authority or
+	// recency check. That lane is gone: an invented requirement is now
+	// unsatisfied rather than waivable, so the old fixture proved a permissive
+	// path rather than the provenance distinction it is named for.
+	const (
+		bReq     = "evidence.doctor.finding_observed"
+		bCluster = "cluster-provenance"
+		bEntity  = "svc/repository"
+		bInvar   = "cluster.desired_state.absent"
+	)
+	observedAt := time.Now().Add(-1 * time.Minute).Unix()
+
 	stB, hB := newGovHandler()
 	_ = stB.PutCondition(ctx, &api.Condition{ID: condNospace, Project: testProject, Domain: testDomain})
 	_ = stB.PutAuthority(ctx, &api.Authority{ID: "auth.etcd", Project: testProject, Domain: testDomain})
 	seedPromotedPrinciple(t, stB, &api.Principle{
 		ID: "p-recorded", Authorities: []api.AuthorityRef{"auth.etcd"},
-		RequiredEvidence: []api.RequiredEvidenceRef{"req.alarm"}, RiskLevel: "low",
+		RequiredEvidence: []api.RequiredEvidenceRef{bReq}, RiskLevel: "low",
 	})
-	if err := stB.PutEvidence(ctx, &api.Evidence{
-		ID: "ev-1", Project: testProject, Domain: testDomain, TargetKind: "principle", TargetID: "p-recorded",
-		Satisfies: []api.RequiredEvidenceRef{"req.alarm"},
-	}); err != nil {
+	evB := &api.Evidence{
+		ID: "ev-1", Project: testProject, Domain: testDomain,
+		Kind: "cluster_doctor_evidence", SourceKind: "cluster_doctor_evidence",
+		Result: "claim", SourceRef: "finding-1",
+		EntityRef: bEntity, ClusterID: bCluster, ConditionRef: bInvar,
+		AuthorityLevel: api.ObservationAuthorityDerived,
+		ObservedAt:     observedAt,
+		Satisfies:      []api.RequiredEvidenceRef{bReq},
+	}
+	if err := stB.PutEvidence(ctx, evB); err != nil {
 		t.Fatalf("PutEvidence: %v", err)
 	}
-	acB := checkAction(t, hB, &bpb.CheckActionRequest{ActionType: "do-thing", CurrentConditions: []string{condNospace}})
+	acB := checkAction(t, hB, &bpb.CheckActionRequest{
+		ActionType: "do-thing", CurrentConditions: []string{condNospace},
+		ActionScope: &bpb.ActionScope{
+			ClusterId: bCluster, EntityRef: bEntity, ConditionRef: bInvar, SourceRef: "finding-1",
+		},
+	})
 	if acB.GetStatus() != "allowed" {
-		t.Fatalf("recorded case: status=%q, want allowed", acB.GetStatus())
+		t.Fatalf("recorded case: status=%q steps=%v, want allowed",
+			acB.GetStatus(), acB.GetRecommendedSteps())
 	}
 	if _, flagged := acB.GetMetadata()["self_asserted_evidence"]; flagged {
 		t.Errorf("recorded authoritative evidence must NOT be flagged self-asserted: metadata=%v", acB.GetMetadata())

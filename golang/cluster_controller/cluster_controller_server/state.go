@@ -391,6 +391,12 @@ type nodeState struct {
 	EtcdJoinStartedAt time.Time     `json:"etcd_join_started_at,omitempty"`
 	EtcdJoinError     string        `json:"etcd_join_error,omitempty"`
 	EtcdMemberID      uint64        `json:"etcd_member_id,omitempty"`      // for rollback via MemberRemove
+	// EtcdIsLearner mirrors the live member list. A learner replicates the full
+	// keyspace but does NOT vote, so it never counts toward quorum. Exported to
+	// node metadata because consumers that reason about fault tolerance (the
+	// doctor's etcd.stale_member rule) must count VOTERS, not members — an
+	// N-member cluster where some are learners has a different quorum than N.
+	EtcdIsLearner bool `json:"etcd_is_learner,omitempty"`
 	EtcdMissingCycles int           `json:"etcd_missing_cycles,omitempty"` // consecutive cycles where member missing + etcd not running
 	// MinIO pool join state machine (erasure-coded expansion)
 	MinioJoinPhase     MinioJoinPhase `json:"minio_join_phase,omitempty"`

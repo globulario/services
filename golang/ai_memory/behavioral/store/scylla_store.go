@@ -130,12 +130,13 @@ func (s *ScyllaStore) PutEvidence(ctx context.Context, e *api.Evidence) error {
 	// A logged batch keeps evidence and its evidence_by_target index consistent.
 	batch := s.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(`INSERT INTO behavioral_memory.evidence
-(project, domain, id, target_kind, target_id, evidence_kind, lane, result, probe_ref, observed_at, payload, provenance, observed_from, satisfies, created_at, updated_at, metadata, source_kind, source_ref, entity_ref, cluster_id, condition_ref, severity, authority_level)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+(project, domain, id, target_kind, target_id, evidence_kind, lane, result, probe_ref, observed_at, payload, provenance, observed_from, satisfies, created_at, updated_at, metadata, source_kind, source_ref, entity_ref, cluster_id, condition_ref, severity, authority_level, action_ref)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.Project, string(e.Domain), e.ID, e.TargetKind, e.TargetID, e.Kind, string(e.Lane), e.Result, e.ProbeRef,
 		e.ObservedAt, e.Payload, e.Provenance.SourceRef, e.ObservedFrom, refsToStrings(e.Satisfies),
 		e.Provenance.CreatedAt, e.Provenance.UpdatedAt, e.Metadata,
 		e.SourceKind, e.SourceRef, e.EntityRef, e.ClusterID, e.ConditionRef, e.Severity, string(e.AuthorityLevel),
+		e.ActionRef,
 	)
 	if e.TargetID != "" {
 		batch.Query(`INSERT INTO behavioral_memory.evidence_by_target
@@ -145,10 +146,102 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			e.ObservedAt, e.Provenance.CreatedAt,
 		)
 	}
+	// One index row per satisfied reference, in the SAME batch as the evidence
+	// row. If these diverged, evidence would exist while being unfindable by the
+	// governor — the failure mode this index exists to prevent.
+	//
+	// The satisfies set is small in practice (a probe satisfies one or two
+	// slots). If it ever grows large this batch should be split, since a logged
+	// batch spanning many partitions is a Scylla anti-pattern.
+	for _, ref := range refsToStrings(e.Satisfies) {
+		if ref == "" {
+			continue
+		}
+		batch.Query(`INSERT INTO behavioral_memory.evidence_by_satisfaction
+(project, domain, required_evidence_ref, cluster_id, observed_at, id, condition_ref, entity_ref, target_kind, evidence_kind, lane, result, source_kind, authority_level, action_ref, source_ref, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			e.Project, string(e.Domain), ref, e.ClusterID, e.ObservedAt, e.ID,
+			e.ConditionRef, e.EntityRef, e.TargetKind, e.Kind, string(e.Lane), e.Result,
+			e.SourceKind, string(e.AuthorityLevel), e.ActionRef, e.SourceRef, e.Provenance.CreatedAt,
+		)
+	}
 	if err := s.session.ExecuteBatch(batch); err != nil {
 		return fmt.Errorf("put evidence: %w", err)
 	}
 	return nil
+}
+
+// defaultSatisfactionLimit bounds a governance lookup that did not specify one.
+// The decision path must not be able to pull an unbounded partition.
+const defaultSatisfactionLimit = 200
+
+func (s *ScyllaStore) ListEvidenceSatisfying(ctx context.Context, q EvidenceSatisfactionQuery) ([]api.Evidence, error) {
+	if q.Project == "" || q.Domain == "" || q.RequiredEvidenceRef == "" {
+		return nil, fmt.Errorf("evidence satisfaction query requires project, domain and required_evidence_ref")
+	}
+	limit := q.Limit
+	if limit <= 0 {
+		limit = defaultSatisfactionLimit
+	}
+
+	// observed_at leads the clustering key, so the age bound is served by the
+	// range read itself rather than by discarding rows after the fact.
+	cql := `SELECT id, observed_at, condition_ref, entity_ref, target_kind, evidence_kind, lane, result, source_kind, authority_level, action_ref, source_ref, created_at
+FROM behavioral_memory.evidence_by_satisfaction
+WHERE project = ? AND domain = ? AND required_evidence_ref = ? AND cluster_id = ?`
+	args := []interface{}{q.Project, q.Domain, q.RequiredEvidenceRef, q.ClusterID}
+	if q.NotOlderThan > 0 {
+		cql += ` AND observed_at >= ?`
+		args = append(args, q.NotOlderThan)
+	}
+	cql += ` LIMIT ?`
+	args = append(args, limit)
+
+	iter := s.session.Query(cql, args...).WithContext(ctx).Iter()
+	var out []api.Evidence
+	var (
+		id, conditionRef, entityRef, targetKind, kind, lane, result, sourceKind, authority string
+		actionRef, sourceRef                                                               string
+		observedAt, createdAt                                                              int64
+	)
+	for iter.Scan(&id, &observedAt, &conditionRef, &entityRef, &targetKind, &kind, &lane, &result, &sourceKind, &authority, &actionRef, &sourceRef, &createdAt) {
+		// Condition and entity are narrowed here rather than in the clustering
+		// key: promoting them would force every caller to supply both or fall
+		// back to ALLOW FILTERING. The partition is already scoped to one
+		// required-evidence ref in one cluster, so this is a short scan.
+		if q.ConditionRef != "" && conditionRef != q.ConditionRef {
+			continue
+		}
+		if q.EntityRef != "" && entityRef != q.EntityRef {
+			continue
+		}
+		out = append(out, api.Evidence{
+			ID:             id,
+			Project:        q.Project,
+			Domain:         api.DomainRef(q.Domain),
+			TargetKind:     targetKind,
+			Kind:           kind,
+			Lane:           api.EvidenceLane(lane),
+			Result:         result,
+			ObservedAt:     observedAt,
+			SourceKind:     sourceKind,
+			EntityRef:      entityRef,
+			ClusterID:      q.ClusterID,
+			ConditionRef:   conditionRef,
+			AuthorityLevel: api.ObservationAuthorityLevel(authority),
+			Satisfies:      []api.RequiredEvidenceRef{api.RequiredEvidenceRef(q.RequiredEvidenceRef)},
+			// The governed action this evidence is bound to, and the finding it
+			// is about. Projected here because a satisfaction rule may require
+			// either, and this projection is all a governance lookup ever sees.
+			ActionRef:  actionRef,
+			SourceRef:  sourceRef,
+			Provenance: api.Provenance{CreatedAt: createdAt},
+		})
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list evidence satisfying %q: %w", q.RequiredEvidenceRef, err)
+	}
+	return out, nil
 }
 
 func (s *ScyllaStore) ListEvidenceForTarget(ctx context.Context, project, domain, targetID string) ([]api.Evidence, error) {
@@ -651,22 +744,48 @@ FROM behavioral_memory.outcomes WHERE project = ? AND domain = ? AND id = ?`
 	return o, nil
 }
 
+// ListOutcomesByTheme returns the FULL outcomes for a theme, hydrated from the
+// base table.
+//
+// outcomes_by_theme is an id index, not a projection: it carries no
+// evidence_ids, principle_ids, supports/weakens, action_check_id or note. This
+// used to scan the index alone and return partial records, which made
+// GeneratePromotionCandidate structurally impossible on ScyllaDB — it derives a
+// candidate's supporting evidence from its outcomes, found none, and refused
+// every candidate with "explicit supporting evidence is required".
+//
+// The bug was invisible in tests because MemoryStore.ListOutcomesByTheme does
+// hydrate (index → id → full record). The test double was more capable than the
+// real store, so the whole promotion path passed unit tests and could never work
+// in a cluster. Observed 2026-08-01, the first time anything called it against
+// Scylla. Hydrate here so the two stores answer the same question the same way.
 func (s *ScyllaStore) ListOutcomesByTheme(ctx context.Context, project, domain, theme string) ([]api.Outcome, error) {
-	const q = `SELECT id, status, severe, human_marked, incident_id, created_at
-FROM behavioral_memory.outcomes_by_theme WHERE project = ? AND domain = ? AND theme = ?`
+	const q = `SELECT id FROM behavioral_memory.outcomes_by_theme
+WHERE project = ? AND domain = ? AND theme = ?`
 	iter := s.session.Query(q, project, domain, theme).WithContext(ctx).Iter()
-	var out []api.Outcome
-	var id, status, incident string
-	var severe, human bool
-	var createdAt int64
-	for iter.Scan(&id, &status, &severe, &human, &incident, &createdAt) {
-		out = append(out, api.Outcome{
-			ID: id, Project: project, Domain: api.DomainRef(domain), Status: status,
-			Severe: severe, HumanMarked: human, IncidentID: incident, Theme: theme, CreatedAt: createdAt,
-		})
+	var ids []string
+	var id string
+	for iter.Scan(&id) {
+		ids = append(ids, id)
 	}
 	if err := iter.Close(); err != nil {
 		return nil, fmt.Errorf("list outcomes by theme: %w", err)
+	}
+
+	out := make([]api.Outcome, 0, len(ids))
+	for _, oid := range ids {
+		o, err := s.GetOutcome(ctx, project, domain, oid)
+		if err != nil {
+			// A dangling index row is not a reason to fail the whole read: the
+			// caller is counting repeats, and one unreadable outcome should
+			// lower the count, not deny the pattern. Matches MemoryStore, which
+			// simply skips ids with no base record.
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return nil, fmt.Errorf("list outcomes by theme: hydrate %s: %w", oid, err)
+		}
+		out = append(out, *o)
 	}
 	return out, nil
 }

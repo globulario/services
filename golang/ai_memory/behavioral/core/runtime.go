@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/ai_memory/behavioral/api"
+	"github.com/globulario/services/golang/ai_memory/behavioral/domain"
 	"github.com/globulario/services/golang/ai_memory/behavioral/store"
 )
 
@@ -115,6 +116,24 @@ func (s *Service) forbiddenAliasIndex(domain api.DomainRef) map[string][]string 
 	return out
 }
 
+// evidenceQualifier returns the domain pack's satisfaction rules, when it has
+// them. Nil means the pack declares none and the kernel's weaker default lane
+// applies — see the note at the call site.
+func (s *Service) evidenceQualifier(dom api.DomainRef) domain.EvidenceQualifier {
+	if s.registry == nil {
+		return nil
+	}
+	d, ok := s.registry.Lookup(string(dom))
+	if !ok {
+		return nil
+	}
+	q, ok := d.(domain.EvidenceQualifier)
+	if !ok {
+		return nil
+	}
+	return q
+}
+
 // forbiddenRefMatches reports whether a proposed action_type/target matches a
 // forbidden-move ref — either by exact id/target equality (the original contract)
 // or via one of the ref's declared aliases. A pure function so matching is unit-
@@ -133,6 +152,18 @@ func forbiddenRefMatches(ref api.ForbiddenMoveRef, actionType, target string, al
 }
 
 func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// sortedRefKeys is sortedKeys over the qualified-evidence map. Deterministic
+// ordering matters here too: the audit row's contents must not depend on Go map
+// iteration order, or two identical checks would produce different records.
+func sortedRefKeys(m map[string][]string) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
@@ -257,6 +288,21 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 	}
 
 	now := time.Now().Unix()
+	// Injected clock: a verdict must be reproducible for a given state and time,
+	// so a test never depends on how long it took to run.
+	evaluatedAt := req.EvaluatedAt
+	if evaluatedAt == 0 {
+		evaluatedAt = now
+	}
+	// Per-requirement outcomes, kept so the audit row can name what it rested on
+	// and why anything else was refused.
+	qualifiedEvidence := map[string][]string{}
+	rejectionDetail := map[string]string{}
+	// Requirements the domain owns a rule for and judged unsatisfied. Kept
+	// separate from "no rule exists" because only the latter may fall back to
+	// caller self-assertion.
+	ruledOn := map[string]bool{}
+
 	ac := api.ActionCheck{
 		ID: newID(), Project: proj, Domain: req.Domain, ActionType: req.ActionType, Target: req.Target,
 		Conditions: req.CurrentConditions, AgentID: req.AgentID, CreatedAt: now,
@@ -308,21 +354,74 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 	//    authoritative — and it must not silently treat the two as equal, which
 	//    would let an "allowed" verdict rest on an unverified claim with the trust
 	//    provenance erased from the audit trail.
+	//    When the domain pack owns explicit satisfaction rules, THOSE decide.
+	//    The fallback lane below (a recorded row targeting the principle) knows
+	//    nothing about cluster, subject, authority floor, recency or action
+	//    binding — it answers "does evidence for this ref exist somewhere in the
+	//    project", which is not the question a gate is asking.
+	qualifier := s.evidenceQualifier(req.Domain)
 	recorded := map[string]bool{} // satisfied by an authoritative recorded evidence row
-	for _, p := range engaged {
-		evs, err := s.store.ListEvidenceForTarget(ctx, proj, dom, p.ID)
-		if err != nil {
-			return nil, fmt.Errorf("check action: evidence: %w", err)
+	if qualifier != nil {
+		refs := map[string]bool{}
+		for _, p := range engaged {
+			for _, r := range p.RequiredEvidence {
+				refs[string(r)] = true
+			}
 		}
-		for _, e := range evs {
-			for _, sref := range e.Satisfies {
-				recorded[string(sref)] = true
+		for _, ref := range sortedKeys(refs) {
+			v, err := qualifier.QualifyRequirement(ctx, s.store, domain.RequirementQuery{
+				Project: proj, Domain: dom, RequirementID: ref,
+				ClusterID:          req.ActionScope.ClusterID,
+				EntityRef:          req.ActionScope.EntityRef,
+				ConditionRef:       req.ActionScope.ConditionRef,
+				SourceRef:          req.ActionScope.SourceRef,
+				ActionRef:          req.ActionScope.ActionRef,
+				ActionDispatchedAt: req.ActionScope.ActionDispatchedAt,
+				EvaluatedAt:        evaluatedAt,
+			})
+			if err != nil {
+				// FAIL CLOSED. A governor that cannot read its evidence has not
+				// learned the evidence is absent — it has learned nothing. The
+				// error propagates so the caller sees a degraded gate rather
+				// than an allow verdict resting on an unanswered question.
+				return nil, fmt.Errorf("check action: qualify %s: %w", ref, err)
+			}
+			if v.Satisfied {
+				recorded[ref] = true
+				qualifiedEvidence[ref] = v.EvidenceIDs
+				continue
+			}
+			// A requirement the domain has a RULE for has been judged. Self-
+			// assertion must not override that judgement: allowing it would let
+			// any caller bypass every discriminator the rule exists to apply by
+			// simply claiming to hold the evidence. Self-assertion remains
+			// available only where the domain expresses no opinion.
+			if v.Reason != domain.ReasonRequirementNotDeclared {
+				ruledOn[ref] = true
+			}
+			// Say WHY, in stable terms, so an operator can tell "gather this"
+			// from "what you have will never count".
+			if v.Reason != "" {
+				rejectionDetail[ref] = string(v.Reason) + ": " + v.Detail
+			}
+		}
+	} else {
+		for _, p := range engaged {
+			evs, err := s.store.ListEvidenceForTarget(ctx, proj, dom, p.ID)
+			if err != nil {
+				return nil, fmt.Errorf("check action: evidence: %w", err)
+			}
+			for _, e := range evs {
+				for _, sref := range e.Satisfies {
+					recorded[string(sref)] = true
+				}
 			}
 		}
 	}
 	asserted := map[string]bool{} // satisfied only by caller self-assertion
 	for _, r := range req.ProvidedEvidenceRefs {
-		if !recorded[r] {
+		// A requirement the domain already judged is not open to assertion.
+		if !recorded[r] && !ruledOn[r] {
 			asserted[r] = true
 		}
 	}
@@ -348,6 +447,29 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 			ac.Metadata = map[string]string{}
 		}
 		ac.Metadata["self_asserted_evidence"] = strings.Join(selfAsserted, ",")
+	}
+	// Name the rows the verdict rested on. An allow that cannot say WHICH
+	// evidence satisfied it is an assertion, not an audit record — and the
+	// distinction matters most later, when someone asks whether the action was
+	// justified at the time.
+	if len(qualifiedEvidence) > 0 {
+		if ac.Metadata == nil {
+			ac.Metadata = map[string]string{}
+		}
+		var parts []string
+		for _, ref := range sortedRefKeys(qualifiedEvidence) {
+			parts = append(parts, ref+"="+strings.Join(qualifiedEvidence[ref], ","))
+		}
+		ac.Metadata["qualified_evidence"] = strings.Join(parts, ";")
+		ac.Metadata["evidence_lane"] = "domain_qualifier"
+	} else if qualifier != nil {
+		// The pack owns rules and nothing qualified. Recorded explicitly so a
+		// reader can tell a strict lane that found nothing from the weaker
+		// default lane that was never consulted.
+		if ac.Metadata == nil {
+			ac.Metadata = map[string]string{}
+		}
+		ac.Metadata["evidence_lane"] = "domain_qualifier"
 	}
 
 	// 4. Authority resolvability.
@@ -384,7 +506,21 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 		ac.RecommendedSteps = []string{"do not perform: matches a forbidden move on a promoted principle"}
 	case len(ac.MissingEvidence) > 0:
 		ac.Status = "needs_evidence"
-		ac.RecommendedSteps = []string{"gather required evidence: " + strings.Join(refStrings(ac.MissingEvidence), ", ")}
+		step := "gather required evidence: " + strings.Join(refStrings(ac.MissingEvidence), ", ")
+		// Distinguish absent evidence from present-but-disqualified evidence. An
+		// operator told to "gather" something that is already stored and simply
+		// does not count has been sent to do the wrong thing.
+		var why []string
+		for _, r := range refStrings(ac.MissingEvidence) {
+			if d := rejectionDetail[r]; d != "" {
+				why = append(why, r+" ("+d+")")
+			}
+		}
+		if len(why) > 0 {
+			sort.Strings(why)
+			step = "required evidence exists but does not qualify: " + strings.Join(why, "; ")
+		}
+		ac.RecommendedSteps = []string{step}
 	case len(ac.UnresolvedAuthority) > 0:
 		ac.Status = "needs_authority"
 		ac.RecommendedSteps = []string{"resolve governing authority: " + strings.Join(refStrings(ac.UnresolvedAuthority), ", ")}

@@ -33,6 +33,36 @@ var ErrUnconfigured = errors.New("behavioral-memory store: no persistence backen
 // Store is the persistence port. All methods are scoped by (project, domain) and
 // address entities by their stable canonical id — the same id used for RDF
 // projection later. No method uses ALLOW FILTERING.
+// EvidenceSatisfactionQuery selects candidate evidence for a required-evidence
+// slot. Project, Domain and RequiredEvidenceRef are mandatory; the rest narrow.
+//
+// ClusterID participates in the partition key, so an empty ClusterID selects the
+// cluster-less partition rather than "any cluster". That is deliberate: silently
+// widening the scope of a governance lookup would let evidence from one cluster
+// authorize an action in another.
+type EvidenceSatisfactionQuery struct {
+	Project             string
+	Domain              string
+	RequiredEvidenceRef string
+	ClusterID           string
+
+	// ConditionRef, when set, keeps only evidence recorded under that
+	// condition. Empty means "any condition".
+	ConditionRef string
+	// EntityRef, when set, keeps only evidence about that entity.
+	// Empty means "any entity".
+	EntityRef string
+
+	// NotOlderThan is a unix timestamp; rows observed before it are excluded.
+	// Zero means no age bound. Freshness is a required-evidence policy, so the
+	// caller supplies the threshold rather than the store assuming one.
+	NotOlderThan int64
+
+	// Limit caps returned rows. Zero applies defaultSatisfactionLimit — an
+	// unbounded governance lookup is a denial-of-service on the decision path.
+	Limit int
+}
+
 type Store interface {
 	// Backend names the persistence implementation (e.g. "scylla", "memory",
 	// "unconfigured").
@@ -50,6 +80,22 @@ type Store interface {
 	// Evidence. PutEvidence also maintains the evidence_by_target lookup.
 	PutEvidence(ctx context.Context, e *api.Evidence) error
 	ListEvidenceForTarget(ctx context.Context, project, domain, targetID string) ([]api.Evidence, error)
+
+	// ListEvidenceSatisfying answers the question CheckAction asks when a
+	// principle declares a required-evidence slot: which stored evidence
+	// SATISFIES this reference, in scope, recently enough to count.
+	//
+	// This is deliberately distinct from ListEvidenceForTarget. That one is
+	// keyed by the target an evidence row supports; a required-evidence slot is
+	// a reference many unrelated rows may satisfy. Without this lookup the
+	// runtime cannot locate evidence that demonstrably exists, and a governor
+	// that cannot find evidence either blocks a lawful action or is quietly
+	// waived — both worse than no governor.
+	//
+	// Qualification (staleness, authority floor, accepted results) is the
+	// caller's policy, applied over what this returns. The store's job is to
+	// find candidates cheaply, not to decide whether they are good enough.
+	ListEvidenceSatisfying(ctx context.Context, q EvidenceSatisfactionQuery) ([]api.Evidence, error)
 
 	// Authorities. AddAuthorityGoverns records a target governed by an authority,
 	// creating the authority row if it does not yet exist (set-add semantics).
@@ -155,6 +201,9 @@ func (Unconfigured) UpdateClaimStatus(context.Context, string, string, string, a
 	return ErrUnconfigured
 }
 func (Unconfigured) PutEvidence(context.Context, *api.Evidence) error { return ErrUnconfigured }
+func (Unconfigured) ListEvidenceSatisfying(context.Context, EvidenceSatisfactionQuery) ([]api.Evidence, error) {
+	return nil, ErrUnconfigured
+}
 func (Unconfigured) ListEvidenceForTarget(context.Context, string, string, string) ([]api.Evidence, error) {
 	return nil, ErrUnconfigured
 }

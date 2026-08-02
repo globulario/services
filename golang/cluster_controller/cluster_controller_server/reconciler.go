@@ -361,9 +361,25 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 						RepositoryAddr: repo.Address,
 						ArtifactKind:   repositorypb.ArtifactKind_SERVICE,
 					}
+					// Resolve under the identity lane the desired state names.
+					//
+					// This was hardcoded to defaultPublisherID() until
+					// 2026-08-01, which made `globular pkg override` — the
+					// mechanism that exists to run a locally-built package —
+					// unable to resolve one: the local artifact lives only
+					// under local@<cluster-id>, so the lookup asked for
+					// core@globular.io/<svc>@<local-version> and got "no
+					// published artifact found". The override registered, drift
+					// was reported against it forever, and nothing converged.
+					// Empty stays the official publisher, so normal desired
+					// state is unaffected.
+					publisherID := strings.TrimSpace(dv.publisherID)
+					if publisherID == "" {
+						publisherID = defaultPublisherID()
+					}
 					var err error
 					resolved, err = resolver.Resolve(ctx, &cluster_controllerpb.ServiceReleaseSpec{
-						PublisherID: defaultPublisherID(),
+						PublisherID: publisherID,
 						ServiceName: name,
 						Version:     dv.version,
 						BuildNumber: dv.buildNumber,

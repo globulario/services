@@ -8,6 +8,7 @@ import (
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
@@ -106,6 +107,26 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				}, nil
 			}
 			params := action.GetParams()
+			// Subject identity comes from the FINDING and the local cluster,
+			// never from the action params. EntityRef is taken from the finding
+			// rather than defaulted to params["node_id"]: the two coincide for
+			// node-scoped findings and diverge for service- or cluster-scoped
+			// ones, and substituting one would attribute a later verification to
+			// the wrong subject.
+			//
+			// Fail rather than invent. Downstream evidence is indexed by
+			// cluster, so a remediation resolved without one would produce
+			// verification that lands in the cluster-less partition and is
+			// invisible to every cluster-scoped reader — worse than refusing,
+			// because it looks recorded.
+			if s.clusterID == "" {
+				return nil, fmt.Errorf("resolve_finding: cluster id unknown — refusing to resolve %s "+
+					"without cluster identity (verification evidence would be unattributable)", findingID)
+			}
+			if f.InvariantID == "" || f.EntityRef == "" {
+				return nil, fmt.Errorf("resolve_finding: finding %s lacks identity (invariant_id=%q entity_ref=%q) — "+
+					"refusing to resolve with incomplete lineage", findingID, f.InvariantID, f.EntityRef)
+			}
 			return &engine.ResolvedFinding{
 				FindingID:   findingID,
 				StepIndex:   stepIndex,
@@ -115,6 +136,9 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				Idempotent:  action.GetIdempotent(),
 				Description: action.GetDescription(),
 				HasAction:   true,
+				ClusterID:   s.clusterID,
+				InvariantID: f.InvariantID,
+				EntityRef:   f.EntityRef,
 			}, nil
 		},
 
@@ -166,6 +190,22 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				RemainingRelated:    0,
 			}, nil
 		},
+
+		// Close the learning loop. The doctor observed the finding, the workflow
+		// acted, and this records whether the action worked. Supplied here
+		// rather than inside the engine so the workflow engine stays free of
+		// behavioral-memory types and this service keeps ownership of what it
+		// records — it already owns the bounded recorder for the finding path.
+		ObserveOutcome: func(ctx context.Context, o remediation.Outcome) {
+			evidenceID := s.emitBehavioralRemediationOutcome(o)
+			// Link the verified result to the decision that allowed it. Only
+			// after verification: an outcome written at dispatch would record an
+			// intention as a result.
+			s.recordGovernedOutcome(ctx, o, evidenceID)
+		},
+
+		// The governed gate, consulted immediately before dispatch.
+		GateAction: s.gateRemediation,
 
 		MarkFailed: func(ctx context.Context, findingID string) error {
 			slog.Warn("remediate.doctor.finding workflow failed",

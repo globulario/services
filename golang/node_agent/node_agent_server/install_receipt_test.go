@@ -264,10 +264,19 @@ func TestReceiptUnitFilePath_Present(t *testing.T) {
 // ── stampMigrationFromLegacySidecar ───────────────────────────────────────
 
 func TestStampMigrationFromLegacySidecar_FreshPkg(t *testing.T) {
-	pkg := &node_agentpb.InstalledPackage{Name: "foo"}
-	stampMigrationFromLegacySidecar(pkg, "/etc/systemd/system/foo.service", "ABCDEF")
+	// The unit must exist on disk: migration anchors installed_at to the unit
+	// file's mtime (the artifact), never to wall-clock time. See
+	// installreceipt.StampMigrationFromLegacySidecar and
+	// TestStampMigrationFromLegacySidecar_InstalledAtIsArtifactAnchoredNotWallClock.
+	unitPath := filepath.Join(t.TempDir(), "foo.service")
+	if err := os.WriteFile(unitPath, []byte("[Unit]\n"), 0o644); err != nil {
+		t.Fatalf("write unit: %v", err)
+	}
 
-	if got := pkg.Metadata[receiptKeyUnitFilePath]; got != "/etc/systemd/system/foo.service" {
+	pkg := &node_agentpb.InstalledPackage{Name: "foo"}
+	stampMigrationFromLegacySidecar(pkg, unitPath, "ABCDEF")
+
+	if got := pkg.Metadata[receiptKeyUnitFilePath]; got != unitPath {
 		t.Errorf("unit_file_path = %q", got)
 	}
 	if got := pkg.Metadata[receiptKeyUnitFileSha256]; got != "abcdef" {
