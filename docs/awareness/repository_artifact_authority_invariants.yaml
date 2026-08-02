@@ -143,3 +143,33 @@ invariants:
       - python3 scripts/validate-package-authority.py
       - make check-services
       - ../globular-installer:make check-specs
+  - id: repository.published_missing_blob_with_staged_source_must_self_heal_during_runtime
+    title: A repository advertising PUBLISHED manifests it cannot serve, while a durable staged source is present, must self-heal during RUNTIME — not only once at startup
+    severity: high
+    status: active
+    summary: |
+      The repository's local POSIX CAS (/var/lib/globular/repository/artifacts) is a REBUILDABLE
+      cache. Its authoritative, durable source is the node-agent install cache
+      (/var/lib/globular/packages, incl. pinned/); blob_seed.go materializes each missing blob
+      from a digest-verified staged archive (the Scylla manifest is authority, the staged file is
+      evidence). The defect: seedLocalCASFromStagedPackages runs ONCE as a startup goroutine. If
+      the CAS is emptied MID-LIFE, the repository keeps advertising
+      repository.identity.missing_blob_for_published_manifest for every affected PUBLISHED artifact
+      until the NEXT process restart — a long-lived, self-inflicted loss of installability, even
+      though the durable source is fully present and the store is trivially rebuildable.
+      Observed 2026-07-09 on globule-nuc after a rejoin: blob-seed logged already_present=0 on every
+      startup though the prior pass had populated the store, on persistent ext4 (findmnt /dev/sda2
+      ext4; no tmpfs; systemd has no PrivateTmp/RuntimeDirectory/ephemeral view; initStorage does
+      not RemoveAll the CAS) — so an external actor cleared it between restarts, and the startup-only
+      healer could not recover until the next boot.
+      REQUIRED: when a blob is missing from the CAS whose PUBLISHED manifest is authoritative AND a
+      digest-matching staged source exists, the repository must re-materialize it DURING runtime.
+      The healer must be event-driven or periodic, bounded, digest-verifying, and idempotent — a
+      startup firework that goes dark afterward is not durability. Self-heal availability is a
+      property of the store's lifetime, not of its boot. Do NOT rely on a process restart to reseed
+      a mid-life-emptied CAS.
+    protects:
+      files:
+        - golang/repository/repository_server/blob_seed.go
+      symbols:
+        - seedLocalCASFromStagedPackages
