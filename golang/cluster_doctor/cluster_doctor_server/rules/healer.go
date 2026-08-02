@@ -89,18 +89,6 @@ type Healer struct {
 	// the gated path is exercised so the audit trail records the rehearsal.
 	DryRun bool
 
-	// DryRunFor decides dry-run PER FINDING, overriding DryRun when set.
-	//
-	// A cycle-wide boolean cannot express "this finding rests on data we
-	// collected, that one does not". The doctor uses it to suppress only the
-	// findings derived from a source that failed to collect, instead of standing
-	// the whole cycle down because something unrelated was unreachable — see
-	// harvest_gate.go.
-	//
-	// nil keeps the cycle-wide DryRun, which is what every existing caller and
-	// test relies on.
-	DryRunFor func(Finding) bool
-
 	// Dispatcher is the gated dispatch hook the cluster-doctor server wires
 	// to ExecuteRemediation. nil means HealAuto findings are recorded but
 	// never dispatched — fail-closed behaviour required by Milestone 2's
@@ -166,14 +154,7 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 				result.Error = "rate-limited (max actions or max failures reached)"
 				report.Observed++
 			} else {
-				// Per-finding dry-run when the caller supplies a predicate:
-				// a cycle may legitimately enforce some findings and rehearse
-				// others, when only some rest on data that failed to collect.
-				dryRun := h.DryRun
-				if h.DryRunFor != nil {
-					dryRun = h.DryRunFor(f)
-				}
-				executed, auditID, err := h.Dispatcher.Dispatch(ctx, f, rule.AutoAction, dryRun)
+				executed, auditID, err := h.Dispatcher.Dispatch(ctx, f, rule.AutoAction, h.DryRun)
 				result.AuditID = auditID
 				if err != nil {
 					result.Error = err.Error()

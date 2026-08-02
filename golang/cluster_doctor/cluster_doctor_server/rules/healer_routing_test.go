@@ -23,18 +23,10 @@ func TestHealer_NoDirectRemoteOpsMutation(t *testing.T) {
 	// parameter (DryRun, MaxActions, MaxFailures) or (b) a gated hook
 	// (Dispatcher, PolicyLookup). Direct mutation surfaces are forbidden.
 	allowed := map[string]bool{
-		"DryRun":      true,
-		"Dispatcher":  true,
-		"MaxActions":  true,
-		"MaxFailures": true,
-		// DryRunFor is a classifier parameter, not a mutation surface: it takes a
-		// Finding and returns a bool, so it can only make the healer do LESS.
-		// Added 2026-08-01 so reduced-harvest suppression can be scoped to the
-		// findings actually derived from a degraded source, instead of standing
-		// the whole cycle down because something unrelated was unreachable.
-		// It cannot reach a node agent, etcd or a workflow — the Dispatcher
-		// remains the single path to any mutation.
-		"DryRunFor":    true,
+		"DryRun":       true,
+		"Dispatcher":   true,
+		"MaxActions":   true,
+		"MaxFailures":  true,
 		"PolicyLookup": true,
 	}
 	for i := 0; i < typ.NumField(); i++ {
