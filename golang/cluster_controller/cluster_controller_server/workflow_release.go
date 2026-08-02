@@ -1120,7 +1120,13 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			unit := "globular-" + name + ".service"
+			// packageToUnit is the unit-name authority (identity.UnitForService).
+			// Constructing "globular-"+name+".service" here was wrong for any
+			// package whose unit is not named after it — scylladb ships as
+			// scylla-server.service, so a restart targeted a unit that does not
+			// exist and the action reported an error for a service that was
+			// never touched.
+			unit := packageToUnit(name)
 			if err := srv.dedupRestart(ctx, nodeID, endpoint, unit); err != nil {
 				return fmt.Errorf("restart %s on node %s: %w", unit, nodeID, err)
 			}
@@ -1153,7 +1159,13 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}
 
-			unit := "globular-" + name + ".service"
+			// packageToUnit is the unit-name authority (identity.UnitForService).
+			// Constructing "globular-"+name+".service" here was wrong for any
+			// package whose unit is not named after it — scylladb ships as
+			// scylla-server.service, so a restart targeted a unit that does not
+			// exist and the action reported an error for a service that was
+			// never touched.
+			unit := packageToUnit(name)
 			if err := srv.dedupRestart(ctx, nodeID, endpoint, unit); err != nil {
 				return fmt.Errorf("restart %s on node %s: %w", unit, nodeID, err)
 			}
@@ -1224,7 +1236,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
 			defer conn.Close()
-			unit := "globular-" + name + ".service"
+			unit := packageToUnit(name) // unit-name authority; scylladb != globular-scylladb.service
 			client := node_agentpb.NewNodeAgentServiceClient(conn)
 			_, err = client.ControlService(ctx, &node_agentpb.ControlServiceRequest{
 				Unit:   unit,
@@ -1247,7 +1259,7 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 				return fmt.Errorf("connect to node %s: %w", nodeID, err)
 			}
 			defer conn.Close()
-			unit := "globular-" + name + ".service"
+			unit := packageToUnit(name) // unit-name authority; scylladb != globular-scylladb.service
 			client := node_agentpb.NewNodeAgentServiceClient(conn)
 			_, err = client.ControlService(ctx, &node_agentpb.ControlServiceRequest{
 				Unit:   unit,
