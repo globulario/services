@@ -16,10 +16,13 @@
 #   bash scripts/gen-package-versions-from-source.sh [--out FILE] [--check]
 #
 #   --out FILE   write the overrides file (default golang/build/package-versions.txt)
-#   --check      validate only: every shipped package has a committed,
-#                well-formed, non-dev version; exit non-zero otherwise.
+#   --check      validate only: every available shipped package has a committed,
+#                well-formed, non-dev version; exit non-zero otherwise. If the
+#                sibling Globular checkout is absent, xds/gateway are reported
+#                as not evaluated. A present checkout is always validated strictly.
 #
-# Requires the sibling Globular repo for xds/gateway versions.
+# Materialization (without --check) requires the sibling Globular repo because
+# xds and gateway versions are part of the generated release input.
 
 set -euo pipefail
 
@@ -29,6 +32,7 @@ GOLANG_ROOT="${SERVICES_ROOT}/golang"
 GLOBULAR_ROOT="${SERVICES_ROOT}/../Globular"
 OUT_FILE="${GOLANG_ROOT}/build/package-versions.txt"
 CHECK_ONLY=0
+SKIPPED_EXTERNAL=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -88,17 +92,34 @@ if [[ -z "${VERSIONS[globular-cli]+x}" ]]; then
 fi
 
 # 3) xds + gateway from the sibling Globular repo.
-for pair in "xds:cmd/xds" "gateway:cmd/gateway"; do
-  name="${pair%%:*}"; sub="${pair#*:}"
-  zz="${GLOBULAR_ROOT}/${sub}/zz_version_generated.go"
-  ver="$(zz_version "${zz}" || true)"
-  [[ -n "${ver}" ]] || die "${name}: missing ${zz} — the Globular repo must carry a committed version file for ${name}"
-  validate_version "${name}" "${ver}"
-  VERSIONS["${name}"]="${ver}"
-done
+# A source-only CI checkout can validate this repository without also cloning
+# Globular. That absence is reported, not confused with a missing authority file.
+# Once the sibling root exists, however, both files are mandatory. Release-input
+# materialization is never allowed to omit these packages.
+if [[ ! -d "${GLOBULAR_ROOT}" ]]; then
+  if (( CHECK_ONLY )); then
+    SKIPPED_EXTERNAL=2
+    echo "gen-package-versions: NOTICE: sibling Globular checkout absent at ${GLOBULAR_ROOT}; xds/gateway version authority not evaluated"
+  else
+    die "Globular repo absent at ${GLOBULAR_ROOT} — required to materialize xds/gateway versions"
+  fi
+else
+  for pair in "xds:cmd/xds" "gateway:cmd/gateway"; do
+    name="${pair%%:*}"; sub="${pair#*:}"
+    zz="${GLOBULAR_ROOT}/${sub}/zz_version_generated.go"
+    ver="$(zz_version "${zz}" || true)"
+    [[ -n "${ver}" ]] || die "${name}: missing ${zz} — the present Globular repo must carry a committed version file for ${name}"
+    validate_version "${name}" "${ver}"
+    VERSIONS["${name}"]="${ver}"
+  done
+fi
 
 if (( CHECK_ONLY )); then
-  echo "gen-package-versions: ${#VERSIONS[@]} packages carry valid committed versions"
+  if (( SKIPPED_EXTERNAL > 0 )); then
+    echo "gen-package-versions: ${#VERSIONS[@]} packages valid; ${SKIPPED_EXTERNAL} cross-repo packages not evaluated"
+  else
+    echo "gen-package-versions: ${#VERSIONS[@]} packages carry valid committed versions"
+  fi
   exit 0
 fi
 
