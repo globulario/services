@@ -177,15 +177,16 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		log.Printf("ReportNodeStatus: auto-registering unknown node %s (hostname=%s endpoint=%s)",
 			nodeID, newIdentity.Hostname, newEndpoint)
 		node = &nodeState{
-			NodeID:         nodeID,
-			Identity:       newIdentity,
-			AgentEndpoint:  newEndpoint,
-			LastSeen:       receivedAt, // server receipt clock (staleness decisions)
-			ReportedAt:     reportedAt, // node self-reported clock (diagnostics)
-			Status:         "recovering",
-			Profiles:       []string{}, // do not assume privileged profiles
-			Metadata:       make(map[string]string),
-			BootstrapPhase: BootstrapWorkloadReady, // already running, skip bootstrap
+			NodeID:              nodeID,
+			Identity:            newIdentity,
+			AgentEndpoint:       newEndpoint,
+			LastSeen:            receivedAt, // server receipt clock (staleness decisions)
+			ReportedAt:          reportedAt, // node self-reported clock (diagnostics)
+			Status:              "recovering",
+			Profiles:            []string{}, // do not assume privileged profiles
+			PlacementGeneration: 1,          // restored node has an established empty placement set
+			Metadata:            make(map[string]string),
+			BootstrapPhase:      BootstrapWorkloadReady, // already running, skip bootstrap
 		}
 		if srv.state.Nodes == nil {
 			srv.state.Nodes = make(map[string]*nodeState)

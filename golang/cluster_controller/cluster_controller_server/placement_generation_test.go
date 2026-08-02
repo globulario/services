@@ -132,3 +132,27 @@ func TestNoDirectNodeProfilesMutationOutsideCanonicalPath(t *testing.T) {
 			strings.Join(offenders, "\n  "))
 	}
 }
+
+// ReportNodeStatus is a second production node constructor used after
+// controller-state loss. It must establish placement generation together with
+// its intentionally empty profile set, just like the signed join constructor.
+func TestStatusAutoRegistrationEstablishesPlacementGeneration(t *testing.T) {
+	data, err := os.ReadFile("handlers_status.go")
+	if err != nil {
+		t.Fatalf("read handlers_status.go: %v", err)
+	}
+	text := string(data)
+	anchor := "ReportNodeStatus: auto-registering unknown node"
+	start := strings.Index(text, anchor)
+	if start < 0 {
+		t.Fatalf("ReportNodeStatus auto-registration constructor not found")
+	}
+	end := strings.Index(text[start:], "srv.state.Nodes[nodeID] = node")
+	if end < 0 {
+		t.Fatalf("ReportNodeStatus auto-registration constructor boundary not found")
+	}
+	constructor := text[start : start+end]
+	if !strings.Contains(constructor, "PlacementGeneration: 1") {
+		t.Fatalf("status auto-registration must establish PlacementGeneration=1")
+	}
+}

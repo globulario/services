@@ -1,0 +1,12 @@
+required_tests:
+  - id: test.behavioral_promotion_rebuild_is_not_silent
+    title: Rebuild loss of a promoted behavioral principle must be detected by reconciliation
+    protects:
+      invariants:
+        - behavioral.promotion_must_survive_rebuild_or_be_flagged
+      files:
+        - golang/ai_memory/ai_memory_server/behavioral_durability_test.go
+        - docs/design/behavioral-promotion-durability.md
+    run:
+      commands:
+        - go test ./golang/ai_memory/ai_memory_server -run TestPromotionDurabilityGate_RebuildLosesPromotionButReconciliationFlagsIt
