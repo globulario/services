@@ -420,40 +420,65 @@ func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any
 		}
 	}
 
-	// Cap at maxRemediations.
-	if maxRemediations > 0 && len(items) > maxRemediations {
-		items = items[:maxRemediations]
-	}
-
-	result := make([]any, len(items))
-	currentRefs := make(map[string]map[string]bool) // drift_type → entity_ref set
-	for i, s := range items {
-		s.item["priority"] = s.score
-		result[i] = s.item
-
-		// Record observation for AI diagnostics.
+	// OBSERVATION TRUTH vs REMEDIATION SELECTION — these are different sets and
+	// must not be conflated.
+	//
+	// observedAll is EVERY drift condition this scan actually saw. It is built
+	// BEFORE the remediation cap, because it answers "does this drift still
+	// exist?" — a question the cap has no bearing on.
+	//
+	// Previously the cap truncated `items` first and observedAll was derived
+	// from the truncated slice, so with 75 observations and max_remediations=50
+	// rows 51-75 were absent from the "current scan" set. clearResolvedDrift
+	// then read that as "no longer drifting" and CLEARED them: unresolved drift
+	// was falsely marked resolved purely for sorting below a cap. Because the
+	// cap keeps the highest priority first, the rows destroyed were always the
+	// lowest-priority ones — and their RecordDriftObservation call was skipped
+	// too, so their consecutive-cycle history reset every cycle and persistent
+	// low-priority drift could never accumulate toward workflow.drift_stuck.
+	observedAll := make(map[string]map[string]bool) // drift_type → entity_ref set
+	for _, s := range items {
 		dType := fmt.Sprint(s.item["type"])
 		eRef := driftEntityRef(s.item)
-		if dType != "" && eRef != "" {
-			if currentRefs[dType] == nil {
-				currentRefs[dType] = make(map[string]bool)
-			}
-			currentRefs[dType][eRef] = true
-			if srv.workflowRec != nil {
-				// Stamp the workflow this drift type resolves to. The upsert
-				// overwrites chosen_workflow each cycle, so passing "" here
-				// kept doctor's workflow.drift_stuck findings permanently
-				// blank (chosen_workflow=), hiding which remediation looped.
-				srv.workflowRec.RecordDriftObservation(ctx, dType, eRef, srv.driftChosenWorkflowName(dType), "")
-			}
+		if dType == "" || eRef == "" {
+			continue
 		}
+		if observedAll[dType] == nil {
+			observedAll[dType] = make(map[string]bool)
+		}
+		observedAll[dType][eRef] = true
+		// Observation history is recorded for EVERY observed row, selected or
+		// not: a row that stays drifting must keep advancing its cycle count so
+		// workflow.drift_stuck can still fire for drift the cap never reaches.
+		if srv.workflowRec != nil {
+			// Stamp the workflow this drift type resolves to. The upsert
+			// overwrites chosen_workflow each cycle, so passing "" here
+			// kept doctor's workflow.drift_stuck findings permanently
+			// blank (chosen_workflow=), hiding which remediation looped.
+			srv.workflowRec.RecordDriftObservation(ctx, dType, eRef, srv.driftChosenWorkflowName(dType), "")
+		}
+	}
+
+	// Cap at maxRemediations. This selects what is REMEDIATED this cycle; it
+	// never redefines what was OBSERVED.
+	selected := items
+	if maxRemediations > 0 && len(selected) > maxRemediations {
+		selected = selected[:maxRemediations]
+	}
+
+	result := make([]any, len(selected))
+	for i, s := range selected {
+		s.item["priority"] = s.score
+		result[i] = s.item
 	}
 
 	// Opportunistic cleanup: any previously-tracked drift item NOT in the
 	// current scan has been resolved and should be cleared. Fire in background
 	// so classify_drift isn't delayed by telemetry bookkeeping.
 	if srv.workflowRec != nil {
-		go srv.clearResolvedDrift(context.Background(), currentRefs)
+		// Compare against observedAll (complete), never against the capped
+		// selection.
+		go srv.clearResolvedDrift(context.Background(), observedAll)
 		if !srv.enableServiceRemoval {
 			// When removal is disabled, unmanaged_package is intentionally
 			// non-actionable; proactively clear legacy unresolved rows to avoid
@@ -851,7 +876,6 @@ func installedPackageAnyKind(ctx context.Context, nodeID, name string) (*node_ag
 
 // getInstalledPackageFn is a test seam over the etcd-backed read.
 var getInstalledPackageFn = installed_state.GetInstalledPackage
-
 
 // reconcileItemConverged re-reads installed_state AFTER a child remediation
 // returns and reports whether the observed L3 state now matches desired.
