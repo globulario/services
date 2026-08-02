@@ -369,7 +369,16 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 }
 
 // reconcileClassifyDrift categorizes drift items by severity and type.
-func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any, maxRemediations int) ([]any, error) {
+func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any, maxRemediations int, coverage []any) ([]any, error) {
+	// coverage is the node set this scan examined; empty means a full cluster
+	// scan. Cleanup below is restricted to it — see clearResolvedDrift.
+	//
+	// A nil driftReport means the scan did not produce a report at all (failed
+	// or never ran), which is different from an empty report meaning "scanned,
+	// nothing drifting". Cleanup must not run on ignorance, so the nil case
+	// returns before any clearing. The existing empty-vs-nil distinction at the
+	// top of this function relies on the same semantics.
+	scanProducedReport := driftReport != nil
 	if len(driftReport) == 0 {
 		// Return an INITIALIZED empty slice, never nil. remediation_items
 		// crosses the actor boundary into the workflow `when` guards
@@ -475,10 +484,11 @@ func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any
 	// Opportunistic cleanup: any previously-tracked drift item NOT in the
 	// current scan has been resolved and should be cleared. Fire in background
 	// so classify_drift isn't delayed by telemetry bookkeeping.
-	if srv.workflowRec != nil {
+	if srv.workflowRec != nil && scanProducedReport {
 		// Compare against observedAll (complete), never against the capped
-		// selection.
-		go srv.clearResolvedDrift(context.Background(), observedAll)
+		// selection, and only within the coverage this scan actually had.
+		coverSet := coverageNodeSet(coverage)
+		go srv.clearResolvedDrift(context.Background(), observedAll, coverSet)
 		if !srv.enableServiceRemoval {
 			// When removal is disabled, unmanaged_package is intentionally
 			// non-actionable; proactively clear legacy unresolved rows to avoid
@@ -519,7 +529,33 @@ func driftEntityRef(item map[string]any) string {
 
 // clearResolvedDrift removes drift_unresolved rows for entities that no longer
 // appear in the current drift scan. Runs in background on each classify_drift.
-func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]map[string]bool) {
+// coverageNodeSet normalizes the scan's include_nodes into a lookup set.
+// An empty result means FULL cluster coverage.
+func coverageNodeSet(coverage []any) map[string]bool {
+	if len(coverage) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(coverage))
+	for _, n := range coverage {
+		if s := strings.TrimSpace(fmt.Sprint(n)); s != "" {
+			out[s] = true
+		}
+	}
+	return out
+}
+
+// nodeOfEntityRef extracts the node component of a drift entity ref.
+// driftEntityRef builds "pkg@node", "pkg", or "node"; only the "pkg@node" form
+// carries an unambiguous node, so anything else is treated as NOT node-scoped
+// and is never cleared by a partial scan.
+func nodeOfEntityRef(ref string) string {
+	if i := strings.LastIndex(ref, "@"); i >= 0 {
+		return ref[i+1:]
+	}
+	return ""
+}
+
+func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]map[string]bool, coverage map[string]bool) {
 	if srv.workflowClient == nil {
 		return
 	}
@@ -534,7 +570,7 @@ func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]ma
 	if err != nil || resp == nil {
 		return
 	}
-	clearResolvedDriftItems(current, resp.GetItems(), func(driftType, entityRef string) {
+	clearResolvedDriftItems(current, coverage, resp.GetItems(), func(driftType, entityRef string) {
 		srv.clearDriftObservation(ctx, driftType, entityRef)
 	})
 }
@@ -543,7 +579,12 @@ func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]ma
 // deliberately did not emit. This includes topology-withheld packages: their
 // absence is policy, not missing_package drift, so stale generic remediation
 // rows must not survive after the scanner learns that eligibility verdict.
-func clearResolvedDriftItems(current map[string]map[string]bool, items []*workflowpb.DriftUnresolved, clear func(driftType, entityRef string)) {
+// coverage restricts which rows this scan is ENTITLED to resolve. nil means the
+// scan covered the whole cluster. For a partial scan, a row whose node was not
+// examined has no current observation simply because nobody looked — clearing it
+// would convert ignorance into "resolved". Cluster-scoped rows (no node in the
+// entity ref) are likewise never cleared by a partial scan.
+func clearResolvedDriftItems(current map[string]map[string]bool, coverage map[string]bool, items []*workflowpb.DriftUnresolved, clear func(driftType, entityRef string)) {
 	for _, item := range items {
 		if item == nil {
 			continue
@@ -555,6 +596,13 @@ func clearResolvedDriftItems(current map[string]map[string]bool, items []*workfl
 		}
 		if current[driftType][entityRef] {
 			continue
+		}
+		if len(coverage) > 0 {
+			node := nodeOfEntityRef(entityRef)
+			if node == "" || !coverage[node] {
+				// Outside this scan's coverage: absence proves nothing.
+				continue
+			}
 		}
 		clear(driftType, entityRef)
 	}

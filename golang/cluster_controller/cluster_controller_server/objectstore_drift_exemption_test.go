@@ -114,7 +114,7 @@ func TestClearResolvedDriftItemsClearsWithheldTopologyRows(t *testing.T) {
 		{DriftType: "missing_package", EntityRef: "sidekick@node-b"},
 	}
 	var cleared []string
-	clearResolvedDriftItems(current, items, func(driftType, entityRef string) {
+	clearResolvedDriftItems(current, nil, items, func(driftType, entityRef string) {
 		cleared = append(cleared, driftType+"/"+entityRef)
 	})
 

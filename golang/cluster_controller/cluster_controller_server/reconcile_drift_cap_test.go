@@ -39,7 +39,7 @@ func TestClassifyDrift_CapDoesNotShrinkObservedSet(t *testing.T) {
 		report = append(report, driftItem(kind, fmt.Sprintf("pkg%02d", i), "node-a"))
 	}
 	srv := &server{}
-	got, err := srv.reconcileClassifyDrift(context.Background(), report, 50)
+	got, err := srv.reconcileClassifyDrift(context.Background(), report, 50, nil)
 	if err != nil {
 		t.Fatalf("classify: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestClassifyDrift_CapDoesNotShrinkObservedSet(t *testing.T) {
 		})
 	}
 	cleared := 0
-	clearResolvedDriftItems(observed, persisted, func(string, string) { cleared++ })
+	clearResolvedDriftItems(observed, nil, persisted, func(string, string) { cleared++ })
 	if cleared != 0 {
 		t.Errorf("cleanup cleared %d still-observed rows; rows 51-75 must survive the cap", cleared)
 	}
@@ -91,7 +91,7 @@ func TestClassifyDrift_CappedSelectionIsNotTheCleanupOracle(t *testing.T) {
 		capped["version_drift"][driftEntityRef(report[i].(map[string]any))] = true
 	}
 	clearedByCapped := 0
-	clearResolvedDriftItems(capped, persisted, func(string, string) { clearedByCapped++ })
+	clearResolvedDriftItems(capped, nil, persisted, func(string, string) { clearedByCapped++ })
 	if clearedByCapped != 7 {
 		t.Fatalf("sanity: a capped oracle should clear the 7 unselected rows; got %d", clearedByCapped)
 	}
@@ -101,7 +101,7 @@ func TestClassifyDrift_CappedSelectionIsNotTheCleanupOracle(t *testing.T) {
 		full["version_drift"][driftEntityRef(it.(map[string]any))] = true
 	}
 	clearedByFull := 0
-	clearResolvedDriftItems(full, persisted, func(string, string) { clearedByFull++ })
+	clearResolvedDriftItems(full, nil, persisted, func(string, string) { clearedByFull++ })
 	if clearedByFull != 0 {
 		t.Errorf("complete observed set must clear nothing; got %d", clearedByFull)
 	}
@@ -115,7 +115,7 @@ func TestClassifyDrift_GenuinelyAbsentRowStillClears(t *testing.T) {
 		{DriftType: "version_drift", EntityRef: "gone@node-a"},
 	}
 	var clearedRefs []string
-	clearResolvedDriftItems(observed, persisted, func(_, ref string) { clearedRefs = append(clearedRefs, ref) })
+	clearResolvedDriftItems(observed, nil, persisted, func(_, ref string) { clearedRefs = append(clearedRefs, ref) })
 	if len(clearedRefs) != 1 || clearedRefs[0] != "gone@node-a" {
 		t.Errorf("only the genuinely absent row may clear; cleared %v", clearedRefs)
 	}
@@ -125,8 +125,9 @@ func TestClassifyDrift_GenuinelyAbsentRowStillClears(t *testing.T) {
 func TestClassifyDrift_CleanupUsesObservedNotSelected(t *testing.T) {
 	src := readSourceFile(t, "reconcile_actions.go")
 	if !containsAll(src, "observedAll := make(map[string]map[string]bool)",
-		"go srv.clearResolvedDrift(context.Background(), observedAll)") {
-		t.Error("clearResolvedDrift must be passed the COMPLETE observed set (observedAll)")
+		"go srv.clearResolvedDrift(context.Background(), observedAll, coverSet)") {
+		t.Error("clearResolvedDrift must be passed the COMPLETE observed set (observedAll), " +
+			"scoped by the scan's coverage")
 	}
 	// The cap must not rebind `items` — that is what silently shrank the oracle.
 	if containsAll(src, "items = items[:maxRemediations]") {
