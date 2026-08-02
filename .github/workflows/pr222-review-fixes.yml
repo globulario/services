@@ -49,8 +49,8 @@ jobs:
         working-directory: services
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/pr222-review-fixes.py
-          python3 scripts/pr222-review-fixes.py
+          python3 -m py_compile scripts/pr222-review-fixes.py scripts/pr222-review-fixes-v2.py
+          python3 scripts/pr222-review-fixes-v2.py
           gofmt -w \
             golang/cluster_controller/cluster_controller_server/workflow_release.go \
             golang/cluster_controller/cluster_controller_server/placement_grants.go \
@@ -70,7 +70,7 @@ jobs:
         working-directory: services
         run: |
           set -euo pipefail
-          rm -f scripts/pr222-review-fixes.py .github/workflows/pr222-review-fixes.yml
+          rm -f scripts/pr222-review-fixes.py scripts/pr222-review-fixes-v2.py .github/workflows/pr222-review-fixes.yml
           git config user.name "globulario-review-fix"
           git config user.email "noreply@globular.io"
           git add -A
