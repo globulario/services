@@ -121,6 +121,19 @@ message RequestJoinRequest {
   NodeIdentity identity = 2;
   map<string,string> labels = 3;
   NodeCapabilities capabilities = 4;  // hardware capabilities for profile suggestion
+
+  // requested_profiles is the joining node's declared placement intent (e.g.
+  // from `join --profiles`). It mirrors JoinAuthorizationRequest.requested_profiles
+  // on the v2 signed-JoinPlan path, and carries the same precedence: requested
+  // profiles WIN over hardware-deduced ones. Hardware deduction is a fallback for
+  // a node that declares nothing, never an override of a node that does.
+  //
+  // Without this field the legacy path had no channel for intent at all, so every
+  // legacy join was placed by hardware thresholds alone — which is not "the
+  // operator was overruled", it is "the operator was never heard". On a host where
+  // several nodes see the SAME underlying hardware (containers reporting the host's
+  // RAM/CPU/disk), deduction assigns every node an identical, maximal profile set.
+  repeated string requested_profiles = 5;
 }
 message RequestJoinResponse {
   string request_id = 1;

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/component_catalog"
 	"github.com/globulario/services/golang/security"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -89,6 +90,25 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 	jt.Uses++
 	reqID := uuid.NewString()
 	caps := req.GetCapabilities()
+
+	// Declared placement intent. Validated here, at admission, so a typo is a
+	// loud rejection rather than a node silently placed by hardware thresholds
+	// instead of by what the operator asked for. Mirrors the v2 signed-JoinPlan
+	// path (handlers_join_authorization.go) so both paths reject the same inputs.
+	requestedProfiles := component_catalog.NormalizeProfiles(req.GetRequestedProfiles())
+	if len(req.GetRequestedProfiles()) > 0 {
+		if unknown := component_catalog.UnknownProfiles(req.GetRequestedProfiles()); len(unknown) > 0 {
+			srv.unlock()
+			return nil, status.Errorf(codes.InvalidArgument,
+				"unknown requested_profiles %v (known profiles: %v)", unknown, component_catalog.ProfileNames())
+		}
+		if len(requestedProfiles) == 0 {
+			srv.unlock()
+			return nil, status.Error(codes.InvalidArgument,
+				"requested_profiles resolved to no installable profiles")
+		}
+	}
+
 	jr := &joinRequestRecord{
 		RequestID:         reqID,
 		Token:             token,
@@ -106,8 +126,12 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 	// membership requires preflight checks to pass first.
 	preflightOK, preflightReason := srv.evaluateJoinPreflightLocked(jr)
 	if preflightOK {
-		// Auto-approve after preflight passes.
-		srv.approveJoinRecordLocked(jr, nil)
+		// Auto-approve after preflight passes. Pass the node's DECLARED profiles:
+		// nil here would discard them and fall through to hardware deduction, which
+		// is how a node that asked for core,compute ended up placed as
+		// control-plane,core,gateway,storage. Empty stays nil, so a node that
+		// declares nothing still gets the deduced/default chain unchanged.
+		srv.approveJoinRecordLocked(jr, requestedProfiles)
 	} else {
 		jr.Status = "blocked"
 		jr.LifecyclePhase = JoinPhaseBlocked

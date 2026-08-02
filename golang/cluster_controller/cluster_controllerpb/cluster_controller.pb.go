@@ -1211,13 +1211,25 @@ func (x *CreateJoinTokenResponse) GetClusterUid() string {
 }
 
 type RequestJoinRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	JoinToken     string                 `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
-	Identity      *NodeIdentity          `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
-	Labels        map[string]string      `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Capabilities  *NodeCapabilities      `protobuf:"bytes,4,opt,name=capabilities,proto3" json:"capabilities,omitempty"` // hardware capabilities for profile suggestion
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	JoinToken    string                 `protobuf:"bytes,1,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
+	Identity     *NodeIdentity          `protobuf:"bytes,2,opt,name=identity,proto3" json:"identity,omitempty"`
+	Labels       map[string]string      `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Capabilities *NodeCapabilities      `protobuf:"bytes,4,opt,name=capabilities,proto3" json:"capabilities,omitempty"` // hardware capabilities for profile suggestion
+	// requested_profiles is the joining node's declared placement intent (e.g.
+	// from `join --profiles`). It mirrors JoinAuthorizationRequest.requested_profiles
+	// on the v2 signed-JoinPlan path, and carries the same precedence: requested
+	// profiles WIN over hardware-deduced ones. Hardware deduction is a fallback for
+	// a node that declares nothing, never an override of a node that does.
+	//
+	// Without this field the legacy path had no channel for intent at all, so every
+	// legacy join was placed by hardware thresholds alone — which is not "the
+	// operator was overruled", it is "the operator was never heard". On a host where
+	// several nodes see the SAME underlying hardware (containers reporting the host's
+	// RAM/CPU/disk), deduction assigns every node an identical, maximal profile set.
+	RequestedProfiles []string `protobuf:"bytes,5,rep,name=requested_profiles,json=requestedProfiles,proto3" json:"requested_profiles,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RequestJoinRequest) Reset() {
@@ -1274,6 +1286,13 @@ func (x *RequestJoinRequest) GetLabels() map[string]string {
 func (x *RequestJoinRequest) GetCapabilities() *NodeCapabilities {
 	if x != nil {
 		return x.Capabilities
+	}
+	return nil
+}
+
+func (x *RequestJoinRequest) GetRequestedProfiles() []string {
+	if x != nil {
+		return x.RequestedProfiles
 	}
 	return nil
 }
@@ -9461,13 +9480,14 @@ const file_cluster_controller_proto_rawDesc = "" +
 	"\n" +
 	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1f\n" +
 	"\vcluster_uid\x18\x03 \x01(\tR\n" +
-	"clusterUid\"\xc2\x02\n" +
+	"clusterUid\"\xf1\x02\n" +
 	"\x12RequestJoinRequest\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\x01 \x01(\tR\tjoinToken\x12<\n" +
 	"\bidentity\x18\x02 \x01(\v2 .cluster_controller.NodeIdentityR\bidentity\x12J\n" +
 	"\x06labels\x18\x03 \x03(\v22.cluster_controller.RequestJoinRequest.LabelsEntryR\x06labels\x12H\n" +
-	"\fcapabilities\x18\x04 \x01(\v2$.cluster_controller.NodeCapabilitiesR\fcapabilities\x1a9\n" +
+	"\fcapabilities\x18\x04 \x01(\v2$.cluster_controller.NodeCapabilitiesR\fcapabilities\x12-\n" +
+	"\x12requested_profiles\x18\x05 \x03(\tR\x11requestedProfiles\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"f\n" +
