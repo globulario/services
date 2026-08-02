@@ -11499,14 +11499,14 @@ invariants:
   related_failure_modes:
     - failure.runtime_writer_re_creates_the_hostname_condition_a_load_time
   contract: MinioPoolNodes must contain only bare routable IPs at every write site
-  - id: invariant.a_satisfaction_rule_is_governance_ready_only_when_a_producti
-    title: A satisfaction rule is governance-ready only when a production lineage test proves it
-    severity: critical
-    status: active
-    description: 'Declaration, indexing and unit tests are NOT sufficient for an evidence-satisfaction rule to participate in governance. A rule becomes governance-ready only when all six hold: (1) its production producer exists; (2) a test invokes that producer directly, with no hand-built replacement fixture; (3) the emitted evidence receives the expected Satisfies binding through the catalog; (4) the evidence survives persistence and lookup in the real store, not only in-memory; (5) the domain qualifier accepts it under the declared rule; (6) mutating one real producer field at a time (authority, result, cluster, workflow binding, timestamp before dispatch) breaks satisfaction. Condition 6 distinguishes a rule that genuinely discriminates from one that accepts whatever the producer happens to emit. Conditions 2 and 4 exist because catalog, fixtures and producer can otherwise describe three different realities while every test passes.'
-    protects:
-      files:
-        - golang/ai_memory/domains/cluster_operator/satisfaction.go
-    related_failure_modes:
-      - failure.satisfaction_catalog_authored_from_imagined_producer_output
-    contract: A satisfaction rule must be transcribed from its production producer and proven by a lineage test, never authored alongside its own fixtures
+- id: invariant.a_satisfaction_rule_is_governance_ready_only_when_a_producti
+  title: A satisfaction rule is governance-ready only when a production lineage test proves it
+  severity: critical
+  status: active
+  description: 'Declaration, indexing and unit tests are NOT sufficient for an evidence-satisfaction rule to participate in governance. A rule becomes governance-ready only when all six hold: (1) its production producer exists; (2) a test invokes that producer directly, with no hand-built replacement fixture; (3) the emitted evidence receives the expected Satisfies binding through the catalog; (4) the evidence survives persistence and lookup in the real store, not only in-memory; (5) the domain qualifier accepts it under the declared rule; (6) mutating one real producer field at a time (authority, result, cluster, workflow binding, timestamp before dispatch) breaks satisfaction. Condition 6 distinguishes a rule that genuinely discriminates from one that accepts whatever the producer happens to emit. Conditions 2 and 4 exist because catalog, fixtures and producer can otherwise describe three different realities while every test passes.'
+  protects:
+    files:
+      - golang/ai_memory/domains/cluster_operator/satisfaction.go
+  related_failure_modes:
+    - failure.satisfaction_catalog_authored_from_imagined_producer_output
+  contract: A satisfaction rule must be transcribed from its production producer and proven by a lineage test, never authored alongside its own fixtures
