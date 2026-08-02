@@ -1,8 +1,7 @@
 {
   "mcpServers": {
     "sensei": {
-      "command": "/home/dave/Documents/github.com/globulario/sensei/bin/awareness-mcp",
-      "args": ["--awareness-addr", "localhost:10120"]
+      "command": "awareness-mcp"
     }
   }
 }
