@@ -852,6 +852,7 @@ func installedPackageAnyKind(ctx context.Context, nodeID, name string) (*node_ag
 // getInstalledPackageFn is a test seam over the etcd-backed read.
 var getInstalledPackageFn = installed_state.GetInstalledPackage
 
+
 // reconcileItemConverged re-reads installed_state AFTER a child remediation
 // returns and reports whether the observed L3 state now matches desired.
 // checkable is false for drift types that have no installed-state convergence
