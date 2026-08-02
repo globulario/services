@@ -291,7 +291,11 @@ func (srv *server) reconcileRelease(ctx context.Context, releaseName string) {
 				return
 			}
 		}
-		srv.reconcilePending(ctx, h)
+		// DEFERRED must re-enter PENDING before pending-phase work; see
+		// resumeDeferredRelease.
+		if err := srv.resumeDeferredRelease(ctx, h); err != nil {
+			log.Printf("release %s: %v", h.Name, err)
+		}
 	case cluster_controllerpb.ReleasePhaseResolved:
 		// Backoff for transient workflow errors (circuit breaker open, Scylla down).
 		// NextRetryUnixMs is set by the "retry" patch with an exponential backoff
@@ -729,7 +733,11 @@ func (srv *server) reconcileAppRelease(ctx context.Context, releaseName string) 
 				return
 			}
 		}
-		srv.reconcilePending(ctx, h)
+		// DEFERRED must re-enter PENDING before pending-phase work; see
+		// resumeDeferredRelease.
+		if err := srv.resumeDeferredRelease(ctx, h); err != nil {
+			log.Printf("release %s: %v", h.Name, err)
+		}
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
@@ -867,7 +875,11 @@ func (srv *server) reconcileInfraRelease(ctx context.Context, releaseName string
 				return
 			}
 		}
-		srv.reconcilePending(ctx, h)
+		// DEFERRED must re-enter PENDING before pending-phase work; see
+		// resumeDeferredRelease.
+		if err := srv.resumeDeferredRelease(ctx, h); err != nil {
+			log.Printf("release %s: %v", h.Name, err)
+		}
 	case cluster_controllerpb.ReleasePhaseResolved:
 		srv.reconcileResolved(ctx, h)
 	case cluster_controllerpb.ReleasePhaseApplying:
