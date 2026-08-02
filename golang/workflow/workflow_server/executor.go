@@ -508,14 +508,16 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		}
 	}
 
-	// AL-1: Project incident to ai-memory on FAILED/BLOCKED runs.
+	// AL-1: Project incident to ai-memory on terminal FAILED runs. The
+	// authoritative enum is passed explicitly — resp.Status is the lossy legacy
+	// rendering and must not drive internal classification.
 	// Fire-and-forget with a bounded timeout — learning must never block
 	// workflow response, but unbounded goroutines must not accumulate when
 	// ai-memory is slow. See meta.failure_response_must_contract_not_amplify.
 	incidentCtx, incidentCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	go func() {
 		defer incidentCancel()
-		srv.projectIncident(incidentCtx, req, resp)
+		srv.projectIncident(incidentCtx, req, resp, status)
 	}()
 
 	return resp, nil
