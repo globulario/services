@@ -7335,3 +7335,66 @@ failure_modes:
       related_services:
         - ai-memory
         - awareness-graph
+    - id: repository.mid_life_cas_loss_persists_because_seeder_is_startup_only
+      title: A mid-life emptying of the repository local CAS persists as missing_blob_for_published_manifest because the staged-source seeder runs only at startup
+      severity: high
+      root_cause: |
+        The repository local POSIX CAS (/var/lib/globular/repository/artifacts) is a REBUILDABLE
+        cache; its durable source is the node-agent install cache (/var/lib/globular/packages,
+        incl. pinned/). blob_seed.go (seedLocalCASFromStagedPackages) re-materializes missing blobs
+        from digest-verified staged archives, but ONLY as a one-shot startup goroutine. Observed
+        2026-07-09 on globule-nuc after a rejoin: the CAS was emptied again after each seed pass
+        (blob-seed logged "already_present=0 seeded_from_staged=N" on EVERY startup though the prior
+        pass had populated the store). Proven NOT ephemeral: findmnt shows /var/lib/globular on
+        persistent /dev/sda2 ext4 (no tmpfs); the systemd unit has no PrivateTmp / RuntimeDirectory
+        / StateDirectory / TemporaryFileSystem / ephemeral view; initStorage performs no RemoveAll
+        of the CAS. So an EXTERNAL actor cleared the store between restarts. CODE TRACE 2026-07-09
+        of every path that could clear repository state — node-agent install (resolveArtifactPath is
+        read-only; extraction MkdirAll+writes and never RemoveAll's the target), node-agent uninstall
+        (runUninstallPackage RemoveAll is scoped to binary + unit + config dir + policy dir + version
+        markers ONLY), repository initStorage (no RemoveAll), and the repository staging_sweeper
+        (removes only orphaned atomic-write .tmp.<uuid> files; committed .bin never match) — found
+        NONE that empties /var/lib/globular/repository/artifacts. The reinstall-churn hypothesis is
+        therefore DISPROVEN as the CAS-deletion mechanism, and the deletion actor is UNRESOLVED (no
+        traced code path in node-agent or repository clears the CAS; a non-code actor — operator
+        action, external cron/timer, disk event — is not excluded). Because the healer is startup-only,
+        every post-startup clearing (by whatever actor) leaves the repository advertising PUBLISHED
+        manifests it cannot serve until a manual restart — which is the defect this entry names,
+        independent of the unresolved actor.
+      symptoms:
+        - repository.identity.missing_blob_for_published_manifest for many PUBLISHED artifacts on a recently-joined node
+        - blob-seed logs "local CAS seeding pass complete already_present=0 seeded_from_staged=N" on every startup
+        - the durable staged source (/var/lib/globular/packages/*.tgz) is fully present — this is NOT data loss
+        - installs routed to that repository instance cannot be served locally; drift/retry churn on the node
+      forbidden_fixes:
+        - treat this as repository data loss / durability failure — the staged source is intact and the CAS is rebuildable
+        - restore or rebuild blobs as if the only copy were destroyed
+        - rely on a process restart to reseed a mid-life-emptied CAS
+        - name clean-node.sh (or any specific actor) as the cause without proving the deletion chain
+        - fix the drift by granting the node the media-server profile — that silences telemetry, it does not restore truth
+      resolution: |
+        GROUNDED to invariant
+        repository.published_missing_blob_with_staged_source_must_self_heal_during_runtime: the
+        staged-source seeder must become event-driven or periodic (bounded, digest-verifying,
+        idempotent) so a mid-life CAS loss self-heals without a restart. HELD OUT of this pass
+        (per evidence-first discipline): (1) the exact actor that empties the CAS is UNRESOLVED — the
+        2026-07-09 code trace DISPROVED node-agent install/uninstall and the repository initStorage /
+        staging_sweeper as the mechanism, so no culprit is asserted; an actor-named scar
+        (e.g. repository.reinstall_must_not_destroy_repository_owned_runtime_state) awaits a deletion
+        log line or a non-code actor (operator/cron/disk) being identified; (2) the build_id=""
+        cache-repair reinstall churn is a real but DECOUPLED defect (it does NOT wipe the CAS) and
+        deserves its own failure mode (candidate: package.empty_build_identity_causes_reinstall_churn);
+        (3) the deployed-vs-source repair fail-open is deployment lag, not a present-source defect.
+        No live restore, rebuild, deploy, or node uninstall is part of this entry.
+      no_test_yet_reason: |
+        The corrective behavior — a runtime (periodic/event-driven) CAS self-heal — is not yet
+        implemented; blob_seed.go remains a startup-only goroutine. Its regression test is seam-driven
+        (seed the CAS, empty it mid-life, assert the healer re-materializes from the staged source
+        WITHOUT a restart, digest-verified and idempotent) and lands with that implementation. This
+        entry is diagnostic + contract, PROPOSED, not yet mechanized. The live symptom must also be
+        confirmed against the deployed repository build identity (deploy lag), not source alone.
+      related_invariants:
+        - repository.published_missing_blob_with_staged_source_must_self_heal_during_runtime
+      related_services:
+        - repository
+        - node-agent
