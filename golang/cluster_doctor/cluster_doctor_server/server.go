@@ -20,6 +20,7 @@ import (
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/remediation"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/workflow/engine"
@@ -694,7 +695,8 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 	// one action. gatedDispatcher.Dispatch is the healer's exclusive entry, which
 	// makes it the mirror of the engine's own placement: immediately before the
 	// executor call.
-	if !g.server.dispatchAllowedByGovernance(ctx, f, stepIndex, autoAction) {
+	allowed, actionCheckID := g.server.dispatchAllowedByGovernance(ctx, f, stepIndex, autoAction)
+	if !allowed {
 		return false, "", nil
 	}
 
@@ -713,7 +715,117 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 	if err != nil {
 		return false, "", err
 	}
+
+	// Close the learning loop on the AUTONOMOUS path.
+	//
+	// ObserveOutcome was wired into the workflow runner only (workflow_runner.go),
+	// so every repair the healer performed itself recorded nothing. The learning
+	// loop reads those outcomes, so its support count for this theme stayed at
+	// zero permanently — and ErrInsufficientSupport is silent by design, making
+	// "never recorded" indistinguishable from "not enough yet". No candidate could
+	// ever be queued, so no principle could ever be promoted, so no dispatch could
+	// ever be governed, so every repair took the ungoverned fall-through. A closed
+	// loop with no way in.
+	//
+	// Verified live on 2026-08-02: two successful restart_drifted_unit repairs of
+	// globular-log.service (audits rem-1785646…, 04:25:03 and 04:49:04), both
+	// EXECUTED with the unit returning to active, produced zero promotion
+	// candidates at candidateMinRepeats=2.
+	//
+	// This is the same producer/consumer split as 2e019d9e ("the healer gated on
+	// evidence it never produced"), one layer up: the healer learned from outcomes
+	// it never recorded. That fix closed the evidence hop and left this one open.
+	//
+	// Recorded ONLY after verification, never at dispatch — an outcome written at
+	// dispatch records an intention as a result (workflow_runner.go states the same
+	// rule for the workflow path). Dry runs are excluded: a rehearsal is not an
+	// outcome, and counting it would let observe-mode cycles manufacture support
+	// for promoting an action nobody ever performed.
+	if resp.GetExecuted() && !dryRun {
+		// node_id comes from the action's params, the same source
+		// dispatchAllowedByGovernance and the workflow runner both read it from.
+		// Finding itself carries no node identity — EntityRef is not NodeID.
+		nodeID := f.Remediation[stepIndex].GetAction().GetParams()["node_id"]
+		g.server.observeHealerOutcome(ctx, f, nodeID, actionCheckID, resp.GetAuditId())
+	}
+
 	return resp.GetExecuted(), resp.GetAuditId(), nil
+}
+
+// observeHealerOutcome verifies whether the healer's repair actually cleared the
+// finding, then records the result through the same two calls the workflow path
+// uses (emitBehavioralRemediationOutcome → recordGovernedOutcome). One recorder,
+// two callers: the workflow actor and the healer.
+//
+// Convergence is re-derived from a fresh snapshot rather than assumed from
+// Executed. rules.HealResult sets Verified=true whenever a dispatch executed,
+// which is dispatch acknowledgement, not proof of repair — the same conflation
+// reconcile.terminal_success_requires_observed_convergence forbids on the
+// controller side. A repair that executed and did NOT clear the finding must be
+// recorded as a FAILED outcome, because that is exactly the evidence a future
+// promotion decision needs most.
+//
+// Best-effort by contract: a verification that cannot be taken records nothing
+// rather than guessing. Losing one observation costs a slower promotion; writing
+// an unverified one corrupts the support count that governs future autonomy.
+func (s *ClusterDoctorServer) observeHealerOutcome(ctx context.Context, f rules.Finding, nodeID, actionCheckID, auditID string) {
+	if s.collector == nil {
+		logger.Warn("learning: healer outcome not recorded — no collector configured",
+			"invariant_id", f.InvariantID, "entity_ref", f.EntityRef)
+		return
+	}
+	snap, err := s.collector.GetSnapshot(ctx)
+	if err != nil && snap == nil {
+		logger.Warn("learning: healer outcome not recorded — verification snapshot unavailable",
+			"invariant_id", f.InvariantID, "entity_ref", f.EntityRef, "err", err)
+		return
+	}
+
+	// Node-scoped where possible: evaluating the whole cluster to verify one
+	// unit is wasteful, and EvaluateAll would also overwrite the shared
+	// cluster-wide findings cache from a path that is not authoritative for it.
+	var findings []rules.Finding
+	if nodeID != "" {
+		findings = s.registry.EvaluateForNode(snap, nodeID)
+	} else {
+		findings = s.registry.EvaluateAll(snap)
+	}
+
+	stillPresent := false
+	for _, cur := range findings {
+		if cur.FindingID == f.FindingID {
+			stillPresent = true
+			break
+		}
+	}
+
+	s.observeOutcome(ctx, remediation.Outcome{
+		FindingID:       f.FindingID,
+		ActionCheckID:   actionCheckID,
+		Dispatched:      true,
+		Verified:        true,
+		FindingResolved: !stillPresent,
+		VerifiedAt:      time.Now(),
+		ClusterID:       s.clusterID,
+		InvariantID:     f.InvariantID,
+		EntityRef:       f.EntityRef,
+		NodeID:          nodeID,
+		// WorkflowRunID intentionally empty: this repair belongs to no workflow
+		// run. Synthesising one would forge lineage for a dispatch that never
+		// had it.
+	}, auditID)
+}
+
+// observeOutcome is the single recorder both remediation paths share.
+func (s *ClusterDoctorServer) observeOutcome(ctx context.Context, o remediation.Outcome, auditID string) {
+	evidenceID := s.emitBehavioralRemediationOutcome(o)
+	s.recordGovernedOutcome(ctx, o, evidenceID)
+	logger.Info("learning: healer outcome recorded",
+		"invariant_id", o.InvariantID,
+		"entity_ref", o.EntityRef,
+		"finding_resolved", o.FindingResolved,
+		"audit_id", auditID,
+	)
 }
 
 // dispatchAllowedByGovernance answers whether behavioral governance permits this
@@ -734,7 +846,7 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 // never required" still holds for the mechanism that guarantees the cluster
 // converges. What pauses is the doctor's autonomy, which is the part that
 // depends on being authorized.
-func (s *ClusterDoctorServer) dispatchAllowedByGovernance(ctx context.Context, f rules.Finding, stepIndex int, autoAction string) bool {
+func (s *ClusterDoctorServer) dispatchAllowedByGovernance(ctx context.Context, f rules.Finding, stepIndex int, autoAction string) (bool, string) {
 	action := f.Remediation[stepIndex].GetAction()
 	verdict, err := s.gateRemediation(ctx, engine.GateRequest{
 		FindingID:   f.FindingID,
@@ -757,7 +869,7 @@ func (s *ClusterDoctorServer) dispatchAllowedByGovernance(ctx context.Context, f
 			"auto_action", autoAction,
 			"err", err,
 		)
-		return false
+		return false, ""
 	}
 	if !verdict.Allowed {
 		logger.Info("gated-dispatcher: REFUSED by behavioral governance",
@@ -769,7 +881,7 @@ func (s *ClusterDoctorServer) dispatchAllowedByGovernance(ctx context.Context, f
 			"reason", verdict.Reason,
 			"principles", verdict.PrincipleIDs,
 		)
-		return false
+		return false, verdict.ActionCheckID
 	}
 	if verdict.Governed {
 		logger.Info("gated-dispatcher: allowed by behavioral governance",
@@ -783,7 +895,14 @@ func (s *ClusterDoctorServer) dispatchAllowedByGovernance(ctx context.Context, f
 	// action keeps exactly the protection it had before governance existed (the
 	// executor's leader, risk-class, approval, unit-allowlist and cooldown
 	// gates). gateRemediation has already counted the coverage gap.
-	return true
+	//
+	// The ActionCheckID is returned even when UNGOVERNED. gateRemediation still
+	// minted a check row recording that this action ran with no applicable
+	// principle, and recordGovernedOutcome drops any outcome whose ActionCheckID
+	// is empty — so discarding it here would silently throw away every outcome
+	// the autonomous healer produces, which is precisely the gap this path exists
+	// to close.
+	return true, verdict.ActionCheckID
 }
 
 // GetHealHistory returns recent heal action records from the persistent audit trail.

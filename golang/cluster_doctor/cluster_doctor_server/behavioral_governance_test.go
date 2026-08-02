@@ -568,7 +568,7 @@ func TestGatedDispatcher_ConsultsGovernanceBeforeExecuting(t *testing.T) {
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
 	f := findingWithRestartAction()
-	if !srv.dispatchAllowedByGovernance(context.Background(), f, 0, "restart_drifted_unit") {
+	if allowed, _ := srv.dispatchAllowedByGovernance(context.Background(), f, 0, "restart_drifted_unit"); !allowed {
 		t.Fatal("an allowed verdict must permit dispatch")
 	}
 	if len(gov.asked) != 1 {
@@ -598,7 +598,7 @@ func TestGatedDispatcher_RefusalBlocksExecution(t *testing.T) {
 	}}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+	if allowed, _ := srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit"); allowed {
 		t.Error("a governed refusal must block the dispatch")
 	}
 }
@@ -614,7 +614,7 @@ func TestGatedDispatcher_UnreachableGovernorRefuses(t *testing.T) {
 	gov := &fakeGovernor{checkErr: errors.New("governor unavailable")}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+	if allowed, _ := srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit"); allowed {
 		t.Error("an unreachable governor must be a refusal, never consent —\n" +
 			"otherwise governance is strongest when it works and absent when it does not")
 	}
@@ -631,7 +631,7 @@ func TestGatedDispatcher_UngovernedStillProceeds(t *testing.T) {
 	}}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if !srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+	if allowed, _ := srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit"); !allowed {
 		t.Error("an ungoverned action must still proceed under the executor's own gates")
 	}
 }
