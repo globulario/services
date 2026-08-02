@@ -51,18 +51,18 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	}
 
 	inputs := map[string]any{
-		"cluster_id":                  srv.cfg.ClusterDomain,
-		"release_id":                  releaseID,
-		"release_name":                releaseName,
-		"package_name":                pkgName,
-		"package_kind":                pkgKind,
-		"resolved_version":            version,
-		"desired_hash":                desiredHash,
-		"resolved_build_id":           resolvedBuildID,            // Phase 2: exact artifact identity
-		"resolved_build_number":       resolvedBuildNumber,        // build_number passed to install_package step
+		"cluster_id":                   srv.cfg.ClusterDomain,
+		"release_id":                   releaseID,
+		"release_name":                 releaseName,
+		"package_name":                 pkgName,
+		"package_kind":                 pkgKind,
+		"resolved_version":             version,
+		"desired_hash":                 desiredHash,
+		"resolved_build_id":            resolvedBuildID,            // Phase 2: exact artifact identity
+		"resolved_build_number":        resolvedBuildNumber,        // build_number passed to install_package step
 		"resolved_entrypoint_checksum": resolvedEntrypointChecksum, // v1.2.119: BINARY sha256 for ExpectedSha256
-		"candidate_nodes":             nodesAny,
-		"max_parallel_nodes":          maxParallelNodesForKind(pkgKind),
+		"candidate_nodes":              nodesAny,
+		"max_parallel_nodes":           maxParallelNodesForKind(pkgKind),
 	}
 
 	correlationID := releaseID
@@ -139,7 +139,7 @@ func (srv *server) publishWaveState(ctx context.Context, releaseName, pkgKind, s
 		rel.Status.Message = baseMsg
 		rel.Status.TransitionReason = state
 		rel.Status.LastTransitionUnixMs = time.Now().UnixMilli()
-		_, err = srv.resources.Apply(ctx, resourceType, rel)
+		err = srv.applyWorkflowRelease(ctx, resourceType, rel)
 		return err
 	case *cluster_controllerpb.InfrastructureRelease:
 		if rel.Status == nil {
@@ -150,7 +150,7 @@ func (srv *server) publishWaveState(ctx context.Context, releaseName, pkgKind, s
 		}
 		rel.Status.Message = baseMsg
 		rel.Status.LastTransitionUnixMs = time.Now().UnixMilli()
-		_, err = srv.resources.Apply(ctx, resourceType, rel)
+		err = srv.applyWorkflowRelease(ctx, resourceType, rel)
 		return err
 	default:
 		return fmt.Errorf("unexpected release type %T", obj)
@@ -277,6 +277,19 @@ func releaseResourceType(pkgKind string) string {
 		return "InfrastructureRelease"
 	}
 	return "ServiceRelease"
+}
+
+// applyWorkflowRelease is the workflow-status persistence choke point. Service
+// releases must pass through applyServiceRelease so stale pre-upgrade objects
+// carrying unsupported NodeAssignments cannot be silently re-persisted by a
+// status callback. Infrastructure releases retain the generic owner path.
+func (srv *server) applyWorkflowRelease(ctx context.Context, resourceType string, obj interface{}) error {
+	if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok {
+		_, err := srv.applyServiceRelease(ctx, rel)
+		return err
+	}
+	_, err := srv.resources.Apply(ctx, resourceType, obj)
+	return err
 }
 
 // hostnameForNode resolves a node_id to a human-readable hostname from
@@ -406,7 +419,7 @@ func (srv *server) patchReleasePhaseGuarded(ctx context.Context, resourceType, r
 					prev, rel.Status.Phase, reason, callerFunc(2), false)
 			}
 		}
-		_, err = srv.resources.Apply(ctx, resourceType, rel)
+		err = srv.applyWorkflowRelease(ctx, resourceType, rel)
 		return err
 	case *cluster_controllerpb.InfrastructureRelease:
 		if rel.Status == nil {
@@ -425,7 +438,7 @@ func (srv *server) patchReleasePhaseGuarded(ctx context.Context, resourceType, r
 			srv.workflowRec.RecordPhaseTransition(ctx, resourceType, releaseName,
 				prev, rel.Status.Phase, reason, callerFunc(2), false)
 		}
-		_, err = srv.resources.Apply(ctx, resourceType, rel)
+		err = srv.applyWorkflowRelease(ctx, resourceType, rel)
 		return err
 	}
 	return fmt.Errorf("unexpected type %T for %s %s", obj, resourceType, releaseName)
@@ -509,7 +522,7 @@ func (srv *server) patchReleaseNodeStatusGuarded(ctx context.Context, resourceTy
 	}
 	update(entry)
 
-	_, err = srv.resources.Apply(ctx, resourceType, obj)
+	err = srv.applyWorkflowRelease(ctx, resourceType, obj)
 	return err
 }
 

@@ -72,6 +72,18 @@ func TestPlacementPredicate_ProfileUnionGrant(t *testing.T) {
 		t.Errorf("%s must be an orphan without a grant", orphanPkg)
 	}
 
+	// Supported noncanonical identities must resolve through the same catalog
+	// authority before profile evaluation. Otherwise CatalogByName(raw) misses
+	// and the unknown-package fallback incorrectly authorizes the workload.
+	for _, alias := range []string{"torrent_server", "globular-torrent.service"} {
+		if authorizedForNode(alias, node, noGrants) {
+			t.Errorf("noncanonical %q must remain profile-unauthorized after canonicalization", alias)
+		}
+		if !isOrphanedInstallForNode(alias, node, noGrants) {
+			t.Errorf("noncanonical %q must resolve to the canonical orphan", alias)
+		}
+	}
+
 	// explicit-only (grant) → authorized, NOT orphan.
 	if !authorizedForNode(orphanPkg, node, granted) {
 		t.Errorf("explicit-only: %s must be authorized when granted", orphanPkg)

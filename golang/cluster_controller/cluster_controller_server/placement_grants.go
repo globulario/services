@@ -95,14 +95,18 @@ func (srv *server) grantedServicesForNode(ctx context.Context, nodeID string) (m
 // the profile term (placementAllows returns true for an empty catalog profile
 // set), matching the existing isOrphanedInstall semantics.
 func authorizedForNode(pkg string, nodeProfiles []string, grants map[string]bool) bool {
-	var catProfiles []string
-	if cat := CatalogByName(pkg); cat != nil {
-		catProfiles = cat.Profiles
+	canonical := canonicalServiceName(pkg)
+	if canonical == "" {
+		return true // preserve unknown-to-catalog behavior
 	}
-	if placementAllows(catProfiles, nodeProfiles) {
+	cat := CatalogByName(canonical)
+	if cat == nil {
+		return true // unknown-to-catalog packages are outside profile placement
+	}
+	if placementAllows(cat.Profiles, nodeProfiles) {
 		return true
 	}
-	return grants[canonicalServiceName(pkg)]
+	return grants[canonical]
 }
 
 // isOrphanedInstallForNode is the grant-aware form of isOrphanedInstall: a
@@ -111,5 +115,6 @@ func authorizedForNode(pkg string, nodeProfiles []string, grants map[string]bool
 // granted install is never an orphan). Unknown-to-catalog packages remain "not a
 // profile orphan" (isOrphanedInstall returns false for them).
 func isOrphanedInstallForNode(name string, nodeProfiles []string, grants map[string]bool) bool {
-	return isOrphanedInstall(name, nodeProfiles) && !grants[canonicalServiceName(name)]
+	canonical := canonicalServiceName(name)
+	return isOrphanedInstall(canonical, nodeProfiles) && !grants[canonical]
 }
