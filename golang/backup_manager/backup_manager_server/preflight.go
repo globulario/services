@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -57,55 +56,30 @@ func scyllaManagerAPIHost(apiURL string) string {
 // scyllaAgentArgs reads the scylla-manager-agent config to extract auth_token
 // and HTTPS port, returning sctool flags like --auth-token and --port.
 func scyllaAgentArgs() []string {
-	configPaths := []string{
-		"/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml",
-		"/etc/scylla-manager-agent/scylla-manager-agent.yaml",
-	}
-	var data []byte
-	for _, p := range configPaths {
-		var err error
-		data, err = os.ReadFile(p)
-		if err == nil {
-			break
-		}
-	}
-	if len(data) == 0 {
+	cfg := readScyllaAgentConfig()
+	if cfg.ReadErr != nil {
 		return nil
 	}
-
 	var args []string
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "auth_token:") {
-			token := strings.TrimSpace(strings.TrimPrefix(line, "auth_token:"))
-			if token != "" {
-				args = append(args, "--auth-token", token)
-			}
-		}
-		if strings.HasPrefix(line, "https:") {
-			addr := strings.TrimSpace(strings.TrimPrefix(line, "https:"))
-			if _, portStr, err := net.SplitHostPort(addr); err == nil && portStr != "10001" {
-				args = append(args, "--port", portStr)
-			}
-		}
+	if cfg.AuthToken != "" {
+		args = append(args, "--auth-token", cfg.AuthToken)
+	}
+	if cfg.HTTPSPort != "" && cfg.HTTPSPort != "10001" {
+		args = append(args, "--port", cfg.HTTPSPort)
 	}
 	return args
 }
 
-// isLegacyScyllaManagerDefault reports whether the stored ScyllaManagerAPI is
-// the historical bad UI fallback (http://127.0.0.1:5080). That value is also
-// sctool's own built-in default — it's never sensible to persist explicitly
-// because every node will fall back to it anyway when the field is empty.
-// Treating it as "unset" lets yaml-based detection take over.
-func isLegacyScyllaManagerDefault(u string) bool {
-	switch strings.TrimRight(strings.TrimSpace(u), "/") {
-	case "http://127.0.0.1:5080",
-		"http://localhost:5080",
-		"http://127.0.0.1:5080/api/v1",
-		"http://localhost:5080/api/v1":
-		return true
+// isInvalidScyllaManagerAPIURL rejects persisted API URLs whose host is not a
+// routable LAN identity. The scylla-manager server is a cluster service, so a
+// loopback / localhost / wildcard / link-local endpoint is never a valid
+// authority surface to persist or feed into sctool.
+func isInvalidScyllaManagerAPIURL(u string) bool {
+	host := scyllaManagerAPIHost(u)
+	if strings.TrimSpace(host) == "" {
+		return false
 	}
-	return false
+	return config.ValidateLANAddress(host) != nil
 }
 
 // detectScyllaManagerAPIURL reads the scylla-manager config yaml and returns
@@ -113,38 +87,7 @@ func isLegacyScyllaManagerDefault(u string) bool {
 // Prefers https: over http: when both are present.
 // Returns empty string if the config is not found or has no listener field.
 func detectScyllaManagerAPIURL() string {
-	configPaths := []string{
-		"/var/lib/globular/scylla-manager/scylla-manager.yaml",
-		"/etc/scylla-manager/scylla-manager.yaml",
-	}
-	var data []byte
-	for _, p := range configPaths {
-		var err error
-		data, err = os.ReadFile(p)
-		if err == nil {
-			break
-		}
-	}
-	if len(data) == 0 {
-		return ""
-	}
-	var httpURL string
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "https:") {
-			addr := strings.TrimSpace(strings.TrimPrefix(line, "https:"))
-			if addr != "" {
-				return "https://" + resolveWildcardAddr(addr)
-			}
-		}
-		if strings.HasPrefix(line, "http:") && !strings.HasPrefix(line, "https:") {
-			addr := strings.TrimSpace(strings.TrimPrefix(line, "http:"))
-			if addr != "" {
-				httpURL = "http://" + resolveWildcardAddr(addr)
-			}
-		}
-	}
-	return httpURL
+	return readScyllaManagerEndpoint().URL
 }
 
 // resolveWildcardAddr replaces a 0.0.0.0 bind address with the node's
@@ -204,27 +147,39 @@ func (srv *server) ensureScyllaRegistered() {
 }
 
 // tryRegisterScylla performs one registration attempt using the CORRECT
-// parameters — the manager's HTTPS + LAN-IP API URL (never sctool's dead
-// http://127.0.0.1:5080 default) and the node's routable IP for the Scylla REST
-// probe. Returns true when the cluster is registered or nothing more can be
-// done; false to retry.
+// parameters — the manager's HTTPS + LAN-IP API URL (never a loopback / non-LAN
+// endpoint) and the node's routable IP for the Scylla REST probe. Returns true
+// when the cluster is registered or nothing more can be done; false to retry.
 func (srv *server) tryRegisterScylla() bool {
 	// Check if sctool is available
-	if _, err := exec.LookPath("sctool"); err != nil {
+	if _, err := execLookPath("sctool"); err != nil {
 		return true // sctool absent — retrying will not help
 	}
 
-	// Resolve the manager API URL: HTTPS + LAN IP. sctool's built-in default is
-	// http://127.0.0.1:5080 — wrong protocol AND wrong address wherever the
-	// manager binds a LAN IP. Never proceed without the real URL, or every
-	// sctool call below silently hits the dead loopback default; retry instead.
-	if srv.ScyllaManagerAPI == "" || isLegacyScyllaManagerDefault(srv.ScyllaManagerAPI) {
-		detected := detectScyllaManagerAPIURL()
-		if detected == "" {
-			slog.Info("scylla auto-registration: waiting for scylla-manager API URL (HTTPS/LAN) to resolve")
-			return false
-		}
-		srv.ScyllaManagerAPI = detected
+	managerEndpoint := readScyllaManagerEndpoint()
+	if managerEndpoint.URL == "" {
+		slog.Warn("scylla_manager.registration.skipped.manager_unreachable",
+			"reason", "manager_endpoint_missing",
+			"config_path", managerEndpoint.Path)
+		return false
+	}
+	if isInvalidScyllaManagerAPIURL(managerEndpoint.URL) {
+		slog.Warn("scylla_manager.registration.skipped.manager_unreachable",
+			"reason", "manager_endpoint_invalid",
+			"endpoint", managerEndpoint.URL,
+			"config_path", managerEndpoint.Path)
+		return false
+	}
+	if !endpointReachable(managerEndpoint.URL) {
+		slog.Warn("scylla_manager.registration.skipped.manager_unreachable",
+			"reason", "manager_endpoint_unreachable",
+			"endpoint", managerEndpoint.URL,
+			"scheme", managerEndpoint.Scheme,
+			"config_path", managerEndpoint.Path)
+		return false
+	}
+	if srv.ScyllaManagerAPI != managerEndpoint.URL {
+		srv.ScyllaManagerAPI = managerEndpoint.URL
 		slog.Info("auto-detected scylla-manager API URL", "url", srv.ScyllaManagerAPI)
 	}
 
@@ -233,27 +188,10 @@ func (srv *server) tryRegisterScylla() bool {
 
 	// Check if any cluster is already registered
 	existing := srv.detectScyllaClusters(srv.ScyllaManagerAPI)
-	managed := 0
-	for _, c := range existing {
-		// Count only REAL registered scylla-manager clusters. detectScyllaClusters
-		// emits "native:<name>" and "scylla_host:<host>" HINTS when nothing is
-		// registered yet (local REST-API detection). Counting "scylla_host:" as
-		// managed made this branch fire with an empty clusterName, so registration
-		// was silently skipped and the cluster stayed cluster_count=0 forever.
-		// Exclude both hint prefixes — must match the clusterName filter below.
-		if !strings.HasPrefix(c, "native:") && !strings.HasPrefix(c, "scylla_host:") {
-			managed++
-		}
-	}
-	if managed > 0 {
+	registered := realRegisteredClusters(existing)
+	if len(registered) > 0 {
 		// Already registered — auto-fill ScyllaCluster if empty
-		var clusterName string
-		for _, c := range existing {
-			if !strings.HasPrefix(c, "native:") && !strings.HasPrefix(c, "scylla_host:") {
-				clusterName = c
-				break
-			}
-		}
+		clusterName := registered[0]
 		if srv.ScyllaCluster == "" && clusterName != "" {
 			srv.ScyllaCluster = clusterName
 			slog.Info("auto-detected scylla-manager cluster", "cluster", clusterName)
@@ -267,7 +205,7 @@ func (srv *server) tryRegisterScylla() bool {
 		// If not (e.g. registered without auth token), update it with credentials.
 		if clusterName != "" {
 			statusArgs := append([]string{"status", "-c", clusterName}, srv.scyllaAPIArgs(srv.ScyllaManagerAPI)...)
-			statusCmd := exec.Command("sctool", statusArgs...)
+			statusCmd := execCommand("sctool", statusArgs...)
 			statusOut, statusErr := statusCmd.CombinedOutput()
 			if statusErr != nil && strings.Contains(string(statusOut), "unable to connect") {
 				slog.Warn("registered cluster is unreachable, attempting to update with auth token",
@@ -276,7 +214,7 @@ func (srv *server) tryRegisterScylla() bool {
 				if agentArgs != nil {
 					updateArgs := append([]string{"cluster", "update", "-c", clusterName}, srv.scyllaAPIArgs(srv.ScyllaManagerAPI)...)
 					updateArgs = append(updateArgs, agentArgs...)
-					updateCmd := exec.Command("sctool", updateArgs...)
+					updateCmd := execCommand("sctool", updateArgs...)
 					updateOut, updateErr := updateCmd.CombinedOutput()
 					if updateErr != nil {
 						slog.Warn("failed to update cluster with auth token",
@@ -290,11 +228,16 @@ func (srv *server) tryRegisterScylla() bool {
 				}
 			}
 		}
+		slog.Info("scylla_manager.registration.already_registered",
+			"endpoint", srv.ScyllaManagerAPI,
+			"scheme", managerEndpoint.Scheme,
+			"cluster_count", len(registered),
+			"cluster", clusterName)
 		return true
 	}
 
 	// No clusters registered — check if ScyllaDB is actually running
-	scyllaHost, nativeName := detectNativeScyllaDB()
+	scyllaHost, nativeName := nativeScyllaDBDetector()
 	if nativeName == "" {
 		// ScyllaDB not reachable yet — retry. Transient at Day-1 (Scylla still
 		// starting); logged so a persistent block is diagnosable.
@@ -312,40 +255,90 @@ func (srv *server) tryRegisterScylla() bool {
 	slog.Info("auto-registering ScyllaDB in scylla-manager",
 		"cluster_name", clusterName, "host", scyllaHost, "native_name", nativeName)
 
-	args := append([]string{"cluster", "add", "--host", scyllaHost, "--name", clusterName}, srv.scyllaAPIArgs(srv.ScyllaManagerAPI)...)
-	agentArgs := scyllaAgentArgs()
-	if agentArgs == nil {
-		slog.Warn("cannot read scylla-manager-agent config for auth token — "+
-			"cluster registration will likely fail with 401. "+
-			"Ensure the agent config is readable by the backup-manager process.",
-			"tried", []string{
-				"/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml",
-				"/etc/scylla-manager-agent/scylla-manager-agent.yaml",
-			})
+	agentCfg := readScyllaAgentConfig()
+	if agentCfg.ReadErr != nil {
+		slog.Warn("scylla_manager.registration.skipped.agent_config_unreadable",
+			"path", agentCfg.Path,
+			"owner", agentCfg.Owner,
+			"group", agentCfg.Group,
+			"mode", agentCfg.Mode,
+			"error", agentCfg.ReadErr)
 		return false
 	}
-	args = append(args, agentArgs...)
+	if strings.TrimSpace(agentCfg.AuthToken) == "" {
+		slog.Warn("scylla_manager.registration.skipped.agent_token_missing",
+			"path", agentCfg.Path,
+			"owner", agentCfg.Owner,
+			"group", agentCfg.Group,
+			"mode", agentCfg.Mode,
+			"https", agentCfg.HTTPSAddr)
+		return false
+	}
+	if strings.TrimSpace(agentCfg.HTTPSPort) == "" {
+		slog.Warn("scylla_manager.registration.skipped.agent_unreachable",
+			"reason", "agent_https_port_missing",
+			"path", agentCfg.Path,
+			"https", agentCfg.HTTPSAddr)
+		return false
+	}
+	agentEndpoint := net.JoinHostPort(scyllaHost, agentCfg.HTTPSPort)
+	if !addressReachable(agentEndpoint) {
+		slog.Warn("scylla_manager.registration.skipped.agent_unreachable",
+			"reason", "agent_endpoint_unreachable",
+			"endpoint", agentEndpoint,
+			"path", agentCfg.Path)
+		return false
+	}
+
+	args := append([]string{"cluster", "add", "--host", scyllaHost, "--name", clusterName}, srv.scyllaAPIArgs(srv.ScyllaManagerAPI)...)
+	args = append(args, "--auth-token", agentCfg.AuthToken, "--port", agentCfg.HTTPSPort)
 
 	slog.Info("auto-registering ScyllaDB in scylla-manager",
 		"cluster_name", clusterName, "host", scyllaHost, "args", strings.Join(args, " "))
 
-	cmd := exec.Command("sctool", args...)
+	cmd := execCommand("sctool", args...)
 	out, err := cmd.CombinedOutput()
 	output := strings.TrimSpace(string(out))
 
 	if err != nil {
 		// Check if it failed because it's already registered (race condition)
 		if strings.Contains(output, "already exists") || strings.Contains(output, "conflict") {
-			slog.Info("ScyllaDB cluster already registered", "output", output)
+			slog.Info("scylla_manager.registration.already_registered",
+				"endpoint", srv.ScyllaManagerAPI,
+				"scheme", managerEndpoint.Scheme,
+				"cluster", clusterName,
+				"output", output)
 			return true
 		}
-		slog.Warn("failed to auto-register ScyllaDB in scylla-manager",
-			"error", err, "output", output)
+		slog.Warn("scylla_manager.registration.failed.sctool",
+			"error", err,
+			"output", output,
+			"endpoint", srv.ScyllaManagerAPI,
+			"scheme", managerEndpoint.Scheme,
+			"cluster_name", clusterName,
+			"host", scyllaHost)
 		return false
 	}
 
-	slog.Info("ScyllaDB auto-registered in scylla-manager",
-		"cluster_name", clusterName, "output", output)
+	verified := realRegisteredClusters(srv.detectScyllaClusters(srv.ScyllaManagerAPI))
+	if len(verified) == 0 {
+		slog.Warn("scylla_manager.registration.failed.sctool",
+			"error", "cluster add returned success but cluster list is still empty",
+			"output", output,
+			"endpoint", srv.ScyllaManagerAPI,
+			"scheme", managerEndpoint.Scheme,
+			"cluster_name", clusterName,
+			"host", scyllaHost)
+		return false
+	}
+
+	slog.Info("scylla_manager.registration.succeeded",
+		"cluster_name", clusterName,
+		"host", scyllaHost,
+		"endpoint", srv.ScyllaManagerAPI,
+		"scheme", managerEndpoint.Scheme,
+		"cluster_count", len(verified),
+		"output", output)
 
 	// Update config so backup provider can use it
 	if srv.ScyllaCluster == "" {
@@ -363,12 +356,10 @@ func (srv *server) tryRegisterScylla() bool {
 func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.PreflightCheckRequest) (*backup_managerpb.PreflightCheckResponse, error) {
 	// Lazy-detect scylla-manager API URL on every preflight: the startup
 	// goroutine has a 5s sleep and races with early UI calls. Without this,
-	// sctool falls back to its built-in http://127.0.0.1:5080 default, which
-	// fails on any node where scylla-manager is bound to a LAN IP.
-	// Also overrides the legacy buggy UI default — when the stored value is
-	// exactly http://127.0.0.1:5080 (sctool's own default, never sensible on
-	// a remote node), prefer the yaml-detected URL.
-	if srv.ScyllaManagerAPI == "" || isLegacyScyllaManagerDefault(srv.ScyllaManagerAPI) {
+	// sctool falls back to its built-in loopback default, which fails on any
+	// node where scylla-manager is bound to a LAN IP. Also overrides any
+	// persisted loopback / non-LAN value.
+	if srv.ScyllaManagerAPI == "" || isInvalidScyllaManagerAPIURL(srv.ScyllaManagerAPI) {
 		if detected := detectScyllaManagerAPIURL(); detected != "" && detected != srv.ScyllaManagerAPI {
 			slog.Info("preflight: overriding scylla-manager API URL",
 				"old", srv.ScyllaManagerAPI, "new", detected)
@@ -440,46 +431,6 @@ func (srv *server) PreflightCheck(ctx context.Context, rqst *backup_managerpb.Pr
 	if sctoolAvailable {
 		clusters := srv.detectScyllaClusters(srv.ScyllaManagerAPI)
 
-		// If only native detection (not registered), auto-register now
-		hasManaged := false
-		for _, c := range clusters {
-			if !strings.HasPrefix(c, "native:") && !strings.HasPrefix(c, "scylla_host:") {
-				hasManaged = true
-				break
-			}
-		}
-		if !hasManaged {
-			scyllaHost, nativeName := detectNativeScyllaDB()
-			if nativeName != "" {
-				clusterName := srv.Domain
-				if clusterName == "" {
-					clusterName = nativeName
-				}
-				prefAgentArgs := scyllaAgentArgs()
-				if prefAgentArgs == nil {
-					slog.Warn("preflight: cannot read agent config for auth token, skipping auto-register")
-				} else {
-					slog.Info("preflight: auto-registering ScyllaDB",
-						"cluster_name", clusterName, "host", scyllaHost)
-					regArgs := append([]string{"cluster", "add", "--host", scyllaHost, "--name", clusterName}, srv.scyllaAPIArgs(srv.ScyllaManagerAPI)...)
-					regArgs = append(regArgs, prefAgentArgs...)
-					cmd := exec.Command("sctool", regArgs...)
-					out, err := cmd.CombinedOutput()
-					output := strings.TrimSpace(string(out))
-					if err != nil && !strings.Contains(output, "already exists") && !strings.Contains(output, "conflict") {
-						slog.Warn("preflight: auto-register failed", "error", err, "output", output)
-					} else {
-						slog.Info("preflight: ScyllaDB registered", "cluster_name", clusterName, "output", output)
-						if srv.ScyllaCluster == "" {
-							srv.ScyllaCluster = clusterName
-						}
-						// Re-detect now that it's registered
-						clusters = srv.detectScyllaClusters(srv.ScyllaManagerAPI)
-					}
-				}
-			}
-		}
-
 		for _, c := range clusters {
 			checks = append(checks, &backup_managerpb.ToolCheck{
 				Name:      "scylla_cluster_detected",
@@ -534,7 +485,7 @@ func (srv *server) detectScyllaClusters(apiURL string) []string {
 
 	// 1. Try sctool cluster list (scylla-manager registered clusters)
 	args := append([]string{"cluster", "list"}, srv.scyllaAPIArgs(apiURL)...)
-	cmd := exec.Command("sctool", args...)
+	cmd := execCommand("sctool", args...)
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		clusters = parseScyllaClusterList(string(out))
@@ -545,7 +496,7 @@ func (srv *server) detectScyllaClusters(apiURL string) []string {
 	//    ScyllaDB may be bound to a specific IP (not localhost), so try all
 	//    local interface addresses.
 	if len(clusters) == 0 {
-		scyllaHost, nativeName := detectNativeScyllaDB()
+		scyllaHost, nativeName := nativeScyllaDBDetector()
 		if nativeName != "" {
 			clusters = append(clusters, "native:"+nativeName)
 			// Also include the host so the UI can use it for registration
@@ -586,7 +537,7 @@ func detectNativeScyllaDB() (host, clusterName string) {
 	for _, port := range ports {
 		for _, addr := range candidates {
 			url := fmt.Sprintf("http://%s:%d/storage_service/cluster_name", addr, port)
-			cmd := exec.Command("curl", "-sf", "--connect-timeout", "2", url)
+			cmd := execCommand("curl", "-sf", "--connect-timeout", "2", url)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				continue
@@ -692,7 +643,7 @@ func parseScyllaClusterList(output string) []string {
 // every sctool command that uses --cluster <name>.
 func (srv *server) deduplicateScyllaManagerClusters(apiURL string) {
 	args := append([]string{"cluster", "list"}, srv.scyllaAPIArgs(apiURL)...)
-	out, err := exec.Command("sctool", args...).CombinedOutput()
+	out, err := execCommand("sctool", args...).CombinedOutput()
 	if err != nil {
 		return
 	}
@@ -781,7 +732,7 @@ func (srv *server) deduplicateScyllaManagerClusters(apiURL string) {
 		activeID := ""
 		for _, e := range group {
 			taskArgs := append([]string{"tasks", "-c", e.id}, srv.scyllaAPIArgs(apiURL)...)
-			tOut, tErr := exec.Command("sctool", taskArgs...).CombinedOutput()
+			tOut, tErr := execCommand("sctool", taskArgs...).CombinedOutput()
 			if tErr != nil {
 				continue
 			}
@@ -813,7 +764,7 @@ func (srv *server) deduplicateScyllaManagerClusters(apiURL string) {
 				continue
 			}
 			delArgs := append([]string{"cluster", "delete", "-c", e.id}, srv.scyllaAPIArgs(apiURL)...)
-			if err := exec.Command("sctool", delArgs...).Run(); err != nil {
+			if err := execCommand("sctool", delArgs...).Run(); err != nil {
 				slog.Warn("dedup: failed to delete stale cluster", "id", e.id, "name", name, "err", err)
 			} else {
 				slog.Info("dedup: deleted stale scylla-manager cluster", "id", e.id, "name", name, "kept", activeID)
@@ -898,11 +849,11 @@ func (srv *server) TestScyllaConnection(_ context.Context, rqst *backup_managerp
 	pass("sctool_available", "sctool found")
 
 	// Lazy-detect the manager API URL when unset, so the test doesn't fall
-	// back to sctool's built-in http://127.0.0.1:5080 default when admin
-	// connects to a node whose manager binds to a LAN IP. Also overrides the
-	// legacy buggy UI default when present.
+	// back to sctool's built-in loopback default when admin connects to a node
+	// whose manager binds to a LAN IP. Also overrides any persisted loopback /
+	// non-LAN value when present.
 	apiURL := srv.ScyllaManagerAPI
-	if apiURL == "" || isLegacyScyllaManagerDefault(apiURL) {
+	if apiURL == "" || isInvalidScyllaManagerAPIURL(apiURL) {
 		if detected := detectScyllaManagerAPIURL(); detected != "" && detected != apiURL {
 			slog.Info("TestScyllaConnection: overriding scylla-manager API URL",
 				"old", apiURL, "new", detected)

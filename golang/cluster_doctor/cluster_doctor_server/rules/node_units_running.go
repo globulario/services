@@ -55,6 +55,17 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 		// Minio non-member check is per-node; compute once per node.
 		minioNonMember := nodeIsMinioNonMember(nodeID, snap)
 
+		// Expected unit state follows the node's ASSIGNED PROFILES, not a
+		// local every-node assumption. Storage-plane units (ScyllaDB and its
+		// manager/agent) are inactive BY DESIGN on nodes without the storage
+		// profile — reporting them as "expected active" there is the same
+		// local-scylla assumption that deadlocked needs_scylla services on
+		// core-only nodes (dns ExecStartPre scar, 2026-07-08). Placement
+		// intent is controller-owned (ops.always.profile.authority-model);
+		// the doctor observes runtime against that intent, never against a
+		// hardcoded topology.
+		storageNode := nodeHasProfile(node.GetProfiles(), "storage")
+
 		for _, u := range inv.GetUnits() {
 			state := NormalizeUnitState(u.GetState())
 			if state != UnitStateFailed && state != UnitStateInactive {
@@ -65,6 +76,10 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 			}
 			// minio and sidekick are inactive by design on non-member nodes.
 			if isMinioOrSidekickUnit(u.GetName()) && minioNonMember {
+				continue
+			}
+			// Storage-plane units are inactive by design on non-storage nodes.
+			if isStoragePlaneUnit(u.GetName()) && !storageNode {
 				continue
 			}
 
@@ -117,4 +132,27 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 		}
 	}
 	return findings
+}
+
+// nodeHasProfile reports whether the assigned profile set contains the given
+// profile (case-insensitive).
+func nodeHasProfile(profiles []string, want string) bool {
+	for _, p := range profiles {
+		if strings.EqualFold(strings.TrimSpace(p), want) {
+			return true
+		}
+	}
+	return false
+}
+
+// isStoragePlaneUnit identifies units whose expected-active state is gated on
+// the node carrying the storage profile (ScyllaDB and its management plane).
+func isStoragePlaneUnit(unitName string) bool {
+	switch unitName {
+	case "scylla-server.service",
+		"globular-scylla-manager.service",
+		"globular-scylla-manager-agent.service":
+		return true
+	}
+	return false
 }

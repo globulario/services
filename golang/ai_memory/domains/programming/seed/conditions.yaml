@@ -1,0 +1,21 @@
+# programming condition catalog — runtime scopes under which principles apply.
+# Generic shape: id + title + opaque fields. detect_hint is advisory prose for
+# whoever wires a real detector; the kernel treats the id as an opaque ConditionRef.
+- id: condition.prog.deploy_to_production
+  title: Change is being applied to a production / shared environment
+  detect_hint: target environment is prod, or a running service other agents/users depend on
+- id: condition.prog.public_api_change
+  title: Change touches a published interface other code depends on
+  detect_hint: diff modifies a proto/OpenAPI/exported signature under a versioned contract
+- id: condition.prog.schema_migration
+  title: Change alters a persistent data schema
+  detect_hint: diff includes a DDL/migration file or a persisted-type change
+- id: condition.prog.destructive_data_op
+  title: Operation can drop, truncate, or irreversibly rewrite stored data
+  detect_hint: DROP / DELETE-without-scope / TRUNCATE / reformat / rewrite-in-place
+- id: condition.prog.dependency_upgrade
+  title: Change bumps an external dependency version
+  detect_hint: lockfile / go.mod / package manifest version change
+- id: condition.prog.no_tests_cover_change
+  title: The changed code path has no covering test
+  detect_hint: coverage delta shows the changed lines are unexercised

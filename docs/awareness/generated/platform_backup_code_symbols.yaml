@@ -104,18 +104,68 @@ test_symbols:
     symbol: TestListArtifacts_Pagination
     package: main
     language: go
-  - id: golang/backup_manager/backup_manager_server/preflight_test.go:TestIsLegacyScyllaManagerDefault
-    file: golang/backup_manager/backup_manager_server/preflight_test.go
-    symbol: TestIsLegacyScyllaManagerDefault
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestInstallDay0StillDefersRegistration
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestInstallDay0StillDefersRegistration
     package: main
     language: go
-    doc: "TestIsLegacyScyllaManagerDefault covers the four sentinel forms recognized\nas the bad UI default. Trailing slashes are normalized."
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestPreflightCheckDoesNotAutoRegisterScylla
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestPreflightCheckDoesNotAutoRegisterScylla
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestReadScyllaManagerEndpointFallsBackToHTTP
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestReadScyllaManagerEndpointFallsBackToHTTP
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestReadScyllaManagerEndpointPrefersHTTPS
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestReadScyllaManagerEndpointPrefersHTTPS
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestRealRegisteredClustersIgnoresHints
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestRealRegisteredClustersIgnoresHints
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestTryRegisterScyllaDoesNotAddWhenClusterAlreadyRegistered
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestTryRegisterScyllaDoesNotAddWhenClusterAlreadyRegistered
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestTryRegisterScyllaRefusesWithoutManagerEndpoint
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestTryRegisterScyllaRefusesWithoutManagerEndpoint
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestTryRegisterScyllaRegistersZeroRealClusters
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestTryRegisterScyllaRegistersZeroRealClusters
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestTryRegisterScyllaSkipsWhenAuthTokenMissing
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestTryRegisterScyllaSkipsWhenAuthTokenMissing
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go:TestTryRegisterScyllaUnreadableAgentConfigLogsDiagnostics
+    file: golang/backup_manager/backup_manager_server/preflight_scylla_registration_test.go
+    symbol: TestTryRegisterScyllaUnreadableAgentConfigLogsDiagnostics
+    package: main
+    language: go
+  - id: golang/backup_manager/backup_manager_server/preflight_test.go:TestIsInvalidScyllaManagerAPIURL
+    file: golang/backup_manager/backup_manager_server/preflight_test.go
+    symbol: TestIsInvalidScyllaManagerAPIURL
+    package: main
+    language: go
+    doc: "TestIsInvalidScyllaManagerAPIURL rejects loopback/non-LAN endpoints and\naccepts routable manager URLs."
   - id: golang/backup_manager/backup_manager_server/preflight_test.go:TestScyllaManagerAPIHost
     file: golang/backup_manager/backup_manager_server/preflight_test.go
     symbol: TestScyllaManagerAPIHost
     package: main
     language: go
-    doc: "TestScyllaManagerAPIHost verifies the URL → host extraction used by the\nLAN-address rollout gate. The extraction must be robust to URL shapes that\nolder configs and admin UIs may have persisted: full URL with scheme,\nhost:port without scheme, bare host, ipv6 with brackets, and the legacy\n127.0.0.1:5080 sentinel."
+    doc: "TestScyllaManagerAPIHost verifies the URL → host extraction used by the\nLAN-address rollout gate. The extraction must be robust to URL shapes that\nolder configs and admin UIs may have persisted: full URL with scheme,\nhost:port without scheme, bare host, ipv6 with brackets, and loopback\nsentinels that must be rejected later."
   - id: golang/backup_manager/backup_manager_server/providers_etcd_test.go:TestExtractEndpointHost
     file: golang/backup_manager/backup_manager_server/providers_etcd_test.go
     symbol: TestExtractEndpointHost

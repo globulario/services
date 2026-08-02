@@ -33,7 +33,8 @@ func TestCriticalScyllaKeyspacesIncludesRepository(t *testing.T) {
 }
 
 // TestTryRemoveScyllaGhostVoters_SkipsWhenFewHealthyVoters verifies that
-// auto-removal is blocked when healthy voters would drop below 3 after removal.
+// Scylla group0 ghost-voter auto-removal is blocked when too few healthy voters
+// would remain after removal.
 func TestTryRemoveScyllaGhostVoters_SkipsWhenFewHealthyVoters(t *testing.T) {
 	called := false
 	host, cleanup := startFakeScyllaREST(func(w http.ResponseWriter, r *http.Request) {
@@ -136,4 +137,3 @@ func TestCallScyllaRemoveNode_SendsCorrectRequest(t *testing.T) {
 		t.Errorf("expected host_id=dead-uuid-1234, got %s", gotHostID)
 	}
 }
-

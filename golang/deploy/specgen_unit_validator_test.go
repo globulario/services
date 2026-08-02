@@ -213,3 +213,45 @@ func TestGenerateSpec_TemplateProducesValidUnit(t *testing.T) {
 		t.Fatalf("rendered template fails validator — duplicate directive in template: %v", err)
 	}
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Regression — scylla readiness gate must be TOPOLOGY-AWARE. A needs_scylla
+// service (rbac, ai_memory, dns, workflow) placed on a NON-STORAGE node has no
+// local scylla; the gate must not hard-block on the absence of a LOCAL :9042
+// listener, or the unit deadlocks forever and the node never converges.
+//
+// Root cause / scar: a core-only day-1 join left globular-dns.service (+ rbac,
+// workflow, ai_memory) failing permanently because ExecStartPre waited for a
+// LOCAL scylla that only ever runs on storage nodes. The service binaries
+// already discover scylla from etcd and self-gate; the systemd gate must defer
+// to them on non-storage nodes rather than fail closed. This also protects
+// intent:ai.supplementary_not_required (ai_memory must not gate convergence).
+// ─────────────────────────────────────────────────────────────────────────
+
+func TestGenerateSpec_ScyllaGateIsTopologyAware(t *testing.T) {
+	svc := &ServiceEntry{
+		Name:        "scylla-probe",
+		Profiles:    []string{"core"},
+		NeedsScylla: true,
+	}
+	spec, err := GenerateSpec(svc)
+	if err != nil {
+		t.Fatalf("GenerateSpec failed: %v", err)
+	}
+	if err := ValidateSystemdUnit(spec); err != nil {
+		t.Fatalf("needs_scylla render fails validator: %v", err)
+	}
+	// The gate must branch on the presence of the local scylla-server unit so
+	// non-storage nodes skip the local-listener wait instead of deadlocking.
+	if !strings.Contains(spec, "systemctl cat scylla-server.service") {
+		t.Errorf("scylla gate is not topology-aware: missing local scylla-server unit discriminator")
+	}
+	// On the non-storage branch it must defer (exit 0), never fail closed.
+	if !strings.Contains(spec, "deferring to service-level readiness gate") {
+		t.Errorf("scylla gate must defer (exit 0) on non-storage nodes, not hard-fail")
+	}
+	// The storage-node path must still hard-fail if local scylla never comes up.
+	if !strings.Contains(spec, "local scylla 9042 not ready after 90s") {
+		t.Errorf("scylla gate must still hard-fail on storage nodes when local :9042 never appears")
+	}
+}

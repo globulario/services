@@ -14,9 +14,10 @@ import (
 //
 // Root cause (2026-05-22): minio_join_phase=non_member caused all service
 // releases on nuc/dell to cycle FAILED indefinitely because:
-//   evaluateNodeStatus → computeNodePlan → requiredUnitsFromPlan included
-//   globular-minio.service and globular-sidekick.service → units not active →
-//   node.Status="converging" → healthy=false in reconcileAvailable → DEGRADED.
+//
+//	evaluateNodeStatus → computeNodePlan → requiredUnitsFromPlan included
+//	globular-minio.service and globular-sidekick.service → units not active →
+//	node.Status="converging" → healthy=false in reconcileAvailable → DEGRADED.
 func TestEvaluateNodeStatus_MinioNonMember(t *testing.T) {
 	t.Helper()
 
@@ -59,14 +60,14 @@ func TestEvaluateNodeStatus_MinioNonMember(t *testing.T) {
 // TestDropMinioCommodityUnitsForNonMember pins the shared gating helper used by
 // BOTH the per-node health detail (GetNodeHealthDetailV1) and the readiness gate
 // (deriveNodeStatus). MinIO/sidekick are a commodity object-store tier — never a
-// pillar like etcd/scylla/envoy. On a non-member node (held out of the pool, e.g.
-// below the 3-node object-store quorum) they are inactive by design and MUST be
+// pillar like etcd/scylla/envoy. On a non-member node held out of the pool, they
+// are inactive by design and MUST be
 // dropped from the required-unit set, or Healthy=allOK=false blocks convergence.
 //
-// Regression (globule-nuc, 2026-06-20): a 2-node cluster below quorum had
-// minio/sidekick inactive by design, but GetNodeHealthDetailV1 still counted
-// them as failing unit checks → node reported unhealthy → reconcile saw the node
-// as not converged → the remaining service packages never installed.
+// Regression (globule-nuc, 2026-06-20): a node not in the MinIO pool had
+// minio/sidekick inactive by design, but GetNodeHealthDetailV1 still counted them
+// as failing unit checks → node reported unhealthy → reconcile saw the node as
+// not converged → the remaining service packages never installed.
 func TestDropMinioCommodityUnitsForNonMember(t *testing.T) {
 	mk := func() map[string]struct{} {
 		return map[string]struct{}{

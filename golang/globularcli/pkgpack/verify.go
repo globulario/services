@@ -156,13 +156,15 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 		}
 	case "infrastructure":
 		// Infrastructure packages require bin/ but specs/ is optional
-		// (they use systemd/ and config/ instead).
-		if len(binFiles) == 0 {
+		// (they use systemd/ and config/ instead) — UNLESS they are binary-less
+		// (entrypoint: none), e.g. an OS-daemon or .deb wrapper.
+		if len(binFiles) == 0 && manifest.Entrypoint != "none" {
 			return nil, fmt.Errorf("no bin entries found")
 		}
 	default:
-		// Service packages require bin/ and exactly one spec.
-		if len(binFiles) == 0 {
+		// Service/command packages require bin/ and exactly one spec — unless
+		// binary-less (entrypoint: none), e.g. a fetch-at-install command.
+		if len(binFiles) == 0 && manifest.Entrypoint != "none" {
 			return nil, fmt.Errorf("no bin entries found")
 		}
 		if len(specFiles) != 1 {
@@ -170,7 +172,9 @@ func VerifyTGZ(tgzPath string) (*VerificationSummary, error) {
 		}
 	}
 
-	if manifest.Entrypoint != "" {
+	// "none" marks a binary-less package (entrypoint: none) — no entrypoint file
+	// is bundled and there is no checksum to verify. Skip the presence/hash check.
+	if manifest.Entrypoint != "" && manifest.Entrypoint != "none" {
 		entrypoint := path.Clean(manifest.Entrypoint)
 		if _, ok := files[entrypoint]; !ok {
 			return nil, fmt.Errorf("entrypoint %s missing in archive", manifest.Entrypoint)

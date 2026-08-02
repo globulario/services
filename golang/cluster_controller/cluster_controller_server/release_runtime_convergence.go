@@ -168,16 +168,6 @@ func classifyPackageConvergence(
 		return pc
 	}
 
-	gotHash := normalizeDesiredHash(installed.GetChecksum())
-	wantHash := normalizeDesiredHash(desiredHash)
-	if wantHash == "" || gotHash == wantHash {
-		pc.HashOK = true
-	} else {
-		pc.RepairRequired = true
-		pc.Reason = fmt.Sprintf("installed checksum %s != desired %s", gotHash, wantHash)
-		return pc
-	}
-
 	// build_id is the package artifact identity (UUIDv7) and an INDEPENDENT
 	// convergence dimension (D3). When the desired build_id is present it is
 	// enforced — same version + same hash but a different build_id must NOT
@@ -204,16 +194,36 @@ func classifyPackageConvergence(
 		pc.BuildIDOK = true
 	}
 
+	gotHash := normalizeDesiredHash(installed.GetChecksum())
+	wantHash := normalizeDesiredHash(desiredHash)
+	if wantHash == "" || gotHash == wantHash {
+		pc.HashOK = true
+	}
+
 	// Phase 38 — entrypoint_checksum hard binary proof.
-	// Comes after version/hash/buildId because those pass first in normal
-	// healthy convergence; the entrypoint mismatch only matters when
-	// upstream gates say "converged" but the binary on disk is wrong.
+	// Comes before the legacy top-level checksum gate: InstalledPackage.Checksum
+	// has had both convergence-hash and binary-hash writers. A checksum-only
+	// mismatch must not force a reinstall when build_id matches and this hard
+	// binary proof agrees, but an entrypoint mismatch is always actionable.
 	gotEntry := normalizeEntrypointChecksum(installed.GetMetadata()["entrypoint_checksum"])
 	wantEntry := normalizeEntrypointChecksum(desiredEntrypointChecksum)
 	if wantEntry != "" && gotEntry != "" && wantEntry != gotEntry {
 		pc.RepairRequired = true
 		pc.Reason = fmt.Sprintf("installed entrypoint_checksum %s != desired %s (buildId matched but on-disk binary is wrong)",
 			shortEntrypoint(gotEntry), shortEntrypoint(wantEntry))
+		return pc
+	}
+
+	if pc.HashOK {
+		// Already accepted above.
+	} else if pc.BuildIDOK && wantBuild != "" {
+		// Build ID is the repository-issued artifact identity. Treat the
+		// overloaded top-level checksum as a weak legacy signal once the exact
+		// build is installed; entrypoint mismatch above still forces repair.
+		pc.HashOK = true
+	} else {
+		pc.RepairRequired = true
+		pc.Reason = fmt.Sprintf("installed checksum %s != desired %s", gotHash, wantHash)
 		return pc
 	}
 

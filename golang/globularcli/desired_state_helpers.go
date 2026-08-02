@@ -42,11 +42,10 @@ var desiredServiceClientFactory = func(conn grpc.ClientConnInterface) desiredSer
 // typed UpsertDesiredService RPC (the owner of /globular/resources), not a raw etcd
 // write (RT-2). Used for single-package overrides where the operator has explicitly
 // chosen a (name, version, build_id) tuple — build_id is the precise,
-// repository-allocated identity. Publisher is tracked in the LocalOverride record;
-// the governed DesiredService spec carries no publisher_id field. The controller
-// bumps generation, validates the artifact against the repository, triggers
-// reconcile, and audits the write server-side.
-func upsertServiceDesiredVersion(serviceName, version string, buildNumber int64, buildID string) error {
+// repository-allocated identity. When publisherID is non-empty, it is carried
+// in the service_id as "<publisher>/<name>" so the controller can validate the
+// artifact against the correct identity lane and persist spec.publisher_id.
+func upsertServiceDesiredVersion(serviceName, version string, buildNumber int64, buildID, publisherID string) error {
 	conn, err := controllerConnFactory()
 	if err != nil {
 		return fmt.Errorf("connect to controller: %w", err)
@@ -58,9 +57,14 @@ func upsertServiceDesiredVersion(serviceName, version string, buildNumber int64,
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	serviceID := serviceName
+	if publisherID != "" {
+		serviceID = publisherID + "/" + serviceName
+	}
+
 	_, err = client.UpsertDesiredService(ctx, &cluster_controllerpb.UpsertDesiredServiceRequest{
 		Service: &cluster_controllerpb.DesiredService{
-			ServiceId:   serviceName,
+			ServiceId:   serviceID,
 			Version:     version,
 			BuildNumber: buildNumber,
 			BuildId:     buildID,

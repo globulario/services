@@ -1080,11 +1080,16 @@ const recallSeedProject = "globular-services"
 
 // loadOpsKnowledgeRecallSeed self-seeds the embedded operational-knowledge recall
 // (compiled from docs/operational-knowledge) into the memories table. It is
-// idempotent — entries whose seed_sha256 is unchanged are skipped, changed
-// entries are replaced (the PK ((project), type, created_at, id) clusters on
-// created_at, so a changed entry is deleted then re-inserted to avoid a
-// duplicate row). Strictly best-effort: any failure logs and the service
-// continues (the seed is supplementary, never required).
+// idempotent by the SEMANTIC seed key (project, id): a run leaves exactly one
+// canonical row per id. The memories PK is ((project), type, created_at, id), so
+// id alone is NOT unique — a changed created_at/type or escaped-content drift
+// (literal "\n" vs real newlines flips seed_sha256) can leave several rows for a
+// single id. So each entry enumerates EVERY existing row for (project, id); when
+// the store is not already a single canonical row, it deletes all of them and
+// inserts one. This keeps the self-seed idempotent AND self-heals duplicates an
+// older seeder left behind, on the next restart. Invariant: ai-memory decision
+// 45f7fc31. Strictly best-effort: any failure logs and the service continues
+// (the seed is supplementary, never required).
 func (srv *server) loadOpsKnowledgeRecallSeed() {
 	if srv.session == nil {
 		return
@@ -1100,16 +1105,38 @@ func (srv *server) loadOpsKnowledgeRecallSeed() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	now := time.Now().Unix()
-	stored, skipped, failed := 0, 0, 0
+	stored, skipped, failed, duplicatesRemoved := 0, 0, 0, 0
+	// seedRow identifies one physical memories row within a (project, id) — the
+	// two key columns beyond id, needed to DELETE it precisely.
+	type seedRow struct {
+		typ     string
+		created int64
+	}
 	for _, e := range entries {
-		var exType string
-		var exCreated int64
-		exMeta := map[string]string{}
-		scanErr := srv.session.Query(
-			`SELECT type, created_at, metadata FROM memories WHERE project = ? AND id = ? LIMIT 1 ALLOW FILTERING`,
-			recallSeedProject, e.ID).WithContext(ctx).Scan(&exType, &exCreated, &exMeta)
-		exists := scanErr == nil
-		if exists && exMeta["seed_sha256"] == e.SeedSHA256 {
+		// Enumerate EVERY existing row for this semantic key (project, id) — not
+		// just the first — so accumulated duplicates converge to one canonical row.
+		var rows []seedRow
+		canonical := 0
+		iter := srv.session.Query(
+			`SELECT type, created_at, metadata FROM memories WHERE project = ? AND id = ? ALLOW FILTERING`,
+			recallSeedProject, e.ID).WithContext(ctx).Iter()
+		var rType string
+		var rCreated int64
+		rMeta := map[string]string{}
+		for iter.Scan(&rType, &rCreated, &rMeta) {
+			rows = append(rows, seedRow{rType, rCreated})
+			if rMeta["seed_sha256"] == e.SeedSHA256 {
+				canonical++
+			}
+			rType, rCreated, rMeta = "", 0, map[string]string{}
+		}
+		if err := iter.Close(); err != nil {
+			logger.Debug("ops-knowledge recall seed: enumerate existing failed", "id", e.ID, "err", err)
+			failed++
+			continue
+		}
+		// Already converged: exactly one row, and it is the canonical content.
+		if len(rows) == 1 && canonical == 1 {
 			skipped++
 			continue
 		}
@@ -1122,12 +1149,16 @@ func (srv *server) loadOpsKnowledgeRecallSeed() {
 			"immutable":   "true",
 			"seed_sha256": e.SeedSHA256,
 		}
-		// Replace a changed row (created_at is part of the clustering key, so a
-		// plain insert with a new created_at would leave a duplicate behind).
-		if exists {
+		// Delete EVERY existing row for this key before inserting the single
+		// canonical one (created_at is part of the key, so a bare insert would
+		// fork yet another duplicate rather than overwrite).
+		for _, r := range rows {
 			_ = srv.session.Query(
 				`DELETE FROM memories WHERE project = ? AND type = ? AND created_at = ? AND id = ?`,
-				recallSeedProject, exType, exCreated, e.ID).WithContext(ctx).Exec()
+				recallSeedProject, r.typ, r.created, e.ID).WithContext(ctx).Exec()
+		}
+		if len(rows) > 1 {
+			duplicatesRemoved += len(rows) - 1
 		}
 		if err := srv.session.Query(
 			`INSERT INTO memories (id, project, type, tags, title, content, created_at, updated_at, agent_id, conversation_id, cluster_id, metadata, related_ids, reference_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1141,7 +1172,8 @@ func (srv *server) loadOpsKnowledgeRecallSeed() {
 		stored++
 	}
 	logger.Info("ops-knowledge recall seed loaded",
-		"stored", stored, "skipped", skipped, "failed", failed, "total", len(entries))
+		"stored", stored, "skipped", skipped, "failed", failed,
+		"duplicates_removed", duplicatesRemoved, "total", len(entries))
 }
 
 // recallMemType maps a recall entry type to the canonical stored type string,

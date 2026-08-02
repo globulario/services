@@ -486,6 +486,7 @@ func TestHasUnservedNodes_DegradedNode_IsUnserved(t *testing.T) {
 			"n1": {
 				NodeID:         "n1",
 				Status:         "ready",
+				Profiles:       []string{"control-plane"},
 				LastSeen:       time.Now(),
 				BootstrapPhase: BootstrapWorkloadReady,
 			},
@@ -521,10 +522,11 @@ func TestHasUnservedNodes_EmptyResolvedVersion_SkipsSignal2(t *testing.T) {
 	state := &controllerState{
 		Nodes: map[string]*nodeState{
 			"n1": {
-				NodeID:           "n1",
-				Status:           "ready",
-				LastSeen:         time.Now(),
-				BootstrapPhase:   BootstrapWorkloadReady,
+				NodeID:         "n1",
+				Status:         "ready",
+				Profiles:       []string{"control-plane"},
+				LastSeen:       time.Now(),
+				BootstrapPhase: BootstrapWorkloadReady,
 				InstalledVersions: map[string]string{
 					"scylladb": "", // empty installed version
 				},

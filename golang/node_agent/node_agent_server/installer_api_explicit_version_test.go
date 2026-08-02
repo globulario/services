@@ -92,7 +92,7 @@ func TestFindLocalPackage_EmptyVersion_AllowsWildcard(t *testing.T) {
 	srv := &NodeAgentServer{}
 	got := srv.findLocalPackage("envoy", "", "linux_amd64")
 	if got == "" {
-		t.Fatalf("findLocalPackage with empty version returned empty; "+
+		t.Fatalf("findLocalPackage with empty version returned empty; " +
 			"expected wildcard fallback to find envoy_1.35.3_linux_amd64.tgz")
 	}
 }
@@ -108,7 +108,7 @@ func TestFindLocalPackage_DevVersion_AllowsWildcard(t *testing.T) {
 	srv := &NodeAgentServer{}
 	got := srv.findLocalPackage("envoy", "0.0.0-dev", "linux_amd64")
 	if got == "" {
-		t.Fatalf("findLocalPackage with 0.0.0-dev returned empty; "+
+		t.Fatalf("findLocalPackage with 0.0.0-dev returned empty; " +
 			"expected wildcard fallback to find envoy_1.35.3_linux_amd64.tgz")
 	}
 }
@@ -149,6 +149,28 @@ func TestFindLocalPackage_EmptyVersion_AllowsBareUnversionedArchive(t *testing.T
 	got := srv.findLocalPackage("envoy", "", "linux_amd64")
 	if got != bare {
 		t.Fatalf("empty version should accept bare envoy.tgz, got %q", got)
+	}
+}
+
+func TestVersionFromLocalPackageFilename_StagedDay1Package(t *testing.T) {
+	path := filepath.Join("/var/lib/globular/packages", "alertmanager_0.28.1_linux_amd64.tgz")
+	got := versionFromLocalPackageFilename(path, "alertmanager")
+	if got != "0.28.1" {
+		t.Fatalf("versionFromLocalPackageFilename = %q, want %q", got, "0.28.1")
+	}
+}
+
+func TestVersionFromLocalPackageFilename_RejectsPackageMismatch(t *testing.T) {
+	path := filepath.Join("/var/lib/globular/packages", "alertmanager_0.28.1_linux_amd64.tgz")
+	if got := versionFromLocalPackageFilename(path, "prometheus"); got != "" {
+		t.Fatalf("versionFromLocalPackageFilename mismatched package = %q, want empty", got)
+	}
+}
+
+func TestVersionFromLocalPackageFilename_RejectsBareArchive(t *testing.T) {
+	path := filepath.Join("/var/lib/globular/packages", "alertmanager.tgz")
+	if got := versionFromLocalPackageFilename(path, "alertmanager"); got != "" {
+		t.Fatalf("versionFromLocalPackageFilename bare archive = %q, want empty", got)
 	}
 }
 

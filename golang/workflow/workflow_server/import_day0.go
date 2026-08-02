@@ -13,8 +13,12 @@ import (
 )
 
 // day0LogPath is a var (not const) so tests can override it to point at a
-// temp fixture log. Production callers leave it at the default.
-var day0LogPath = "/var/lib/globular/day0-install.jsonl"
+// temp fixture log. Production callers leave it at the default log location.
+var day0LogPath = "/var/log/globular/day0-install.jsonl"
+
+// day0LegacyLogPath keeps workflow import backward-compatible with nodes
+// installed before the Day-0 transcript moved out of /var/lib/globular.
+var day0LegacyLogPath = "/var/lib/globular/day0-install.jsonl"
 
 // day0LogLine is the on-disk shape of one Day-0 install log entry.
 // Hoisted to package scope so the write seam can take []day0LogLine and
@@ -65,7 +69,7 @@ var day0WriteRunFn = func(srv *server, clusterID, corrID string, lines []day0Log
 // run with steps in ScyllaDB. Called once on startup; skips if the log
 // doesn't exist or was already imported (idempotent via correlation_id).
 func (srv *server) importDay0Trace() {
-	f, err := os.Open(day0LogPath)
+	f, err := openDay0TraceLog()
 	if err != nil {
 		return // no log → nothing to import
 	}
@@ -99,6 +103,14 @@ func (srv *server) importDay0Trace() {
 	}
 
 	day0WriteRunFn(srv, clusterID, corrID, lines)
+}
+
+func openDay0TraceLog() (*os.File, error) {
+	f, err := os.Open(day0LogPath)
+	if err == nil {
+		return f, nil
+	}
+	return os.Open(day0LegacyLogPath)
 }
 
 // writeDay0Run is the production write path for the Day-0 trace import.

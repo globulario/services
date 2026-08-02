@@ -74,9 +74,14 @@ func TestMinioNoDispatchWhenTopologyCurrent(t *testing.T) {
 	}
 }
 
-func TestMinioQuorumGuardNoDispatchWhenStorageBelowThree(t *testing.T) {
+func TestMinioStorageCapacityDoesNotBlockDriftDispatch(t *testing.T) {
 	now := time.Now()
 	r := newTestMinioReconciler(now)
+	var outcomes []minioReconcileOutcome
+	r.writeOutcome = func(ctx context.Context, out minioReconcileOutcome) error {
+		outcomes = append(outcomes, out)
+		return nil
+	}
 	r.loadDesired = func(ctx context.Context) (*configpkg.ObjectStoreDesiredState, error) {
 		return &configpkg.ObjectStoreDesiredState{Generation: 3}, nil
 	}
@@ -94,8 +99,18 @@ func TestMinioQuorumGuardNoDispatchWhenStorageBelowThree(t *testing.T) {
 	}
 
 	r.runOnce(context.Background())
-	if dispatched != 0 {
-		t.Fatalf("expected 0 dispatches, got %d", dispatched)
+	if dispatched != 1 {
+		t.Fatalf("expected storage capacity to be reported but not block dispatch, got %d dispatches", dispatched)
+	}
+	if len(outcomes) == 0 {
+		t.Fatal("expected reconcile outcome to be recorded")
+	}
+	last := outcomes[len(outcomes)-1]
+	if last.StorageNodes != 2 {
+		t.Fatalf("expected storage_nodes=2 in outcome, got %+v", last)
+	}
+	if last.Outcome == "SKIP_NO_QUORUM" {
+		t.Fatalf("storage capacity must not produce SKIP_NO_QUORUM: %+v", last)
 	}
 }
 
@@ -130,4 +145,3 @@ func TestMinioBackoffAfterTransientFailure(t *testing.T) {
 		t.Fatalf("expected backoff to suppress second dispatch, got %d dispatches", dispatched)
 	}
 }
-

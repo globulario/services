@@ -15,12 +15,12 @@ import (
 // fakeEtcdCluster is a test double for etcd client operations used by etcdMemberManager.
 // It tracks members in-memory and supports simulating failures.
 type fakeEtcdCluster struct {
-	mu         sync.Mutex
-	members    []*etcdserverpb.Member
-	nextID     uint64
-	addErr     error // if set, MemberAdd returns this error
-	removeErr  error // if set, MemberRemove returns this error
-	listErr    error // if set, MemberList returns this error
+	mu        sync.Mutex
+	members   []*etcdserverpb.Member
+	nextID    uint64
+	addErr    error // if set, MemberAdd returns this error
+	removeErr error // if set, MemberRemove returns this error
+	listErr   error // if set, MemberList returns this error
 }
 
 func newFakeEtcdCluster() *fakeEtcdCluster {
@@ -190,32 +190,32 @@ func TestNodeIsPreparedForEtcdJoin(t *testing.T) {
 		want     bool
 	}{
 		{
-			name: "prepared: has profile, unit, routable IP",
-			node: makeNode("n1", "host1", "10.0.0.2", []string{"core"}, []unitStatusRecord{etcdUnit("inactive")}),
+			name:     "prepared: has profile, unit, routable IP",
+			node:     makeNode("n1", "host1", "10.0.0.2", []string{"core"}, []unitStatusRecord{etcdUnit("inactive")}),
 			existing: emptyURLs,
 			want:     true,
 		},
 		{
-			name: "not prepared: no etcd profile",
-			node: makeNode("n1", "host1", "10.0.0.2", []string{"gateway"}, []unitStatusRecord{etcdUnit("inactive")}),
+			name:     "not prepared: no etcd profile",
+			node:     makeNode("n1", "host1", "10.0.0.2", []string{"gateway"}, []unitStatusRecord{etcdUnit("inactive")}),
 			existing: emptyURLs,
 			want:     false,
 		},
 		{
-			name: "not prepared: no unit file",
-			node: makeNode("n1", "host1", "10.0.0.2", []string{"core"}, nil),
+			name:     "not prepared: no unit file",
+			node:     makeNode("n1", "host1", "10.0.0.2", []string{"core"}, nil),
 			existing: emptyURLs,
 			want:     false,
 		},
 		{
-			name: "not prepared: localhost IP only",
-			node: makeNode("n1", "host1", "127.0.0.1", []string{"core"}, []unitStatusRecord{etcdUnit("inactive")}),
+			name:     "not prepared: localhost IP only",
+			node:     makeNode("n1", "host1", "127.0.0.1", []string{"core"}, []unitStatusRecord{etcdUnit("inactive")}),
 			existing: emptyURLs,
 			want:     false,
 		},
 		{
-			name: "not prepared: empty IP",
-			node: makeNode("n1", "host1", "", []string{"core"}, []unitStatusRecord{etcdUnit("inactive")}),
+			name:     "not prepared: empty IP",
+			node:     makeNode("n1", "host1", "", []string{"core"}, []unitStatusRecord{etcdUnit("inactive")}),
 			existing: emptyURLs,
 			want:     false,
 		},
@@ -312,6 +312,35 @@ func TestNodeAllRoutableIPs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMemberForNodeFromListFindsLearnerByPeerURL(t *testing.T) {
+	node := makeNode("n-learner", "globule-nuc", "10.0.0.8", []string{"core"}, []unitStatusRecord{etcdUnit("active")})
+	members := []*etcdserverpb.Member{
+		{
+			ID:        10,
+			Name:      "globular-etcd",
+			PeerURLs:  []string{"https://10.0.0.63:2380"},
+			IsLearner: false,
+		},
+		{
+			ID:        11,
+			Name:      "globule-nuc",
+			PeerURLs:  []string{"https://10.0.0.8:2380"},
+			IsLearner: true,
+		},
+	}
+
+	member, ok := memberForNodeFromList(node, members)
+	if !ok {
+		t.Fatal("expected matching member")
+	}
+	if member.ID != 11 {
+		t.Fatalf("member ID = %d, want 11", member.ID)
+	}
+	if !member.IsLearner {
+		t.Fatal("expected learner flag to be preserved")
 	}
 }
 

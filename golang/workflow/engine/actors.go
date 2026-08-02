@@ -84,6 +84,16 @@ type PackageRef struct {
 // repository while other nodes are converging simultaneously.
 const joinInstallConcurrencyLimit = 3
 
+// joinPerPackageInstallTimeout bounds a single package's fetch+install+
+// post-install+start. Without it, one stalled install holds its concurrency
+// slot with the step's FULL context (up to the 30m workflow budget) — the
+// 2026-07-10 nuc join spent 29m46s in install_workloads and died cancelling
+// mcp's post-install script; every re-triggered join then repeated the same
+// 30-minute stall, keeping the node in the Day-1 lane indefinitely. The
+// budget covers a LAN artifact fetch, extraction, the 5-minute post-install
+// script cap, and a 30s unit-start wait, with headroom for retry backoff.
+const joinPerPackageInstallTimeout = 8 * time.Minute
+
 // joinInstallRetryDelays is the backoff schedule for transient repository
 // errors during join. 6 total attempts (1 initial + 5 retries).
 // Day-1 join invariant: repository backpressure is transient — retry with
@@ -189,7 +199,9 @@ func nodeInstallPackages(cfg NodeAgentConfig) ActionHandler {
 				}
 				start := time.Now()
 				if err := installWithJoinRetry(ctx, pkg.Name, func(attemptCtx context.Context) error {
-					return cfg.FetchAndInstall(attemptCtx, pkg)
+					pctx, cancel := context.WithTimeout(attemptCtx, joinPerPackageInstallTimeout)
+					defer cancel()
+					return cfg.FetchAndInstall(pctx, pkg)
 				}); err != nil {
 					mu.Lock()
 					errs = append(errs, fmt.Sprintf("%s: %v", pkg.Name, err))

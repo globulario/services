@@ -350,10 +350,7 @@ echo "[bootstrap-dns] Node IP: $NODE_IP"
 echo "[bootstrap-dns] Waiting for ScyllaDB to accept writes..."
 _SCYLLA_READY=0
 for _si in $(seq 1 60); do
-    if cqlsh "${NODE_IP}" 9042 --ssl \
-        --ssl-ca-certs "${STATE_DIR}/pki/ca.crt" \
-        --ssl-certfile "${STATE_DIR}/pki/issued/services/service.crt" \
-        --ssl-keyfile  "${STATE_DIR}/pki/issued/services/service.key" \
+    if cqlsh "${NODE_IP}" 9042 \
         -e "SELECT now() FROM system.local;" >/dev/null 2>&1; then
         _SCYLLA_READY=1
         echo "[bootstrap-dns] ✓ ScyllaDB ready (after ${_si}s)"
@@ -362,7 +359,7 @@ for _si in $(seq 1 60); do
     sleep 1
 done
 if [[ $_SCYLLA_READY -eq 0 ]]; then
-    echo "[bootstrap-dns] ⚠ ScyllaDB not confirmed ready after 60s — proceeding anyway" >&2
+    echo "[bootstrap-dns] ScyllaDB read probe not confirmed after 60s — DNS write probe is authoritative" >&2
 fi
 
 # Wait for DNS service to be ready for write operations

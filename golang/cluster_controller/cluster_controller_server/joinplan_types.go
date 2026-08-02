@@ -84,8 +84,9 @@ type NodePlanIdentity struct {
 // controller to obtain a signed JoinPlan. The controller is the sole authority
 // for profiles, etcd intent, and assigned node identity.
 //
-// Callers MUST NOT specify profiles — profile assignment is entirely
-// controller-owned. Capabilities may be provided for profile deduction hints.
+// Capabilities may be provided for profile deduction hints. RequestedProfiles
+// is an operator preference; the controller validates it and remains the sole
+// authority for the signed assignment.
 type JoinAuthorizationRequest struct {
 	// JoinToken is the one-time join authorization credential.
 	JoinToken string `json:"join_token"`
@@ -99,6 +100,11 @@ type JoinAuthorizationRequest struct {
 	RAMBytes uint64 `json:"ram_bytes,omitempty"`
 	// DiskBytes is total disk capacity in bytes (for profile deduction).
 	DiskBytes uint64 `json:"disk_bytes,omitempty"`
+	// DiskFreeBytes is free disk on the primary volume (for storage profile deduction).
+	DiskFreeBytes uint64 `json:"disk_free_bytes,omitempty"`
+	// RequestedProfiles is an optional operator preference forwarded by the
+	// gateway/installer. The controller validates and signs the final assignment.
+	RequestedProfiles []string `json:"requested_profiles,omitempty"`
 	// InstallerVersion is the version/build of the installer making this request.
 	InstallerVersion string `json:"installer_version,omitempty"`
 	// ClusterID is the cluster DNS/namespace value the installer believes it is

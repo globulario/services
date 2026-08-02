@@ -16,6 +16,7 @@ import (
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/packagekind"
 	"github.com/globulario/services/golang/versionutil"
 )
 
@@ -70,9 +71,9 @@ func (o ObservationSource) String() string {
 
 // InstalledServiceInfo captures what the node knows about an installed service.
 type InstalledServiceInfo struct {
-	PublisherID  string
-	ServiceName  string
-	Version      string
+	PublisherID string
+	ServiceName string
+	Version     string
 	// Kind is the package classification ("SERVICE", "INFRASTRUCTURE", "COMMAND",
 	// "APPLICATION"). Populated from the kind sidecar written at install time.
 	// Empty string means unknown — consumers should fall back to static inference.
@@ -84,7 +85,6 @@ type InstalledServiceInfo struct {
 
 // IsAuthoritative returns true if this observation may participate in
 // convergence checks, desired-state import, and etcd installed-state records.
-//
 func (i InstalledServiceInfo) IsAuthoritative() bool {
 	return i.Source == ManagedInstalled
 }
@@ -196,6 +196,8 @@ func loadMarkers(ctx context.Context, byService map[string]*InstalledServiceInfo
 		// Optional kind sidecar — persisted at install time alongside the version marker.
 		if k := versionutil.ReadKind(name); k != "" {
 			entry.Kind = k
+		} else if k := installedKindFromRegistry(svc); k != "" {
+			entry.Kind = k
 		}
 		// Optional config digest marker.
 		digestPath := filepath.Join(markerRoot, name, "config.sha256")
@@ -248,14 +250,6 @@ var skipSystemdUnits = map[string]bool{
 	"globular-cli-cmd": true, "mc-cmd": true, "rclone-cmd": true,
 	"restic-cmd": true, "sctool-cmd": true, "sha256sum-cmd": true,
 	"yt-dlp-cmd": true,
-	// Documented carve-out: mcp is kind=service in its spec but is one of
-	// the 4 services intentionally outside the release pipeline (see
-	// CLAUDE.md memory_note on untracked services). It's classified
-	// infrastructure-like here so Phase 1 scan doesn't manufacture a
-	// SERVICE/unknown phantom while Phase 2 sources its version from
-	// the artifact catalog. The architectural fix is to change
-	// mcp_service.yaml's kind to infrastructure — tracked separately.
-	"mcp": true,
 }
 
 // loadSystemdUnits discovers loaded globular-*.service systemd units and adds
@@ -364,9 +358,9 @@ func loadDay0JoinInfra(ctx context.Context, byService map[string]*InstalledServi
 	// support --describe. Each returns "" when the unit is absent or the
 	// binary fails; on success the entry is promoted to ManagedInstalled.
 	type infraDaemon struct {
-		name    string
-		unit    string // systemd unit name (may differ from package name)
-		detect  func() string
+		name   string
+		unit   string // systemd unit name (may differ from package name)
+		detect func() string
 	}
 	daemons := []infraDaemon{
 		{"envoy", "globular-envoy.service", func() string { return detectEnvoyVersion(ctx) }},
@@ -605,7 +599,10 @@ func computeAppliedServicesHash(installed map[ServiceKey]InstalledServiceInfo) s
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
-		return keys[i].String() < keys[j].String()
+		if keys[i].String() != keys[j].String() {
+			return keys[i].String() < keys[j].String()
+		}
+		return keys[i].PublisherID < keys[j].PublisherID
 	})
 
 	var b strings.Builder
@@ -683,4 +680,32 @@ func StampInfraConvergenceHash(ctx context.Context, nodeID, component, convergen
 func canonicalServiceName(name string) string {
 	key, _ := identity.NormalizeServiceKey(name)
 	return key
+}
+
+func installedKindFromRegistry(name string) string {
+	switch {
+	case packagekind.IsInfrastructure(name):
+		return "INFRASTRUCTURE"
+	case packagekind.IsCommand(name):
+		return "COMMAND"
+	case packagekind.IsService(name):
+		return "SERVICE"
+	default:
+		return ""
+	}
+}
+
+func normalizeInstalledKind(kind string) string {
+	switch strings.ToUpper(strings.TrimSpace(kind)) {
+	case "SERVICE":
+		return "SERVICE"
+	case "INFRASTRUCTURE":
+		return "INFRASTRUCTURE"
+	case "APPLICATION":
+		return "APPLICATION"
+	case "COMMAND":
+		return "COMMAND"
+	default:
+		return ""
+	}
 }

@@ -216,7 +216,7 @@ decision_rules:
       - CI passes with --strict flag
     forbidden_fixes: []
     related_invariants:
-      - infra.annotation_validator_skips_test_files
+      - validate_globular_annotations_inside_test_fixtures
     required_tests:
       - TestValidateAnnotationsSkipsTestFiles
 
@@ -304,7 +304,7 @@ decision_rules:
       - wipe_minio_sys_without_approved_transition
     related_invariants:
       - objectstore.topology_contract
-      - founding_quorum.three_storage_nodes
+      - meta.quorum_is_quality_not_constraint
     required_tests: []
 
   # ── Awareness system self-governance rules ────────────────────────────────────

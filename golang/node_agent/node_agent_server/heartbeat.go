@@ -125,6 +125,17 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	// avoid repeating the same message every 30 seconds.
 	loggedMissingEndpoint := false
 
+	// Bounded grace for controller leadership gaps. When the controller has no
+	// elected leader yet (e.g. it is restarting), ReportNodeStatus returns
+	// "not leader (leader_addr=, epoch=0)". That is a transient controller-side
+	// condition, not a failure of this node's heartbeat subsystem, so it must
+	// not flip the subsystem to DEGRADED. We tolerate it for a bounded window;
+	// if the controller stays leaderless beyond that, it is a genuine problem
+	// and we fall through to real error counting so it surfaces.
+	// electionGapGraceCycles * heartbeatDelay ≈ 3 minutes.
+	const electionGapGraceCycles = 6
+	electionGapGraceCount := 0
+
 	runHeartbeat := func() {
 		now := time.Now()
 		withOpTimeout(15*time.Second, srv.ensureRuntimeTLSConvergence)
@@ -160,13 +171,26 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 				log.Printf("node heartbeat failed (state=%s): %v", srv.controllerConnState, err)
 				loggedMissingEndpoint = false
 			}
-			hb.TickError(err)
+			// A controller leadership gap ("not leader" with empty leader_addr) is
+			// a transient condition of another layer, not a failure of this node's
+			// heartbeat subsystem. Keep the subsystem's own health intact for a
+			// bounded grace window (transport bookkeeping above still retries and
+			// rediscovers). Beyond the window, treat it as a real error so a
+			// persistently leaderless controller surfaces as DEGRADED.
+			if isControllerElectionGap(err) && electionGapGraceCount < electionGapGraceCycles {
+				electionGapGraceCount++
+				hb.TickWaiting(fmt.Sprintf("controller has no elected leader (grace %d/%d): %v",
+					electionGapGraceCount, electionGapGraceCycles, err))
+			} else {
+				hb.TickError(err)
+			}
 		} else {
 			srv.controllerConnState = ConnStateConnected
 			srv.lastControllerContact = now
 			srv.consecutiveHeartbeatFail = 0
 			recordHeartbeatSuccess(now)
 			loggedMissingEndpoint = false
+			electionGapGraceCount = 0
 			hb.Tick()
 		}
 		setControllerStateGauge(srv.controllerConnState)
@@ -312,22 +336,34 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 			// but cannot distinguish SERVICE from INFRASTRUCTURE without the
 			// repository. To avoid creating a record under the wrong kind
 			// (which Phase 2 then cleans up, wiping build_id each cycle):
-			//   1. Check all kinds for an existing record — use that kind.
-			//   2. Fall back to the isDay0JoinInfra list for first-boot.
-			//   3. Default to SERVICE only if nothing else matches.
-			kind := ""
+			//   1. Use marker/registry kind when known.
+			//   2. Check all kinds for an existing record — use that kind.
+			//   3. Fall back to the isDay0JoinInfra list for first-boot.
+			//   4. Default to SERVICE only if nothing else matches.
+			kind := normalizeInstalledKind(info.Kind)
 			var existing *node_agentpb.InstalledPackage
-			for _, k := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
-				if rec, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, k, name); rec != nil {
-					existing = rec
-					kind = k
-					break
+			if kind != "" {
+				existing, _ = installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
+			} else {
+				for _, k := range authoritativeInstalledPackageKinds {
+					if rec, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, k, name); rec != nil {
+						existing = rec
+						kind = k
+						break
+					}
 				}
 			}
 			if kind == "" {
 				kind = "SERVICE"
 				if isDay0JoinInfra(name) {
 					kind = "INFRASTRUCTURE"
+				}
+			}
+			if kind != "SERVICE" {
+				if stale, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", name); stale != nil {
+					if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "SERVICE", name); err == nil {
+						log.Printf("nodeagent: removed stale SERVICE record for %s %s (was %s)", kind, name, stale.GetVersion())
+					}
 				}
 			}
 			if existing != nil {
@@ -394,12 +430,20 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 		}
 	}
 
+	// Phase 1.45: Reconstruct missing installed-state from the local package
+	// cache when the package manifest's entrypoint_checksum matches the
+	// installed binary. This covers Day-0/Day-1 installs that staged artifacts
+	// locally before repository RPC/auth was available and before kind/version
+	// marker sidecars existed.
+	srv.syncInstalledStateFromLocalPackageCache(ctx, now, platform, &synced)
+
 	// Phase 1.5: Detect partial-apply (binary replaced without state update).
 	// If a binary's SHA256 differs from the entrypoint_checksum in etcd but the
 	// version/build_id is unchanged, the binary was replaced out-of-band (e.g.
 	// manual scp or sudo install) without going through ApplyPackageRelease.
 	// Mark the record as PARTIAL_APPLY so the controller doesn't silently
 	// treat it as healthy.
+	srv.repairInstalledStateFromLocalPackageCache(ctx, now, platform)
 	srv.detectPartialApply(ctx, now)
 
 	// Phase 1.75 (Project B): Post-restart self-hosted runtime proof.
@@ -461,7 +505,7 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	// the marker, loadMarkers() won't discover them on the next heartbeat,
 	// causing the package to appear as "not installed" in health checks.
 	if srv.nodeID != "" {
-		for _, kind := range []string{"SERVICE", "COMMAND", "INFRASTRUCTURE"} {
+		for _, kind := range authoritativeInstalledPackageKinds {
 			pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
 			if err != nil {
 				continue
@@ -864,22 +908,22 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 			staleService, _ = installed_state.GetInstalledPackage(ctx, srv.nodeID, "SERVICE", name)
 		}
 
-		// Mirror: when the repo says SERVICE, check for a stale INFRASTRUCTURE
-		// record left behind by the Day-0 bootstrap or an old isDay0JoinInfra list.
-		// This is the background-cleanup counterpart to the install-time cleanup
-		// in apply_package_release.go.
+		// Mirror: when the repo says SERVICE or COMMAND, check for a stale
+		// INFRASTRUCTURE record left behind by the Day-0 bootstrap or an old
+		// isDay0JoinInfra list. This is the background-cleanup counterpart to
+		// the install-time cleanup in apply_package_release.go.
 		var staleInfra *node_agentpb.InstalledPackage
-		if kind == "SERVICE" {
+		if kind == "SERVICE" || kind == "COMMAND" {
 			staleInfra, _ = installed_state.GetInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name)
 		}
 
 		if existing != nil && existing.GetVersion() != "" {
 			// Already has a real version with correct kind — skip install.
 			// But still purge any stale INFRASTRUCTURE record so it can no
-			// longer shadow the correct SERVICE version in heartbeat Phase 2.
+			// longer shadow the correct SERVICE/COMMAND version in heartbeat Phase 2.
 			if staleInfra != nil {
 				if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); err == nil {
-					log.Printf("nodeagent: removed stale INFRASTRUCTURE record for SERVICE %s (was %s)", name, staleInfra.GetVersion())
+					log.Printf("nodeagent: removed stale INFRASTRUCTURE record for %s %s (was %s)", kind, name, staleInfra.GetVersion())
 				}
 			}
 			continue
@@ -929,10 +973,10 @@ func (srv *NodeAgentServer) syncRepoArtifactsToEtcd(ctx context.Context, now int
 		}
 
 		// Clean up stale INFRASTRUCTURE record when we are about to write
-		// (or have already confirmed) a SERVICE record for this package.
+		// (or have already confirmed) a SERVICE/COMMAND record for this package.
 		if staleInfra != nil {
 			if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); err == nil {
-				log.Printf("nodeagent: removed stale INFRASTRUCTURE record for SERVICE %s (was %s)", name, staleInfra.GetVersion())
+				log.Printf("nodeagent: removed stale INFRASTRUCTURE record for %s %s (was %s)", kind, name, staleInfra.GetVersion())
 			}
 			if existing == nil {
 				existing = staleInfra // preserve original install timestamp
@@ -1014,21 +1058,312 @@ func runtimeChecksumFromManifest(m *repositorypb.ArtifactManifest) string {
 	return digest.CanonicalSHA256(m.GetChecksum())
 }
 
+// repairInstalledStateFromLocalPackageCache handles the Day-0 direct-installer
+// path: the installer can replace binaries before the controller workflow path
+// exists. Repair is allowed only when the active local package manifest's
+// entrypoint_checksum exactly matches the on-disk binary. That keeps the
+// node-agent as installed-state writer without trusting a stale etcd record.
+func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx context.Context, now int64, platform string) {
+	if srv.nodeID == "" {
+		return
+	}
+	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+		pkgs, err := installed_state.ListInstalledPackages(ctx, srv.nodeID, kind)
+		if err != nil {
+			continue
+		}
+		for _, pkg := range pkgs {
+			name := pkg.GetName()
+			version := pkg.GetVersion()
+			if name == "" || version == "" {
+				continue
+			}
+			manifestPath := localDistributionPackagePath(name, version, platform)
+			if manifestPath == "" {
+				continue
+			}
+			manifest := readArtifactManifestIdentity(manifestPath)
+			manifestEntry := digest.CanonicalSHA256(manifest.EntrypointChecksum)
+			if manifestEntry == "" || manifest.Name != name || manifest.Version != version {
+				continue
+			}
+			if manifest.Platform != "" && manifest.Platform != platform {
+				continue
+			}
+			if manifest.Kind != "" && manifest.Kind != kind {
+				continue
+			}
+			entryPath := binhash.EntrypointPath(manifest.Entrypoint)
+			if entryPath == "" {
+				entryPath = binhash.ResolveServiceBinaryPath(name, pkg.GetMetadata()["proof_binary_path"])
+			}
+			diskEntry := binhash.HashOrEmpty(entryPath)
+			if diskEntry == "" || !binhash.Equal(manifestEntry, diskEntry) {
+				continue
+			}
+			storedEntry := digest.CanonicalSHA256(pkg.GetMetadata()["entrypoint_checksum"])
+			if pkg.GetStatus() == "installed" &&
+				binhash.Equal(storedEntry, manifestEntry) &&
+				pkg.GetBuildId() == manifest.BuildID &&
+				pkg.GetBuildNumber() == manifest.BuildNumber {
+				continue
+			}
+
+			pkg.Status = "installed"
+			pkg.UpdatedUnix = now
+			pkg.Platform = platform
+			pkg.Checksum = manifestEntry
+			if manifest.Publisher != "" {
+				pkg.PublisherId = manifest.Publisher
+			}
+			if manifest.BuildID != "" {
+				pkg.BuildId = manifest.BuildID
+			}
+			if manifest.BuildNumber > 0 {
+				pkg.BuildNumber = manifest.BuildNumber
+			}
+			assignEntrypointChecksumMetadata(pkg, manifestEntry, diskEntry)
+			if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+				log.Printf("nodeagent: repair local package installed-state %s/%s: %v", kind, name, err)
+				continue
+			}
+			log.Printf("nodeagent: repaired installed-state %s/%s from local package cache %s (build_id=%s)",
+				kind, name, filepath.Base(manifestPath), manifest.BuildID)
+		}
+	}
+}
+
+// syncInstalledStateFromLocalPackageCache creates missing installed-state
+// records from locally staged packages only when package identity is proven by
+// an entrypoint checksum match against the on-disk binary. Cache presence alone
+// is not proof: this path must not turn arbitrary staged artifacts into
+// installed-state.
+func (srv *NodeAgentServer) syncInstalledStateFromLocalPackageCache(ctx context.Context, now int64, platform string, synced *int) {
+	if srv.nodeID == "" {
+		return
+	}
+	proofs := localPackageCacheProofs(platform)
+	for _, proof := range proofs {
+		if proof.Name == "" || proof.Version == "" || proof.Kind == "" {
+			continue
+		}
+		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, proof.Kind, proof.Name)
+		if existing != nil && existing.GetVersion() != "" {
+			if existing.GetBuildId() != "" {
+				continue
+			}
+			// Existing non-controller record is repaired by
+			// repairInstalledStateFromLocalPackageCache; this phase is for
+			// missing records.
+			continue
+		}
+
+		var stale *node_agentpb.InstalledPackage
+		for _, staleKind := range authoritativeInstalledPackageKinds {
+			if staleKind == proof.Kind {
+				continue
+			}
+			rec, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, staleKind, proof.Name)
+			if rec == nil {
+				continue
+			}
+			if rec.GetBuildId() != "" {
+				stale = nil
+				break
+			}
+			stale = rec
+			if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, staleKind, proof.Name); err == nil {
+				log.Printf("nodeagent: removed stale %s record for %s %s (was %s)",
+					staleKind, proof.Kind, proof.Name, rec.GetVersion())
+			}
+		}
+		if stale == nil {
+			stale = existing
+		}
+
+		pkg := &node_agentpb.InstalledPackage{
+			NodeId:        srv.nodeID,
+			Name:          proof.Name,
+			Version:       proof.Version,
+			PublisherId:   proof.PublisherID,
+			Platform:      platform,
+			Kind:          proof.Kind,
+			Checksum:      proof.ManifestEntrypointChecksum,
+			InstalledUnix: now,
+			UpdatedUnix:   now,
+			Status:        "installed",
+			BuildNumber:   proof.BuildNumber,
+			BuildId:       proof.BuildID,
+		}
+		if stale != nil && stale.GetInstalledUnix() > 0 {
+			pkg.InstalledUnix = stale.GetInstalledUnix()
+		}
+		assignEntrypointChecksumMetadata(pkg, proof.ManifestEntrypointChecksum, proof.DiskEntrypointChecksum)
+		if pkg.Metadata == nil {
+			pkg.Metadata = make(map[string]string)
+		}
+		pkg.Metadata["proof_source"] = "local_package_cache"
+		if proof.EntrypointPath != "" {
+			pkg.Metadata["proof_binary_path"] = proof.EntrypointPath
+		}
+		PreserveInstallReceiptMetadata(stale, pkg)
+		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+			log.Printf("nodeagent: sync installed-state from local package cache %s/%s: %v", proof.Kind, proof.Name, err)
+			continue
+		}
+		log.Printf("nodeagent: synced installed-state %s/%s from local package cache %s",
+			proof.Kind, proof.Name, filepath.Base(proof.ArtifactPath))
+		if synced != nil {
+			*synced++
+		}
+	}
+}
+
+type localPackageCacheProof struct {
+	ArtifactPath               string
+	Name                       string
+	Version                    string
+	Kind                       string
+	PublisherID                string
+	BuildID                    string
+	BuildNumber                int64
+	EntrypointPath             string
+	ManifestEntrypointChecksum string
+	DiskEntrypointChecksum     string
+}
+
+func localPackageCacheProofs(platform string) []localPackageCacheProof {
+	selected := make(map[string]localPackageCacheProof)
+	for _, dir := range localPackageDirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".tgz") {
+				continue
+			}
+			names = append(names, entry.Name())
+		}
+		sort.Strings(names)
+		for _, fileName := range names {
+			artifactPath := filepath.Join(dir, fileName)
+			manifest := readArtifactManifestIdentity(artifactPath)
+			proof := localPackageProofFromManifest(artifactPath, manifest, platform)
+			if proof.Name == "" {
+				continue
+			}
+			key := proof.Kind + "/" + proof.Name
+			if cur, ok := selected[key]; !ok || preferLocalPackageProof(proof, cur) {
+				selected[key] = proof
+			}
+		}
+	}
+	out := make([]localPackageCacheProof, 0, len(selected))
+	for _, proof := range selected {
+		out = append(out, proof)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func localPackageProofFromManifest(artifactPath string, manifest artifactManifestIdentity, platform string) localPackageCacheProof {
+	name := canonicalServiceName(manifest.Name)
+	if name == "" || manifest.Version == "" {
+		return localPackageCacheProof{}
+	}
+	if manifest.Platform != "" && platform != "" && manifest.Platform != platform {
+		return localPackageCacheProof{}
+	}
+	kind := normalizeInstalledKind(manifest.Kind)
+	if kind == "" {
+		kind = installedKindFromRegistry(name)
+	}
+	if kind == "" {
+		return localPackageCacheProof{}
+	}
+	manifestEntry := digest.CanonicalSHA256(manifest.EntrypointChecksum)
+	if manifestEntry == "" {
+		return localPackageCacheProof{}
+	}
+	entryPath := installedEntrypointPath(manifest.Entrypoint)
+	diskEntry := ""
+	if entryPath != "" {
+		diskEntry = binhash.HashOrEmpty(entryPath)
+	}
+	if !binhash.Equal(manifestEntry, diskEntry) && kind == "COMMAND" {
+		entryPath = commandBinaryPath(name)
+		if entryPath != "" {
+			diskEntry = binhash.HashOrEmpty(entryPath)
+		}
+	}
+	if !binhash.Equal(manifestEntry, diskEntry) {
+		return localPackageCacheProof{}
+	}
+	return localPackageCacheProof{
+		ArtifactPath:               artifactPath,
+		Name:                       name,
+		Version:                    manifest.Version,
+		Kind:                       kind,
+		PublisherID:                manifest.Publisher,
+		BuildID:                    manifest.BuildID,
+		BuildNumber:                manifest.BuildNumber,
+		EntrypointPath:             entryPath,
+		ManifestEntrypointChecksum: manifestEntry,
+		DiskEntrypointChecksum:     diskEntry,
+	}
+}
+
+func installedEntrypointPath(entrypoint string) string {
+	e := strings.TrimSpace(entrypoint)
+	if e == "" || e == "none" {
+		return ""
+	}
+	base := filepath.Base(e)
+	if base == "." || base == string(filepath.Separator) {
+		return ""
+	}
+	return filepath.Join(globularBinDir, base)
+}
+
+func preferLocalPackageProof(next, cur localPackageCacheProof) bool {
+	cmp, err := versionutil.Compare(next.Version, cur.Version)
+	if err == nil && cmp != 0 {
+		return cmp > 0
+	}
+	if err != nil && next.Version != cur.Version {
+		return next.Version > cur.Version
+	}
+	if next.BuildNumber != cur.BuildNumber {
+		return next.BuildNumber > cur.BuildNumber
+	}
+	return next.ArtifactPath < cur.ArtifactPath
+}
+
+func localDistributionPackagePath(name, version, platform string) string {
+	if name == "" || version == "" || platform == "" {
+		return ""
+	}
+	for _, dir := range localPackageDirs {
+		path := filepath.Join(dir, fmt.Sprintf("%s_%s_%s.tgz", name, version, platform))
+		if st, err := os.Stat(path); err == nil && !st.IsDir() {
+			return path
+		}
+	}
+	return ""
+}
+
 // commandBinaryExists checks whether a COMMAND package's binary is installed
 // on disk. It strips the "-cmd" suffix (used in artifact names) and probes
 // the standard binary locations.
 func commandBinaryExists(name string) bool {
-	bin := strings.TrimSuffix(name, "-cmd")
-	for _, dir := range []string{"/usr/local/bin", "/usr/lib/globular/bin"} {
-		if _, err := os.Stat(filepath.Join(dir, bin)); err == nil {
-			return true
-		}
-	}
-	// Also check PATH as a fallback
-	if _, err := exec.LookPath(bin); err == nil {
-		return true
-	}
-	return false
+	return commandBinaryPath(name) != ""
 }
 
 // detectPartialApply checks for binary replacement without state update.
@@ -1302,6 +1637,28 @@ func leaderAddrFromError(err error) string {
 	}
 	log.Printf("node-agent: leader redirect → %s", addr)
 	return addr
+}
+
+// isControllerElectionGap reports whether err is the controller's
+// "no elected leader yet" signal: a FailedPrecondition "not leader" with an
+// EMPTY leader_addr (the "not leader (leader_addr=, epoch=0)" shape). An empty
+// redirect target means there is currently no leader to redirect to — a
+// transient controller-side election gap (e.g. the controller is restarting) —
+// as opposed to a populated leader_addr, which means "retry against that
+// leader". This is NOT a failure of the node-agent's own heartbeat subsystem;
+// per invariant infra.heartbeat_observer_only_not_authority a node's self-health
+// must reflect its own liveness, not a peer's leadership transient.
+func isControllerElectionGap(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.FailedPrecondition {
+		return false
+	}
+	if !strings.Contains(st.Message(), "not leader") {
+		return false
+	}
+	// Empty redirect target ⇒ no leader currently exists (election in progress).
+	// A populated leader_addr is handled by sendStatusWithRetry's redirect retry.
+	return leaderAddrFromError(err) == ""
 }
 
 func (srv *NodeAgentServer) resetControllerClient() {

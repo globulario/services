@@ -112,8 +112,12 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 	if _, ok := inputs["repository_address"]; !ok {
 		inputs["repository_address"] = srv.discoverRepositoryAddr()
 	}
+	nodeProfiles, err := srv.ensureWorkflowNodeProfiles(name, inputs)
+	if err != nil {
+		return nil, err
+	}
 
-	log.Printf("grpc-workflow: starting %s (def=%s)", name, defPath)
+	log.Printf("grpc-workflow: starting %s (def=%s profiles=%v)", name, defPath, nodeProfiles)
 	start := time.Now()
 
 	run, err := srv.RunWorkflowDefinition(ctx, defPath, inputs)
@@ -220,7 +224,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	if desiredVersion != "" {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName)
 		skipResult, reason := canSkipInstallPackage(
-			ctx, pkgName, pkgKind, desiredVersion, convergenceHash, buildID, existing,
+			ctx, pkgName, pkgKind, desiredVersion, convergenceHash, expectedSha256, buildID, existing,
 			supervisor.IsActive, supervisor.IsLoaded,
 		)
 		wfID := inputs["workflow_id"]
@@ -344,6 +348,38 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		case installSkipDeniedInactive:
 			// Unit is loaded but inactive — try a Start before full reinstall.
 			log.Printf("grpc-workflow: %s", reason)
+			// MinIO topology gate: an inactive globular-minio.service on a
+			// node NOT admitted into the objectstore topology is the gate's
+			// deliberate hold (held_not_in_topology), not damage to repair.
+			// Starting it here fights enforceMinioHeld — a start/stop flap
+			// that re-creates the standalone split-brain the topology
+			// contract forbids. Same gate as apply_package_release.go.
+			if pkgName == "minio" {
+				if poolState, poolErr := config.LoadObjectStoreDesiredState(ctx); poolErr == nil {
+					if member, holdReason := nodeIsTopologyMember(srv.nodeID, srv.nodeIP(), poolState); !member {
+						log.Printf("grpc-workflow: install-package minio: unit inactive by topology hold (%s) — leaving held, not repairing", holdReason)
+						srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+							ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+							WorkflowID:      wfID,
+							Package:         pkgName,
+							NodeID:          srv.nodeID,
+							DesiredVersion:  desiredVersion,
+							DesiredBuildID:  buildID,
+							LocalVersion:    existing.GetVersion(),
+							LocalBuildID:    existing.GetBuildId(),
+							LocalHash:       convergenceHash,
+							Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
+							SourceComponent: "node-agent",
+							Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "held_not_in_topology"},
+						})
+						return &node_agentpb.RunWorkflowResponse{
+							Status:         "SUCCEEDED",
+							StepsTotal:     1,
+							StepsSucceeded: 1,
+						}, nil
+					}
+				}
+			}
 			unit := packageUnit(pkgName)
 			if startErr := supervisor.Start(ctx, unit); startErr == nil {
 				if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr == nil {
@@ -508,14 +544,14 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		resp.StepsSucceeded = 1
 		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v, status=%s)", pkgName, elapsed, applyResp.GetStatus())
 		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
-			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
-			WorkflowID:      wfIDFull,
-			Package:         pkgName,
-			NodeID:          srv.nodeID,
-			DesiredVersion:  desiredVersion,
-			DesiredBuildID:  buildID,
-			LocalVersion:    desiredVersion,
-			LocalBuildID:    buildID,
+			ActionID:       convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+			WorkflowID:     wfIDFull,
+			Package:        pkgName,
+			NodeID:         srv.nodeID,
+			DesiredVersion: desiredVersion,
+			DesiredBuildID: buildID,
+			LocalVersion:   desiredVersion,
+			LocalBuildID:   buildID,
 			// LocalHash tells the controller what artifact digest was installed so
 			// it can stamp pkg.Checksum and stop re-dispatching on checksum mismatch.
 			LocalHash:       convergenceHash,

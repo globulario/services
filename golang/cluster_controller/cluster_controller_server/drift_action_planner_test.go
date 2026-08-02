@@ -12,7 +12,7 @@ import "testing"
 // Invariant: topology.reconciler_must_respect_safety_contract
 func TestStaleMajorityTopologyRejectedWhileSafeActionsRun(t *testing.T) {
 	violations := []topologySafetyViolation{
-		{Kind: "storage_quorum", Message: "only 2 active storage nodes — minimum 3 required"},
+		{Kind: "objectstore_topology_mismatch", Message: "desired objectstore topology differs from controller pool"},
 	}
 
 	// SERVICE drift action — must always be safe, even under topology violations.
@@ -23,7 +23,7 @@ func TestStaleMajorityTopologyRejectedWhileSafeActionsRun(t *testing.T) {
 		ActionKind: classifyDriftAction("SERVICE"),
 	}
 	if !driftActionSafe(serviceAction, violations) {
-		t.Error("SERVICE drift action should be safe even when storage quorum is violated")
+		t.Error("SERVICE drift action should be safe even when objectstore topology is mismatched")
 	}
 
 	// COMMAND drift action — also safe.
@@ -37,11 +37,9 @@ func TestStaleMajorityTopologyRejectedWhileSafeActionsRun(t *testing.T) {
 		t.Error("COMMAND drift action should be safe even when topology is degraded")
 	}
 
-	// INFRASTRUCTURE drift action — must be blocked when storage_quorum
-	// violates AND the package's subsystem is storage. MinIO is the
-	// canonical storage-affecting package (Phase 35 narrowed the gate;
-	// the prior version of this test used etcd, which has its own Raft
-	// quorum independent of MinIO and is no longer storage_quorum-gated).
+	// INFRASTRUCTURE drift action — must be blocked when the package owns
+	// the violated topology dimension. MinIO is gated by objectstore topology
+	// mismatch, not by a preferred storage node count.
 	infraAction := driftAction{
 		NodeID:     "node-1",
 		PackageKey: "INFRASTRUCTURE/minio",
@@ -49,7 +47,7 @@ func TestStaleMajorityTopologyRejectedWhileSafeActionsRun(t *testing.T) {
 		ActionKind: classifyDriftAction("INFRASTRUCTURE"),
 	}
 	if driftActionSafe(infraAction, violations) {
-		t.Error("INFRASTRUCTURE/minio drift action should be blocked when storage_quorum violation is present")
+		t.Error("INFRASTRUCTURE/minio drift action should be blocked when objectstore topology mismatch is present")
 	}
 
 	// INFRASTRUCTURE drift action — safe when no violations.
@@ -74,7 +72,7 @@ func TestPerActionSafetyGateDeterministic(t *testing.T) {
 	}{
 		// Standard service kinds — always safe.
 		{"SERVICE", driftActionKindSafe},
-		{"service", driftActionKindSafe},   // case-insensitive
+		{"service", driftActionKindSafe}, // case-insensitive
 		{"Service", driftActionKindSafe},
 		{"COMMAND", driftActionKindSafe},
 		{"command", driftActionKindSafe},

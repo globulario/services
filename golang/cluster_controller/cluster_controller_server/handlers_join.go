@@ -263,21 +263,17 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 //
 // profiles may be nil/empty; in that case the suggested or default profiles are used.
 func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []string) {
+	profileSource := nodeProfileSourceRequested
 	if len(profiles) == 0 {
 		profiles = jr.SuggestedProfiles
+		profileSource = nodeProfileSourceDeduced
 	}
 	if len(profiles) == 0 {
 		profiles = srv.cfg.DefaultProfiles
+		profileSource = nodeProfileSourceDefault
 	}
 	profiles = normalizeProfiles(profiles)
 
-	// INVARIANT: The first 3 nodes MUST have foundational profiles
-	// (core, control-plane, storage) to establish quorum for etcd,
-	// ScyllaDB, and MinIO. Without 3 storage nodes, there is no
-	// redundancy — MinIO becomes a single point of failure that
-	// cascades into workflow execution and artifact publishing.
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
-	profiles = enforceFoundingProfiles(profiles, storageCount)
 	jr.Profiles = profiles
 
 	nodeID := deterministicNodeID(jr.Identity, jr.Labels)
@@ -310,7 +306,7 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 		Profiles:              profiles,
 		LastSeen:              time.Now(),
 		Status:                "converging",
-		Metadata:              copyLabels(jr.Labels),
+		Metadata:              profileSourceMetadata(jr.Labels, profileSource),
 		LastAppliedGeneration: 0,
 		BootstrapPhase:        BootstrapAdmitted,
 		BootstrapStartedAt:    time.Now(),
@@ -331,8 +327,8 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 
 	nodePrincipal := "node_" + nodeID
 	nodeToken, err := security.GenerateToken(
-		365*24*60,    // 1 year TTL
-		nodeID,       // audience = node ID
+		365*24*60, // 1 year TTL
+		nodeID,    // audience = node ID
 		nodePrincipal,
 		"node-agent",
 		"",
@@ -361,10 +357,18 @@ func (srv *server) postApproveJoinAsync(jr *joinRequestRecord) {
 	srv.lock("postApproveJoinAsync:triggerWorkflow")
 	node := srv.state.Nodes[nodeID]
 	if node != nil && !node.BootstrapWorkflowActive {
-		node.BootstrapWorkflowActive = true
-		agentEndpoint := node.AgentEndpoint
-		log.Printf("ApproveJoin: triggering join workflow for %s at %s", nodeID, agentEndpoint)
-		go srv.triggerJoinWorkflow(nodeID, agentEndpoint)
+		if node.AgentEndpoint == "" {
+			// Agent hasn't heartbeated yet — no address to dial. The first
+			// heartbeat trigger in ReportNodeStatus fires once the endpoint
+			// is reported; dialing "" only burns a trigger on a guaranteed
+			// "passthrough: received empty target" failure.
+			log.Printf("ApproveJoin: node %s approved but agent endpoint not yet reported — deferring join trigger to first heartbeat", nodeID)
+		} else {
+			node.BootstrapWorkflowActive = true
+			agentEndpoint := node.AgentEndpoint
+			log.Printf("ApproveJoin: triggering join workflow for %s at %s", nodeID, agentEndpoint)
+			go srv.triggerJoinWorkflow(nodeID, agentEndpoint)
+		}
 	}
 	srv.unlock()
 }

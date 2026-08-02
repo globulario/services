@@ -24,7 +24,7 @@ entries:
       services_present: [cluster-controller]
     content: |
       Use this runbook when you have lost one or more of:
-        - etcd (cluster config + service registry, founding-quorum dependency)
+        - etcd (cluster config + service registry, cluster membership authority)
         - ScyllaDB (ai-memory, workflow correlation state, repository index)
         - MinIO (artifact blobs and any user-data buckets)
 
@@ -51,8 +51,8 @@ entries:
 
       Mental model: walk the four truth layers bottom-up.
         Layer 0 (PKI + bootstrap) is on local disk under /var/lib/globular/pki/
-          — restore from filesystem backup or re-bootstrap if first 3 nodes
-          come up clean.
+          — restore from filesystem backup or re-bootstrap a clean control
+          plane when local bootstrap material cannot be trusted.
         Layer 1 (etcd) — restore from etcd snapshot, then start exactly one
           node, verify, expand the cluster.
         Layer 2 (ScyllaDB) — restore via scylla-manager from the matching
@@ -64,7 +64,7 @@ entries:
           release reconciler will reconcile from the active BOM.
     links:
       awareness_invariants:
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
       awareness_failure_modes:
         - ops_knowledge.seed_drift_post_install
       runbooks:
@@ -145,7 +145,7 @@ entries:
 
     related_ids:
       - ops.day-0.cluster.what-exists
-      - ops.day-1.join.founding-quorum-invariant
+      - ops.day-1.join.quorum-capacity-posture
       - ops.day-2.audit-and-event-stream
       - ops.role.repository.dependencies
     provenance:

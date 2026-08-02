@@ -174,7 +174,11 @@ check "ScyllaDB listening on port 9042" \
     "ss -tlnp | grep ':9042'" \
     "9042"
 
-check "Envoy HTTPS port listening (8443)" \
+check "Envoy mesh HTTPS port listening (443)" \
+    "ss -tln | grep -q ':443 ' && echo 'ok'" \
+    "ok"
+
+check "Gateway HTTPS port listening (8443)" \
     "ss -tln | grep -q ':8443 ' && echo 'ok'" \
     "ok"
 
@@ -476,7 +480,7 @@ if [ $FAILED_CHECKS -eq 0 ]; then
     echo "├──────────────┼────────────┼──────────┼───────────┼────────────┤"
     echo "│ ScyllaDB     │ ✅ Running │ ⚪ CQL   │ 9042      │ ✅ Healthy │"
     echo "├──────────────┼────────────┼──────────┼───────────┼────────────┤"
-    echo "│ Envoy        │ ✅ Running │ ✅ HTTPS │ 8443/9901 │ ✅ Healthy │"
+    echo "│ Envoy        │ ✅ Running │ ✅ HTTPS │ 443/9901  │ ✅ Healthy │"
     echo "├──────────────┼────────────┼──────────┼───────────┼────────────┤"
     echo "│ Gateway      │ ✅ Running │ ✅ HTTPS │ 8443      │ ✅ Healthy │"
     echo "├──────────────┼────────────┼──────────┼───────────┼────────────┤"

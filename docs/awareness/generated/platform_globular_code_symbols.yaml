@@ -6,3 +6,13 @@ test_symbols:
     package: globule
     language: go
     doc: "TestPrintBannerNeverWritesToStdout guards the describe contract:\n\nThe node agent runs each service binary with --describe and parses stdout as\nJSON for port preflight. Any decorative/log output on stdout corrupts that\nJSON (\"invalid character 'G' looking for beginning of value\") and silently\ndisables port preflight. PrintBanner is decorative human output, so it MUST\ngo to stderr only.\n\nRegression for: gateway/xds --describe emitting the \"Globular v...\" banner on\nstdout. See invariant observability.describe_stdout_is_machine_only."
+  - id: Globular/internal/globule/runtime_shell_test.go:TestNodeAndControllerAddressUseStableDefaults
+    file: Globular/internal/globule/runtime_shell_test.go
+    symbol: TestNodeAndControllerAddressUseStableDefaults
+    package: globule
+    language: go
+  - id: Globular/internal/globule/runtime_shell_test.go:TestSetConfigIgnoresControllerManagedNetworkIdentity
+    file: Globular/internal/globule/runtime_shell_test.go
+    symbol: TestSetConfigIgnoresControllerManagedNetworkIdentity
+    package: globule
+    language: go

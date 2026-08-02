@@ -1,0 +1,33 @@
+# programming forbidden-move catalog.
+# MANDATORY: every forbidden move carries a paired generative `recommended_behavior`
+# (and where useful a safe_next_step) — negative-only rules are not allowed.
+- id: forbidden.prog.merge_without_passing_tests
+  title: Merge / deploy a change while its tests fail or are absent
+  reason: a red or untested change entering a shared environment breaks the runtime for everyone
+  recommended_behavior: Make the covering tests pass (or add them) before merge; if truly untestable, get maintainer authority on record.
+  safe_next_step: gather evidence.prog.tests_pass, or resolve authority.prog.maintainer.codeowner
+- id: forbidden.prog.break_public_contract_without_version_bump
+  title: Change a published interface without a compatible version bump
+  reason: silently breaking a contract breaks every downstream consumer that trusted the spec
+  recommended_behavior: Keep the contract backward-compatible, or bump the version and record the migration path.
+  safe_next_step: gather evidence.prog.contract_compat_checked against authority.prog.contract.api_spec
+- id: forbidden.prog.destructive_migration_without_backup
+  title: Run a destructive schema/data migration without a verified backup
+  reason: a failed destructive migration with no backup is unrecoverable data loss
+  recommended_behavior: Verify a restorable backup exists first; prefer expand-then-contract (additive) migrations.
+  safe_next_step: gather evidence.prog.backup_verified before applying the migration
+- id: forbidden.prog.trust_forum_over_spec
+  title: Follow a forum/blog answer that contradicts the authoritative spec
+  reason: community lore is a weak signal; acting on it over the contract propagates plausible-but-wrong behavior
+  recommended_behavior: Verify the claim against the spec, the tests, or the runtime before acting on it.
+  safe_next_step: resolve authority.prog.contract.api_spec (or reproduce against runtime) before trusting the forum claim
+- id: forbidden.prog.suppress_failing_test_to_go_green
+  title: Skip, delete, or weaken a failing test to make the suite pass
+  reason: silencing the test destroys the very evidence that would reveal the regression
+  recommended_behavior: Fix the code the test protects, or — with maintainer authority — narrow the test with a recorded reason.
+  safe_next_step: resolve authority.prog.maintainer.codeowner before altering test intent
+- id: forbidden.prog.commit_secret_in_source
+  title: Commit a credential, key, or secret into source or config
+  reason: secrets in history are effectively permanently leaked and hard to fully revoke
+  recommended_behavior: Move the secret to the secret store / env injection and reference it; rotate any value already exposed.
+  safe_next_step: remove the value from the diff and wire it through the secret path before committing

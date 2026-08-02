@@ -80,3 +80,8 @@ test_symbols:
     symbol: TestSetRootPasswordStoresBcryptAndPolicy
     package: main
     language: go
+  - id: golang/authentication/authentication_server/lifecycle_contract_test.go:TestMainDoesNotWaitForSecondSignalAfterLifecycleStart
+    file: golang/authentication/authentication_server/lifecycle_contract_test.go
+    symbol: TestMainDoesNotWaitForSecondSignalAfterLifecycleStart
+    package: main
+    language: go

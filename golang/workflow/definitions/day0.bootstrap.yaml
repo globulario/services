@@ -35,8 +35,7 @@ spec:
       # Profiles assigned to the bootstrap node. The profile-driven install
       # step (verify_profile_install_set) derives its package set from
       # these — it must match what the explicit install_* steps installed,
-      # so the catalog and the YAML are kept honest. Founding nodes are
-      # always [core, control-plane, storage] (enforceFoundingProfiles).
+      # so the catalog and the YAML are kept honest.
       bootstrap_node_profiles:
         type: array
         items: { type: string }

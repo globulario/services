@@ -56,7 +56,7 @@ Internal domains always use the cluster mTLS cert (`internal-cert`). External do
 
 ## Prerequisites
 
-1. A Globular cluster with MinIO on at least 3 nodes (founding quorum)
+1. A Globular cluster with MinIO running and enough storage capacity for your durability target
 2. A public domain pointed at your VIP (A record → your VIP's public IP)
 3. Port 443 forwarded from your router to the VIP (`10.0.0.100` in the reference cluster)
 4. An account with write access to the gateway

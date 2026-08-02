@@ -1,0 +1,64 @@
+id: meta.quorum_is_quality_not_constraint
+level: principle
+title: Quorum is distributed-system quality, not an admission constraint
+intent: >
+  Quorum describes the current survival and write-safety quality of a distributed
+  system at its observed membership size. A one-node cluster has one-node
+  survivability, a two-node cluster has two-node survivability, and a larger
+  cluster can provide better fault tolerance when its substrate supports it.
+  Controllers must not turn an abstract preferred quorum size into a hidden
+  admission floor that blocks bootstrap, join, rollout, or profile assignment.
+
+agent_guidance: >
+  Report quorum/capacity as evidence and risk posture. Do not auto-promote
+  profiles, block Day-1 workload rollout, or refuse non-destructive convergence
+  only because the cluster has fewer than a preferred node count. Component-
+  specific destructive operations may still require explicit safety checks and
+  operator approval; that is data-safety gating, not a global quorum floor.
+
+bad_smells:
+  - global quorum floor used by controller admission
+  - first-N node profile coercion to manufacture quorum
+  - Day-1 rollout blocked because observed quorum is below a preferred size
+  - capacity report field reused as an enforcement predicate
+  - optional subsystem quorum treated as platform bootstrap authority
+
+activation_triggers:
+  - quorum
+  - quorum floor
+  - global quorum floor
+  - storage profile
+  - day-1 join
+  - bootstrap
+  - rollout gate
+  - topology gate
+
+expressed_by:
+  - golang/cluster_controller/cluster_controller_server/profiles_normalize.go
+  - golang/cluster_controller/cluster_controller_server/invariant_enforcement.go
+  - golang/cluster_controller/cluster_controller_server/workflow_invariant.go
+  - golang/workflow/engine/actors_invariant.go
+  - golang/workflow/definitions/cluster.invariant.enforcement.yaml
+
+related_to:
+  - degraded_is_explicit_not_hidden
+  - quorum_safety_before_storage_mutation
+  - infrastructure.etcd.quorum_backed_config_authority
+  - infrastructure.scylladb.quorum_localdb_for_control_plane_state
+
+zooms_out_to:
+  - globular.vision.explicit_convergence
+
+zooms_in_to:
+  - quorum_safety_before_storage_mutation
+
+change_risk:
+  - quorum_sensitive
+  - day0_day1_sensitive
+  - topology_sensitive
+
+status: seed
+
+required_tests:
+  - golang/cluster_controller/cluster_controller_server/component_resolve_test.go:TestDay1WorkloadDepSeeding_EventDoesNotBlockRollout
+  - golang/cluster_controller/cluster_controller_server/guardrails_test.go:TestDriftTopologyPreflight_DoesNotBlockTransitionalStorageCapacity

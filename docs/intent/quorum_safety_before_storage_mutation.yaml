@@ -1,13 +1,22 @@
 id: quorum_safety_before_storage_mutation
 level: principle
-title: Storage mutations require quorum safety check
-intent: Any repair, reseed, topology change, or destructive storage operation must verify that remaining nodes can preserve quorum and data safety.
-agent_guidance: Before storage repair or node recovery, compute cluster safety. Refuse or require operator approval if quorum would be lost.
+title: Destructive storage mutations require explicit safety check
+intent: >
+  Repair, reseed, topology change, and destructive storage operations must verify
+  data safety before mutation. This principle protects destructive storage actions;
+  it does not create a global minimum-node admission floor for bootstrap, join,
+  profile assignment, or non-destructive service rollout.
+agent_guidance: >
+  Before destructive storage repair or node recovery, compute cluster safety and
+  require explicit operator approval if the action can lose data or reduce write
+  safety. For ordinary convergence, report observed quorum as capacity/risk
+  posture instead of blocking on a preferred node count.
 bad_smells:
 - recover two storage nodes simultaneously
 - wipe before quorum check
 - storage repair assumes all nodes healthy
 - write quorum alert from uncertain inventory
+- global quorum floor used as platform-wide admission policy
 activation_triggers:
 - quorum
 - storage
@@ -23,7 +32,7 @@ expressed_by:
 - docs/operators/cluster-self-healing.md
 related_invariants: []
 zooms_out_to:
-- globular.vision.explicit_convergence
+- meta.quorum_is_quality_not_constraint
 zooms_in_to:
 - node_recovery.fence_before_destructive_reseed
 - objectstore.destructive_changes_require_approval

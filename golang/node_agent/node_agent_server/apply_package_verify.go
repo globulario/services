@@ -141,23 +141,58 @@ func normalizeHash(h string) string {
 // callers MUST treat it as Unverified (degraded, not success).
 //
 // Verdict semantics:
-//   - BinaryVerified   — expected provided, actual matched. Caller may declare SUCCESS.
-//   - BinaryUnverified — expected NOT provided (legacy caller / older release-index).
-//                         Binary is on disk but its identity is unproven. Caller
-//                         must record an UNVERIFIED installed-state, NOT SUCCESS.
-//   - BinaryMismatch   — expected provided, actual differs. Returned via error.
-//   - BinaryMissing    — expected provided, binary absent. Returned via error.
+//   - BinaryVerified      — expected provided, actual matched. Caller may declare SUCCESS.
+//   - BinaryUnverified    — expected NOT provided (legacy caller / older release-index).
+//                            Binary is on disk but its identity is unproven. Caller
+//                            must record an UNVERIFIED installed-state, NOT SUCCESS.
+//   - BinaryNotApplicable — the package explicitly declares NO Globular entrypoint
+//                            binary (entrypoint: none). There is nothing to hash-verify;
+//                            the install is proven by other means (OS package present /
+//                            service active). Caller may declare SUCCESS. This REPLACES
+//                            the "noop" sentinel-binary hack: instead of shipping a fake
+//                            binary to satisfy the gate, a binary-less package (OS-daemon
+//                            wrapper like keepalived, .deb wrapper like scylladb, or a
+//                            fetch-at-install command) declares no entrypoint and the gate
+//                            treats it as not-applicable. GATED ON THE EXPLICIT, TRUSTED,
+//                            build-stamped declaration ONLY — a merely-empty checksum on an
+//                            entrypoint-bearing package still yields Unverified, preserving
+//                            intent:node_agent.install_claim_requires_binary_proof.
+//   - BinaryMismatch      — expected provided, actual differs. Returned via error.
+//   - BinaryMissing       — expected provided, binary absent. Returned via error.
 //
 // See docs/intent/runtime.success_requires_verified_identity.yaml and
 // invariant runtime.success_requires_expected_binary_checksum.
 type BinaryVerdict string
 
 const (
-	BinaryVerified   BinaryVerdict = "VERIFIED"
-	BinaryUnverified BinaryVerdict = "UNVERIFIED"
-	BinaryMismatch   BinaryVerdict = "MISMATCH"
-	BinaryMissing    BinaryVerdict = "MISSING"
+	BinaryVerified      BinaryVerdict = "VERIFIED"
+	BinaryUnverified    BinaryVerdict = "UNVERIFIED"
+	BinaryNotApplicable BinaryVerdict = "NOT_APPLICABLE"
+	BinaryMismatch      BinaryVerdict = "MISMATCH"
+	BinaryMissing       BinaryVerdict = "MISSING"
 )
+
+// StatusBinaryNotApplicable is the installed_state.Status written when apply
+// completes for a package that declares no entrypoint binary. It is a full
+// SUCCESS (the install applied), distinct from installed_unverified: there is
+// no binary whose identity is left unproven, so doctor/verifier must NOT lift
+// it into a package.installed_binary_unverified finding.
+const StatusBinaryNotApplicable = "installed_no_entrypoint"
+
+// entrypointIsNone reports whether a package's manifest-declared entrypoint
+// marks it as having NO Globular-managed binary to hash-verify. Such packages
+// prove their install by other means (OS package present / service active).
+//
+// The declaration is the TRUSTED, build-stamped `entrypoint: none` carried in
+// the verified package.json (readArtifactManifestEntrypoint / the entrypoint
+// sidecar via versionutil.ReadEntrypoint) — NOT an inference from an empty
+// checksum. An EMPTY declared entrypoint is deliberately NOT treated as none:
+// that is the ambiguous legacy/degraded case which must stay Unverified so a
+// real service with a missing sidecar is never silently skipped. Only the
+// explicit literal "none" opts a package out of the binary-hash proof gate.
+func entrypointIsNone(declaredEntrypoint string) bool {
+	return strings.EqualFold(strings.TrimSpace(declaredEntrypoint), "none")
+}
 
 // StatusBinaryUnverified is the installed_state.Status written when apply
 // completes but no expected_sha256 was provided to prove binary identity.
@@ -173,7 +208,17 @@ const StatusBinaryUnverified = "installed_unverified"
 // to do with BinaryUnverified — typically: write installed-state with
 // Status=installed_unverified instead of installed, and return Ok=false with
 // a degraded reason. Do not declare SUCCESS.
-func verifyInstalledBinaryHashStrict(name, kind, expectedSHA256, buildID, operationID string) (actualHash string, verdict BinaryVerdict, err error) {
+func verifyInstalledBinaryHashStrict(name, kind, expectedSHA256, buildID, operationID, declaredEntrypoint string) (actualHash string, verdict BinaryVerdict, err error) {
+	// A package that explicitly declares no entrypoint binary has nothing to
+	// hash-verify — the binary-hash proof gate is NOT APPLICABLE. This is a
+	// legitimate SUCCESS, not a degraded Unverified. Gated on the explicit,
+	// trusted declaration only (see entrypointIsNone); this replaces the noop
+	// sentinel-binary hack without weakening install_claim_requires_binary_proof
+	// for entrypoint-bearing packages.
+	if entrypointIsNone(declaredEntrypoint) {
+		return "", BinaryNotApplicable, nil
+	}
+
 	path := installedBinaryPath(name, kind)
 	expected := normalizeHash(expectedSHA256)
 

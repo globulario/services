@@ -13,7 +13,7 @@ forbidden_assumptions:
       - verify keepalived.conf exists under /etc/keepalived/
       - verify VRRP process is running and in correct state
     related_invariants:
-      - layer0.vip_management_requires_explicit_owner
+      - vip_management_requires_explicit_owner
     last_verified: 2026-05-10
     stale_after_days: 180
 

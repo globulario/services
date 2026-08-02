@@ -23,9 +23,9 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/versionutil"
 )
 
@@ -37,7 +37,6 @@ import (
 //
 // Returns a degraded response (Ok=false, Status=installed_unverified). Callers
 // must NOT treat this as a SUCCESS path even though no error is set.
-//
 func (srv *NodeAgentServer) writeBinaryUnverifiedInstalledState(
 	ctx context.Context,
 	req *node_agentpb.ApplyPackageReleaseRequest,
@@ -189,7 +188,6 @@ func servicePolicyDirPresent(name string) bool {
 // Authorization: gated by globular.auth.authz with permission="admin" on
 // resource "/node_agent/packages/{package_name}". Only controller workflow
 // execution (sa principal) or cluster admins can invoke this RPC.
-//
 func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_agentpb.ApplyPackageReleaseRequest) (*node_agentpb.ApplyPackageReleaseResponse, error) {
 	name := strings.TrimSpace(req.GetPackageName())
 	kind := strings.ToUpper(strings.TrimSpace(req.GetPackageKind()))
@@ -248,10 +246,10 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 				// without going through the official apply path — it MUST be
 				// re-applied to restore consistency (binary + state + marker).
 				if buildID != "" && existing.GetBuildId() == buildID && !isPartialApply {
-					if !buildIDSkipChecksumOK(existing.GetChecksum(), req.GetExpectedSha256()) {
+					if !buildIDSkipChecksumOK(installedBinaryChecksumForSkip(existing), req.GetExpectedSha256()) {
 						log.Printf("apply-package: %s/%s@%s build_id matches but binary checksum %s != expected %s — binary replaced out-of-band, reapplying",
 							kind, name, version,
-							normalizedHash(existing.GetChecksum()),
+							normalizedHash(installedBinaryChecksumForSkip(existing)),
 							normalizedHash(req.GetExpectedSha256()))
 						// fall through to reinstall
 					} else {
@@ -513,7 +511,12 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// declare it "installed", verify the bytes on disk hash to the
 		// expected artifact-manifest digest. Mismatch / missing → fail apply
 		// and write structured evidence to installed_state.
-		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
+		// declaredEntrypoint is the package's own manifest-declared entrypoint
+		// (versionutil sidecar). "none" marks a binary-less package (keepalived,
+		// scylladb, …) → BinaryNotApplicable, which falls through to the success
+		// path below (empty checksum, no entrypoint_checksum) rather than the
+		// Unverified branch. Replaces the noop sentinel binary.
+		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID, versionutil.ReadEntrypoint(name))
 		if verr != nil {
 			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
 		}
@@ -534,9 +537,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildId:     buildID,
 			Platform:    platform,
 			// InstalledPackage.Checksum is the installed entrypoint/artifact binary
-		// SHA, not the release identity hash. actualHash comes from
-		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
-		Checksum: actualHash,
+			// SHA, not the release identity hash. actualHash comes from
+			// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+			Checksum: actualHash,
 		}
 		if actualHash != "" {
 			if pkg.Metadata == nil {
@@ -718,7 +721,12 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// Phase 1 proof gate: see COMMAND branch above. Same contract for
 		// binary-only packages — disk hash must match the manifest before
 		// we mark installed.
-		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
+		// declaredEntrypoint is the package's own manifest-declared entrypoint
+		// (versionutil sidecar). "none" marks a binary-less package (keepalived,
+		// scylladb, …) → BinaryNotApplicable, which falls through to the success
+		// path below (empty checksum, no entrypoint_checksum) rather than the
+		// Unverified branch. Replaces the noop sentinel binary.
+		actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID, versionutil.ReadEntrypoint(name))
 		if verr != nil {
 			return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
 		}
@@ -739,9 +747,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			BuildId:     buildID,
 			Platform:    platform,
 			// InstalledPackage.Checksum is the installed entrypoint/artifact binary
-		// SHA, not the release identity hash. actualHash comes from
-		// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
-		Checksum: actualHash,
+			// SHA, not the release identity hash. actualHash comes from
+			// cachedSha256(installedBinaryPath(...)) via verifyInstalledBinaryHashStrict.
+			Checksum: actualHash,
 		}
 		if actualHash != "" {
 			if binaryOnlyPkg.Metadata == nil {
@@ -829,8 +837,9 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	// not proof. The bytes on disk at the deployed binary path must hash
 	// to the expected artifact-manifest digest before we declare installed.
 	// Mismatch / missing → fail apply and write structured evidence; do NOT
-	// mark installed.
-	actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID)
+	// mark installed. declaredEntrypoint "none" → BinaryNotApplicable (binary-less
+	// package like keepalived/scylladb), which falls through to success below.
+	actualHash, verdict, verr := verifyInstalledBinaryHashStrict(name, kind, req.GetExpectedSha256(), buildID, operationID, versionutil.ReadEntrypoint(name))
 	if verr != nil {
 		return srv.writeBinaryHashMismatchInstalledState(ctx, req, name, kind, version, verr), nil
 	}
@@ -887,14 +896,15 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	}
 
 	// Tombstone any stale INFRASTRUCTURE record when the package is installed as
-	// SERVICE. Services that were originally deployed via Day-0 bootstrap carry a
-	// legacy INFRASTRUCTURE record that never gets updated by the release pipeline.
-	// If left in place it silently overrides the correct SERVICE version in the
-	// heartbeat Phase 2 etcd scan (INFRA ran after SERVICE in the old loop order).
-	if kind == "SERVICE" {
+	// SERVICE or COMMAND. These legacy rows come from older Day-0/bootstrap
+	// paths that classified the package as INFRASTRUCTURE before the canonical
+	// kind registry existed. If left in place they shadow the correct record and
+	// resurrect false positives like runtime_identity_unproven for COMMAND
+	// packages (e.g. sctool).
+	if kind == "SERVICE" || kind == "COMMAND" {
 		if staleInfra, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); staleInfra != nil {
 			if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, "INFRASTRUCTURE", name); err == nil {
-				log.Printf("apply-package: removed stale INFRASTRUCTURE record for SERVICE %s (was %s)", name, staleInfra.GetVersion())
+				log.Printf("apply-package: removed stale INFRASTRUCTURE record for %s %s (was %s)", kind, name, staleInfra.GetVersion())
 			}
 		}
 	}

@@ -126,15 +126,13 @@ Layer 4: Runtime Health (systemd)  — "Is it running and healthy?"
 - Workflows MUST reach a terminal state (SUCCEEDED or FAILED)
 - The controller DECIDES, the Workflow Service COORDINATES, Node Agents EXECUTE
 
-### 5. Founding node quorum — first 3 nodes MUST have all infrastructure
+### 5. Quorum is capacity, not an admission floor
 
 - **etcd**: runs on ALL nodes — no exceptions
-- **ScyllaDB**: minimum 3 nodes for replication
-- **MinIO**: minimum 3 nodes for erasure coding / redundancy
-- The first 3 nodes of ANY cluster MUST have profiles: `core`, `control-plane`, `storage`
-- This is enforced at join time in `enforceFoundingProfiles()` — cannot be bypassed
-- Without MinIO on 3 nodes, it's a single point of failure that cascades: workflows fail → `completePublish` fails → artifacts stay VERIFIED → reconciler can't find them → services never upgrade
-- `SetNodeProfiles` also enforces this — you cannot remove `storage` from a node if it would drop below 3 storage nodes
+- **ScyllaDB/MinIO**: observed node count is capacity and survivability posture
+- One node has one-node survivability; two nodes have two-node survivability; larger clusters can provide better fault tolerance
+- The controller MUST NOT auto-promote profiles or block bootstrap, join, rollout, or profile assignment only because the storage count is below a preferred size
+- Destructive storage/topology changes still require explicit component safety checks and operator approval when data safety is at risk
 
 ### 6. Security boundaries
 

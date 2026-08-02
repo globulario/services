@@ -74,6 +74,7 @@ type SpecInfo struct {
 	ServiceName   string
 	ExecName      string
 	ExecPath      string
+	NoEntrypoint  bool // package declares entrypoint: none — no Globular binary is bundled or hash-verified
 	ExtraBinaries []ExtraBinary
 	ConfigDirs    []string
 	Systemd       []SystemdFile
@@ -93,6 +94,7 @@ type AssetRoots struct {
 	BinRoot     string
 	ConfigRoot  string
 	ScriptsRoot string
+	DebsRoot    string
 }
 
 type ScanOptions struct {
@@ -134,10 +136,17 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 	metaEntrypoint := lookupString(doc, "metadata", "entrypoint")
 
 	var execName string
+	noEntrypoint := false
 	switch {
-	case metaEntrypoint == "noop":
-		// OS-managed package — use noop binary from bin root.
-		execName = "noop"
+	case metaEntrypoint == "none" || metaEntrypoint == "noop":
+		// Binary-less package: an OS-daemon wrapper (keepalived), a .deb wrapper
+		// (scylladb), or a fetch-at-install command (claude/codex). No Globular
+		// entrypoint binary is bundled — the manifest carries entrypoint "none"
+		// and an EMPTY entrypoint_checksum, and the node-agent verifier returns
+		// BinaryNotApplicable. This replaces the "noop" sentinel-binary hack;
+		// "noop" is accepted as a deprecated alias so in-flight specs keep building.
+		noEntrypoint = true
+		execName = ""
 	case metaEntrypoint != "":
 		// Metadata entrypoint override (bare name or bin/name).
 		execName = strings.TrimPrefix(metaEntrypoint, "bin/")
@@ -152,7 +161,10 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 			return nil, fmt.Errorf("spec %s: %w", specPath, discoverErr)
 		}
 	}
-	execPath := filepath.Join(roots.BinRoot, execName)
+	execPath := ""
+	if !noEntrypoint {
+		execPath = filepath.Join(roots.BinRoot, execName)
+	}
 
 	configDirs, err := discoverConfigDirs(doc, roots, serviceName, opts.SkipMissingConfig)
 	if err != nil {
@@ -167,6 +179,10 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 	meta := extractMetadata(doc, specPath)
 
 	scripts := discoverScripts(roots, serviceName)
+	debPaths, err := discoverBundledDebs(roots)
+	if err != nil {
+		return nil, fmt.Errorf("spec %s: %w", specPath, err)
+	}
 
 	// Discover extra binaries from metadata.
 	var extraBins []ExtraBinary
@@ -195,14 +211,43 @@ func ScanSpec(specPath string, roots AssetRoots, opts ScanOptions) (*SpecInfo, e
 		ServiceName:   serviceName,
 		ExecName:      execName,
 		ExecPath:      execPath,
+		NoEntrypoint:  noEntrypoint,
 		ExtraBinaries: extraBins,
 		ConfigDirs:    configDirs,
 		Systemd:       systemdFiles,
-		Scripts:        scripts,
-		DebPaths:      nil,
+		Scripts:       scripts,
+		DebPaths:      debPaths,
 		DataDir:       dataDir,
 		Metadata:      meta,
 	}, nil
+}
+
+func discoverBundledDebs(roots AssetRoots) ([]string, error) {
+	if roots.DebsRoot == "" {
+		return nil, nil
+	}
+	info, err := os.Stat(roots.DebsRoot)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("debs root %s is not a directory", roots.DebsRoot)
+	}
+	entries, err := os.ReadDir(roots.DebsRoot)
+	if err != nil {
+		return nil, err
+	}
+	var debPaths []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".deb") {
+			continue
+		}
+		debPaths = append(debPaths, filepath.Join(roots.DebsRoot, entry.Name()))
+	}
+	return debPaths, nil
 }
 
 // extractMetadata reads the optional metadata: section from the spec YAML.

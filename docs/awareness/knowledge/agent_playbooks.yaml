@@ -2009,12 +2009,12 @@ capability_gap_patterns:
       - desired runtime join
       - package unit mismatch
       - profile compliance
-      - founding quorum invariant
+      - capacity posture invariant
       - layer divergence
     title: "Awareness has no cross-layer invariants — Desired→Installed→Runtime divergence is not detected"
     criticism: "Awareness checks invariants within a single layer (e.g. Go code hard rules) but not across layers. A DesiredService with version X and an InstalledPackage with version Y on the same node is a cross-layer invariant violation that awareness currently cannot detect."
     why_it_matters: "The most dangerous cluster states are cross-layer: desired says run version X, installed has version Y, systemd shows version X running (stale binary). Without cross-layer invariants, awareness cannot find these failure modes."
-    requirement: "Add 11 cross-layer invariants to invariants.yaml and wire them into scan_violations and preflight. Invariants cover: desired/installed version match, installed/runtime unit presence, profile/service compliance, founding quorum, cert SAN coverage, sidecar hash integrity, build_number sync, artifact publish state, drop-in consistency, template var resolution, and collector completeness."
+    requirement: "Add 11 cross-layer invariants to invariants.yaml and wire them into scan_violations and preflight. Invariants cover: desired/installed version match, installed/runtime unit presence, profile/service compliance, capacity posture, cert SAN coverage, sidecar hash integrity, build_number sync, artifact publish state, drop-in consistency, template var resolution, and collector completeness."
     implementation_plan:
       - "Add cross_layer_invariants section to invariants.yaml with 11 entries"
       - "Add CrossLayerCheck(graph) function in golang/awareness/enforce/ that joins nodes across source tiers"
@@ -2037,7 +2037,7 @@ capability_gap_patterns:
     status: implemented
     closure_evidence:
       - "golang/awareness/enforce/cross_layer.go: CrossLayerCheck(ctx, g) with 5 checks"
-      - "Checks: desired/installed mismatch, installed-without-unit, sidecar hash mismatch, founding quorum below minimum, cert SAN coverage"
+      - "Checks: desired/installed mismatch, installed-without-unit, sidecar hash mismatch, capacity posture, cert SAN coverage"
       - "Violations carry InvariantID, Kind, NodeA/NodeB, Detail; graph edges emitted (EdgeHasStateDelta, EdgeViolates)"
       - "6 tests: TestCrossLayer_DesiredInstalledMismatch, InstalledWithoutUnit, SidecarHashMismatch, FoundingQuorumBelowMinimum, CertMissingInternalSAN, NoDivergenceWhenVersionsMatch"
 

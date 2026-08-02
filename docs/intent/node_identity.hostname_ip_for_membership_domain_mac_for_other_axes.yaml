@@ -39,8 +39,7 @@ expressed_by:
   - golang/node_agent/node_agent_server/identity/validation.go
   - golang/netutil/node_identity.go
 
-related_invariants:
-  - founding.quorum.three_nodes_required
+related_invariants: []
 
 zooms_out_to:
   - cluster.membership.earned_trust

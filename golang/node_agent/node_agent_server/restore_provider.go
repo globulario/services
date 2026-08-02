@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,9 +24,9 @@ import (
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gopkg.in/yaml.v3"
 )
 
 // restoreTask tracks an in-progress or completed restore provider execution.
@@ -37,6 +39,21 @@ var (
 	restoreTasksMu sync.Mutex
 	restoreTasks   = make(map[string]*restoreTask)
 )
+
+func shouldPassScyllaAPIURL(apiURL string) bool {
+	apiURL = strings.TrimSpace(apiURL)
+	if apiURL == "" {
+		return false
+	}
+	host := apiURL
+	if u, err := url.Parse(apiURL); err == nil && u.Host != "" {
+		host = u.Host
+	}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return config.ValidateLANAddress(host) == nil
+}
 
 // RunRestoreProvider starts a restore provider execution asynchronously.
 func (s *NodeAgentServer) RunRestoreProvider(ctx context.Context, req *node_agentpb.RunRestoreProviderRequest) (*node_agentpb.RunRestoreProviderResponse, error) {
@@ -676,7 +693,7 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 	}
 
 	baseArgs := []string{"restore", "--cluster", cluster, "--snapshot-tag", snapshotTag}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+	if shouldPassScyllaAPIURL(apiURL) {
 		baseArgs = append(baseArgs, "--api-url", apiURL)
 	}
 	for _, loc := range strings.Split(locations, ",") {
@@ -768,7 +785,7 @@ func (s *NodeAgentServer) restoreScyllaProvider(ctx context.Context, req *node_a
 	if taskID != "" {
 		outputs["task_id"] = taskID
 		progressArgs := []string{"task", "progress", taskID, "--cluster", clusterRef}
-		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		if shouldPassScyllaAPIURL(apiURL) {
 			progressArgs = append(progressArgs, "--api-url", apiURL)
 		}
 		consecutiveErrors := 0
@@ -1329,7 +1346,7 @@ func parseScyllaSize(s string) uint64 {
 // scheduled). Returns the IDs that were deleted.
 func deduplicateScyllaClusters(ctx context.Context, targetName, apiURL string) []string {
 	args := []string{"cluster", "list"}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+	if shouldPassScyllaAPIURL(apiURL) {
 		args = append(args, "--api-url", apiURL)
 	}
 	out, err := exec.CommandContext(ctx, "sctool", args...).CombinedOutput()
@@ -1355,7 +1372,7 @@ func deduplicateScyllaClusters(ctx context.Context, targetName, apiURL string) [
 	activeID := ""
 	for _, e := range matching {
 		taskArgs := []string{"tasks", "-c", e.id}
-		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		if shouldPassScyllaAPIURL(apiURL) {
 			taskArgs = append(taskArgs, "--api-url", apiURL)
 		}
 		tOut, tErr := exec.CommandContext(ctx, "sctool", taskArgs...).CombinedOutput()
@@ -1404,7 +1421,7 @@ func deduplicateScyllaClusters(ctx context.Context, targetName, apiURL string) [
 			continue
 		}
 		delArgs := []string{"cluster", "delete", "-c", e.id}
-		if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+		if shouldPassScyllaAPIURL(apiURL) {
 			delArgs = append(delArgs, "--api-url", apiURL)
 		}
 		if err := exec.CommandContext(ctx, "sctool", delArgs...).Run(); err != nil {
@@ -1426,7 +1443,7 @@ type scyllaClusterEntry struct {
 // share the same name" errors. Falls back to targetName if resolution fails.
 func resolveScyllaClusterID(ctx context.Context, targetName, apiURL string) string {
 	args := []string{"cluster", "list"}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+	if shouldPassScyllaAPIURL(apiURL) {
 		args = append(args, "--api-url", apiURL)
 	}
 	out, err := exec.CommandContext(ctx, "sctool", args...).CombinedOutput()
@@ -1481,7 +1498,7 @@ func syncScyllaManagerAuthToken(ctx context.Context, cluster, apiURL string, out
 
 	// Update the cluster in scylla-manager with the current token.
 	args := []string{"cluster", "update", "--cluster", cluster, "--auth-token", token}
-	if apiURL != "" && apiURL != "http://127.0.0.1:5080" {
+	if shouldPassScyllaAPIURL(apiURL) {
 		args = append(args, "--api-url", apiURL)
 	}
 	out, err := exec.CommandContext(ctx, "sctool", args...).CombinedOutput()

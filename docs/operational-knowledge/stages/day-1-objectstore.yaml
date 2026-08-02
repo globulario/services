@@ -128,28 +128,28 @@ entries:
       cli_commands:
         - "globular cluster nodes get <node_id>"
 
-  - id: ops.day-1.minio.minimum-3-storage-nodes
+  - id: ops.day-1.minio.capacity-posture
     type: DECISION
-    title: "MinIO requires 3 storage nodes for distributed mode"
-    tags: [day-1, objectstore, minio, founding-quorum]
+    title: "MinIO storage count is capacity posture, not platform admission"
+    tags: [day-1, objectstore, minio, quorum, capacity]
     applies_when:
       cluster_phases: [day-1, day-2]
       services_present: []
     content: |
-      Distributed MinIO requires a minimum of 3 nodes with the `storage` profile. EC:1 with 3
-      drives can lose 1 node. With fewer than 3 storage nodes, the cluster operates standalone
-      (single point of failure) — this is the day-0 baseline.
+      MinIO/objectstore topology determines durability posture. More storage nodes improve
+      survival characteristics, but the controller must not convert a preferred storage-node
+      count into a platform-wide bootstrap, join, rollout, or profile-assignment blocker.
 
-      The first 3 nodes of any cluster MUST have profiles `core`, `control-plane`, `storage`.
-      This is enforced at join in `enforceFoundingProfiles()` and cannot be bypassed. If a storage
-      node leaves, another must replace it before MinIO topology can be modified.
+      Objectstore topology changes are component-local operations and may still require
+      explicit safety checks. Ordinary service convergence continues while capacity is reported
+      as risk/posture.
 
       Loop-device-backed `/mnt/data` (a file mounted as a fake block device) is technically
       possible but NOT recommended for production — the backing file lives on root fs and a
       reboot can lose data if the file was deleted while held open.
     links:
       awareness_invariants:
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
 
   - id: ops.day-1.minio.path-recommendation
     type: REFERENCE

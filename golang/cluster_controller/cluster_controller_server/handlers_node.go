@@ -12,13 +12,6 @@ package main
 // handler MUST be leader-only and the request MUST carry the
 // explicit-removal contract (matching node_removal_requests.go).
 //
-// UpdateNodeProfiles also bears the founding-quorum guard: removing
-// the storage profile from a node that would drop the cluster
-// below 3 storage-capable nodes is rejected here, not by the
-// reconciler. The check belongs at the entry point so a misclick
-// in admin tooling cannot start an operation that becomes
-// impossible to complete safely.
-
 import (
 	"context"
 	"fmt"
@@ -129,12 +122,6 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *cluster_controllerp
 	if node == nil {
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
-
-	// INVARIANT: Cannot remove foundational profiles from a node if doing so
-	// would drop the cluster below MinQuorumNodes for storage. The first 3
-	// nodes MUST have core + control-plane + storage for etcd/ScyllaDB/MinIO quorum.
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
-	normalized = enforceFoundingProfiles(normalized, storageCount)
 
 	node.Profiles = normalized
 	node.LastSeen = time.Now()

@@ -231,7 +231,7 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	node.AgentEndpoint = newEndpoint
 	node.ReportedAt = reportedAt // node self-reported clock (diagnostics only)
 	node.LastSeen = receivedAt   // server receipt clock — drives staleness; never the node's clock
-	changed = true // LastSeen must always persist so followers see fresh heartbeats
+	changed = true               // LastSeen must always persist so followers see fresh heartbeats
 	srv.removeStaleNodesLocked(nodeID, newIdentity, newEndpoint)
 
 	if !unitsEqual(node.Units, units) {
@@ -337,6 +337,18 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	// Store hardware capabilities if reported.
 	if caps := nodeStatus.GetCapabilities(); caps != nil {
 		node.Capabilities = capsToStored(caps)
+		if refineNodeProfilesFromCapabilities(node, caps, srv.nodeHasSignedJoinPlanLocked(nodeID)) {
+			if node.Identity.Hostname != "" {
+				domain := "globular.internal"
+				if srv.state.ClusterNetworkSpec != nil && srv.state.ClusterNetworkSpec.ClusterDomain != "" {
+					domain = srv.state.ClusterNetworkSpec.ClusterDomain
+				}
+				node.AdvertiseFqdn = node.Identity.Hostname + "." + domain
+			}
+			srv.state.NetworkingGeneration++
+			changed = true
+			log.Printf("ReportNodeStatus: hardware-refined profiles for %s: %v", nodeID, node.Profiles)
+		}
 	}
 	// Phase 3: store installed unit file inventory and inventory_complete flag.
 	if inventoryComplete || len(installedUnitFiles) > 0 {
@@ -1091,9 +1103,8 @@ func deriveProfilesFromInstalled(installed map[string]string) []string {
 // default_profiles is the controller-owned placement intent
 // (profile.intent_is_controller_owned_placement_contract), applying it here is
 // the sanctioned application of intent, not a silencing of the orphaned-install
-// warning. Founding quorum is preserved: `derived` already carries the
-// core/control-plane/storage trio when those services are installed, and
-// normalizeProfiles dedupes the union. Returns derived unchanged when no
+// warning. Existing derived placement intent is preserved when those services
+// are installed, and normalizeProfiles dedupes the union. Returns derived unchanged when no
 // default_profiles are configured.
 func mergeDefaultProfilesIntoDerived(derived, defaults []string) []string {
 	if len(defaults) == 0 {
