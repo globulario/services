@@ -1,12 +1,9 @@
 name: PR 221 review fixes
 
 on:
-  push:
-    branches:
-      - split/1-package-identity-and-durability
-    paths:
-      - scripts/pr221-review-fixes.py
-      - .github/workflows/pr221-review-fixes.yml
+  pull_request:
+    branches: [master]
+    types: [synchronize]
 
 permissions:
   contents: write
@@ -17,6 +14,7 @@ env:
 
 jobs:
   apply:
+    if: github.event.pull_request.number == 221 && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout services branch
