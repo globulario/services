@@ -177,15 +177,16 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		log.Printf("ReportNodeStatus: auto-registering unknown node %s (hostname=%s endpoint=%s)",
 			nodeID, newIdentity.Hostname, newEndpoint)
 		node = &nodeState{
-			NodeID:         nodeID,
-			Identity:       newIdentity,
-			AgentEndpoint:  newEndpoint,
-			LastSeen:       receivedAt, // server receipt clock (staleness decisions)
-			ReportedAt:     reportedAt, // node self-reported clock (diagnostics)
-			Status:         "recovering",
-			Profiles:       []string{}, // do not assume privileged profiles
-			Metadata:       make(map[string]string),
-			BootstrapPhase: BootstrapWorkloadReady, // already running, skip bootstrap
+			NodeID:              nodeID,
+			Identity:            newIdentity,
+			AgentEndpoint:       newEndpoint,
+			LastSeen:            receivedAt, // server receipt clock (staleness decisions)
+			ReportedAt:          reportedAt, // node self-reported clock (diagnostics)
+			Status:              "recovering",
+			Profiles:            []string{}, // do not assume privileged profiles
+			PlacementGeneration: 1,          // restored node has an established empty placement set
+			Metadata:            make(map[string]string),
+			BootstrapPhase:      BootstrapWorkloadReady, // already running, skip bootstrap
 		}
 		if srv.state.Nodes == nil {
 			srv.state.Nodes = make(map[string]*nodeState)
@@ -388,7 +389,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		if len(derived) > 0 {
 			log.Printf("ReportNodeStatus: auto-derived profiles for %s: %v (from %d installed packages)",
 				nodeID, derived, len(installedVersions))
-			node.Profiles = derived
+			// D1c 1a: canonical placement mutation — bumps PlacementGeneration on real change.
+			applyNodePlacementProfilesLocked(node, derived)
 			// Set advertise FQDN from hostname + cluster domain
 			if node.Identity.Hostname != "" {
 				domain := "globular.internal"
@@ -732,6 +734,43 @@ func (srv *server) ListServiceDesiredVersions(ctx context.Context, _ *cluster_co
 	return out, nil
 }
 
+// validateServiceReleaseSpec enforces the D1a interim contract: NO
+// NodeAssignment may be accepted until EVERY semantic in that structure is
+// consumed by the resolver. Both the dormant explicit-placement grant
+// (Placement=="GRANT") and the dormant per-node version override are unconsumed
+// today, so ANY non-empty NodeAssignments is rejected — accepted-but-ignored
+// operator intent is the dangerous state. The invariant is not "reject grants";
+// it is "reject unconsumed NodeAssignments", one honest structure-wide boundary.
+//
+// Scope: D1 implements additive placement GRANTs only. Version override is
+// explicitly OUT OF SCOPE and stays rejected even after grants are enabled
+// (D1b), unless it later receives its own contract and consuming resolver — so
+// D1b must not blanket-lift this rejection for the whole structure.
+func validateServiceReleaseSpec(spec *cluster_controllerpb.ServiceReleaseSpec) error {
+	if spec == nil {
+		return nil
+	}
+	if len(spec.NodeAssignments) != 0 {
+		return status.Error(codes.InvalidArgument,
+			"node_assignments are not yet supported and are rejected rather than silently ignored")
+	}
+	return nil
+}
+
+// applyServiceRelease is the CANONICAL ServiceRelease persistence choke point.
+// EVERY write of a ServiceRelease MUST route through here so validation cannot
+// be bypassed by any writer, present or future — making silent acceptance
+// structurally impossible (not a fence with a politely labeled gap). It
+// validates the spec, then delegates to the generic resource store.
+func (srv *server) applyServiceRelease(ctx context.Context, rel *cluster_controllerpb.ServiceRelease) (interface{}, error) {
+	if rel != nil {
+		if err := validateServiceReleaseSpec(rel.Spec); err != nil {
+			return nil, err
+		}
+	}
+	return srv.resources.Apply(ctx, "ServiceRelease", rel)
+}
+
 func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest) (*cluster_controllerpb.ServiceRelease, error) {
 	if !srv.isLeader() {
 		resp := &cluster_controllerpb.ServiceRelease{}
@@ -757,8 +796,11 @@ func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_control
 	if obj.Meta.Name == "" {
 		obj.Meta.Name = obj.Spec.PublisherID + "/" + canonicalServiceName(obj.Spec.ServiceName)
 	}
-	applied, err := srv.resources.Apply(ctx, "ServiceRelease", obj)
+	applied, err := srv.applyServiceRelease(ctx, obj)
 	if err != nil {
+		if status.Code(err) == codes.InvalidArgument {
+			return nil, err // validation rejection — surface the precise code
+		}
 		return nil, status.Errorf(codes.Internal, "apply service release: %v", err)
 	}
 	return applied.(*cluster_controllerpb.ServiceRelease), nil

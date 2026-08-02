@@ -969,7 +969,7 @@ func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_contro
 	if err == nil && obj != nil {
 		if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Spec != nil {
 			rel.Spec.Removing = true
-			if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+			if _, err := srv.applyServiceRelease(ctx, rel); err != nil {
 				return nil, status.Errorf(codes.Internal, "mark release %s for removal: %v", releaseName, err)
 			}
 		}

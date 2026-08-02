@@ -773,6 +773,365 @@ service PackageRepository {
     };
   };
 
+  // RepairIndex reconstitutes PUBLISHED index authority for artifacts whose local
+  // CAS blob + manifest sidecar are intact but whose repository index row is
+  // UNKNOWN / missing / skeleton / non-PUBLISHED — a bulk, owner-driven,
+  // dry-run-by-default sweep. Identity comes only from the on-disk manifest (never
+  // minted); refuses when CAS evidence is missing/contradictory; never touches
+  // desired state; never elevates REVOKED/QUARANTINED. SCAR-3. Used by
+  // `globular repository repair-index`.
+  rpc RepairIndex(RepairIndexRequest) returns(RepairIndexResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.index.repair"
+      permission: "admin"
+      resource_template: "/repository/index"
+      default_role_hint: "admin"
+    };
+  };
+
+  // ExplainArtifact composes manifest, ledger, blob, signature, and pipeline
+  // state into a single operator-readable answer. Read-only. Used by
+  // `globular repository explain` — the AI/operator cockpit command.
+  rpc ExplainArtifact(ExplainArtifactRequest) returns(ExplainArtifactResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.artifact.explain"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Phase CLI-B: signing + trusted publishers ───────────────────────────
+
+  // TrustPublisher registers a trusted publisher key. Admin-only.
+  rpc TrustPublisher(TrustPublisherRequest) returns(TrustPublisherResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.trust.publisher"
+      permission: "admin"
+      collection_template: "/repository/trust"
+      default_role_hint: "admin"
+    };
+  };
+
+  // RevokePublisherKey marks a trusted publisher key as REVOKED. Terminal.
+  rpc RevokePublisherKey(RevokePublisherKeyRequest) returns(RevokePublisherKeyResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.trust.revoke"
+      permission: "admin"
+      collection_template: "/repository/trust"
+      default_role_hint: "admin"
+    };
+  };
+
+  // ListTrustedPublishers enumerates publisher keys and their trust state.
+  rpc ListTrustedPublishers(ListTrustedPublishersRequest) returns(ListTrustedPublishersResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.trust.list"
+      permission: "read"
+      collection_template: "/repository/trust"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // RegisterArtifactSignature stores a detached signature for an artifact.
+  // Used by signing tools after they sign an artifact's digest with a
+  // trusted private key. The repository never stores the private key.
+  rpc RegisterArtifactSignature(RegisterArtifactSignatureRequest) returns(RegisterArtifactSignatureResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.signature.register"
+      permission: "write"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "editor"
+    };
+  };
+
+  // VerifyArtifactSignature returns the trust outcome for the most recent
+  // signature on an artifact. Read-only.
+  rpc VerifyArtifactSignature(VerifyArtifactSignatureRequest) returns(VerifyArtifactSignatureResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.signature.verify"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ListArtifactSignatures returns every signature recorded for an artifact.
+  rpc ListArtifactSignatures(ListArtifactSignaturesRequest) returns(ListArtifactSignaturesResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.signature.list"
+      permission: "read"
+      resource_template: "/repository/artifacts/{ref}"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Phase CLI-C: rollback ───────────────────────────────────────────────
+
+  // RecordInstalledRevision is called by the node-agent (or the controller
+  // on its behalf) after an install/upgrade/rollback succeeds. The repository
+  // owns the installed-revision history table; rollback selection reads it.
+  rpc RecordInstalledRevision(RecordInstalledRevisionRequest) returns(RecordInstalledRevisionResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.revision.record"
+      permission: "write"
+      collection_template: "/repository/revisions"
+      default_role_hint: "editor"
+    };
+  };
+
+  // ListInstalledRevisions returns the install history for a package.
+  rpc ListInstalledRevisions(ListInstalledRevisionsRequest) returns(ListInstalledRevisionsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.revision.list"
+      permission: "read"
+      collection_template: "/repository/revisions"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ListRollbackCandidates returns the previous installable revisions for a
+  // package, with eligibility flags (target must be PUBLISHED, signature must
+  // pass policy, target must not be REVOKED, etc.).
+  rpc ListRollbackCandidates(ListRollbackCandidatesRequest) returns(ListRollbackCandidatesResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.rollback.candidates"
+      permission: "read"
+      collection_template: "/repository/revisions"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // ── Phase F: config receipts + repository findings ─────────────────────
+
+  rpc RecordConfigReceipt(RecordConfigReceiptRequest) returns(RecordConfigReceiptResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.config.receipt.record"
+      permission: "write"
+      collection_template: "/repository/config_receipts"
+      default_role_hint: "editor"
+    };
+  };
+
+  rpc ListConfigReceipts(ListConfigReceiptsRequest) returns(ListConfigReceiptsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.config.receipt.list"
+      permission: "read"
+      collection_template: "/repository/config_receipts"
+      default_role_hint: "viewer"
+    };
+  };
+
+  rpc ListRepositoryFindings(ListRepositoryFindingsRequest) returns(ListRepositoryFindingsResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.findings.list"
+      permission: "read"
+      collection_template: "/repository/findings"
+      default_role_hint: "viewer"
+    };
+  };
+
+  // GetRepositoryStatus returns the live operational mode and capability status.
+  // This RPC NEVER calls requireHealthy() — it must answer even when ScyllaDB
+  // is down. Use it to determine repository health before making capability decisions.
+  rpc GetRepositoryStatus(GetRepositoryStatusRequest) returns(GetRepositoryStatusResponse) {
+    option (globular.auth.authz) = {
+      action: "repository.status.read"
+      permission: "read"
+      collection_template: "/repository/status"
+      default_role_hint: "viewer"
+    };
+  };
+}
+
+// ── Operator verify / repair / explain messages ─────────────────────────────
+
+// ArtifactVerifyStatus is the outcome of an integrity probe (VerifyArtifact).
+// PUBLISHED + blob_present + size_match + digest_match maps to OK; every
+// other status carries a specific reason for the operator / AI executor.
+enum ArtifactVerifyStatus {
+  ARTIFACT_VERIFY_STATUS_UNSPECIFIED = 0;
+  ARTIFACT_VERIFY_OK                       = 1;
+  ARTIFACT_VERIFY_BROKEN_MISSING_BLOB      = 2;
+  ARTIFACT_VERIFY_BROKEN_CHECKSUM_MISMATCH = 3;
+  ARTIFACT_VERIFY_BROKEN_LEDGER_MISSING    = 4;
+  ARTIFACT_VERIFY_BROKEN_MANIFEST_MISSING  = 5;
+  ARTIFACT_VERIFY_BROKEN_SIGNATURE_MISSING = 6;
+  ARTIFACT_VERIFY_BROKEN_SIGNATURE_INVALID = 7;
+  ARTIFACT_VERIFY_BROKEN_PROVENANCE_INVALID = 8;
+  ARTIFACT_VERIFY_QUARANTINED              = 9;
+  ARTIFACT_VERIFY_REVOKED                  = 10;
+  ARTIFACT_VERIFY_INCONCLUSIVE             = 11;
+}
+
+message VerifyArtifactRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64  build_number       = 2;  // 0 = resolve latest
+  string build_id           = 3;  // optional exact build_id
+  bool   verify_digest      = 4;  // if true, recompute sha256 over the blob
+  bool   verify_signature   = 5;  // reserved — Phase CLI-B
+  bool   include_ledger     = 6;  // include ledger row presence in response
+  bool   include_manifest   = 7;  // include manifest fields in response
+  bool   include_blob       = 8;  // include blob_key + size details
+}
+
+message VerifyArtifactResponse {
+  ArtifactRef ref          = 1;
+  string artifact_key      = 2;
+  string artifact_state    = 3;   // ArtifactPipelineState as string
+  PublishState publish_state = 4;
+  bool   installable       = 5;
+  ArtifactVerifyStatus status = 6;
+  string reason            = 7;
+  string blob_key          = 8;
+  int64  expected_size     = 9;
+  int64  actual_size       = 10;
+  string expected_digest   = 11;
+  string actual_digest     = 12;
+  string signature_status  = 13; // reserved — Phase CLI-B
+  string provenance_status = 14; // reserved — Phase CLI-B
+  bool   repairable        = 15;
+  string recommended_action = 16;
+}
+
+// RepairArtifactRequest asks the repository to repair a broken artifact by
+// re-importing it from the upstream source recorded in its manifest.
+message RepairArtifactRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64  build_number = 2;  // 0 = resolve latest
+  bool   dry_run      = 3;  // preview only
+  bool   force        = 4;  // allow repair from any non-REVOKED state
+  bool   allow_quarantine_override = 5;  // permit repair of QUARANTINED rows
+  string operator_subject = 6;  // for audit; usually filled in by the server from auth context
+}
+
+message RepairArtifactResponse {
+  ArtifactRef ref       = 1;
+  string artifact_key   = 2;
+  string action         = 3;   // repair_blob | repair_checksum_mismatch | skipped_ok | blocked_revoked | blocked_quarantined | failed
+  string detail         = 4;
+  string artifact_state_before = 5;
+  string artifact_state_after  = 6;
+  string workflow_run_id = 7;  // when repair started a workflow run; empty otherwise
+}
+
+// RepairIndexRequest drives the bulk CAS->index reconstitution (SCAR-3). The safe
+// default is NO-MUTATION: an omitted/false `commit` is a dry-run (report only).
+message RepairIndexRequest {
+  bool   commit           = 1;  // false (default) = dry-run report; true = apply
+  string publisher_filter = 2;  // optional: restrict to one publisher id
+  string name_filter      = 3;  // optional: restrict to one package name
+  string operator_subject = 4;  // for audit; usually filled by the server from auth context
+}
+
+message RepairIndexItem {
+  string artifact_key  = 1;
+  string name          = 2;
+  string version       = 3;
+  string platform      = 4;
+  string build_id      = 5;  // echoed from the on-disk manifest evidence, never minted
+  string state_before  = 6;
+  string state_after   = 7;
+  string action        = 8;  // would_repair_publish_index | repair_publish_index | refused | skipped_ok | skipped_policy
+  string detail        = 9;
+}
+
+message RepairIndexResponse {
+  bool   dry_run        = 1;
+  int32  scanned        = 2;
+  int32  repairable     = 3;
+  int32  repaired       = 4;
+  int32  refused        = 5;
+  int32  skipped_ok     = 6;
+  int32  skipped_policy = 7;
+  repeated RepairIndexItem items = 8;
+}
+
+// ExplainArtifactRequest asks for one operator-readable answer about an artifact.
+message ExplainArtifactRequest {
+  ArtifactRef ref = 1 [(globular.auth.resource) = { kind: "artifact", scope_anchor: true }];
+  int64  build_number = 2;
+}
+
+message ExplainArtifactResponse {
+  ArtifactRef ref      = 1;
+  string artifact_key  = 2;
+  string artifact_state = 3;
+  PublishState publish_state = 4;
+  string blob_key      = 5;
+  bool   blob_present  = 6;
+  int64  expected_size = 7;
+  int64  actual_size   = 8;
+  string expected_digest = 9;
+  string actual_digest   = 10;
+  bool   ledger_present  = 11;
+  bool   manifest_present = 12;
+  string signature_status = 13;
+  bool   installable     = 14;
+  string recommended_action = 15;
+  string related_workflow_run_id = 16;
+  ArtifactVerifyStatus verify_status = 17;
+  string detail        = 18;
+  // Source availability — populated when blob is missing locally.
+  // Each entry is "name:type:status:reason" (status: PRESENT|ABSENT|REACHABLE|UNREACHABLE|UNCONFIGURED).
+  repeated string source_availability = 19;
+  // True when blob is absent locally but at least one source can provide it.
+  bool repairable = 20;
+}
+
+// ── ResolveArtifact (deterministic resolver) ────────────────────────────────
+//
+// ResolveArtifact resolves a package reference to exactly one concrete build_id
+// or returns a hard error. This is the canonical resolution endpoint for the
+// controller planning phase.
+//
+// Contract (Invariant E):
+//   - Result is always a single concrete build_id — never a list
+//   - If zero artifacts match: hard error with NOT_FOUND
+//   - If multiple artifacts match after all filters: hard error (ambiguous)
+//   - Only PUBLISHED artifacts are eligible unless caller passes channel override
+//   - DEV and CANDIDATE are never returned unless explicitly requested
+//   - "latest" resolution is valid here, but callers MUST persist build_id into
+//     desired state immediately. The reconciler MUST NOT call this at execution
+//     time — it must read build_id from desired state only.
+message ResolveArtifactRequest {
+  string publisher_id = 1;         // e.g. "core@globular.io"
+  string name = 2;                 // package name
+  ArtifactKind kind = 3;           // artifact kind (0 = SERVICE by default)
+  string platform = 4;             // e.g. "linux_amd64"
+  // Channel to resolve from. Defaults to STABLE. Controller must use STABLE.
+  ArtifactChannel channel = 5;
+  // Optional: exact version to resolve (e.g. "1.4.2"). When empty, returns the
+  // latest PUBLISHED build on the requested channel.
+  string version = 6;
+  // Optional: exact build_id to resolve (highest-priority match if present).
+  string build_id = 7;
+}
+
+message ResolveArtifactResponse {
+  // The resolved artifact manifest. build_id is the sole convergence identity.
+  ArtifactManifest manifest = 1;
+  // Human-readable description of how resolution was performed.
+  string resolution_source = 2;  // e.g. "exact-build_id", "latest-stable", "exact-version"
+}
+
+// ResolveByEntrypointChecksum — reverse lookup from binary checksum to artifact.
+message ResolveByEntrypointChecksumRequest {
+  string checksum = 1; // sha256 hex string of the binary (no "sha256:" prefix)
+  string platform = 2; // optional filter (default: "linux_amd64")
+}
+
+message ResolveByEntrypointChecksumResponse {
+  ArtifactManifest manifest = 1; // the matching artifact, or nil if not found
+}
+
+// ── UpdateArtifactBinary (delta deploy) ─────────────────────────────────────
+
+message UpdateArtifactBinaryRequest {
+  oneof payload {
+    UpdateArtifactBinaryHeader header = 1;
+    bytes chunk = 2;
+  }
 }
 
 message UpdateArtifactBinaryHeader {

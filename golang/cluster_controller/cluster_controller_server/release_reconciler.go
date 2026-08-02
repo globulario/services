@@ -570,7 +570,7 @@ func (srv *server) patchReleaseStatus(ctx context.Context, releaseName string, f
 		}
 	}
 
-	_, err = srv.resources.Apply(ctx, "ServiceRelease", rel)
+	_, err = srv.applyServiceRelease(ctx, rel)
 	return err
 }
 

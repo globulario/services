@@ -121,11 +121,40 @@ const (
 	ReleasePhaseRolledBack = "ROLLED_BACK" // LEGACY: rollback is now a manual operation, not an automatic phase
 )
 
-// NodeAssignment is an optional per-node version override within a ServiceRelease.
+// NodeAssignmentPlacementGrant is the only recognized explicit-placement value
+// for NodeAssignment.Placement. A GRANT additively authorizes the enclosing
+// ServiceRelease's service on NodeAssignment.NodeID, independent of the node's
+// profiles — the D1 placement model:
+//
+//	placement_authorized(node, pkg) = profile_authorized(node, pkg)
+//	                                  OR explicit_grant(node_id, pkg)
+//
+// Profiles remain broad capability/class placement; grants are surgical
+// additive exceptions. There is deliberately NO DENY semantic in D1.
+//
+// NOT YET CONSUMED (D1a): the placement resolver does not incorporate grants
+// yet (that is D1b). Until it does, a spec carrying a GRANT is HARD-REJECTED at
+// write time — accepted-but-ignored operator intent is the dangerous state, so
+// it is refused rather than persisted, warned about, or kept "for future use".
+const NodeAssignmentPlacementGrant = "GRANT"
+
+// NodeAssignment targets a single node within a ServiceRelease. The service
+// identity of the assignment is the ENCLOSING release's (PublisherID +
+// ServiceName) resolved through the component catalog — an assignment never
+// carries its own package identity (no second catalog, no second placement law).
+//
+// Placement is the single-semantic explicit-placement marker (one field, one
+// meaning, per identity.field_semantic_is_single_writer_defined):
+//
+//	""    → no placement grant (legacy optional per-node version override only)
+//	GRANT → additively authorize the release's service on NodeID (D1 model)
+//
+// NodeID is the immutable, hardware-derived node_id (never hostname/IP).
 type NodeAssignment struct {
-	NodeID  string            `json:"node_id,omitempty"`
-	Version string            `json:"version,omitempty"` // Empty = use release default
-	Pins    map[string]string `json:"pins,omitempty"`
+	NodeID    string            `json:"node_id,omitempty"`
+	Version   string            `json:"version,omitempty"` // Empty = use release default
+	Pins      map[string]string `json:"pins,omitempty"`
+	Placement string            `json:"placement,omitempty"` // "" | NodeAssignmentPlacementGrant
 }
 
 // ServiceReleaseSpec declares the desired state of a service across the cluster.

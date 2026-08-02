@@ -123,7 +123,10 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *cluster_controllerp
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
 
-	node.Profiles = normalized
+	// D1c 1a: route the profile write through the single owner mutation so a
+	// real (set-level) change atomically bumps PlacementGeneration; an idempotent
+	// re-apply leaves both profiles and the generation untouched.
+	applyNodePlacementProfilesLocked(node, normalized)
 	node.LastSeen = time.Now()
 	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist node profiles: %v", err)
@@ -516,7 +519,7 @@ func (srv *server) cleanNodeFromServiceReleases(ctx context.Context, nodeID stri
 		}
 		rel.Status.Nodes = filtered
 		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
-		if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+		if _, err := srv.applyServiceRelease(ctx, rel); err != nil {
 			log.Printf("remove-node: apply ServiceRelease %s after purge: %v", rel.Meta.Name, err)
 			continue
 		}

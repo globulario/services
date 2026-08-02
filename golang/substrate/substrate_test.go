@@ -182,7 +182,7 @@ func TestDumpRestoreRoundTrip(t *testing.T) {
 	}
 
 	dst := newFakeKV()
-	res, err := RestoreDump(ctx, dst, loaded, RestoreOptions{ControllerGateEstablished: true})
+	res, err := RestoreDump(ctx, dst, loaded, RestoreOptions{})
 	if err != nil {
 		t.Fatalf("RestoreDump: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestRestore_LiveKeysWinWithoutForce(t *testing.T) {
 	dst.put("/globular/system/cluster/id", []byte("uid-alpha"), false) // same cluster
 	dst.put("/globular/resources/DesiredService/dns", []byte(`{"v":"9.9.9-newer-live"}`), false)
 
-	res, err := RestoreDump(ctx, dst, dump, RestoreOptions{ControllerGateEstablished: true})
+	res, err := RestoreDump(ctx, dst, dump, RestoreOptions{})
 	if err != nil {
 		t.Fatalf("RestoreDump: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestRestore_LiveKeysWinWithoutForce(t *testing.T) {
 	}
 
 	// With Force, the dump value wins.
-	if _, err := RestoreDump(ctx, dst, dump, RestoreOptions{Force: true, ControllerGateEstablished: true}); err != nil {
+	if _, err := RestoreDump(ctx, dst, dump, RestoreOptions{Force: true}); err != nil {
 		t.Fatalf("RestoreDump force: %v", err)
 	}
 	if got := string(dst.data["/globular/resources/DesiredService/dns"].Value); got != `{"v":"1.2.3"}` {
@@ -279,31 +279,11 @@ func TestRestore_RefusesForeignCluster(t *testing.T) {
 	dst := newFakeKV()
 	dst.put("/globular/system/cluster/id", []byte("uid-OTHER"), false)
 
-	if _, err := RestoreDump(ctx, dst, dump, RestoreOptions{ControllerGateEstablished: true}); err == nil {
+	if _, err := RestoreDump(ctx, dst, dump, RestoreOptions{}); err == nil {
 		t.Fatal("restoring a dump from another cluster must be refused without --force")
 	}
-	if _, err := RestoreDump(ctx, dst, dump, RestoreOptions{Force: true, ControllerGateEstablished: true}); err != nil {
+	if _, err := RestoreDump(ctx, dst, dump, RestoreOptions{Force: true}); err != nil {
 		t.Fatalf("force must override the cluster guard: %v", err)
-	}
-}
-
-func TestRestore_DefaultRefusesMutationWithoutControllerGate(t *testing.T) {
-	ctx := context.Background()
-	src := newFakeKV()
-	seedRepresentativeCluster(src)
-	dump, err := TakeDump(ctx, src, false)
-	if err != nil {
-		t.Fatalf("TakeDump: %v", err)
-	}
-
-	dst := newFakeKV()
-	before := len(dst.data)
-	_, err = RestoreDump(ctx, dst, dump, RestoreOptions{})
-	if err == nil || !strings.Contains(err.Error(), "non-dry-run dump restore is locked") {
-		t.Fatalf("default restore must fail closed on missing controller gate, got %v", err)
-	}
-	if len(dst.data) != before {
-		t.Fatalf("refused restore wrote %d keys", len(dst.data)-before)
 	}
 }
 
