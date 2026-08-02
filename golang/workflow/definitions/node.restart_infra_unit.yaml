@@ -1,0 +1,78 @@
+apiVersion: workflow.globular.io/v1alpha1
+kind: WorkflowDefinition
+metadata:
+  name: node.restart_infra_unit
+  displayName: Restart stateful infrastructure unit
+  description: >-
+    Restart one stateful infrastructure component (etcd, MinIO, ScyllaDB) on one
+    node as a DURABLE child run, then verify its canonical systemd unit became
+    active.
+
+    This exists because infra_unhealthy remediation used to be performed inline
+    by the controller: it called node-agent ControlService directly, minted a run
+    id from time.Now().UnixNano(), and stored a synthetic result in a
+    process-local map. No workflow run was ever persisted, so the mutation had no
+    durable identity, retries allocated a new one every time, and the reported
+    child result resolved to nothing. Routing it through the Workflow Service
+    makes the run persist BEFORE the restart, gives retries a stable identity,
+    and puts the mutation behind the governed node-agent boundary.
+
+    Scope is deliberately narrow. The verification proves the canonical unit is
+    active — not that the component has converged. Domain health (raft
+    membership, pool quorum, gossip) remains the next reconciliation scan's
+    responsibility, so a restart cannot self-certify deep convergence.
+spec:
+  inputSchema:
+    type: object
+    required:
+      - cluster_id
+      - parent_run_id
+      - parent_step_id
+      - node_id
+      - component
+      - agent_endpoint
+      - finding_id
+    properties:
+      cluster_id: { type: string }
+      # Durable remediation identity. These are what make the correlation id
+      # stable across retries — never a timestamp.
+      parent_run_id: { type: string }
+      parent_step_id: { type: string }
+      finding_id: { type: string }
+      node_id: { type: string }
+      agent_endpoint: { type: string }
+      # PACKAGE identity, never a systemd unit name. packageToUnit /
+      # identity.UnitForService is the unit-name authority: scylladb resolves to
+      # scylla-server.service, not globular-scylladb.service. Accepting a raw
+      # unit here would let a caller bypass that authority.
+      component:
+        type: string
+        enum: [etcd, minio, scylladb]
+  defaults: {}
+  strategy:
+    mode: single
+  steps:
+    - id: restart_unit
+      title: Restart the infrastructure unit
+      actor: node-agent
+      action: node.restart_package_service
+      with:
+        node_id: $.node_id
+        agent_endpoint: $.agent_endpoint
+        package_name: $.component
+      timeout: 5m
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: restart_infra_unit
+      verification:
+        actor: node-agent
+        action: node.verify_package_runtime
+        with:
+          node_id: $.node_id
+          agent_endpoint: $.agent_endpoint
+          package_name: $.component
+          package_kind: INFRASTRUCTURE
+          health_check: service_healthy
+        success:
+          expr: healthy == true

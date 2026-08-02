@@ -827,6 +827,16 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 				"node_id":   nodeID,
 				"component": component,
 				"endpoint":  endpoint,
+				// Durable remediation identity for the child run's correlation
+				// id. Deliberately NOT the parent reconcile run: that is
+				// "reconcile:<UnixMilli>", a fresh run every tick, so keying off
+				// it would allocate a new child on every cycle for the same
+				// persistent drift. `key` is the same stable identity the
+				// backoff tracker uses, so repeated ticks observing one drift
+				// item reconcile to ONE child run.
+				"parent_run_id":  "cluster.reconcile/" + srv.cfg.ClusterDomain,
+				"parent_step_id": key,
+				"finding_id":     driftEntityRef(item),
 			},
 		}, nil
 
@@ -1208,17 +1218,33 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 			}
 
 			if workflowName == "node.restart_infra_unit" {
+				// Durable child run, same shape as the release branches below.
+				//
+				// This used to call srv.restartInfraUnit inline — the controller
+				// dialled node-agent ControlService itself, minted a run id from
+				// time.Now().UnixNano() AFTER the mutation, and stored a
+				// synthetic status in this process-local map. No Workflow Service
+				// run ever existed, so the mutation had no durable identity, every
+				// retry allocated a new one, the terminal result vanished on
+				// restart, and the returned child id resolved to nothing.
 				nodeID := fmt.Sprint(inputs["node_id"])
 				component := fmt.Sprint(inputs["component"])
 				endpoint := fmt.Sprint(inputs["endpoint"])
-				ok, message := srv.restartInfraUnit(ctx, nodeID, endpoint, component)
-				runID := fmt.Sprintf("restart-%s-%s-%d", nodeID, component, time.Now().UnixNano())
-				st := "FAILED"
-				if ok {
-					st = "SUCCEEDED"
+				resp, err := srv.RunRestartInfraUnitWorkflow(
+					ctx,
+					fmt.Sprint(inputs["parent_run_id"]),
+					fmt.Sprint(inputs["parent_step_id"]),
+					fmt.Sprint(inputs["finding_id"]),
+					nodeID, endpoint, component)
+				if err != nil {
+					return "", err
 				}
-				childResults.Store(runID, map[string]any{"status": st, "run_id": runID, "message": message})
-				return runID, nil
+				childResults.Store(resp.RunId, map[string]any{
+					"status": resp.Status,
+					"run_id": resp.RunId,
+					"error":  resp.Error,
+				})
+				return resp.RunId, nil
 			}
 
 			if workflowName == "release.apply.package" {
