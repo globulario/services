@@ -65,6 +65,47 @@ authorized(node, package) = PackagesForProfiles(node.profiles) ∪ ExplicitAssig
   through the choke point so silent acceptance is structurally impossible, not a
   fence with a labeled gap. Version override stays rejected past D1b (§0.4).
 
+### 1.1 Where a node's profiles come from (intent vs deduction)
+
+The contract above authorizes packages from `node.profiles`. That is only sound if
+`node.profiles` is what the operator **asked for**. Two admission paths set it, and
+both must carry declared intent:
+
+| Path | Intent field | Behavior |
+|---|---|---|
+| v2 signed JoinPlan (`handlers_join_authorization.go`) | `JoinAuthorizationRequest.requested_profiles` (8) | declared wins over deduced |
+| v1 legacy (`handlers_join.go` `RequestJoin`) | `RequestJoinRequest.requested_profiles` (5) | declared wins over deduced |
+
+**Precedence is one rule on both paths:** `declared → deduced → configured default`.
+Hardware deduction (`deduceProfiles`) is a fallback for a node that declares
+nothing. It is **never** an override of a node that declares something. An unknown
+profile is rejected at admission (`InvalidArgument`) on both paths — a typo must be
+loud, never silently swapped for a deduced set.
+
+> **Scar — the legacy path had no channel for intent at all.**
+> `RequestJoinRequest` originally carried no profiles field, and the auto-approve
+> branch called `approveJoinRecordLocked(jr, nil)`. So every v1 join was placed by
+> hardware thresholds alone. This is worth stating precisely: the operator was not
+> *overruled*, the operator was never *heard* — there was no field to be heard in.
+>
+> It degrades worst exactly where it is hardest to notice: when several nodes report
+> the **same underlying hardware**. Five containers on one host each see the host's
+> RAM/CPU/disk, so each clears every threshold and each is placed
+> `control-plane, core, gateway, storage` — identically. Observed on
+> globular-quickstart: a compose file requesting `core,compute` produced
+> `control-plane,core,gateway`, and five ScyllaDB instances came up where two were
+> intended. Deduction cannot distinguish "five capable machines" from "one machine
+> counted five times".
+>
+> Pinned by `TestRequestJoin_DeclaredProfilesBeatHardwareDeduction`,
+> `TestRequestJoin_NoDeclaredProfilesStillDeduces` (the fallback must survive) and
+> `TestRequestJoin_UnknownProfileRejected`.
+
+Related: the `auto_promote_profiles_to_satisfy_quorum_floor` forbidden fix. Profiles
+are placement intent, never a lever for manufacturing a quorum. `deduceProfiles`
+still accepts a `storageNodeCount` argument for older call sites, but it no longer
+influences selection and must not be reintroduced as one.
+
 ---
 
 ## 2. Canonical assignment owner and storage
