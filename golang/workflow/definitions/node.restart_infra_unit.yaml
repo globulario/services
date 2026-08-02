@@ -28,14 +28,24 @@ spec:
       - cluster_id
       - parent_run_id
       - parent_step_id
+      - drift_episode_id
       - node_id
       - component
       - agent_endpoint
       - finding_id
     properties:
       cluster_id: { type: string }
-      # Durable remediation identity. These are what make the correlation id
-      # stable across retries — never a timestamp.
+      # Persisted identity of the unresolved-drift incarnation being remedied:
+      # workflow.drift_unresolved.first_observed_at, which RecordDriftObservation
+      # preserves while the row lives and ClearDriftObservation destroys on
+      # resolution. It is what scopes this run to ONE episode — repeated ticks
+      # reconcile to one run, while an outage recurring after the drift cleared
+      # is a new episode and earns its own run. Minted by the drift-history
+      # authority when the episode begins, never by a dispatch attempt.
+      drift_episode_id: { type: string, minLength: 1 }
+      # Descriptive context. These identify the remediation but NOT the episode:
+      # they are identical across a resolve-then-recur pair, so they cannot
+      # substitute for drift_episode_id in the correlation identity.
       parent_run_id: { type: string }
       parent_step_id: { type: string }
       finding_id: { type: string }

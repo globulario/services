@@ -21,8 +21,8 @@ import (
 // lets the Workflow Service recognise a retry of the same remediation instead of
 // allocating a fresh run — the defect the wall-clock id caused.
 func TestRestartInfraCorrelationID_DeterministicForSameRemediation(t *testing.T) {
-	a := restartInfraCorrelationID("run-1", "step-1", "find-1", "node-a", "etcd")
-	b := restartInfraCorrelationID("run-1", "step-1", "find-1", "node-a", "etcd")
+	a := restartInfraCorrelationID("c1", "ep-A", "node-a", "etcd")
+	b := restartInfraCorrelationID("c1", "ep-A", "node-a", "etcd")
 	if a != b {
 		t.Fatalf("same remediation produced two identities:\n  %s\n  %s", a, b)
 	}
@@ -31,9 +31,9 @@ func TestRestartInfraCorrelationID_DeterministicForSameRemediation(t *testing.T)
 // Calling it repeatedly must not drift. A wall-clock component would show up
 // here even if the two-call test above happened to land in the same nanosecond.
 func TestRestartInfraCorrelationID_StableAcrossManyCalls(t *testing.T) {
-	want := restartInfraCorrelationID("run-1", "step-1", "find-1", "node-a", "etcd")
+	want := restartInfraCorrelationID("c1", "ep-A", "node-a", "etcd")
 	for i := 0; i < 1000; i++ {
-		if got := restartInfraCorrelationID("run-1", "step-1", "find-1", "node-a", "etcd"); got != want {
+		if got := restartInfraCorrelationID("c1", "ep-A", "node-a", "etcd"); got != want {
 			t.Fatalf("identity drifted on call %d: %s != %s", i, got, want)
 		}
 	}
@@ -43,12 +43,12 @@ func TestRestartInfraCorrelationID_StableAcrossManyCalls(t *testing.T) {
 // If any were dropped, two distinct remediations would collide onto one run and
 // the second would be silently treated as a replay of the first.
 func TestRestartInfraCorrelationID_DistinguishesEveryField(t *testing.T) {
-	base := []string{"run-1", "step-1", "find-1", "node-a", "etcd"}
+	base := []string{"c1", "ep-A", "node-a", "etcd"}
 	id := func(f []string) string {
-		return restartInfraCorrelationID(f[0], f[1], f[2], f[3], f[4])
+		return restartInfraCorrelationID(f[0], f[1], f[2], f[3])
 	}
-	names := []string{"parentRunID", "parentStepID", "findingID", "nodeID", "component"}
-	alts := []string{"run-2", "step-2", "find-2", "node-b", "minio"}
+	names := []string{"clusterID", "episodeID", "nodeID", "component"}
+	alts := []string{"c2", "ep-B", "node-b", "minio"}
 
 	baseline := id(base)
 	for i, name := range names {
@@ -64,8 +64,8 @@ func TestRestartInfraCorrelationID_DistinguishesEveryField(t *testing.T) {
 // Two nodes healing the same component in one reconcile pass are two separate
 // mutations on two separate hosts. They must never share a run.
 func TestRestartInfraCorrelationID_SeparatesNodes(t *testing.T) {
-	a := restartInfraCorrelationID("run-1", "step-1", "find-1", "node-a", "scylladb")
-	b := restartInfraCorrelationID("run-1", "step-1", "find-1", "node-b", "scylladb")
+	a := restartInfraCorrelationID("c1", "ep-A", "node-a", "scylladb")
+	b := restartInfraCorrelationID("c1", "ep-A", "node-b", "scylladb")
 	if a == b {
 		t.Fatal("two nodes restarting scylladb share one child run identity")
 	}
@@ -74,7 +74,7 @@ func TestRestartInfraCorrelationID_SeparatesNodes(t *testing.T) {
 // The identity must carry the workflow name so it cannot collide with the
 // correlation id of any other child workflow dispatched from the same step.
 func TestRestartInfraCorrelationID_NamespacedByWorkflow(t *testing.T) {
-	got := restartInfraCorrelationID("run-1", "step-1", "find-1", "node-a", "etcd")
+	got := restartInfraCorrelationID("c1", "ep-A", "node-a", "etcd")
 	if !strings.HasPrefix(got, "node.restart_infra_unit/") {
 		t.Fatalf("identity %q is not namespaced by the workflow name", got)
 	}
@@ -83,7 +83,7 @@ func TestRestartInfraCorrelationID_NamespacedByWorkflow(t *testing.T) {
 // A stable identity must contain no digits-only wall-clock segment. This is the
 // behavioral counterpart to the structural time.Now() scan.
 func TestRestartInfraCorrelationID_ContainsNoTimestamp(t *testing.T) {
-	got := restartInfraCorrelationID("run-1", "step-1", "find-1", "node-a", "etcd")
+	got := restartInfraCorrelationID("c1", "ep-A", "node-a", "etcd")
 	for _, seg := range strings.Split(got, "/") {
 		if len(seg) >= 10 && strings.TrimLeft(seg, "0123456789") == "" {
 			t.Fatalf("identity segment %q looks like a wall-clock stamp: %s", seg, got)
@@ -98,26 +98,29 @@ func TestRestartInfraCorrelationID_ContainsNoTimestamp(t *testing.T) {
 func TestRunRestartInfraUnitWorkflow_RejectsMalformedRemediation(t *testing.T) {
 	srv := &server{}
 	cases := []struct {
-		name                                                 string
-		parentRun, parentStep, finding, node, endpoint, comp string
-		wantErrContains                                      string
+		name                                                          string
+		parentRun, parentStep, finding, episode, node, endpoint, comp string
+		wantErrContains                                               string
 	}{
-		{"empty node", "r", "s", "f", "", "10.0.0.1:11000", "etcd", "node_id"},
-		{"empty endpoint", "r", "s", "f", "n1", "", "etcd", "agent_endpoint"},
-		{"blank endpoint", "r", "s", "f", "n1", "   ", "etcd", "agent_endpoint"},
-		{"empty parent run", "", "s", "f", "n1", "10.0.0.1:11000", "etcd", "parent_run_id"},
-		{"empty parent step", "r", "", "f", "n1", "10.0.0.1:11000", "etcd", "parent_step_id"},
-		{"unknown component", "r", "s", "f", "n1", "10.0.0.1:11000", "postgres", "unsupported component"},
-		{"empty component", "r", "s", "f", "n1", "10.0.0.1:11000", "", "unsupported component"},
+		{"empty node", "r", "s", "f", "ep-A", "", "10.0.0.1:11000", "etcd", "node_id"},
+		{"empty endpoint", "r", "s", "f", "ep-A", "n1", "", "etcd", "agent_endpoint"},
+		{"blank endpoint", "r", "s", "f", "ep-A", "n1", "   ", "etcd", "agent_endpoint"},
+		{"empty parent run", "", "s", "f", "ep-A", "n1", "10.0.0.1:11000", "etcd", "parent_run_id"},
+		{"empty parent step", "r", "", "f", "ep-A", "n1", "10.0.0.1:11000", "etcd", "parent_step_id"},
+		{"unknown component", "r", "s", "f", "ep-A", "n1", "10.0.0.1:11000", "postgres", "unsupported component"},
+		{"empty component", "r", "s", "f", "ep-A", "n1", "10.0.0.1:11000", "", "unsupported component"},
 		// A systemd unit name is NOT a package identity. Accepting one here
 		// would bypass packageToUnit, the unit-name authority.
-		{"systemd unit not a component", "r", "s", "f", "n1", "10.0.0.1:11000", "scylla-server.service", "unsupported component"},
-		{"globular unit not a component", "r", "s", "f", "n1", "10.0.0.1:11000", "globular-etcd", "unsupported component"},
+		{"systemd unit not a component", "r", "s", "f", "ep-A", "n1", "10.0.0.1:11000", "scylla-server.service", "unsupported component"},
+		{"globular unit not a component", "r", "s", "f", "ep-A", "n1", "10.0.0.1:11000", "globular-etcd", "unsupported component"},
+		// Fail closed: the episode identity must be proven, never guessed.
+		{"missing episode identity", "r", "s", "f", "", "n1", "10.0.0.1:11000", "etcd", "drift_episode_id is required"},
+		{"blank episode identity", "r", "s", "f", "   ", "n1", "10.0.0.1:11000", "etcd", "drift_episode_id is required"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := srv.RunRestartInfraUnitWorkflow(t.Context(),
-				tc.parentRun, tc.parentStep, tc.finding, tc.node, tc.endpoint, tc.comp)
+				tc.parentRun, tc.parentStep, tc.finding, tc.episode, tc.node, tc.endpoint, tc.comp)
 			if err == nil {
 				t.Fatalf("expected rejection, got resp=%v", resp)
 			}
@@ -253,7 +256,7 @@ func TestRestartInfraDefinition_RequiresDurableParentIdentity(t *testing.T) {
 	for _, r := range req {
 		have[strings_TrimSpace(r)] = true
 	}
-	for _, want := range []string{"parent_run_id", "parent_step_id", "node_id", "component", "agent_endpoint"} {
+	for _, want := range []string{"parent_run_id", "parent_step_id", "drift_episode_id", "node_id", "component", "agent_endpoint"} {
 		if !have[want] {
 			t.Errorf("inputSchema does not require %q", want)
 		}

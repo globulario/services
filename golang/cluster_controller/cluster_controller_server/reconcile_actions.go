@@ -820,23 +820,46 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 				},
 			}, nil
 		}
-		log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s: dispatching restart", component, nodeID)
+		// Episode identity comes from the drift-history authority, never from
+		// this dispatch. Repeated ticks of ONE unresolved episode reconcile to
+		// one child run; a recurrence after the drift cleared is a new episode
+		// and earns its own run, so both stay independently queryable.
+		entityRef := driftEntityRef(item)
+		episodeID, epErr := srv.driftEpisodeID(ctx, driftType, entityRef)
+		if epErr != nil {
+			// Fail closed: no restart run from a guessed identity. The drift is
+			// left unresolved (a noop child is a dispatch outcome, not observed
+			// convergence, so it cannot clear the row) and a later tick retries.
+			log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s: NOT dispatching restart: %v",
+				component, nodeID, epErr)
+			return map[string]any{
+				"workflow_name": "noop",
+				"inputs": map[string]any{
+					"reason":       fmt.Sprintf("episode_identity_unavailable: %v", epErr),
+					"node_id":      nodeID,
+					"component":    component,
+					"drift_type":   driftType,
+					"entity_ref":   entityRef,
+					"not_remedied": true,
+				},
+			}, nil
+		}
+		log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s: dispatching restart (episode %s)",
+			component, nodeID, episodeID)
 		return map[string]any{
 			"workflow_name": "node.restart_infra_unit",
 			"inputs": map[string]any{
-				"node_id":   nodeID,
-				"component": component,
-				"endpoint":  endpoint,
-				// Durable remediation identity for the child run's correlation
-				// id. Deliberately NOT the parent reconcile run: that is
-				// "reconcile:<UnixMilli>", a fresh run every tick, so keying off
-				// it would allocate a new child on every cycle for the same
-				// persistent drift. `key` is the same stable identity the
-				// backoff tracker uses, so repeated ticks observing one drift
-				// item reconcile to ONE child run.
+				"node_id":          nodeID,
+				"component":        component,
+				"endpoint":         endpoint,
+				"drift_episode_id": episodeID,
+				// Descriptive context only. The correlation identity is built
+				// from the episode above — the entity reference cannot
+				// substitute for it, because it is identical across a
+				// resolve-then-recur pair.
 				"parent_run_id":  "cluster.reconcile/" + srv.cfg.ClusterDomain,
 				"parent_step_id": key,
-				"finding_id":     driftEntityRef(item),
+				"finding_id":     entityRef,
 			},
 		}, nil
 
@@ -1235,6 +1258,7 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 					fmt.Sprint(inputs["parent_run_id"]),
 					fmt.Sprint(inputs["parent_step_id"]),
 					fmt.Sprint(inputs["finding_id"]),
+					fmt.Sprint(inputs["drift_episode_id"]),
 					nodeID, endpoint, component)
 				if err != nil {
 					return "", err
