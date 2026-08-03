@@ -5259,6 +5259,11 @@
     2. Add the entry to `packages/registry.yaml` with correct kind, profiles,
        hard_deps, bootstrap_tier.
     3. Add the entry to `component_catalog.go` (runtime catalog authority — must agree).
+    3b. **Also add a glob to `CORE_PACKAGES[]` in
+        `scripts/release/ensure-bootstrap-artifacts.sh`** — this is a THIRD,
+        independently-maintained list. Steps 2/3 alone do NOT get the package
+        published on Day-0; see `ops.always.package.new-package-must-be-published`.
+        Easy to miss because nothing validates these three lists stay in sync.
     4. Create `packages/metadata/<name>/`:
        - `package.json` — reference manifest (name, type, version "0.0.1", publisher,
          entrypoint).
@@ -5280,11 +5285,21 @@
     9. Local build:
        `globular pkg build --spec packages/specs/<name>_service.yaml --version 0.0.1 --out /tmp/pkgs --root <build-root>`
        `globular pkg inspect /tmp/pkgs/<name>_0.0.1_linux_amd64.tgz`
-    10. Publish via deploy:
+    10. **PUBLISH — NOT OPTIONAL, even though Day-0 will "work" without it:**
        `globular --controller <leader>.globular.internal deploy <name> --bump patch --comment "initial release"`
-    11. Verify convergence across profile-matching nodes:
+       (or `globular pkg publish --file <tgz> --repository <repo> --channel stable`)
+       See `ops.always.package.new-package-must-be-published` — a package that is only
+       ever installed via the Day-0 bundle path and never runs through this step will
+       install fine ONCE and then loop forever as `workflow.drift_stuck`
+       (`missing_package`) on every future wipe/rebuild. Do this step in the SAME
+       session you add the package, before declaring it done — do not defer it.
+    11. Verify convergence AND repository admission across profile-matching nodes:
        `globular cluster nodes list && globular pkg status <name>`
-  seed_sha256: f973a4502cf0a7b5a67d45c12fba191fb3a1c698d1685578f239b6fa8ce5546b
+       `globular repository explain <publisher>/<name> <version> --kind <kind>`
+       → must return a real build, not `NotFound: no builds for ...`. A green Day-0
+       install is NOT evidence this step succeeded — it proves nothing about the
+       repository (see anti-pattern below).
+  seed_sha256: 1a3a39ddf35c28de3d72d5fbb625aef2f34e13fa8b11b7fb56e836d19a1bf867
 - id: ops.always.package.anti-patterns
   type: DEBUG
   title: Package anti-patterns — what AI agents and humans get wrong
@@ -5325,6 +5340,71 @@
       deadlock (node-agent → repository → MinIO → node-agent). Repository must
       serve metadata without MinIO.
   seed_sha256: 532348c0baca193f716651bae8bb681fc4c27af96f15a739f4d27e7567bf08f8
+- id: ops.always.package.new-package-must-be-published
+  type: DEBUG
+  title: A new package must be added to ensure-bootstrap-artifacts.sh's CORE_PACKAGES, not just the catalog/registry — Day-0 has its own separate publish allowlist
+  tags:
+    - always
+    - package
+    - authoring
+    - debug
+    - day-0
+    - repository
+  content: |
+    Recurring incident (hit 3+ times across libnss-resolve and prior packages — this
+    entry exists specifically so it stops recurring). CORRECTED from an earlier,
+    wrong version of this entry that claimed "Day-0 structurally cannot publish" —
+    that was false; see below for what Day-0 actually does.
+
+    Day-0 (`install-day0.sh`, step "Registering Package Artifacts in Repository")
+    DOES publish packages to the repository during install, via
+    `scripts/release/ensure-bootstrap-artifacts.sh`. That script logs in as `sa`
+    and calls the normal authenticated `globular pkg publish` flow — real publish,
+    not a bootstrap bypass. But it only publishes packages matching a glob in its
+    own `CORE_PACKAGES[]` array — a THIRD, separate list from
+    `packages/registry.yaml` and `component_catalog.go`. Adding a package to the
+    catalog/registry does NOT add it to `CORE_PACKAGES`; the two are maintained
+    independently and nothing validates they stay in sync.
+
+    A package present in the release bundle but absent from `CORE_PACKAGES`:
+    installs fine (Day-0/Day-1 bundle-install is unaffected), but is never
+    published — `globular repository explain <pub>/<name> <ver>` returns
+    `NotFound: no builds for ...` forever, on every fresh Day-0, no matter how
+    many times you wipe and re-run. The cluster-controller's `release.apply.package`
+    reconciler can never resolve its build identity, so it's typically never even
+    dispatched for install via the normal profile-driven convergence path — it can
+    end up correctly bundle-installed on the FIRST node (if a Day-1-specific bypass
+    exists, e.g. the join script's explicit `install_pkg` step) while having NO
+    etcd installed-state record and NO repository entry on a fresh single-node
+    Day-0, silently — no drift fires because nothing was ever attempted.
+
+    This is NOT a bug in node-agent, the workflow engine, or cluster-controller. It
+    is a missing operational step: `CORE_PACKAGES` in
+    `scripts/release/ensure-bootstrap-artifacts.sh` was not updated when the
+    package was added. See the precedent comment already in that file for
+    claude/codex, which documents the exact same failure class.
+
+    **Rule: authoring-checklist step 2 (`packages/registry.yaml`) and step 3
+    (`component_catalog.go`) are NOT sufficient. Also add the package's glob to
+    `CORE_PACKAGES[]` in `scripts/release/ensure-bootstrap-artifacts.sh`, in the
+    same session, before declaring the package done.** Verify with
+    `globular repository explain <pub>/<name> <ver>` after a fresh Day-0 run —
+    NOT with "it installed successfully", which proves nothing about publish.
+
+    A ONE-TIME manual `globular pkg publish` on a live node's local repository
+    instance does NOT fix this durably — that blob lives only in that one
+    repository instance's local POSIX CAS. The next full node wipe + Day-0 re-run (or
+    any fresh cluster built from this release) starts from an empty repository again
+    and hits the exact same drift. The fix must happen as part of authoring the
+    package / cutting the release, not as a live-cluster patch.
+
+    **Rule: any time a package is added to `packages/registry.yaml`, run
+    authoring-checklist step 10 (publish) in the SAME work session, before moving on.
+    Verify with `globular repository explain` — NOT with "Day-0 installed it
+    successfully", which proves nothing about repository admission.** If you only
+    have local access (no live cluster to publish against yet), flag the package as
+    unpublished/incomplete explicitly rather than treating Day-0 success as done.
+  seed_sha256: 38af279c3dd4139df6601f3ef1e86ee3c809e8901a4b8e2212281e21887160bc
 - id: ops.always.profile.authority-model
   type: ARCHITECTURE
   title: Profile authority model — intent is controller-owned

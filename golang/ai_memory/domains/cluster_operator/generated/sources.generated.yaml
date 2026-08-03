@@ -239,7 +239,7 @@
 - ref: opsknowledge:stage.package_system
   kind: stage
   path: docs/operational-knowledge/stages/package-system.yaml
-  hash: 6eb855f5a6ca1d01057ec36cf5b7290014adb2734bd2054c19d96e5042343dfc
+  hash: c198b206abf9c22093ffe74d4fc03c758d37b56e1a00f4c7ffa444d9b6b30b5a
   title: Package system — anatomy, identity, install lifecycle, validation
 - ref: opsknowledge:stage.profile_system
   kind: stage
