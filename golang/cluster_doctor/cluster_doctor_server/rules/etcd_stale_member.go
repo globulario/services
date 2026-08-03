@@ -59,6 +59,7 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 		joinPhase string
 		lastSeen  time.Time
 		stale     bool
+		isLearner bool
 	}
 
 	var etcdNodes []etcdNode
@@ -76,11 +77,15 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 		if joinPhase == "" {
 			continue
 		}
+		// A learner replicates but does NOT vote, so it never counts toward
+		// quorum. Fault-tolerance arithmetic must use VOTERS, not members.
+		isLearner := meta["etcd_is_learner"] == "true"
 
 		lastSeen := node.GetLastSeen().AsTime()
 		stale := time.Since(lastSeen) > staleThreshold
 
 		etcdNodes = append(etcdNodes, etcdNode{
+			isLearner: isLearner,
 			nodeID:    node.GetNodeId(),
 			hostname:  node.GetIdentity().GetHostname(),
 			joinPhase: joinPhase,
@@ -94,20 +99,50 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 	}
 
 	// Check for stale etcd members (joined but unreachable).
+	//
+	// Quorum is VOTER arithmetic. isLearner is parsed above and the comment there
+	// already said so, but the counts below used every member: a learner both
+	// raised quorumNeeded and was subtracted from healthy. One healthy voter
+	// beside one stale learner computed 1 healthy < 2 needed and reported
+	// CRITICAL quorum loss on a cluster that never lost quorum — and etcd 3.5
+	// permits exactly that topology during a join.
+	//
+	// Learners stay VISIBLE as stale members (real, actionable drift); they
+	// simply never enter the quorum calculation.
 	var staleMembers []string
-	var verifiedCount int
+	var staleVoters, staleLearners []string
+	var verifiedVoters int
 	for _, n := range etcdNodes {
-		if n.joinPhase == "verified" {
-			verifiedCount++
+		if n.joinPhase != "verified" {
+			continue
 		}
-		if n.stale && n.joinPhase == "verified" {
-			staleMembers = append(staleMembers, fmt.Sprintf("%s(%s)", n.hostname, n.nodeID[:8]))
+		if !n.isLearner {
+			verifiedVoters++
+		}
+		if n.stale {
+			// nodeID[:8] panicked on any id shorter than 8 bytes. Production ids
+			// are UUIDs so it never fired, and no existing test produced a stale
+			// member, so the unguarded slice survived. Truncate safely instead.
+			short := n.nodeID
+			if len(short) > 8 {
+				short = short[:8]
+			}
+			label := fmt.Sprintf("%s(%s)", n.hostname, short)
+			if n.isLearner {
+				label += "[learner]"
+				staleLearners = append(staleLearners, label)
+			} else {
+				staleVoters = append(staleVoters, label)
+			}
+			staleMembers = append(staleMembers, label)
 		}
 	}
 
 	if len(staleMembers) > 0 {
-		quorumNeeded := len(etcdNodes)/2 + 1
-		healthyCount := verifiedCount - len(staleMembers)
+		// Quorum from verified VOTERS only; learners contribute neither to the
+		// requirement nor to healthy capacity.
+		quorumNeeded := verifiedVoters/2 + 1
+		healthyCount := verifiedVoters - len(staleVoters)
 		sev := cluster_doctorpb.Severity_SEVERITY_WARN
 		if healthyCount < quorumNeeded {
 			sev = cluster_doctorpb.Severity_SEVERITY_CRITICAL
@@ -124,11 +159,13 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 				len(staleMembers), strings.Join(staleMembers, ", "), healthyCount, quorumNeeded),
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("cluster_doctor", "etcd.stale_member", map[string]string{
-					"stale_members": strings.Join(staleMembers, ","),
-					"total_etcd":    fmt.Sprintf("%d", len(etcdNodes)),
-					"verified":      fmt.Sprintf("%d", verifiedCount),
-					"healthy":       fmt.Sprintf("%d", healthyCount),
-					"quorum_needed": fmt.Sprintf("%d", quorumNeeded),
+					"stale_members":   strings.Join(staleMembers, ","),
+					"total_etcd":      fmt.Sprintf("%d", len(etcdNodes)),
+					"verified_voters": fmt.Sprintf("%d", verifiedVoters),
+					"healthy_voters":  fmt.Sprintf("%d", healthyCount),
+					"quorum_needed":   fmt.Sprintf("%d", quorumNeeded),
+					"stale_voters":    strings.Join(staleVoters, ","),
+					"stale_learners":  strings.Join(staleLearners, ","),
 				}),
 			},
 			Remediation: []*cluster_doctorpb.RemediationStep{
@@ -143,19 +180,39 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 		})
 	}
 
-	// Warn about 2-member etcd cluster (no fault tolerance).
-	if len(etcdNodes) == 2 {
+	// Warn about an EVEN voter count (no added fault tolerance).
+	//
+	// Count VOTERS, not members. Learners replicate the full keyspace but do not
+	// vote, so a 1-voter + 1-learner cluster has quorum 1 and survives losing the
+	// learner entirely — the opposite of the danger this rule warns about. The
+	// controller deliberately parks the second node as a learner and promotes
+	// only onto an odd voter count, so counting members here reported "zero
+	// fault tolerance" for the exact arrangement that provides it, on every
+	// healthy 2-node cluster.
+	voters := 0
+	learners := 0
+	for _, n := range etcdNodes {
+		if n.isLearner {
+			learners++
+			continue
+		}
+		voters++
+	}
+	if voters == 2 {
 		findings = append(findings, Finding{
 			FindingID:   FindingID("etcd.stale_member", "cluster", "even_size_2"),
 			InvariantID: "etcd.stale_member",
 			Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
 			Category:    "etcd",
 			EntityRef:   "cluster",
-			Summary: "etcd cluster has 2 members — both must be up for quorum (2/2). " +
-				"This has zero fault tolerance. Use 1 member (dev) or 3 members (production).",
+			Summary: fmt.Sprintf("etcd has 2 voting members — both must be up for quorum (2/2). "+
+				"This has zero fault tolerance, the same as a single voter. "+
+				"Use 1 voter (dev) or 3 (production).%s",
+				learnerSuffix(learners)),
 			Evidence: []*cluster_doctorpb.Evidence{
 				kvEvidence("cluster_doctor", "etcd.stale_member", map[string]string{
-					"etcd_members":  "2",
+					"etcd_voters":   "2",
+					"etcd_learners": fmt.Sprintf("%d", learners),
 					"quorum_needed": "2",
 				}),
 			},
@@ -167,4 +224,16 @@ func (etcdStaleMember) Evaluate(snap *collector.Snapshot, cfg Config) []Finding 
 	}
 
 	return findings
+}
+
+// learnerSuffix renders the non-voting member count so an operator can see why
+// the voter total differs from the member total.
+func learnerSuffix(learners int) string {
+	if learners == 0 {
+		return ""
+	}
+	if learners == 1 {
+		return " (1 learner is present and does not vote)"
+	}
+	return fmt.Sprintf(" (%d learners are present and do not vote)", learners)
 }

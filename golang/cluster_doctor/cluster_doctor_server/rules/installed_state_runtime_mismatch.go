@@ -206,9 +206,14 @@ func normalizeInstalledName(name string) string {
 // spec with kind=COMMAND so the etcd path covers them automatically.
 func packageIsCommand(name string, nodeKinds map[string]string) bool {
 	// Static list wins — authoritative for pre-kind-sidecar installs.
+	// codex sits beside claude: both are AI CLI command packages with NO
+	// systemd unit. codex was omitted when claude was added, so a node whose
+	// codex etcd record is still the pre-kind-sidecar INFRASTRUCTURE kind (the
+	// dynamic fallback below returns false) fires a spurious
+	// installed_state_runtime_mismatch for a non-existent globular-codex.service.
 	switch name {
 	case "rclone", "restic", "mc", "sctool", "etcdctl", "ffmpeg",
-		"globular-cli", "cli", "sha256sum", "yt-dlp", "claude":
+		"globular-cli", "cli", "sha256sum", "yt-dlp", "claude", "codex":
 		return true
 	}
 	// Dynamic fallback: trust etcd COMMAND kind for newer packages.

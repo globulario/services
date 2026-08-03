@@ -44,6 +44,25 @@ func skipIfScriptNotInstalled(t *testing.T) {
 	}
 }
 
+// writeAgentAndScyllaCfg stubs the two local config files the script reads
+// unconditionally (SCYLLA_CFG for host detection, SCYLLA_AGENT_CFG for the
+// auth token/port) so tests never depend on this machine's real
+// /etc/scylla/scylla.yaml or /var/lib/globular/scylla-manager-agent — both
+// of which are absent on a non-cluster-node dev box.
+func writeAgentAndScyllaCfg(t *testing.T) (agentCfg, scyllaCfg string) {
+	t.Helper()
+	dir := t.TempDir()
+	agentCfg = filepath.Join(dir, "scylla-manager-agent.yaml")
+	if err := os.WriteFile(agentCfg, []byte("auth_token: test-token-xyz\nhttps: 10.0.0.99:5612\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	scyllaCfg = filepath.Join(dir, "scylla.yaml")
+	if err := os.WriteFile(scyllaCfg, []byte("rpc_address: 10.0.0.99\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return agentCfg, scyllaCfg
+}
+
 // writeCABundle writes the test TLS server's cert to a temp file
 // formatted as a PEM bundle suitable for curl --cacert.
 func writeCABundle(t *testing.T, srv *httptest.Server) string {
@@ -88,10 +107,13 @@ func TestRegisterScript_HTTPSReachable_PrefersHTTPS(t *testing.T) {
 	defer httpSrv.Close()
 
 	caPath := writeCABundle(t, httpsSrv)
+	agentCfg, scyllaCfg := writeAgentAndScyllaCfg(t)
 	output := runRegisterScript(t, map[string]string{
 		"SCYLLA_MANAGER_HTTPS_BASE": httpsSrv.URL + "/api/v1",
 		"SCYLLA_MANAGER_HTTP_BASE":  httpSrv.URL + "/api/v1",
 		"GLOBULAR_CA":               caPath,
+		"SCYLLA_AGENT_CFG":          agentCfg,
+		"SCYLLA_CFG":                scyllaCfg,
 	})
 
 	if !strings.Contains(output, "HTTPS reachable with valid cert") {
@@ -138,10 +160,13 @@ func TestRegisterScript_HTTPSConnectionRefused_FallsBackToHTTP(t *testing.T) {
 	deadHTTPS := "https://" + l.Addr().String() + "/api/v1"
 	_ = l.Close()
 
+	agentCfg, scyllaCfg := writeAgentAndScyllaCfg(t)
 	output := runRegisterScript(t, map[string]string{
 		"SCYLLA_MANAGER_HTTPS_BASE": deadHTTPS,
 		"SCYLLA_MANAGER_HTTP_BASE":  httpSrv.URL + "/api/v1",
 		"GLOBULAR_CA":               "/var/lib/globular/pki/ca.crt", // any path; curl never reaches it
+		"SCYLLA_AGENT_CFG":          agentCfg,
+		"SCYLLA_CFG":                scyllaCfg,
 	})
 
 	if !strings.Contains(output, "HTTPS not enabled") {
@@ -182,10 +207,13 @@ func TestRegisterScript_HTTPSCertInvalid_FailsClosed(t *testing.T) {
 	}))
 	defer httpSrv.Close()
 
+	agentCfg, scyllaCfg := writeAgentAndScyllaCfg(t)
 	out, exitCode := runRegisterScriptCheckExit(t, map[string]string{
 		"SCYLLA_MANAGER_HTTPS_BASE": httpsSrv.URL + "/api/v1",
 		"SCYLLA_MANAGER_HTTP_BASE":  httpSrv.URL + "/api/v1",
 		"GLOBULAR_CA":               caPath,
+		"SCYLLA_AGENT_CFG":          agentCfg,
+		"SCYLLA_CFG":                scyllaCfg,
 	})
 
 	if exitCode == 0 {
@@ -217,10 +245,13 @@ func TestRegisterScript_ExistingClusterByName_NoOp(t *testing.T) {
 	defer httpsSrv.Close()
 
 	caPath := writeCABundle(t, httpsSrv)
+	agentCfg, scyllaCfg := writeAgentAndScyllaCfg(t)
 	out, exitCode := runRegisterScriptCheckExit(t, map[string]string{
 		"SCYLLA_MANAGER_HTTPS_BASE": httpsSrv.URL + "/api/v1",
 		"SCYLLA_MANAGER_HTTP_BASE":  "http://127.0.0.1:0/api/v1",
 		"GLOBULAR_CA":               caPath,
+		"SCYLLA_AGENT_CFG":          agentCfg,
+		"SCYLLA_CFG":                scyllaCfg,
 	})
 	if exitCode != 0 {
 		t.Errorf("existing-cluster path must exit 0; got %d\noutput:\n%s", exitCode, out)

@@ -57,6 +57,32 @@ func TestArtifactLayoutDriftLocal_AllowlistOnly_Silent(t *testing.T) {
 	}
 }
 
+// TestArtifactLayoutDriftLocal_ReleasesMirror_Silent pins the day-1 fix: the
+// repository local-upstream release mirror (/var/lib/globular/releases, see
+// golang/repository/upstream/local_source.go) is a platform release-artifact
+// directory and must NOT be flagged as an unknown top-level entry — even when
+// it is data-bearing ({tag}/release-index.json). Regression for the day-1 join
+// doctor finding "unknown top-level entries under /var/lib/globular: releases".
+func TestArtifactLayoutDriftLocal_ReleasesMirror_Silent(t *testing.T) {
+	td := t.TempDir()
+	// Populate the mirror as the local upstream source would.
+	if err := os.MkdirAll(filepath.Join(td, "releases", "v1.2.272"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(td, "releases", "v1.2.272", "release-index.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	old := artifactStateRootPath
+	artifactStateRootPath = td
+	t.Cleanup(func() { artifactStateRootPath = old })
+
+	findings := (artifactLayoutDriftLocal{}).Evaluate(nil, testConfig())
+	if len(findings) != 0 {
+		t.Fatalf("expected releases mirror to be silent, got %d findings: %+v", len(findings), findings)
+	}
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // v1.2.117 — required tests for the canonical runtime dir model.
 // See docs/intent/service_runtime_paths_must_be_canonical.yaml and the

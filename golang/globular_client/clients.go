@@ -1184,6 +1184,23 @@ func invalidateMeshConn() {
 //
 // If Envoy is unavailable (crashed, not installed), falls back to direct dial.
 func GetClientConnection(client Client) (*grpc.ClientConn, error) {
+	// Direct mode: the caller named one specific instance and means it.
+	//
+	// Mesh-first silently load-balances an explicitly supplied endpoint across
+	// every instance behind the VIP. For ordinary RPCs that is the point; for
+	// instance-addressed administrative work it is a correctness bug. It is why
+	// `pkg publish --repository <node>:10004` never reached <node>: 96 publishes
+	// round-robined and scattered node-local CAS blobs 16/8/19 across three
+	// repository instances, leaving cluster-wide manifests advertising artifacts
+	// that most nodes could not serve.
+	//
+	// Direct mode never enters Envoy and never falls back — a failure to reach
+	// the named instance is returned, not silently rerouted to another one,
+	// because rerouting is exactly what corrupts per-node placement.
+	if IsDirectMode(client) {
+		return dialDirect(client)
+	}
+
 	// Try mesh first
 	if meshEnabled() {
 		cc, err := getMeshConn(client)

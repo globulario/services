@@ -69,9 +69,12 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Generate version stub
-        run: bash build/gen-version.sh 0.0.0-ci
-
+      # NO version generation here. Committed zz_version_generated.go files ARE
+      # the per-package version authority (build/gen-version.sh is their single
+      # writer). Running the writer against the tracked checkout mutates that
+      # authority in the CI workspace; commit 52342307 then captured the result
+      # via `git add -A`, publishing 0.0.0-ci as the committed version of all 33
+      # packages. CI must compile exactly what is committed.
       - name: Build
         run: go build ./...
 
@@ -191,10 +194,10 @@ jobs:
         with:
           go-version: 'stable'
 
+      # Compiles the committed versions as-is — see the build-test note above.
       - name: Check proto files compile
         run: |
           cd services/golang
-          bash build/gen-version.sh 0.0.0-ci
           go build ./...
 
   lint:
@@ -236,11 +239,7 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y unixodbc-dev
 
-      - name: Generate version stub
-        run: |
-          cd services/golang
-          bash build/gen-version.sh 0.0.0-ci
-
+      # No version generation — see the build-test note above.
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:

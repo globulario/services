@@ -15,10 +15,12 @@
   promotion_reason: incidents recurred where diagnostic findings were acted on as authority and caused damage
   source_refs:
     - opsknowledge:incident.cluster_zero_findings_2026_06_03
+    - opsknowledge:incident.node_rejoin_scylla_group0_repository_2026_07_09
     - opsknowledge:incident.scylla_manager_tls_trust_2026_06_03
     - opsknowledge:incident.sidecar_receipt_retirement_2026_06_03
   generated_from:
     - opsknowledge:incident.cluster_zero_findings_2026_06_03
+    - opsknowledge:incident.node_rejoin_scylla_group0_repository_2026_07_09
     - opsknowledge:incident.scylla_manager_tls_trust_2026_06_03
     - opsknowledge:incident.sidecar_receipt_retirement_2026_06_03
 - id: principle.cluster.observe_plan_execute_verify_before_recovery_claim

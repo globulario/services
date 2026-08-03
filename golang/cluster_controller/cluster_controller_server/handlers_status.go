@@ -402,20 +402,45 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			srv.state.NetworkingGeneration++
 			changed = true
 
-			// Update MinIO pool if this node has storage profile
+			// Update MinIO pool if this node has storage profile.
+			//
+			// MUST store a bare routable IP, never AdvertiseFqdn. Consumers
+			// reject hostnames outright: resolveMinioEndpoint (server.go)
+			// refuses to publish the objectstore DNS endpoint and logs an
+			// INVARIANT VIOLATION, and config/{minio,objectstore}_config.go
+			// allow only bare IP:port endpoints.
+			//
+			// This previously appended AdvertiseFqdn and relied on
+			// migratePoolNodeHostnames (state.go) to repair it — but that
+			// migration runs only on state LOAD, so a hostname appended here
+			// at runtime survived until the next restart or leadership change,
+			// leaving the objectstore endpoint unresolved the whole time. A
+			// load-time repair cannot uphold an invariant a runtime writer
+			// violates; enforce it at the producer.
 			for _, p := range derived {
-				if p == "storage" && node.AdvertiseFqdn != "" {
-					found := false
-					for _, existing := range srv.state.MinioPoolNodes {
-						if existing == node.AdvertiseFqdn {
-							found = true
-							break
-						}
+				if p != "storage" {
+					continue
+				}
+				poolIP := nodeRoutableIP(node)
+				if poolIP == "" {
+					// No routable IP yet (heartbeat before the node reported an
+					// address). Skip rather than fall back to the FQDN — a later
+					// heartbeat will add it correctly, whereas a hostname written
+					// now would wedge endpoint publication until a restart.
+					log.Printf("ReportNodeStatus: storage node %s has no routable IP yet — deferring MinIO pool add",
+						node.Identity.Hostname)
+					continue
+				}
+				found := false
+				for _, existing := range srv.state.MinioPoolNodes {
+					if existing == poolIP {
+						found = true
+						break
 					}
-					if !found {
-						srv.state.MinioPoolNodes = append(srv.state.MinioPoolNodes, node.AdvertiseFqdn)
-						log.Printf("ReportNodeStatus: added %s to MinIO pool", node.AdvertiseFqdn)
-					}
+				}
+				if !found {
+					srv.state.MinioPoolNodes = append(srv.state.MinioPoolNodes, poolIP)
+					log.Printf("ReportNodeStatus: added %s (%s) to MinIO pool", poolIP, node.Identity.Hostname)
 				}
 			}
 		}
@@ -1110,8 +1135,20 @@ func deriveProfilesFromInstalled(installed map[string]string) []string {
 		profiles["storage"] = true
 		profiles["core"] = true
 	}
+	// AI services imply "core" only. There is deliberately NO "ai" profile:
+	// component_catalog.ProfilePackages defines exactly compute, control-plane,
+	// core, database, dns, gateway, media-server, scylla and storage, and
+	// install-day0.sh calls "ai" vestigial — it authorizes zero packages.
+	//
+	// Deriving profiles["ai"] here made the controller author a profile the
+	// catalog does not define, so every reconcile pass on a node running the AI
+	// services failed with `intent resolution failed: unknown profile: "ai"` and
+	// that node's intent never resolved. The installer already strips unknown
+	// labels from operator-supplied FOUNDING_PROFILES, but that guard cannot
+	// stop the controller from re-minting one at runtime.
+	//
+	// Derive the profile set from the catalog; never author it here.
 	if has("ai-memory", "ai-executor", "ai-watcher", "ai-router") {
-		profiles["ai"] = true
 		profiles["core"] = true
 	}
 	if has("media", "title", "torrent", "ffmpeg", "yt-dlp") {

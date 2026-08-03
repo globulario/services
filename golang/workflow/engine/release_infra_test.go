@@ -35,8 +35,8 @@ func newReleaseTestRouter(t *testing.T, opts releaseTestOpts) *Router {
 			return nil
 		},
 		SelectInfraTargets: opts.selectTargets,
-		FinalizeNoop: func(ctx context.Context, releaseID string) error {
-			t.Logf("controller: finalize_noop %s", releaseID)
+		FinalizeNoop: func(ctx context.Context, releaseID, status string) error {
+			t.Logf("controller: finalize_noop %s status=%s", releaseID, status)
 			return nil
 		},
 		MarkNodeStarted: func(ctx context.Context, releaseID, nodeID string) error {
@@ -68,35 +68,41 @@ func newReleaseTestRouter(t *testing.T, opts releaseTestOpts) *Router {
 	})
 
 	// Verification actions (verify steps in release.apply.infrastructure.yaml).
-	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{
+		VerifyReleaseStatus: func(ctx context.Context, releaseID, expectedStatus string) (bool, error) {
+			return true, nil
+		},
+	})
 
 	return router
 }
 
 type releaseTestOpts struct {
-	selectTargets        func(ctx context.Context, candidates []any, pkg, hash string) ([]any, error)
-	aggregateDirectApply func(ctx context.Context, releaseID, pkg string) (map[string]any, error)
-	installPackage       func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error
+	selectTargets          func(ctx context.Context, candidates []any, pkg, hash string) (ReleaseTargetSelection, error)
+	aggregateDirectApply   func(ctx context.Context, releaseID, pkg string) (map[string]any, error)
+	installPackage         func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error
 	verifyPackageInstalled func(ctx context.Context, name, version, hash string) error
-	restartPackageService func(ctx context.Context, name string) error
-	verifyPackageRuntime func(ctx context.Context, name, check string) error
-	syncInstalledPackage func(ctx context.Context, name, version, hash, kind, buildID string) error
+	restartPackageService  func(ctx context.Context, name string) error
+	verifyPackageRuntime   func(ctx context.Context, name, check string) error
+	syncInstalledPackage   func(ctx context.Context, name, version, hash, kind, buildID string) error
 }
 
 func defaultReleaseOpts() releaseTestOpts {
 	return releaseTestOpts{
-		selectTargets: func(ctx context.Context, candidates []any, pkg, hash string) ([]any, error) {
+		selectTargets: func(ctx context.Context, candidates []any, pkg, hash string) (ReleaseTargetSelection, error) {
 			// Select all candidates as targets.
 			targets := make([]any, len(candidates))
 			for i, c := range candidates {
 				targets[i] = map[string]any{"node_id": fmt.Sprint(c), "reason_selected": "needs update"}
 			}
-			return targets, nil
+			return ReleaseTargetSelection{Targets: targets, FinalizeStatus: "AVAILABLE"}, nil
 		},
 		aggregateDirectApply: func(ctx context.Context, releaseID, pkg string) (map[string]any, error) {
 			return map[string]any{"status": "AVAILABLE"}, nil
 		},
-		installPackage:         func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error { return nil },
+		installPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error {
+			return nil
+		},
 		verifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
 		restartPackageService:  func(ctx context.Context, name string) error { return nil },
 		verifyPackageRuntime:   func(ctx context.Context, name, check string) error { return nil },
@@ -120,22 +126,22 @@ func releaseInputs(nodes ...string) map[string]any {
 		nodesAny[i] = n
 	}
 	return map[string]any{
-		"cluster_id":        "test-cluster",
-		"release_id":        "rel-001",
-		"release_name":      "envoy",
-		"package_name":      "envoy",
-		"resolved_version":  "1.35.3",
-		"desired_hash":      "abc123",
-		"candidate_nodes":   nodesAny,
-		"restart_required":  true,
+		"cluster_id":       "test-cluster",
+		"release_id":       "rel-001",
+		"release_name":     "envoy",
+		"package_name":     "envoy",
+		"resolved_version": "1.35.3",
+		"desired_hash":     "abc123",
+		"candidate_nodes":  nodesAny,
+		"restart_required": true,
 	}
 }
 
 // Test 1: No-op — all nodes already converged.
 func TestInfraRelease_NoopAllConverged(t *testing.T) {
 	opts := defaultReleaseOpts()
-	opts.selectTargets = func(ctx context.Context, candidates []any, pkg, hash string) ([]any, error) {
-		return []any{}, nil // no targets selected
+	opts.selectTargets = func(ctx context.Context, candidates []any, pkg, hash string) (ReleaseTargetSelection, error) {
+		return ReleaseTargetSelection{Targets: []any{}, FinalizeStatus: "AVAILABLE"}, nil // no targets selected
 	}
 
 	router := newReleaseTestRouter(t, opts)

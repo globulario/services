@@ -73,6 +73,14 @@ else
   ok "registry.yaml carries no retired 'platform' version_source"
 fi
 
+# 6. Projection agrees with committed authority.
+#    Added after commit 52342307 published 0.0.0-ci as the committed version of
+#    all 33 packages while package-versions.txt still claimed 1.2.272 — the
+#    projection was stale against its own declared source and nothing failed.
+if ! bash "${SCRIPT_DIR}/check-version-projection.sh"; then
+  err "version projection disagrees with committed per-package authority"
+fi
+
 if (( FAIL )); then
   echo "" >&2
   echo "See docs/design/package-identity-single-authority.md for the authority model." >&2

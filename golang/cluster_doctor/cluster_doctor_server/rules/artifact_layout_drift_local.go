@@ -65,6 +65,16 @@ var platformBaseAllowlist = map[string]bool{
 	"policy":                true,
 	"recovery":              true,
 	"release-index.json":    true,
+	// releases/ is the repository service's local-upstream release mirror
+	// ({local_root}/releases/{tag}/release-index.json — see golang/repository/
+	// upstream/local_source.go). It is a platform release-artifact directory in
+	// the same family as packages/, staging/, and release-index.json — NOT a
+	// service runtime dir — created and torn down by the platform release
+	// tooling (scripts/prepare-rejoin.sh removes it as "will be recreated").
+	// Listing it here is consistent with the existing release-artifact entries
+	// and does not introduce a service name, so it does not trip
+	// forbidden.fix.layout_drift_by_expanding_allowlist_only.
+	"releases":              true,
 	"services":              true,
 	"staging":               true,
 	"tokens":                true,

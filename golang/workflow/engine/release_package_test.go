@@ -41,28 +41,30 @@ func releasePackageInputs(kind string, nodes ...string) map[string]any {
 }
 
 type releasePackageTestOpts struct {
-	selectTargets        func(ctx context.Context, candidates []any, pkg, kind, hash string) ([]any, error)
-	aggregateDirectApply func(ctx context.Context, releaseID, pkg string) (map[string]any, error)
-	installPackage       func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error
+	selectTargets          func(ctx context.Context, candidates []any, pkg, kind, hash string) (ReleaseTargetSelection, error)
+	aggregateDirectApply   func(ctx context.Context, releaseID, pkg string) (map[string]any, error)
+	installPackage         func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error
 	verifyPackageInstalled func(ctx context.Context, name, version, hash string) error
-	maybeRestartPackage  func(ctx context.Context, name, kind, policy string) error
-	verifyPackageRuntime func(ctx context.Context, name, check string) error
-	syncInstalledPackage func(ctx context.Context, name, version, hash, kind, buildID string) error
+	maybeRestartPackage    func(ctx context.Context, name, kind, policy string) error
+	verifyPackageRuntime   func(ctx context.Context, name, check string) error
+	syncInstalledPackage   func(ctx context.Context, name, version, hash, kind, buildID string) error
 }
 
 func defaultReleasePackageOpts() releasePackageTestOpts {
 	return releasePackageTestOpts{
-		selectTargets: func(ctx context.Context, candidates []any, pkg, kind, hash string) ([]any, error) {
+		selectTargets: func(ctx context.Context, candidates []any, pkg, kind, hash string) (ReleaseTargetSelection, error) {
 			targets := make([]any, len(candidates))
 			for i, c := range candidates {
 				targets[i] = map[string]any{"node_id": fmt.Sprint(c)}
 			}
-			return targets, nil
+			return ReleaseTargetSelection{Targets: targets, FinalizeStatus: "AVAILABLE"}, nil
 		},
 		aggregateDirectApply: func(ctx context.Context, releaseID, pkg string) (map[string]any, error) {
 			return map[string]any{"status": "AVAILABLE"}, nil
 		},
-		installPackage:         func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error { return nil },
+		installPackage: func(ctx context.Context, name, version, kind, buildID, desiredHash, expectedSha256 string, buildNumber int64) error {
+			return nil
+		},
 		verifyPackageInstalled: func(ctx context.Context, name, version, hash string) error { return nil },
 		maybeRestartPackage:    func(ctx context.Context, name, kind, policy string) error { return nil },
 		verifyPackageRuntime:   func(ctx context.Context, name, check string) error { return nil },
@@ -79,7 +81,7 @@ func newReleasePackageRouter(t *testing.T, opts releasePackageTestOpts) *Router 
 		MarkReleaseFailed:    func(ctx context.Context, releaseID, reason string) error { return nil },
 		RecheckConvergence:   func(ctx context.Context, releaseID string) error { return nil },
 		SelectPackageTargets: opts.selectTargets,
-		FinalizeNoop:         func(ctx context.Context, releaseID string) error { return nil },
+		FinalizeNoop:         func(ctx context.Context, releaseID, status string) error { return nil },
 		MarkNodeStarted:      func(ctx context.Context, releaseID, nodeID string) error { return nil },
 		MarkNodeSucceeded:    func(ctx context.Context, releaseID, nodeID, ver, hash string) error { return nil },
 		MarkNodeFailed:       func(ctx context.Context, releaseID, nodeID, reason string) error { return nil },
@@ -94,15 +96,19 @@ func newReleasePackageRouter(t *testing.T, opts releasePackageTestOpts) *Router 
 		SyncInstalledPackage:   opts.syncInstalledPackage,
 	})
 	// Verification actions (verify steps in release.apply.package.yaml).
-	RegisterControllerVerificationActions(router, ControllerVerificationConfig{})
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{
+		VerifyReleaseStatus: func(ctx context.Context, releaseID, expectedStatus string) (bool, error) {
+			return true, nil
+		},
+	})
 	return router
 }
 
 // Test 1: No-op — all targets already converged.
 func TestReleasePackage_NoopAllConverged(t *testing.T) {
 	opts := defaultReleasePackageOpts()
-	opts.selectTargets = func(ctx context.Context, candidates []any, pkg, kind, hash string) ([]any, error) {
-		return []any{}, nil
+	opts.selectTargets = func(ctx context.Context, candidates []any, pkg, kind, hash string) (ReleaseTargetSelection, error) {
+		return ReleaseTargetSelection{Targets: []any{}, FinalizeStatus: "AVAILABLE"}, nil
 	}
 
 	router := newReleasePackageRouter(t, opts)
@@ -118,6 +124,53 @@ func TestReleasePackage_NoopAllConverged(t *testing.T) {
 	}
 	if run.Status != RunSucceeded {
 		t.Errorf("expected SUCCEEDED, got %s (error: %s)", run.Status, run.Error)
+	}
+}
+
+func TestReleasePackage_NoopDeferredStatusThreadsToFinalize(t *testing.T) {
+	var gotStatus string
+	opts := defaultReleasePackageOpts()
+	opts.selectTargets = func(ctx context.Context, candidates []any, pkg, kind, hash string) (ReleaseTargetSelection, error) {
+		return ReleaseTargetSelection{
+			Targets:        []any{},
+			FinalizeStatus: "DEFERRED",
+			Reason:         "installed_state_unknown",
+		}, nil
+	}
+
+	router := NewRouter()
+	RegisterReleaseControllerActions(router, ReleaseControllerConfig{
+		MarkReleaseResolved:  func(ctx context.Context, releaseID string) error { return nil },
+		MarkReleaseApplying:  func(ctx context.Context, releaseID string) error { return nil },
+		MarkReleaseFailed:    func(ctx context.Context, releaseID, reason string) error { return nil },
+		RecheckConvergence:   func(ctx context.Context, releaseID string) error { return nil },
+		SelectPackageTargets: opts.selectTargets,
+		FinalizeNoop: func(ctx context.Context, releaseID, status string) error {
+			gotStatus = status
+			return nil
+		},
+	})
+	RegisterNodeDirectApplyActions(router, NodeDirectApplyConfig{})
+	RegisterControllerVerificationActions(router, ControllerVerificationConfig{
+		VerifyReleaseStatus: func(ctx context.Context, releaseID, expected string) (bool, error) {
+			return expected == "DEFERRED", nil
+		},
+	})
+
+	eng := &Engine{Router: router}
+	def := loadReleasePackageDef(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	run, err := eng.Execute(ctx, def, releasePackageInputs("SERVICE", "node-1"))
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if run.Status != RunSucceeded {
+		t.Fatalf("expected SUCCEEDED, got %s (error: %s)", run.Status, run.Error)
+	}
+	if gotStatus != "DEFERRED" {
+		t.Fatalf("FinalizeNoop status = %q, want DEFERRED", gotStatus)
 	}
 }
 

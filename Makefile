@@ -1,4 +1,4 @@
-.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb check-no-tracked-binaries gen-package-kinds check-package-kinds check-package-authority check-day0-package-contract check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
+.PHONY: check-controller-no-exec check-nodeagent-exec-boundary check-target-paths-exist check-proto-authz check-no-misplaced-pb check-no-tracked-binaries gen-package-kinds check-package-kinds check-package-authority check-day0-package-contract check-operator-skill check-services test-invariants test-integration test-integration-local test-integration-reconcile test-integration-release test-integration-migration test
 
 # ── Security boundary checks ────────────────────────────────────────────────
 #
@@ -189,9 +189,21 @@ check-no-tracked-binaries:
 	@echo "Checking for tracked compiled binaries..."
 	@bash scripts/check_no_tracked_binaries.sh
 
+# ── Operator skill freshness (generated-artifact gate) ───────────────────────
+#
+# check-operator-skill: the globular-operator Claude skill
+#   (.claude/skills/globular-operator/SKILL.md) is GENERATED from the
+#   docs/operational-knowledge/ corpus by scripts/gen-operator-skill.py. This gate
+#   fails if the committed skill is stale — a corpus file was added, removed, or
+#   retitled without regenerating. Fix: run `python3 scripts/gen-operator-skill.py`.
+
+check-operator-skill:
+	@echo "Checking globular-operator skill is up to date with the operational-knowledge corpus..."
+	@python3 scripts/gen-operator-skill.py --check
+
 # ── Aggregate check target ───────────────────────────────────────────────────
 
-check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract check-identity-authority
+check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract check-identity-authority check-operator-skill
 
 # ── Test targets ─────────────────────────────────────────────────────────────
 

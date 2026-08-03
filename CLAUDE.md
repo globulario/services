@@ -10,13 +10,13 @@ Claude has no continuous memory between sessions. The rules below are loaded as 
 
 1. **MEMORY = ai-memory, not flat files.** For project `globular-services`, use `mcp__globular__memory_store` / `memory_query` / `memory_update`. A `PreToolUse` hook (`block-flat-memory.sh`) will deny Write/Edit to `~/.claude/projects/.../memory/` entry files. `MEMORY.md` (the index) is still editable for migration cleanup, but new entries must go to ai-memory.
 
-2. **AWARENESS-FIRST in high-risk dirs.** Before any edit to `golang/{node_agent,cluster_controller,repository,rbac,security,cluster_doctor,mcp,ai_executor,services_manager}/`, `docs/awareness/`, or `docs/intent/` — call `mcp__awg__awareness_briefing(file=<path>)` FIRST. Two `PreToolUse` hooks enforce this:
+2. **AWARENESS-FIRST in high-risk dirs.** Before any edit to `golang/{node_agent,cluster_controller,repository,rbac,security,cluster_doctor,mcp,ai_executor,services_manager}/`, `docs/awareness/`, or `docs/intent/` — call `mcp__sensei__awareness_briefing(file=<path>)` FIRST. Two `PreToolUse` hooks enforce this:
    - `enforce-briefing.sh` — denies Edit/Write/MultiEdit on these paths without a briefing.
    - `enforce-briefing-bash.sh` — denies Bash commands that mutate these paths (`>`, `>>`, `tee`, `cp`, `mv`, `sed -i`, `python -c "...open('docs/awareness/...', 'w')..."` etc.) without a briefing. Best-effort: catches obvious patterns; the bypass `python3 /tmp/script.py` where the script writes is not detectable from the command line alone — don't rely on that bypass.
 
    No "simple fix" exemption.
 
-3. **Ask the graph, don't grep.** When you need an invariant, intent, failure mode, or forbidden fix, use `mcp__awg__awareness_query` / `awareness_resolve` / `awareness_briefing`. Do NOT grep over `docs/intent/` or `docs/awareness/` — the YAML files are inputs to the graph, not the queryable surface.
+3. **Ask the graph, don't grep.** When you need an invariant, intent, failure mode, or forbidden fix, use `mcp__sensei__awareness_query` / `awareness_resolve` / `awareness_briefing`. Do NOT grep over `docs/intent/` or `docs/awareness/` — the YAML files are inputs to the graph, not the queryable surface.
 
 4. **End non-trivial tasks with the AWG summary line**: `AWG: briefing(<target>) | invariants: X, Y | uncertainty: Z`. See the AWARENESS USAGE section for variants (degraded, empty+high-risk, empty+low-risk=omit).
 
@@ -30,7 +30,7 @@ If you find yourself defaulting to flat-file memory, grepping over awareness sou
 
 AWG now treats every error as a **contract-discovery problem before it is treated as a code-editing problem.** Before resolving any error, bug, failing test, warning, or reported problem, identify the governing contract that defines what "correct" means. A fix is valid only when the governing contract is identified, respected, and evidence-backed — **a passing test with no identified contract is an oracle match, not a resolution.**
 
-This is the operational form of two foundational AWG meta-principles — `meta.contract_must_be_explicit_before_resolution` and `meta.no_resolution_without_a_respected_contract` — authored in the awareness-graph corpus.
+This is the operational form of two foundational AWG meta-principles — `meta.contract_must_be_explicit_before_resolution` and `meta.no_resolution_without_a_respected_contract` — authored in the sensei (awareness-graph) corpus.
 
 ### The graph is the pre-repair search space
 
@@ -402,13 +402,13 @@ Awareness explains *why* code exists, *what* it protects, *which fixes are forbi
 
 When documenting an error (incident, failure mode, finding), don't just record WHAT broke — classify WHY against the generative meta-principles. This turns error documentation into architectural learning.
 
-**Step 1 — CLASSIFY** the error against the `meta.*` corpus. The corpus is NOT duplicated here — it lives in the awareness-graph service and is the queryable source of truth. Do not maintain a copy in this file; an inline table goes stale (it did). To get the current set, query the graph:
+**Step 1 — CLASSIFY** the error against the `meta.*` corpus. The corpus is NOT duplicated here — it lives in the sensei (awareness-graph) service and is the queryable source of truth. Do not maintain a copy in this file; an inline table goes stale (it did). To get the current set, query the graph:
 
 - `awareness.query(mode=by_class, class=invariant)` and filter for `meta.*` ids, or
 - `awareness.briefing(task=<the error>)` — surfaces the relevant principles for the case you're classifying, or
 - `awareness.resolve(<meta.id>)` to expand one.
 
-The corpus is grouped into categories — Authority (who owns this truth), Signal (is the truth arriving intact / degraded / silent / absorbed), Lifecycle (will this operation complete, and what on failure), Dependency (critical-path and circular), Structure (is this unit shaped to be reused/inspected/outlive its impl), and the GUI families Perception and Composition. Edit principles in the awareness-graph repo (`docs/awareness/generic/state_authority_invariants.yaml` and siblings), never here.
+The corpus is grouped into categories — Authority (who owns this truth), Signal (is the truth arriving intact / degraded / silent / absorbed), Lifecycle (will this operation complete, and what on failure), Dependency (critical-path and circular), Structure (is this unit shaped to be reused/inspected/outlive its impl), and the GUI families Perception and Composition. Edit principles in the sensei (awareness-graph) repo (`docs/awareness/generic/state_authority_invariants.yaml` and siblings), never here.
 
 If one fits → add `related_invariants: [meta.<id>]` to the error entry.
 If none fits → flag as **UNCLASSIFIABLE** (potential new principle — zoom out with human).
@@ -496,3 +496,99 @@ Types: feedback, architecture, decision, debug, session, user, project, referenc
 - Referencing `clustercontroller` directory (it's `cluster_controller` with underscore)
 - Assuming DNS zones persist across restarts (they're in-memory, re-register after restart)
 - Storing tokens/JWTs/credentials in source code, config files, or etcd values — tokens are ephemeral, generated at runtime
+
+
+## Sensei
+
+This project uses Sensei to prevent architectural drift. Before editing files
+in protected directories, consult the awareness graph.
+
+Sensei also installs the **Sensei Architect** skill. For architecture-sensitive
+planning, implementation, debugging, review, recovery, migration, security, or
+state/convergence work, load `.sensei/skills/sensei-architect/SKILL.md` before
+planning or editing. Claude Code can also discover the native project skill at
+`.claude/skills/sensei-architect/`. Use MCP tools when configured and CLI
+fallbacks otherwise. Stay proportional to the risk and preserve durable lessons
+with `sensei propose`.
+
+### Behavioral guidelines
+
+General discipline that applies to every change (paraphrased from Andrej
+Karpathy's observations on how LLMs fail at coding — the popular
+[`andrej-karpathy-skills`](https://github.com/forrestchang/andrej-karpathy-skills)
+CLAUDE.md). Sensei adds the *repo-specific* rules below; these are the *general*
+ones:
+
+1. **Think before coding.** State your assumptions out loud. If the request is
+   ambiguous, ask. If a simpler approach exists, push back. When you are
+   confused, stop and name what is unclear — do not pick one interpretation and
+   run with it.
+2. **Simplicity first.** Write the minimum code that solves the problem. No
+   speculative abstractions, no flexibility nobody asked for. Would a senior
+   engineer call this overcomplicated?
+3. **Surgical changes.** Touch only what the task requires. Do not improve
+   neighboring code or refactor what is not broken. Every changed line should
+   trace back to the request.
+4. **Goal-driven execution.** Turn a vague instruction into a verifiable target
+   before writing a line. "Add validation" becomes "write tests for invalid
+   inputs, then make them pass."
+
+### Rules
+
+1. **Call briefing before editing high-risk files.** Run `sensei briefing --file <path>`
+   before modifying any file listed in `docs/awareness/high_risk_files.yaml`.
+   Claude Code hooks enforce this automatically.
+
+2. **Respect forbidden fixes.** The briefing output lists patterns that look
+   correct but are known-broken. Do not use them. A PreToolUse hook
+   (`edit-check-guard.sh`) also runs your proposed content through
+   `sensei edit-check` and blocks an edit that introduces a forbidden-fix shape;
+   if that fires, revise rather than force it through.
+
+3. **Run required tests.** The briefing output lists tests that must pass
+   when touching protected files. Run them before committing.
+
+4. **End non-trivial code tasks with the AWG summary line:**
+   ```
+   AWG: briefing(<target>) | invariants: X, Y | uncertainty: Z
+   ```
+
+### Commands
+
+```bash
+sensei briefing --file <path>     # Context for a file edit
+sensei briefing --task "desc"     # Context for a task
+sensei preflight --file <path>    # Risk classification
+sensei check                      # Validate YAML sources
+sensei build                      # Recompile after editing YAML
+```
+
+### Adding Knowledge (one typed call)
+
+After fixing a bug, record the scar with a single `sensei propose` call. It
+appends the entry to the right YAML source, rebuilds the seed, reloads the
+local store, and stages the change — then stops. **You review and commit.**
+
+```bash
+# A way the system broke (links the invariant it violated):
+sensei propose --kind failure_mode --title "Stale seed served after reload" \
+  --related-invariant <inv.id> --evidence "observed stale node" \
+  --source-file golang/server/reload.go --required-test path_test.go:TestReloadFresh
+
+# A test that proves the behavior now:
+sensei propose --kind required_test --id "path_test.go:TestReloadFresh" \
+  --title "Reload serves fresh triples" --related-failure <fm.id>
+
+# A repair that must never be applied again:
+sensei propose --kind forbidden_fix --title "Cache the reload path" \
+  --related-invariant <inv.id> --description "caused the stale-serve failure"
+```
+
+Every entry must answer the contract-first questions: what contract was
+violated/clarified, what failure we observed, what test proves it, what future
+fix is forbidden, and which invariant/failure_mode it connects to. Vague notes
+are rejected. If the contract is unknown, use `--kind contract_unknown` with a
+`--proposed-contract` or `--revision-request`.
+
+The `Stop` hook (`sensei feedback-check`) reminds you if a session fixed a durable
+error class but added no graph feedback.

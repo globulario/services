@@ -216,7 +216,7 @@ func serviceReleaseToTarget(rel *cluster_controllerpb.ServiceRelease, nodes []*c
 	if strings.TrimSpace(rel.Status.ResolvedVersion) == "" {
 		return nil // not yet resolved; nothing to verify
 	}
-	required := requiredNodesFromStatus(rel.Status.Nodes, nodes)
+	required := requiredNodesFromStatus(rel.Status.Nodes, nodes, strings.TrimSpace(rel.Spec.ServiceName))
 	return &DesiredServiceTarget{
 		Service:                   strings.TrimSpace(rel.Spec.ServiceName),
 		PublisherID:               rel.Spec.PublisherID,
@@ -240,7 +240,7 @@ func infraReleaseToTarget(rel *cluster_controllerpb.InfrastructureRelease, nodes
 	if strings.TrimSpace(rel.Status.ResolvedVersion) == "" {
 		return nil
 	}
-	required := requiredNodesFromStatus(rel.Status.Nodes, nodes)
+	required := requiredNodesFromStatus(rel.Status.Nodes, nodes, strings.TrimSpace(rel.Spec.Component))
 	return &DesiredServiceTarget{
 		Service:                   strings.TrimSpace(rel.Spec.Component),
 		PublisherID:               rel.Spec.PublisherID,
@@ -414,8 +414,11 @@ func normalizeEntrypointChecksum(h string) string {
 // requiredNodesFromStatus extracts the node-id list from the per-node
 // status array on a release. Falls back to all known nodes when the
 // release has no per-node entries yet (pre-resolve / synthetic release).
-func requiredNodesFromStatus(statusNodes []*cluster_controllerpb.NodeReleaseStatus, allNodes []*cluster_controllerpb.NodeRecord) []string {
+func requiredNodesFromStatus(statusNodes []*cluster_controllerpb.NodeReleaseStatus, allNodes []*cluster_controllerpb.NodeRecord, service string) []string {
 	if len(statusNodes) > 0 {
+		// The controller published per-node status. That list IS the placement
+		// decision and the controller owns it — narrowing it here would be the
+		// doctor overriding the owner of that truth.
 		out := make([]string, 0, len(statusNodes))
 		for _, n := range statusNodes {
 			if id := strings.TrimSpace(n.NodeID); id != "" {
@@ -424,13 +427,63 @@ func requiredNodesFromStatus(statusNodes []*cluster_controllerpb.NodeReleaseStat
 		}
 		return out
 	}
+	// Fallback: no per-node status. Requiring the service on EVERY node ignores
+	// placement entirely and demands a runtime proof from nodes that were never
+	// meant to run it. Observed on the first 3-node cluster: media, title and
+	// torrent (media-server profile, held only by ryzen) plus a deliberately
+	// held minio produced 8 service.runtime_identity_unproven warnings against
+	// nuc and dell, which were behaving perfectly.
+	//
+	// Filter by the node's own resolved placement intent, which the controller
+	// already publishes as metadata. A node is dropped ONLY when it positively
+	// states a placement that excludes this service.
 	out := make([]string, 0, len(allNodes))
 	for _, n := range allNodes {
-		if id := strings.TrimSpace(n.GetNodeId()); id != "" {
-			out = append(out, id)
+		id := strings.TrimSpace(n.GetNodeId())
+		if id == "" {
+			continue
 		}
+		if places, known := nodePlacesService(n, service); known && !places {
+			continue
+		}
+		out = append(out, id)
 	}
 	return out
+}
+
+// nodePlacesService reports whether the node's resolved placement intent covers
+// the given service.
+//
+// The second return value is the important one: known=false means the node
+// published no placement metadata at all, so NOTHING may be concluded from its
+// silence. Callers must keep such a node in scope. Treating "no metadata" as
+// "not placed here" would let a controller that has not yet resolved intent —
+// or an older one that does not emit these keys — silently suppress genuine
+// findings, which is the shape recorded as
+// failure_mode:doctor.rule_silently_suppressed_on_data_source_error. Absence of
+// evidence is not evidence of absence.
+func nodePlacesService(node *cluster_controllerpb.NodeRecord, service string) (places bool, known bool) {
+	service = strings.TrimSpace(service)
+	if node == nil || service == "" {
+		return false, false
+	}
+	meta := node.GetMetadata()
+	if meta == nil {
+		return false, false
+	}
+	for _, key := range []string{"desired_workloads", "desired_infra"} {
+		list := strings.TrimSpace(meta[key])
+		if list == "" {
+			continue
+		}
+		known = true
+		for _, name := range strings.Split(list, ",") {
+			if strings.EqualFold(strings.TrimSpace(name), service) {
+				return true, true
+			}
+		}
+	}
+	return false, known
 }
 
 func lastTransitionFromStatus(unixMs int64) time.Time {

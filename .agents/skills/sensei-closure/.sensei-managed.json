@@ -1,0 +1,15 @@
+{
+  "managed_by": "sensei init",
+  "skill": "sensei-closure",
+  "version": "2026.07.13",
+  "source_dir": "templates/skills/sensei-closure",
+  "files": {
+    "README.md": "b31f6b3fff76274ec84bad6edf10e876ec067b6904af5af376cefb74f66733e7",
+    "SKILL.md": "3ac3f184881c2d7cadabe8e518a68bbe19d9417a98b91c4fe3f89389d2736f67",
+    "references/CLOSURE-MODEL.md": "a664aa546332af607434ea552d69b07d353e5ad6df9f01ed46a512c2ab5dc442",
+    "references/CONVERGENCE-WORKFLOW.md": "87ca361e22e0eb8a717c9b4b7afa96cc0ecf41c4d925715d0667d9162672d3d7",
+    "references/DIALOGUE-WORKFLOW.md": "c6a5588d9a27117c158235976b6b99031b4d9b9313fdeb9def8a89d4862617e9",
+    "references/EVIDENCE-PROBE-WORKFLOW.md": "78a7d1dd1e6276febf72dbd3b8a2154128e1f9317c42ce8784722b625251c1fe",
+    "references/HONESTY-BOUNDARIES.md": "0e53f2b6326823e2639acfd83115b95aab5065c95992d4413d665b2f0e65f4dc"
+  }
+}

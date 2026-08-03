@@ -102,13 +102,13 @@ CORE_PACKAGES=(
   "resource_*_linux_amd64.tgz"
   "rbac_*_linux_amd64.tgz"
   "authentication_*_linux_amd64.tgz"
-  "discovery_*_linux_amd64.tgz"
   "dns_*_linux_amd64.tgz"
   "repository_*_linux_amd64.tgz"
   # ── Operations ─────────────────────────────────────────────────────
   "sidekick_*_linux_amd64.tgz"
   "node-exporter_*_linux_amd64.tgz"
   "prometheus_*_linux_amd64.tgz"
+  "alertmanager_*_linux_amd64.tgz"  # registry day0_required: true — omitted here caused day-0 NotFound
   "monitoring_*_linux_amd64.tgz"
   "event_*_linux_amd64.tgz"
   "log_*_linux_amd64.tgz"
@@ -145,6 +145,28 @@ CORE_PACKAGES=(
   "sha256sum_*_linux_amd64.tgz"
   "restic_*_linux_amd64.tgz"
   "rclone_*_linux_amd64.tgz"
+  # ── AI CLI tools ───────────────────────────────────────────────────
+  # claude and codex are external AI CLI COMMAND packages, requested at
+  # convergence via the core profile (component_catalog/profilemap.go:
+  # core+compute → every node carries core) and the registry (codex
+  # day0_required: true). They were absent from this publish list, so nodes
+  # were told to install claude@2.1.177 / codex@0.142.3 while the repository
+  # had no such manifest — a version-authority violation producing recurring
+  # "resolve latest manifest ... NotFound". The artifacts ship in the bundle
+  # (dist/.../packages/); publish them here.
+  "claude_*_linux_amd64.tgz"
+  "codex_*_linux_amd64.tgz"
+  # ── OS-dependency bridge packages ──────────────────────────────────
+  # libnss-resolve is requested at convergence via the core/compute
+  # profile (component_catalog.go) but, like claude/codex above, was
+  # absent from this publish list — every new package added to the
+  # catalog must ALSO be added here, or Day-0's own reconcile path
+  # (release.apply.package) can never resolve its build identity and
+  # it's left unrecorded in installed_state, silently, with no drift
+  # ever firing (see docs/operational-knowledge/stages/package-system.yaml,
+  # ops.always.package.new-package-must-be-published). The artifact
+  # ships in the bundle (dist/.../packages/); publish it here.
+  "libnss-resolve_*_linux_amd64.tgz"
 )
 
 # ── Step 1: Discover repository endpoint ─────────────────────────────────────

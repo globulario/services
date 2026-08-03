@@ -4113,3 +4113,92 @@ forbidden_fixes:
     supervisor-mediated "uninstall-package" workflow on that ONE node — clears
     installed-state, never touches cluster desired-state. Removing an authorized package
     this way is self-healing (reconcile reinstalls); removing an orphan retires it.
+- id: hand_edit_installer_packagecatalog_specs
+  summary: 'Directly hand-edit globular-installer/internal/packagecatalog/* instead of regenerating
+    it from packages/registry.yaml via the Makefile sync-specs target. The embedded catalog is a
+    generated mirror bound to the registry by manifest digest; a hand edit drifts from its source
+    of truth without changing the digest that is supposed to prove they match.
+
+    '
+  related_invariants:
+  - repo.installer_embedded_assets_are_generated_mirrors_only
+  safe_alternative: 'Edit packages/registry.yaml (the real source of truth) and regenerate the
+    mirror with ../globular-installer/Makefile sync-specs; validate with check-specs.
+
+    '
+- id: hand_edit_installer_webroot_as_source
+  summary: 'Directly hand-edit globular-installer/internal/assets/webroot as if it were authored
+    platform content, instead of treating it as a generated fallback mirror of services/webroot.
+
+    '
+  related_invariants:
+  - repo.installer_embedded_assets_are_generated_mirrors_only
+  safe_alternative: 'Edit services/webroot (the real source) and regenerate the mirror with
+    ../globular-installer/Makefile sync-webroot; validate with check-webroot.
+
+    '
+- id: treat_installer_assets_bin_as_release_binary_store
+  summary: 'Place real platform release binaries into globular-installer/internal/assets/bin,
+    which exists only for installer-private helper assets, not platform release artifacts.
+
+    '
+  related_invariants:
+  - repo.installer_embedded_assets_are_generated_mirrors_only
+  safe_alternative: 'Publish platform release binaries through the release/BOM pipeline; keep
+    assets/bin limited to the installer''s own private helper tooling and validate with
+    check-asset-bin.
+
+    '
+- id: bypass_registry_digest_binding_for_embedded_catalog
+  summary: 'Load or trust the embedded packagecatalog mirror without validating its manifest
+    digest against packages/registry.yaml, silently accepting a stale or drifted mirror as if it
+    were current.
+
+    '
+  related_invariants:
+  - repo.installer_embedded_assets_are_generated_mirrors_only
+  safe_alternative: 'Always validate the embedded catalog''s manifest digest against
+    packages/registry.yaml via scripts/validate-package-authority.py before trusting it; reject
+    missing or stale manifests rather than proceeding.
+
+    '
+- id: move_real_install_workflow_into_release_wrapper
+  summary: 'Implement the actual day-0/day-1 install workflow logic inside services/scripts/install.sh
+    (a release wrapper) instead of keeping install execution authority in
+    globular-installer/scripts/install-day0.sh, collapsing two related flows with different owners
+    into one and recreating cross-repo authority drift.
+
+    '
+  related_invariants:
+  - repo.release_wrapper_is_not_install_execution_authority
+  safe_alternative: 'Keep services/scripts/install.sh a thin release wrapper; the real install
+    workflow authority stays in globular-installer/scripts/install-day0.sh, per
+    docs/design/artifact-authority-matrix.md.
+
+    '
+- id: make_services_repo_owner_of_installer_execution
+  summary: 'Have the services repo take on ownership of installer EXECUTION (running the actual
+    install workflow) rather than remaining the release-publication and package-authority source,
+    violating the documented cross-repo authority split.
+
+    '
+  related_invariants:
+  - repo.release_wrapper_is_not_install_execution_authority
+  safe_alternative: 'Keep install execution authority in globular-installer/scripts/install-day0.sh;
+    services only publishes releases and authors package/registry data, per
+    docs/design/artifact-authority-matrix.md and docs/design/package-authority-layout.md.
+
+    '
+- id: treat_installer_mirror_assets_as_release_source_of_truth
+  summary: 'Treat globular-installer''s mirrored packagecatalog/webroot assets as if they were the
+    source of truth for a release, instead of packages/registry.yaml and services/webroot, which
+    are the real upstream authorities the mirrors are generated from.
+
+    '
+  related_invariants:
+  - repo.release_wrapper_is_not_install_execution_authority
+  safe_alternative: 'Always treat packages/registry.yaml and services/webroot as the release source
+    of truth; installer mirrors are downstream projections validated by
+    scripts/validate-package-authority.py, never authored or trusted independently.
+
+    '

@@ -50,6 +50,31 @@ globular services desired set mcp 0.0.1
 
 The MCP server runs on port **10260** (HTTPS with the cluster's internal TLS certificate).
 
+## The committed `.mcp.json` (Sensei / awareness-graph)
+
+This repository commits a `.mcp.json` at its root wiring the `sensei` MCP server.
+It is separate from the cluster MCP server above: it serves the awareness graph,
+not cluster operations.
+
+**Prerequisite**: `awareness-mcp` must be resolvable on `PATH`. It ships with
+Sensei — see that repository's `INSTALL.md`. Verify with:
+
+```bash
+command -v awareness-mcp
+```
+
+The committed config deliberately uses the bare command name rather than an
+absolute path, so a fresh clone on any machine either starts the server or fails
+with a clear `command not found`. It must never be "fixed" by pasting in a local
+build path such as `/home/<user>/.../sensei/bin/awareness-mcp` — that resolves
+only on the machine that wrote it, and every other clone fails silently.
+`scripts/check-mcp-config-portable.sh` enforces this.
+
+No arguments are needed. `awareness-mcp` already defaults to `localhost:10120`
+and reads `$SENSEI_ADDR` (then legacy `$AWG_ADDR`) itself, so a non-default
+address is set through the environment rather than through client-side variable
+expansion, which is not a guarantee every MCP client makes.
+
 ## Step 2: Configure Claude Code
 
 Claude Code discovers MCP servers through a `.mcp.json` configuration file. You can set this up globally (for all projects) or per-project.

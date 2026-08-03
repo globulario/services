@@ -306,12 +306,22 @@ func runDescribe(ctx context.Context, binPath string) (*describePayload, error) 
 		return nil, fmt.Errorf("describe %s: is a directory", binPath)
 	}
 
-	cmd := exec.CommandContext(ctx, binPath, "--describe")
+	// Bound the describe exec independently of the caller's context. A binary
+	// that honors --describe answers in milliseconds; one that does NOT and
+	// instead starts serving (e.g. mcp_server ignored --describe and blocked
+	// in HTTP serve) would otherwise run until the caller's full install
+	// context expires. The 2026-07 Day-1 mcp join burned its entire 8-minute
+	// per-package budget here, so post-install failed on the dead context and
+	// the join looped forever. A describe must never hold the install hostage.
+	dctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(dctx, binPath, "--describe")
 	out, err := cmd.Output()
 	if err != nil {
-		// Non-zero exit or startup failure. Treat as "describe not
-		// supported" — the binary is valid, it just doesn't speak the
-		// --describe protocol. Callers must handle nil result.
+		// Non-zero exit, startup failure, or the 5s bound killed a binary
+		// that never answers --describe. Treat as "describe not supported" —
+		// the binary is valid, it just doesn't speak the --describe protocol.
+		// Callers must handle nil result.
 		return nil, nil
 	}
 	if len(strings.TrimSpace(string(out))) == 0 {

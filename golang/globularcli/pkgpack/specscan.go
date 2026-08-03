@@ -17,12 +17,29 @@ type HealthCheckHint struct {
 	Port int    `yaml:"port"` // TCP port that must be listening (0 = skip)
 }
 
+// PackageIdentity is a package's declared, verifiable identity proof
+// (invariant identity.has_single_canonical_source_and_is_immutable +
+// forbidden_fix:recompute_identity_from_secondary_source). Shipped-binary
+// packages derive it from the bundled binary; a noop package (entrypoint: none —
+// curl/wrapper, .deb, OS-repo) installs a binary the build never sees, so it MUST
+// declare this block so the identity is a DECLARED value, never one the node-agent
+// "recovers" by hashing whatever is on disk.
+type PackageIdentity struct {
+	Proof         string `yaml:"proof"`          // "binary_sha256" | "version"
+	InstalledPath string `yaml:"installed_path"` // absolute path the node-agent re-hashes / probes
+	Checksum      string `yaml:"checksum"`       // sha256:... — required for proof=binary_sha256
+	VersionProbe  string `yaml:"version_probe"`  // optional command to read the live version (proof=version)
+}
+
 // SpecMetadata contains optional package metadata from the spec's metadata: section.
 type SpecMetadata struct {
 	Kind        string   // "service", "infrastructure", "application", "command"
 	Description string
 	Keywords    []string
 	License     string
+
+	// Declared, verifiable identity proof (single canonical source).
+	Identity *PackageIdentity
 
 	// Day 1 orchestration fields — drive profile-aware, dependency-gated convergence.
 	ProvidesCapabilities []string         // capabilities this package gives the node (e.g. "local-db", "object-store")
@@ -324,6 +341,18 @@ func extractMetadata(doc map[string]any, specPath string) SpecMetadata {
 		}
 		if hint.Unit != "" || hint.Port != 0 {
 			meta.HealthCheck = hint
+		}
+	}
+
+	if idm := lookupMap(m, "identity"); idm != nil {
+		id := &PackageIdentity{
+			Proof:         lookupString(idm, "proof"),
+			InstalledPath: lookupString(idm, "installed_path"),
+			Checksum:      lookupString(idm, "checksum"),
+			VersionProbe:  lookupString(idm, "version_probe"),
+		}
+		if id.Proof != "" {
+			meta.Identity = id
 		}
 	}
 

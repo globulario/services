@@ -1198,6 +1198,30 @@ for pkg_name in "${!BIN_MAP[@]}"; do
     # committed version, policy payload, and entrypoint checksum). Pure copy —
     # no identity mutation, no re-compression.
     cp "${src_pkg}" "${out_file}"
+    # Local/hotfix lane: pkg build stamps the version suffix into the tgz
+    # FILENAME and the binary (ldflags), but the reused template's package.json
+    # still carries the committed BASE version. Rewrite it so
+    #   package.json.version == binary --version == release-index version
+    # (the single-source invariant, docs/design/package-identity-single-authority.md,
+    # enforced by validate_release_identity_gate). Without this the gate fails:
+    # release-index carries the base version while the gate expects base+suffix.
+    # Version-only rewrite — publisher/entrypoint_checksum from the template are
+    # already correct, and no repository-admission identity is introduced.
+    if [[ -n "${PACKAGE_VERSION_SUFFIX}" ]]; then
+      suffix_tmp=$(mktemp -d)
+      tar -C "${suffix_tmp}" -xzf "${out_file}"
+      python3 - "${suffix_tmp}/package.json" "${pkg_ver}" <<'PYEOF'
+import json, sys
+path, version = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    d = json.load(f)
+d['version'] = version
+with open(path, 'w') as f:
+    json.dump(d, f, indent=2)
+PYEOF
+      tar -C "${suffix_tmp}" -czf "${out_file}" .
+      rm -rf "${suffix_tmp}"
+    fi
     validate_package_systemd_units "${out_file}" || die "unsafe systemd unit content detected in $(basename "${out_file}")"
     assert_no_local_identity "${out_file}"
     printf '%s\t%s\t%s\t%s\n' "${pkg_name}" "generated-current-release" "v${VERSION}" "${src_pkg}" >> "${PROVENANCE_FILE}"

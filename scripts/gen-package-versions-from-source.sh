@@ -63,7 +63,15 @@ pkg_name_for_dir() {
 validate_version() {
   local name="$1" ver="$2"
   [[ -n "${ver}" ]] || die "${name}: empty version in zz_version_generated.go"
-  [[ "${ver}" != "0.0.0-dev" ]] || die "${name}: version is 0.0.0-dev — allocate a real version (gen-version.sh) before release"
+  # Reject the WHOLE 0.0.0-* placeholder family, not just 0.0.0-dev.
+  # 0.0.0-ci was published as the committed version of all 33 packages by
+  # commit 52342307: CI ran `gen-version.sh 0.0.0-ci` against the tracked
+  # checkout and a `git add -A` captured it. A check naming one placeholder
+  # cannot stop the next one, so the shape is rejected rather than the value.
+  case "${ver}" in
+    0.0.0-*|0.0.0)
+      die "${name}: version '${ver}' is a placeholder — committed package versions must be real allocated versions (see docs/design/package-identity-single-authority.md)" ;;
+  esac
   [[ "${ver}" =~ ^[0-9]+(\.[0-9]+){2}([+-][0-9A-Za-z._-]+)?$ ]] || die "${name}: invalid version '${ver}'"
 }
 

@@ -26,11 +26,11 @@ func TestCompileNodeBootstrap(t *testing.T) {
 	if cw.Name != "node.bootstrap" {
 		t.Errorf("name = %q, want node.bootstrap", cw.Name)
 	}
-	if len(cw.Steps) != 7 {
-		t.Errorf("steps = %d, want 7", len(cw.Steps))
+	if len(cw.Steps) != 8 {
+		t.Errorf("steps = %d, want 8", len(cw.Steps))
 	}
-	if len(cw.TopoOrder) != 7 {
-		t.Errorf("topo_order = %d, want 7", len(cw.TopoOrder))
+	if len(cw.TopoOrder) != 8 {
+		t.Errorf("topo_order = %d, want 8", len(cw.TopoOrder))
 	}
 	if len(cw.EntryPoints) == 0 {
 		t.Error("expected at least one entry point")

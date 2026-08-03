@@ -579,13 +579,58 @@ func (srv *server) fetchLocalRepositoryBOM(ctx context.Context) ([]BOMPackage, L
 	}
 	sort.Slice(bom, func(i, j int) bool { return bom[i].Name < bom[j].Name })
 
+	// Gate-4 input. A PUBLISHED manifest is cluster-wide (ScyllaDB) but the blob
+	// is node-local POSIX CAS, so "the manifest resolves" does NOT mean the
+	// artifact can be downloaded. Admitting a package on manifest existence
+	// alone dispatches release.apply.package into a download that can never
+	// succeed, and the drift re-dispatches every reconcile cycle forever
+	// (globular-cli@1.2.289 sat at 914 consecutive cycles).
+	//
+	// Ask the repository owner whether the blob is actually present — the
+	// controller must not stat CAS paths itself. Unavailable → return "" so
+	// evaluateUpgradeDecisions classifies the package missing_in_repo and
+	// refuses to dispatch, leaving it visibly blocked instead of storming.
 	resolver := LocalBuildIDResolver(func(name, version string) string {
-		if e, ok := picked[pkgKey{name, version}]; ok {
-			return e.buildID
+		e, ok := picked[pkgKey{name, version}]
+		if !ok {
+			return ""
 		}
-		return ""
+		if !srv.artifactBlobAvailable(ctx, name, version, e.kind) {
+			logger.Warn("platform.upgrade: refusing to plan — published manifest has no retrievable blob",
+				"package", name, "version", version, "build_id", e.buildID)
+			return ""
+		}
+		return e.buildID
 	})
 	return bom, resolver, nil
+}
+
+// artifactBlobAvailable asks the repository owner whether the exact published
+// artifact is retrievable, not merely catalogued. Fails closed: any error, an
+// unreachable repository, or a missing blob all yield false, because dispatching
+// on an unverified artifact is what produces the stuck-drift storm.
+func (srv *server) artifactBlobAvailable(ctx context.Context, name, version, kind string) bool {
+	repoAddr := config.ResolveLocalServiceAddr("repository.PackageRepository")
+	if repoAddr == "" {
+		return false
+	}
+	rc, err := repository_client.NewRepositoryService_Client(repoAddr, "repository.PackageRepository")
+	if err != nil {
+		return false
+	}
+	defer rc.Close()
+
+	resp, err := rc.ExplainArtifact(&repositorypb.ExplainArtifactRequest{
+		Ref: &repositorypb.ArtifactRef{
+			Name:     name,
+			Version:  version,
+			Platform: "linux_amd64",
+		},
+	})
+	if err != nil || resp == nil {
+		return false
+	}
+	return resp.GetBlobPresent()
 }
 
 // resolveArtifactForUpgrade looks up the manifest for a (name, version,

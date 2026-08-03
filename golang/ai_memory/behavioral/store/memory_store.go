@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 
@@ -126,6 +127,72 @@ func (m *MemoryStore) PutEvidence(_ context.Context, e *api.Evidence) error {
 		m.evidenceByTgt[tk] = append(m.evidenceByTgt[tk], e.ID)
 	}
 	return nil
+}
+
+// ListEvidenceSatisfying mirrors the Scylla adapter's selection semantics so
+// tests exercising governance lookups need no ScyllaDB.
+//
+// Two behaviours are load-bearing and must match the CQL path exactly, because
+// a divergence here would let tests pass while the real governor finds nothing:
+//
+//   - ClusterID is an EXACT match, never a wildcard. It is part of the Scylla
+//     partition key, so an empty ClusterID selects the cluster-less partition
+//     rather than every cluster. Widening it would let one cluster's evidence
+//     authorize another cluster's action.
+//   - Results are ordered newest-first, matching CLUSTERING ORDER BY
+//     (observed_at DESC), so a caller taking the first N gets the freshest.
+func (m *MemoryStore) ListEvidenceSatisfying(_ context.Context, q EvidenceSatisfactionQuery) ([]api.Evidence, error) {
+	if q.Project == "" || q.Domain == "" || q.RequiredEvidenceRef == "" {
+		return nil, fmt.Errorf("evidence satisfaction query requires project, domain and required_evidence_ref")
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var out []api.Evidence
+	for _, e := range m.evidence {
+		if e.Project != q.Project || string(e.Domain) != q.Domain {
+			continue
+		}
+		if e.ClusterID != q.ClusterID {
+			continue
+		}
+		satisfies := false
+		for _, ref := range e.Satisfies {
+			if string(ref) == q.RequiredEvidenceRef {
+				satisfies = true
+				break
+			}
+		}
+		if !satisfies {
+			continue
+		}
+		if q.NotOlderThan > 0 && e.ObservedAt < q.NotOlderThan {
+			continue
+		}
+		if q.ConditionRef != "" && e.ConditionRef != q.ConditionRef {
+			continue
+		}
+		if q.EntityRef != "" && e.EntityRef != q.EntityRef {
+			continue
+		}
+		out = append(out, *e)
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ObservedAt != out[j].ObservedAt {
+			return out[i].ObservedAt > out[j].ObservedAt // newest first
+		}
+		return out[i].ID < out[j].ID
+	})
+
+	limit := q.Limit
+	if limit <= 0 {
+		limit = defaultSatisfactionLimit
+	}
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
 }
 
 func (m *MemoryStore) ListEvidenceForTarget(_ context.Context, project, domain, targetID string) ([]api.Evidence, error) {

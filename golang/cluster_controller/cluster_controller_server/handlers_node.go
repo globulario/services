@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,13 @@ func (srv *server) ListNodes(ctx context.Context, req *cluster_controllerpb.List
 		}
 		if node.EtcdJoinPhase != "" {
 			meta["etcd_join_phase"] = string(node.EtcdJoinPhase)
+			// Voting status travels with the join phase. Consumers reasoning
+			// about fault tolerance must count VOTERS, not members: a learner
+			// replicates but never votes, so an N-member cluster containing
+			// learners does not have an N-member quorum. Emitted as an explicit
+			// "false" for voters so absence stays distinguishable from "known
+			// to be a voter" — invariant:meta.quorum_is_quality_not_constraint.
+			meta["etcd_is_learner"] = strconv.FormatBool(node.EtcdIsLearner)
 		}
 		if node.ScyllaJoinPhase != "" {
 			meta["scylla_join_phase"] = string(node.ScyllaJoinPhase)

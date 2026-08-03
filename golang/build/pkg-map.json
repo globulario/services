@@ -175,13 +175,13 @@
     "kind": "command"
   },
   "scylladb": {
-    "binary": "noop",
+    "binary": "none",
     "go_target": "",
     "kind": "infrastructure",
     "platform_version": false
   },
   "keepalived": {
-    "binary": "noop",
+    "binary": "none",
     "go_target": "",
     "kind": "infrastructure",
     "platform_version": false
@@ -289,13 +289,13 @@
     "platform_version": false
   },
   "claude": {
-    "binary": "noop",
+    "binary": "none",
     "go_target": "",
     "kind": "command",
     "platform_version": false
   },
   "codex": {
-    "binary": "noop",
+    "binary": "none",
     "go_target": "",
     "kind": "command",
     "platform_version": false

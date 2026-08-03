@@ -39,6 +39,11 @@
   recommended_behavior: Treat diagnostic findings as claims and build an authority chain before destructive action; verify against the owning authority first.
   source: opsknowledge:incident.cluster_zero_findings_2026_06_03
   title: 'Repeat the failure pattern from incident: Milestone — cluster at zero findings (2026-06-03)'
+- id: forbidden.cluster.incident.node_rejoin_scylla_group0_repository_2026_07_09
+  reason: this failure pattern was observed in incident node_rejoin_scylla_group0_repository_2026_07_09
+  recommended_behavior: Treat diagnostic findings as claims and build an authority chain before destructive action; verify against the owning authority first.
+  source: opsknowledge:incident.node_rejoin_scylla_group0_repository_2026_07_09
+  title: 'Repeat the failure pattern from incident: Incident — node remove/rejoin drill cascade: Scylla group0 quorum loss + repository index split (2026-07-09)'
 - id: forbidden.cluster.incident.scylla_manager_tls_trust_2026_06_03
   reason: this failure pattern was observed in incident scylla_manager_tls_trust_2026_06_03
   recommended_behavior: Treat diagnostic findings as claims and build an authority chain before destructive action; verify against the owning authority first.

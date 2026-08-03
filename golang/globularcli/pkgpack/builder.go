@@ -160,7 +160,7 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		if len(info.Metadata.BundleDebs) > 0 && len(info.DebPaths) == 0 {
 			if opts.DebsDir != "" {
 				// Use pre-downloaded debs; skip apt-get download.
-				debPaths, err := collectPrebuiltDebs(opts.DebsDir)
+				debPaths, err := collectPrebuiltDebs(opts.DebsDir, goarch)
 				if err != nil {
 					res.Err = fmt.Errorf("collect prebuilt debs from %s: %w", opts.DebsDir, err)
 					results = append(results, res)
@@ -187,10 +187,19 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 					hadErr = true
 					continue
 				}
-				info.DebPaths = debPaths
+				info.DebPaths = filterDebsForArch(debPaths, goarch)
 				defer os.RemoveAll(debDir)
 			}
 		}
+
+		// Single choke point for the architecture filter. Applied here rather
+		// than only inside the collectors because a package-local root/debs
+		// directory (the scylladb layout) is scanned by specscan and arrives
+		// with DebPaths already populated, which skips both collectors
+		// entirely — that is how 12 i386 .debs kept shipping after the
+		// collectors were filtered. Whatever the source, nothing foreign-arch
+		// reaches the artifact.
+		info.DebPaths = filterDebsForArch(info.DebPaths, goarch)
 
 		archiveName := buildArchiveName(info.ServiceName, opts.Version, goos, goarch)
 		outputPath := filepath.Join(opts.OutDir, archiveName)
@@ -388,6 +397,24 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 	// the node-agent verifier reads "none" and returns BinaryNotApplicable.
 	manifestEntrypoint := "none"
 	manifestEntrypointChecksum := ""
+	manifestIdentityProof := ""
+	manifestIdentityInstalledPath := ""
+	// An explicit identity block is a PROMISE the node-agent must be able to
+	// keep. Validate before writing the archive so an artifact carrying an
+	// unfulfillable declaration never exists.
+	if err := validateDeclaredIdentity(info.Metadata.Identity, info.NoEntrypoint); err != nil {
+		return nil, fmt.Errorf("package %s: %w", info.ServiceName, err)
+	}
+	if info.Metadata.Identity != nil {
+		manifestIdentityProof = strings.ToLower(strings.TrimSpace(info.Metadata.Identity.Proof))
+		// Verbatim from the spec — never derived from the package name,
+		// entrypoint, unit, or anything discovered on the build host.
+		manifestIdentityInstalledPath = normalizeIdentityInstalledPath(info.Metadata.Identity.InstalledPath)
+	} else if !info.NoEntrypoint {
+		// Shipped-binary packages are binary_sha256 by construction even without an
+		// explicit identity block (the checksum below is the proof).
+		manifestIdentityProof = "binary_sha256"
+	}
 	if !info.NoEntrypoint {
 		entrypointChecksum, err := sha256File(execDest)
 		if err != nil {
@@ -395,17 +422,28 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		}
 		manifestEntrypoint = path.Join("bin", info.ExecName)
 		manifestEntrypointChecksum = "sha256:" + entrypointChecksum
+	} else if id := info.Metadata.Identity; id != nil && strings.EqualFold(strings.TrimSpace(id.Proof), ProofBinarySHA256) {
+		// Noop package (curl/wrapper, .deb, OS-repo) that DECLARES a binary_sha256
+		// identity: the build never sees the installed binary, so the manifest
+		// carries the package's DECLARED pinned checksum verbatim. The node-agent
+		// re-hashes the installed binary at identity.installed_path and compares it
+		// against this value — a single declared canonical identity, never one
+		// recovered by hashing whatever happens to be on disk
+		// (forbidden_fix:recompute_identity_from_secondary_source).
+		manifestEntrypointChecksum = normalizeIdentityChecksum(id.Checksum)
 	}
 
 	manifest := Manifest{
-		Type:               pkgType,
-		Name:               info.ServiceName,
-		Version:            opts.Version,
-		BuildNumber:        opts.BuildNumber,
-		Platform:           fmt.Sprintf("%s_%s", goos, goarch),
-		Publisher:          opts.Publisher,
-		Entrypoint:         manifestEntrypoint,
-		EntrypointChecksum: manifestEntrypointChecksum,
+		Type:                  pkgType,
+		Name:                  info.ServiceName,
+		Version:               opts.Version,
+		BuildNumber:           opts.BuildNumber,
+		Platform:              fmt.Sprintf("%s_%s", goos, goarch),
+		Publisher:             opts.Publisher,
+		Entrypoint:            manifestEntrypoint,
+		EntrypointChecksum:    manifestEntrypointChecksum,
+		IdentityProof:         manifestIdentityProof,
+		IdentityInstalledPath: manifestIdentityInstalledPath,
 		Defaults: ManifestDefault{
 			ConfigDir: "",
 			Spec:      path.Join("specs", info.SpecFile),
