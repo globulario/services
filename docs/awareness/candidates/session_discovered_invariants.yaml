@@ -336,8 +336,11 @@ session_discovered_candidates:
         - >-
           For forked representations (sub-shape 1) — PARITY: a regenerate-and-diff or
           walk-the-source-and-set-difference gate that fails on missing and on extra entries.
-          `make check-package-kinds` and TestCommandAndSkipUnitListsMatchSpecs are the two working
-          instances in this repo.
+          `make check-package-kinds` is a currently working parity instance.
+          TestCommandAndSkipUnitListsMatchSpecs is the intended second instance, but is currently
+          INERT because its source-discovery path no longer matches the packages repository layout
+          (see guard_currently_inert above). A parity obligation is therefore not discharged by the
+          existence of a parity test — the test must be shown to have actually asserted.
         - >-
           For disconnected derivations (sub-shape 2) — CONSUMER REACHABILITY: a producer-to-consumer
           obligation proving the derived value arrives. Static wiring tests suffice when the consumer
@@ -347,13 +350,23 @@ session_discovered_candidates:
       prevented_instance: >-
         FIFTH INSTANCE, PREVENTED BY DESIGN (2026-08-03) — a caller-supplied `approved_by` request
         field on the object-store topology approval RPC would have competed with the authenticated
-        server identity, creating two representations of one fact: attacker-controlled caller
-        identity and server-derived authenticated identity. That is sub-shape 1 introduced
-        deliberately, on an authorization-bearing fact, where the forked copy is adversary-controlled.
-        The chosen design prevents the fork by deriving approval identity EXCLUSIVELY from
-        authenticated server context: the RPC expresses the approval ACTION; the server owns the
-        IDENTITY. Recorded here because a prevented instance is evidence for the principle that a
-        post-hoc scar cannot supply.
+        server identity, creating two representations of one fact: caller-asserted identity and
+        server-derived authenticated identity. The chosen design prevents the fork by deriving
+        approval identity EXCLUSIVELY from authenticated server context: the RPC expresses the
+        approval ACTION; the server owns the IDENTITY. Recorded here because a prevented instance is
+        evidence for the principle that a post-hoc scar cannot supply.
+
+        CLASSIFICATION — the prevented `approved_by` design shares the parent failure class of
+        independently reconstructing a canonical fact, but is an AUTHORITY-SOURCE FORK rather than an
+        enumeration-fork instance. It is prevented through provenance enforcement rather than parity
+        comparison: a regenerate-and-diff gate would not detect it, because the two representations
+        are not two copies of one enumeration but two competing SOURCES for one authority-bearing
+        value. Deliberately not promoted to a third governed sub-shape here — one prevented instance
+        is not yet enough evidence to justify a new family; recorded so a later instance can.
+      prevented_instance_detectors:
+        - authority-bearing identity fields must not be caller supplied
+        - approval identity must originate from authenticated server context
+        - tests prove request metadata cannot override the context principal
       proposed_invariants:
         - >-
           The approval identity recorded for an object-store topology transition must be derived
