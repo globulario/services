@@ -49,10 +49,42 @@ func (srv *server) GetClusterHealth(ctx context.Context, req *cluster_controller
 		timeSinceSeen := now.Sub(node.LastSeen)
 		infraRuntimeOK, infraReason := bootstrapRequiredInfraRuntimeConverged(node, now, srv.state.MinioPoolNodes)
 		isHealthy := (node.Status == "healthy" || node.Status == "ready" || node.Status == "converging")
+
+		// A node carrying a reported error is never healthy, whatever its
+		// coarse status says.
+		//
+		// The LastError test below used to live only in the third arm, which a
+		// "ready" node with a fresh heartbeat could never reach — the first arm
+		// matched first. The node was counted in HealthyNodes and rendered with
+		// a green check while its error string was printed on the very next
+		// line. Observed live: a node reporting
+		// "globular-file.service is inactive" inside "Healthy: 5, Unhealthy: 0".
+		//
+		// The error may well be transient — stale unit evidence during
+		// convergence is normal — but transient is not the same as absent. It is
+		// labelled below as converging or degraded rather than silently green.
+		hasReportedError := strings.TrimSpace(node.LastError) != ""
 		switch {
-		case isHealthy && timeSinceSeen < healthyThreshold && infraRuntimeOK:
+		case isHealthy && !hasReportedError && timeSinceSeen < healthyThreshold && infraRuntimeOK:
 			nodeHealth.Status = "healthy"
 			resp.HealthyNodes++
+
+		case isHealthy && hasReportedError && timeSinceSeen < healthyThreshold && infraRuntimeOK:
+			// Reachable, infra converged, but reporting something. Distinguish a
+			// node still settling from one that claims to be done and is not:
+			// "converging" is expected mid-join, "degraded" is not.
+			//
+			// Counted outside HealthyNodes so the aggregate can never exceed the
+			// number of nodes that are actually fine, and so the cluster rollup
+			// below cannot return an unqualified "healthy".
+			if node.Status == "converging" {
+				nodeHealth.Status = "converging"
+			} else {
+				nodeHealth.Status = "degraded"
+			}
+			nodeHealth.FailedChecks = 1
+			nodeHealth.LastError = node.LastError
+			resp.UnhealthyNodes++
 		case isHealthy && timeSinceSeen < healthyThreshold && !infraRuntimeOK:
 			nodeHealth.Status = "unhealthy"
 			nodeHealth.FailedChecks = 1
@@ -250,11 +282,11 @@ func shortBuildID(bid string) string {
 // Phase 3 (Diagnostic Honesty Refactor) — versionHealthVerdict captures the
 // claim-vs-proof breakdown for a single service's version check.
 //
-//   ProofStatus values:
-//     "verified"   — desired claim == installed proof == running proof
-//     "claim_only" — only desired-vs-installed claim was checked; no runtime proof consumed
-//     "unverified" — proof unavailable / partial; consumer raises service.runtime_identity_unproven
-//     "mismatch"   — claim or proof disagrees; finding_id names the specific failure
+//	ProofStatus values:
+//	  "verified"   — desired claim == installed proof == running proof
+//	  "claim_only" — only desired-vs-installed claim was checked; no runtime proof consumed
+//	  "unverified" — proof unavailable / partial; consumer raises service.runtime_identity_unproven
+//	  "mismatch"   — claim or proof disagrees; finding_id names the specific failure
 //
 // The Ok bit follows the brief's directive: claim-only is NOT OK. A version
 // match without independent runtime proof is degraded, not healthy. Operators
@@ -982,10 +1014,10 @@ func (srv *server) monitorNodeHealth(ctx context.Context) {
 			currentNode.FailedHealthChecks++
 
 			newStatus := "unhealthy"
-		if timeSinceSeen > heartbeatStaleThreshold {
-			newStatus = "unreachable"
-		}
-		if currentNode.Status != newStatus {
+			if timeSinceSeen > heartbeatStaleThreshold {
+				newStatus = "unreachable"
+			}
+			if currentNode.Status != newStatus {
 				currentNode.Status = newStatus
 				currentNode.MarkedUnhealthySince = now
 				currentNode.LastError = fmt.Sprintf("no contact for %v", timeSinceSeen.Round(time.Second))
@@ -1025,7 +1057,7 @@ func (srv *server) monitorNodeHealth(ctx context.Context) {
 				continue
 			}
 		} else if (currentNode.Status == "unhealthy" || currentNode.Status == "unreachable") &&
-		(previousStatus == "unhealthy" || previousStatus == "unreachable") {
+			(previousStatus == "unhealthy" || previousStatus == "unreachable") {
 			// Node came back online - reset recovery counters
 			currentNode.Status = "healthy"
 			currentNode.FailedHealthChecks = 0
