@@ -85,7 +85,22 @@ func episodeIDFromDriftRows(items []*workflowpb.DriftUnresolved, driftType, enti
 
 // driftEpisodeID asks the drift-history authority for the current episode
 // identity of one drift item.
+// Every absent authority object below is a MISSING EPISODE, never a panic and
+// never a synthesized identity. The distinction matters because this runs on
+// the reconcile path: a controller that is still assembling itself, or that
+// lost its workflow client, must decline to remediate rather than crash the
+// reconcile loop or invent an episode to key a restart on.
+//
+// Mirrors security.cluster_init_transition_is_fail_closed: an incompletely
+// initialized controller resolves to "cannot proceed", not to a default that
+// happens to let the action through.
 func (srv *server) driftEpisodeID(ctx context.Context, driftType, entityRef string) (string, error) {
+	if srv == nil {
+		return "", &errNoDriftEpisode{driftType, entityRef, "controller is not initialized"}
+	}
+	if srv.cfg == nil {
+		return "", &errNoDriftEpisode{driftType, entityRef, "controller configuration is unavailable"}
+	}
 	clusterID := strings.TrimSpace(srv.cfg.ClusterDomain)
 	if clusterID == "" {
 		return "", &errNoDriftEpisode{driftType, entityRef, "cluster domain is not configured"}
