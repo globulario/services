@@ -276,7 +276,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 								repaired.Metadata = make(map[string]string)
 							}
 							repaired.Metadata["entrypoint_checksum"] = diskHash
-							stampReceiptForInstalledPackage(repaired, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
+							stampReceiptForInstalledPackage(repaired, "node-agent.apply_package_release.service", receiptBinaryPath(name, kind))
 							if werr := installed_state.WriteInstalledPackage(ctx, repaired); werr != nil {
 								log.Printf("apply-package: %s/%s@%s Checksum repair write failed: %v (non-fatal)", kind, name, version, werr)
 							}
@@ -553,7 +553,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		// sole authority for expected unit/binary content; sidecars are
 		// legacy. Best-effort: missing receipt surfaces as fail-closed
 		// at heartbeat, which is correct.
-		stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.command", installedBinaryPath(name, kind))
+		stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.command", receiptBinaryPath(name, kind))
 		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 			log.Printf("apply-package: WARNING installed_state write failed for COMMAND %s@%s: %v — skipping post-install side effects", name, version, err)
 		} else {
@@ -758,7 +758,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 			}
 			binaryOnlyPkg.Metadata["entrypoint_checksum"] = actualHash
 		}
-		stampReceiptForInstalledPackage(binaryOnlyPkg, "node-agent.apply_package_release.binary_only", installedBinaryPath(name, kind))
+		stampReceiptForInstalledPackage(binaryOnlyPkg, "node-agent.apply_package_release.binary_only", receiptBinaryPath(name, kind))
 		if err := installed_state.WriteInstalledPackage(ctx, binaryOnlyPkg); err != nil {
 			log.Printf("apply-package: WARNING installed_state write failed for binary-only %s@%s: %v — skipping post-install side effects", name, version, err)
 		} else {
@@ -878,7 +878,7 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 	}
 	// Canonical install path: stamp the receipt before committing the
 	// installed_state record. See docs/architecture/retire-systemd-sidecars.md.
-	stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.service", installedBinaryPath(name, kind))
+	stampReceiptForInstalledPackage(pkg, "node-agent.apply_package_release.service", receiptBinaryPath(name, kind))
 	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 		// The installed-state record is the durable commit. Side effects
 		// (revision history, config receipts) must not run if the commit
