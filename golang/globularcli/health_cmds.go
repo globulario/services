@@ -287,7 +287,7 @@ func runClusterHealthChecks() error {
 	if len(resp.GetNodeHealth()) > 0 {
 		fmt.Printf("\nNode Details:\n")
 		for _, node := range resp.GetNodeHealth() {
-			icon, label := nodeHealthGlyph(node.GetStatus())
+			icon, label := nodeHealthGlyph(node.GetStatus(), node.GetLastError())
 			fmt.Printf("  %s %s (%s) — %s\n", icon, node.GetNodeId(), node.GetHostname(), label)
 			if node.GetLastError() != "" {
 				fmt.Printf("     Error: %s\n", node.GetLastError())
@@ -531,7 +531,19 @@ func checkTLS(ctx context.Context, domain string) HealthCheckResult {
 //
 // Only "healthy" is green. "converging" is a node still settling and is not an
 // alarm; "degraded" claims to be done and is not.
-func nodeHealthGlyph(status string) (icon string, label string) {
+func nodeHealthGlyph(status, lastError string) (icon string, label string) {
+	status = strings.ToLower(strings.TrimSpace(status))
+
+	// Defend independently of the server. The controller in this build no
+	// longer emits status="healthy" alongside a non-empty LastError, but the
+	// CLI is a separate honesty boundary and must not depend on that: an older
+	// controller during a rolling upgrade, a mixed-version cluster, a replayed
+	// response, or a future server regression can all still produce that pair.
+	// Rendering it green would reintroduce the exact defect at this layer.
+	if status == "healthy" && strings.TrimSpace(lastError) != "" {
+		return "⚠️", "degraded"
+	}
+
 	switch status {
 	case "healthy":
 		return "✅", "healthy"
