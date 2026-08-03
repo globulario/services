@@ -5,6 +5,8 @@
 package main
 
 import (
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,11 +14,19 @@ import (
 	"testing"
 )
 
+// packagesDirEnv names the explicit path to a globulario/packages checkout.
+// CI sets it (.github/workflows/ci.yml, "Enforce package-classification
+// parity"); local runs may set it too. When unset we fall back to the sibling
+// checkout convention this repo already relies on for go.work (../Globular,
+// ../globular-installer) and that ci.yml reproduces by checking packages out
+// next to services in the workspace.
+const packagesDirEnv = "GLOBULAR_PACKAGES_DIR"
+
 // TestCommandAndSkipUnitListsMatchSpecs asserts that the two hardcoded
 // package-classification maps in this package — commandPackages
 // (grpc_workflow_skip.go) and skipSystemdUnits (installed_services.go) —
 // match the canonical set of *_cmd.yaml and infrastructure *_service.yaml
-// files in the sibling globulario/packages repo.
+// specs in the sibling globulario/packages repo.
 //
 // The trap: both maps are hand-maintained mirrors of an external truth
 // source. Every time a new *_cmd.yaml ships, both maps must be edited or
@@ -24,25 +34,57 @@ import (
 // missing systemd unit, or emits a SERVICE/unknown phantom). We hit this
 // on claude-cmd before this test existed.
 //
-// The packages repo is checked out by both CI workflows
-// (.github/workflows/release.yml and ci.yml). When it's not findable —
-// typically a local dev tree without the sibling clone — the test is
-// skipped so devs aren't blocked, but CI runs always exercise it.
+// THIS GUARD WAS INERT until 2026-08-03. It searched for
+// "<ancestor>/packages/specs", but the packages repo stores specs at
+// metadata/<package>/specs/*.yaml. The lookup never matched, so the test took
+// a t.Skipf path — reporting the same green as a passing run while asserting
+// nothing, in CI as well as locally. Two rules follow, and both are
+// load-bearing:
+//
+//  1. NO t.Skip. Not when the packages repo is absent, not for any reason. A
+//     guard that can excuse itself will eventually excuse itself permanently
+//     and nobody will notice. Missing source is a FAILURE, and the failure
+//     message says how to supply it.
+//  2. The test logs how many spec files it actually consumed, so a green run
+//     carries evidence that it asserted rather than merely executed.
+//
+// It also runs as its own hard-gate CI step. The broad "Unit Tests" step is
+// continue-on-error (some tests need etcd/ScyllaDB), so a parity failure
+// there would not block — the second half of the same inertia.
 //
 // The structural fix is to extract a single shared catalog package both
 // the controller and node-agent import; until then this test is the
 // guard. Tracked under meta-principle
-// code_must_not_mirror_external_enumerations.
+// code_must_not_mirror_external_enumerations and
+// candidate.invariant.meta.single_derivation_path_must_reach_its_consumer.
 func TestCommandAndSkipUnitListsMatchSpecs(t *testing.T) {
-	specsDir := findPackagesSpecsDir(t)
-	if specsDir == "" {
-		t.Skipf("packages/specs not findable from %s — skipping drift check (CI runs always have it via .github/workflows/*.yml)", currentWD(t))
+	root := packagesRepoRoot(t)
+
+	cmdNames, infraNames, scanned, err := readPackageSpecs(root)
+	if err != nil {
+		t.Fatalf("read canonical package specs under %s: %v", root, err)
 	}
 
-	cmdNames, infraNames, err := readPackageSpecs(specsDir)
-	if err != nil {
-		t.Fatalf("read packages/specs in %s: %v", specsDir, err)
+	// Zero discovered specs means the layout moved again. Without this guard
+	// an empty canonical set would make every projection entry look like a
+	// phantom — a confusing failure — or, if the maps were ever emptied too,
+	// would pass vacuously.
+	if scanned == 0 {
+		t.Fatalf("discovered 0 spec files under %s/metadata/*/specs — the packages layout moved again; "+
+			"fix readPackageSpecs rather than skipping the parity check", root)
 	}
+	if len(cmdNames) == 0 {
+		t.Fatalf("discovered %d spec files under %s/metadata/*/specs but 0 *_cmd.yaml — "+
+			"command specs cannot legitimately be empty", scanned, root)
+	}
+	if len(infraNames) == 0 {
+		t.Fatalf("discovered %d spec files under %s/metadata/*/specs but 0 infrastructure *_service.yaml — "+
+			"infrastructure specs cannot legitimately be empty", scanned, root)
+	}
+
+	// Proof that this run asserted. Read this line before trusting a PASS.
+	t.Logf("parity source %s: scanned %d spec files, consumed %d *_cmd.yaml and %d infrastructure *_service.yaml",
+		root, scanned, len(cmdNames), len(infraNames))
 
 	// commandPackages must contain exactly the *_cmd.yaml bare names with
 	// underscores normalized to hyphens. The map already has globular-cli
@@ -68,9 +110,38 @@ func TestCommandAndSkipUnitListsMatchSpecs(t *testing.T) {
 	assertSetEquals(t, "skipSystemdUnits", skipSystemdUnits, expectedSkip)
 }
 
-// findPackagesSpecsDir walks up from CWD looking for a sibling
-// globulario/packages/specs directory. Returns "" when not found.
-func findPackagesSpecsDir(t *testing.T) string {
+// packagesRepoRoot resolves the globulario/packages checkout root. It fails
+// the test — never skips — when the source cannot be resolved, because an
+// unavailable canonical source means this guard cannot do its job and must
+// say so loudly.
+func packagesRepoRoot(t *testing.T) string {
+	t.Helper()
+
+	if dir := strings.TrimSpace(os.Getenv(packagesDirEnv)); dir != "" {
+		if err := checkPackagesRoot(dir); err != nil {
+			t.Fatalf("%s=%q is not a usable globulario/packages checkout: %v", packagesDirEnv, dir, err)
+		}
+		return dir
+	}
+
+	found, tried := findSiblingPackagesRoot(t)
+	if found != "" {
+		return found
+	}
+
+	t.Fatalf("cannot locate the canonical globulario/packages checkout.\n"+
+		"Set %s=/path/to/packages, or clone globulario/packages next to this repo.\n"+
+		"Tried: %s\n"+
+		"This check does NOT skip: parity between commandPackages/skipSystemdUnits and the\n"+
+		"canonical specs is unverifiable without the source, and an unverified guard is a failure.",
+		packagesDirEnv, strings.Join(tried, "\n       "))
+	return ""
+}
+
+// findSiblingPackagesRoot walks up from CWD looking for a sibling "packages"
+// checkout. Returns the root and every path it probed (for the failure
+// message).
+func findSiblingPackagesRoot(t *testing.T) (root string, tried []string) {
 	t.Helper()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -78,9 +149,10 @@ func findPackagesSpecsDir(t *testing.T) string {
 	}
 	dir := cwd
 	for i := 0; i < 12; i++ {
-		candidate := filepath.Join(filepath.Dir(dir), "packages", "specs")
-		if st, err := os.Stat(candidate); err == nil && st.IsDir() {
-			return candidate
+		candidate := filepath.Join(filepath.Dir(dir), "packages")
+		tried = append(tried, candidate)
+		if checkPackagesRoot(candidate) == nil {
+			return candidate, tried
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -88,41 +160,71 @@ func findPackagesSpecsDir(t *testing.T) string {
 		}
 		dir = parent
 	}
-	return ""
+	return "", tried
 }
 
-// readPackageSpecs returns the bare names of *_cmd.yaml files and the bare
-// names of *_service.yaml files that carry metadata.kind=infrastructure.
+// checkPackagesRoot verifies dir looks like a globulario/packages checkout:
+// it must hold a readable metadata/ directory, which is where per-package
+// specs live (metadata/<package>/specs/*.yaml).
+func checkPackagesRoot(dir string) error {
+	metadata := filepath.Join(dir, "metadata")
+	st, err := os.Stat(metadata)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", metadata, err)
+	}
+	if !st.IsDir() {
+		return fmt.Errorf("%s is not a directory", metadata)
+	}
+	if _, err := os.ReadDir(metadata); err != nil {
+		return fmt.Errorf("read %s: %w", metadata, err)
+	}
+	return nil
+}
+
+// readPackageSpecs walks <root>/metadata/<package>/specs/ and returns the
+// bare names of *_cmd.yaml files, the bare names of *_service.yaml files
+// carrying kind=infrastructure, and the total number of spec files scanned.
 // "Bare name" means the filename minus the _cmd.yaml or _service.yaml
 // suffix. We scan a single `kind:` line rather than pulling in a YAML
 // dependency — the spec files are author-maintained, the field is
 // invariant, and `kind:` cannot collide with any other top-level marker.
-func readPackageSpecs(dir string) (cmdNames, infraNames []string, err error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, nil, err
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+func readPackageSpecs(root string) (cmdNames, infraNames []string, scanned int, err error) {
+	metadata := filepath.Join(root, "metadata")
+	walkErr := filepath.WalkDir(metadata, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		name := e.Name()
+		if d.IsDir() {
+			return nil
+		}
+		// Only files directly inside a directory named "specs" are canonical
+		// specs; metadata/<package>/ also holds unrelated files.
+		if filepath.Base(filepath.Dir(path)) != "specs" {
+			return nil
+		}
+		name := d.Name()
 		switch {
 		case strings.HasSuffix(name, "_cmd.yaml"):
+			scanned++
 			cmdNames = append(cmdNames, strings.TrimSuffix(name, "_cmd.yaml"))
 		case strings.HasSuffix(name, "_service.yaml"):
-			data, rerr := os.ReadFile(filepath.Join(dir, name))
+			scanned++
+			data, rerr := os.ReadFile(path)
 			if rerr != nil {
-				return nil, nil, rerr
+				return rerr
 			}
 			if isInfrastructureSpec(data) {
 				infraNames = append(infraNames, strings.TrimSuffix(name, "_service.yaml"))
 			}
 		}
+		return nil
+	})
+	if walkErr != nil {
+		return nil, nil, 0, walkErr
 	}
 	sort.Strings(cmdNames)
 	sort.Strings(infraNames)
-	return cmdNames, infraNames, nil
+	return cmdNames, infraNames, scanned, nil
 }
 
 func isInfrastructureSpec(data []byte) bool {
@@ -156,15 +258,9 @@ func assertSetEquals(t *testing.T, label string, got, want map[string]bool) {
 	sort.Strings(extra)
 	sort.Strings(missing)
 	if len(extra) > 0 {
-		t.Errorf("%s contains %d phantom entries not present in packages/specs: %v", label, len(extra), extra)
+		t.Errorf("%s contains %d phantom entries not present in the canonical packages specs: %v — remove them or add the spec", label, len(extra), extra)
 	}
 	if len(missing) > 0 {
-		t.Errorf("%s is missing %d entries present in packages/specs: %v — add to the map", label, len(missing), missing)
+		t.Errorf("%s is missing %d entries present in the canonical packages specs: %v — add to the map", label, len(missing), missing)
 	}
-}
-
-func currentWD(t *testing.T) string {
-	t.Helper()
-	cwd, _ := os.Getwd()
-	return cwd
 }
