@@ -94,6 +94,28 @@ jobs:
         run: go test ./... -race -short -coverprofile=coverage.out
         continue-on-error: true  # Some tests need infrastructure (etcd, ScyllaDB) not available in CI
 
+      # Package-classification parity (hard gate). commandPackages and
+      # skipSystemdUnits in node_agent are hand-maintained projections of the
+      # canonical specs in globulario/packages; when they drift, the node-agent
+      # silently misclassifies a package (missing systemd unit, or a
+      # SERVICE/unknown phantom).
+      #
+      # This runs as its OWN step, deliberately outside the continue-on-error
+      # "Unit Tests" above: a parity failure must block the build. Until
+      # 2026-08-03 it did neither — the test looked for "<ancestor>/packages/specs"
+      # while the repo stores specs at metadata/<package>/specs, so it t.Skip'd
+      # here as well as locally, and even a failure would not have gated.
+      #
+      # GLOBULAR_PACKAGES_DIR is passed explicitly rather than relying on the
+      # test's walk-up fallback finding the sibling checkout: the gate should
+      # depend on a stated path, not on workspace layout. The test fails (never
+      # skips) when the path is missing or is not a packages checkout, so a
+      # broken "Checkout packages" step surfaces here as a clear failure.
+      - name: Enforce package-classification parity (hard gate)
+        run: go test -count=1 -v -run TestCommandAndSkipUnitListsMatchSpecs ./node_agent/node_agent_server/...
+        env:
+          GLOBULAR_PACKAGES_DIR: ${{ github.workspace }}/packages
+
       - name: Build awareness CI tools
         run: |
           go build -o bin/globular ./globularcli
