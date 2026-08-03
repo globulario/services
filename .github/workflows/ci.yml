@@ -116,6 +116,20 @@ jobs:
         env:
           GLOBULAR_PACKAGES_DIR: ${{ github.workspace }}/packages
 
+      # Awareness tooling tests (hard gate). promote-awareness-candidate.py is
+      # the only road a session-discovered candidate has into the governed
+      # corpus; awareness-coverage-report.py is how anyone sees what is
+      # waiting. Both had test suites that no Makefile target and no workflow
+      # ever invoked — so when both scripts went blind to the wrapped
+      # `<generator>: {candidates: [...]}` shape and reported "0 candidates"
+      # over a file holding five, nothing failed. Tests that never run are the
+      # same amber the candidates were sitting in.
+      - name: Enforce awareness tooling tests (hard gate)
+        working-directory: services
+        run: |
+          python3 scripts/test_promote_awareness_candidate.py
+          python3 scripts/test_awareness_coverage_report.py
+
       - name: Build awareness CI tools
         run: |
           go build -o bin/globular ./globularcli
