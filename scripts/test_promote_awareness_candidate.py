@@ -4,8 +4,14 @@ Tests for scripts/promote-awareness-candidate.py — Phase 7.
 
 Stdlib only + PyYAML (already a dependency of the script under test).
 The script lives at scripts/promote-awareness-candidate.py and walks
-docs/awareness/candidates/ to find a candidate by id, validates it,
-appends to a canonical file, and removes it from the candidate file.
+docs/awareness/candidates/ to find a candidate by id, validates it, and
+appends it to a canonical file.
+
+It does NOT remove the entry from the candidate file. The candidate file
+is an append-only ledger and the canonical corpus is the only mutable
+authority; promotion state (PENDING / PROMOTED / CONFLICT) is derived from
+canonical identity presence rather than stored or signalled by deletion.
+Promotion therefore writes exactly one file and re-running is a no-op.
 
 We exercise it by writing a minimal candidates/ tree + canonical
 target into a temp dir, monkey-patching the script's REPO_ROOT /
