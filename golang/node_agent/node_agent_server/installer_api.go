@@ -816,44 +816,6 @@ func readArtifactManifestEntrypoint(artifactPath string) string {
 	}
 }
 
-// readArtifactManifestIdentityProof reads the declared identity proof mode
-// ("binary_sha256" | "version") from a staged artifact's package.json. Empty when
-// absent (legacy package). Lets the node-agent verify a package's identity by its
-// DECLARED mode rather than inferring it from entrypoint=="none".
-func readArtifactManifestIdentityProof(artifactPath string) string {
-	f, err := os.Open(artifactPath)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return ""
-	}
-	defer gz.Close()
-	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if err != nil {
-			return ""
-		}
-		name := filepath.Clean(hdr.Name)
-		if name == "package.json" || name == "./package.json" {
-			data, err := io.ReadAll(io.LimitReader(tr, 32*1024))
-			if err != nil {
-				return ""
-			}
-			var manifest struct {
-				IdentityProof string `json:"identity_proof"`
-			}
-			if err := json.Unmarshal(data, &manifest); err != nil {
-				return ""
-			}
-			return strings.ToLower(strings.TrimSpace(manifest.IdentityProof))
-		}
-	}
-}
-
 // readArtifactManifestVersion reads the version from a staged artifact's
 // package.json manifest. The artifact is a .tgz containing a top-level
 // package.json with at least {"version": "..."}.
