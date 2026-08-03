@@ -36,9 +36,9 @@ func TestCommandBinaryVerified_RejectsUnrelatedPathMatch(t *testing.T) {
 	if err := os.WriteFile(unrelatedPath, []byte("#!/bin/sh\necho not-the-real-thing\n"), 0o755); err != nil {
 		t.Fatalf("write unrelated binary: %v", err)
 	}
-	origPath := os.Getenv("PATH")
-	t.Cleanup(func() { os.Setenv("PATH", origPath) })
-	os.Setenv("PATH", unrelatedDir+string(os.PathListSeparator)+origPath)
+	// t.Setenv restores the previous value at test end, so the manual
+	// Getenv/Cleanup pair is no longer needed.
+	t.Setenv("PATH", unrelatedDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	// Sanity: confirm the OLD detector (commandBinaryExists) would have
 	// been fooled by this exact setup — pins the bug this test guards

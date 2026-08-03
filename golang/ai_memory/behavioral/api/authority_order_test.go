@@ -101,7 +101,7 @@ func TestAuthorityAtLeast_FailsClosed(t *testing.T) {
 // DERIVED_EVIDENCE and satisfy a requirement demanding authoritative proof.
 func TestAuthorityOrder_IsNotLexical(t *testing.T) {
 	lower, higher := ObservationAuthorityInterpretation, ObservationAuthorityDerived
-	if !(string(lower) > string(higher)) {
+	if string(lower) <= string(higher) {
 		t.Skip("lexical relationship changed; this guard needs revisiting")
 	}
 	if AuthorityAtLeast(lower, higher) {

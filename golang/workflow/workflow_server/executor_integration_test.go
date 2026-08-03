@@ -34,7 +34,8 @@ func TestExecuteWorkflowFullRoundTrip(t *testing.T) {
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	// Serve returns ErrServerStopped on the deferred Stop below; not actionable.
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	actorAddr := actorLis.Addr().String()
@@ -74,9 +75,13 @@ func TestExecuteWorkflowFullRoundTrip(t *testing.T) {
 
 	// Override the dispatcher's client to use insecure (no TLS in tests).
 	ctx := context.Background()
+	//nolint:staticcheck // DialContext+WithBlock is retained deliberately: this test
+	// must not proceed until the in-process mock actor is accepting connections, and
+	// grpc.NewClient has no blocking equivalent. Replacing it would make the test
+	// race the server goroutine.
 	conn, err := grpc.DialContext(ctx, actorAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
+		grpc.WithBlock(), //nolint:staticcheck // see above: blocking dial is required here
 	)
 	if err != nil {
 		t.Fatalf("dial mock actor: %v", err)
@@ -150,7 +155,8 @@ func TestExecuteWorkflowActorRejectsUnknownAction(t *testing.T) {
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	// Serve returns ErrServerStopped from the deferred Stop below; not actionable.
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	actorAddr := actorLis.Addr().String()
@@ -205,7 +211,7 @@ func TestExecuteWorkflowCallbackInputsPropagated(t *testing.T) {
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	actorAddr := actorLis.Addr().String()
@@ -291,7 +297,7 @@ func TestWorkflowServiceActorRoutesToFallback_NotLocalNoop(t *testing.T) {
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	actorAddr := actorLis.Addr().String()
@@ -327,6 +333,9 @@ func TestWorkflowServiceActorRoutesToFallback_NotLocalNoop(t *testing.T) {
 	defer dispatcher.close()
 
 	ctx := context.Background()
+	//nolint:staticcheck // DialContext+WithBlock is deliberate: the test must not
+	// proceed until the in-process mock actor accepts connections, and grpc.NewClient
+	// has no blocking equivalent. Replacing it would race the server goroutine.
 	conn, err := grpc.DialContext(ctx, actorAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
@@ -407,7 +416,7 @@ spec:
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	// Force the durable run-start commit to fail (simulate a Scylla write error).
