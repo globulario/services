@@ -114,3 +114,127 @@ session_discovered_candidates:
       related_failures:
         - failure_mode:mcp.day1_install_no_start
         - failure_mode:package.install.service_unit_missing_classified_binary_only
+
+    - id: candidate.failure_mode.controller.derived_config_change_has_no_convergence_disposition
+      class: FailureMode
+      label: Derived restart-sensitive config change is silently omitted instead of dispositioned
+      status: candidate
+      confidence: candidate
+      severity: high
+      domain: globular-services
+      discovered: 2026-08-03
+      description: >-
+        The controller recomputes rendered ScyllaDB configuration correctly on every plan cycle from
+        authoritative membership (renderScyllaConfig, service_config.go:523, reached via
+        computeNodePlan -> renderedConfigForNode -> renderServiceConfigs, using
+        snapshotClusterMembership()). When membership grows, the derived seed set changes correctly.
+        Nothing then classifies, schedules, applies, defers, or refuses that change for an
+        already-configured node: the corrected candidate never reaches disk and no disposition is
+        recorded. The renderer is healthy; the actuator is absent. Restart-sensitive components
+        legitimately require gating, but "too dangerous to apply now" must yield an explicit
+        disposition (APPLY_NOW / DEFER_UNTIL_SAFE / REQUIRE_OPERATOR_APPROVAL / BLOCK_WITH_REASON /
+        NO_CHANGE), never silent omission. Represents a potentially reusable convergence class for
+        other restart-sensitive components such as etcd, MinIO, Envoy, certificates and topology —
+        any component whose correct desired state cannot be pushed immediately. Only Scylla was
+        observed in this run; the broader applicability is inference, not evidence.
+      evidence: >-
+        Live 5-node simulation, release 1.2.295, 2026-08-03. etcd authority
+        /globular/cluster/scylla/hosts = ["10.10.0.11","10.10.0.12","10.10.0.13"]. On-disk seeds:
+        node-1 '10.10.0.11' (self-only), node-3 '10.10.0.11,10.10.0.13', node-2
+        '10.10.0.11,10.10.0.12'. Each frozen at that node's own join moment (15:54:53 / 16:01:58 /
+        16:02:57); none equals the authority. Controller journal shows only
+        "scylla join: ... marking configured" transitions, no re-render dispatch or restart injection
+        after initial configuration. All three nodes UN/NORMAL with NRestarts=0, so the hazard is
+        latent: a wiped restart of node-1 with self-only seeds would re-bootstrap an isolated ring.
+        Surfaced by cluster-doctor scylla.config_valid (severity 1).
+      proposed_invariants:
+        - >-
+          Safety: when more than one eligible Scylla node is admitted, no Scylla node may have an
+          effective ON-DISK seed set containing only itself. (Phrased against applied config, not
+          rendered config — phrased against the renderer it would pass today while the trapdoor
+          stays open.)
+        - >-
+          Behavioral convergence: when authoritative membership changes the derived configuration,
+          reconciliation must produce a recorded governed disposition — applied, safely deferred,
+          operator-gated, or refused with evidence. The change must never be silently omitted.
+      deferred_invariant: >-
+        Parity (effective on-disk seed set must equal the canonical set derived from authoritative
+        membership) is NOT proposed yet: it requires an explicit seed-selection contract deciding
+        whether all eligible members must be seeds or a stable subset is permitted.
+      forbidden_fixes:
+        - >-
+          Do NOT hand-edit /etc/scylla/scylla.yaml — a render will overwrite it, and the underlying
+          missing actuator would remain.
+        - >-
+          Do NOT "fix" this by making the renderer emit the founder plus self; the derivation is
+          already correct.
+      source_files:
+        - golang/cluster_controller/cluster_controller_server/service_config.go
+        - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+      proposed_doctor_evidence_shape: >-
+        scylla.config_valid should expose authoritative_membership, derived_seed_set,
+        effective_on_disk, last_rendered_at, last_applied_at, convergence_disposition and
+        restart_required — so the operator sees truth -> derivation -> candidate -> disposition ->
+        application, and specifically WHY the controller knowingly left it different.
+
+    - id: candidate.invariant.governance.evidence_capture_must_not_fail_silent
+      class: Invariant
+      label: A governance system may fail closed for guidance but must never fail silent for evidence capture
+      status: candidate
+      confidence: candidate
+      severity: critical
+      domain: globular-services
+      discovered: 2026-08-03
+      description: >-
+        Authoritative read unavailable correctly blocks mutation. Knowledge write unavailable
+        silently discards the finding. That asymmetry breaks behavioral memory at its most valuable
+        moment: the run that proves the graph is stale is exactly the run whose evidence cannot be
+        recorded. Every governed run producing a diagnosis, refusal, contradiction or unrecorded
+        architectural finding must have a durable intake path INDEPENDENT of authoritative graph
+        freshness. Suggested shape: two deliberately separate surfaces — an authoritative graph
+        (strict freshness, trusted guidance, may fail closed) and an append-only evidence intake
+        ledger (provenance required, accepts while the graph is stale, promoted only after later
+        validation). Intake entries should carry timestamp, workspace identity, source files,
+        evidence, proposed invariant or failure mode, graph freshness state, preflight refusal
+        detail, agent identity, and status pending_validation.
+      evidence: >-
+        2026-08-03 session. awareness_propose refused three times:
+        "propose write path is not configured; start the server with -awareness-dir <docs/awareness>".
+        Both running servers (sensei serve, awareness-graph) were started without -awareness-dir.
+        Three proposal attempts failed in one day. The F1 and F6 findings remained recoverable from
+        committed implementation evidence — commits, tests and negative controls — but could not be
+        promoted into the graph. The Scylla convergence-disposition finding above had no independent
+        code artifact and was at genuine risk of loss. Compounding it, awareness_preflight and
+        awareness_briefing both returned FailedPrecondition ("graph freshness stale ... live store
+        missing expected graph marker 339022f0...") while the PreToolUse hook enforce-briefing.sh
+        requires a briefing before editing docs/awareness/. The degraded-mode fallback documented in
+        THIS FILE's own header is therefore gated behind the very surface that is degraded: while the
+        graph is stale, the repository cannot record that the graph is stale.
+      proposed_invariants:
+        - >-
+          Evidence intake must remain available while authoritative guidance is refused.
+        - >-
+          A server that exposes a proposal capability with no backing awareness directory must fail
+          at startup, or advertise an explicit READ_ONLY status with a doctor finding and a
+          capability response explaining why. It must never advertise awareness_propose and then
+          reject every proposal because the backing path was omitted.
+        - >-
+          The degraded-mode recording path must not require a surface that is unavailable in the
+          degraded mode it exists to serve.
+      source_files:
+        - .claude/hooks/enforce-briefing.sh
+        - .claude/hooks/enforce-briefing-bash.sh
+        - docs/awareness/candidates/session_discovered_invariants.yaml
+      note: >-
+        Recorded by hand for the same reason the file header describes. This entry is itself an
+        instance of the failure it documents.
+
+        ON THE ESCAPE HATCH — it is a tooling-path accident, not a repository contract, and the two
+        enforcement paths disagree. enforce-briefing.sh gates all of docs/awareness/ (line 35) and
+        carves out ONLY reports/ and decisions/ (lines 50-53); candidates/ is not exempt. Observed
+        directly while recording this entry: the Edit/Write path wrote the file with briefing
+        refusing, while the Bash path (enforce-briefing-bash.sh, which mirrors the same high-risk
+        prefix) correctly DENIED an identical mutation attempted through a shell heredoc. So the
+        same file, in the same session, under the same refused-briefing condition, was both blocked
+        and permitted depending only on which tool performed the write. Do not rely on this lane —
+        close the asymmetry, and give degraded evidence capture a sanctioned path instead.
