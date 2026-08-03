@@ -264,17 +264,17 @@ func TestRestoreMarker_ExistingStateSurvivesFailedReplacement(t *testing.T) {
 	live := []byte(`{"live":"newer"}`)
 	for _, e := range d.Entries {
 		if strings.Contains(e.Key, "/globular/") && !e.Lease {
-			dst.fakeKV.put(e.Key, live, false)
+			dst.put(e.Key, live, false)
 			break
 		}
 	}
-	before := len(dst.fakeKV.data)
+	before := len(dst.data)
 
 	_, _ = RestoreDump(ctx, dst, d, RestoreOptions{})
 
-	if len(dst.fakeKV.data) < before {
+	if len(dst.data) < before {
 		t.Errorf("failed restore destroyed pre-existing state: %d -> %d keys",
-			before, len(dst.fakeKV.data))
+			before, len(dst.data))
 	}
 	if m, _ := ReadMarker(ctx, dst); m != nil {
 		t.Fatalf("failed replacement left a success marker: %+v", m)
