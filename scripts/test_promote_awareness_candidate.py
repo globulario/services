@@ -739,5 +739,231 @@ class TestListMode(TempRepoCase):
         self.assertIn("confidence=low", out.getvalue())
 
 
+# ─── 11. relationship canonicalization ──────────────────────────────────
+
+class TestRelationCanonicalization(unittest.TestCase):
+    """The validator strips prefixes while resolving. If the writer then
+    copies the candidate's fields verbatim, the tool validates one dialect
+    and writes another: `related_failures: [failure_mode:x]` where canonical
+    is `related_failure_modes: [x]`."""
+
+    def test_alias_field_renamed(self):
+        out = tool.canonicalize_relations(
+            {"related_failures": ["failure_mode:controller.some_failure"]}
+        )
+        self.assertEqual(out, {"related_failure_modes": ["controller.some_failure"]})
+        self.assertNotIn("related_failures", out)
+
+    def test_every_relation_class_is_stripped(self):
+        out = tool.canonicalize_relations(
+            {
+                "related_invariants": ["invariant:meta.one"],
+                "related_failures": ["failure_mode:fm.one"],
+                "related_failure_modes": ["failure_mode:fm.two"],
+                "related_intents": ["intent:in.one"],
+                "related_incident_patterns": ["incident_pattern:ip.one"],
+            }
+        )
+        self.assertEqual(out["related_invariants"], ["meta.one"])
+        self.assertEqual(out["related_failure_modes"], ["fm.one", "fm.two"])
+        self.assertEqual(out["related_intents"], ["in.one"])
+        self.assertEqual(out["related_incident_patterns"], ["ip.one"])
+        for values in out.values():
+            for v in values:
+                self.assertNotIn(":", v, f"prefix survived in {v!r}")
+
+    def test_alias_and_canonical_merge_without_duplicates(self):
+        out = tool.canonicalize_relations(
+            {
+                "related_failures": ["failure_mode:fm.same", "fm.same"],
+                "related_failure_modes": ["fm.same", "failure_mode:fm.other"],
+            }
+        )
+        self.assertEqual(out["related_failure_modes"], ["fm.same", "fm.other"])
+
+    def test_order_is_deterministic_and_preserves_author_order(self):
+        payload = {"related_invariants": ["invariant:z.one", "invariant:a.two", "m.three"]}
+        first = tool.canonicalize_relations(payload)
+        second = tool.canonicalize_relations(payload)
+        self.assertEqual(first, second)
+        self.assertEqual(first["related_invariants"], ["z.one", "a.two", "m.three"])
+
+    def test_empty_and_blank_values_dropped(self):
+        out = tool.canonicalize_relations(
+            {"related_invariants": ["", "   ", None, "invariant:kept.one"]}
+        )
+        self.assertEqual(out, {"related_invariants": ["kept.one"]})
+
+    def test_canonical_entry_emits_canonical_dialect_only(self):
+        entry = tool.to_canonical_entry(
+            {
+                "id": "candidate.invariant.meta.example",
+                "label": "Example",
+                "severity": "high",
+                "confidence": "candidate",
+                "discovered": "2026-08-03",
+                "evidence": "observed",
+                "related_failures": ["failure_mode:controller.some_failure"],
+                "related_invariants": ["invariant:meta.other"],
+            }
+        )
+        self.assertNotIn("related_failures", entry)
+        self.assertEqual(entry["related_failure_modes"], ["controller.some_failure"])
+        self.assertEqual(entry["related_invariants"], ["meta.other"])
+
+
+# ─── 12. structural location: key order, comments, list position ────────
+
+CANDIDATE_ID_NOT_FIRST = textwrap.dedent(
+    """\
+    session_discovered_candidates:
+      candidates:
+        - label: Example
+          id: candidate.invariant.meta.example
+          class: Invariant
+          status: candidate
+          confidence: candidate
+          severity: high
+          discovered: 2026-08-03
+          evidence: observed
+        - id: candidate.invariant.meta.keeper
+          label: Keeper
+          class: Invariant
+          status: candidate
+          confidence: candidate
+          severity: high
+          discovered: 2026-08-03
+          evidence: observed
+    """
+)
+
+CANDIDATE_ID_INLINE_COMMENT = textwrap.dedent(
+    """\
+    session_discovered_candidates:
+      candidates:
+        - id: candidate.invariant.meta.example  # inline comment
+          label: Example
+          class: Invariant
+          status: candidate
+          confidence: candidate
+          severity: high
+          discovered: 2026-08-03
+          evidence: observed
+        - id: candidate.invariant.meta.keeper
+          label: Keeper
+          class: Invariant
+          status: candidate
+          confidence: candidate
+          severity: high
+          discovered: 2026-08-03
+          evidence: observed
+    """
+)
+
+CANONICAL_LIST_NOT_LAST = textwrap.dedent(
+    """\
+    # header comment
+    invariants:
+      - id: existing.entry_one
+        title: First
+        severity: high
+        status: active
+    metadata:
+      generated_by: something
+      version: 3
+    """
+)
+
+
+class TestStructuralLocation(TempRepoCase):
+    """The old removal regex required `id` to be the item's first key on a
+    line with no inline comment. Both are legal YAML the parser accepts, and
+    the failure mode was a half-done promotion."""
+
+    def test_removal_when_id_is_not_the_first_key(self):
+        path = self.write_candidate("session.yaml", CANDIDATE_ID_NOT_FIRST)
+        with redirect_stdout(io.StringIO()):
+            tool.remove_from_candidate_file(path, "candidate.invariant.meta.example", dry_run=False)
+        import yaml
+        data = yaml.safe_load(path.read_text("utf-8"))
+        remaining = data["session_discovered_candidates"]["candidates"]
+        self.assertEqual([e["id"] for e in remaining], ["candidate.invariant.meta.keeper"])
+
+    def test_removal_when_id_line_has_inline_comment(self):
+        path = self.write_candidate("session.yaml", CANDIDATE_ID_INLINE_COMMENT)
+        with redirect_stdout(io.StringIO()):
+            tool.remove_from_candidate_file(path, "candidate.invariant.meta.example", dry_run=False)
+        import yaml
+        data = yaml.safe_load(path.read_text("utf-8"))
+        remaining = data["session_discovered_candidates"]["candidates"]
+        self.assertEqual([e["id"] for e in remaining], ["candidate.invariant.meta.keeper"])
+        self.assertNotIn("inline comment", path.read_text("utf-8"))
+
+    def test_append_into_a_list_that_is_not_the_final_key(self):
+        target = self.write_canonical("invariants.yaml", CANONICAL_LIST_NOT_LAST)
+        entry = {"id": "meta.appended", "title": "Appended", "severity": "high", "status": "active"}
+        with redirect_stdout(io.StringIO()):
+            tool.write_canonical(target, "invariants", entry, dry_run=False)
+
+        import yaml
+        text = target.read_text("utf-8")
+        data = yaml.safe_load(text)
+        self.assertEqual([e["id"] for e in data["invariants"]],
+                         ["existing.entry_one", "meta.appended"])
+        # The trailing top-level key must survive intact, not be swallowed
+        # into the list by an end-of-file append.
+        self.assertEqual(data["metadata"], {"generated_by": "something", "version": 3})
+        self.assertIn("# header comment", text)
+
+
+# ─── 13. atomicity ──────────────────────────────────────────────────────
+
+class TestAtomicReplace(TempRepoCase):
+    def test_both_files_replaced_together(self):
+        a = self.repo / "a.txt"
+        b = self.repo / "b.txt"
+        a.write_text("old-a", encoding="utf-8")
+        b.write_text("old-b", encoding="utf-8")
+        tool.atomic_replace([(a, "new-a"), (b, "new-b")])
+        self.assertEqual(a.read_text("utf-8"), "new-a")
+        self.assertEqual(b.read_text("utf-8"), "new-b")
+
+    def test_failure_on_second_replace_rolls_back_the_first(self):
+        a = self.repo / "a.txt"
+        b = self.repo / "b.txt"
+        a.write_text("old-a", encoding="utf-8")
+        b.write_text("old-b", encoding="utf-8")
+
+        real_replace = tool.os.replace
+        calls = {"n": 0}
+
+        def flaky(src, dst):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise OSError("simulated failure on the second swap")
+            return real_replace(src, dst)
+
+        tool.os.replace = flaky
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                with redirect_stderr(io.StringIO()):
+                    tool.atomic_replace([(a, "new-a"), (b, "new-b")])
+            self.assertEqual(ctx.exception.code, 1)
+        finally:
+            tool.os.replace = real_replace
+
+        # The first file is back to its original content, not left half-done.
+        self.assertEqual(a.read_text("utf-8"), "old-a")
+        self.assertEqual(b.read_text("utf-8"), "old-b")
+        # No temp files left behind.
+        self.assertEqual(list(self.repo.glob("*.promote-tmp")), [])
+
+    def test_no_temp_files_survive_success(self):
+        a = self.repo / "a.txt"
+        a.write_text("old", encoding="utf-8")
+        tool.atomic_replace([(a, "new")])
+        self.assertEqual(list(self.repo.glob("*.promote-tmp")), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -127,6 +127,13 @@ jobs:
       - name: Enforce awareness tooling tests (hard gate)
         working-directory: services
         run: |
+          # Pinned, not inherited. Importing yaml without installing it makes
+          # a green gate mean "this runner image happened to ship PyYAML".
+          python3 -m pip install --quiet --disable-pip-version-check \
+            -r scripts/requirements-awareness.txt \
+            || python3 -m pip install --quiet --disable-pip-version-check \
+                 --break-system-packages -r scripts/requirements-awareness.txt
+          python3 -c 'import yaml; print("PyYAML", yaml.__version__)'
           python3 scripts/test_promote_awareness_candidate.py
           python3 scripts/test_awareness_coverage_report.py
 

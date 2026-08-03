@@ -148,6 +148,17 @@ RELATION_FIELDS = (
 )
 RELATION_PREFIXES = ("invariant:", "failure_mode:", "intent:", "incident_pattern:")
 
+# Candidate files write a dialect the canonical corpus does not use:
+# `related_failures` with `failure_mode:`-prefixed values. Across the 763
+# relationship lists in docs/awareness/*.yaml there is not one prefixed value
+# and not one `related_failures` key — canonical is `related_failure_modes`
+# with bare ids. Copying candidate relationships through verbatim would
+# validate one dialect and write another, leaving entries whose references
+# resolve for the validator and dangle for every consumer.
+RELATION_FIELD_ALIASES = {
+    "related_failures": "related_failure_modes",
+}
+
 # Substantive fields carried across into the canonical entry. Without these
 # a promoted entry is a husk: the contract, the forbidden fixes and the
 # required tests are the whole reason the candidate was worth recording.
@@ -168,7 +179,9 @@ CARRIED_FIELDS = (
     "prevented_instance_detectors",
     "verified_negative",
     "proposed_doctor_evidence_shape",
-) + RELATION_FIELDS
+)
+# NB: relationship fields are deliberately NOT in CARRIED_FIELDS — they go
+# through canonicalize_relations() instead of being copied verbatim.
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -347,6 +360,30 @@ def strip_relation_prefix(ref: str) -> str:
     return ref
 
 
+def canonicalize_relations(candidate: dict) -> dict:
+    """Candidate relationship fields → the canonical dialect.
+
+    Maps alias field names (related_failures → related_failure_modes),
+    strips the `invariant:` / `failure_mode:` / `intent:` /
+    `incident_pattern:` value prefixes, de-duplicates, and preserves
+    first-occurrence order so the output is deterministic without
+    re-sorting an author's curated list."""
+    out: dict[str, list[str]] = {}
+    for field in RELATION_FIELDS:
+        values = candidate.get(field)
+        if not values:
+            continue
+        target = RELATION_FIELD_ALIASES.get(field, field)
+        bucket = out.setdefault(target, [])
+        for ref in values:
+            if not isinstance(ref, str) or not ref.strip():
+                continue
+            cleaned = strip_relation_prefix(ref.strip())
+            if cleaned and cleaned not in bucket:
+                bucket.append(cleaned)
+    return {k: v for k, v in out.items() if v}
+
+
 def check_relationships(
     candidate: dict, canonical_ids: set[str], sibling_ids: set[str]
 ) -> tuple[list[str], list[str]]:
@@ -468,6 +505,9 @@ def to_canonical_entry(candidate: dict) -> dict:
         if field in candidate and candidate[field] not in (None, "", [], {}):
             entry[field] = candidate[field]
 
+    # Relationships are translated into the canonical dialect, never copied.
+    entry.update(canonicalize_relations(candidate))
+
     # Provenance — operators and future agents need to know where this
     # entry came from. Evidence lives here rather than at top level: it is
     # provenance for the claim, not part of the claim.
@@ -483,6 +523,107 @@ def to_canonical_entry(candidate: dict) -> dict:
 
 # ─── non-destructive writes ──────────────────────────────────────────────
 
+def _line_start(text: str, index: int) -> int:
+    nl = text.rfind("\n", 0, index)
+    return 0 if nl < 0 else nl + 1
+
+
+def _line_end(text: str, index: int) -> int:
+    nl = text.find("\n", index)
+    return len(text) if nl < 0 else nl + 1
+
+
+def _item_end(text: str, node) -> int:
+    """Offset just past a node's last line.
+
+    A node's end_mark often points at column 0 of the FOLLOWING line (the
+    next token), in which case that index already is the end of the item —
+    extending to the next newline would swallow a whole extra line, which
+    for a sequence followed by another top-level key means appending inside
+    the wrong block."""
+    idx = node.end_mark.index
+    if idx == _line_start(text, idx):
+        return idx
+    return _line_end(text, idx)
+
+
+def _mapping_id(node) -> str | None:
+    """The `id` value of a MappingNode, whatever position the key sits in."""
+    if not isinstance(node, yaml.MappingNode):
+        return None
+    for key_node, value_node in node.value:
+        if getattr(key_node, "value", None) == "id":
+            return getattr(value_node, "value", None)
+    return None
+
+
+def _find_sequence_node(root, list_key: str):
+    """The SequenceNode for `list_key`, searched at top level and one level
+    inside a wrapper mapping."""
+    if not isinstance(root, yaml.MappingNode):
+        return None
+    for key_node, value_node in root.value:
+        if key_node.value == list_key and isinstance(value_node, yaml.SequenceNode):
+            return value_node
+    for _key_node, value_node in root.value:
+        if isinstance(value_node, yaml.MappingNode):
+            found = _find_sequence_node(value_node, list_key)
+            if found is not None:
+                return found
+    return None
+
+
+def _compose(text: str, path: Path):
+    try:
+        return yaml.compose(text)
+    except yaml.YAMLError as exc:
+        die(f"{path}: could not parse for structural edit: {exc}")
+
+
+def candidate_item_span(text: str, candidate_id: str, path: Path) -> tuple[int, int, str]:
+    """Character span of the candidate's list item, plus the bullet indent.
+
+    Located STRUCTURALLY from the parsed node tree, not by regex. The
+    previous line-based matcher assumed `id` was the item's first key and
+    that its line carried no inline comment; a candidate can legally
+    violate either, and the failure mode was a half-done promotion —
+    canonical entry appended, candidate still present, retry blocked by
+    duplicate detection."""
+    root = _compose(text, path)
+    seq = _find_sequence_node(root, "candidates") if root is not None else None
+    if seq is None:
+        die(f"{path}: no candidates sequence found for structural removal")
+
+    for i, item in enumerate(seq.value):
+        if _mapping_id(item) != candidate_id:
+            continue
+        start = _line_start(text, item.start_mark.index)
+        indent = " " * max(item.start_mark.column - 2, 0)
+        if i + 1 < len(seq.value):
+            end = _line_start(text, seq.value[i + 1].start_mark.index)
+        else:
+            end = _item_end(text, item)
+        return start, end, indent
+    die(f"could not locate entry {candidate_id!r} in {path} for removal")
+    return 0, 0, ""  # unreachable; die() exits
+
+
+def canonical_insertion_point(text: str, list_key: str, path: Path) -> tuple[int, str] | None:
+    """Character offset at which to insert a new item, and the bullet indent.
+
+    Inserts at the end of the ACTUAL list rather than at end-of-file, so a
+    canonical file whose list is not the final top-level key stays valid.
+    Returns None when there is no block sequence to append to (empty or
+    flow-style list), where a structural dump is the correct fallback."""
+    root = _compose(text, path)
+    seq = _find_sequence_node(root, list_key) if root is not None else None
+    if seq is None or not seq.value:
+        return None
+    last = seq.value[-1]
+    indent = " " * max(last.start_mark.column - 2, 0)
+    return _item_end(text, last), indent
+
+
 def _render_entry(entry: dict, indent: str) -> str:
     """Render one entry as a block-list item, indented to match the file."""
     text = yaml.safe_dump(
@@ -493,101 +634,41 @@ def _render_entry(entry: dict, indent: str) -> str:
     return "".join(indent + line if line.strip() else line for line in text.splitlines(True))
 
 
-def _block_list_indent(text: str, list_key: str) -> str | None:
-    """Indent of the block-list items under list_key, or None when the list
-    is absent, empty, or written in flow style ("key: []")."""
-    lines = text.splitlines()
-    for i, line in enumerate(lines):
-        if not line.startswith(list_key + ":"):
-            continue
-        if line[len(list_key) + 1:].strip():
-            return None  # inline value, e.g. "invariants: []"
-        for follow in lines[i + 1:]:
-            if not follow.strip():
-                continue
-            stripped = follow.lstrip()
-            if stripped.startswith("- "):
-                return follow[: len(follow) - len(stripped)]
-            return None
-        return None
-    return None
 
+def canonical_text_with_entry(
+    text: str, list_key: str, new_entry: dict, path: Path
+) -> str:
+    """The canonical file's full new content, computed in memory.
 
-def write_canonical(target_path: Path, list_key: str, new_entry: dict, dry_run: bool) -> None:
-    """Append one entry to the canonical file.
-
-    Appends TEXTUALLY when the target holds a block list. A full
-    yaml.safe_dump round-trip of docs/awareness/invariants.yaml rewrites
-    529KB, reflows every folded scalar and deletes every comment — a diff
-    no reviewer can read. Only the empty/flow-style case (nothing to
-    preserve) falls back to a structural dump."""
-    data = load_yaml(target_path)
-    if not isinstance(data, dict):
-        data = {}
-    entries = data.get(list_key) or []
-    if not isinstance(entries, list):
-        die(f"target {target_path} has {list_key} but it's not a list")
-
-    text = target_path.read_text(encoding="utf-8")
-    indent = _block_list_indent(text, list_key) if entries else None
-
-    if indent is not None:
-        rendered = _render_entry(new_entry, indent)
-        if dry_run:
-            sys.stdout.write(
-                f"[dry-run] would append to {target_path.relative_to(REPO_ROOT)} "
-                f"(textual append, {len(entries)} → {len(entries) + 1} entries):\n"
-            )
-            sys.stdout.write(rendered)
-            return
-        if not text.endswith("\n"):
-            text += "\n"
-        target_path.write_text(text + rendered, encoding="utf-8")
-    else:
-        entries = list(entries)
+    Appends TEXTUALLY at the end of the list. A full yaml.safe_dump
+    round-trip of the canonical invariants file (11.5k lines, 529KB)
+    rewrites all of it, reflows every folded scalar and deletes every
+    comment — a diff no reviewer can read. Only the empty/flow-style case
+    (nothing to preserve) falls back to a structural dump."""
+    spot = canonical_insertion_point(text, list_key, path)
+    if spot is None:
+        data = yaml.safe_load(text) or {}
+        if not isinstance(data, dict):
+            data = {}
+        entries = list(data.get(list_key) or [])
         entries.append(new_entry)
         data[list_key] = entries
-        if dry_run:
-            sys.stdout.write(f"[dry-run] would append to {target_path.relative_to(REPO_ROOT)}:\n")
-            sys.stdout.write(yaml.safe_dump({list_key: [new_entry]}, sort_keys=False, allow_unicode=True))
-            return
-        with target_path.open("w", encoding="utf-8") as f:
-            yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+        return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
 
-    # Prove the write did what it claimed rather than trusting the append.
-    after = load_yaml(target_path)
-    got = after.get(list_key) or []
-    ids = [e.get("id") for e in got if isinstance(e, dict)]
-    if len(got) != len(entries) + (1 if indent is not None else 0) or new_entry["id"] not in ids:
-        die(
-            f"post-write verification failed for {target_path}: expected "
-            f"{new_entry['id']!r} among {len(got)} entries"
-        )
-    sys.stdout.write(
-        f"appended to {target_path.relative_to(REPO_ROOT)} ({len(got)} entries)\n"
-    )
+    offset, indent = spot
+    rendered = _render_entry(new_entry, indent)
+    prefix = text[:offset]
+    if prefix and not prefix.endswith("\n"):
+        prefix += "\n"
+    return prefix + rendered + text[offset:]
 
 
-def _entry_line_span(lines: list[str], candidate_id: str) -> tuple[int, int] | None:
-    """[start, end) line span of the `- id: <candidate_id>` block."""
-    pattern = re.compile(r"^(\s*)-\s+id:\s*[\"']?" + re.escape(candidate_id) + r"[\"']?\s*$")
-    for i, line in enumerate(lines):
-        m = pattern.match(line)
-        if not m:
-            continue
-        indent = m.group(1)
-        for j in range(i + 1, len(lines)):
-            follow = lines[j]
-            if not follow.strip():
-                continue
-            current = follow[: len(follow) - len(follow.lstrip())]
-            # Next sibling item, or a dedent out of the list.
-            if follow.lstrip().startswith("- ") and current == indent:
-                return i, j
-            if len(current) <= len(indent) and not follow.lstrip().startswith("- "):
-                return i, j
-        return i, len(lines)
-    return None
+def candidate_text_without(text: str, candidate_id: str, path: Path) -> str:
+    """The candidate file's full new content, computed in memory."""
+    start, end, _indent = candidate_item_span(text, candidate_id, path)
+    lines = (text[:start] + text[end:]).splitlines(True)
+    _collapse_emptied_list(lines, len(text[:start].splitlines()))
+    return "".join(lines)
 
 
 def _collapse_emptied_list(lines: list[str], removed_at: int) -> None:
@@ -599,8 +680,7 @@ def _collapse_emptied_list(lines: list[str], removed_at: int) -> None:
     list is empty"."""
     for i in range(min(removed_at, len(lines)) - 1, -1, -1):
         line = lines[i]
-        stripped = line.strip()
-        if stripped != "candidates:":
+        if line.strip() != "candidates:":
             continue
         indent = line[: len(line) - len(line.lstrip())]
         for follow in lines[i + 1:]:
@@ -614,48 +694,130 @@ def _collapse_emptied_list(lines: list[str], removed_at: int) -> None:
         return
 
 
-def remove_from_candidate_file(candidate_path: Path, candidate_id: str, dry_run: bool) -> None:
-    """Remove the entry TEXTUALLY, preserving the document's shape.
+def verify_canonical_text(
+    text: str, list_key: str, entry_id: str, expected: int, path: Path
+) -> None:
+    """Parse the proposed content and assert the entry landed."""
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        die(f"proposed content for {path} is not valid YAML: {exc}")
+    entries = (data or {}).get(list_key) or []
+    ids = [e.get("id") for e in entries if isinstance(e, dict)]
+    if entry_id not in ids:
+        die(f"proposed content for {path} does not contain {entry_id!r}")
+    if len(entries) != expected:
+        die(
+            f"proposed content for {path} has {len(entries)} {list_key} entries, "
+            f"expected {expected}"
+        )
 
-    The previous implementation set data["candidates"] = remaining and
-    dumped. Against a wrapped document that ADDED a second, top-level
-    `candidates` key while leaving the wrapper intact — producing exactly
-    the mixed-shape document the Go parser rejects, and reflowing the
-    whole file besides."""
-    text = candidate_path.read_text(encoding="utf-8")
-    lines = text.splitlines(True)
-    span = _entry_line_span(lines, candidate_id)
-    if span is None:
-        die(f"could not locate entry {candidate_id!r} in {candidate_path} for removal")
-    start, end = span
 
-    remaining = lines[:start] + lines[end:]
-    _collapse_emptied_list(remaining, start)
-    remaining_text = "".join(remaining)
-    data_after = yaml.safe_load(remaining_text) or {}
-    remaining_count = sum(
-        len(entries) for _w, entries in extract_candidate_lists(data_after, candidate_path)
-    )
+def verify_candidate_text(text: str, candidate_id: str, expected: int, path: Path) -> int:
+    """Parse the proposed content and assert the candidate is gone."""
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        die(f"proposed content for {path} is not valid YAML: {exc}")
+    lists = extract_candidate_lists(data, path)
+    remaining = [e for _w, entries in lists for e in entries if isinstance(e, dict)]
+    if any(e.get("id") == candidate_id for e in remaining):
+        die(f"proposed content for {path} still contains {candidate_id!r}")
+    if len(remaining) != expected:
+        die(
+            f"proposed content for {path} has {len(remaining)} candidates, "
+            f"expected {expected}"
+        )
+    return len(remaining)
+
+
+def atomic_replace(updates: list[tuple[Path, str]]) -> None:
+    """Replace several files as close to atomically as a filesystem allows.
+
+    Promotion mutates TWO files. Writing one and then discovering the other
+    cannot be written leaves a half-done promotion: canonical entry
+    appended, candidate still present, and the retry blocked by duplicate
+    detection. Post-write verification cannot help — the damage is already
+    on disk. So every proposed content is validated first, staged to a temp
+    file beside its target, and only then swapped in; if any swap fails the
+    ones already done are rolled back."""
+    backups = {path: path.read_text(encoding="utf-8") for path, _ in updates}
+    staged: list[tuple[Path, Path]] = []
+    try:
+        for path, text in updates:
+            tmp = path.with_name(path.name + ".promote-tmp")
+            tmp.write_text(text, encoding="utf-8")
+            staged.append((path, tmp))
+    except OSError as exc:
+        for _p, tmp in staged:
+            tmp.unlink(missing_ok=True)
+        die(f"could not stage promotion writes: {exc}")
+
+    replaced: list[Path] = []
+    try:
+        for path, tmp in staged:
+            os.replace(tmp, path)
+            replaced.append(path)
+    except OSError as exc:
+        for path in replaced:
+            try:
+                path.write_text(backups[path], encoding="utf-8")
+            except OSError as rollback_exc:  # pragma: no cover - disk failure
+                sys.stderr.write(
+                    f"promote-awareness-candidate: CRITICAL: rollback of {path} failed: "
+                    f"{rollback_exc}. Restore from git.\n"
+                )
+        for _p, tmp in staged:
+            tmp.unlink(missing_ok=True)
+        die(f"could not complete promotion writes (rolled back): {exc}")
+
+
+# ─── single-file helpers (kept for direct callers and tests) ─────────────
+
+def write_canonical(target_path: Path, list_key: str, new_entry: dict, dry_run: bool) -> None:
+    text = target_path.read_text(encoding="utf-8")
+    data = yaml.safe_load(text) or {}
+    if not isinstance(data, dict):
+        data = {}
+    entries = data.get(list_key) or []
+    if not isinstance(entries, list):
+        die(f"target {target_path} has {list_key} but it's not a list")
+
+    proposed = canonical_text_with_entry(text, list_key, new_entry, target_path)
+    verify_canonical_text(proposed, list_key, new_entry["id"], len(entries) + 1, target_path)
 
     if dry_run:
         sys.stdout.write(
-            f"[dry-run] would remove {candidate_id} from {candidate_path.relative_to(REPO_ROOT)} "
-            f"(remaining: {remaining_count})\n"
+            f"[dry-run] would append to {target_path.relative_to(REPO_ROOT)} "
+            f"({len(entries)} → {len(entries) + 1} entries):\n"
+        )
+        sys.stdout.write(_render_entry(new_entry, ""))
+        return
+    atomic_replace([(target_path, proposed)])
+    sys.stdout.write(
+        f"appended to {target_path.relative_to(REPO_ROOT)} ({len(entries) + 1} entries)\n"
+    )
+
+
+def remove_from_candidate_file(candidate_path: Path, candidate_id: str, dry_run: bool) -> None:
+    text = candidate_path.read_text(encoding="utf-8")
+    before = sum(
+        len(entries)
+        for _w, entries in extract_candidate_lists(yaml.safe_load(text) or {}, candidate_path)
+    )
+    proposed = candidate_text_without(text, candidate_id, candidate_path)
+    remaining = verify_candidate_text(proposed, candidate_id, before - 1, candidate_path)
+
+    if dry_run:
+        sys.stdout.write(
+            f"[dry-run] would remove {candidate_id} from "
+            f"{candidate_path.relative_to(REPO_ROOT)} (remaining: {remaining})\n"
         )
         return
-
-    candidate_path.write_text(remaining_text, encoding="utf-8")
-    still_there = any(
-        e.get("id") == candidate_id
-        for _w, entries in extract_candidate_lists(yaml.safe_load(remaining_text) or {}, candidate_path)
-        for e in entries
-        if isinstance(e, dict)
-    )
-    if still_there:
-        die(f"post-removal verification failed: {candidate_id!r} still present in {candidate_path}")
+    atomic_replace([(candidate_path, proposed)])
     sys.stdout.write(
         f"removed {candidate_id} from {candidate_path.relative_to(REPO_ROOT)} "
-        f"(remaining candidates: {remaining_count})\n"
+        f"(remaining candidates: {remaining})\n"
     )
 
 
@@ -768,8 +930,57 @@ def main() -> int:
 
     new_entry = to_canonical_entry(candidate)
     sys.stdout.write(f"canonical id: {new_entry['id']}\n")
-    write_canonical(target_path, TARGET_LIST_KEY[target_filename], new_entry, args.dry_run)
-    remove_from_candidate_file(candidate_path, args.id, args.dry_run)
+    relations = canonicalize_relations(candidate)
+    if relations:
+        rendered = "; ".join(f"{k}={v}" for k, v in relations.items())
+        sys.stdout.write(f"relations canonicalized: {rendered}\n")
+
+    # Promotion mutates TWO files. Build BOTH results in memory and validate
+    # BOTH before anything reaches disk, then swap them in together — a
+    # half-done promotion (entry appended, candidate still present) blocks its
+    # own retry on duplicate detection, and no post-write check can undo it.
+    list_key = TARGET_LIST_KEY[target_filename]
+    canonical_before = target_path.read_text(encoding="utf-8")
+    candidate_before = candidate_path.read_text(encoding="utf-8")
+
+    existing_entries = (load_yaml(target_path) or {}).get(list_key) or []
+    candidate_count = sum(
+        len(entries)
+        for _w, entries in extract_candidate_lists(
+            yaml.safe_load(candidate_before) or {}, candidate_path
+        )
+    )
+
+    canonical_after = canonical_text_with_entry(
+        canonical_before, list_key, new_entry, target_path
+    )
+    verify_canonical_text(
+        canonical_after, list_key, new_entry["id"], len(existing_entries) + 1, target_path
+    )
+    candidate_after = candidate_text_without(candidate_before, args.id, candidate_path)
+    remaining = verify_candidate_text(
+        candidate_after, args.id, candidate_count - 1, candidate_path
+    )
+
+    if args.dry_run:
+        sys.stdout.write(
+            f"[dry-run] would append to {target_path.relative_to(REPO_ROOT)} "
+            f"({len(existing_entries)} → {len(existing_entries) + 1} entries):\n"
+        )
+        sys.stdout.write(_render_entry(new_entry, ""))
+        sys.stdout.write(
+            f"[dry-run] would remove {args.id} from "
+            f"{candidate_path.relative_to(REPO_ROOT)} (remaining: {remaining})\n"
+        )
+        return 0
+
+    atomic_replace([(target_path, canonical_after), (candidate_path, candidate_after)])
+    sys.stdout.write(
+        f"appended to {target_path.relative_to(REPO_ROOT)} "
+        f"({len(existing_entries) + 1} entries)\n"
+        f"removed {args.id} from {candidate_path.relative_to(REPO_ROOT)} "
+        f"(remaining candidates: {remaining})\n"
+    )
 
     if not args.dry_run:
         sys.stdout.write(
