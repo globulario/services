@@ -216,10 +216,10 @@ func TestIsActionKey(t *testing.T) {
 		{"dns.zone.write", true},
 		{"/file.FileService/ReadDir", false},
 		{"", false},
-		{"file", false},              // needs at least one dot
-		{"File.Read", false},         // uppercase
-		{"*", false},                 // wildcard
-		{"file.read.v2.beta", true},  // multiple dots ok
+		{"file", false},             // needs at least one dot
+		{"File.Read", false},        // uppercase
+		{"*", false},                // wildcard
+		{"file.read.v2.beta", true}, // multiple dots ok
 	}
 	for _, tt := range tests {
 		if got := IsActionKey(tt.input); got != tt.want {
@@ -409,6 +409,67 @@ func TestLoadPermissions_OldServiceFallsBackToCompiled(t *testing.T) {
 	}
 	if perms != nil {
 		t.Fatal("expected nil perms — caller should use compiled fallback")
+	}
+}
+
+func TestEnsureClusterRolesDeployed_RefreshesPackageGeneratedPolicy(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	rbacDir := filepath.Join(PackageRoot, "rbac")
+	if err := os.MkdirAll(rbacDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	generatedPath := filepath.Join(rbacDir, "cluster-roles.generated.json")
+	if err := os.WriteFile(generatedPath, []byte(`{"version":"stale","roles":{}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := EnsureClusterRolesDeployed(); err != nil {
+		t.Fatalf("EnsureClusterRolesDeployed() error = %v", err)
+	}
+
+	roles, fromFile, err := LoadClusterRoles()
+	if err != nil {
+		t.Fatalf("LoadClusterRoles() error = %v", err)
+	}
+	if !fromFile {
+		t.Fatal("expected refreshed package policy to load from file")
+	}
+	if _, ok := roles["globular-controller-sa"]; !ok {
+		t.Fatal("refreshed policy missing globular-controller-sa")
+	}
+}
+
+func TestEnsureClusterRolesDeployed_PreservesAdminOverride(t *testing.T) {
+	dir := t.TempDir()
+	AdminRoot = filepath.Join(dir, "etc")
+	PackageRoot = filepath.Join(dir, "var")
+
+	adminDir := filepath.Join(AdminRoot, "rbac")
+	if err := os.MkdirAll(adminDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	adminPath := filepath.Join(adminDir, "cluster-roles.json")
+	adminPolicy := []byte(`{"version":"custom","roles":{"custom-admin":["/*"]}}`)
+	if err := os.WriteFile(adminPath, adminPolicy, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := EnsureClusterRolesDeployed(); err != nil {
+		t.Fatalf("EnsureClusterRolesDeployed() error = %v", err)
+	}
+
+	got, err := os.ReadFile(adminPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(adminPolicy) {
+		t.Fatal("admin override was modified")
+	}
+	if _, err := os.Stat(filepath.Join(PackageRoot, "rbac", "cluster-roles.generated.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected no package policy write when admin override exists, stat err=%v", err)
 	}
 }
 

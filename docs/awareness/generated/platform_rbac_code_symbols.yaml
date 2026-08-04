@@ -188,6 +188,24 @@ test_symbols:
     symbol: TestSetGetRoleBinding_RoundTrip
     package: main
     language: go
+  - id: golang/rbac/rbac_server/rbac_subject_flip_test.go:TestSubjectFlip_AccountExistCanonicalizesToUUID
+    file: golang/rbac/rbac_server/rbac_subject_flip_test.go
+    symbol: TestSubjectFlip_AccountExistCanonicalizesToUUID
+    package: main
+    language: go
+    doc: "TestSubjectFlip_AccountExistCanonicalizesToUUID: real accounts key on the\nopaque uuid (resolvable by name OR uuid); sa is always \"sa\" (never its minted\nuuid — the permanent service-principal carve-out)."
+  - id: golang/rbac/rbac_server/rbac_subject_flip_test.go:TestSubjectFlip_GrantByNameMatchedByUUID
+    file: golang/rbac/rbac_server/rbac_subject_flip_test.go
+    symbol: TestSubjectFlip_GrantByNameMatchedByUUID
+    package: main
+    language: go
+    doc: "TestSubjectFlip_GrantByNameMatchedByUUID: a permission granted (and denied) by\naccount NAME is stored uuid-canonical, so a request whose subject is the\naccount's uuid matches — and deny overrides allow for that uuid subject."
+  - id: golang/rbac/rbac_server/rbac_subject_flip_test.go:TestSubjectFlip_GroupCanonicalizesToUUID
+    file: golang/rbac/rbac_server/rbac_subject_flip_test.go
+    symbol: TestSubjectFlip_GroupCanonicalizesToUUID
+    package: main
+    language: go
+    doc: "TestSubjectFlip_GroupCanonicalizesToUUID extends the flip to group principals:\ngroupExist canonicalizes a group to its uuid (resolvable by name or uuid), and\na permission granted by group NAME is stored uuid-canonical so a group-uuid\nsubject matches. Organizations and applications use the identical resolver."
   - id: golang/rbac/rbac_server/zz_intent_required_test_aliases_test.go:TestPermissionChangeAuditRequired
     file: golang/rbac/rbac_server/zz_intent_required_test_aliases_test.go
     symbol: TestPermissionChangeAuditRequired

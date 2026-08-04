@@ -18,7 +18,7 @@ activation_triggers:
   - scylladb
   - replication factor
   - schema
-  - storage quorum
+  - scylla group0 safety
 expressed_by:
   - docs/operational-knowledge/stages/day-1-join.yaml
   - docs/operational-knowledge/stages/day-1-objectstore.yaml

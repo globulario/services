@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/render"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
@@ -122,6 +123,20 @@ func (s *ClusterDoctorServer) startHealerLoop(ctx context.Context) {
 					continue // only leader runs
 				}
 				s.runHealerCycle(ctx, mode, maxActions)
+				// Read the accumulated outcomes back and queue any repeated
+				// theme for human review. After the cycle, so this tick's own
+				// outcomes are already recorded; inside the leader gate, so N
+				// doctors cannot multiply one observation into N review items.
+				//
+				// Deliberately NOT gated on snapshot harvest, unlike dispatch
+				// above (doctor.healer_auto_remediation_on_reduced_harvest).
+				// That gate exists because acting on a partial snapshot can be
+				// destructive. This call dispatches nothing: it queues a
+				// question for a human, whose worst case is one misleading hint
+				// that review discards. It also reads outcomes accumulated
+				// across many cycles, so gating it on the freshness of a single
+				// snapshot would suppress real patterns for an unrelated reason.
+				s.synthesizePromotionCandidates(ctx)
 			}
 		}
 	}()
@@ -129,7 +144,7 @@ func (s *ClusterDoctorServer) startHealerLoop(ctx context.Context) {
 
 func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, maxActions int) {
 	// Take a fresh snapshot.
-	snap, _, err := s.takeSnapshot(ctx, cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH)
+	snap, fresh, err := s.takeSnapshot(ctx, cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH)
 	if err != nil && snap == nil {
 		log.Printf("healer: cycle skipped — snapshot failed: %v", err)
 		return
@@ -145,6 +160,43 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 	// when ExecuteRemediation looks them up. Cluster-wide=true is correct
 	// because EvaluateAll evaluates every registered invariant.
 	s.cacheFindings(findings, true)
+
+	// Offer these findings to behavioral memory BEFORE anything is dispatched.
+	//
+	// The governed gate (behavioral_governance.go) authorizes a remediation only
+	// when qualifying evidence exists for the finding — sat.doctor.finding_observed
+	// requires an evidence row of kind cluster_doctor_evidence naming the same
+	// invariant and entity. The only producer of that row was
+	// emitBehavioralClusterReport, called from the GetClusterReport RPC. The
+	// consumer is this loop. So an autonomous healer gated on evidence it never
+	// emitted: the check returned needs_evidence and the repair never happened,
+	// while an operator who happened to pull a report first made the same action
+	// succeed. Producer and consumer must live on the same path.
+	//
+	// Reduced-harvest snapshots are deliberately EXCLUDED, and this survives the
+	// move to finding-scoped closure below. Dispatch granularity and evidence
+	// minting are separate decisions: the registry downgrades a compromised
+	// finding to UNKNOWN so it cannot be ACTED on, but observation.FromDoctorFinding
+	// mints a BindSatisfies-bound cluster_doctor_evidence row from a finding's
+	// evidence without consulting its verdict. An UNKNOWN finding would therefore
+	// still mint standing authorization naming that invariant and entity. If a
+	// snapshot is not trusted enough to act on, it is not trusted enough to mint
+	// the evidence that authorizes acting later — recording it would launder a
+	// possibly-false finding into a future cycle's permission.
+	//
+	// The cost is bounded and in the safe direction: a finding newly observed
+	// during a reduced harvest waits for a clean cycle to mint its evidence.
+	// Findings already carrying evidence from earlier clean cycles stay
+	// actionable, which is what preserving enforce mode below is for.
+	//
+	// Delivery stays best-effort: Enqueue is non-blocking by contract, so this
+	// cannot delay or fail the cycle. The consequence is that evidence for a
+	// newly-observed finding may land after this cycle's gate check, and the
+	// repair happens on a subsequent cycle. Emitting here rather than after
+	// Evaluate gives the recorder the whole dispatch window to drain.
+	if !snap.DataIncomplete {
+		s.emitBehavioralClusterReport(render.ClusterReport(snap, findings, s.version, fresh))
+	}
 
 	decision := decideHealerExecution(mode, snap.DataIncomplete)
 	if decision.reducedHarvest && decision.mode == "enforce" {

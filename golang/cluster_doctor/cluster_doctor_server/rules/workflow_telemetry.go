@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/collector"
@@ -113,6 +114,19 @@ func (w workflowDriftStuck) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 	if len(snap.DriftUnresolved) == 0 {
 		return nil
 	}
+
+	// A missing_package drift whose package's artifact is NOT installable from the
+	// repository (published manifest with no blob, checksum mismatch, unavailable
+	// source, cache corruption) can NEVER be converged by re-running
+	// release.apply.package — the retries are not "stuck remediation", they are a
+	// repository-availability problem. Escalating these to a CRITICAL
+	// workflow.drift_stuck misattributes the cause (points at the workflow, not the
+	// repository) and hides the actionable repository.published_missing_blob
+	// finding. Correlate against the repository's own self-reported findings and
+	// reclassify: a bounded WARN that names the repository cause, never a CRITICAL
+	// "stuck workflow". (See repository_findings.go for the authoritative signal.)
+	unresolvable := unresolvableRepoPackages(snap)
+
 	var findings []Finding
 	const stuckThreshold = 3 // 3+ consecutive cycles = stuck
 	for _, d := range snap.DriftUnresolved {
@@ -120,6 +134,44 @@ func (w workflowDriftStuck) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 			continue
 		}
 		cycles := d.GetConsecutiveCycles()
+
+		// Reclassification: repository-blocked missing_package. The drift is real,
+		// but the chosen workflow cannot resolve it — the fix is in the repository,
+		// not the control loop. Emit a WARN that points there and skip the generic
+		// (mis-attributed) drift_stuck escalation below.
+		if d.GetDriftType() == "missing_package" {
+			if pkg := driftPackageName(d.GetEntityRef()); pkg != "" {
+				if reason, blocked := unresolvable[pkg]; blocked {
+					entityRef := d.GetDriftType() + "/" + d.GetEntityRef()
+					findings = append(findings, Finding{
+						FindingID:   FindingID(w.ID()+".repository_blocked", entityRef, pkg),
+						InvariantID: w.ID(),
+						Severity:    cluster_doctorpb.Severity_SEVERITY_WARN,
+						Category:    "convergence",
+						EntityRef:   entityRef,
+						Summary: fmt.Sprintf("Drift %q on %s cannot converge: repository artifact %q is not installable (%s). release.apply.package will retry every cycle but can never succeed until the artifact is restored — this is a repository problem, not a stuck workflow.",
+							d.GetDriftType(), d.GetEntityRef(), pkg, reason),
+						Evidence: []*cluster_doctorpb.Evidence{
+							kvEvidence("workflow", "ListDriftUnresolved", map[string]string{
+								"drift_type":         d.GetDriftType(),
+								"entity_ref":         d.GetEntityRef(),
+								"consecutive_cycles": fmt.Sprintf("%d", cycles),
+								"package":            pkg,
+								"repository_reason":  reason,
+								"chosen_workflow":    d.GetChosenWorkflow(),
+							}),
+						},
+						Remediation: []*cluster_doctorpb.RemediationStep{
+							step(1, fmt.Sprintf("Restore the repository artifact for %q — see the repository.published_missing_blob / checksum finding for this package (that is the actionable root cause).", pkg), ""),
+							step(2, "Re-publish via the day-0 / release pipeline so the blob is materialized cluster-wide. An out-of-band 'pkg publish' to a single instance writes the manifest cluster-wide but leaves the blob on only one node's local CAS.", ""),
+						},
+						InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+					})
+					continue
+				}
+			}
+		}
+
 		severity := cluster_doctorpb.Severity_SEVERITY_WARN
 		if cycles >= 10 {
 			severity = cluster_doctorpb.Severity_SEVERITY_CRITICAL
@@ -158,6 +210,65 @@ func (w workflowDriftStuck) Evaluate(snap *collector.Snapshot, cfg Config) []Fin
 		})
 	}
 	return findings
+}
+
+// unresolvableRepoPackages returns package-name → human reason for every package
+// the repository itself reports as non-installable. These are terminal states a
+// node can never converge by retrying an install, so a missing_package drift for
+// one of them is repository-blocked, not a stuck workflow. Package identity is
+// taken from the finding's Name (falling back to the artifact key), so it can be
+// correlated with a drift entity_ref of the form "<package>@<node_id>".
+func unresolvableRepoPackages(snap *collector.Snapshot) map[string]string {
+	out := map[string]string{}
+	if snap == nil {
+		return out
+	}
+	for _, rf := range snap.RepositoryFindings {
+		if rf == nil {
+			continue
+		}
+		var reason string
+		switch rf.Kind {
+		case "REPO_FIND_PUBLISHED_MISSING_BLOB":
+			reason = "published manifest has no blob in the local POSIX CAS"
+		case "REPO_FIND_PUBLISHED_CHECKSUM_MISMATCH":
+			reason = "published blob checksum does not match the manifest"
+		case "REPO_FIND_SOURCE_CHAIN_UNAVAILABLE":
+			reason = "upstream source chain unavailable"
+		case "REPO_FIND_LOCAL_CACHE_CORRUPTION":
+			reason = "local cache corruption"
+		default:
+			continue
+		}
+		name := strings.TrimSpace(rf.Name)
+		if name == "" {
+			name = artifactKeyPackageName(rf.ArtifactKey)
+		}
+		if name != "" {
+			out[name] = reason
+		}
+	}
+	return out
+}
+
+// artifactKeyPackageName extracts the package name from an artifact key of the
+// form "<publisher>%<name>%<version>%<platform>%<build>" (the publisher itself
+// may contain '@', so split on '%').
+func artifactKeyPackageName(key string) string {
+	parts := strings.Split(key, "%")
+	if len(parts) >= 2 {
+		return strings.TrimSpace(parts[1])
+	}
+	return ""
+}
+
+// driftPackageName extracts the package name from a missing_package drift entity
+// ref of the form "<package>@<node_id>".
+func driftPackageName(entityRef string) string {
+	if i := strings.Index(entityRef, "@"); i > 0 {
+		return strings.TrimSpace(entityRef[:i])
+	}
+	return ""
 }
 
 // --- workflow.no_activity ---------------------------------------------------

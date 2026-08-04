@@ -101,7 +101,7 @@ func (srv *server) ensureServiceRelease(ctx context.Context, serviceName, publis
 		},
 	}
 
-	if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+	if _, err := srv.applyServiceRelease(ctx, rel); err != nil {
 		log.Printf("ensureServiceRelease: %s: apply failed: %v", releaseName, err)
 	} else {
 		log.Printf("ensureServiceRelease: %s: created with phase=PENDING publisher=%s", releaseName, effectivePublisher)

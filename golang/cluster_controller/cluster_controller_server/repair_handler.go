@@ -234,6 +234,19 @@ type desiredVersionInfo struct {
 	buildNumber int64
 	buildID     string // Phase 2: authoritative convergence identity
 
+	// publisherID is the identity lane the artifact must be resolved under.
+	//
+	// Empty for every normal desired-state record, which means the official
+	// publisher. It is non-empty only while a local override is active, and
+	// then it is load-bearing: the local artifact exists ONLY under
+	// local@<cluster-id>, so resolving under the official publisher finds
+	// nothing and the override silently never converges. That is exactly what
+	// happened before 2026-08-01 — the drift-reconciler hardcoded
+	// defaultPublisherID() and `pkg override`, the mechanism built for local
+	// builds, could not resolve one. See ServiceDesiredVersionSpec.PublisherID,
+	// whose doc already promised this lane.
+	publisherID string
+
 	// entrypointChecksum is the BINARY sha256 from the artifact manifest
 	// (status.resolved_entrypoint_checksum on ServiceRelease /
 	// InfrastructureRelease / ApplicationRelease). The drift-reconciler
@@ -258,7 +271,14 @@ func (srv *server) collectDesiredVersions(ctx context.Context) map[string]desire
 				if canon == "" {
 					canon = sdv.Spec.ServiceName
 				}
-				desired["SERVICE/"+canon] = desiredVersionInfo{version: sdv.Spec.Version, buildNumber: sdv.Spec.BuildNumber, buildID: sdv.Spec.BuildID}
+				desired["SERVICE/"+canon] = desiredVersionInfo{
+					version:     sdv.Spec.Version,
+					buildNumber: sdv.Spec.BuildNumber,
+					buildID:     sdv.Spec.BuildID,
+					// Carried, not defaulted: an active local override sets this
+					// and the artifact exists only under that identity lane.
+					publisherID: sdv.Spec.PublisherID,
+				}
 			}
 		}
 	}

@@ -26,7 +26,7 @@ func TestReconcileClassifyDrift_EmptyReturnsNonNilSlice(t *testing.T) {
 		{"empty drift report", []any{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := srv.reconcileClassifyDrift(ctx, tc.driftReport, 0)
+			got, err := srv.reconcileClassifyDrift(ctx, tc.driftReport, 0, nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -68,9 +69,9 @@ func TestProjectionRFEnforcement(t *testing.T) {
 	}
 }
 
-// TestTopologyPreflightStorageQuorum verifies that removing a storage node below
-// 3 is blocked, and that removing a non-critical node is allowed.
-func TestTopologyPreflightStorageQuorum(t *testing.T) {
+// TestTopologyPreflightDoesNotEnforceStorageCountFloor verifies that removing
+// a storage node is not blocked by a preferred cluster-size floor.
+func TestTopologyPreflightDoesNotEnforceStorageCountFloor(t *testing.T) {
 	srv := &server{
 		state: &controllerState{
 			Nodes: map[string]*nodeState{
@@ -81,30 +82,10 @@ func TestTopologyPreflightStorageQuorum(t *testing.T) {
 		},
 	}
 
-	// Removing n3 would leave exactly 2 storage nodes — below minimum 3.
 	violations := srv.topologyPreflightForRemove("n3")
-	if len(violations) == 0 {
-		t.Fatal("expected storage_quorum violation when removing a node from 3-node cluster")
-	}
-	found := false
 	for _, v := range violations {
-		if v.Kind == "storage_quorum" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("expected storage_quorum violation, got: %v", violations)
-	}
-
-	// Add a 4th storage node — removing n3 now leaves 3 (fine).
-	srv.state.Nodes["n4"] = &nodeState{
-		NodeID: "n4", Status: "ready", Profiles: []string{"core", "storage"},
-	}
-	violations2 := srv.topologyPreflightForRemove("n3")
-	for _, v := range violations2 {
-		if v.Kind == "storage_quorum" {
-			t.Errorf("unexpected storage_quorum violation with 4 nodes: %s", v.Message)
+		if strings.Contains(v.Kind, "storage") {
+			t.Fatalf("storage count must be reported as capacity, not removal preflight blocker: %+v", violations)
 		}
 	}
 }
@@ -229,7 +210,7 @@ func TestValidateCriticalKeyWrite_UnknownKeyAllowed(t *testing.T) {
 	}
 }
 
-func TestDriftTopologyPreflight_BlocksUnsafeCluster(t *testing.T) {
+func TestDriftTopologyPreflight_DoesNotBlockTransitionalStorageCapacity(t *testing.T) {
 	srv := &server{
 		state: &controllerState{
 			Nodes: map[string]*nodeState{
@@ -239,17 +220,9 @@ func TestDriftTopologyPreflight_BlocksUnsafeCluster(t *testing.T) {
 		},
 	}
 	violations := srv.driftTopologyPreflight(context.Background())
-	if len(violations) == 0 {
-		t.Fatal("expected drift topology preflight violations")
-	}
-	foundStorage := false
 	for _, v := range violations {
-		if v.Kind == "storage_quorum" {
-			foundStorage = true
-			break
+		if strings.Contains(v.Kind, "storage") {
+			t.Fatalf("transitional 2-node cluster must not synthesize storage-count drift violation: %+v", violations)
 		}
-	}
-	if !foundStorage {
-		t.Fatalf("expected storage_quorum violation, got: %+v", violations)
 	}
 }

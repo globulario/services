@@ -6,6 +6,11 @@
   path: docs/operational-knowledge/incidents/cluster-zero-findings-2026-06-03.md
   hash: dbb395b2dfe5cd1f0a0d71b117c5997f765f9953bb177e2976c4ad2f027056ed
   title: Milestone — cluster at zero findings (2026-06-03)
+- ref: opsknowledge:incident.node_rejoin_scylla_group0_repository_2026_07_09
+  kind: incident
+  path: docs/operational-knowledge/incidents/node-rejoin-scylla-group0-repository-2026-07-09.md
+  hash: 27ecb8337c0489923b5e121180e2863b38ced5a2eb4a6f3f6c445aa88b977598
+  title: 'Incident — node remove/rejoin drill cascade: Scylla group0 quorum loss + repository index split (2026-07-09)'
 - ref: opsknowledge:incident.scylla_manager_tls_trust_2026_06_03
   kind: incident
   path: docs/operational-knowledge/incidents/scylla-manager-tls-trust-2026-06-03.md
@@ -19,7 +24,7 @@
 - ref: opsknowledge:runbook.add_node_to_minio_pool
   kind: runbook
   path: docs/operational-knowledge/runbooks/add-node-to-minio-pool.yaml
-  hash: d992055114a8fece791563515e33a38ecdfed9d0e6122c5b81db95b33cd8f77e
+  hash: b6642b0c59c07840f31236a80c160dc54c6f91b4d4b4361af41d23232c078b77
   title: Runbook — Add a node to an existing MinIO pool
 - ref: opsknowledge:runbook.clean_ghost_loop_devices
   kind: runbook
@@ -89,12 +94,12 @@
 - ref: opsknowledge:runbook.republish_artifact_data_after_pool_change
   kind: runbook
   path: docs/operational-knowledge/runbooks/republish-artifact-data-after-pool-change.yaml
-  hash: 3b9afbf3bab9d1f89e20d0ef6d4fed9bbdd77037ffd895fbf35d116c511e0347
+  hash: b4b360cee14b4c66580f6cc9c4d5b2802b8a3615130905caba7b7b19a2fb5bfb
   title: Runbook — Re-publish artifact data after a MinIO pool topology change
 - ref: opsknowledge:runbook.restore_from_backup
   kind: runbook
   path: docs/operational-knowledge/runbooks/restore-from-backup.yaml
-  hash: b23cc738a2ac74f4a250f3eb6daf2b0caa28d65002a41e6dd5e3353ede4858c6
+  hash: f3d0b4d6798240c1354c0b727ea3c9a326d5066b88527b6c8e192231672a2418
   title: Runbook — Restore cluster state from backup
 - ref: opsknowledge:runbook.rotate_pki_certificates
   kind: runbook
@@ -184,7 +189,7 @@
 - ref: opsknowledge:stage.day_0_bootstrap
   kind: stage
   path: docs/operational-knowledge/stages/day-0-bootstrap.yaml
-  hash: d8e53688b5f4e0fb95ac2f9ffd72da19414afc0a4ba3a63c0ef9fa8b8d82c820
+  hash: ba958320a86e6f9ab45b78a96a85e96276384b9fed2753c00a2d6a8f71ab07c0
   title: Day-0 — Initial cluster bootstrap
 - ref: opsknowledge:stage.day_1_deploy_pipeline
   kind: stage
@@ -194,8 +199,8 @@
 - ref: opsknowledge:stage.day_1_join
   kind: stage
   path: docs/operational-knowledge/stages/day-1-join.yaml
-  hash: 3e7ec691a3b3ebccff02bd38d817a40e73226d4579d1b4cce60bfdea0fc87a05
-  title: Day-1 — Multi-node join and founding quorum
+  hash: 71366792a10930505c0e21d26084cfef27d7a392ce4fc85b2b3192dede46301f
+  title: Day-1 — Multi-node join and capacity posture
 - ref: opsknowledge:stage.day_1_keepalived
   kind: stage
   path: docs/operational-knowledge/stages/day-1-keepalived.yaml
@@ -204,7 +209,7 @@
 - ref: opsknowledge:stage.day_1_objectstore
   kind: stage
   path: docs/operational-knowledge/stages/day-1-objectstore.yaml
-  hash: 5c1d115ae03e386baa52c67c99ca65b013276acbc52b2ed177999c9139c74bea
+  hash: 87007dc84eb741bc2741c63231b40c6557b36a69f0262ef04ae7825b86b2a081
   title: Day-1 — Object store (MinIO) topology
 - ref: opsknowledge:stage.day_1_public_domain
   kind: stage
@@ -234,12 +239,12 @@
 - ref: opsknowledge:stage.package_system
   kind: stage
   path: docs/operational-knowledge/stages/package-system.yaml
-  hash: 8b85d1e7085952c739ba25a1b7cce7d8cf11c45687ccc71829d73b7d0af50410
+  hash: c198b206abf9c22093ffe74d4fc03c758d37b56e1a00f4c7ffa444d9b6b30b5a
   title: Package system — anatomy, identity, install lifecycle, validation
 - ref: opsknowledge:stage.profile_system
   kind: stage
   path: docs/operational-knowledge/stages/profile-system.yaml
-  hash: fb0e2b0f652c7a0b3edcb768e221e92b085bcccadb8713bfb2a457b0511ef109
+  hash: 5769d8bb1ee323a5740f52372c88b00025bb8d55c32e5f239510655140e0e263
   title: Profile system — intent, invariants, normalization, enforcement
 - ref: opsknowledge:stage.security_system
   kind: stage

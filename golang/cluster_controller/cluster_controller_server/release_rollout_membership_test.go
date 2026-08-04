@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/cluster_controller/resourcestore"
@@ -39,10 +40,17 @@ func newSweepTestServer(t *testing.T, nodes ...*nodeState) (*server, *[]string) 
 // fired for Status=="converging", so a "ready"-but-unconverged joiner was never
 // served and applied_hash never stamped.
 func TestEnqueueReleasesForConvergingNodes_ReadyButUnconverged(t *testing.T) {
+	// Profiles + LastSeen make this a faithful "ready" joiner: the sweep now
+	// gates on hasUnservedNodes, which (correctly) only counts a node as unserved
+	// when it carries the release's target profile (mcp → control-plane) and is
+	// actively heartbeating. A node cannot legitimately be "ready" without a
+	// recent heartbeat, so setting these is realism, not test-gaming.
 	srv, enqueued := newSweepTestServer(t, &nodeState{
 		NodeID:              "joiner",
 		BootstrapPhase:      BootstrapWorkloadReady,
 		Status:              "ready",
+		Profiles:            []string{"control-plane"},
+		LastSeen:            time.Now(),
 		AppliedServicesHash: "", // never converged — joined after release went AVAILABLE
 	})
 	srv.enqueueReleasesForConvergingNodes(context.Background())
@@ -74,11 +82,34 @@ func TestEnqueueReleasesForConvergingNodes_ConvergingStillFires(t *testing.T) {
 		NodeID:              "converging",
 		BootstrapPhase:      BootstrapWorkloadReady,
 		Status:              "converging",
+		Profiles:            []string{"control-plane"},
+		LastSeen:            time.Now(),
 		AppliedServicesHash: "sha256:partial",
 	})
 	srv.enqueueReleasesForConvergingNodes(context.Background())
 	if len(*enqueued) == 0 {
 		t.Fatalf("expected ServiceRelease enqueue for a converging node, got none")
+	}
+}
+
+// TestEnqueueReleasesForConvergingNodes_SkipsWhenNoUnservedNode pins the churn
+// reduction: the sweep now gates each ServiceRelease on hasUnservedNodes, so a
+// release with no dispatchable unserved node is NOT re-enqueued even while a node
+// is unconverged. Here the sole unconverged node lacks the mcp release's target
+// profile (control-plane), so dispatch could never serve it — re-enqueuing every
+// 120s was pure churn that fed the workflow dispatch circuit breaker on Day-0.
+func TestEnqueueReleasesForConvergingNodes_SkipsWhenNoUnservedNode(t *testing.T) {
+	srv, enqueued := newSweepTestServer(t, &nodeState{
+		NodeID:              "storage-only",
+		BootstrapPhase:      BootstrapWorkloadReady,
+		Status:              "converging",
+		Profiles:            []string{"storage"}, // not control-plane → mcp never targets it
+		LastSeen:            time.Now(),
+		AppliedServicesHash: "",
+	})
+	srv.enqueueReleasesForConvergingNodes(context.Background())
+	if len(*enqueued) != 0 {
+		t.Fatalf("expected no enqueue when no node is a dispatchable target for the release, got %v", *enqueued)
 	}
 }
 

@@ -84,6 +84,16 @@ type PackageRef struct {
 // repository while other nodes are converging simultaneously.
 const joinInstallConcurrencyLimit = 3
 
+// joinPerPackageInstallTimeout bounds a single package's fetch+install+
+// post-install+start. Without it, one stalled install holds its concurrency
+// slot with the step's FULL context (up to the 30m workflow budget) — the
+// 2026-07-10 nuc join spent 29m46s in install_workloads and died cancelling
+// mcp's post-install script; every re-triggered join then repeated the same
+// 30-minute stall, keeping the node in the Day-1 lane indefinitely. The
+// budget covers a LAN artifact fetch, extraction, the 5-minute post-install
+// script cap, and a 30s unit-start wait, with headroom for retry backoff.
+const joinPerPackageInstallTimeout = 8 * time.Minute
+
 // joinInstallRetryDelays is the backoff schedule for transient repository
 // errors during join. 6 total attempts (1 initial + 5 retries).
 // Day-1 join invariant: repository backpressure is transient — retry with
@@ -189,7 +199,9 @@ func nodeInstallPackages(cfg NodeAgentConfig) ActionHandler {
 				}
 				start := time.Now()
 				if err := installWithJoinRetry(ctx, pkg.Name, func(attemptCtx context.Context) error {
-					return cfg.FetchAndInstall(attemptCtx, pkg)
+					pctx, cancel := context.WithTimeout(attemptCtx, joinPerPackageInstallTimeout)
+					defer cancel()
+					return cfg.FetchAndInstall(pctx, pkg)
 				}); err != nil {
 					mu.Lock()
 					errs = append(errs, fmt.Sprintf("%s: %v", pkg.Name, err))
@@ -719,16 +731,37 @@ type ReleaseControllerConfig struct {
 	EmitBootstrapSucceeded   func(ctx context.Context, clusterID string) error
 
 	// Generic package target selection (release.apply.package)
-	SelectPackageTargets func(ctx context.Context, candidateNodes []any, pkgName, pkgKind, desiredHash string) ([]any, error)
+	SelectPackageTargets func(ctx context.Context, candidateNodes []any, pkgName, pkgKind, desiredHash string) (ReleaseTargetSelection, error)
 
 	// Direct-apply infrastructure release (replaces plan-based path)
-	SelectInfraTargets   func(ctx context.Context, candidateNodes []any, pkgName, desiredHash string) ([]any, error)
-	FinalizeNoop         func(ctx context.Context, releaseID string) error
+	SelectInfraTargets   func(ctx context.Context, candidateNodes []any, pkgName, desiredHash string) (ReleaseTargetSelection, error)
+	FinalizeNoop         func(ctx context.Context, releaseID, status string) error
 	MarkNodeStarted      func(ctx context.Context, releaseID, nodeID string) error
 	MarkNodeSucceeded    func(ctx context.Context, releaseID, nodeID, version, hash string) error
 	MarkNodeFailed       func(ctx context.Context, releaseID, nodeID, reason string) error
 	AggregateDirectApply func(ctx context.Context, releaseID, pkgName string) (map[string]any, error)
 	FinalizeDirectApply  func(ctx context.Context, releaseID string, aggregate map[string]any) error
+}
+
+// ReleaseTargetSelection is the controller's target-selection verdict.
+// Empty Targets plus FinalizeStatus=AVAILABLE means every applicable target is
+// already converged. Empty Targets plus FinalizeStatus=DEFERRED means there are
+// no dispatchable targets because evidence/readiness is incomplete; callers must
+// not publish AVAILABLE for that case.
+type ReleaseTargetSelection struct {
+	Targets        []any
+	FinalizeStatus string
+	Reason         string
+}
+
+func normalizeReleaseTargetSelection(sel ReleaseTargetSelection) ReleaseTargetSelection {
+	if sel.Targets == nil {
+		sel.Targets = []any{}
+	}
+	if strings.TrimSpace(sel.FinalizeStatus) == "" {
+		sel.FinalizeStatus = "AVAILABLE"
+	}
+	return sel
 }
 
 // RegisterReleaseControllerActions registers release-management and Day-0
@@ -854,23 +887,26 @@ func releaseSelectTargets(cfg ReleaseControllerConfig) ActionHandler {
 		candidates, _ := req.With["candidate_nodes"].([]any)
 		pkgName := fmt.Sprint(req.With["package_name"])
 		desiredHash := fmt.Sprint(req.With["desired_hash"])
-		var targets []any
+		selection := ReleaseTargetSelection{Targets: candidates, FinalizeStatus: "AVAILABLE"}
 		if cfg.SelectInfraTargets != nil {
 			var err error
-			targets, err = cfg.SelectInfraTargets(ctx, candidates, pkgName, desiredHash)
+			selection, err = cfg.SelectInfraTargets(ctx, candidates, pkgName, desiredHash)
 			if err != nil {
 				return nil, fmt.Errorf("select targets: %w", err)
 			}
-		} else {
-			targets = candidates
 		}
+		selection = normalizeReleaseTargetSelection(selection)
 		// Write targets directly to outputs so $.selected_targets resolves
 		// to the array (not a wrapper map). The export mechanism would
 		// store the whole Output map, but we need a bare []any.
-		req.Outputs["selected_targets"] = targets
+		req.Outputs["selected_targets"] = selection.Targets
+		req.Outputs["release_target_status"] = selection.FinalizeStatus
+		req.Outputs["release_target_reason"] = selection.Reason
 		return &ActionResult{OK: true, Output: map[string]any{
-			"count":            len(targets),
-			"selected_targets": targets,
+			"count":                 len(selection.Targets),
+			"selected_targets":      selection.Targets,
+			"release_target_status": selection.FinalizeStatus,
+			"release_target_reason": selection.Reason,
 		}}, nil
 	}
 }
@@ -881,27 +917,30 @@ func releaseSelectPackageTargets(cfg ReleaseControllerConfig) ActionHandler {
 		pkgName := fmt.Sprint(req.With["package_name"])
 		pkgKind := fmt.Sprint(req.With["package_kind"])
 		desiredHash := fmt.Sprint(req.With["desired_hash"])
-		var targets []any
+		selection := ReleaseTargetSelection{Targets: candidates, FinalizeStatus: "AVAILABLE"}
 		if cfg.SelectPackageTargets != nil {
 			var err error
-			targets, err = cfg.SelectPackageTargets(ctx, candidates, pkgName, pkgKind, desiredHash)
+			selection, err = cfg.SelectPackageTargets(ctx, candidates, pkgName, pkgKind, desiredHash)
 			if err != nil {
 				return nil, fmt.Errorf("select package targets: %w", err)
 			}
 		} else if cfg.SelectInfraTargets != nil {
 			// Fall back to infra selector if no package-specific one.
 			var err error
-			targets, err = cfg.SelectInfraTargets(ctx, candidates, pkgName, desiredHash)
+			selection, err = cfg.SelectInfraTargets(ctx, candidates, pkgName, desiredHash)
 			if err != nil {
 				return nil, fmt.Errorf("select targets: %w", err)
 			}
-		} else {
-			targets = candidates
 		}
-		req.Outputs["selected_targets"] = targets
+		selection = normalizeReleaseTargetSelection(selection)
+		req.Outputs["selected_targets"] = selection.Targets
+		req.Outputs["release_target_status"] = selection.FinalizeStatus
+		req.Outputs["release_target_reason"] = selection.Reason
 		return &ActionResult{OK: true, Output: map[string]any{
-			"count":            len(targets),
-			"selected_targets": targets,
+			"count":                 len(selection.Targets),
+			"selected_targets":      selection.Targets,
+			"release_target_status": selection.FinalizeStatus,
+			"release_target_reason": selection.Reason,
 		}}, nil
 	}
 }
@@ -909,13 +948,17 @@ func releaseSelectPackageTargets(cfg ReleaseControllerConfig) ActionHandler {
 func releaseFinalizeNoop(cfg ReleaseControllerConfig) ActionHandler {
 	return func(ctx context.Context, req ActionRequest) (*ActionResult, error) {
 		releaseID := fmt.Sprint(req.Inputs["release_id"])
+		status := strings.TrimSpace(fmt.Sprint(req.With["status"]))
+		if status == "" || status == "<nil>" {
+			status = "AVAILABLE"
+		}
 		if cfg.FinalizeNoop != nil {
-			if err := cfg.FinalizeNoop(ctx, releaseID); err != nil {
+			if err := cfg.FinalizeNoop(ctx, releaseID, status); err != nil {
 				return nil, fmt.Errorf("finalize noop: %w", err)
 			}
 		}
-		log.Printf("actor[controller]: release %s finalized as AVAILABLE (no-op)", releaseID)
-		return &ActionResult{OK: true}, nil
+		log.Printf("actor[controller]: release %s finalized as %s (no targets)", releaseID, status)
+		return &ActionResult{OK: true, Output: map[string]any{"status": status}}, nil
 	}
 }
 

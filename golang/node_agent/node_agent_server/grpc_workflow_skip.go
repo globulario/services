@@ -32,6 +32,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // installSkipResult is the decision returned by canSkipInstallPackage.
@@ -88,6 +89,11 @@ var commandPackages = map[string]bool{
 	"yt-dlp":       true,
 	"claude":       true,
 	"codex":        true,
+	// Passive NSS plugin library, not an executable command binary. It is a
+	// COMMAND package (no managed unit, skip_runtime_check) but ships no
+	// entrypoint, so it must never be probed for a command binary or have a
+	// checksum claimed against one.
+	"libnss-resolve": true,
 }
 
 var commandBinaryExistsFunc = commandBinaryExists
@@ -109,6 +115,8 @@ func packageUnit(pkgName string) string {
 	switch pkgName {
 	case "scylladb":
 		return "scylla-server.service"
+	case "keepalived":
+		return "keepalived.service"
 	case "scylla-manager":
 		return "globular-scylla-manager.service"
 	case "scylla-manager-agent":
@@ -136,7 +144,7 @@ func packageUnit(pkgName string) string {
 // query with the exact pkgKind and pass what it gets.
 func canSkipInstallPackage(
 	ctx context.Context,
-	pkgName, pkgKind, desiredVersion, desiredHash, buildID string,
+	pkgName, pkgKind, desiredVersion, desiredHash, expectedSha256, buildID string,
 	existing *node_agentpb.InstalledPackage,
 	isActive func(context.Context, string) (bool, error),
 	isLoaded func(context.Context, string) (bool, error),
@@ -153,21 +161,32 @@ func canSkipInstallPackage(
 	}
 
 	// build_id check: when requested, exact match is required.
+	buildIDMatches := false
 	if buildID != "" && existing.GetBuildId() != buildID {
 		return installSkipDeniedVersion, fmt.Sprintf(
 			"install-package %s: build_id %s != desired %s",
 			pkgName, existing.GetBuildId(), buildID)
+	} else if buildID != "" {
+		buildIDMatches = true
 	}
 
 	unit := packageUnit(pkgName)
 
 	// Checksum check: for managed services/infra, installed_state checksum must match
-	// when desired hash is provided. Command packages can prove checksum directly
-	// from the local binary below.
-	if unit != "" && normalizedHash(desiredHash) != "" && normalizedHash(existing.GetChecksum()) != normalizedHash(desiredHash) {
+	// when desired hash is provided, unless the exact build_id already matches.
+	// The top-level Checksum field is a weak legacy signal: older writers used it
+	// for convergence hash, newer writers use metadata.entrypoint_checksum for
+	// binary proof. build_id + entrypoint proof below decides the safe skip.
+	if unit != "" && !buildIDMatches && normalizedHash(desiredHash) != "" && normalizedHash(existing.GetChecksum()) != normalizedHash(desiredHash) {
 		return installSkipDeniedVersion, fmt.Sprintf(
 			"install-package %s: checksum %s != desired %s",
 			pkgName, normalizedHash(existing.GetChecksum()), normalizedHash(desiredHash))
+	}
+
+	if runtimeManagedOutsideInstall(pkgName) && entrypointProofOptional(pkgName) && normalizedHash(expectedSha256) == "" {
+		return installSkipAllowed, fmt.Sprintf(
+			"install-package %s: binary-less package at %s has separately reconciled runtime, skipping",
+			pkgName, desiredVersion)
 	}
 
 	// Command packages have no systemd unit — binary presence is sufficient proof.
@@ -177,14 +196,14 @@ func canSkipInstallPackage(
 				"install-package %s: command binary missing; reinstalling", pkgName)
 		}
 
-		if normalizedHash(desiredHash) != "" {
+		if normalizedHash(expectedSha256) != "" {
 			path := commandBinaryPathFunc(pkgName)
 			if path == "" {
 				return installSkipDeniedUnitGone, fmt.Sprintf(
 					"install-package %s: command binary path missing; reinstalling", pkgName)
 			}
 			actual, err := binaryChecksumFunc(path)
-			if err != nil || normalizedHash(actual) != normalizedHash(desiredHash) {
+			if err != nil || normalizedHash(actual) != normalizedHash(expectedSha256) {
 				return installSkipDeniedVersion, fmt.Sprintf(
 					"install-package %s: command binary checksum mismatch; reinstalling", pkgName)
 			}
@@ -197,16 +216,23 @@ func canSkipInstallPackage(
 	// Runtime proof: unit must be active.
 	active, err := isActive(ctx, unit)
 	if err == nil && active {
-		// Also require entrypoint_checksum to be present. Without it the runtime
-		// verifier produces no verdict (UNVERIFIED finding) and the heartbeat
-		// reports hash_drift. Force a re-apply so ApplyPackageRelease writes the
-		// checksum — the reconciler must not skip a package that is running but
-		// unverified, even when version and build_id match.
-		if existing.GetMetadata()["entrypoint_checksum"] == "" {
+		entrypointChecksum := normalizedHash(existing.GetMetadata()["entrypoint_checksum"])
+		expectedEntrypoint := normalizedHash(expectedSha256)
+		switch {
+		case expectedEntrypoint != "" && entrypointChecksum == "":
+			return installSkipDeniedVersion, fmt.Sprintf(
+				"install-package %s: %s active at %s but entrypoint_checksum missing — reapplying to register proof",
+				pkgName, unit, desiredVersion)
+		case expectedEntrypoint != "" && entrypointChecksum != expectedEntrypoint:
+			return installSkipDeniedVersion, fmt.Sprintf(
+				"install-package %s: %s active at %s but entrypoint_checksum %s != expected %s — reapplying",
+				pkgName, unit, desiredVersion, entrypointChecksum, expectedEntrypoint)
+		case expectedEntrypoint == "" && entrypointChecksum == "" && !entrypointProofOptional(pkgName):
 			return installSkipDeniedVersion, fmt.Sprintf(
 				"install-package %s: %s active at %s but entrypoint_checksum missing — reapplying to register proof",
 				pkgName, unit, desiredVersion)
 		}
+
 		// Policy-presence precondition: registered RBAC permission mappings are
 		// runtime proof too (invariant node_agent.install_skip_must_refresh_
 		// runtime_proof). A SERVICE whose ActionPolicyDir/{name}/ marker is
@@ -240,6 +266,41 @@ func canSkipInstallPackage(
 		pkgName, unit)
 }
 
+// entrypointProofOptional reports whether a package's convergence proof does NOT
+// require re-hashing an installed binary against a declared checksum. It is driven
+// by the package's DECLARED identity proof mode (persisted at install by
+// versionutil.WriteIdentityProof) — an explicit, declared signal, not one inferred
+// from entrypoint=="none":
+//   - "version": the identity IS the package version (vendor tree/symlink, .deb,
+//     or OS-repo binary whose bytes vary) → optional; no binary sha to verify.
+//   - "binary_sha256": a pinned binary sha IS the identity → NOT optional, even
+//     when entrypoint=="none" (e.g. claude): the installed binary MUST be hashed
+//     against the declared checksum. This is the case the old entrypoint=="none"
+//     inference wrongly exempted.
+//
+// Legacy packages predate the proof sidecar (empty) → fall back to the entrypoint
+// sidecar (none/noop → optional).
+func entrypointProofOptional(pkgName string) bool {
+	switch versionutil.ReadIdentityProof(pkgName) {
+	case "version":
+		return true
+	case "binary_sha256":
+		return false
+	default:
+		entrypoint := strings.ToLower(strings.TrimSpace(versionutil.ReadEntrypoint(pkgName)))
+		return entrypoint == "none" || entrypoint == "noop"
+	}
+}
+
+func runtimeManagedOutsideInstall(pkgName string) bool {
+	switch strings.ToLower(strings.TrimSpace(pkgName)) {
+	case "keepalived":
+		return true
+	default:
+		return false
+	}
+}
+
 func normalizedHash(hash string) string {
 	h := strings.ToLower(strings.TrimSpace(hash))
 	h = strings.TrimPrefix(h, "sha256:")
@@ -263,10 +324,32 @@ func buildIDSkipChecksumOK(installedChecksum, expectedSha256 string) bool {
 	return exp == got
 }
 
+func installedBinaryChecksumForSkip(pkg *node_agentpb.InstalledPackage) string {
+	if pkg == nil {
+		return ""
+	}
+	if md := pkg.GetMetadata(); md != nil {
+		if entrypoint := strings.TrimSpace(md["entrypoint_checksum"]); entrypoint != "" {
+			return entrypoint
+		}
+	}
+	return pkg.GetChecksum()
+}
+
+var commandBinaryDirs = []string{globularBinDir, "/usr/local/bin"}
+
+func commandBinaryPaths(name string) []string {
+	bin := strings.TrimSuffix(name, "-cmd")
+	paths := make([]string, 0, len(commandBinaryDirs))
+	for _, dir := range commandBinaryDirs {
+		paths = append(paths, filepath.Join(dir, bin))
+	}
+	return paths
+}
+
 func commandBinaryPath(name string) string {
 	bin := strings.TrimSuffix(name, "-cmd")
-	for _, dir := range []string{"/usr/local/bin", "/usr/lib/globular/bin"} {
-		path := filepath.Join(dir, bin)
+	for _, path := range commandBinaryPaths(name) {
 		if st, err := os.Stat(path); err == nil && !st.IsDir() {
 			return path
 		}

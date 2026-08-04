@@ -69,7 +69,7 @@ func TestNodeRemovePreflight_ViolationsBlockWithoutForce(t *testing.T) {
 	cfg := stubConfig()
 	cfg.Preflight = func(ctx context.Context, nodeID string) ([]NodeRemovePreflightViolation, error) {
 		return []NodeRemovePreflightViolation{
-			{Code: "storage_quorum", Message: "would drop below 3 storage nodes"},
+			{Code: "controller_placement", Message: "would leave no controller leader"},
 		}, nil
 	}
 	handler := nodeRemovePreflight(cfg)
@@ -89,7 +89,7 @@ func TestNodeRemovePreflight_ViolationsPassWithForce(t *testing.T) {
 	cfg := stubConfig()
 	cfg.Preflight = func(ctx context.Context, nodeID string) ([]NodeRemovePreflightViolation, error) {
 		return []NodeRemovePreflightViolation{
-			{Code: "storage_quorum", Message: "would drop below 3 storage nodes"},
+			{Code: "controller_placement", Message: "would leave no controller leader"},
 		}, nil
 	}
 	handler := nodeRemovePreflight(cfg)

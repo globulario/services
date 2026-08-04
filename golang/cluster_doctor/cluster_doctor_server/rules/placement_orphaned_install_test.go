@@ -65,6 +65,42 @@ func TestDoctorRule_OrphanedInstall_TorrentOnNonComputeNode(t *testing.T) {
 	}
 }
 
+// TestDoctorRule_OrphanedInstall_IsHealthNeutralPending is the D2 regression at
+// the source: a placement orphan is a NON-BLOCKING warning, so it must be
+// emitted as VISIBLE + health-NEUTRAL — SEVERITY_WARN (operator-facing) and
+// InvariantStatus INVARIANT_PENDING (awaiting operator action). It must NOT be
+// INVARIANT_FAIL (which degrades the cluster verdict) nor INVARIANT_PASS (which
+// toProtoFindings drops from the report). The render-side companion
+// TestClusterReport_PlacementOrphanVisibleButHealthy proves the rollup effect.
+func TestDoctorRule_OrphanedInstall_IsHealthNeutralPending(t *testing.T) {
+	snap := &collector.Snapshot{
+		Nodes: []*cluster_controllerpb.NodeRecord{
+			{
+				NodeId:   "node-a",
+				Status:   "ready",
+				Profiles: []string{"control-plane", "core", "storage"},
+				LastSeen: timestamppb.New(time.Now()),
+			},
+		},
+		NodeHealths: map[string]*cluster_controllerpb.NodeHealth{
+			"node-a": {
+				NodeId:            "node-a",
+				InstalledVersions: map[string]string{"torrent": "1.2.235"}, // compute-only → orphan here
+			},
+		},
+	}
+	tf := hasOrphan(orphanFindingsFor(snap), "torrent")
+	if tf == nil {
+		t.Fatalf("expected orphaned-install finding for torrent")
+	}
+	if tf.Severity.String() != "SEVERITY_WARN" {
+		t.Errorf("placement orphan must be SEVERITY_WARN (visible, operator-facing), got %s", tf.Severity.String())
+	}
+	if tf.InvariantStatus.String() != "INVARIANT_PENDING" {
+		t.Errorf("placement orphan must be INVARIANT_PENDING (health-neutral yet visible), got %s — INVARIANT_FAIL would degrade the cluster verdict, INVARIANT_PASS would be dropped from the report", tf.InvariantStatus.String())
+	}
+}
+
 // torrent installed on a media-server node → legitimately placed, no finding.
 func TestDoctorRule_OrphanedInstall_TorrentOnMediaServerNode_NoFinding(t *testing.T) {
 	snap := &collector.Snapshot{

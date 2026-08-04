@@ -1,11 +1,10 @@
 schema_version: 1
 file_kind: stage
 metadata:
-  title: "Day-1 — Multi-node join and founding quorum"
+  title: "Day-1 — Multi-node join and capacity posture"
   description: |
-    What it takes to grow from a single founding node (day-0) to the 3-node founding quorum
-    that day-1 requires. Covers the join script, the founding-profile invariant, the etcd add
-    sequence, and the ScyllaDB join discipline.
+    What it takes to grow from a single day-0 node to a larger cluster. Covers the join
+    script, profile placement intent, the etcd add sequence, and ScyllaDB join discipline.
   source_documents:
     - docs/operators/day-0-1-2-operations.md
     - docs/operators/adding-nodes.md
@@ -13,32 +12,28 @@ metadata:
 
 entries:
 
-  - id: ops.day-1.join.founding-quorum-invariant
+  - id: ops.day-1.join.quorum-is-capacity
     type: ARCHITECTURE
-    title: "Founding quorum — first 3 nodes MUST be core+control-plane+storage"
-    tags: [day-1, join, founding-quorum, etcd, scylla, minio]
+    title: "Quorum is capacity posture, not a join admission floor"
+    tags: [day-1, join, quorum, capacity, etcd, scylla, minio]
     applies_when:
       cluster_phases: [day-1]
       services_present: []
     content: |
-      Globular's founding-quorum invariant is non-negotiable: the FIRST THREE nodes of any
-      cluster MUST carry profiles `core`, `control-plane`, AND `storage`. Why:
+      Quorum describes the current survival/write-safety quality of the observed cluster,
+      not a hidden controller admission floor. One node has one-node survivability, two
+      nodes have two-node survivability, and larger clusters can improve fault tolerance.
 
-      - **etcd**: needs 3 voting members for quorum (loses 1 = still operational)
-      - **ScyllaDB**: needs 3 nodes for the default replication factor of 3 (RF=3 with QUORUM
-        consistency = lose 1 = still operational)
-      - **MinIO**: needs 3 drives for distributed mode with EC:1 (lose 1 = degraded but readable)
+      Profiles are placement intent. The controller must preserve explicit/default profiles
+      and report capacity separately; it must not coerce the first N nodes into
+      `core+control-plane+storage` just to manufacture a preferred topology.
 
-      Without all three, you have no real high availability. The founding-quorum invariant is
-      enforced in `enforceFoundingProfiles()` and CANNOT be bypassed at join time. Even later,
-      `SetNodeProfiles` will refuse to remove `storage` from a node if it would drop below 3
-      storage nodes.
-
-      Implication: don't add `compute`-only nodes (analytics workers, GPU nodes, etc.) until
-      the founding quorum is solid. They can join freely AFTER.
+      Component-local destructive operations may still require explicit safety checks.
+      Non-destructive join, profile assignment, and service rollout must not be blocked only
+      because a preferred node count is absent.
     links:
       awareness_invariants:
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
       awareness_failure_modes:
         - bootstrap.flag_persists_post_day_1
 

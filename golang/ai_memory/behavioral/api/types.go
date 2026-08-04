@@ -83,7 +83,18 @@ type Evidence struct {
 	// RDF-readiness relations (first-class, never in Metadata):
 	ObservedFrom string                // → bm:observedFrom: signal/source id this evidence came from
 	Satisfies    []RequiredEvidenceRef // → bm:satisfies: required-evidence slots fulfilled
-	Metadata     map[string]string
+	// ActionRef → bm:verifies: the governed action (workflow run) this evidence
+	// is bound to. Post-action verification evidence is meaningless unbound: a
+	// fresh, correct-looking observation from an UNRELATED remediation would
+	// otherwise satisfy a requirement about THIS one.
+	//
+	// First-class rather than a Metadata key because the satisfaction index
+	// projects a fixed column set — Metadata is not carried through
+	// ListEvidenceSatisfying, so a binding kept there is present in memory,
+	// absent after a Scylla round trip, and silently unenforceable in
+	// production.
+	ActionRef string
+	Metadata  map[string]string
 }
 
 // Authority identifies the owner of a runtime truth (catalog entry).

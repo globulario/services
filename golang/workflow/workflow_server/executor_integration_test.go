@@ -34,7 +34,8 @@ func TestExecuteWorkflowFullRoundTrip(t *testing.T) {
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	// Serve returns ErrServerStopped on the deferred Stop below; not actionable.
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	actorAddr := actorLis.Addr().String()
@@ -74,9 +75,13 @@ func TestExecuteWorkflowFullRoundTrip(t *testing.T) {
 
 	// Override the dispatcher's client to use insecure (no TLS in tests).
 	ctx := context.Background()
+	//nolint:staticcheck // DialContext+WithBlock is retained deliberately: this test
+	// must not proceed until the in-process mock actor is accepting connections, and
+	// grpc.NewClient has no blocking equivalent. Replacing it would make the test
+	// race the server goroutine.
 	conn, err := grpc.DialContext(ctx, actorAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
+		grpc.WithBlock(), //nolint:staticcheck // see above: blocking dial is required here
 	)
 	if err != nil {
 		t.Fatalf("dial mock actor: %v", err)
@@ -150,7 +155,8 @@ func TestExecuteWorkflowActorRejectsUnknownAction(t *testing.T) {
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	// Serve returns ErrServerStopped from the deferred Stop below; not actionable.
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	actorAddr := actorLis.Addr().String()
@@ -205,7 +211,7 @@ func TestExecuteWorkflowCallbackInputsPropagated(t *testing.T) {
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	actorAddr := actorLis.Addr().String()
@@ -260,6 +266,121 @@ func TestExecuteWorkflowCallbackInputsPropagated(t *testing.T) {
 	}
 }
 
+// TestWorkflowServiceActorRoutesToFallback_NotLocalNoop is the regression test
+// for the bug where cluster.reconcile's per-item remediation dispatch
+// (actor: workflow-service, action: workflow.start_child /
+// workflow.wait_child_terminal) always silently "succeeded" without ever
+// running the child workflow.
+//
+// Root cause: the router this test builds mirrors ExecuteWorkflow/ResumeRun's
+// production router construction. It used to also call
+// engine.RegisterWorkflowServiceActions(router, engine.WorkflowServiceConfig{})
+// — a local, exact-match (actor, action) registration. Router.Resolve checks
+// exact handlers before falling back to RegisterFallback, so that no-op
+// registration always won, even though a real "workflow-service" endpoint was
+// supplied via ActorEndpoints (as cluster-controller always does). The no-op
+// handlers (workflowStartChild/workflowWaitChildTerminal with a nil config)
+// return a hardcoded {"run_id":"mock-run"} / {"status":"SUCCEEDED"} without
+// ever making a network call — so mark_item_terminal always observed a fake
+// SUCCEEDED and cluster.reconcile's missing_package/version_drift remediation
+// never actually dispatched release.apply.package to node-agent.
+//
+// This test builds the router the way production now does — fallback only,
+// no local workflow-service registration — and asserts that
+// workflow.start_child / workflow.wait_child_terminal are dispatched over the
+// wire to the registered actor endpoint, not answered locally.
+func TestWorkflowServiceActorRoutesToFallback_NotLocalNoop(t *testing.T) {
+	mock := &roundTripMockActor{}
+	actorLis, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	actorGS := grpc.NewServer()
+	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
+	go func() { _ = actorGS.Serve(actorLis) }()
+	defer actorGS.Stop()
+
+	actorAddr := actorLis.Addr().String()
+
+	def := &v1alpha1.WorkflowDefinition{
+		APIVersion: "workflow.globular.io/v1alpha1",
+		Kind:       "WorkflowDefinition",
+		Metadata:   v1alpha1.WorkflowMetadata{Name: "test.workflow_service_dispatch"},
+		Spec: v1alpha1.WorkflowDefinitionSpec{
+			Steps: []v1alpha1.WorkflowStepSpec{
+				{
+					ID:     "start_child",
+					Actor:  "workflow-service",
+					Action: "workflow.start_child",
+					Export: &v1alpha1.ScalarString{Raw: "child_run"},
+				},
+				{
+					ID:        "wait_child",
+					Actor:     "workflow-service",
+					Action:    "workflow.wait_child_terminal",
+					DependsOn: []string{"start_child"},
+					Export:    &v1alpha1.ScalarString{Raw: "child_result"},
+				},
+			},
+		},
+	}
+
+	// Mirrors production: only RegisterFallback for each ActorEndpoints entry.
+	// Deliberately does NOT call RegisterWorkflowServiceActions — that is the
+	// bug this test guards against reintroducing.
+	router := engine.NewRouter()
+	dispatcher := newActorDispatcher(map[string]string{"workflow-service": actorAddr})
+	defer dispatcher.close()
+
+	ctx := context.Background()
+	//nolint:staticcheck // DialContext+WithBlock is deliberate: the test must not
+	// proceed until the in-process mock actor accepts connections, and grpc.NewClient
+	// has no blocking equivalent. Replacing it would race the server goroutine.
+	conn, err := grpc.DialContext(ctx, actorAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		t.Fatalf("dial mock actor: %v", err)
+	}
+	dispatcher.conns["workflow-service"] = conn
+	dispatcher.clients["workflow-service"] = workflowpb.NewWorkflowActorServiceClient(conn)
+	router.RegisterFallback(v1alpha1.ActorType("workflow-service"), dispatcher.makeHandler("workflow-service"))
+
+	eng := &engine.Engine{Router: router}
+	run, execErr := eng.Execute(ctx, def, nil)
+	if execErr != nil {
+		t.Fatalf("execute failed: %v", execErr)
+	}
+	if run.Status != engine.RunSucceeded {
+		t.Fatalf("run status = %s, want SUCCEEDED", run.Status)
+	}
+
+	// The decisive assertion: both actions were dispatched over the wire to
+	// the mock actor. A shadowing local no-op would leave mock.calls empty.
+	if len(mock.calls) != 2 {
+		t.Fatalf("expected 2 real actor dispatches, got %d — workflow-service actions were answered locally (no-op shadowing the fallback)", len(mock.calls))
+	}
+	if mock.calls[0].Action != "workflow.start_child" {
+		t.Errorf("call[0] action = %s, want workflow.start_child", mock.calls[0].Action)
+	}
+	if mock.calls[1].Action != "workflow.wait_child_terminal" {
+		t.Errorf("call[1] action = %s, want workflow.wait_child_terminal", mock.calls[1].Action)
+	}
+
+	// The no-op would have produced run_id="mock-run". A real dispatch
+	// produces the mock actor's distinctive run_id, proving the network path
+	// was exercised rather than the local hardcoded stub.
+	childRun, _ := run.Outputs["child_run"].(map[string]any)
+	if childRun == nil || childRun["run_id"] != "real-child-run-id" {
+		t.Errorf("child_run = %v, want run_id=real-child-run-id (got the no-op's mock-run instead?)", childRun)
+	}
+	childResult, _ := run.Outputs["child_result"].(map[string]any)
+	if childResult == nil || childResult["status"] != "REAL_DISPATCH_SUCCEEDED" {
+		t.Errorf("child_result = %v, want status=REAL_DISPATCH_SUCCEEDED (got the no-op's generic SUCCEEDED instead?)", childResult)
+	}
+}
+
 // ─── Mock actor ──────────────────────────────────────────────────────────────
 
 // TestExecuteWorkflow_StartRunCommitFailure_NoSideEffects is the commit-first
@@ -295,7 +416,7 @@ spec:
 	}
 	actorGS := grpc.NewServer()
 	workflowpb.RegisterWorkflowActorServiceServer(actorGS, mock)
-	go actorGS.Serve(actorLis)
+	go func() { _ = actorGS.Serve(actorLis) }()
 	defer actorGS.Stop()
 
 	// Force the durable run-start commit to fail (simulate a Scylla write error).
@@ -365,6 +486,20 @@ func (m *roundTripMockActor) ExecuteAction(_ context.Context, req *workflowpb.Ex
 	case "test.check_inputs":
 		// Echo back — proves inputs were received.
 		return &workflowpb.ExecuteActionResponse{Ok: true}, nil
+
+	case "workflow.start_child":
+		// Distinctive run_id — proves a REAL dispatch, not the local no-op's
+		// hardcoded "mock-run".
+		output := map[string]any{"run_id": "real-child-run-id", "workflow_name": req.Action}
+		b, _ := json.Marshal(output)
+		return &workflowpb.ExecuteActionResponse{Ok: true, OutputJson: string(b)}, nil
+
+	case "workflow.wait_child_terminal":
+		// Distinctive status — proves a REAL dispatch, not the local no-op's
+		// hardcoded generic "SUCCEEDED".
+		output := map[string]any{"status": "REAL_DISPATCH_SUCCEEDED", "run_id": "real-child-run-id"}
+		b, _ := json.Marshal(output)
+		return &workflowpb.ExecuteActionResponse{Ok: true, OutputJson: string(b)}, nil
 
 	default:
 		return &workflowpb.ExecuteActionResponse{

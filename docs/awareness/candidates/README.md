@@ -1,9 +1,24 @@
 # Awareness Candidates
 
-This directory holds **session-discovered facts** that have NOT yet been
-promoted into the canonical awareness graph. Files here are deliberately
-**ignored by the build pipeline** — they exist as a review queue, not
-as authoritative knowledge.
+This directory holds **session-discovered facts**. Files here are
+deliberately **ignored by the build pipeline** — they exist as a review
+queue and a discovery record, not as authoritative knowledge.
+
+> **This is an append-only ledger.** Entries are NOT removed when they are
+> promoted, and an entry sitting here is not by itself pending work. The
+> canonical corpus is the only mutable authority; promotion state is
+> *derived* from it:
+>
+> | State | Meaning |
+> |---|---|
+> | `PENDING` | the canonical id is absent — still waiting |
+> | `PROMOTED` | the canonical id exists and its `provenance.candidate_id` points at this entry |
+> | `CONFLICT` | the canonical id exists but belongs to a different candidate, or to an entry with no candidate provenance |
+>
+> Run `scripts/promote-awareness-candidate.py --list` to see the derived
+> state of every candidate. **Do not delete promoted entries by hand** —
+> what was discovered, and when, is history worth keeping, and deleting an
+> entry does not change any state the tooling reads.
 
 ## Why a candidate workflow
 
@@ -81,22 +96,35 @@ Optional but encouraged:
 When a candidate has been reviewed and validated, promote it:
 
 ```bash
+# See every candidate and its derived state first:
+scripts/promote-awareness-candidate.py --list
+
 scripts/promote-awareness-candidate.py \
-  --id <namespace>.<bare_id> \
-  --target docs/awareness/invariants.yaml     # or failure_modes.yaml / intents.yaml
+  --id candidate.<class>.<namespace>.<bare_id> \
+  --target docs/awareness/invariants.yaml     # optional — inferred from class
 ```
 
 The promotion script:
 
-1. Loads the candidate by ID
-2. Validates namespace and ID shape against the canonical naming rules
-3. Rejects duplicates against existing canonical IDs
-4. Strips the candidate-only fields (`status`, `review_required`)
-5. Records provenance in a `provenance:` block on the new canonical entry
-6. Appends to the target file (sorted by ID)
-7. Removes the entry from the candidate file
-8. Prints the next step (re-run `scripts/build-awareness-graph.sh` from
+1. Loads the candidate by ID (both the direct `candidates:` shape and the
+   wrapped `<generator>: {candidates: [...]}` shape)
+2. Derives the state; if already `PROMOTED` it reports that and exits 0
+   without writing anything, so re-running is safe
+3. Validates namespace and ID shape against the canonical naming rules,
+   after stripping the `candidate.<class>.` prefix
+4. Refuses on `CONFLICT` — the canonical id is taken by something else
+5. Strips the candidate-only fields (`status`, `review_required`)
+6. Canonicalizes relationships — `related_failures` becomes
+   `related_failure_modes`, and `invariant:` / `failure_mode:` value
+   prefixes are stripped, because canonical uses neither
+7. Records provenance (including `candidate_id`) on the new canonical entry
+8. Appends to the target file — **the only file written**
+9. Prints the next step (re-run `scripts/build-awareness-graph.sh` from
    the awareness-graph repo to regenerate triples)
+
+The candidate file is **never modified**. Promotion writes exactly one
+file, so there is no cross-file transaction to make atomic, roll back, or
+journal, and a repeated run cannot half-apply.
 
 The script does NOT write triples directly — that flows through the
 normal build pipeline so the canonical RDF stays the single source of
@@ -117,9 +145,12 @@ truth.
 - Don't edit `status: candidate` to `status: active` by hand and hope
   the build picks it up — it won't (the dir is skipped). Run the
   promotion script.
-- Don't reuse a canonical ID as a candidate ID. The promotion script
-  will reject duplicates, but it's clearer to pick a unique candidate ID
-  upfront.
+- Don't reuse a canonical ID as a candidate ID. The promotion script will
+  refuse it as a `CONFLICT`, but it's clearer to pick a unique candidate
+  ID upfront.
+- Don't delete promoted entries. The ledger is append-only; removing an
+  entry changes no state the tooling reads and loses the discovery record.
+  `--list` already distinguishes `PROMOTED` from `PENDING`.
 - Don't delete a candidate without recording why. If the fact turned
   out to be wrong, leave a note in the PR removing it so future agents
   don't rediscover and re-file it.

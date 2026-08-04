@@ -218,6 +218,50 @@ func TestLookupReleaseResolvedEntrypointChecksum_ReturnsBinarySHA(t *testing.T) 
 	}
 }
 
+func TestLookupServiceReleaseConvergenceIdentityIncludesEntrypointChecksum(t *testing.T) {
+	srv := hashTestServer(t)
+	const (
+		binarySHA       = "241c1702f0ed1c0dba31339abaab422906a4295cc92640f5b832c131ee385767"
+		convergenceHash = "cfd6de59b3ecdb00f5b8430d1d8cc5cc6c00e8e88468dfb96d47f2fbe9425212"
+		buildID         = "019f0000-1111-7222-8333-444455556666"
+	)
+	rel := &cluster_controllerpb.InfrastructureRelease{
+		Meta: &cluster_controllerpb.ObjectMeta{Name: defaultPublisherID() + "/envoy"},
+		Spec: &cluster_controllerpb.InfrastructureReleaseSpec{
+			PublisherID: defaultPublisherID(),
+			Component:   "envoy",
+			Version:     "1.35.3",
+			BuildNumber: 7,
+		},
+		Status: &cluster_controllerpb.InfrastructureReleaseStatus{
+			ResolvedBuildID:            buildID,
+			ResolvedBuildNumber:        8,
+			ResolvedEntrypointChecksum: binarySHA,
+			DesiredHash:                convergenceHash,
+		},
+	}
+	if _, err := srv.resources.Apply(context.Background(), "InfrastructureRelease", rel); err != nil {
+		t.Fatalf("seed InfrastructureRelease: %v", err)
+	}
+
+	got := srv.lookupServiceReleaseConvergenceIdentity(context.Background(), "envoy")
+	if got.resolvedBuildID != buildID {
+		t.Fatalf("resolvedBuildID = %q, want %q", got.resolvedBuildID, buildID)
+	}
+	if got.desiredHash != convergenceHash {
+		t.Fatalf("desiredHash = %q, want convergence hash %q", got.desiredHash, convergenceHash)
+	}
+	if got.resolvedEntrypointChecksum != binarySHA {
+		t.Fatalf("resolvedEntrypointChecksum = %q, want binary SHA %q", got.resolvedEntrypointChecksum, binarySHA)
+	}
+	if got.resolvedBuildNumber != 8 {
+		t.Fatalf("resolvedBuildNumber = %d, want resolved build number 8", got.resolvedBuildNumber)
+	}
+	if got.desiredHash == got.resolvedEntrypointChecksum {
+		t.Fatalf("desired hash and entrypoint checksum must remain distinct schemas")
+	}
+}
+
 // TestLookupReleaseResolvedEntrypointChecksum_MissingRelease_ReturnsEmpty
 // pins the safe-by-default behaviour: a missing or unreadable release record
 // returns "", which the caller maps to inventory_claim.

@@ -94,6 +94,61 @@ func nodeIsExplicitObjectStoreMember(node *nodeState, desiredMembers []ObjectSto
 	return status == "explicit_desired_state" || status == "legacy_profile_derived"
 }
 
+// isObjectStoreTopologyGated reports whether a package's placement on a node is
+// governed by the objectstore admission plane (DesiredObjectStoreMembers) rather
+// than by profile-derived desired state alone. minio and its sidekick load
+// balancer are pooled by explicit topology admission: the "storage" profile makes
+// a node eligible (ObjectStoreIntent.Member) but the controller must still admit
+// it to the pool. Until then their packages are held/unadmitted, not missing —
+// callers must not treat their absence as drift on an unadmitted node.
+func isObjectStoreTopologyGated(pkg string) bool {
+	switch pkg {
+	case "minio", "sidekick":
+		return true
+	default:
+		return false
+	}
+}
+
+// nodeMinioPlacementIsHeld reports whether minio/sidekick placement on node is
+// still governed by MinIO pool-topology admission rather than the release
+// pipeline — i.e. the package's absence from installed_state must NOT be
+// scored as missing_package drift.
+//
+// nodeIsExplicitObjectStoreMember cannot answer this on its own: its
+// legacy-mode branch (DesiredObjectStoreMembers == nil) returns true
+// unconditionally, documented as safe only because "the caller's profile
+// guard is the effective gate in legacy mode." But a storage-profile node is
+// still correctly held at MinioJoinNonMember until an explicit apply-topology
+// call grows the pool to include it (see reconcileMinioJoinPhases and
+// failure_mode objectstore.minio.standalone_to_distributed_grow_deadlock).
+// Gating the drift-scan's exemption on profile alone reproduces exactly the
+// false-positive missing_package / workflow.drift_stuck loop this predicate
+// exists to prevent: on any cluster where no topology transition has ever run
+// (a fresh Day-0 install, or any cluster still standalone),
+// DesiredObjectStoreMembers stays nil forever and every storage-profile Day-1
+// node's minio/sidekick reads as "missing" even though release.apply.package
+// can never place it — placement is topology-gated, not profile-gated.
+//
+// The correct signal is ground truth: has this node's MinIO join actually
+// reached an active state. MinioJoinPhase only reaches Started/Verified once
+// reconcileMinioJoinPhases has driven a real join, which itself only happens
+// for nodes objectStoreMembershipStatus already authorizes — so keying off
+// MinioJoinPhase subsumes both the v2 explicit-list check and the legacy
+// profile check in one signal that reports "not held" only once minio/sidekick
+// are genuinely supposed to be present.
+func nodeMinioPlacementIsHeld(node *nodeState) bool {
+	if node == nil {
+		return true
+	}
+	switch node.MinioJoinPhase {
+	case MinioJoinVerified, MinioJoinStarted:
+		return false
+	default:
+		return true
+	}
+}
+
 // nodeIsObjectStoreMemberAdmitted returns true when the node is in a lifecycle
 // state that allows it to render active MinIO topology config.
 //
@@ -144,10 +199,26 @@ func objectStoreMemberBlockedReason(node *nodeState) string {
 }
 
 // objectStoreDesiredMembersFromIntents builds the initial DesiredObjectStoreMembers
-// list from all nodes that have ObjectStoreIntent.Member=true and a known routable
-// IP. Used as the migration path when upgrading a cluster to Phase E-lite: the
-// controller populates DesiredObjectStoreMembers from existing node intents so that
-// the v2 gate does not lock out already-admitted nodes on the first boot after upgrade.
+// list from nodes that are ALREADY admitted MinIO pool members. Used as the
+// migration path when upgrading a cluster to Phase E-lite: the controller
+// populates DesiredObjectStoreMembers from existing node intents so that the
+// v2 gate does not lock out already-admitted nodes on the first boot after
+// upgrade.
+//
+// ObjectStoreIntent.Member=true alone is NOT sufficient here — it is set the
+// moment a node is assigned the "storage" profile, well before any real MinIO
+// join happens (see initialObjectStoreIntentForProfiles). Migrating on intent
+// alone violates invariant objectstore.membership_requires_explicit_desired_state
+// and reintroduces the failure class this file's header warns about (commit
+// 9598b8f7): a Day-1 node mid-join, with intent=true but MinioJoinPhase still
+// NonMember, gets swept into DesiredObjectStoreMembers by this migration on
+// any controller restart. That flips nodeIsExplicitObjectStoreMember to true
+// for it, which disables the topology-gated drift exemption in
+// reconcileScanDrift and reports its (correctly still-absent) minio/sidekick
+// as genuine missing_package drift — which release.apply.package can never
+// resolve (0 targets for a topology-gated package), producing a permanent
+// workflow.drift_stuck CRITICAL loop. Require MinioJoinVerified so only nodes
+// that have actually completed a real MinIO join are migrated.
 func objectStoreDesiredMembersFromIntents(nodes map[string]*nodeState, generation uint64) []ObjectStoreMember {
 	var result []ObjectStoreMember
 	for _, n := range nodes {
@@ -155,6 +226,9 @@ func objectStoreDesiredMembersFromIntents(nodes map[string]*nodeState, generatio
 			continue
 		}
 		if n.ObjectStoreIntent == nil || !n.ObjectStoreIntent.Member {
+			continue
+		}
+		if n.MinioJoinPhase != MinioJoinVerified {
 			continue
 		}
 		ip := nodeRoutableIP(n)

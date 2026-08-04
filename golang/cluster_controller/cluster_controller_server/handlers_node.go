@@ -12,18 +12,12 @@ package main
 // handler MUST be leader-only and the request MUST carry the
 // explicit-removal contract (matching node_removal_requests.go).
 //
-// UpdateNodeProfiles also bears the founding-quorum guard: removing
-// the storage profile from a node that would drop the cluster
-// below 3 storage-capable nodes is rejected here, not by the
-// reconciler. The check belongs at the entry point so a misclick
-// in admin tooling cannot start an operation that becomes
-// impossible to complete safely.
-
 import (
 	"context"
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,6 +56,13 @@ func (srv *server) ListNodes(ctx context.Context, req *cluster_controllerpb.List
 		}
 		if node.EtcdJoinPhase != "" {
 			meta["etcd_join_phase"] = string(node.EtcdJoinPhase)
+			// Voting status travels with the join phase. Consumers reasoning
+			// about fault tolerance must count VOTERS, not members: a learner
+			// replicates but never votes, so an N-member cluster containing
+			// learners does not have an N-member quorum. Emitted as an explicit
+			// "false" for voters so absence stays distinguishable from "known
+			// to be a voter" — invariant:meta.quorum_is_quality_not_constraint.
+			meta["etcd_is_learner"] = strconv.FormatBool(node.EtcdIsLearner)
 		}
 		if node.ScyllaJoinPhase != "" {
 			meta["scylla_join_phase"] = string(node.ScyllaJoinPhase)
@@ -130,13 +131,10 @@ func (srv *server) SetNodeProfiles(ctx context.Context, req *cluster_controllerp
 		return nil, status.Error(codes.NotFound, "node not found")
 	}
 
-	// INVARIANT: Cannot remove foundational profiles from a node if doing so
-	// would drop the cluster below MinQuorumNodes for storage. The first 3
-	// nodes MUST have core + control-plane + storage for etcd/ScyllaDB/MinIO quorum.
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
-	normalized = enforceFoundingProfiles(normalized, storageCount)
-
-	node.Profiles = normalized
+	// D1c 1a: route the profile write through the single owner mutation so a
+	// real (set-level) change atomically bumps PlacementGeneration; an idempotent
+	// re-apply leaves both profiles and the generation untouched.
+	applyNodePlacementProfilesLocked(node, normalized)
 	node.LastSeen = time.Now()
 	if err := srv.persistStateLocked(true); err != nil {
 		return nil, status.Errorf(codes.Internal, "persist node profiles: %v", err)
@@ -529,7 +527,7 @@ func (srv *server) cleanNodeFromServiceReleases(ctx context.Context, nodeID stri
 		}
 		rel.Status.Nodes = filtered
 		rel.Status.Phase = cluster_controllerpb.ReleasePhasePending
-		if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+		if _, err := srv.applyServiceRelease(ctx, rel); err != nil {
 			log.Printf("remove-node: apply ServiceRelease %s after purge: %v", rel.Meta.Name, err)
 			continue
 		}

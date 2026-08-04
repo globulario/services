@@ -104,9 +104,13 @@ func TestManifestEntrypointsAreNoopOnly(t *testing.T) {
 		{"empty slice", []string{}, false},
 		{"bin/noop alone", []string{"bin/noop"}, true},
 		{"bin/noop with whitespace", []string{"  bin/noop  "}, true},
+		{"none alone", []string{"none"}, true},
+		{"none with mixed case", []string{" None "}, true},
 		{"bin/noop plus real entrypoint", []string{"bin/noop", "bin/keepalived"}, false},
+		{"none plus real entrypoint", []string{"none", "bin/scylla_manager"}, false},
 		{"real entrypoint alone", []string{"bin/keepalived"}, false},
 		{"multiple no-ops same value", []string{"bin/noop", "bin/noop"}, true},
+		{"multiple explicit none values", []string{"none", "none"}, true},
 		{"trailing-slash variant not matched", []string{"bin/noop/"}, false},
 		{"empty string in slice", []string{""}, false},
 	}
@@ -188,6 +192,38 @@ func TestApplyCommandKindPolicyToTargets_MultipleNodes(t *testing.T) {
 	applyCommandKindPolicyToTargets(snap)
 	if snap.DesiredServiceTargets["ffmpeg"].RuntimeNeeded {
 		t.Error("ffmpeg (COMMAND on all nodes) must have RuntimeNeeded=false")
+	}
+}
+
+func TestApplyCommandKindPolicyToTargets_LegacyInfraCommandPackages(t *testing.T) {
+	snap := &Snapshot{
+		NodePackageKinds: map[string]map[string]string{
+			"node-1": {
+				"mc":      "INFRASTRUCTURE",
+				"restic":  "INFRASTRUCTURE",
+				"etcdctl": "INFRASTRUCTURE",
+				"envoy":   "INFRASTRUCTURE",
+			},
+		},
+		DesiredServiceTargets: map[string]*DesiredServiceTarget{
+			"mc":      {Service: "mc", RuntimeNeeded: true},
+			"restic":  {Service: "restic", RuntimeNeeded: true},
+			"etcdctl": {Service: "etcdctl", RuntimeNeeded: true},
+			"envoy":   {Service: "envoy", RuntimeNeeded: true},
+		},
+	}
+	applyCommandKindPolicyToTargets(snap)
+	if snap.DesiredServiceTargets["mc"].RuntimeNeeded {
+		t.Error("mc (legacy INFRASTRUCTURE command package) must have RuntimeNeeded=false")
+	}
+	if snap.DesiredServiceTargets["restic"].RuntimeNeeded {
+		t.Error("restic (legacy INFRASTRUCTURE command package) must have RuntimeNeeded=false")
+	}
+	if snap.DesiredServiceTargets["etcdctl"].RuntimeNeeded {
+		t.Error("etcdctl (legacy INFRASTRUCTURE command package) must have RuntimeNeeded=false")
+	}
+	if !snap.DesiredServiceTargets["envoy"].RuntimeNeeded {
+		t.Error("envoy (real INFRASTRUCTURE service) must keep RuntimeNeeded=true")
 	}
 }
 

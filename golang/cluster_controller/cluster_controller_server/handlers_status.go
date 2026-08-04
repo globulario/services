@@ -177,15 +177,16 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		log.Printf("ReportNodeStatus: auto-registering unknown node %s (hostname=%s endpoint=%s)",
 			nodeID, newIdentity.Hostname, newEndpoint)
 		node = &nodeState{
-			NodeID:         nodeID,
-			Identity:       newIdentity,
-			AgentEndpoint:  newEndpoint,
-			LastSeen:       receivedAt, // server receipt clock (staleness decisions)
-			ReportedAt:     reportedAt, // node self-reported clock (diagnostics)
-			Status:         "recovering",
-			Profiles:       []string{}, // do not assume privileged profiles
-			Metadata:       make(map[string]string),
-			BootstrapPhase: BootstrapWorkloadReady, // already running, skip bootstrap
+			NodeID:              nodeID,
+			Identity:            newIdentity,
+			AgentEndpoint:       newEndpoint,
+			LastSeen:            receivedAt, // server receipt clock (staleness decisions)
+			ReportedAt:          reportedAt, // node self-reported clock (diagnostics)
+			Status:              "recovering",
+			Profiles:            []string{}, // do not assume privileged profiles
+			PlacementGeneration: 1,          // restored node has an established empty placement set
+			Metadata:            make(map[string]string),
+			BootstrapPhase:      BootstrapWorkloadReady, // already running, skip bootstrap
 		}
 		if srv.state.Nodes == nil {
 			srv.state.Nodes = make(map[string]*nodeState)
@@ -231,7 +232,7 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	node.AgentEndpoint = newEndpoint
 	node.ReportedAt = reportedAt // node self-reported clock (diagnostics only)
 	node.LastSeen = receivedAt   // server receipt clock — drives staleness; never the node's clock
-	changed = true // LastSeen must always persist so followers see fresh heartbeats
+	changed = true               // LastSeen must always persist so followers see fresh heartbeats
 	srv.removeStaleNodesLocked(nodeID, newIdentity, newEndpoint)
 
 	if !unitsEqual(node.Units, units) {
@@ -337,6 +338,18 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	// Store hardware capabilities if reported.
 	if caps := nodeStatus.GetCapabilities(); caps != nil {
 		node.Capabilities = capsToStored(caps)
+		if refineNodeProfilesFromCapabilities(node, caps, srv.nodeHasSignedJoinPlanLocked(nodeID)) {
+			if node.Identity.Hostname != "" {
+				domain := "globular.internal"
+				if srv.state.ClusterNetworkSpec != nil && srv.state.ClusterNetworkSpec.ClusterDomain != "" {
+					domain = srv.state.ClusterNetworkSpec.ClusterDomain
+				}
+				node.AdvertiseFqdn = node.Identity.Hostname + "." + domain
+			}
+			srv.state.NetworkingGeneration++
+			changed = true
+			log.Printf("ReportNodeStatus: hardware-refined profiles for %s: %v", nodeID, node.Profiles)
+		}
 	}
 	// Phase 3: store installed unit file inventory and inventory_complete flag.
 	if inventoryComplete || len(installedUnitFiles) > 0 {
@@ -376,7 +389,8 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 		if len(derived) > 0 {
 			log.Printf("ReportNodeStatus: auto-derived profiles for %s: %v (from %d installed packages)",
 				nodeID, derived, len(installedVersions))
-			node.Profiles = derived
+			// D1c 1a: canonical placement mutation — bumps PlacementGeneration on real change.
+			applyNodePlacementProfilesLocked(node, derived)
 			// Set advertise FQDN from hostname + cluster domain
 			if node.Identity.Hostname != "" {
 				domain := "globular.internal"
@@ -388,20 +402,45 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 			srv.state.NetworkingGeneration++
 			changed = true
 
-			// Update MinIO pool if this node has storage profile
+			// Update MinIO pool if this node has storage profile.
+			//
+			// MUST store a bare routable IP, never AdvertiseFqdn. Consumers
+			// reject hostnames outright: resolveMinioEndpoint (server.go)
+			// refuses to publish the objectstore DNS endpoint and logs an
+			// INVARIANT VIOLATION, and config/{minio,objectstore}_config.go
+			// allow only bare IP:port endpoints.
+			//
+			// This previously appended AdvertiseFqdn and relied on
+			// migratePoolNodeHostnames (state.go) to repair it — but that
+			// migration runs only on state LOAD, so a hostname appended here
+			// at runtime survived until the next restart or leadership change,
+			// leaving the objectstore endpoint unresolved the whole time. A
+			// load-time repair cannot uphold an invariant a runtime writer
+			// violates; enforce it at the producer.
 			for _, p := range derived {
-				if p == "storage" && node.AdvertiseFqdn != "" {
-					found := false
-					for _, existing := range srv.state.MinioPoolNodes {
-						if existing == node.AdvertiseFqdn {
-							found = true
-							break
-						}
+				if p != "storage" {
+					continue
+				}
+				poolIP := nodeRoutableIP(node)
+				if poolIP == "" {
+					// No routable IP yet (heartbeat before the node reported an
+					// address). Skip rather than fall back to the FQDN — a later
+					// heartbeat will add it correctly, whereas a hostname written
+					// now would wedge endpoint publication until a restart.
+					log.Printf("ReportNodeStatus: storage node %s has no routable IP yet — deferring MinIO pool add",
+						node.Identity.Hostname)
+					continue
+				}
+				found := false
+				for _, existing := range srv.state.MinioPoolNodes {
+					if existing == poolIP {
+						found = true
+						break
 					}
-					if !found {
-						srv.state.MinioPoolNodes = append(srv.state.MinioPoolNodes, node.AdvertiseFqdn)
-						log.Printf("ReportNodeStatus: added %s to MinIO pool", node.AdvertiseFqdn)
-					}
+				}
+				if !found {
+					srv.state.MinioPoolNodes = append(srv.state.MinioPoolNodes, poolIP)
+					log.Printf("ReportNodeStatus: added %s (%s) to MinIO pool", poolIP, node.Identity.Hostname)
 				}
 			}
 		}
@@ -720,6 +759,43 @@ func (srv *server) ListServiceDesiredVersions(ctx context.Context, _ *cluster_co
 	return out, nil
 }
 
+// validateServiceReleaseSpec enforces the D1a interim contract: NO
+// NodeAssignment may be accepted until EVERY semantic in that structure is
+// consumed by the resolver. Both the dormant explicit-placement grant
+// (Placement=="GRANT") and the dormant per-node version override are unconsumed
+// today, so ANY non-empty NodeAssignments is rejected — accepted-but-ignored
+// operator intent is the dangerous state. The invariant is not "reject grants";
+// it is "reject unconsumed NodeAssignments", one honest structure-wide boundary.
+//
+// Scope: D1 implements additive placement GRANTs only. Version override is
+// explicitly OUT OF SCOPE and stays rejected even after grants are enabled
+// (D1b), unless it later receives its own contract and consuming resolver — so
+// D1b must not blanket-lift this rejection for the whole structure.
+func validateServiceReleaseSpec(spec *cluster_controllerpb.ServiceReleaseSpec) error {
+	if spec == nil {
+		return nil
+	}
+	if len(spec.NodeAssignments) != 0 {
+		return status.Error(codes.InvalidArgument,
+			"node_assignments are not yet supported and are rejected rather than silently ignored")
+	}
+	return nil
+}
+
+// applyServiceRelease is the CANONICAL ServiceRelease persistence choke point.
+// EVERY write of a ServiceRelease MUST route through here so validation cannot
+// be bypassed by any writer, present or future — making silent acceptance
+// structurally impossible (not a fence with a politely labeled gap). It
+// validates the spec, then delegates to the generic resource store.
+func (srv *server) applyServiceRelease(ctx context.Context, rel *cluster_controllerpb.ServiceRelease) (interface{}, error) {
+	if rel != nil {
+		if err := validateServiceReleaseSpec(rel.Spec); err != nil {
+			return nil, err
+		}
+	}
+	return srv.resources.Apply(ctx, "ServiceRelease", rel)
+}
+
 func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_controllerpb.ApplyServiceReleaseRequest) (*cluster_controllerpb.ServiceRelease, error) {
 	if !srv.isLeader() {
 		resp := &cluster_controllerpb.ServiceRelease{}
@@ -745,8 +821,11 @@ func (srv *server) ApplyServiceRelease(ctx context.Context, req *cluster_control
 	if obj.Meta.Name == "" {
 		obj.Meta.Name = obj.Spec.PublisherID + "/" + canonicalServiceName(obj.Spec.ServiceName)
 	}
-	applied, err := srv.resources.Apply(ctx, "ServiceRelease", obj)
+	applied, err := srv.applyServiceRelease(ctx, obj)
 	if err != nil {
+		if status.Code(err) == codes.InvalidArgument {
+			return nil, err // validation rejection — surface the precise code
+		}
 		return nil, status.Errorf(codes.Internal, "apply service release: %v", err)
 	}
 	return applied.(*cluster_controllerpb.ServiceRelease), nil
@@ -1056,8 +1135,20 @@ func deriveProfilesFromInstalled(installed map[string]string) []string {
 		profiles["storage"] = true
 		profiles["core"] = true
 	}
+	// AI services imply "core" only. There is deliberately NO "ai" profile:
+	// component_catalog.ProfilePackages defines exactly compute, control-plane,
+	// core, database, dns, gateway, media-server, scylla and storage, and
+	// install-day0.sh calls "ai" vestigial — it authorizes zero packages.
+	//
+	// Deriving profiles["ai"] here made the controller author a profile the
+	// catalog does not define, so every reconcile pass on a node running the AI
+	// services failed with `intent resolution failed: unknown profile: "ai"` and
+	// that node's intent never resolved. The installer already strips unknown
+	// labels from operator-supplied FOUNDING_PROFILES, but that guard cannot
+	// stop the controller from re-minting one at runtime.
+	//
+	// Derive the profile set from the catalog; never author it here.
 	if has("ai-memory", "ai-executor", "ai-watcher", "ai-router") {
-		profiles["ai"] = true
 		profiles["core"] = true
 	}
 	if has("media", "title", "torrent", "ffmpeg", "yt-dlp") {
@@ -1091,9 +1182,8 @@ func deriveProfilesFromInstalled(installed map[string]string) []string {
 // default_profiles is the controller-owned placement intent
 // (profile.intent_is_controller_owned_placement_contract), applying it here is
 // the sanctioned application of intent, not a silencing of the orphaned-install
-// warning. Founding quorum is preserved: `derived` already carries the
-// core/control-plane/storage trio when those services are installed, and
-// normalizeProfiles dedupes the union. Returns derived unchanged when no
+// warning. Existing derived placement intent is preserved when those services
+// are installed, and normalizeProfiles dedupes the union. Returns derived unchanged when no
 // default_profiles are configured.
 func mergeDefaultProfilesIntoDerived(derived, defaults []string) []string {
 	if len(defaults) == 0 {

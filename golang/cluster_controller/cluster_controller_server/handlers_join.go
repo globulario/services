@@ -22,6 +22,7 @@ import (
 	"time"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/component_catalog"
 	"github.com/globulario/services/golang/security"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -89,6 +90,25 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 	jt.Uses++
 	reqID := uuid.NewString()
 	caps := req.GetCapabilities()
+
+	// Declared placement intent. Validated here, at admission, so a typo is a
+	// loud rejection rather than a node silently placed by hardware thresholds
+	// instead of by what the operator asked for. Mirrors the v2 signed-JoinPlan
+	// path (handlers_join_authorization.go) so both paths reject the same inputs.
+	requestedProfiles := component_catalog.NormalizeProfiles(req.GetRequestedProfiles())
+	if len(req.GetRequestedProfiles()) > 0 {
+		if unknown := component_catalog.UnknownProfiles(req.GetRequestedProfiles()); len(unknown) > 0 {
+			srv.unlock()
+			return nil, status.Errorf(codes.InvalidArgument,
+				"unknown requested_profiles %v (known profiles: %v)", unknown, component_catalog.ProfileNames())
+		}
+		if len(requestedProfiles) == 0 {
+			srv.unlock()
+			return nil, status.Error(codes.InvalidArgument,
+				"requested_profiles resolved to no installable profiles")
+		}
+	}
+
 	jr := &joinRequestRecord{
 		RequestID:         reqID,
 		Token:             token,
@@ -106,8 +126,12 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 	// membership requires preflight checks to pass first.
 	preflightOK, preflightReason := srv.evaluateJoinPreflightLocked(jr)
 	if preflightOK {
-		// Auto-approve after preflight passes.
-		srv.approveJoinRecordLocked(jr, nil)
+		// Auto-approve after preflight passes. Pass the node's DECLARED profiles:
+		// nil here would discard them and fall through to hardware deduction, which
+		// is how a node that asked for core,compute ended up placed as
+		// control-plane,core,gateway,storage. Empty stays nil, so a node that
+		// declares nothing still gets the deduced/default chain unchanged.
+		srv.approveJoinRecordLocked(jr, requestedProfiles)
 	} else {
 		jr.Status = "blocked"
 		jr.LifecyclePhase = JoinPhaseBlocked
@@ -263,21 +287,17 @@ func (srv *server) ApproveJoin(ctx context.Context, req *cluster_controllerpb.Ap
 //
 // profiles may be nil/empty; in that case the suggested or default profiles are used.
 func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []string) {
+	profileSource := nodeProfileSourceRequested
 	if len(profiles) == 0 {
 		profiles = jr.SuggestedProfiles
+		profileSource = nodeProfileSourceDeduced
 	}
 	if len(profiles) == 0 {
 		profiles = srv.cfg.DefaultProfiles
+		profileSource = nodeProfileSourceDefault
 	}
 	profiles = normalizeProfiles(profiles)
 
-	// INVARIANT: The first 3 nodes MUST have foundational profiles
-	// (core, control-plane, storage) to establish quorum for etcd,
-	// ScyllaDB, and MinIO. Without 3 storage nodes, there is no
-	// redundancy — MinIO becomes a single point of failure that
-	// cascades into workflow execution and artifact publishing.
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
-	profiles = enforceFoundingProfiles(profiles, storageCount)
 	jr.Profiles = profiles
 
 	nodeID := deterministicNodeID(jr.Identity, jr.Labels)
@@ -308,9 +328,10 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 		NodeID:                nodeID,
 		Identity:              jr.Identity,
 		Profiles:              profiles,
+		PlacementGeneration:   1, // D1c 1a: new node — established placement (bumped on later changes)
 		LastSeen:              time.Now(),
 		Status:                "converging",
-		Metadata:              copyLabels(jr.Labels),
+		Metadata:              profileSourceMetadata(jr.Labels, profileSource),
 		LastAppliedGeneration: 0,
 		BootstrapPhase:        BootstrapAdmitted,
 		BootstrapStartedAt:    time.Now(),
@@ -331,8 +352,8 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 
 	nodePrincipal := "node_" + nodeID
 	nodeToken, err := security.GenerateToken(
-		365*24*60,    // 1 year TTL
-		nodeID,       // audience = node ID
+		365*24*60, // 1 year TTL
+		nodeID,    // audience = node ID
 		nodePrincipal,
 		"node-agent",
 		"",
@@ -361,10 +382,18 @@ func (srv *server) postApproveJoinAsync(jr *joinRequestRecord) {
 	srv.lock("postApproveJoinAsync:triggerWorkflow")
 	node := srv.state.Nodes[nodeID]
 	if node != nil && !node.BootstrapWorkflowActive {
-		node.BootstrapWorkflowActive = true
-		agentEndpoint := node.AgentEndpoint
-		log.Printf("ApproveJoin: triggering join workflow for %s at %s", nodeID, agentEndpoint)
-		go srv.triggerJoinWorkflow(nodeID, agentEndpoint)
+		if node.AgentEndpoint == "" {
+			// Agent hasn't heartbeated yet — no address to dial. The first
+			// heartbeat trigger in ReportNodeStatus fires once the endpoint
+			// is reported; dialing "" only burns a trigger on a guaranteed
+			// "passthrough: received empty target" failure.
+			log.Printf("ApproveJoin: node %s approved but agent endpoint not yet reported — deferring join trigger to first heartbeat", nodeID)
+		} else {
+			node.BootstrapWorkflowActive = true
+			agentEndpoint := node.AgentEndpoint
+			log.Printf("ApproveJoin: triggering join workflow for %s at %s", nodeID, agentEndpoint)
+			go srv.triggerJoinWorkflow(nodeID, agentEndpoint)
+		}
 	}
 	srv.unlock()
 }

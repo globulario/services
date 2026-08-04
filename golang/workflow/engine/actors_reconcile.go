@@ -21,17 +21,21 @@ import (
 // ReconcileControllerConfig provides dependencies for cluster reconciliation.
 type ReconcileControllerConfig struct {
 	AdvanceInfraJoins func(ctx context.Context, clusterID string) error
-	ScanDrift       func(ctx context.Context, clusterID, scope string, includeNodes []any) ([]any, error)
-	ClassifyDrift   func(ctx context.Context, driftReport []any, maxRemediations int) ([]any, error)
-	FinalizeClean   func(ctx context.Context, clusterID string) error
-	MarkItemStarted func(ctx context.Context, item map[string]any) error
-	ChooseWorkflow  func(ctx context.Context, item map[string]any) (map[string]any, error)
+	ScanDrift         func(ctx context.Context, clusterID, scope string, includeNodes []any) ([]any, error)
+	// coverage is the node set the scan actually examined (nil/empty = full
+	// cluster scan). Cleanup of previously-observed drift must be restricted to
+	// it: a node-subset scan produces no observations for unscanned nodes, and
+	// absence-of-observation there is ignorance, not resolution.
+	ClassifyDrift    func(ctx context.Context, driftReport []any, maxRemediations int, coverage []any) ([]any, error)
+	FinalizeClean    func(ctx context.Context, clusterID string) error
+	MarkItemStarted  func(ctx context.Context, item map[string]any) error
+	ChooseWorkflow   func(ctx context.Context, item map[string]any) (map[string]any, error)
 	MarkItemTerminal func(ctx context.Context, item, childResult map[string]any) error
-	MarkItemFailed  func(ctx context.Context, item map[string]any) error
+	MarkItemFailed   func(ctx context.Context, item map[string]any) error
 	AggregateResults func(ctx context.Context) (map[string]any, error)
-	Finalize        func(ctx context.Context, aggregate map[string]any) error
-	MarkFailed      func(ctx context.Context) error
-	EmitCompleted   func(ctx context.Context) error
+	Finalize         func(ctx context.Context, aggregate map[string]any) error
+	MarkFailed       func(ctx context.Context) error
+	EmitCompleted    func(ctx context.Context) error
 }
 
 // RegisterReconcileControllerActions registers reconcile controller handlers.
@@ -76,6 +80,9 @@ func reconcileScanDrift(cfg ReconcileControllerConfig) ActionHandler {
 				return nil, fmt.Errorf("scan drift: %w", err)
 			}
 			req.Outputs["drift_report"] = items
+			// Publish the coverage the scan actually had so classify_drift can
+			// restrict cleanup to it. Empty means a full cluster scan.
+			req.Outputs["scan_coverage"] = includeNodes
 			// Return drift_report in Output so the engine merges it into
 			// run.Outputs. Without this, remote actions lose req.Outputs
 			// writes because the handler runs on a serialized copy.
@@ -99,8 +106,12 @@ func reconcileClassifyDrift(cfg ReconcileControllerConfig) ActionHandler {
 		if m, ok := req.With["max_remediations"].(int); ok {
 			maxRem = m
 		}
+		coverage, _ := req.With["include_nodes"].([]any)
+		if coverage == nil {
+			coverage, _ = req.Outputs["scan_coverage"].([]any)
+		}
 		if cfg.ClassifyDrift != nil {
-			items, err := cfg.ClassifyDrift(ctx, driftReport, maxRem)
+			items, err := cfg.ClassifyDrift(ctx, driftReport, maxRem, coverage)
 			if err != nil {
 				return nil, fmt.Errorf("classify drift: %w", err)
 			}
@@ -146,7 +157,18 @@ func reconcileChooseWorkflow(cfg ReconcileControllerConfig) ActionHandler {
 				return nil, fmt.Errorf("choose workflow: %w", err)
 			}
 			req.Outputs["workflow_choice"] = choice
-			return &ActionResult{OK: true, Output: choice}, nil
+			// Output MUST wrap the choice under "workflow_choice" — the engine
+			// merges result.Output into run.Outputs KEY BY KEY, so returning the
+			// bare choice would publish its inner fields (workflow_name, inputs)
+			// at top level and never define workflow_choice itself. The next step
+			// resolves `$.workflow_choice.workflow_name` (cluster.reconcile.yaml),
+			// which then stayed unresolved and was passed through as the LITERAL
+			// string, producing: "unknown child workflow:
+			// $.workflow_choice.workflow_name" — every remediation failing on
+			// dispatch. Same contract as scan_drift/classify_drift above: a
+			// remote actor's req.Outputs write is on a serialized copy and is
+			// lost, so the named key must come back through Output.
+			return &ActionResult{OK: true, Output: map[string]any{"workflow_choice": choice}}, nil
 		}
 		return &ActionResult{OK: true}, nil
 	}
@@ -262,11 +284,15 @@ func workflowStartChild(cfg WorkflowServiceConfig) ActionHandler {
 			}
 			result := map[string]any{"run_id": runID, "workflow_name": workflowName}
 			req.Outputs["child_run"] = result
-			return &ActionResult{OK: true, Output: result}, nil
+			// Wrap under "child_run": run.Outputs is merged key-by-key, and the
+			// next step resolves `$.child_run.run_id`. Returning the bare result
+			// would define run_id/workflow_name at top level, leaving child_run
+			// undefined. See reconcileChooseWorkflow for the full failure shape.
+			return &ActionResult{OK: true, Output: map[string]any{"child_run": result}}, nil
 		}
 		result := map[string]any{"run_id": "mock-run", "workflow_name": workflowName}
 		req.Outputs["child_run"] = result
-		return &ActionResult{OK: true, Output: result}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"child_run": result}}, nil
 	}
 }
 
@@ -284,11 +310,16 @@ func workflowWaitChildTerminal(cfg WorkflowServiceConfig) ActionHandler {
 				return nil, fmt.Errorf("wait child %s: %w", childRunID, err)
 			}
 			req.Outputs["child_result"] = result
-			return &ActionResult{OK: true, Output: result}, nil
+			// Wrap under "child_result": mark_item_terminal resolves
+			// `$.child_result` and gates the drift-observation clear on its
+			// status. Returning the bare result would publish status/run_id at
+			// top level, leaving child_result undefined — so mark_item_terminal
+			// would see a nil child_result and mis-read the child's outcome.
+			return &ActionResult{OK: true, Output: map[string]any{"child_result": result}}, nil
 		}
 		result := map[string]any{"status": "SUCCEEDED", "run_id": childRunID}
 		req.Outputs["child_result"] = result
-		return &ActionResult{OK: true, Output: result}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"child_result": result}}, nil
 	}
 }
 

@@ -26,6 +26,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+var authoritativeInstalledPackageKinds = []string{"SERVICE", "INFRASTRUCTURE", "APPLICATION", "COMMAND"}
+
 // ListInstalledPackages returns all installed packages on this node, optionally filtered by kind.
 func (srv *NodeAgentServer) ListInstalledPackages(ctx context.Context, req *node_agentpb.ListInstalledPackagesRequest) (*node_agentpb.ListInstalledPackagesResponse, error) {
 	nodeID := strings.TrimSpace(req.GetNodeId())
@@ -81,7 +83,7 @@ func (srv *NodeAgentServer) GetInstalledPackage(ctx context.Context, req *node_a
 	}
 	// If kind is not specified, search across all known kinds.
 	if kind == "" {
-		for _, k := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+		for _, k := range authoritativeInstalledPackageKinds {
 			pkg, err := installed_state.GetInstalledPackage(ctx, nodeID, k, name)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "get installed package: %v", err)

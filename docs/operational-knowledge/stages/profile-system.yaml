@@ -36,7 +36,8 @@ entries:
       A node joining without a valid controller-signed profile set is a hard policy violation.
     links:
       awareness_invariants:
-        - founding.quorum.three_nodes_required
+        - profile.intent_is_controller_owned_placement_contract
+        - meta.quorum_is_quality_not_constraint
 
   - id: ops.always.profile.canonicalization
     type: REFERENCE
@@ -64,27 +65,28 @@ entries:
         - "globular cluster nodes list"
         - "globular doctor report cluster --fresh"
 
-  - id: ops.always.profile.founding-quorum
+  - id: ops.always.profile.quorum-is-not-profile-coercion
     type: ARCHITECTURE
-    title: "Founding quorum profile invariant"
-    tags: [always, profile, founding-quorum, invariant]
+    title: "Profiles are placement intent, not quorum coercion"
+    tags: [always, profile, quorum, capacity]
     applies_when:
       cluster_phases: [day-0, day-1, day-2]
       services_present: []
     content: |
-      Founding quorum is non-negotiable:
-      the first 3 nodes MUST include `core`, `control-plane`, and `storage`.
+      Profiles encode controller-owned placement intent. They must not be rewritten to
+      manufacture a preferred quorum shape.
 
-      Why:
-      - etcd quorum safety
-      - Scylla replication safety
-      - MinIO distributed durability safety
+      Quorum/capacity is reported from observed membership:
+      - one node = one-node survivability
+      - two nodes = two-node survivability
+      - larger clusters may provide better fault tolerance
 
-      Day-0 bootstrap default profiles must satisfy this invariant. Any fallback/default profile set
-      that omits `storage` is unsafe and must be treated as a defect.
+      Default profiles are operator placement defaults. Unknown profiles are still invalid,
+      but a valid profile set is not automatically expanded to `core+control-plane+storage`
+      because of node count.
     links:
       awareness_invariants:
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
 
   - id: ops.always.profile.catalog-resolution
     type: REFERENCE
@@ -158,7 +160,7 @@ entries:
 
       - Gateway or installer inventing profiles when controller did not assign them.
       - Accepting unknown profile names during JoinPlan validation.
-      - Using profile defaults that violate founding quorum (`core+control-plane+storage`).
+      - Using profile defaults to manufacture a preferred quorum shape.
       - Keeping separate normalization rules in controller and node-agent.
       - Treating profiles as runtime health evidence (they are intent).
 

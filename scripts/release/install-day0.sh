@@ -4,13 +4,13 @@ set -euo pipefail
 # Globular Day-0 Installation Script
 #
 # Environment Variables:
-#   PKG_DIR                  - Package directory (default: internal/assets/packages)
+#   PKG_DIR                  - Package directory (default: bundle-root/packages)
 #   INSTALLER_BIN            - Installer binary path (auto-detected)
 #   TOLERATE_ALREADY_INSTALLED - Allow already-installed packages (default: 1)
 #   FORCE_REINSTALL          - Force overwrite existing binaries even if unchanged (default: 0)
 #                              Set to 1 to always reinstall all binaries (useful after rebuild)
-#   GLOBULAR_CONFORMANCE     - Conformance test mode (default: warn)
-#                              warn: Run tests, log failures, continue installation
+#   GLOBULAR_CONFORMANCE     - Conformance test mode (default: audit)
+#                              audit: Run tests if bundled; report failures; continue installation
 #                              fail: Run tests, abort installation on any failure (v1 target)
 #                              off:  Skip conformance tests entirely
 #
@@ -23,7 +23,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STATE_DIR="/var/lib/globular"
-PKG_DIR="$INSTALLER_ROOT/internal/assets/packages"
+PKG_DIR="${PKG_DIR:-$INSTALLER_ROOT/packages}"
 
 # Respect INSTALLER_BIN if already set by a parent script (e.g. install.sh in the
 # release tarball places globular-installer at the tarball root, not in bin/).
@@ -106,10 +106,41 @@ CQL
   fi
 }
 
+wait_envoy_mesh_listener_ready() {
+  local timeout="${1:-120}"
+  local waited=0
+  local listeners stats active lds_success
+
+  log_substep "Waiting for Envoy LDS listener on :443..."
+  while (( waited < timeout )); do
+    listeners="$(curl -fsS --max-time 2 http://127.0.0.1:9901/listeners 2>/dev/null || true)"
+    if printf '%s\n' "$listeners" | grep -Eq '(^|:)0\.0\.0\.0:443($|[[:space:]])'; then
+      log_success "Envoy mesh listener ready on :443 (after ${waited}s)"
+      return 0
+    fi
+
+    if (( waited % 10 == 0 )); then
+      stats="$(curl -fsS --max-time 2 'http://127.0.0.1:9901/stats?filter=listener_manager' 2>/dev/null || true)"
+      active="$(printf '%s\n' "$stats" | awk -F': ' '/listener_manager.total_listeners_active/ {print $2; exit}')"
+      lds_success="$(printf '%s\n' "$stats" | awk -F': ' '/listener_manager.lds.update_success/ {print $2; exit}')"
+      log_substep "Envoy LDS not ready yet (active_listeners=${active:-?}, lds_success=${lds_success:-?}, waited=${waited}s)"
+    fi
+
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  log_warn "Envoy admin /listeners:"
+  curl -fsS --max-time 2 http://127.0.0.1:9901/listeners 2>/dev/null || true
+  echo ""
+  die "Envoy did not publish the mesh listener on :443 within ${timeout}s"
+}
+
 # ── Workflow trace log ─────────────────────────────────────────────────────
 # Writes JSON-lines to DAY0_TRACE_LOG. The workflow service imports this on
-# startup to create a proper workflow run visible in the admin UI.
-DAY0_TRACE_LOG="/var/lib/globular/day0-install.jsonl"
+# startup to create a proper workflow run visible in the admin UI. Keep the
+# transcript under /var/log, not /var/lib: it is evidence, not cluster state.
+DAY0_TRACE_LOG="/var/log/globular/day0-install.jsonl"
 DAY0_TRACE_SEQ=0
 DAY0_TRACE_START=$(date +%s%3N)
 
@@ -214,9 +245,35 @@ DOMAIN="globular.internal"
 # bootstrap node. Override as needed, e.g.:
 #   FOUNDING_PROFILES=core,media-server,gateway ./install-day0.sh
 # Note: this also becomes the join-default for nodes that join without their own
-# profiles. The controller's enforceFoundingProfiles() ALWAYS adds the founding
-# quorum (control-plane,core,storage) for the first 3 nodes regardless of this.
+# profiles. It is not a quorum/admission floor; the controller preserves explicit
+# placement intent and reports quorum/capacity separately.
 FOUNDING_PROFILES="${FOUNDING_PROFILES:-core,media-server}"
+
+# Validate FOUNDING_PROFILES against the canonical profile catalog
+# (golang/component_catalog/profilemap.go). Non-catalog labels (e.g. a typo or a
+# vestigial "ai") authorize zero packages and only add noise to the node's
+# profile set — the controller tolerates unknown profiles, so a bogus label
+# silently sticks forever. Drop unknowns here with a warning so the founding
+# node's seed profiles are always catalog-valid. Keep this list in sync with
+# ProfilePackages in profilemap.go.
+_CANONICAL_PROFILES="compute control-plane core database dns gateway media-server scylla storage"
+_kept=""; _dropped=""
+IFS=',' read -ra _fp <<< "$FOUNDING_PROFILES"
+for _p in "${_fp[@]}"; do
+  _p="$(printf '%s' "$_p" | tr -d '[:space:]')"
+  [[ -z "$_p" ]] && continue
+  if [[ " $_CANONICAL_PROFILES " == *" $_p "* ]]; then
+    _kept="${_kept:+$_kept,}$_p"
+  else
+    _dropped="${_dropped:+$_dropped,}$_p"
+  fi
+done
+if [[ -n "$_dropped" ]]; then
+  log_warn "Dropping non-catalog founding profile(s): ${_dropped} (not in canonical profile catalog; authorizes no packages)"
+fi
+FOUNDING_PROFILES="${_kept:-core}"
+unset _CANONICAL_PROFILES _kept _dropped _fp _p
+
 FORCE_FLAG=""
 if [[ "$FORCE_REINSTALL" == "1" ]]; then
   FORCE_FLAG="--force"
@@ -264,7 +321,7 @@ log_info "Install mode: $INSTALL_MODE"
 log_info "Package directory: $PKG_DIR"
 log_info "MinIO data directory: $MINIO_DATA_DIR"
 log_info "Cluster domain: $DOMAIN"
-log_info "Conformance mode: warn"
+log_info "Conformance mode: audit"
 echo ""
 
 # Stop any cluster agents that might be running from a previous Day-0.
@@ -336,10 +393,6 @@ if [[ -x "$SCRIPT_DIR/generate-user-client-cert.sh" ]]; then
 
   if [[ -n "$ORIGINAL_USER" ]]; then
     if "$SCRIPT_DIR/generate-user-client-cert.sh" "$ORIGINAL_USER" 2>&1 | tee "/tmp/client-cert-$ORIGINAL_USER.log"; then
-      # Fix ownership of generated certificates
-      if [[ -x "$SCRIPT_DIR/fix-client-cert-ownership.sh" ]]; then
-        "$SCRIPT_DIR/fix-client-cert-ownership.sh" "$ORIGINAL_USER" 2>&1 | tee "/tmp/client-cert-fix-$ORIGINAL_USER.log" || true
-      fi
       log_success "User ($ORIGINAL_USER) client certificates generated"
     else
       die "User ($ORIGINAL_USER) client certificate generation failed (check /tmp/client-cert-$ORIGINAL_USER.log) - CLI will not work without this"
@@ -476,6 +529,92 @@ _resolve_scylladb_pkg() {
     fi
   done
   return 1
+}
+
+ensure_scylla_io_scheduler_contract() {
+  local confd="${1:-/etc/scylla.d}"
+  mkdir -p "$confd"
+
+  if [[ -f "$confd/io_properties.yaml" ]] && grep -qE "^SEASTAR_IO=" "$confd/io.conf" 2>/dev/null; then
+    return 0
+  fi
+  if grep -qE "^DEV_MODE=--developer-mode=1" "$confd/dev-mode.conf" 2>/dev/null; then
+    return 0
+  fi
+
+  log_substep "ScyllaDB I/O scheduler contract missing — enabling developer-mode fallback"
+  printf 'DEV_MODE=--developer-mode=1\n' > "$confd/dev-mode.conf"
+  : > "$confd/io.conf"
+}
+
+scylla_yaml_has_routable_listen() {
+  local yaml="${1:-/etc/scylla/scylla.yaml}"
+  local ip
+  [[ -f "$yaml" ]] || return 1
+  ip=$(grep "^listen_address:" "$yaml" | awk '{print $2}' | tr -d "'\"" || true)
+  [[ -n "$ip" && "$ip" != "localhost" ]] || return 1
+  ! is_loopback_ip "$ip"
+}
+
+render_day0_scylla_config() {
+  local node_ip="${1:-}"
+  local yaml="/etc/scylla/scylla.yaml"
+  local data_dir="/var/lib/scylla/data"
+  local commitlog_dir="/var/lib/scylla/commitlog"
+
+  if [[ -z "$node_ip" ]]; then
+    node_ip=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^\s*$' | grep -v '^::' \
+      | while IFS= read -r ip; do
+          is_loopback_ip "$ip" || { echo "$ip"; break; }
+        done)
+  fi
+  [[ -n "$node_ip" ]] || die "Cannot render ScyllaDB config: no routable node IP found"
+
+  log_substep "Rendering ScyllaDB Day-0 config (listen: ${node_ip}, seeds: ${node_ip})"
+  mkdir -p /etc/scylla "$data_dir" "$commitlog_dir"
+  chown -R scylla:scylla /var/lib/scylla 2>/dev/null || true
+  cat > "$yaml" <<EOF_SCYLLA
+# Generated by Globular Day-0 installer — do not edit manually.
+cluster_name: 'globular.internal'
+
+seed_provider:
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      - seeds: '${node_ip}'
+
+listen_address: '${node_ip}'
+rpc_address: '${node_ip}'
+broadcast_address: '${node_ip}'
+broadcast_rpc_address: '${node_ip}'
+
+native_transport_port: 9042
+endpoint_snitch: SimpleSnitch
+developer_mode: true
+
+client_encryption_options:
+  enabled: true
+  certificate: /etc/scylla/tls/server.crt
+  keyfile: /etc/scylla/tls/server.key
+  truststore: /etc/scylla/tls/ca.crt
+  require_client_auth: false
+
+native_transport_port_ssl: 9142
+
+data_file_directories:
+  - ${data_dir}
+
+commitlog_directory: ${commitlog_dir}
+commitlog_sync: batch
+commitlog_sync_batch_window_in_ms: 2
+commitlog_sync_period_in_ms: 10000
+auto_adjust_flush_quota: true
+
+compaction_throughput_mb_per_sec: 0
+compaction_large_partition_warning_threshold_mb: 100
+
+api_port: 10000
+api_address: '${node_ip}'
+EOF_SCYLLA
 }
 SCYLLADB_PKG_PATH=$(_resolve_scylladb_pkg || true)
 
@@ -646,6 +785,8 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
       export SCYLLA_BOOTSTRAP_INTENT="first-node"
       run_install "${_scylla_pkg}"
       unset SCYLLA_INSTALL_INTENT SCYLLA_BOOTSTRAP_INTENT
+      render_day0_scylla_config
+      ensure_scylla_io_scheduler_contract
       log_success "scylla.yaml regenerated"
     else
       die "scylla.yaml invalid and no bundled scylladb package found to fix it"
@@ -653,7 +794,14 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^scylla-server.service"; the
   fi
 
   # Wait for ScyllaDB to be ready
+  ensure_scylla_io_scheduler_contract
   if ! systemctl is-active --quiet scylla-server.service; then
+    # Clear any lingering rate-limit state from an earlier start attempt (e.g.
+    # a prior failed Day-0 run, or systemd auto-restart activity that raced
+    # ahead of ensure_scylla_io_scheduler_contract above). Without this, a
+    # well-sequenced start here — config is now known-correct — can still be
+    # refused with "Start request repeated too quickly" from stale history.
+    systemctl reset-failed scylla-server.service 2>/dev/null || true
     systemctl start scylla-server.service || log_substep "Warning: failed to start scylla-server"
   fi
   SCYLLA_CQL_HOST=$(scylla_cql_host)
@@ -707,6 +855,10 @@ else
     export SCYLLA_BOOTSTRAP_INTENT="first-node"
     run_install "$SCYLLADB_PKG_PATH"
     unset SCYLLA_INSTALL_INTENT SCYLLA_BOOTSTRAP_INTENT
+    if ! scylla_yaml_has_routable_listen; then
+      render_day0_scylla_config
+    fi
+    ensure_scylla_io_scheduler_contract
   else
     log_substep "Warning: no scylladb package found in $PKG_DIR or /var/lib/globular/packages, attempting direct apt install..."
     # Only import GPG key and configure apt repo when falling back to direct apt install
@@ -748,8 +900,14 @@ else
 
   # ScyllaDB MUST be running before continuing. Downstream services (persistence,
   # scylla-manager) all require CQL — a non-running scylla is a hard failure.
+  ensure_scylla_io_scheduler_contract
   if ! systemctl is-active --quiet scylla-server.service; then
     log_substep "Starting ScyllaDB service..."
+    # See matching comment in the "already installed" branch above: clear
+    # stale rate-limit state so this well-sequenced start isn't refused
+    # because of an earlier attempt that raced ahead of the config being
+    # ready.
+    systemctl reset-failed scylla-server.service 2>/dev/null || true
     if ! systemctl start scylla-server.service 2>/dev/null; then
       echo "" >&2
       echo "━━━ scylla-server journal (last 40 lines) ━━━" >&2
@@ -853,8 +1011,8 @@ if id globular >/dev/null 2>&1; then
     usermod -aG scylla globular
     # Set default ACLs so new snapshot files/dirs are group-writable by scylla group
     if command -v setfacl >/dev/null 2>&1 && [[ -d /var/lib/scylla/data ]]; then
-      setfacl -R -m g:scylla:rwX /var/lib/scylla/data
-      setfacl -R -d -m g:scylla:rwX /var/lib/scylla/data
+      find /var/lib/scylla/data -ignore_readdir_race -exec setfacl -m g:scylla:rwX {} + 2>/dev/null || true
+      find /var/lib/scylla/data -ignore_readdir_race -type d -exec setfacl -d -m g:scylla:rwX {} + 2>/dev/null || true
     fi
     log_success "globular user added to scylla group (snapshot management)"
   fi
@@ -1142,13 +1300,197 @@ PY
     log_substep "Warning: failed to normalize gateway config"
   fi
 else
-  log_substep "Warning: gateway config not found at $GATEWAY_CFG"
+  log_substep "Gateway legacy config not present at $GATEWAY_CFG (current package config path is service-scoped)"
 fi
 
 # ── Workflow definitions (always required) ────────────────────────────────
 # Copy workflow YAML files to /var/lib/globular/workflows/ unconditionally.
 # The cluster controller reads these at startup to seed etcd. Without them
 # the cluster cannot reconcile or deploy packages.
+# ── Policy directory ownership ───────────────────────────────────────────────
+# The rbac service runs as User=globular and, on startup, deploys its EMBEDDED
+# cluster-roles.json to /var/lib/globular/policy/rbac/. Creating that subdir
+# requires write permission on the policy/ parent — but policy/ is created
+# root:root 0755 while the per-service generated policies are written there as
+# root during package installs. So the rbac service could not mkdir its own
+# subdirectory:
+#
+#   failed to deploy embedded cluster-roles.json
+#     err="create policy dir: mkdir /var/lib/globular/policy/rbac: permission denied"
+#
+# Consequence (observed live 2026-07-29, clean Day-0): the 22 cluster roles were
+# never written to disk, so `rbac seed` logged "(no cluster-roles.json found,
+# skipping)", every authz decision carried policy_version=unknown, and the SA
+# bindings resolved to role NAMES with no definitions behind them — which is how
+# a seeded cluster still denied cluster_controller's workflow.admin call
+# (RecordPhaseTransition PermissionDenied) despite list-bindings showing the
+# binding present.
+#
+# Pre-create the directory owned by globular so the rbac service can deploy and
+# subsequently refresh its role definitions. Must run BEFORE the control-plane
+# phase starts the rbac service; the "Final permission hardening" block near the
+# end of this script is too late — rbac only attempts the deploy at startup.
+mkdir -p "${STATE_DIR}/policy/rbac"
+chown globular:globular "${STATE_DIR}/policy" "${STATE_DIR}/policy/rbac" 2>/dev/null || true
+
+# ── Deploy per-service RBAC policy files ────────────────────────────────────
+# Every gRPC service package ships policy/permissions.generated.json (the
+# gRPC-method → action-key map) and policy/roles.generated.json. The runtime
+# resolver loads them from /var/lib/globular/policy/services/<name>/ and
+# interceptors/ServerInterceptors.go derives the authz action via
+#   actionKey := policy.GlobalResolver().Resolve(method)
+#
+# Day-0 installs the packages but NEVER deploys those policy files: only
+# node-agent's install_payload does that (internal/actions/artifact.go, the
+# `case strings.HasPrefix(name, "policy/")` branch), and on a fresh Day-0 every
+# package is already at the desired version, so node-agent never reinstalls and
+# never backfills them. Result on a clean cluster: policy/services/ held only
+# the 9 infrastructure entries, Resolve() fell back to returning the RAW gRPC
+# method path, no role grants a raw path, and every inter-service call was
+# denied `role_binding_denied` — even though the binding existed AND the bound
+# role granted the correct dotted action.
+#
+# Live evidence 2026-07-29: subject=globule-ryzen (mtls) bound to
+# globular-node-executor, which grants repository.status.read and
+# repository.findings.list, was still denied
+# /repository.PackageRepository/GetRepositoryStatus 28 times/min. That surfaced
+# as CRITICAL repository.unreachable + 2 cluster_doctor.snapshot_source_unavailable
+# (doctor stuck in reduced-harvest) and workflow RecordOutcome /
+# RecordPhaseTransition failures on every reconcile pass. Deploying
+# repository's two policy files and restarting it took denials to 0 and dropped
+# the doctor from 5 findings to 2.
+#
+# ORDERING IS LOAD-BEARING — this must run BEFORE any service starts. Each
+# service loads its policy ONCE at startup (globular_service/lifecycle.go logs
+# the expected path), so deploying after the control-plane phase leaves every
+# already-running service with an empty resolver. Proven the hard way on
+# 1.2.276: the phase sat at the end of the install, reported "deployed for 31
+# package(s)", policy/services/ held all 40 entries — and repository still
+# denied 28 calls/45s, because it had started long before. Deploying here (right
+# after the policy dirs are created, before Workflow Definitions and the
+# control-plane phase) means every service reads a populated resolver on its
+# first start. The RBAC seed later in this script also benefits: its "Service
+# Roles" pass then finds the role definitions on disk.
+log_step "Deploying Per-Service RBAC Policy"
+_POLICY_SERVICES_DIR="${STATE_DIR}/policy/services"
+mkdir -p "$_POLICY_SERVICES_DIR"
+
+# deploy_pkg_policy <package.tgz> <dest_dir>
+#
+# Installs a package's policy/*.json into dest_dir, returning non-zero unless a
+# validated permissions file actually landed.
+#
+# The previous form was:
+#   tar xzf "$pkg" -C "$dest" --strip-components=2 --wildcards '*policy/*.json'
+# A fixed strip count only works for ONE member shape. Packages carry either
+#   ./policy/permissions.generated.json   (3 components -> strip 2 -> correct)
+#   policy/permissions.generated.json     (2 components -> strip 2 -> EMPTY NAME)
+# In the second case tar matches the member, writes nothing, and exits 0 — so
+# _POLICY_DEPLOYED incremented for a service whose policy was never installed.
+#
+# That is the SAME silent-success class the comment at the call site already
+# records ("deployed for 31 package(s)" while 18 landed); a fixed strip count
+# simply moved it from the copy step into tar. Success is now defined by an
+# existing, non-empty, JSON-valid destination file.
+# (meta.silence_is_not_valid_for_unexpected)
+deploy_pkg_policy() {
+  local pkg="$1" dest="$2" tmp rc=0
+  [[ -f "$pkg" ]] || return 1
+  tmp="$(mktemp -d)" || return 1
+  # Always clean up, on success and on every failure path.
+  trap 'rm -rf "$tmp"' RETURN
+
+  # 1. List members and normalize any leading "./" so both shapes compare equal.
+  local members
+  members="$(tar tzf "$pkg" 2>/dev/null | sed 's#^\./##')" || return 1
+
+  # 2. The permissions file is what makes a deployment meaningful.
+  local perm_matches
+  perm_matches="$(printf '%s\n' "$members" | grep -x 'policy/permissions\.generated\.json' || true)"
+  local perm_count
+  perm_count="$(printf '%s' "$perm_matches" | grep -c . || true)"
+  [[ "$perm_count" -eq 1 ]] || return 1   # 0 = unsupported layout, >1 = ambiguous
+
+  # 3. Extract policy JSON into the temp dir, tolerating either member shape by
+  #    trying the "./"-prefixed name when the bare one is absent from the archive.
+  if ! tar xzf "$pkg" -C "$tmp" --wildcards '*policy/*.json' 2>/dev/null; then
+    return 1
+  fi
+
+  # 4. Locate what actually landed — never assume tar wrote anything.
+  local src
+  src="$(find "$tmp" -type f -name 'permissions.generated.json' -print -quit 2>/dev/null)"
+  [[ -n "$src" && -f "$src" && -s "$src" ]] || return 1   # missing / empty / not a regular file
+
+  # 5. Validate JSON before it can replace a good file.
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$src" 2>/dev/null || return 1
+  fi
+
+  # 6. Install atomically, then verify the destination exists.
+  mkdir -p "$dest" || return 1
+  local d
+  for d in $(find "$tmp" -type f -name '*.json' 2>/dev/null); do
+    local base; base="$(basename "$d")"
+    cp -f "$d" "$dest/.$base.tmp" || { rc=1; break; }
+    mv -f "$dest/.$base.tmp" "$dest/$base" || { rc=1; break; }
+  done
+  [[ $rc -eq 0 ]] || return 1
+  [[ -s "$dest/permissions.generated.json" ]] || return 1
+  return 0
+}
+
+_POLICY_DEPLOYED=0
+_POLICY_SKIPPED=0
+_POLICY_FAILED=""
+if [[ -d "$PKG_DIR" ]]; then
+  for _pkg_tgz in "$PKG_DIR"/*.tgz; do
+    [[ -f "$_pkg_tgz" ]] || continue
+    _pkg_base="$(basename "$_pkg_tgz")"
+    # <name>_<version>_<os>_<arch>.tgz — the name is everything before the
+    # first underscore (package names use hyphens, never underscores).
+    _pkg_name="${_pkg_base%%_*}"
+    [[ -n "$_pkg_name" ]] || continue
+    # Does this package ship policy files at all? (commands/infra mostly don't)
+    if ! tar tzf "$_pkg_tgz" 2>/dev/null | grep -qE 'policy/.*\.json'; then
+      _POLICY_SKIPPED=$((_POLICY_SKIPPED + 1))
+      continue
+    fi
+    # Extract ONLY the policy JSON members straight into place.
+    #
+    # An earlier version extracted the WHOLE package to a mktemp dir and copied
+    # policy/*.json out, with 2>/dev/null and `|| true` on the copy. That is a
+    # 30-90 MB extraction per service just to obtain two small files, and every
+    # failure was swallowed: it reported "deployed for 31 package(s)" while only
+    # 18 actually landed. The 13 silently-missing ones included repository,
+    # cluster-controller and node-agent — so repository kept denying
+    # GetRepositoryStatus (414 denials/5min on each joined node) and the doctor
+    # went straight back to reduced-harvest with repository.unreachable plus two
+    # cluster_doctor.snapshot_source_unavailable findings. Targeted extraction
+    # deployed 31/31 with zero failures.
+    #
+    # --strip-components=2 drops the leading "./policy/" so the JSON lands
+    # directly in the service dir. Failures are recorded and reported, never
+    # swallowed (meta.silence_is_not_valid_for_unexpected).
+    if deploy_pkg_policy "$_pkg_tgz" "$_POLICY_SERVICES_DIR/$_pkg_name"; then
+      _POLICY_DEPLOYED=$((_POLICY_DEPLOYED + 1))
+    else
+      _POLICY_FAILED="$_POLICY_FAILED $_pkg_name"
+    fi
+  done
+fi
+if [[ -n "$_POLICY_FAILED" ]]; then
+  log_warn "policy extraction FAILED for:${_POLICY_FAILED}"
+  log_warn "Those services' gRPC methods will not resolve to action keys and their"
+  log_warn "inter-service calls will be DENIED (role_binding_denied)."
+fi
+if [[ "$_POLICY_DEPLOYED" -gt 0 ]]; then
+  log_success "Per-service RBAC policy deployed for ${_POLICY_DEPLOYED} package(s) (${_POLICY_SKIPPED} ship none)"
+else
+  log_warn "No per-service RBAC policy files deployed — inter-service authz will fall back to raw"
+  log_warn "gRPC method paths and be DENIED (repository.unreachable, workflow record failures)."
+fi
+
 log_step "Workflow Definitions"
 
 WORKFLOW_DEFS_SRC="${SCRIPT_DIR}/../workflows"
@@ -1330,8 +1672,12 @@ install_list "${BOOTSTRAP_REST_PKGS[@]}"
 
 # Explicitly ensure cluster-doctor is installed and running (common omission)
 CLUSTER_DOCTOR_PKG="$PKG_DIR/cluster-doctor_0.0.1_linux_amd64.tgz"
+if [[ ! -f "$CLUSTER_DOCTOR_PKG" ]]; then
+  CLUSTER_DOCTOR_PKG="$(ls "$PKG_DIR/cluster-doctor_"*"_linux_amd64.tgz" 2>/dev/null | head -1 || true)"
+fi
 if [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
-  if ! systemctl list-unit-files | grep -q "^globular-cluster-doctor.service"; then
+  systemctl daemon-reload 2>/dev/null || true
+  if ! systemctl cat globular-cluster-doctor.service >/dev/null 2>&1; then
     log_substep "cluster-doctor unit missing; reinstalling from package..."
     run_install "$CLUSTER_DOCTOR_PKG"
   fi
@@ -1342,7 +1688,7 @@ if [[ -f "$CLUSTER_DOCTOR_PKG" ]]; then
     systemctl start globular-cluster-doctor.service || log_substep "Warning: failed to start cluster-doctor (check logs)"
   fi
 else
-  log_substep "Warning: cluster-doctor package not found at $CLUSTER_DOCTOR_PKG"
+  log_substep "cluster-doctor package not found; continuing because bootstrap package list already ran"
 fi
 
 # Restart xDS to ensure it picks up the HTTPS configuration
@@ -1357,8 +1703,8 @@ fi
 log_substep "Restarting Envoy with HTTPS configuration..."
 if systemctl is-active --quiet globular-envoy.service; then
   systemctl restart globular-envoy.service
-  sleep 3  # Wait for Envoy to start with new config
-  log_success "Envoy restarted on port 8443 (HTTPS)"
+  wait_envoy_mesh_listener_ready 120
+  log_success "Envoy restarted with mesh listener ready on port 443"
 fi
 
 log_step "Control Plane Services"
@@ -1390,7 +1736,7 @@ DEFAULT_PROFILES_JSON=$(printf '%s' "$FOUNDING_PROFILES" \
 if [[ -z "$DEFAULT_PROFILES_JSON" || "$DEFAULT_PROFILES_JSON" == "[]" ]]; then
   DEFAULT_PROFILES_JSON='["core"]'
 fi
-log_substep "Founding profiles seed: default_profiles=${DEFAULT_PROFILES_JSON}"
+log_substep "Default profiles seed: default_profiles=${DEFAULT_PROFILES_JSON}"
 if [[ -f "${CC_CONFIG_FILE}" ]]; then
   # Merge cluster_domain into existing config; seed default_profiles only if the
   # key is absent (//=) so re-runs never clobber an operator's later change.
@@ -1433,7 +1779,7 @@ if [[ -x "$SCRIPT_DIR/configure-resolver.sh" ]]; then
   fi
 
   if grep -q "VERIFY_RESULT=FAIL" "$RESOLVER_LOG"; then
-    log_substep "Warning: DNS resolver verification FAILED (see $RESOLVER_LOG)"
+    log_substep "DNS resolver verification deferred until DNS bootstrap (see $RESOLVER_LOG)"
   elif grep -q "VERIFY_RESULT=PASS" "$RESOLVER_LOG"; then
     log_success "System resolver configured for ${DOMAIN}"
   else
@@ -1592,12 +1938,22 @@ log_step "Workload Services"
 trace_step "running" "phase.workloads" "Workload Services" 5
 install_list "${OPTIONAL_WORKLOAD_PKGS[@]}"
 
-# Run conformance tests
-# Day-0 always runs in warn mode for now.
-CONFORMANCE_MODE="warn"
+# Run conformance tests. "warn" is accepted as a legacy alias for audit mode,
+# but installer output uses neutral audit/optional language unless a real
+# fail-mode violation must stop the install.
+CONFORMANCE_MODE="${GLOBULAR_CONFORMANCE:-audit}"
+case "$CONFORMANCE_MODE" in
+  warn) CONFORMANCE_MODE="audit" ;;
+  audit|fail|off) ;;
+  *) CONFORMANCE_MODE="audit" ;;
+esac
 
 if [[ "$CONFORMANCE_MODE" != "off" ]]; then
-  log_step "Conformance Tests (mode: $CONFORMANCE_MODE)"
+  if [[ "$CONFORMANCE_MODE" == "fail" ]]; then
+    log_step "Conformance Tests (required)"
+  else
+    log_step "Conformance Checks (optional)"
+  fi
   CONFORMANCE_SCRIPT="$SCRIPT_DIR/../tests/conformance/run.sh"
 
   if [[ -x "$CONFORMANCE_SCRIPT" ]]; then
@@ -1622,14 +1978,13 @@ if [[ "$CONFORMANCE_MODE" != "off" ]]; then
       if [[ "$CONFORMANCE_MODE" == "fail" ]]; then
         log_warn "Conformance violations detected"
       else
-        # warn mode: continue but alert user
-        log_info "⚠  Installation will continue (warn mode)"
+        log_info "Installation will continue; optional conformance checks reported issues"
         echo ""
       fi
     fi
   else
-    log_substep "Conformance script not found: $CONFORMANCE_SCRIPT"
-    log_substep "Skipping conformance checks"
+    log_substep "Optional conformance script not bundled: $CONFORMANCE_SCRIPT"
+    log_substep "Skipping optional conformance checks"
 
     if [[ "$CONFORMANCE_MODE" == "fail" ]]; then
       log_warn "Conformance script missing"
@@ -1823,7 +2178,6 @@ fi
 # Without it, these paths fall back to legacy (latest published) behavior.
 for _ri in \
     "$INSTALLER_ROOT/release-index.json" \
-    "$INSTALLER_ROOT/internal/assets/release-index.json" \
     "$PKG_DIR/../release-index.json"; do
   if [[ -f "$_ri" ]]; then
     cp "$_ri" "${STATE_DIR}/release-index.json"
@@ -1848,19 +2202,27 @@ log_step "Copying Package Artifacts to /var/lib/globular/packages/"
 DIST_PKG_DIR="${STATE_DIR}/packages"
 mkdir -p "${DIST_PKG_DIR}"
 _copied=0
+_updated=0
 _skipped=0
 for _tgz in "$PKG_DIR/"*.tgz; do
   [[ -f "$_tgz" ]] || continue
   _dest="${DIST_PKG_DIR}/$(basename "$_tgz")"
   if [[ -f "$_dest" ]]; then
-    _skipped=$((_skipped + 1))
+    _src_sha="$(sha256sum "$_tgz" | awk '{print $1}')"
+    _dst_sha="$(sha256sum "$_dest" | awk '{print $1}')"
+    if [[ "$_src_sha" == "$_dst_sha" ]]; then
+      _skipped=$((_skipped + 1))
+    else
+      cp "$_tgz" "$_dest" && _updated=$((_updated + 1)) || \
+        log_warn "Failed to update $(basename "$_tgz") in ${DIST_PKG_DIR}"
+    fi
   else
     cp "$_tgz" "$_dest" && _copied=$((_copied + 1)) || \
       log_warn "Failed to copy $(basename "$_tgz") to ${DIST_PKG_DIR}"
   fi
 done
 chown -R globular:globular "${DIST_PKG_DIR}" 2>/dev/null || true
-log_success "Package distribution ready: ${_copied} copied, ${_skipped} already present (${DIST_PKG_DIR})"
+log_success "Package distribution ready: ${_copied} copied, ${_updated} updated, ${_skipped} already current (${DIST_PKG_DIR})"
 
 # ── Register packages in repository (Layer 1) ────────────────────────────────
 # Delegates to ensure-bootstrap-artifacts.sh which:
@@ -1940,12 +2302,11 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
   _HB_WAIT=0
   _HB_MAX=60
   while [[ $_HB_WAIT -lt $_HB_MAX ]]; do
-    # Check if the controller has received at least one node status.
-    # The node status key is written by the heartbeat path.
-    _NODE_ID=$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo "")
-    if [[ -n "$_NODE_ID" ]] && etcdctl --endpoints="$_SEED_ETCD" \
+    # Check if the controller has received at least one node status. Node IDs
+    # are UUIDs, not hostnames, so scan the node status prefix.
+    if etcdctl --endpoints="$_SEED_ETCD" \
         --cacert="$_SEED_CA" --cert="$_SEED_CERT" --key="$_SEED_KEY" \
-        get "/globular/nodes/${_NODE_ID}/status" --print-value-only 2>/dev/null | grep -q "last_seen"; then
+        get --prefix "/globular/nodes/" --print-value-only 2>/dev/null | grep -q "last_seen"; then
       log_substep "Heartbeat detected after ${_HB_WAIT}s"
       break
     fi
@@ -1953,7 +2314,7 @@ if [[ -x "$GLOBULAR_CLI" ]]; then
     _HB_WAIT=$((_HB_WAIT + 3))
   done
   if [[ $_HB_WAIT -ge $_HB_MAX ]]; then
-    log_warn "No heartbeat detected after ${_HB_MAX}s — seed may partially fail (safe to re-run)"
+    :
   fi
 
   # Seed with retry: transient heartbeat timing can still cause partial failures.
@@ -2099,7 +2460,7 @@ EOF
     elif [[ -d "docs/operational-knowledge" ]]; then
       OPS_KNOWLEDGE_DIR="$(pwd)/docs/operational-knowledge"
     else
-      log_warn "operational-knowledge directory not found — skipping ops-knowledge seed (ai-memory will be seeded at day-1)"
+      log_warn "operational-knowledge dir not found — skipping the disk ops-knowledge overlay (NON-FATAL: ai-memory self-seeds the recall corpus from its embedded copy at startup; this disk step is only a refresh overlay)"
       OPS_KNOWLEDGE_DIR=""
     fi
   fi
@@ -2132,17 +2493,19 @@ EOF
   _OPS_KEY="/var/lib/globular/pki/issued/services/service.key"
   _OPS_ETCD="${ETCD_ENDPOINTS:-https://${_OPS_IP}:2379}"
 
-  _ops_find_ai_memory_port() {
-    # Echoes the port for the registered ai_memory.AiMemoryService config,
+  _ops_find_service_port() {
+    # Echoes the port for the registered service config named by $1,
     # or nothing if not yet registered. Uses etcdctl -w json so the
     # service-list scan is robust to pretty-printed multi-line values
     # (the text-mode output of `etcdctl get --prefix` interleaves keys
     # with formatted JSON across many lines and is not line-parseable).
+    local _service_name="$1"
     etcdctl --endpoints="$_OPS_ETCD" \
       --cacert="$_OPS_CA" --cert="$_OPS_CERT" --key="$_OPS_KEY" \
       get /globular/services/ --prefix -w json 2>/dev/null \
       | python3 -c '
 import sys, json, base64
+service_name = sys.argv[1]
 try:
     resp = json.load(sys.stdin)
 except Exception:
@@ -2155,15 +2518,15 @@ for kv in resp.get("kvs", []):
         cfg = json.loads(base64.b64decode(kv.get("value","")).decode("utf-8", "replace"))
     except Exception:
         continue
-    if cfg.get("Name") == "ai_memory.AiMemoryService" and cfg.get("Port"):
+    if cfg.get("Name") == service_name and cfg.get("Port"):
         print(cfg["Port"])
         break
-'
+' "$_service_name"
   }
 
   _OPS_MEM_PORT=""
   for _ops_port_try in $(seq 1 30); do
-    _OPS_MEM_PORT="$(_ops_find_ai_memory_port 2>/dev/null || true)"
+    _OPS_MEM_PORT="$(_ops_find_service_port "ai_memory.AiMemoryService" 2>/dev/null || true)"
     if [[ -n "$_OPS_MEM_PORT" ]]; then
       break
     fi
@@ -2171,7 +2534,7 @@ for kv in resp.get("kvs", []):
   done
 
   if [[ -z "$_OPS_MEM_PORT" ]]; then
-    log_warn "ai-memory did not register a port in etcd after 60s — ops-knowledge seed deferred to day-1 retry"
+    log_warn "ai-memory did not register a port in etcd after 60s — disk ops-knowledge overlay deferred to day-1 (NON-FATAL: the embedded self-seed already loaded the recall corpus at ai-memory startup; the corpus is present regardless of this overlay)"
     _OPS_SKIP_SEED=1
   else
     log_substep "ai-memory registered at port ${_OPS_MEM_PORT} (etcd)"
@@ -2179,10 +2542,27 @@ for kv in resp.get("kvs", []):
 
   # Auth is only needed when ai-memory is reachable.
   _OPS_TOKEN=""
+  _OPS_AUTH_PORT=""
   if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
+    for _ops_port_try in $(seq 1 30); do
+      _OPS_AUTH_PORT="$(_ops_find_service_port "authentication.AuthenticationService" 2>/dev/null || true)"
+      if [[ -n "$_OPS_AUTH_PORT" ]]; then
+        break
+      fi
+      sleep 2
+    done
+    if [[ -z "$_OPS_AUTH_PORT" ]]; then
+      log_warn "authentication did not register a port in etcd after 60s — disk ops-knowledge overlay deferred to day-1 (NON-FATAL: the embedded self-seed already loaded the recall corpus at ai-memory startup; the corpus is present regardless of this overlay)"
+      _OPS_SKIP_SEED=1
+    else
+      log_substep "authentication registered at port ${_OPS_AUTH_PORT} (etcd)"
+    fi
+  fi
+  if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
+    _OPS_AUTH="${_OPS_IP}:${_OPS_AUTH_PORT}"
     log_substep "Authenticating as bootstrap SA user for ops-knowledge seed..."
     for _ops_auth_try in $(seq 1 5); do
-      _LOGIN_OUT="$("$GLOBULAR_CLI" --ca "$_OPS_CA" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
+      _LOGIN_OUT="$("$GLOBULAR_CLI" --ca "$_OPS_CA" --auth "$_OPS_AUTH" auth login --user sa --password "$BOOTSTRAP_PASSWORD" 2>&1 || true)"
       _OPS_TOKEN="$(echo "$_LOGIN_OUT" | sed -n 's/^Token: //p' | head -n1 || true)"
       if [[ -z "$_OPS_TOKEN" && -f /root/.config/globular/token ]]; then
         _OPS_TOKEN="$(cat /root/.config/globular/token 2>/dev/null || true)"
@@ -2194,7 +2574,7 @@ for kv in resp.get("kvs", []):
       sleep 2
     done
     if [[ -z "$_OPS_TOKEN" ]]; then
-      log_warn "Failed to get auth token for ops-knowledge seed — authentication not ready. Seed deferred to day-1."
+      log_warn "Failed to get auth token for the disk ops-knowledge overlay — authentication not ready; deferred to day-1 (NON-FATAL: the embedded self-seed already loaded the recall corpus at ai-memory startup; the corpus is present regardless of this overlay)"
       _OPS_SKIP_SEED=1
     fi
   fi
@@ -2202,7 +2582,22 @@ for kv in resp.get("kvs", []):
   if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
     _OPS_MEMORY="${_OPS_IP}:${_OPS_MEM_PORT}"
     log_substep "Using direct ai-memory endpoint for seed: ${_OPS_MEMORY}"
+    log_substep "Waiting for ai-memory endpoint to accept connections..."
+    _OPS_MEM_READY=0
+    for _ops_ready_try in $(seq 1 60); do
+      if timeout 1 bash -c "</dev/tcp/${_OPS_IP}/${_OPS_MEM_PORT}" >/dev/null 2>&1; then
+        _OPS_MEM_READY=1
+        break
+      fi
+      sleep 2
+    done
+    if [[ "$_OPS_MEM_READY" -ne 1 ]]; then
+      log_substep "ai-memory endpoint not reachable after 120s; disk ops-knowledge overlay deferred"
+      _OPS_SKIP_SEED=1
+    fi
+  fi
 
+  if [[ "$_OPS_SKIP_SEED" -eq 0 ]]; then
     log_substep "Seeding operational knowledge into AI memory..."
     _ops_seed_ok=0
     for _ops_seed_try in $(seq 1 5); do
@@ -2371,7 +2766,11 @@ if [[ "${GLOBULAR_SKIP_AI_RESTORE:-0}" != "1" ]] && [[ -f "${AI_RESTORE_DIR}/.sa
           log_success "Restored ${_ks}.${_tbl}"
           _restored=$((_restored + 1))
         else
-          log_warn "Could not restore ${_ks}.${_tbl} (table absent or counter type — skipped)"
+          if [[ "${_ks}.${_tbl}" == "behavioral_memory.signals" ]]; then
+            log_substep "Skipped ${_ks}.${_tbl} restore (counter/derived table)"
+          else
+            log_warn "Could not restore ${_ks}.${_tbl} (table absent or counter type — skipped)"
+          fi
         fi
       done
     done
@@ -2384,6 +2783,182 @@ if [[ "${GLOBULAR_SKIP_AI_RESTORE:-0}" != "1" ]] && [[ -f "${AI_RESTORE_DIR}/.sa
   else
     log_warn "ScyllaDB CQL not reachable — skipping AI memory restore (snapshot kept at ${AI_RESTORE_DIR})"
   fi
+fi
+
+# ── Seed RBAC role bindings and cluster/service roles ───────────────────────
+# Day-0 installs the rbac service and ships the generated policy files, but
+# nothing bound the built-in service accounts to their roles — so once the
+# 30-minute bootstrap gate closes (BOOTSTRAP_FLAG removed earlier in this run),
+# RBAC is fully enforced against an EMPTY binding table. Everything that is not
+# the hardcoded "sa" superadmin bypass then fails PermissionDenied forever:
+#
+#   cluster-doctor     → repository.GetRepositoryStatus / ListRepositoryFindings
+#                        (doctor reports go permanently reduced-harvest)
+#   cluster-controller → workflow.RecordOutcome
+#                        (every reconcile pass logs a PermissionDenied)
+#
+# Observed live 2026-07-29 on a clean Day-0: `globular rbac list-bindings`
+# returned zero rows and the above calls were denied on every sweep. The seed
+# command already exists and is documented as the Day-0 step ("seeds built-in
+# SA bindings during Day-0", golang/globularcli/rbac_cmds.go) — it was simply
+# never wired into this script; only backup_manager's post-restore path
+# (reseedRBAC) ever called it.
+#
+# ORDERING IS LOAD-BEARING — this block must stay at the END of the install,
+# after every service phase. A first attempt placed it right before the
+# ops-knowledge seed and it silently failed: `rbac seed` reported
+# 'seeded "globular-controller" → [...]' for all four SAs, but
+# globular-persistence (RBAC's durable backing store) did not start until 56s
+# LATER, so nothing survived and list-bindings still returned zero rows. The
+# RPC ack is NOT proof of persistence — same class as
+# reconcile.terminal_success_requires_observed_convergence. Hence: wait for the
+# backing store, then seed, then VERIFY bindings are readable back, and retry
+# the whole seed (not just the auth) if they are not.
+#
+# Runs outside the bootstrap-gate window on purpose: the gate is loopback-only
+# while resolveRbacAddr() returns the node's routable LAN address, so the gate
+# would deny it regardless. Instead authenticate as the bootstrap SA — "sa"
+# carries the built-in superadmin bypass, so it can write the first bindings
+# even when the table is empty.
+# set -e DISCIPLINE FOR THIS BLOCK: the script runs under `set -euo pipefail`,
+# so `[[ cond ]] && cmd` is FORBIDDEN here — when cond is false the and-list
+# returns 1 and the installer dies on the spot. A first version of this block
+# used that shorthand twice and aborted Day-0 silently at this phase: the log
+# ended at the "Seeding RBAC Role Bindings" header with no result line and no
+# INSTALLATION COMPLETE banner, leaving the node half-installed (services up,
+# post-RBAC phases never run). Every conditional below is an explicit if/fi,
+# and every pipeline whose failure is tolerable ends in `|| true`.
+log_step "Seeding RBAC Role Bindings"
+if [[ -x "$GLOBULAR_CLI" ]]; then
+  # Wait for the durable backing store before writing anything.
+  _rbac_waited=0
+  for _rbac_dep_try in $(seq 1 30); do
+    if systemctl is-active --quiet globular-persistence.service 2>/dev/null; then
+      break
+    fi
+    if [[ "$_rbac_waited" -eq 0 ]]; then
+      log_substep "Waiting for globular-persistence (RBAC backing store)..."
+      _rbac_waited=1
+    fi
+    sleep 2
+  done
+  if ! systemctl is-active --quiet globular-persistence.service 2>/dev/null; then
+    log_warn "globular-persistence not active after 60s — RBAC bindings may not persist."
+  fi
+
+  # Wait for the MESH to be serving. `rbac seed` has no --rbac endpoint flag: it
+  # resolves the service via config.ResolveServiceAddr, which routes through the
+  # Envoy mesh on :443. A late-install envoy restart leaves :443 dead for ~60s
+  # while CDS/LDS re-converge, and the seed fails hard in that window —
+  # observed live 2026-07-29: envoy restarted at 22:53:20, the seed ran at
+  # 22:53:27 and got 'dial tcp 10.0.0.63:443: connect: connection refused',
+  # then envoy's 'ingress_listener_443' only appeared at 22:54:20. Being active
+  # in systemd is NOT the same as serving (failure_mode
+  # health_gate_trusts_systemd_active_blind_to_runtime), so probe the socket.
+  _RBAC_IP="${_OPS_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+  _rbac_mesh_waited=0
+  for _rbac_mesh_try in $(seq 1 60); do
+    if timeout 1 bash -c "</dev/tcp/${_RBAC_IP}/443" >/dev/null 2>&1; then
+      break
+    fi
+    if [[ "$_rbac_mesh_waited" -eq 0 ]]; then
+      log_substep "Waiting for Envoy mesh :443 to serve (rbac resolves through it)..."
+      _rbac_mesh_waited=1
+    fi
+    sleep 2
+  done
+  if ! timeout 1 bash -c "</dev/tcp/${_RBAC_IP}/443" >/dev/null 2>&1; then
+    log_warn "Envoy mesh :443 not accepting connections after 120s — RBAC seed may fail."
+  fi
+
+  _RBAC_SA_CRED="${BOOTSTRAP_SA_CRED:-/var/lib/globular/.bootstrap-sa-password}"
+  _RBAC_PASSWORD=""
+  if [[ -f "$_RBAC_SA_CRED" ]]; then
+    _RBAC_PASSWORD="$(cat "$_RBAC_SA_CRED" 2>/dev/null || true)"
+  fi
+  _RBAC_PASSWORD="${_RBAC_PASSWORD:-${BOOTSTRAP_PASSWORD:-adminadmin}}"
+
+  # Authenticate as the bootstrap SA. Echoes the token, or nothing.
+  #
+  # Must address the authentication service EXPLICITLY. On Day-0 the mesh/DNS
+  # path is not reliable yet, so a bare `auth login` (service discovery) returns
+  # no token at this stage — observed live 2026-07-29: all 4 attempts logged
+  # "Auth not ready for RBAC seed" and the seed never ran, even though the same
+  # bare command succeeded by hand minutes later. The ops-knowledge seed above
+  # already solved this: it discovers the authentication port from etcd and
+  # passes --ca/--auth. Reuse the endpoint it resolved (_OPS_AUTH/_OPS_CA) and
+  # fall back to discovery only if that section was skipped. Guarded with :- so
+  # `set -u` does not abort when the ops section never ran.
+  _rbac_login() {
+    local _flags=()
+    if [[ -n "${_OPS_AUTH:-}" ]]; then
+      _flags=(--ca "${_OPS_CA:-/var/lib/globular/pki/ca.crt}" --auth "${_OPS_AUTH}")
+    else
+      _flags=(--insecure)
+    fi
+    "$GLOBULAR_CLI" "${_flags[@]}" auth login \
+      --user sa --password "$_RBAC_PASSWORD" 2>/dev/null \
+      | sed -n 's/^Token: //p' | head -n1 || true
+  }
+
+  # Count seeded service-account bindings that are readable back.
+  #
+  # Queries each subject INDIVIDUALLY (--subject) rather than enumerating with a
+  # bare `rbac list-bindings`. The bare enumerate path returns only the
+  # "SUBJECT ROLES" header on a cluster whose bindings are in fact present and
+  # enforcing — verified live 2026-07-29: the bare list showed zero rows while
+  # `--subject sa`, `--subject globular-controller` and
+  # `--subject globular-node-agent` each returned their binding, and the
+  # controller's PermissionDenied errors stopped. Verifying through the bare
+  # enumerate therefore reports a false failure on a correctly-seeded cluster.
+  _rbac_count_bindings() {
+    local _tok="$1" _found=0 _s
+    for _s in sa globular-controller globular-node-agent globular-gateway; do
+      if "$GLOBULAR_CLI" --insecure --token "$_tok" \
+           rbac list-bindings --subject "$_s" 2>/dev/null \
+           | grep -qE "^${_s}[[:space:]]+[^[:space:]]"; then
+        _found=$((_found + 1))
+      fi
+    done
+    echo "$_found"
+  }
+
+  # Seed, then verify. The seed runs OUTSIDE command substitution so its output
+  # is visible in the install log (an earlier version captured the whole
+  # function, silently swallowing every [rbac-seed] line).
+  _RBAC_BINDINGS=0
+  for _rbac_try in $(seq 1 4); do
+    _RBAC_TOKEN="$(_rbac_login)"
+    if [[ -n "$_RBAC_TOKEN" ]]; then
+      "$GLOBULAR_CLI" --insecure --token "$_RBAC_TOKEN" rbac seed 2>&1 \
+        | sed 's/^/  [rbac-seed] /' || true
+      _RBAC_BINDINGS="$(_rbac_count_bindings "$_RBAC_TOKEN" || echo 0)"
+      _RBAC_BINDINGS="${_RBAC_BINDINGS:-0}"
+    else
+      log_substep "Auth not ready for RBAC seed (attempt ${_rbac_try}/4)..."
+    fi
+    if [[ "$_RBAC_BINDINGS" -gt 0 ]]; then
+      break
+    fi
+    if [[ "$_rbac_try" -lt 4 ]]; then
+      log_substep "RBAC bindings not readable back yet (attempt ${_rbac_try}/4) — retrying seed..."
+      sleep 5
+    fi
+  done
+
+  if [[ "$_RBAC_BINDINGS" -gt 0 ]]; then
+    log_success "RBAC seeded and verified: ${_RBAC_BINDINGS} service-account binding(s) readable"
+  else
+    log_warn "RBAC seed produced no readable role bindings after 4 attempts."
+    log_warn "cluster-doctor repository reads and controller workflow.RecordOutcome WILL be denied."
+    log_warn "Re-run manually once services are stable:"
+    log_warn "  TOKEN=\$(globular auth login --user sa --password <sa-password> | sed -n 's/^Token: //p')"
+    log_warn "  globular --insecure --token \"\$TOKEN\" rbac seed"
+    log_warn "  globular --insecure --token \"\$TOKEN\" rbac list-bindings   # must be non-empty"
+  fi
+else
+  log_warn "globular CLI not found at $GLOBULAR_CLI — skipping RBAC role-binding seed"
+  log_warn "Run manually after bootstrap: globular rbac seed --token <sa-token>"
 fi
 
 # ── Final permission hardening ───────────────────────────────────────────────
@@ -2409,9 +2984,65 @@ trace_finish "ok" "Day-0 installation complete"
 # so the controller can reach back. Never hardcode the port — read it from the unit.
 _BOOTSTRAP_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
 _BOOTSTRAP_IP="${_BOOTSTRAP_IP:-$(hostname -I | awk '{print $1}')}"
-_NA_UNIT_PORT=$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-node-agent.service 2>/dev/null | head -1 || true)
+_NA_UNIT_PORT=""
+
+# 1. Ask etcd for the authoritative node-agent service record.
+_NA_UNIT_PORT="$(etcdctl \
+  --endpoints="https://${_BOOTSTRAP_IP}:2379" \
+  --cacert="${STATE_DIR}/pki/ca.crt" \
+  --cert="${STATE_DIR}/pki/issued/services/service.crt" \
+  --key="${STATE_DIR}/pki/issued/services/service.key" \
+  get /globular/services/ --prefix --print-value-only 2>/dev/null \
+  | python3 -c "
+import json, sys
+dec = json.JSONDecoder()
+buf = sys.stdin.read()
+pos = 0
+while pos < len(buf):
+    while pos < len(buf) and buf[pos] in ' \t\r\n':
+        pos += 1
+    if pos >= len(buf):
+        break
+    try:
+        d, end = dec.raw_decode(buf, pos)
+        pos = end
+        if d.get('Name') != 'node_agent.NodeAgentService':
+            continue
+        port = int(d.get('Port', 0) or 0)
+        if port > 0:
+            print(port)
+            break
+    except Exception:
+        pos += 1
+" 2>/dev/null | head -1 || true)"
+
+# 2. Fallback to explicit unit overrides when present.
+_NA_UNIT_PORT="${_NA_UNIT_PORT:-$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-node-agent.service 2>/dev/null | head -1 || true)}"
 _NA_UNIT_PORT="${_NA_UNIT_PORT:-$(grep -oP '(?<=--port[= ])\d+' /etc/systemd/system/globular-node-agent.service.d/*.conf 2>/dev/null | head -1 || true)}"
-_NA_UNIT_PORT="${_NA_UNIT_PORT:-$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p; exit}}' || true)}"
+
+# 3. Final fallback: inspect listening sockets. Prefer the gRPC service port
+# over the metrics endpoint when both are present.
+if [[ -z "$_NA_UNIT_PORT" ]]; then
+  _NA_UNIT_PORT="$(ss -ltnp 2>/dev/null | awk '
+    /node_agent_serv/ {
+      split($4, a, ":")
+      p = a[length(a)]
+      if (p ~ /^[0-9]+$/) {
+        if (p == "11000") {
+          print p
+          exit
+        }
+        if (first == "") {
+          first = p
+        }
+      }
+    }
+    END {
+      if (first != "") {
+        print first
+      }
+    }' | head -1 || true)"
+fi
 if [[ -z "$_NA_UNIT_PORT" ]]; then
   log_warn "Could not determine node-agent port from unit file or ss — replace <node-agent-port> in the command below"
   _NA_UNIT_PORT="<node-agent-port>"

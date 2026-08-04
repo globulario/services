@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/globulario/services/golang/config"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
+	"github.com/globulario/services/golang/config"
 	dnspb "github.com/globulario/services/golang/dns/dnspb"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -263,13 +263,13 @@ func runClusterHealthChecks() error {
 	if healthJSON {
 		// Convert to JSON
 		data := map[string]interface{}{
-			"healthy":          strings.ToLower(resp.GetStatus()) == "healthy",
-			"status":           resp.GetStatus(),
-			"total_nodes":      resp.GetTotalNodes(),
-			"healthy_nodes":    resp.GetHealthyNodes(),
-			"unhealthy_nodes":  resp.GetUnhealthyNodes(),
-			"unknown_nodes":    resp.GetUnknownNodes(),
-			"node_health":      resp.GetNodeHealth(),
+			"healthy":         strings.ToLower(resp.GetStatus()) == "healthy",
+			"status":          resp.GetStatus(),
+			"total_nodes":     resp.GetTotalNodes(),
+			"healthy_nodes":   resp.GetHealthyNodes(),
+			"unhealthy_nodes": resp.GetUnhealthyNodes(),
+			"unknown_nodes":   resp.GetUnknownNodes(),
+			"node_health":     resp.GetNodeHealth(),
 		}
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
@@ -287,11 +287,8 @@ func runClusterHealthChecks() error {
 	if len(resp.GetNodeHealth()) > 0 {
 		fmt.Printf("\nNode Details:\n")
 		for _, node := range resp.GetNodeHealth() {
-			icon := "✅"
-			if node.GetStatus() != "healthy" {
-				icon = "❌"
-			}
-			fmt.Printf("  %s %s (%s)\n", icon, node.GetNodeId(), node.GetHostname())
+			icon, label := nodeHealthGlyph(node.GetStatus(), node.GetLastError())
+			fmt.Printf("  %s %s (%s) — %s\n", icon, node.GetNodeId(), node.GetHostname(), label)
 			if node.GetLastError() != "" {
 				fmt.Printf("     Error: %s\n", node.GetLastError())
 			}
@@ -523,4 +520,40 @@ func checkTLS(ctx context.Context, domain string) HealthCheckResult {
 	result.Details = fmt.Sprintf("certificate valid (expires in %.0f days)", daysUntilExpiry)
 
 	return result
+}
+
+// nodeHealthGlyph maps one server-assigned node status to its icon and label.
+//
+// Single source for both, deliberately. The previous code derived the icon from
+// `status != "healthy"` while printing LastError separately, so a node could be
+// shown with a green check and an error on the following line. Deriving the
+// glyph and the words from the same value makes that shape unrepresentable.
+//
+// Only "healthy" is green. "converging" is a node still settling and is not an
+// alarm; "degraded" claims to be done and is not.
+func nodeHealthGlyph(status, lastError string) (icon string, label string) {
+	status = strings.ToLower(strings.TrimSpace(status))
+
+	// Defend independently of the server. The controller in this build no
+	// longer emits status="healthy" alongside a non-empty LastError, but the
+	// CLI is a separate honesty boundary and must not depend on that: an older
+	// controller during a rolling upgrade, a mixed-version cluster, a replayed
+	// response, or a future server regression can all still produce that pair.
+	// Rendering it green would reintroduce the exact defect at this layer.
+	if status == "healthy" && strings.TrimSpace(lastError) != "" {
+		return "⚠️", "degraded"
+	}
+
+	switch status {
+	case "healthy":
+		return "✅", "healthy"
+	case "converging":
+		return "🔄", "converging"
+	case "degraded":
+		return "⚠️", "degraded"
+	case "unknown":
+		return "❔", "unknown"
+	default:
+		return "❌", status
+	}
 }

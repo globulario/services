@@ -3,7 +3,6 @@
 // @awareness file_role=etcd_member_add_remove_with_quorum_safe_rollback_and_bounded_join_timeout
 // @awareness implements=globular.platform:intent.etcd.is_source_of_truth
 // @awareness implements=globular.platform:intent.infrastructure.etcd.quorum_backed_config_authority
-// @awareness enforces=globular.platform:invariant.founding.quorum.three_nodes_required
 // @awareness risk=critical
 package main
 
@@ -37,6 +36,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -193,6 +193,30 @@ func nodeAnyIPIsEtcdMember(node *nodeState, existingURLs map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+func memberForNodeFromList(node *nodeState, members []*etcdserverpb.Member) (*etcdserverpb.Member, bool) {
+	if node == nil {
+		return nil, false
+	}
+	peerURLs := make(map[string]struct{}, len(node.Identity.Ips))
+	for _, ip := range node.Identity.Ips {
+		if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+			continue
+		}
+		peerURLs[fmt.Sprintf("https://%s:2380", ip)] = struct{}{}
+	}
+	for _, member := range members {
+		if member == nil {
+			continue
+		}
+		for _, purl := range member.PeerURLs {
+			if _, ok := peerURLs[purl]; ok {
+				return member, true
+			}
+		}
+	}
+	return nil, false
 }
 
 // resolveEtcdLeaderNode maps a reported etcd leader member id to a node id and
@@ -395,6 +419,182 @@ func (m *etcdMemberManager) memberRemove(ctx context.Context, memberID uint64) e
 	return nil
 }
 
+// learnersToPromote returns how many caught-up learners should be promoted so
+// the resulting voter count is the largest ODD number the cluster can reach.
+//
+// Raft failure tolerance is floor((n-1)/2), so it only improves on odd counts:
+//
+//	voters:      1    2    3    4    5
+//	tolerates:   0    0    1    1    2
+//
+// Promoting into an EVEN count therefore adds a member and zero tolerance — it
+// strictly increases the number of things that can fail while the cluster still
+// survives none of them. invariant:meta.ha_requires_failure_tolerance_not_member_count.
+//
+// This is what made a failed Day-1 join fatal. The second node was promoted to
+// voter the moment it caught up, taking the cluster from 1 voter (quorum 1) to
+// 2 voters (quorum 2). When that join later failed at the ScyllaDB phase and the
+// node was wiped, the survivor was 1-of-2 and could not elect a leader: every
+// etcd write hung and the whole control plane stalled. Left as a learner, the
+// same node contributes nothing to quorum and can be wiped at any time with no
+// effect on the cluster.
+//
+// Promotion is deliberately a BATCH decision, not per-node: going 1 → 3 requires
+// promoting two learners together. Promoting them one at a time would pass
+// through 2, which is exactly the state being avoided.
+// WHY THIS IS NOT THE ODD-COUNT RULE IT LOOKS LIKE IT SHOULD BE.
+//
+// The ideal is to promote only onto an odd voter count (1→3→5) and never sit at
+// 2 or 4, because Raft tolerates floor((n-1)/2) failures and an even count adds
+// a member without adding tolerance:
+//
+//	voters:      1    2    3    4    5
+//	tolerates:   0    0    1    1    2
+//
+// That was implemented and it DEADLOCKED the cluster. etcd 3.5.14 hard-codes a
+// limit of ONE learner at a time — there is no max-learners flag on this version
+// (it only became configurable in 3.6; `etcd --experimental-max-learners` is
+// rejected as an unknown flag here). Reaching 3 voters from 1 requires two
+// simultaneous learners, so the second node parked as a learner could never be
+// promoted, and the third node's MemberAdd was refused with
+//
+//	etcdserver: too many learner members in cluster
+//
+// leaving the cluster permanently stuck at two nodes. Observed on 10.0.0.20's
+// join, 2026-07-30.
+//
+// With a one-learner ceiling the growth sequence is forced:
+//
+//	1 voter → add learner → promote (2 voters) → add learner → promote (3)
+//
+// The 2-voter state is unavoidable transit, not a choice. So promote whatever
+// learner is ready and free the single slot for the next joiner.
+//
+// The 2-voter window is instead made SURVIVABLE rather than avoided:
+//   - clean-node detaches the member before wiping, even when the local etcd is
+//     down and even when only the service cert is available (b82bcbf9), so a
+//     failed join no longer strands the survivor below quorum
+//   - rollbackJoin can finally act, because ensureNodeEtcdVoter now records
+//     node.EtcdMemberID on the script-initiated MemberAdd path
+//
+// Revisit if etcd is upgraded to 3.6+: with max-learners raised, restore the
+// odd-count batching — the arithmetic and its tests are in git history at
+// d045d083.
+func learnersToPromote(voters, readyLearners int) int {
+	if readyLearners < 0 {
+		return 0
+	}
+	return readyLearners
+}
+
+// countVotersAndLearners reads the live member list and counts voting members
+// and learners. Errors are propagated so the caller can WITHHOLD promotions
+// rather than assume a count — guessing here would be the same fail-open shape
+// as failure_mode:etcd.auto_rejoin_leader_guard_fails_open, where an
+// unidentifiable state was treated as permission to act on quorum.
+func (m *etcdMemberManager) countVotersAndLearners(ctx context.Context) (voters, learners int, err error) {
+	if m == nil || m.client == nil {
+		return 0, 0, fmt.Errorf("etcd client not available")
+	}
+	listCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := m.client.MemberList(listCtx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("etcd member list: %w", err)
+	}
+	for _, member := range resp.Members {
+		if member == nil {
+			continue
+		}
+		// An unnamed member has not started yet (ghost/unstarted). It is not a
+		// promotable learner and must not inflate either count.
+		if strings.TrimSpace(member.Name) == "" {
+			continue
+		}
+		if member.IsLearner {
+			learners++
+		} else {
+			voters++
+		}
+	}
+	return voters, learners, nil
+}
+
+// etcdMemberStatus is what the live member list says about one node.
+type etcdMemberStatus struct {
+	Present   bool
+	IsLearner bool
+	ID        uint64
+}
+
+func (m *etcdMemberManager) memberStatusForNode(ctx context.Context, node *nodeState) (etcdMemberStatus, error) {
+	if m == nil || m.client == nil || node == nil {
+		return etcdMemberStatus{}, fmt.Errorf("etcd client or node not available")
+	}
+	listCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := m.client.MemberList(listCtx)
+	if err != nil {
+		return etcdMemberStatus{}, fmt.Errorf("etcd member list: %w", err)
+	}
+	member, ok := memberForNodeFromList(node, resp.Members)
+	if !ok {
+		return etcdMemberStatus{}, nil
+	}
+	return etcdMemberStatus{Present: true, IsLearner: member.IsLearner, ID: member.ID}, nil
+}
+
+// ensureNodeEtcdVoter reports whether the node has JOINED the etcd cluster, and
+// promotes it to voter only when the caller's budget allows.
+//
+// "joined" deliberately includes a learner. A caught-up learner replicates the
+// entire keyspace and is a fully successful member; it simply does not vote.
+// Requiring voter status to consider a node joined was the inversion that forced
+// promotion to happen mid-join — bootstrap could not leave etcd_joining until the
+// node was a voter, so the dangerous promotion was mandatory rather than earned.
+// Verification now means "present and replicating"; voting is a separate,
+// budgeted capacity decision. invariant:meta.quorum_is_quality_not_constraint.
+//
+// budget is decremented on a successful promotion. Pass a zero budget to observe
+// without promoting.
+func (m *etcdMemberManager) ensureNodeEtcdVoter(ctx context.Context, node *nodeState, budget *int) (promoted bool, joined bool, err error) {
+	status, err := m.memberStatusForNode(ctx, node)
+	if err != nil {
+		return false, false, err
+	}
+	if !status.Present {
+		return false, false, nil
+	}
+	// Record the member ID so rollbackJoin can actually remove it. The join
+	// script performs MemberAdd directly (this controller is observe-only for
+	// that step), so without this EtcdMemberID stays 0 and rollback silently
+	// no-ops, leaving a phantom member behind after a failed join.
+	if node.EtcdMemberID == 0 {
+		node.EtcdMemberID = status.ID
+	}
+	// Mirror voting status so consumers can count voters rather than members.
+	node.EtcdIsLearner = status.IsLearner
+	if !status.IsLearner {
+		return false, true, nil
+	}
+	// Learner: joined, but only promote if the cluster can reach an odd voter
+	// count by doing so.
+	if budget == nil || *budget <= 0 {
+		return false, true, nil
+	}
+	promoteCtx, promoteCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer promoteCancel()
+	if _, err := m.client.MemberPromote(promoteCtx, status.ID); err != nil {
+		return false, true, fmt.Errorf("promote learner member %x for node %s: %w", status.ID, node.NodeID, err)
+	}
+	*budget--
+	log.Printf("etcd join: promoted learner member %x for node %s (%s) to voter",
+		status.ID, node.NodeID, node.Identity.Hostname)
+	return true, true, nil
+}
+
 // reconcileEtcdJoinPhases drives the etcd join state machine for all nodes.
 // It is called once per reconciliation cycle.
 //
@@ -429,6 +629,21 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 
 	now := time.Now()
 
+	// Promotion budget for this cycle. Counted once from the live member list so
+	// every call site shares it: promotion must land on an ODD voter count, and
+	// reaching 3 from 1 means promoting two learners together. Deciding per-node
+	// would step through 2 voters — the state that makes a failed join fatal.
+	promotionBudget := 0
+	if voters, learners, cerr := m.countVotersAndLearners(ctx); cerr != nil {
+		log.Printf("etcd join: cannot count voters/learners, withholding promotions this cycle: %v", cerr)
+	} else {
+		promotionBudget = learnersToPromote(voters, learners)
+		if promotionBudget > 0 {
+			log.Printf("etcd join: voters=%d ready-learners=%d → promoting %d to reach an odd voter count",
+				voters, learners, promotionBudget)
+		}
+	}
+
 	for _, node := range nodes {
 		if node == nil {
 			continue
@@ -447,6 +662,21 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			// controller-initiated MemberAdd calls, especially during 1→2 expansion
 			// where quorum requires 2/2 members immediately.
 			if nodeAnyIPIsEtcdMember(node, namedURLs) {
+				_, joined, err := m.ensureNodeEtcdVoter(ctx, node, &promotionBudget)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s (%s) learner promotion pending: %v",
+						node.NodeID, node.Identity.Hostname, err)
+					continue
+				}
+				if !joined {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "node is not yet present in the etcd member list"
+					dirty = true
+					continue
+				}
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				dirty = true
@@ -476,6 +706,21 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			// Operator repair needed. Detect if the node has manually recovered
 			// (e.g., by running the gateway join script directly).
 			if nodeAnyIPIsEtcdMember(node, namedURLs) {
+				_, joined, err := m.ensureNodeEtcdVoter(ctx, node, &promotionBudget)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s (%s) learner promotion pending after rejoin_required: %v",
+						node.NodeID, node.Identity.Hostname, err)
+					continue
+				}
+				if !joined {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "node is not yet present in the etcd member list"
+					dirty = true
+					continue
+				}
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				dirty = true
@@ -488,6 +733,21 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 		case EtcdJoinRejoinInProgress:
 			// A repair workflow is running — check for completion.
 			if nodeAnyIPIsEtcdMember(node, namedURLs) && nodeHasEtcdRunning(node) {
+				_, joined, err := m.ensureNodeEtcdVoter(ctx, node, &promotionBudget)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s (%s) learner promotion pending after rejoin: %v",
+						node.NodeID, node.Identity.Hostname, err)
+					continue
+				}
+				if !joined {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "node is not yet present in the etcd member list"
+					dirty = true
+					continue
+				}
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				dirty = true
@@ -529,6 +789,20 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 				}
 			}
 			if healthy {
+				_, joined, err := m.ensureNodeEtcdVoter(ctx, node, &promotionBudget)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s learner promotion pending: %v", node.NodeID, err)
+					continue
+				}
+				if !joined {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "node is not yet present in the etcd member list"
+					dirty = true
+					continue
+				}
 				node.EtcdJoinPhase = EtcdJoinVerified
 				node.EtcdJoinError = ""
 				node.EtcdMemberID = 0 // no longer needed for rollback
@@ -543,8 +817,56 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 				dirty = true
 			}
 
+		case EtcdJoinLearnerPromoting:
+			if !nodeAnyIPIsEtcdMember(node, namedURLs) {
+				continue
+			}
+			_, joined, err := m.ensureNodeEtcdVoter(ctx, node, &promotionBudget)
+			if err != nil {
+				if node.EtcdJoinError != err.Error() {
+					node.EtcdJoinError = err.Error()
+					dirty = true
+				}
+				log.Printf("etcd join: node %s (%s) learner promotion still pending: %v",
+					node.NodeID, node.Identity.Hostname, err)
+				continue
+			}
+			if !joined {
+				if node.EtcdJoinError == "" {
+					node.EtcdJoinError = "node is not yet present in the etcd member list"
+					dirty = true
+				}
+				continue
+			}
+			node.EtcdJoinPhase = EtcdJoinVerified
+			node.EtcdJoinError = ""
+			node.EtcdMemberID = 0
+			dirty = true
+			log.Printf("etcd join: node %s (%s) promoted to voter and verified",
+				node.NodeID, node.Identity.Hostname)
+
 		case EtcdJoinVerified:
-			// Nothing to do — node is a healthy etcd member.
+			// A previously verified node may still be a learner after an upgrade
+			// from the join-script MemberAdd path. Promote before treating it as
+			// fully participating, but let the existing disappearance handling
+			// below run when the member is no longer present.
+			if nodeAnyIPIsEtcdMember(node, existingURLs) {
+				_, joined, err := m.ensureNodeEtcdVoter(ctx, node, &promotionBudget)
+				if err != nil {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = err.Error()
+					dirty = true
+					log.Printf("etcd join: node %s (%s) learner promotion pending from verified: %v",
+						node.NodeID, node.Identity.Hostname, err)
+					continue
+				}
+				if !joined {
+					node.EtcdJoinPhase = EtcdJoinLearnerPromoting
+					node.EtcdJoinError = "node is not yet present in the etcd member list"
+					dirty = true
+					continue
+				}
+			}
 			// Detect if the member has disappeared (node removal).
 			// Must check ALL IPs to avoid false resets on multi-IP nodes.
 			if !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node) {

@@ -1153,54 +1153,97 @@ invariants:
   title: Desired state must never be deleted based on installed-state observations
   required_tests:
   - golang/cluster_controller/cluster_controller_server/service_projection_test.go::TestComputeServiceProjection_DesiredNotInstalled
-- description: 'The founding 3 nodes must always carry core, control-plane, and storage profiles. This ensures etcd, ScyllaDB,
-    and MinIO each have their minimum quorum. The cluster will not converge without it.
+- description: 'Quorum is an observed quality/capacity posture of the current distributed system size, not a hidden admission
+    floor. A one-node cluster has one-node survivability, two nodes have two-node survivability, and larger clusters can
+    provide better fault tolerance. The controller must not manufacture quorum by rewriting placement intent.
 
     '
+  enforcement: "- Join RPC validates controller-signed placement intent without adding hidden quorum profiles.\n- SetNodeProfiles\
+    \ validates profile names and persistence without enforcing a global storage-count floor.\n- Day-1 readiness reports\
+    \ observed capacity; it does not block unrelated rollout only because fewer than a preferred number of storage nodes\
+    \ are present.\n"
   forbidden_fixes:
-  - weakening enforceFoundingProfiles to allow fewer than 3 storage nodes
-  - allowing the first 3 nodes to skip any of core/control-plane/storage
-  - making the quorum threshold configurable below 3
-  id: cluster.founding_profiles_quorum_immutable
+  - auto_promote_profiles_to_satisfy_quorum_floor
+  - block_join_or_rollout_on_global_storage_count_floor
+  id: meta.quorum_is_quality_not_constraint
   protects:
     files:
     - golang/cluster_controller/cluster_controller_server/profiles_normalize.go
     - golang/cluster_controller/cluster_controller_server/handlers_node.go
-  rationale: 'Discovered via // INVARIANT comment in profiles_normalize.go and enforced in handlers_node.go enforceFoundingProfiles().
-    If the founding constraint is relaxed, MinIO erasure coding collapses, ScyllaDB loses Raft quorum, and workflows cannot
-    persist state — a full cluster failure.
+    - golang/cluster_controller/cluster_controller_server/topology_safety.go
+    - golang/cluster_controller/cluster_controller_server/server.go
+    state:
+    - /globular/nodes/<id> with profiles list
+    - /globular/cluster_controller/state.Nodes profiles per node
+    symbols:
+    - SetNodeProfiles
+  rationale: 'Promoted from operational intent after removing the artificial quorum/profile floor. Component-specific
+    destructive storage operations may still gate on their own safety contract, but observed quorum/capacity is report
+    data for bootstrap, join, rollout, and profile assignment.
 
     '
   related_invariants:
-  - meta.identity_computation_must_be_invariant
+  - profile.intent_is_controller_owned_placement_contract
   required_tests:
-  - TestEnforceFoundingProfiles_RequiresAllThreeProfiles
-  - TestSetNodeProfiles_CannotDropStorageBelow3
+  - TestJoinAuthorization_DefaultProfilesAreNotQuorumCoerced
+  - TestTopologyPreflightDoesNotEnforceStorageCountFloor
   severity: critical
   status: active
-  title: First 3 nodes must have core + control-plane + storage profiles for quorum
-- description: 'SetNodeProfiles must refuse to remove core, control-plane, or storage from a node when doing so would drop
-    the cluster below MinQuorumNodes storage members.
+  title: Quorum is capacity posture, not a controller admission floor
+- description: 'SetNodeProfiles preserves explicit controller-owned placement intent. It validates profile names and
+    persistence, but it must not add or refuse valid profiles solely to satisfy a global storage-count floor.
 
     '
   forbidden_fixes:
-  - bypassing MinQuorumNodes check for "administrative convenience"
-  - deferring the quorum check to after the profile is written
-  id: cluster.profile_removal_guards_storage_quorum
+  - reintroducing storage-count coercion in SetNodeProfiles
+  - treating profile assignment as runtime quorum repair
+  id: cluster.profile_changes_preserve_operator_placement_intent
   protects:
     files:
     - golang/cluster_controller/cluster_controller_server/handlers_node.go
-  rationale: 'Discovered via // INVARIANT comment in handlers_node.go:116. Removing storage from a node below quorum silently
-    degrades MinIO and ScyllaDB before any alert fires — the cluster appears healthy until a second node fails.
+  rationale: 'Profiles are placement intent. Runtime quorum/capacity is reported separately from profile assignment.
 
     '
   related_invariants:
-  - meta.state_mutations_must_be_durably_committed_before_side_effects
+  - meta.quorum_is_quality_not_constraint
   required_tests:
-  - TestSetNodeProfiles_CannotDropStorageBelow3
+  - TestTopologyPreflightDoesNotEnforceStorageCountFloor
   severity: critical
   status: active
-  title: Removing foundational profiles is blocked if it drops storage below MinQuorumNodes
+  title: Profile changes preserve operator placement intent without quorum coercion
+- description: 'Assigned node profiles are placement intent owned exclusively by the controller. A gateway or
+    installer surface may courier a controller-signed JoinPlan and render scripts from it, but it must never
+    invent, default, or persist profile assignment on its own; a node agent executes the controller-assigned
+    profiles it receives and must never substitute observed/runtime state for that intent.
+
+    '
+  forbidden_fixes:
+  - gateway or installer assigns or defaults node profiles without a controller-signed JoinPlan
+  - node agent treats heartbeat-observed or runtime-discovered profiles as authoritative over controller-assigned intent
+  id: profile.intent_is_controller_owned_placement_contract
+  protects:
+    files:
+    - golang/cluster_controller/cluster_controller_server/profiles_normalize.go
+    - golang/cluster_controller/cluster_controller_server/handlers_node.go
+    - golang/cluster_controller/cluster_controller_server/topology_safety.go
+    - golang/cluster_controller/cluster_controller_server/server.go
+    state:
+    - /globular/nodes/<id> with profiles list
+    - /globular/cluster_controller/state.Nodes profiles per node
+  rationale: 'The controller is the single writer of node-profile placement intent; every other actor in the join
+    and convergence path (gateway, installer, node agent) is a reader or courier of that intent, never a second
+    writer. Splitting write authority across the join path is how profile assignment and runtime observation get
+    silently confused with each other.
+
+    '
+  related_invariants:
+  - meta.quorum_is_quality_not_constraint
+  - cluster.profile_changes_preserve_operator_placement_intent
+  required_tests:
+  - TestJoinAuthorization_DefaultProfilesAreNotQuorumCoerced
+  severity: critical
+  status: active
+  title: Node profile placement intent is controller-owned, never gateway- or agent-assigned
 - enforcement: 'Cross-layer health verdicts (e.g. "this service is degraded because
 
     L3 says installed but L4 says inactive") originate in cluster-doctor''s
@@ -3840,50 +3883,6 @@ invariants:
 
     '
   title: Override audit must explicitly name the bypassed policy
-- enforcement: "- Join RPC rejects a new node whose proposed profiles, when added to the existing\n  cluster, would leave\
-    \ fewer than 3 nodes carrying core+control-plane+storage.\n- SetNodeProfiles applies the same check before persisting\
-    \ a profile change.\n- Day-1 phase classifier remains at `infra_installing` until 3 fully-profiled nodes\n  are present\
-    \ and verified.\n"
-  forbidden_fixes:
-  - allow_join_without_storage_profile_when_quorum_below_three
-  - bypass_founding_check_for_special_node_kinds
-  id: founding.quorum.three_nodes_required
-  protects:
-    files:
-    - golang/cluster_controller/cluster_controller_server/server.go
-    state:
-    - /globular/nodes/<id> with profiles list
-    - /globular/cluster_controller/state.Nodes profiles per node
-    symbols:
-    - enforceFoundingProfiles
-    - SetNodeProfiles
-  required_tests:
-  - TestJoinRefusedBelowFoundingQuorum
-  - TestSetNodeProfilesRefusesStorageRemovalBelowQuorum
-  severity: critical
-  status: active
-  summary: 'Globular''s three core stateful services (etcd, ScyllaDB, MinIO) all require a minimum
-
-    of 3 nodes to operate without single-point-of-failure. The first three nodes of any
-
-    cluster MUST therefore carry the `core`, `control-plane`, AND `storage` profiles.
-
-
-    Enforced at join in `enforceFoundingProfiles()` in cluster_controller and CANNOT be
-
-    bypassed. Also enforced on profile change: SetNodeProfiles refuses to remove `storage`
-
-    from a node if the cluster would drop below 3 storage-profile nodes.
-
-
-    Until founding quorum is met, the cluster is operating in degraded day-0 mode: etcd
-
-    single-node, no ScyllaDB quorum, MinIO standalone. Day-1 is not complete until all
-
-    three founding nodes are joined and verified.
-
-    '
-  title: First 3 nodes of any cluster MUST have profiles core+control-plane+storage to satisfy etcd / ScyllaDB / MinIO quorum
 - enforcement: 'The actor_layer_mapping is the binding table. Any code that writes
 
     to etcd outside the actor named in this table for its target prefix
@@ -4303,7 +4302,7 @@ invariants:
     file: cluster_controller/cluster_controller_server/drift_action_planner.go
     reason: 'Four sites (:149, :157, :163, :168) map package names to
 
-      topology-gate categories (storage_quorum, ingress_participant,
+      topology-gate categories (objectstore_topology_mismatch, ingress_participant,
 
       controller_placement). The gate categories are internal drift
 
@@ -11488,3 +11487,111 @@ invariants:
     symbols:
     - PromotePrinciple
     - GenerateReconciliationReport
+- id: invariant.miniopoolnodes_entries_must_be_routable_ips_enforced_at_the
+  title: MinioPoolNodes entries must be routable IPs, enforced at the writer not repaired on load
+  severity: high
+  status: active
+  description: 'Every write to controllerState.MinioPoolNodes must store a bare routable IP (nodeRoutableIP(node)), never a hostname or FQDN. Four sites already depend on this without any writer-side rule: resolveMinioEndpoint (cluster_controller/server.go:1236) refuses to publish the objectstore DNS endpoint for a non-IP entry; config/minio_config.go:199 and config/objectstore_config.go:257 reject DNS hostnames as endpoints; cluster_doctor/rules/objectstore_contract.go:219 raises a finding for exactly this condition. Enforcement belongs at the producer. migratePoolNodeHostnames (state.go:843) is a load-time repair and cannot uphold an invariant that a runtime writer violates — it converts existing entries but runs only from state load (state.go:699, state.go:835), leaving every runtime-appended hostname active until the next restart. A repair path that assumes the defect is historical, while its producer still runs, converts a one-time migration into permanent breakage.'
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/handlers_status.go
+      - golang/cluster_controller/cluster_controller_server/state.go
+  related_failure_modes:
+    - failure.runtime_writer_re_creates_the_hostname_condition_a_load_time
+  contract: MinioPoolNodes must contain only bare routable IPs at every write site
+- id: invariant.a_satisfaction_rule_is_governance_ready_only_when_a_producti
+  title: A satisfaction rule is governance-ready only when a production lineage test proves it
+  severity: critical
+  status: active
+  description: 'Declaration, indexing and unit tests are NOT sufficient for an evidence-satisfaction rule to participate in governance. A rule becomes governance-ready only when all six hold: (1) its production producer exists; (2) a test invokes that producer directly, with no hand-built replacement fixture; (3) the emitted evidence receives the expected Satisfies binding through the catalog; (4) the evidence survives persistence and lookup in the real store, not only in-memory; (5) the domain qualifier accepts it under the declared rule; (6) mutating one real producer field at a time (authority, result, cluster, workflow binding, timestamp before dispatch) breaks satisfaction. Condition 6 distinguishes a rule that genuinely discriminates from one that accepts whatever the producer happens to emit. Conditions 2 and 4 exist because catalog, fixtures and producer can otherwise describe three different realities while every test passes.'
+  protects:
+    files:
+      - golang/ai_memory/domains/cluster_operator/satisfaction.go
+  related_failure_modes:
+    - failure.satisfaction_catalog_authored_from_imagined_producer_output
+  contract: A satisfaction rule must be transcribed from its production producer and proven by a lineage test, never authored alongside its own fixtures
+- id: package.day0_publish_set_must_cover_registry_day0_required
+  title: The day-0 repository publish set must cover every registry day0_required package (+ hard_deps)
+  severity: high
+  status: active
+  description: '"Day-0 required" is declared in packages/registry.yaml (packages[].day0_required: true),
+    but the artifacts actually REGISTERED into the repository at day-0 are chosen by a separate hardcoded
+    allowlist — CORE_PACKAGES in scripts/release/ensure-bootstrap-artifacts.sh. These are two independent
+    declarations of the same intent and MUST NOT drift: every registry package with day0_required: true
+    (and its hard_deps) MUST be matched by a CORE_PACKAGES glob, or its built .tgz (present in packages/dist/)
+    is never published — nodes then resolve "latest manifest" and get NotFound. install-day0.sh referencing
+    a tarball is NOT sufficient: install (local CAS) and publish (repository registration) are different
+    steps.'
+  contract: 'For all p in registry.packages where p.day0_required is true: p.name (and transitively p.hard_deps)
+    MUST be matched by a CORE_PACKAGES glob in scripts/release/ensure-bootstrap-artifacts.sh. Conversely
+    every CORE_PACKAGES entry MUST correspond to a real registry package (no dead patterns, e.g. the removed
+    "discovery_*").'
+  source_files:
+  - scripts/release/ensure-bootstrap-artifacts.sh
+  - packages/registry.yaml
+  - scripts/release/install-day0.sh
+  required_tests:
+  - scripts/validate-day0-package-contract.py
+  forbidden_fixes:
+  - Adding the missing package to CORE_PACKAGES by hand without also extending validate-day0-package-contract.py
+    — fixes the instance, leaves the drift class open.
+  - Treating install-day0.sh referencing the .tgz as proof of day-0 availability — install (local CAS)
+    and publish (repository registration) are distinct layers.
+  - Inferring day-0 availability from a non-empty installed_version in convergence detail — status=missing_in_repo
+    can coexist with an installed version (half_done_must_not_look_done).
+  related_invariants:
+  - package.entrypoint_binary_identity_single_source_of_truth
+  - meta.competing_writers_must_converge_or_be_fenced
+  - meta.half_done_must_not_look_done
+  provenance:
+    promoted_from: candidate
+    candidate_id: candidate.invariant.package.day0_publish_set_must_cover_registry_day0_required
+    discovered_from: session 2026-07-11
+    confidence_at_promotion: candidate
+    evidence: "- '2026-07-11: codex and alertmanager (registry day0_required: true) were built to\n  packages/dist/\
+      \ but omitted from CORE_PACKAGES, so the repository had no manifest\n  for them; node-agent workflow-runner\
+      \ logged \"resolve latest manifest ... NotFound\".\n  Fixed by adding alertmanager/claude/codex\
+      \ to CORE_PACKAGES, removing a dead \"discovery_*\"\n  pattern, and extending validate-day0-package-contract.py\
+      \ to gate the publish set\n  against registry.'"
+- id: governance.evidence_capture_must_not_fail_silent
+  title: A governance system may fail closed for guidance but must never fail silent for evidence capture
+  severity: critical
+  status: active
+  description: 'Authoritative read unavailable correctly blocks mutation. Knowledge write unavailable
+    silently discards the finding. That asymmetry breaks behavioral memory at its most valuable moment:
+    the run that proves the graph is stale is exactly the run whose evidence cannot be recorded. Every
+    governed run producing a diagnosis, refusal, contradiction or unrecorded architectural finding must
+    have a durable intake path INDEPENDENT of authoritative graph freshness. Suggested shape: two deliberately
+    separate surfaces — an authoritative graph (strict freshness, trusted guidance, may fail closed) and
+    an append-only evidence intake ledger (provenance required, accepts while the graph is stale, promoted
+    only after later validation). Intake entries should carry timestamp, workspace identity, source files,
+    evidence, proposed invariant or failure mode, graph freshness state, preflight refusal detail, agent
+    identity, and status pending_validation.'
+  source_files:
+  - .claude/hooks/enforce-briefing.sh
+  - .claude/hooks/enforce-briefing-bash.sh
+  - docs/awareness/candidates/session_discovered_invariants.yaml
+  proposed_invariants:
+  - Evidence intake must remain available while authoritative guidance is refused.
+  - A server that exposes a proposal capability with no backing awareness directory must fail at startup,
+    or advertise an explicit READ_ONLY status with a doctor finding and a capability response explaining
+    why. It must never advertise awareness_propose and then reject every proposal because the backing
+    path was omitted.
+  - The degraded-mode recording path must not require a surface that is unavailable in the degraded mode
+    it exists to serve.
+  provenance:
+    promoted_from: candidate
+    candidate_id: candidate.invariant.governance.evidence_capture_must_not_fail_silent
+    discovered_from: session 2026-08-03
+    confidence_at_promotion: candidate
+    evidence: '2026-08-03 session. awareness_propose refused three times: "propose write path is not configured;
+      start the server with -awareness-dir <docs/awareness>". Both running servers (sensei serve, awareness-graph)
+      were started without -awareness-dir. Three proposal attempts failed in one day. The F1 and F6 findings
+      remained recoverable from committed implementation evidence — commits, tests and negative controls
+      — but could not be promoted into the graph. The Scylla convergence-disposition finding above had
+      no independent code artifact and was at genuine risk of loss. Compounding it, awareness_preflight
+      and awareness_briefing both returned FailedPrecondition ("graph freshness stale ... live store missing
+      expected graph marker 339022f0...") while the PreToolUse hook enforce-briefing.sh requires a briefing
+      before editing docs/awareness/. The degraded-mode fallback documented in THIS FILE''s own header
+      is therefore gated behind the very surface that is degraded: while the graph is stale, the repository
+      cannot record that the graph is stale.'

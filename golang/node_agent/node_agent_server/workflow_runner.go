@@ -33,11 +33,19 @@ import (
 // reconciler with a single workflow run that installs packages in
 // tiered parallel batches.
 func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath string, inputs map[string]any) (*engine.Run, error) {
+	if inputs == nil {
+		inputs = make(map[string]any)
+	}
 	loader := v1alpha1.NewLoader()
 	def, err := loader.LoadFile(defPath)
 	if err != nil {
 		return nil, fmt.Errorf("load workflow definition %s: %w", defPath, err)
 	}
+	nodeProfiles, err := srv.ensureWorkflowNodeProfiles(def.Metadata.Name, inputs)
+	if err != nil {
+		return nil, err
+	}
+	profileGatedJoin := def.Metadata.Name == "node.join"
 
 	router := engine.NewRouter()
 
@@ -55,15 +63,19 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 	engine.RegisterNodeAgentActions(router, engine.NodeAgentConfig{
 		NodeID: srv.nodeID,
 		FetchAndInstall: func(ctx context.Context, pkg engine.PackageRef) error {
-			if pkg.Name == "keepalived" && !srv.shouldInstallKeepalived(ctx) {
-				log.Printf("workflow-runner: skipping keepalived (ingress disabled or node is not a VIP participant)")
-				return nil
-			}
 			// "discovery" is a retired package from older node.join definitions.
 			// Keep execution compatible with stale on-node workflow files until
 			// workflow package refresh lands everywhere.
 			if pkg.Name == "discovery" {
 				log.Printf("workflow-runner: skipping deprecated package %s from stale workflow definition", pkg.Name)
+				return nil
+			}
+			if profileGatedJoin && !workflowPackageAllowedForProfiles(pkg.Name, nodeProfiles) {
+				log.Printf("workflow-runner: skipping %s for node profiles %v (not authorized by component catalog)", pkg.Name, nodeProfiles)
+				return nil
+			}
+			if pkg.Name == "keepalived" && !srv.shouldInstallKeepalived(ctx) {
+				log.Printf("workflow-runner: skipping keepalived (ingress disabled or node is not a VIP participant)")
 				return nil
 			}
 			// Fast path: skip if already installed and the unit is active.
@@ -185,6 +197,10 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 				name := strings.TrimSpace(fmt.Sprint(pkgMap["name"]))
 				if name == "" {
 					return false, fmt.Errorf("package.name is required")
+				}
+				if profileGatedJoin && !workflowPackageAllowedForProfiles(name, nodeProfiles) {
+					log.Printf("workflow-runner: verification ignoring %s for node profiles %v (not authorized by component catalog)", name, nodeProfiles)
+					continue
 				}
 				kind := strings.ToUpper(strings.TrimSpace(fmt.Sprint(pkgMap["kind"])))
 				kinds := []string{kind}

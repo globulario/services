@@ -123,7 +123,7 @@ globular cluster nodes remove <node-id>
 
 This removes the node from the controller registry, etcd membership, and MinIO pool.
 
-> **Before removing a storage node**: confirm at least 2 other nodes have the `storage` profile. Dropping below 3 storage nodes breaks MinIO erasure coding and ScyllaDB replication.
+> **Before removing a storage node**: confirm the component-specific data safety plan. Lower storage counts reduce survivability; destructive MinIO/Scylla topology changes need explicit backup/repair intent.
 
 ### Step 2: Provision replacement hardware
 

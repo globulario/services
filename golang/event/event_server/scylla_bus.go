@@ -11,6 +11,11 @@ import (
 	"github.com/gocql/gocql"
 )
 
+// queryEventsLegacySeqLogLimiter rate-limits warnings about legacy/corrupt
+// event rows whose seq column is not a valid TimeUUID. The data issue still
+// needs cleanup, but flooding logs on every query makes recovery harder.
+var queryEventsLegacySeqLogLimiter atomic.Int64 // UnixNano of next allowed log
+
 // ---------------------------------------------------------------------------
 // ScyllaDB-backed durable event bus
 //
@@ -446,7 +451,7 @@ func (sb *scyllaBus) queryEvents(nameFilter string, afterSeq gocql.UUID, limit i
 			}
 		}
 		if closeErr := iter.Close(); closeErr != nil {
-			slog.Warn("scylla_bus: queryEvents iter.Close error", "err", closeErr)
+			sb.logQueryEventsCloseError(bucket, closeErr)
 		}
 		if len(events) >= limit {
 			break
@@ -454,6 +459,46 @@ func (sb *scyllaBus) queryEvents(nameFilter string, afterSeq gocql.UUID, limit i
 	}
 
 	return events, latestSeq
+}
+
+func (sb *scyllaBus) logQueryEventsCloseError(bucket string, err error) {
+	if err == nil {
+		return
+	}
+	if isLegacyQueryEventsSeqError(err) {
+		if !allowRateLimitedLog(&queryEventsLegacySeqLogLimiter, 30*time.Second) {
+			return
+		}
+		sb.logWarn("scylla_bus: queryEvents encountered legacy/corrupt seq rows; suppressing repeated warnings", "bucket", bucket, "err", err)
+		return
+	}
+	sb.logWarn("scylla_bus: queryEvents iter.Close error", "bucket", bucket, "err", err)
+}
+
+func (sb *scyllaBus) logWarn(msg string, args ...any) {
+	if sb != nil && sb.logger != nil {
+		sb.logger.Warn(msg, args...)
+		return
+	}
+	slog.Warn(msg, args...)
+}
+
+func isLegacyQueryEventsSeqError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "Unsupported UUID version (0)") ||
+		strings.Contains(s, "invalid timeuuid")
+}
+
+func allowRateLimitedLog(nextAllowed *atomic.Int64, interval time.Duration) bool {
+	now := time.Now().UnixNano()
+	current := nextAllowed.Load()
+	if now < current {
+		return false
+	}
+	return nextAllowed.CompareAndSwap(current, now+interval.Nanoseconds())
 }
 
 type pollEvent struct {

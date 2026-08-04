@@ -73,6 +73,11 @@ test_symbols:
     symbol: TestPackageKey
     package: installed_state
     language: go
+  - id: golang/installed_state/installed_state_test.go:TestParseInstalledPackageKey
+    file: golang/installed_state/installed_state_test.go
+    symbol: TestParseInstalledPackageKey
+    package: installed_state
+    language: go
   - id: golang/installed_state/installed_state_test.go:TestStaleSiblingKinds_DeletesStaleByDiskTruth
     file: golang/installed_state/installed_state_test.go
     symbol: TestStaleSiblingKinds_DeletesStaleByDiskTruth

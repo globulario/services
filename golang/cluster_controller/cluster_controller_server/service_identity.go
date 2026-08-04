@@ -16,6 +16,22 @@ func canonicalServiceName(name string) string {
 	return key
 }
 
+// splitDesiredServiceIdentity extracts an optional publisher namespace from a
+// DesiredService identifier. Local overrides send service_id as
+// "<publisher>/<name>" so desired-state validation can resolve the artifact in
+// the correct repository identity lane while the canonical key remains just the
+// normalized service name.
+func splitDesiredServiceIdentity(raw string) (publisherID, canonicalName string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", ""
+	}
+	if left, right, ok := strings.Cut(raw, "/"); ok && strings.Contains(left, "@") {
+		return strings.TrimSpace(left), canonicalServiceName(right)
+	}
+	return "", canonicalServiceName(raw)
+}
+
 // serviceUnitForCanonical returns the systemd unit name for a canonical service key.
 func serviceUnitForCanonical(svc string) string {
 	return identity.MustIdentityByKey(svc).UnitName

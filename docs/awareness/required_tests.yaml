@@ -2637,11 +2637,11 @@ required_tests:
   protects:
     invariants:
     - installer.explicit_version_requires_exact_artifact
-- id: TestJoinRefusedBelowFoundingQuorum
-  title: Join Refused Below Founding Quorum
+- id: TestJoinAuthorization_DefaultProfilesAreNotQuorumCoerced
+  title: Join Authorization Default Profiles Are Not Quorum Coerced
   protects:
     invariants:
-    - founding.quorum.three_nodes_required
+    - meta.quorum_is_quality_not_constraint
 - id: TestJoinScript_BashNSyntaxCheck
   title: Join Script Bash NSyntax Check
 - id: TestJoinScript_EtcdYamlExistingClusterState
@@ -3850,17 +3850,16 @@ required_tests:
     - service.lifecycle.version_field_must_not_be_overwritten
     failure_modes:
     - service.runtime_version_empty_from_main
-- id: TestSetNodeProfilesRefusesStorageRemovalBelowQuorum
-  title: Set Node Profiles Refuses Storage Removal Below Quorum
+- id: TestTopologyPreflightDoesNotEnforceStorageCountFloor
+  title: Topology Preflight Does Not Enforce Storage Count Floor
   protects:
     invariants:
-    - founding.quorum.three_nodes_required
-- id: TestSetNodeProfiles_CannotDropStorageBelow3
-  title: Set Node Profiles Cannot Drop Storage Below3
+    - meta.quorum_is_quality_not_constraint
+- id: TestDriftTopologyPreflight_DoesNotBlockTransitionalStorageCapacity
+  title: Drift Topology Preflight Does Not Block Transitional Storage Capacity
   protects:
     invariants:
-    - cluster.founding_profiles_quorum_immutable
-    - cluster.profile_removal_guards_storage_quorum
+    - meta.quorum_is_quality_not_constraint
 - id: TestSignatureVerificationBlocksInstall
   title: Signature Verification Blocks Install
   protects:

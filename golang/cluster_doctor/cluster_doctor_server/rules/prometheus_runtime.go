@@ -8,6 +8,39 @@ import (
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
+// heartbeatEpochFloorYear separates a REAL past heartbeat from the
+// unset-timestamp artifact.
+//
+// A heartbeat metric that was never set reads 0, so `time() - 0` yields an age
+// equal to the whole Unix epoch (~1.78e9s ≈ 56 years) and the IMPLIED heartbeat
+// instant lands on 1970. That is absence of evidence, not stale evidence.
+//
+// This used to be an upper age CUTOFF (30 days): any age beyond it was dropped
+// entirely. That silently hid genuinely stale evidence — a node dead 31, 100 or
+// 500 days is exactly what an operator most needs to see, and its finding simply
+// vanished. The discriminator is not "how old is it" but "does the implied
+// instant look like the epoch". There is deliberately no maximum age.
+//
+// Defense-in-depth only: collector/prometheus.go already excludes unset series
+// with a PromQL `> 0` filter. This catches a zero-based age arriving by some
+// other path. (repair.runtime_evidence_stale_or_conflicting)
+const heartbeatEpochFloorYear = 2000
+
+// heartbeatAgeIsRealEvidence reports whether a Prometheus-derived age describes
+// a real past heartbeat. now is the scrape instant the age was derived against.
+func heartbeatAgeIsRealEvidence(age float64, now time.Time) bool {
+	if age <= 0 {
+		// Zero or negative age: either the sample is absent/unset or the implied
+		// instant is in the future. Neither is past staleness evidence.
+		return false
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	implied := now.Add(-time.Duration(age * float64(time.Second)))
+	return implied.Year() >= heartbeatEpochFloorYear
+}
+
 // promRuntime checks Prometheus-fed control plane signals (if present).
 // Scope: cluster.
 type promRuntime struct{}
@@ -23,7 +56,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 
 	var findings []Finding
 
-	if age, ok := snap.PromMetrics["controller_loop_heartbeat_age"]; ok && age > 180 {
+	if age, ok := snap.PromMetrics["controller_loop_heartbeat_age"]; ok && age > 180 && heartbeatAgeIsRealEvidence(age, snap.PromTS) {
 		// Suppress when Prometheus only scrapes a non-leader controller instance.
 		// Non-leaders never update loop_heartbeat_unix (the heartbeat loop is
 		// gated on holding the leader lease), so their heartbeat age is always
@@ -85,7 +118,7 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 		})
 	}
 
-	if age, ok := snap.PromMetrics["node_heartbeat_age_max"]; ok && age > 120 {
+	if age, ok := snap.PromMetrics["node_heartbeat_age_max"]; ok && age > 120 && heartbeatAgeIsRealEvidence(age, snap.PromTS) {
 		findings = append(findings, Finding{
 			FindingID:   FindingID("prom.node_heartbeats_stale", "cluster", "nodes"),
 			InvariantID: "prometheus.node_heartbeats_stale",
@@ -489,14 +522,14 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 			EntityRef:   "controller",
 			Summary:     fmt.Sprintf("xDS counter advisory — %.0f reconcile event(s), 0 controller-driven xds restarts. This is normal on a stable cluster (xds service pushes snapshots over gRPC independent of this counter). Real apply-path-stuck signal needs a different metric (TODO).", xdsEvents),
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "xds_generation", map[string]string{
-				"events_total":  fmt.Sprintf("%.0f", xdsEvents),
-				"applied_total": fmt.Sprintf("%.0f", xdsApplied),
-				"classification":               "advisory-metric-mismatch",
-				"events_metric_meaning":        "watch events that *may* require xDS rebuild (every deploy)",
-				"applied_metric_meaning":       "controller injected globular-xds.service restart action because rendered hash changed",
-				"why_zero_is_normal":           "xds service pushes snapshots over gRPC continuously — does not increment this counter",
+				"events_total":                            fmt.Sprintf("%.0f", xdsEvents),
+				"applied_total":                           fmt.Sprintf("%.0f", xdsApplied),
+				"classification":                          "advisory-metric-mismatch",
+				"events_metric_meaning":                   "watch events that *may* require xDS rebuild (every deploy)",
+				"applied_metric_meaning":                  "controller injected globular-xds.service restart action because rendered hash changed",
+				"why_zero_is_normal":                      "xds service pushes snapshots over gRPC continuously — does not increment this counter",
 				"recommended_evidence_for_real_xds_stuck": "globular-xds.service systemd state + xds gRPC push failure metric (TODO)",
-				"timestamp":     snap.PromTS.UTC().Format(time.RFC3339),
+				"timestamp":                               snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_PASS,
 		})

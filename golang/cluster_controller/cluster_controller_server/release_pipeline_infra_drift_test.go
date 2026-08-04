@@ -182,6 +182,112 @@ func TestIsStaleResolvedGhost(t *testing.T) {
 	}
 }
 
+// TestCorrectKindFromRepo is the enforcement ratchet for the libnss-resolve
+// incident: a COMMAND-kind package published under an InfrastructureRelease
+// (nameIsNonServiceCatalogKind routes both true infrastructure and COMMAND
+// there — there is no separate resource type for COMMAND) was dispatched
+// with PackageKind=INFRASTRUCTURE and its installed-state written under the
+// wrong etcd kind, producing a permanent false
+// installed_state_runtime_mismatch doctor finding (no systemd unit exists
+// for a COMMAND package by design). The existing SERVICE→COMMAND correction
+// (added earlier for etcdctl/sha256sum/yt-dlp) only checked kind=="SERVICE";
+// INFRASTRUCTURE needs the identical correction.
+func TestCorrectKindFromRepo(t *testing.T) {
+	cases := []struct {
+		name string
+		kind string
+		repo string
+		want string
+	}{
+		{"service_corrected_to_command", "SERVICE", "COMMAND", "COMMAND"},
+		{"infrastructure_corrected_to_command", "INFRASTRUCTURE", "COMMAND", "COMMAND"},
+		{"service_unchanged_when_repo_service", "SERVICE", "SERVICE", "SERVICE"},
+		{"infrastructure_unchanged_when_repo_infrastructure", "INFRASTRUCTURE", "INFRASTRUCTURE", "INFRASTRUCTURE"},
+		{"command_unchanged_when_already_command", "COMMAND", "COMMAND", "COMMAND"},
+		{"application_unaffected", "APPLICATION", "COMMAND", "APPLICATION"},
+		{"empty_repo_kind_no_correction", "INFRASTRUCTURE", "", "INFRASTRUCTURE"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := correctKindFromRepo(c.kind, c.repo); got != c.want {
+				t.Errorf("correctKindFromRepo(%q, %q) = %q, want %q", c.kind, c.repo, got, c.want)
+			}
+		})
+	}
+}
+
+// TestCorrectKindFromRepoAndCatalog_RepoKindNeverPopulated is the enforcement
+// ratchet for the ACTUAL live failure: h.RepoKind is set by reconcilePending
+// onto a releaseHandle instance that reconcileResolved never reuses — the
+// reconcile loop rebuilds releaseHandle fresh from etcd via
+// infraReleaseHandle/serviceReleaseHandle between phases, and those adapters
+// hardcode InstalledStateKind and never persist RepoKind — so
+// correctKindFromRepo(kind, h.RepoKind) was silently inert for libnss-resolve
+// (repoKind arrived as "", the zero value) despite the repository's manifest
+// genuinely being published with kind=COMMAND. correctKindFromRepoAndCatalog
+// must correct via the packagekind registry (a local, always-available,
+// build-time source) even when repoKind is completely empty.
+func TestCorrectKindFromRepoAndCatalog_RepoKindNeverPopulated(t *testing.T) {
+	cases := []struct {
+		name        string
+		kind        string
+		repoKind    string
+		packageName string
+		want        string
+	}{
+		{"infra_corrected_via_packagekind_despite_empty_repo_kind", "INFRASTRUCTURE", "", "libnss-resolve", "COMMAND"},
+		{"infra_corrected_via_packagekind_for_other_known_commands", "INFRASTRUCTURE", "", "sha256sum", "COMMAND"},
+		{"service_corrected_via_packagekind_despite_empty_repo_kind", "SERVICE", "", "yt-dlp", "COMMAND"},
+		{"repo_kind_still_honored_when_packagekind_unknown", "INFRASTRUCTURE", "COMMAND", "totally-unregistered-name", "COMMAND"},
+		{"unrelated_infra_package_not_corrected", "INFRASTRUCTURE", "", "etcd", "INFRASTRUCTURE"},
+		{"empty_package_name_falls_back_to_repo_kind_only", "INFRASTRUCTURE", "", "", "INFRASTRUCTURE"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := correctKindFromRepoAndCatalog(c.kind, c.repoKind, c.packageName); got != c.want {
+				t.Errorf("correctKindFromRepoAndCatalog(%q, %q, %q) = %q, want %q",
+					c.kind, c.repoKind, c.packageName, got, c.want)
+			}
+		})
+	}
+}
+
+// TestReleaseResourceType_CommandMapsToInfrastructureRelease is the
+// enforcement ratchet for the third bug in the libnss-resolve incident chain:
+// once correctKindFromRepoAndCatalog correctly relabels a package's dispatch
+// kind as COMMAND, releaseResourceType(COMMAND) must return
+// "InfrastructureRelease" — NOT "ServiceRelease" — because
+// materializeMissingInfraDesired (gated by nameIsNonServiceCatalogKind)
+// ALWAYS creates an InfrastructureRelease object for both KindInfrastructure
+// and KindCommand catalog entries; nothing ever creates a ServiceRelease for
+// a COMMAND package. Getting this wrong makes mark_resolved look up a
+// ServiceRelease that was never created — "get ServiceRelease
+// core@globular.io/libnss-resolve: not found" on every single dispatch
+// attempt, forever, even after the dispatch-kind correction itself works
+// correctly (confirmed live: the log showed the correct
+// "corrected dispatch kind INFRASTRUCTURE→COMMAND" line immediately followed
+// by mark_resolved failing on the wrong resource type).
+func TestReleaseResourceType_CommandMapsToInfrastructureRelease(t *testing.T) {
+	cases := []struct {
+		kind string
+		want string
+	}{
+		{"INFRASTRUCTURE", "InfrastructureRelease"},
+		{"COMMAND", "InfrastructureRelease"},
+		{"SERVICE", "ServiceRelease"},
+		{"WORKLOAD", "ServiceRelease"},
+		{"APPLICATION", "ServiceRelease"},
+		{"", "ServiceRelease"},
+	}
+	for _, c := range cases {
+		t.Run(c.kind, func(t *testing.T) {
+			if got := releaseResourceType(c.kind); got != c.want {
+				t.Errorf("releaseResourceType(%q) = %q, want %q", c.kind, got, c.want)
+			}
+		})
+	}
+}
+
 // ── C1: detectInfraDrift ─────────────────────────────────────────────────────
 
 // TestDetectInfraDrift_UnitInactive_DowngradesToDegraded verifies that a node
@@ -378,10 +484,10 @@ func TestDetectInfraDrift_ServiceLikeComponents_InactiveIsDrift(t *testing.T) {
 		{"alertmanager", "globular-alertmanager.service"},
 		{"cluster-controller", "globular-cluster-controller.service"},
 		{"cluster-doctor", "globular-cluster-doctor.service"},
-		{"scylladb", "scylla-server.service"},             // packageUnitOverrides
-		{"xds", "globular-xds.service"},                  // control-plane mesh layer
-		{"sidekick", "globular-sidekick.service"},         // MinIO metrics proxy
-		{"node-exporter", "globular-node-exporter.service"}, // host metrics
+		{"scylladb", "scylla-server.service"},                             // packageUnitOverrides
+		{"xds", "globular-xds.service"},                                   // control-plane mesh layer
+		{"sidekick", "globular-sidekick.service"},                         // MinIO metrics proxy
+		{"node-exporter", "globular-node-exporter.service"},               // host metrics
 		{"scylla-manager", "globular-scylla-manager.service"},             // packageUnitOverrides
 		{"scylla-manager-agent", "globular-scylla-manager-agent.service"}, // packageUnitOverrides
 	}
@@ -486,6 +592,7 @@ func TestHasUnservedNodes_DegradedNode_IsUnserved(t *testing.T) {
 			"n1": {
 				NodeID:         "n1",
 				Status:         "ready",
+				Profiles:       []string{"control-plane"},
 				LastSeen:       time.Now(),
 				BootstrapPhase: BootstrapWorkloadReady,
 			},
@@ -521,10 +628,11 @@ func TestHasUnservedNodes_EmptyResolvedVersion_SkipsSignal2(t *testing.T) {
 	state := &controllerState{
 		Nodes: map[string]*nodeState{
 			"n1": {
-				NodeID:           "n1",
-				Status:           "ready",
-				LastSeen:         time.Now(),
-				BootstrapPhase:   BootstrapWorkloadReady,
+				NodeID:         "n1",
+				Status:         "ready",
+				Profiles:       []string{"control-plane"},
+				LastSeen:       time.Now(),
+				BootstrapPhase: BootstrapWorkloadReady,
 				InstalledVersions: map[string]string{
 					"scylladb": "", // empty installed version
 				},

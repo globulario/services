@@ -40,10 +40,19 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	queries := map[string]string{
-		"controller_loop_heartbeat_age": "time() - max(globular_controller_loop_heartbeat_unix)",
+		// The `> 0` filter excludes series whose heartbeat timestamp is still 0
+		// (a node/controller that has been scraped but has not yet recorded a
+		// successful heartbeat — e.g. a just-joined node). Without it,
+		// `time() - 0` yields the full Unix epoch (~1.78e9s ≈ 56 years) as a
+		// bogus "age", firing a false CRITICAL on every join. An unset heartbeat
+		// is "not yet reporting" (unknown), NOT "stale"; if every series is 0 the
+		// result is empty and the metric is simply absent (no false finding).
+		// See failure_mode controller.non_leader_heartbeat_false_positive and
+		// repair.runtime_evidence_stale_or_conflicting.
+		"controller_loop_heartbeat_age": "time() - max(globular_controller_loop_heartbeat_unix > 0)",
 		"workflow_oldest_active_age":    "globular_workflow_oldest_active_age_seconds",
 		"workflow_active_runs":          "globular_workflow_active_runs",
-		"node_heartbeat_age_max":        "max(time() - globular_node_agent_heartbeat_success_unix)",
+		"node_heartbeat_age_max":        "max(time() - (globular_node_agent_heartbeat_success_unix > 0))",
 		"etcd_has_leader":               "max(etcd_server_has_leader)",
 		// etcd_server_quorum_size doesn't exist in etcd 3.5.x.
 		// Use count(etcd_server_id) which counts how many etcd members

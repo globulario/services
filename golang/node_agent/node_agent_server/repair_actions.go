@@ -64,10 +64,10 @@ func (srv *NodeAgentServer) repairCollectFacts(ctx context.Context, nodeID strin
 	identityStatus := srv.checkIdentityIntegrity()
 
 	diagnosis := map[string]any{
-		"node_id":                    nodeID,
-		"packages":                   packageFacts,
-		"identity_integrity_status":  identityStatus,
-		"package_count":              len(packageFacts),
+		"node_id":                   nodeID,
+		"packages":                  packageFacts,
+		"identity_integrity_status": identityStatus,
+		"package_count":             len(packageFacts),
 	}
 
 	log.Printf("repair: collected %d package facts, identity=%s", len(packageFacts), identityStatus)
@@ -124,16 +124,17 @@ func (srv *NodeAgentServer) checkIdentityIntegrity() string {
 //
 // Only one repair-via-restart may be in-flight at a time (singleflight).
 //
+//  3. Controller version >= minSafeReconcileVersion (if controller was repaired)
+//  4. No non-authoritative observations in installed-state
+//
 //globular:enforces service.restart_singleflight
 //globular:state_transition INSTALLED -> RUNTIME
 //globular:risk service.restart_storm
-//  3. Controller version >= minSafeReconcileVersion (if controller was repaired)
-//  4. No non-authoritative observations in installed-state
 func (srv *NodeAgentServer) repairVerifyRuntime(ctx context.Context, nodeID string, repairPlan map[string]any) error {
 	log.Printf("repair: verifying runtime for %s", nodeID)
 
 	// Check 1: All packages must be "installed" (not partial_apply, failed, etc.)
-	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+	for _, kind := range authoritativeInstalledPackageKinds {
 		pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, kind)
 		if err != nil {
 			continue
@@ -200,7 +201,7 @@ func (srv *NodeAgentServer) repairSyncInstalledState(ctx context.Context, nodeID
 	// This only removes from installed-state (authority surface),
 	// NOT from diagnostic/observability surfaces.
 	cleaned := 0
-	for _, kind := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+	for _, kind := range authoritativeInstalledPackageKinds {
 		pkgs, err := installed_state.ListInstalledPackages(ctx, nodeID, kind)
 		if err != nil {
 			continue

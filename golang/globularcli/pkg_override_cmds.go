@@ -200,7 +200,7 @@ func runPkgOverride(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write override record: %w", err)
 	}
 
-	if err := upsertServiceDesiredVersion(serviceName, version, buildNumber, pkgOverrideBuildID); err != nil {
+	if err := upsertServiceDesiredVersion(serviceName, version, buildNumber, pkgOverrideBuildID, publisher); err != nil {
 		// Undo the override record if the desired state write fails.
 		_ = deleteLocalOverride(serviceName)
 		return fmt.Errorf("update desired state: %w", err)
@@ -239,7 +239,7 @@ func runPkgOverrideRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("override record for %s has no official snapshot — cannot safely restore; delete the override key manually if needed", serviceName)
 	}
 
-	if err := upsertServiceDesiredVersion(snap.ServiceName, snap.Version, snap.BuildNumber, snap.BuildID); err != nil {
+	if err := upsertServiceDesiredVersion(snap.ServiceName, snap.Version, snap.BuildNumber, snap.BuildID, snap.PublisherID); err != nil {
 		return fmt.Errorf("restore desired state: %w", err)
 	}
 

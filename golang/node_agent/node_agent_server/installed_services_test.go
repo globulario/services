@@ -18,6 +18,7 @@ func TestComputeInstalledServicesDeterministic(t *testing.T) {
 	versionutil.SetBaseDir(tmp)
 	t.Cleanup(func() { versionutil.SetBaseDir(oldBase) })
 	t.Setenv("GLOBULAR_SERVICES_DIR", tmp)
+	t.Setenv("PATH", t.TempDir())
 
 	writeMarker(t, filepath.Join(tmp, "gateway"), "1.0.0")
 	writeConfig(t, filepath.Join(tmp, "gateway.json"), map[string]interface{}{
@@ -81,6 +82,7 @@ func TestAppliedHashChangesWhenVersionChanges(t *testing.T) {
 	versionutil.SetBaseDir(tmp)
 	t.Cleanup(func() { versionutil.SetBaseDir(oldBase) })
 	t.Setenv("GLOBULAR_SERVICES_DIR", tmp)
+	t.Setenv("PATH", t.TempDir())
 
 	writeMarker(t, filepath.Join(tmp, "gateway"), "1.0.0")
 	writeConfig(t, filepath.Join(tmp, "gateway.json"), map[string]interface{}{
@@ -116,6 +118,20 @@ func TestAppliedHashNotAffectedByPublisher(t *testing.T) {
 
 	if h1, h2 := computeAppliedServicesHash(first), computeAppliedServicesHash(second); h1 != h2 {
 		t.Fatalf("hash should NOT differ when only publisher differs; got %q and %q", h1, h2)
+	}
+}
+
+func TestAppliedHashDeterministicWithDuplicateServiceNames(t *testing.T) {
+	first := map[ServiceKey]InstalledServiceInfo{
+		{PublisherID: "p1", ServiceName: "svc"}: {PublisherID: "p1", ServiceName: "svc", Version: "1"},
+		{PublisherID: "p2", ServiceName: "svc"}: {PublisherID: "p2", ServiceName: "svc", Version: "2"},
+	}
+	second := map[ServiceKey]InstalledServiceInfo{}
+	second[ServiceKey{PublisherID: "p2", ServiceName: "svc"}] = InstalledServiceInfo{PublisherID: "p2", ServiceName: "svc", Version: "2"}
+	second[ServiceKey{PublisherID: "p1", ServiceName: "svc"}] = InstalledServiceInfo{PublisherID: "p1", ServiceName: "svc", Version: "1"}
+
+	if h1, h2 := computeAppliedServicesHash(first), computeAppliedServicesHash(second); h1 != h2 {
+		t.Fatalf("hash should be deterministic with duplicate service names; got %q and %q", h1, h2)
 	}
 }
 

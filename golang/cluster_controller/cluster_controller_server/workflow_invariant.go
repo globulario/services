@@ -28,8 +28,6 @@ func (srv *server) buildInvariantConfig() engine.InvariantConfig {
 		ValidateWorkflows:        srv.invariantValidateWorkflows,
 		RepairWorkflows:          srv.invariantRepairWorkflows,
 		ValidateInfraQuorum:      srv.invariantValidateInfraQuorum,
-		EnforceQuorum:            srv.invariantEnforceQuorum,
-		VerifyQuorum:             srv.invariantVerifyQuorum,
 		ValidateFoundingProfiles: srv.invariantValidateFoundingProfiles,
 		ValidateMinioStorage:     srv.invariantValidateMinioStorage,
 		RepairMinioStorage:       srv.invariantRepairMinioStorage,
@@ -142,14 +140,14 @@ func (srv *server) invariantRepairWorkflows(ctx context.Context, missing []strin
 	return len(repair), nil
 }
 
-// invariantValidateInfraQuorum checks infrastructure quorum: etcd on all
-// nodes, ScyllaDB ≥ minScylla, MinIO ≥ minMinio.
+// invariantValidateInfraQuorum reports infrastructure capacity. etcd may still
+// be required on all registered nodes, but ScyllaDB/MinIO counts are observed
+// capacity, not controller-enforced global floors.
 func (srv *server) invariantValidateInfraQuorum(ctx context.Context, minScylla, minMinio int, etcdAllNodes bool) (map[string]any, error) {
 	srv.lock("invariantValidateInfraQuorum")
 	defer srv.unlock()
 
 	var violations []map[string]any
-	var candidates []map[string]any
 
 	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
 	cpCount := countNodesWithProfile(srv.state.Nodes, "control-plane")
@@ -163,8 +161,7 @@ func (srv *server) invariantValidateInfraQuorum(ctx context.Context, minScylla, 
 		})
 	}
 
-	// ScyllaDB quorum: needs storage profile on ≥ minScylla nodes.
-	if storageCount < minScylla {
+	if minScylla > 0 && storageCount < minScylla {
 		violations = append(violations, map[string]any{
 			"invariant": "scylladb_quorum",
 			"message":   fmt.Sprintf("need %d storage nodes, have %d", minScylla, storageCount),
@@ -173,8 +170,7 @@ func (srv *server) invariantValidateInfraQuorum(ctx context.Context, minScylla, 
 		})
 	}
 
-	// MinIO quorum: also needs storage profile on ≥ minMinio nodes.
-	if storageCount < minMinio {
+	if minMinio > 0 && storageCount < minMinio {
 		violations = append(violations, map[string]any{
 			"invariant": "minio_quorum",
 			"message":   fmt.Sprintf("need %d storage nodes, have %d", minMinio, storageCount),
@@ -183,78 +179,30 @@ func (srv *server) invariantValidateInfraQuorum(ctx context.Context, minScylla, 
 		})
 	}
 
-	// Build candidate list: non-storage nodes that could be promoted.
-	if len(violations) > 0 {
-		for id, n := range srv.state.Nodes {
-			if n.BlockedReason != "" {
-				continue
-			}
-			hasStorage := false
-			hasCP := false
-			for _, p := range n.Profiles {
-				if p == "storage" {
-					hasStorage = true
-				}
-				if p == "control-plane" {
-					hasCP = true
-				}
-			}
-			if hasStorage {
-				continue
-			}
-			candidates = append(candidates, map[string]any{
-				"node_id":           id,
-				"hostname":          n.Identity.Hostname,
-				"has_control_plane": hasCP,
-			})
-		}
-	}
-
 	report := map[string]any{
 		"violations":    violations,
-		"candidates":    candidates,
+		"candidates":    []map[string]any{},
 		"storage_count": storageCount,
 		"cp_count":      cpCount,
 		"total_nodes":   totalNodes,
+		"min_scylla":    minScylla,
+		"min_minio":     minMinio,
 	}
 	return report, nil
 }
 
-// invariantEnforceQuorum auto-promotes nodes to restore storage quorum.
-// Delegates to the existing enforceStorageQuorumLocked.
-func (srv *server) invariantEnforceQuorum(ctx context.Context, quorumReport map[string]any) error {
-	srv.lock("invariantEnforceQuorum")
-	defer srv.unlock()
-	srv.enforceStorageQuorumLocked()
-	return nil
-}
-
-// invariantVerifyQuorum re-checks that quorum requirements are met after
-// enforcement.
-func (srv *server) invariantVerifyQuorum(ctx context.Context, minScylla, minMinio int) (bool, error) {
-	srv.lock("invariantVerifyQuorum")
-	defer srv.unlock()
-
-	storageCount := countNodesWithProfile(srv.state.Nodes, "storage")
-	return storageCount >= minScylla && storageCount >= minMinio, nil
-}
-
-// invariantValidateFoundingProfiles checks that the founding nodes (first 3
-// by join order) have the required profiles.
+// invariantValidateFoundingProfiles reports how many nodes carry the traditional
+// core/control-plane/storage trio. It no longer treats that as an enforcement
+// floor for the first N nodes.
 func (srv *server) invariantValidateFoundingProfiles(ctx context.Context) (map[string]any, error) {
 	srv.lock("invariantValidateFoundingProfiles")
 	defer srv.unlock()
 
-	var violations []map[string]any
-
-	// When total nodes ≤ MinQuorumNodes, ALL nodes are founding nodes and
-	// must have all foundational profiles. When > MinQuorumNodes, we need at
-	// least MinQuorumNodes nodes with the full founding set.
 	requiredProfiles := []string{"core", "control-plane", "storage"}
 	totalNodes := len(srv.state.Nodes)
 
-	// Count how many nodes have the full founding set.
 	fullyEquipped := 0
+	var missing []map[string]any
 	for id, n := range srv.state.Nodes {
 		profileSet := make(map[string]bool, len(n.Profiles))
 		for _, p := range n.Profiles {
@@ -267,41 +215,22 @@ func (srv *server) invariantValidateFoundingProfiles(ctx context.Context) (map[s
 			}
 		}
 		if len(missingProfiles) > 0 {
-			// Only flag as violation if we need this node to be founding.
-			// When total ≤ MinQuorumNodes, every node must qualify.
-			if totalNodes <= MinQuorumNodes {
-				violations = append(violations, map[string]any{
-					"node_id":          id,
-					"hostname":         n.Identity.Hostname,
-					"missing_profiles": missingProfiles,
-					"current_profiles": n.Profiles,
-				})
-			}
+			missing = append(missing, map[string]any{
+				"node_id":          id,
+				"hostname":         n.Identity.Hostname,
+				"missing_profiles": missingProfiles,
+				"current_profiles": n.Profiles,
+			})
 		} else {
 			fullyEquipped++
 		}
 	}
 
-	// When total > MinQuorumNodes, check that at least MinQuorumNodes have
-	// the full set.
-	if totalNodes > MinQuorumNodes && fullyEquipped < MinQuorumNodes {
-		violations = append(violations, map[string]any{
-			"invariant":      "founding_quorum",
-			"message":        fmt.Sprintf("need %d fully-equipped nodes, have %d", MinQuorumNodes, fullyEquipped),
-			"have":           fullyEquipped,
-			"need":           MinQuorumNodes,
-		})
-	}
-
-	foundingCount := totalNodes
-	if foundingCount > MinQuorumNodes {
-		foundingCount = MinQuorumNodes
-	}
-
 	report := map[string]any{
-		"violations":      violations,
-		"founding_count":  foundingCount,
-		"fully_equipped":  fullyEquipped,
+		"violations":     []map[string]any{},
+		"missing":        missing,
+		"fully_equipped": fullyEquipped,
+		"total_nodes":    totalNodes,
 	}
 	return report, nil
 }
@@ -459,12 +388,12 @@ func (srv *server) invariantValidateMinioStorage(ctx context.Context) (map[strin
 	expectedEndpoints := len(poolNodes) * drivesPerNode
 	if expectedEndpoints < 4 && len(poolNodes) > 1 {
 		violations = append(violations, map[string]any{
-			"invariant":          "minio_erasure_set_too_small",
-			"message":            fmt.Sprintf("MinIO erasure set has %d endpoints (need ≥4 for distributed mode)", expectedEndpoints),
-			"pool_nodes":         len(poolNodes),
-			"drives_per_node":    drivesPerNode,
-			"total_endpoints":    expectedEndpoints,
-			"severity":           "WARN",
+			"invariant":       "minio_erasure_set_too_small",
+			"message":         fmt.Sprintf("MinIO erasure set has %d endpoints (need ≥4 for distributed mode)", expectedEndpoints),
+			"pool_nodes":      len(poolNodes),
+			"drives_per_node": drivesPerNode,
+			"total_endpoints": expectedEndpoints,
+			"severity":        "WARN",
 		})
 	}
 
@@ -651,33 +580,33 @@ func (srv *server) invariantValidatePKIHealth(ctx context.Context) (map[string]a
 		switch {
 		case days <= 0:
 			violations = append(violations, map[string]any{
-				"invariant":  "pki_cert_expired",
-				"node_id":    id,
-				"hostname":   n.Identity.Hostname,
-				"message":    fmt.Sprintf("server certificate EXPIRED (not_after=%s)", cert.GetNotAfter()),
-				"not_after":  cert.GetNotAfter(),
-				"days_left":  days,
-				"severity":   "CRITICAL",
+				"invariant": "pki_cert_expired",
+				"node_id":   id,
+				"hostname":  n.Identity.Hostname,
+				"message":   fmt.Sprintf("server certificate EXPIRED (not_after=%s)", cert.GetNotAfter()),
+				"not_after": cert.GetNotAfter(),
+				"days_left": days,
+				"severity":  "CRITICAL",
 			})
 		case days <= 7:
 			violations = append(violations, map[string]any{
-				"invariant":  "pki_cert_expiring_soon",
-				"node_id":    id,
-				"hostname":   n.Identity.Hostname,
-				"message":    fmt.Sprintf("server certificate expires in %d days", days),
-				"not_after":  cert.GetNotAfter(),
-				"days_left":  days,
-				"severity":   "ERROR",
+				"invariant": "pki_cert_expiring_soon",
+				"node_id":   id,
+				"hostname":  n.Identity.Hostname,
+				"message":   fmt.Sprintf("server certificate expires in %d days", days),
+				"not_after": cert.GetNotAfter(),
+				"days_left": days,
+				"severity":  "ERROR",
 			})
 		case days <= 30:
 			violations = append(violations, map[string]any{
-				"invariant":  "pki_cert_expiring_soon",
-				"node_id":    id,
-				"hostname":   n.Identity.Hostname,
-				"message":    fmt.Sprintf("server certificate expires in %d days", days),
-				"not_after":  cert.GetNotAfter(),
-				"days_left":  days,
-				"severity":   "WARN",
+				"invariant": "pki_cert_expiring_soon",
+				"node_id":   id,
+				"hostname":  n.Identity.Hostname,
+				"message":   fmt.Sprintf("server certificate expires in %d days", days),
+				"not_after": cert.GetNotAfter(),
+				"days_left": days,
+				"severity":  "WARN",
 			})
 		}
 
@@ -945,7 +874,7 @@ func (srv *server) invariantRepairDiskSpace(ctx context.Context, diskReport map[
 			continue
 		}
 		resp, vacErr := agent.client.CleanupDiskJournal(ctx, &node_agentpb.CleanupDiskJournalRequest{
-			MaxAgeDays:   7,  // keep 7 days of logs
+			MaxAgeDays:   7,   // keep 7 days of logs
 			TargetSizeMb: 512, // cap journal at 512 MiB on critical nodes
 		})
 		if vacErr != nil {
@@ -1030,13 +959,13 @@ func (srv *server) invariantValidateNodeReachability(_ context.Context, warnAfte
 	quorumAtRisk := len(critical) >= 2
 
 	return map[string]any{
-		"warn":            warn,
-		"critical":        critical,
-		"warn_count":      len(warn),
-		"critical_count":  len(critical),
-		"quorum_at_risk":  quorumAtRisk,
-		"warn_threshold":  warnAfterSec,
-		"crit_threshold":  criticalAfterSec,
+		"warn":           warn,
+		"critical":       critical,
+		"warn_count":     len(warn),
+		"critical_count": len(critical),
+		"quorum_at_risk": quorumAtRisk,
+		"warn_threshold": warnAfterSec,
+		"crit_threshold": criticalAfterSec,
 	}, nil
 }
 
@@ -1081,11 +1010,11 @@ func (srv *server) invariantFenceUnreachableNodes(_ context.Context, report map[
 			log.Printf("invariant-reachability: fencing %s (%s) — heartbeat absent >%s",
 				n.Identity.Hostname, id, report["crit_threshold"])
 			srv.emitClusterEvent("controller.invariant.node_partitioned", map[string]interface{}{
-				"node_id":              id,
-				"hostname":             n.Identity.Hostname,
-				"partition_fenced_at":  now,
-				"severity":             "CRITICAL",
-				"action":               "deployments_paused_on_node",
+				"node_id":             id,
+				"hostname":            n.Identity.Hostname,
+				"partition_fenced_at": now,
+				"severity":            "CRITICAL",
+				"action":              "deployments_paused_on_node",
 			})
 			fenced = append(fenced, map[string]any{
 				"node_id":  id,
@@ -1099,10 +1028,10 @@ func (srv *server) invariantFenceUnreachableNodes(_ context.Context, report map[
 			log.Printf("invariant-reachability: unfencing %s (%s) — heartbeat resumed (was fenced since %s)",
 				n.Identity.Hostname, id, since)
 			srv.emitClusterEvent("controller.invariant.node_partition_healed", map[string]interface{}{
-				"node_id":            id,
-				"hostname":           n.Identity.Hostname,
-				"was_fenced_since":   since,
-				"healed_at":          now,
+				"node_id":          id,
+				"hostname":         n.Identity.Hostname,
+				"was_fenced_since": since,
+				"healed_at":        now,
 			})
 			unfenced = append(unfenced, map[string]any{
 				"node_id":  id,

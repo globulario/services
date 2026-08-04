@@ -235,8 +235,8 @@ type permCacheEntry struct {
 // regress (it was 15m before 2026-06-09). A longer-but-invalidated cache is the
 // preferred future fix; until then, bound the window.
 const (
-	permGrantTTL        = 60 * time.Second
-	permDenyTTL         = 30 * time.Second
+	permGrantTTL         = 60 * time.Second
+	permDenyTTL          = 30 * time.Second
 	permGrantTTLMaxBound = 60 * time.Second
 )
 
@@ -985,7 +985,6 @@ func callHandlerWithLogging(ctx context.Context, rqst interface{}, handler grpc.
 // unauthenticated allowlist → sa bypass (legacy, expvar-observable) →
 // role binding → resource RBAC → DenyUnmapped.
 // Any reordering of these stages is a security regression.
-//
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	reqStart := time.Now()
 
@@ -1179,6 +1178,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// NOTE: The RBAC service is excluded from the role-binding check below
 	// (strings.HasPrefix guard), so there is no circular-call risk here.
 	if clusterInitialized && authCtx != nil && authCtx.Subject == "sa" {
+		if strings.HasPrefix(method, "/rbac.RbacService/") {
+			LogAuthzDecisionSimple(authCtx, true, "rbac_service_self")
+			return callHandlerWithLogging(ctx, rqst, handler, address, application, method)
+		}
 		if security.IsRoleBasedMethod(actionKey) {
 			// Method is explicitly role-mapped — check if "sa" has bindings.
 			if allowed, _ := checkRoleBinding("sa", actionKey, method, address); allowed {
@@ -1266,7 +1269,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	if authCtx != nil && authCtx.Subject != "" {
 		// Use identity from AuthContext (already validated during NewAuthContext)
 		// This respects both md["token"] AND Authorization header (consistent extraction)
-		clientId = authCtx.Subject // Canonical identity (PrincipalID with fallbacks)
+		clientId = authCtx.Subject   // Canonical identity (PrincipalID with fallbacks)
 		issuer = authCtx.GetIssuer() // Issuer for NODE_IDENTITY authorization
 	}
 
@@ -1346,7 +1349,7 @@ type ServerStreamInterceptorStream struct {
 	token        string
 	application  string
 	clientId     string
-	uuid         string // cache slot for this stream
+	uuid         string                // cache slot for this stream
 	authCtx      *security.AuthContext // Phase 1: for audit logging
 }
 
@@ -1421,7 +1424,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	if l.authCtx != nil && l.authCtx.Subject != "" {
 		// Use identity from AuthContext (already validated during stream setup)
 		// This respects both md["token"] AND Authorization header (consistent extraction)
-		clientId = l.authCtx.Subject // Canonical identity (PrincipalID with fallbacks)
+		clientId = l.authCtx.Subject   // Canonical identity (PrincipalID with fallbacks)
 		issuer = l.authCtx.GetIssuer() // Issuer for NODE_IDENTITY authorization
 	}
 

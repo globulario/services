@@ -358,7 +358,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	if svc == nil {
 		return fmt.Errorf("nil service")
 	}
-	canon := canonicalServiceName(svc.ServiceId)
+	publisherID, canon := splitDesiredServiceIdentity(svc.ServiceId)
 	if canon == "" {
 		return fmt.Errorf("invalid service_id %q", svc.ServiceId)
 	}
@@ -392,7 +392,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 	// audited allow_regression override) — enforced per write path: the SERVICE
 	// floor below, and the infrastructure floor inside routeInfrastructureDesired.
 	// No more version mutation here, so no auto-correct fallback is needed.
-	buildID, err := srv.validateArtifactInRepo(ctx, canon, version, svc.BuildNumber)
+	buildID, err := srv.validateArtifactInRepo(ctx, publisherID, canon, version, svc.BuildNumber)
 	if err != nil {
 		return err
 	}
@@ -440,6 +440,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 			Version:     version,
 			BuildNumber: svc.BuildNumber,
 			BuildID:     buildID,
+			PublisherID: publisherID,
 		},
 	}
 	if _, err = srv.resources.Apply(ctx, "ServiceDesiredVersion", obj); err != nil {
@@ -456,7 +457,7 @@ func (srv *server) upsertOne(ctx context.Context, svc *cluster_controllerpb.Desi
 
 	// Ensure a corresponding ServiceRelease exists so the release reconciler can
 	// track per-service lifecycle phases.
-	srv.ensureServiceRelease(ctx, canon, "", version, svc.BuildNumber)
+	srv.ensureServiceRelease(ctx, canon, publisherID, version, svc.BuildNumber)
 
 	return nil
 }
@@ -581,7 +582,7 @@ func (srv *server) highestHealthyInstalledVersion(serviceName string) (string, b
 // validateArtifactInRepo verifies the artifact exists in the repository and
 // returns its build_id. Phase 2: the build_id is persisted into desired-state
 // so convergence can use exact identity.
-func (srv *server) validateArtifactInRepo(ctx context.Context, serviceName, version string, buildNumber int64) (string, error) {
+func (srv *server) validateArtifactInRepo(ctx context.Context, publisherID, serviceName, version string, buildNumber int64) (string, error) {
 	// Resolve repository address — same path used by the release resolver.
 	addr := config.ResolveServiceAddr("repository.PackageRepository", "")
 	if addr == "" {
@@ -591,7 +592,10 @@ func (srv *server) validateArtifactInRepo(ctx context.Context, serviceName, vers
 
 	// Use the system default publisher — same as ensureServiceRelease,
 	// RemoveDesiredService, and the reconciler.
-	publisher := defaultPublisherID()
+	publisher := strings.TrimSpace(publisherID)
+	if publisher == "" {
+		publisher = defaultPublisherID()
+	}
 
 	// Default platform — same as release_resolver.go:120-124.
 	platform := "linux_amd64"
@@ -787,10 +791,10 @@ func (srv *server) ListDesiredBuildIDs(ctx context.Context, _ *cluster_controlle
 	wg.Wait()
 
 	for kind, res := range map[string]listResult{
-		"ServiceDesiredVersion":  sdvRes,
-		"ServiceRelease":         svcRelRes,
-		"InfrastructureRelease":  infraRelRes,
-		"ApplicationRelease":     appRelRes,
+		"ServiceDesiredVersion": sdvRes,
+		"ServiceRelease":        svcRelRes,
+		"InfrastructureRelease": infraRelRes,
+		"ApplicationRelease":    appRelRes,
 	} {
 		if res.err != nil {
 			return nil, status.Errorf(codes.Unavailable,
@@ -965,7 +969,7 @@ func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_contro
 	if err == nil && obj != nil {
 		if rel, ok := obj.(*cluster_controllerpb.ServiceRelease); ok && rel.Spec != nil {
 			rel.Spec.Removing = true
-			if _, err := srv.resources.Apply(ctx, "ServiceRelease", rel); err != nil {
+			if _, err := srv.applyServiceRelease(ctx, rel); err != nil {
 				return nil, status.Errorf(codes.Internal, "mark release %s for removal: %v", releaseName, err)
 			}
 		}
@@ -1150,10 +1154,33 @@ func (srv *server) importInstalledToDesired(ctx context.Context) (importStats, e
 		// allowRegression=false: seeding desired from observed install must never
 		// pull an existing desired record backward
 		// (forbidden_fix:materialize_desired_from_unverified_local_install).
+		// BuildNumber is deliberately NOT carried over from the installed
+		// observation. It is a display-only monotonic counter (see
+		// pkgpack/manifest.go: "NOT used in convergence") and the two sides
+		// number it independently: a locally-built bundle stamps a
+		// timestamp-style value (e.g. 1785443290) while the repository
+		// allocates its own sequence (1, 2, ...) at publish. Feeding the
+		// installed value into upsertOne makes validateArtifactInRepo perform
+		// an EXACT-key manifest lookup that can never match, so every service
+		// is rejected NotFound and desired state stays permanently empty —
+		// which leaves release_boundary A0..A3 INDETERMINATE for every service
+		// (observed on a clean Day-0 of 1.2.279: 24/24 services skipped).
+		//
+		// Leaving it 0 selects readManifestWithFallback's documented path,
+		// "resolve to the latest (highest) PUBLISHED build number first".
+		// Repository validation still runs, so
+		// forbidden_fix:materialize_desired_from_unverified_local_install
+		// remains enforced: an install with no published artifact is still
+		// rejected. upsertOne then persists the repository's authoritative
+		// build_id, which is the real convergence identity.
+		//
+		// invariant:desired.keyed_by_kind_and_name — desired records are keyed
+		// by (kind, name), not by build number.
+		// invariant:meta.identity_computation_must_be_invariant — identity must
+		// not vary by which writer observed it.
 		if err := srv.upsertOne(ctx, &cluster_controllerpb.DesiredService{
-			ServiceId:   name,
-			Version:     inst.version,
-			BuildNumber: inst.buildNumber,
+			ServiceId: name,
+			Version:   inst.version,
 		}, false); err != nil {
 			if status.Code(err) == codes.NotFound {
 				stats.Skipped++

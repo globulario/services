@@ -50,6 +50,23 @@ var startRunFn = func(srv *server, ctx context.Context, req *workflowpb.StartRun
 	return srv.StartRun(ctx, req)
 }
 
+// legacyRunStatusString maps the full RunStatus enum onto
+// ExecuteWorkflowResponse.Status's documented contract ("terminal: "SUCCEEDED"
+// or "FAILED""). Using RunStatus.String() directly (as every construction
+// site in ExecuteWorkflow previously did) produces "RUN_STATUS_SUCCEEDED"
+// instead — silently breaking every caller that compares
+// resp.Status == "SUCCEEDED" (e.g. RunBootstrapWorkflow), which always read
+// as failed even on success. Only RUN_STATUS_SUCCEEDED maps to "SUCCEEDED";
+// every other terminal or non-terminal state (FAILED, BLOCKED, DEFERRED, ...)
+// maps to "FAILED" — callers of this legacy string field only ever branch on
+// succeeded-or-not.
+func legacyRunStatusString(status workflowpb.RunStatus) string {
+	if status == workflowpb.RunStatus_RUN_STATUS_SUCCEEDED {
+		return "SUCCEEDED"
+	}
+	return "FAILED"
+}
+
 // ExecuteWorkflow loads a workflow definition from etcd, builds a remote-
 // dispatch router for actor callbacks, runs the engine, and auto-records
 // the entire run to ScyllaDB.
@@ -122,7 +139,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 			)
 			return &workflowpb.ExecuteWorkflowResponse{
 				RunId:  req.CorrelationId,
-				Status: workflowpb.RunStatus_RUN_STATUS_FAILED.String(),
+				Status: legacyRunStatusString(workflowpb.RunStatus_RUN_STATUS_FAILED),
 				Error: fmt.Sprintf("ABANDONED after %d/%d defers on step %s: %s — operator must clear with `globular workflow defer-state clear --correlation-id %s`",
 					state.DeferCount, state.MaxDefers, state.LastStepID, state.LastReason, req.CorrelationId),
 			}, nil
@@ -144,7 +161,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 			)
 			return &workflowpb.ExecuteWorkflowResponse{
 				RunId:  dr.GetId(),
-				Status: dr.GetStatus().String(),
+				Status: legacyRunStatusString(dr.GetStatus()),
 				Error: fmt.Sprintf("dispatch skipped: prior run %s deferred until %d (defer_count=%d): %s",
 					dr.GetId(), dr.GetBackoffUntilMs(), dr.GetRetryAttempt(), dr.GetErrorMessage()),
 			}, nil
@@ -164,14 +181,26 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	defer dispatcher.close()
 
 	router := engine.NewRouter()
-	// Register workflow-service as a local actor (self-dispatch for child
-	// workflows and drift tracking). Uses a no-op config for now — these
-	// actions are only used by cluster.reconcile which is Phase E.
-	engine.RegisterWorkflowServiceActions(router, engine.WorkflowServiceConfig{})
 
 	// Register fallback handlers for all remote actors. The fallback is
 	// transport-only: it marshals the ActionRequest to gRPC and calls the
 	// actor's WorkflowActorService.ExecuteAction endpoint.
+	//
+	// workflow-service (workflow.start_child / workflow.wait_child_terminal)
+	// is deliberately NOT given a local no-op handler here. Router.Resolve
+	// checks exact (actor, action) handlers before falling back, so a local
+	// registration with an empty WorkflowServiceConfig would silently shadow
+	// this fallback: workflowStartChild/workflowWaitChildTerminal return a
+	// hardcoded {"run_id":"mock-run"} / {"status":"SUCCEEDED"} when their
+	// config funcs are nil, making every workflow.start_child call for any
+	// caller that (like cluster-controller) DOES supply a real
+	// "workflow-service" actor endpoint a silent no-op — child workflows
+	// (e.g. release.apply.package dispatched from cluster.reconcile) never
+	// actually run, but report SUCCEEDED. Route it through the fallback like
+	// every other actor so the caller's real endpoint is invoked; a caller
+	// that omits "workflow-service" from ActorEndpoints now fails closed
+	// ("no handler for workflow-service::workflow.start_child") instead of
+	// fabricating success.
 	for actorType := range req.ActorEndpoints {
 		at := actorType // capture
 		router.RegisterFallback(v1alpha1.ActorType(at), dispatcher.makeHandler(at))
@@ -470,7 +499,7 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	// ── 8. Build response ────────────────────────────────────────────────
 	resp := &workflowpb.ExecuteWorkflowResponse{
 		RunId:  runID,
-		Status: status.String(),
+		Status: legacyRunStatusString(status),
 		Error:  errMsg,
 	}
 	if run != nil && run.Outputs != nil {
@@ -479,14 +508,16 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 		}
 	}
 
-	// AL-1: Project incident to ai-memory on FAILED/BLOCKED runs.
+	// AL-1: Project incident to ai-memory on terminal FAILED runs. The
+	// authoritative enum is passed explicitly — resp.Status is the lossy legacy
+	// rendering and must not drive internal classification.
 	// Fire-and-forget with a bounded timeout — learning must never block
 	// workflow response, but unbounded goroutines must not accumulate when
 	// ai-memory is slow. See meta.failure_response_must_contract_not_amplify.
 	incidentCtx, incidentCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	go func() {
 		defer incidentCancel()
-		srv.projectIncident(incidentCtx, req, resp)
+		srv.projectIncident(incidentCtx, req, resp, status)
 	}()
 
 	return resp, nil

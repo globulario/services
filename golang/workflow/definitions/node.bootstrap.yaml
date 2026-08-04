@@ -127,6 +127,42 @@ spec:
         idempotency: safe_retry
         resume_policy: retry
 
+    - id: mark_awareness_ready
+      title: Mark node as awareness_ready
+      # Root cause (see incident: Day-1 storage-profile joins always failing
+      # their first node.bootstrap attempt on maybe_wait_storage, 2026-07-24):
+      # controller.bootstrap.wait_condition never updates BootstrapPhase (its
+      # declared `phase:` field is metadata only, not applied by
+      # controllerWaitCondition) — so without this step, BootstrapPhase stays
+      # frozen at infra_preparing for this workflow's entire run. Scylla-join
+      # tracking (nodeIsPreparedForScyllaJoin in scylla_members.go) requires
+      # BootstrapPhase to be None/awareness_ready/storage_joining/workload_ready
+      # before it will even start — a gate the legacy reconcileBootstrapPhases
+      # reconciler normally satisfies, but that reconciler is suppressed for
+      # this workflow's whole run (BootstrapWorkflowActive=true). Without this
+      # explicit transition, Scylla-join can never begin until AFTER this
+      # workflow fails and exits, guaranteeing maybe_wait_storage times out on
+      # every first attempt. This step gives Scylla-join tracking a real head
+      # start, matching the phase's original documented intent in
+      # scylla_members.go: "awareness_ready is included so ScyllaDB join can
+      # start while the awareness bundle is still being fetched."
+      dependsOn: [maybe_wait_envoy]
+      actor: cluster-controller
+      action: controller.bootstrap.set_phase
+      with:
+        phase: awareness_ready
+      execution:
+        idempotency: safe_retry
+        resume_policy: verify_effect
+      verification:
+        actor: cluster-controller
+        action: controller.bootstrap.verify_phase
+        with:
+          node_id: $.node_id
+          phase: awareness_ready
+        success:
+          expr: phase_matches == true
+
     - id: maybe_wait_storage
       title: Wait for storage subsystems to be verified
       when:
@@ -134,7 +170,7 @@ spec:
           - expr: contains(inputs.node_profiles, 'minio')
           - expr: contains(inputs.node_profiles, 'scylla')
           - expr: contains(inputs.node_profiles, 'storage')
-      dependsOn: [maybe_wait_envoy]
+      dependsOn: [mark_awareness_ready]
       actor: cluster-controller
       action: controller.bootstrap.wait_condition
       with:
@@ -154,6 +190,7 @@ spec:
         - maybe_wait_etcd_join
         - maybe_wait_xds
         - maybe_wait_envoy
+        - mark_awareness_ready
         - maybe_wait_storage
       actor: cluster-controller
       action: controller.bootstrap.set_phase

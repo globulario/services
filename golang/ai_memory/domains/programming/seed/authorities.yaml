@@ -1,0 +1,48 @@
+# programming authority catalog — who owns which software truth.
+# Generic shape: id + title + opaque fields (parsed into a Fields bag; the kernel
+# never interprets them). `rank` and `lattice` are the multi-domain additions:
+# a strict partial order the future cross-domain policy calculus reads to break
+# ties WITHIN this domain. Ranks are comparable only inside `lattice: programming`
+# — never against another domain's lattice.
+- id: authority.prog.contract.api_spec
+  title: Published contract / interface specification (proto, OpenAPI, schema)
+  owner_kind: contract
+  lattice: programming
+  rank: "100"
+  governs: the public shape of an interface — request/response types, invariants, versioning
+  read_path: the versioned spec artifact (proto file, OpenAPI doc, JSON schema)
+- id: authority.prog.test.passing_suite
+  title: Passing test suite
+  owner_kind: test
+  lattice: programming
+  rank: "80"
+  governs: whether a change preserves the behavior the tests encode
+  read_path: CI test run result for the change under review
+- id: authority.prog.runtime.truth_plane
+  title: Runtime truth-plane (observed running system)
+  owner_kind: runtime
+  lattice: programming
+  rank: "70"
+  governs: what the system actually does now — live state, not intended state
+  read_path: probes, logs, metrics, health endpoints against the running system
+- id: authority.prog.maintainer.codeowner
+  title: Maintainer / code owner
+  owner_kind: human
+  lattice: programming
+  rank: "60"
+  governs: human judgment over a subsystem's direction where spec and tests are silent
+  read_path: CODEOWNERS / review approval from the owning maintainer
+- id: authority.prog.docs.reference
+  title: Official reference documentation
+  owner_kind: docs
+  lattice: programming
+  rank: "40"
+  governs: documented intent — weaker than spec/tests, stronger than community lore
+  read_path: the project's or vendor's published reference docs
+- id: authority.prog.forum.community
+  title: Community forum / Q&A / social
+  owner_kind: signal
+  lattice: programming
+  rank: "10"
+  governs: nothing on its own — a weak signal, never a settled authority
+  read_path: StackOverflow / issue threads / blog posts / social

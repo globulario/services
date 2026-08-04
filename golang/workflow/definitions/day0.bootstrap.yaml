@@ -35,8 +35,7 @@ spec:
       # Profiles assigned to the bootstrap node. The profile-driven install
       # step (verify_profile_install_set) derives its package set from
       # these — it must match what the explicit install_* steps installed,
-      # so the catalog and the YAML are kept honest. Founding nodes are
-      # always [core, control-plane, storage] (enforceFoundingProfiles).
+      # so the catalog and the YAML are kept honest.
       bootstrap_node_profiles:
         type: array
         items: { type: string }
@@ -246,8 +245,11 @@ spec:
           - restic
           - sctool
           - sha256sum
-          - yt-dlp
-          - ffmpeg
+          # ffmpeg/yt-dlp are media-server-only (component_catalog/profilemap.go).
+          # They are installed by the profile-driven backstop below
+          # (verify_profile_install_set → install_profile_sets) only when the
+          # bootstrap node carries the media-server profile — never
+          # unconditionally, which would orphan them on a non-media founding node.
       timeout: $.install_timeout
       execution:
         idempotency: verify_then_continue

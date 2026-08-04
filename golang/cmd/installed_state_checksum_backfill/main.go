@@ -45,6 +45,7 @@ import (
 
 	"github.com/globulario/services/golang/installed_state"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -210,8 +211,7 @@ func runPredicateAndMaybeWrite(ctx context.Context, nodeID, kind, name string, a
 
 	// Patch the record. Copy the existing struct; mutate only Checksum and
 	// Metadata["entrypoint_checksum"]. Preserve everything else.
-	patched := &node_agentpb.InstalledPackage{}
-	*patched = *existing
+	patched := proto.Clone(existing).(*node_agentpb.InstalledPackage)
 	patched.Checksum = onDisk
 	if patched.Metadata == nil {
 		patched.Metadata = map[string]string{}
@@ -310,8 +310,7 @@ func runUpdatedUnixRepair(ctx context.Context, nodeID, kind, name string) (Verdi
 		return v, fmt.Errorf("idempotent skip")
 	}
 
-	patched := &node_agentpb.InstalledPackage{}
-	*patched = *existing
+	patched := proto.Clone(existing).(*node_agentpb.InstalledPackage)
 	patched.UpdatedUnix = existing.GetInstalledUnix()
 	// Copy metadata to avoid aliasing.
 	if existing.GetMetadata() != nil {

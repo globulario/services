@@ -250,6 +250,12 @@ jobs:
           set -euo pipefail
           mkdir -p ../../dist/.staging/bin
 
+          # Materialize the committed per-package version authority BEFORE the
+          # sentinel overwrite touches the checked-out zz files (CI workspace
+          # only — the committed files remain the authority; see
+          # docs/design/package-identity-single-authority.md).
+          bash ../scripts/gen-package-versions-from-source.sh --out ../../dist/package-versions.txt
+
           bash build/gen-version.sh "${SENTINEL_VERSION}"
 
           LDFLAGS="-s -w"
@@ -493,6 +499,7 @@ jobs:
             --output-manifest dist/change-manifest.json \
             --origin-indices-dir dist/origin-indices \
             --force-changed-packages-file dist/forced-packages.txt \
+            --package-versions-file dist/package-versions.txt \
             "${EXTRA_ARGS[@]}"
 
           bash services/scripts/release/cluster-controller-release-guard.sh verify \
@@ -508,16 +515,14 @@ jobs:
       # Unchanged services are NOT rebuilt — their packages are downloaded
       # from the origin release for the offline bundle.
       # ═══════════════════════════════════════════════════════════════════════
-      - name: Rebuild changed Go services with real version
+      - name: Rebuild changed Go services with committed package versions
         working-directory: services/golang
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
-          # Re-generate version files: changed services get platform version,
-          # unchanged services get their previous version via overrides.
-          bash build/gen-version.sh "${VERSION}" ../../dist/version-overrides.txt
+          # Restore the committed per-package source authority after the
+          # sentinel build rewrote the workspace-only generated files.
+          bash build/gen-version.sh "0.0.0-dev" ../../dist/package-versions.txt
 
           LDFLAGS="-s -w"
 
@@ -530,7 +535,7 @@ jobs:
                   print(f\"{p['go_target']}|{p['name']}\")
           " | while IFS='|' read -r target pkg_name; do
             bin_name=$(python3 -c "import json; print(json.load(open('build/pkg-map.json'))['${pkg_name}']['binary'])")
-            echo "  -> Rebuilding ${bin_name} (v${VERSION})"
+            echo "  -> Rebuilding ${bin_name} from committed package version"
             go build -trimpath -ldflags "${LDFLAGS}" -o "../../dist/.staging/bin/${bin_name}" "./${target}"
           done
 
@@ -543,12 +548,10 @@ jobs:
               print('yes')
           " | grep -q yes && cp ../../dist/.staging/bin/globularcli ../../dist/.staging/bin/globular || true
 
-      - name: Rebuild xds/gateway if changed
+      - name: Rebuild xds/gateway from committed versions if changed
         working-directory: Globular
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          LDFLAGS="-X main.Version=${VERSION} -X main.BuildVersion=${VERSION} -s -w"
+          LDFLAGS="-s -w"
 
           python3 -c "
           import json
@@ -557,7 +560,7 @@ jobs:
               if p['changed'] and p['name'] in ('xds', 'gateway'):
                   print(p['name'])
           " | while read -r name; do
-            echo "  -> Rebuilding ${name} (v${VERSION})"
+            echo "  -> Rebuilding ${name} from committed source version"
             go build -trimpath -ldflags "${LDFLAGS}" -o "../dist/.staging/bin/${name}" "./cmd/${name}"
           done
 
@@ -588,41 +591,8 @@ jobs:
       # BOM: Package only changed packages. Unchanged packages are NOT
       # repackaged — they are referenced from their origin release.
       # ═══════════════════════════════════════════════════════════════════════
-      - name: Generate build identity
-        id: build_identity
-        run: |
-          # build_number = sequential CI run counter (integer)
-          # build_id     = unique artifact identity (UUIDv7, time-sortable)
-          BUILD_NUMBER="${{ github.run_number }}"
-          BUILD_ID=$(python3 -c "
-          import uuid, time, os
-          try:
-              # Python 3.14+ has native uuid7
-              print(uuid.uuid7())
-          except AttributeError:
-              # Manual UUIDv7: 48-bit ms timestamp + 4-bit version + 12-bit rand + 62-bit rand
-              t = int(time.time() * 1000)
-              r = int.from_bytes(os.urandom(10), 'big')
-              # Pack: 48 bits timestamp | 4 bits version (0x7) | 12 bits rand_a | 2 bits variant (0b10) | 62 bits rand_b
-              u = (t & 0xFFFFFFFFFFFF) << 80
-              u |= 0x7 << 76                         # version 7
-              u |= (r >> 62) & 0xFFF                  # rand_a (12 bits)
-              u = u << 0  # no-op, clarity
-              mid = (0b10 << 62) | (r & 0x3FFFFFFFFFFFFFFF)  # variant + rand_b
-              u = ((t & 0xFFFFFFFFFFFF) << 80) | (0x7 << 76) | (((r >> 62) & 0xFFF) << 64) | mid
-              print(f'{(u >> 96) & 0xFFFFFFFF:08x}-{(u >> 80) & 0xFFFF:04x}-{(u >> 64) & 0xFFFF:04x}-{(u >> 48) & 0xFFFF:04x}-{u & 0xFFFFFFFFFFFF:012x}')
-          ")
-          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
-          echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
-          echo "Build number: ${BUILD_NUMBER}"
-          echo "Build ID:     ${BUILD_ID}"
 
       - name: Package changed packages
-        env:
-          BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
-          BUILD_ID: ${{ steps.build_identity.outputs.build_id }}
-          VERSION: ${{ steps.version.outputs.version }}
-          TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
           mkdir -p dist/packages
@@ -632,9 +602,16 @@ jobs:
 
           manifest = json.load(open("dist/change-manifest.json"))
           pkg_map  = json.load(open("services/golang/build/pkg-map.json"))
-          version  = os.environ["VERSION"]
-          build_number = os.environ["BUILD_NUMBER"]
-          build_id = os.environ["BUILD_ID"]
+          package_versions = {}
+          with open("dist/package-versions.txt", encoding="utf-8") as versions_file:
+              for raw in versions_file:
+                  line = raw.strip()
+                  if not line or line.startswith("#"):
+                      continue
+                  name, sep, value = line.partition("=")
+                  if not sep or not name.strip() or not value.strip():
+                      raise RuntimeError(f"invalid package version row: {raw.rstrip()!r}")
+                  package_versions[name.strip()] = value.strip()
 
           def readelf_sections(path):
               try:
@@ -712,9 +689,9 @@ jobs:
               pj_path = f"{meta_dir}/package.json"
               pj = json.load(open(pj_path))
 
-              # Determine version
+              # Determine version from the package's declared authority.
               if plat_ver:
-                  pkg_version = version
+                  pkg_version = package_versions.get(name, "")
               else:
                   pkg_version = detect_infra_version(name, bin_path, pj.get("version", ""))
 
@@ -758,16 +735,13 @@ jobs:
                       h.update(chunk)
               checksum = f"sha256:{h.hexdigest()}"
 
-              # Stamp package.json with real version, checksum, build_id.
-              # Each package gets its own unique build_id (UUIDv4) so the
-              # repository can distinguish artifacts that share a release.
-              import uuid as _uuid
-              per_pkg_build_id = str(_uuid.uuid4())
+              # Stamp content facts only. build_id/build_number are allocated
+              # by repository admission and must not be minted by release assembly.
               pj_out = json.load(open(f"{tmpdir}/package.json"))
               pj_out["version"] = pkg_version
               pj_out["entrypoint_checksum"] = checksum
-              pj_out["build_id"] = per_pkg_build_id
-              pj_out["build_number"] = int(build_number)
+              pj_out.pop("build_id", None)
+              pj_out.pop("build_number", None)
               with open(f"{tmpdir}/package.json", "w") as f:
                   json.dump(pj_out, f, indent=2)
 
@@ -791,7 +765,6 @@ jobs:
       - name: Download unchanged packages from origin releases
         env:
           GH_TOKEN: ${{ github.token }}
-          BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
         run: |
           set -euo pipefail
           mkdir -p dist/unchanged
@@ -866,13 +839,11 @@ jobs:
       # ships a valid authoritative tarball instead of a stale carried-forward one.
       # ═══════════════════════════════════════════════════════════════════════
       - name: Repair unstripped carry-forward packages for this release
-        env:
-          BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
         run: |
           set -euo pipefail
           python3 <<'PYEOF'
           import json, os, re, subprocess, sys, tarfile, tempfile
-          import hashlib, uuid
+          import hashlib
 
           manifest = json.load(open("dist/change-manifest.json"))
           origins = {}
@@ -885,8 +856,6 @@ jobs:
                       "name": pkg["name"],
                       "origin_release": pkg.get("origin_release", ""),
                   }
-
-          build_number = int(os.environ["BUILD_NUMBER"])
 
           def forbidden_sections(path):
               try:
@@ -923,8 +892,10 @@ jobs:
                   if still_bad:
                       raise SystemExit(f"{filename} still contains forbidden sections after strip: {still_bad}")
 
-                  pkg["build_id"] = str(uuid.uuid4())
-                  pkg["build_number"] = build_number
+                  # Repaired bytes are re-admitted as a new repository build;
+                  # release assembly must not allocate repository-owned identity.
+                  pkg.pop("build_id", None)
+                  pkg.pop("build_number", None)
                   with open(bin_path, "rb") as fh:
                       pkg["entrypoint_checksum"] = "sha256:" + hashlib.sha256(fh.read()).hexdigest()
                   with open(pkg_json, "w", encoding="utf-8") as fh:
@@ -940,7 +911,6 @@ jobs:
                       "filename": filename,
                       "name": meta.get("name", filename),
                       "origin_release": meta.get("origin_release", ""),
-                      "build_id": pkg["build_id"],
                       "entrypoint_checksum": pkg["entrypoint_checksum"],
                   })
 
@@ -948,7 +918,7 @@ jobs:
               print("repaired carry-forward packages:")
               for item in repaired:
                   where = f" from {item['origin_release']}" if item["origin_release"] else ""
-                  print(f"  - {item['name']}: {item['filename']}{where} -> build_id={item['build_id']}")
+                  print(f"  - {item['name']}: {item['filename']}{where} -> repository re-admission required")
           else:
               print("no carry-forward package repairs needed")
           PYEOF
@@ -1100,7 +1070,7 @@ jobs:
       # release. It is NOT a monolithic version stamp — each package keeps
       # its own version independently:
       #
-      #   - Changed packages get the current platform version (e.g. 1.0.85)
+      #   - Changed code-owned packages keep their committed package version
       #     and are uploaded to this GitHub release.
       #   - Unchanged packages keep their PREVIOUS package version (e.g. 1.0.82)
       #     and reference their origin_release asset_url. They are NOT uploaded
@@ -1116,8 +1086,6 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
-          BUILD_NUMBER: ${{ steps.build_identity.outputs.build_number }}
-          BUILD_ID: ${{ steps.build_identity.outputs.build_id }}
         run: |
           python3 <<'PYEOF'
           import json, hashlib, tarfile, glob, os, re, sys
@@ -1129,8 +1097,6 @@ jobs:
               print(f"ERROR: RELEASE_TAG={tag!r} is not a version tag (vX.Y.Z); refusing to author BOM", file=sys.stderr)
               sys.exit(1)
           repo         = os.environ["GITHUB_REPOSITORY"]
-          build_number = os.environ["BUILD_NUMBER"]
-          build_id     = os.environ["BUILD_ID"]
           base_url = f"https://github.com/{repo}/releases/download/{tag}"
           platform = "linux_amd64"
 
@@ -1157,8 +1123,6 @@ jobs:
                       "name":                     name,
                       "kind":                     pj.get("kind", pj.get("type", pkg.get("kind", "service"))).lower(),
                       "version":                  pj["version"],
-                      "build_number":             int(pj.get("build_number", build_number)),
-                      "build_id":                 str(pj.get("build_id", build_id)),
                       "platform":                 platform,
                       "publisher":                pj.get("publisher", "core@globular.io"),
                       "channel":                  "stable",
@@ -1231,7 +1195,6 @@ jobs:
                   "name":                     am.get("name", "globular-awareness-bundle"),
                   "kind":                     "awareness_bundle",
                   "version":                  am["version"],
-                  "build_number":             int(build_number),
                   "build_id":                 str(am["build_id"]),
                   "platform":                 "noarch",
                   "publisher":                "core@globular.io",

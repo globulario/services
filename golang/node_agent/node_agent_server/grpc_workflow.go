@@ -42,6 +42,16 @@ import (
 )
 
 var writeConvergenceResult = installed_state.WriteConvergenceResult
+var deleteInstalledPackage = installed_state.DeleteInstalledPackage
+
+func removeCommandBinaries(name string) error {
+	for _, binPath := range commandBinaryPaths(name) {
+		if err := os.Remove(binPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove command binary %s: %w", binPath, err)
+		}
+	}
+	return nil
+}
 
 func defaultClusterID() string {
 	if d, err := config.GetDomain(); err == nil && strings.TrimSpace(d) != "" {
@@ -112,8 +122,12 @@ func (srv *NodeAgentServer) RunWorkflow(ctx context.Context, req *node_agentpb.R
 	if _, ok := inputs["repository_address"]; !ok {
 		inputs["repository_address"] = srv.discoverRepositoryAddr()
 	}
+	nodeProfiles, err := srv.ensureWorkflowNodeProfiles(name, inputs)
+	if err != nil {
+		return nil, err
+	}
 
-	log.Printf("grpc-workflow: starting %s (def=%s)", name, defPath)
+	log.Printf("grpc-workflow: starting %s (def=%s profiles=%v)", name, defPath, nodeProfiles)
 	start := time.Now()
 
 	run, err := srv.RunWorkflowDefinition(ctx, defPath, inputs)
@@ -220,7 +234,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 	if desiredVersion != "" {
 		existing, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName)
 		skipResult, reason := canSkipInstallPackage(
-			ctx, pkgName, pkgKind, desiredVersion, convergenceHash, buildID, existing,
+			ctx, pkgName, pkgKind, desiredVersion, convergenceHash, expectedSha256, buildID, existing,
 			supervisor.IsActive, supervisor.IsLoaded,
 		)
 		wfID := inputs["workflow_id"]
@@ -344,6 +358,38 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		case installSkipDeniedInactive:
 			// Unit is loaded but inactive — try a Start before full reinstall.
 			log.Printf("grpc-workflow: %s", reason)
+			// MinIO topology gate: an inactive globular-minio.service on a
+			// node NOT admitted into the objectstore topology is the gate's
+			// deliberate hold (held_not_in_topology), not damage to repair.
+			// Starting it here fights enforceMinioHeld — a start/stop flap
+			// that re-creates the standalone split-brain the topology
+			// contract forbids. Same gate as apply_package_release.go.
+			if pkgName == "minio" {
+				if poolState, poolErr := config.LoadObjectStoreDesiredState(ctx); poolErr == nil {
+					if member, holdReason := nodeIsTopologyMember(srv.nodeID, srv.nodeIP(), poolState); !member {
+						log.Printf("grpc-workflow: install-package minio: unit inactive by topology hold (%s) — leaving held, not repairing", holdReason)
+						srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
+							ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+							WorkflowID:      wfID,
+							Package:         pkgName,
+							NodeID:          srv.nodeID,
+							DesiredVersion:  desiredVersion,
+							DesiredBuildID:  buildID,
+							LocalVersion:    existing.GetVersion(),
+							LocalBuildID:    existing.GetBuildId(),
+							LocalHash:       convergenceHash,
+							Outcome:         installed_state.OutcomeSuccessLocalPendingSync,
+							SourceComponent: "node-agent",
+							Evidence:        map[string]string{"kind": pkgKind, "skip_reason": "held_not_in_topology"},
+						})
+						return &node_agentpb.RunWorkflowResponse{
+							Status:         "SUCCEEDED",
+							StepsTotal:     1,
+							StepsSucceeded: 1,
+						}, nil
+					}
+				}
+			}
 			unit := packageUnit(pkgName)
 			if startErr := supervisor.Start(ctx, unit); startErr == nil {
 				if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr == nil {
@@ -508,14 +554,14 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 		resp.StepsSucceeded = 1
 		log.Printf("grpc-workflow: install-package %s SUCCEEDED (%v, status=%s)", pkgName, elapsed, applyResp.GetStatus())
 		srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
-			ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
-			WorkflowID:      wfIDFull,
-			Package:         pkgName,
-			NodeID:          srv.nodeID,
-			DesiredVersion:  desiredVersion,
-			DesiredBuildID:  buildID,
-			LocalVersion:    desiredVersion,
-			LocalBuildID:    buildID,
+			ActionID:       convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
+			WorkflowID:     wfIDFull,
+			Package:        pkgName,
+			NodeID:         srv.nodeID,
+			DesiredVersion: desiredVersion,
+			DesiredBuildID: buildID,
+			LocalVersion:   desiredVersion,
+			LocalBuildID:   buildID,
 			// LocalHash tells the controller what artifact digest was installed so
 			// it can stamp pkg.Checksum and stop re-dispatching on checksum mismatch.
 			LocalHash:       convergenceHash,
@@ -643,10 +689,13 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 			}
 		}
 	case "COMMAND":
-		// Commands have no systemd unit — just remove the binary and markers.
-		binDir := "/usr/lib/globular/bin"
-		binPath := filepath.Join(binDir, pkgName)
-		_ = os.Remove(binPath)
+		// Commands have no systemd unit. Remove every location considered by
+		// commandBinaryPath; otherwise cache-based installed-state repair can
+		// immediately resurrect an explicitly uninstalled command.
+		uninstallErr = removeCommandBinaries(pkgName)
+		if uninstallErr != nil {
+			break
+		}
 
 		// Remove version marker.
 		markerPath := versionutil.MarkerPath(pkgName)
@@ -670,18 +719,56 @@ func (srv *NodeAgentServer) runUninstallPackage(ctx context.Context, req *node_a
 	}
 
 	// Step 2: Clear installed state from etcd.
-	if err := installed_state.DeleteInstalledPackage(ctx, srv.nodeID, pkgKind, pkgName); err != nil {
-		log.Printf("grpc-workflow: uninstall-package %s: warning: failed to clear installed state: %v", pkgName, err)
-		// Non-fatal — the package files are already removed.
+	//
+	// Step 1 already made an irreversible change (files/binary removed from
+	// disk) — per the file-level rule above, that write creates a completion
+	// obligation that must not be abandoned just because the caller's RPC
+	// context is gone. If we used the incoming ctx here and the caller timed
+	// out or disconnected while Step 1 was still running (uninstall-package
+	// can take tens of seconds when it lands during a busy node-agent restart
+	// resync), this delete would be born already-canceled and fail silently —
+	// leaving etcd still reporting the package "installed" even though the
+	// binary is gone. Use a context detached from the caller, with its own
+	// bounded timeout, and retry: a transient etcd/context failure here must
+	// not be swallowed as non-fatal (that is exactly the failure this file's
+	// header forbids — reporting SUCCEEDED for a step that didn't converge).
+	var deleteErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		dctx, dcancel := context.WithTimeout(context.Background(), 10*time.Second)
+		deleteErr = deleteInstalledPackage(dctx, srv.nodeID, pkgKind, pkgName)
+		dcancel()
+		if deleteErr == nil {
+			break
+		}
+		log.Printf("grpc-workflow: uninstall-package %s: attempt %d/3: failed to clear installed state: %v", pkgName, attempt, deleteErr)
+		if attempt < 3 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if deleteErr != nil {
+		elapsed := time.Since(start)
+		log.Printf("grpc-workflow: uninstall-package %s FAILED (%v): package files removed but installed-state was not cleared: %v", pkgName, elapsed, deleteErr)
+		return &node_agentpb.RunWorkflowResponse{
+			Status:         "FAILED",
+			Error:          fmt.Sprintf("files removed but failed to clear installed state after 3 attempts: %v", deleteErr),
+			DurationMs:     elapsed.Milliseconds(),
+			StepsTotal:     totalSteps,
+			StepsSucceeded: 1,
+			StepsFailed:    1,
+		}, nil
 	}
 
 	// Also clean up service config from etcd so it no longer appears in admin catalog.
+	// Best-effort and non-authoritative for the orphaned-package check, so it
+	// stays on the (possibly already-canceled) caller context.
 	if err := config.DeleteServiceConfigurationByName(pkgName); err != nil {
 		log.Printf("grpc-workflow: uninstall-package %s: warning: failed to clean service config: %v", pkgName, err)
 	}
 
 	// Step 3: Sync installed state so the controller sees the change immediately.
-	srv.syncInstalledStateToEtcd(ctx)
+	syncCtx, syncCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	srv.syncInstalledStateToEtcd(syncCtx)
+	syncCancel()
 
 	elapsed := time.Since(start)
 	log.Printf("grpc-workflow: uninstall-package %s SUCCEEDED (%v)", pkgName, elapsed)

@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
@@ -11,9 +15,6 @@ import (
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"crypto/tls"
-	"crypto/x509"
-	"os"
 )
 
 // triggerJoinWorkflow calls NodeAgent.RunWorkflow on the joining node
@@ -33,10 +34,21 @@ func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
 		srv.unlock()
 	}()
 
+	if strings.TrimSpace(agentEndpoint) == "" {
+		log.Printf("workflow-trigger: refusing node.join for node %s: empty agent endpoint", nodeID)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(srv.getLeaderCtx(), 30*time.Minute)
 	defer cancel()
 
-	log.Printf("workflow-trigger: connecting to node-agent at %s for node %s", agentEndpoint, nodeID)
+	inputs, profiles, err := srv.joinWorkflowInputs(nodeID)
+	if err != nil {
+		log.Printf("workflow-trigger: refusing node.join for node %s: %v", nodeID, err)
+		return
+	}
+
+	log.Printf("workflow-trigger: connecting to node-agent at %s for node %s profiles=%v", agentEndpoint, nodeID, profiles)
 
 	conn, _, err := srv.dialNodeAgentForNode(nodeID, agentEndpoint)
 	if err != nil {
@@ -49,6 +61,7 @@ func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
 
 	resp, err := client.RunWorkflow(ctx, &node_agentpb.RunWorkflowRequest{
 		WorkflowName: "node.join",
+		Inputs:       inputs,
 	})
 	if err != nil {
 		log.Printf("workflow-trigger: RunWorkflow failed for node %s: %v", nodeID, err)
@@ -68,6 +81,24 @@ func (srv *server) triggerJoinWorkflow(nodeID, agentEndpoint string) {
 	if resp.GetStatus() == "SUCCEEDED" {
 		srv.triggerBootstrapWorkflow(nodeID)
 	}
+}
+
+func (srv *server) joinWorkflowInputs(nodeID string) (map[string]string, []string, error) {
+	srv.lock("joinWorkflowInputs")
+	node := srv.state.Nodes[nodeID]
+	if node == nil {
+		srv.unlock()
+		return nil, nil, fmt.Errorf("node %s not found", nodeID)
+	}
+	profiles := normalizeProfiles(append([]string(nil), node.Profiles...))
+	srv.unlock()
+
+	if len(profiles) == 0 {
+		return nil, nil, fmt.Errorf("node %s has no assigned profiles", nodeID)
+	}
+	return map[string]string{
+		"node_profiles": strings.Join(profiles, ","),
+	}, profiles, nil
 }
 
 // triggerBootstrapWorkflow runs the node.bootstrap workflow locally on the

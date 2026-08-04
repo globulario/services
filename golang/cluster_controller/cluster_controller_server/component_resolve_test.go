@@ -36,18 +36,21 @@ func TestResolveIntent_CoreProfile(t *testing.T) {
 		}
 	}
 
-	// Core now includes ScyllaDB (CapLocalDB) — all nodes running services need it.
-	if !contains(infraNames, "scylladb") {
-		t.Error("core infra should include scylladb")
+	// Core deliberately excludes local-db; ScyllaDB belongs to
+	// control-plane/storage/scylla/database profiles.
+	if contains(infraNames, "scylladb") {
+		t.Errorf("core infra must not include scylladb, got %v", infraNames)
 	}
 
-	// Workloads are blocked when units aren't reporting (no healthy units).
-	// But they should still be in ResolvedComponents.
+	// Core-only nodes may run AI router, but not services that require a local
+	// ScyllaDB runtime dependency.
 	if !contains(intent.ResolvedComponents, "ai-router") {
 		t.Error("core should resolve ai-router")
 	}
-	if !contains(intent.ResolvedComponents, "ai-memory") {
-		t.Error("core should resolve ai-memory (core now includes ScyllaDB)")
+	for _, notWant := range []string{"ai-memory", "ai-executor", "ai-watcher", "workflow", "scylla-manager", "scylla-manager-agent"} {
+		if contains(intent.ResolvedComponents, notWant) {
+			t.Errorf("core must not resolve local-db-backed component %q; resolved=%v", notWant, intent.ResolvedComponents)
+		}
 	}
 }
 
@@ -399,9 +402,9 @@ func TestDay1Phase_MinioNonMember_DoesNotReportInfraNotInstalled(t *testing.T) {
 }
 
 func TestFilterIntentByDesiredRemovesUndesiredCatalogWorkloads(t *testing.T) {
-	// media-server (inherits core) so title — a media service moved out of core —
-	// is legitimately part of this node's intent.
-	intent, err := ResolveNodeIntent("n1", []string{"core", "media-server"}, nil, nil)
+	// media-server supplies title; database supplies workflow. Core alone must
+	// not pull workflow because workflow requires local ScyllaDB.
+	intent, err := ResolveNodeIntent("n1", []string{"media-server", "database"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -621,44 +624,34 @@ func TestDay1Phase_JoinedNotReady(t *testing.T) {
 // Day-1 workload dependency seeding regression tests
 // ---------------------------------------------------------------------------
 
-// TestDay1WorkloadDepSeeding_MCPEventChain is the primary regression test for
-// the Day-1 stall: mcp is in desired-state but its runtime dep (event) is not,
-// so GateDependencies blocks mcp and Day-1 appears stuck forever.
+// TestDay1WorkloadDepSeeding_EventDoesNotBlockRollout is the primary regression
+// test for the Day-1 stall: mcp is in desired-state but its runtime dep (event)
+// is not healthy, which used to hard-block mcp and make Day-1 appear stuck
+// forever.
 //
-// Invariant: a desired workload with an unseeded dep must produce
-// Day1WorkloadsPlanned (transient), never Day1WorkloadBlocked (terminal).
-func TestDay1WorkloadDepSeeding_MCPEventChain(t *testing.T) {
+// Invariant: event-bus availability is observability-side, not authority-side;
+// it must not prevent rollout of otherwise installable workloads.
+func TestDay1WorkloadDepSeeding_EventDoesNotBlockRollout(t *testing.T) {
 	intent, err := ResolveNodeIntent("joining-node", []string{"control-plane"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Desired-state contains mcp but NOT event — the under-populated state that
-	// caused the Day-1 stall.
+	// used to cause the Day-1 stall.
 	desiredMCPOnly := map[string]string{
 		"mcp": "1.0.56+b1",
 	}
 
-	// FilterIntentByDesired must annotate mcp's block as seeding (event absent
-	// from desired-state), not dependency_not_ready.
 	filtered := FilterIntentByDesired(intent, desiredMCPOnly, nil, nil)
-
-	var mcpBlock *BlockedWorkload
 	for i := range filtered.BlockedWorkloads {
 		if normalizeComponentName(filtered.BlockedWorkloads[i].Name) == "mcp" {
-			mcpBlock = &filtered.BlockedWorkloads[i]
-			break
+			t.Fatalf("mcp must not be blocked only because event is absent/unhealthy: kind=%s reason=%s",
+				filtered.BlockedWorkloads[i].Kind, filtered.BlockedWorkloads[i].Reason)
 		}
 	}
-	if mcpBlock == nil {
-		t.Fatal("mcp should be in BlockedWorkloads when its deps (event) are not healthy")
-	}
-	if mcpBlock.Kind != "dependency_seeding_in_progress" {
-		t.Errorf("mcp block Kind: got %q want %q — dep (event) absent from desired-state must be transient",
-			mcpBlock.Kind, "dependency_seeding_in_progress")
-	}
 
-	// ComputeDay1Phase must return Day1WorkloadsPlanned, NOT Day1WorkloadBlocked.
+	// ComputeDay1Phase must not return Day1WorkloadBlocked because of event.
 	node := &nodeState{
 		NodeID:         "joining-node",
 		BootstrapPhase: BootstrapWorkloadReady,
@@ -667,15 +660,13 @@ func TestDay1WorkloadDepSeeding_MCPEventChain(t *testing.T) {
 		Units:          nil,
 	}
 	phase, reason := ComputeDay1Phase(node)
-	if phase != Day1WorkloadsPlanned {
-		t.Errorf("phase: got %q want %q (reason: %s)", phase, Day1WorkloadsPlanned, reason)
-	}
-	if !strings.Contains(reason, "seeding") {
-		t.Errorf("reason should mention seeding, got: %q", reason)
+	if phase == Day1WorkloadBlocked {
+		t.Fatalf("event-only dependency must not produce Day1WorkloadBlocked: %s", reason)
 	}
 
 	// Second reconcile: event is now seeded into desired-state but is not yet
-	// healthy. Block kind must upgrade to dependency_not_ready (hard block).
+	// healthy. Event is an observability bus, not a rollout authority; it must
+	// not hard-block mcp or any other workload from being installed.
 	desiredBoth := map[string]string{
 		"mcp":   "1.0.56+b1",
 		"event": "1.0.56+b1",
@@ -683,11 +674,8 @@ func TestDay1WorkloadDepSeeding_MCPEventChain(t *testing.T) {
 	filtered2 := FilterIntentByDesired(intent, desiredBoth, nil, nil)
 	for i := range filtered2.BlockedWorkloads {
 		if normalizeComponentName(filtered2.BlockedWorkloads[i].Name) == "mcp" {
-			if filtered2.BlockedWorkloads[i].Kind != "dependency_not_ready" {
-				t.Errorf("once event is desired but unhealthy, mcp block Kind should be dependency_not_ready, got %q",
-					filtered2.BlockedWorkloads[i].Kind)
-			}
-			break
+			t.Fatalf("mcp must not be blocked only because event is desired but unhealthy: kind=%s reason=%s",
+				filtered2.BlockedWorkloads[i].Kind, filtered2.BlockedWorkloads[i].Reason)
 		}
 	}
 
@@ -738,7 +726,7 @@ func TestDay1WorkloadDepSeeding_TransitiveChain(t *testing.T) {
 // TestDay1Phase_SeedingIsNotTerminal verifies that Day1WorkloadBlocked is not
 // returned when all blocked workloads have unseeded (transient) deps.
 func TestDay1Phase_SeedingIsNotTerminal(t *testing.T) {
-	intent, err := ResolveNodeIntent("n1", []string{"compute"}, nil, nil)
+	intent, err := ResolveNodeIntent("n1", []string{"database"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -749,7 +737,7 @@ func TestDay1Phase_SeedingIsNotTerminal(t *testing.T) {
 	node := &nodeState{
 		NodeID:         "n1",
 		BootstrapPhase: BootstrapWorkloadReady,
-		Profiles:       []string{"compute"},
+		Profiles:       []string{"database"},
 		ResolvedIntent: filtered,
 	}
 	phase, _ := ComputeDay1Phase(node)
@@ -763,42 +751,42 @@ func TestDay1Phase_SeedingIsNotTerminal(t *testing.T) {
 // Day1WorkloadBlocked — not stay as Day1WorkloadsPlanned indefinitely.
 //
 // Scenario:
-//   - desired-state contains mcp
-//   - event is absent from desired-state
-//   - event cannot be resolved from installed_state (unresolvable set)
+//   - desired-state contains ai-memory
+//   - scylladb is absent from desired-state
+//   - scylladb cannot be resolved from installed_state (unresolvable set)
 //   - GateDependencies must classify the block as missing_desired_dependency_unresolvable
 //   - ComputeDay1Phase must return Day1WorkloadBlocked
 func TestDay1Phase_UnresolvableDep(t *testing.T) {
-	intent, err := ResolveNodeIntent("n1", []string{"control-plane"}, nil, nil)
+	intent, err := ResolveNodeIntent("n1", []string{"database"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Simulate materializeMissingInfraDesired failing to resolve event's version.
-	unresolvable := map[string]bool{"event": true}
+	// Simulate materializeMissingInfraDesired failing to resolve scylladb's version.
+	unresolvable := map[string]bool{"scylladb": true}
 
 	// Pass unresolvable directly to FilterIntentByDesired — this is the actual
 	// production path in reconcile_nodes.go. The block kind must be
 	// missing_desired_dependency_unresolvable without any manual injection.
-	filtered := FilterIntentByDesired(intent, map[string]string{"mcp": "1.0.0"}, nil, unresolvable)
+	filtered := FilterIntentByDesired(intent, map[string]string{"ai-memory": "1.0.0"}, nil, unresolvable)
 
-	var mcpBlock *BlockedWorkload
+	var aiMemoryBlock *BlockedWorkload
 	for i := range filtered.BlockedWorkloads {
-		if normalizeComponentName(filtered.BlockedWorkloads[i].Name) == "mcp" {
-			mcpBlock = &filtered.BlockedWorkloads[i]
+		if normalizeComponentName(filtered.BlockedWorkloads[i].Name) == "ai-memory" {
+			aiMemoryBlock = &filtered.BlockedWorkloads[i]
 		}
 	}
-	if mcpBlock == nil {
-		t.Fatal("mcp not found in FilterIntentByDesired blocked list")
+	if aiMemoryBlock == nil {
+		t.Fatal("ai-memory not found in FilterIntentByDesired blocked list")
 	}
-	if mcpBlock.Kind != "missing_desired_dependency_unresolvable" {
-		t.Errorf("expected missing_desired_dependency_unresolvable from FilterIntentByDesired, got %q", mcpBlock.Kind)
+	if aiMemoryBlock.Kind != "missing_desired_dependency_unresolvable" {
+		t.Errorf("expected missing_desired_dependency_unresolvable from FilterIntentByDesired, got %q", aiMemoryBlock.Kind)
 	}
 
 	node := &nodeState{
 		NodeID:         "n1",
 		BootstrapPhase: BootstrapWorkloadReady,
-		Profiles:       []string{"control-plane"},
+		Profiles:       []string{"database"},
 		ResolvedIntent: filtered,
 	}
 	phase, reason := ComputeDay1Phase(node)
@@ -808,10 +796,10 @@ func TestDay1Phase_UnresolvableDep(t *testing.T) {
 	if !strings.Contains(reason, "missing desired dependency unresolvable") {
 		t.Errorf("reason should mention unresolvable dep, got %q", reason)
 	}
-	if !strings.Contains(reason, "event") {
+	if !strings.Contains(reason, "scylladb") {
 		t.Errorf("reason should name the unresolvable dep, got %q", reason)
 	}
-	if !strings.Contains(reason, "mcp") {
+	if !strings.Contains(reason, "ai-memory") {
 		t.Errorf("reason should name the requiring service, got %q", reason)
 	}
 }
@@ -820,13 +808,13 @@ func TestDay1Phase_UnresolvableDep(t *testing.T) {
 // both absent from desired-state AND in the unresolvable set, GateDependencies
 // classifies the block as missing_desired_dependency_unresolvable (not seeding).
 func TestGateDependencies_UnresolvableMarksThatKind(t *testing.T) {
-	desired := map[string]string{"mcp": "1.0.0"}
-	unresolvable := map[string]bool{"event": true}
+	desired := map[string]string{"ai-memory": "1.0.0"}
+	unresolvable := map[string]bool{"scylladb": true}
 
 	_, blocked := GateDependencies(desired, nil, nil, unresolvable)
 
 	if len(blocked) == 0 {
-		t.Fatal("mcp should be blocked when event is not healthy")
+		t.Fatal("ai-memory should be blocked when scylladb is not healthy")
 	}
 	if blocked[0].Kind != "missing_desired_dependency_unresolvable" {
 		t.Errorf("expected missing_desired_dependency_unresolvable, got %q", blocked[0].Kind)
@@ -837,12 +825,12 @@ func TestGateDependencies_UnresolvableMarksThatKind(t *testing.T) {
 // when a dep is absent from desired-state and NOT in unresolvable, the block
 // kind remains dependency_seeding_in_progress (can still converge).
 func TestGateDependencies_SeedingStillTransientWithoutUnresolvable(t *testing.T) {
-	desired := map[string]string{"mcp": "1.0.0"}
+	desired := map[string]string{"ai-memory": "1.0.0"}
 
 	_, blocked := GateDependencies(desired, nil, nil, nil)
 
 	if len(blocked) == 0 {
-		t.Fatal("mcp should be blocked when event is not healthy")
+		t.Fatal("ai-memory should be blocked when scylladb is not healthy")
 	}
 	if blocked[0].Kind != "dependency_seeding_in_progress" {
 		t.Errorf("expected dependency_seeding_in_progress, got %q", blocked[0].Kind)
@@ -878,7 +866,7 @@ func TestMaterializeDeps_InfraApplyFailureMarksUnresolvable(t *testing.T) {
 			"ready-node": {
 				Status:            "ready",
 				Day1Phase:         Day1Ready,
-				InstalledVersions: map[string]string{"scylladb": "6.2.1"},
+				InstalledVersions: map[string]string{"event": "1.0.0", "scylladb": "6.2.1"},
 			},
 		},
 	}
@@ -886,10 +874,11 @@ func TestMaterializeDeps_InfraApplyFailureMarksUnresolvable(t *testing.T) {
 	base := resourcestore.NewMemStore()
 	srv.resources = &errorOnApplyStore{Store: base, failType: "InfrastructureRelease"}
 
-	// desired-state: only ai-memory; scylladb is absent.
-	desiredCanon := map[string]string{"ai-memory": "1.0.0"}
+	// desired-state: ai-memory plus its non-Scylla runtime dependency; scylladb
+	// is absent so this test isolates the infra Apply failure.
+	desiredCanon := map[string]string{"ai-memory": "1.0.0", "event": "1.0.0"}
 
-	intent, err := ResolveNodeIntent("n1", []string{"compute"}, nil, nil)
+	intent, err := ResolveNodeIntent("n1", []string{"database"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -907,7 +896,7 @@ func TestMaterializeDeps_InfraApplyFailureMarksUnresolvable(t *testing.T) {
 	node := &nodeState{
 		NodeID:         "n1",
 		BootstrapPhase: BootstrapWorkloadReady,
-		Profiles:       []string{"compute"},
+		Profiles:       []string{"database"},
 		ResolvedIntent: filtered,
 	}
 	phase, reason := ComputeDay1Phase(node)

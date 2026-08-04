@@ -649,7 +649,7 @@ failure_modes:
       title: A linter/scanner reporting "0 findings" cannot be trusted as "clean" unless the rule is proven able to fire — a broken, mis-scoped, or dead rule reports zero exactly like clean code
     - architecture_fix: |
         Day-1 finalize MUST atomically clear the bootstrap flag as the LAST step (after
-        founding quorum verified, after sa password changed, after CA rotated). On controller
+        membership identity is bound, after sa password changed, after CA rotated). On controller
         startup, if day1_phase == ready AND bootstrap.enabled present, controller logs a
         critical warning, refuses to accept loopback RPCs, and emits the doctor finding.
       forbidden_fixes:
@@ -658,7 +658,7 @@ failure_modes:
       id: bootstrap.flag_persists_post_day_1
       related_invariants:
         - meta.silence_is_not_valid_for_unexpected
-        - founding.quorum.three_nodes_required
+        - meta.quorum_is_quality_not_constraint
       related_services:
         - cluster-controller
         - node-agent
@@ -667,14 +667,14 @@ failure_modes:
         - TestControllerRefusesLoopbackWhenFlagPersistsPostDay1
       root_cause: |
         Bootstrap mode is gated by a flag file with a 30-min TTL. The day-1 join flow is
-        responsible for removing the flag once the cluster reaches founding quorum. If the
+        responsible for removing the flag once the node reaches authenticated cluster membership. If the
         join completed but the flag wasn't cleaned up, the cluster is in a permanent
         bootstrap-mode state — any localhost connection can perform unauthenticated mutations.
 
         Causes observed:
         - Crash in the day-1 finalize step before the cleanup ran
         - Manual operator intervention that re-created the flag without intent
-        - Bug in the founding-quorum classifier that left day-1 in a partial state
+        - Bug in the day-1 readiness classifier that left day-1 in a partial state
       severity: critical
       symptoms:
         - ls /var/lib/globular/bootstrap.enabled returns a file on a post-day-1 cluster
@@ -5474,7 +5474,7 @@ failure_modes:
       symptoms:
         - storage node removed below quorum by drift reconciler
         - MinIO erasure-coding pool loses redundancy without operator approval
-        - controller profile changed on node below founding quorum
+        - controller profile changed on node with reduced capacity posture
       title: Topology drift reconciler applies unsafe topology change
     - architecture_fix: |
         Three patterns work:
@@ -7335,6 +7335,60 @@ failure_modes:
       related_services:
         - ai-memory
         - awareness-graph
+    - id: failure.drift_reconciliation_retried_a_permanently_failing_package_r
+      title: Drift reconciliation retried a permanently-failing package remediation forever with no terminal state
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+      related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go:TestReconcileMarkItemTerminal_RequiresObservedConvergence/repeated_failure_escalates_and_arms_backoff
+      evidence:
+        - 'libnss-resolve@eb9a2dac-05b0-52ac-9002-99d8ffd35902: workflow.drift_stuck missing_package, 38+ consecutive reconcile cycles, last_remediation_id empty. reconcileMarkItemTerminal silently dropped non-SUCCEEDED child results (if status != SUCCEEDED { return nil }), and release_id was re-minted every cycle so WF-DEFER max_defers/abandoned never accumulated across cycles — no cap on redispatch at all.'
+    - id: failure.command_package_published_under_infrastructurerelease_dispat
+      title: COMMAND package published under InfrastructureRelease dispatched as INFRASTRUCTURE (no separate resource type for COMMAND)
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+      related_invariants:
+        - four_layer.layer_has_single_writing_actor
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go:TestCorrectKindFromRepo
+      evidence:
+        - 'libnss-resolve installed_state written under kind INFRASTRUCTURE on the founding Day-0 node instead of COMMAND, producing a permanent false installed_state_runtime_mismatch doctor finding (no systemd unit exists for a COMMAND package by design). Root cause: nameIsNonServiceCatalogKind routes both true-INFRASTRUCTURE and COMMAND-kind packages into the InfrastructureRelease resource type (no separate resource type exists for COMMAND); release_pipeline.go''s existing SERVICE-to-COMMAND repo-authoritative auto-correction (added earlier for etcdctl/sha256sum/yt-dlp) only checked kind==SERVICE, never kind==INFRASTRUCTURE, so a COMMAND package riding in an InfrastructureRelease was never corrected.'
+    - id: failure.runtime_writer_re_creates_the_hostname_condition_a_load_time
+      title: Runtime writer re-creates the hostname condition a load-time migration exists to erase
+      severity: high
+      description: 'cluster_controller/handlers_status.go:415 appends node.AdvertiseFqdn (a hostname such as node-1.globular.internal) to state.MinioPoolNodes on the first heartbeat of any node carrying the storage profile. The field''s consumers require bare routable IPs: resolveMinioEndpoint (server.go:1236) refuses to publish the objectstore DNS endpoint and logs INVARIANT VIOLATION, and config/minio_config.go:199 plus config/objectstore_config.go:257 reject DNS hostnames outright. migratePoolNodeHostnames (state.go:843) repairs such entries via nodeRoutableIP(), but is invoked only from state LOAD paths (state.go:699, state.go:835). A hostname appended at runtime therefore persists until the next restart or leadership change, during which the objectstore endpoint stays unresolved and publishes a degraded contract (endpoint_ready=false). The migration''s comment describes the producer as ''Older code'', but that code is live, so the defect regenerates on every new storage node rather than being historical.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/handlers_status.go
+      evidence:
+        - 'Clean Day-0 install of release 1.2.288 on globular-quickstart (real installer, not simulated bootstrap): 31 INVARIANT VIOLATION lines between 20:50:56 and 20:53:13 on 2026-07-31, all naming MinioPoolNodes[0]=node-1.globular.internal. node-1 is the founding node and never executes the join flow, so the message''s own remediation text (''fix by ensuring join flow writes IPs not hostnames'') points at the wrong subsystem. Violations ceased after restart, confirming repair-on-load rather than prevention-at-write.'
+      contract: MinioPoolNodes must contain only bare routable IPs at every write site
+    - id: failure.satisfaction_catalog_authored_from_imagined_producer_output
+      title: Satisfaction catalog authored from imagined producer output, validated circularly
+      severity: high
+      description: 'A catalog mapping evidence kinds to governance requirements was written from an imagined producer shape rather than transcribed from the emitting code. Every field of the doctor rule was wrong against observation.FromDoctorFinding (kind, source, result, and authority floor), and a second rule described evidence no code constructs. It survived 15 passing tests because those tests seeded fixtures built from the same invention: catalog and fixtures agreed with each other while neither agreed with the runtime producer. Circular validation — the lock and the fake key drawn from one sketch. Had the governor been wired on top, real evidence would never have qualified and repairs would have appeared evidence-starved, with blame falling on missing evidence rather than on an unmatchable rule.'
+      protects:
+        files:
+          - golang/ai_memory/domains/cluster_operator/satisfaction.go
+      required_tests:
+        - golang/ai_memory/domains/cluster_operator/satisfaction_test.go:TestQualify_FullPositiveTrace
+      evidence:
+        - Found 2026-08-01 wiring producer population for the cluster-learning loop. Correction required transcription from ingest.go; three tests then failed correctly, revealing real doctor evidence carries no action or workflow binding and so cannot satisfy a remediation-verification requirement.
+      contract: A satisfaction rule must be transcribed from its production producer and proven by a lineage test, never authored alongside its own fixtures
+    - id: failure.registerupstream_required_index_url_for_every_provider_makin
+      title: RegisterUpstream required index_url for every provider, making LOCAL_DIR registration impossible
+      protects:
+        files:
+          - golang/repository/repository_server/sync_from_upstream.go
+      required_tests:
+        - golang/repository/repository_server/sync_from_upstream_test.go:TestRegisterUpstream_LocalDirDoesNotRequireIndexURL
+      evidence:
+        - globular repo register-upstream --type local-dir returned InvalidArgument 'source.index_url is required' against repository 1.2.288 on 2026-08-01. SyncFromUpstream and upstream/local_source.go handle LOCAL_DIR correctly, so only the admission gate was wrong. Presented as an auth failure and cost a session chasing client certificates.
+      contract: The upstream registry must not assume every provider addresses its release index by URL; where the index lives is provider-specific (intent.upstream_release_streams.must_be_provider_neutral). LOCAL_DIR resolves it from local_root + index_path_template and carries no URL.
     - id: repository.mid_life_cas_loss_persists_because_seeder_is_startup_only
       title: A mid-life emptying of the repository local CAS persists as missing_blob_for_published_manifest because the staged-source seeder runs only at startup
       severity: high
@@ -7398,3 +7452,121 @@ failure_modes:
       related_services:
         - repository
         - node-agent
+    - id: install.describe_preflight_unbounded_hangs_join
+      title: Install --describe preflight inherits the full install context; a binary that serves instead
+        of honoring --describe hangs the per-package budget and loops the join
+      severity: high
+      status: active
+      description: 'During SERVICE install, node-agent resolves the service port with a best-effort last-resort
+        exec of "<binary> --describe" (serviceports.EnsureServicePortConfig -> runDescribe). runDescribe passed
+        the caller''s raw context straight to exec.CommandContext, and the caller is the join''s per-package
+        install context (joinPerPackageInstallTimeout = 8m, actors.go). A binary that does NOT honor --describe
+        and instead starts serving (mcp_server had no flag parsing at all, fell through to http serve, bound
+        :10260 and blocked forever) consumes the entire 8-minute budget. The required post-install step then
+        fails on the already-dead context, the SERVICE install fails, installed_state is never stamped, node.join
+        FAILS at install_workloads_control_plane, and the drift-reconciler re-dispatches the package every
+        ~30s forever. Symptom: an 8-minute silent gap between pin-artifact and post-install, an EMPTY globular-<svc>.service
+        journal (the describe exec is a stray process, not the systemd unit), and FAILED after exactly 8m0.008s.'
+      contract: A best-effort --describe install preflight MUST be independently time-bounded and MUST
+        NEVER consume the caller's install budget. A service binary invoked with --describe MUST answer
+        and exit, or fail fast, and MUST NEVER enter its serving path.
+      scope_note: Deliberately scoped to --describe — that is what the 2026-07 incident proved and what
+        the shipped fixes enforce. The broader rule "a service binary must reject every unrecognized
+        informational or preflight flag before server startup" is NOT claimed here, and is NOT true of
+        the codebase today - golang/mcp/main.go matches only --describe, --version and --help/-h, so any
+        other argument (for example --metadata) falls through the switch and reaches server startup.
+        Promoting that wording would make this entry claim more than the implementation guarantees. If
+        the broader rule is wanted it needs its own evidence and its own enforcement, ideally in the
+        shared informational-flag handler (globular_service.HandleInformationalFlags), rather than
+        riding in on this incident.
+      source_files:
+      - golang/node_agent/node_agent_server/internal/actions/serviceports/config.go
+      - golang/mcp/main.go
+      - golang/workflow/engine/actors.go
+      - golang/node_agent/node_agent_server/internal/actions/artifact.go
+      required_tests:
+      - golang/node_agent/node_agent_server/internal/actions/serviceports/describe_bound_test.go:TestRunDescribeBoundedWhenBinaryHangs
+      - golang/mcp/describe_exits_test.go:TestDescribeExitsWithoutServing
+      forbidden_fixes:
+      - 'Only fixing mcp''s --describe handling without bounding runDescribe: a future binary that regresses
+        into serve-on-describe would hang the join again — the node-agent must defend regardless of binary
+        behavior. Both fixes shipped (5s bound + mcp flag handling).'
+      - 'Raising joinPerPackageInstallTimeout to "give mcp more time": the install does not need more time,
+        the preflight must not consume it (the 8m cap was already a mitigation of a 30m stall).'
+      - Broadly applying --describe handling to cluster_controller/cluster_doctor/node_agent on the assumption
+        they share the bug — VERIFIED they do NOT (see verified_negative below).
+      verified_negative: 'SIBLING SCOPE, verified by building and running each with --describe (do not re-flag):
+        the other hand-written service mains fast-exit — cluster_controller and cluster_doctor emit describe
+        JSON (rc=0); node_agent fails-fast via flag.Parse (rc=2, "flag provided but not defined"). mcp was
+        the UNIQUE hang because it had no flag parsing and no describe handling. Standard services have no
+        hand-written main (generated with HandleInformationalFlags) and are safe. A grep heuristic ("serves
+        + no HandleInformationalFlags") over-flags these three; only a run confirms the truth.'
+      related_invariants:
+      - install.result.atomic_commit
+      - convergence.no_infinite_retry
+      - meta.half_done_must_not_look_done
+      - package.install.installed_state_requires_runtime_artifact_integrity
+      related_failure_modes:
+      - mcp.day1_install_no_start
+      - package.install.service_unit_missing_classified_binary_only
+      provenance:
+        promoted_from: candidate
+        candidate_id: candidate.failure_mode.install.describe_preflight_unbounded_hangs_join
+        discovered_from: session 2026-07-11
+        confidence_at_promotion: candidate
+        evidence: 'SIBLING SCOPE, verified by building and running each with --describe (do not re-flag):
+          the other hand-written service mains fast-exit — cluster_controller and cluster_doctor emit describe
+          JSON (rc=0); node_agent fails-fast via flag.Parse (rc=2, "flag provided but not defined"). mcp was
+          the UNIQUE hang because it had no flag parsing and no describe handling. Standard services have
+          no hand-written main (generated with HandleInformationalFlags) and are safe. A grep heuristic ("serves
+          + no HandleInformationalFlags") over-flags these three; only a run confirms the truth.'
+    - id: controller.derived_config_change_has_no_convergence_disposition
+      title: Derived restart-sensitive config change is silently omitted instead of dispositioned
+      severity: high
+      status: active
+      description: 'The controller recomputes rendered ScyllaDB configuration correctly on every plan cycle
+        from authoritative membership (renderScyllaConfig, service_config.go:523, reached via computeNodePlan
+        -> renderedConfigForNode -> renderServiceConfigs, using snapshotClusterMembership()). When membership
+        grows, the derived seed set changes correctly. Nothing then classifies, schedules, applies, defers,
+        or refuses that change for an already-configured node: the corrected candidate never reaches disk
+        and no disposition is recorded. The renderer is healthy; the actuator is absent. Restart-sensitive
+        components legitimately require gating, but "too dangerous to apply now" must yield an explicit disposition
+        (APPLY_NOW / DEFER_UNTIL_SAFE / REQUIRE_OPERATOR_APPROVAL / BLOCK_WITH_REASON / NO_CHANGE), never
+        silent omission. Represents a potentially reusable convergence class for other restart-sensitive components
+        such as etcd, MinIO, Envoy, certificates and topology — any component whose correct desired state
+        cannot be pushed immediately. Only Scylla was observed in this run; the broader applicability is inference,
+        not evidence.'
+      source_files:
+      - golang/cluster_controller/cluster_controller_server/service_config.go
+      - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+      forbidden_fixes:
+      - Do NOT hand-edit /etc/scylla/scylla.yaml — a render will overwrite it, and the underlying missing
+        actuator would remain.
+      - Do NOT "fix" this by making the renderer emit the founder plus self; the derivation is already correct.
+      proposed_invariants:
+      - 'Safety: when more than one eligible Scylla node is admitted, no Scylla node may have an effective
+        ON-DISK seed set containing only itself. (Phrased against applied config, not rendered config — phrased
+        against the renderer it would pass today while the trapdoor stays open.)'
+      - 'Behavioral convergence: when authoritative membership changes the derived configuration, reconciliation
+        must produce a recorded governed disposition — applied, safely deferred, operator-gated, or refused
+        with evidence. The change must never be silently omitted.'
+      deferred_invariant: 'Parity (effective on-disk seed set must equal the canonical set derived from authoritative
+        membership) is NOT proposed yet: it requires an explicit seed-selection contract deciding whether
+        all eligible members must be seeds or a stable subset is permitted.'
+      proposed_doctor_evidence_shape: scylla.config_valid should expose authoritative_membership, derived_seed_set,
+        effective_on_disk, last_rendered_at, last_applied_at, convergence_disposition and restart_required
+        — so the operator sees truth -> derivation -> candidate -> disposition -> application, and specifically
+        WHY the controller knowingly left it different.
+      provenance:
+        promoted_from: candidate
+        candidate_id: candidate.failure_mode.controller.derived_config_change_has_no_convergence_disposition
+        discovered_from: session 2026-08-03
+        confidence_at_promotion: candidate
+        evidence: 'Live 5-node simulation, release 1.2.295, 2026-08-03. etcd authority /globular/cluster/scylla/hosts
+          = ["10.10.0.11","10.10.0.12","10.10.0.13"]. On-disk seeds: node-1 ''10.10.0.11'' (self-only), node-3
+          ''10.10.0.11,10.10.0.13'', node-2 ''10.10.0.11,10.10.0.12''. Each frozen at that node''s own join
+          moment (15:54:53 / 16:01:58 / 16:02:57); none equals the authority. Controller journal shows only
+          "scylla join: ... marking configured" transitions, no re-render dispatch or restart injection after
+          initial configuration. All three nodes UN/NORMAL with NRestarts=0, so the hazard is latent: a wiped
+          restart of node-1 with self-only seeds would re-bootstrap an isolated ring. Surfaced by cluster-doctor
+          scylla.config_valid (severity 1).'

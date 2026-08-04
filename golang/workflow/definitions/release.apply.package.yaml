@@ -94,7 +94,7 @@ spec:
       actor: cluster-controller
       action: controller.release.finalize_noop
       with:
-        status: AVAILABLE
+        status: $.release_target_status
       execution:
         idempotency: safe_retry
         resume_policy: verify_effect
@@ -103,7 +103,7 @@ spec:
         action: controller.release.verify_status
         with:
           release_id: $.release_id
-          expected_status: AVAILABLE
+          expected_status: $.release_target_status
         success:
           expr: status_matches == true
 

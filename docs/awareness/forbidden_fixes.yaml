@@ -1537,7 +1537,7 @@ forbidden_fixes:
     masks crashes in the day-1 finalize path.
   related_invariants:
     - meta.silence_is_not_valid_for_unexpected
-    - founding.quorum.three_nodes_required
+    - meta.quorum_is_quality_not_constraint
   safe_alternative: |
     Day-1 finalize atomically clears the flag as its LAST step. On controller
     startup, if day1_phase == ready AND flag present: log critical, refuse
@@ -1550,7 +1550,7 @@ forbidden_fixes:
     doesn't get re-created during slow joins. Trades a real-time security
     boundary for cosmetic convenience.
   related_invariants:
-    - founding.quorum.three_nodes_required
+    - meta.quorum_is_quality_not_constraint
   safe_alternative: |
     The TTL is intentionally tight — bootstrap mode authorises unauthenticated
     loopback RPCs and must close fast. Fix the slow path that recreates the
@@ -3999,6 +3999,32 @@ forbidden_fixes:
     Route desired writes through routeInfrastructureDesired; prune cross-kind records
     (pruneCrossKindServiceReleases / deleteCrossKindServiceRelease) with the component
     catalog as oracle; block stale converged persistence (isStaleResolvedGhost). One id → one kind.
+- id: auto_promote_profiles_to_satisfy_quorum_floor
+  summary: >-
+    Automatically assign or promote storage (or other) profiles onto the first-N nodes to
+    manufacture a preferred quorum size, turning an abstract preferred quorum into a hidden
+    admission action that mutates controller-owned placement intent without an explicit request.
+  related_invariants:
+  - meta.quorum_is_quality_not_constraint
+  - profile.intent_is_controller_owned_placement_contract
+  safe_alternative: >-
+    Treat profiles as controller-owned placement intent set only from explicit requests.
+    Report observed capacity and survivability posture as evidence; never coerce profiles
+    onto nodes to satisfy a global quorum floor. Destructive storage/topology changes still
+    gate on their component-specific safety contracts and operator approval.
+- id: block_join_or_rollout_on_global_storage_count_floor
+  summary: >-
+    Refuse node join, Day-1 workload rollout, profile assignment, or non-destructive
+    convergence solely because the observed storage-node count is below a preferred or
+    global floor — reusing a capacity/quorum report field as an enforcement predicate.
+  related_invariants:
+  - meta.quorum_is_quality_not_constraint
+  - quorum_safety_before_storage_mutation
+  safe_alternative: >-
+    Allow join, rollout, and profile assignment to proceed while reporting capacity and
+    survivability as risk posture. Gate ONLY component-specific DESTRUCTIVE storage
+    operations behind explicit safety checks and operator approval; that is data-safety
+    gating, not a global quorum admission floor.
 - id: cluster.teardown.do_not_treat_probe_failure_as_empty_ring
   summary: >-
     Piping a failed/empty `nodetool status` (or any ring-membership probe) through
@@ -4087,3 +4113,92 @@ forbidden_fixes:
     supervisor-mediated "uninstall-package" workflow on that ONE node — clears
     installed-state, never touches cluster desired-state. Removing an authorized package
     this way is self-healing (reconcile reinstalls); removing an orphan retires it.
+- id: hand_edit_installer_packagecatalog_specs
+  summary: 'Directly hand-edit globular-installer/internal/packagecatalog/* instead of regenerating
+    it from packages/registry.yaml via the Makefile sync-specs target. The embedded catalog is a
+    generated mirror bound to the registry by manifest digest; a hand edit drifts from its source
+    of truth without changing the digest that is supposed to prove they match.
+
+    '
+  related_invariants:
+  - repo.installer_embedded_assets_are_generated_mirrors_only
+  safe_alternative: 'Edit packages/registry.yaml (the real source of truth) and regenerate the
+    mirror with ../globular-installer/Makefile sync-specs; validate with check-specs.
+
+    '
+- id: hand_edit_installer_webroot_as_source
+  summary: 'Directly hand-edit globular-installer/internal/assets/webroot as if it were authored
+    platform content, instead of treating it as a generated fallback mirror of services/webroot.
+
+    '
+  related_invariants:
+  - repo.installer_embedded_assets_are_generated_mirrors_only
+  safe_alternative: 'Edit services/webroot (the real source) and regenerate the mirror with
+    ../globular-installer/Makefile sync-webroot; validate with check-webroot.
+
+    '
+- id: treat_installer_assets_bin_as_release_binary_store
+  summary: 'Place real platform release binaries into globular-installer/internal/assets/bin,
+    which exists only for installer-private helper assets, not platform release artifacts.
+
+    '
+  related_invariants:
+  - repo.installer_embedded_assets_are_generated_mirrors_only
+  safe_alternative: 'Publish platform release binaries through the release/BOM pipeline; keep
+    assets/bin limited to the installer''s own private helper tooling and validate with
+    check-asset-bin.
+
+    '
+- id: bypass_registry_digest_binding_for_embedded_catalog
+  summary: 'Load or trust the embedded packagecatalog mirror without validating its manifest
+    digest against packages/registry.yaml, silently accepting a stale or drifted mirror as if it
+    were current.
+
+    '
+  related_invariants:
+  - repo.installer_embedded_assets_are_generated_mirrors_only
+  safe_alternative: 'Always validate the embedded catalog''s manifest digest against
+    packages/registry.yaml via scripts/validate-package-authority.py before trusting it; reject
+    missing or stale manifests rather than proceeding.
+
+    '
+- id: move_real_install_workflow_into_release_wrapper
+  summary: 'Implement the actual day-0/day-1 install workflow logic inside services/scripts/install.sh
+    (a release wrapper) instead of keeping install execution authority in
+    globular-installer/scripts/install-day0.sh, collapsing two related flows with different owners
+    into one and recreating cross-repo authority drift.
+
+    '
+  related_invariants:
+  - repo.release_wrapper_is_not_install_execution_authority
+  safe_alternative: 'Keep services/scripts/install.sh a thin release wrapper; the real install
+    workflow authority stays in globular-installer/scripts/install-day0.sh, per
+    docs/design/artifact-authority-matrix.md.
+
+    '
+- id: make_services_repo_owner_of_installer_execution
+  summary: 'Have the services repo take on ownership of installer EXECUTION (running the actual
+    install workflow) rather than remaining the release-publication and package-authority source,
+    violating the documented cross-repo authority split.
+
+    '
+  related_invariants:
+  - repo.release_wrapper_is_not_install_execution_authority
+  safe_alternative: 'Keep install execution authority in globular-installer/scripts/install-day0.sh;
+    services only publishes releases and authors package/registry data, per
+    docs/design/artifact-authority-matrix.md and docs/design/package-authority-layout.md.
+
+    '
+- id: treat_installer_mirror_assets_as_release_source_of_truth
+  summary: 'Treat globular-installer''s mirrored packagecatalog/webroot assets as if they were the
+    source of truth for a release, instead of packages/registry.yaml and services/webroot, which
+    are the real upstream authorities the mirrors are generated from.
+
+    '
+  related_invariants:
+  - repo.release_wrapper_is_not_install_execution_authority
+  safe_alternative: 'Always treat packages/registry.yaml and services/webroot as the release source
+    of truth; installer mirrors are downstream projections validated by
+    scripts/validate-package-authority.py, never authored or trusted independently.
+
+    '

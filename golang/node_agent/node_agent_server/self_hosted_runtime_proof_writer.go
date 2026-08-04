@@ -46,8 +46,9 @@ import (
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	"google.golang.org/protobuf/proto"
 )
 
 // lookupSelfHostedExistingByDiskTruth scans every installed_state record
@@ -186,7 +187,7 @@ type selfHostedProofDeps struct {
 	// FetchServiceRelease reads the latest ServiceRelease record for this
 	// canonical service from etcd. Returns nil if not found.
 	FetchServiceRelease func(ctx context.Context, canonicalName string) (*cluster_controllerpb.ServiceRelease, error)
-	Now func() time.Time
+	Now                 func() time.Time
 }
 
 func defaultSelfHostedProofDeps() selfHostedProofDeps {
@@ -415,8 +416,7 @@ func applySelfHostedInstalledStateRefresh(existing *node_agentpb.InstalledPackag
 
 	var pkg *node_agentpb.InstalledPackage
 	if existing != nil {
-		cp := *existing
-		pkg = &cp
+		pkg = proto.Clone(existing).(*node_agentpb.InstalledPackage)
 		// Deep-copy metadata so we can mutate without aliasing.
 		md := make(map[string]string, len(existing.Metadata)+5)
 		for k, v := range existing.Metadata {
@@ -478,7 +478,7 @@ func (srv *NodeAgentServer) refreshSelfHostedInstalledState(ctx context.Context)
 		// convention. Without this, a reclassified package (e.g.
 		// SERVICE → INFRASTRUCTURE) would fail the path check.
 		existingKind := ""
-		for _, k := range []string{"SERVICE", "INFRASTRUCTURE", "COMMAND"} {
+		for _, k := range authoritativeInstalledPackageKinds {
 			if pkg, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, k, canonicalName); pkg != nil {
 				existingKind = k
 				break

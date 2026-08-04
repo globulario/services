@@ -1,6 +1,7 @@
 package versionutil
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -112,6 +113,105 @@ func ReadEntrypoint(serviceName string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+// IdentityProofPath returns the path to the identity-proof sidecar for a
+// package. It holds the manifest-declared identity proof MODE ("binary_sha256"
+// or "version"), so the node-agent's convergence check knows how a package's
+// identity is verified WITHOUT inferring it from entrypoint=="none". A
+// binary_sha256 package must have its installed binary hashed against the
+// declared checksum; a version package is proved by its live version. This makes
+// the meaning explicit and declared (identity.has_single_canonical_source_and_is_immutable)
+// rather than guessed from a secondary signal.
+//
+// Format: /var/lib/globular/services/<name>/identity_proof
+func IdentityProofPath(serviceName string) string {
+	name := sanitize(serviceName)
+	if name == "" {
+		name = "unknown"
+	}
+	return filepath.Join(baseDir, name, "identity_proof")
+}
+
+// WriteIdentityProof persists the manifest-declared identity proof mode. Safe to
+// call repeatedly; last write wins. Writes nothing when proof is empty (legacy
+// packages that predate declared identity — readers fall back to the entrypoint
+// sidecar).
+func WriteIdentityProof(serviceName, proof string) error {
+	proof = strings.ToLower(strings.TrimSpace(proof))
+	if proof == "" {
+		return nil
+	}
+	path := IdentityProofPath(serviceName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(proof+"\n"), 0o644)
+}
+
+// ReadIdentityProof returns the persisted identity proof mode, or "" when no
+// sidecar exists (legacy install — caller falls back to entrypoint inference).
+func ReadIdentityProof(serviceName string) string {
+	data, err := os.ReadFile(IdentityProofPath(serviceName))
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(string(data)))
+}
+
+// IdentityInstalledPathPath returns the sidecar holding the DECLARED absolute
+// path of the binary this package's identity refers to.
+func IdentityInstalledPathPath(serviceName string) string {
+	name := sanitize(serviceName)
+	if name == "" {
+		name = "unknown"
+	}
+	return filepath.Join(baseDir, name, "identity_installed_path")
+}
+
+// WriteIdentityInstalledPath persists the manifest-declared identity subject.
+//
+// REPLACEMENT SEMANTICS ARE THE POINT. A reinstall whose artifact declares no
+// installed path REMOVES the sidecar rather than leaving the previous one in
+// place: silently inheriting a prior artifact's path would make the node-agent
+// verify a binary the newly installed package never claimed, which is a false
+// proof rather than a missing one. Empty therefore means delete, not no-op —
+// deliberately unlike WriteIdentityProof, whose empty case is legacy tolerance.
+//
+// Only a validated absolute path is written; anything else is rejected so a
+// malformed declaration cannot become a verification subject.
+func WriteIdentityInstalledPath(serviceName, installedPath string) error {
+	path := IdentityInstalledPathPath(serviceName)
+	v := strings.TrimSpace(installedPath)
+	if v == "" {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if !filepath.IsAbs(v) || strings.Contains(v, "..") {
+		return fmt.Errorf("identity installed path %q must be absolute and free of %q segments", v, "..")
+	}
+	v = filepath.Clean(v)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(v+"\n"), 0o644)
+}
+
+// ReadIdentityInstalledPath returns the persisted identity subject, or "" when
+// no sidecar exists. A stored value that is not absolute is treated as absent
+// rather than returned, so a corrupted sidecar cannot redirect verification.
+func ReadIdentityInstalledPath(serviceName string) string {
+	data, err := os.ReadFile(IdentityInstalledPathPath(serviceName))
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimSpace(string(data))
+	if v == "" || !filepath.IsAbs(v) || strings.Contains(v, "..") {
+		return ""
+	}
+	return filepath.Clean(v)
 }
 
 // WriteKind persists the package kind ("SERVICE", "INFRASTRUCTURE", "COMMAND",

@@ -21,14 +21,16 @@ func TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical(t *testing.T) {
 	// The Phase 24 anchor scenario: Envoy has applied several CDS
 	// updates but LDS update_attempt is still 0. Mesh is wedged; port
 	// 443 will not be bound. Doctor MUST surface this as CRITICAL.
+	now := time.Now()
 	snap := &collector.Snapshot{
 		PromMetrics: map[string]float64{
 			"envoy_cds_update_success":  4,
 			"envoy_lds_update_attempt":  0,
 			"envoy_lds_update_success":  0,
 			"envoy_lds_update_rejected": 0,
+			"xds_last_applied_unix":     float64(now.Add(-2 * envoyLDSWarmupGrace).Unix()),
 		},
-		PromTS: time.Now(),
+		PromTS: now,
 	}
 	fs := envoyLDSWedge{}.Evaluate(snap, Config{})
 	if len(fs) != 1 {
@@ -43,6 +45,26 @@ func TestEnvoyLDSWedge_CDSProgress_LDSZero_FiresCritical(t *testing.T) {
 	}
 	if f.InvariantID != "envoy.lds_progress_required_for_http_mesh_readiness" {
 		t.Errorf("invariant_id=%q does not match the anchored invariant", f.InvariantID)
+	}
+}
+
+func TestEnvoyLDSWedge_FreshXDSApply_GraceSuppressesTransient(t *testing.T) {
+	// Day-0 cold starts commonly show CDS progress before LDS begins. A fresh
+	// xDS apply must buy Envoy a bounded warm-up window so doctor does not
+	// open a CRITICAL incident on the normal handshake path.
+	now := time.Now()
+	snap := &collector.Snapshot{
+		PromMetrics: map[string]float64{
+			"envoy_cds_update_success":  1,
+			"envoy_lds_update_attempt":  0,
+			"envoy_lds_update_success":  0,
+			"envoy_lds_update_rejected": 0,
+			"xds_last_applied_unix":     float64(now.Add(-(envoyLDSWarmupGrace / 2)).Unix()),
+		},
+		PromTS: now,
+	}
+	if fs := (envoyLDSWedge{}).Evaluate(snap, Config{}); len(fs) != 0 {
+		t.Fatalf("expected no finding during warm-up grace after fresh xDS apply, got %d", len(fs))
 	}
 }
 

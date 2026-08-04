@@ -82,9 +82,8 @@ func ResolveNodeIntent(nodeID string, profiles []string, units []unitStatusRecor
 	if len(normalized) == 0 {
 		// A node with no profile is a Day-0 trap, not a "core node by
 		// default" — silently coercing to ["core"] hides the bug from
-		// the operator and ships an under-specified install set. The
-		// join handler must guarantee a profile (enforceFoundingProfiles
-		// for the first 3 nodes; explicit assignment after).
+		// the operator and ships an under-specified install set. The join
+		// handler must assign or preserve an explicit profile.
 		return nil, fmt.Errorf("node %s has no profiles assigned: every node must have a profile (the join handler is the source of truth — check handlers_join.go)", nodeID)
 	}
 
@@ -473,6 +472,9 @@ func buildHealthySet(units []unitStatusRecord) map[string]bool {
 func checkRuntimeDeps(c *Component, healthyUnits map[string]bool, installedVersions map[string]string, node *nodeState) []string {
 	var missing []string
 	for _, dep := range c.RuntimeLocalDependencies {
+		if !runtimeDependencyBlocksRollout(dep) {
+			continue
+		}
 		depComp := CatalogByName(dep)
 		if depComp == nil {
 			// Dep is referenced by name but not in the catalog — treat as
@@ -517,6 +519,15 @@ func checkRuntimeDeps(c *Component, healthyUnits map[string]bool, installedVersi
 		}
 	}
 	return missing
+}
+
+func runtimeDependencyBlocksRollout(dep string) bool {
+	switch normalizeComponentName(dep) {
+	case "event":
+		return false
+	default:
+		return true
+	}
 }
 
 func componentNames(comps []*Component) []string {

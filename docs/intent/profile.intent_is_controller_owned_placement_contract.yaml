@@ -7,7 +7,7 @@ bad_smells:
 - gateway or installer invents profiles
 - JoinPlan accepts unknown profiles
 - controller and node-agent normalize profiles differently
-- Day-0 default profiles omit storage for founding node
+- profile assignment is coerced to manufacture a preferred quorum floor
 - profile mismatch is "fixed" by editing etcd without join/reconcile evidence
 - profile state is used as runtime health evidence
 activation_triggers:
@@ -15,7 +15,6 @@ activation_triggers:
 - assigned_profiles
 - JoinPlan
 - bootstrap
-- founding quorum
 - placement intent
 - normalize profiles
 expressed_by:
@@ -23,10 +22,9 @@ expressed_by:
 - docs/operational-knowledge/stages/day-0-bootstrap.yaml
 - docs/operational-knowledge/stages/day-1-join.yaml
 - docs/operators/adding-nodes.md
-related_invariants:
-- founding.quorum.three_nodes_required
+related_invariants: []
 zooms_out_to:
-- state.repository_desired_installed_runtime
+- meta.quorum_is_quality_not_constraint
 zooms_in_to:
 - cluster.membership.earned_trust
 - day0_day1_are_repeatable_ceremonies

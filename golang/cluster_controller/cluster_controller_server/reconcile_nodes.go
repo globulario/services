@@ -536,8 +536,7 @@ func (srv *server) materializeMissingInfraDesired(ctx context.Context, intent *N
 		// Skip day0_join and topology_workflow infrastructure — these are managed
 		// by dedicated state machines, not the artifact pipeline.
 		// day0_join: managed by bootstrap/join logic (e.g. etcd member-add).
-		// topology_workflow: requires quorum precondition (e.g. MinIO needs 3
-		// storage nodes) and is driven by a dedicated topology workflow.
+		// topology_workflow: driven by a dedicated topology workflow.
 		// Creating InfrastructureRelease for either would cause the node-agent
 		// to attempt an artifact-based install at the wrong time.
 		if comp.Kind == KindInfrastructure &&
@@ -1162,16 +1161,33 @@ func (srv *server) enqueueReleasesForConvergingNodes(ctx context.Context) {
 		return
 	}
 	count := 0
+	skipped := 0
 	for _, obj := range items {
 		rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
-		if !ok || rel.Meta == nil {
+		if !ok || rel.Meta == nil || rel.Spec == nil || rel.Status == nil {
+			continue
+		}
+		// Only re-enqueue releases that actually have an unserved eligible node.
+		// The unconditional sweep re-listed every ServiceRelease every 120s for as
+		// long as any node was converging (i.e. the whole Day-0/Day-1 window),
+		// keeping the dispatch pipeline saturated against already-served releases
+		// and feeding the workflow-backend pressure that trips the dispatch circuit
+		// breaker. hasUnservedNodes is the same predicate retryFailedInfraReleases
+		// uses; it returns true precisely for the rollout.partial_not_converged
+		// case this sweep exists to catch (a ready node the release does not yet
+		// track), so gating on it preserves the safety net while dropping the
+		// wasted churn. convergenceBlockedNodes MUST be computed here — outside
+		// hasUnservedNodes' internal server lock — because it performs etcd I/O.
+		h := srv.svcReleaseHandle(rel)
+		if !srv.hasUnservedNodes(h, srv.convergenceBlockedNodes(ctx, h.InstalledStateName)) {
+			skipped++
 			continue
 		}
 		srv.releaseEnqueue(rel.Meta.Name)
 		count++
 	}
-	if count > 0 {
-		log.Printf("enqueueReleasesForConvergingNodes: enqueued %d service releases for converging node check", count)
+	if count > 0 || skipped > 0 {
+		log.Printf("enqueueReleasesForConvergingNodes: enqueued %d service releases (skipped %d already-served) for converging node check", count, skipped)
 	}
 }
 
@@ -1624,9 +1640,15 @@ func (srv *server) recoverStuckBootstrapWorkflows(nodes []*nodeState, now time.T
 		// xds_ready is explicitly excluded here because a join workflow can
 		// fail after installing xDS but before installing Envoy, leaving the
 		// node stuck waiting for a service that will never start on its own.
+		// awareness_ready is also excluded: the phase machine owns that phase
+		// and advances it on its own 90s graceful timeout — but only while
+		// BootstrapWorkflowActive is false. A join re-trigger here suppresses
+		// that timeout for the workflow's whole (up to 30m) run, deadlocking
+		// the node in awareness_ready (observed 2026-07-10 on globule-nuc).
 		if node.BootstrapPhase == BootstrapStorageJoining ||
 			node.BootstrapPhase == BootstrapEtcdReady ||
-			node.BootstrapPhase == BootstrapEnvoyReady {
+			node.BootstrapPhase == BootstrapEnvoyReady ||
+			node.BootstrapPhase == BootstrapAwarenessReady {
 			log.Printf("bootstrap-recovery: node %s (%s) at phase %s — skipping join re-trigger (storage data may exist)",
 				node.NodeID, node.Identity.Hostname, node.BootstrapPhase)
 			continue

@@ -93,7 +93,21 @@ func (r placementInstalledPackageOrphaned) Evaluate(snap *collector.Snapshot, _ 
 				Summary: fmt.Sprintf(
 					"Orphaned install: %q@%s is installed on node %s but the node's profiles %v do not authorize it (catalog requires one of %v) — it can never converge here; operator action required.",
 					name, installedVer, nodeID, component_catalog.NormalizeProfiles(nodeProfiles), required),
-				InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+				// Health-neutral by contract, yet VISIBLE. A placement orphan is a
+				// non-blocking WARNING (never blocks join, convergence-dispatch, or
+				// runtime), so it must NOT degrade the cluster verdict. But it must
+				// also stay surfaced (degraded_is_explicit_not_hidden). Two render
+				// facts constrain the choice:
+				//   - overallStatus() (render/cluster_report.go) escalates ONLY
+				//     INVARIANT_FAIL findings → any non-FAIL status is health-neutral.
+				//   - toProtofindings() DROPS INVARIANT_PASS findings from the report
+				//     (cluster_report.go:98) → PASS would make the orphan invisible.
+				// INVARIANT_PENDING is the only value that is BOTH non-FAIL
+				// (health-neutral) AND non-PASS (kept in the report), and it is the
+				// honest semantic: an orphan is a known condition awaiting operator
+				// action (retire desired / add profile / uninstall), not a passed
+				// check and not a health failure. (The enum has no INVARIANT_OK.)
+				InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_PENDING,
 				Evidence: []*cluster_doctorpb.Evidence{
 					kvEvidence("cluster_controller", "GetClusterHealthV1 (installed versions) + component_catalog placement map", map[string]string{
 						"node_id":           nodeID,

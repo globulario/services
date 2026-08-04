@@ -96,41 +96,124 @@ _set_nodetool() { printf '#!/usr/bin/env bash\n%s\n' "$1" >"$STUB/nodetool"; chm
   [[ "$output" != *"UNREACHABLE"* ]]
 }
 
-# ── Requirement 1 (unit): unreachable nodetool -> UNKNOWN, not 0 — in BOTH copies ─
-# Extracts and exercises ONLY the topology-count logic from each copy (no main flow,
-# no destructive commands), so it is safe to run anywhere.
-@test "gateway copy: count_scylla_up_nodes returns UNKNOWN on unreachable, counts otherwise" {
+# ── Requirement 1 (unit): probe targets the node IP, UNKNOWN on unreachable — BOTH copies ─
+# The ScyllaDB admin REST API binds to api_address = the node's cluster IP (never
+# localhost — this is a cluster). nodetool defaults to 127.0.0.1:10000, which nothing
+# serves, so the probe MUST target the resolved node address via `-h`. These tests
+# extract ONLY the topology-count logic (no main flow, no destructive commands).
+@test "gateway copy: count_scylla_up_nodes probes the node IP via -h, UNKNOWN on unreachable, counts otherwise" {
   local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
-  # pull in the helper log_warn (no-op) + the function body, then call it
+  # pull in the helper log_warn (no-op) + the function body, then call it with a node IP
   run bash -c '
     log_warn() { :; }
     '"$(sed -n "/^count_scylla_up_nodes()/,/^}/p" "$gw")"'
-    nodetool() { return 1; }         ; [[ "$(count_scylla_up_nodes)" == "UNKNOWN" ]] || { echo "unreachable!=UNKNOWN"; exit 1; }
-    nodetool() { printf "UN a\nUN b\n"; }; [[ "$(count_scylla_up_nodes)" == "2" ]] || { echo "2-node count wrong"; exit 1; }
-    nodetool() { printf "UN a\n"; }   ; [[ "$(count_scylla_up_nodes)" == "1" ]] || { echo "1-node count wrong"; exit 1; }
+    # nodetool answers ONLY when targeted at the node IP via -h; the localhost default fails.
+    nodetool() { [[ "$1" == "-h" && "$2" == "10.0.0.63" ]] && printf "UN a\nUN b\n"; return 0; }
+    [[ "$(count_scylla_up_nodes 10.0.0.63)" == "2" ]] || { echo "node-IP probe not counted"; exit 1; }
+    # A target the API is not served on (e.g. localhost) -> unreachable -> UNKNOWN, never 0.
+    [[ "$(count_scylla_up_nodes 127.0.0.1)" == "UNKNOWN" ]] || { echo "unreachable!=UNKNOWN"; exit 1; }
+    nodetool() { [[ "$1" == "-h" && "$2" == "10.0.0.63" ]] && printf "UN a\n"; return 0; }
+    [[ "$(count_scylla_up_nodes 10.0.0.63)" == "1" ]] || { echo "1-node count wrong"; exit 1; }
     echo OK'
   [ "$status" -eq 0 ]
   [[ "$output" == *"OK"* ]]
 }
 
-@test "services copy: inline topology logic yields UNKNOWN on unreachable, not 0" {
+@test "services copy: inline probe targets the node IP via -h, UNKNOWN on unreachable, never 0" {
   local svc="$BATS_TEST_DIRNAME/clean-node.sh"
-  # The services copy computes _SCYLLA_UP inline; replicate the exact probe->classify
-  # snippet by extracting the `_NT_OUT=...`/awk lines and asserting the UNKNOWN sentinel.
-  grep -q 'printf .UNKNOWN' "$svc" || grep -q '_SCYLLA_UP="UNKNOWN"' "$svc"
+  # The services copy computes _SCYLLA_UP inline. Assert it probes via `nodetool -h "$_NODE_IP"`
+  # (the resolved node address) and replicate the probe->classify snippet.
+  grep -q 'nodetool -h "\$_NODE_IP" status' "$svc"
+  grep -q '_SCYLLA_UP="UNKNOWN"' "$svc"
   run bash -c '
+    _NODE_IP=10.0.0.63
+    # nodetool answers only at the node IP; the localhost default would fail.
+    nodetool() { [[ "$1" == "-h" && "$2" == "10.0.0.63" ]] && printf "UN a\nUN b\n"; return 0; }
+    _NT_OUT="$(nodetool -h "$_NODE_IP" status 2>/dev/null || true)"
+    if [[ -z "$_NT_OUT" ]]; then _SCYLLA_UP="UNKNOWN"; else _SCYLLA_UP=$(printf "%s\n" "$_NT_OUT" | awk "/^U[NL] / {n++} END {print n+0}"); fi
+    [[ "$_SCYLLA_UP" == "2" ]] || { echo "node-IP probe not counted"; exit 1; }
+    # Unreachable target -> UNKNOWN, never 0.
     nodetool() { return 1; }
-    _NT_OUT="$(nodetool status 2>/dev/null || true)"
+    _NT_OUT="$(nodetool -h "$_NODE_IP" status 2>/dev/null || true)"
     if [[ -z "$_NT_OUT" ]]; then _SCYLLA_UP="UNKNOWN"; else _SCYLLA_UP=$(printf "%s\n" "$_NT_OUT" | awk "/^U[NL] / {n++} END {print n+0}"); fi
     [[ "$_SCYLLA_UP" == "UNKNOWN" ]] && echo OK'
   [ "$status" -eq 0 ]
   [[ "$output" == *"OK"* ]]
 }
 
-# ── Guard: neither copy collapses a failed probe to 0 (forbidden_fix regression) ─
-@test "neither copy pipes a failed nodetool status to echo 0 / printf 0" {
+# ── Guard: neither copy probes scylla on localhost, nor collapses a failed probe to 0 ─
+@test "both copies probe via nodetool -h (node IP); no bare localhost probe, no fail-open to 0" {
   local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
   local svc="$BATS_TEST_DIRNAME/clean-node.sh"
-  run grep -nE 'nodetool status[^|]*\|\|[[:space:]]*(echo|printf)[[:space:]]+.?0' "$gw" "$svc"
-  [ "$status" -ne 0 ]   # grep finds nothing -> the fail-open pattern is gone
+  # Every real probe must go through -h (the resolved node address).
+  grep -q 'nodetool -h' "$gw"
+  grep -q 'nodetool -h' "$svc"
+  # No command-position bare `nodetool status|decommission` (would hit the 127.0.0.1 default).
+  run grep -nE '(\$\(|if |;[[:space:]]*)nodetool (status|decommission)' "$gw" "$svc"
+  [ "$status" -ne 0 ]
+  # No fail-open: a failed probe must never be collapsed to 0.
+  run grep -nE 'nodetool[^|]*status[^|]*\|\|[[:space:]]*(echo|printf)[[:space:]]+.?0' "$gw" "$svc"
+  [ "$status" -ne 0 ]
+}
+
+# ── SCAR-2 (INCIDENT 2026-07-30): etcd member removal must not depend on the
+# local etcd being up ─────────────────────────────────────────────────────────
+#
+# Contract:  a node being wiped must detach itself from the etcd cluster first,
+#            or the surviving peers keep counting it toward quorum.
+# Failure:   etcd member removal was gated on `systemctl is-active globular-etcd`,
+#            which is false in exactly the case the step exists for — a node is
+#            wiped after a FAILED join, and the join script's own preflight stops
+#            globular-etcd. The block was skipped, the member survived the wipe,
+#            and the bootstrap node was stranded at 2 voters with 1 dead:
+#            "etcdserver: no leader", every write hanging. Recovery needed
+#            etcd --force-new-cluster.
+# Forbidden: gating self-removal on local etcd liveness; addressing only the
+#            local endpoint (a dead local etcd cannot serve its own removal).
+
+@test "neither copy gates etcd member removal on the local etcd being active" {
+  local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
+  local svc="$BATS_TEST_DIRNAME/clean-node.sh"
+  # The guard for step 0.3 must not test globular-etcd liveness. Look for the
+  # is-active check appearing as a condition of the member-removal block.
+  run grep -nE 'is-active[^\n]*globular-etcd\.service[[:space:]]*2>/dev/null[[:space:]]*\\' "$gw" "$svc"
+  [ "$status" -ne 0 ]   # nothing found -> the liveness gate is gone
+}
+
+@test "both copies address a peer endpoint, not just the local one, for member removal" {
+  local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
+  local svc="$BATS_TEST_DIRNAME/clean-node.sh"
+  for f in "$gw" "$svc"; do
+    # A peer endpoint must be appended when known...
+    run grep -qE '_ETCD_ENDPOINTS="\$\{?_ETCD_ENDPOINTS\}?,https://\$\{_PEER_HOST\}:2379"' "$f"
+    [ "$status" -eq 0 ]
+    # ...and the member list/remove calls must use the multi-endpoint variable,
+    # never the single local one.
+    run grep -nE -- '--endpoints="\$_ETCD_ENDPOINT"' "$f"
+    [ "$status" -ne 0 ]
+  done
+}
+
+@test "both copies fall back to the service cert when the etcd client cert is absent" {
+  local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
+  local svc="$BATS_TEST_DIRNAME/clean-node.sh"
+  # A node wiped after a PARTIAL join has no pki/issued/etcd/ yet (it is
+  # materialised later than the phase-2 service cert). Without a fallback the
+  # member removal is skipped on exactly the nodes that need it, and the wipe
+  # strands the surviving peers below quorum.
+  for f in "$gw" "$svc"; do
+    run grep -qE '_ETCD_CERT="\$\{_PKI_DIR\}/issued/services/service\.crt"' "$f"
+    [ "$status" -eq 0 ]
+    run grep -qE '_ETCD_KEY="\$\{_PKI_DIR\}/issued/services/service\.key"' "$f"
+    [ "$status" -eq 0 ]
+  done
+}
+
+@test "both copies search more than one path for etcdctl" {
+  local gw="$BATS_TEST_DIRNAME/../../Globular/internal/gateway/handlers/cluster/clean-node.sh"
+  local svc="$BATS_TEST_DIRNAME/clean-node.sh"
+  for f in "$gw" "$svc"; do
+    run grep -qE '/usr/local/bin/etcdctl' "$f"
+    [ "$status" -eq 0 ]
+  done
 }

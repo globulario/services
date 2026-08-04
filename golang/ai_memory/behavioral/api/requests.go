@@ -110,6 +110,34 @@ type CheckActionRequest struct {
 	// CheckAction never runs a probe.
 	ProvidedEvidenceRefs []string
 	HumanApproval        string // approver, satisfies needs_human_approval
+
+	// ActionScope identifies the concrete thing being acted on. Supplied by the
+	// caller from real state; without it a domain qualifier cannot tell evidence
+	// about THIS subject from evidence about another one that happens to share a
+	// requirement.
+	ActionScope ActionScope
+	// EvaluatedAt is the injected clock, unix seconds. Zero means "use now" —
+	// acceptable for a live gate, required to be set by tests so a verdict does
+	// not depend on wall-clock timing.
+	EvaluatedAt int64
+}
+
+// ActionScope is the subject and action identity a governed check is about.
+//
+// Every field is optional at the type level and MANDATORY in practice for any
+// requirement whose rule references it: a domain qualifier that receives an empty
+// field must treat it as a failure to qualify, never as a wildcard. Widening on
+// absence is how an unrelated cluster's evidence starts authorizing actions.
+type ActionScope struct {
+	ClusterID    string
+	EntityRef    string
+	ConditionRef string // the invariant/condition the action addresses
+	SourceRef    string // the originating finding
+	ActionRef    string // the governed action, e.g. the workflow run id
+	// ActionDispatchedAt is set only for a POST-action check. A pre-action gate
+	// leaves it zero, and a rule requiring evidence newer than dispatch cannot
+	// be satisfied at that point — correctly, since the action has not run.
+	ActionDispatchedAt int64
 }
 
 // RecordOutcomeRequest records what happened after an action.

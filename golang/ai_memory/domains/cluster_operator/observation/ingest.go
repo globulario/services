@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/ai_memory/behavioral/api"
+	cluster_operator "github.com/globulario/services/golang/ai_memory/domains/cluster_operator"
 	ai_watcherpb "github.com/globulario/services/golang/ai_watcher/ai_watcherpb"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
@@ -92,7 +93,7 @@ func FromDoctorFinding(project string, domain api.DomainRef, clusterID string, h
 	}
 	out := Bundle{Signal: sig}
 	for i, ev := range finding.GetEvidence() {
-		out.Evidence = append(out.Evidence, api.Evidence{
+		row := api.Evidence{
 			ID:             fmt.Sprintf("%s.evidence.%d", signalID, i),
 			Project:        project,
 			Domain:         domain,
@@ -112,7 +113,13 @@ func FromDoctorFinding(project string, domain api.DomainRef, clusterID string, h
 			Payload:        marshalPayload(ev),
 			ObservedFrom:   signalID,
 			Provenance:     api.Provenance{SourceRef: ev.GetSourceRpc(), CreatedAt: ev.GetTimestamp().GetSeconds()},
-		})
+		}
+		// Bind the catalog's requirement IDs before the row leaves the producer.
+		// The satisfaction index is written from Satisfies at persistence time,
+		// so an unbound row is not merely unqualified — it is invisible to the
+		// governor, which then reports "no evidence" for evidence that exists.
+		cluster_operator.BindSatisfies(&row)
+		out.Evidence = append(out.Evidence, row)
 	}
 	return out
 }

@@ -151,7 +151,7 @@ services:
   node_agent:
     profiles: [core, compute]
     priority: 1000
-    dependencies: [cluster_controller]
+    dependencies: [etcd, cluster_controller]
     run_as_root: true
 
   repository:

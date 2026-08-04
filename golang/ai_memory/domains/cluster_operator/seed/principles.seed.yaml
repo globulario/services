@@ -132,3 +132,40 @@
   generated_from:
     - opsknowledge:incidents
     - opsknowledge:package-anti-patterns
+# ── governed remediation (commit 5) ─────────────────────────────────────────
+# The FIRST principle that gates a real doctor remediation through CheckAction.
+# Deliberately narrow: one action kind, one invariant, one entity shape. It
+# authorizes restarting a drifted Globular unit and nothing else — there is no
+# principle here saying "the doctor may repair things".
+#
+# It requires only PRE-action evidence. Requiring fresh convergence verification
+# would be circular: that evidence only exists after the action it would have to
+# authorize.
+- id: principle.cluster.restart_drifted_unit_with_observed_finding
+  title: Restart a drifted Globular unit only on an observed doctor finding
+  applies_when:
+    - condition.cluster.node.systemd_unit_not_running
+  authorities:
+    - authority.cluster.owner_service.runtime_state
+  required_evidence:
+    - evidence.doctor.finding_observed
+  forbidden_moves:
+    - forbidden.cluster.restart_before_quorum_check
+    - forbidden.cluster.controller_executes_local_mutation
+  recommended_action: >-
+    Restart the unit named by the finding, on the node named by the finding, only while a
+    current cluster-doctor finding for node.systemd.units_running is observed for that exact
+    node/unit — then re-run the doctor and confirm the finding cleared before reporting success.
+  risk_level: low
+  revocation_rule: >-
+    revoke if SYSTEMCTL_RESTART stops being idempotent for globular-* units, or if the executor's
+    unit allowlist is widened beyond Globular-managed units
+  promotion_reason: >-
+    restarting a drifted managed unit is deterministic, idempotent and reversible, and the
+    executor already constrains it to the globular-* allowlist — it is the smallest real
+    remediation that can be governed end to end
+  source_refs:
+    - seed:cluster-doctor/rules/node_units_running.go
+  generated_from:
+    - doctorrule:node.systemd.units_running
+    - doctoraction:SYSTEMCTL_RESTART
