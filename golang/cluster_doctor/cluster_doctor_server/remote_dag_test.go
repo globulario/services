@@ -60,8 +60,7 @@ type remoteHarness struct {
 	// mutateDelta rewrites a step's output delta AS IT CROSSES the transport,
 	// so a test can simulate a field failing to survive the RPC without
 	// changing what the handler actually did.
-	mutateDelta  func(action string, out map[string]any)
-	publicExecOK bool // set if the PUBLIC ExecuteRemediation path is ever used
+	mutateDelta func(action string, out map[string]any)
 }
 
 const (
