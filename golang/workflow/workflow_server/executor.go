@@ -644,20 +644,28 @@ func (d *actorDispatcher) makeHandler(actorType string) engine.ActionHandler {
 			return nil, fmt.Errorf("actor %s action %s: %w", actorType, req.Action, err)
 		}
 
-		if !resp.Ok {
-			return nil, fmt.Errorf("actor %s action %s rejected: %s", actorType, req.Action, resp.Message)
-		}
-
+		// Decode the output delta BEFORE classifying the response.
+		//
+		// The previous order returned an error on !resp.Ok and never looked at
+		// OutputJson, so any receipt attached to a semantic failure was
+		// discarded at the transport. A governed refusal therefore reached the
+		// caller as a bare executor failure, and the healer charged its circuit
+		// breaker for a decision that was working correctly.
 		var output map[string]any
 		if resp.OutputJson != "" {
 			if err := json.Unmarshal([]byte(resp.OutputJson), &output); err != nil {
-				slog.Warn("executor: failed to unmarshal action output",
-					"actor", actorType, "action", req.Action, "err", err)
+				// Fail closed rather than continue with an empty map: a
+				// malformed receipt is not the same as no receipt, and
+				// silently dropping it recreates the bug above.
+				return nil, fmt.Errorf("actor %s action %s: malformed output json: %w",
+					actorType, req.Action, err)
 			}
 		}
 
+		// OK carries the actor's verdict; the engine merges Output either way
+		// and then fails the step when OK is false.
 		return &engine.ActionResult{
-			OK:      true,
+			OK:      resp.Ok,
 			Output:  output,
 			Message: resp.Message,
 		}, nil

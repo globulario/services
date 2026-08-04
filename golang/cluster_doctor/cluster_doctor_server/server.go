@@ -60,6 +60,11 @@ type ClusterDoctorServer struct {
 	// selection and dispatch. See run_finding_binding.go.
 	runFindings runFindingBindings
 
+	// actorEndpointResolver overrides how this doctor's routable callback
+	// address is resolved. nil uses the canonical service registration;
+	// transport tests inject a bufconn target.
+	actorEndpointResolver func() string
+
 	// lastEmittedFindings is the most recent CLUSTER-WIDE finding set used to
 	// compute the create/resolve delta emitted as cluster.finding.* events.
 	// It is intentionally separate from lastFindings so that a node-scoped

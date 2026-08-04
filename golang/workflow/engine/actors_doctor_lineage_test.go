@@ -65,7 +65,15 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	resolved := rf.Output
+	// The handler returns a NAMED delta ({"resolved_finding": {...}}), the same
+	// shape the workflow definition reads via $.resolved_finding.cluster_id and
+	// the same shape that now survives the actor RPC. Previously it returned
+	// bare fields merged at the run-output root, which worked in-process and
+	// left $.resolved_finding undefined remotely.
+	resolved, ok := rf.Output["resolved_finding"].(map[string]any)
+	if !ok {
+		t.Fatalf("resolve_finding must return a named resolved_finding delta; got %v", rf.Output)
+	}
 
 	if _, err := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
 		RunID: lnRun, With: map[string]any{"finding_id": lnFinding, "step_index": 0}, Outputs: outputs,

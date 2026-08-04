@@ -812,6 +812,26 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 				e.notifyStep(run, st)
 				return newStepDeferredError(step, result.Message, deferRenderContext(run, step))
 			}
+			// Merge the failed step's output delta BEFORE terminating.
+			//
+			// A semantic failure can carry a receipt that explains WHY — a
+			// governed refusal is the motivating case: the step must fail, but
+			// the run's final outputs must still say REFUSED with its decision
+			// id, or a correct refusal is indistinguishable from an executor
+			// malfunction downstream.
+			//
+			// Merging does NOT make the step succeed: status stays StepFailed,
+			// the run still fails, onFailure still runs, and step.Export is
+			// deliberately NOT applied — exporting would let a failed step
+			// publish itself under a name that downstream steps read as a
+			// successful result.
+			if result != nil && result.Output != nil {
+				run.outputMu.Lock()
+				for k, v := range result.Output {
+					run.Outputs[k] = v
+				}
+				run.outputMu.Unlock()
+			}
 			st.Status = StepFailed
 			st.Error = result.Message
 			st.FinishedAt = time.Now()

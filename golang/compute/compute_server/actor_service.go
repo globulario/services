@@ -65,19 +65,26 @@ func (s *ComputeActorServer) ExecuteAction(ctx context.Context, req *workflowpb.
 		Outputs: outputs,
 	}
 
+	// A handler may return BOTH a structured output delta and an error: a
+	// semantic failure must still deliver its receipt, or the caller cannot
+	// tell a governed refusal from a broken executor. Same contract as the
+	// cluster-doctor actor service.
 	result, err := handler(ctx, actionReq)
+	failMsg := ""
 	if err != nil {
-		return &workflowpb.ExecuteActionResponse{
-			Ok:      false,
-			Message: fmt.Sprintf("compute action %s failed: %v", req.Action, err),
-		}, nil
+		failMsg = fmt.Sprintf("compute action %s failed: %v", req.Action, err)
 	}
 
 	resp := &workflowpb.ExecuteActionResponse{
-		Ok:      result.OK,
-		Message: result.Message,
+		Ok: err == nil && result != nil && result.OK,
 	}
-	if result.Output != nil {
+	switch {
+	case failMsg != "":
+		resp.Message = failMsg
+	case result != nil:
+		resp.Message = result.Message
+	}
+	if result != nil && result.Output != nil {
 		if b, err := json.Marshal(result.Output); err == nil {
 			resp.OutputJson = string(b)
 		}

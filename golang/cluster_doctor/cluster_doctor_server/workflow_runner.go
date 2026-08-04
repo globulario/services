@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
@@ -128,12 +131,28 @@ func (s *ClusterDoctorServer) runAutonomousRemediation(
 		return rules.DispatchResult{}, fmt.Errorf("marshal inputs: %w", err)
 	}
 
+	// The callback endpoint must be ROUTABLE, not loopback.
+	//
+	// Service discovery can place Workflow Service on any node. That service
+	// resolves this address on ITS host, so "localhost" names the workflow
+	// node's own port and the callback never reaches this doctor — every
+	// autonomous run would die at its first actor step. It also violates the
+	// no-localhost-for-remote-addresses rule outright.
+	//
+	// Taken from the registered service record rather than assembled from host
+	// and port, so the address the workflow dials is the address this instance
+	// actually published.
+	actorEndpoint, err := s.resolveActorEndpoint()
+	if err != nil {
+		return rules.DispatchResult{}, err
+	}
+
 	resp, err := s.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
 		ClusterId:    s.clusterID,
 		WorkflowName: remediationWorkflowName,
 		InputsJson:   string(inputsJSON),
 		ActorEndpoints: map[string]string{
-			"cluster-doctor": fmt.Sprintf("localhost:%d", s.cfg.Port),
+			"cluster-doctor": actorEndpoint,
 		},
 		RunId:         runID,
 		CorrelationId: correlationID,
@@ -165,6 +184,55 @@ func (s *ClusterDoctorServer) runAutonomousRemediation(
 	}
 
 	return classifyRemediationRun(confirmedRunID, resp, dryRun), nil
+}
+
+// resolveActorEndpoint returns this doctor's registered, routable callback
+// address, or an error.
+//
+// Injectable so transport tests can supply a bufconn target. Production leaves
+// the hook nil and reads the canonical service registration.
+//
+// Fails closed BEFORE the workflow starts: a run dispatched with an
+// unreachable callback burns a run id, a governance decision and a lease, then
+// dies at its first actor step with a transport error that says nothing about
+// the real cause.
+func (s *ClusterDoctorServer) resolveActorEndpoint() (string, error) {
+	resolve := s.actorEndpointResolver
+	if resolve == nil {
+		resolve = func() string { return config.ResolveLocalServiceAddr(doctorServiceName) }
+	}
+	addr := resolve()
+	if addr == "" {
+		return "", fmt.Errorf("no registered endpoint for %s — refusing to start a remediation run "+
+			"the workflow service could not call back", doctorServiceName)
+	}
+	if err := rejectUnroutableCallback(addr); err != nil {
+		return "", err
+	}
+	return addr, nil
+}
+
+// doctorServiceName is the registration this doctor publishes itself under.
+const doctorServiceName = "cluster_doctor.ClusterDoctorService"
+
+// rejectUnroutableCallback refuses addresses that only resolve on the caller's
+// own host. Checked explicitly rather than trusted from the registry, because a
+// misconfigured registration is exactly the case that produces a run which
+// cannot be called back.
+func rejectUnroutableCallback(addr string) error {
+	host := addr
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		host = h
+	}
+	switch strings.ToLower(host) {
+	case "", "localhost", "127.0.0.1", "::1", "0.0.0.0", "[::]", "::":
+		return fmt.Errorf("registered endpoint %q is not routable from another node — "+
+			"a workflow service on a different host cannot call back to it", addr)
+	}
+	if ip := net.ParseIP(host); ip != nil && (ip.IsLoopback() || ip.IsUnspecified()) {
+		return fmt.Errorf("registered endpoint %q is loopback or unspecified — not routable", addr)
+	}
+	return nil
 }
 
 // classifyRemediationRun turns a finished workflow run into a dispatch

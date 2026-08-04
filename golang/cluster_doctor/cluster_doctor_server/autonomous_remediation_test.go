@@ -71,6 +71,9 @@ func autonomousServer(fake *fakeWorkflowClient) *ClusterDoctorServer {
 		workflowClient: fake,
 		clusterID:      "c1",
 		cfg:            &clusterdoctorConfig{Port: 10300},
+		// Injected so the test never consults real service discovery, and so
+		// the advertised callback is a ROUTABLE address rather than loopback.
+		actorEndpointResolver: func() string { return "10.0.0.63:10300" },
 	}
 	srv.isAuthoritative.Store(true)
 	return srv
@@ -330,7 +333,8 @@ func TestRunAutonomousRemediation_RunIdentity(t *testing.T) {
 // TestRunAutonomousRemediation_FailsClosedWithoutWorkflowService proves there
 // is no direct-execution fallback.
 func TestRunAutonomousRemediation_FailsClosedWithoutWorkflowService(t *testing.T) {
-	srv := &ClusterDoctorServer{clusterID: "c1", cfg: &clusterdoctorConfig{Port: 10300}} // no workflow client
+	srv := &ClusterDoctorServer{clusterID: "c1", cfg: &clusterdoctorConfig{Port: 10300},
+		actorEndpointResolver: func() string { return "10.0.0.63:10300" }} // no workflow client
 	srv.isAuthoritative.Store(true)
 	res, err := srv.runAutonomousRemediation(context.Background(), autonomousFinding(), 0, false)
 	if err == nil {

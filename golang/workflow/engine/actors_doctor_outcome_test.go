@@ -77,8 +77,22 @@ func TestVerifyConvergenceFailsStepWhenFindingStillPresent(t *testing.T) {
 	if !strings.Contains(err.Error(), "still present") {
 		t.Fatalf("error must mention 'still present', got: %v", err)
 	}
-	if res != nil {
-		t.Fatalf("result must be nil on failure, got: %+v", res)
+	// A failed step MUST now carry its receipt. Returning nil was the old
+	// contract, and it is precisely why a governed refusal became
+	// indistinguishable from an executor malfunction once the step crossed the
+	// actor RPC: the transport had nothing to serialize. The step still fails —
+	// OK is false and err is non-nil — but the verdict travels with it.
+	if res == nil {
+		t.Fatal("result must carry the failure receipt, not be nil")
+	}
+	if res.OK {
+		t.Error("a non-converged verification must not report OK")
+	}
+	if _, ok := res.Output["remediation_outcome"]; !ok {
+		t.Errorf("failure receipt must include remediation_outcome; got %v", res.Output)
+	}
+	if _, ok := res.Output["verification"]; !ok {
+		t.Errorf("failure receipt must include verification; got %v", res.Output)
 	}
 	// Outcome must still be written so the workflow run carries the
 	// verdict even though the step failed.

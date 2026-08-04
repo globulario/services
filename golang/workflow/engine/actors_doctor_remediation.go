@@ -299,8 +299,14 @@ func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {
 			"invariant_id": rf.InvariantID,
 			"entity_ref":   rf.EntityRef,
 		}
+		// Named delta, not a bare field map. The engine merges result.Output at
+		// the run-output ROOT, so returning bare fields would publish
+		// finding_id/node_id/... individually and leave $.resolved_finding
+		// undefined for the next step — which is exactly what happens across the
+		// actor RPC, where the handler's req.Outputs write is a dead local copy.
+		// One shape for both topologies.
 		req.Outputs["resolved_finding"] = out
-		return &ActionResult{OK: true, Output: out}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"resolved_finding": out}}, nil
 	}
 }
 
@@ -346,7 +352,7 @@ func doctorAssessRisk() ActionHandler {
 			"reason":            assessment.Reason,
 		}
 		req.Outputs["risk_assessment"] = out
-		return &ActionResult{OK: true, Output: out}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"risk_assessment": out}}, nil
 	}
 }
 
@@ -412,30 +418,41 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 			// Governance UNAVAILABLE is not governance REFUSED. Both stop the
 			// action, but only the second is a decision; the first is an
 			// infrastructure failure and must charge the circuit breaker.
-			req.Outputs["dispatch_result"] = map[string]any{
+			dr := map[string]any{
 				"disposition":            DispositionExecutionFailed,
 				"governance_unavailable": true,
 				"executed":               false,
 				"verified":               false,
 				"converged":              false,
 			}
-			return nil, fmt.Errorf("execute_remediation: governance check unavailable, refusing to dispatch: %w", gateErr)
+			req.Outputs["dispatch_result"] = dr
+			// Returned as an explicit delta, NOT only as a req.Outputs mutation:
+			// across the actor RPC that map is a deserialized local copy that
+			// dies with the call, so the receipt must ride the response.
+			return &ActionResult{OK: false, Output: map[string]any{"dispatch_result": dr},
+					Message: "governance check unavailable"},
+				fmt.Errorf("execute_remediation: governance check unavailable, refusing to dispatch: %w", gateErr)
 		}
 		if verdict != nil {
 			// Recorded whatever the verdict, so a blocked action leaves the same
 			// audit trail as an allowed one.
 			req.Outputs["governance"] = gateVerdictAsMap(*verdict)
 			if !verdict.Allowed {
-				// Written BEFORE returning, because req.Outputs is the run's
-				// accumulated map and therefore survives this step's error into
-				// the run's final OutputsJson. Without it the refusal would be
-				// indistinguishable from an executor failure, and a correct
-				// governance decision would charge the healer's circuit breaker
-				// — letting governance disable the healer by working.
+				// The refusal receipt is RETURNED as an explicit output delta,
+				// not merely written into req.Outputs.
 				//
-				// Nothing executed, so this deliberately claims no dispatch and
-				// no verification, and no remediation outcome is emitted.
-				req.Outputs["dispatch_result"] = map[string]any{
+				// In-process, req.Outputs is the run's live map and a write
+				// survives. Across the actor RPC it is a deserialized local copy
+				// that dies with the call, and ExecuteAction previously dropped
+				// OutputJson entirely on failure — so the receipt vanished, the
+				// refusal classified as EXECUTION_FAILED, and a correct
+				// governance decision charged the healer's circuit breaker.
+				// Returning the delta makes both topologies produce the same
+				// run-output shape.
+				//
+				// Nothing executed, so this claims no dispatch and no
+				// verification, and no remediation outcome is emitted.
+				dr := map[string]any{
 					"disposition":     DispositionRefused,
 					"action_check_id": verdict.ActionCheckID,
 					"status":          verdict.Status,
@@ -443,8 +460,12 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 					"verified":        false,
 					"converged":       false,
 				}
-				return nil, fmt.Errorf("execute_remediation: blocked by governance (status=%s check=%s): %s",
-					verdict.Status, verdict.ActionCheckID, verdict.Reason)
+				req.Outputs["dispatch_result"] = dr
+				return &ActionResult{OK: false,
+						Output:  map[string]any{"dispatch_result": dr, "governance": gateVerdictAsMap(*verdict)},
+						Message: fmt.Sprintf("blocked by governance (status=%s check=%s)", verdict.Status, verdict.ActionCheckID)},
+					fmt.Errorf("execute_remediation: blocked by governance (status=%s check=%s): %s",
+						verdict.Status, verdict.ActionCheckID, verdict.Reason)
 			}
 		}
 
@@ -479,11 +500,15 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 		}
 		req.Outputs["execution_result"] = out
 		// Rejections from the RPC are reflected as step failure so the
-		// workflow terminates and onFailure runs.
+		// workflow terminates and onFailure runs. The receipt still travels:
+		// a failed step that carries no record of WHY is unclassifiable, which
+		// is how a governed refusal became an executor failure.
 		if !res.Executed && !dryRun {
-			return nil, fmt.Errorf("execute_remediation rejected: status=%s reason=%s", res.Status, res.Reason)
+			return &ActionResult{OK: false, Output: map[string]any{"execution_result": out},
+					Message: fmt.Sprintf("execute_remediation rejected: status=%s reason=%s", res.Status, res.Reason)},
+				fmt.Errorf("execute_remediation rejected: status=%s reason=%s", res.Status, res.Reason)
 		}
-		return &ActionResult{OK: true, Output: out}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"execution_result": out}}, nil
 	}
 }
 
@@ -538,6 +563,10 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 		// docs/intent/workflow.remediation_truth_consistency.yaml.
 		outcome := buildRemediationOutcome(req, findingID, v, cfg.now)
 		req.Outputs["remediation_outcome"] = outcomeAsMap(outcome)
+		verifyDelta := map[string]any{
+			"verification":        out,
+			"remediation_outcome": outcomeAsMap(outcome),
+		}
 
 		// Offer the outcome for learning BEFORE the convergence branch below,
 		// so a remediation that did not converge is recorded too. Placing this
@@ -551,11 +580,15 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 			// "Verified but invariant present" — the workflow MUST NOT
 			// report success. Failing the step here propagates to the
 			// run-level status so a green workflow status cannot hide an
-			// unresolved doctor finding.
-			return nil, fmt.Errorf("verify_convergence: finding %s still present after remediation (status=%s)",
-				findingID, outcome.Status())
+			// unresolved doctor finding. The verification and outcome still
+			// travel: this is the case a promotion decision most needs to read.
+			return &ActionResult{OK: false, Output: verifyDelta,
+					Message: fmt.Sprintf("finding %s still present after remediation (status=%s)",
+						findingID, outcome.Status())},
+				fmt.Errorf("verify_convergence: finding %s still present after remediation (status=%s)",
+					findingID, outcome.Status())
 		}
-		return &ActionResult{OK: true, Output: out}, nil
+		return &ActionResult{OK: true, Output: verifyDelta}, nil
 	}
 }
 
