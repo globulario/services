@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -346,7 +348,7 @@ func TestAutonomousEndpoint_AdvertisesRoutableAddress(t *testing.T) {
 	}
 }
 
-// TestActorTransport_BoundFindingReachesTheExecutor proves the identity hole
+// TestBoundFindingReachesTheExecutor_CallbackLevel proves the identity hole
 // Codex found: the run-scoped binding guarded resolve_finding, but the execute
 // callback went through the PUBLIC ExecuteRemediation RPC, which re-resolves
 // from the mutable lastFindings cache.
@@ -356,9 +358,14 @@ func TestAutonomousEndpoint_AdvertisesRoutableAddress(t *testing.T) {
 // could act on a different subject than the healer bound — with the same
 // finding id and a different node and unit.
 //
-// Driven across the real actor RPC, because that is where the deserialized
-// copy of the run's outputs replaces the shared map.
-func TestActorTransport_BoundFindingReachesTheExecutor(t *testing.T) {
+// SCOPE: this is a CALLBACK-LEVEL test. It invokes cfg.ExecuteRemediation
+// directly and does NOT cross the actor RPC, despite living in this file. The
+// remote proof — the full remote DAG over bufconn — is still missing; see the
+// outstanding transport-proof work on #236. Naming it accurately matters more
+// than the convenience of the file it sits in: a comment claiming a boundary
+// the test never crosses is how the last two rounds of defects survived
+// review.
+func TestBoundFindingReachesTheExecutor_CallbackLevel(t *testing.T) {
 	const runID = "run-bound-exec"
 
 	findingA := autonomousFinding() // node-1 / globular-log.service
@@ -415,9 +422,11 @@ func TestActorTransport_BoundFindingReachesTheExecutor(t *testing.T) {
 	}
 }
 
-// TestActorTransport_ExecutionFailsClosedWithoutBinding proves a missing or
+// TestExecutionFailsClosedWithoutBinding_CallbackLevel proves a missing or
 // mismatched binding stops the mutation instead of falling back to the cache.
-func TestActorTransport_ExecutionFailsClosedWithoutBinding(t *testing.T) {
+//
+// SCOPE: callback-level, like the test above — it does not cross the actor RPC.
+func TestExecutionFailsClosedWithoutBinding_CallbackLevel(t *testing.T) {
 	f := autonomousFinding()
 	calls := 0
 	srv := &ClusterDoctorServer{
@@ -467,5 +476,55 @@ func TestActorTransport_ExecutionFailsClosedWithoutBinding(t *testing.T) {
 
 	if calls != 0 {
 		t.Errorf("executor called %d time(s) across fail-closed cases, want 0", calls)
+	}
+}
+
+// TestNoLoopbackInCentralizedRemediationPaths is a static guard: no non-test Go
+// file in this package may construct a loopback or unspecified callback
+// address.
+//
+// Both centralized remediation entry points (autonomous dispatch and the public
+// StartRemediationWorkflow) advertise an endpoint that a Workflow Service on
+// ANOTHER node must dial. A loopback literal resolves to that node's own host,
+// so the callback silently never arrives and the run dies at its first actor
+// step. Behavioural tests cover the two current call sites; this catches a
+// third one being added later.
+func TestNoLoopbackInCentralizedRemediationPaths(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read package dir: %v", err)
+	}
+	// Only the ADVERTISEMENT shape — a literal loopback address being built for
+	// someone else to dial. Deliberately narrow:
+	//
+	//   0.0.0.0 is correct for BIND/listen and appears legitimately in main.go;
+	//   "::1" and "127.0.0.1" appear legitimately inside rejectUnroutableCallback's
+	//   own deny-list and in TLS server-name handling.
+	//
+	// A guard that flagged those would be noise, and noisy guards get deleted.
+	// This catches the exact construction that was removed twice:
+	// fmt.Sprintf("localhost:%d", port).
+	banned := []string{`"localhost:`, "localhost:%d"}
+	scanned := 0
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		scanned++
+		for _, lit := range banned {
+			if strings.Contains(string(b), lit) {
+				t.Errorf("%s constructs a loopback address (%s). A workflow service on another "+
+					"node resolves it as its own host and can never call this doctor back — use "+
+					"resolveActorEndpoint().", name, lit)
+			}
+		}
+	}
+	if scanned == 0 {
+		t.Fatal("scanned no source files — the guard would pass vacuously")
 	}
 }
