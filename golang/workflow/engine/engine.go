@@ -780,6 +780,12 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 					step.ID, attempt, maxAttempts, err, backoff)
 				select {
 				case <-stepCtx.Done():
+					// Cancellation makes THIS attempt terminal, so its receipt
+					// must survive. Without this the retry-backoff exit was the
+					// one terminal path that silently discarded a structured
+					// result — a governed refusal on a step configured to retry
+					// would vanish if the context expired while waiting.
+					mergeOutputDelta(run, result)
 					st.Status = StepFailed
 					st.Error = fmt.Sprintf("timeout after %d attempts: %v", attempt, err)
 					st.FinishedAt = time.Now()
@@ -822,6 +828,9 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 					step.ID, attempt, maxAttempts, result.Message)
 				select {
 				case <-stepCtx.Done():
+					// Same rule on the OK:false path: this attempt is now
+					// terminal, so merge its delta before failing.
+					mergeOutputDelta(run, result)
 					st.Status = StepFailed
 					st.Error = result.Message
 					st.FinishedAt = time.Now()

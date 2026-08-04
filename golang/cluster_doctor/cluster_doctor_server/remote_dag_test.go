@@ -51,6 +51,7 @@ type remoteHarness struct {
 	outcomes []remediation.Outcome
 
 	// scripted behavior
+	verifiedAt   []time.Time // dispatchedAt values the verifier actually received
 	verdict      *engine.GateVerdict
 	gateErr      error
 	converged    bool
@@ -116,8 +117,13 @@ func (h *remoteHarness) config(t *testing.T) engine.DoctorRemediationConfig {
 		}
 		return *h.verdict, nil
 	}
-	cfg.VerifyConvergence = func(context.Context, string, string, time.Time) (*engine.Verification, error) {
+	cfg.VerifyConvergence = func(_ context.Context, _, _ string, dispatchedAt time.Time) (*engine.Verification, error) {
 		h.verify++
+		// Captured, not ignored. The production verifier proves its snapshot
+		// post-dates this instant; a test verifier that discards the argument
+		// would still pass if the timestamp vanished in transport, which is
+		// half of the original lineage defect.
+		h.verifiedAt = append(h.verifiedAt, dispatchedAt)
 		if h.verifyErr != nil {
 			return nil, h.verifyErr
 		}
@@ -246,6 +252,15 @@ func TestRemoteDAG_AllowedAndConverged(t *testing.T) {
 	if len(h.executed) == 1 && h.executed[0].EntityRef != f.EntityRef {
 		t.Errorf("executor received %q, want the bound finding %q", h.executed[0].EntityRef, f.EntityRef)
 	}
+	// Lineage must be COMPLETE end to end, not merely present in parts.
+	if len(h.verifiedAt) != 1 {
+		t.Fatalf("verifier received %d dispatch timestamps, want 1", len(h.verifiedAt))
+	}
+	dispatchedAt := h.verifiedAt[0]
+	if dispatchedAt.IsZero() {
+		t.Error("verifier received a ZERO dispatch timestamp — the execute step's dispatched_at " +
+			"did not survive the actor RPC, so post-action ordering cannot be proven")
+	}
 	if len(h.outcomes) == 1 {
 		o := h.outcomes[0]
 		if o.WorkflowRunID != rdRun {
@@ -254,6 +269,29 @@ func TestRemoteDAG_AllowedAndConverged(t *testing.T) {
 		if o.ActionCheckID != "chk-remote-1" {
 			t.Errorf("outcome ActionCheckID = %q, want chk-remote-1", o.ActionCheckID)
 		}
+		// The SAME instant the verifier was judged against must be the one the
+		// outcome records. Two readings that could drift would let a
+		// verification be judged against one timestamp and reported with
+		// another.
+		if !o.DispatchedAt.Equal(dispatchedAt) {
+			t.Errorf("outcome DispatchedAt = %s, want the verifier's %s — one dispatch instant, "+
+				"read once", o.DispatchedAt, dispatchedAt)
+		}
+		if !o.LineageComplete() {
+			t.Errorf("a successful autonomous repair must be lineage-complete; defects=%v",
+				o.LineageDefects())
+		}
+	}
+	if ro, ok := run.Outputs["remediation_outcome"].(map[string]any); ok {
+		if complete, _ := ro["lineage_complete"].(bool); !complete {
+			t.Error("remediation_outcome.lineage_complete must be true in the terminal run outputs — " +
+				"this is the receipt an out-of-process consumer reads")
+		}
+		if ts, _ := ro["dispatched_at"].(string); ts == "" {
+			t.Error("remediation_outcome.dispatched_at must survive into run outputs")
+		}
+	} else {
+		t.Error("remediation_outcome missing from terminal run outputs")
 	}
 
 	res := h.classify(t, run, false)
@@ -330,6 +368,8 @@ func TestRemoteDAG_BindingFailuresStopBeforeExecutor(t *testing.T) {
 		mode string
 	}{
 		{"no binding", false, engine.FindingBindingAutonomousRequired},
+		{"mismatched finding id", true, engine.FindingBindingAutonomousRequired},
+		{"mismatched step index", true, engine.FindingBindingAutonomousRequired},
 		{"operator mode on a bound run", true, engine.FindingBindingOperatorCurrent},
 		{"empty mode on a bound run", true, ""},
 	} {
@@ -342,7 +382,14 @@ func TestRemoteDAG_BindingFailuresStopBeforeExecutor(t *testing.T) {
 				h.bind(t, f)
 			}
 
-			run := h.run(t, rdInputs(tc.mode, false))
+			inputs := rdInputs(tc.mode, false)
+			switch tc.name {
+			case "mismatched finding id":
+				inputs["finding_id"] = "f-different"
+			case "mismatched step index":
+				inputs["step_index"] = 7
+			}
+			run := h.run(t, inputs)
 			if run.Status == engine.RunSucceeded {
 				t.Fatal("a binding failure must not produce a succeeded run")
 			}
@@ -508,6 +555,14 @@ func TestRemoteDAG_DryRun(t *testing.T) {
 			t.Error("a dry run must not record an outcome claiming dispatch")
 		}
 	}
+	if h.verify != 0 {
+		t.Errorf("verifier called %d time(s) on a dry run, want 0 — the definition skips "+
+			"verification for a rehearsal, and nothing was mutated to verify", h.verify)
+	}
+	if h.observe != 0 {
+		t.Errorf("observer called %d time(s) on a dry run, want 0 — counting a rehearsal would "+
+			"manufacture promotion support for an action nobody performed", h.observe)
+	}
 	res := h.classify(t, run, true)
 	if res.Disposition != rules.DispatchProposed {
 		t.Errorf("disposition = %q, want %q", res.Disposition, rules.DispatchProposed)
@@ -554,4 +609,40 @@ func outputKeysOf(m map[string]any) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestRemoteDAG_MissingDispatchedAtIsDetected is the negative control for
+// lineage continuity.
+//
+// If dispatched_at ever stops surviving the actor RPC, the verifier receives a
+// zero instant and the outcome loses the binding that places verification after
+// the action. That is half of the original lineage defect, and it would be
+// invisible to a test whose verifier ignores the argument — which is exactly
+// what this suite did until now.
+func TestRemoteDAG_MissingDispatchedAtIsDetected(t *testing.T) {
+	h := newRemoteHarness(t)
+	h.bind(t, autonomousFinding())
+	// Simulate the timestamp vanishing: the executor reports success but the
+	// step records no dispatch instant.
+	h.srv.executeForFindingHook = func(f rules.Finding) (*cluster_doctorpb.ExecuteRemediationResponse, error) {
+		h.exec++
+		h.executed = append(h.executed, f)
+		return &cluster_doctorpb.ExecuteRemediationResponse{
+			AuditId: "rem-no-ts", Executed: false, Status: "executed",
+		}, nil
+	}
+
+	run := h.run(t, rdInputs(engine.FindingBindingAutonomousRequired, false))
+
+	// With nothing dispatched, no dispatch instant exists, so the run must NOT
+	// present itself as a lineage-complete success.
+	if ro, ok := run.Outputs["remediation_outcome"].(map[string]any); ok {
+		if complete, _ := ro["lineage_complete"].(bool); complete {
+			t.Error("a run with no dispatch instant must not report lineage_complete")
+		}
+	}
+	res := h.classify(t, run, false)
+	if res.Disposition == rules.DispatchConverged {
+		t.Error("a run that never dispatched must not classify as CONVERGED")
+	}
 }

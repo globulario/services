@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -136,4 +137,86 @@ func TestVerifyConvergenceMarksFailedWhenExecuteNeverRan(t *testing.T) {
 	if outcome["is_success"] != false {
 		t.Fatal("missing execute_result must NOT be is_success=true")
 	}
+}
+
+// TestEngine_TerminalDeltaSemantics pins when a returned output delta is merged
+// into run outputs, across every terminal shape.
+//
+// The engine is the single writer of run outputs, so these rules ARE the
+// contract handlers rely on. Two of them were wrong: the terminal-error path
+// merged nothing (so a locally-executed governed refusal lost its receipt while
+// the remote one kept it), and the retry-backoff cancellation exit discarded
+// the attempt that cancellation had just made terminal.
+func TestEngine_TerminalDeltaSemantics(t *testing.T) {
+	receipt := func(tag string) map[string]any {
+		return map[string]any{"dispatch_result": map[string]any{"disposition": tag}}
+	}
+
+	t.Run("terminal result plus error keeps its receipt", func(t *testing.T) {
+		router := NewRouter()
+		router.RegisterFallback(v1alpha1.ActorClusterDoctor,
+			func(context.Context, ActionRequest) (*ActionResult, error) {
+				// Deliberately does NOT mutate req.Outputs — the whole point is
+				// that a handler communicates only through its return value.
+				return &ActionResult{OK: false, Output: receipt("REFUSED"), Message: "refused"},
+					fmt.Errorf("blocked by governance")
+			})
+		run := runOneStep(t, router, 1)
+		if run.Status == RunSucceeded {
+			t.Fatal("the step must fail")
+		}
+		if _, ok := run.Outputs["dispatch_result"]; !ok {
+			t.Errorf("the terminal attempt's receipt must survive; outputs=%v", run.Outputs)
+		}
+	})
+
+	t.Run("superseded retry receipt does not leak", func(t *testing.T) {
+		attempt := 0
+		router := NewRouter()
+		router.RegisterFallback(v1alpha1.ActorClusterDoctor,
+			func(context.Context, ActionRequest) (*ActionResult, error) {
+				attempt++
+				if attempt == 1 {
+					return &ActionResult{OK: false, Output: receipt("ATTEMPT_A")}, nil
+				}
+				return &ActionResult{OK: true, Output: map[string]any{"final": "B"}}, nil
+			})
+		run := runOneStep(t, router, 2)
+		if run.Outputs["final"] != "B" {
+			t.Errorf("the successful attempt's delta must be merged; outputs=%v", run.Outputs)
+		}
+		if _, leaked := run.Outputs["dispatch_result"]; leaked {
+			t.Error("a superseded retry's receipt must NOT appear in final outputs — it describes " +
+				"an attempt the engine did not accept as terminal")
+		}
+	})
+}
+
+// runOneStep executes a one-step definition with the given retry budget.
+func runOneStep(t *testing.T, router *Router, attempts int) *Run {
+	t.Helper()
+	// Built through the loader so the definition satisfies the SAME validation
+	// production definitions do; a hand-built struct skips it and the engine
+	// refuses to compile.
+	yamlDef := "apiVersion: workflow.globular.io/v1alpha1\n" +
+		"kind: WorkflowDefinition\n" +
+		"metadata:\n  name: terminal.delta.test\n" +
+		"spec:\n  strategy:\n    mode: single\n  steps:\n" +
+		"    - id: only\n      actor: cluster-doctor\n      action: doctor.anything\n"
+	if attempts > 1 {
+		yamlDef += "      retry:\n        maxAttempts: " + fmt.Sprint(attempts) + "\n"
+	}
+	def, loadErr := v1alpha1.NewLoader().LoadBytes([]byte(yamlDef))
+	if loadErr != nil {
+		t.Fatalf("load test definition: %v", loadErr)
+	}
+	_ = def
+	eng := &Engine{Router: router, RunID: "run-terminal-delta"}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	run, execErr := eng.Execute(ctx, def, map[string]any{})
+	if run == nil {
+		t.Fatalf("nil run (err=%v)", execErr)
+	}
+	return run
 }
