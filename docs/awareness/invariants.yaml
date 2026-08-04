@@ -11510,3 +11510,88 @@ invariants:
   related_failure_modes:
     - failure.satisfaction_catalog_authored_from_imagined_producer_output
   contract: A satisfaction rule must be transcribed from its production producer and proven by a lineage test, never authored alongside its own fixtures
+- id: package.day0_publish_set_must_cover_registry_day0_required
+  title: The day-0 repository publish set must cover every registry day0_required package (+ hard_deps)
+  severity: high
+  status: active
+  description: '"Day-0 required" is declared in packages/registry.yaml (packages[].day0_required: true),
+    but the artifacts actually REGISTERED into the repository at day-0 are chosen by a separate hardcoded
+    allowlist — CORE_PACKAGES in scripts/release/ensure-bootstrap-artifacts.sh. These are two independent
+    declarations of the same intent and MUST NOT drift: every registry package with day0_required: true
+    (and its hard_deps) MUST be matched by a CORE_PACKAGES glob, or its built .tgz (present in packages/dist/)
+    is never published — nodes then resolve "latest manifest" and get NotFound. install-day0.sh referencing
+    a tarball is NOT sufficient: install (local CAS) and publish (repository registration) are different
+    steps.'
+  contract: 'For all p in registry.packages where p.day0_required is true: p.name (and transitively p.hard_deps)
+    MUST be matched by a CORE_PACKAGES glob in scripts/release/ensure-bootstrap-artifacts.sh. Conversely
+    every CORE_PACKAGES entry MUST correspond to a real registry package (no dead patterns, e.g. the removed
+    "discovery_*").'
+  source_files:
+  - scripts/release/ensure-bootstrap-artifacts.sh
+  - packages/registry.yaml
+  - scripts/release/install-day0.sh
+  required_tests:
+  - scripts/validate-day0-package-contract.py
+  forbidden_fixes:
+  - Adding the missing package to CORE_PACKAGES by hand without also extending validate-day0-package-contract.py
+    — fixes the instance, leaves the drift class open.
+  - Treating install-day0.sh referencing the .tgz as proof of day-0 availability — install (local CAS)
+    and publish (repository registration) are distinct layers.
+  - Inferring day-0 availability from a non-empty installed_version in convergence detail — status=missing_in_repo
+    can coexist with an installed version (half_done_must_not_look_done).
+  related_invariants:
+  - package.entrypoint_binary_identity_single_source_of_truth
+  - meta.competing_writers_must_converge_or_be_fenced
+  - meta.half_done_must_not_look_done
+  provenance:
+    promoted_from: candidate
+    candidate_id: candidate.invariant.package.day0_publish_set_must_cover_registry_day0_required
+    discovered_from: session 2026-07-11
+    confidence_at_promotion: candidate
+    evidence: "- '2026-07-11: codex and alertmanager (registry day0_required: true) were built to\n  packages/dist/\
+      \ but omitted from CORE_PACKAGES, so the repository had no manifest\n  for them; node-agent workflow-runner\
+      \ logged \"resolve latest manifest ... NotFound\".\n  Fixed by adding alertmanager/claude/codex\
+      \ to CORE_PACKAGES, removing a dead \"discovery_*\"\n  pattern, and extending validate-day0-package-contract.py\
+      \ to gate the publish set\n  against registry.'"
+- id: governance.evidence_capture_must_not_fail_silent
+  title: A governance system may fail closed for guidance but must never fail silent for evidence capture
+  severity: critical
+  status: active
+  description: 'Authoritative read unavailable correctly blocks mutation. Knowledge write unavailable
+    silently discards the finding. That asymmetry breaks behavioral memory at its most valuable moment:
+    the run that proves the graph is stale is exactly the run whose evidence cannot be recorded. Every
+    governed run producing a diagnosis, refusal, contradiction or unrecorded architectural finding must
+    have a durable intake path INDEPENDENT of authoritative graph freshness. Suggested shape: two deliberately
+    separate surfaces — an authoritative graph (strict freshness, trusted guidance, may fail closed) and
+    an append-only evidence intake ledger (provenance required, accepts while the graph is stale, promoted
+    only after later validation). Intake entries should carry timestamp, workspace identity, source files,
+    evidence, proposed invariant or failure mode, graph freshness state, preflight refusal detail, agent
+    identity, and status pending_validation.'
+  source_files:
+  - .claude/hooks/enforce-briefing.sh
+  - .claude/hooks/enforce-briefing-bash.sh
+  - docs/awareness/candidates/session_discovered_invariants.yaml
+  proposed_invariants:
+  - Evidence intake must remain available while authoritative guidance is refused.
+  - A server that exposes a proposal capability with no backing awareness directory must fail at startup,
+    or advertise an explicit READ_ONLY status with a doctor finding and a capability response explaining
+    why. It must never advertise awareness_propose and then reject every proposal because the backing
+    path was omitted.
+  - The degraded-mode recording path must not require a surface that is unavailable in the degraded mode
+    it exists to serve.
+  provenance:
+    promoted_from: candidate
+    candidate_id: candidate.invariant.governance.evidence_capture_must_not_fail_silent
+    discovered_from: session 2026-08-03
+    confidence_at_promotion: candidate
+    evidence: '2026-08-03 session. awareness_propose refused three times: "propose write path is not configured;
+      start the server with -awareness-dir <docs/awareness>". Both running servers (sensei serve, awareness-graph)
+      were started without -awareness-dir. Three proposal attempts failed in one day. The F1 and F6 findings
+      remained recoverable from committed implementation evidence — commits, tests and negative controls
+      — but could not be promoted into the graph. The Scylla convergence-disposition finding above had
+      no independent code artifact and was at genuine risk of loss. Compounding it, awareness_preflight
+      and awareness_briefing both returned FailedPrecondition ("graph freshness stale ... live store missing
+      expected graph marker 339022f0...") while the PreToolUse hook enforce-briefing.sh requires a briefing
+      before editing docs/awareness/. The degraded-mode fallback documented in THIS FILE''s own header
+      is therefore gated behind the very surface that is degraded: while the graph is stale, the repository
+      cannot record that the graph is stale.'
