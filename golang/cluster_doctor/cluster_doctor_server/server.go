@@ -742,11 +742,20 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 	// outcome, and counting it would let observe-mode cycles manufacture support
 	// for promoting an action nobody ever performed.
 	if resp.GetExecuted() && !dryRun {
+		// Stamped the instant the executor accepted, and nowhere else — the same
+		// rule and the same placement the workflow actor uses
+		// (actors_doctor_remediation.go stamps dispatched_at only when
+		// res.Executed). It must never be derived from verification time:
+		// post-action verification is only meaningful relative to when the action
+		// actually went out, and DispatchedAt is what lets the verification prove
+		// it read post-repair state.
+		dispatchedAt := time.Now()
+
 		// node_id comes from the action's params, the same source
 		// dispatchAllowedByGovernance and the workflow runner both read it from.
 		// Finding itself carries no node identity — EntityRef is not NodeID.
 		nodeID := f.Remediation[stepIndex].GetAction().GetParams()["node_id"]
-		g.server.observeHealerOutcome(ctx, f, nodeID, actionCheckID, resp.GetAuditId())
+		g.server.observeHealerOutcome(ctx, f, nodeID, actionCheckID, resp.GetAuditId(), dispatchedAt)
 	}
 
 	return resp.GetExecuted(), resp.GetAuditId(), nil
@@ -768,16 +777,44 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 // Best-effort by contract: a verification that cannot be taken records nothing
 // rather than guessing. Losing one observation costs a slower promotion; writing
 // an unverified one corrupts the support count that governs future autonomy.
-func (s *ClusterDoctorServer) observeHealerOutcome(ctx context.Context, f rules.Finding, nodeID, actionCheckID, auditID string) {
+func (s *ClusterDoctorServer) observeHealerOutcome(ctx context.Context, f rules.Finding, nodeID, actionCheckID, auditID string, dispatchedAt time.Time) {
 	if s.collector == nil {
 		logger.Warn("learning: healer outcome not recorded — no collector configured",
 			"invariant_id", f.InvariantID, "entity_ref", f.EntityRef)
 		return
 	}
-	snap, err := s.collector.GetSnapshot(ctx)
+
+	// Post-action verification must read state collected AFTER the repair.
+	//
+	// GetSnapshot serves the cache, so it could return the very pre-repair
+	// snapshot the finding was raised from. The finding is still present in that
+	// data, so a successful repair records as FindingResolved=false — a failed
+	// outcome. That is worse than recording nothing: at candidateMinRepeats the
+	// learning loop would accumulate support for the proposition that this repair
+	// does not work, and the promotion decision it governs would be made on
+	// inverted evidence.
+	//
+	// Forcing fresh is necessary but NOT sufficient. GetSnapshotWithFreshness
+	// invalidates the cache, but a caller can still join an already in-flight
+	// fetch that STARTED BEFORE the dispatch; that returns CacheHit=false while
+	// describing pre-repair state. So freshness is proven by ordering, not by the
+	// cache flag: GeneratedAt must post-date the dispatch instant.
+	//
+	// takeSnapshot carries the leader rule (only the leader may force-fresh). If
+	// leadership was lost between dispatch and verification it serves cached, the
+	// ordering check below rejects it, and nothing is recorded — which is the
+	// documented contract: a verification that cannot be taken records nothing
+	// rather than guessing.
+	snap, _, err := s.takeSnapshot(ctx, cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH)
 	if err != nil && snap == nil {
 		logger.Warn("learning: healer outcome not recorded — verification snapshot unavailable",
 			"invariant_id", f.InvariantID, "entity_ref", f.EntityRef, "err", err)
+		return
+	}
+	if !verificationSnapshotIsPostAction(snap, dispatchedAt) {
+		logger.Warn("learning: healer outcome not recorded — no post-action snapshot available",
+			"invariant_id", f.InvariantID, "entity_ref", f.EntityRef,
+			"dispatched_at", dispatchedAt, "snapshot_generated_at", snapGeneratedAt(snap))
 		return
 	}
 
@@ -803,6 +840,7 @@ func (s *ClusterDoctorServer) observeHealerOutcome(ctx context.Context, f rules.
 		FindingID:       f.FindingID,
 		ActionCheckID:   actionCheckID,
 		Dispatched:      true,
+		DispatchedAt:    dispatchedAt,
 		Verified:        true,
 		FindingResolved: !stillPresent,
 		VerifiedAt:      time.Now(),
@@ -810,10 +848,31 @@ func (s *ClusterDoctorServer) observeHealerOutcome(ctx context.Context, f rules.
 		InvariantID:     f.InvariantID,
 		EntityRef:       f.EntityRef,
 		NodeID:          nodeID,
-		// WorkflowRunID intentionally empty: this repair belongs to no workflow
-		// run. Synthesising one would forge lineage for a dispatch that never
-		// had it.
+		// WorkflowRunID is still empty, and this outcome is therefore still
+		// LineageMissingWorkflowRun — see the open question on #236. Synthesising
+		// a run id would forge lineage for a dispatch that never had one, so the
+		// gap is left visible rather than papered over.
 	}, auditID)
+}
+
+// verificationSnapshotIsPostAction reports whether snap may serve as post-action
+// evidence for a dispatch made at dispatchedAt.
+//
+// Strictly After, not After-or-equal: a snapshot generated at the same instant
+// the action went out does not prove it observed the result of that action.
+// Rejecting the boundary costs one delayed observation; accepting it can record
+// a successful repair as failed.
+func verificationSnapshotIsPostAction(snap *collector.Snapshot, dispatchedAt time.Time) bool {
+	return snap != nil && snap.GeneratedAt.After(dispatchedAt)
+}
+
+// snapGeneratedAt is log-only: a nil snapshot must not panic the warn path that
+// exists precisely because the snapshot was unusable.
+func snapGeneratedAt(snap *collector.Snapshot) time.Time {
+	if snap == nil {
+		return time.Time{}
+	}
+	return snap.GeneratedAt
 }
 
 // observeOutcome is the single recorder both remediation paths share.
