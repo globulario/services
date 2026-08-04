@@ -7452,3 +7452,111 @@ failure_modes:
       related_services:
         - repository
         - node-agent
+    - id: install.describe_preflight_unbounded_hangs_join
+      title: Install --describe preflight inherits the full install context; a binary that serves instead
+        of honoring --describe hangs the per-package budget and loops the join
+      severity: high
+      status: active
+      description: 'During SERVICE install, node-agent resolves the service port with a best-effort last-resort
+        exec of "<binary> --describe" (serviceports.EnsureServicePortConfig -> runDescribe). runDescribe passed
+        the caller''s raw context straight to exec.CommandContext, and the caller is the join''s per-package
+        install context (joinPerPackageInstallTimeout = 8m, actors.go). A binary that does NOT honor --describe
+        and instead starts serving (mcp_server had no flag parsing at all, fell through to http serve, bound
+        :10260 and blocked forever) consumes the entire 8-minute budget. The required post-install step then
+        fails on the already-dead context, the SERVICE install fails, installed_state is never stamped, node.join
+        FAILS at install_workloads_control_plane, and the drift-reconciler re-dispatches the package every
+        ~30s forever. Symptom: an 8-minute silent gap between pin-artifact and post-install, an EMPTY globular-<svc>.service
+        journal (the describe exec is a stray process, not the systemd unit), and FAILED after exactly 8m0.008s.'
+      contract: A best-effort install preflight (e.g. --describe) MUST be independently time-bounded and MUST
+        NEVER inherit-and-consume the caller's install budget. Every service binary MUST honor --describe
+        (answer and exit, or fail-fast) and MUST NOT start serving on an unrecognized flag.
+      source_files:
+      - golang/node_agent/node_agent_server/internal/actions/serviceports/config.go
+      - golang/mcp/main.go
+      - golang/workflow/engine/actors.go
+      - golang/node_agent/node_agent_server/internal/actions/artifact.go
+      required_tests:
+      - golang/node_agent/node_agent_server/internal/actions/serviceports/describe_bound_test.go:TestRunDescribeBoundedWhenBinaryHangs
+      forbidden_fixes:
+      - 'Only fixing mcp''s --describe handling without bounding runDescribe: a future binary that regresses
+        into serve-on-describe would hang the join again — the node-agent must defend regardless of binary
+        behavior. Both fixes shipped (5s bound + mcp flag handling).'
+      - 'Raising joinPerPackageInstallTimeout to "give mcp more time": the install does not need more time,
+        the preflight must not consume it (the 8m cap was already a mitigation of a 30m stall).'
+      - Broadly applying --describe handling to cluster_controller/cluster_doctor/node_agent on the assumption
+        they share the bug — VERIFIED they do NOT (see verified_negative below).
+      verified_negative: 'SIBLING SCOPE, verified by building and running each with --describe (do not re-flag):
+        the other hand-written service mains fast-exit — cluster_controller and cluster_doctor emit describe
+        JSON (rc=0); node_agent fails-fast via flag.Parse (rc=2, "flag provided but not defined"). mcp was
+        the UNIQUE hang because it had no flag parsing and no describe handling. Standard services have no
+        hand-written main (generated with HandleInformationalFlags) and are safe. A grep heuristic ("serves
+        + no HandleInformationalFlags") over-flags these three; only a run confirms the truth.'
+      related_invariants:
+      - install.result.atomic_commit
+      - convergence.no_infinite_retry
+      - meta.half_done_must_not_look_done
+      - package.install.installed_state_requires_runtime_artifact_integrity
+      related_failure_modes:
+      - mcp.day1_install_no_start
+      - package.install.service_unit_missing_classified_binary_only
+      provenance:
+        promoted_from: candidate
+        candidate_id: candidate.failure_mode.install.describe_preflight_unbounded_hangs_join
+        discovered_from: session 2026-07-11
+        confidence_at_promotion: candidate
+        evidence: 'SIBLING SCOPE, verified by building and running each with --describe (do not re-flag):
+          the other hand-written service mains fast-exit — cluster_controller and cluster_doctor emit describe
+          JSON (rc=0); node_agent fails-fast via flag.Parse (rc=2, "flag provided but not defined"). mcp was
+          the UNIQUE hang because it had no flag parsing and no describe handling. Standard services have
+          no hand-written main (generated with HandleInformationalFlags) and are safe. A grep heuristic ("serves
+          + no HandleInformationalFlags") over-flags these three; only a run confirms the truth.'
+    - id: controller.derived_config_change_has_no_convergence_disposition
+      title: Derived restart-sensitive config change is silently omitted instead of dispositioned
+      severity: high
+      status: active
+      description: 'The controller recomputes rendered ScyllaDB configuration correctly on every plan cycle
+        from authoritative membership (renderScyllaConfig, service_config.go:523, reached via computeNodePlan
+        -> renderedConfigForNode -> renderServiceConfigs, using snapshotClusterMembership()). When membership
+        grows, the derived seed set changes correctly. Nothing then classifies, schedules, applies, defers,
+        or refuses that change for an already-configured node: the corrected candidate never reaches disk
+        and no disposition is recorded. The renderer is healthy; the actuator is absent. Restart-sensitive
+        components legitimately require gating, but "too dangerous to apply now" must yield an explicit disposition
+        (APPLY_NOW / DEFER_UNTIL_SAFE / REQUIRE_OPERATOR_APPROVAL / BLOCK_WITH_REASON / NO_CHANGE), never
+        silent omission. Represents a potentially reusable convergence class for other restart-sensitive components
+        such as etcd, MinIO, Envoy, certificates and topology — any component whose correct desired state
+        cannot be pushed immediately. Only Scylla was observed in this run; the broader applicability is inference,
+        not evidence.'
+      source_files:
+      - golang/cluster_controller/cluster_controller_server/service_config.go
+      - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+      forbidden_fixes:
+      - Do NOT hand-edit /etc/scylla/scylla.yaml — a render will overwrite it, and the underlying missing
+        actuator would remain.
+      - Do NOT "fix" this by making the renderer emit the founder plus self; the derivation is already correct.
+      proposed_invariants:
+      - 'Safety: when more than one eligible Scylla node is admitted, no Scylla node may have an effective
+        ON-DISK seed set containing only itself. (Phrased against applied config, not rendered config — phrased
+        against the renderer it would pass today while the trapdoor stays open.)'
+      - 'Behavioral convergence: when authoritative membership changes the derived configuration, reconciliation
+        must produce a recorded governed disposition — applied, safely deferred, operator-gated, or refused
+        with evidence. The change must never be silently omitted.'
+      deferred_invariant: 'Parity (effective on-disk seed set must equal the canonical set derived from authoritative
+        membership) is NOT proposed yet: it requires an explicit seed-selection contract deciding whether
+        all eligible members must be seeds or a stable subset is permitted.'
+      proposed_doctor_evidence_shape: scylla.config_valid should expose authoritative_membership, derived_seed_set,
+        effective_on_disk, last_rendered_at, last_applied_at, convergence_disposition and restart_required
+        — so the operator sees truth -> derivation -> candidate -> disposition -> application, and specifically
+        WHY the controller knowingly left it different.
+      provenance:
+        promoted_from: candidate
+        candidate_id: candidate.failure_mode.controller.derived_config_change_has_no_convergence_disposition
+        discovered_from: session 2026-08-03
+        confidence_at_promotion: candidate
+        evidence: 'Live 5-node simulation, release 1.2.295, 2026-08-03. etcd authority /globular/cluster/scylla/hosts
+          = ["10.10.0.11","10.10.0.12","10.10.0.13"]. On-disk seeds: node-1 ''10.10.0.11'' (self-only), node-3
+          ''10.10.0.11,10.10.0.13'', node-2 ''10.10.0.11,10.10.0.12''. Each frozen at that node''s own join
+          moment (15:54:53 / 16:01:58 / 16:02:57); none equals the authority. Controller journal shows only
+          "scylla join: ... marking configured" transitions, no re-render dispatch or restart injection after
+          initial configuration. All three nodes UN/NORMAL with NRestarts=0, so the hazard is latent: a wiped
+          restart of node-1 with self-only seeds would re-bootstrap an isolated ring. Surfaced by cluster-doctor
+          scylla.config_valid (severity 1).'
