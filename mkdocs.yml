@@ -111,6 +111,7 @@ nav:
     - Docker Simulation: developers/docker-simulation.md
 
   - Design:
+    - Governed Recursive Improvement: architecture/governed-recursive-improvement-plan.md
     - Version Control Redesign: design/version-control-redesign-v2.md
     - Version Control Audit: design/version-control-audit.md
 
