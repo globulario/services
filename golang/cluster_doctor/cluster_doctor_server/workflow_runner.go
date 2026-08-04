@@ -178,9 +178,17 @@ func (s *ClusterDoctorServer) runAutonomousRemediation(
 func classifyRemediationRun(runID string, resp *workflowpb.ExecuteWorkflowResponse, dryRun bool) rules.DispatchResult {
 	res := rules.DispatchResult{WorkflowRunID: runID}
 
-	outcome := remediationOutcomeFromRun(resp)
+	outcome, err := remediationOutcomeFromRun(resp)
+	if err != nil {
+		// Classification itself failed. Reported as an execution failure rather
+		// than guessed into any disposition.
+		res.Disposition = rules.DispatchExecutionFailed
+		res.Err = fmt.Errorf("remediation run %s: %w", runID, err)
+		return res
+	}
 	res.AuditID = outcome.auditID
 	res.ActionCheckID = outcome.actionCheckID
+	res.GovernanceStatus = outcome.governanceStatus
 	res.Executed = outcome.executed
 	res.Verified = outcome.verified
 	res.Converged = outcome.converged
@@ -233,20 +241,23 @@ type runRemediationOutcome struct {
 	// governanceUnavailable distinguishes "the governor could not be reached"
 	// from "the governor said no".
 	governanceUnavailable bool
+	// governanceStatus is the governor's structured status for a refusal
+	// (e.g. needs_evidence), kept so an operator sees WHY without parsing prose.
+	governanceStatus string
 }
 
 // remediationOutcomeFromRun reads the canonical remediation_outcome the verify
 // step emitted into the run's outputs. Absent outputs leave every field false,
 // which classifies as a failure rather than a success — the safe direction when
 // a run's own account of itself is missing.
-func remediationOutcomeFromRun(resp *workflowpb.ExecuteWorkflowResponse) runRemediationOutcome {
+func remediationOutcomeFromRun(resp *workflowpb.ExecuteWorkflowResponse) (runRemediationOutcome, error) {
 	var out runRemediationOutcome
 	if resp == nil || resp.GetOutputsJson() == "" {
-		return out
+		return out, nil
 	}
 	var outputs map[string]any
 	if err := json.Unmarshal([]byte(resp.GetOutputsJson()), &outputs); err != nil {
-		return out
+		return out, nil
 	}
 	// The canonical dispatch_result the execute step writes BEFORE returning on
 	// a governed refusal or a governance-unavailable failure. It is read first
@@ -257,11 +268,13 @@ func remediationOutcomeFromRun(resp *workflowpb.ExecuteWorkflowResponse) runReme
 	// governance_unavailable stays distinct from refusal — one is an
 	// infrastructure failure that must charge the circuit breaker, the other is
 	// a decision that must not.
+	var dispatchCheckID, execCheckID string
 	if dr, ok := outputs["dispatch_result"].(map[string]any); ok {
 		disposition, _ := dr["disposition"].(string)
 		out.refused = disposition == engine.DispositionRefused
-		if id, ok := dr["action_check_id"].(string); ok {
-			out.actionCheckID = id
+		dispatchCheckID, _ = dr["action_check_id"].(string)
+		if st, ok := dr["status"].(string); ok {
+			out.governanceStatus = st
 		}
 		if unavailable, ok := dr["governance_unavailable"].(bool); ok {
 			out.governanceUnavailable = unavailable
@@ -272,6 +285,24 @@ func remediationOutcomeFromRun(resp *workflowpb.ExecuteWorkflowResponse) runReme
 		if id, ok := exec["audit_id"].(string); ok {
 			out.auditID = id
 		}
+		// The executed path carries its authorizing decision here; the refusal
+		// path never reaches this output at all.
+		execCheckID, _ = exec["action_check_id"].(string)
+	}
+
+	// Two non-empty, DIFFERENT decision ids in one run is not a value to choose
+	// between — it means the run contains two governance decisions for one
+	// action, which is the exact duplication this architecture exists to
+	// prevent. Picking either would report an attempt as authorized by a
+	// decision that may not be the one that authorized it.
+	if dispatchCheckID != "" && execCheckID != "" && dispatchCheckID != execCheckID {
+		return out, fmt.Errorf("run reports conflicting action_check_ids (dispatch_result=%s "+
+			"execution_result=%s) — refusing to attribute the attempt to either",
+			dispatchCheckID, execCheckID)
+	}
+	out.actionCheckID = execCheckID
+	if out.actionCheckID == "" {
+		out.actionCheckID = dispatchCheckID
 	}
 	if v, ok := outputs["verification"].(map[string]any); ok {
 		out.verified = true
@@ -279,7 +310,7 @@ func remediationOutcomeFromRun(resp *workflowpb.ExecuteWorkflowResponse) runReme
 			out.converged = converged
 		}
 	}
-	return out
+	return out, nil
 }
 
 // buildDoctorActorRouter creates a Router with the doctor's remediation
@@ -327,6 +358,21 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				f = bound.finding
 
 			case engine.FindingBindingOperatorCurrent, "":
+				// The two contracts are mutually exclusive. A run that HAS an
+				// autonomous binding must never be resolved under the operator
+				// contract, because that would read the mutable cache and could
+				// substitute a different finding for one the healer bound.
+				//
+				// This is the downgrade path: a mode that is lost, corrupted, or
+				// incorrectly propagated arrives here as operator_current or as
+				// empty, and without this check it would silently demote an
+				// autonomous run. Empty mode stays accepted for genuine legacy
+				// operator callers, but never as a way past an existing binding.
+				if _, bound := s.runFindings.lookup(runID); bound {
+					return nil, fmt.Errorf("resolve_finding: run %s carries an autonomous finding "+
+						"binding but requested mode %q — refusing to downgrade a bound run to the "+
+						"operator resolution contract", runID, bindingMode)
+				}
 				// An operator named a finding id and expects the CURRENT
 				// finding, so the cache is the right source here.
 				s.lastFindingsMu.RLock()

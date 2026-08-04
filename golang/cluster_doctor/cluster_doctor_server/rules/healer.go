@@ -97,6 +97,9 @@ type DispatchResult struct {
 	// on a refusal: a refusal an operator cannot trace back to its decision is
 	// not accountable.
 	ActionCheckID string `json:"action_check_id,omitempty"`
+	// GovernanceStatus is the governor's structured status for a refusal
+	// (e.g. needs_evidence), so a reader sees WHY without parsing prose.
+	GovernanceStatus string `json:"governance_status,omitempty"`
 
 	// Executed / Verified / Converged are the three independent facts the
 	// disposition is derived from, kept so a reader can see WHY without
@@ -122,6 +125,12 @@ type HealResult struct {
 	// the underlying facts.
 	DispatchDisposition DispatchDisposition `json:"dispatch_disposition,omitempty"`
 	WorkflowRunID       string              `json:"workflow_run_id,omitempty"`
+	// ActionCheckID is the governance decision for this attempt, carried for
+	// refused, failed and successful attempts alike. Never substituted by the
+	// remediation audit id, the workflow run id, or the correlation id — those
+	// are different identities. Empty is honest for an ungoverned attempt.
+	ActionCheckID    string `json:"action_check_id,omitempty"`
+	GovernanceStatus string `json:"governance_status,omitempty"`
 
 	Executed bool `json:"executed"`
 	// Verified means post-action evidence was obtained. It does NOT mean the
@@ -265,6 +274,8 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 				result.AuditID = dr.AuditID
 				result.DispatchDisposition = dr.Disposition
 				result.WorkflowRunID = dr.WorkflowRunID
+				result.ActionCheckID = dr.ActionCheckID
+				result.GovernanceStatus = dr.GovernanceStatus
 				result.Executed = dr.Executed
 				result.Verified = dr.Verified
 				result.Converged = dr.Converged

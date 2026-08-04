@@ -116,6 +116,46 @@ jobs:
         env:
           GLOBULAR_PACKAGES_DIR: ${{ github.workspace }}/packages
 
+      # Autonomous remediation closure (hard gate). The healer's repairs are now
+      # real remediate.doctor.finding Workflow Service runs: one governance
+      # decision, one executor call, strictly post-dispatch verification, one
+      # canonical outcome, and a HealReport whose AutoFixed means observed
+      # convergence rather than "an action ran".
+      #
+      # Its own step, deliberately outside the continue-on-error "Unit Tests"
+      # above, because that stage cannot fail the build and this closure must.
+      # The specific reason is a defect this suite now covers: the governed
+      # refusal contract was written and reviewed while the classifier read a
+      # key no code path ever wrote, so every refusal was misreported as an
+      # executor failure and charged the healer's circuit breaker. It passed
+      # review, and it would have passed a non-gating test stage too.
+      #
+      # Every package here is infra-free — no etcd, no ScyllaDB, no workflow
+      # server, no behavioral memory — so a failure is a real regression rather
+      # than a missing dependency.
+      #
+      # KNOWN RED, and deliberately not worked around: the last package contains
+      # observation.TestRecorder_PersistentFailureIsVisible, which fails on a
+      # clean master checkout (verified 3/3) and is owned by globulario/services#238.
+      # Its fixture passes Addr:"" expecting "unresolvable", but production reads
+      # an empty address as "discover the real AI-memory service", so the test is
+      # environmentally porous rather than proving anything about Stats.
+      #
+      # It is neither skipped nor excluded here. Narrowing the path to dodge it
+      # would also drop coverage of the remediation-outcome adapter in that same
+      # package — the code that decides whether an autonomous outcome qualifies
+      # as verification evidence — and a gate shaped around a known failure
+      # stops being a gate. This step therefore blocks until #238 is fixed,
+      # which matches the agreed release ordering: 1.2.295 is not cut until
+      # behavioral delivery failure and recovery are operator-visible.
+      - name: Enforce autonomous remediation closure (hard gate)
+        run: |
+          go test -count=1 ./cluster_doctor/cluster_doctor_server/...
+          go test -count=1 ./workflow/engine/...
+          go test -count=1 ./workflow/workflow_server/...
+          go test -count=1 ./remediation/...
+          go test -count=1 ./ai_memory/domains/cluster_operator/...
+
       # Awareness tooling tests (hard gate). promote-awareness-candidate.py is
       # the only road a session-discovered candidate has into the governed
       # corpus; awareness-coverage-report.py is how anyone sees what is
