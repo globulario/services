@@ -36,6 +36,82 @@ import (
 // alone — no infrastructure work needed.
 // ──────────────────────────────────────────────────────────────────────────────
 
+// DispatchDisposition is the terminal classification of one dispatch attempt.
+//
+// EXECUTION IS AN EVENT. CONVERGENCE IS THE SUCCESSFUL OUTCOME.
+//
+// These are deliberately separate values rather than a bool, because the states
+// between them are the ones that used to be reported as success. A systemctl
+// restart that completed while the invariant stayed violated is not a fix, and
+// counting it as one recreates the operator-truth problem — a report that says
+// "auto-fixed" about a cluster that is still broken.
+type DispatchDisposition string
+
+const (
+	// DispatchRefused — governance declined to authorize the action. No side
+	// effect occurred. This is a governed decision working correctly, NOT an
+	// executor malfunction: it must stay visible and must never count against
+	// the executor failure budget.
+	DispatchRefused DispatchDisposition = "REFUSED"
+
+	// DispatchProposed — nothing was attempted. Dry-run rehearsal, an action
+	// with no structured representation, or a cooldown. The gate did its job.
+	DispatchProposed DispatchDisposition = "PROPOSED"
+
+	// DispatchExecutionFailed — the run could not start, or the executor
+	// rejected or failed the action. Counts toward the circuit breaker.
+	DispatchExecutionFailed DispatchDisposition = "EXECUTION_FAILED"
+
+	// DispatchExecutedUnverified — the action ran, but no post-action evidence
+	// could be obtained, so convergence is UNKNOWN. Deliberately not folded
+	// into either success or failure: claiming either would be a guess about a
+	// mutation that really happened.
+	DispatchExecutedUnverified DispatchDisposition = "EXECUTED_UNVERIFIED"
+
+	// DispatchExecutedNotConverged — the action ran, post-action evidence was
+	// obtained, and the finding is STILL PRESENT. A failed repair, and the
+	// single most valuable outcome to record honestly: it is what a future
+	// promotion decision most needs to know.
+	DispatchExecutedNotConverged DispatchDisposition = "EXECUTED_NOT_CONVERGED"
+
+	// DispatchConverged — the action ran, post-action evidence was obtained,
+	// and the finding cleared. The ONLY disposition that is an auto-fix.
+	DispatchConverged DispatchDisposition = "CONVERGED"
+)
+
+// DispatchResult is the structured outcome of one dispatch attempt.
+//
+// Replaces the (executed, auditID, err) tuple. The tuple could not express the
+// difference between "refused by governance", "executed but unverifiable", and
+// "executed but still broken" — all three collapsed into executed=false or
+// executed=true, and the healer then had to infer intent from error strings.
+type DispatchResult struct {
+	Disposition DispatchDisposition `json:"disposition"`
+
+	// WorkflowRunID is the real, durably committed Workflow Service run that
+	// performed this remediation. Empty only when no run was started (refused
+	// before start, or the service was unreachable).
+	WorkflowRunID string `json:"workflow_run_id,omitempty"`
+	AuditID       string `json:"audit_id,omitempty"`
+	// ActionCheckID is the governance decision for this attempt. Populated even
+	// on a refusal: a refusal an operator cannot trace back to its decision is
+	// not accountable.
+	ActionCheckID string `json:"action_check_id,omitempty"`
+	// GovernanceStatus is the governor's structured status for a refusal
+	// (e.g. needs_evidence), so a reader sees WHY without parsing prose.
+	GovernanceStatus string `json:"governance_status,omitempty"`
+
+	// Executed / Verified / Converged are the three independent facts the
+	// disposition is derived from, kept so a reader can see WHY without
+	// re-parsing the disposition. Verified means post-action evidence was
+	// obtained at all — not that it was favourable.
+	Executed  bool `json:"executed"`
+	Verified  bool `json:"verified"`
+	Converged bool `json:"converged"`
+
+	Err error `json:"-"`
+}
+
 // HealResult records the outcome of one classification (and, for HealAuto
 // proposals, the outcome of the gated dispatch).
 type HealResult struct {
@@ -43,41 +119,81 @@ type HealResult struct {
 	EntityRef   string          `json:"entity_ref"`
 	Disposition HealDisposition `json:"disposition"`
 	Action      string          `json:"action"`
-	Executed    bool            `json:"executed"`
-	Verified    bool            `json:"verified"` // true if Dispatcher reports the gate executed the action
-	AuditID     string          `json:"audit_id,omitempty"`
-	Error       string          `json:"error,omitempty"`
-	Timestamp   time.Time       `json:"timestamp"`
+
+	// DispatchDisposition is the terminal classification of the dispatch, and
+	// the field a reader should trust. Executed/Verified/Converged remain as
+	// the underlying facts.
+	DispatchDisposition DispatchDisposition `json:"dispatch_disposition,omitempty"`
+	WorkflowRunID       string              `json:"workflow_run_id,omitempty"`
+	// ActionCheckID is the governance decision for this attempt, carried for
+	// refused, failed and successful attempts alike. Never substituted by the
+	// remediation audit id, the workflow run id, or the correlation id — those
+	// are different identities. Empty is honest for an ungoverned attempt.
+	ActionCheckID    string `json:"action_check_id,omitempty"`
+	GovernanceStatus string `json:"governance_status,omitempty"`
+
+	Executed bool `json:"executed"`
+	// Verified means post-action evidence was obtained. It does NOT mean the
+	// repair worked — see Converged. Previously this was set true whenever a
+	// dispatch executed, which made "verified" indistinguishable from
+	// "acknowledged".
+	Verified  bool      `json:"verified"`
+	Converged bool      `json:"converged"`
+	AuditID   string    `json:"audit_id,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // HealReport is the structured output of one healer pass.
+//
+// The counters changed meaning in the commit that made Workflow Service the
+// canonical autonomous path. AutoFixed previously counted dispatches the
+// Dispatcher reported as EXECUTED; it now counts only findings that were
+// verified to have CLEARED. The old meaning let a report claim an auto-fix for
+// a cluster that was still broken.
 type HealReport struct {
 	Timestamp time.Time    `json:"timestamp"`
 	Results   []HealResult `json:"results"`
-	AutoFixed int          `json:"auto_fixed"` // dispatches the Dispatcher reported as executed
-	Proposed  int          `json:"proposed"`
-	Observed  int          `json:"observed"`
-	Errors    int          `json:"errors"`
+
+	// AutoFixed counts CONVERGED only — the action ran AND post-action
+	// evidence proved the finding cleared.
+	AutoFixed int `json:"auto_fixed"`
+	Proposed  int `json:"proposed"`
+	Observed  int `json:"observed"`
+
+	// Errors is the total of failed mutations (ExecutionFailed +
+	// ExecutedNotConverged), retained so existing readers keep working. It
+	// deliberately excludes Refused and ExecutedUnverified: a governed refusal
+	// is not a malfunction, and an unverifiable execution is not known to have
+	// failed.
+	Errors int `json:"errors"`
+
+	// The honest breakdown.
+	ExecutionFailed      int `json:"execution_failed"`
+	ExecutedNotConverged int `json:"executed_not_converged"`
+	ExecutedUnverified   int `json:"executed_unverified"`
+	Refused              int `json:"refused"`
 }
 
-// Dispatcher routes a HealAuto finding's auto-action through the gated
+// Dispatcher routes a HealAuto finding's auto-action through the canonical
 // remediation path. The cluster-doctor server provides the implementation;
 // rules.Healer never touches cluster state, RemoteOps, or etcd directly.
 //
 // Contract:
-//   - Dispatch MUST flow through ExecuteRemediation (or an equivalent path
-//     that applies the same gates: leader, evidence trust, hard-blocklist,
-//     approval/cooldown/failure-rate, etcd audit).
-//   - Returning (false, "", nil) is a valid "no-op" outcome — e.g. the auto-
-//     action has no RemediationAction representation today, so the gate
-//     rejected nothing because nothing was attempted. The healer records
-//     this as a proposal, not a failure.
-//   - Returning a non-nil error counts toward the MaxFailures circuit
-//     breaker; auditID may be empty.
-//   - Dry-run dispatches are still expected to call ExecuteRemediation
-//     with DryRun=true so the gate's audit trail includes the rehearsal.
+//   - Dispatch MUST start a real Workflow Service run of
+//     remediate.doctor.finding. Governance, execution, post-action evidence,
+//     convergence and outcome recording all belong to that run — the healer
+//     neither gates nor records, so exactly one action check and exactly one
+//     remediation outcome exist per dispatch.
+//   - The returned DispatchResult MUST be derived from the workflow's own
+//     outputs, never inferred from error text.
+//   - When Workflow Service is unavailable or refuses to start the run, return
+//     DispatchExecutionFailed. There is no direct-execution fallback: a repair
+//     that cannot be governed and recorded must not happen.
+//   - Dry-run dispatches still start a real run with dry_run=true so the audit
+//     trail includes the rehearsal, and return DispatchProposed.
 type Dispatcher interface {
-	Dispatch(ctx context.Context, f Finding, autoAction string, dryRun bool) (executed bool, auditID string, err error)
+	Dispatch(ctx context.Context, f Finding, autoAction string, dryRun bool) DispatchResult
 }
 
 // Healer evaluates findings against the policy and dispatches HealAuto
@@ -154,27 +270,66 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 				result.Error = "rate-limited (max actions or max failures reached)"
 				report.Observed++
 			} else {
-				executed, auditID, err := h.Dispatcher.Dispatch(ctx, f, rule.AutoAction, h.DryRun)
-				result.AuditID = auditID
-				if err != nil {
-					result.Error = err.Error()
+				dr := h.Dispatcher.Dispatch(ctx, f, rule.AutoAction, h.DryRun)
+				result.AuditID = dr.AuditID
+				result.DispatchDisposition = dr.Disposition
+				result.WorkflowRunID = dr.WorkflowRunID
+				result.ActionCheckID = dr.ActionCheckID
+				result.GovernanceStatus = dr.GovernanceStatus
+				result.Executed = dr.Executed
+				result.Verified = dr.Verified
+				result.Converged = dr.Converged
+				if dr.Err != nil {
+					result.Error = dr.Err.Error()
+				}
+
+				// Classification is driven by the structured disposition, never
+				// by error text. Only CONVERGED is an auto-fix: the action ran
+				// AND post-action evidence proved the finding cleared.
+				switch dr.Disposition {
+				case DispatchConverged:
+					report.AutoFixed++
+					log.Printf("healer: dispatch %s CONVERGED for %s (run=%s audit=%s)",
+						rule.AutoAction, f.EntityRef, dr.WorkflowRunID, dr.AuditID)
+
+				case DispatchExecutedNotConverged:
+					// The action ran and the finding is still present. A failed
+					// repair, counted as one — this is the outcome a future
+					// promotion decision most needs to be true.
+					report.ExecutedNotConverged++
 					report.Errors++
 					failureCount++
-					log.Printf("healer: dispatch %s FAILED for %s: %v",
-						rule.AutoAction, f.EntityRef, err)
-				} else if executed {
-					result.Executed = true
-					result.Verified = true
-					report.AutoFixed++
-					log.Printf("healer: dispatch %s EXECUTED for %s (audit=%s)",
-						rule.AutoAction, f.EntityRef, auditID)
-				} else {
-					// Gate accepted but did not execute (dry-run, no
-					// RemediationAction representation, cooldown, etc.).
-					// Recorded as a proposal — the gate did its job.
+					log.Printf("healer: dispatch %s EXECUTED BUT NOT CONVERGED for %s (run=%s audit=%s)",
+						rule.AutoAction, f.EntityRef, dr.WorkflowRunID, dr.AuditID)
+
+				case DispatchExecutedUnverified:
+					// A real mutation happened but convergence is UNKNOWN.
+					// Visible on its own counter rather than folded into either
+					// success or failure, both of which would be a guess.
+					report.ExecutedUnverified++
+					log.Printf("healer: dispatch %s EXECUTED BUT UNVERIFIED for %s (run=%s audit=%s): %v",
+						rule.AutoAction, f.EntityRef, dr.WorkflowRunID, dr.AuditID, dr.Err)
+
+				case DispatchExecutionFailed:
+					report.ExecutionFailed++
+					report.Errors++
+					failureCount++
+					log.Printf("healer: dispatch %s EXECUTION FAILED for %s: %v",
+						rule.AutoAction, f.EntityRef, dr.Err)
+
+				case DispatchRefused:
+					// Governance declined. No side effect, no malfunction, and
+					// deliberately NOT charged to the executor failure budget:
+					// a refusal that tripped the circuit breaker would let
+					// correct governance disable the healer.
+					report.Refused++
+					log.Printf("healer: dispatch %s REFUSED by governance for %s",
+						rule.AutoAction, f.EntityRef)
+
+				default: // DispatchProposed
 					report.Proposed++
 					log.Printf("healer: dispatch %s PROPOSED for %s (audit=%s, no execution)",
-						rule.AutoAction, f.EntityRef, auditID)
+						rule.AutoAction, f.EntityRef, dr.AuditID)
 				}
 				dispatchCount++
 				if h.MaxActions > 0 && dispatchCount >= h.MaxActions {

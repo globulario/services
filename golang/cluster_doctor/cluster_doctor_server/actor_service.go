@@ -49,15 +49,40 @@ func (s *DoctorActorServer) ExecuteAction(ctx context.Context, req *workflowpb.E
 	// Deserialize inputs from JSON.
 	with := make(map[string]any)
 	if req.WithJson != "" {
-		json.Unmarshal([]byte(req.WithJson), &with)
+		// Fail closed. Continuing with an empty map would run the handler
+		// against a fabricated view of the run, and the substitution would be
+		// invisible in the result.
+		if err := json.Unmarshal([]byte(req.WithJson), &with); err != nil {
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("cluster-doctor: malformed WithJson: %v", err),
+			}, nil
+		}
 	}
 	inputs := make(map[string]any)
 	if req.InputsJson != "" {
-		json.Unmarshal([]byte(req.InputsJson), &inputs)
+		// Fail closed. Continuing with an empty map would run the handler
+		// against a fabricated view of the run, and the substitution would be
+		// invisible in the result.
+		if err := json.Unmarshal([]byte(req.InputsJson), &inputs); err != nil {
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("cluster-doctor: malformed InputsJson: %v", err),
+			}, nil
+		}
 	}
 	outputs := make(map[string]any)
 	if req.OutputsJson != "" {
-		json.Unmarshal([]byte(req.OutputsJson), &outputs)
+		// Fail closed on malformed JSON. Continuing with an empty map would run
+		// the handler against a fabricated view of the run — a resolve that sees
+		// no prior outputs, or a gate asked about a subject the run never
+		// resolved — and the failure would be invisible.
+		if err := json.Unmarshal([]byte(req.OutputsJson), &outputs); err != nil {
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("cluster-doctor: malformed outputs_json: %v", err),
+			}, nil
+		}
 	}
 
 	actionReq := engine.ActionRequest{
@@ -70,22 +95,44 @@ func (s *DoctorActorServer) ExecuteAction(ctx context.Context, req *workflowpb.E
 		Outputs: outputs,
 	}
 
+	// A handler may return BOTH a structured output delta and an error: a
+	// semantic failure such as a governed refusal must still deliver its
+	// receipt. Previously the error branch returned before touching
+	// result.Output, so the refusal receipt died here and the caller could only
+	// see "action failed" — indistinguishable from an executor malfunction.
 	result, err := handler(ctx, actionReq)
-	if err != nil {
-		return &workflowpb.ExecuteActionResponse{
-			Ok:      false,
-			Message: fmt.Sprintf("cluster-doctor action %s failed: %v", req.Action, err),
-		}, nil
+
+	resp := &workflowpb.ExecuteActionResponse{}
+	switch {
+	case err != nil:
+		resp.Ok = false
+		// The human-readable failure stays in Message; the machine-readable
+		// receipt travels in OutputJson. They are different audiences and must
+		// not be collapsed into one string.
+		resp.Message = fmt.Sprintf("cluster-doctor action %s failed: %v", req.Action, err)
+	case result == nil:
+		resp.Ok = false
+		resp.Message = fmt.Sprintf("cluster-doctor action %s returned no result", req.Action)
+	default:
+		resp.Ok = result.OK
+		resp.Message = result.Message
 	}
 
-	resp := &workflowpb.ExecuteActionResponse{
-		Ok:      result.OK,
-		Message: result.Message,
-	}
-	if result.Output != nil {
-		if b, err := json.Marshal(result.Output); err == nil {
-			resp.OutputJson = string(b)
+	// Carried on success AND on failure. Only keys this action produced or
+	// changed — never the whole accumulated map, which would let one actor
+	// overwrite unrelated or concurrently produced workflow state.
+	if result != nil && result.Output != nil {
+		b, mErr := json.Marshal(result.Output)
+		if mErr != nil {
+			// Never drop a receipt silently. A caller that receives a failure
+			// with no receipt cannot tell a governed refusal from a broken
+			// executor — the exact ambiguity this contract exists to remove.
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("cluster-doctor: output delta not serializable: %v", mErr),
+			}, nil
 		}
+		resp.OutputJson = string(b)
 	}
 	return resp, nil
 }

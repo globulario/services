@@ -71,12 +71,13 @@ Stop conditions:
 
 Steps:
 
-1. Keep edits scoped to the recommended move.
-2. Brief every newly touched file before editing.
-3. Run edit-check on proposed architecture-sensitive content.
-4. Re-run preflight if files or behavior expand.
-5. Run required tests and normal repo tests.
-6. Run final gate where configured.
+1. Prepare the exact task and file envelope.
+2. Run task briefing for every planned file and read compact task status.
+3. Advance the task while bounded static Evidence is the primary action.
+4. Ask only the primary architect question if judgement is required.
+5. Request mutation admission; inspection admission alone is insufficient.
+6. Keep edits inside the admitted envelope and run edit-check.
+7. Verify admission, run required tests, normal tests, and the final gate.
 
 Completion criteria:
 
@@ -111,6 +112,13 @@ Stop conditions:
 - fix hides or downgrades the signal instead of repairing the contract
 
 ## Code Review and Pull-Request Review
+
+Some repositories also run this branch automatically in CI on every PR (a
+private per-PR governed graph plus a read-only Codex architectural review).
+See [CI-ACTIVATION-GATE.md](CI-ACTIVATION-GATE.md) before treating an
+automated verdict as equivalent to this branch's own completion criteria —
+it is advisory evidence with the same authority limits as any other Sensei
+surface, not a substitute for it.
 
 Review separate axes:
 

@@ -107,15 +107,42 @@ type Verification struct {
 type DoctorRemediationConfig struct {
 	// ResolveFinding returns the shape cluster_doctor exposes via its
 	// finding cache: the finding's structured RemediationAction.
-	ResolveFinding func(ctx context.Context, findingID string, stepIndex uint32) (*ResolvedFinding, error)
+	// runID is the workflow run this resolution belongs to. It is passed
+	// explicitly rather than read from context because it is an identity input,
+	// not ambient metadata: an autonomous caller binds the exact finding it
+	// selected to this run id before starting it, and the resolver must be able
+	// to demand THAT finding rather than re-reading a mutable cache that may
+	// have changed between selection and dispatch.
+	// bindingMode is the run's explicit resolution contract, carried as a
+	// workflow input. FindingBindingAutonomousRequired means a run-scoped
+	// binding MUST exist and match; absence or mismatch must fail closed.
+	// FindingBindingOperatorCurrent means resolving the current cached finding
+	// is correct. It is passed rather than inferred because binding absence has
+	// many causes — premature cleanup, cancellation, an RPC timeout with
+	// callbacks still in flight, a mismatched run id, a bug — and treating any
+	// of them as "operator run" would silently substitute a different finding.
+	ResolveFinding func(ctx context.Context, runID, findingID string, stepIndex uint32, bindingMode string) (*ResolvedFinding, error)
 
 	// ExecuteRemediation forwards to cluster_doctor.ExecuteRemediation.
 	// The workflow never executes side-effects outside this call.
-	ExecuteRemediation func(ctx context.Context, findingID string, stepIndex uint32, approvalToken string, dryRun bool) (*ExecutionResult, error)
+	// runID and bindingMode travel with the execution, not just the
+	// resolution. A run-scoped binding that guards resolve_finding but not
+	// execute_remediation protects the wrong half: the executor can still
+	// re-resolve the finding from a mutable cache and mutate a different
+	// subject than the one the caller bound.
+	ExecuteRemediation func(ctx context.Context, runID, findingID string, stepIndex uint32,
+		approvalToken string, dryRun bool, bindingMode string) (*ExecutionResult, error)
 
 	// VerifyConvergence re-runs doctor (GetNodeReport) and reports
 	// whether the finding has cleared.
-	VerifyConvergence func(ctx context.Context, findingID, nodeID string) (*Verification, error)
+	// dispatchedAt is the instant the executor confirmed the action ran. The
+	// verifier MUST prove its evidence was collected strictly after it — a
+	// snapshot that predates the repair still shows the finding present, which
+	// would record a successful repair as a failure and teach the learning loop
+	// the opposite of what happened. Zero means dispatch never happened or was
+	// never timestamped; a verifier that cannot place its evidence after the
+	// action must refuse rather than guess.
+	VerifyConvergence func(ctx context.Context, findingID, nodeID string, dispatchedAt time.Time) (*Verification, error)
 
 	// MarkFailed is called via onFailure hook when the workflow ends
 	// in a non-terminal-success state.
@@ -162,6 +189,30 @@ type DoctorRemediationConfig struct {
 // GateRequest is the real action context a governed check is made against. Every
 // field is read from workflow state, never invented: a gate asked about the
 // wrong subject returns a confident answer to a question nobody posed.
+// Finding resolution contracts, carried as the finding_binding_mode workflow
+// input. See remediate.doctor.finding.yaml.
+const (
+	// FindingBindingAutonomousRequired — the run was started for ONE exact
+	// finding bound to its run id before the run began. Resolution must use
+	// that binding and fail closed otherwise.
+	FindingBindingAutonomousRequired = "autonomous_required"
+	// FindingBindingOperatorCurrent — an operator named a finding id and
+	// expects the current finding.
+	FindingBindingOperatorCurrent = "operator_current"
+)
+
+// Canonical dispatch dispositions written to the run's dispatch_result output.
+//
+// These exist so a caller can classify a run from STRUCTURED fields that
+// survive a failed step, rather than by matching error text. A refusal and an
+// executor malfunction are different worlds — one is governance working, the
+// other charges a circuit breaker — and a classifier that told them apart by
+// string would change meaning the next time a message was reworded.
+const (
+	DispositionRefused         = "REFUSED"
+	DispositionExecutionFailed = "EXECUTION_FAILED"
+)
+
 type GateRequest struct {
 	FindingID     string
 	ClusterID     string
@@ -225,7 +276,13 @@ func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {
 			return nil, fmt.Errorf("resolve_finding: no ResolveFinding handler configured")
 		}
 		ctx = withRemediationCorrelation(ctx, req)
-		rf, err := cfg.ResolveFinding(ctx, findingID, stepIndex)
+		// Default is the operator contract, matching the definition's default.
+		// An autonomous caller must say so explicitly.
+		bindingMode := toStr(req.With["finding_binding_mode"])
+		if bindingMode == "" {
+			bindingMode = FindingBindingOperatorCurrent
+		}
+		rf, err := cfg.ResolveFinding(ctx, req.RunID, findingID, stepIndex, bindingMode)
 		if err != nil {
 			return nil, fmt.Errorf("resolve_finding: %w", err)
 		}
@@ -248,8 +305,13 @@ func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {
 			"invariant_id": rf.InvariantID,
 			"entity_ref":   rf.EntityRef,
 		}
-		req.Outputs["resolved_finding"] = out
-		return &ActionResult{OK: true, Output: out}, nil
+		// Named delta, not a bare field map. The engine merges result.Output at
+		// the run-output ROOT, so returning bare fields would publish
+		// finding_id/node_id/... individually and leave $.resolved_finding
+		// undefined for the next step — which is exactly what happens across the
+		// actor RPC, where the handler's req.Outputs write is a dead local copy.
+		// One shape for both topologies.
+		return &ActionResult{OK: true, Output: map[string]any{"resolved_finding": out}}, nil
 	}
 }
 
@@ -294,8 +356,7 @@ func doctorAssessRisk() ActionHandler {
 			"requires_approval": assessment.RequiresApproval,
 			"reason":            assessment.Reason,
 		}
-		req.Outputs["risk_assessment"] = out
-		return &ActionResult{OK: true, Output: out}, nil
+		return &ActionResult{OK: true, Output: map[string]any{"risk_assessment": out}}, nil
 	}
 }
 
@@ -346,6 +407,11 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 		}
 		ctx = withRemediationCorrelation(ctx, req)
 
+		// Accumulated into the returned delta rather than written into
+		// req.Outputs: the engine is the single writer of run outputs, and a
+		// producer-side write is discarded across the actor RPC anyway.
+		var governanceDelta map[string]any
+
 		// ── the governed gate ───────────────────────────────────────────────
 		//
 		// Placed HERE, before the executor call, because a governor consulted
@@ -358,19 +424,60 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 			// not decided in favour; treating an unreachable gate as consent
 			// would make governance strongest exactly when it is working and
 			// absent exactly when it is not.
-			return nil, fmt.Errorf("execute_remediation: governance check unavailable, refusing to dispatch: %w", gateErr)
+			// Governance UNAVAILABLE is not governance REFUSED. Both stop the
+			// action, but only the second is a decision; the first is an
+			// infrastructure failure and must charge the circuit breaker.
+			dr := map[string]any{
+				"disposition":            DispositionExecutionFailed,
+				"governance_unavailable": true,
+				"executed":               false,
+				"verified":               false,
+				"converged":              false,
+			}
+			// Returned as an explicit delta, NOT only as a req.Outputs mutation:
+			// across the actor RPC that map is a deserialized local copy that
+			// dies with the call, so the receipt must ride the response.
+			return &ActionResult{OK: false, Output: map[string]any{"dispatch_result": dr},
+					Message: "governance check unavailable"},
+				fmt.Errorf("execute_remediation: governance check unavailable, refusing to dispatch: %w", gateErr)
 		}
 		if verdict != nil {
 			// Recorded whatever the verdict, so a blocked action leaves the same
 			// audit trail as an allowed one.
-			req.Outputs["governance"] = gateVerdictAsMap(*verdict)
+			governanceDelta = gateVerdictAsMap(*verdict)
 			if !verdict.Allowed {
-				return nil, fmt.Errorf("execute_remediation: blocked by governance (status=%s check=%s): %s",
-					verdict.Status, verdict.ActionCheckID, verdict.Reason)
+				// The refusal receipt is RETURNED as an explicit output delta,
+				// not merely written into req.Outputs.
+				//
+				// In-process, req.Outputs is the run's live map and a write
+				// survives. Across the actor RPC it is a deserialized local copy
+				// that dies with the call, and ExecuteAction previously dropped
+				// OutputJson entirely on failure — so the receipt vanished, the
+				// refusal classified as EXECUTION_FAILED, and a correct
+				// governance decision charged the healer's circuit breaker.
+				// Returning the delta makes both topologies produce the same
+				// run-output shape.
+				//
+				// Nothing executed, so this claims no dispatch and no
+				// verification, and no remediation outcome is emitted.
+				dr := map[string]any{
+					"disposition":     DispositionRefused,
+					"action_check_id": verdict.ActionCheckID,
+					"status":          verdict.Status,
+					"executed":        false,
+					"verified":        false,
+					"converged":       false,
+				}
+				return &ActionResult{OK: false,
+						Output:  withGovernance(map[string]any{"dispatch_result": dr}, gateVerdictAsMap(*verdict)),
+						Message: fmt.Sprintf("blocked by governance (status=%s check=%s)", verdict.Status, verdict.ActionCheckID)},
+					fmt.Errorf("execute_remediation: blocked by governance (status=%s check=%s): %s",
+						verdict.Status, verdict.ActionCheckID, verdict.Reason)
 			}
 		}
 
-		res, err := cfg.ExecuteRemediation(ctx, findingID, stepIndex, approvalToken, dryRun)
+		res, err := cfg.ExecuteRemediation(ctx, req.RunID, findingID, stepIndex, approvalToken, dryRun,
+			execBindingMode(req))
 		if err != nil {
 			return nil, fmt.Errorf("execute_remediation: %w", err)
 		}
@@ -399,13 +506,17 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 		if verdict != nil && verdict.ActionCheckID != "" {
 			out["action_check_id"] = verdict.ActionCheckID
 		}
-		req.Outputs["execution_result"] = out
 		// Rejections from the RPC are reflected as step failure so the
-		// workflow terminates and onFailure runs.
+		// workflow terminates and onFailure runs. The receipt still travels:
+		// a failed step that carries no record of WHY is unclassifiable, which
+		// is how a governed refusal became an executor failure.
 		if !res.Executed && !dryRun {
-			return nil, fmt.Errorf("execute_remediation rejected: status=%s reason=%s", res.Status, res.Reason)
+			return &ActionResult{OK: false, Output: withGovernance(map[string]any{"execution_result": out}, governanceDelta),
+					Message: fmt.Sprintf("execute_remediation rejected: status=%s reason=%s", res.Status, res.Reason)},
+				fmt.Errorf("execute_remediation rejected: status=%s reason=%s", res.Status, res.Reason)
 		}
-		return &ActionResult{OK: true, Output: out}, nil
+		return &ActionResult{OK: true,
+			Output: withGovernance(map[string]any{"execution_result": out}, governanceDelta)}, nil
 	}
 }
 
@@ -423,11 +534,23 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 				"finding_still_present": false,
 				"remaining_related":     0,
 			}
-			req.Outputs["verification"] = out
 			return &ActionResult{OK: true, Output: out}, nil
 		}
 		ctx = withRemediationCorrelation(ctx, req)
-		v, err := cfg.VerifyConvergence(ctx, findingID, nodeID)
+
+		// The verifier receives the instant the executor accepted the action, so
+		// it can prove it read POST-action state rather than assume it. Read from
+		// the same execute_remediation output buildRemediationOutcome parses, so
+		// the timestamp the verification is judged against and the timestamp the
+		// outcome records are one value, never two that can drift.
+		//
+		// Zero when dispatch did not happen or the step wrote no timestamp. That
+		// is not "verify anyway with no constraint": a verifier that cannot place
+		// its snapshot after the action must refuse, because a snapshot that
+		// predates the repair reports the finding still present and would record
+		// a successful repair as failed.
+		dispatchedAt := dispatchedAtFromOutputs(req)
+		v, err := cfg.VerifyConvergence(ctx, findingID, nodeID, dispatchedAt)
 		if err != nil {
 			return nil, fmt.Errorf("verify_convergence: %w", err)
 		}
@@ -436,7 +559,6 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 			"finding_still_present": v.FindingStillPresent,
 			"remaining_related":     v.RemainingRelated,
 		}
-		req.Outputs["verification"] = out
 
 		// Assemble the structured remediation.Outcome from this workflow
 		// run's accumulated state. The Outcome encodes the truth-
@@ -446,7 +568,10 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 		// step-level errors. See
 		// docs/intent/workflow.remediation_truth_consistency.yaml.
 		outcome := buildRemediationOutcome(req, findingID, v, cfg.now)
-		req.Outputs["remediation_outcome"] = outcomeAsMap(outcome)
+		verifyDelta := map[string]any{
+			"verification":        out,
+			"remediation_outcome": outcomeAsMap(outcome),
+		}
 
 		// Offer the outcome for learning BEFORE the convergence branch below,
 		// so a remediation that did not converge is recorded too. Placing this
@@ -460,11 +585,15 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 			// "Verified but invariant present" — the workflow MUST NOT
 			// report success. Failing the step here propagates to the
 			// run-level status so a green workflow status cannot hide an
-			// unresolved doctor finding.
-			return nil, fmt.Errorf("verify_convergence: finding %s still present after remediation (status=%s)",
-				findingID, outcome.Status())
+			// unresolved doctor finding. The verification and outcome still
+			// travel: this is the case a promotion decision most needs to read.
+			return &ActionResult{OK: false, Output: verifyDelta,
+					Message: fmt.Sprintf("finding %s still present after remediation (status=%s)",
+						findingID, outcome.Status())},
+				fmt.Errorf("verify_convergence: finding %s still present after remediation (status=%s)",
+					findingID, outcome.Status())
 		}
-		return &ActionResult{OK: true, Output: out}, nil
+		return &ActionResult{OK: true, Output: verifyDelta}, nil
 	}
 }
 
@@ -596,6 +725,53 @@ func outcomeAsMap(o remediation.Outcome) map[string]any {
 // view of run state. It reads back the execute_remediation output that
 // the prior step wrote into req.Outputs so the verdict reflects the full
 // resolve → execute → verify chain in one place.
+// withGovernance attaches the governance verdict to a delta when one was
+// reached. Absent for an ungoverned action, which is an honest state rather
+// than an empty object pretending a decision happened.
+func withGovernance(delta map[string]any, governance map[string]any) map[string]any {
+	if governance != nil {
+		delta["governance"] = governance
+	}
+	return delta
+}
+
+// execBindingMode reads the run's declared resolution contract for the execute
+// step. Defaults to the operator contract, matching the definition's default;
+// an autonomous caller must say so explicitly.
+func execBindingMode(req ActionRequest) string {
+	if m := toStr(req.With["finding_binding_mode"]); m != "" {
+		return m
+	}
+	return FindingBindingOperatorCurrent
+}
+
+// dispatchedAtFromOutputs reads the executor-accepted instant the
+// execute_remediation step recorded, and is the single reader of that value.
+//
+// Both the post-action verification constraint and the recorded outcome derive
+// from this one function on purpose: if they parsed it separately they could
+// disagree, and a verification judged against one timestamp while the outcome
+// reports another is exactly the kind of split that makes an incorrect record
+// look self-consistent.
+//
+// Returns the zero time when dispatch did not occur or nothing was recorded.
+// Never synthesised from verification or wall-clock time.
+func dispatchedAtFromOutputs(req ActionRequest) time.Time {
+	exec, ok := req.Outputs["execution_result"].(map[string]any)
+	if !ok {
+		return time.Time{}
+	}
+	ts, ok := exec["dispatched_at"].(string)
+	if !ok || ts == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, ts)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
 func buildRemediationOutcome(req ActionRequest, findingID string, v *Verification, now func() time.Time) remediation.Outcome {
 	out := remediation.Outcome{
 		FindingID:     findingID,
@@ -629,11 +805,7 @@ func buildRemediationOutcome(req ActionRequest, findingID string, v *Verificatio
 		// DispatchedAt zero, which LineageDefects reports as
 		// missing_dispatched_at_after_dispatch when dispatch was claimed —
 		// visible rather than papered over with VerifiedAt.
-		if ts, ok := exec["dispatched_at"].(string); ok && ts != "" {
-			if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
-				out.DispatchedAt = parsed
-			}
-		}
+		out.DispatchedAt = dispatchedAtFromOutputs(req)
 		// The governance decision that authorized this dispatch, carried from
 		// the execute step so the later verification ties back to the decision
 		// rather than merely following it in time.

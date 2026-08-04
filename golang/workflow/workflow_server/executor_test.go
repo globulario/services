@@ -199,9 +199,22 @@ func TestActorDispatcherRejectsUnknownAction(t *testing.T) {
 
 	handler := d.makeHandler("test-actor")
 
-	_, err = handler(ctx, makeTestActionRequest("totally.bogus.action", nil))
-	if err == nil {
-		t.Fatal("expected error for unknown action, got nil")
+	// The dispatcher now decodes any structured receipt BEFORE classifying the
+	// response, so a semantic actor failure surfaces as OK=false rather than a
+	// transport error — that is what lets a governed refusal carry its receipt
+	// home. An unknown action still fails, and still fabricates no output.
+	res, err := handler(ctx, makeTestActionRequest("totally.bogus.action", nil))
+	if err != nil {
+		t.Fatalf("unknown action is a semantic rejection, not a transport error: %v", err)
+	}
+	if res == nil || res.OK {
+		t.Fatalf("expected a not-OK result for unknown action, got %+v", res)
+	}
+	if len(res.Output) != 0 {
+		t.Errorf("an unknown action must fabricate no output; got %v", res.Output)
+	}
+	if res.Message == "" {
+		t.Error("rejection must carry a human-readable message")
 	}
 }
 

@@ -642,3 +642,17 @@ https://globular.io/awareness#Test	make check-services
 https://globular.io/awareness#Test	python3 scripts/validate-package-authority.py
 https://globular.io/awareness#Test	scripts/check-identity-authority.sh
 https://globular.io/awareness#Test	scripts/validate-package-authority.py
+https://globular.io/awareness#Test	golang/ai_memory/domains/cluster_operator/satisfaction_test.go:TestQualify_FullPositiveTrace
+https://globular.io/awareness#Test	golang/repository/repository_server/sync_from_upstream_test.go:TestRegisterUpstream_LocalDirDoesNotRequireIndexURL
+https://globular.io/awareness#ForbiddenFix	allow_a_caller_supplied_class_or_enum_where_a_closed_constructor_belongs
+https://globular.io/awareness#ForbiddenFix	assign_identity_digest_or_render_before_validating
+https://globular.io/awareness#ForbiddenFix	collapse_distinct_failure_conditions_into_one_empty_observable
+https://globular.io/awareness#ForbiddenFix	drop_or_nil_a_field_on_error_instead_of_returning_a_typed_unavailable_result
+https://globular.io/awareness#ForbiddenFix	fabricate_a_real_or_terminal_state_to_avoid_reporting_unavailable
+https://globular.io/awareness#ForbiddenFix	forbidden.feature_with_only_platform_native_mode
+https://globular.io/awareness#ForbiddenFix	forbidden.find_first_as_uniqueness_proof
+https://globular.io/awareness#ForbiddenFix	forbidden.find_latest_as_cardinality_proof
+https://globular.io/awareness#ForbiddenFix	forbidden.ignore_duplicate_authoritative_facts
+https://globular.io/awareness#ForbiddenFix	rely_on_an_optional_validate_helper_instead_of_enforcing_at_construction
+https://globular.io/awareness#Test	golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go:TestReconcileMarkItemTerminal_RequiresObservedConvergence/repeated_failure_escalates_and_arms_backoff
+https://globular.io/awareness#Test	golang/cluster_controller/cluster_controller_server/release_pipeline_infra_drift_test.go:TestCorrectKindFromRepo

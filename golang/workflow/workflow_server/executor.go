@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/workflow/actortransport"
 	"github.com/globulario/services/golang/workflow/compiler"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -207,10 +208,26 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	}
 
 	// ── 4. Build engine with auto-recording ──────────────────────────────
-	// Use correlation_id as the run_id if provided. This allows callers
-	// (e.g. cluster-controller) to register per-run actor Routers keyed
-	// by correlation_id before the call, since they can predict the run_id.
-	runID := req.CorrelationId
+	// Run identity resolution, in precedence order.
+	//
+	// An explicit run_id is UNIQUE PER ATTEMPT and wins. It exists because run
+	// identity and correlation identity are different questions: run_id names
+	// THIS execution, correlation_id is the stable story joining retries and
+	// repeated attempts on the same subject. Callers that repeat an attempt on
+	// one subject (the autonomous doctor healer) must set it, and can still
+	// predict it because they generate it before calling.
+	//
+	// Falling back to correlation_id preserves the original behavior for every
+	// existing caller: it lets a caller that CAN predict a stable id register a
+	// per-run actor Router keyed by it before the call. That fallback is only
+	// safe when the correlation is unique per attempt. When it is not, every
+	// attempt collapses into one run identity and the second attempt is refused
+	// by the run lease below as "already owned by another executor" — which is
+	// why an explicit run_id exists rather than a documented workaround.
+	runID := req.RunId
+	if runID == "" {
+		runID = req.CorrelationId
+	}
 	if runID == "" {
 		runID = gocql.TimeUUID().String()
 	}
@@ -600,52 +617,19 @@ func (d *actorDispatcher) getClient(actorType string) (workflowpb.WorkflowActorS
 // the remote actor via gRPC. This is a transport-only fallback — the actor
 // validates the action name and rejects unknowns.
 func (d *actorDispatcher) makeHandler(actorType string) engine.ActionHandler {
-	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
-		slog.Info("executor: dispatching action",
-			"actor", actorType, "action", req.Action,
-			"run_id", req.RunID, "step_id", req.StepID)
-		client, err := d.getClient(actorType)
+	// Delegates to the shared transport mapping so production and tests
+	// exercise the SAME encode/decode/classify path. A test that reimplemented
+	// this would only prove it agreed with itself — which is how a discarded
+	// refusal receipt survived review.
+	return actortransport.Handler(actorType, func(at string) (workflowpb.WorkflowActorServiceClient, error) {
+		slog.Info("executor: dispatching action", "actor", at, "run_id", "", "step_id", "")
+		client, err := d.getClient(at)
 		if err != nil {
-			slog.Warn("executor: actor dial failed",
-				"actor", actorType, "action", req.Action, "err", err)
-			return nil, fmt.Errorf("actor %s: %w", actorType, err)
+			slog.Warn("executor: actor dial failed", "actor", at, "err", err)
+			return nil, err
 		}
-
-		withJSON, _ := json.Marshal(req.With)
-		inputsJSON, _ := json.Marshal(req.Inputs)
-		outputsJSON, _ := json.Marshal(req.Outputs)
-
-		resp, err := client.ExecuteAction(ctx, &workflowpb.ExecuteActionRequest{
-			RunId:       req.RunID,
-			StepId:      req.StepID,
-			Actor:       actorType,
-			Action:      req.Action,
-			WithJson:    string(withJSON),
-			InputsJson:  string(inputsJSON),
-			OutputsJson: string(outputsJSON),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("actor %s action %s: %w", actorType, req.Action, err)
-		}
-
-		if !resp.Ok {
-			return nil, fmt.Errorf("actor %s action %s rejected: %s", actorType, req.Action, resp.Message)
-		}
-
-		var output map[string]any
-		if resp.OutputJson != "" {
-			if err := json.Unmarshal([]byte(resp.OutputJson), &output); err != nil {
-				slog.Warn("executor: failed to unmarshal action output",
-					"actor", actorType, "action", req.Action, "err", err)
-			}
-		}
-
-		return &engine.ActionResult{
-			OK:      true,
-			Output:  output,
-			Message: resp.Message,
-		}, nil
-	}
+		return client, nil
+	})
 }
 
 // loadExecutorTLS loads service TLS credentials for actor callbacks.

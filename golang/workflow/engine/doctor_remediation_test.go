@@ -28,7 +28,7 @@ type fakeDoctor struct {
 
 func (f *fakeDoctor) config() DoctorRemediationConfig {
 	return DoctorRemediationConfig{
-		ResolveFinding: func(ctx context.Context, findingID string, stepIndex uint32) (*ResolvedFinding, error) {
+		ResolveFinding: func(ctx context.Context, _ string, findingID string, stepIndex uint32, _ string) (*ResolvedFinding, error) {
 			f.resolveCalls++
 			if f.resolveErr != nil {
 				return nil, f.resolveErr
@@ -38,14 +38,14 @@ func (f *fakeDoctor) config() DoctorRemediationConfig {
 			rf.StepIndex = stepIndex
 			return &rf, nil
 		},
-		ExecuteRemediation: func(ctx context.Context, findingID string, stepIndex uint32, approvalToken string, dryRun bool) (*ExecutionResult, error) {
+		ExecuteRemediation: func(ctx context.Context, _ string, findingID string, stepIndex uint32, approvalToken string, dryRun bool, _ string) (*ExecutionResult, error) {
 			f.execCalls++
 			if f.execErr != nil {
 				return nil, f.execErr
 			}
 			return f.execResult, nil
 		},
-		VerifyConvergence: func(ctx context.Context, findingID, nodeID string) (*Verification, error) {
+		VerifyConvergence: func(ctx context.Context, findingID, nodeID string, _ time.Time) (*Verification, error) {
 			f.verifyCalls++
 			if f.verifyErr != nil {
 				return nil, f.verifyErr

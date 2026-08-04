@@ -104,7 +104,7 @@ func runGoverned(t *testing.T, gov behavioralGovernor, converged bool) gvResult 
 
 	cfg := engine.DoctorRemediationConfig{
 		Now: func() time.Time { return gvDispatchAt },
-		ResolveFinding: func(_ context.Context, id string, idx uint32) (*engine.ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32, _ string) (*engine.ResolvedFinding, error) {
 			return &engine.ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: gvNode,
 				ActionType: gvAction, Risk: "LOW", Idempotent: true,
@@ -112,11 +112,11 @@ func runGoverned(t *testing.T, gov behavioralGovernor, converged bool) gvResult 
 				ClusterID: gvCluster, InvariantID: gvInvar, EntityRef: gvEntity,
 			}, nil
 		},
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*engine.ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*engine.ExecutionResult, error) {
 			res.executorCalls++
 			return &engine.ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: true}, nil
 		},
-		VerifyConvergence: func(context.Context, string, string) (*engine.Verification, error) {
+		VerifyConvergence: func(context.Context, string, string, time.Time) (*engine.Verification, error) {
 			return &engine.Verification{Converged: converged, FindingStillPresent: !converged}, nil
 		},
 		ObserveOutcome: func(ctx context.Context, o remediation.Outcome) {
@@ -132,12 +132,21 @@ func runGoverned(t *testing.T, gov behavioralGovernor, converged bool) gvResult 
 	engine.RegisterDoctorRemediationActions(router, cfg)
 	ctx := context.Background()
 
+	// Merges each step's returned delta exactly as the engine does. Handlers no
+	// longer mutate req.Outputs: a producer-side write is discarded across the
+	// actor RPC, so relying on it made the local and deployed topologies behave
+	// differently. The engine is the single writer of run outputs.
 	dispatch := func(action string, with map[string]any) error {
 		h, ok := router.Resolve(v1alpha1.ActorClusterDoctor, action)
 		if !ok {
 			t.Fatalf("%s not registered", action)
 		}
-		_, err := h(ctx, engine.ActionRequest{RunID: gvRun, With: with, Outputs: res.outputs})
+		out, err := h(ctx, engine.ActionRequest{RunID: gvRun, With: with, Outputs: res.outputs})
+		if out != nil {
+			for k, v := range out.Output {
+				res.outputs[k] = v
+			}
+		}
 		return err
 	}
 
@@ -309,14 +318,14 @@ func TestGoverned_HumanApprovalCombinesWithExistingGate(t *testing.T) {
 	var executorSawToken string
 	cfg := engine.DoctorRemediationConfig{
 		Now: func() time.Time { return gvDispatchAt },
-		ResolveFinding: func(_ context.Context, id string, idx uint32) (*engine.ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32, _ string) (*engine.ResolvedFinding, error) {
 			return &engine.ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: gvNode, ActionType: gvAction,
 				Risk: "HIGH", Idempotent: true, HasAction: true,
 				ClusterID: gvCluster, InvariantID: gvInvar, EntityRef: gvEntity,
 			}, nil
 		},
-		ExecuteRemediation: func(_ context.Context, _ string, _ uint32, token string, _ bool) (*engine.ExecutionResult, error) {
+		ExecuteRemediation: func(_ context.Context, _ string, _ string, _ uint32, token string, _ bool, _ string) (*engine.ExecutionResult, error) {
 			executorSawToken = token
 			return &engine.ExecutionResult{Status: "EXECUTED", Executed: true}, nil
 		},
@@ -325,12 +334,26 @@ func TestGoverned_HumanApprovalCombinesWithExistingGate(t *testing.T) {
 	router := engine.NewRouter()
 	engine.RegisterDoctorRemediationActions(router, cfg)
 	outputs := map[string]any{}
+	// Handlers no longer mutate req.Outputs — the engine is the single writer
+	// of run outputs, because a producer-side write is discarded across the
+	// actor RPC and made local and remote diverge. This driver therefore merges
+	// each returned delta exactly as executeStep does.
+	mergeGvDelta := func(r *engine.ActionResult) {
+		if r == nil {
+			return
+		}
+		for k, v := range r.Output {
+			outputs[k] = v
+		}
+	}
 	h, _ := router.Resolve(v1alpha1.ActorClusterDoctor, "doctor.resolve_finding")
-	if _, err := h(context.Background(), engine.ActionRequest{
+	rfRes, err := h(context.Background(), engine.ActionRequest{
 		RunID: gvRun, With: map[string]any{"finding_id": gvFinding, "step_index": 0}, Outputs: outputs,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
+	mergeGvDelta(rfRes)
 	h, _ = router.Resolve(v1alpha1.ActorClusterDoctor, "doctor.execute_remediation")
 	if _, err := h(context.Background(), engine.ActionRequest{
 		RunID: gvRun, Outputs: outputs,
@@ -568,7 +591,23 @@ func TestGatedDispatcher_ConsultsGovernanceBeforeExecuting(t *testing.T) {
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
 	f := findingWithRestartAction()
-	if !srv.dispatchAllowedByGovernance(context.Background(), f, 0, "restart_drifted_unit") {
+	// The autonomous path now reaches governance through the workflow's own
+	// gate rather than a healer-side call. The property under test is
+	// unchanged — the unattended mutation must be authorized before it runs —
+	// but there is now exactly ONE decision point for operator-started and
+	// autonomous runs alike, so a dispatch cannot mint a second action check.
+	v, err := srv.gateRemediation(context.Background(), engine.GateRequest{
+		FindingID:     f.FindingID,
+		ClusterID:     "c1",
+		InvariantID:   f.InvariantID,
+		EntityRef:     f.EntityRef,
+		ActionKind:    "restart_drifted_unit",
+		WorkflowRunID: "run-1",
+	})
+	if err != nil {
+		t.Fatalf("gate returned error: %v", err)
+	}
+	if !v.Allowed {
 		t.Fatal("an allowed verdict must permit dispatch")
 	}
 	if len(gov.asked) != 1 {
@@ -581,10 +620,15 @@ func TestGatedDispatcher_ConsultsGovernanceBeforeExecuting(t *testing.T) {
 			"a verdict about the wrong subject is worse than no verdict",
 			a.InvariantID, a.EntityRef, f.InvariantID, f.EntityRef)
 	}
-	if a.WorkflowRunID != "" || a.HumanApproval != "" {
-		t.Errorf("healer dispatch must not claim a workflow run (%q) or human approval (%q):\n"+
-			"it has neither, and inventing them forges lineage the governor would trust",
-			a.WorkflowRunID, a.HumanApproval)
+	// The run id is now REAL rather than absent: an autonomous repair is a
+	// genuine Workflow Service run, so claiming one is not forgery. Human
+	// approval must still be empty — nobody approved this.
+	if a.WorkflowRunID != "run-1" {
+		t.Errorf("gate must see the real workflow run (%q), want run-1", a.WorkflowRunID)
+	}
+	if a.HumanApproval != "" {
+		t.Errorf("autonomous dispatch must not claim human approval (%q): nobody approved it, "+
+			"and inventing one forges lineage the governor would trust", a.HumanApproval)
 	}
 }
 
@@ -598,7 +642,11 @@ func TestGatedDispatcher_RefusalBlocksExecution(t *testing.T) {
 	}}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+	v, err := srv.gateRemediation(context.Background(), gateRequestFor(findingWithRestartAction(), "run-refuse"))
+	if err != nil {
+		t.Fatalf("gate returned error: %v", err)
+	}
+	if v.Allowed {
 		t.Error("a governed refusal must block the dispatch")
 	}
 }
@@ -614,7 +662,8 @@ func TestGatedDispatcher_UnreachableGovernorRefuses(t *testing.T) {
 	gov := &fakeGovernor{checkErr: errors.New("governor unavailable")}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+	v, _ := srv.gateRemediation(context.Background(), gateRequestFor(findingWithRestartAction(), "run-unreachable"))
+	if v.Allowed {
 		t.Error("an unreachable governor must be a refusal, never consent —\n" +
 			"otherwise governance is strongest when it works and absent when it does not")
 	}
@@ -631,7 +680,11 @@ func TestGatedDispatcher_UngovernedStillProceeds(t *testing.T) {
 	}}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if !srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit") {
+	v, err := srv.gateRemediation(context.Background(), gateRequestFor(findingWithRestartAction(), "run-ungoverned"))
+	if err != nil {
+		t.Fatalf("gate returned error: %v", err)
+	}
+	if !v.Allowed {
 		t.Error("an ungoverned action must still proceed under the executor's own gates")
 	}
 }
@@ -652,5 +705,19 @@ func findingWithRestartAction() rules.Finding {
 				},
 			},
 		},
+	}
+}
+
+// gateRequestFor builds the gate request the autonomous path submits for a
+// finding, so these tests exercise the same single decision point production
+// uses rather than a healer-side shortcut that no longer exists.
+func gateRequestFor(f rules.Finding, runID string) engine.GateRequest {
+	return engine.GateRequest{
+		FindingID:     f.FindingID,
+		ClusterID:     "c1",
+		InvariantID:   f.InvariantID,
+		EntityRef:     f.EntityRef,
+		ActionKind:    "restart_drifted_unit",
+		WorkflowRunID: runID,
 	}
 }

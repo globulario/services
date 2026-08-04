@@ -37,7 +37,7 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 	dispatched := true
 	cfg := DoctorRemediationConfig{
 		Now: func() time.Time { return lnDispatchAt },
-		ResolveFinding: func(_ context.Context, id string, idx uint32) (*ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32, _ string) (*ResolvedFinding, error) {
 			return &ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: lnNode,
 				ActionType: "SYSTEMCTL_RESTART", Risk: "LOW", Idempotent: true,
@@ -45,10 +45,10 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 				ClusterID: lnCluster, InvariantID: lnInvar, EntityRef: lnEntity,
 			}, nil
 		},
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*ExecutionResult, error) {
 			return &ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: dispatched}, nil
 		},
-		VerifyConvergence: func(context.Context, string, string) (*Verification, error) {
+		VerifyConvergence: func(context.Context, string, string, time.Time) (*Verification, error) {
 			return &Verification{Converged: true}, nil
 		},
 	}
@@ -65,13 +65,37 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	resolved := rf.Output
+	// The handler returns a NAMED delta ({"resolved_finding": {...}}), the same
+	// shape the workflow definition reads via $.resolved_finding.cluster_id and
+	// the same shape that now survives the actor RPC. Previously it returned
+	// bare fields merged at the run-output root, which worked in-process and
+	// left $.resolved_finding undefined remotely.
+	// The engine is now the single writer of run outputs, so this helper must
+	// merge each step's returned delta exactly as executeStep does. Handlers no
+	// longer mutate req.Outputs — a producer-side write is discarded across the
+	// actor RPC, so relying on it made local and remote behave differently.
+	mergeDelta := func(r *ActionResult) {
+		if r == nil || r.Output == nil {
+			return
+		}
+		for k, v := range r.Output {
+			outputs[k] = v
+		}
+	}
+	mergeDelta(rf)
 
-	if _, err := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
+	resolved, ok := rf.Output["resolved_finding"].(map[string]any)
+	if !ok {
+		t.Fatalf("resolve_finding must return a named resolved_finding delta; got %v", rf.Output)
+	}
+
+	execRes, err := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
 		RunID: lnRun, With: map[string]any{"finding_id": lnFinding, "step_index": 0}, Outputs: outputs,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
+	mergeDelta(execRes)
 
 	// The verify request carries exactly what the workflow YAML threads in.
 	verifyReq := ActionRequest{
@@ -295,7 +319,7 @@ func TestLineage_NoDispatchExportsNoTimestamp(t *testing.T) {
 	outputs := map[string]any{}
 	cfg := DoctorRemediationConfig{
 		Now: func() time.Time { return lnDispatchAt },
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*ExecutionResult, error) {
 			return &ExecutionResult{Status: "REJECTED", Executed: false, Reason: "blocked"}, nil
 		},
 	}
