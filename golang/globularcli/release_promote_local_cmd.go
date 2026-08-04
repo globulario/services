@@ -24,13 +24,13 @@ import (
 	"os"
 	"strings"
 
+	"context"
+	"encoding/json"
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"context"
-	"encoding/json"
 	"time"
 )
 
@@ -166,83 +166,87 @@ func printPromotionPlan(w io.Writer, in promotionPlanInput) {
 	artifactPlatform := in.ArtifactPlatform
 	artifactKind := in.ArtifactKind
 
-	fmt.Fprintf(w, "╔══════════════════════════════════════════════════════════╗\n")
-	fmt.Fprintf(w, "║  LOCAL OVERRIDE PROMOTION PLAN (DRY-RUN)                ║\n")
-	fmt.Fprintf(w, "╚══════════════════════════════════════════════════════════╝\n\n")
+	// Presentation only: this is the dry-run plan banner. A short write to the
+	// operator's output stream is not an actionable failure here — the plan's
+	// correctness does not depend on it, and the caller reports real errors
+	// through its own return path.
+	_, _ = fmt.Fprintf(w, "╔══════════════════════════════════════════════════════════╗\n")
+	_, _ = fmt.Fprintf(w, "║  LOCAL OVERRIDE PROMOTION PLAN (DRY-RUN)                ║\n")
+	_, _ = fmt.Fprintf(w, "╚══════════════════════════════════════════════════════════╝\n\n")
 
-	fmt.Fprintf(w, "Service:         %s\n", serviceName)
+	_, _ = fmt.Fprintf(w, "Service:         %s\n", serviceName)
 	if localPublisher != "" {
-		fmt.Fprintf(w, "Local publisher: %s\n", localPublisher)
+		_, _ = fmt.Fprintf(w, "Local publisher: %s\n", localPublisher)
 	}
 	if localVersion != "" {
-		fmt.Fprintf(w, "Local version:   %s\n", localVersion)
+		_, _ = fmt.Fprintf(w, "Local version:   %s\n", localVersion)
 	}
 	if buildID != "" {
-		fmt.Fprintf(w, "Local build_id:  %s\n", buildID)
+		_, _ = fmt.Fprintf(w, "Local build_id:  %s\n", buildID)
 	}
 	if basedOn != "" {
-		fmt.Fprintf(w, "Based on:        %s (official)\n", basedOn)
+		_, _ = fmt.Fprintf(w, "Based on:        %s (official)\n", basedOn)
 	}
-	fmt.Fprintf(w, "Target version:  %s (planned official)\n", officialVersion)
+	_, _ = fmt.Fprintf(w, "Target version:  %s (planned official)\n", officialVersion)
 	if artifactPlatform != "" {
-		fmt.Fprintf(w, "Platform:        %s\n", artifactPlatform)
+		_, _ = fmt.Fprintf(w, "Platform:        %s\n", artifactPlatform)
 	}
 	if artifactKind != "" {
-		fmt.Fprintf(w, "Kind:            %s\n", artifactKind)
+		_, _ = fmt.Fprintf(w, "Kind:            %s\n", artifactKind)
 	}
 
-	fmt.Fprintf(w, "\n── PROMOTION PATH ──────────────────────────────────────────\n\n")
+	_, _ = fmt.Fprintf(w, "\n── PROMOTION PATH ──────────────────────────────────────────\n\n")
 
-	fmt.Fprintf(w, "STEP 1  Rebuild from source with official version\n")
-	fmt.Fprintf(w, "        The local artifact %s must NOT be renamed in the repository.\n", buildID)
-	fmt.Fprintf(w, "        Rebuild clean, injecting the official version via ldflags:\n\n")
-	fmt.Fprintf(w, "          export SERVICE_VERSION=%s\n", officialVersion)
-	fmt.Fprintf(w, "          export BUILD_ID=$(uuidgen)\n")
-	fmt.Fprintf(w, "          go build -ldflags \"-X main.Version=${SERVICE_VERSION} -X main.BuildID=${BUILD_ID}\" \\\n")
-	fmt.Fprintf(w, "            ./%s/%s_server\n\n", serviceName, serviceName)
+	_, _ = fmt.Fprintf(w, "STEP 1  Rebuild from source with official version\n")
+	_, _ = fmt.Fprintf(w, "        The local artifact %s must NOT be renamed in the repository.\n", buildID)
+	_, _ = fmt.Fprintf(w, "        Rebuild clean, injecting the official version via ldflags:\n\n")
+	_, _ = fmt.Fprintf(w, "          export SERVICE_VERSION=%s\n", officialVersion)
+	_, _ = fmt.Fprintf(w, "          export BUILD_ID=$(uuidgen)\n")
+	_, _ = fmt.Fprintf(w, "          go build -ldflags \"-X main.Version=${SERVICE_VERSION} -X main.BuildID=${BUILD_ID}\" \\\n")
+	_, _ = fmt.Fprintf(w, "            ./%s/%s_server\n\n", serviceName, serviceName)
 
-	fmt.Fprintf(w, "STEP 2  Package the new binary\n")
-	fmt.Fprintf(w, "          ./build-all-packages.sh --only %s\n", serviceName)
-	fmt.Fprintf(w, "        Output: %s_%s_linux_amd64.tgz\n\n", serviceName, officialVersion)
+	_, _ = fmt.Fprintf(w, "STEP 2  Package the new binary\n")
+	_, _ = fmt.Fprintf(w, "          ./build-all-packages.sh --only %s\n", serviceName)
+	_, _ = fmt.Fprintf(w, "        Output: %s_%s_linux_amd64.tgz\n\n", serviceName, officialVersion)
 
-	fmt.Fprintf(w, "STEP 3  Upload to GitHub as a release asset\n")
-	fmt.Fprintf(w, "          gh release upload v<platform-tag> %s_%s_linux_amd64.tgz\n\n", serviceName, officialVersion)
+	_, _ = fmt.Fprintf(w, "STEP 3  Upload to GitHub as a release asset\n")
+	_, _ = fmt.Fprintf(w, "          gh release upload v<platform-tag> %s_%s_linux_amd64.tgz\n\n", serviceName, officialVersion)
 
-	fmt.Fprintf(w, "STEP 4  Publish to cluster repository\n")
-	fmt.Fprintf(w, "          globular pkg publish \\\n")
-	fmt.Fprintf(w, "            --channel stable \\\n")
-	fmt.Fprintf(w, "            --file %s_%s_linux_amd64.tgz \\\n", serviceName, officialVersion)
-	fmt.Fprintf(w, "            --repository <repo-endpoint>\n\n")
+	_, _ = fmt.Fprintf(w, "STEP 4  Publish to cluster repository\n")
+	_, _ = fmt.Fprintf(w, "          globular pkg publish \\\n")
+	_, _ = fmt.Fprintf(w, "            --channel stable \\\n")
+	_, _ = fmt.Fprintf(w, "            --file %s_%s_linux_amd64.tgz \\\n", serviceName, officialVersion)
+	_, _ = fmt.Fprintf(w, "            --repository <repo-endpoint>\n\n")
 
-	fmt.Fprintf(w, "STEP 5  Regenerate release-index.json\n")
-	fmt.Fprintf(w, "        release-index.json is the BOM truth and must list the new version.\n")
-	fmt.Fprintf(w, "        There is no CLI subcommand that regenerates it: the BOM is emitted\n")
-	fmt.Fprintf(w, "        by the release build pipeline alongside the packages it describes.\n")
-	fmt.Fprintf(w, "        Rebuild the release so the BOM is written with the rest of the set,\n")
-	fmt.Fprintf(w, "        then confirm the entry for %s reads version %s.\n\n", serviceName, officialVersion)
+	_, _ = fmt.Fprintf(w, "STEP 5  Regenerate release-index.json\n")
+	_, _ = fmt.Fprintf(w, "        release-index.json is the BOM truth and must list the new version.\n")
+	_, _ = fmt.Fprintf(w, "        There is no CLI subcommand that regenerates it: the BOM is emitted\n")
+	_, _ = fmt.Fprintf(w, "        by the release build pipeline alongside the packages it describes.\n")
+	_, _ = fmt.Fprintf(w, "        Rebuild the release so the BOM is written with the rest of the set,\n")
+	_, _ = fmt.Fprintf(w, "        then confirm the entry for %s reads version %s.\n\n", serviceName, officialVersion)
 
-	fmt.Fprintf(w, "STEP 6  Apply the upgrade to the cluster\n")
-	fmt.Fprintf(w, "          globular platform-upgrade v<platform-tag>\n\n")
+	_, _ = fmt.Fprintf(w, "STEP 6  Apply the upgrade to the cluster\n")
+	_, _ = fmt.Fprintf(w, "          globular platform-upgrade v<platform-tag>\n\n")
 
-	fmt.Fprintf(w, "STEP 7  Verify the release boundary landed\n")
-	fmt.Fprintf(w, "        Proves the desired published artifact is the one installed and running:\n")
-	fmt.Fprintf(w, "          globular release verify-boundary %s --node <node>\n\n", serviceName)
+	_, _ = fmt.Fprintf(w, "STEP 7  Verify the release boundary landed\n")
+	_, _ = fmt.Fprintf(w, "        Proves the desired published artifact is the one installed and running:\n")
+	_, _ = fmt.Fprintf(w, "          globular release verify-boundary %s --node <node>\n\n", serviceName)
 
-	fmt.Fprintf(w, "STEP 8  Remove the local override\n")
-	fmt.Fprintf(w, "          globular pkg override remove %s\n\n", serviceName)
+	_, _ = fmt.Fprintf(w, "STEP 8  Remove the local override\n")
+	_, _ = fmt.Fprintf(w, "          globular pkg override remove %s\n\n", serviceName)
 
-	fmt.Fprintf(w, "── WARNINGS ────────────────────────────────────────────────\n\n")
-	fmt.Fprintf(w, "  • Do NOT rename the local artifact in the repository. The local build\n")
-	fmt.Fprintf(w, "    continues to carry its local identity (%s).\n", localVersion)
-	fmt.Fprintf(w, "    The official build is a SEPARATE artifact with a new build_id.\n\n")
-	fmt.Fprintf(w, "  • Do NOT inject --trimpath or skip ldflags. The CI pipeline injects\n")
-	fmt.Fprintf(w, "    version metadata. The promoted binary MUST report %s.\n\n", officialVersion)
-	fmt.Fprintf(w, "  • Do NOT bump the platform release tag without running regenerate-bom.\n")
-	fmt.Fprintf(w, "    The release-index.json is the authoritative BOM — git tags are not.\n\n")
-	fmt.Fprintf(w, "  • platform-upgrade will warn if the local override is still active\n")
-	fmt.Fprintf(w, "    when you run it. Remove the override (step 8) AFTER upgrade completes.\n\n")
+	_, _ = fmt.Fprintf(w, "── WARNINGS ────────────────────────────────────────────────\n\n")
+	_, _ = fmt.Fprintf(w, "  • Do NOT rename the local artifact in the repository. The local build\n")
+	_, _ = fmt.Fprintf(w, "    continues to carry its local identity (%s).\n", localVersion)
+	_, _ = fmt.Fprintf(w, "    The official build is a SEPARATE artifact with a new build_id.\n\n")
+	_, _ = fmt.Fprintf(w, "  • Do NOT inject --trimpath or skip ldflags. The CI pipeline injects\n")
+	_, _ = fmt.Fprintf(w, "    version metadata. The promoted binary MUST report %s.\n\n", officialVersion)
+	_, _ = fmt.Fprintf(w, "  • Do NOT bump the platform release tag without running regenerate-bom.\n")
+	_, _ = fmt.Fprintf(w, "    The release-index.json is the authoritative BOM — git tags are not.\n\n")
+	_, _ = fmt.Fprintf(w, "  • platform-upgrade will warn if the local override is still active\n")
+	_, _ = fmt.Fprintf(w, "    when you run it. Remove the override (step 8) AFTER upgrade completes.\n\n")
 
-	fmt.Fprintf(w, "(dry-run — no changes applied)\n")
+	_, _ = fmt.Fprintf(w, "(dry-run — no changes applied)\n")
 }
 
 // readLocalOverrideForPromotion reads the LocalOverride record from etcd.

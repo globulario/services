@@ -1,0 +1,12 @@
+# Python dependencies for the awareness tooling under scripts/.
+#
+# Pinned because these scripts back a hard CI gate. Before 2026-08-03 the
+# gate simply imported yaml and the workflow installed nothing, so a green
+# run proved only that the runner image happened to ship PyYAML. A
+# governance gate must not depend on runner-image sediment.
+#
+# Consumed by:
+#   .github/workflows/ci.yml  → "Enforce awareness tooling tests (hard gate)"
+#   scripts/promote-awareness-candidate.py
+#   scripts/awareness-coverage-report.py
+PyYAML==6.0.2

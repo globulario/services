@@ -15,6 +15,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	observation "github.com/globulario/services/golang/ai_memory/domains/cluster_operator/observation"
@@ -62,9 +63,25 @@ func (s *ClusterDoctorServer) gateRemediation(ctx context.Context, req engine.Ga
 	// Replay: a resumed or retried run must not mint a second decision for the
 	// same action. Returning the first one keeps the audit trail describing one
 	// action once, and keeps the ActionCheck id that later evidence cites stable.
+	//
+	// ONLY for a durable workflow run. Memoization identifies a single durable
+	// ATTEMPT, and an autonomous healer dispatch has no WorkflowRunID — so every
+	// retry for one finding/step produced the identical key "|<finding>|<step>".
+	// The lookup below sits BEFORE CheckAction, so a memo hit returns without
+	// re-resolving evidence or principles: a first needs_evidence verdict was
+	// replayed for the doctor's whole process lifetime, and the governed branch
+	// could never be reached no matter how much evidence later arrived. The
+	// mirror case is as bad — an earlier allow would be reused after the
+	// governing evidence or principles changed.
+	//
+	// Autonomous requests are therefore evaluated fresh every dispatch and never
+	// written to the memo. Durable runs keep their intended idempotence.
+	memoizable := strings.TrimSpace(req.WorkflowRunID) != ""
 	key := gateKey(req)
-	if v, ok := s.lookupGateVerdict(key); ok {
-		return v, nil
+	if memoizable {
+		if v, ok := s.lookupGateVerdict(key); ok {
+			return v, nil
+		}
 	}
 
 	cond := conditionForInvariant[req.InvariantID]
@@ -109,7 +126,9 @@ func (s *ClusterDoctorServer) gateRemediation(ctx context.Context, req engine.Ga
 		// gap is a fact about the SYSTEM, not about this action.
 		behavioralCoverageGapNotify(req, dec.ActionCheckID)
 	}
-	s.rememberGateVerdict(key, v)
+	if memoizable {
+		s.rememberGateVerdict(key, v)
+	}
 	return v, nil
 }
 
@@ -215,7 +234,7 @@ func (s *ClusterDoctorServer) recordGovernedOutcome(ctx context.Context, o remed
 		Status:        status,
 		// Shared with the learning loop's reader — see behavioralThemeForInvariant.
 		Theme: behavioralThemeForInvariant(o.InvariantID),
-		Note:          o.Reason(),
+		Note:  o.Reason(),
 		Metadata: map[string]string{
 			"workflow_run_id": o.WorkflowRunID,
 			"finding_id":      o.FindingID,

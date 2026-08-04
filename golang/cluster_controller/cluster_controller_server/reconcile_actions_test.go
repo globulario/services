@@ -9,11 +9,16 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
+	workflowpb "github.com/globulario/services/golang/workflow/workflowpb"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestReconcileMarkItemTerminal_RequiresObservedConvergence(t *testing.T) {
@@ -208,9 +213,16 @@ func TestReconcileMarkItemTerminal_RequiresObservedConvergence(t *testing.T) {
 // installed_state_runtime_mismatch findings cluster-wide with no auto-heal.
 // Contract: infra_unhealthy must dispatch node.restart_infra_unit (not noop)
 // with the node/component/endpoint needed to call ControlService.
+//
+// Fixture note: dispatch now requires a PERSISTED drift episode identity, so
+// this test builds a legitimate controller — config with a cluster domain, a
+// workflow client, and an unresolved drift row whose drift_type and entity_ref
+// match the item. An empty &server{} would fail closed (correctly) and prove
+// nothing about the dispatch path.
 func TestInfraUnhealthy_DispatchesRestartNotNoop(t *testing.T) {
 	ctx := context.Background()
-	srv := &server{}
+
+	firstSeen := time.Date(2026, 8, 3, 9, 0, 0, 0, time.UTC)
 	item := map[string]any{
 		"type":      "infra_unhealthy",
 		"node_id":   "n1",
@@ -218,6 +230,17 @@ func TestInfraUnhealthy_DispatchesRestartNotNoop(t *testing.T) {
 		"endpoint":  "10.0.0.63:11000",
 		"hostname":  "globule-ryzen",
 	}
+	srv := &server{
+		cfg: &clusterControllerConfig{ClusterDomain: "globular.internal"},
+		workflowClient: &fakeDriftWorkflowClient{rows: []*workflowpb.DriftUnresolved{{
+			ClusterId:         "globular.internal",
+			DriftType:         "infra_unhealthy",
+			EntityRef:         driftEntityRef(item),
+			ConsecutiveCycles: 1,
+			FirstObservedAt:   timestamppb.New(firstSeen),
+		}}},
+	}
+
 	out, err := srv.reconcileChooseWorkflow(ctx, item)
 	if err != nil {
 		t.Fatal(err)
@@ -228,6 +251,114 @@ func TestInfraUnhealthy_DispatchesRestartNotNoop(t *testing.T) {
 	inputs, _ := out["inputs"].(map[string]any)
 	if inputs["node_id"] != "n1" || inputs["component"] != "minio" || inputs["endpoint"] != "10.0.0.63:11000" {
 		t.Fatalf("restart dispatch missing required inputs, got %v", inputs)
+	}
+	// The episode identity must come from the persisted row, not from the
+	// dispatch: that is what makes a retry reconcile to the same child run.
+	if got, want := inputs["drift_episode_id"], firstSeen.UTC().Format(time.RFC3339Nano); got != want {
+		t.Errorf("drift_episode_id = %v, want the persisted first_observed_at %v", got, want)
+	}
+}
+
+// fakeDriftWorkflowClient serves a fixed set of unresolved drift rows. Only
+// ListDriftUnresolved is exercised; the embedded interface is nil, so any other
+// call would panic loudly rather than silently returning a zero value.
+type fakeDriftWorkflowClient struct {
+	workflowpb.WorkflowServiceClient
+	rows []*workflowpb.DriftUnresolved
+	err  error
+}
+
+func (f *fakeDriftWorkflowClient) ListDriftUnresolved(_ context.Context, _ *workflowpb.ListDriftUnresolvedRequest,
+	_ ...grpc.CallOption) (*workflowpb.ListDriftUnresolvedResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &workflowpb.ListDriftUnresolvedResponse{Items: f.rows}, nil
+}
+
+// When the drift-history authority cannot prove which episode this is, the
+// dispatch must fail closed: a classified no-op reason, no restart child, and
+// crucially no panic. The controller may legitimately be mid-assembly or have
+// lost its workflow client, and neither may crash the reconcile loop or
+// synthesize an identity to key a host mutation on.
+func TestInfraUnhealthy_MissingEpisodeAuthorityFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	item := map[string]any{
+		"type":      "infra_unhealthy",
+		"node_id":   "n1",
+		"component": "minio",
+		"endpoint":  "10.0.0.63:11000",
+	}
+
+	cases := []struct {
+		name string
+		srv  *server
+	}{
+		{"nil configuration", &server{}},
+		{"empty cluster domain", &server{cfg: &clusterControllerConfig{}}},
+		{"nil workflow client", &server{cfg: &clusterControllerConfig{ClusterDomain: "globular.internal"}}},
+		{"authority returns no rows", &server{
+			cfg:            &clusterControllerConfig{ClusterDomain: "globular.internal"},
+			workflowClient: &fakeDriftWorkflowClient{},
+		}},
+		{"authority unreachable", &server{
+			cfg:            &clusterControllerConfig{ClusterDomain: "globular.internal"},
+			workflowClient: &fakeDriftWorkflowClient{err: errors.New("transport failure")},
+		}},
+		{"row for a different entity", &server{
+			cfg: &clusterControllerConfig{ClusterDomain: "globular.internal"},
+			workflowClient: &fakeDriftWorkflowClient{rows: []*workflowpb.DriftUnresolved{{
+				DriftType:       "infra_unhealthy",
+				EntityRef:       "n2/etcd",
+				FirstObservedAt: timestamppb.New(time.Date(2026, 8, 3, 9, 0, 0, 0, time.UTC)),
+			}}},
+		}},
+		{"row with zero first_observed_at", &server{
+			cfg: &clusterControllerConfig{ClusterDomain: "globular.internal"},
+			workflowClient: &fakeDriftWorkflowClient{rows: []*workflowpb.DriftUnresolved{{
+				DriftType: "infra_unhealthy",
+				EntityRef: driftEntityRef(item),
+			}}},
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("missing episode authority panicked instead of failing closed: %v", r)
+				}
+			}()
+			out, err := tc.srv.reconcileChooseWorkflow(ctx, item)
+			if err != nil {
+				t.Fatalf("fail-closed must be a classified result, not an error: %v", err)
+			}
+			if out["workflow_name"] != "noop" {
+				t.Fatalf("dispatched %v with no provable episode; want a bounded noop", out["workflow_name"])
+			}
+			inputs, _ := out["inputs"].(map[string]any)
+			reason := fmt.Sprint(inputs["reason"])
+			if !strings.Contains(reason, "episode_identity_unavailable") {
+				t.Errorf("noop reason is not classified: %q", reason)
+			}
+		})
+	}
+}
+
+// A nil receiver must also fail closed rather than panic — driftEpisodeID is
+// reachable before the controller finishes assembling itself.
+func TestDriftEpisodeID_NilServerFailsClosed(t *testing.T) {
+	var srv *server
+	id, err := srv.driftEpisodeID(context.Background(), "infra_unhealthy", "n1/minio")
+	if err == nil {
+		t.Fatalf("nil controller returned an episode id %q", id)
+	}
+	if id != "" {
+		t.Errorf("failed lookup must not yield an id, got %q", id)
+	}
+	var missing *errNoDriftEpisode
+	if !errors.As(err, &missing) {
+		t.Errorf("error %v is not a classified missing-episode error", err)
 	}
 }
 

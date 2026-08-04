@@ -250,6 +250,9 @@ var skipSystemdUnits = map[string]bool{
 	"globular-cli-cmd": true, "mc-cmd": true, "rclone-cmd": true,
 	"restic-cmd": true, "sctool-cmd": true, "sha256sum-cmd": true,
 	"yt-dlp-cmd": true,
+	// libnss-resolve installs a shared library via dpkg and configures
+	// nsswitch; there is no unit to load and none to skip-report.
+	"libnss-resolve-cmd": true,
 }
 
 // loadSystemdUnits discovers loaded globular-*.service systemd units and adds

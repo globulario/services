@@ -21,17 +21,21 @@ import (
 // ReconcileControllerConfig provides dependencies for cluster reconciliation.
 type ReconcileControllerConfig struct {
 	AdvanceInfraJoins func(ctx context.Context, clusterID string) error
-	ScanDrift       func(ctx context.Context, clusterID, scope string, includeNodes []any) ([]any, error)
-	ClassifyDrift   func(ctx context.Context, driftReport []any, maxRemediations int) ([]any, error)
-	FinalizeClean   func(ctx context.Context, clusterID string) error
-	MarkItemStarted func(ctx context.Context, item map[string]any) error
-	ChooseWorkflow  func(ctx context.Context, item map[string]any) (map[string]any, error)
+	ScanDrift         func(ctx context.Context, clusterID, scope string, includeNodes []any) ([]any, error)
+	// coverage is the node set the scan actually examined (nil/empty = full
+	// cluster scan). Cleanup of previously-observed drift must be restricted to
+	// it: a node-subset scan produces no observations for unscanned nodes, and
+	// absence-of-observation there is ignorance, not resolution.
+	ClassifyDrift    func(ctx context.Context, driftReport []any, maxRemediations int, coverage []any) ([]any, error)
+	FinalizeClean    func(ctx context.Context, clusterID string) error
+	MarkItemStarted  func(ctx context.Context, item map[string]any) error
+	ChooseWorkflow   func(ctx context.Context, item map[string]any) (map[string]any, error)
 	MarkItemTerminal func(ctx context.Context, item, childResult map[string]any) error
-	MarkItemFailed  func(ctx context.Context, item map[string]any) error
+	MarkItemFailed   func(ctx context.Context, item map[string]any) error
 	AggregateResults func(ctx context.Context) (map[string]any, error)
-	Finalize        func(ctx context.Context, aggregate map[string]any) error
-	MarkFailed      func(ctx context.Context) error
-	EmitCompleted   func(ctx context.Context) error
+	Finalize         func(ctx context.Context, aggregate map[string]any) error
+	MarkFailed       func(ctx context.Context) error
+	EmitCompleted    func(ctx context.Context) error
 }
 
 // RegisterReconcileControllerActions registers reconcile controller handlers.
@@ -76,6 +80,9 @@ func reconcileScanDrift(cfg ReconcileControllerConfig) ActionHandler {
 				return nil, fmt.Errorf("scan drift: %w", err)
 			}
 			req.Outputs["drift_report"] = items
+			// Publish the coverage the scan actually had so classify_drift can
+			// restrict cleanup to it. Empty means a full cluster scan.
+			req.Outputs["scan_coverage"] = includeNodes
 			// Return drift_report in Output so the engine merges it into
 			// run.Outputs. Without this, remote actions lose req.Outputs
 			// writes because the handler runs on a serialized copy.
@@ -99,8 +106,12 @@ func reconcileClassifyDrift(cfg ReconcileControllerConfig) ActionHandler {
 		if m, ok := req.With["max_remediations"].(int); ok {
 			maxRem = m
 		}
+		coverage, _ := req.With["include_nodes"].([]any)
+		if coverage == nil {
+			coverage, _ = req.Outputs["scan_coverage"].([]any)
+		}
 		if cfg.ClassifyDrift != nil {
-			items, err := cfg.ClassifyDrift(ctx, driftReport, maxRem)
+			items, err := cfg.ClassifyDrift(ctx, driftReport, maxRem, coverage)
 			if err != nil {
 				return nil, fmt.Errorf("classify drift: %w", err)
 			}

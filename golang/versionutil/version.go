@@ -1,6 +1,7 @@
 package versionutil
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -156,6 +157,61 @@ func ReadIdentityProof(serviceName string) string {
 		return ""
 	}
 	return strings.ToLower(strings.TrimSpace(string(data)))
+}
+
+// IdentityInstalledPathPath returns the sidecar holding the DECLARED absolute
+// path of the binary this package's identity refers to.
+func IdentityInstalledPathPath(serviceName string) string {
+	name := sanitize(serviceName)
+	if name == "" {
+		name = "unknown"
+	}
+	return filepath.Join(baseDir, name, "identity_installed_path")
+}
+
+// WriteIdentityInstalledPath persists the manifest-declared identity subject.
+//
+// REPLACEMENT SEMANTICS ARE THE POINT. A reinstall whose artifact declares no
+// installed path REMOVES the sidecar rather than leaving the previous one in
+// place: silently inheriting a prior artifact's path would make the node-agent
+// verify a binary the newly installed package never claimed, which is a false
+// proof rather than a missing one. Empty therefore means delete, not no-op —
+// deliberately unlike WriteIdentityProof, whose empty case is legacy tolerance.
+//
+// Only a validated absolute path is written; anything else is rejected so a
+// malformed declaration cannot become a verification subject.
+func WriteIdentityInstalledPath(serviceName, installedPath string) error {
+	path := IdentityInstalledPathPath(serviceName)
+	v := strings.TrimSpace(installedPath)
+	if v == "" {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if !filepath.IsAbs(v) || strings.Contains(v, "..") {
+		return fmt.Errorf("identity installed path %q must be absolute and free of %q segments", v, "..")
+	}
+	v = filepath.Clean(v)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(v+"\n"), 0o644)
+}
+
+// ReadIdentityInstalledPath returns the persisted identity subject, or "" when
+// no sidecar exists. A stored value that is not absolute is treated as absent
+// rather than returned, so a corrupted sidecar cannot redirect verification.
+func ReadIdentityInstalledPath(serviceName string) string {
+	data, err := os.ReadFile(IdentityInstalledPathPath(serviceName))
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimSpace(string(data))
+	if v == "" || !filepath.IsAbs(v) || strings.Contains(v, "..") {
+		return ""
+	}
+	return filepath.Clean(v)
 }
 
 // WriteKind persists the package kind ("SERVICE", "INFRASTRUCTURE", "COMMAND",

@@ -54,7 +54,7 @@ func newReconcileRouter(t *testing.T, opts reconcileTestOpts) *Router {
 			record("scan_drift")
 			return opts.driftItems, nil
 		},
-		ClassifyDrift: func(ctx context.Context, driftReport []any, maxRem int) ([]any, error) {
+		ClassifyDrift: func(ctx context.Context, driftReport []any, maxRem int, coverage []any) ([]any, error) {
 			record("classify_drift")
 			return opts.remediationItems, nil
 		},

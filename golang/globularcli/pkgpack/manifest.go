@@ -58,6 +58,22 @@ type Manifest struct {
 	// entrypoint=="none" (identity.has_single_canonical_source_and_is_immutable).
 	IdentityProof string `json:"identity_proof,omitempty"`
 
+	// IdentityInstalledPath is the DECLARED absolute path of the binary this
+	// package's identity refers to, copied verbatim from
+	// metadata.identity.installed_path. It exists because a package may declare
+	// binary_sha256 while shipping no entrypoint of its own — the payload is
+	// installed by a bundled .deb, an OS package, or a script — so the
+	// node-agent cannot derive the subject from the archive layout.
+	//
+	// It is NEVER inferred: not from the package name, the entrypoint, the
+	// systemd unit, binary discovery, or files present on the build host. The
+	// spec is the only authority
+	// (forbidden_fix:recompute_identity_from_secondary_source).
+	//
+	// Empty for packages that ship their own entrypoint (the path is derived
+	// from the installed layout) and for packages declaring no identity at all.
+	IdentityInstalledPath string `json:"identity_installed_path,omitempty"`
+
 	// Channel declares which release channel this artifact belongs to.
 	// Valid values: "stable", "candidate", "canary", "dev", "bootstrap".
 	// Empty or omitted defaults to "stable" on the repository side.

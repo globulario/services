@@ -24,6 +24,22 @@ import (
 	"github.com/globulario/services/golang/workflow/workflowpb"
 )
 
+// incidentEligibleStatus pins the incident policy on the authoritative enum.
+//
+// ONLY a terminal failure produces a failure incident. DEFERRED and BLOCKED are
+// non-terminal — the run is waiting, not broken — and SUCCEEDED is not a
+// failure. Any future enum value is excluded by default: a status nobody has
+// classified must not silently become a failure incident.
+func incidentEligibleStatus(status workflowpb.RunStatus) bool {
+	return status == workflowpb.RunStatus_RUN_STATUS_FAILED
+}
+
+// incidentStatusLabel renders the authoritative enum for incident text without
+// routing through the lossy legacy mapper.
+func incidentStatusLabel(status workflowpb.RunStatus) string {
+	return strings.TrimPrefix(status.String(), "RUN_STATUS_")
+}
+
 // ── Incident creation ────────────────────────────────────────────────────────
 
 // projectIncident stores an operational incident to ai-memory when a
@@ -33,16 +49,29 @@ import (
 // Deduplication: incidents are keyed by (cluster_id, workflow_name, step_id,
 // error_signature, package_name). Duplicate incidents within a short window
 // are not stored.
-func (srv *server) projectIncident(ctx context.Context, req *workflowpb.ExecuteWorkflowRequest, resp *workflowpb.ExecuteWorkflowResponse) {
+// projectIncident takes the AUTHORITATIVE RunStatus enum, never the legacy
+// response string.
+//
+// resp.Status is built by legacyRunStatusString, which collapses the whole enum
+// onto "SUCCEEDED" or "FAILED" for ExecuteWorkflowResponse's documented
+// contract. Classifying incidents from that string made every DEFERRED and
+// BLOCKED run arrive labelled "FAILED", so a run that was waiting on a
+// prerequisite was recorded as a terminal failure in the AI learning dataset.
+//
+// The old guard `resp.Status != "FAILED" && resp.Status != "BLOCKED"` shows the
+// intent was already to treat BLOCKED separately — but legacyRunStatusString can
+// never emit "BLOCKED", so that branch was unreachable and blocked runs fell
+// through the FAILED path. The lossy mapping stays where it belongs: the
+// external API boundary.
+func (srv *server) projectIncident(ctx context.Context, req *workflowpb.ExecuteWorkflowRequest, resp *workflowpb.ExecuteWorkflowResponse, status workflowpb.RunStatus) {
 	if resp == nil {
 		return
 	}
-	// Only store incidents for terminal failures or blocked runs.
-	if resp.Status != "FAILED" && resp.Status != "BLOCKED" {
+	if !incidentEligibleStatus(status) {
 		return
 	}
 	// Must have a clear error to store — avoid noisy empty incidents.
-	if resp.Error == "" && resp.Status == "FAILED" {
+	if resp.Error == "" && status == workflowpb.RunStatus_RUN_STATUS_FAILED {
 		return
 	}
 
@@ -54,18 +83,19 @@ func (srv *server) projectIncident(ctx context.Context, req *workflowpb.ExecuteW
 		return
 	}
 
-	title := fmt.Sprintf("%s %s: %s", req.WorkflowName, resp.Status, truncate(resp.Error, 80))
+	statusLabel := incidentStatusLabel(status)
+	title := fmt.Sprintf("%s %s: %s", req.WorkflowName, statusLabel, truncate(resp.Error, 80))
 
 	tags := []string{
 		req.WorkflowName,
-		strings.ToLower(resp.Status),
+		strings.ToLower(statusLabel),
 	}
 
 	metadata := map[string]string{
 		"cluster_id":      req.ClusterId,
 		"workflow_name":   req.WorkflowName,
 		"run_id":          resp.RunId,
-		"run_status":      resp.Status,
+		"run_status":      statusLabel,
 		"error_signature": errSig,
 		"correlation_id":  req.CorrelationId,
 		"created_at":      fmt.Sprintf("%d", time.Now().Unix()),

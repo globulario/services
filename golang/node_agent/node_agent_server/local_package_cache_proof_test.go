@@ -33,12 +33,9 @@ func writeProofPackage(t *testing.T, path, manifest string) {
 	if err != nil {
 		t.Fatalf("create package: %v", err)
 	}
-	defer f.Close()
 
 	gz := gzip.NewWriter(f)
-	defer gz.Close()
 	tr := tar.NewWriter(gz)
-	defer tr.Close()
 
 	data := []byte(manifest)
 	if err := tr.WriteHeader(&tar.Header{Name: "package.json", Mode: 0o644, Size: int64(len(data))}); err != nil {
@@ -46,6 +43,15 @@ func writeProofPackage(t *testing.T, path, manifest string) {
 	}
 	if _, err := tr.Write(data); err != nil {
 		t.Fatalf("write package manifest: %v", err)
+	}
+	if err := tr.Close(); err != nil {
+		t.Fatalf("close tar writer: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("close gzip writer: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close package file: %v", err)
 	}
 }
 

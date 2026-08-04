@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -64,68 +63,6 @@ func (srv *server) probeEtcdHealth(ctx context.Context, endpoint string) bool {
 // probeMinioHealth probes MinIO health on the given node agent endpoint.
 func (srv *server) probeMinioHealth(ctx context.Context, endpoint string) bool {
 	return srv.probeInfraHealth(ctx, endpoint, "probe-minio-health")
-}
-
-// infraUnitForComponent maps an infra_unhealthy drift item's "component"
-// (as emitted by reconcileScanDrift's probeEtcdHealth/probeScyllaHealth/
-// probeMinioHealth checks) to the systemd unit ControlService controls.
-// Mirrors detectUnits' baseline unit names (server.go).
-func infraUnitForComponent(component string) string {
-	switch component {
-	case "etcd":
-		return "globular-etcd.service"
-	case "scylladb":
-		return "scylla-server.service"
-	case "minio":
-		return "globular-minio.service"
-	default:
-		return ""
-	}
-}
-
-// restartInfraUnit restarts a verified-member infra unit (etcd/scylladb/minio)
-// that reconcileScanDrift observed unhealthy, via node-agent's ControlService
-// RPC — the same allowlisted, supervisor-backed path `globular node control`
-// and cluster-doctor's remediate command already use (HARD RULE #6: mutating
-// systemd actions go through node-agent's allowlist, never raw systemctl from
-// the controller). ControlService itself gates globular-minio.service
-// start/restart behind ObjectStoreDesiredState pool membership, so this
-// cannot fight an in-flight topology transition — node-agent refuses the
-// action on a non-member rather than the controller having to know.
-//
-// Root cause this closes: infra_unhealthy drift was detected and surfaced by
-// cluster-doctor but its reconcile remediation was a logged no-op ("for now,
-// just log"), so a cleanly-stopped infra service (e.g. an operator's
-// `systemctl stop`, or any other non-crash stop that systemd's
-// Restart=on-failure does not cover) stayed down indefinitely, cascading into
-// CRITICAL objectstore.endpoint_unreachable / installed_state_runtime_mismatch
-// findings cluster-wide until a human ran `doctor remediate` by hand.
-func (srv *server) restartInfraUnit(ctx context.Context, nodeID, endpoint, component string) (ok bool, message string) {
-	unit := infraUnitForComponent(component)
-	if unit == "" {
-		return false, fmt.Sprintf("no known systemd unit for infra component %q", component)
-	}
-	if endpoint == "" {
-		return false, "no agent endpoint for node " + nodeID
-	}
-	restartCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
-	if err != nil {
-		return false, fmt.Sprintf("dial node agent %s (%s): %v", nodeID, endpoint, err)
-	}
-	defer conn.Close()
-	client := node_agentpb.NewNodeAgentServiceClient(conn)
-	resp, err := client.ControlService(restartCtx, &node_agentpb.ControlServiceRequest{
-		Unit:   unit,
-		Action: "restart",
-	})
-	if err != nil {
-		return false, fmt.Sprintf("ControlService restart %s on %s: %v", unit, nodeID, err)
-	}
-	log.Printf("reconcile-workflow: infra_unhealthy restart %s on %s: ok=%v state=%s message=%s",
-		unit, nodeID, resp.GetOk(), resp.GetState(), resp.GetMessage())
-	return resp.GetOk(), resp.GetMessage()
 }
 
 // dispatchEtcdWipeAndRejoin sends the "wipe-etcd-and-rejoin" workflow to every

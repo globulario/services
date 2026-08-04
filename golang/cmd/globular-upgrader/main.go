@@ -146,7 +146,13 @@ func writeInstalledState(unit, nodeID, name, version, kind, platform, operationI
 		log.Printf("WARNING: etcd connect failed: %v (installed-state NOT written)", err)
 		return
 	}
-	defer cli.Close()
+	// Cleanup-only: Close releases the etcd client's gRPC connection. The
+	// installed-state record is committed by the synchronous cli.Put below and
+	// is durable before this deferred call runs, so a Close error cannot mean
+	// the receipt was lost. writeInstalledState reports through the log and has
+	// no error return to propagate into, so the result is explicitly discarded
+	// rather than silently dropped.
+	defer func() { _ = cli.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

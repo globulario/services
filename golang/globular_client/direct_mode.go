@@ -90,11 +90,18 @@ func dialDirect(client Client) (*grpc.ClientConn, error) {
 		if err != nil {
 			return nil, err
 		}
+		//nolint:staticcheck // grpc.Dial is deprecated, but grpc.NewClient defaults to the
+		// dns resolver while Dial uses passthrough. Every Globular endpoint is an
+		// etcd-resolved host:port, so switching would insert a DNS lookup into every
+		// inter-service dial and change failover behaviour for multi-A-record names.
+		// Deprecation only — no fix available that preserves resolution semantics.
 		return grpc.Dial(target,
 			grpc.WithTransportCredentials(credentials.NewTLS(tcfg)),
 			grpc.WithUnaryInterceptor(clientInterceptor(client)),
 		)
 	}
+	//nolint:staticcheck // see the TLS branch above: NewClient changes the default
+	// resolver from passthrough to dns for etcd-resolved host:port targets.
 	return grpc.Dial(target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(clientInterceptor(client)),

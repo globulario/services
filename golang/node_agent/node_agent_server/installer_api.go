@@ -179,10 +179,21 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	// an explicit declared mode (binary_sha256 vs version) instead of inferring it
 	// from entrypoint=="none". Read straight from the artifact manifest (the
 	// canonical source) — never recomputed (identity.has_single_canonical_source_and_is_immutable).
-	if proof := readArtifactManifestIdentityProof(artifactPath); proof != "" {
-		if err := versionutil.WriteIdentityProof(name, proof); err != nil {
+	//
+	// Read proof and subject together from ONE manifest read: they are a single
+	// contract, and reopening the archive per field invites them to drift apart.
+	declared := readArtifactManifestIdentity(artifactPath)
+	if declared.IdentityProof != "" {
+		if err := versionutil.WriteIdentityProof(name, declared.IdentityProof); err != nil {
 			log.Printf("installer-api: warn write identity-proof sidecar for %s: %v", name, err)
 		}
+	}
+	// Always call, including with an empty value: an artifact that declares no
+	// installed path must CLEAR any path left by a previous artifact, or the
+	// verifier would hash a binary this package never claimed
+	// (a false proof, which is worse than a missing one).
+	if err := versionutil.WriteIdentityInstalledPath(name, declared.IdentityInstalledPath); err != nil {
+		log.Printf("installer-api: warn write identity-installed-path sidecar for %s: %v", name, err)
 	}
 
 	// Install.
@@ -210,15 +221,70 @@ func (srv *NodeAgentServer) InstallPackage(ctx context.Context, name, kind, repo
 	return nil
 }
 
+// markInstalledStateUnverified records that an install completed but its
+// DECLARED binary identity could not be proven. It never writes
+// Status="installed": a package that asked to be verified and was not must not
+// be indistinguishable from one that was.
+func (srv *NodeAgentServer) markInstalledStateUnverified(ctx context.Context, name, kind, version, buildID, reason string) {
+	pkg, _ := installed_state.GetInstalledPackage(ctx, srv.nodeID, kind, name)
+	now := time.Now().Unix()
+	if pkg == nil {
+		pkg = &node_agentpb.InstalledPackage{
+			NodeId: srv.nodeID, Name: name, Version: version, Kind: kind,
+			InstalledUnix: now, BuildId: buildID,
+		}
+	}
+	pkg.Status = StatusBinaryUnverified
+	pkg.UpdatedUnix = now
+	if pkg.Metadata == nil {
+		pkg.Metadata = make(map[string]string)
+	}
+	pkg.Metadata["identity_unverified_reason"] = reason
+	// Do NOT stamp entrypoint_checksum or Checksum: there is no proven value,
+	// and a stale one would read downstream as a verified identity.
+	if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
+		log.Printf("installer-api: warn recording unverified identity for %s (%s): %v", name, kind, err)
+	}
+}
+
 // writeInstalledStateChecksum computes the SHA256 of the installed binary and
 // writes it to the etcd installed-state record as entrypoint_checksum. Called
 // from the join-workflow install path to prevent hash_drift and UNVERIFIED.
 // Best-effort: failures are logged but never block the install.
 func (srv *NodeAgentServer) writeInstalledStateChecksum(ctx context.Context, name, kind, version, buildID string) {
-	path := installedBinaryPath(name, kind)
+	// Resolve the subject through the SHARED identity selector rather than
+	// assuming the layout-derived path. A package declaring binary_sha256 with
+	// an explicit installed_path keeps its binary somewhere this function would
+	// otherwise never look, and hashing the wrong file is worse than hashing
+	// none: it stamps a confident checksum for bytes the package never claimed.
+	declared := declaredPackageIdentity{
+		Proof:         versionutil.ReadIdentityProof(name),
+		InstalledPath: versionutil.ReadIdentityInstalledPath(name),
+		Entrypoint:    versionutil.ReadEntrypoint(name),
+	}
+	declaresBinaryProof := strings.EqualFold(strings.TrimSpace(declared.Proof), identityProofBinarySHA256)
+
+	path, perr := identityVerificationPath(name, kind, declared)
+	if perr != nil {
+		// Only reachable when the package DECLARED binary proof but named no
+		// subject — an unfulfillable promise. This writer is best-effort for
+		// everything else, but it must not let that become a silent success.
+		log.Printf("installer-api: %s (%s) declares %s but no verifiable subject: %v — refusing to stamp installed",
+			name, kind, identityProofBinarySHA256, perr)
+		srv.markInstalledStateUnverified(ctx, name, kind, version, buildID,
+			fmt.Sprintf("declared %s identity has no installed_path", identityProofBinarySHA256))
+		return
+	}
+
 	hash, err := cachedSha256(path)
 	if err != nil || hash == "" {
-		log.Printf("installer-api: skip entrypoint_checksum for %s (%s): binary not hashable: %v", name, kind, err)
+		log.Printf("installer-api: skip entrypoint_checksum for %s (%s) at %s: binary not hashable: %v", name, kind, path, err)
+		if declaresBinaryProof {
+			// The package promised these bytes would be verifiable. They are
+			// not. Never leave this looking like a verified install.
+			srv.markInstalledStateUnverified(ctx, name, kind, version, buildID,
+				fmt.Sprintf("declared identity subject %s is missing or unreadable", path))
+		}
 		return
 	}
 
@@ -750,44 +816,6 @@ func readArtifactManifestEntrypoint(artifactPath string) string {
 	}
 }
 
-// readArtifactManifestIdentityProof reads the declared identity proof mode
-// ("binary_sha256" | "version") from a staged artifact's package.json. Empty when
-// absent (legacy package). Lets the node-agent verify a package's identity by its
-// DECLARED mode rather than inferring it from entrypoint=="none".
-func readArtifactManifestIdentityProof(artifactPath string) string {
-	f, err := os.Open(artifactPath)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return ""
-	}
-	defer gz.Close()
-	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if err != nil {
-			return ""
-		}
-		name := filepath.Clean(hdr.Name)
-		if name == "package.json" || name == "./package.json" {
-			data, err := io.ReadAll(io.LimitReader(tr, 32*1024))
-			if err != nil {
-				return ""
-			}
-			var manifest struct {
-				IdentityProof string `json:"identity_proof"`
-			}
-			if err := json.Unmarshal(data, &manifest); err != nil {
-				return ""
-			}
-			return strings.ToLower(strings.TrimSpace(manifest.IdentityProof))
-		}
-	}
-}
-
 // readArtifactManifestVersion reads the version from a staged artifact's
 // package.json manifest. The artifact is a .tgz containing a top-level
 // package.json with at least {"version": "..."}.
@@ -830,16 +858,18 @@ func readArtifactManifestVersion(artifactPath string) string {
 }
 
 type artifactManifestIdentity struct {
-	Type               string `json:"type"`
-	Name               string `json:"name"`
-	Version            string `json:"version"`
-	Platform           string `json:"platform"`
-	Publisher          string `json:"publisher"`
-	Entrypoint         string `json:"entrypoint"`
-	EntrypointChecksum string `json:"entrypoint_checksum"`
-	BuildNumber        int64  `json:"build_number"`
-	BuildID            string `json:"build_id"`
-	Kind               string
+	Type                  string `json:"type"`
+	Name                  string `json:"name"`
+	Version               string `json:"version"`
+	Platform              string `json:"platform"`
+	Publisher             string `json:"publisher"`
+	Entrypoint            string `json:"entrypoint"`
+	EntrypointChecksum    string `json:"entrypoint_checksum"`
+	IdentityProof         string `json:"identity_proof"`
+	IdentityInstalledPath string `json:"identity_installed_path"`
+	BuildNumber           int64  `json:"build_number"`
+	BuildID               string `json:"build_id"`
+	Kind                  string
 }
 
 func readArtifactManifestIdentity(artifactPath string) artifactManifestIdentity {
@@ -879,6 +909,8 @@ func readArtifactManifestIdentity(artifactPath string) artifactManifestIdentity 
 		manifest.Publisher = strings.TrimSpace(manifest.Publisher)
 		manifest.Entrypoint = strings.TrimSpace(manifest.Entrypoint)
 		manifest.EntrypointChecksum = strings.TrimSpace(manifest.EntrypointChecksum)
+		manifest.IdentityProof = strings.ToLower(strings.TrimSpace(manifest.IdentityProof))
+		manifest.IdentityInstalledPath = strings.TrimSpace(manifest.IdentityInstalledPath)
 		manifest.BuildID = strings.TrimSpace(manifest.BuildID)
 		manifest.Kind = packageTypeToInstalledKind(manifest.Type)
 		return manifest

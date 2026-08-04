@@ -398,8 +398,18 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 	manifestEntrypoint := "none"
 	manifestEntrypointChecksum := ""
 	manifestIdentityProof := ""
+	manifestIdentityInstalledPath := ""
+	// An explicit identity block is a PROMISE the node-agent must be able to
+	// keep. Validate before writing the archive so an artifact carrying an
+	// unfulfillable declaration never exists.
+	if err := validateDeclaredIdentity(info.Metadata.Identity, info.NoEntrypoint); err != nil {
+		return nil, fmt.Errorf("package %s: %w", info.ServiceName, err)
+	}
 	if info.Metadata.Identity != nil {
 		manifestIdentityProof = strings.ToLower(strings.TrimSpace(info.Metadata.Identity.Proof))
+		// Verbatim from the spec — never derived from the package name,
+		// entrypoint, unit, or anything discovered on the build host.
+		manifestIdentityInstalledPath = normalizeIdentityInstalledPath(info.Metadata.Identity.InstalledPath)
 	} else if !info.NoEntrypoint {
 		// Shipped-binary packages are binary_sha256 by construction even without an
 		// explicit identity block (the checksum below is the proof).
@@ -412,7 +422,7 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		}
 		manifestEntrypoint = path.Join("bin", info.ExecName)
 		manifestEntrypointChecksum = "sha256:" + entrypointChecksum
-	} else if id := info.Metadata.Identity; id != nil && id.Proof == "binary_sha256" {
+	} else if id := info.Metadata.Identity; id != nil && strings.EqualFold(strings.TrimSpace(id.Proof), ProofBinarySHA256) {
 		// Noop package (curl/wrapper, .deb, OS-repo) that DECLARES a binary_sha256
 		// identity: the build never sees the installed binary, so the manifest
 		// carries the package's DECLARED pinned checksum verbatim. The node-agent
@@ -420,23 +430,20 @@ func BuildPackage(info *SpecInfo, opts BuildOptions, outputPath, goos, goarch st
 		// against this value — a single declared canonical identity, never one
 		// recovered by hashing whatever happens to be on disk
 		// (forbidden_fix:recompute_identity_from_secondary_source).
-		c := strings.TrimSpace(id.Checksum)
-		if c != "" && !strings.HasPrefix(c, "sha256:") {
-			c = "sha256:" + c
-		}
-		manifestEntrypointChecksum = c
+		manifestEntrypointChecksum = normalizeIdentityChecksum(id.Checksum)
 	}
 
 	manifest := Manifest{
-		Type:               pkgType,
-		Name:               info.ServiceName,
-		Version:            opts.Version,
-		BuildNumber:        opts.BuildNumber,
-		Platform:           fmt.Sprintf("%s_%s", goos, goarch),
-		Publisher:          opts.Publisher,
-		Entrypoint:         manifestEntrypoint,
-		EntrypointChecksum: manifestEntrypointChecksum,
-		IdentityProof:      manifestIdentityProof,
+		Type:                  pkgType,
+		Name:                  info.ServiceName,
+		Version:               opts.Version,
+		BuildNumber:           opts.BuildNumber,
+		Platform:              fmt.Sprintf("%s_%s", goos, goarch),
+		Publisher:             opts.Publisher,
+		Entrypoint:            manifestEntrypoint,
+		EntrypointChecksum:    manifestEntrypointChecksum,
+		IdentityProof:         manifestIdentityProof,
+		IdentityInstalledPath: manifestIdentityInstalledPath,
 		Defaults: ManifestDefault{
 			ConfigDir: "",
 			Spec:      path.Join("specs", info.SpecFile),

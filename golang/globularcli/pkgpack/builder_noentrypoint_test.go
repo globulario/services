@@ -91,9 +91,13 @@ func TestBuildPackage_NoEntrypoint_EmitsNoneManifestAndNoBinary(t *testing.T) {
 // re-hashes the installed binary against it (never recomputes a missing one).
 func TestBuildPackage_NoEntrypoint_BinarySha256Identity_CarriesDeclaredChecksum(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "bin"), 0755)
+	if err := os.MkdirAll(filepath.Join(root, "bin"), 0755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
 	specDir := filepath.Join(root, "specs")
-	os.MkdirAll(specDir, 0755)
+	if err := os.MkdirAll(specDir, 0755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
 	specPath := filepath.Join(specDir, "wrapper_cmd.yaml")
 	pinned := "sha256:ff41753634b20c869ef6a32a20863521b33d4186ac0d6a49379ab48a48395ee7"
 	spec := "metadata:\n" +
@@ -136,9 +140,13 @@ func TestBuildPackage_NoEntrypoint_BinarySha256Identity_CarriesDeclaredChecksum(
 // checksum — the version is the identity; the manifest stays checksum-free.
 func TestBuildPackage_NoEntrypoint_VersionIdentity_NoChecksum(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "bin"), 0755)
+	if err := os.MkdirAll(filepath.Join(root, "bin"), 0755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
 	specDir := filepath.Join(root, "specs")
-	os.MkdirAll(specDir, 0755)
+	if err := os.MkdirAll(specDir, 0755); err != nil {
+		t.Fatalf("mkdir specs: %v", err)
+	}
 	specPath := filepath.Join(specDir, "osdaemon_service.yaml")
 	spec := "metadata:\n" +
 		"  name: osdaemon\n" +

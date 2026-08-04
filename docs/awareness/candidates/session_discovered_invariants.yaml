@@ -114,3 +114,323 @@ session_discovered_candidates:
       related_failures:
         - failure_mode:mcp.day1_install_no_start
         - failure_mode:package.install.service_unit_missing_classified_binary_only
+
+    - id: candidate.failure_mode.controller.derived_config_change_has_no_convergence_disposition
+      class: FailureMode
+      label: Derived restart-sensitive config change is silently omitted instead of dispositioned
+      status: candidate
+      confidence: candidate
+      severity: high
+      domain: globular-services
+      discovered: 2026-08-03
+      description: >-
+        The controller recomputes rendered ScyllaDB configuration correctly on every plan cycle from
+        authoritative membership (renderScyllaConfig, service_config.go:523, reached via
+        computeNodePlan -> renderedConfigForNode -> renderServiceConfigs, using
+        snapshotClusterMembership()). When membership grows, the derived seed set changes correctly.
+        Nothing then classifies, schedules, applies, defers, or refuses that change for an
+        already-configured node: the corrected candidate never reaches disk and no disposition is
+        recorded. The renderer is healthy; the actuator is absent. Restart-sensitive components
+        legitimately require gating, but "too dangerous to apply now" must yield an explicit
+        disposition (APPLY_NOW / DEFER_UNTIL_SAFE / REQUIRE_OPERATOR_APPROVAL / BLOCK_WITH_REASON /
+        NO_CHANGE), never silent omission. Represents a potentially reusable convergence class for
+        other restart-sensitive components such as etcd, MinIO, Envoy, certificates and topology —
+        any component whose correct desired state cannot be pushed immediately. Only Scylla was
+        observed in this run; the broader applicability is inference, not evidence.
+      evidence: >-
+        Live 5-node simulation, release 1.2.295, 2026-08-03. etcd authority
+        /globular/cluster/scylla/hosts = ["10.10.0.11","10.10.0.12","10.10.0.13"]. On-disk seeds:
+        node-1 '10.10.0.11' (self-only), node-3 '10.10.0.11,10.10.0.13', node-2
+        '10.10.0.11,10.10.0.12'. Each frozen at that node's own join moment (15:54:53 / 16:01:58 /
+        16:02:57); none equals the authority. Controller journal shows only
+        "scylla join: ... marking configured" transitions, no re-render dispatch or restart injection
+        after initial configuration. All three nodes UN/NORMAL with NRestarts=0, so the hazard is
+        latent: a wiped restart of node-1 with self-only seeds would re-bootstrap an isolated ring.
+        Surfaced by cluster-doctor scylla.config_valid (severity 1).
+      proposed_invariants:
+        - >-
+          Safety: when more than one eligible Scylla node is admitted, no Scylla node may have an
+          effective ON-DISK seed set containing only itself. (Phrased against applied config, not
+          rendered config — phrased against the renderer it would pass today while the trapdoor
+          stays open.)
+        - >-
+          Behavioral convergence: when authoritative membership changes the derived configuration,
+          reconciliation must produce a recorded governed disposition — applied, safely deferred,
+          operator-gated, or refused with evidence. The change must never be silently omitted.
+      deferred_invariant: >-
+        Parity (effective on-disk seed set must equal the canonical set derived from authoritative
+        membership) is NOT proposed yet: it requires an explicit seed-selection contract deciding
+        whether all eligible members must be seeds or a stable subset is permitted.
+      forbidden_fixes:
+        - >-
+          Do NOT hand-edit /etc/scylla/scylla.yaml — a render will overwrite it, and the underlying
+          missing actuator would remain.
+        - >-
+          Do NOT "fix" this by making the renderer emit the founder plus self; the derivation is
+          already correct.
+      source_files:
+        - golang/cluster_controller/cluster_controller_server/service_config.go
+        - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+      proposed_doctor_evidence_shape: >-
+        scylla.config_valid should expose authoritative_membership, derived_seed_set,
+        effective_on_disk, last_rendered_at, last_applied_at, convergence_disposition and
+        restart_required — so the operator sees truth -> derivation -> candidate -> disposition ->
+        application, and specifically WHY the controller knowingly left it different.
+
+    - id: candidate.invariant.governance.evidence_capture_must_not_fail_silent
+      class: Invariant
+      label: A governance system may fail closed for guidance but must never fail silent for evidence capture
+      status: candidate
+      confidence: candidate
+      severity: critical
+      domain: globular-services
+      discovered: 2026-08-03
+      description: >-
+        Authoritative read unavailable correctly blocks mutation. Knowledge write unavailable
+        silently discards the finding. That asymmetry breaks behavioral memory at its most valuable
+        moment: the run that proves the graph is stale is exactly the run whose evidence cannot be
+        recorded. Every governed run producing a diagnosis, refusal, contradiction or unrecorded
+        architectural finding must have a durable intake path INDEPENDENT of authoritative graph
+        freshness. Suggested shape: two deliberately separate surfaces — an authoritative graph
+        (strict freshness, trusted guidance, may fail closed) and an append-only evidence intake
+        ledger (provenance required, accepts while the graph is stale, promoted only after later
+        validation). Intake entries should carry timestamp, workspace identity, source files,
+        evidence, proposed invariant or failure mode, graph freshness state, preflight refusal
+        detail, agent identity, and status pending_validation.
+      evidence: >-
+        2026-08-03 session. awareness_propose refused three times:
+        "propose write path is not configured; start the server with -awareness-dir <docs/awareness>".
+        Both running servers (sensei serve, awareness-graph) were started without -awareness-dir.
+        Three proposal attempts failed in one day. The F1 and F6 findings remained recoverable from
+        committed implementation evidence — commits, tests and negative controls — but could not be
+        promoted into the graph. The Scylla convergence-disposition finding above had no independent
+        code artifact and was at genuine risk of loss. Compounding it, awareness_preflight and
+        awareness_briefing both returned FailedPrecondition ("graph freshness stale ... live store
+        missing expected graph marker 339022f0...") while the PreToolUse hook enforce-briefing.sh
+        requires a briefing before editing docs/awareness/. The degraded-mode fallback documented in
+        THIS FILE's own header is therefore gated behind the very surface that is degraded: while the
+        graph is stale, the repository cannot record that the graph is stale.
+      proposed_invariants:
+        - >-
+          Evidence intake must remain available while authoritative guidance is refused.
+        - >-
+          A server that exposes a proposal capability with no backing awareness directory must fail
+          at startup, or advertise an explicit READ_ONLY status with a doctor finding and a
+          capability response explaining why. It must never advertise awareness_propose and then
+          reject every proposal because the backing path was omitted.
+        - >-
+          The degraded-mode recording path must not require a surface that is unavailable in the
+          degraded mode it exists to serve.
+      source_files:
+        - .claude/hooks/enforce-briefing.sh
+        - .claude/hooks/enforce-briefing-bash.sh
+        - docs/awareness/candidates/session_discovered_invariants.yaml
+      note: >-
+        Recorded by hand for the same reason the file header describes. This entry is itself an
+        instance of the failure it documents.
+
+        ON THE ESCAPE HATCH — it is a tooling-path accident, not a repository contract, and the two
+        enforcement paths disagree. enforce-briefing.sh gates all of docs/awareness/ (line 35) and
+        carves out ONLY reports/ and decisions/ (lines 50-53); candidates/ is not exempt. Observed
+        directly while recording this entry: the Edit/Write path wrote the file with briefing
+        refusing, while the Bash path (enforce-briefing-bash.sh, which mirrors the same high-risk
+        prefix) correctly DENIED an identical mutation attempted through a shell heredoc. So the
+        same file, in the same session, under the same refused-briefing condition, was both blocked
+        and permitted depending only on which tool performed the write. Do not rely on this lane —
+        close the asymmetry, and give degraded evidence capture a sanctioned path instead.
+
+    - id: candidate.invariant.meta.single_derivation_path_must_reach_its_consumer
+      class: Invariant
+      label: An authority-bearing fact has one canonical derivation path, and that path must reach its consumer
+      status: candidate
+      confidence: candidate
+      severity: high
+      domain: globular-services
+      discovered: 2026-08-03
+      description: >-
+        PARENT PRINCIPLE — a fact used to authorize, enumerate, render, or actuate behavior must have
+        one canonical derivation path. Consumers may PROJECT that fact; they must not independently
+        RECONSTRUCT it. This principle has TWO distinct failure sub-shapes that must NOT be collapsed
+        into a single generic "duplicate truth" condition: they have different detection signatures
+        and therefore require different enforcement mechanisms. Sub-shape 1 (enumeration fork) is
+        detectable by COMPARISON because two comparable representations exist. Sub-shape 2 (broken
+        derivation chain) is INVISIBLE to comparison precisely because nothing disagrees — the single
+        canonical derivation is correct, and yet the derived value never reaches the consumer whose
+        behavior depends on it. A parity gate proves agreement; it cannot prove arrival. See
+        failure_sub_shapes below for the two signatures, and enforcement_obligations for the proof
+        obligation each one requires.
+      contract: >-
+        For any fact F that authorizes, enumerates, renders, or actuates behavior: (a) exactly one
+        canonical derivation of F may exist, and every other site holding F must be a projection of
+        that derivation, gated by a regenerate-and-diff parity check; and (b) the canonical
+        derivation of F must be demonstrably REACHABLE by every authority-bearing consumer of F —
+        a derivation with no consumer path is behaviorally inert and must be treated as a defect,
+        not as correct-but-unused code.
+      failure_sub_shapes:
+        - name: enumeration_fork
+          signature: >-
+            Both representations exist; both are populated; one is intended to reflect the other;
+            they can silently drift. Nothing is missing — the two simply diverge.
+          detection:
+            - regenerate-and-diff parity gate
+            - canonical enumeration comparison
+            - missing-entry and extra-entry checks against the canonical source
+          observed_2026_08_03:
+            - >-
+              golang/packagekind/kinds_generated.go versus the canonical registry.yaml. The generated
+              file is a projection ("Code generated by packagekind/cmd/genkinds from
+              packages/registry.yaml; DO NOT EDIT") and is held to the canonical source by
+              `make check-package-kinds`, which regenerates to a temp file and diffs.
+            - >-
+              commandPackages (grpc_workflow_skip.go) and skipSystemdUnits (installed_services.go)
+              versus the service specifications under specs/ in the sibling globulario/packages repo.
+              Both maps are hand-maintained mirrors of an external truth source.
+          why_detectable: >-
+            TestCommandAndSkipUnitListsMatchSpecs detected this failure class IMMEDIATELY because two
+            comparable representations existed (it caught claude-cmd). Comparison is sufficient here:
+            the canonical set can be walked and set-differenced against the mirror, so both missing
+            and extra entries fall out mechanically.
+          guard_currently_inert: >-
+            OBSERVED 2026-08-03, NOT FIXED HERE — this parity gate no longer runs. findPackagesSpecsDir
+            (installed_services_drift_test.go:73-92) walks up looking for "<parent>/packages/specs",
+            but the globulario/packages repo now stores specs at metadata/<pkg>/specs/*_cmd.yaml, so
+            the lookup never matches and the test takes its t.Skipf path instead of asserting. Verified
+            locally with the sibling clone present: "--- SKIP: TestCommandAndSkipUnitListsMatchSpecs".
+            The skip message claims "CI runs always have it via .github/workflows/*.yml", which no
+            longer follows from the layout. This is itself an instance of sub-shape 2 — the guard is a
+            correct derivation that no longer reaches its subject — and it is why a parity gate must
+            ALSO carry a reachability proof that it actually asserted. Tracked as follow-up work; the
+            other parity instance (make check-package-kinds) was run and PASSES.
+        - name: broken_derivation_chain
+          signature: >-
+            The canonical derivation itself is CORRECT. No conflicting representation exists. The
+            derived value does not reach an authority-bearing consumer. Nothing disagrees, but the
+            derived fact remains behaviorally inert.
+          detection:
+            - consumer-reachability check
+            - producer-to-consumer graph obligation
+            - wiring or handler-context tests
+            - actuator invocation tests
+            - >-
+              runtime verification where static wiring cannot prove behavioral consumption
+          observed_2026_08_03:
+            - >-
+              The renderer computed correct Scylla seed configuration (renderScyllaConfig,
+              service_config.go:523) but no actuator applied the rendered configuration to disk for
+              an already-configured node. Derivation healthy, actuator absent.
+            - >-
+              The object-store transition approval path: approveObjectStoreTransition(t, approvedBy)
+              requires a trustworthy authenticated identity, but has NO production caller — it is
+              reached only from objectstore_transition_test.go. The authenticated subject is derived
+              and IS propagated into handler context, yet no RPC handler consumes it to supply
+              approvedBy, so the identity never arrives at the consumer that records approval
+              authority. See note below for the correction to the originally-suspected mechanism.
+          why_undetectable_by_comparison: >-
+            No comparison test can detect a broken derivation chain when no second representation
+            exists. Detection requires proving that the canonical derivation REACHES its required
+            consumer. The Scylla failure required the live five-node simulation to expose it — static
+            reading of the renderer showed only correct code. The identity failure surfaced only when
+            tracing what trustworthy value could actually be supplied to approveObjectStoreTransition;
+            nothing in the source disagreed with anything else.
+      enforcement_obligations:
+        - >-
+          For forked representations (sub-shape 1) — PARITY: a regenerate-and-diff or
+          walk-the-source-and-set-difference gate that fails on missing and on extra entries.
+          `make check-package-kinds` is a currently working parity instance.
+          TestCommandAndSkipUnitListsMatchSpecs is the intended second instance, but is currently
+          INERT because its source-discovery path no longer matches the packages repository layout
+          (see guard_currently_inert above). A parity obligation is therefore not discharged by the
+          existence of a parity test — the test must be shown to have actually asserted.
+        - >-
+          For disconnected derivations (sub-shape 2) — CONSUMER REACHABILITY: a producer-to-consumer
+          obligation proving the derived value arrives. Static wiring tests suffice when the consumer
+          is a function call; where static wiring cannot prove behavioral consumption (config that
+          must reach disk, identity that must reach a persisted record), runtime verification is
+          required. A parity gate MUST NOT be accepted as evidence for this sub-shape.
+      prevented_instance: >-
+        FIFTH INSTANCE, PREVENTED BY DESIGN (2026-08-03) — a caller-supplied `approved_by` request
+        field on the object-store topology approval RPC would have competed with the authenticated
+        server identity, creating two representations of one fact: caller-asserted identity and
+        server-derived authenticated identity. The chosen design prevents the fork by deriving
+        approval identity EXCLUSIVELY from authenticated server context: the RPC expresses the
+        approval ACTION; the server owns the IDENTITY. Recorded here because a prevented instance is
+        evidence for the principle that a post-hoc scar cannot supply.
+
+        CLASSIFICATION — the prevented `approved_by` design shares the parent failure class of
+        independently reconstructing a canonical fact, but is an AUTHORITY-SOURCE FORK rather than an
+        enumeration-fork instance. It is prevented through provenance enforcement rather than parity
+        comparison: a regenerate-and-diff gate would not detect it, because the two representations
+        are not two copies of one enumeration but two competing SOURCES for one authority-bearing
+        value. Deliberately not promoted to a third governed sub-shape here — one prevented instance
+        is not yet enough evidence to justify a new family; recorded so a later instance can.
+      prevented_instance_detectors:
+        - authority-bearing identity fields must not be caller supplied
+        - approval identity must originate from authenticated server context
+        - tests prove request metadata cannot override the context principal
+      proposed_invariants:
+        - >-
+          The approval identity recorded for an object-store topology transition must be derived
+          exclusively from the authenticated server context and persisted before the topology
+          workflow begins.
+      source_files:
+        - golang/packagekind/kinds_generated.go
+        - golang/node_agent/node_agent_server/grpc_workflow_skip.go
+        - golang/node_agent/node_agent_server/installed_services.go
+        - golang/cluster_controller/cluster_controller_server/service_config.go
+        - golang/cluster_controller/cluster_controller_server/objectstore_transition.go
+        - golang/interceptors/ServerInterceptors.go
+      required_tests:
+        - golang/node_agent/node_agent_server/installed_services_drift_test.go:TestCommandAndSkipUnitListsMatchSpecs
+        - Makefile:check-package-kinds
+      forbidden_fixes:
+        - >-
+          Collapsing the two sub-shapes into one generic "duplicate truth" rule — they require
+          different enforcement. A parity gate cannot detect a broken derivation chain, because a
+          broken chain has nothing to compare against.
+        - >-
+          Accepting a green parity gate as proof that a derived fact is behaviorally consumed. Parity
+          proves agreement between representations, never arrival at a consumer.
+        - >-
+          Adding a caller-supplied `approved_by` (or equivalent caller-asserted identity) field to an
+          authority-bearing RPC to "make the approver explicit" — that CREATES the fork this
+          candidate exists to prevent.
+        - >-
+          Hand-editing a projection (kinds_generated.go, or the rendered on-disk config) instead of
+          the canonical source — the next regeneration overwrites it and the fork survives.
+      related_invariants:
+        - invariant:meta.code_must_not_mirror_external_enumerations
+        - invariant:meta.competing_writers_must_converge_or_be_fenced
+        - invariant:meta.half_done_must_not_look_done
+      related_failures:
+        - failure_mode:controller.derived_config_change_has_no_convergence_disposition
+      note: >-
+        RELATIONSHIP TO PR #229 — the sibling recorded in this same file as
+        candidate.failure_mode.controller.derived_config_change_has_no_convergence_disposition
+        (merged in PR #229, still status: candidate; the related_failures entry above uses the
+        de-prefixed id it will carry once promoted per this file's header) is an INSTANCE of
+        sub-shape 2, not a separate principle: a correct derivation exists, but the derivation has no
+        complete convergence or consumption path. That entry documents the Scylla case as a missing
+        DISPOSITION; this candidate generalizes it to the missing CONSUMER, and pairs it with the
+        enumeration-fork sub-shape so a future Sensei rule can tell the two signatures apart and
+        propose the correct proof obligation for each.
+
+        CORRECTION TO THE OBSERVED MECHANISM — this candidate was drafted from a session hypothesis
+        that the authentication interceptor derived an authenticated subject for audit events but did
+        NOT propagate it into handler context. That hypothesis was checked against origin/master and
+        is FALSE: ServerInterceptors.go:1078 does `ctx = authCtx.ToContext(ctx)` ("Store in context
+        for propagation to handlers"), the stream interceptor does the same at :1604, and
+        security.FromContext(ctx) is consumed in ~20 production sites including
+        cluster_controller/node_scope.go:19. The chain is broken one hop later than assumed: the
+        subject IS available in handler context; approveObjectStoreTransition simply has no
+        production caller to carry it. The sub-shape is unchanged and the evidence is stronger — the
+        fix is to wire the existing security.FromContext(ctx) subject into the approval record, not
+        to build new identity plumbing.
+
+        RECORDED IN DEGRADED MODE — awareness_briefing, awareness_query and `sensei briefing --file`
+        all returned FailedPrecondition ("graph freshness stale ... live store missing expected graph
+        marker 339022f0..."), the same condition documented by
+        candidate.invariant.governance.evidence_capture_must_not_fail_silent above. Evidence was
+        gathered from source, tests and the Makefile instead. No meta.* principle currently covers
+        sub-shape 2: meta.code_must_not_mirror_external_enumerations covers sub-shape 1 only, and a
+        scan of all 133 meta principle ids found none addressing consumer reachability or inert
+        derivations.

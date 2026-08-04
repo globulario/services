@@ -219,6 +219,32 @@ def collect_canonical_anchors(repo_root: Path) -> tuple[dict[str, list[dict]], d
     return file_anchors, dict(class_counts)
 
 
+def candidate_entries(data: dict) -> list:
+    """Candidate entries from either document shape.
+
+    Direct:  candidates: [...]
+    Wrapped: <generator_name>: {candidates: [...]}
+
+    docs/awareness/candidates/session_discovered_invariants.yaml uses the
+    wrapped shape. Reading only the top-level key reported "0 candidates
+    pending review" while five sat in the file — the report's own
+    write-only blind spot. Mirrors promote-awareness-candidate.py and the
+    Go parser in protection/candidate_document.go."""
+    if not isinstance(data, dict):
+        return []
+    direct = data.get("candidates")
+    if isinstance(direct, list):
+        return direct
+    entries: list = []
+    for key, value in data.items():
+        if key == "candidates" or not isinstance(value, dict):
+            continue
+        inner = value.get("candidates")
+        if isinstance(inner, list):
+            entries.extend(inner)
+    return entries
+
+
 def collect_candidates(repo_root: Path) -> list[dict]:
     """Walk docs/awareness/candidates/ and return every candidate entry
     with provenance fields. These are NEVER counted as canonical."""
@@ -231,7 +257,7 @@ def collect_candidates(repo_root: Path) -> list[dict]:
         if not isinstance(data, dict):
             continue
         rel = yaml_path.relative_to(repo_root).as_posix()
-        for entry in data.get("candidates") or []:
+        for entry in candidate_entries(data):
             if not isinstance(entry, dict):
                 continue
             out.append(
@@ -239,9 +265,12 @@ def collect_candidates(repo_root: Path) -> list[dict]:
                     "id": entry.get("id", "<unnamed>"),
                     "class": entry.get("class", "?"),
                     "confidence": entry.get("confidence", "?"),
-                    "risk": entry.get("risk", "?"),
+                    "risk": entry.get("severity") or entry.get("risk") or "?",
                     "status": entry.get("status", "?"),
-                    "discovered_from": (entry.get("discovered_from") or "").strip(),
+                    # `discovered: 2026-08-03` parses as datetime.date, not str.
+                    "discovered_from": str(
+                        entry.get("discovered_from") or entry.get("discovered") or ""
+                    ).strip(),
                     "source_yaml": rel,
                 }
             )

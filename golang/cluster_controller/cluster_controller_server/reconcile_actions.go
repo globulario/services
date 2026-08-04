@@ -369,7 +369,16 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 }
 
 // reconcileClassifyDrift categorizes drift items by severity and type.
-func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any, maxRemediations int) ([]any, error) {
+func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any, maxRemediations int, coverage []any) ([]any, error) {
+	// coverage is the node set this scan examined; empty means a full cluster
+	// scan. Cleanup below is restricted to it — see clearResolvedDrift.
+	//
+	// A nil driftReport means the scan did not produce a report at all (failed
+	// or never ran), which is different from an empty report meaning "scanned,
+	// nothing drifting". Cleanup must not run on ignorance, so the nil case
+	// returns before any clearing. The existing empty-vs-nil distinction at the
+	// top of this function relies on the same semantics.
+	scanProducedReport := driftReport != nil
 	if len(driftReport) == 0 {
 		// Return an INITIALIZED empty slice, never nil. remediation_items
 		// crosses the actor boundary into the workflow `when` guards
@@ -420,40 +429,66 @@ func (srv *server) reconcileClassifyDrift(ctx context.Context, driftReport []any
 		}
 	}
 
-	// Cap at maxRemediations.
-	if maxRemediations > 0 && len(items) > maxRemediations {
-		items = items[:maxRemediations]
-	}
-
-	result := make([]any, len(items))
-	currentRefs := make(map[string]map[string]bool) // drift_type → entity_ref set
-	for i, s := range items {
-		s.item["priority"] = s.score
-		result[i] = s.item
-
-		// Record observation for AI diagnostics.
+	// OBSERVATION TRUTH vs REMEDIATION SELECTION — these are different sets and
+	// must not be conflated.
+	//
+	// observedAll is EVERY drift condition this scan actually saw. It is built
+	// BEFORE the remediation cap, because it answers "does this drift still
+	// exist?" — a question the cap has no bearing on.
+	//
+	// Previously the cap truncated `items` first and observedAll was derived
+	// from the truncated slice, so with 75 observations and max_remediations=50
+	// rows 51-75 were absent from the "current scan" set. clearResolvedDrift
+	// then read that as "no longer drifting" and CLEARED them: unresolved drift
+	// was falsely marked resolved purely for sorting below a cap. Because the
+	// cap keeps the highest priority first, the rows destroyed were always the
+	// lowest-priority ones — and their RecordDriftObservation call was skipped
+	// too, so their consecutive-cycle history reset every cycle and persistent
+	// low-priority drift could never accumulate toward workflow.drift_stuck.
+	observedAll := make(map[string]map[string]bool) // drift_type → entity_ref set
+	for _, s := range items {
 		dType := fmt.Sprint(s.item["type"])
 		eRef := driftEntityRef(s.item)
-		if dType != "" && eRef != "" {
-			if currentRefs[dType] == nil {
-				currentRefs[dType] = make(map[string]bool)
-			}
-			currentRefs[dType][eRef] = true
-			if srv.workflowRec != nil {
-				// Stamp the workflow this drift type resolves to. The upsert
-				// overwrites chosen_workflow each cycle, so passing "" here
-				// kept doctor's workflow.drift_stuck findings permanently
-				// blank (chosen_workflow=), hiding which remediation looped.
-				srv.workflowRec.RecordDriftObservation(ctx, dType, eRef, srv.driftChosenWorkflowName(dType), "")
-			}
+		if dType == "" || eRef == "" {
+			continue
 		}
+		if observedAll[dType] == nil {
+			observedAll[dType] = make(map[string]bool)
+		}
+		observedAll[dType][eRef] = true
+		// Observation history is recorded for EVERY observed row, selected or
+		// not: a row that stays drifting must keep advancing its cycle count so
+		// workflow.drift_stuck can still fire for drift the cap never reaches.
+		if srv.workflowRec != nil {
+			// Stamp the workflow this drift type resolves to. The upsert
+			// overwrites chosen_workflow each cycle, so passing "" here
+			// kept doctor's workflow.drift_stuck findings permanently
+			// blank (chosen_workflow=), hiding which remediation looped.
+			srv.workflowRec.RecordDriftObservation(ctx, dType, eRef, srv.driftChosenWorkflowName(dType), "")
+		}
+	}
+
+	// Cap at maxRemediations. This selects what is REMEDIATED this cycle; it
+	// never redefines what was OBSERVED.
+	selected := items
+	if maxRemediations > 0 && len(selected) > maxRemediations {
+		selected = selected[:maxRemediations]
+	}
+
+	result := make([]any, len(selected))
+	for i, s := range selected {
+		s.item["priority"] = s.score
+		result[i] = s.item
 	}
 
 	// Opportunistic cleanup: any previously-tracked drift item NOT in the
 	// current scan has been resolved and should be cleared. Fire in background
 	// so classify_drift isn't delayed by telemetry bookkeeping.
-	if srv.workflowRec != nil {
-		go srv.clearResolvedDrift(context.Background(), currentRefs)
+	if srv.workflowRec != nil && scanProducedReport {
+		// Compare against observedAll (complete), never against the capped
+		// selection, and only within the coverage this scan actually had.
+		coverSet := coverageNodeSet(coverage)
+		go srv.clearResolvedDrift(context.Background(), observedAll, coverSet)
 		if !srv.enableServiceRemoval {
 			// When removal is disabled, unmanaged_package is intentionally
 			// non-actionable; proactively clear legacy unresolved rows to avoid
@@ -494,7 +529,33 @@ func driftEntityRef(item map[string]any) string {
 
 // clearResolvedDrift removes drift_unresolved rows for entities that no longer
 // appear in the current drift scan. Runs in background on each classify_drift.
-func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]map[string]bool) {
+// coverageNodeSet normalizes the scan's include_nodes into a lookup set.
+// An empty result means FULL cluster coverage.
+func coverageNodeSet(coverage []any) map[string]bool {
+	if len(coverage) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(coverage))
+	for _, n := range coverage {
+		if s := strings.TrimSpace(fmt.Sprint(n)); s != "" {
+			out[s] = true
+		}
+	}
+	return out
+}
+
+// nodeOfEntityRef extracts the node component of a drift entity ref.
+// driftEntityRef builds "pkg@node", "pkg", or "node"; only the "pkg@node" form
+// carries an unambiguous node, so anything else is treated as NOT node-scoped
+// and is never cleared by a partial scan.
+func nodeOfEntityRef(ref string) string {
+	if i := strings.LastIndex(ref, "@"); i >= 0 {
+		return ref[i+1:]
+	}
+	return ""
+}
+
+func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]map[string]bool, coverage map[string]bool) {
 	if srv.workflowClient == nil {
 		return
 	}
@@ -509,7 +570,7 @@ func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]ma
 	if err != nil || resp == nil {
 		return
 	}
-	clearResolvedDriftItems(current, resp.GetItems(), func(driftType, entityRef string) {
+	clearResolvedDriftItems(current, coverage, resp.GetItems(), func(driftType, entityRef string) {
 		srv.clearDriftObservation(ctx, driftType, entityRef)
 	})
 }
@@ -518,7 +579,12 @@ func (srv *server) clearResolvedDrift(ctx context.Context, current map[string]ma
 // deliberately did not emit. This includes topology-withheld packages: their
 // absence is policy, not missing_package drift, so stale generic remediation
 // rows must not survive after the scanner learns that eligibility verdict.
-func clearResolvedDriftItems(current map[string]map[string]bool, items []*workflowpb.DriftUnresolved, clear func(driftType, entityRef string)) {
+// coverage restricts which rows this scan is ENTITLED to resolve. nil means the
+// scan covered the whole cluster. For a partial scan, a row whose node was not
+// examined has no current observation simply because nobody looked — clearing it
+// would convert ignorance into "resolved". Cluster-scoped rows (no node in the
+// entity ref) are likewise never cleared by a partial scan.
+func clearResolvedDriftItems(current map[string]map[string]bool, coverage map[string]bool, items []*workflowpb.DriftUnresolved, clear func(driftType, entityRef string)) {
 	for _, item := range items {
 		if item == nil {
 			continue
@@ -530,6 +596,13 @@ func clearResolvedDriftItems(current map[string]map[string]bool, items []*workfl
 		}
 		if current[driftType][entityRef] {
 			continue
+		}
+		if len(coverage) > 0 {
+			node := nodeOfEntityRef(entityRef)
+			if node == "" || !coverage[node] {
+				// Outside this scan's coverage: absence proves nothing.
+				continue
+			}
 		}
 		clear(driftType, entityRef)
 	}
@@ -747,13 +820,46 @@ func (srv *server) reconcileChooseWorkflow(ctx context.Context, item map[string]
 				},
 			}, nil
 		}
-		log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s: dispatching restart", component, nodeID)
+		// Episode identity comes from the drift-history authority, never from
+		// this dispatch. Repeated ticks of ONE unresolved episode reconcile to
+		// one child run; a recurrence after the drift cleared is a new episode
+		// and earns its own run, so both stay independently queryable.
+		entityRef := driftEntityRef(item)
+		episodeID, epErr := srv.driftEpisodeID(ctx, driftType, entityRef)
+		if epErr != nil {
+			// Fail closed: no restart run from a guessed identity. The drift is
+			// left unresolved (a noop child is a dispatch outcome, not observed
+			// convergence, so it cannot clear the row) and a later tick retries.
+			log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s: NOT dispatching restart: %v",
+				component, nodeID, epErr)
+			return map[string]any{
+				"workflow_name": "noop",
+				"inputs": map[string]any{
+					"reason":       fmt.Sprintf("episode_identity_unavailable: %v", epErr),
+					"node_id":      nodeID,
+					"component":    component,
+					"drift_type":   driftType,
+					"entity_ref":   entityRef,
+					"not_remedied": true,
+				},
+			}, nil
+		}
+		log.Printf("reconcile-workflow: infra_unhealthy — %s on node %s: dispatching restart (episode %s)",
+			component, nodeID, episodeID)
 		return map[string]any{
 			"workflow_name": "node.restart_infra_unit",
 			"inputs": map[string]any{
-				"node_id":   nodeID,
-				"component": component,
-				"endpoint":  endpoint,
+				"node_id":          nodeID,
+				"component":        component,
+				"endpoint":         endpoint,
+				"drift_episode_id": episodeID,
+				// Descriptive context only. The correlation identity is built
+				// from the episode above — the entity reference cannot
+				// substitute for it, because it is identical across a
+				// resolve-then-recur pair.
+				"parent_run_id":  "cluster.reconcile/" + srv.cfg.ClusterDomain,
+				"parent_step_id": key,
+				"finding_id":     entityRef,
 			},
 		}, nil
 
@@ -851,7 +957,6 @@ func installedPackageAnyKind(ctx context.Context, nodeID, name string) (*node_ag
 
 // getInstalledPackageFn is a test seam over the etcd-backed read.
 var getInstalledPackageFn = installed_state.GetInstalledPackage
-
 
 // reconcileItemConverged re-reads installed_state AFTER a child remediation
 // returns and reports whether the observed L3 state now matches desired.
@@ -1136,17 +1241,34 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 			}
 
 			if workflowName == "node.restart_infra_unit" {
+				// Durable child run, same shape as the release branches below.
+				//
+				// This used to call srv.restartInfraUnit inline — the controller
+				// dialled node-agent ControlService itself, minted a run id from
+				// time.Now().UnixNano() AFTER the mutation, and stored a
+				// synthetic status in this process-local map. No Workflow Service
+				// run ever existed, so the mutation had no durable identity, every
+				// retry allocated a new one, the terminal result vanished on
+				// restart, and the returned child id resolved to nothing.
 				nodeID := fmt.Sprint(inputs["node_id"])
 				component := fmt.Sprint(inputs["component"])
 				endpoint := fmt.Sprint(inputs["endpoint"])
-				ok, message := srv.restartInfraUnit(ctx, nodeID, endpoint, component)
-				runID := fmt.Sprintf("restart-%s-%s-%d", nodeID, component, time.Now().UnixNano())
-				st := "FAILED"
-				if ok {
-					st = "SUCCEEDED"
+				resp, err := srv.RunRestartInfraUnitWorkflow(
+					ctx,
+					fmt.Sprint(inputs["parent_run_id"]),
+					fmt.Sprint(inputs["parent_step_id"]),
+					fmt.Sprint(inputs["finding_id"]),
+					fmt.Sprint(inputs["drift_episode_id"]),
+					nodeID, endpoint, component)
+				if err != nil {
+					return "", err
 				}
-				childResults.Store(runID, map[string]any{"status": st, "run_id": runID, "message": message})
-				return runID, nil
+				childResults.Store(resp.RunId, map[string]any{
+					"status": resp.Status,
+					"run_id": resp.RunId,
+					"error":  resp.Error,
+				})
+				return resp.RunId, nil
 			}
 
 			if workflowName == "release.apply.package" {

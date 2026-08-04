@@ -9,6 +9,8 @@ package main
 // rejected even after grants are enabled.
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
@@ -58,5 +60,24 @@ func TestValidateServiceReleaseSpec_AcceptsNoAssignments(t *testing.T) {
 		if err := validateServiceReleaseSpec(spec); err != nil {
 			t.Errorf("%s: must be accepted (no node_assignments present), got %v", name, err)
 		}
+	}
+}
+
+// Workflow callbacks are writers too. They must not bypass the canonical
+// ServiceRelease validation choke point when persisting status updates.
+func TestWorkflowReleaseWritersUseCanonicalChokePoint(t *testing.T) {
+	data, err := os.ReadFile("workflow_release.go")
+	if err != nil {
+		t.Fatalf("read workflow_release.go: %v", err)
+	}
+	text := string(data)
+	if strings.Contains(text, "srv.resources.Apply(ctx, resourceType, rel)") {
+		t.Fatalf("typed workflow callback bypasses canonical ServiceRelease validation")
+	}
+	if got := strings.Count(text, "srv.resources.Apply(ctx, resourceType, obj)"); got != 1 {
+		t.Fatalf("generic workflow persistence must exist only inside applyWorkflowRelease, got %d occurrences", got)
+	}
+	if !strings.Contains(text, "srv.applyServiceRelease(ctx, rel)") {
+		t.Fatalf("workflow release persistence must route ServiceRelease through applyServiceRelease")
 	}
 }

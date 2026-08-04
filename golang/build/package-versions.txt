@@ -2,15 +2,15 @@
 # Per-package versions materialized from committed zz_version_generated.go files.
 # Authority: docs/design/package-identity-single-authority.md
 ai-executor=1.2.289
-ai-memory=1.2.289
+ai-memory=1.2.295
 ai-router=1.2.289
 ai-watcher=1.2.289
 authentication=1.2.289
 backup-manager=1.2.289
 blog=1.2.289
 catalog=1.2.289
-cluster-controller=1.2.289
-cluster-doctor=1.2.289
+cluster-controller=1.2.292
+cluster-doctor=1.2.293
 conversation=1.2.289
 dns=1.2.289
 echo=1.2.289
@@ -21,7 +21,7 @@ globular-cli=1.2.289
 ldap=1.2.289
 log=1.2.289
 mail=1.2.289
-mcp=1.2.289
+mcp=1.2.292
 media=1.2.289
 monitoring=1.2.289
 node-agent=1.2.289

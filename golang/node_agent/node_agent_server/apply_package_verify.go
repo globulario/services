@@ -8,7 +8,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/globulario/services/golang/versionutil"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -143,20 +145,20 @@ func normalizeHash(h string) string {
 // Verdict semantics:
 //   - BinaryVerified      — expected provided, actual matched. Caller may declare SUCCESS.
 //   - BinaryUnverified    — expected NOT provided (legacy caller / older release-index).
-//                            Binary is on disk but its identity is unproven. Caller
-//                            must record an UNVERIFIED installed-state, NOT SUCCESS.
+//     Binary is on disk but its identity is unproven. Caller
+//     must record an UNVERIFIED installed-state, NOT SUCCESS.
 //   - BinaryNotApplicable — the package explicitly declares NO Globular entrypoint
-//                            binary (entrypoint: none). There is nothing to hash-verify;
-//                            the install is proven by other means (OS package present /
-//                            service active). Caller may declare SUCCESS. This REPLACES
-//                            the "noop" sentinel-binary hack: instead of shipping a fake
-//                            binary to satisfy the gate, a binary-less package (OS-daemon
-//                            wrapper like keepalived, .deb wrapper like scylladb, or a
-//                            fetch-at-install command) declares no entrypoint and the gate
-//                            treats it as not-applicable. GATED ON THE EXPLICIT, TRUSTED,
-//                            build-stamped declaration ONLY — a merely-empty checksum on an
-//                            entrypoint-bearing package still yields Unverified, preserving
-//                            intent:node_agent.install_claim_requires_binary_proof.
+//     binary (entrypoint: none). There is nothing to hash-verify;
+//     the install is proven by other means (OS package present /
+//     service active). Caller may declare SUCCESS. This REPLACES
+//     the "noop" sentinel-binary hack: instead of shipping a fake
+//     binary to satisfy the gate, a binary-less package (OS-daemon
+//     wrapper like keepalived, .deb wrapper like scylladb, or a
+//     fetch-at-install command) declares no entrypoint and the gate
+//     treats it as not-applicable. GATED ON THE EXPLICIT, TRUSTED,
+//     build-stamped declaration ONLY — a merely-empty checksum on an
+//     entrypoint-bearing package still yields Unverified, preserving
+//     intent:node_agent.install_claim_requires_binary_proof.
 //   - BinaryMismatch      — expected provided, actual differs. Returned via error.
 //   - BinaryMissing       — expected provided, binary absent. Returned via error.
 //
@@ -201,6 +203,32 @@ func entrypointIsNone(declaredEntrypoint string) bool {
 // package.installed_binary_unverified finding so the gap is visible.
 const StatusBinaryUnverified = "installed_unverified"
 
+const (
+	identityProofBinarySHA256 = "binary_sha256"
+	identityProofVersion      = "version"
+)
+
+// identityVerificationPath selects the subject to hash.
+//
+// An explicitly declared path always wins. The layout-derived fallback is
+// available ONLY to packages that ship their own entrypoint — a no-entrypoint
+// package with no declared path has no derivable subject, and guessing one
+// (package name, unit name, whatever resembles it on disk) would verify bytes
+// the package never claimed.
+func identityVerificationPath(name, kind string, id declaredPackageIdentity) (string, error) {
+	if p := strings.TrimSpace(id.InstalledPath); p != "" {
+		if !filepath.IsAbs(p) || strings.Contains(p, "..") {
+			return "", fmt.Errorf("declared identity installed_path %q is not an absolute file path", p)
+		}
+		return filepath.Clean(p), nil
+	}
+	if entrypointIsNone(id.Entrypoint) {
+		return "", fmt.Errorf("package declares %s but no identity installed_path, and ships no entrypoint to derive one from",
+			identityProofBinarySHA256)
+	}
+	return installedBinaryPath(name, kind), nil
+}
+
 // verifyInstalledBinaryHashStrict is the verdict-returning replacement for
 // verifyInstalledBinaryHash. It NEVER collapses missing-expected into success.
 //
@@ -209,18 +237,79 @@ const StatusBinaryUnverified = "installed_unverified"
 // Status=installed_unverified instead of installed, and return Ok=false with
 // a degraded reason. Do not declare SUCCESS.
 func verifyInstalledBinaryHashStrict(name, kind, expectedSHA256, buildID, operationID, declaredEntrypoint string) (actualHash string, verdict BinaryVerdict, err error) {
-	// A package that explicitly declares no entrypoint binary has nothing to
-	// hash-verify — the binary-hash proof gate is NOT APPLICABLE. This is a
-	// legitimate SUCCESS, not a degraded Unverified. Gated on the explicit,
-	// trusted declaration only (see entrypointIsNone); this replaces the noop
-	// sentinel-binary hack without weakening install_claim_requires_binary_proof
-	// for entrypoint-bearing packages.
-	if entrypointIsNone(declaredEntrypoint) {
+	return verifyInstalledBinaryIdentityStrict(name, kind, expectedSHA256, buildID, operationID,
+		declaredPackageIdentity{
+			Proof:         versionutil.ReadIdentityProof(name),
+			InstalledPath: versionutil.ReadIdentityInstalledPath(name),
+			Entrypoint:    declaredEntrypoint,
+		})
+}
+
+// declaredPackageIdentity is what the PACKAGE declared about its own identity.
+// The three fields travel together because a verdict that consults only one of
+// them is how the entrypoint-first bug happened.
+type declaredPackageIdentity struct {
+	// Proof is the declared mode: binary_sha256, version, or "" (none declared).
+	Proof string
+	// InstalledPath is the declared absolute subject to hash. Set only when the
+	// package cannot derive it from its own layout.
+	InstalledPath string
+	// Entrypoint describes package LAYOUT ("none" = ships no binary). It is not
+	// an identity mode and must never override a declared Proof.
+	Entrypoint string
+}
+
+// verifyInstalledBinaryIdentityStrict decides by DECLARED IDENTITY FIRST.
+//
+// The precedence is: declared mode → declared subject → declared expected value
+// → observed proof → verdict. Entrypoint layout is consulted ONLY when the
+// package declared no identity at all.
+//
+// The bug this replaces: the verifier tested entrypoint=="none" first and
+// returned NotApplicable, so a package declaring binary_sha256 with an explicit
+// installed_path — a package that asked to be verified — was recorded installed
+// with its binary never hashed. Layout was overriding an explicit contract.
+func verifyInstalledBinaryIdentityStrict(name, kind, expectedSHA256, buildID, operationID string,
+	id declaredPackageIdentity) (actualHash string, verdict BinaryVerdict, err error) {
+
+	proof := strings.ToLower(strings.TrimSpace(id.Proof))
+	expected := normalizeHash(expectedSHA256)
+
+	switch proof {
+	case "":
+		// No declared identity — legacy/layout behavior, unchanged. This is the
+		// honest no-proof case (libnss-resolve): entrypoint none, nothing to
+		// hash, NOT_APPLICABLE.
+		if entrypointIsNone(id.Entrypoint) {
+			return "", BinaryNotApplicable, nil
+		}
+
+	case identityProofVersion:
+		// Version-proved packages are not byte-proved. Do not run the SHA
+		// verifier and do not silently downgrade to entrypoint inference; the
+		// version authority lives elsewhere.
 		return "", BinaryNotApplicable, nil
+
+	case identityProofBinarySHA256:
+		// Explicit binary proof. entrypoint=="none" does NOT exempt it.
+
+	default:
+		// Unknown nonempty mode: fail closed. Never NotApplicable, never legacy
+		// entrypoint verification, never installed success.
+		return "", BinaryMissing, &BinaryMissingError{
+			Package: name, Kind: kind, Expected: expected,
+			BuildID: buildID, OperationID: operationID,
+			Underlying: fmt.Errorf("unsupported declared identity proof %q", id.Proof),
+		}
 	}
 
-	path := installedBinaryPath(name, kind)
-	expected := normalizeHash(expectedSHA256)
+	path, perr := identityVerificationPath(name, kind, id)
+	if perr != nil {
+		return "", BinaryMissing, &BinaryMissingError{
+			Package: name, Kind: kind, Expected: expected,
+			BuildID: buildID, OperationID: operationID, Underlying: perr,
+		}
+	}
 
 	actual, hashErr := cachedSha256(path)
 
@@ -275,10 +364,10 @@ func verifyInstalledBinaryHashStrict(name, kind, expectedSHA256, buildID, operat
 // error — it returns the actual hash on success or "" if the binary is
 // unreadable, leaving "is missing binary OK?" to the caller's existing logic.
 //
-//   expected == ""           → ("", nil) if binary unreadable, (hash, nil) otherwise
-//   expected != "" && match  → (hash, nil)
-//   expected != "" && drift  → (actual, *BinaryHashMismatchError)
-//   expected != "" && absent → ("", *BinaryMissingError)
+//	expected == ""           → ("", nil) if binary unreadable, (hash, nil) otherwise
+//	expected != "" && match  → (hash, nil)
+//	expected != "" && drift  → (actual, *BinaryHashMismatchError)
+//	expected != "" && absent → ("", *BinaryMissingError)
 func verifyInstalledBinaryHash(name, kind, expectedSHA256, buildID, operationID string) (string, error) {
 	path := installedBinaryPath(name, kind)
 	expected := normalizeHash(expectedSHA256)
@@ -327,4 +416,25 @@ func verifyInstalledBinaryHash(name, kind, expectedSHA256, buildID, operationID 
 func statBinaryExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// receiptBinaryPath is the path an install receipt should bind to.
+//
+// It is the DECLARED identity subject when the package named one, and the
+// layout-derived path otherwise. A receipt that binds the layout path for a
+// package whose identity lives elsewhere records proof of a file the package
+// never claimed, which is exactly the confusion this change removes.
+//
+// Falls back to the layout path on error so receipt stamping never becomes a
+// second failure mode — the verifier, not the receipt, is the gate.
+func receiptBinaryPath(name, kind string) string {
+	id := declaredPackageIdentity{
+		Proof:         versionutil.ReadIdentityProof(name),
+		InstalledPath: versionutil.ReadIdentityInstalledPath(name),
+		Entrypoint:    versionutil.ReadEntrypoint(name),
+	}
+	if p, err := identityVerificationPath(name, kind, id); err == nil && p != "" {
+		return p
+	}
+	return installedBinaryPath(name, kind)
 }

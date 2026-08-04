@@ -1374,6 +1374,72 @@ chown globular:globular "${STATE_DIR}/policy" "${STATE_DIR}/policy/rbac" 2>/dev/
 log_step "Deploying Per-Service RBAC Policy"
 _POLICY_SERVICES_DIR="${STATE_DIR}/policy/services"
 mkdir -p "$_POLICY_SERVICES_DIR"
+
+# deploy_pkg_policy <package.tgz> <dest_dir>
+#
+# Installs a package's policy/*.json into dest_dir, returning non-zero unless a
+# validated permissions file actually landed.
+#
+# The previous form was:
+#   tar xzf "$pkg" -C "$dest" --strip-components=2 --wildcards '*policy/*.json'
+# A fixed strip count only works for ONE member shape. Packages carry either
+#   ./policy/permissions.generated.json   (3 components -> strip 2 -> correct)
+#   policy/permissions.generated.json     (2 components -> strip 2 -> EMPTY NAME)
+# In the second case tar matches the member, writes nothing, and exits 0 — so
+# _POLICY_DEPLOYED incremented for a service whose policy was never installed.
+#
+# That is the SAME silent-success class the comment at the call site already
+# records ("deployed for 31 package(s)" while 18 landed); a fixed strip count
+# simply moved it from the copy step into tar. Success is now defined by an
+# existing, non-empty, JSON-valid destination file.
+# (meta.silence_is_not_valid_for_unexpected)
+deploy_pkg_policy() {
+  local pkg="$1" dest="$2" tmp rc=0
+  [[ -f "$pkg" ]] || return 1
+  tmp="$(mktemp -d)" || return 1
+  # Always clean up, on success and on every failure path.
+  trap 'rm -rf "$tmp"' RETURN
+
+  # 1. List members and normalize any leading "./" so both shapes compare equal.
+  local members
+  members="$(tar tzf "$pkg" 2>/dev/null | sed 's#^\./##')" || return 1
+
+  # 2. The permissions file is what makes a deployment meaningful.
+  local perm_matches
+  perm_matches="$(printf '%s\n' "$members" | grep -x 'policy/permissions\.generated\.json' || true)"
+  local perm_count
+  perm_count="$(printf '%s' "$perm_matches" | grep -c . || true)"
+  [[ "$perm_count" -eq 1 ]] || return 1   # 0 = unsupported layout, >1 = ambiguous
+
+  # 3. Extract policy JSON into the temp dir, tolerating either member shape by
+  #    trying the "./"-prefixed name when the bare one is absent from the archive.
+  if ! tar xzf "$pkg" -C "$tmp" --wildcards '*policy/*.json' 2>/dev/null; then
+    return 1
+  fi
+
+  # 4. Locate what actually landed — never assume tar wrote anything.
+  local src
+  src="$(find "$tmp" -type f -name 'permissions.generated.json' -print -quit 2>/dev/null)"
+  [[ -n "$src" && -f "$src" && -s "$src" ]] || return 1   # missing / empty / not a regular file
+
+  # 5. Validate JSON before it can replace a good file.
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$src" 2>/dev/null || return 1
+  fi
+
+  # 6. Install atomically, then verify the destination exists.
+  mkdir -p "$dest" || return 1
+  local d
+  for d in $(find "$tmp" -type f -name '*.json' 2>/dev/null); do
+    local base; base="$(basename "$d")"
+    cp -f "$d" "$dest/.$base.tmp" || { rc=1; break; }
+    mv -f "$dest/.$base.tmp" "$dest/$base" || { rc=1; break; }
+  done
+  [[ $rc -eq 0 ]] || return 1
+  [[ -s "$dest/permissions.generated.json" ]] || return 1
+  return 0
+}
+
 _POLICY_DEPLOYED=0
 _POLICY_SKIPPED=0
 _POLICY_FAILED=""
@@ -1406,9 +1472,7 @@ if [[ -d "$PKG_DIR" ]]; then
     # --strip-components=2 drops the leading "./policy/" so the JSON lands
     # directly in the service dir. Failures are recorded and reported, never
     # swallowed (meta.silence_is_not_valid_for_unexpected).
-    mkdir -p "$_POLICY_SERVICES_DIR/$_pkg_name"
-    if tar xzf "$_pkg_tgz" -C "$_POLICY_SERVICES_DIR/$_pkg_name" \
-         --strip-components=2 --wildcards '*policy/*.json' 2>/dev/null; then
+    if deploy_pkg_policy "$_pkg_tgz" "$_POLICY_SERVICES_DIR/$_pkg_name"; then
       _POLICY_DEPLOYED=$((_POLICY_DEPLOYED + 1))
     else
       _POLICY_FAILED="$_POLICY_FAILED $_pkg_name"

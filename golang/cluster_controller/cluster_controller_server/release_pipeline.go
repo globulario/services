@@ -286,6 +286,48 @@ func computeWorkflowKind(ctx context.Context, h *releaseHandle) string {
 
 // reconcilePending is the shared PENDING phase: resolve version and artifact
 // digest via ReleaseResolver, compute desired hash, transition to RESOLVED.
+// resumeDeferredRelease retries a DEFERRED release through the ONE legal path.
+//
+// validPhaseTransitions[DEFERRED] permits only {PENDING, FAILED, REMOVING}.
+// reconcilePending is written for a release already in PENDING, so its terminal
+// writes are RESOLVED ("already_resolved"), WAITING and FAILED. Both deferred
+// dispatchers in release_reconciler.go used to call it directly, so a recovering
+// release attempted DEFERRED → RESOLVED (or → WAITING). emitPhaseTransition
+// enforces hard — "invalid transition blocks the patch" — so nothing illegal was
+// ever persisted, but the patch failed closed and the release stayed DEFERRED,
+// recomputing the same rejected answer on every releaseWaitingBackoff forever.
+// The guard was right; the callers skipped the intermediate phase.
+//
+// Persisting PENDING first is what makes the subsequent RESOLVED/WAITING/FAILED
+// write legal. Resolution work runs ONLY after that patch succeeds.
+func (srv *server) resumeDeferredRelease(ctx context.Context, h *releaseHandle) error {
+	if h == nil {
+		return nil
+	}
+	// Idempotency / stale handle: another reconciler may already have advanced
+	// this release. Re-persisting PENDING would reset transition history for a
+	// release that has moved on, and DEFERRED → PENDING from a non-DEFERRED
+	// phase is not necessarily legal. Treat it as a no-op, not an error.
+	if h.Phase != cluster_controllerpb.ReleasePhaseDeferred {
+		return nil
+	}
+	if err := h.PatchStatus(ctx, statusPatch{
+		Phase:            cluster_controllerpb.ReleasePhasePending,
+		TransitionReason: "deferred_retry",
+		SetFields:        "phase",
+	}); err != nil {
+		// Fail closed: no resolution side effects when the release did not
+		// actually reach PENDING. A conflict here means a concurrent writer won;
+		// the next reconcile cycle re-reads and retries.
+		return fmt.Errorf("release %s: deferred retry could not persist PENDING: %w", h.Name, err)
+	}
+	// The authoritative resource now shows PENDING; keep the in-memory handle
+	// consistent so reconcilePending and any nested transition see the same phase.
+	h.Phase = cluster_controllerpb.ReleasePhasePending
+	srv.reconcilePending(ctx, h)
+	return nil
+}
+
 func (srv *server) reconcilePending(ctx context.Context, h *releaseHandle) {
 	if !srv.mustBeLeader() {
 		return
@@ -1502,8 +1544,23 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		)
 		nCopy.ProofStatus = verdict.ProofStatus
 		nCopy.ProofFinding = verdict.FindingID
+		// InstalledHash is a BINARY-identity field — resources_types.go declares
+		// it "artifact sha256 verified at apply time", and the workflow_release
+		// writer assigns the binary SHA. installedPkg.Checksum is the
+		// CONVERGENCE hash (publisher+name+version+build_number+config), a
+		// different schema entirely.
+		//
+		// Writing it here published a non-binary hash as binary identity, so a
+		// package with no manifest entrypoint appeared to carry binary proof it
+		// never had, and any consumer comparing InstalledHash against a real
+		// entrypoint checksum compared incompatible schemas. The sibling
+		// MarkNodeSucceeded path already leaves this empty when no binary SHA
+		// is available; match it, and take the binary measurement the
+		// node-agent actually recorded when there is one.
 		if installedPkg != nil {
-			nCopy.InstalledHash = installedPkg.GetChecksum()
+			if md := installedPkg.GetMetadata(); md != nil {
+				nCopy.InstalledHash = strings.TrimSpace(md["entrypoint_checksum"])
+			}
 		}
 		proofVerdicts = append(proofVerdicts, verdict)
 
