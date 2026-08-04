@@ -30,7 +30,7 @@ func omOutcome(t *testing.T) remediation.Outcome {
 func omConfig(mut ...func(*DoctorRemediationConfig)) DoctorRemediationConfig {
 	cfg := DoctorRemediationConfig{
 		Now: func() time.Time { return lnDispatchAt },
-		ResolveFinding: func(_ context.Context, id string, idx uint32) (*ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32) (*ResolvedFinding, error) {
 			return &ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: lnNode,
 				ActionType: "SYSTEMCTL_RESTART", Risk: "LOW", Idempotent: true,
@@ -41,7 +41,7 @@ func omConfig(mut ...func(*DoctorRemediationConfig)) DoctorRemediationConfig {
 		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*ExecutionResult, error) {
 			return &ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: true}, nil
 		},
-		VerifyConvergence: func(context.Context, string, string) (*Verification, error) {
+		VerifyConvergence: func(context.Context, string, string, time.Time) (*Verification, error) {
 			return &Verification{Converged: true}, nil
 		},
 	}
@@ -226,7 +226,7 @@ func TestObserveOutcome_FiresForUnsuccessfulRemediationToo(t *testing.T) {
 	var seen []remediation.Outcome
 	cfg := omConfig(func(c *DoctorRemediationConfig) {
 		// Did NOT converge.
-		c.VerifyConvergence = func(context.Context, string, string) (*Verification, error) {
+		c.VerifyConvergence = func(context.Context, string, string, time.Time) (*Verification, error) {
 			return &Verification{Converged: false, FindingStillPresent: true}, nil
 		}
 		c.ObserveOutcome = func(_ context.Context, o remediation.Outcome) { seen = append(seen, o) }

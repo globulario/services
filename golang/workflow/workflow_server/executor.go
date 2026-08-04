@@ -207,10 +207,26 @@ func (srv *server) ExecuteWorkflow(ctx context.Context, req *workflowpb.ExecuteW
 	}
 
 	// ── 4. Build engine with auto-recording ──────────────────────────────
-	// Use correlation_id as the run_id if provided. This allows callers
-	// (e.g. cluster-controller) to register per-run actor Routers keyed
-	// by correlation_id before the call, since they can predict the run_id.
-	runID := req.CorrelationId
+	// Run identity resolution, in precedence order.
+	//
+	// An explicit run_id is UNIQUE PER ATTEMPT and wins. It exists because run
+	// identity and correlation identity are different questions: run_id names
+	// THIS execution, correlation_id is the stable story joining retries and
+	// repeated attempts on the same subject. Callers that repeat an attempt on
+	// one subject (the autonomous doctor healer) must set it, and can still
+	// predict it because they generate it before calling.
+	//
+	// Falling back to correlation_id preserves the original behavior for every
+	// existing caller: it lets a caller that CAN predict a stable id register a
+	// per-run actor Router keyed by it before the call. That fallback is only
+	// safe when the correlation is unique per attempt. When it is not, every
+	// attempt collapses into one run identity and the second attempt is refused
+	// by the run lease below as "already owned by another executor" — which is
+	// why an explicit run_id exists rather than a documented workaround.
+	runID := req.RunId
+	if runID == "" {
+		runID = req.CorrelationId
+	}
 	if runID == "" {
 		runID = gocql.TimeUUID().String()
 	}

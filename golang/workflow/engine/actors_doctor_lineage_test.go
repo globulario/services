@@ -37,7 +37,7 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 	dispatched := true
 	cfg := DoctorRemediationConfig{
 		Now: func() time.Time { return lnDispatchAt },
-		ResolveFinding: func(_ context.Context, id string, idx uint32) (*ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32) (*ResolvedFinding, error) {
 			return &ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: lnNode,
 				ActionType: "SYSTEMCTL_RESTART", Risk: "LOW", Idempotent: true,
@@ -48,7 +48,7 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*ExecutionResult, error) {
 			return &ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: dispatched}, nil
 		},
-		VerifyConvergence: func(context.Context, string, string) (*Verification, error) {
+		VerifyConvergence: func(context.Context, string, string, time.Time) (*Verification, error) {
 			return &Verification{Converged: true}, nil
 		},
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -16,7 +17,7 @@ import (
 // true. Callers (CLI/MCP) read this verdict directly.
 func TestVerifyConvergenceEmitsSucceededOutcomeWhenFindingResolved(t *testing.T) {
 	cfg := DoctorRemediationConfig{
-		VerifyConvergence: func(_ context.Context, _, _ string) (*Verification, error) {
+		VerifyConvergence: func(_ context.Context, _, _ string, _ time.Time) (*Verification, error) {
 			return &Verification{Converged: true}, nil
 		},
 	}
@@ -57,7 +58,7 @@ func TestVerifyConvergenceEmitsSucceededOutcomeWhenFindingResolved(t *testing.T)
 // reported as success.
 func TestVerifyConvergenceFailsStepWhenFindingStillPresent(t *testing.T) {
 	cfg := DoctorRemediationConfig{
-		VerifyConvergence: func(_ context.Context, _, _ string) (*Verification, error) {
+		VerifyConvergence: func(_ context.Context, _, _ string, _ time.Time) (*Verification, error) {
 			return &Verification{Converged: false, FindingStillPresent: true}, nil
 		},
 	}
@@ -100,7 +101,7 @@ func TestVerifyConvergenceFailsStepWhenFindingStillPresent(t *testing.T) {
 // progress" forever. It must be FAILED.
 func TestVerifyConvergenceMarksFailedWhenExecuteNeverRan(t *testing.T) {
 	cfg := DoctorRemediationConfig{
-		VerifyConvergence: func(_ context.Context, _, _ string) (*Verification, error) {
+		VerifyConvergence: func(_ context.Context, _, _ string, _ time.Time) (*Verification, error) {
 			return &Verification{Converged: true}, nil
 		},
 	}

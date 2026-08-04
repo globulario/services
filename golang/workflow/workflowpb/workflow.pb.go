@@ -6181,8 +6181,24 @@ type ExecuteWorkflowRequest struct {
 	// All endpoints are resolved via config.ResolveDialTarget before dialing.
 	ActorEndpoints map[string]string `protobuf:"bytes,4,rep,name=actor_endpoints,json=actorEndpoints,proto3" json:"actor_endpoints,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	CorrelationId  string            `protobuf:"bytes,5,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"` // optional, for linking to existing workflow lineage
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Optional explicit run identity, UNIQUE PER EXECUTION ATTEMPT.
+	//
+	// run_id and correlation_id answer different questions and must not be one
+	// string. run_id identifies THIS attempt; correlation_id is the stable story
+	// that joins retries and repeated attempts on the same subject.
+	//
+	// Historically the executor derived the run id from correlation_id, so a
+	// caller passing a stable correlation had every attempt collapse into one
+	// run identity — and the second attempt was refused outright by the run
+	// lease ("already owned by another executor") rather than recorded as a
+	// separate run. Callers that need repeated attempts on one subject (the
+	// autonomous doctor healer) must set this.
+	//
+	// Unset preserves the previous behavior exactly: run id falls back to
+	// correlation_id, then to a generated UUID.
+	RunId         string `protobuf:"bytes,6,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ExecuteWorkflowRequest) Reset() {
@@ -6246,6 +6262,13 @@ func (x *ExecuteWorkflowRequest) GetActorEndpoints() map[string]string {
 func (x *ExecuteWorkflowRequest) GetCorrelationId() string {
 	if x != nil {
 		return x.CorrelationId
+	}
+	return ""
+}
+
+func (x *ExecuteWorkflowRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
 	}
 	return ""
 }
@@ -7493,7 +7516,7 @@ const file_workflow_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"V\n" +
 	"\x1dGetWorkflowDefinitionResponse\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
-	"\fyaml_content\x18\x02 \x01(\tR\vyamlContent\"\xc6\x02\n" +
+	"\fyaml_content\x18\x02 \x01(\tR\vyamlContent\"\xdd\x02\n" +
 	"\x16ExecuteWorkflowRequest\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12#\n" +
@@ -7501,7 +7524,8 @@ const file_workflow_proto_rawDesc = "" +
 	"\vinputs_json\x18\x03 \x01(\tR\n" +
 	"inputsJson\x12]\n" +
 	"\x0factor_endpoints\x18\x04 \x03(\v24.workflow.ExecuteWorkflowRequest.ActorEndpointsEntryR\x0eactorEndpoints\x12%\n" +
-	"\x0ecorrelation_id\x18\x05 \x01(\tR\rcorrelationId\x1aA\n" +
+	"\x0ecorrelation_id\x18\x05 \x01(\tR\rcorrelationId\x12\x15\n" +
+	"\x06run_id\x18\x06 \x01(\tR\x05runId\x1aA\n" +
 	"\x13ActorEndpointsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x81\x01\n" +

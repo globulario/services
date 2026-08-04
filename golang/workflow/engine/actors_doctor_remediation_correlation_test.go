@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -17,7 +18,7 @@ import (
 func TestDoctorActorHandlersPropagateCorrelationAndRunID(t *testing.T) {
 	var seenCorrelation, seenRun string
 	cfg := DoctorRemediationConfig{
-		ResolveFinding: func(ctx context.Context, findingID string, stepIndex uint32) (*ResolvedFinding, error) {
+		ResolveFinding: func(ctx context.Context, _ string, findingID string, stepIndex uint32) (*ResolvedFinding, error) {
 			seenCorrelation = remediation.CorrelationFromContext(ctx)
 			seenRun = remediation.WorkflowRunFromContext(ctx)
 			return &ResolvedFinding{
@@ -56,7 +57,7 @@ func TestDoctorActorHandlersPropagateCorrelationAndRunID(t *testing.T) {
 			execRun = remediation.WorkflowRunFromContext(ctx)
 			return &ExecutionResult{Status: "executed", Executed: true}, nil
 		},
-		VerifyConvergence: func(ctx context.Context, _, _ string) (*Verification, error) {
+		VerifyConvergence: func(ctx context.Context, _, _ string, _ time.Time) (*Verification, error) {
 			verifyRun = remediation.WorkflowRunFromContext(ctx)
 			return &Verification{Converged: true}, nil
 		},

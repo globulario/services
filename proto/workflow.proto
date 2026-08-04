@@ -1206,6 +1206,22 @@ message ExecuteWorkflowRequest {
   // All endpoints are resolved via config.ResolveDialTarget before dialing.
   map<string, string> actor_endpoints = 4;
   string correlation_id = 5;   // optional, for linking to existing workflow lineage
+  // Optional explicit run identity, UNIQUE PER EXECUTION ATTEMPT.
+  //
+  // run_id and correlation_id answer different questions and must not be one
+  // string. run_id identifies THIS attempt; correlation_id is the stable story
+  // that joins retries and repeated attempts on the same subject.
+  //
+  // Historically the executor derived the run id from correlation_id, so a
+  // caller passing a stable correlation had every attempt collapse into one
+  // run identity — and the second attempt was refused outright by the run
+  // lease ("already owned by another executor") rather than recorded as a
+  // separate run. Callers that need repeated attempts on one subject (the
+  // autonomous doctor healer) must set this.
+  //
+  // Unset preserves the previous behavior exactly: run id falls back to
+  // correlation_id, then to a generated UUID.
+  string run_id = 6;
 }
 
 message ExecuteWorkflowResponse {

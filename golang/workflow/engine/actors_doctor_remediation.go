@@ -107,7 +107,13 @@ type Verification struct {
 type DoctorRemediationConfig struct {
 	// ResolveFinding returns the shape cluster_doctor exposes via its
 	// finding cache: the finding's structured RemediationAction.
-	ResolveFinding func(ctx context.Context, findingID string, stepIndex uint32) (*ResolvedFinding, error)
+	// runID is the workflow run this resolution belongs to. It is passed
+	// explicitly rather than read from context because it is an identity input,
+	// not ambient metadata: an autonomous caller binds the exact finding it
+	// selected to this run id before starting it, and the resolver must be able
+	// to demand THAT finding rather than re-reading a mutable cache that may
+	// have changed between selection and dispatch.
+	ResolveFinding func(ctx context.Context, runID, findingID string, stepIndex uint32) (*ResolvedFinding, error)
 
 	// ExecuteRemediation forwards to cluster_doctor.ExecuteRemediation.
 	// The workflow never executes side-effects outside this call.
@@ -115,7 +121,14 @@ type DoctorRemediationConfig struct {
 
 	// VerifyConvergence re-runs doctor (GetNodeReport) and reports
 	// whether the finding has cleared.
-	VerifyConvergence func(ctx context.Context, findingID, nodeID string) (*Verification, error)
+	// dispatchedAt is the instant the executor confirmed the action ran. The
+	// verifier MUST prove its evidence was collected strictly after it — a
+	// snapshot that predates the repair still shows the finding present, which
+	// would record a successful repair as a failure and teach the learning loop
+	// the opposite of what happened. Zero means dispatch never happened or was
+	// never timestamped; a verifier that cannot place its evidence after the
+	// action must refuse rather than guess.
+	VerifyConvergence func(ctx context.Context, findingID, nodeID string, dispatchedAt time.Time) (*Verification, error)
 
 	// MarkFailed is called via onFailure hook when the workflow ends
 	// in a non-terminal-success state.
@@ -225,7 +238,7 @@ func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {
 			return nil, fmt.Errorf("resolve_finding: no ResolveFinding handler configured")
 		}
 		ctx = withRemediationCorrelation(ctx, req)
-		rf, err := cfg.ResolveFinding(ctx, findingID, stepIndex)
+		rf, err := cfg.ResolveFinding(ctx, req.RunID, findingID, stepIndex)
 		if err != nil {
 			return nil, fmt.Errorf("resolve_finding: %w", err)
 		}
@@ -427,7 +440,20 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 			return &ActionResult{OK: true, Output: out}, nil
 		}
 		ctx = withRemediationCorrelation(ctx, req)
-		v, err := cfg.VerifyConvergence(ctx, findingID, nodeID)
+
+		// The verifier receives the instant the executor accepted the action, so
+		// it can prove it read POST-action state rather than assume it. Read from
+		// the same execute_remediation output buildRemediationOutcome parses, so
+		// the timestamp the verification is judged against and the timestamp the
+		// outcome records are one value, never two that can drift.
+		//
+		// Zero when dispatch did not happen or the step wrote no timestamp. That
+		// is not "verify anyway with no constraint": a verifier that cannot place
+		// its snapshot after the action must refuse, because a snapshot that
+		// predates the repair reports the finding still present and would record
+		// a successful repair as failed.
+		dispatchedAt := dispatchedAtFromOutputs(req)
+		v, err := cfg.VerifyConvergence(ctx, findingID, nodeID, dispatchedAt)
 		if err != nil {
 			return nil, fmt.Errorf("verify_convergence: %w", err)
 		}
@@ -596,6 +622,33 @@ func outcomeAsMap(o remediation.Outcome) map[string]any {
 // view of run state. It reads back the execute_remediation output that
 // the prior step wrote into req.Outputs so the verdict reflects the full
 // resolve → execute → verify chain in one place.
+// dispatchedAtFromOutputs reads the executor-accepted instant the
+// execute_remediation step recorded, and is the single reader of that value.
+//
+// Both the post-action verification constraint and the recorded outcome derive
+// from this one function on purpose: if they parsed it separately they could
+// disagree, and a verification judged against one timestamp while the outcome
+// reports another is exactly the kind of split that makes an incorrect record
+// look self-consistent.
+//
+// Returns the zero time when dispatch did not occur or nothing was recorded.
+// Never synthesised from verification or wall-clock time.
+func dispatchedAtFromOutputs(req ActionRequest) time.Time {
+	exec, ok := req.Outputs["execution_result"].(map[string]any)
+	if !ok {
+		return time.Time{}
+	}
+	ts, ok := exec["dispatched_at"].(string)
+	if !ok || ts == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, ts)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
 func buildRemediationOutcome(req ActionRequest, findingID string, v *Verification, now func() time.Time) remediation.Outcome {
 	out := remediation.Outcome{
 		FindingID:     findingID,
@@ -629,11 +682,7 @@ func buildRemediationOutcome(req ActionRequest, findingID string, v *Verificatio
 		// DispatchedAt zero, which LineageDefects reports as
 		// missing_dispatched_at_after_dispatch when dispatch was claimed —
 		// visible rather than papered over with VerifiedAt.
-		if ts, ok := exec["dispatched_at"].(string); ok && ts != "" {
-			if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
-				out.DispatchedAt = parsed
-			}
-		}
+		out.DispatchedAt = dispatchedAtFromOutputs(req)
 		// The governance decision that authorized this dispatch, carried from
 		// the execute step so the later verification ties back to the decision
 		// rather than merely following it in time.

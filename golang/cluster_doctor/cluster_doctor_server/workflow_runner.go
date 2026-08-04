@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
@@ -84,14 +85,37 @@ func (s *ClusterDoctorServer) buildDoctorActorRouter() *engine.Router {
 // in-process state (finding cache, ExecuteRemediation, collector).
 func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemediationConfig {
 	return engine.DoctorRemediationConfig{
-		ResolveFinding: func(ctx context.Context, findingID string, stepIndex uint32) (*engine.ResolvedFinding, error) {
-			s.lastFindingsMu.RLock()
-			cached := make([]rules.Finding, len(s.lastFindings))
-			copy(cached, s.lastFindings)
-			s.lastFindingsMu.RUnlock()
-			f, ok := rules.FindByID(cached, findingID)
-			if !ok {
-				return nil, fmt.Errorf("finding %s not in last snapshot — call GetClusterReport first", findingID)
+		ResolveFinding: func(ctx context.Context, runID, findingID string, stepIndex uint32) (*engine.ResolvedFinding, error) {
+			// Autonomous runs resolve from the binding written before the run
+			// started, never from lastFindings.
+			//
+			// The healer selected an exact finding during its enforcement cycle
+			// and the cache has been republished at least once since. Re-reading
+			// it here could return a different finding under the same id, and the
+			// workflow would then execute a mutation against a subject the healer
+			// never authorized. A bound run therefore demands ITS finding, and a
+			// mismatch fails closed rather than falling back.
+			//
+			// Absence of a binding means an operator started this run by naming a
+			// finding id, which is a different contract: the operator wants the
+			// current finding, so the cache lookup below is correct for that path.
+			var f rules.Finding
+			if bound, isAutonomous := s.runFindings.lookup(runID); isAutonomous {
+				if err := bound.matches(findingID, stepIndex); err != nil {
+					return nil, fmt.Errorf("resolve_finding: run %s is bound to a different subject: %w "+
+						"— refusing to resolve", runID, err)
+				}
+				f = bound.finding
+			} else {
+				s.lastFindingsMu.RLock()
+				cached := make([]rules.Finding, len(s.lastFindings))
+				copy(cached, s.lastFindings)
+				s.lastFindingsMu.RUnlock()
+				var ok bool
+				f, ok = rules.FindByID(cached, findingID)
+				if !ok {
+					return nil, fmt.Errorf("finding %s not in last snapshot — call GetClusterReport first", findingID)
+				}
 			}
 			steps := f.Remediation
 			if int(stepIndex) >= len(steps) {
@@ -161,10 +185,39 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 			}, nil
 		},
 
-		VerifyConvergence: func(ctx context.Context, findingID, nodeID string) (*engine.Verification, error) {
-			snap, err := s.collector.GetSnapshot(ctx)
+		VerifyConvergence: func(ctx context.Context, findingID, nodeID string, dispatchedAt time.Time) (*engine.Verification, error) {
+			// Post-action verification must read state collected AFTER the repair.
+			//
+			// This previously called collector.GetSnapshot, which serves the cache
+			// and could therefore return the very pre-repair snapshot the finding
+			// was raised from. The finding is still present in that data, so a
+			// repair that worked verifies as "still present" — the workflow then
+			// records a failed outcome and the learning loop accumulates support
+			// for the proposition that the repair does not work.
+			//
+			// Forcing fresh is necessary but NOT sufficient: the collector can join
+			// an already in-flight fetch that STARTED BEFORE the dispatch, which
+			// returns CacheHit=false while still describing pre-repair state. So
+			// freshness is proven by ordering, not by the cache flag — GeneratedAt
+			// must strictly post-date the dispatch instant.
+			//
+			// takeSnapshot carries the leader-only force-fresh rule. A follower
+			// serves cached, the ordering check rejects it, and the step fails
+			// rather than recording a guess.
+			if dispatchedAt.IsZero() {
+				return nil, fmt.Errorf("verify_convergence: no dispatch timestamp — " +
+					"cannot prove evidence was collected after the action; refusing to verify")
+			}
+			snap, _, err := s.takeSnapshot(ctx, cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH)
 			if err != nil && snap == nil {
 				return nil, fmt.Errorf("verify snapshot fetch: %w", err)
+			}
+			if !verificationSnapshotIsPostAction(snap, dispatchedAt) {
+				return nil, fmt.Errorf("verify_convergence: no provably post-action snapshot "+
+					"(dispatched_at=%s snapshot_generated_at=%s) — refusing to verify against "+
+					"evidence that may predate the repair",
+					dispatchedAt.UTC().Format(time.RFC3339Nano),
+					snapGeneratedAt(snap).UTC().Format(time.RFC3339Nano))
 			}
 			var findings []rules.Finding
 			clusterWide := nodeID == ""

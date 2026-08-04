@@ -77,7 +77,7 @@ func plRunChain(t *testing.T, cluster, run string, mut ...func(*engine.DoctorRem
 	var captured []remediation.Outcome
 	cfg := engine.DoctorRemediationConfig{
 		Now: func() time.Time { return plDispatchAt },
-		ResolveFinding: func(_ context.Context, id string, idx uint32) (*engine.ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32) (*engine.ResolvedFinding, error) {
 			return &engine.ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: plNode,
 				ActionType: "SYSTEMCTL_RESTART", Risk: "LOW", Idempotent: true,
@@ -88,7 +88,7 @@ func plRunChain(t *testing.T, cluster, run string, mut ...func(*engine.DoctorRem
 		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*engine.ExecutionResult, error) {
 			return &engine.ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: true}, nil
 		},
-		VerifyConvergence: func(context.Context, string, string) (*engine.Verification, error) {
+		VerifyConvergence: func(context.Context, string, string, time.Time) (*engine.Verification, error) {
 			return &engine.Verification{Converged: true}, nil
 		},
 		// The PRODUCTION hook. cluster_doctor supplies this same field to reach

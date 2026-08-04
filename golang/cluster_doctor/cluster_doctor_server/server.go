@@ -55,6 +55,12 @@ type ClusterDoctorServer struct {
 	lastFindings   []rules.Finding
 	lastFindingsMu sync.RWMutex
 
+	// runFindings binds the exact finding an autonomous run was started for to
+	// that run's id, so the workflow's resolve callback cannot substitute a
+	// different finding by re-reading the mutable lastFindings cache between
+	// selection and dispatch. See run_finding_binding.go.
+	runFindings runFindingBindings
+
 	// lastEmittedFindings is the most recent CLUSTER-WIDE finding set used to
 	// compute the create/resolve delta emitted as cluster.finding.* events.
 	// It is intentionally separate from lastFindings so that a node-scoped
