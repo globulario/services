@@ -125,7 +125,13 @@ type DoctorRemediationConfig struct {
 
 	// ExecuteRemediation forwards to cluster_doctor.ExecuteRemediation.
 	// The workflow never executes side-effects outside this call.
-	ExecuteRemediation func(ctx context.Context, findingID string, stepIndex uint32, approvalToken string, dryRun bool) (*ExecutionResult, error)
+	// runID and bindingMode travel with the execution, not just the
+	// resolution. A run-scoped binding that guards resolve_finding but not
+	// execute_remediation protects the wrong half: the executor can still
+	// re-resolve the finding from a mutable cache and mutate a different
+	// subject than the one the caller bound.
+	ExecuteRemediation func(ctx context.Context, runID, findingID string, stepIndex uint32,
+		approvalToken string, dryRun bool, bindingMode string) (*ExecutionResult, error)
 
 	// VerifyConvergence re-runs doctor (GetNodeReport) and reports
 	// whether the finding has cleared.
@@ -469,7 +475,8 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 			}
 		}
 
-		res, err := cfg.ExecuteRemediation(ctx, findingID, stepIndex, approvalToken, dryRun)
+		res, err := cfg.ExecuteRemediation(ctx, req.RunID, findingID, stepIndex, approvalToken, dryRun,
+			execBindingMode(req))
 		if err != nil {
 			return nil, fmt.Errorf("execute_remediation: %w", err)
 		}
@@ -720,6 +727,16 @@ func outcomeAsMap(o remediation.Outcome) map[string]any {
 // view of run state. It reads back the execute_remediation output that
 // the prior step wrote into req.Outputs so the verdict reflects the full
 // resolve → execute → verify chain in one place.
+// execBindingMode reads the run's declared resolution contract for the execute
+// step. Defaults to the operator contract, matching the definition's default;
+// an autonomous caller must say so explicitly.
+func execBindingMode(req ActionRequest) string {
+	if m := toStr(req.With["finding_binding_mode"]); m != "" {
+		return m
+	}
+	return FindingBindingOperatorCurrent
+}
+
 // dispatchedAtFromOutputs reads the executor-accepted instant the
 // execute_remediation step recorded, and is the single reader of that value.
 //

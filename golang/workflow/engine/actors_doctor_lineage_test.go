@@ -45,7 +45,7 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 				ClusterID: lnCluster, InvariantID: lnInvar, EntityRef: lnEntity,
 			}, nil
 		},
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*ExecutionResult, error) {
 			return &ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: dispatched}, nil
 		},
 		VerifyConvergence: func(context.Context, string, string, time.Time) (*Verification, error) {
@@ -303,7 +303,7 @@ func TestLineage_NoDispatchExportsNoTimestamp(t *testing.T) {
 	outputs := map[string]any{}
 	cfg := DoctorRemediationConfig{
 		Now: func() time.Time { return lnDispatchAt },
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*ExecutionResult, error) {
 			return &ExecutionResult{Status: "REJECTED", Executed: false, Reason: "blocked"}, nil
 		},
 	}

@@ -112,7 +112,7 @@ func runGoverned(t *testing.T, gov behavioralGovernor, converged bool) gvResult 
 				ClusterID: gvCluster, InvariantID: gvInvar, EntityRef: gvEntity,
 			}, nil
 		},
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*engine.ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*engine.ExecutionResult, error) {
 			res.executorCalls++
 			return &engine.ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: true}, nil
 		},
@@ -316,7 +316,7 @@ func TestGoverned_HumanApprovalCombinesWithExistingGate(t *testing.T) {
 				ClusterID: gvCluster, InvariantID: gvInvar, EntityRef: gvEntity,
 			}, nil
 		},
-		ExecuteRemediation: func(_ context.Context, _ string, _ uint32, token string, _ bool) (*engine.ExecutionResult, error) {
+		ExecuteRemediation: func(_ context.Context, _ string, _ string, _ uint32, token string, _ bool, _ string) (*engine.ExecutionResult, error) {
 			executorSawToken = token
 			return &engine.ExecutionResult{Status: "EXECUTED", Executed: true}, nil
 		},

@@ -38,7 +38,7 @@ func (f *fakeDoctor) config() DoctorRemediationConfig {
 			rf.StepIndex = stepIndex
 			return &rf, nil
 		},
-		ExecuteRemediation: func(ctx context.Context, findingID string, stepIndex uint32, approvalToken string, dryRun bool) (*ExecutionResult, error) {
+		ExecuteRemediation: func(ctx context.Context, _ string, findingID string, stepIndex uint32, approvalToken string, dryRun bool, _ string) (*ExecutionResult, error) {
 			f.execCalls++
 			if f.execErr != nil {
 				return nil, f.execErr

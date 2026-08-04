@@ -44,15 +44,39 @@ func (s *ComputeActorServer) ExecuteAction(ctx context.Context, req *workflowpb.
 	// Deserialize inputs from JSON.
 	with := make(map[string]any)
 	if req.WithJson != "" {
-		json.Unmarshal([]byte(req.WithJson), &with)
+		// Fail closed. Continuing with an empty map would run the handler
+		// against a fabricated view of the run, and the substitution would be
+		// invisible in the result.
+		if err := json.Unmarshal([]byte(req.WithJson), &with); err != nil {
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("compute: malformed WithJson: %v", err),
+			}, nil
+		}
 	}
 	inputs := make(map[string]any)
 	if req.InputsJson != "" {
-		json.Unmarshal([]byte(req.InputsJson), &inputs)
+		// Fail closed. Continuing with an empty map would run the handler
+		// against a fabricated view of the run, and the substitution would be
+		// invisible in the result.
+		if err := json.Unmarshal([]byte(req.InputsJson), &inputs); err != nil {
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("compute: malformed InputsJson: %v", err),
+			}, nil
+		}
 	}
 	outputs := make(map[string]any)
 	if req.OutputsJson != "" {
-		json.Unmarshal([]byte(req.OutputsJson), &outputs)
+		// Fail closed. Continuing with an empty map would run the handler
+		// against a fabricated view of the run, and the substitution would be
+		// invisible in the result.
+		if err := json.Unmarshal([]byte(req.OutputsJson), &outputs); err != nil {
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("compute: malformed OutputsJson: %v", err),
+			}, nil
+		}
 	}
 
 	actionReq := engine.ActionRequest{
@@ -85,9 +109,17 @@ func (s *ComputeActorServer) ExecuteAction(ctx context.Context, req *workflowpb.
 		resp.Message = result.Message
 	}
 	if result != nil && result.Output != nil {
-		if b, err := json.Marshal(result.Output); err == nil {
-			resp.OutputJson = string(b)
+		b, mErr := json.Marshal(result.Output)
+		if mErr != nil {
+			// Never drop a receipt silently. A caller that receives a failure
+			// with no receipt cannot tell a governed refusal from a broken
+			// executor — the exact ambiguity this contract exists to remove.
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("compute: output delta not serializable: %v", mErr),
+			}, nil
 		}
+		resp.OutputJson = string(b)
 	}
 	return resp, nil
 }

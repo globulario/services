@@ -85,7 +85,7 @@ func plRunChain(t *testing.T, cluster, run string, mut ...func(*engine.DoctorRem
 				ClusterID: cluster, InvariantID: plInvar, EntityRef: plEntity,
 			}, nil
 		},
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*engine.ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*engine.ExecutionResult, error) {
 			return &engine.ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: true}, nil
 		},
 		VerifyConvergence: func(context.Context, string, string, time.Time) (*engine.Verification, error) {

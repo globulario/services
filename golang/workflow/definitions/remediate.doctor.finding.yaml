@@ -129,6 +129,7 @@ spec:
       with:
         finding_id: $.finding_id
         step_index: $.step_index
+        finding_binding_mode: $.finding_binding_mode
         approval_token: $.approval_token
         dry_run: $.dry_run
       # Expected run outputs written by handler:

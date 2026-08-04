@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
@@ -94,7 +96,7 @@ func transportConfig(t *testing.T) (engine.DoctorRemediationConfig, *transportSp
 				EntityRef: "node-1/globular-log.service",
 			}, nil
 		},
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*engine.ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*engine.ExecutionResult, error) {
 			spy.exec++
 			return &engine.ExecutionResult{AuditID: "rem-1", Executed: true, Status: "executed"}, nil
 		},
@@ -341,5 +343,129 @@ func TestAutonomousEndpoint_AdvertisesRoutableAddress(t *testing.T) {
 	got := fake.requests[0].GetActorEndpoints()["cluster-doctor"]
 	if got != "10.0.0.63:10300" {
 		t.Errorf("advertised callback = %q, want the registered routable address", got)
+	}
+}
+
+// TestActorTransport_BoundFindingReachesTheExecutor proves the identity hole
+// Codex found: the run-scoped binding guarded resolve_finding, but the execute
+// callback went through the PUBLIC ExecuteRemediation RPC, which re-resolves
+// from the mutable lastFindings cache.
+//
+// The binding therefore protected the half that does not touch the cluster.
+// Between resolve and execute the cache can be republished, so the mutation
+// could act on a different subject than the healer bound — with the same
+// finding id and a different node and unit.
+//
+// Driven across the real actor RPC, because that is where the deserialized
+// copy of the run's outputs replaces the shared map.
+func TestActorTransport_BoundFindingReachesTheExecutor(t *testing.T) {
+	const runID = "run-bound-exec"
+
+	findingA := autonomousFinding() // node-1 / globular-log.service
+
+	// Same finding id, different subject and action — what a later evaluation
+	// cycle could publish into the cache.
+	findingB := autonomousFinding()
+	findingB.EntityRef = "node-9/globular-attacker.service"
+	findingB.Remediation[0].Action.Params = map[string]string{
+		"node_id": "node-9", "unit": "globular-attacker.service",
+	}
+
+	var executed []rules.Finding
+	srv := &ClusterDoctorServer{
+		clusterID:             "c1",
+		cfg:                   &clusterdoctorConfig{Port: 10300},
+		actorEndpointResolver: func() string { return "10.0.0.63:10300" },
+		lastFindings:          []rules.Finding{findingB}, // the impostor is what the cache holds
+	}
+	srv.isAuthoritative.Store(true)
+	srv.executeForFindingHook = func(f rules.Finding) (*cluster_doctorpb.ExecuteRemediationResponse, error) {
+		executed = append(executed, f)
+		return &cluster_doctorpb.ExecuteRemediationResponse{
+			AuditId: "rem-bound", Executed: true, Status: "executed",
+		}, nil
+	}
+
+	if err := srv.runFindings.bind(runID, findingA, 0); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	defer srv.runFindings.release(runID)
+
+	cfg := srv.buildDoctorRemediationConfig()
+	res, err := cfg.ExecuteRemediation(context.Background(), runID, findingA.FindingID, 0, "", false,
+		engine.FindingBindingAutonomousRequired)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !res.Executed {
+		t.Fatal("the bound finding must execute")
+	}
+	if len(executed) != 1 {
+		t.Fatalf("executor called %d time(s), want exactly 1", len(executed))
+	}
+	got := executed[0]
+	if got.EntityRef != findingA.EntityRef {
+		t.Errorf("executed subject = %q, want %q — the cache substituted a different finding "+
+			"under the same id, and the mutation followed it", got.EntityRef, findingA.EntityRef)
+	}
+	if p := got.Remediation[0].GetAction().GetParams(); p["node_id"] != "node-1" ||
+		p["unit"] != "globular-log.service" {
+		t.Errorf("executed action params = %v, want the BOUND finding's action — a reconstructed "+
+			"view could differ in exactly the fields that decide what gets mutated", p)
+	}
+}
+
+// TestActorTransport_ExecutionFailsClosedWithoutBinding proves a missing or
+// mismatched binding stops the mutation instead of falling back to the cache.
+func TestActorTransport_ExecutionFailsClosedWithoutBinding(t *testing.T) {
+	f := autonomousFinding()
+	calls := 0
+	srv := &ClusterDoctorServer{
+		clusterID:             "c1",
+		cfg:                   &clusterdoctorConfig{Port: 10300},
+		actorEndpointResolver: func() string { return "10.0.0.63:10300" },
+		lastFindings:          []rules.Finding{f}, // cache COULD satisfy a fallback
+	}
+	srv.isAuthoritative.Store(true)
+	srv.executeForFindingHook = func(rules.Finding) (*cluster_doctorpb.ExecuteRemediationResponse, error) {
+		calls++
+		return &cluster_doctorpb.ExecuteRemediationResponse{Executed: true}, nil
+	}
+	cfg := srv.buildDoctorRemediationConfig()
+
+	t.Run("no binding", func(t *testing.T) {
+		_, err := cfg.ExecuteRemediation(context.Background(), "run-none", f.FindingID, 0, "", false,
+			engine.FindingBindingAutonomousRequired)
+		if err == nil {
+			t.Error("a missing binding must fail closed before mutation")
+		}
+	})
+
+	t.Run("wrong finding", func(t *testing.T) {
+		const runID = "run-wrong"
+		if err := srv.runFindings.bind(runID, f, 0); err != nil {
+			t.Fatalf("bind: %v", err)
+		}
+		defer srv.runFindings.release(runID)
+		if _, err := cfg.ExecuteRemediation(context.Background(), runID, "f-other", 0, "", false,
+			engine.FindingBindingAutonomousRequired); err == nil {
+			t.Error("a mismatched finding must fail closed before mutation")
+		}
+	})
+
+	t.Run("operator mode on a bound run", func(t *testing.T) {
+		const runID = "run-downgrade"
+		if err := srv.runFindings.bind(runID, f, 0); err != nil {
+			t.Fatalf("bind: %v", err)
+		}
+		defer srv.runFindings.release(runID)
+		if _, err := cfg.ExecuteRemediation(context.Background(), runID, f.FindingID, 0, "", false,
+			engine.FindingBindingOperatorCurrent); err == nil {
+			t.Error("a bound run must not be executed through the current-finding path")
+		}
+	})
+
+	if calls != 0 {
+		t.Errorf("executor called %d time(s) across fail-closed cases, want 0", calls)
 	}
 }

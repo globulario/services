@@ -38,7 +38,7 @@ func omConfig(mut ...func(*DoctorRemediationConfig)) DoctorRemediationConfig {
 				ClusterID: lnCluster, InvariantID: lnInvar, EntityRef: lnEntity,
 			}, nil
 		},
-		ExecuteRemediation: func(context.Context, string, uint32, string, bool) (*ExecutionResult, error) {
+		ExecuteRemediation: func(context.Context, string, string, uint32, string, bool, string) (*ExecutionResult, error) {
 			return &ExecutionResult{AuditID: "audit-1", Status: "EXECUTED", Executed: true}, nil
 		},
 		VerifyConvergence: func(context.Context, string, string, time.Time) (*Verification, error) {

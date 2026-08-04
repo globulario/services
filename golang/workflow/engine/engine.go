@@ -664,6 +664,27 @@ func safeInvoke(ctx context.Context, h ActionHandler, req ActionRequest) (result
 	return h(ctx, req)
 }
 
+// mergeOutputDelta merges a handler's returned output delta into the run's
+// accumulated outputs.
+//
+// One helper for the successful, OK:false, and terminal-error paths so their
+// locking and overwrite semantics cannot drift. It merges ONLY the returned
+// delta: never step.Export, which would let a failed step publish itself under
+// a name downstream steps read as a successful result.
+//
+// Called only on a terminal attempt. Merging a delta from an attempt that will
+// be retried would leave a receipt from a superseded try in the run outputs.
+func mergeOutputDelta(run *Run, result *ActionResult) {
+	if result == nil || result.Output == nil {
+		return
+	}
+	run.outputMu.Lock()
+	defer run.outputMu.Unlock()
+	for k, v := range result.Output {
+		run.Outputs[k] = v
+	}
+}
+
 func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.CompiledStep) error {
 	run.stepsMu.RLock()
 	st := run.Steps[step.ID]
@@ -779,6 +800,13 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 				e.notifyStep(run, st)
 				return newStepDeferredError(step, err.Error(), deferRenderContext(run, step))
 			}
+			// A handler may return BOTH a delta and an error — a governed
+			// refusal is the motivating case. Remote transport already preserved
+			// that receipt by turning it into Ok:false, so a locally-executed
+			// handler that entered this branch produced DIFFERENT run outputs
+			// for identical behaviour. Merging here makes the two topologies
+			// canonical. The step still fails and the original error is kept.
+			mergeOutputDelta(run, result)
 			st.Status = StepFailed
 			st.Error = err.Error()
 			st.FinishedAt = time.Now()
@@ -812,26 +840,8 @@ func (e *Engine) executeStep(ctx context.Context, run *Run, step *compiler.Compi
 				e.notifyStep(run, st)
 				return newStepDeferredError(step, result.Message, deferRenderContext(run, step))
 			}
-			// Merge the failed step's output delta BEFORE terminating.
-			//
-			// A semantic failure can carry a receipt that explains WHY — a
-			// governed refusal is the motivating case: the step must fail, but
-			// the run's final outputs must still say REFUSED with its decision
-			// id, or a correct refusal is indistinguishable from an executor
-			// malfunction downstream.
-			//
-			// Merging does NOT make the step succeed: status stays StepFailed,
-			// the run still fails, onFailure still runs, and step.Export is
-			// deliberately NOT applied — exporting would let a failed step
-			// publish itself under a name that downstream steps read as a
-			// successful result.
-			if result != nil && result.Output != nil {
-				run.outputMu.Lock()
-				for k, v := range result.Output {
-					run.Outputs[k] = v
-				}
-				run.outputMu.Unlock()
-			}
+			// The failed step's receipt survives; see mergeOutputDelta.
+			mergeOutputDelta(run, result)
 			st.Status = StepFailed
 			st.Error = result.Message
 			st.FinishedAt = time.Now()

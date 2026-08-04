@@ -65,6 +65,12 @@ type ClusterDoctorServer struct {
 	// transport tests inject a bufconn target.
 	actorEndpointResolver func() string
 
+	// executeForFindingHook overrides the by-value executor. nil uses
+	// executeRemediationForFinding. Tests inject it to observe WHICH finding
+	// reaches the mutation — the property the run binding exists to guarantee
+	// and which no other seam exposes.
+	executeForFindingHook func(rules.Finding) (*cluster_doctorpb.ExecuteRemediationResponse, error)
+
 	// lastEmittedFindings is the most recent CLUSTER-WIDE finding set used to
 	// compute the create/resolve delta emitted as cluster.finding.* events.
 	// It is intentionally separate from lastFindings so that a node-scoped

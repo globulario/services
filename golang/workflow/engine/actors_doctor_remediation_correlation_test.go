@@ -53,7 +53,7 @@ func TestDoctorActorHandlersPropagateCorrelationAndRunID(t *testing.T) {
 	// Same wiring on the execute and verify handlers.
 	var execRun, verifyRun string
 	cfgExec := DoctorRemediationConfig{
-		ExecuteRemediation: func(ctx context.Context, _ string, _ uint32, _ string, _ bool) (*ExecutionResult, error) {
+		ExecuteRemediation: func(ctx context.Context, _ string, _ string, _ uint32, _ string, _ bool, _ string) (*ExecutionResult, error) {
 			execRun = remediation.WorkflowRunFromContext(ctx)
 			return &ExecutionResult{Status: "executed", Executed: true}, nil
 		},

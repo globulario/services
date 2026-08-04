@@ -49,11 +49,27 @@ func (s *DoctorActorServer) ExecuteAction(ctx context.Context, req *workflowpb.E
 	// Deserialize inputs from JSON.
 	with := make(map[string]any)
 	if req.WithJson != "" {
-		json.Unmarshal([]byte(req.WithJson), &with)
+		// Fail closed. Continuing with an empty map would run the handler
+		// against a fabricated view of the run, and the substitution would be
+		// invisible in the result.
+		if err := json.Unmarshal([]byte(req.WithJson), &with); err != nil {
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("cluster-doctor: malformed WithJson: %v", err),
+			}, nil
+		}
 	}
 	inputs := make(map[string]any)
 	if req.InputsJson != "" {
-		json.Unmarshal([]byte(req.InputsJson), &inputs)
+		// Fail closed. Continuing with an empty map would run the handler
+		// against a fabricated view of the run, and the substitution would be
+		// invisible in the result.
+		if err := json.Unmarshal([]byte(req.InputsJson), &inputs); err != nil {
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("cluster-doctor: malformed InputsJson: %v", err),
+			}, nil
+		}
 	}
 	outputs := make(map[string]any)
 	if req.OutputsJson != "" {
@@ -106,9 +122,17 @@ func (s *DoctorActorServer) ExecuteAction(ctx context.Context, req *workflowpb.E
 	// changed — never the whole accumulated map, which would let one actor
 	// overwrite unrelated or concurrently produced workflow state.
 	if result != nil && result.Output != nil {
-		if b, mErr := json.Marshal(result.Output); mErr == nil {
-			resp.OutputJson = string(b)
+		b, mErr := json.Marshal(result.Output)
+		if mErr != nil {
+			// Never drop a receipt silently. A caller that receives a failure
+			// with no receipt cannot tell a governed refusal from a broken
+			// executor — the exact ambiguity this contract exists to remove.
+			return &workflowpb.ExecuteActionResponse{
+				Ok:      false,
+				Message: fmt.Sprintf("cluster-doctor: output delta not serializable: %v", mErr),
+			}, nil
 		}
+		resp.OutputJson = string(b)
 	}
 	return resp, nil
 }

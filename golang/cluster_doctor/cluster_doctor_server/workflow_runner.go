@@ -56,9 +56,14 @@ func (s *ClusterDoctorServer) RunRemediationWorkflow(
 		return nil, fmt.Errorf("marshal inputs: %w", err)
 	}
 
-	// The doctor's own gRPC address is the callback endpoint for the
-	// workflow service to dispatch doctor actions back to.
-	doctorEndpoint := fmt.Sprintf("localhost:%d", s.cfg.Port)
+	// Same routable-callback rule as the autonomous path. This backs the public
+	// StartRemediationWorkflow RPC, so an operator-triggered run placed on a
+	// Workflow Service on another node would have been just as unreachable —
+	// "localhost" names the workflow node's own port, not this doctor.
+	doctorEndpoint, err := s.resolveActorEndpoint()
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := s.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
 		ClusterId:    s.clusterID,
@@ -506,13 +511,63 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 			}, nil
 		},
 
-		ExecuteRemediation: func(ctx context.Context, findingID string, stepIndex uint32, approvalToken string, dryRun bool) (*engine.ExecutionResult, error) {
-			resp, err := s.ExecuteRemediation(ctx, &cluster_doctorpb.ExecuteRemediationRequest{
+		ExecuteRemediation: func(ctx context.Context, runID, findingID string, stepIndex uint32,
+			approvalToken string, dryRun bool, bindingMode string) (*engine.ExecutionResult, error) {
+
+			req := &cluster_doctorpb.ExecuteRemediationRequest{
 				FindingId:     findingID,
 				StepIndex:     stepIndex,
 				ApprovalToken: approvalToken,
 				DryRun:        dryRun,
-			})
+			}
+
+			var resp *cluster_doctorpb.ExecuteRemediationResponse
+			var err error
+			switch bindingMode {
+			case engine.FindingBindingAutonomousRequired:
+				// Execute the BOUND finding by value.
+				//
+				// The public ExecuteRemediation RPC re-resolves the finding from
+				// the mutable lastFindings cache. Calling it here would mean the
+				// binding guarded resolution while the mutation was still free to
+				// act on whatever the cache held by then — the protected half was
+				// the half that does not touch the cluster.
+				//
+				// The ORIGINAL rules.Finding is used, not a reconstructed
+				// ResolvedFinding: the executor needs the exact remediation action
+				// and its parameters, and a rebuilt view could differ in precisely
+				// the fields that decide what gets mutated.
+				bound, ok := s.runFindings.lookup(runID)
+				if !ok {
+					return nil, fmt.Errorf("execute_remediation: run %s declares %s but no run-scoped "+
+						"finding binding exists — refusing to mutate from the mutable cache",
+						runID, engine.FindingBindingAutonomousRequired)
+				}
+				if mErr := bound.matches(findingID, stepIndex); mErr != nil {
+					return nil, fmt.Errorf("execute_remediation: run %s is bound to a different subject: %w "+
+						"— refusing to mutate", runID, mErr)
+				}
+				if s.executeForFindingHook != nil {
+					resp, err = s.executeForFindingHook(bound.finding)
+				} else {
+					resp, err = s.executeRemediationForFinding(ctx, bound.finding, req)
+				}
+
+			case engine.FindingBindingOperatorCurrent, "":
+				// Mutually exclusive with the autonomous contract, on the same
+				// terms as resolution: a bound run must never be executed through
+				// the current-finding path.
+				if _, bound := s.runFindings.lookup(runID); bound {
+					return nil, fmt.Errorf("execute_remediation: run %s carries an autonomous finding "+
+						"binding but requested mode %q — refusing to downgrade a bound run",
+						runID, bindingMode)
+				}
+				resp, err = s.ExecuteRemediation(ctx, req)
+
+			default:
+				return nil, fmt.Errorf("execute_remediation: unknown finding_binding_mode %q — "+
+					"refusing to guess which resolution contract applies", bindingMode)
+			}
 			if err != nil {
 				return nil, err
 			}
