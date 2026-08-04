@@ -311,7 +311,6 @@ func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {
 		// undefined for the next step — which is exactly what happens across the
 		// actor RPC, where the handler's req.Outputs write is a dead local copy.
 		// One shape for both topologies.
-		req.Outputs["resolved_finding"] = out
 		return &ActionResult{OK: true, Output: map[string]any{"resolved_finding": out}}, nil
 	}
 }
@@ -357,7 +356,6 @@ func doctorAssessRisk() ActionHandler {
 			"requires_approval": assessment.RequiresApproval,
 			"reason":            assessment.Reason,
 		}
-		req.Outputs["risk_assessment"] = out
 		return &ActionResult{OK: true, Output: map[string]any{"risk_assessment": out}}, nil
 	}
 }
@@ -409,6 +407,11 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 		}
 		ctx = withRemediationCorrelation(ctx, req)
 
+		// Accumulated into the returned delta rather than written into
+		// req.Outputs: the engine is the single writer of run outputs, and a
+		// producer-side write is discarded across the actor RPC anyway.
+		var governanceDelta map[string]any
+
 		// ── the governed gate ───────────────────────────────────────────────
 		//
 		// Placed HERE, before the executor call, because a governor consulted
@@ -431,7 +434,6 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 				"verified":               false,
 				"converged":              false,
 			}
-			req.Outputs["dispatch_result"] = dr
 			// Returned as an explicit delta, NOT only as a req.Outputs mutation:
 			// across the actor RPC that map is a deserialized local copy that
 			// dies with the call, so the receipt must ride the response.
@@ -442,7 +444,7 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 		if verdict != nil {
 			// Recorded whatever the verdict, so a blocked action leaves the same
 			// audit trail as an allowed one.
-			req.Outputs["governance"] = gateVerdictAsMap(*verdict)
+			governanceDelta = gateVerdictAsMap(*verdict)
 			if !verdict.Allowed {
 				// The refusal receipt is RETURNED as an explicit output delta,
 				// not merely written into req.Outputs.
@@ -466,9 +468,8 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 					"verified":        false,
 					"converged":       false,
 				}
-				req.Outputs["dispatch_result"] = dr
 				return &ActionResult{OK: false,
-						Output:  map[string]any{"dispatch_result": dr, "governance": gateVerdictAsMap(*verdict)},
+						Output:  withGovernance(map[string]any{"dispatch_result": dr}, gateVerdictAsMap(*verdict)),
 						Message: fmt.Sprintf("blocked by governance (status=%s check=%s)", verdict.Status, verdict.ActionCheckID)},
 					fmt.Errorf("execute_remediation: blocked by governance (status=%s check=%s): %s",
 						verdict.Status, verdict.ActionCheckID, verdict.Reason)
@@ -505,17 +506,17 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 		if verdict != nil && verdict.ActionCheckID != "" {
 			out["action_check_id"] = verdict.ActionCheckID
 		}
-		req.Outputs["execution_result"] = out
 		// Rejections from the RPC are reflected as step failure so the
 		// workflow terminates and onFailure runs. The receipt still travels:
 		// a failed step that carries no record of WHY is unclassifiable, which
 		// is how a governed refusal became an executor failure.
 		if !res.Executed && !dryRun {
-			return &ActionResult{OK: false, Output: map[string]any{"execution_result": out},
+			return &ActionResult{OK: false, Output: withGovernance(map[string]any{"execution_result": out}, governanceDelta),
 					Message: fmt.Sprintf("execute_remediation rejected: status=%s reason=%s", res.Status, res.Reason)},
 				fmt.Errorf("execute_remediation rejected: status=%s reason=%s", res.Status, res.Reason)
 		}
-		return &ActionResult{OK: true, Output: map[string]any{"execution_result": out}}, nil
+		return &ActionResult{OK: true,
+			Output: withGovernance(map[string]any{"execution_result": out}, governanceDelta)}, nil
 	}
 }
 
@@ -533,7 +534,6 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 				"finding_still_present": false,
 				"remaining_related":     0,
 			}
-			req.Outputs["verification"] = out
 			return &ActionResult{OK: true, Output: out}, nil
 		}
 		ctx = withRemediationCorrelation(ctx, req)
@@ -559,7 +559,6 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 			"finding_still_present": v.FindingStillPresent,
 			"remaining_related":     v.RemainingRelated,
 		}
-		req.Outputs["verification"] = out
 
 		// Assemble the structured remediation.Outcome from this workflow
 		// run's accumulated state. The Outcome encodes the truth-
@@ -569,7 +568,6 @@ func doctorVerifyConvergence(cfg DoctorRemediationConfig) ActionHandler {
 		// step-level errors. See
 		// docs/intent/workflow.remediation_truth_consistency.yaml.
 		outcome := buildRemediationOutcome(req, findingID, v, cfg.now)
-		req.Outputs["remediation_outcome"] = outcomeAsMap(outcome)
 		verifyDelta := map[string]any{
 			"verification":        out,
 			"remediation_outcome": outcomeAsMap(outcome),
@@ -727,6 +725,16 @@ func outcomeAsMap(o remediation.Outcome) map[string]any {
 // view of run state. It reads back the execute_remediation output that
 // the prior step wrote into req.Outputs so the verdict reflects the full
 // resolve → execute → verify chain in one place.
+// withGovernance attaches the governance verdict to a delta when one was
+// reached. Absent for an ungoverned action, which is an honest state rather
+// than an empty object pretending a decision happened.
+func withGovernance(delta map[string]any, governance map[string]any) map[string]any {
+	if governance != nil {
+		delta["governance"] = governance
+	}
+	return delta
+}
+
 // execBindingMode reads the run's declared resolution contract for the execute
 // step. Defaults to the operator contract, matching the definition's default;
 // an autonomous caller must say so explicitly.

@@ -70,16 +70,32 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 	// the same shape that now survives the actor RPC. Previously it returned
 	// bare fields merged at the run-output root, which worked in-process and
 	// left $.resolved_finding undefined remotely.
+	// The engine is now the single writer of run outputs, so this helper must
+	// merge each step's returned delta exactly as executeStep does. Handlers no
+	// longer mutate req.Outputs — a producer-side write is discarded across the
+	// actor RPC, so relying on it made local and remote behave differently.
+	mergeDelta := func(r *ActionResult) {
+		if r == nil || r.Output == nil {
+			return
+		}
+		for k, v := range r.Output {
+			outputs[k] = v
+		}
+	}
+	mergeDelta(rf)
+
 	resolved, ok := rf.Output["resolved_finding"].(map[string]any)
 	if !ok {
 		t.Fatalf("resolve_finding must return a named resolved_finding delta; got %v", rf.Output)
 	}
 
-	if _, err := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
+	execRes, err := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
 		RunID: lnRun, With: map[string]any{"finding_id": lnFinding, "step_index": 0}, Outputs: outputs,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
+	mergeDelta(execRes)
 
 	// The verify request carries exactly what the workflow YAML threads in.
 	verifyReq := ActionRequest{

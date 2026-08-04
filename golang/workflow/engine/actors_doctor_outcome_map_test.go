@@ -59,18 +59,33 @@ func runChainOutputs(t *testing.T, mut ...func(*DoctorRemediationConfig)) map[st
 	outputs := map[string]any{}
 	ctx := context.Background()
 
-	if _, err := doctorResolveFinding(cfg)(ctx, ActionRequest{
+	// Each step's returned delta is merged exactly as the engine does; handlers
+	// no longer mutate req.Outputs, because a producer-side write is discarded
+	// across the actor RPC and made local and remote diverge.
+	merge := func(r *ActionResult) {
+		if r == nil {
+			return
+		}
+		for k, v := range r.Output {
+			outputs[k] = v
+		}
+	}
+	rfRes, err := doctorResolveFinding(cfg)(ctx, ActionRequest{
 		RunID: lnRun, With: map[string]any{"finding_id": lnFinding, "step_index": 0}, Outputs: outputs,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	if _, err := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
+	merge(rfRes)
+	exRes, exErr := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
 		RunID: lnRun, With: map[string]any{"finding_id": lnFinding, "step_index": 0}, Outputs: outputs,
-	}); err != nil {
-		t.Fatalf("execute: %v", err)
+	})
+	if exErr != nil {
+		t.Fatalf("execute: %v", exErr)
 	}
+	merge(exRes)
 	resolved, _ := outputs["resolved_finding"].(map[string]any)
-	if _, err := doctorVerifyConvergence(cfg)(ctx, ActionRequest{
+	vfRes, vfErr := doctorVerifyConvergence(cfg)(ctx, ActionRequest{
 		RunID: lnRun,
 		With: map[string]any{
 			"finding_id": lnFinding, "node_id": resolved["node_id"],
@@ -78,8 +93,14 @@ func runChainOutputs(t *testing.T, mut ...func(*DoctorRemediationConfig)) map[st
 			"entity_ref": resolved["entity_ref"],
 		},
 		Outputs: outputs,
-	}); err != nil {
-		t.Fatalf("verify: %v", err)
+	})
+	if vfErr != nil {
+		t.Fatalf("verify: %v", vfErr)
+	}
+	// Merge the verify step's returned delta, as the engine does — handlers no
+	// longer mutate req.Outputs.
+	for k, v := range vfRes.Output {
+		outputs[k] = v
 	}
 	return outputs
 }
@@ -234,19 +255,34 @@ func TestObserveOutcome_FiresForUnsuccessfulRemediationToo(t *testing.T) {
 
 	outputs := map[string]any{}
 	ctx := context.Background()
-	if _, err := doctorResolveFinding(cfg)(ctx, ActionRequest{
+	// Each step's returned delta is merged exactly as the engine does; handlers
+	// no longer mutate req.Outputs, because a producer-side write is discarded
+	// across the actor RPC and made local and remote diverge.
+	merge := func(r *ActionResult) {
+		if r == nil {
+			return
+		}
+		for k, v := range r.Output {
+			outputs[k] = v
+		}
+	}
+	rfRes, err := doctorResolveFinding(cfg)(ctx, ActionRequest{
 		RunID: lnRun, With: map[string]any{"finding_id": lnFinding, "step_index": 0}, Outputs: outputs,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	if _, err := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
+	merge(rfRes)
+	exRes, exErr := doctorExecuteRemediation(cfg)(ctx, ActionRequest{
 		RunID: lnRun, With: map[string]any{"finding_id": lnFinding, "step_index": 0}, Outputs: outputs,
-	}); err != nil {
-		t.Fatalf("execute: %v", err)
+	})
+	if exErr != nil {
+		t.Fatalf("execute: %v", exErr)
 	}
+	merge(exRes)
 	resolved, _ := outputs["resolved_finding"].(map[string]any)
 	// The verify step MUST fail the step — an unresolved finding is not success.
-	_, err := doctorVerifyConvergence(cfg)(ctx, ActionRequest{
+	vfRes, vfErr := doctorVerifyConvergence(cfg)(ctx, ActionRequest{
 		RunID: lnRun,
 		With: map[string]any{
 			"finding_id": lnFinding, "node_id": resolved["node_id"],
@@ -255,9 +291,12 @@ func TestObserveOutcome_FiresForUnsuccessfulRemediationToo(t *testing.T) {
 		},
 		Outputs: outputs,
 	})
-	if err == nil {
+	if vfErr == nil {
 		t.Fatal("a finding still present after remediation must fail the verify step")
 	}
+	// The failed step still carries its receipt — that is the contract that
+	// lets a non-converged repair be classified rather than guessed.
+	merge(vfRes)
 
 	if len(seen) != 1 {
 		t.Fatalf("the learning sink must receive the outcome even when the repair failed, got %d", len(seen))

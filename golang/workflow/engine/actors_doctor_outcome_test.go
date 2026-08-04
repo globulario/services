@@ -37,7 +37,7 @@ func TestVerifyConvergenceEmitsSucceededOutcomeWhenFindingResolved(t *testing.T)
 	if res == nil || !res.OK {
 		t.Fatalf("verify result: %+v", res)
 	}
-	outcome, ok := req.Outputs["remediation_outcome"].(map[string]any)
+	outcome, ok := res.Output["remediation_outcome"].(map[string]any)
 	if !ok {
 		t.Fatalf("remediation_outcome not written, outputs=%v", req.Outputs)
 	}
@@ -96,7 +96,7 @@ func TestVerifyConvergenceFailsStepWhenFindingStillPresent(t *testing.T) {
 	}
 	// Outcome must still be written so the workflow run carries the
 	// verdict even though the step failed.
-	outcome, ok := req.Outputs["remediation_outcome"].(map[string]any)
+	outcome, ok := res.Output["remediation_outcome"].(map[string]any)
 	if !ok {
 		t.Fatalf("remediation_outcome not written on failure, outputs=%v", req.Outputs)
 	}
@@ -125,11 +125,11 @@ func TestVerifyConvergenceMarksFailedWhenExecuteNeverRan(t *testing.T) {
 		With:    map[string]any{"finding_id": "f-3"},
 		Outputs: map[string]any{}, // no execution_result
 	}
-	_, err := doctorVerifyConvergence(cfg)(context.Background(), req)
+	res, err := doctorVerifyConvergence(cfg)(context.Background(), req)
 	if err != nil {
 		t.Fatalf("verify handler: %v", err)
 	}
-	outcome := req.Outputs["remediation_outcome"].(map[string]any)
+	outcome := res.Output["remediation_outcome"].(map[string]any)
 	if outcome["status"] != string(remediation.StatusFailed) {
 		t.Fatalf("missing execute_result must yield FAILED status, got %v", outcome["status"])
 	}

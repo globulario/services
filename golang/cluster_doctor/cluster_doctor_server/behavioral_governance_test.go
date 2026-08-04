@@ -132,12 +132,21 @@ func runGoverned(t *testing.T, gov behavioralGovernor, converged bool) gvResult 
 	engine.RegisterDoctorRemediationActions(router, cfg)
 	ctx := context.Background()
 
+	// Merges each step's returned delta exactly as the engine does. Handlers no
+	// longer mutate req.Outputs: a producer-side write is discarded across the
+	// actor RPC, so relying on it made the local and deployed topologies behave
+	// differently. The engine is the single writer of run outputs.
 	dispatch := func(action string, with map[string]any) error {
 		h, ok := router.Resolve(v1alpha1.ActorClusterDoctor, action)
 		if !ok {
 			t.Fatalf("%s not registered", action)
 		}
-		_, err := h(ctx, engine.ActionRequest{RunID: gvRun, With: with, Outputs: res.outputs})
+		out, err := h(ctx, engine.ActionRequest{RunID: gvRun, With: with, Outputs: res.outputs})
+		if out != nil {
+			for k, v := range out.Output {
+				res.outputs[k] = v
+			}
+		}
 		return err
 	}
 
@@ -325,12 +334,26 @@ func TestGoverned_HumanApprovalCombinesWithExistingGate(t *testing.T) {
 	router := engine.NewRouter()
 	engine.RegisterDoctorRemediationActions(router, cfg)
 	outputs := map[string]any{}
+	// Handlers no longer mutate req.Outputs — the engine is the single writer
+	// of run outputs, because a producer-side write is discarded across the
+	// actor RPC and made local and remote diverge. This driver therefore merges
+	// each returned delta exactly as executeStep does.
+	mergeGvDelta := func(r *engine.ActionResult) {
+		if r == nil {
+			return
+		}
+		for k, v := range r.Output {
+			outputs[k] = v
+		}
+	}
 	h, _ := router.Resolve(v1alpha1.ActorClusterDoctor, "doctor.resolve_finding")
-	if _, err := h(context.Background(), engine.ActionRequest{
+	rfRes, err := h(context.Background(), engine.ActionRequest{
 		RunID: gvRun, With: map[string]any{"finding_id": gvFinding, "step_index": 0}, Outputs: outputs,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
+	mergeGvDelta(rfRes)
 	h, _ = router.Resolve(v1alpha1.ActorClusterDoctor, "doctor.execute_remediation")
 	if _, err := h(context.Background(), engine.ActionRequest{
 		RunID: gvRun, Outputs: outputs,

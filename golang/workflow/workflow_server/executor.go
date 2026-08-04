@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/workflow/actortransport"
 	"github.com/globulario/services/golang/workflow/compiler"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/v1alpha1"
@@ -616,60 +617,19 @@ func (d *actorDispatcher) getClient(actorType string) (workflowpb.WorkflowActorS
 // the remote actor via gRPC. This is a transport-only fallback — the actor
 // validates the action name and rejects unknowns.
 func (d *actorDispatcher) makeHandler(actorType string) engine.ActionHandler {
-	return func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
-		slog.Info("executor: dispatching action",
-			"actor", actorType, "action", req.Action,
-			"run_id", req.RunID, "step_id", req.StepID)
-		client, err := d.getClient(actorType)
+	// Delegates to the shared transport mapping so production and tests
+	// exercise the SAME encode/decode/classify path. A test that reimplemented
+	// this would only prove it agreed with itself — which is how a discarded
+	// refusal receipt survived review.
+	return actortransport.Handler(actorType, func(at string) (workflowpb.WorkflowActorServiceClient, error) {
+		slog.Info("executor: dispatching action", "actor", at, "run_id", "", "step_id", "")
+		client, err := d.getClient(at)
 		if err != nil {
-			slog.Warn("executor: actor dial failed",
-				"actor", actorType, "action", req.Action, "err", err)
-			return nil, fmt.Errorf("actor %s: %w", actorType, err)
+			slog.Warn("executor: actor dial failed", "actor", at, "err", err)
+			return nil, err
 		}
-
-		withJSON, _ := json.Marshal(req.With)
-		inputsJSON, _ := json.Marshal(req.Inputs)
-		outputsJSON, _ := json.Marshal(req.Outputs)
-
-		resp, err := client.ExecuteAction(ctx, &workflowpb.ExecuteActionRequest{
-			RunId:       req.RunID,
-			StepId:      req.StepID,
-			Actor:       actorType,
-			Action:      req.Action,
-			WithJson:    string(withJSON),
-			InputsJson:  string(inputsJSON),
-			OutputsJson: string(outputsJSON),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("actor %s action %s: %w", actorType, req.Action, err)
-		}
-
-		// Decode the output delta BEFORE classifying the response.
-		//
-		// The previous order returned an error on !resp.Ok and never looked at
-		// OutputJson, so any receipt attached to a semantic failure was
-		// discarded at the transport. A governed refusal therefore reached the
-		// caller as a bare executor failure, and the healer charged its circuit
-		// breaker for a decision that was working correctly.
-		var output map[string]any
-		if resp.OutputJson != "" {
-			if err := json.Unmarshal([]byte(resp.OutputJson), &output); err != nil {
-				// Fail closed rather than continue with an empty map: a
-				// malformed receipt is not the same as no receipt, and
-				// silently dropping it recreates the bug above.
-				return nil, fmt.Errorf("actor %s action %s: malformed output json: %w",
-					actorType, req.Action, err)
-			}
-		}
-
-		// OK carries the actor's verdict; the engine merges Output either way
-		// and then fails the step when OK is false.
-		return &engine.ActionResult{
-			OK:      resp.Ok,
-			Output:  output,
-			Message: resp.Message,
-		}, nil
-	}
+		return client, nil
+	})
 }
 
 // loadExecutorTLS loads service TLS credentials for actor callbacks.
