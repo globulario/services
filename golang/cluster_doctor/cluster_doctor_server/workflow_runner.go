@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
+	"github.com/google/uuid"
+
 	"github.com/globulario/services/golang/cluster_doctor/cluster_doctor_server/rules"
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 	"github.com/globulario/services/golang/remediation"
 	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
@@ -69,6 +71,161 @@ func (s *ClusterDoctorServer) RunRemediationWorkflow(
 	}
 
 	return resp, nil
+}
+
+// runAutonomousRemediation starts one real remediate.doctor.finding run for a
+// finding the healer selected, and derives the dispatch disposition from that
+// run's own outputs.
+//
+// Identity, in two parts that must not be one string:
+//
+//   - runID is fresh per attempt. It is generated HERE, before the call, so the
+//     exact finding can be bound to it before the workflow can call back, and
+//     so a repeated repair of the same finding is a distinct run rather than an
+//     alias of the first. Passing a stable id instead would make the second
+//     attempt fail the run lease outright ("already owned by another executor").
+//   - correlationID is stable across attempts on the same finding+step, which
+//     is what joins retries into one story.
+//
+// The binding is written before ExecuteWorkflow and released on every exit
+// path, including cancellation and panic unwinding.
+func (s *ClusterDoctorServer) runAutonomousRemediation(
+	ctx context.Context,
+	f rules.Finding,
+	stepIndex uint32,
+	dryRun bool,
+) (rules.DispatchResult, error) {
+	if s.workflowClient == nil {
+		// Fail closed. Executing directly would produce a mutation with no run
+		// to attribute it to, no governance decision, and no recorded outcome.
+		return rules.DispatchResult{}, fmt.Errorf(
+			"workflow service not configured (workflow_endpoint not set) — refusing to remediate %s on %s "+
+				"outside a governed run", f.InvariantID, f.EntityRef)
+	}
+
+	runID := uuid.New().String()
+	correlationID := fmt.Sprintf("remediation/%s/%d", f.FindingID, stepIndex)
+
+	if err := s.runFindings.bind(runID, f, stepIndex); err != nil {
+		return rules.DispatchResult{}, fmt.Errorf("bind finding to run: %w", err)
+	}
+	defer s.runFindings.release(runID)
+
+	inputs := map[string]any{
+		"finding_id": f.FindingID,
+		"step_index": stepIndex,
+		// No approval token: an autonomous repair is authorized by the
+		// workflow's behavioral-governance gate, not by an operator secret.
+		"approval_token": "",
+		"dry_run":        dryRun,
+	}
+	inputsJSON, err := json.Marshal(inputs)
+	if err != nil {
+		return rules.DispatchResult{}, fmt.Errorf("marshal inputs: %w", err)
+	}
+
+	resp, err := s.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
+		ClusterId:    s.clusterID,
+		WorkflowName: remediationWorkflowName,
+		InputsJson:   string(inputsJSON),
+		ActorEndpoints: map[string]string{
+			"cluster-doctor": fmt.Sprintf("localhost:%d", s.cfg.Port),
+		},
+		RunId:         runID,
+		CorrelationId: correlationID,
+	})
+	if err != nil {
+		return rules.DispatchResult{WorkflowRunID: runID},
+			fmt.Errorf("start remediation workflow: %w", err)
+	}
+
+	return classifyRemediationRun(runID, resp, dryRun), nil
+}
+
+// classifyRemediationRun turns a finished workflow run into a dispatch
+// disposition, reading the run's structured outputs only.
+//
+// Never infers from human-readable error text: a classifier that pattern-matches
+// messages silently changes meaning whenever a message is reworded, and the
+// distinction between "governance refused" and "executor broke" is exactly the
+// one that must not blur — one is the system working, the other is the circuit
+// breaker's business.
+func classifyRemediationRun(runID string, resp *workflowpb.ExecuteWorkflowResponse, dryRun bool) rules.DispatchResult {
+	res := rules.DispatchResult{WorkflowRunID: runID}
+
+	outcome := remediationOutcomeFromRun(resp)
+	res.AuditID = outcome.auditID
+	res.Executed = outcome.executed
+	res.Verified = outcome.verified
+	res.Converged = outcome.converged
+
+	switch {
+	case outcome.refused:
+		// Governance declined before any side effect. Not a malfunction.
+		res.Disposition = rules.DispatchRefused
+	case dryRun, !outcome.executed && resp.GetStatus() == "SUCCEEDED":
+		// A rehearsal, or a run that completed without attempting a mutation.
+		res.Disposition = rules.DispatchProposed
+	case !outcome.executed:
+		res.Disposition = rules.DispatchExecutionFailed
+		res.Err = fmt.Errorf("remediation run %s did not execute: status=%s error=%s",
+			runID, resp.GetStatus(), resp.GetError())
+	case !outcome.verified:
+		// The mutation happened but no post-action evidence was obtained, so
+		// convergence is unknown. Reported as its own state rather than guessed
+		// in either direction.
+		res.Disposition = rules.DispatchExecutedUnverified
+		res.Err = fmt.Errorf("remediation run %s executed but convergence could not be verified: %s",
+			runID, resp.GetError())
+	case !outcome.converged:
+		res.Disposition = rules.DispatchExecutedNotConverged
+	default:
+		res.Disposition = rules.DispatchConverged
+	}
+	return res
+}
+
+// runRemediationOutcome is the subset of the run's remediation_outcome output
+// the classifier needs.
+type runRemediationOutcome struct {
+	executed  bool
+	verified  bool
+	converged bool
+	refused   bool
+	auditID   string
+}
+
+// remediationOutcomeFromRun reads the canonical remediation_outcome the verify
+// step emitted into the run's outputs. Absent outputs leave every field false,
+// which classifies as a failure rather than a success — the safe direction when
+// a run's own account of itself is missing.
+func remediationOutcomeFromRun(resp *workflowpb.ExecuteWorkflowResponse) runRemediationOutcome {
+	var out runRemediationOutcome
+	if resp == nil || resp.GetOutputsJson() == "" {
+		return out
+	}
+	var outputs map[string]any
+	if err := json.Unmarshal([]byte(resp.GetOutputsJson()), &outputs); err != nil {
+		return out
+	}
+	if exec, ok := outputs["execution_result"].(map[string]any); ok {
+		out.executed, _ = exec["executed"].(bool)
+		if id, ok := exec["audit_id"].(string); ok {
+			out.auditID = id
+		}
+		// A governed refusal is a structured state on the execute step, not an
+		// error string.
+		if refused, ok := exec["governance_refused"].(bool); ok && refused {
+			out.refused = true
+		}
+	}
+	if v, ok := outputs["verification"].(map[string]any); ok {
+		out.verified = true
+		if converged, ok := v["converged"].(bool); ok {
+			out.converged = converged
+		}
+	}
+	return out
 }
 
 // buildDoctorActorRouter creates a Router with the doctor's remediation
@@ -250,11 +407,11 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 		// behavioral-memory types and this service keeps ownership of what it
 		// records — it already owns the bounded recorder for the finding path.
 		ObserveOutcome: func(ctx context.Context, o remediation.Outcome) {
-			evidenceID := s.emitBehavioralRemediationOutcome(o)
-			// Link the verified result to the decision that allowed it. Only
-			// after verification: an outcome written at dispatch would record an
-			// intention as a result.
-			s.recordGovernedOutcome(ctx, o, evidenceID)
+			// The single producer of remediation outcomes, for operator-started
+			// and autonomous runs alike. The healer no longer records its own:
+			// one executed action now yields exactly one behavioral outcome, one
+			// governed-outcome link, and at most one support contribution.
+			s.observeOutcome(ctx, o, o.ActionCheckID)
 		},
 
 		// The governed gate, consulted immediately before dispatch.

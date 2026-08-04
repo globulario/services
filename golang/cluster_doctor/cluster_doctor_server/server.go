@@ -23,7 +23,6 @@ import (
 	"github.com/globulario/services/golang/remediation"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
-	"github.com/globulario/services/golang/workflow/engine"
 	"github.com/globulario/services/golang/workflow/workflowpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -655,13 +654,41 @@ func (s *ClusterDoctorServer) gatedDispatcher() rules.Dispatcher {
 	return &gatedDispatcher{server: s}
 }
 
-// Dispatch routes a single HealAuto finding through ExecuteRemediation.
-// Returns (executed, auditID, err). A finding with no structured
-// RemediationAction is recorded as a proposal (false, "", nil) — the gate
-// cannot verify what it cannot type-check.
-func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAction string, dryRun bool) (bool, string, error) {
+// Dispatch starts one real remediate.doctor.finding Workflow Service run for a
+// HealAuto finding and classifies the run's own result.
+//
+// THIS IS THE ONLY AUTONOMOUS EXECUTION PATH. The healer previously called
+// dispatchAllowedByGovernance and then executeRemediationForFinding directly,
+// and recorded its own outcome afterwards. That shape produced an outcome with
+// no workflow run to belong to, so it could never satisfy
+// remediation.Outcome.LineageComplete and was recorded as an unqualifiable
+// diagnostic row — autonomous repairs could never become qualifying evidence,
+// so the promotion loop they were supposed to feed stayed permanently open.
+//
+// Routing through the canonical run makes ONE actor own the whole chain:
+//
+//	governance verdict → execution → post-action evidence → convergence
+//	→ outcome → HealReport classification
+//
+// Governance is NOT consulted here. The workflow's own gate (GateAction →
+// gateRemediation) is the single decision point, so exactly one ActionCheckID
+// exists per dispatch. Gating here as well would mint two action checks for one
+// action.
+//
+// Outcome recording is NOT done here. The workflow's ObserveOutcome hook is the
+// single producer, so exactly one remediation outcome and one governed-outcome
+// link exist per executed action.
+//
+// Fail closed: when Workflow Service is unavailable or refuses to start the
+// run, this returns DispatchExecutionFailed. There is deliberately no direct
+// execution fallback — a repair that cannot be governed, verified and recorded
+// must not happen, because its only trace would be an unattributable mutation.
+func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAction string, dryRun bool) rules.DispatchResult {
 	if g.server == nil {
-		return false, "", fmt.Errorf("gatedDispatcher: server is nil")
+		return rules.DispatchResult{
+			Disposition: rules.DispatchExecutionFailed,
+			Err:         fmt.Errorf("gatedDispatcher: server is nil"),
+		}
 	}
 	// The finding must carry at least one RemediationStep with a structured
 	// RemediationAction; the dispatcher picks the first such step. Rules
@@ -680,185 +707,18 @@ func (g *gatedDispatcher) Dispatch(ctx context.Context, f rules.Finding, autoAct
 			"invariant_id", f.InvariantID,
 			"entity_ref", f.EntityRef,
 			"auto_action", autoAction)
-		return false, "", nil
+		return rules.DispatchResult{Disposition: rules.DispatchProposed}
 	}
 
-	// Ask behavioral governance BEFORE the executor runs.
-	//
-	// The gate was wired into the WORKFLOW path only (workflow_runner.go
-	// GateAction), and this — the autonomous healer's path — reached
-	// executeRemediationForFinding without ever consulting it. Verified live on
-	// 2026-08-01: with principle.cluster.restart_drifted_unit_with_observed_finding
-	// promoted specifically to govern SYSTEMCTL_RESTART on
-	// node.systemd.units_running, the healer performed exactly that action and
-	// behavioral_memory.action_checks recorded zero rows from cluster_doctor. The
-	// operator path was governed; the unattended one was not, which is the wrong
-	// way round.
-	//
-	// Placed here rather than inside executeRemediationForFinding because the
-	// public ExecuteRemediation RPC also routes there, and the workflow actor has
-	// already gated by that point — gating again would mint a second decision for
-	// one action. gatedDispatcher.Dispatch is the healer's exclusive entry, which
-	// makes it the mirror of the engine's own placement: immediately before the
-	// executor call.
-	allowed, actionCheckID := g.server.dispatchAllowedByGovernance(ctx, f, stepIndex, autoAction)
-	if !allowed {
-		return false, "", nil
-	}
-
-	// The healer already holds the resolved Finding — execute against it
-	// directly instead of clobbering the shared lastFindings cache with a
-	// one-element slice and round-tripping through finding_id resolution. A
-	// concurrent GetClusterReport/GetNodeReport could otherwise overwrite that
-	// cache between the write and ExecuteRemediation's read, so remediation
-	// could act on the wrong finding or spuriously NotFound.
-	// (meta.code.local_state_must_not_become_hidden_authority)
-	resp, err := g.server.executeRemediationForFinding(ctx, f, &cluster_doctorpb.ExecuteRemediationRequest{
-		FindingId: f.FindingID,
-		StepIndex: uint32(stepIndex),
-		DryRun:    dryRun,
-	})
+	res, err := g.server.runAutonomousRemediation(ctx, f, uint32(stepIndex), dryRun)
 	if err != nil {
-		return false, "", err
-	}
-
-	// Close the learning loop on the AUTONOMOUS path.
-	//
-	// ObserveOutcome was wired into the workflow runner only (workflow_runner.go),
-	// so every repair the healer performed itself recorded nothing. The learning
-	// loop reads those outcomes, so its support count for this theme stayed at
-	// zero permanently — and ErrInsufficientSupport is silent by design, making
-	// "never recorded" indistinguishable from "not enough yet". No candidate could
-	// ever be queued, so no principle could ever be promoted, so no dispatch could
-	// ever be governed, so every repair took the ungoverned fall-through. A closed
-	// loop with no way in.
-	//
-	// Verified live on 2026-08-02: two successful restart_drifted_unit repairs of
-	// globular-log.service (audits rem-1785646…, 04:25:03 and 04:49:04), both
-	// EXECUTED with the unit returning to active, produced zero promotion
-	// candidates at candidateMinRepeats=2.
-	//
-	// This is the same producer/consumer split as 2e019d9e ("the healer gated on
-	// evidence it never produced"), one layer up: the healer learned from outcomes
-	// it never recorded. That fix closed the evidence hop and left this one open.
-	//
-	// Recorded ONLY after verification, never at dispatch — an outcome written at
-	// dispatch records an intention as a result (workflow_runner.go states the same
-	// rule for the workflow path). Dry runs are excluded: a rehearsal is not an
-	// outcome, and counting it would let observe-mode cycles manufacture support
-	// for promoting an action nobody ever performed.
-	if resp.GetExecuted() && !dryRun {
-		// Stamped the instant the executor accepted, and nowhere else — the same
-		// rule and the same placement the workflow actor uses
-		// (actors_doctor_remediation.go stamps dispatched_at only when
-		// res.Executed). It must never be derived from verification time:
-		// post-action verification is only meaningful relative to when the action
-		// actually went out, and DispatchedAt is what lets the verification prove
-		// it read post-repair state.
-		dispatchedAt := time.Now()
-
-		// node_id comes from the action's params, the same source
-		// dispatchAllowedByGovernance and the workflow runner both read it from.
-		// Finding itself carries no node identity — EntityRef is not NodeID.
-		nodeID := f.Remediation[stepIndex].GetAction().GetParams()["node_id"]
-		g.server.observeHealerOutcome(ctx, f, nodeID, actionCheckID, resp.GetAuditId(), dispatchedAt)
-	}
-
-	return resp.GetExecuted(), resp.GetAuditId(), nil
-}
-
-// observeHealerOutcome verifies whether the healer's repair actually cleared the
-// finding, then records the result through the same two calls the workflow path
-// uses (emitBehavioralRemediationOutcome → recordGovernedOutcome). One recorder,
-// two callers: the workflow actor and the healer.
-//
-// Convergence is re-derived from a fresh snapshot rather than assumed from
-// Executed. rules.HealResult sets Verified=true whenever a dispatch executed,
-// which is dispatch acknowledgement, not proof of repair — the same conflation
-// reconcile.terminal_success_requires_observed_convergence forbids on the
-// controller side. A repair that executed and did NOT clear the finding must be
-// recorded as a FAILED outcome, because that is exactly the evidence a future
-// promotion decision needs most.
-//
-// Best-effort by contract: a verification that cannot be taken records nothing
-// rather than guessing. Losing one observation costs a slower promotion; writing
-// an unverified one corrupts the support count that governs future autonomy.
-func (s *ClusterDoctorServer) observeHealerOutcome(ctx context.Context, f rules.Finding, nodeID, actionCheckID, auditID string, dispatchedAt time.Time) {
-	if s.collector == nil {
-		logger.Warn("learning: healer outcome not recorded — no collector configured",
-			"invariant_id", f.InvariantID, "entity_ref", f.EntityRef)
-		return
-	}
-
-	// Post-action verification must read state collected AFTER the repair.
-	//
-	// GetSnapshot serves the cache, so it could return the very pre-repair
-	// snapshot the finding was raised from. The finding is still present in that
-	// data, so a successful repair records as FindingResolved=false — a failed
-	// outcome. That is worse than recording nothing: at candidateMinRepeats the
-	// learning loop would accumulate support for the proposition that this repair
-	// does not work, and the promotion decision it governs would be made on
-	// inverted evidence.
-	//
-	// Forcing fresh is necessary but NOT sufficient. GetSnapshotWithFreshness
-	// invalidates the cache, but a caller can still join an already in-flight
-	// fetch that STARTED BEFORE the dispatch; that returns CacheHit=false while
-	// describing pre-repair state. So freshness is proven by ordering, not by the
-	// cache flag: GeneratedAt must post-date the dispatch instant.
-	//
-	// takeSnapshot carries the leader rule (only the leader may force-fresh). If
-	// leadership was lost between dispatch and verification it serves cached, the
-	// ordering check below rejects it, and nothing is recorded — which is the
-	// documented contract: a verification that cannot be taken records nothing
-	// rather than guessing.
-	snap, _, err := s.takeSnapshot(ctx, cluster_doctorpb.FreshnessMode_FRESHNESS_FRESH)
-	if err != nil && snap == nil {
-		logger.Warn("learning: healer outcome not recorded — verification snapshot unavailable",
-			"invariant_id", f.InvariantID, "entity_ref", f.EntityRef, "err", err)
-		return
-	}
-	if !verificationSnapshotIsPostAction(snap, dispatchedAt) {
-		logger.Warn("learning: healer outcome not recorded — no post-action snapshot available",
-			"invariant_id", f.InvariantID, "entity_ref", f.EntityRef,
-			"dispatched_at", dispatchedAt, "snapshot_generated_at", snapGeneratedAt(snap))
-		return
-	}
-
-	// Node-scoped where possible: evaluating the whole cluster to verify one
-	// unit is wasteful, and EvaluateAll would also overwrite the shared
-	// cluster-wide findings cache from a path that is not authoritative for it.
-	var findings []rules.Finding
-	if nodeID != "" {
-		findings = s.registry.EvaluateForNode(snap, nodeID)
-	} else {
-		findings = s.registry.EvaluateAll(snap)
-	}
-
-	stillPresent := false
-	for _, cur := range findings {
-		if cur.FindingID == f.FindingID {
-			stillPresent = true
-			break
+		return rules.DispatchResult{
+			Disposition:   rules.DispatchExecutionFailed,
+			WorkflowRunID: res.WorkflowRunID,
+			Err:           err,
 		}
 	}
-
-	s.observeOutcome(ctx, remediation.Outcome{
-		FindingID:       f.FindingID,
-		ActionCheckID:   actionCheckID,
-		Dispatched:      true,
-		DispatchedAt:    dispatchedAt,
-		Verified:        true,
-		FindingResolved: !stillPresent,
-		VerifiedAt:      time.Now(),
-		ClusterID:       s.clusterID,
-		InvariantID:     f.InvariantID,
-		EntityRef:       f.EntityRef,
-		NodeID:          nodeID,
-		// WorkflowRunID is still empty, and this outcome is therefore still
-		// LineageMissingWorkflowRun — see the open question on #236. Synthesising
-		// a run id would forge lineage for a dispatch that never had one, so the
-		// gap is left visible rather than papered over.
-	}, auditID)
+	return res
 }
 
 // verificationSnapshotIsPostAction reports whether snap may serve as post-action
@@ -881,7 +741,13 @@ func snapGeneratedAt(snap *collector.Snapshot) time.Time {
 	return snap.GeneratedAt
 }
 
-// observeOutcome is the single recorder both remediation paths share.
+// observeOutcome is the single recorder for remediation outcomes.
+//
+// There is exactly one caller: the workflow's ObserveOutcome hook. The healer
+// used to record its own outcome here too, which meant one executed action
+// could produce two records — and the healer's copy could never be lineage
+// complete, because it belonged to no workflow run. Autonomous repairs now
+// reach this function only through the run that performed them.
 func (s *ClusterDoctorServer) observeOutcome(ctx context.Context, o remediation.Outcome, auditID string) {
 	evidenceID := s.emitBehavioralRemediationOutcome(o)
 	s.recordGovernedOutcome(ctx, o, evidenceID)
@@ -891,83 +757,6 @@ func (s *ClusterDoctorServer) observeOutcome(ctx context.Context, o remediation.
 		"finding_resolved", o.FindingResolved,
 		"audit_id", auditID,
 	)
-}
-
-// dispatchAllowedByGovernance answers whether behavioral governance permits this
-// auto-heal, and reports false for every answer that is not a clear yes.
-//
-// A refusal is returned as "do not execute" rather than as an error: the healer
-// records a non-executed dispatch as a proposal, which is what a governed
-// refusal IS — the gate did its job and the finding stays open for an operator.
-// Returning an error would instead count toward the cycle's MaxFailures circuit
-// breaker, so a governor that is merely strict would look like an executor that
-// is broken and would halt healing for unrelated findings.
-//
-// An unreachable governor is also a refusal, never consent
-// (observation.Governor.CheckAction is explicit that a caller must not be able to
-// mistake the two). This does pause auto-healing while behavioral memory is down.
-// That is deliberate and bounded: the cluster's deterministic convergence — the
-// controller reconciling desired state — is untouched, so "AI is supplementary,
-// never required" still holds for the mechanism that guarantees the cluster
-// converges. What pauses is the doctor's autonomy, which is the part that
-// depends on being authorized.
-func (s *ClusterDoctorServer) dispatchAllowedByGovernance(ctx context.Context, f rules.Finding, stepIndex int, autoAction string) (bool, string) {
-	action := f.Remediation[stepIndex].GetAction()
-	verdict, err := s.gateRemediation(ctx, engine.GateRequest{
-		FindingID:   f.FindingID,
-		ClusterID:   s.clusterID,
-		InvariantID: f.InvariantID,
-		EntityRef:   f.EntityRef,
-		NodeID:      action.GetParams()["node_id"],
-		ActionKind:  action.GetActionType().String(),
-		StepIndex:   uint32(stepIndex),
-		// No WorkflowRunID and no ApprovalToken: this dispatch belongs to no
-		// workflow run and carries no operator approval. Both are stated by
-		// omission rather than filled with a plausible value — a fabricated run
-		// id would forge lineage, and a fabricated token would tell the governor
-		// a human approved something no human saw.
-	})
-	if err != nil {
-		logger.Warn("gated-dispatcher: REFUSED — behavioral governor unavailable; auto-heal paused for this finding",
-			"invariant_id", f.InvariantID,
-			"entity_ref", f.EntityRef,
-			"auto_action", autoAction,
-			"err", err,
-		)
-		return false, ""
-	}
-	if !verdict.Allowed {
-		logger.Info("gated-dispatcher: REFUSED by behavioral governance",
-			"invariant_id", f.InvariantID,
-			"entity_ref", f.EntityRef,
-			"auto_action", autoAction,
-			"action_check_id", verdict.ActionCheckID,
-			"status", verdict.Status,
-			"reason", verdict.Reason,
-			"principles", verdict.PrincipleIDs,
-		)
-		return false, verdict.ActionCheckID
-	}
-	if verdict.Governed {
-		logger.Info("gated-dispatcher: allowed by behavioral governance",
-			"invariant_id", f.InvariantID,
-			"entity_ref", f.EntityRef,
-			"action_check_id", verdict.ActionCheckID,
-			"principles", verdict.PrincipleIDs,
-		)
-	}
-	// Ungoverned-and-allowed proceeds: no promoted principle applies, so the
-	// action keeps exactly the protection it had before governance existed (the
-	// executor's leader, risk-class, approval, unit-allowlist and cooldown
-	// gates). gateRemediation has already counted the coverage gap.
-	//
-	// The ActionCheckID is returned even when UNGOVERNED. gateRemediation still
-	// minted a check row recording that this action ran with no applicable
-	// principle, and recordGovernedOutcome drops any outcome whose ActionCheckID
-	// is empty — so discarding it here would silently throw away every outcome
-	// the autonomous healer produces, which is precisely the gap this path exists
-	// to close.
-	return true, verdict.ActionCheckID
 }
 
 // GetHealHistory returns recent heal action records from the persistent audit trail.

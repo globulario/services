@@ -155,14 +155,14 @@ type dispatchCall struct {
 	DryRun      bool
 }
 
-func (r *recordingDispatcher) Dispatch(_ context.Context, f Finding, autoAction string, dryRun bool) (bool, string, error) {
+func (r *recordingDispatcher) Dispatch(_ context.Context, f Finding, autoAction string, dryRun bool) DispatchResult {
 	r.calls = append(r.calls, dispatchCall{
 		InvariantID: f.InvariantID,
 		EntityRef:   f.EntityRef,
 		AutoAction:  autoAction,
 		DryRun:      dryRun,
 	})
-	return false, "", nil
+	return DispatchResult{Disposition: DispatchProposed}
 }
 
 // TestHealer_PatchReleaseAvailable_IsNotInvoked enforces Patch B's

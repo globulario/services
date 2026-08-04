@@ -52,13 +52,19 @@ func TestGatedDispatcher_ResolvesFindingByValue_NoCacheClobber(t *testing.T) {
 	}
 	srv.isAuthoritative.Store(true)
 
+	// No workflow client is wired, so this also pins the fail-closed rule: the
+	// autonomous path must NOT fall back to direct execution when Workflow
+	// Service is unavailable. A repair that cannot be governed, verified and
+	// recorded must not happen — its only trace would be an unattributable
+	// mutation.
 	g := &gatedDispatcher{server: srv}
-	executed, _, err := g.Dispatch(context.Background(), target, "restart", false)
-	if err != nil {
-		t.Fatalf("dispatch: %v", err)
+	res := g.Dispatch(context.Background(), target, "restart", false)
+	if res.Disposition != rules.DispatchExecutionFailed {
+		t.Fatalf("disposition = %q, want %q — an unavailable Workflow Service must fail closed",
+			res.Disposition, rules.DispatchExecutionFailed)
 	}
-	if !executed {
-		t.Fatal("dispatcher must resolve the finding by value and execute, even though it is absent from lastFindings")
+	if res.Executed {
+		t.Fatal("nothing may execute without a governed workflow run")
 	}
 
 	// The shared cache must be untouched (NOT clobbered to [target]).

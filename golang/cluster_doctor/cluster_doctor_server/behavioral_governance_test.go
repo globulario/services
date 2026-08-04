@@ -568,7 +568,23 @@ func TestGatedDispatcher_ConsultsGovernanceBeforeExecuting(t *testing.T) {
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
 	f := findingWithRestartAction()
-	if allowed, _ := srv.dispatchAllowedByGovernance(context.Background(), f, 0, "restart_drifted_unit"); !allowed {
+	// The autonomous path now reaches governance through the workflow's own
+	// gate rather than a healer-side call. The property under test is
+	// unchanged — the unattended mutation must be authorized before it runs —
+	// but there is now exactly ONE decision point for operator-started and
+	// autonomous runs alike, so a dispatch cannot mint a second action check.
+	v, err := srv.gateRemediation(context.Background(), engine.GateRequest{
+		FindingID:     f.FindingID,
+		ClusterID:     "c1",
+		InvariantID:   f.InvariantID,
+		EntityRef:     f.EntityRef,
+		ActionKind:    "restart_drifted_unit",
+		WorkflowRunID: "run-1",
+	})
+	if err != nil {
+		t.Fatalf("gate returned error: %v", err)
+	}
+	if !v.Allowed {
 		t.Fatal("an allowed verdict must permit dispatch")
 	}
 	if len(gov.asked) != 1 {
@@ -581,10 +597,15 @@ func TestGatedDispatcher_ConsultsGovernanceBeforeExecuting(t *testing.T) {
 			"a verdict about the wrong subject is worse than no verdict",
 			a.InvariantID, a.EntityRef, f.InvariantID, f.EntityRef)
 	}
-	if a.WorkflowRunID != "" || a.HumanApproval != "" {
-		t.Errorf("healer dispatch must not claim a workflow run (%q) or human approval (%q):\n"+
-			"it has neither, and inventing them forges lineage the governor would trust",
-			a.WorkflowRunID, a.HumanApproval)
+	// The run id is now REAL rather than absent: an autonomous repair is a
+	// genuine Workflow Service run, so claiming one is not forgery. Human
+	// approval must still be empty — nobody approved this.
+	if a.WorkflowRunID != "run-1" {
+		t.Errorf("gate must see the real workflow run (%q), want run-1", a.WorkflowRunID)
+	}
+	if a.HumanApproval != "" {
+		t.Errorf("autonomous dispatch must not claim human approval (%q): nobody approved it, "+
+			"and inventing one forges lineage the governor would trust", a.HumanApproval)
 	}
 }
 
@@ -598,7 +619,11 @@ func TestGatedDispatcher_RefusalBlocksExecution(t *testing.T) {
 	}}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if allowed, _ := srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit"); allowed {
+	v, err := srv.gateRemediation(context.Background(), gateRequestFor(findingWithRestartAction(), "run-refuse"))
+	if err != nil {
+		t.Fatalf("gate returned error: %v", err)
+	}
+	if v.Allowed {
 		t.Error("a governed refusal must block the dispatch")
 	}
 }
@@ -614,7 +639,8 @@ func TestGatedDispatcher_UnreachableGovernorRefuses(t *testing.T) {
 	gov := &fakeGovernor{checkErr: errors.New("governor unavailable")}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if allowed, _ := srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit"); allowed {
+	v, _ := srv.gateRemediation(context.Background(), gateRequestFor(findingWithRestartAction(), "run-unreachable"))
+	if v.Allowed {
 		t.Error("an unreachable governor must be a refusal, never consent —\n" +
 			"otherwise governance is strongest when it works and absent when it does not")
 	}
@@ -631,7 +657,11 @@ func TestGatedDispatcher_UngovernedStillProceeds(t *testing.T) {
 	}}
 	srv := &ClusterDoctorServer{behavioralGovernor: gov, clusterID: "c1"}
 
-	if allowed, _ := srv.dispatchAllowedByGovernance(context.Background(), findingWithRestartAction(), 0, "restart_drifted_unit"); !allowed {
+	v, err := srv.gateRemediation(context.Background(), gateRequestFor(findingWithRestartAction(), "run-ungoverned"))
+	if err != nil {
+		t.Fatalf("gate returned error: %v", err)
+	}
+	if !v.Allowed {
 		t.Error("an ungoverned action must still proceed under the executor's own gates")
 	}
 }
@@ -652,5 +682,19 @@ func findingWithRestartAction() rules.Finding {
 				},
 			},
 		},
+	}
+}
+
+// gateRequestFor builds the gate request the autonomous path submits for a
+// finding, so these tests exercise the same single decision point production
+// uses rather than a healer-side shortcut that no longer exists.
+func gateRequestFor(f rules.Finding, runID string) engine.GateRequest {
+	return engine.GateRequest{
+		FindingID:     f.FindingID,
+		ClusterID:     "c1",
+		InvariantID:   f.InvariantID,
+		EntityRef:     f.EntityRef,
+		ActionKind:    "restart_drifted_unit",
+		WorkflowRunID: runID,
 	}
 }

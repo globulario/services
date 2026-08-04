@@ -117,18 +117,41 @@ func TestHealer_AutoActionsRouteThroughExecuteRemediation(t *testing.T) {
 	}
 }
 
-// executingDispatcher returns the configured (executed, auditID, err) so a
-// test can simulate ExecuteRemediation reporting back to the Healer.
+// executingDispatcher returns a configured DispatchResult so a test can
+// simulate a remediation run reporting back to the Healer.
+//
+// Defaults to CONVERGED when executed is true: under the current contract only
+// verified convergence is an auto-fix, so a fake that reported "executed" alone
+// would no longer exercise the success path it was written to cover.
 type executingDispatcher struct {
-	executed bool
-	auditID  string
-	err      error
-	calls    int
+	executed    bool
+	auditID     string
+	err         error
+	calls       int
+	disposition DispatchDisposition
 }
 
-func (d *executingDispatcher) Dispatch(_ context.Context, _ Finding, _ string, _ bool) (bool, string, error) {
+func (d *executingDispatcher) Dispatch(_ context.Context, _ Finding, _ string, _ bool) DispatchResult {
 	d.calls++
-	return d.executed, d.auditID, d.err
+	disp := d.disposition
+	if disp == "" {
+		switch {
+		case d.err != nil:
+			disp = DispatchExecutionFailed
+		case d.executed:
+			disp = DispatchConverged
+		default:
+			disp = DispatchProposed
+		}
+	}
+	return DispatchResult{
+		Disposition: disp,
+		AuditID:     d.auditID,
+		Executed:    d.executed,
+		Verified:    d.executed && d.err == nil,
+		Converged:   disp == DispatchConverged,
+		Err:         d.err,
+	}
 }
 
 // TestHealer_EveryExecutedActionWritesEtcdAudit verifies that when the
