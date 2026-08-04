@@ -118,6 +118,10 @@ func (s *ClusterDoctorServer) runAutonomousRemediation(
 		// workflow's behavioral-governance gate, not by an operator secret.
 		"approval_token": "",
 		"dry_run":        dryRun,
+		// Explicit resolution contract: this run exists for ONE exact finding,
+		// already bound to its run id. The resolver must demand that binding and
+		// fail closed without it.
+		"finding_binding_mode": engine.FindingBindingAutonomousRequired,
 	}
 	inputsJSON, err := json.Marshal(inputs)
 	if err != nil {
@@ -135,11 +139,32 @@ func (s *ClusterDoctorServer) runAutonomousRemediation(
 		CorrelationId: correlationID,
 	})
 	if err != nil {
-		return rules.DispatchResult{WorkflowRunID: runID},
-			fmt.Errorf("start remediation workflow: %w", err)
+		// WorkflowRunID stays EMPTY. The id we generated is a request, not a
+		// receipt: after a transport failure we cannot tell whether Workflow
+		// Service durably committed a run, and reporting the proposed id would
+		// assert a durable run we have no evidence for. Ambiguity is reported as
+		// ambiguity.
+		return rules.DispatchResult{}, fmt.Errorf("start remediation workflow "+
+			"(run %s proposed; durable commit UNCONFIRMED): %w", runID, err)
 	}
 
-	return classifyRemediationRun(runID, resp, dryRun), nil
+	// A response only counts as a committed run if it names one, and names the
+	// one we asked for. A missing id proves nothing was committed; a different
+	// id means the run that executed is not the run we bound our finding to, so
+	// nothing about that run's subject can be trusted.
+	confirmedRunID := resp.GetRunId()
+	if confirmedRunID == "" {
+		return rules.DispatchResult{}, fmt.Errorf(
+			"remediation workflow returned no run id (requested %s) — refusing to treat an "+
+				"unconfirmed run as durable", runID)
+	}
+	if confirmedRunID != runID {
+		return rules.DispatchResult{}, fmt.Errorf(
+			"remediation workflow returned run id %s but %s was requested and bound — the executed "+
+				"run is not the run this finding was bound to", confirmedRunID, runID)
+	}
+
+	return classifyRemediationRun(confirmedRunID, resp, dryRun), nil
 }
 
 // classifyRemediationRun turns a finished workflow run into a dispatch
@@ -155,13 +180,21 @@ func classifyRemediationRun(runID string, resp *workflowpb.ExecuteWorkflowRespon
 
 	outcome := remediationOutcomeFromRun(resp)
 	res.AuditID = outcome.auditID
+	res.ActionCheckID = outcome.actionCheckID
 	res.Executed = outcome.executed
 	res.Verified = outcome.verified
 	res.Converged = outcome.converged
 
 	switch {
+	case outcome.governanceUnavailable:
+		// The governor could not be reached. An infrastructure failure, NOT a
+		// decision — it must charge the circuit breaker so a governance outage
+		// becomes visible instead of looking like routine refusals.
+		res.Disposition = rules.DispatchExecutionFailed
+		res.Err = fmt.Errorf("remediation run %s: governance unavailable", runID)
 	case outcome.refused:
-		// Governance declined before any side effect. Not a malfunction.
+		// Governance declined before any side effect. Not a malfunction, so it
+		// never charges the executor failure budget.
 		res.Disposition = rules.DispatchRefused
 	case dryRun, !outcome.executed && resp.GetStatus() == "SUCCEEDED":
 		// A rehearsal, or a run that completed without attempting a mutation.
@@ -193,6 +226,13 @@ type runRemediationOutcome struct {
 	converged bool
 	refused   bool
 	auditID   string
+	// actionCheckID is the real governance decision id, kept visible even when
+	// the action was refused — a refusal an operator cannot trace back to its
+	// decision is not accountable.
+	actionCheckID string
+	// governanceUnavailable distinguishes "the governor could not be reached"
+	// from "the governor said no".
+	governanceUnavailable bool
 }
 
 // remediationOutcomeFromRun reads the canonical remediation_outcome the verify
@@ -208,15 +248,29 @@ func remediationOutcomeFromRun(resp *workflowpb.ExecuteWorkflowResponse) runReme
 	if err := json.Unmarshal([]byte(resp.GetOutputsJson()), &outputs); err != nil {
 		return out
 	}
+	// The canonical dispatch_result the execute step writes BEFORE returning on
+	// a governed refusal or a governance-unavailable failure. It is read first
+	// because those paths never reach execution_result at all: the step errors
+	// out, and without this the refusal would be indistinguishable from an
+	// executor malfunction.
+	//
+	// governance_unavailable stays distinct from refusal — one is an
+	// infrastructure failure that must charge the circuit breaker, the other is
+	// a decision that must not.
+	if dr, ok := outputs["dispatch_result"].(map[string]any); ok {
+		disposition, _ := dr["disposition"].(string)
+		out.refused = disposition == engine.DispositionRefused
+		if id, ok := dr["action_check_id"].(string); ok {
+			out.actionCheckID = id
+		}
+		if unavailable, ok := dr["governance_unavailable"].(bool); ok {
+			out.governanceUnavailable = unavailable
+		}
+	}
 	if exec, ok := outputs["execution_result"].(map[string]any); ok {
 		out.executed, _ = exec["executed"].(bool)
 		if id, ok := exec["audit_id"].(string); ok {
 			out.auditID = id
-		}
-		// A governed refusal is a structured state on the execute step, not an
-		// error string.
-		if refused, ok := exec["governance_refused"].(bool); ok && refused {
-			out.refused = true
 		}
 	}
 	if v, ok := outputs["verification"].(map[string]any); ok {
@@ -242,28 +296,39 @@ func (s *ClusterDoctorServer) buildDoctorActorRouter() *engine.Router {
 // in-process state (finding cache, ExecuteRemediation, collector).
 func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemediationConfig {
 	return engine.DoctorRemediationConfig{
-		ResolveFinding: func(ctx context.Context, runID, findingID string, stepIndex uint32) (*engine.ResolvedFinding, error) {
-			// Autonomous runs resolve from the binding written before the run
-			// started, never from lastFindings.
+		ResolveFinding: func(ctx context.Context, runID, findingID string, stepIndex uint32, bindingMode string) (*engine.ResolvedFinding, error) {
+			// The resolution contract is an explicit workflow input, never
+			// inferred from whether a binding row happens to exist.
 			//
-			// The healer selected an exact finding during its enforcement cycle
-			// and the cache has been republished at least once since. Re-reading
-			// it here could return a different finding under the same id, and the
-			// workflow would then execute a mutation against a subject the healer
-			// never authorized. A bound run therefore demands ITS finding, and a
-			// mismatch fails closed rather than falling back.
-			//
-			// Absence of a binding means an operator started this run by naming a
-			// finding id, which is a different contract: the operator wants the
-			// current finding, so the cache lookup below is correct for that path.
+			// Inferring it was unsafe: a binding can be absent because of
+			// premature cleanup, context cancellation, an RPC timeout while
+			// callbacks are still in flight, a mismatched run id, or a bug. Each
+			// of those would have been read as "this must be an operator run"
+			// and silently resolved a DIFFERENT finding from the mutable cache,
+			// then executed a mutation the healer never authorized. Absence of
+			// evidence is not evidence of a different caller.
 			var f rules.Finding
-			if bound, isAutonomous := s.runFindings.lookup(runID); isAutonomous {
+			switch bindingMode {
+			case engine.FindingBindingAutonomousRequired:
+				bound, ok := s.runFindings.lookup(runID)
+				if !ok {
+					// Fail closed, including when a late callback arrives after
+					// cleanup: the mode says a binding is REQUIRED, so a missing
+					// one is an error about this run, never a licence to read
+					// the cache.
+					return nil, fmt.Errorf("resolve_finding: run %s declares %s but no run-scoped "+
+						"finding binding exists — refusing to resolve from the mutable cache",
+						runID, engine.FindingBindingAutonomousRequired)
+				}
 				if err := bound.matches(findingID, stepIndex); err != nil {
 					return nil, fmt.Errorf("resolve_finding: run %s is bound to a different subject: %w "+
 						"— refusing to resolve", runID, err)
 				}
 				f = bound.finding
-			} else {
+
+			case engine.FindingBindingOperatorCurrent, "":
+				// An operator named a finding id and expects the CURRENT
+				// finding, so the cache is the right source here.
 				s.lastFindingsMu.RLock()
 				cached := make([]rules.Finding, len(s.lastFindings))
 				copy(cached, s.lastFindings)
@@ -273,6 +338,10 @@ func (s *ClusterDoctorServer) buildDoctorRemediationConfig() engine.DoctorRemedi
 				if !ok {
 					return nil, fmt.Errorf("finding %s not in last snapshot — call GetClusterReport first", findingID)
 				}
+
+			default:
+				return nil, fmt.Errorf("resolve_finding: unknown finding_binding_mode %q — refusing to guess "+
+					"which resolution contract applies", bindingMode)
 			}
 			steps := f.Remediation
 			if int(stepIndex) >= len(steps) {

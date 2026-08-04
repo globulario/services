@@ -748,14 +748,18 @@ func snapGeneratedAt(snap *collector.Snapshot) time.Time {
 // could produce two records — and the healer's copy could never be lineage
 // complete, because it belonged to no workflow run. Autonomous repairs now
 // reach this function only through the run that performed them.
-func (s *ClusterDoctorServer) observeOutcome(ctx context.Context, o remediation.Outcome, auditID string) {
+func (s *ClusterDoctorServer) observeOutcome(ctx context.Context, o remediation.Outcome, actionCheckID string) {
 	evidenceID := s.emitBehavioralRemediationOutcome(o)
 	s.recordGovernedOutcome(ctx, o, evidenceID)
 	logger.Info("learning: healer outcome recorded",
 		"invariant_id", o.InvariantID,
 		"entity_ref", o.EntityRef,
 		"finding_resolved", o.FindingResolved,
-		"audit_id", auditID,
+		// The governance decision id, not the remediation audit id. These are
+		// different identities and were previously logged under the wrong name,
+		// which would send an operator looking for a /globular/cluster_doctor/
+		// audit/rem-* record that does not exist under this value.
+		"action_check_id", actionCheckID,
 	)
 }
 

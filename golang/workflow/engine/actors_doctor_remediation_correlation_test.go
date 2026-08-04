@@ -18,7 +18,7 @@ import (
 func TestDoctorActorHandlersPropagateCorrelationAndRunID(t *testing.T) {
 	var seenCorrelation, seenRun string
 	cfg := DoctorRemediationConfig{
-		ResolveFinding: func(ctx context.Context, _ string, findingID string, stepIndex uint32) (*ResolvedFinding, error) {
+		ResolveFinding: func(ctx context.Context, _ string, findingID string, stepIndex uint32, _ string) (*ResolvedFinding, error) {
 			seenCorrelation = remediation.CorrelationFromContext(ctx)
 			seenRun = remediation.WorkflowRunFromContext(ctx)
 			return &ResolvedFinding{

@@ -37,7 +37,7 @@ func chain(t *testing.T, mut ...func(*DoctorRemediationConfig)) remediation.Outc
 	dispatched := true
 	cfg := DoctorRemediationConfig{
 		Now: func() time.Time { return lnDispatchAt },
-		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32) (*ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32, _ string) (*ResolvedFinding, error) {
 			return &ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: lnNode,
 				ActionType: "SYSTEMCTL_RESTART", Risk: "LOW", Idempotent: true,

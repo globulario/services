@@ -77,7 +77,7 @@ func plRunChain(t *testing.T, cluster, run string, mut ...func(*engine.DoctorRem
 	var captured []remediation.Outcome
 	cfg := engine.DoctorRemediationConfig{
 		Now: func() time.Time { return plDispatchAt },
-		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32) (*engine.ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32, _ string) (*engine.ResolvedFinding, error) {
 			return &engine.ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: plNode,
 				ActionType: "SYSTEMCTL_RESTART", Risk: "LOW", Idempotent: true,

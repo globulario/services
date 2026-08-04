@@ -28,11 +28,33 @@ spec:
       verify_timeout:
         type: string
         default: 30s
+      # How resolve_finding is allowed to obtain the finding.
+      #
+      # autonomous_required — this run was started by the healer for ONE exact
+      #   finding, bound to the run id before the run started. The resolver MUST
+      #   use that binding and MUST fail closed if it is absent or mismatched.
+      #   It must never read the mutable last-findings cache, because between
+      #   selection and callback that cache can hold a different finding under
+      #   the same id.
+      #
+      # operator_current — an operator named a finding id and expects the
+      #   CURRENT finding, so resolving from the cache is correct.
+      #
+      # Carried as an explicit input rather than inferred from whether a binding
+      # row happens to exist: absence has many causes (premature cleanup,
+      # cancellation, RPC timeout with callbacks in flight, a mismatched run id,
+      # a bug), and treating any of them as "this must be an operator run" would
+      # silently substitute a different finding.
+      finding_binding_mode:
+        type: string
+        enum: [autonomous_required, operator_current]
+        default: operator_current
 
   defaults:
     step_index: 0
     approval_token: ""
     dry_run: false
+    finding_binding_mode: operator_current
     verify_timeout: 30s
 
   strategy:
@@ -46,6 +68,7 @@ spec:
       with:
         finding_id: $.finding_id
         step_index: $.step_index
+        finding_binding_mode: $.finding_binding_mode
       # Expected run outputs written by handler:
       # resolved_finding:
       #   {

@@ -104,7 +104,7 @@ func runGoverned(t *testing.T, gov behavioralGovernor, converged bool) gvResult 
 
 	cfg := engine.DoctorRemediationConfig{
 		Now: func() time.Time { return gvDispatchAt },
-		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32) (*engine.ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32, _ string) (*engine.ResolvedFinding, error) {
 			return &engine.ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: gvNode,
 				ActionType: gvAction, Risk: "LOW", Idempotent: true,
@@ -309,7 +309,7 @@ func TestGoverned_HumanApprovalCombinesWithExistingGate(t *testing.T) {
 	var executorSawToken string
 	cfg := engine.DoctorRemediationConfig{
 		Now: func() time.Time { return gvDispatchAt },
-		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32) (*engine.ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32, _ string) (*engine.ResolvedFinding, error) {
 			return &engine.ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: gvNode, ActionType: gvAction,
 				Risk: "HIGH", Idempotent: true, HasAction: true,

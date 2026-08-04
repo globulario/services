@@ -93,6 +93,10 @@ type DispatchResult struct {
 	// before start, or the service was unreachable).
 	WorkflowRunID string `json:"workflow_run_id,omitempty"`
 	AuditID       string `json:"audit_id,omitempty"`
+	// ActionCheckID is the governance decision for this attempt. Populated even
+	// on a refusal: a refusal an operator cannot trace back to its decision is
+	// not accountable.
+	ActionCheckID string `json:"action_check_id,omitempty"`
 
 	// Executed / Verified / Converged are the three independent facts the
 	// disposition is derived from, kept so a reader can see WHY without

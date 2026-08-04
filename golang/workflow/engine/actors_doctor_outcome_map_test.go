@@ -30,7 +30,7 @@ func omOutcome(t *testing.T) remediation.Outcome {
 func omConfig(mut ...func(*DoctorRemediationConfig)) DoctorRemediationConfig {
 	cfg := DoctorRemediationConfig{
 		Now: func() time.Time { return lnDispatchAt },
-		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32) (*ResolvedFinding, error) {
+		ResolveFinding: func(_ context.Context, _ string, id string, idx uint32, _ string) (*ResolvedFinding, error) {
 			return &ResolvedFinding{
 				FindingID: id, StepIndex: idx, NodeID: lnNode,
 				ActionType: "SYSTEMCTL_RESTART", Risk: "LOW", Idempotent: true,

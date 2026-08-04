@@ -113,7 +113,15 @@ type DoctorRemediationConfig struct {
 	// selected to this run id before starting it, and the resolver must be able
 	// to demand THAT finding rather than re-reading a mutable cache that may
 	// have changed between selection and dispatch.
-	ResolveFinding func(ctx context.Context, runID, findingID string, stepIndex uint32) (*ResolvedFinding, error)
+	// bindingMode is the run's explicit resolution contract, carried as a
+	// workflow input. FindingBindingAutonomousRequired means a run-scoped
+	// binding MUST exist and match; absence or mismatch must fail closed.
+	// FindingBindingOperatorCurrent means resolving the current cached finding
+	// is correct. It is passed rather than inferred because binding absence has
+	// many causes — premature cleanup, cancellation, an RPC timeout with
+	// callbacks still in flight, a mismatched run id, a bug — and treating any
+	// of them as "operator run" would silently substitute a different finding.
+	ResolveFinding func(ctx context.Context, runID, findingID string, stepIndex uint32, bindingMode string) (*ResolvedFinding, error)
 
 	// ExecuteRemediation forwards to cluster_doctor.ExecuteRemediation.
 	// The workflow never executes side-effects outside this call.
@@ -175,6 +183,30 @@ type DoctorRemediationConfig struct {
 // GateRequest is the real action context a governed check is made against. Every
 // field is read from workflow state, never invented: a gate asked about the
 // wrong subject returns a confident answer to a question nobody posed.
+// Finding resolution contracts, carried as the finding_binding_mode workflow
+// input. See remediate.doctor.finding.yaml.
+const (
+	// FindingBindingAutonomousRequired — the run was started for ONE exact
+	// finding bound to its run id before the run began. Resolution must use
+	// that binding and fail closed otherwise.
+	FindingBindingAutonomousRequired = "autonomous_required"
+	// FindingBindingOperatorCurrent — an operator named a finding id and
+	// expects the current finding.
+	FindingBindingOperatorCurrent = "operator_current"
+)
+
+// Canonical dispatch dispositions written to the run's dispatch_result output.
+//
+// These exist so a caller can classify a run from STRUCTURED fields that
+// survive a failed step, rather than by matching error text. A refusal and an
+// executor malfunction are different worlds — one is governance working, the
+// other charges a circuit breaker — and a classifier that told them apart by
+// string would change meaning the next time a message was reworded.
+const (
+	DispositionRefused         = "REFUSED"
+	DispositionExecutionFailed = "EXECUTION_FAILED"
+)
+
 type GateRequest struct {
 	FindingID     string
 	ClusterID     string
@@ -238,7 +270,13 @@ func doctorResolveFinding(cfg DoctorRemediationConfig) ActionHandler {
 			return nil, fmt.Errorf("resolve_finding: no ResolveFinding handler configured")
 		}
 		ctx = withRemediationCorrelation(ctx, req)
-		rf, err := cfg.ResolveFinding(ctx, req.RunID, findingID, stepIndex)
+		// Default is the operator contract, matching the definition's default.
+		// An autonomous caller must say so explicitly.
+		bindingMode := toStr(req.With["finding_binding_mode"])
+		if bindingMode == "" {
+			bindingMode = FindingBindingOperatorCurrent
+		}
+		rf, err := cfg.ResolveFinding(ctx, req.RunID, findingID, stepIndex, bindingMode)
 		if err != nil {
 			return nil, fmt.Errorf("resolve_finding: %w", err)
 		}
@@ -371,6 +409,16 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 			// not decided in favour; treating an unreachable gate as consent
 			// would make governance strongest exactly when it is working and
 			// absent exactly when it is not.
+			// Governance UNAVAILABLE is not governance REFUSED. Both stop the
+			// action, but only the second is a decision; the first is an
+			// infrastructure failure and must charge the circuit breaker.
+			req.Outputs["dispatch_result"] = map[string]any{
+				"disposition":            DispositionExecutionFailed,
+				"governance_unavailable": true,
+				"executed":               false,
+				"verified":               false,
+				"converged":              false,
+			}
 			return nil, fmt.Errorf("execute_remediation: governance check unavailable, refusing to dispatch: %w", gateErr)
 		}
 		if verdict != nil {
@@ -378,6 +426,23 @@ func doctorExecuteRemediation(cfg DoctorRemediationConfig) ActionHandler {
 			// audit trail as an allowed one.
 			req.Outputs["governance"] = gateVerdictAsMap(*verdict)
 			if !verdict.Allowed {
+				// Written BEFORE returning, because req.Outputs is the run's
+				// accumulated map and therefore survives this step's error into
+				// the run's final OutputsJson. Without it the refusal would be
+				// indistinguishable from an executor failure, and a correct
+				// governance decision would charge the healer's circuit breaker
+				// — letting governance disable the healer by working.
+				//
+				// Nothing executed, so this deliberately claims no dispatch and
+				// no verification, and no remediation outcome is emitted.
+				req.Outputs["dispatch_result"] = map[string]any{
+					"disposition":     DispositionRefused,
+					"action_check_id": verdict.ActionCheckID,
+					"status":          verdict.Status,
+					"executed":        false,
+					"verified":        false,
+					"converged":       false,
+				}
 				return nil, fmt.Errorf("execute_remediation: blocked by governance (status=%s check=%s): %s",
 					verdict.Status, verdict.ActionCheckID, verdict.Reason)
 			}
