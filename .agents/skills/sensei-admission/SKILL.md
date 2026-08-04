@@ -25,24 +25,40 @@ or closure work that is still waiting on questions or evidence.
 
 1. Identify the exact move: files, allowed operation, expected behavior, and
    known proof still pending.
-2. Prefer MCP `admit_change` when available:
+2. If no convergence bundle exists and the repository has
+   `.sensei/project/claims.yaml`, create the awareness checkpoint first:
+   `sensei prepare-change --repo <checkout> --repo-domain <domain>
+   --description "..." --mode modify --task-class <class> --risk-class <risk>
+   --direction <direction> --graph-nt <checkout>/.sensei/project/graph.nt
+   --file modify:<path> ...`.
+   - This command runs one deterministic convergence iteration and admission
+     evaluation without mutating source.
+   - Brief each planned file with `sensei task-briefing --repo <checkout>
+     --active --file <path>`, then inspect `sensei task-status --repo <checkout>
+     --active --compact`.
+   - Run `sensei advance-task --repo <checkout> --active` while bounded static
+     Evidence is the primary action. Ask only the primary architect question
+     when status selects it.
+   - On `waiting`, route the primary unresolved action to `sensei-closure`. Do
+     not invent an empty bundle, ask every generated question, or bypass it.
+3. Prefer MCP `admit_change` when an explicit bundle is already available:
    `bundle_dir`, `request_path`, `graph_nt`, `repo`, optional `policy`, optional
    `detail`.
-3. CLI fallback:
+4. CLI fallback:
    `sensei admit-change --bundle <dir> --request <request.yaml> --graph-nt <graph.nt> --repo <checkout> --output <decision.yaml> --format yaml`.
-4. Interpret the decision:
+5. Interpret the decision:
    - `admitted`: edit only inside the envelope.
    - `admitted_with_conditions`: edit only inside the envelope and keep the
      conditions visible as pending proof.
    - `waiting`, `refused`, `uncertifiable`: stop mutation and route to
      `sensei-closure` or the user.
-5. During editing, stop if the needed file set, behavior, or authority surface
+6. During editing, stop if the needed file set, behavior, or authority surface
    expands beyond the envelope.
-6. Verify the diff with MCP `verify_admission`:
+7. Verify the diff with MCP `verify_admission`:
    `decision_path`, `bundle_dir`, `repo`, optional `detail`.
-7. CLI fallback:
+8. CLI fallback:
    `sensei verify-admission --decision <decision.yaml> --bundle <dir> --repo <checkout> --output <verification.yaml> --format yaml`.
-8. Inspect receipts when needed:
+9. Inspect receipts when needed:
    `sensei admission-status --decision <decision.yaml> --verification <verification.yaml>`.
 
 ## Compact Output
@@ -81,10 +97,15 @@ Admission Verification
 - Never broaden the envelope while editing.
 - Never hide untracked files from verification.
 - Never mutate on `waiting`, `refused`, stale, or `uncertifiable`.
-- Never execute probes, record answers, or advance convergence from this skill.
+- Never execute ad hoc probes; only `advance-task` may run its closed static-read registry.
+- Never record or invent architect answers from this skill.
+- Never treat inspection admission as mutation admission.
+- Never interpret compact status or briefing as proof of correctness.
 - Never use Preflight, Gate, or EditCheck as admission substitutes.
 - Never invent a bundle, digest, decision, or verification receipt.
 - Never treat candidate knowledge as active authority.
+- Never treat repository reconstruction as task closure. Its claims and unknowns
+  are inputs to the bounded awareness checkpoint.
 
 ## References
 
