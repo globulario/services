@@ -170,6 +170,62 @@ func TestEngine_TerminalDeltaSemantics(t *testing.T) {
 		}
 	})
 
+	// Cancellation while WAITING to retry makes the current attempt terminal.
+	// Both engine exit paths used to return without merging, so the receipt of
+	// the attempt cancellation had just finalized disappeared.
+	for _, tc := range []struct {
+		name   string
+		handle func() (*ActionResult, error)
+	}{
+		{
+			name: "result plus error cancelled during backoff keeps its receipt",
+			handle: func() (*ActionResult, error) {
+				return &ActionResult{OK: false, Output: receipt("REFUSED_THEN_CANCELLED")},
+					fmt.Errorf("blocked by governance")
+			},
+		},
+		{
+			name: "OK false cancelled during backoff keeps its receipt",
+			handle: func() (*ActionResult, error) {
+				return &ActionResult{OK: false, Output: receipt("NOT_OK_THEN_CANCELLED"),
+					Message: "not ok"}, nil
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			invoked := make(chan struct{}, 1)
+
+			router := NewRouter()
+			router.RegisterFallback(v1alpha1.ActorClusterDoctor,
+				func(context.Context, ActionRequest) (*ActionResult, error) {
+					select {
+					case invoked <- struct{}{}:
+					default:
+					}
+					return tc.handle()
+				})
+
+			// Cancel once the handler has run and the engine has entered its
+			// long backoff, so the Done() branch — not the timer — wins.
+			go func() {
+				<-invoked
+				time.Sleep(50 * time.Millisecond)
+				cancel()
+			}()
+
+			run := runOneStepCtx(t, ctx, router, 3, "60s")
+			if run.Status == RunSucceeded {
+				t.Fatal("a cancelled step must not succeed")
+			}
+			if _, ok := run.Outputs["dispatch_result"]; !ok {
+				t.Errorf("cancellation made that attempt TERMINAL, so its receipt must survive; "+
+					"outputs=%v", run.Outputs)
+			}
+		})
+	}
+
 	t.Run("superseded retry receipt does not leak", func(t *testing.T) {
 		attempt := 0
 		router := NewRouter()
@@ -195,6 +251,16 @@ func TestEngine_TerminalDeltaSemantics(t *testing.T) {
 // runOneStep executes a one-step definition with the given retry budget.
 func runOneStep(t *testing.T, router *Router, attempts int) *Run {
 	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return runOneStepCtx(t, ctx, router, attempts, "")
+}
+
+// runOneStepCtx runs one step under a caller-controlled context and retry
+// backoff, so a test can cancel WHILE the engine sits in backoff waiting to
+// retry — the exit path that used to discard the attempt's receipt.
+func runOneStepCtx(t *testing.T, ctx context.Context, router *Router, attempts int, backoff string) *Run {
+	t.Helper()
 	// Built through the loader so the definition satisfies the SAME validation
 	// production definitions do; a hand-built struct skips it and the engine
 	// refuses to compile.
@@ -205,6 +271,9 @@ func runOneStep(t *testing.T, router *Router, attempts int) *Run {
 		"    - id: only\n      actor: cluster-doctor\n      action: doctor.anything\n"
 	if attempts > 1 {
 		yamlDef += "      retry:\n        maxAttempts: " + fmt.Sprint(attempts) + "\n"
+		if backoff != "" {
+			yamlDef += "        backoff: " + backoff + "\n"
+		}
 	}
 	def, loadErr := v1alpha1.NewLoader().LoadBytes([]byte(yamlDef))
 	if loadErr != nil {
@@ -212,8 +281,6 @@ func runOneStep(t *testing.T, router *Router, attempts int) *Run {
 	}
 	_ = def
 	eng := &Engine{Router: router, RunID: "run-terminal-delta"}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	run, execErr := eng.Execute(ctx, def, map[string]any{})
 	if run == nil {
 		t.Fatalf("nil run (err=%v)", execErr)

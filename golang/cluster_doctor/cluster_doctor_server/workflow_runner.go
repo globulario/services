@@ -293,6 +293,19 @@ func classifyRemediationRun(runID string, resp *workflowpb.ExecuteWorkflowRespon
 			runID, resp.GetError())
 	case !outcome.converged:
 		res.Disposition = rules.DispatchExecutedNotConverged
+	case !outcome.hasDispatchInstant:
+		// The finding cleared, but the run carries no dispatch instant, so the
+		// convergence reading cannot be placed AFTER the action. Reporting
+		// CONVERGED here would increment AutoFixed for a repair whose success
+		// cannot be attributed — the same "the report lies" class this
+		// architecture exists to remove.
+		//
+		// Defence in depth: the doctor's verifier already refuses a zero
+		// dispatch instant. This ensures a future verifier that forgets to, or
+		// a timestamp lost in transport, cannot manufacture an auto-fix.
+		res.Disposition = rules.DispatchExecutedUnverified
+		res.Err = fmt.Errorf("remediation run %s converged but carries no dispatch instant — "+
+			"convergence cannot be placed after the action", runID)
 	default:
 		res.Disposition = rules.DispatchConverged
 	}
@@ -314,6 +327,10 @@ type runRemediationOutcome struct {
 	// governanceUnavailable distinguishes "the governor could not be reached"
 	// from "the governor said no".
 	governanceUnavailable bool
+	// hasDispatchInstant reports whether the run recorded WHEN the executor
+	// accepted. Without it, a convergence reading cannot be ordered after the
+	// action it claims to verify.
+	hasDispatchInstant bool
 	// governanceStatus is the governor's structured status for a refusal
 	// (e.g. needs_evidence), kept so an operator sees WHY without parsing prose.
 	governanceStatus string
@@ -361,6 +378,9 @@ func remediationOutcomeFromRun(resp *workflowpb.ExecuteWorkflowResponse) (runRem
 		// The executed path carries its authorizing decision here; the refusal
 		// path never reaches this output at all.
 		execCheckID, _ = exec["action_check_id"].(string)
+		if ts, ok := exec["dispatched_at"].(string); ok && ts != "" {
+			out.hasDispatchInstant = true
+		}
 	}
 
 	// Two non-empty, DIFFERENT decision ids in one run is not a value to choose

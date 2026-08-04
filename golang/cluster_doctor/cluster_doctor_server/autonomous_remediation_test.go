@@ -99,8 +99,9 @@ func TestClassifyRemediationRun(t *testing.T) {
 		{
 			name: "converged",
 			outputs: map[string]any{
-				"execution_result": map[string]any{"executed": true, "audit_id": "rem-1", "action_check_id": "chk-1"},
-				"verification":     map[string]any{"converged": true},
+				"execution_result": map[string]any{"executed": true, "audit_id": "rem-1",
+					"action_check_id": "chk-1", "dispatched_at": "2026-08-04T12:00:00Z"},
+				"verification": map[string]any{"converged": true},
 			},
 			status:          "SUCCEEDED",
 			wantDisposition: rules.DispatchConverged,
@@ -127,6 +128,17 @@ func TestClassifyRemediationRun(t *testing.T) {
 			wantDisposition: rules.DispatchExecutedUnverified,
 			wantCheckID:     "chk-3",
 			why:             "a real mutation with unknown convergence must not be guessed either way",
+		},
+		{
+			name: "converged without a dispatch instant cannot be an auto-fix",
+			outputs: map[string]any{
+				"execution_result": map[string]any{"executed": true, "audit_id": "rem-5"},
+				"verification":     map[string]any{"converged": true},
+			},
+			status:          "SUCCEEDED",
+			wantDisposition: rules.DispatchExecutedUnverified,
+			why: "the finding cleared, but with no dispatch instant the reading cannot be placed " +
+				"after the action — counting it as AutoFixed would attribute a success we cannot prove",
 		},
 		{
 			name: "governed refusal",
@@ -175,8 +187,9 @@ func TestClassifyRemediationRun(t *testing.T) {
 		{
 			name: "ungoverned attempt carries an empty check id honestly",
 			outputs: map[string]any{
-				"execution_result": map[string]any{"executed": true, "audit_id": "rem-4"},
-				"verification":     map[string]any{"converged": true},
+				"execution_result": map[string]any{"executed": true, "audit_id": "rem-4",
+					"dispatched_at": "2026-08-04T12:00:00Z"},
+				"verification": map[string]any{"converged": true},
 			},
 			status:          "SUCCEEDED",
 			wantDisposition: rules.DispatchConverged,

@@ -51,13 +51,17 @@ type remoteHarness struct {
 	outcomes []remediation.Outcome
 
 	// scripted behavior
-	verifiedAt   []time.Time // dispatchedAt values the verifier actually received
-	verdict      *engine.GateVerdict
-	gateErr      error
-	converged    bool
-	verifyErr    error
-	beforeExec   func() // runs between resolution and execution
-	publicExecOK bool   // set if the PUBLIC ExecuteRemediation path is ever used
+	verifiedAt []time.Time // dispatchedAt values the verifier actually received
+	verdict    *engine.GateVerdict
+	gateErr    error
+	converged  bool
+	verifyErr  error
+	beforeExec func() // runs between resolution and execution
+	// mutateDelta rewrites a step's output delta AS IT CROSSES the transport,
+	// so a test can simulate a field failing to survive the RPC without
+	// changing what the handler actually did.
+	mutateDelta  func(action string, out map[string]any)
+	publicExecOK bool // set if the PUBLIC ExecuteRemediation path is ever used
 }
 
 const (
@@ -161,9 +165,16 @@ func (h *remoteHarness) run(t *testing.T, inputs map[string]any) *engine.Run {
 
 	// Engine side: the PRODUCTION remote handler as the cluster-doctor fallback.
 	engineRouter := engine.NewRouter()
+	remote := actortransport.Handler(string(v1alpha1.ActorClusterDoctor),
+		actortransport.StaticClient(workflowpb.NewWorkflowActorServiceClient(conn)))
 	engineRouter.RegisterFallback(v1alpha1.ActorClusterDoctor,
-		actortransport.Handler(string(v1alpha1.ActorClusterDoctor),
-			actortransport.StaticClient(workflowpb.NewWorkflowActorServiceClient(conn))))
+		func(ctx context.Context, req engine.ActionRequest) (*engine.ActionResult, error) {
+			res, err := remote(ctx, req)
+			if h.mutateDelta != nil && res != nil && res.Output != nil {
+				h.mutateDelta(req.Action, res.Output)
+			}
+			return res, err
+		})
 
 	loader := v1alpha1.NewLoader()
 	def, err := loader.LoadFile("../../workflow/definitions/remediate.doctor.finding.yaml")
@@ -611,15 +622,13 @@ func outputKeysOf(m map[string]any) []string {
 	return out
 }
 
-// TestRemoteDAG_MissingDispatchedAtIsDetected is the negative control for
-// lineage continuity.
+// TestRemoteDAG_NoDispatchCannotConverge proves a run that never dispatched
+// cannot present itself as a converged repair.
 //
-// If dispatched_at ever stops surviving the actor RPC, the verifier receives a
-// zero instant and the outcome loses the binding that places verification after
-// the action. That is half of the original lineage defect, and it would be
-// invisible to a test whose verifier ignores the argument — which is exactly
-// what this suite did until now.
-func TestRemoteDAG_MissingDispatchedAtIsDetected(t *testing.T) {
+// Named for what it actually proves. It is NOT the dispatched_at control —
+// nothing was executed here, so no timestamp should exist. See
+// TestRemoteDAG_DispatchedAtLostInTransportIsDetected for that.
+func TestRemoteDAG_NoDispatchCannotConverge(t *testing.T) {
 	h := newRemoteHarness(t)
 	h.bind(t, autonomousFinding())
 	// Simulate the timestamp vanishing: the executor reports success but the
@@ -644,5 +653,73 @@ func TestRemoteDAG_MissingDispatchedAtIsDetected(t *testing.T) {
 	res := h.classify(t, run, false)
 	if res.Disposition == rules.DispatchConverged {
 		t.Error("a run that never dispatched must not classify as CONVERGED")
+	}
+}
+
+// TestRemoteDAG_DispatchedAtLostInTransportIsDetected is the real negative
+// control for lineage continuity.
+//
+// The executor genuinely ran — Executed stays true — and ONLY
+// execution_result.dispatched_at is removed as the delta crosses the transport,
+// which is precisely the failure this suite exists to catch: a mutation that
+// happened, whose dispatch instant did not survive, leaving verification unable
+// to prove it read post-action state.
+//
+// The earlier version of this control returned Executed:false, which proved a
+// different (and weaker) proposition.
+func TestRemoteDAG_DispatchedAtLostInTransportIsDetected(t *testing.T) {
+	h := newRemoteHarness(t)
+	h.bind(t, autonomousFinding())
+
+	// Drop only the timestamp, only on the execute step, only in transit.
+	h.mutateDelta = func(action string, out map[string]any) {
+		if action != "doctor.execute_remediation" {
+			return
+		}
+		if er, ok := out["execution_result"].(map[string]any); ok {
+			delete(er, "dispatched_at")
+		}
+	}
+
+	run := h.run(t, rdInputs(engine.FindingBindingAutonomousRequired, false))
+
+	// The action DID execute — this is not a no-dispatch case.
+	if h.exec != 1 {
+		t.Fatalf("executor called %d time(s), want exactly 1 — the mutation really happened", h.exec)
+	}
+	if er, ok := run.Outputs["execution_result"].(map[string]any); ok {
+		if executed, _ := er["executed"].(bool); !executed {
+			t.Fatal("this control requires a genuinely executed action")
+		}
+		if ts, present := er["dispatched_at"]; present {
+			t.Fatalf("the control failed to remove dispatched_at (got %v)", ts)
+		}
+	}
+
+	if len(h.verifiedAt) != 1 {
+		t.Fatalf("verifier invoked %d time(s), want 1", len(h.verifiedAt))
+	}
+	if !h.verifiedAt[0].IsZero() {
+		t.Errorf("verifier received %s, want the zero instant — the timestamp was removed in "+
+			"transit, so ordering cannot be proven", h.verifiedAt[0])
+	}
+	for _, o := range h.outcomes {
+		if o.LineageComplete() {
+			t.Error("an outcome with no dispatch instant must not be lineage-complete")
+		}
+		if !o.DispatchedAt.IsZero() {
+			t.Errorf("outcome DispatchedAt = %s, want zero — nothing may synthesise it", o.DispatchedAt)
+		}
+	}
+	if ro, ok := run.Outputs["remediation_outcome"].(map[string]any); ok {
+		if complete, _ := ro["lineage_complete"].(bool); complete {
+			t.Error("terminal receipt must not report lineage_complete without a dispatch instant")
+		}
+		if ts, _ := ro["dispatched_at"].(string); ts != "" {
+			t.Errorf("terminal receipt carries dispatched_at %q, want none", ts)
+		}
+	}
+	if res := h.classify(t, run, false); res.Disposition == rules.DispatchConverged {
+		t.Error("a repair whose dispatch instant is unknown must not classify as CONVERGED")
 	}
 }
