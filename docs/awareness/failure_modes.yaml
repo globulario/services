@@ -7467,9 +7467,18 @@ failure_modes:
         FAILS at install_workloads_control_plane, and the drift-reconciler re-dispatches the package every
         ~30s forever. Symptom: an 8-minute silent gap between pin-artifact and post-install, an EMPTY globular-<svc>.service
         journal (the describe exec is a stray process, not the systemd unit), and FAILED after exactly 8m0.008s.'
-      contract: A best-effort install preflight (e.g. --describe) MUST be independently time-bounded and MUST
-        NEVER inherit-and-consume the caller's install budget. Every service binary MUST honor --describe
-        (answer and exit, or fail-fast) and MUST NOT start serving on an unrecognized flag.
+      contract: A best-effort --describe install preflight MUST be independently time-bounded and MUST
+        NEVER consume the caller's install budget. A service binary invoked with --describe MUST answer
+        and exit, or fail fast, and MUST NEVER enter its serving path.
+      scope_note: Deliberately scoped to --describe — that is what the 2026-07 incident proved and what
+        the shipped fixes enforce. The broader rule "a service binary must reject every unrecognized
+        informational or preflight flag before server startup" is NOT claimed here, and is NOT true of
+        the codebase today - golang/mcp/main.go matches only --describe, --version and --help/-h, so any
+        other argument (for example --metadata) falls through the switch and reaches server startup.
+        Promoting that wording would make this entry claim more than the implementation guarantees. If
+        the broader rule is wanted it needs its own evidence and its own enforcement, ideally in the
+        shared informational-flag handler (globular_service.HandleInformationalFlags), rather than
+        riding in on this incident.
       source_files:
       - golang/node_agent/node_agent_server/internal/actions/serviceports/config.go
       - golang/mcp/main.go
@@ -7477,6 +7486,7 @@ failure_modes:
       - golang/node_agent/node_agent_server/internal/actions/artifact.go
       required_tests:
       - golang/node_agent/node_agent_server/internal/actions/serviceports/describe_bound_test.go:TestRunDescribeBoundedWhenBinaryHangs
+      - golang/mcp/describe_exits_test.go:TestDescribeExitsWithoutServing
       forbidden_fixes:
       - 'Only fixing mcp''s --describe handling without bounding runDescribe: a future binary that regresses
         into serve-on-describe would hang the join again — the node-agent must defend regardless of binary
