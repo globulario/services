@@ -5,10 +5,31 @@ Promote a session-discovered awareness candidate into canonical YAML.
 Workflow
 --------
 A candidate sits in docs/awareness/candidates/<file>.yaml with
-status:candidate. This script moves a single candidate (by id) into one
+status:candidate. This script COPIES a single candidate (by id) into one
 of the canonical knowledge files (invariants.yaml / failure_modes.yaml /
-intents.yaml), strips the candidate-only fields, records provenance,
-and removes the entry from the candidate file.
+intents.yaml), strips the candidate-only fields, and records provenance.
+
+Single authority
+----------------
+The canonical corpus is the only mutable authority. The candidate file is
+an APPEND-ONLY discovery ledger and is never written by this script — not
+to delete a promoted entry, not to set a flag. Promotion state is DERIVED:
+
+    canonical id absent                          → PENDING
+    canonical id present, provenance points here → PROMOTED
+    canonical id present, belongs to something else → CONFLICT
+
+Deriving the state rather than storing it removes an entire class of
+problem. Before 2026-08-03 promotion wrote two files in sequence, so it
+needed cross-file atomicity, rollback on partial failure, and — to close
+the crash window between the two swaps — a write-ahead journal with
+recovery-on-startup semantics. None of that exists now because the second
+write does not exist. Re-running a promotion is a no-op that reports
+"already promoted" rather than a duplicate-id error, so retry is
+idempotent by construction rather than by protocol.
+
+The ledger grows without bound, which is correct: what was discovered, and
+when, is history worth keeping.
 
 The script does NOT regenerate RDF triples. That flows through the
 normal build pipeline: after promotion, run
@@ -37,7 +58,10 @@ Validation
     <namespace>.<bare_id>   where each segment is [a-z0-9._]+
   A leading `candidate.<class>.` prefix is stripped first: the candidate
   id `candidate.invariant.meta.foo` promotes to canonical id `meta.foo`.
-- ID must NOT already exist in any canonical YAML file (no duplicates).
+- The canonical id must be free, or already owned by THIS candidate (in
+  which case promotion is a reported no-op). An id owned by a different
+  candidate, or by an entry carrying no candidate provenance, is a
+  CONFLICT and refuses.
 - Candidate must have status:candidate and confidence != "low".
 - Candidate must carry evidence in at least one evidence-bearing field.
 - Candidate must carry provenance (`discovered_from` or `discovered`).
@@ -333,11 +357,10 @@ def provenance_of(candidate: dict) -> str:
 
 # ─── canonical corpus ────────────────────────────────────────────────────
 
-def all_canonical_ids() -> set[str]:
-    """Walk docs/awareness/*.yaml (NOT candidates/, NOT subdirs) and
-    collect every existing id across invariants/failure_modes/intents/
-    incident_patterns lists."""
-    ids: set[str] = set()
+def all_canonical_entries() -> dict[str, dict]:
+    """Every canonical entry by id, from docs/awareness/*.yaml (NOT
+    candidates/, NOT subdirs)."""
+    entries_by_id: dict[str, dict] = {}
     canonical_dir = REPO_ROOT / "docs" / "awareness"
     for yaml_path in canonical_dir.glob("*.yaml"):  # NB: glob, not rglob — top level only
         data = load_yaml(yaml_path)
@@ -349,8 +372,65 @@ def all_canonical_ids() -> set[str]:
                 continue
             for entry in entries:
                 if isinstance(entry, dict) and "id" in entry:
-                    ids.add(entry["id"])
-    return ids
+                    entries_by_id.setdefault(entry["id"], entry)
+    return entries_by_id
+
+
+def all_canonical_ids() -> set[str]:
+    """Ids of every canonical entry."""
+    return set(all_canonical_entries())
+
+
+# ─── promotion state (derived, never stored) ─────────────────────────────
+#
+# The canonical corpus is the ONLY mutable authority. A candidate's
+# promotion state is DERIVED from whether its canonical id is present and
+# whose it is — never recorded as a flag in the ledger and never signalled
+# by deleting the ledger entry. That removes the two-file synchronization
+# class entirely: no second write, no cross-file transaction, no rollback,
+# no crash journal, and retry is idempotent by construction.
+
+STATE_PENDING = "PENDING"
+STATE_PROMOTED = "PROMOTED"
+STATE_CONFLICT = "CONFLICT"
+
+
+def promotion_state(
+    candidate: dict, canonical: dict[str, dict] | None = None
+) -> tuple[str, str]:
+    """(state, human detail) for one candidate.
+
+    PENDING   — canonical id absent.
+    PROMOTED  — canonical id present and provenance says it came from THIS
+                candidate. Robust to later hand-polishing of the canonical
+                entry, which is expected and encouraged.
+    CONFLICT  — canonical id present but belongs to something else: a
+                different candidate, or an entry with no candidate
+                provenance at all. The id is taken; promoting would either
+                collide or silently overwrite meaning.
+    """
+    if canonical is None:
+        canonical = all_canonical_entries()
+    cid = canonical_id_for(candidate)
+    existing = canonical.get(cid)
+    if existing is None:
+        return STATE_PENDING, ""
+
+    provenance = existing.get("provenance")
+    origin = provenance.get("candidate_id") if isinstance(provenance, dict) else None
+    if origin == candidate.get("id"):
+        return STATE_PROMOTED, f"canonical {cid!r} was promoted from this candidate"
+    if origin:
+        return (
+            STATE_CONFLICT,
+            f"canonical {cid!r} was promoted from a different candidate ({origin!r})",
+        )
+    return (
+        STATE_CONFLICT,
+        f"canonical {cid!r} already exists and carries no candidate provenance — "
+        f"either it predates provenance tracking or the id is genuinely taken; "
+        f"resolve by hand",
+    )
 
 
 def strip_relation_prefix(ref: str) -> str:
@@ -460,9 +540,11 @@ def validate(candidate: dict, target_filename: str, allow_dangling: bool = False
             "(a date). Provenance is required."
         )
 
-    existing = all_canonical_ids()
-    if cid in existing:
-        die(f"duplicate id: {cid!r} already exists in canonical YAML")
+    canonical_entries = all_canonical_entries()
+    existing = set(canonical_entries)
+    state, detail = promotion_state(candidate, canonical_entries)
+    if state == STATE_CONFLICT:
+        die(f"refusing to promote: {detail}")
 
     sibling_ids = {
         canonical_id_for(entry)
@@ -580,34 +662,6 @@ def _compose(text: str, path: Path):
         die(f"{path}: could not parse for structural edit: {exc}")
 
 
-def candidate_item_span(text: str, candidate_id: str, path: Path) -> tuple[int, int, str]:
-    """Character span of the candidate's list item, plus the bullet indent.
-
-    Located STRUCTURALLY from the parsed node tree, not by regex. The
-    previous line-based matcher assumed `id` was the item's first key and
-    that its line carried no inline comment; a candidate can legally
-    violate either, and the failure mode was a half-done promotion —
-    canonical entry appended, candidate still present, retry blocked by
-    duplicate detection."""
-    root = _compose(text, path)
-    seq = _find_sequence_node(root, "candidates") if root is not None else None
-    if seq is None:
-        die(f"{path}: no candidates sequence found for structural removal")
-
-    for i, item in enumerate(seq.value):
-        if _mapping_id(item) != candidate_id:
-            continue
-        start = _line_start(text, item.start_mark.index)
-        indent = " " * max(item.start_mark.column - 2, 0)
-        if i + 1 < len(seq.value):
-            end = _line_start(text, seq.value[i + 1].start_mark.index)
-        else:
-            end = _item_end(text, item)
-        return start, end, indent
-    die(f"could not locate entry {candidate_id!r} in {path} for removal")
-    return 0, 0, ""  # unreachable; die() exits
-
-
 def canonical_insertion_point(text: str, list_key: str, path: Path) -> tuple[int, str] | None:
     """Character offset at which to insert a new item, and the bullet indent.
 
@@ -663,37 +717,6 @@ def canonical_text_with_entry(
     return prefix + rendered + text[offset:]
 
 
-def candidate_text_without(text: str, candidate_id: str, path: Path) -> str:
-    """The candidate file's full new content, computed in memory."""
-    start, end, _indent = candidate_item_span(text, candidate_id, path)
-    lines = (text[:start] + text[end:]).splitlines(True)
-    _collapse_emptied_list(lines, len(text[:start].splitlines()))
-    return "".join(lines)
-
-
-def _collapse_emptied_list(lines: list[str], removed_at: int) -> None:
-    """When the removed entry was the last one, turn the now-childless
-    `candidates:` line into `candidates: []`.
-
-    A bare `candidates:` key parses as null, not as an empty list, which
-    reads as "this document has no candidates list" rather than "this
-    list is empty"."""
-    for i in range(min(removed_at, len(lines)) - 1, -1, -1):
-        line = lines[i]
-        if line.strip() != "candidates:":
-            continue
-        indent = line[: len(line) - len(line.lstrip())]
-        for follow in lines[i + 1:]:
-            if not follow.strip():
-                continue
-            follow_indent = follow[: len(follow) - len(follow.lstrip())]
-            if follow.lstrip().startswith("- ") and len(follow_indent) > len(indent):
-                return  # still has items
-            break
-        lines[i] = f"{indent}candidates: []\n"
-        return
-
-
 def verify_canonical_text(
     text: str, list_key: str, entry_id: str, expected: int, path: Path
 ) -> None:
@@ -713,66 +736,21 @@ def verify_canonical_text(
         )
 
 
-def verify_candidate_text(text: str, candidate_id: str, expected: int, path: Path) -> int:
-    """Parse the proposed content and assert the candidate is gone."""
+def atomic_write(path: Path, text: str) -> None:
+    """Replace one file's content atomically.
+
+    Promotion writes exactly ONE file, so os.replace is genuinely atomic
+    here — there is no second target and therefore no cross-file window, no
+    rollback, and no crash journal. That is the point of the single-authority
+    model: the transaction did not get safer, it stopped existing."""
+    tmp = path.with_name(path.name + ".promote-tmp")
     try:
-        data = yaml.safe_load(text) or {}
-    except yaml.YAMLError as exc:
-        die(f"proposed content for {path} is not valid YAML: {exc}")
-    lists = extract_candidate_lists(data, path)
-    remaining = [e for _w, entries in lists for e in entries if isinstance(e, dict)]
-    if any(e.get("id") == candidate_id for e in remaining):
-        die(f"proposed content for {path} still contains {candidate_id!r}")
-    if len(remaining) != expected:
-        die(
-            f"proposed content for {path} has {len(remaining)} candidates, "
-            f"expected {expected}"
-        )
-    return len(remaining)
-
-
-def atomic_replace(updates: list[tuple[Path, str]]) -> None:
-    """Replace several files as close to atomically as a filesystem allows.
-
-    Promotion mutates TWO files. Writing one and then discovering the other
-    cannot be written leaves a half-done promotion: canonical entry
-    appended, candidate still present, and the retry blocked by duplicate
-    detection. Post-write verification cannot help — the damage is already
-    on disk. So every proposed content is validated first, staged to a temp
-    file beside its target, and only then swapped in; if any swap fails the
-    ones already done are rolled back."""
-    backups = {path: path.read_text(encoding="utf-8") for path, _ in updates}
-    staged: list[tuple[Path, Path]] = []
-    try:
-        for path, text in updates:
-            tmp = path.with_name(path.name + ".promote-tmp")
-            tmp.write_text(text, encoding="utf-8")
-            staged.append((path, tmp))
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
     except OSError as exc:
-        for _p, tmp in staged:
-            tmp.unlink(missing_ok=True)
-        die(f"could not stage promotion writes: {exc}")
+        tmp.unlink(missing_ok=True)
+        die(f"could not write {path}: {exc}")
 
-    replaced: list[Path] = []
-    try:
-        for path, tmp in staged:
-            os.replace(tmp, path)
-            replaced.append(path)
-    except OSError as exc:
-        for path in replaced:
-            try:
-                path.write_text(backups[path], encoding="utf-8")
-            except OSError as rollback_exc:  # pragma: no cover - disk failure
-                sys.stderr.write(
-                    f"promote-awareness-candidate: CRITICAL: rollback of {path} failed: "
-                    f"{rollback_exc}. Restore from git.\n"
-                )
-        for _p, tmp in staged:
-            tmp.unlink(missing_ok=True)
-        die(f"could not complete promotion writes (rolled back): {exc}")
-
-
-# ─── single-file helpers (kept for direct callers and tests) ─────────────
 
 def write_canonical(target_path: Path, list_key: str, new_entry: dict, dry_run: bool) -> None:
     text = target_path.read_text(encoding="utf-8")
@@ -793,31 +771,9 @@ def write_canonical(target_path: Path, list_key: str, new_entry: dict, dry_run: 
         )
         sys.stdout.write(_render_entry(new_entry, ""))
         return
-    atomic_replace([(target_path, proposed)])
+    atomic_write(target_path, proposed)
     sys.stdout.write(
         f"appended to {target_path.relative_to(REPO_ROOT)} ({len(entries) + 1} entries)\n"
-    )
-
-
-def remove_from_candidate_file(candidate_path: Path, candidate_id: str, dry_run: bool) -> None:
-    text = candidate_path.read_text(encoding="utf-8")
-    before = sum(
-        len(entries)
-        for _w, entries in extract_candidate_lists(yaml.safe_load(text) or {}, candidate_path)
-    )
-    proposed = candidate_text_without(text, candidate_id, candidate_path)
-    remaining = verify_candidate_text(proposed, candidate_id, before - 1, candidate_path)
-
-    if dry_run:
-        sys.stdout.write(
-            f"[dry-run] would remove {candidate_id} from "
-            f"{candidate_path.relative_to(REPO_ROOT)} (remaining: {remaining})\n"
-        )
-        return
-    atomic_replace([(candidate_path, proposed)])
-    sys.stdout.write(
-        f"removed {candidate_id} from {candidate_path.relative_to(REPO_ROOT)} "
-        f"(remaining candidates: {remaining})\n"
     )
 
 
@@ -830,33 +786,48 @@ def list_candidates() -> int:
         sys.stdout.write("no candidates found under docs/awareness/candidates/\n")
         return 0
 
-    canonical = all_canonical_ids()
+    canonical_entries = all_canonical_entries()
+    canonical = set(canonical_entries)
     sibling_ids = {canonical_id_for(e) for _p, _w, e in rows if canonical_id_for(e)}
 
+    counts: dict[str, int] = {}
     sys.stdout.write(f"{len(rows)} candidate(s):\n\n")
     for path, wrapper, entry in rows:
         cid = entry.get("id", "<no id>")
         canon = canonical_id_for(entry)
         cls = normalize_class(entry.get("class"))
         target = next((f for f, c in TARGET_CLASS.items() if c == cls), "?")
-        blockers: list[str] = []
-        if not canon or not ID_PATTERN.match(canon):
-            blockers.append("id-format")
-        if entry.get("status") != "candidate":
-            blockers.append(f"status={entry.get('status')!r}")
-        if entry.get("confidence") == "low":
-            blockers.append("confidence=low")
-        if not evidence_of(entry):
-            blockers.append("no-evidence")
-        if not provenance_of(entry):
-            blockers.append("no-provenance")
-        if canon in canonical:
-            blockers.append("duplicate")
-        _pending, dangling = check_relationships(entry, canonical, sibling_ids - {canon})
-        if dangling:
-            blockers.append(f"dangling-refs={len(dangling)}")
 
-        state = "PROMOTABLE" if not blockers else "BLOCKED: " + ", ".join(blockers)
+        # Status is DERIVED from the canonical corpus, never stored in the
+        # ledger. Canonical presence is a state, not a blocker: an entry that
+        # is already promoted is a success, not a duplicate-id error.
+        derived, detail = promotion_state(entry, canonical_entries)
+
+        blockers: list[str] = []
+        if derived == STATE_PENDING:
+            if not canon or not ID_PATTERN.match(canon):
+                blockers.append("id-format")
+            if entry.get("status") != "candidate":
+                blockers.append(f"status={entry.get('status')!r}")
+            if entry.get("confidence") == "low":
+                blockers.append("confidence=low")
+            if not evidence_of(entry):
+                blockers.append("no-evidence")
+            if not provenance_of(entry):
+                blockers.append("no-provenance")
+            _pending, dangling = check_relationships(entry, canonical, sibling_ids - {canon})
+            if dangling:
+                blockers.append(f"dangling-refs={len(dangling)}")
+
+        if derived == STATE_PROMOTED:
+            state = f"{STATE_PROMOTED} — {detail}"
+        elif derived == STATE_CONFLICT:
+            state = f"{STATE_CONFLICT} — {detail}"
+        elif blockers:
+            state = f"{STATE_PENDING} (BLOCKED: " + ", ".join(blockers) + ")"
+        else:
+            state = f"{STATE_PENDING} (promotable)"
+        counts[derived] = counts.get(derived, 0) + 1
         sys.stdout.write(f"  {cid}\n")
         sys.stdout.write(f"      file:      {path.relative_to(REPO_ROOT)}")
         sys.stdout.write(f" (wrapper: {wrapper})\n" if wrapper else " (direct)\n")
@@ -865,6 +836,11 @@ def list_candidates() -> int:
         sys.stdout.write(f"      severity:  {entry.get('severity') or entry.get('risk') or '?'}"
                          f"   confidence: {entry.get('confidence') or '?'}\n")
         sys.stdout.write(f"      state:     {state}\n\n")
+    summary = "  ".join(
+        f"{name}={counts.get(name, 0)}"
+        for name in (STATE_PENDING, STATE_PROMOTED, STATE_CONFLICT)
+    )
+    sys.stdout.write(f"derived from canonical corpus: {summary}\n")
     return 0
 
 
@@ -925,6 +901,17 @@ def main() -> int:
         die(f"target file not found: {target_path}", code=2)
     target_filename = target_path.name
 
+    # Promotion state is derived, so a repeat run is a no-op rather than a
+    # duplicate-id failure. This is what makes retry safe without a journal:
+    # there is nothing to reconcile, only something to observe.
+    state, detail = promotion_state(candidate)
+    if state == STATE_PROMOTED:
+        sys.stdout.write(
+            f"already promoted: {detail}\n"
+            f"no changes made — the candidate ledger keeps its entry by design.\n"
+        )
+        return 0
+
     validate(candidate, target_filename, allow_dangling=args.allow_dangling)
     sys.stdout.write("validation: OK\n")
 
@@ -935,31 +922,21 @@ def main() -> int:
         rendered = "; ".join(f"{k}={v}" for k, v in relations.items())
         sys.stdout.write(f"relations canonicalized: {rendered}\n")
 
-    # Promotion mutates TWO files. Build BOTH results in memory and validate
-    # BOTH before anything reaches disk, then swap them in together — a
-    # half-done promotion (entry appended, candidate still present) blocks its
-    # own retry on duplicate detection, and no post-write check can undo it.
+    # Promotion writes exactly ONE file: the canonical target. The candidate
+    # ledger is append-only and is never touched — its entries are a
+    # permanent record of what was discovered, and promotion state is
+    # DERIVED from canonical identity presence. Re-running is therefore a
+    # no-op rather than a conflict, and there is no second write to
+    # synchronize, roll back, or journal.
     list_key = TARGET_LIST_KEY[target_filename]
     canonical_before = target_path.read_text(encoding="utf-8")
-    candidate_before = candidate_path.read_text(encoding="utf-8")
-
     existing_entries = (load_yaml(target_path) or {}).get(list_key) or []
-    candidate_count = sum(
-        len(entries)
-        for _w, entries in extract_candidate_lists(
-            yaml.safe_load(candidate_before) or {}, candidate_path
-        )
-    )
 
     canonical_after = canonical_text_with_entry(
         canonical_before, list_key, new_entry, target_path
     )
     verify_canonical_text(
         canonical_after, list_key, new_entry["id"], len(existing_entries) + 1, target_path
-    )
-    candidate_after = candidate_text_without(candidate_before, args.id, candidate_path)
-    remaining = verify_candidate_text(
-        candidate_after, args.id, candidate_count - 1, candidate_path
     )
 
     if args.dry_run:
@@ -969,25 +946,23 @@ def main() -> int:
         )
         sys.stdout.write(_render_entry(new_entry, ""))
         sys.stdout.write(
-            f"[dry-run] would remove {args.id} from "
-            f"{candidate_path.relative_to(REPO_ROOT)} (remaining: {remaining})\n"
+            f"[dry-run] {candidate_path.relative_to(REPO_ROOT)} is NOT modified "
+            f"(append-only ledger)\n"
         )
         return 0
 
-    atomic_replace([(target_path, canonical_after), (candidate_path, candidate_after)])
+    atomic_write(target_path, canonical_after)
     sys.stdout.write(
         f"appended to {target_path.relative_to(REPO_ROOT)} "
         f"({len(existing_entries) + 1} entries)\n"
-        f"removed {args.id} from {candidate_path.relative_to(REPO_ROOT)} "
-        f"(remaining candidates: {remaining})\n"
+        f"{candidate_path.relative_to(REPO_ROOT)} unchanged (append-only ledger); "
+        f"{args.id} now derives as PROMOTED\n"
     )
-
-    if not args.dry_run:
-        sys.stdout.write(
-            "\nnext step: cd ../awareness-graph && "
-            "SERVICES_REPO=../services scripts/build-awareness-graph.sh\n"
-            "(regenerates awareness.nt with the new canonical entry)\n"
-        )
+    sys.stdout.write(
+        "\nnext step: cd ../awareness-graph && "
+        "SERVICES_REPO=../services scripts/build-awareness-graph.sh\n"
+        "(regenerates awareness.nt with the new canonical entry)\n"
+    )
     return 0
 
 

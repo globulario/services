@@ -4,8 +4,14 @@ Tests for scripts/promote-awareness-candidate.py — Phase 7.
 
 Stdlib only + PyYAML (already a dependency of the script under test).
 The script lives at scripts/promote-awareness-candidate.py and walks
-docs/awareness/candidates/ to find a candidate by id, validates it,
-appends to a canonical file, and removes it from the candidate file.
+docs/awareness/candidates/ to find a candidate by id, validates it, and
+appends it to a canonical file.
+
+It does NOT remove the entry from the candidate file. The candidate file
+is an append-only ledger and the canonical corpus is the only mutable
+authority; promotion state (PENDING / PROMOTED / CONFLICT) is derived from
+canonical identity presence rather than stored or signalled by deletion.
+Promotion therefore writes exactly one file and re-running is a no-op.
 
 We exercise it by writing a minimal candidates/ tree + canonical
 target into a temp dir, monkey-patching the script's REPO_ROOT /
@@ -218,10 +224,10 @@ class TestPromoteHappyPath(TempRepoCase):
 
         # Run via the find_candidate → validate → write path directly.
         candidate_path, candidate = tool.find_candidate("test.namespace.valid_candidate")
+        ledger_before = candidate_path.read_text("utf-8")
         tool.validate(candidate, "invariants.yaml")
         entry = tool.to_canonical_entry(candidate)
         tool.write_canonical(target, "invariants", entry, dry_run=False)
-        tool.remove_from_candidate_file(candidate_path, "test.namespace.valid_candidate", dry_run=False)
 
         # Target now contains a single invariant with the right id.
         import yaml
@@ -235,9 +241,8 @@ class TestPromoteHappyPath(TempRepoCase):
         self.assertEqual(ent["provenance"]["confidence_at_promotion"], "medium")
         self.assertIn("session 2026-06-02", ent["provenance"]["discovered_from"])
 
-        # Candidate file no longer holds the entry.
-        remaining = yaml.safe_load(candidate_path.read_text("utf-8"))
-        self.assertEqual(remaining["candidates"], [])
+        # The ledger is append-only: promotion must not touch a single byte.
+        self.assertEqual(candidate_path.read_text("utf-8"), ledger_before)
 
 
 # ─── 2. validation rejections ───────────────────────────────────────────
@@ -370,7 +375,6 @@ class TestDryRunIsReadOnly(TempRepoCase):
         entry = tool.to_canonical_entry(candidate)
         with redirect_stdout(io.StringIO()):
             tool.write_canonical(target, "invariants", entry, dry_run=True)
-            tool.remove_from_candidate_file(candidate_path, candidate["id"], dry_run=True)
 
         self.assertEqual(target.read_text("utf-8"), before_target,
                          "dry-run wrote to canonical target")
@@ -678,29 +682,6 @@ class TestNonDestructiveWrite(TempRepoCase):
         ids = [e["id"] for e in data["invariants"]]
         self.assertEqual(ids, ["existing.entry_one", "meta.wrapped_one"])
 
-    def test_removal_preserves_wrapper_and_does_not_mix_shapes(self):
-        path = self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
-        with redirect_stdout(io.StringIO()):
-            tool.remove_from_candidate_file(path, "candidate.invariant.meta.wrapped_one", dry_run=False)
-
-        import yaml
-        data = yaml.safe_load(path.read_text("utf-8"))
-        self.assertEqual(list(data.keys()), ["session_discovered_candidates"])
-        self.assertNotIn("candidates", data, "a stray top-level candidates key was added")
-        remaining = data["session_discovered_candidates"]["candidates"]
-        self.assertEqual([e["id"] for e in remaining], ["candidate.failure_mode.meta.wrapped_two"])
-        self.assertIn("# a leading comment that must survive", path.read_text("utf-8"))
-
-    def test_removing_last_entry_leaves_empty_list_not_null(self):
-        path = self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
-        with redirect_stdout(io.StringIO()):
-            for cid in ("candidate.invariant.meta.wrapped_one",
-                        "candidate.failure_mode.meta.wrapped_two"):
-                tool.remove_from_candidate_file(path, cid, dry_run=False)
-        import yaml
-        data = yaml.safe_load(path.read_text("utf-8"))
-        self.assertEqual(data["session_discovered_candidates"]["candidates"], [])
-
     def test_dry_run_does_not_mutate_wrapped_file(self):
         path = self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
         target = self.write_canonical("invariants.yaml", CANONICAL_WITH_COMMENTS)
@@ -708,7 +689,6 @@ class TestNonDestructiveWrite(TempRepoCase):
         _p, entry = tool.find_candidate("candidate.invariant.meta.wrapped_one")
         with redirect_stdout(io.StringIO()):
             tool.write_canonical(target, "invariants", tool.to_canonical_entry(entry), dry_run=True)
-            tool.remove_from_candidate_file(path, entry["id"], dry_run=True)
         self.assertEqual(path.read_text("utf-8"), before_c)
         self.assertEqual(target.read_text("utf-8"), before_t)
 
@@ -728,7 +708,7 @@ class TestListMode(TempRepoCase):
         self.assertIn("candidate.invariant.meta.wrapped_one", text)
         self.assertIn("meta.wrapped_one  →  docs/awareness/invariants.yaml", text)
         self.assertIn("session_discovered_candidates", text)
-        self.assertIn("PROMOTABLE", text)
+        self.assertIn("PENDING (promotable)", text)
 
     def test_list_flags_blocked_candidates(self):
         self.write_candidate("c.yaml", CANDIDATE_LOW_CONFIDENCE)
@@ -880,25 +860,6 @@ class TestStructuralLocation(TempRepoCase):
     line with no inline comment. Both are legal YAML the parser accepts, and
     the failure mode was a half-done promotion."""
 
-    def test_removal_when_id_is_not_the_first_key(self):
-        path = self.write_candidate("session.yaml", CANDIDATE_ID_NOT_FIRST)
-        with redirect_stdout(io.StringIO()):
-            tool.remove_from_candidate_file(path, "candidate.invariant.meta.example", dry_run=False)
-        import yaml
-        data = yaml.safe_load(path.read_text("utf-8"))
-        remaining = data["session_discovered_candidates"]["candidates"]
-        self.assertEqual([e["id"] for e in remaining], ["candidate.invariant.meta.keeper"])
-
-    def test_removal_when_id_line_has_inline_comment(self):
-        path = self.write_candidate("session.yaml", CANDIDATE_ID_INLINE_COMMENT)
-        with redirect_stdout(io.StringIO()):
-            tool.remove_from_candidate_file(path, "candidate.invariant.meta.example", dry_run=False)
-        import yaml
-        data = yaml.safe_load(path.read_text("utf-8"))
-        remaining = data["session_discovered_candidates"]["candidates"]
-        self.assertEqual([e["id"] for e in remaining], ["candidate.invariant.meta.keeper"])
-        self.assertNotIn("inline comment", path.read_text("utf-8"))
-
     def test_append_into_a_list_that_is_not_the_final_key(self):
         target = self.write_canonical("invariants.yaml", CANONICAL_LIST_NOT_LAST)
         entry = {"id": "meta.appended", "title": "Appended", "severity": "high", "status": "active"}
@@ -916,52 +877,250 @@ class TestStructuralLocation(TempRepoCase):
         self.assertIn("# header comment", text)
 
 
-# ─── 13. atomicity ──────────────────────────────────────────────────────
+# ─── 13. single-authority model ─────────────────────────────────────────
 
-class TestAtomicReplace(TempRepoCase):
-    def test_both_files_replaced_together(self):
-        a = self.repo / "a.txt"
-        b = self.repo / "b.txt"
-        a.write_text("old-a", encoding="utf-8")
-        b.write_text("old-b", encoding="utf-8")
-        tool.atomic_replace([(a, "new-a"), (b, "new-b")])
-        self.assertEqual(a.read_text("utf-8"), "new-a")
-        self.assertEqual(b.read_text("utf-8"), "new-b")
+CANONICAL_PROMOTED_FROM_CANDIDATE = textwrap.dedent(
+    """\
+    invariants:
+      - id: meta.wrapped_one
+        title: A wrapped candidate
+        severity: high
+        status: active
+        provenance:
+          promoted_from: candidate
+          candidate_id: candidate.invariant.meta.wrapped_one
+          discovered_from: session 2026-08-03
+          confidence_at_promotion: candidate
+          evidence: observed on 2026-08-03
+    """
+)
 
-    def test_failure_on_second_replace_rolls_back_the_first(self):
-        a = self.repo / "a.txt"
-        b = self.repo / "b.txt"
-        a.write_text("old-a", encoding="utf-8")
-        b.write_text("old-b", encoding="utf-8")
+CANONICAL_ID_TAKEN_BY_OTHER = textwrap.dedent(
+    """\
+    invariants:
+      - id: meta.wrapped_one
+        title: Something else entirely
+        severity: high
+        status: active
+        provenance:
+          promoted_from: candidate
+          candidate_id: candidate.invariant.meta.a_different_candidate
+    """
+)
 
-        real_replace = tool.os.replace
-        calls = {"n": 0}
+CANONICAL_ID_TAKEN_NO_PROVENANCE = textwrap.dedent(
+    """\
+    invariants:
+      - id: meta.wrapped_one
+        title: Hand-authored, predates provenance tracking
+        severity: high
+        status: active
+    """
+)
 
-        def flaky(src, dst):
-            calls["n"] += 1
-            if calls["n"] == 2:
-                raise OSError("simulated failure on the second swap")
-            return real_replace(src, dst)
+# A ledger the OLD two-file tool already removed entries from: one entry
+# gone, and a list it emptied to `[]`. Both must still parse and list.
+LEDGER_WITH_PRIOR_REMOVALS = textwrap.dedent(
+    """\
+    session_discovered_candidates:
+      candidates:
+        - id: candidate.invariant.meta.survivor
+          class: Invariant
+          label: Survived an earlier removal pass
+          status: candidate
+          confidence: candidate
+          severity: high
+          discovered: 2026-08-03
+          evidence: observed
+    """
+)
 
-        tool.os.replace = flaky
+LEDGER_FULLY_EMPTIED = textwrap.dedent(
+    """\
+    session_discovered_candidates:
+      candidates: []
+    """
+)
+
+
+class TestSingleAuthorityState(TempRepoCase):
+    """Promotion state is derived from canonical identity presence, never
+    stored in the ledger and never signalled by deleting the entry."""
+
+    def test_absent_from_canonical_is_pending(self):
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        self.write_canonical("invariants.yaml", CANONICAL_INVARIANTS_EMPTY)
+        _p, entry = tool.find_candidate("candidate.invariant.meta.wrapped_one")
+        state, _detail = tool.promotion_state(entry)
+        self.assertEqual(state, tool.STATE_PENDING)
+
+    def test_present_with_matching_provenance_is_promoted(self):
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        self.write_canonical("invariants.yaml", CANONICAL_PROMOTED_FROM_CANDIDATE)
+        _p, entry = tool.find_candidate("candidate.invariant.meta.wrapped_one")
+        state, detail = tool.promotion_state(entry)
+        self.assertEqual(state, tool.STATE_PROMOTED)
+        self.assertIn("meta.wrapped_one", detail)
+
+    def test_promoted_survives_hand_polishing_of_the_canonical_entry(self):
+        # Reviewers are expected to edit promoted entries. Identity, not
+        # content equality, is what makes it "already promoted".
+        polished = CANONICAL_PROMOTED_FROM_CANDIDATE.replace(
+            "title: A wrapped candidate", "title: A carefully reworded title"
+        ).replace("severity: high", "severity: critical")
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        self.write_canonical("invariants.yaml", polished)
+        _p, entry = tool.find_candidate("candidate.invariant.meta.wrapped_one")
+        state, _detail = tool.promotion_state(entry)
+        self.assertEqual(state, tool.STATE_PROMOTED)
+
+    def test_id_taken_by_a_different_candidate_is_conflict(self):
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        self.write_canonical("invariants.yaml", CANONICAL_ID_TAKEN_BY_OTHER)
+        _p, entry = tool.find_candidate("candidate.invariant.meta.wrapped_one")
+        state, detail = tool.promotion_state(entry)
+        self.assertEqual(state, tool.STATE_CONFLICT)
+        self.assertIn("a_different_candidate", detail)
+
+    def test_id_taken_without_provenance_is_conflict(self):
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        self.write_canonical("invariants.yaml", CANONICAL_ID_TAKEN_NO_PROVENANCE)
+        _p, entry = tool.find_candidate("candidate.invariant.meta.wrapped_one")
+        state, detail = tool.promotion_state(entry)
+        self.assertEqual(state, tool.STATE_CONFLICT)
+        self.assertIn("no candidate provenance", detail)
+
+    def test_conflict_refuses_promotion(self):
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        self.write_canonical("invariants.yaml", CANONICAL_ID_TAKEN_BY_OTHER)
+        _p, entry = tool.find_candidate("candidate.invariant.meta.wrapped_one")
+        with self.assertRaises(SystemExit) as ctx:
+            with redirect_stderr(io.StringIO()):
+                tool.validate(entry, "invariants.yaml")
+        self.assertEqual(ctx.exception.code, 1)
+
+
+class TestSingleAuthorityMain(TempRepoCase):
+    """End-to-end through main(), which is where the one-write guarantee
+    and idempotence actually live."""
+
+    def _run(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        orig = sys.argv
+        sys.argv = ["promote-awareness-candidate.py", *argv]
         try:
-            with self.assertRaises(SystemExit) as ctx:
-                with redirect_stderr(io.StringIO()):
-                    tool.atomic_replace([(a, "new-a"), (b, "new-b")])
-            self.assertEqual(ctx.exception.code, 1)
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = tool.main()
         finally:
-            tool.os.replace = real_replace
+            sys.argv = orig
+        return rc, out.getvalue(), err.getvalue()
 
-        # The first file is back to its original content, not left half-done.
-        self.assertEqual(a.read_text("utf-8"), "old-a")
-        self.assertEqual(b.read_text("utf-8"), "old-b")
-        # No temp files left behind.
-        self.assertEqual(list(self.repo.glob("*.promote-tmp")), [])
+    def test_promotion_writes_exactly_one_file_and_leaves_ledger_byte_identical(self):
+        ledger = self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        target = self.write_canonical("invariants.yaml", CANONICAL_INVARIANTS_EMPTY)
+        ledger_before = ledger.read_bytes()
 
-    def test_no_temp_files_survive_success(self):
-        a = self.repo / "a.txt"
-        a.write_text("old", encoding="utf-8")
-        tool.atomic_replace([(a, "new")])
+        rc, out, _err = self._run("--id", "candidate.invariant.meta.wrapped_one")
+        self.assertEqual(rc, 0)
+        self.assertIn("appended to", out)
+
+        self.assertEqual(ledger.read_bytes(), ledger_before,
+                         "the append-only ledger was modified")
+        import yaml
+        data = yaml.safe_load(target.read_text("utf-8"))
+        self.assertEqual([e["id"] for e in data["invariants"]], ["meta.wrapped_one"])
+        # No temp files survive the single atomic write.
+        self.assertEqual(list((self.repo / "docs" / "awareness").glob("*.promote-tmp")), [])
+
+    def test_rerunning_the_same_promotion_mutates_nothing(self):
+        ledger = self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        target = self.write_canonical("invariants.yaml", CANONICAL_INVARIANTS_EMPTY)
+
+        rc, _out, _err = self._run("--id", "candidate.invariant.meta.wrapped_one")
+        self.assertEqual(rc, 0)
+        canonical_after_first = target.read_bytes()
+        ledger_after_first = ledger.read_bytes()
+
+        rc2, out2, _err2 = self._run("--id", "candidate.invariant.meta.wrapped_one")
+        self.assertEqual(rc2, 0, "a repeat promotion must succeed, not look like corruption")
+        self.assertIn("already promoted", out2)
+        self.assertNotIn("appended to", out2)
+        self.assertEqual(target.read_bytes(), canonical_after_first,
+                         "the second run mutated the canonical file")
+        self.assertEqual(ledger.read_bytes(), ledger_after_first)
+
+    def test_target_inferred_and_only_that_file_written(self):
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        inv = self.write_canonical("invariants.yaml", CANONICAL_INVARIANTS_EMPTY)
+        fms = self.write_canonical("failure_modes.yaml", "failure_modes: []\n")
+        fms_before = fms.read_bytes()
+
+        rc, _out, _err = self._run("--id", "candidate.invariant.meta.wrapped_one")
+        self.assertEqual(rc, 0)
+        self.assertNotEqual(inv.read_bytes(), CANONICAL_INVARIANTS_EMPTY.encode())
+        self.assertEqual(fms.read_bytes(), fms_before,
+                         "a canonical file that is not the target was written")
+
+    def test_dry_run_writes_nothing_at_all(self):
+        ledger = self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        target = self.write_canonical("invariants.yaml", CANONICAL_INVARIANTS_EMPTY)
+        before = (ledger.read_bytes(), target.read_bytes())
+        rc, out, _err = self._run("--id", "candidate.invariant.meta.wrapped_one", "--dry-run")
+        self.assertEqual(rc, 0)
+        self.assertIn("[dry-run]", out)
+        self.assertEqual((ledger.read_bytes(), target.read_bytes()), before)
+
+
+class TestLedgerCompatibility(TempRepoCase):
+    """Ledgers the OLD two-file tool already mutated must stay usable."""
+
+    def test_ledger_with_prior_removals_still_lists(self):
+        self.write_candidate("session.yaml", LEDGER_WITH_PRIOR_REMOVALS)
+        self.write_canonical("invariants.yaml", CANONICAL_INVARIANTS_EMPTY)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = tool.list_candidates()
+        self.assertEqual(rc, 0)
+        self.assertIn("candidate.invariant.meta.survivor", out.getvalue())
+        self.assertIn("PENDING=1", out.getvalue())
+
+    def test_fully_emptied_ledger_is_valid_and_empty(self):
+        self.write_candidate("session.yaml", LEDGER_FULLY_EMPTIED)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = tool.list_candidates()
+        self.assertEqual(rc, 0)
+        self.assertIn("no candidates found", out.getvalue())
+
+
+class TestListDerivesStatus(TempRepoCase):
+    def test_list_reports_promoted_not_duplicate(self):
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        self.write_canonical("invariants.yaml", CANONICAL_PROMOTED_FROM_CANDIDATE)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            tool.list_candidates()
+        text = out.getvalue()
+        self.assertIn("PROMOTED", text)
+        self.assertNotIn("duplicate", text)
+        self.assertIn("PROMOTED=1", text)
+
+    def test_list_reports_conflict(self):
+        self.write_candidate("session.yaml", CANDIDATE_WRAPPED)
+        self.write_canonical("invariants.yaml", CANONICAL_ID_TAKEN_BY_OTHER)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            tool.list_candidates()
+        self.assertIn("CONFLICT", out.getvalue())
+        self.assertIn("CONFLICT=1", out.getvalue())
+
+
+class TestAtomicWrite(TempRepoCase):
+    def test_single_file_write_leaves_no_temp(self):
+        p = self.repo / "a.txt"
+        p.write_text("old", encoding="utf-8")
+        tool.atomic_write(p, "new")
+        self.assertEqual(p.read_text("utf-8"), "new")
         self.assertEqual(list(self.repo.glob("*.promote-tmp")), [])
 
 
