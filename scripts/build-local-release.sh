@@ -80,6 +80,22 @@ import json
 d = json.load(open('$SERVICES_ROOT/golang/build/pkg-map.json'))
 print(','.join(sorted(n for n, i in d.items() if i.get('go_target'))))
 ")"
+  # xds and gateway carry go_target:"" in pkg-map because they are NOT built from
+  # this repo — they live in ../Globular/cmd/. The go_target filter above therefore
+  # silently drops them, so `--all` used to mean "all except the two binaries that
+  # terminate TLS and authorize every Day-1 join", and they were copied forward
+  # from the base bundle instead.
+  #
+  # That is a quiet correctness trap: on 2026-08-05 a `--all` build would have
+  # carried forward the 1.2.295 gateway whose /join/bundle route rejects HEAD,
+  # re-breaking every joiner even though the fix was already committed. A release
+  # that says it rebuilt everything must not ship a stale binary it could build.
+  if [[ -n "$GLOBULAR_ROOT" ]]; then
+    REBUILD_PKGS="$REBUILD_PKGS,xds,gateway"
+  else
+    echo "  WARNING: --all cannot rebuild xds/gateway — ../Globular not found;" >&2
+    echo "           they will be carried forward from the base bundle." >&2
+  fi
 fi
 
 OUT_TGZ="/tmp/globular-${VERSION}-linux-amd64.tar.gz"
@@ -324,6 +340,72 @@ step "Generate version files (v${VERSION})"
 cd "$SERVICES_ROOT/golang"
 bash build/gen-version.sh "$VERSION"
 
+# ── Platform floor: compile ON the floor, don't just check for it afterwards ──
+# The host toolchain's glibc silently becomes a RUNTIME requirement of every cgo
+# binary. That is how 1.2.288 and 1.2.295 both shipped file_server needing
+# GLIBC_2.38 (via github.com/chai2010/webp -> libm fmod/fmodf@2.38) while the
+# support promise is Ubuntu 22.04 / glibc 2.35: the binary simply will not start
+# there. CGO_ENABLED=0 is not an escape — webp is a cgo binding and file_server
+# fails to compile without it.
+#
+# So build inside an image pinned to the floor. Then the floor holds BY
+# CONSTRUCTION and check-glibc-floor.sh below degrades from "the thing that
+# catches this" to "the thing that proves it stayed caught".
+#
+# Set GLOBULAR_FLOOR_BUILD=0 to force the host toolchain (fast local iteration);
+# the gate still refuses to publish a bundle that breaks the promise.
+FLOOR_IMAGE="${GLOBULAR_FLOOR_IMAGE:-globular-glibc-floor:22.04}"
+FLOOR_BUILD="${GLOBULAR_FLOOR_BUILD:-1}"
+FLOOR_READY=0
+
+floor_prepare() {
+  (( FLOOR_BUILD )) || { log "floor build disabled (GLOBULAR_FLOOR_BUILD=0) — using host toolchain"; return 1; }
+  command -v docker >/dev/null 2>&1 || { log "WARNING: docker not available — falling back to host toolchain; the glibc gate may reject this bundle"; return 1; }
+  if ! docker image inspect "$FLOOR_IMAGE" >/dev/null 2>&1; then
+    log "building floor image $FLOOR_IMAGE (Ubuntu 22.04 = glibc 2.35, Go $(go env GOVERSION | sed 's/^go//'))..."
+    docker build -q -t "$FLOOR_IMAGE" \
+      --build-arg "GO_VERSION=$(go env GOVERSION | sed 's/^go//')" \
+      -f "$SERVICES_ROOT/scripts/glibc-floor.Dockerfile" "$SERVICES_ROOT" >/dev/null \
+      || { log "WARNING: floor image build failed — falling back to host toolchain"; return 1; }
+  fi
+  FLOOR_READY=1
+  log "floor build ENABLED via $FLOOR_IMAGE"
+  return 0
+}
+
+# floor_go_build <workdir> <output-abs-path> <ldflags> <package>
+# Mirrors `go build -trimpath -ldflags <f> -o <out> <pkg>` on the floor image.
+floor_go_build() {
+  local workdir="$1" out="$2" flags="$3" pkg="$4"
+  if (( ! FLOOR_READY )); then
+    ( cd "$workdir" && go build -trimpath -ldflags "$flags" -o "$out" "$pkg" )
+    return $?
+  fi
+  # Mount the repo PARENT so ../Globular resolves for the xds/gateway targets,
+  # AND the output directory — it lives under a mktemp'd /tmp/globular-build-*
+  # that is NOT inside the repo. Without that second mount `go build -o` happily
+  # writes to a path that only exists inside the container: docker exits 0, the
+  # host file never appears, and the next `cp` fails with a confusing
+  # "cannot stat". Mount both, and fail loudly if the artifact is missing.
+  local parent outdir
+  parent="$(dirname "$SERVICES_ROOT")"
+  outdir="$(dirname "$out")"
+  mkdir -p "$outdir"
+  docker run --rm \
+    -v "$parent:$parent" \
+    -v "$outdir:$outdir" \
+    -v "${GOMODCACHE:-$HOME/go/pkg/mod}:/gomod" \
+    -v "${GOCACHE:-$HOME/.cache/go-build}:/gocache" \
+    -e GOMODCACHE=/gomod -e GOCACHE=/gocache -e GOWORK=off \
+    -u "$(id -u):$(id -g)" \
+    -w "$workdir" "$FLOOR_IMAGE" \
+    go build -trimpath -buildvcs=false -ldflags "$flags" -o "$out" "$pkg" || return 1
+  # A build that produced no artifact is a failed build, whatever it exited.
+  [[ -f "$out" ]] || { echo "floor build produced no artifact: $out ($pkg)" >&2; return 1; }
+}
+
+floor_prepare || true
+
 # ── Build changed Go services ─────────────────────────────────────────────────
 step "Build changed Go services"
 LDFLAGS="-s -w"
@@ -353,7 +435,7 @@ print(d.get('$pkg_name',{}).get('binary',''))
   [[ -z "$binary" ]] && continue
 
   log "Building $binary ($pkg_name)..."
-  go build -trimpath -ldflags "$LDFLAGS" -o "$BIN_DIR/$binary" "./$go_target"
+  floor_go_build "$SERVICES_ROOT/golang" "$BIN_DIR/$binary" "$LDFLAGS" "./$go_target"
   # Mirror the fresh binary into the stage bin so specgen/pkggen (below) derive the
   # generated template's spec from CURRENT source, not a stale staged binary.
   [[ -d "$STAGE_BIN" ]] && cp "$BIN_DIR/$binary" "$STAGE_BIN/$binary"
@@ -372,7 +454,7 @@ if [[ -n "$GLOBULAR_ROOT" ]]; then
     if printf '%s\n' "${CHANGED_NAMES[@]}" | grep -q "^${gname}$"; then
       log "Building $gname..."
       GLDFLAGS="-X main.Version=${VERSION} -X main.BuildVersion=${VERSION} -s -w"
-      go build -trimpath -ldflags "$GLDFLAGS" -o "$BIN_DIR/$gname" "$GLOBULAR_ROOT/cmd/$gname"
+      floor_go_build "$GLOBULAR_ROOT" "$BIN_DIR/$gname" "$GLDFLAGS" "./cmd/$gname"
       [[ -d "$STAGE_BIN" ]] && cp "$BIN_DIR/$gname" "$STAGE_BIN/$gname"
     fi
   done
@@ -842,6 +924,47 @@ log "README.md written (v${VERSION}, commit ${SRC_COMMIT:0:12})"
 validate_release_bundle "$DIST_DIR"
 
 # ── Pack tarball ──────────────────────────────────────────────────────────────
+# ── Platform floor gate ──────────────────────────────────────────────────────
+# Every shipped binary must run on the oldest OS docs/operators/building-from-source.md
+# advertises. This build compiles with the HOST toolchain, so the builder's glibc
+# silently becomes a runtime requirement: release 1.2.288 shipped file_server
+# needing GLIBC_2.38 while its other 54 binaries needed at most 2.34, so Day-0
+# aborted at "Workload Services" on Ubuntu 22.04 (glibc 2.35) and Debian 12 (2.36).
+#
+# NOTE: this is a GATE, not the cure. The real fix is to compile inside a
+# container pinned to the support floor, so the floor is enforced by construction
+# rather than detected after the fact. Until then, refuse to publish a bundle
+# that cannot run where we promise it runs.
+#
+# This runs on the STAGED bundle, BEFORE packing and publishing. It used to run
+# after the copy into $OUT_DIR, which meant a bundle the gate itself declared
+# "REJECTED — MUST NOT be published" was already sitting in dist/, byte-identical
+# in placement to a good release and indistinguishable to anything downstream
+# (the docker simulation picked one up on 2026-08-05). A gate that runs after the
+# irreversible step is not a gate. Keep this block ahead of "Pack tarball".
+#
+# Use the ABSOLUTE path. This script cd's to $SERVICES_ROOT/golang before it gets
+# here, so a "$(dirname "$0")/..." relative reference resolves to a directory that
+# does not exist, an [[ -x ]] guard on it fails, and the gate is skipped in
+# silence — a safety check that fails OPEN because a path did not resolve. That is
+# the same "not found where != does not exist" defect this gate exists to catch.
+# Missing checker is a hard error, never a skip.
+GLIBC_CHECK="$SERVICES_ROOT/scripts/check-glibc-floor.sh"
+echo ""
+echo "── Verifying platform floor ──"
+[[ -x "$GLIBC_CHECK" ]] || {
+  echo "  ✗ RELEASE REJECTED — platform-floor checker missing or not executable: $GLIBC_CHECK" >&2
+  echo "    Refusing to publish an unverified bundle." >&2
+  exit 1
+}
+if ! "$GLIBC_CHECK" "$DIST_DIR"; then
+  echo ""
+  echo "  ✗ RELEASE REJECTED — binaries exceed the supported glibc floor." >&2
+  echo "    Nothing was published; the staged bundle is left at $DIST_DIR" >&2
+  echo "    for inspection." >&2
+  exit 1
+fi
+
 step "Pack tarball"
 rm -f "$OUT_TGZ" "${OUT_TGZ}.sha256"
 tar -C /tmp -czf "$OUT_TGZ" "globular-${VERSION}-linux-amd64/"
@@ -864,38 +987,6 @@ cp "${OUT_TGZ}.sha256" "$OUT_DIR/"
 cp -a "$DIST_DIR" "$OUT_DIR/globular-${VERSION}-linux-amd64"
 # Keep the sha256 file's path relative so `sha256sum -c` works from $OUT_DIR.
 ( cd "$OUT_DIR" && sha256sum "globular-${VERSION}-linux-amd64.tar.gz" > "globular-${VERSION}-linux-amd64.tar.gz.sha256" )
-
-# ── Platform floor gate ──────────────────────────────────────────────────────
-# Every shipped binary must run on the oldest OS docs/operators/building-from-source.md
-# advertises. This build compiles with the HOST toolchain, so the builder's glibc
-# silently becomes a runtime requirement: release 1.2.288 shipped file_server
-# needing GLIBC_2.38 while its other 54 binaries needed at most 2.34, so Day-0
-# aborted at "Workload Services" on Ubuntu 22.04 (glibc 2.35) and Debian 12 (2.36).
-#
-# NOTE: this is a GATE, not the cure. The real fix is to compile inside a
-# container pinned to the support floor, so the floor is enforced by construction
-# rather than detected after the fact. Until then, refuse to publish a bundle
-# that cannot run where we promise it runs.
-# Use the ABSOLUTE path. This script cd's to $SERVICES_ROOT/golang before it gets
-# here, so a "$(dirname "$0")/..." relative reference resolves to a directory that
-# does not exist, an [[ -x ]] guard on it fails, and the gate is skipped in
-# silence — a safety check that fails OPEN because a path did not resolve. That is
-# the same "not found where != does not exist" defect this gate exists to catch.
-# Missing checker is a hard error, never a skip.
-GLIBC_CHECK="$SERVICES_ROOT/scripts/check-glibc-floor.sh"
-echo ""
-echo "── Verifying platform floor ──"
-[[ -x "$GLIBC_CHECK" ]] || {
-  echo "  ✗ RELEASE REJECTED — platform-floor checker missing or not executable: $GLIBC_CHECK" >&2
-  echo "    Refusing to publish an unverified bundle." >&2
-  exit 1
-}
-if ! "$GLIBC_CHECK" "$OUT_DIR/globular-${VERSION}-linux-amd64"; then
-  echo ""
-  echo "  ✗ RELEASE REJECTED — binaries exceed the supported glibc floor." >&2
-  echo "    The bundle is left in place for inspection but MUST NOT be published." >&2
-  exit 1
-fi
 
 SIZE=$(du -sh "$OUT_DIR/globular-${VERSION}-linux-amd64.tar.gz" | awk '{print $1}')
 echo ""
