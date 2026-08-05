@@ -7584,15 +7584,15 @@ failure_modes:
       required_tests:
         - golang/config/build_release_gate_order_test.go:TestPlatformFloorGatePrecedesPublish
       contract: a gate must precede the irreversible step it guards
-  - id: install.failed_transaction_promoted_to_installed_by_observer
-    title: A failed install transaction is promoted to installed by an observer
-    description: 'The node-agent heartbeat''s syncInstalledStateFromLocalPackageCache created an installed-state record with status=installed for a package whose install had already FAILED, because the unpacked entrypoint binary matched the manifest checksum. The install owner never reached its receipt stamp, so the record carried no installed_by. Symptom chain: the failure is silently absorbed (degraded_is_explicit_not_hidden), the cluster reports the package installed while its unit is inactive+disabled and cannot execute, convergence sees nothing to retry, and the only surviving signal is cluster-doctor''s fail-closed unit_receipt_drift rule. Detection asymmetry makes this dangerous: the record looks complete to every reader that does not check for a receipt.'
-    protects:
-      files:
-        - golang/node_agent/node_agent_server/heartbeat.go
-    related_invariants:
-      - installed_state_requires_successful_owner_install_receipt
-    required_tests:
-      - golang/node_agent/node_agent_server/installed_state_owner_receipt_test.go:TestFailedInstallIsNeverPromotedToInstalledByObserver
-    evidence:
-      - '2026-08-05 node-4 (6400b443): 21:23:16 ''actor[node-agent]: FAILED sql (NATIVE_LIBRARY_DEPENDENCY_MISSING: libodbc.so.2)'' then 21:27:53 ''nodeagent: synced installed-state SERVICE/sql from local package cache''. Resulting etcd record: status=installed, version=1.2.298, metadata={entrypoint_checksum, proof_source=local_package_cache} and NO installed_by. Of 19 SERVICE records on that node, 18 had installed_by+unit_file_sha256; only sql had neither. node.join had FAILED on 3 of 4 joiners while the cluster reported ''[cluster] Healthy (5 nodes heartbeating)''.'
+    - id: install.failed_transaction_promoted_to_installed_by_observer
+      title: A failed install transaction is promoted to installed by an observer
+      description: 'The node-agent heartbeat''s syncInstalledStateFromLocalPackageCache created an installed-state record with status=installed for a package whose install had already FAILED, because the unpacked entrypoint binary matched the manifest checksum. The install owner never reached its receipt stamp, so the record carried no installed_by. Symptom chain: the failure is silently absorbed (degraded_is_explicit_not_hidden), the cluster reports the package installed while its unit is inactive+disabled and cannot execute, convergence sees nothing to retry, and the only surviving signal is cluster-doctor''s fail-closed unit_receipt_drift rule. Detection asymmetry makes this dangerous: the record looks complete to every reader that does not check for a receipt.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/heartbeat.go
+      related_invariants:
+        - installed_state_requires_successful_owner_install_receipt
+      required_tests:
+        - golang/node_agent/node_agent_server/installed_state_owner_receipt_test.go:TestFailedInstallIsNeverPromotedToInstalledByObserver
+      evidence:
+        - '2026-08-05 node-4 (6400b443): 21:23:16 ''actor[node-agent]: FAILED sql (NATIVE_LIBRARY_DEPENDENCY_MISSING: libodbc.so.2)'' then 21:27:53 ''nodeagent: synced installed-state SERVICE/sql from local package cache''. Resulting etcd record: status=installed, version=1.2.298, metadata={entrypoint_checksum, proof_source=local_package_cache} and NO installed_by. Of 19 SERVICE records on that node, 18 had installed_by+unit_file_sha256; only sql had neither. node.join had FAILED on 3 of 4 joiners while the cluster reported ''[cluster] Healthy (5 nodes heartbeating)''.'
