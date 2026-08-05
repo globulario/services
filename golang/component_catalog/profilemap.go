@@ -35,6 +35,38 @@ var ProfileInheritance = map[string][]string{
 	"media-server":  {"core"},
 }
 
+// NodeBaseline is the NODE_BASELINE placement class: packages required on
+// EVERY admitted cluster node, independent of which profiles it carries.
+//
+// Profiles describe the WORK a node performs (compute, storage, control-plane).
+// These three describe the node's ability to PARTICIPATE AT ALL:
+//
+//	xds     — receives its mesh configuration
+//	envoy   — the mesh data plane itself
+//	gateway — the node's HTTP routing surface
+//
+// Without them a node cannot resolve or reach cluster services, whatever work
+// it was assigned. The Day-1 join script has always known this — it installs
+// the three unconditionally with the comment "every node needs them regardless
+// of profile" — but the catalog only authorized them for control-plane/gateway.
+// The join was right and the authority was missing, so every compute node came
+// up permanently reporting placement.installed_package_orphaned for all three,
+// and a freshly built cluster was never catalog-consistent.
+//
+// Modelled as a class rather than by listing the trio under every profile: a
+// future profile (gpu, edge, ai-worker) would otherwise silently recreate the
+// same contradiction the moment someone forgot to repeat them. Universal
+// infrastructure should be universal BY CONSTRUCTION.
+//
+// This is deliberately NOT a general amnesty. It is a short, explicit list;
+// anything outside it is still orphaned when a node's profiles do not
+// authorize it.
+var NodeBaseline = []string{
+	"envoy",
+	"gateway",
+	"xds",
+}
+
 // ProfilePackages maps each profile to the set of package names that
 // belong to it. Generated from the controller's catalog (every Component
 // whose Profiles list contains the profile, regardless of Kind — services,
@@ -201,6 +233,7 @@ func ProfileNames() []string {
 // bootstrap should treat it as fatal; idle reconciliation should not).
 func PackagesForProfiles(profiles []string) []string {
 	seen := make(map[string]struct{})
+	resolved := false
 	for _, key := range NormalizeProfiles(profiles) {
 		if key == "" {
 			continue
@@ -209,7 +242,21 @@ func PackagesForProfiles(profiles []string) []string {
 		if !ok {
 			continue
 		}
+		resolved = true
 		for _, name := range pkgs {
+			seen[name] = struct{}{}
+		}
+	}
+	// NODE_BASELINE is unioned only for a node whose profiles actually resolved:
+	//   authorized(node) = node_baseline ∪ packages_for_assigned_profiles(node)
+	// The empty return for nil/unknown/whitespace profiles is a LOAD-BEARING
+	// signal ("no profile matched"), which Day-0 treats as fatal. Handing back
+	// the baseline in that case would silently convert "this node has no valid
+	// profiles" into "this node has three packages", destroying the distinction
+	// callers rely on. The baseline belongs to admitted nodes, and a node with
+	// no resolvable profile is not one.
+	if resolved {
+		for _, name := range NodeBaseline {
 			seen[name] = struct{}{}
 		}
 	}

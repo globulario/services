@@ -7570,3 +7570,14 @@ failure_modes:
           initial configuration. All three nodes UN/NORMAL with NRestarts=0, so the hazard is latent: a wiped
           restart of node-1 with self-only seeds would re-bootstrap an isolated ring. Surfaced by cluster-doctor
           scylla.config_valid (severity 1).'
+  - id: failure.globular.release_gate_ran_after_publish_so_a_rejected_bundle_shipped
+    title: Release gate ran after publish, so a rejected bundle shipped anyway
+    severity: high
+    description: 'build-local-release.sh copied the bundle into dist/ and only then ran check-glibc-floor.sh. When the gate failed it printed ''RELEASE REJECTED — the bundle is left in place for inspection but MUST NOT be published'' while the bundle was already in dist/, byte-identical in placement to a good release. Nothing downstream can tell the difference: the docker simulation consumed one on 2026-08-05. A gate that runs after the irreversible step is not a gate; it is a log line.'
+    protects:
+      files:
+        - scripts/build-local-release.sh
+    evidence:
+      - 1.2.296 build printed RELEASE REJECTED yet dist/globular-1.2.296-linux-amd64.tar.gz (766214631 bytes) existed
+      - publish at line 853, gate at line 885 in the pre-fix script
+    contract: a gate must precede the irreversible step it guards
