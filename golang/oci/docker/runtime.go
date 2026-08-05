@@ -45,16 +45,16 @@ func (r *Runtime) Capabilities(ctx context.Context) (oci.RuntimeCapabilities, er
 		Arch          string `json:"Arch"`
 	}
 	if err := json.NewDecoder(versionResp.Body).Decode(&version); err != nil {
-		versionResp.Body.Close()
+		closeQuietly(versionResp.Body)
 		return oci.RuntimeCapabilities{}, err
 	}
-	versionResp.Body.Close()
+	closeQuietly(versionResp.Body)
 
 	infoResp, err := r.client.Do(ctx, http.MethodGet, "/info", nil, nil)
 	if err != nil {
 		return oci.RuntimeCapabilities{}, err
 	}
-	defer infoResp.Body.Close()
+	defer closeQuietly(infoResp.Body)
 	var info struct {
 		Name            string                     `json:"Name"`
 		NCPU            int                        `json:"NCPU"`
@@ -117,7 +117,7 @@ func (r *Runtime) PullImage(ctx context.Context, ref string, creds oci.RegistryC
 	if err != nil {
 		return oci.ImageState{}, err
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	decoder := json.NewDecoder(resp.Body)
 	for {
 		var event struct {
@@ -137,7 +137,7 @@ func (r *Runtime) PullImage(ctx context.Context, ref string, creds oci.RegistryC
 			if message == "" {
 				message = event.ErrorDetail.Message
 			}
-			return oci.ImageState{}, fmt.Errorf("Docker image pull failed: %s", message)
+			return oci.ImageState{}, fmt.Errorf("docker image pull failed: %s", message)
 		}
 	}
 	return r.InspectImage(ctx, ref)
@@ -148,7 +148,7 @@ func (r *Runtime) InspectImage(ctx context.Context, ref string) (oci.ImageState,
 	if err != nil {
 		return oci.ImageState{}, err
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	var image struct {
 		ID          string   `json:"Id"`
 		RepoTags    []string `json:"RepoTags"`
@@ -168,7 +168,7 @@ func (r *Runtime) InspectContainer(ctx context.Context, idOrName string) (oci.Co
 	if err != nil {
 		return oci.ContainerState{}, err
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	return decodeContainer(resp.Body)
 }
 
@@ -178,7 +178,7 @@ func (r *Runtime) CreateContainer(ctx context.Context, spec oci.ContainerCreateS
 	if err != nil {
 		return oci.ContainerState{}, err
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	var created struct {
 		ID       string   `json:"Id"`
 		Warnings []string `json:"Warnings"`
@@ -187,7 +187,7 @@ func (r *Runtime) CreateContainer(ctx context.Context, spec oci.ContainerCreateS
 		return oci.ContainerState{}, err
 	}
 	if created.ID == "" {
-		return oci.ContainerState{}, fmt.Errorf("Docker create response omitted container ID")
+		return oci.ContainerState{}, fmt.Errorf("docker create response omitted container ID")
 	}
 	return r.InspectContainer(ctx, created.ID)
 }
@@ -195,7 +195,7 @@ func (r *Runtime) CreateContainer(ctx context.Context, spec oci.ContainerCreateS
 func (r *Runtime) StartContainer(ctx context.Context, id string) error {
 	resp, err := r.client.Do(ctx, http.MethodPost, "/containers/"+url.PathEscape(id)+"/start", nil, nil)
 	if resp != nil {
-		resp.Body.Close()
+		closeQuietly(resp.Body)
 	}
 	return err
 }
@@ -211,7 +211,7 @@ func (r *Runtime) StopContainer(ctx context.Context, id string, timeout time.Dur
 		return nil
 	}
 	if resp != nil {
-		resp.Body.Close()
+		closeQuietly(resp.Body)
 	}
 	return err
 }
@@ -222,7 +222,7 @@ func (r *Runtime) WaitContainer(ctx context.Context, id string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	var result struct {
 		StatusCode int `json:"StatusCode"`
 		Error      *struct {
@@ -233,7 +233,7 @@ func (r *Runtime) WaitContainer(ctx context.Context, id string) (int, error) {
 		return 0, err
 	}
 	if result.Error != nil && result.Error.Message != "" {
-		return result.StatusCode, fmt.Errorf("Docker wait: %s", result.Error.Message)
+		return result.StatusCode, fmt.Errorf("docker wait: %s", result.Error.Message)
 	}
 	return result.StatusCode, nil
 }
@@ -249,7 +249,7 @@ func (r *Runtime) StreamLogs(ctx context.Context, id string, stdout, stderr io.W
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	return demuxDockerStream(resp.Body, stdout, stderr)
 }
 
@@ -263,7 +263,7 @@ func (r *Runtime) RemoveContainer(ctx context.Context, id string, force, removeV
 		return nil
 	}
 	if resp != nil {
-		resp.Body.Close()
+		closeQuietly(resp.Body)
 	}
 	return err
 }
@@ -458,7 +458,7 @@ func demuxDockerStream(reader io.Reader, stdout, stderr io.Writer) error {
 			return err
 		}
 		size := binary.BigEndian.Uint32(header[4:8])
-		var out io.Writer = stdout
+		out := stdout
 		if header[0] == 2 {
 			out = stderr
 		}
