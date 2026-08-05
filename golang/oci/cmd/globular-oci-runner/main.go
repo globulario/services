@@ -40,15 +40,15 @@ type options struct {
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, "globular-oci-runner:", err)
+		_, _ = fmt.Fprintln(os.Stderr, "globular-oci-runner:", err)
 		os.Exit(1)
 	}
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
-		fmt.Fprint(stdout, usageText)
-		return nil
+		_, err := fmt.Fprint(stdout, usageText)
+		return err
 	}
 	command := args[0]
 	if command == "capabilities" {
@@ -131,7 +131,6 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-
 	return reconciler.Run(ctx, spec, stdout, stderr)
 }
 
