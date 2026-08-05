@@ -32,7 +32,7 @@ recommended layout is:
 globular-example-api-1.0.0-linux_amd64-1.tgz
 ├── package.json
 ├── specs/
-│   └── example-api_service.yaml
+│   └── example-api_service.example.yaml
 └── data/
     └── oci/
         └── packages/
@@ -181,7 +181,7 @@ From `docs/examples/oci/package`:
 
 ```bash
 globular pkg build \
-  --spec specs/example-api_service.yaml \
+  --spec specs/example-api_service.example.yaml \
   --root . \
   --version 1.0.0 \
   --build-number 1 \
