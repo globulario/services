@@ -16,6 +16,20 @@ import (
 	"github.com/globulario/services/golang/oci"
 )
 
+func mustEncode(t *testing.T, w io.Writer, value any) {
+	t.Helper()
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		t.Errorf("encode test response: %v", err)
+	}
+}
+
+func mustWriteString(t *testing.T, w io.Writer, value string) {
+	t.Helper()
+	if _, err := io.WriteString(w, value); err != nil {
+		t.Errorf("write test response: %v", err)
+	}
+}
+
 func TestRuntimePullAndCreateUseImmutableReferenceAndNoRestart(t *testing.T) {
 	const ref = "registry.example.com/team/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	var gotAuth string
@@ -23,22 +37,22 @@ func TestRuntimePullAndCreateUseImmutableReferenceAndNoRestart(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		switch {
 		case req.URL.Path == "/version":
-			json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.44", "Version": "26.1"})
+			mustEncode(t, w, map[string]any{"ApiVersion": "1.44", "Version": "26.1"})
 		case req.URL.Path == "/v1.44/images/create":
 			gotAuth = req.Header.Get("X-Registry-Auth")
 			if req.URL.Query().Get("fromImage") != ref {
 				t.Errorf("fromImage = %q", req.URL.Query().Get("fromImage"))
 			}
-			io.WriteString(w, "{\"status\":\"pulling\"}\n{\"status\":\"done\"}\n")
+			mustWriteString(t, w, "{\"status\":\"pulling\"}\n{\"status\":\"done\"}\n")
 		case strings.HasPrefix(req.URL.Path, "/v1.44/images/"):
-			json.NewEncoder(w).Encode(map[string]any{"Id": "sha256:image", "RepoDigests": []string{ref}})
+			mustEncode(t, w, map[string]any{"Id": "sha256:image", "RepoDigests": []string{ref}})
 		case req.URL.Path == "/v1.44/containers/create":
 			if err := json.NewDecoder(req.Body).Decode(&gotCreate); err != nil {
 				t.Fatal(err)
 			}
-			json.NewEncoder(w).Encode(map[string]any{"Id": "c1"})
+			mustEncode(t, w, map[string]any{"Id": "c1"})
 		case req.URL.Path == "/v1.44/containers/c1/json":
-			json.NewEncoder(w).Encode(map[string]any{
+			mustEncode(t, w, map[string]any{
 				"Id": "c1", "Name": "/globular-demo", "Image": "sha256:image",
 				"Config": map[string]any{"Image": ref, "Labels": map[string]string{"io.globular.managed": "true"}},
 				"State":  map[string]any{"Status": "created", "Running": false, "ExitCode": 0},
@@ -91,7 +105,7 @@ func TestRuntimePullAndCreateUseImmutableReferenceAndNoRestart(t *testing.T) {
 func TestInspectContainerNotFoundReturnsEmptyState(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/version" {
-			json.NewEncoder(w).Encode(map[string]string{"ApiVersion": "1.44"})
+			mustEncode(t, w, map[string]string{"ApiVersion": "1.44"})
 			return
 		}
 		http.Error(w, `{"message":"No such container"}`, http.StatusNotFound)
@@ -131,7 +145,7 @@ func TestStopUsesBoundedTimeout(t *testing.T) {
 	seen := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/version" {
-			json.NewEncoder(w).Encode(map[string]string{"ApiVersion": "1.44"})
+			mustEncode(t, w, map[string]string{"ApiVersion": "1.44"})
 			return
 		}
 		seen <- req.URL.Query().Get("t")
