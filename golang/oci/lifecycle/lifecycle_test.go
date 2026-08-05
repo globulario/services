@@ -179,7 +179,7 @@ func TestManagerRollsBackMaterializationWhenDaemonReloadFails(t *testing.T) {
 func validFiles(t *testing.T, service string) map[string]string {
 	t.Helper()
 	contract := PackageContract{APIVersion: PackageAPIVersionV1Alpha1, Kind: KindOCIServicePackage, ServiceName: service, Instance: "default", ServiceSpec: DefaultSpecPath(service)}
-	spec := oci.ServiceSpec{APIVersion: oci.APIVersionV1Alpha1, Kind: oci.KindOCIService, Metadata: oci.Metadata{Name: service, Instance: "default"}, Spec: oci.OCIServiceSpec{Image: oci.ImageSpec{Repository: "registry.example.com/team/demo", Digest: "sha256:" + strings.Repeat("a", 64)}, Mounts: []oci.Mount{{Source: "/var/lib/globular/oci/demo/cache", Target: "/models", CreateIfMissing: true}}}}
+	spec := oci.ServiceSpec{APIVersion: oci.APIVersionV1Alpha1, Kind: oci.KindOCIService, Metadata: oci.Metadata{Name: service, Instance: "default"}, Spec: oci.OCIServiceSpec{Image: oci.ImageSpec{Repository: "registry.example.com/team/demo", Digest: "sha256:" + strings.Repeat("a", 64)}}}
 	cb, _ := json.Marshal(contract)
 	sb, _ := json.Marshal(spec)
 	return map[string]string{ContractPath(service): string(cb), DefaultSpecPath(service): string(sb)}
