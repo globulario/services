@@ -1,0 +1,55 @@
+name: OCI runtime
+
+on:
+  pull_request:
+    paths:
+      - "golang/oci/**"
+      - "scripts/build-oci-runner.sh"
+      - "scripts/test-oci-runtime.sh"
+      - "docs/design/oci-backed-persistent-services.md"
+      - "docs/developers/oci-service-packaging.md"
+      - "docs/examples/oci/**"
+      - ".github/workflows/oci-runtime.yml"
+  push:
+    branches: [master]
+    paths:
+      - "golang/oci/**"
+      - "scripts/build-oci-runner.sh"
+      - "scripts/test-oci-runtime.sh"
+      - ".github/workflows/oci-runtime.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: golang/go.mod
+          cache-dependency-path: golang/go.sum
+      - name: Unit and race tests
+        working-directory: golang
+        run: go test -race ./oci/...
+      - name: Vet
+        working-directory: golang
+        run: go vet ./oci/...
+      - name: Build runner
+        run: scripts/build-oci-runner.sh
+      - name: Validate reference specification
+        run: dist/bin/globular-oci-runner validate --spec docs/examples/oci/minimal-service.example.json
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: golang/go.mod
+          cache-dependency-path: golang/go.sum
+      - name: End-to-end Docker reconciliation
+        run: scripts/test-oci-runtime.sh

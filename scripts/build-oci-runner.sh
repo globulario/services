@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT="${1:-${ROOT}/dist/bin/globular-oci-runner}"
+mkdir -p "$(dirname "${OUT}")"
+
+cd "${ROOT}/golang"
+go build -trimpath -o "${OUT}" ./oci/cmd/globular-oci-runner
+printf 'built %s\n' "${OUT}"
