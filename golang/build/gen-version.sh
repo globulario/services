@@ -60,7 +60,7 @@ GOLANG_ROOT="$(dirname "$SCRIPT_DIR")"
 # Load overrides if provided.
 # Accepts both formats:
 #   go_target=version  (authentication/authentication_server=1.2.43)
-#   pkgname=version    (authentication=1.2.43)  — matches when go_target starts with pkgname/
+#   pkgname=version    (authentication=1.2.43)  — matches the shipped target identity
 declare -A VERSION_OVERRIDES=()
 if [[ -n "$OVERRIDES_FILE" && -f "$OVERRIDES_FILE" ]]; then
   while IFS='=' read -r pkg_suffix pkg_version; do
@@ -89,12 +89,14 @@ OVERRIDDEN=0
 for pkg_dir in "${PKGS[@]}"; do
   # Determine version for this package.
   pkg_version="$VERSION"
-  # Check for override. Try two key formats:
+  # Check for override. Try three representations of one package identity:
   #   1. Full go_target path: authentication/authentication_server
-  #   2. Package name prefix: authentication (matches entries like "authentication=1.2.43")
+  #   2. Target leaf without _server: authentication
+  #   3. Hyphenated target leaf: cluster-controller or globular-oci-runner
   rel_path="${pkg_dir#$GOLANG_ROOT/}"
-  pkg_name="${rel_path%%/*}"                   # e.g. "authentication" from "authentication/authentication_server"
-  pkg_name_hyphen="${pkg_name//_/-}"           # underscore→hyphen: cluster_controller → cluster-controller
+  target_leaf="${rel_path##*/}"
+  pkg_name="${target_leaf%_server}"
+  pkg_name_hyphen="${pkg_name//_/-}"
   if [[ ${#VERSION_OVERRIDES[@]} -gt 0 ]]; then
     if [[ -n "${VERSION_OVERRIDES[$rel_path]+x}" ]]; then
       pkg_version="${VERSION_OVERRIDES[$rel_path]}"
