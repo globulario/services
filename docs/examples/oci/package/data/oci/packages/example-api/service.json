@@ -19,7 +19,6 @@
       "mode": "bridge",
       "ports": [
         {
-          "name": "http",
           "container_port": 8080,
           "host_port": 18080,
           "host_ip": "127.0.0.1",
