@@ -1,0 +1,86 @@
+{
+  "api_version": "globular.io/oci/v1alpha1",
+  "kind": "OCIService",
+  "metadata": {
+    "name": "example-api",
+    "instance": "default",
+    "labels": {
+      "app": "example-api"
+    }
+  },
+  "spec": {
+    "image": {
+      "repository": "registry.example.com/team/example-api",
+      "tag": "1.0.0",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pull_policy": "if-not-present"
+    },
+    "network": {
+      "mode": "bridge",
+      "ports": [
+        {
+          "name": "http",
+          "container_port": 8080,
+          "host_port": 18080,
+          "host_ip": "127.0.0.1",
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "resources": {
+      "memory_bytes": 268435456,
+      "nano_cpus": 1000000000
+    },
+    "security": {
+      "read_only_root_filesystem": true,
+      "no_new_privileges": true,
+      "drop_capabilities": [
+        "ALL"
+      ]
+    },
+    "health": {
+      "startup": {
+        "type": "http",
+        "address": "127.0.0.1",
+        "port": 18080,
+        "scheme": "http",
+        "path": "/health",
+        "expected_status_min": 200,
+        "expected_status_max": 299,
+        "interval_millis": 500,
+        "timeout_millis": 1000,
+        "failure_threshold": 60
+      },
+      "readiness": {
+        "type": "http",
+        "address": "127.0.0.1",
+        "port": 18080,
+        "scheme": "http",
+        "path": "/health",
+        "expected_status_min": 200,
+        "expected_status_max": 299,
+        "interval_millis": 1000,
+        "timeout_millis": 1000,
+        "failure_threshold": 3
+      },
+      "liveness": {
+        "type": "http",
+        "address": "127.0.0.1",
+        "port": 18080,
+        "scheme": "http",
+        "path": "/health",
+        "expected_status_min": 200,
+        "expected_status_max": 299,
+        "interval_millis": 5000,
+        "timeout_millis": 2000,
+        "failure_threshold": 3
+      }
+    },
+    "lifecycle": {
+      "stop_timeout_seconds": 30,
+      "remove_on_stop": false,
+      "remove_replaced": true,
+      "retain_failed_container": true
+    }
+  }
+}

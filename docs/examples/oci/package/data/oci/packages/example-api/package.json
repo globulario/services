@@ -1,0 +1,7 @@
+{
+  "api_version": "globular.io/oci/package/v1alpha1",
+  "kind": "OCIServicePackage",
+  "service_name": "example-api",
+  "instance": "default",
+  "service_spec": "data/oci/packages/example-api/service.json"
+}

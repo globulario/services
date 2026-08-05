@@ -24,6 +24,7 @@
 ./torrent/torrent_server | usr/local/bin/torrent_server
 ./cluster_controller/cluster_controller_server | usr/local/bin/cluster_controller_server
 ./node_agent/node_agent_server | usr/local/bin/node_agent_server
+./oci/cmd/globular-oci-runner | usr/local/bin/globular-oci-runner
 ./globularcli | usr/local/bin/globularcli
 ./cluster_doctor/cluster_doctor_server | usr/local/bin/cluster_doctor_server
 ./backup_manager/backup_manager_server | usr/local/bin/backup_manager_server
