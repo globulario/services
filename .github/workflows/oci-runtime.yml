@@ -21,6 +21,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # services/go.work references sibling repositories used in a full developer
+  # checkout. This lane is intentionally self-contained and exercises the module.
+  GOWORK: off
+
 jobs:
   unit:
     runs-on: ubuntu-latest
