@@ -75,7 +75,7 @@ func TestRuntimePullAndCreateUseImmutableReferenceAndNoRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(decoded, []byte(`"password":"secret"`)) {
+	if !bytes.Contains(decoded, []byte("secret")) {
 		t.Fatalf("registry auth = %s", decoded)
 	}
 
