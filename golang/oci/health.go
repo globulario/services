@@ -73,11 +73,11 @@ func CheckProbe(ctx context.Context, probe Probe) error {
 	}
 	scheme := defaultString(probe.Scheme, "http")
 	path := defaultString(probe.Path, "/")
-	tr := &http.Transport{
+	transport := &http.Transport{
 		DialContext:     (&net.Dialer{Timeout: timeout}).DialContext,
 		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 	}
-	client := &http.Client{Transport: tr}
+	client := &http.Client{Transport: transport}
 	req, err := http.NewRequestWithContext(probeCtx, http.MethodGet, scheme+"://"+endpoint+path, nil)
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func CheckProbe(ctx context.Context, probe Probe) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	min := probe.ExpectedStatusMin
 	max := probe.ExpectedStatusMax
 	if min == 0 {
