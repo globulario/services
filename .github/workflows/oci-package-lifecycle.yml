@@ -1,0 +1,54 @@
+name: OCI package lifecycle
+
+on:
+  pull_request:
+    paths:
+      - "golang/oci/**"
+      - "golang/node_agent/node_agent_server/internal/actions/actions.go"
+      - "golang/node_agent/node_agent_server/internal/actions/oci_service_action.go"
+      - "golang/node_agent/node_agent_server/internal/actions/oci_service_action_test.go"
+      - "docs/developers/oci-package-lifecycle.md"
+      - "docs/examples/oci/package/**"
+      - ".github/workflows/oci-package-lifecycle.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "golang/oci/**"
+      - "golang/node_agent/node_agent_server/internal/actions/actions.go"
+      - "golang/node_agent/node_agent_server/internal/actions/oci_service_action.go"
+      - "golang/node_agent/node_agent_server/internal/actions/oci_service_action_test.go"
+      - "docs/developers/oci-package-lifecycle.md"
+      - "docs/examples/oci/package/**"
+      - ".github/workflows/oci-package-lifecycle.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-24.04
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: golang/go.mod
+          cache-dependency-path: golang/go.sum
+      - name: Lifecycle unit and race tests
+        working-directory: golang
+        run: |
+          go test -race ./oci/lifecycle
+          go test -race ./node_agent/node_agent_server/internal/actions -run 'Test(Decorator|OCI|Native)'
+      - name: Static analysis
+        working-directory: golang
+        run: go vet ./oci/lifecycle ./node_agent/node_agent_server/internal/actions
+      - name: Validate reference JSON and package contract
+        working-directory: golang
+        run: |
+          go build -o /tmp/globular-oci-runner ./oci/cmd/globular-oci-runner
+          /tmp/globular-oci-runner validate \
+            --spec ../docs/examples/oci/package/data/oci/packages/example-api/service.json
+          python3 -m json.tool ../docs/examples/oci/package/data/oci/packages/example-api/package.json >/dev/null
+          python3 -m json.tool ../docs/examples/oci/package/data/oci/packages/example-api/service.json >/dev/null

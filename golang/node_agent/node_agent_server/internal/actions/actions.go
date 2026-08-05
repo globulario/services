@@ -5,20 +5,17 @@
 // @awareness risk=high
 package actions
 
-// actions.go — the registry every workflow-step action handler
-// registers into. Two non-negotiable handler properties:
+// actions.go — the registry every workflow-step action handler registers into.
+// Two non-negotiable handler properties:
 //
-//   1. Validate(args) MUST be pure (no side effects). It runs
-//      before Apply and is the only safe place to reject a
-//      malformed dispatch.
+//  1. Validate(args) MUST be pure (no side effects). It runs before Apply and
+//     is the only safe place to reject a malformed dispatch.
+//  2. Apply MUST be idempotent. The workflow service can replay a step after a
+//     transient failure; non-idempotent handlers turn replay into double execution.
 //
-//   2. Apply MUST be idempotent. The workflow service can
-//      replay a step after a transient failure; non-idempotent
-//      handlers turn replay into double-execution.
-//
-// Adding a handler that performs validation inside Apply by
-// returning an error after a side effect breaks the
-// "Validate-then-Apply" contract that every replay assumes.
+// Decorators extend an existing action without creating a second mutation
+// endpoint. This is how runtime-specific implementations remain behind the same
+// governed workflow action and preserve validate-before-apply semantics.
 
 import (
 	"context"
@@ -33,7 +30,14 @@ type Handler interface {
 	Apply(ctx context.Context, args *structpb.Struct) (string, error)
 }
 
-var registry = map[string]Handler{}
+// Decorator wraps an existing action. A decorator may inspect and refine the
+// action, but it must preserve the original action name and authority path.
+type Decorator func(Handler) Handler
+
+var (
+	registry   = map[string]Handler{}
+	decorators = map[string][]Decorator{}
+)
 
 func Register(handler Handler) {
 	if handler == nil {
@@ -43,7 +47,29 @@ func Register(handler Handler) {
 	if name == "" {
 		return
 	}
+	for _, decorate := range decorators[name] {
+		handler = decorate(handler)
+		if handler == nil {
+			return
+		}
+	}
 	registry[name] = handler
+}
+
+// Decorate is init-order independent. If the base action is already
+// registered, it is wrapped immediately. Otherwise, the decorator is retained
+// and applied when Register later receives the base handler.
+func Decorate(name string, decorate Decorator) {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" || decorate == nil {
+		return
+	}
+	decorators[name] = append(decorators[name], decorate)
+	if existing := registry[name]; existing != nil {
+		if wrapped := decorate(existing); wrapped != nil {
+			registry[name] = wrapped
+		}
+	}
 }
 
 func Get(name string) Handler {
