@@ -4202,3 +4202,12 @@ forbidden_fixes:
     scripts/validate-package-authority.py, never authored or trusted independently.
 
     '
+  - id: accept_artifact_identity_as_installation_proof
+    title: Accept a matching entrypoint checksum as proof that an install succeeded
+    summary: 'Treating ''the entrypoint binary is on disk and its checksum matches the manifest'' as sufficient to write status=installed. It looks like a strong proof — it is a cryptographic match against the published artifact — but it establishes ARTIFACT IDENTITY, not transaction completion. Every step that can fail an install (native-dependency validation, port allocation, config write, unit render, receipt stamp) happens AFTER the bytes are unpacked, so a failed install satisfies this check. Equally forbidden: strengthening the same inference with more identity evidence (build_id, package_sha256, unit-file presence). Unit presence in particular is NOT a substitute — on node-4 the unit file was rendered before the failing native-deps check. The only admissible proof is an owner receipt.'
+    protects:
+      files:
+        - golang/node_agent/node_agent_server/heartbeat.go
+    related_invariants:
+      - installed_state_requires_successful_owner_install_receipt
+    reason: 'Treating ''the entrypoint binary is on disk and its checksum matches the manifest'' as sufficient to write status=installed. It looks like a strong proof — it is a cryptographic match against the published artifact — but it establishes ARTIFACT IDENTITY, not transaction completion. Every step that can fail an install (native-dependency validation, port allocation, config write, unit render, receipt stamp) happens AFTER the bytes are unpacked, so a failed install satisfies this check. Equally forbidden: strengthening the same inference with more identity evidence (build_id, package_sha256, unit-file presence). Unit presence in particular is NOT a substitute — on node-4 the unit file was rendered before the failing native-deps check. The only admissible proof is an owner receipt.'

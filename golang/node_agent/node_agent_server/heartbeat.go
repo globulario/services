@@ -37,6 +37,7 @@ import (
 	"github.com/globulario/services/golang/digest"
 	"github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/installed_state"
+	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/installreceipt"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
@@ -1112,6 +1113,35 @@ func localCacheRecordSettled(status string, checksumMatches bool, existingBuildI
 	return status == "installed" && checksumMatches && identitySettled
 }
 
+// observerStatusForCachedArtifact returns the status an OBSERVER is entitled to
+// record for a package it discovered in the local package cache.
+//
+// The heartbeat can see that an artifact was unpacked and that its bytes match
+// the manifest. It cannot see whether the install transaction committed. Only
+// an owner receipt proves that, so without one the honest answer is
+// artifact_present — never "installed".
+func observerStatusForCachedArtifact(pkg *node_agentpb.InstalledPackage) string {
+	if installreceipt.HasOwnerReceipt(pkg) {
+		return "installed"
+	}
+	return installreceipt.StatusArtifactPresent
+}
+
+// observerRepairStatus returns the status an OBSERVER may leave on a record it
+// is repairing.
+//
+// Repair may fix identity metadata; it may not PROMOTE. With an owner receipt
+// the record is genuinely installed. Without one, whatever status the record
+// already carries — artifact_present, installed_unverified,
+// failed_binary_hash_mismatch — is evidence, and evidence is preserved rather
+// than overwritten with a claim the observer cannot substantiate.
+func observerRepairStatus(existing string, pkg *node_agentpb.InstalledPackage) string {
+	if installreceipt.HasOwnerReceipt(pkg) {
+		return "installed"
+	}
+	return existing
+}
+
 func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx context.Context, now int64, platform string) {
 	if srv.nodeID == "" {
 		return
@@ -1183,7 +1213,33 @@ func (srv *NodeAgentServer) repairInstalledStateFromLocalPackageCache(ctx contex
 				continue
 			}
 
-			pkg.Status = "installed"
+			// Without an owner receipt this path may no longer change the
+			// record's status (see below), so identity metadata is the only
+			// thing left for it to repair. When that is already settled there
+			// is nothing to do, and rewriting the same bytes — plus logging a
+			// "repaired" line — on every heartbeat tick would be pure churn.
+			// The status check in localCacheRecordSettled cannot cover this:
+			// these records are deliberately NOT "installed".
+			if !installreceipt.HasOwnerReceipt(pkg) &&
+				binhash.Equal(storedEntry, manifestEntry) &&
+				(pkg.GetBuildId() != "" || manifest.BuildID == "") {
+				continue
+			}
+
+			// An observer may repair identity metadata on a record, but it may
+			// NOT promote that record's status to "installed". Promotion is an
+			// authority claim — "the install transaction committed" — and the
+			// only evidence for that claim is an owner-produced receipt.
+			//
+			// This is a strict no-op for every record that is already
+			// "installed": it stays installed, and the identity repair below
+			// still runs. It bites only where this path would otherwise have
+			// CHANGED the status to installed — i.e. exactly the promotion the
+			// heartbeat is not entitled to make. A package left at
+			// artifact_present / installation_failed / installed_unverified
+			// keeps that status, keeps its failure evidence, and stays visible
+			// to convergence as work still to do.
+			pkg.Status = observerRepairStatus(pkg.GetStatus(), pkg)
 			// UpdatedUnix is deliberately NOT bumped here.
 			//
 			// This function only ever REPAIRS records that already exist (it
@@ -1287,9 +1343,14 @@ func (srv *NodeAgentServer) syncInstalledStateFromLocalPackageCache(ctx context.
 			Checksum:      proof.ManifestEntrypointChecksum,
 			InstalledUnix: now,
 			UpdatedUnix:   now,
-			Status:        "installed",
-			BuildNumber:   proof.BuildNumber,
-			BuildId:       proof.BuildID,
+			// Status is decided AFTER PreserveInstallReceiptMetadata below,
+			// because only the carried-over receipt can justify "installed".
+			// The heartbeat is an observer (infra.heartbeat_observer_only_not_
+			// authority); it records what it can see, and what it can see here
+			// is an artifact, not a committed installation.
+			Status:      installreceipt.StatusArtifactPresent,
+			BuildNumber: proof.BuildNumber,
+			BuildId:     proof.BuildID,
 		}
 		if stale != nil && stale.GetInstalledUnix() > 0 {
 			pkg.InstalledUnix = stale.GetInstalledUnix()
@@ -1303,12 +1364,26 @@ func (srv *NodeAgentServer) syncInstalledStateFromLocalPackageCache(ctx context.
 			pkg.Metadata["proof_binary_path"] = proof.EntrypointPath
 		}
 		PreserveInstallReceiptMetadata(stale, pkg)
+		// installed ⇔ a successful owner-produced installation receipt exists.
+		//
+		// A matching entrypoint checksum proves ARTIFACT IDENTITY, not that the
+		// install transaction committed: dependency validation, configuration,
+		// unit rendering and receipt stamping all happen AFTER the binary is
+		// unpacked, and any of them can fail. Promoting artifact presence to
+		// "installed" here is how node-4's failed sql install (libodbc.so.2
+		// missing) became an authoritative installed record four minutes after
+		// the installer logged FAILED.
+		//
+		// If a prior record carried a real receipt, Preserve just copied it and
+		// the package genuinely is installed — keep saying so. Otherwise record
+		// the honest observation and let convergence retry from it.
+		pkg.Status = observerStatusForCachedArtifact(pkg)
 		if err := installed_state.WriteInstalledPackage(ctx, pkg); err != nil {
 			log.Printf("nodeagent: sync installed-state from local package cache %s/%s: %v", proof.Kind, proof.Name, err)
 			continue
 		}
-		log.Printf("nodeagent: synced installed-state %s/%s from local package cache %s",
-			proof.Kind, proof.Name, filepath.Base(proof.ArtifactPath))
+		log.Printf("nodeagent: synced installed-state %s/%s from local package cache %s (status=%s)",
+			proof.Kind, proof.Name, filepath.Base(proof.ArtifactPath), pkg.Status)
 		if synced != nil {
 			*synced++
 		}

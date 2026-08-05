@@ -11595,3 +11595,14 @@ invariants:
       before editing docs/awareness/. The degraded-mode fallback documented in THIS FILE''s own header
       is therefore gated behind the very surface that is degraded: while the graph is stale, the repository
       cannot record that the graph is stale.'
+  - id: installed_state_requires_successful_owner_install_receipt
+    title: installed state requires a successful owner-produced install receipt
+    status: active
+    description: A package record may carry status=installed only when an installation OWNER completed the install transaction and stamped a receipt (installed_by, or the sanctioned legacy_sidecar migration marker). Artifact identity — an unpacked entrypoint binary whose checksum matches the manifest — proves only that bytes were unpacked. It does not prove native-dependency validation passed, configuration completed, the unit rendered, receipt stamping occurred, or that the transaction committed. Observers (the node-agent heartbeat local-package-cache paths) may RECORD what they see as artifact_present, and may repair identity metadata, but must never create or promote a record to installed. artifact_present / installation_failed / installation_incomplete / installed_unverified must stay distinguishable from installed so convergence can retry from the failed or incomplete state.
+    protects:
+      files:
+        - golang/node_agent/node_agent_server/heartbeat.go
+        - golang/node_agent/node_agent_server/internal/installreceipt/installreceipt.go
+    required_tests:
+      - golang/node_agent/node_agent_server/installed_state_owner_receipt_test.go:TestFailedInstallIsNeverPromotedToInstalledByObserver
+    contract: installed ⇔ a successful owner-produced installation receipt exists
