@@ -32,7 +32,7 @@ type HTTPError struct {
 }
 
 func (e *HTTPError) Error() string {
-	return fmt.Sprintf("Docker API returned HTTP %d: %s", e.StatusCode, e.Message)
+	return fmt.Sprintf("docker API returned HTTP %d: %s", e.StatusCode, e.Message)
 }
 
 func IsNotFound(err error) bool {
@@ -56,7 +56,7 @@ func NewClient(endpoint string) (*Client, error) {
 	case strings.HasPrefix(endpoint, "unix://"):
 		socket := filepath.Clean(strings.TrimPrefix(endpoint, "unix://"))
 		if !filepath.IsAbs(socket) {
-			return nil, fmt.Errorf("Docker socket path must be absolute: %q", socket)
+			return nil, fmt.Errorf("docker socket path must be absolute: %q", socket)
 		}
 		transport.Proxy = nil
 		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -81,7 +81,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 64))
 	if strings.TrimSpace(string(b)) != "OK" {
 		return fmt.Errorf("unexpected Docker ping response %q", strings.TrimSpace(string(b)))
@@ -99,15 +99,15 @@ func (c *Client) APIVersion(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	var v struct {
 		APIVersion string `json:"ApiVersion"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
-		return "", fmt.Errorf("decode Docker version: %w", err)
+		return "", fmt.Errorf("decode docker version: %w", err)
 	}
 	if strings.TrimSpace(v.APIVersion) == "" {
-		return "", fmt.Errorf("Docker version response omitted ApiVersion")
+		return "", fmt.Errorf("docker version response omitted ApiVersion")
 	}
 	c.apiVersion = strings.TrimPrefix(strings.TrimSpace(v.APIVersion), "v")
 	return c.apiVersion, nil
@@ -122,7 +122,7 @@ func (c *Client) request(ctx context.Context, method, path string, body any, hea
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return nil, fmt.Errorf("encode Docker request: %w", err)
+			return nil, fmt.Errorf("encode docker request: %w", err)
 		}
 		reader = bytes.NewReader(b)
 	}
@@ -145,12 +145,12 @@ func (c *Client) request(ctx context.Context, method, path string, body any, hea
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Docker API %s %s: %w", method, path, err)
+		return nil, fmt.Errorf("docker API %s %s: %w", method, path, err)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return resp, nil
 	}
-	defer resp.Body.Close()
+	defer closeQuietly(resp.Body)
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	message := strings.TrimSpace(string(b))
 	var payload struct {
@@ -160,6 +160,10 @@ func (c *Client) request(ctx context.Context, method, path string, body any, hea
 		message = payload.Message
 	}
 	return nil, &HTTPError{StatusCode: resp.StatusCode, Message: message}
+}
+
+func closeQuietly(closer io.Closer) {
+	_ = closer.Close()
 }
 
 func queryPath(path string, values url.Values) string {
