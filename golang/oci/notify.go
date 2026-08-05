@@ -22,7 +22,7 @@ func NotifySystemd(message string) error {
 	if err != nil {
 		return fmt.Errorf("dial systemd notify socket: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := conn.Write([]byte(message)); err != nil {
 		return fmt.Errorf("write systemd notify message: %w", err)
 	}
