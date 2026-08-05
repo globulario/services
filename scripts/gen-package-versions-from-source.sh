@@ -51,12 +51,17 @@ zz_version() {
   sed -n 's/^var Version = "\(.*\)"$/\1/p' "${file}" | head -1
 }
 
-# Registry package name from a golang/<dir> service directory name.
-pkg_name_for_dir() {
-  local dir="$1"
-  case "${dir}" in
+# Registry package name from a services.list Go target. Package identity follows
+# the target leaf, not necessarily the top-level source directory. This keeps
+# nested commands such as oci/cmd/globular-oci-runner aligned with the release
+# projection and the committed zz_version_generated.go authority.
+pkg_name_for_target() {
+  local rel="$1"
+  local leaf="${rel##*/}"
+  leaf="${leaf%_server}"
+  case "${leaf}" in
     globularcli) echo "globular-cli" ;;
-    *) echo "${dir//_/-}" ;;
+    *) echo "${leaf//_/-}" ;;
   esac
 }
 
@@ -82,8 +87,7 @@ while IFS='|' read -r target _; do
   target="${target%%#*}"; target="${target// /}"
   [[ -z "${target}" ]] && continue
   rel="${target#./}"                      # e.g. authentication/authentication_server, mcp
-  svc_dir="${rel%%/*}"                    # e.g. authentication, mcp
-  name="$(pkg_name_for_dir "${svc_dir}")"
+  name="$(pkg_name_for_target "${rel}")"
   zz="${GOLANG_ROOT}/${rel}/zz_version_generated.go"
   ver="$(zz_version "${zz}" || true)"
   [[ -n "${ver}" ]] || die "${name}: missing ${zz} — run golang/build/gen-version.sh and commit the result"
