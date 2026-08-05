@@ -71,17 +71,17 @@ func (s FileStateStore) Write(state ObservedState) error {
 		return fmt.Errorf("create OCI state temp file: %w", err)
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	if err := tmp.Chmod(0o640); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return err
 	}
 	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("write OCI observed state: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("sync OCI observed state: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
@@ -94,9 +94,12 @@ func (s FileStateStore) Write(state ObservedState) error {
 	if err != nil {
 		return fmt.Errorf("open OCI state directory for sync: %w", err)
 	}
-	defer d.Close()
 	if err := d.Sync(); err != nil {
+		_ = d.Close()
 		return fmt.Errorf("sync OCI state directory: %w", err)
+	}
+	if err := d.Close(); err != nil {
+		return fmt.Errorf("close OCI state directory: %w", err)
 	}
 	return nil
 }
