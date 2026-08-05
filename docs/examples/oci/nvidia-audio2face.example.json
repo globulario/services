@@ -1,0 +1,91 @@
+{
+  "api_version": "globular.io/oci/v1alpha1",
+  "kind": "OCIService",
+  "metadata": {
+    "name": "ace-audio2face"
+  },
+  "spec": {
+    "image": {
+      "repository": "nvcr.io/nim/nvidia/audio2face-3d",
+      "tag": "REPLACE_WITH_NGC_VERSION",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "pull_policy": "if-not-present",
+      "registry_auth": {
+        "server_address": "nvcr.io",
+        "username": "$oauthtoken",
+        "password_file": "/etc/globular/oci/secrets/ngc-api-key"
+      }
+    },
+    "mounts": [
+      {
+        "source": "/var/lib/globular/oci/ace-audio2face/models",
+        "target": "/tmp/a2x",
+        "create_if_missing": true
+      }
+    ],
+    "network": {
+      "mode": "host",
+      "ports": [
+        {
+          "container_port": 52000,
+          "host_port": 52000,
+          "protocol": "tcp"
+        },
+        {
+          "container_port": 8000,
+          "host_port": 8000,
+          "protocol": "tcp"
+        },
+        {
+          "container_port": 9464,
+          "host_port": 9464,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "resources": {
+      "memory_bytes": 12884901888,
+      "shm_bytes": 2147483648,
+      "gpu": {
+        "count": 1,
+        "driver": "nvidia"
+      }
+    },
+    "security": {
+      "no_new_privileges": true
+    },
+    "health": {
+      "startup": {
+        "type": "http",
+        "address": "127.0.0.1",
+        "port": 8000,
+        "path": "/v1/health/ready",
+        "interval_millis": 2000,
+        "timeout_millis": 2000,
+        "failure_threshold": 180
+      },
+      "readiness": {
+        "type": "http",
+        "address": "127.0.0.1",
+        "port": 8000,
+        "path": "/v1/health/ready",
+        "interval_millis": 1000,
+        "timeout_millis": 2000,
+        "failure_threshold": 30
+      },
+      "liveness": {
+        "type": "http",
+        "address": "127.0.0.1",
+        "port": 8000,
+        "path": "/v1/health/live",
+        "interval_millis": 10000,
+        "timeout_millis": 2000,
+        "failure_threshold": 3
+      }
+    },
+    "lifecycle": {
+      "stop_timeout_seconds": 45,
+      "retain_failed_container": true
+    }
+  }
+}

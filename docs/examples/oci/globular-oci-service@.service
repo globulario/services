@@ -1,0 +1,20 @@
+[Unit]
+Description=Globular OCI service %i
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStartPre=/usr/local/bin/globular-oci-runner validate --spec /etc/globular/oci/%i/service.json --policy /etc/globular/oci/policy.json
+ExecStart=/usr/local/bin/globular-oci-runner run --spec /etc/globular/oci/%i/service.json --policy /etc/globular/oci/policy.json
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/globular/oci /var/lib/globular/data /var/lib/globular/cache
+
+[Install]
+WantedBy=multi-user.target
