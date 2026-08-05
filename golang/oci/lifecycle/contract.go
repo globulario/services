@@ -186,7 +186,7 @@ func scanOCIArchive(artifactPath string) (map[string][]byte, string, bool, error
 		if !strings.HasPrefix(name, "data/oci/") || hdr.FileInfo().IsDir() {
 			continue
 		}
-		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+		if hdr.Typeflag != tar.TypeReg {
 			archiveProblem = fmt.Errorf("OCI package entry %q must be a regular file", name)
 			continue
 		}
