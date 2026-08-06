@@ -7570,3 +7570,41 @@ failure_modes:
           initial configuration. All three nodes UN/NORMAL with NRestarts=0, so the hazard is latent: a wiped
           restart of node-1 with self-only seeds would re-bootstrap an isolated ring. Surfaced by cluster-doctor
           scylla.config_valid (severity 1).'
+    - id: failure.globular.release_gate_ran_after_publish_so_a_rejected_bundle_shipped
+      title: Release gate ran after publish, so a rejected bundle shipped anyway
+      severity: high
+      description: 'build-local-release.sh copied the bundle into dist/ and only then ran check-glibc-floor.sh. When the gate failed it printed ''RELEASE REJECTED — the bundle is left in place for inspection but MUST NOT be published'' while the bundle was already in dist/, byte-identical in placement to a good release. Nothing downstream can tell the difference: the docker simulation consumed one on 2026-08-05. A gate that runs after the irreversible step is not a gate; it is a log line.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      evidence:
+        - 1.2.296 build printed RELEASE REJECTED yet dist/globular-1.2.296-linux-amd64.tar.gz (766214631 bytes) existed
+        - publish at line 853, gate at line 885 in the pre-fix script
+        - '1.2.297 build after the fix: gate printed "check-glibc-floor: OK — 50 binaries, all within GLIBC_2.35" BEFORE "=== Pack tarball ===" and "=== Publish to .../dist ==="'
+      required_tests:
+        - golang/config/build_release_gate_order_test.go:TestPlatformFloorGatePrecedesPublish
+      contract: a gate must precede the irreversible step it guards
+    - id: install.failed_transaction_promoted_to_installed_by_observer
+      title: A failed install transaction is promoted to installed by an observer
+      description: 'The node-agent heartbeat''s syncInstalledStateFromLocalPackageCache created an installed-state record with status=installed for a package whose install had already FAILED, because the unpacked entrypoint binary matched the manifest checksum. The install owner never reached its receipt stamp, so the record carried no installed_by. Symptom chain: the failure is silently absorbed (degraded_is_explicit_not_hidden), the cluster reports the package installed while its unit is inactive+disabled and cannot execute, convergence sees nothing to retry, and the only surviving signal is cluster-doctor''s fail-closed unit_receipt_drift rule. Detection asymmetry makes this dangerous: the record looks complete to every reader that does not check for a receipt.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/heartbeat.go
+      related_invariants:
+        - installed_state_requires_successful_owner_install_receipt
+      required_tests:
+        - golang/node_agent/node_agent_server/installed_state_owner_receipt_test.go:TestFailedInstallIsNeverPromotedToInstalledByObserver
+      evidence:
+        - '2026-08-05 node-4 (6400b443): 21:23:16 ''actor[node-agent]: FAILED sql (NATIVE_LIBRARY_DEPENDENCY_MISSING: libodbc.so.2)'' then 21:27:53 ''nodeagent: synced installed-state SERVICE/sql from local package cache''. Resulting etcd record: status=installed, version=1.2.298, metadata={entrypoint_checksum, proof_source=local_package_cache} and NO installed_by. Of 19 SERVICE records on that node, 18 had installed_by+unit_file_sha256; only sql had neither. node.join had FAILED on 3 of 4 joiners while the cluster reported ''[cluster] Healthy (5 nodes heartbeating)''.'
+    - id: release.changed_package_shipped_with_failing_suite
+      title: A changed package shipped into a distro with its suite already failing
+      description: 'Two commits landed with tests already failing in the package they changed, and one was built into a distro and deployed. The failures were superseded assertions rather than product regressions, but the process defect is independent of what the failures meant: the release path had no step that ran the suite of a package it had just changed, so nothing could distinguish a superseded assertion from a real regression. The same silence covers both.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      related_invariants:
+        - release.affected_package_suites_must_pass_before_publish
+      required_tests:
+        - golang/config/build_release_gate_order_test.go:TestAffectedTestGatePrecedesPublish
+      evidence:
+        - '2026-08-05: c98310b8 (NODE_BASELINE) left TestNodeJoinProfilePlacementSkipsUnauthorizedPackages failing in golang/component_catalog; the commit was built into distro 1.2.298 and deployed to a five-node docker cluster. a93a85b left TestJoinScript_TarballDownloadPrefersGateway failing in Globular internal/gateway/handlers/cluster after --progress-bar was added to the gateway fetch. Both were found only when an unrelated full-package run was executed days later.'
