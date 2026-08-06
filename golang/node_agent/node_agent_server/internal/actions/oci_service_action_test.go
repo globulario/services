@@ -32,6 +32,7 @@ func (f *fakeHandler) Apply(context.Context, *structpb.Struct) (string, error) {
 }
 
 func TestDecoratorIsRegistrationOrderIndependent(t *testing.T) {
+	swapActionRegistryForTest(t)
 	name := fmt.Sprintf("test.decorated.action.%d", decoratorTestID.Add(1))
 	Decorate(name, func(next Handler) Handler { return markerHandler{next: next, marker: "wrapped"} })
 	base := &fakeHandler{name: name}
@@ -73,6 +74,7 @@ func (h markerHandler) Apply(ctx context.Context, a *structpb.Struct) (string, e
 }
 
 func TestOCIServiceActionsInstallVerifyAndUninstall(t *testing.T) {
+	swapActionRegistryForTest(t)
 	root := t.TempDir()
 	oldBin, oldState, oldConfig, oldSystemd, oldSkip, oldReload, oldSocket := ActionBinDir, ActionStateDir, ActionConfigDir, ActionSystemdDir, ActionSkipSystemd, ActionSkipDaemonReload, ActionOCIDockerSocket
 	defer func() {
@@ -156,6 +158,7 @@ func TestOCIServiceActionsInstallVerifyAndUninstall(t *testing.T) {
 }
 
 func TestNativeServiceActionRemainsUnchanged(t *testing.T) {
+	swapActionRegistryForTest(t)
 	root := t.TempDir()
 	artifact := filepath.Join(root, "native.tgz")
 	writeActionArchive(t, artifact, map[string]string{"bin/demo": "native"})

@@ -606,6 +606,26 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	if ActionStagingRoot != "" {
 		stagingRoot = filepath.Join(ActionStagingRoot, service)
 	}
+	scriptsDir := filepath.Join(stagingRoot, "scripts")
+
+	// Admission gate: plan and validate the WHOLE archive before creating a
+	// directory or writing a byte. A package is admitted in full or rejected in
+	// full — extracting part of an archive and skipping the unsafe remainder
+	// would advance the version marker and restart the service against contents
+	// that no longer match the published artifact.
+	plan, violations, err := planArtifactExtraction(artifact, currentExtractionRoots(service, scriptsDir))
+	if err != nil {
+		return "", err
+	}
+	if len(violations) > 0 {
+		return "", fmt.Errorf("package archive rejected for %s (%d unsafe entries): %s",
+			service, len(violations), describeViolations(violations))
+	}
+	admitted := make(map[string]archiveEntryPlan, len(plan))
+	for _, entry := range plan {
+		admitted[entry.Name] = entry
+	}
+
 	if err := os.MkdirAll(stagingRoot, 0o755); err != nil {
 		return "", fmt.Errorf("create staging dir: %w", err)
 	}
@@ -624,8 +644,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 
-	binDir, systemdDir, configDir, skipSystemd := installPaths()
-	scriptsDir := filepath.Join(stagingRoot, "scripts")
+	binDir, _, _, skipSystemd := installPaths()
 	var wroteUnit bool
 
 	for {
@@ -639,19 +658,27 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		if hdr.FileInfo().IsDir() {
 			continue
 		}
-		name := strings.TrimLeft(hdr.Name, "./")
-		var dest string
-		switch {
-		case strings.HasPrefix(name, "bin/"):
-			dest = filepath.Join(binDir, filepath.Base(name))
-		case strings.HasPrefix(name, "systemd/"), strings.HasPrefix(name, "units/"):
+		// Destinations come from the admitted plan only. Nothing here recomputes
+		// an archive path into a host path — that mapping lives solely in
+		// archive_safety.go, so the validator and the extractor cannot drift.
+		name, nameErr := normalizeArchiveEntryName(hdr.Name)
+		if nameErr != nil {
+			// Unreachable: planArtifactExtraction already rejected the archive.
+			return "", fmt.Errorf("package archive rejected for %s: %s", service, nameErr.String())
+		}
+		entry, ok := admitted[name]
+		if !ok {
+			// Unsupported prefix — ignored exactly as before.
+			continue
+		}
+		if entry.Kind == "systemd" {
 			if skipSystemd {
 				continue
 			}
-			dest = filepath.Join(systemdDir, filepath.Base(name))
 			wroteUnit = true
-		case strings.HasPrefix(name, "config/"):
-			dest = filepath.Join(configDir, service, strings.TrimPrefix(name, "config/"))
+		}
+		dest := entry.Dest
+		if entry.Kind == "config" {
 			// Seed-only: config files from packages are defaults. If a live
 			// config already exists (rendered by controller, join script, or
 			// workflow), preserve it — package reinstall must never overwrite
@@ -660,25 +687,6 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 				log.Printf("install_payload: preserving existing config %s (seed-only)", dest)
 				continue
 			}
-		case strings.HasPrefix(name, "scripts/"):
-			dest = filepath.Join(scriptsDir, filepath.Base(name))
-		case strings.HasPrefix(name, "data/"):
-			// Data files are extracted to ActionStateDir preserving subdirectory structure.
-			// e.g. data/workflows/day0.bootstrap.yaml → /var/lib/globular/workflows/day0.bootstrap.yaml
-			rel := strings.TrimPrefix(name, "data/")
-			dest = filepath.Join(ActionStateDir, rel)
-		case strings.HasPrefix(name, "policy/"):
-			// Authorization policy files (permissions.generated.json, roles.generated.json)
-			// are installed under ActionPolicyDir/{service}/ so the runtime resolver
-			// can map gRPC method paths to stable action keys.
-			rel := strings.TrimPrefix(name, "policy/")
-			dest = filepath.Join(ActionPolicyDir, service, rel)
-		default:
-			// ignore unsupported paths
-			continue
-		}
-		if dest == "" {
-			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return "", fmt.Errorf("mkdir for %s: %w", dest, err)
@@ -703,7 +711,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 			return "", fmt.Errorf("close %s: %w", dest, err)
 		}
 		// Render template variables in systemd unit and config files.
-		if strings.HasPrefix(name, "systemd/") || strings.HasPrefix(name, "units/") || strings.HasPrefix(name, "config/") {
+		if entry.Kind == "systemd" || entry.Kind == "config" {
 			if err := renderTemplateVars(tmp, ActionStateDir, binDir); err != nil {
 				os.Remove(tmp)
 				return "", fmt.Errorf("render template %s: %w", dest, err)
@@ -715,7 +723,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		// before ExecStartPre runs, so a missing directory causes status=200/CHDIR.
 		// Normalize at install time so the unit is always safe regardless of
 		// package age.
-		if strings.HasPrefix(name, "systemd/") || strings.HasPrefix(name, "units/") {
+		if entry.Kind == "systemd" {
 			if err := normalizeUnitWorkingDirectory(tmp); err != nil {
 				os.Remove(tmp)
 				return "", fmt.Errorf("normalize unit %s: %w", dest, err)
