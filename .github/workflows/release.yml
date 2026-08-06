@@ -18,6 +18,10 @@ on:
         description: 'Reason for forced rebuild'
         type: string
         default: ''
+      audit_only:
+        description: 'Build and audit release artifacts without publishing'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -1134,6 +1138,7 @@ jobs:
       # subsequent platform release until its content actually changes.
       # ═══════════════════════════════════════════════════════════════════════
       - name: Generate release index (v2 BOM)
+        if: ${{ !inputs.audit_only }}
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
@@ -1295,6 +1300,7 @@ jobs:
       # platform release, regardless of whether they changed. Unchanged
       # packages keep their original filenames (no renaming to current ver).
       - name: Assemble release tarball
+        if: ${{ !inputs.audit_only }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           GIT_TAG: ${{ steps.version.outputs.tag }}
@@ -1494,6 +1500,7 @@ jobs:
           echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
 
       - name: Validate extracted release tarball
+        if: ${{ !inputs.audit_only }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -1556,6 +1563,7 @@ jobs:
       # Fail the release if unchanged packages are being uploaded.
       # ═══════════════════════════════════════════════════════════════════════
       - name: Verify BOM delta integrity
+        if: ${{ !inputs.audit_only }}
         run: |
           set -euo pipefail
 
@@ -1608,6 +1616,7 @@ jobs:
       # any repaired carry-forward artifacts that had to be re-authored for this
       # release. All other unchanged packages remain referenced from origin releases.
       - name: Create GitHub Release
+        if: ${{ !inputs.audit_only }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
@@ -1671,3 +1680,21 @@ jobs:
             - [Installation Guide](https://globular.io/docs/operators/installation)
             - [Architecture Overview](https://globular.io/docs/operators/architecture-overview)
             - [Adding Nodes](https://globular.io/docs/operators/adding-nodes)
+
+      # ── Audit-only terminus ─────────────────────────────────────────────
+      # Reached only when audit_only=true. Every step above this point is build,
+      # download or read-only inspection; every authoritative publication step
+      # (release-index generation, tarball assembly, BOM verification, GitHub
+      # Release creation and asset upload) is guarded off. This exists so the
+      # archive admission gate can be proven inside its real workflow without
+      # minting a platform release from an unmerged branch — release-index.json
+      # is platform truth, and a throwaway release would become the previous-BOM
+      # authority for the next real one.
+      - name: Audit-only terminus
+        if: ${{ inputs.audit_only }}
+        run: |
+          {
+            echo "AUDIT_ONLY_COMPLETE"
+            echo "publication_attempted: false"
+            echo "version_identity: ${{ steps.version.outputs.version }} (provisional, not minted)"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
