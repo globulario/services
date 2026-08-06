@@ -116,6 +116,20 @@ jobs:
         env:
           GLOBULAR_PACKAGES_DIR: ${{ github.workspace }}/packages
 
+      # Package archive extraction safety (hard gate). serviceInstallPayloadAction
+      # writes package payloads to the host as root; before the admission gate in
+      # internal/actions/archive_safety.go, a `data/../../etc/cron.d/x` entry
+      # resolved to /etc/cron.d/x and was written there.
+      #
+      # The WHOLE package runs, not a -run subset. Two separate blind spots let a
+      # regression through in 2026-08: the broad "Unit Tests" step above is
+      # continue-on-error, and the OCI workflow narrowed itself to
+      # -run 'Test(Decorator|OCI|Native)' — so a test that the change had broken
+      # was excluded from the only job that would have reported it. A filter here
+      # would reintroduce exactly that hole.
+      - name: Enforce package archive extraction safety (hard gate)
+        run: go test -count=1 -race ./node_agent/node_agent_server/internal/actions/...
+
       # Autonomous remediation closure (hard gate). The healer's repairs are now
       # real remediate.doctor.finding Workflow Service runs: one governance
       # decision, one executor call, strictly post-dispatch verification, one

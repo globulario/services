@@ -4202,3 +4202,9 @@ forbidden_fixes:
     scripts/validate-package-authority.py, never authored or trusted independently.
 
     '
+- id: forbidden_fix.skip_an_unsafe_archive_entry_and_continue_installing_the_res
+  title: Skip an unsafe archive entry and continue installing the rest of the package
+  summary: 'Do not add a skip-and-log or compatibility mode to package archive extraction, and do not validate entries one at a time while streaming. Both leave a package partially installed while the version marker advances and the service restarts, so the installed payload no longer matches the published artifact — package identity becomes unprovable and rollback evidence ambiguous. A package is admitted in full or rejected in full. Equally forbidden: normalizing entry names with strings.TrimLeft(name, "./"), whose cutset consumes the dots of a leading ../ and launders a traversal into an innocent relative path.'
+  related_invariants:
+    - invariant.package_archive_extraction_must_stay_within_node_owned_desti
+  reason: 'Do not add a skip-and-log or compatibility mode to package archive extraction, and do not validate entries one at a time while streaming. Both leave a package partially installed while the version marker advances and the service restarts, so the installed payload no longer matches the published artifact — package identity becomes unprovable and rollback evidence ambiguous. A package is admitted in full or rejected in full. Equally forbidden: normalizing entry names with strings.TrimLeft(name, "./"), whose cutset consumes the dots of a leading ../ and launders a traversal into an innocent relative path.'

@@ -7570,3 +7570,17 @@ failure_modes:
           initial configuration. All three nodes UN/NORMAL with NRestarts=0, so the hazard is latent: a wiped
           restart of node-1 with self-only seeds would re-bootstrap an isolated ring. Surfaced by cluster-doctor
           scylla.config_valid (severity 1).'
+    - id: failure.package_archive_entry_escaped_its_destination_root_and_was_w
+      title: Package archive entry escaped its destination root and was written as root
+      severity: critical
+      description: 'serviceInstallPayloadAction mapped config/, data/, policy/ and scripts/ entries onto their host roots with a bare strings.TrimPrefix and no containment check, so an entry named data/../../etc/cron.d/x resolved through filepath.Join to /etc/cron.d/x and was written there by the root-owned node agent. Name normalization made it worse: strings.TrimLeft(hdr.Name, "./") uses a CUTSET, so it consumed the dots of a leading ../ and laundered an obvious traversal into an innocent relative path. Extraction was also streaming, so an unsafe entry was only discovered after earlier entries had already landed on disk.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/internal/actions/artifact.go
+      related_invariants:
+        - invariant.package_archive_extraction_must_stay_within_node_owned_desti
+      required_tests:
+        - archive_safety_test.go:TestInstallPayloadRejectsTraversalOutsideEveryDestinationRoot
+      evidence:
+        - 'Confirmed by executing the real serviceInstallPayloadAction against an archive whose sole entry was data/../../../escaped.txt: the file was written outside the state root with contents PWNED.'
+        - 'Predates the OCI work: artifact.go is unchanged across 07941781..998451c6.'
