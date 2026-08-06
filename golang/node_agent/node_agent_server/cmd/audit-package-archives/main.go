@@ -22,9 +22,12 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,7 +37,9 @@ import (
 )
 
 type artifactReport struct {
+	Node       string                     `json:"node"`
 	Artifact   string                     `json:"artifact"`
+	SHA256     string                     `json:"sha256,omitempty"`
 	Package    string                     `json:"package"`
 	Version    string                     `json:"version"`
 	Error      string                     `json:"error,omitempty"`
@@ -44,6 +49,7 @@ type artifactReport struct {
 func main() {
 	asJSON := flag.Bool("json", false, "emit the report as JSON")
 	failOnFindings := flag.Bool("fail-on-findings", false, "exit non-zero when any artifact would be rejected")
+	node := flag.String("node", "", "node label for this report (default: hostname) — lets per-node reports be merged and deduplicated by digest")
 	flag.Parse()
 	if flag.NArg() == 0 {
 		fmt.Fprintln(os.Stderr, "usage: audit-package-archives [--json] [--fail-on-findings] <path-or-dir>...")
@@ -60,10 +66,24 @@ func main() {
 		os.Exit(2)
 	}
 
+	label := strings.TrimSpace(*node)
+	if label == "" {
+		if hostname, err := os.Hostname(); err == nil {
+			label = hostname
+		} else {
+			label = "unknown-node"
+		}
+	}
+
 	reports := make([]artifactReport, 0, len(artifacts))
 	for _, artifact := range artifacts {
 		pkg, version := packageIdentityFromFilename(artifact)
-		report := artifactReport{Artifact: artifact, Package: pkg, Version: version}
+		report := artifactReport{Node: label, Artifact: artifact, Package: pkg, Version: version}
+		if digest, err := sha256File(artifact); err == nil {
+			report.SHA256 = digest
+		} else {
+			report.Error = err.Error()
+		}
 		violations, err := actions.ValidateArtifactArchive(artifact, pkg)
 		if err != nil {
 			report.Error = err.Error()
@@ -146,10 +166,74 @@ func printText(reports []artifactReport) {
 			fmt.Printf("  %-28s %d\n", reason, byReason[reason])
 		}
 	}
+	printDigestSummary(reports)
+
 	if rejected == 0 && unreadable == 0 {
 		fmt.Printf("\nRESULT: clean — the fail-closed gate admits every scanned artifact.\n")
 	} else {
 		fmt.Printf("\nRESULT: %d artifact(s) must be repaired or republished before the gate is enabled.\n", rejected+unreadable)
+	}
+}
+
+// printDigestSummary collapses proof by archive content while keeping placement
+// visible. The same package copied to five nodes is ONE artifact inspected, not
+// five independent proofs — counting copies would overstate coverage. But two
+// DIFFERENT digests for one package+version is node drift, which is worth more
+// attention than either copy on its own.
+func printDigestSummary(reports []artifactReport) {
+	type placement struct{ node, path string }
+	byDigest := map[string][]placement{}
+	identityOf := map[string]string{}
+	digestsPerIdentity := map[string]map[string]struct{}{}
+	nodes := map[string]struct{}{}
+
+	for _, r := range reports {
+		if r.SHA256 == "" {
+			continue
+		}
+		byDigest[r.SHA256] = append(byDigest[r.SHA256], placement{r.Node, r.Artifact})
+		identity := r.Package + "@" + r.Version
+		identityOf[r.SHA256] = identity
+		if digestsPerIdentity[identity] == nil {
+			digestsPerIdentity[identity] = map[string]struct{}{}
+		}
+		digestsPerIdentity[identity][r.SHA256] = struct{}{}
+		nodes[r.Node] = struct{}{}
+	}
+	if len(byDigest) == 0 {
+		return
+	}
+
+	copies := 0
+	for _, places := range byDigest {
+		copies += len(places)
+	}
+	fmt.Printf("unique archives   : %d   (from %d cop(ies) across %d node(s))\n",
+		len(byDigest), copies, len(nodes))
+
+	// Drift: one package identity carrying more than one distinct digest.
+	var drifted []string
+	for identity, digests := range digestsPerIdentity {
+		if len(digests) > 1 {
+			drifted = append(drifted, identity)
+		}
+	}
+	if len(drifted) == 0 {
+		return
+	}
+	sort.Strings(drifted)
+	fmt.Printf("\nDIGEST DRIFT — one package identity with more than one archive content:\n")
+	for _, identity := range drifted {
+		fmt.Printf("  %s\n", identity)
+		for digest, places := range byDigest {
+			if identityOf[digest] != identity {
+				continue
+			}
+			sort.Slice(places, func(i, j int) bool { return places[i].node < places[j].node })
+			for _, p := range places {
+				fmt.Printf("    %s  %s:%s\n", digest[:16], p.node, p.path)
+			}
+		}
 	}
 }
 
@@ -182,16 +266,39 @@ func collectArtifacts(paths []string) ([]string, error) {
 }
 
 // packageIdentityFromFilename parses the conventional artifact filename
-// <name>_<version>_<platform>.tgz. Versions may themselves contain underscores
-// (minio's RELEASE.2025-09-07T16-13-09Z form does not, but scylla builds have),
-// so the name is taken as everything before the FIRST underscore and the
-// version as everything between the first and last.
+// <name>_<version>_<os>_<arch>.tgz.
+//
+// The platform is TWO underscore-separated fields (linux_amd64), so the version
+// is everything between the first underscore and the last two — taking
+// everything up to the final underscore would report "255.4_linux" for
+// libnss-resolve_255.4_linux_amd64.tgz. Versions may themselves contain
+// underscores, so the middle is rejoined rather than assumed to be one field.
 func packageIdentityFromFilename(artifact string) (pkg, version string) {
 	base := strings.TrimSuffix(filepath.Base(artifact), ".tgz")
-	first := strings.Index(base, "_")
-	last := strings.LastIndex(base, "_")
-	if first < 0 || last <= first {
+	parts := strings.Split(base, "_")
+	switch {
+	case len(parts) >= 4:
+		return parts[0], strings.Join(parts[1:len(parts)-2], "_")
+	case len(parts) >= 2:
+		return parts[0], strings.Join(parts[1:], "_")
+	default:
 		return base, ""
 	}
-	return base[:first], base[first+1 : last]
+}
+
+// sha256File is the archive identity used to deduplicate proof across nodes.
+// The same package copied to five nodes is one artifact to inspect, not five
+// independent proofs — but the per-node paths are retained so placement drift
+// stays visible.
+func sha256File(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

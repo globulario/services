@@ -1054,6 +1054,57 @@ jobs:
               sys.exit(1)
           PYEOF
 
+      # ── Package archive admission audit (hard gate) ──────────────────────
+      #
+      # Every artifact this release will put on a node is scanned with the
+      # node-agent's own admission gate (actions.ValidateArtifactArchive, the
+      # same planner serviceInstallPayloadAction extracts through) before the
+      # release is published. Extraction is fail-closed: an artifact that trips
+      # the gate will fail to install on every node, so it must be caught here
+      # rather than during a rollout.
+      #
+      # BOTH corpora are scanned. dist/packages holds freshly built and repaired
+      # packages; dist/unchanged holds carry-forward artifacts from earlier
+      # releases — which is precisely where historical packaging debris would
+      # live, so exempting it would audit only the packages least likely to be
+      # a problem.
+      #
+      # The JSON report is retained as release evidence. A zero-finding result
+      # is meaningful because every rejection class has a negative-control test
+      # proving the validator detects and reports it (see archive_safety_test.go);
+      # a scanner whose rules cannot fire reports zero exactly like a clean
+      # corpus.
+      - name: Audit package archives against the node-agent admission gate (hard gate)
+        run: |
+          set -euo pipefail
+          ( cd services/golang && go build -o "${RUNNER_TEMP}/audit-package-archives" \
+              ./node_agent/node_agent_server/cmd/audit-package-archives )
+
+          targets=()
+          for dir in dist/packages dist/unchanged; do
+            if compgen -G "${dir}/*.tgz" > /dev/null 2>&1; then
+              targets+=("${dir}")
+            fi
+          done
+          if [[ ${#targets[@]} -eq 0 ]]; then
+            echo "FAIL: no package artifacts found to audit in dist/packages or dist/unchanged" >&2
+            echo "A release that ships no auditable package artifact is not a release we can prove." >&2
+            exit 1
+          fi
+          echo "auditing: ${targets[*]}"
+
+          "${RUNNER_TEMP}/audit-package-archives" --json "${targets[@]}" \
+            > dist/package-archive-audit.json
+          "${RUNNER_TEMP}/audit-package-archives" --fail-on-findings "${targets[@]}"
+
+      - name: Upload package archive audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-archive-audit
+          path: dist/package-archive-audit.json
+          if-no-files-found: warn
+
       # ── Clean intermediate build artifacts to reclaim disk space ─────────
       - name: Clean build artifacts
         run: |
