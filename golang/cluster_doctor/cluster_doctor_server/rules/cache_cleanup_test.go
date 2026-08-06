@@ -40,11 +40,9 @@ func TestPolicy_ArtifactCacheDigestMismatch_IsHealAuto(t *testing.T) {
 }
 
 // TestHealer_CacheDigestMismatch_DispatchesThroughExecuteRemediation
-// confirms the M3 wiring: a cache_digest_mismatch finding produces
+// confirms the M3 wiring: a conclusive cache_digest_mismatch failure produces
 // exactly one Dispatch call (which in production routes through
-// ExecuteRemediation), with dryRun forwarded and the canonical AutoAction
-// name. The Dispatcher fake records the call; the gatedDispatcher →
-// ExecuteRemediation hop is covered by tests in the server package.
+// ExecuteRemediation), with dryRun forwarded and the canonical AutoAction name.
 func TestHealer_CacheDigestMismatch_DispatchesThroughExecuteRemediation(t *testing.T) {
 	dispatcher := &recordingDispatcher{}
 	healer := &Healer{
@@ -53,9 +51,10 @@ func TestHealer_CacheDigestMismatch_DispatchesThroughExecuteRemediation(t *testi
 	}
 	findings := []Finding{
 		{
-			FindingID:   "f-cache-1",
-			InvariantID: "artifact.cache_digest_mismatch",
-			EntityRef:   "node-uuid/event",
+			FindingID:       "f-cache-1",
+			InvariantID:     "artifact.cache_digest_mismatch",
+			EntityRef:       "node-uuid/event",
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		},
 	}
 	healer.Evaluate(context.Background(), findings)
@@ -77,19 +76,14 @@ func TestHealer_CacheDigestMismatch_DispatchesThroughExecuteRemediation(t *testi
 }
 
 // TestDeleteCacheArtifact_UsesNodeAgentTypedRPC verifies the rule emits a
-// structured DELETE_CACHE_ARTIFACT action — not FILE_DELETE — when
-// reporting a cache_digest_mismatch finding. This is the load-bearing
-// shape that lets the gated executor route through the typed
-// node_agent.DeleteCacheArtifact RPC instead of a generic file-delete
-// path (which doesn't exist on the node-agent and was explicitly NOT
-// added in M3 to keep the mutation surface narrow).
+// structured DELETE_CACHE_ARTIFACT action, not FILE_DELETE, when reporting a
+// cache_digest_mismatch finding.
 func TestDeleteCacheArtifact_UsesNodeAgentTypedRPC(t *testing.T) {
 	steps := remediationFor("artifact.cache_digest_mismatch",
 		"node-uuid", "event", "SERVICE")
 	if len(steps) == 0 {
 		t.Fatalf("expected remediation steps for cache_digest_mismatch; got 0")
 	}
-	// Find the first step with a structured action.
 	var action *cluster_doctorpb.RemediationAction
 	for _, st := range steps {
 		if a := st.GetAction(); a != nil {
@@ -120,7 +114,6 @@ func TestDeleteCacheArtifact_UsesNodeAgentTypedRPC(t *testing.T) {
 	if params["publisher_id"] == "" {
 		t.Fatalf("params[publisher_id] must be set (cache root is publisher-scoped)")
 	}
-	// Defensive: must not include a `path` param — path is owned by node-agent.
 	if _, has := params["path"]; has {
 		t.Fatalf("params must NOT include `path` — node-agent owns path construction; got params=%+v", params)
 	}

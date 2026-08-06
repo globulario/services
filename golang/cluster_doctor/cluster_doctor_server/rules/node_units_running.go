@@ -115,7 +115,11 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 				Summary: fmt.Sprintf("Unit %s on node %s is %s (expected active)",
 					u.GetName(), nodeID, state),
 				Evidence: []*cluster_doctorpb.Evidence{
-					kvEvidence("node_agent", "GetInventory", map[string]string{
+					// Preserve the collector's instance-qualified source identity.
+					// Snapshot.HadError treats node_agent@<node> queries exactly,
+					// so another node's GetInventory failure cannot downgrade this
+					// target node's conclusive observation.
+					kvEvidence("node_agent@"+nodeID, "GetInventory", map[string]string{
 						"node_id":          nodeID,
 						"unit_name":        u.GetName(),
 						"raw_state":        u.GetState(),
