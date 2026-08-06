@@ -7596,3 +7596,15 @@ failure_modes:
         - golang/node_agent/node_agent_server/installed_state_owner_receipt_test.go:TestFailedInstallIsNeverPromotedToInstalledByObserver
       evidence:
         - '2026-08-05 node-4 (6400b443): 21:23:16 ''actor[node-agent]: FAILED sql (NATIVE_LIBRARY_DEPENDENCY_MISSING: libodbc.so.2)'' then 21:27:53 ''nodeagent: synced installed-state SERVICE/sql from local package cache''. Resulting etcd record: status=installed, version=1.2.298, metadata={entrypoint_checksum, proof_source=local_package_cache} and NO installed_by. Of 19 SERVICE records on that node, 18 had installed_by+unit_file_sha256; only sql had neither. node.join had FAILED on 3 of 4 joiners while the cluster reported ''[cluster] Healthy (5 nodes heartbeating)''.'
+    - id: release.changed_package_shipped_with_failing_suite
+      title: A changed package shipped into a distro with its suite already failing
+      description: 'Two commits landed with tests already failing in the package they changed, and one was built into a distro and deployed. The failures were superseded assertions rather than product regressions, but the process defect is independent of what the failures meant: the release path had no step that ran the suite of a package it had just changed, so nothing could distinguish a superseded assertion from a real regression. The same silence covers both.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      related_invariants:
+        - release.affected_package_suites_must_pass_before_publish
+      required_tests:
+        - golang/config/build_release_gate_order_test.go:TestAffectedTestGatePrecedesPublish
+      evidence:
+        - '2026-08-05: c98310b8 (NODE_BASELINE) left TestNodeJoinProfilePlacementSkipsUnauthorizedPackages failing in golang/component_catalog; the commit was built into distro 1.2.298 and deployed to a five-node docker cluster. a93a85b left TestJoinScript_TarballDownloadPrefersGateway failing in Globular internal/gateway/handlers/cluster after --progress-bar was added to the gateway fetch. Both were found only when an unrelated full-package run was executed days later.'
