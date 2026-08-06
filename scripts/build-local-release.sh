@@ -965,6 +965,32 @@ if ! "$GLIBC_CHECK" "$DIST_DIR"; then
   exit 1
 fi
 
+# ── Affected-package test gate ────────────────────────────────────────────────
+# Runs the suites of every Go package touched by the working tree before the
+# bundle is packed. Like the platform-floor gate above, it MUST stay ahead of
+# "Pack tarball": a gate after the irreversible step is not a gate.
+#
+# This exists because on 2026-08-05 two commits landed with tests already
+# failing in the package they changed, and c98310b8 was built into distro
+# 1.2.298 and deployed to a five-node cluster. Neither failure was a product
+# regression — both were assertions superseded by a deliberate decision — but
+# nothing between "changed package" and "released artifact" ever ran the suite
+# that would have said so.
+#
+# The gate prints a census (changed files / packages resolved / suites executed
+# / passed / failed) so "affected tests passed" can never be ambiguous between
+# "the suites ran green" and "no suites ran at all". A missing checker is a hard
+# error, never a skip — same reasoning as the floor gate.
+echo ""
+echo "── Verifying affected-package tests ──"
+if ! ( cd "$SERVICES_ROOT/golang" && go run ./cmd/affectedtests -root "$SERVICES_ROOT" ); then
+  echo ""
+  echo "  ✗ RELEASE REJECTED — affected-package tests did not pass." >&2
+  echo "    Nothing was published; the staged bundle is left at $DIST_DIR" >&2
+  echo "    for inspection." >&2
+  exit 1
+fi
+
 step "Pack tarball"
 rm -f "$OUT_TGZ" "${OUT_TGZ}.sha256"
 tar -C /tmp -czf "$OUT_TGZ" "globular-${VERSION}-linux-amd64/"
