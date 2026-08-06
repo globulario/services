@@ -11595,3 +11595,16 @@ invariants:
       before editing docs/awareness/. The degraded-mode fallback documented in THIS FILE''s own header
       is therefore gated behind the very surface that is degraded: while the graph is stale, the repository
       cannot record that the graph is stale.'
+- id: invariant.package_archive_extraction_must_stay_within_node_owned_desti
+  title: Package archive extraction must stay within node-owned destination roots
+  severity: critical
+  status: active
+  description: serviceInstallPayloadAction runs as root. bin/ and systemd/ collapse to filepath.Base and are contained by construction, but config/, data/, policy/ and scripts/ map an archive-relative suffix onto a host root. That mapping must be performed in exactly one place, checked for containment after filepath.Clean, and validated for the entire archive before the first directory is created — a partially extracted package no longer matches its published artifact, so its identity is unprovable and rollback evidence is ambiguous.
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/internal/actions/archive_safety.go
+      - golang/node_agent/node_agent_server/internal/actions/artifact.go
+  required_tests:
+    - archive_safety_test.go:TestInstallPayloadRejectsTraversalOutsideEveryDestinationRoot
+    - archive_safety_test.go:TestInstallPayloadWritesNothingWhenALaterEntryIsUnsafe
+  contract: The node agent, not the archive, chooses every host path. A package payload entry may only be written inside the destination root its archive prefix maps to, and the whole archive must be admitted before any byte is written.
